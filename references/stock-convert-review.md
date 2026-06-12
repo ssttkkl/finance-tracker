@@ -12,7 +12,7 @@
 ## 检查清单
 
 ### 1. Action 映射
-每条记录的 action 字段必须在 {BUY, SELL, DEPOSIT, WITHDRAW, DIVIDEND, INIT, CHECKIN} 中。
+每条记录的 action 字段必须在 {BUY, SELL, DEPOSIT, WITHDRAW, DIVIDEND, CHECKIN} 中。
 检查是否有未映射的原始中文action（如"红利入账""红股入账"等应已被正确映射）。
 
 ### 2. Ticker 后缀
@@ -30,8 +30,8 @@
 - shares=0, price=0
 - amount = 现金分红金额（正数）
 
-### 5. INIT（红股入账/送股）
-- shares=送股数量, price=0
+### 5. CHECKIN（红股入账/送股）
+- ticker=股票代码, shares=送股数量, price=0
 - amount=0
 
 ### 6. DEPOSIT（银行转证券/银证转账入金）
@@ -42,8 +42,8 @@
 - shares=0, price=0
 - amount=出金金额（负数，含股息扣税）
 
-### 8. CHECKIN
-- 只有一条，位于 CSV 末尾
+### 8. CHECKIN（资金余额初始化）
+- 只有一条无 ticker 的 CHECKIN，位于 CSV 末尾
 - amount=当前资金余额（正数）
 - shares=0, price=0, ticker=空
 
@@ -57,7 +57,7 @@
 - 多个字段空格分隔
 
 ### 11. 总条数核对
-- BUY 条数 + SELL 条数 + DIVIDEND 条数 + INIT 条数 + DEPOSIT 条数 + WITHDRAW 条数 + 1(CHECKIN) = 总条数
+- BUY + SELL + DIVIDEND + DEPOSIT + WITHDRAW + CHECKIN(有ticker) + 1(CHECKIN无ticker) = 总条数
 - 与 PDF 对账单中的资金流水明细交易数量一致
 
 ### 12. 持仓校验（可选：导入后运行）
