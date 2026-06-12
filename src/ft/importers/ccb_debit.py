@@ -19,23 +19,39 @@ def _extract_ccb_counterparty(location: str) -> str | None:
     if not location or location == "***":
         return None
 
+    # 去掉"消费-"前缀（新格式银行流水常在商户名前加此标记）
+    stripped_loc = location
+    if stripped_loc.startswith("消费-"):
+        stripped_loc = stripped_loc[3:]
+
     # 支付源前缀映射（按长度降序匹配）
     PAYMENT_PREFIXES = [
-        ("财付通-", ["微信支付-", "微信转账"]),
-        ("支付宝-", ["淘宝-", "支付宝外部商户-", "支付宝-转账-"]),
-        ("美团支付-", []),
+        ("财付通-", ["微信支付-", "微信转账", "消费-"]),
+        ("支付宝-", ["淘宝-", "支付宝外部商户-", "支付宝-转账-", "支付宝-", "消费-"]),
+        ("美团支付-", ["消费-"]),
     ]
 
     for prefix, subs in PAYMENT_PREFIXES:
-        if location.startswith(prefix):
-            rest = location[len(prefix):]
-            for sub in subs:
-                if rest.startswith(sub):
-                    rest = rest[len(sub):]
+        if stripped_loc.startswith(prefix):
+            rest = stripped_loc[len(prefix):]
+            # 连续剥掉所有匹配的子前缀（如"支付宝-消费-"先后剥掉）
+            while True:
+                matched = False
+                for sub in subs:
+                    if rest.startswith(sub):
+                        rest = rest[len(sub):]
+                        matched = True
+                        break
+                if not matched:
                     break
             return rest
 
-    return location
+    # 证券转账：剥离账号和内部代码（如"银行转证券8888086011314150转入086"→"银行转证券"）
+    sec_m = re.match(r"^(银行转证券|证券转银行|银转证|证转银)\d+\S*$", stripped_loc)
+    if sec_m:
+        return sec_m.group(1)
+
+    return stripped_loc
 
 
 def _infer_ccb_payment_source(location: str, card_last4: str = "") -> str:
