@@ -18,7 +18,7 @@ CSV_FIELDS = [
     "commission", "currency", "account_name", "note",
 ]
 
-VALID_ACTIONS = {"BUY", "SELL", "DEPOSIT", "WITHDRAW", "DIVIDEND", "CHECKIN", "INIT"}
+VALID_ACTIONS = {"BUY", "SELL", "DEPOSIT", "WITHDRAW", "DIVIDEND", "CHECKIN"}
 
 
 # ── Snapshot helpers ────────────────────────────────────────────────────
@@ -715,9 +715,12 @@ def _replay_security_csv(records_dir=None):
                 except (ValueError, KeyError):
                     continue
 
-                if act == "INIT":
-                    positions[(a, t)]["shares"] = s
-                    positions[(a, t)]["total_cost"] = round(s * p, 2)
+                if act in ("CHECKIN", "INIT"):
+                    if t:
+                        positions[(a, t)]["shares"] = s
+                        positions[(a, t)]["total_cost"] = round(s * p, 2)
+                    else:
+                        cash[a] = amt
                 elif act == "BUY":
                     h = positions[(a, t)]
                     old_s = h["shares"]
@@ -741,12 +744,6 @@ def _replay_security_csv(records_dir=None):
                         else:
                             h["total_cost"] = 0.0
                     cash[a] = round(cash[a] + amt - com, 2)
-                elif act == "CHECKIN":
-                    if t:
-                        positions[(a, t)]["shares"] = s
-                        positions[(a, t)]["total_cost"] = round(s * p, 2)
-                    else:
-                        cash[a] = amt
                 elif act in ("DEPOSIT", "DIVIDEND"):
                     cash[a] = round(cash[a] + amt, 2)
                 elif act == "WITHDRAW":
