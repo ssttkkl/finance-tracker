@@ -1,0 +1,101 @@
+"""账户增删改查 — YAML backend"""
+from .accounts import (
+    load_accounts, save_accounts, find_account, add_account as _add_account,
+)
+from .models import ACCOUNT_TYPES, ACCOUNT_LABELS, CURRENCY_SYMBOLS
+
+
+def _compute_balance(account_name: str, currency: str) -> float:
+    """Compute balance from snapshot."""
+    from .snapshot import load_snapshot
+    snap = load_snapshot()
+
+    # Check cash/loan/lend first
+    for typ in ("cash", "loan", "lend"):
+        if account_name in snap.get("accounts", {}).get(typ, {}):
+            return snap["accounts"][typ][account_name] or 0.0
+
+    # Check security (positions + cash = total value)
+    sec = snap.get("accounts", {}).get("security", {}).get(account_name)
+    if sec:
+        total = sec.get("cash", 0.0)
+        for tkr, pos in sec.get("positions", {}).items():
+            total += pos["shares"] * pos["avg_cost"]
+        return round(total, 2)
+
+    return 0.0
+
+
+def acct_add(name: str, type_: str, currency: str):
+    """新增账户"""
+    _add_account(name.strip(), type_, currency)
+    label = ACCOUNT_LABELS.get(type_, type_)
+    sym = CURRENCY_SYMBOLS.get(currency, "")
+    print(f"✅ 已添加账户: {name} ({label} · {sym}{currency})")
+
+
+def acct_list():
+    """列出所有账户及当前余额"""
+    accounts = load_accounts()
+    if not accounts:
+        print("  📭 暂无账户，请使用 ft acct add 创建")
+        return
+
+    print(f"  {'账户名':<20} {'类型':<8} {'币种':<6} {'余额':>12} {'活跃'}")
+    print("  " + "-" * 62)
+    for a in accounts:
+        label = ACCOUNT_LABELS.get(a["type"], a["type"])
+        sym = CURRENCY_SYMBOLS.get(a["currency"], "")
+        bal = _compute_balance(a["name"], a["currency"])
+        bal_str = f"{sym}{bal:>+.2f}" if bal != 0 else f"{sym}0.00"
+        active = "✅" if a.get("active", True) else "⛔"
+        name_display = a["name"][:20]
+        print(f"  {name_display:<20} {label:<8} {a['currency']:<6} {bal_str:>12} {active}")
+
+
+def acct_rename(old_name: str, new_name: str, currency: str):
+    """重命名账户"""
+    new_name = new_name.strip()
+    if not new_name:
+        print("❌ 新账户名不能为空")
+        return
+    accounts = load_accounts()
+    found = False
+    for a in accounts:
+        if a["name"] == old_name and a["currency"] == currency:
+            a["name"] = new_name
+            found = True
+            break
+    if found:
+        save_accounts(accounts)
+        print(f"✅ 已重命名: {old_name}({currency}) → {new_name}")
+    else:
+        print(f"❌ 未找到账户: {old_name}({currency})")
+
+
+def acct_delete(name: str, currency: str):
+    """删除账户"""
+    accounts = load_accounts()
+    new_accounts = [a for a in accounts if not (a["name"] == name and a["currency"] == currency)]
+    if len(new_accounts) == len(accounts):
+        print(f"❌ 未找到账户: {name}({currency})")
+        return
+    save_accounts(new_accounts)
+    print(f"✅ 已删除账户: {name}({currency})")
+
+
+def acct_activate(name: str, currency: str, active: bool = True):
+    """启用/停用账户"""
+    accounts = load_accounts()
+    found = False
+    for a in accounts:
+        if a["name"] == name and a["currency"] == currency:
+            a["active"] = active
+            found = True
+            break
+    if found:
+        save_accounts(accounts)
+        status = "启用" if active else "停用"
+        print(f"✅ 已{status}账户: {name}({currency})")
+    else:
+        print(f"❌ 未找到账户: {name}({currency})")
