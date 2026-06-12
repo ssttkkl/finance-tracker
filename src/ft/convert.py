@@ -326,7 +326,6 @@ def _pair_refunds(expenses: list, refunds: list, others: list):
                 "counterparty": _strip_payment_prefix(ref["counterparty"]),
                 "description": ref["description"],
                 "category": "income",
-                "platform": ref.get("platform", ""),
             })
             continue
 
@@ -363,7 +362,6 @@ def _pair_refunds(expenses: list, refunds: list, others: list):
                 "counterparty": exp["counterparty"],
                 "description": exp["description"],
                 "category": "expense",
-                "platform": exp.get("platform", ""),
             })
     result.extend(others)
     return result, tracking_pairs
@@ -419,15 +417,15 @@ def _read_alipay_raw(path: str):
 
         category = "expense" if amount < 0 else "income"
 
+        normalized_cp, enriched_desc = _normalize_counterparty(counterparty, desc[:80], "alipay")
         raw.append({
             "date": date_str,
             "amount": round(amount, 2),
             "payment_method": payment_method,
-            "counterparty": counterparty,
-            "description": desc[:80],
+            "counterparty": normalized_cp,
+            "description": enriched_desc[:80],
             "category": category,
             "txn_type": txn_type,
-            "platform": _infer_platform(counterparty, desc[:80], "alipay"),
         })
 
     # 退款配对核销
@@ -504,15 +502,15 @@ def _read_wechat_raw(path: str):
         # convert 层只看收支方向，不做语义判断
         category = "expense" if amount < 0 else "income"
 
+        normalized_cp, enriched_desc = _normalize_counterparty(counterparty, desc[:80], "wechat")
         raw.append({
             "date": date_str,
             "amount": round(amount, 2),
             "payment_method": payment_method,
-            "counterparty": counterparty,
-            "description": desc[:80],
+            "counterparty": normalized_cp,
+            "description": enriched_desc[:80],
             "category": category,
             "status": status,
-            "platform": _infer_platform(counterparty, desc[:80], "wechat"),
         })
 
     # 退款配对核销

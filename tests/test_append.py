@@ -43,7 +43,7 @@ def create_merged_csv(path: Path, rows: list[dict]):
     path.parent.mkdir(parents=True, exist_ok=True)
     fields = ["date", "amount", "currency", "counterparty",
               "description", "category", "account_name", "source",
-              "platform", "bill_source"]
+              "bill_source"]
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
@@ -56,7 +56,7 @@ def test_append_creates_date_file(tmp_env):
     create_merged_csv(merged_path, [
         {"date": "2026-06-12 10:00:00", "amount": "-30.00", "currency": "CNY",
          "counterparty": "霸王茶姬", "description": "奶茶", "category": "expense",
-         "account_name": "支付宝余额", "source": "支付宝", "platform": "霸王茶姬",
+         "account_name": "支付宝余额", "source": "支付宝",
          "bill_source": "alipay"},
     ])
 
@@ -80,11 +80,11 @@ def test_append_routes_by_type(tmp_env):
     create_merged_csv(merged_path, [
         {"date": "2026-06-12 10:00:00", "amount": "-30.00", "currency": "CNY",
          "counterparty": "奶茶", "description": "奶茶", "category": "expense",
-         "account_name": "支付宝余额", "source": "支付宝", "platform": "",
+         "account_name": "支付宝余额", "source": "支付宝",
          "bill_source": "alipay"},
         {"date": "2026-06-12 11:00:00", "amount": "-200.00", "currency": "CNY",
          "counterparty": "京东", "description": "耳机", "category": "expense",
-         "account_name": "工行信用卡(1200)", "source": "京东支付", "platform": "京东",
+         "account_name": "工行信用卡(1200)", "source": "京东支付",
          "bill_source": "icbc_credit"},
     ])
 
@@ -112,11 +112,11 @@ def test_append_sorts_by_date(tmp_env):
     create_merged_csv(merged_path, [
         {"date": "2026-06-12 12:00:00", "amount": "-30.00", "currency": "CNY",
          "counterparty": "午饭", "description": "午饭", "category": "expense",
-         "account_name": "支付宝余额", "source": "支付宝", "platform": "",
+         "account_name": "支付宝余额", "source": "支付宝",
          "bill_source": "alipay"},
         {"date": "2026-06-12 08:00:00", "amount": "-10.00", "currency": "CNY",
          "counterparty": "早饭", "description": "早饭", "category": "expense",
-         "account_name": "支付宝余额", "source": "支付宝", "platform": "",
+         "account_name": "支付宝余额", "source": "支付宝",
          "bill_source": "alipay"},
     ])
 
@@ -136,11 +136,11 @@ def test_append_multiple_dates(tmp_env):
     create_merged_csv(merged_path, [
         {"date": "2026-06-12 10:00:00", "amount": "-30.00", "currency": "CNY",
          "counterparty": "奶茶", "description": "奶茶", "category": "expense",
-         "account_name": "支付宝余额", "source": "支付宝", "platform": "",
+         "account_name": "支付宝余额", "source": "支付宝",
          "bill_source": "alipay"},
         {"date": "2026-06-13 10:00:00", "amount": "-50.00", "currency": "CNY",
          "counterparty": "外卖", "description": "外卖", "category": "expense",
-         "account_name": "支付宝余额", "source": "支付宝", "platform": "",
+         "account_name": "支付宝余额", "source": "支付宝",
          "bill_source": "alipay"},
     ])
 
@@ -159,7 +159,7 @@ def test_append_unknown_account(tmp_env):
     create_merged_csv(merged_path, [
         {"date": "2026-06-12 10:00:00", "amount": "-30.00", "currency": "CNY",
          "counterparty": "奶茶", "description": "奶茶", "category": "expense",
-         "account_name": "不存在的账户", "source": "支付宝", "platform": "",
+         "account_name": "不存在的账户", "source": "支付宝",
          "bill_source": "alipay"},
     ])
 
@@ -180,7 +180,7 @@ def test_append_appends_to_existing(tmp_env):
     create_merged_csv(day_csv, [
         {"date": "2026-06-12 08:00:00", "amount": "-10.00", "currency": "CNY",
          "counterparty": "早饭", "description": "早饭", "category": "expense",
-         "account_name": "支付宝余额", "source": "支付宝", "platform": "",
+         "account_name": "支付宝余额", "source": "支付宝",
          "bill_source": "alipay"},
     ])
 
@@ -189,7 +189,7 @@ def test_append_appends_to_existing(tmp_env):
     create_merged_csv(merged_path, [
         {"date": "2026-06-12 12:00:00", "amount": "-30.00", "currency": "CNY",
          "counterparty": "午饭", "description": "午饭", "category": "expense",
-         "account_name": "支付宝余额", "source": "支付宝", "platform": "",
+         "account_name": "支付宝余额", "source": "支付宝",
          "bill_source": "alipay"},
     ])
 

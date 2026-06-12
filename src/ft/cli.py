@@ -225,7 +225,6 @@ def main():
             "category": category,
             "account_name": args.account,
             "source": args.source,
-            "platform": args.platform,
             "bill_source": "",
         }
 
@@ -423,7 +422,6 @@ def main():
             "category": "checkin",
             "account_name": args.account,
             "source": "手动",
-            "platform": "",
             "bill_source": "",
         }
 

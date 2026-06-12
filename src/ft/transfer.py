@@ -27,7 +27,6 @@ def _write_transfer_row(path: Path, date_str: str, amount: float, currency: str,
         "category": "transfer",
         "account_name": account_name,
         "source": "手动",
-        "platform": "",
         "bill_source": "",
     }
 

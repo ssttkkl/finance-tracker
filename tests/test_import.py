@@ -42,22 +42,22 @@ def test_full_pipeline_append_report(tmp_env):
     merged_path = records_dir.parent / "merged.csv"
     fields = ["date", "amount", "currency", "counterparty",
               "description", "category", "account_name", "source",
-              "platform", "bill_source"]
+              "bill_source"]
     with open(merged_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
         writer.writerows([
             {"date": "2026-06-12 10:00:00", "amount": "-30.00", "currency": "CNY",
              "counterparty": "奶茶", "description": "奶茶", "category": "expense",
-             "account_name": "支付宝余额", "source": "支付宝", "platform": "",
+             "account_name": "支付宝余额", "source": "支付宝",
              "bill_source": "alipay"},
             {"date": "2026-06-12 11:00:00", "amount": "-200.00", "currency": "CNY",
              "counterparty": "京东", "description": "耳机", "category": "expense",
              "account_name": "工行信用卡(1200)", "source": "京东支付",
-             "platform": "京东", "bill_source": "icbc_credit"},
+             "bill_source": "icbc_credit"},
             {"date": "2026-06-12 12:00:00", "amount": "+2000.00", "currency": "CNY",
              "counterparty": "工资", "description": "工资", "category": "income",
-             "account_name": "支付宝余额", "source": "转账", "platform": "",
+             "account_name": "支付宝余额", "source": "转账",
              "bill_source": ""},
         ])
 
@@ -106,7 +106,7 @@ def test_transfer_and_checkin_flow(tmp_env):
         "date": "2026-06-12 12:00:00", "amount": "0", "currency": "CNY",
         "counterparty": "", "description": "余额校准¥10000.00",
         "category": "checkin", "account_name": "支付宝余额",
-        "source": "手动", "platform": "", "bill_source": "",
+        "source": "手动", "bill_source": "",
     })
     existing.sort(key=lambda r: r["date"])
     with open(day_path, "w", newline="", encoding="utf-8") as f:

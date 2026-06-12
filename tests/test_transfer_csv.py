@@ -92,7 +92,7 @@ def test_transfer_sorts_file(tmp_env):
     from_csv.parent.mkdir(parents=True, exist_ok=True)
     fields = ["date", "amount", "currency", "counterparty",
               "description", "category", "account_name", "source",
-              "platform", "bill_source"]
+              "bill_source"]
     with open(from_csv, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
@@ -100,7 +100,7 @@ def test_transfer_sorts_file(tmp_env):
                          "currency": "CNY", "counterparty": "超市",
                          "description": "超市", "category": "expense",
                          "account_name": "工行借记卡", "source": "支付宝",
-                         "platform": "", "bill_source": "alipay"})
+                         "bill_source": "alipay"})
 
     from ft.transfer import do_transfer
     do_transfer(
