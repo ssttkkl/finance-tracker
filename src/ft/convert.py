@@ -243,6 +243,36 @@ def _normalize_counterparty(raw_cp: str, raw_desc: str, source: str) -> tuple[st
         # 仅当原始描述为空或等于原始交易对方时，才用 leftover 替换
         if leftover and (not raw_desc or raw_desc == raw_cp):
             desc = leftover
+        # 对于中介平台（淘宝/高德/美团等），尝试从描述中提取真实商户
+        intermediary_brands = {"淘宝", "天猫", "美团", "高德", "大众点评"}
+        if brand in intermediary_brands and raw_desc:
+            import re
+            if brand in ("淘宝", "天猫"):
+                # 淘宝/天猫：description 首段含真实商户名
+                # 提取到已知分隔符为止，无分隔符则整段作为商户名
+                m = re.match(r"^(.+?)(?:外卖订单|订单|购物车)", raw_desc)
+                if m:
+                    merchant = m.group(1).strip(" ·-—")
+                else:
+                    merchant = raw_desc
+                # 剔除已知平台相关行
+                if merchant in ("超级吃货卡", "外卖红包", "淘宝"):
+                    pass  # 保持 cp=淘宝
+                elif merchant.startswith("淘宝"):
+                    pass
+                else:
+                    # 剥离地址信息（括号内内容）
+                    merchant = re.sub(r"[（(][^)）]*[)）]", "", merchant).strip()
+                    if merchant and len(merchant) >= 2:
+                        cp = merchant
+                        desc = raw_desc
+            elif brand == "高德":
+                # 高德到店消费：description 含"XX商户 - 高德地图"模式
+                m = re.match(r"^(.+?)\s*-\s*高德地图", raw_desc)
+                if m:
+                    cp = m.group(1).strip()
+                    desc = raw_desc
+                # 高德打车 → cp=高德 保持不变（正确）
         return (cp, desc)
 
     # Stage 3: O2O 平台前缀剥离
