@@ -49,7 +49,7 @@ SOURCE_LABELS = {
 # 购汇/跨境关键词 → 跨币种转账
 FOREIGN_EXCHANGE_KEYWORDS = ("购汇", "跨境", "外汇", "换汇")
 
-# CSV 字段（10 列）
+# CSV 字段（9 列）
 CSV_FIELDS = ["date", "amount", "currency", "counterparty",
               "description", "category", "account_name", "source",
-              "platform", "bill_source"]
+              "bill_source"]
