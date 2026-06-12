@@ -2,7 +2,7 @@
 import xlrd
 import re
 from datetime import datetime, timedelta
-from ft.convert import _infer_platform
+from ft.convert import _normalize_counterparty
 
 
 def _extract_ccb_counterparty(location: str) -> str | None:
@@ -123,16 +123,16 @@ def read_ccb_debit(path: str):
         # payment_method：从交易地点推断
         pm = _infer_ccb_payment_source(location, card_last4)
 
+        normalized_cp, enriched_desc = _normalize_counterparty(cpy, summary, "ccb")
         records.append({
             "date": date,
             "amount": amount,
             "currency": currency,
             "card_number": card_last4,
-            "counterparty": cpy,
-            "description": summary,
+            "counterparty": normalized_cp,
+            "description": enriched_desc,
             "category": category,
             "payment_method": pm,
-            "platform": _infer_platform(cpy, summary, "ccb"),
         })
 
     wb.release_resources()

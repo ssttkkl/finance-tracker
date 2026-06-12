@@ -88,14 +88,14 @@ class TestLocationCounterparty:
         assert recs[0]["payment_method"] == "美团支付"
 
     def test_paypal(self):
-        """PAYPAL_PIXIVFANBOX → PAYPAL_PIXIVFANBOX"""
+        """PAYPAL_PIXIVFANBOX → pixiv（品牌归一化）"""
         path = _make_xls("6217000000000002820", [
             ("无卡自助交易", "人民币元", "钞", "20260101", "-13.99", "1,879.94",
              "PAYPAL_PIXIVFANBOX", "685070248160001/PAYPAL_PIXIVFANBOX"),
         ])
         recs, tracking = read_ccb_debit(path)
         os.unlink(path)
-        assert recs[0]["counterparty"] == "PAYPAL_PIXIVFANBOX"
+        assert recs[0]["counterparty"] == "pixiv"
         assert recs[0]["payment_method"] == "PayPal"
 
     def test_direct(self):
@@ -233,7 +233,7 @@ class TestBasicParsing:
         ])
         recs, _ = read_ccb_debit(path)
         os.unlink(path)
-        assert recs[0]["counterparty"] == "PAYPAL_PIXIVFANBOX"
+        assert recs[0]["counterparty"] == "pixiv"
         assert recs[0]["description"] == "无卡自助交易"
         assert recs[0]["payment_method"] == "PayPal"
 
@@ -324,7 +324,7 @@ class TestRefundPairingWithPairRefunds:
         assert tp[0]["match_type"] == "full"
 
     def test_full_refund_next_day_legacy(self):
-        """旧版 充值+退款 次日，counterparty 不匹配（**转账 vs 微信转账），不配对"""
+        """旧版 充值+退款 次日，双方归一化为 「微信」后配对"""
         path = _make_xls("6217000000000002820", [
             ("充值", "人民币元", "钞", "20260307", "-60.00", "8,829.32",
              "***", "Z******0010/**转账"),
@@ -339,10 +339,10 @@ class TestRefundPairingWithPairRefunds:
         refunds = [r for r in recs if r["category"] == "income" and "退货" in r.get("description", "")]
         others = [r for r in recs if not (r["category"] == "expense" or (r["category"] == "income" and "退货" in r.get("description", "")))]
         result, tp = _pair_refunds(expenses, refunds, others)
-        # _pair_refunds 需要 counterparty 或 description 匹配 —
-        # "**转账"≠"微信转账"，"充值"≠"消费退货" → 不配对，两条都保留
-        assert len(result) == 2
-        assert tp == []
+        # _normalize_counterparty 将两者归一化为 "微信" → 全额配对
+        assert len(result) == 0
+        assert len(tp) == 1
+        assert tp[0]["match_type"] == "full"
 
     def test_orphan_refund_legacy(self):
         """旧版孤退款"""

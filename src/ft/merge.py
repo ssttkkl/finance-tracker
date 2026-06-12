@@ -27,7 +27,7 @@ def do_merge(inputs: list[str], output_dir: str):
 
     fields = ["date", "amount", "currency", "counterparty",
               "description", "category", "account_name", "source",
-              "platform", "bill_source"]
+              "bill_source"]
 
     # merged.csv
     with open(merged_path, "w", newline="", encoding="utf-8") as f:

@@ -20,11 +20,7 @@ def _source_group(bs: str) -> str:
 
 
 def _cross_verify(a: dict, b: dict) -> bool:
-    # 1. platform 匹配（双方非空）
-    pa, pb = a.get("platform", ""), b.get("platform", "")
-    if pa and pb and pa == pb:
-        return True
-    # 2. counterparty 双向子串（双方非空，先剥掉截断标记 "…"）
+    # 1. counterparty 双向子串（双方非空，先剥掉截断标记 "…"）
     ca = a.get("counterparty", "").rstrip("…").rstrip("...")
     cb = b.get("counterparty", "").rstrip("…").rstrip("...")
     if ca and cb and (ca in cb or cb in ca):

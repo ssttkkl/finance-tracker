@@ -689,7 +689,7 @@ class TestIcbcParseLines:
         from ft.convert import _parse_icbc_lines
         records, _ = _parse_icbc_lines(lines, is_credit=True)
         assert len(records) == 1
-        assert records[0]["platform"] == "滴滴"
+        assert records[0]["counterparty"] == "滴滴"
 
     def test_多条记录_时间独立(self):
         """多条记录各自从对应日期行读取时间，不互相污染"""
@@ -1542,32 +1542,26 @@ class TestRefundTracking:
         assert rows[1][-1] == "退款核销"
 
     def test_platform_一致性(self):
-        """追踪行中每对的支出和退款应有一致的 platform（不从旧记录读取，应从 counterparty 实时计算）"""
-        from ft.convert import _build_refund_tracking_rows, _infer_platform
+        """counterparty 规范化后，支出和退款的 counterparty 应一致"""
+        from ft.convert import _build_refund_tracking_rows
         from ft.mapping import load_rules
 
         rules, default_action = load_rules()
-        # 模拟真实场景：expense 的 stored platform=''（旧/错误），
-        # refund 的 stored platform='拼多多'（正确）。
-        # 两者 counterparty 相同且含 platform 关键词，
-        # _build_refund_tracking_rows 应实时计算一致的 platform
         pair = {
             "expense": {"date": "2026-01-17", "amount": -60.9, "currency": "CNY",
                         "counterparty": "拼多多支付-橙予进口专营店", "description": "拼多多支付-橙予进口专营店",
-                        "platform": "", "card_number": "1200", "payment_method": "拼多多支付"},
+                        "card_number": "1200", "payment_method": "拼多多支付"},
             "refund": {"date": "2026-01-18", "amount": 60.9, "currency": "CNY",
                        "counterparty": "拼多多支付-橙予进口专营店", "description": "拼多多支付-橙予进口专营店",
-                       "platform": "拼多多", "card_number": "1200", "payment_method": "拼多多支付"},
+                       "card_number": "1200", "payment_method": "拼多多支付"},
             "match_type": "full",
         }
         rows = _build_refund_tracking_rows([pair], rules, default_action, "icbc_credit")
         assert len(rows) == 2
-        # 两行的 platform 应该一致（都从 counterparty+description 实时计算）
-        platform_exp = rows[0][8]
-        platform_ref = rows[1][8]
-        assert platform_exp == platform_ref, f"platform mismatch: {platform_exp} vs {platform_ref}"
-        # 即使 expense 的 stored platform=''，也应从 counterparty 推断
-        assert platform_exp == "拼多多", f"exp row platform should be 拼多多, got {platform_exp!r}"
+        # 两行的 counterparty 应一致
+        cp_exp = rows[0][3]
+        cp_ref = rows[1][3]
+        assert cp_exp == cp_ref, f"counterparty mismatch: {cp_exp} vs {cp_ref}"
 
 
 
@@ -1577,8 +1571,7 @@ class TestIcbcRefundPlatform:
     """ICBC 退货的 platform 在 counterparty 更新后应重新计算"""
 
     def test_退款行platform跟随counterparty更新(self):
-        """_parse_icbc_lines 将退货 counterparty 替换为 description 后，platform 必须重新计算
-        验证：tracking_pairs 中 refund 的 platform 不为空，且与 exp 一致（由 _build_refund_tracking_rows 保证）"""
+        """_parse_icbc_lines 将退货的 counterparty 归一化为品牌名（如「拼多多」）"""
         from ft.convert import _parse_icbc_lines, _build_refund_tracking_rows
         from ft.mapping import load_rules
 
@@ -1586,11 +1579,21 @@ class TestIcbcRefundPlatform:
             "2026-01-17",
             "14:29:40",
             "622599000000001200",
-            "-60.90",
+            "借",
+            "人民币",
+            "60.90",
+            "人民币",
+            "60.90",
+            "消费",
             "拼多多支付-橙予进口专营店",
+            "",
             "2026-01-18",
             "14:29:48",
-            "622599000000001200",
+            "379983032529166",
+            "贷",
+            "人民币",
+            "60.90",
+            "人民币",
             "60.90",
             "退货",
             "拼多多支付-橙予进口专营店",
@@ -1598,10 +1601,10 @@ class TestIcbcRefundPlatform:
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
         assert len(tracking_pairs) == 1, f"expected 1 tracking pair, got {len(tracking_pairs)}"
         pair = tracking_pairs[0]
-        # refund 的 platform 应该不为空（至少从 description 中能推断）
-        ref_platform = pair["refund"]["platform"]
-        assert ref_platform == "拼多多", \
-            f"退款tracking pair中platform应为拼多多，got: {ref_platform!r}"
+        # refund 的 counterparty 应归一化为「拼多多」
+        ref_cp = pair["refund"]["counterparty"]
+        assert ref_cp == "拼多多", \
+            f"退款tracking pair中counterparty应为拼多多，got: {ref_cp!r}"
         # 记录被消费后 records 应为空
         assert len(records) == 0, f"expected 0 records after full refund, got {len(records)}"
 

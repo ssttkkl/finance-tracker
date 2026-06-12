@@ -283,8 +283,11 @@ def _pair_refunds(expenses: list, refunds: list, others: list):
         for i, exp in enumerate(expenses):
             if consumed[i]:
                 continue
+            # 尝试匹配：先比 normalized cp，再比原始 cp（ICBC 退款匹配需要）
             if not _counterparty_matches(exp["counterparty"], ref["counterparty"]):
-                continue
+                raw_cp = exp.get("_raw_cp", "")
+                if not raw_cp or not _counterparty_matches(raw_cp, ref["counterparty"]):
+                    continue
             if ref_amt > remaining[i]:
                 continue
             if exp["date"] > ref["date"]:
@@ -631,17 +634,21 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                         break
                     counterparty = s
 
-                records.append({
+                normalized_cp, enriched_desc = _normalize_counterparty(counterparty, description[:80], "icbc")
+                rec = {
                     "date": f"{current_date} {current_time}",
                     "amount": round(amount, 2),
                     "currency": currency,
-                    "counterparty": counterparty,
-                    "description": description[:80],
+                    "counterparty": normalized_cp,
+                    "description": enriched_desc[:80],
                     "category": category,
-                    "payment_method": _infer_payment_source("icbc", counterparty, description[:80]),
+                    "payment_method": _infer_payment_source("icbc", normalized_cp, enriched_desc[:80]),
                     "card_number": current_card[-4:] if current_card else "",
-                    "platform": _infer_platform(_strip_payment_prefix(counterparty), description[:80], "icbc"),
-                })
+                    "_raw_cp": counterparty,  # 保存原始 cp 用于退款匹配
+                }
+                if counterparty == "退货":
+                    rec["_is_refund"] = True
+                records.append(rec)
                 current_date = None
             i += 1
     else:
@@ -692,25 +699,33 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
             # convert 层只看收支方向
             category = "expense" if amount < 0 else "income"
 
+            normalized_cp, enriched_desc = _normalize_counterparty(cpy, description[:80], "icbc")
             records.append({
                 "date": f"{date} 00:00:00",
                 "amount": round(amount, 2),
-                "counterparty": cpy,
-                "description": description[:80] or cpy[:80],
+                "counterparty": normalized_cp,
+                "description": enriched_desc[:80] or normalized_cp[:80],
                 "category": category,
-                "platform": _infer_platform(cpy, description[:80], "icbc"),
             })
             i += 1
 
     # ICBC 退货配对核销（用 description 中的原始商家匹配对应消费）
     expenses = [r for r in records if r["category"] == "expense"]
-    refunds = [r for r in records if r["amount"] > 0 and r.get("counterparty", "") == "退货"]
+    refunds = [r for r in records if r["amount"] > 0 and r.get("_is_refund")]
     if refunds:
         for r in refunds:
             if r.get("description"):
-                r["counterparty"] = r["description"]  # 临时用 description 匹配
-                r["platform"] = _infer_platform(_strip_payment_prefix(r["counterparty"]), r.get("description", "")[:80], "icbc")
+                # 用原始描述匹配，保留 _raw_cp 用于 _pair_refunds
+                r["counterparty"] = r["description"]
         records, tracking_pairs = _pair_refunds(expenses, refunds, records)
+        # 退款配对后，normalize tracking pair 中的 counterparty
+        for pair in tracking_pairs:
+            for key in ("expense", "refund"):
+                raw = pair[key].get("counterparty", "")
+                desc = pair[key].get("description", "")
+                new_cp, new_desc = _normalize_counterparty(raw, desc, "icbc")
+                pair[key]["counterparty"] = new_cp
+                pair[key]["description"] = new_desc
     else:
         tracking_pairs = []
 
@@ -881,7 +896,6 @@ def _parse_icbc_debit_row(row: list) -> dict | None:
         "description": summary,
         "category": category,
         "payment_method": channel,
-        "platform": "",
     }
 
 
@@ -971,15 +985,11 @@ def _route_account(rec, rules, default_action, bill_type):
 
 
 def _build_refund_tracking_rows(tracking_pairs, rules, default_action, bill_type):
-    """将 tracking_pairs 转成 11 列追踪 CSV 行（每对两行）"""
+    """将 tracking_pairs 转成 10 列追踪 CSV 行（每对两行）"""
     rows = []
     for pair in tracking_pairs:
         exp = pair["expense"]
         ref = pair["refund"]
-
-        # 从当前 counterparty 实时计算 platform，不依赖可能过期的存储值
-        exp_platform = _infer_platform(exp.get("counterparty", ""), exp.get("description", ""), bill_type)
-        ref_platform = _infer_platform(ref.get("counterparty", ""), ref.get("description", ""), bill_type)
 
         # 消费行
         exp_net = round(exp["amount"] + ref["amount"], 2)
@@ -991,7 +1001,7 @@ def _build_refund_tracking_rows(tracking_pairs, rules, default_action, bill_type
             exp["date"], exp["amount"], exp.get("currency", "CNY"),
             exp.get("counterparty", ""), exp.get("description", ""),
             "expense", exp_acct, exp_source,
-            exp_platform, bill_type, exp_status,
+            bill_type, exp_status,
         ])
 
         # 退款行
@@ -1001,7 +1011,7 @@ def _build_refund_tracking_rows(tracking_pairs, rules, default_action, bill_type
             ref["date"], ref["amount"], ref.get("currency", "CNY"),
             ref.get("counterparty", ""), ref.get("description", ""),
             "income", ref_acct, ref_source,
-            ref_platform, bill_type, "退款核销",
+            bill_type, "退款核销",
         ])
     return rows
 
@@ -1088,7 +1098,6 @@ def do_convert(path: str, source: str, output: str, password: str = None,
             rec["category"],
             acct_name,
             payment_src,
-            rec.get("platform", ""),
             bill_type,  # "alipay" / "wechat" / "icbc_credit" / "icbc_debit"
         ])
 
@@ -1096,7 +1105,7 @@ def do_convert(path: str, source: str, output: str, password: str = None,
         writer = csv.writer(f)
         writer.writerow(["date", "amount", "currency", "counterparty",
                          "description", "category", "account_name", "source",
-                         "platform", "bill_source"])
+                         "bill_source"])
         writer.writerows(output_rows)
 
     print(f"✅ 已转换 {len(output_rows)} 条 (跳过 {skipped}) → {output}")
@@ -1109,6 +1118,6 @@ def do_convert(path: str, source: str, output: str, password: str = None,
             writer = csv.writer(f)
             writer.writerow(["date", "amount", "currency", "counterparty",
                              "description", "category", "account_name", "source",
-                             "platform", "bill_source", "refund_status"])
+                             "bill_source", "refund_status"])
             writer.writerows(refund_rows)
         print(f"✅ 退款追踪 {len(tracking_pairs)} 对 → {refund_output}")
