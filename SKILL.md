@@ -18,21 +18,24 @@ design_spec: docs/superpowers/specs/2026-06-12-csv-only-design.md, docs/superpow
 ### 账单导入流水线（6 步）
 
 ```
-① convert → ② AI审查转换 → ③ 手动修正 → ④ merge → ⑤ AI审查合并 → ⑥ append（确认后落盘）
+① convert → ② AI审查转换 → ③ AI修正 → ④ merge → ⑤ AI审查合并 → ⑥ append（确认后落盘）
 ```
 
 | 步骤 | 操作 | 产出 |
 |------|------|------|
 | ① convert | `ft convert <账单> -s alipay|wechat|icbc|ccb-debit -o <csv>` | 统一 CSV + `_refunds.csv` |
-| ② AI审查 | 逐项审查退款核销 | 审查报告 |
-| ③ 手动修正 | 直接修改 CSV 或修复转换器重跑 | 修正后的 CSV |
+| ② AI审查 | 逐项审查（见 ft-bill-review 技能） | 审查报告 |
+| ③ AI修正 | AI 根据审查结果逐项修正 CSV 或转换代码 | 修正后的 CSV |
 | ④ merge | `ft merge <csvs> -o merged/` | `merged.csv` + `removed.csv` |
 | ⑤ AI审查 | 逐项审查去重决策 | 审查报告 |
 | ⑥ append | 确认后 `ft append merged.csv` | 落盘到 records/ |
 
 convert 说明：`alipay`（支付宝 CSV）、`wechat`（微信 xlsx）、`icbc`（工行 PDF，需 --password，自动检测信用卡/借记卡）、`ccb-debit`（建行 xls）。
 
-AI 审查要点：转换阶段检查退款核销、counterparty、source 是否正确。合并阶段检查去重是否有误删/漏删。
+AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2(脱敏) > P3(counterparty)** 逐项检查。审查 checklist 和修复策略见 **ft-bill-review** 技能。
+
+转换阶段：退款配对数学正确性（全额=0？部分=净额正确？）、source 正确性、数据脱敏、counterparty 规范化。
+合并阶段：去重是否有误删/漏删、跨来源重复标记是否合理。
 
 ### 账户管理
 
@@ -106,7 +109,7 @@ source 是支付渠道（怎么付的），与 counterparty 无关。
 
 ## 股票交易
 
-security 类型账户使用独立 CSV 格式，支持美股（`mu.us`）和港股（`00700.hk`）。采用平均成本法：买入时加权平均，卖出时均价不变按比例扣减成本。
+security 类型账户使用独立 CSV 格式，支持 A 股（`159740.sz`）、美股（`mu.us`）、港股（`00700.hk`）。采用平均成本法：买入时加权平均，卖出时均价不变按比例扣减成本。
 
 `ft stock buy/sell` 自动扣减/增加现金并更新持仓。`ft stock checkin` 用于初始导入或校正持仓/现金（不涉及现金变动）。`ft stock list` 实时拉取 yfinance 市值。
 
@@ -128,6 +131,18 @@ ft stock checkin --account IBKR --cash 14000
 ft stock list
 ```
 
+### 证券对账单批量导入
+
+```bash
+# 步骤① 转换：券商PDF → stock CSV
+ft stock convert 电子对账单.pdf -s dfzq --password 099215 -o dfzq_stock.csv
+
+# 步骤② 落库：stock CSV → records/security/ + 快照
+ft stock append dfzq_stock.csv
+```
+
+支持 `-s` 扩展其他券商，转换器存放在 `importers/<source>.py`。详情见 **finance-tracker-converters** 技能。
+
 ## 已知陷阱
 
 | 问题 | 对策 |
@@ -136,6 +151,6 @@ ft stock list
 | 新版支付宝「不计收支」方向 | 判断 `in ("收入","不计收支")` 而非 `== "收入"` |
 | O2O 平台被误标 | 品牌规则排在平台规则前 |
 | snapshot 不一致 | `ft verify --fix` 重建 |
-| **Normalizer 破坏 ICBC 退款匹配** | `_normalize_counterparty()` 改变了 expense 的 counterparty（如「新渔阳滑雪场」→「美团」），退款的 counterparty 也变了，`_pair_refunds` 匹配不上。修复：在 record 上存 `_raw_cp`（归一化前的原始值），`_pair_refunds` 中先比 normalized cp 再比 `_raw_cp` |
+| **Normalizer 破坏 ICBC 退款匹配** | 参考 `references/icbc-refund-matching.md`：存 `_raw_cp` + `_is_refund` flag，`_pair_refunds` 中 fallback 到 `_raw_cp` |
 | **「退货」sentinel 被 normalizer 吞掉** | ICBC 退款检测依赖 `counterparty == "退货"`，但 normalizer 可能把「退货」归一化为品牌名。修复：调用 normalizer 前检查原始 `counterparty == "退货"`，设 `_is_refund = True` 标志，退款检测改为判断 `r.get("_is_refund")` |
 | **删除/新增列要检查所有 CSV header 硬编码** | 以下文件都有硬编码 header 或列序，容易被漏：`do_convert()`（主输出 + `_refunds.csv`）、`merge.py`（header 列表）、`dedup.py`（列比较代码）、`ccb_debit.py`（列构造）。改 `CSV_FIELDS` 后必须搜索全项目引用的字段名确认无残留 |

@@ -1,18 +1,24 @@
 """Stock trading — snapshot management + CSV recording + all stock operations"""
 import csv
+import os
+import subprocess
 import sys
+import tempfile
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 from . import models
-from .snapshot import load_snapshot, save_snapshot
+from .snapshot import git_auto_commit, load_snapshot, save_snapshot
 
 # ── CSV fields for security trades ──────────────────────────────────────
 CSV_FIELDS = [
     "date", "action", "ticker", "shares", "price", "amount",
     "commission", "currency", "account_name", "note",
 ]
+
+VALID_ACTIONS = {"BUY", "SELL", "DEPOSIT", "WITHDRAW", "DIVIDEND", "CHECKIN", "INIT"}
 
 
 # ── Snapshot helpers ────────────────────────────────────────────────────
@@ -87,6 +93,200 @@ def record_trade(
         writer.writerows(all_rows)
 
     return new_row
+
+
+# ── PDF → stock CSV ────────────────────────────────────────────────────
+
+
+def do_convert(path, source, output, password=None, account="东方证券", currency="CNY"):
+    """将 PDF 对账单转换为 10 列 stock CSV。
+
+    当前仅支持 source="dfzq"（东方证券）。
+    """
+    if source != "dfzq":
+        print(f"❌ 不支持的券商类型: {source}，仅支持 dfzq")
+        return
+
+    # 1. Decrypt PDF if password provided
+    tmp_pdf = None
+    if password:
+        tmp_pdf = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+        try:
+            subprocess.run(
+                ["qpdf", f"--password={password}", "--decrypt", path, tmp_pdf.name],
+                check=True, timeout=30,
+            )
+            pdf_path = tmp_pdf.name
+        except Exception as e:
+            print(f"❌ PDF 解密失败: {e}")
+            os.unlink(tmp_pdf.name)
+            return
+    else:
+        pdf_path = path
+
+    # 2. Extract text with mutool
+    try:
+        result = subprocess.run(
+            ["mutool", "draw", "-F", "text", pdf_path],
+            capture_output=True, check=True, timeout=60,
+        )
+        text = result.stdout.decode("utf-8", errors="replace")
+        lines = text.split("\n")
+    except Exception as e:
+        print(f"❌ 文本提取失败: {e}")
+        if tmp_pdf:
+            os.unlink(pdf_path)
+        return
+
+    # Clean up temp PDF
+    if tmp_pdf:
+        os.unlink(pdf_path)
+
+    # 3. Parse with dfzq importer
+    from .importers.dfzq import parse_dfzq_text
+    records = parse_dfzq_text(lines)
+
+    if not records:
+        print("❌ 未解析到任何交易记录")
+        return
+
+    # 4. Map parser output to stock CSV 10-column format
+    mapped = []
+    for rec in records:
+        mapped.append({
+            "date": rec["date"],
+            "action": rec["action"],
+            "ticker": rec["ticker"],
+            "shares": str(rec["shares"]),
+            "price": str(rec["price"]),
+            "amount": str(rec["amount"]),
+            "commission": str(rec["fee"]),
+            "currency": currency,
+            "account_name": account,
+            "note": rec["note"],
+        })
+
+    # 5. Write CSV
+    with open(output, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        writer.writerows(mapped)
+
+    # 6. Print statistics
+    actions = Counter(r["action"] for r in mapped)
+    print(f"✅ 已转换 {len(mapped)} 条记录 → {output}")
+    for act in sorted(actions):
+        print(f"   {act}: {actions[act]}")
+
+
+# ── Stock CSV batch import ──────────────────────────────────────────────
+
+
+def do_append(file_path):
+    """将 stock CSV 批量导入 records/security/。
+
+    校验、按日写入、重建快照、git commit。
+    """
+    # 1. Read & validate CSV
+    with open(file_path, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+
+    if not rows:
+        print("❌ CSV 为空")
+        return
+
+    # Validate 10 columns
+    actual_fields = reader.fieldnames or list(rows[0].keys())
+    if set(actual_fields) != set(CSV_FIELDS):
+        missing = set(CSV_FIELDS) - set(actual_fields)
+        extra = set(actual_fields) - set(CSV_FIELDS)
+        msg = []
+        if missing:
+            msg.append(f"缺少字段: {', '.join(sorted(missing))}")
+        if extra:
+            msg.append(f"多余字段: {', '.join(sorted(extra))}")
+        print(f"❌ CSV 字段不匹配: {'; '.join(msg)}")
+        return
+
+    # Validate actions
+    for i, row in enumerate(rows, 1):
+        if row["action"] not in VALID_ACTIONS:
+            print(f"❌ 第 {i} 行: 无效 action '{row['action']}'，"
+                  f"允许值: {', '.join(sorted(VALID_ACTIONS))}")
+            return
+
+    # Load accounts for validation
+    from .accounts import load_accounts
+    accounts = load_accounts()
+    valid_accounts = {a["name"] for a in accounts}
+
+    # Validate account names
+    for i, row in enumerate(rows, 1):
+        if row["account_name"] not in valid_accounts:
+            print(f"❌ 第 {i} 行: 未知账户 '{row['account_name']}'，请先 ft acct add")
+            return
+
+    # Validate numeric fields
+    num_fields = ["shares", "price", "amount", "commission"]
+    for i, row in enumerate(rows, 1):
+        for field in num_fields:
+            try:
+                float(row[field])
+            except (ValueError, TypeError):
+                print(f"❌ 第 {i} 行: 字段 '{field}' 值 '{row[field]}' 不是有效数字")
+                return
+
+    # 2. Sort by date
+    rows.sort(key=lambda r: r["date"])
+
+    # 3. Group by date and write per-day files
+    from collections import defaultdict
+    by_date = defaultdict(list)
+    for row in rows:
+        day = row["date"][:10]
+        by_date[day].append(row)
+
+    records_dir = models.RECORDS_DIR
+    security_dir = records_dir / "security"
+    security_dir.mkdir(parents=True, exist_ok=True)
+
+    total_written = 0
+    for day, day_rows in sorted(by_date.items()):
+        day_path = security_dir / f"{day}.csv"
+
+        # Read existing rows
+        existing_rows = []
+        if day_path.exists():
+            with day_path.open(encoding="utf-8") as f:
+                existing_rows = list(csv.DictReader(f))
+
+        # Merge, sort, write
+        all_rows = existing_rows + day_rows
+        all_rows.sort(key=lambda r: r["date"])
+
+        with day_path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+            writer.writeheader()
+            writer.writerows(all_rows)
+
+        total_written += len(day_rows)
+
+    # 4. Rebuild snapshot
+    repair_security()
+
+    # 5. Git commit
+    try:
+        from .snapshot import git_auto_commit
+        git_auto_commit("stock-append")
+    except Exception:
+        pass
+
+    # 6. Print statistics
+    action_counts = Counter(r["action"] for r in rows)
+    print(f"✅ 已导入 {total_written} 条记录到 security 记录")
+    for act in sorted(action_counts):
+        print(f"   {act}: {action_counts[act]}")
 
 
 # ── Position helpers ────────────────────────────────────────────────────

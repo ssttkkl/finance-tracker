@@ -134,6 +134,19 @@ def main():
     checkin_p.add_argument("--note", default="")
     checkin_p.add_argument("--date")
 
+    # stock convert
+    cv_stk = stk_sub.add_parser("convert", help="股票对账单→stock CSV")
+    cv_stk.add_argument("file", help="对账单文件路径")
+    cv_stk.add_argument("-s", "--source", required=True, help="券商类型（如 dfzq）")
+    cv_stk.add_argument("-o", "--output", required=True, help="输出CSV路径")
+    cv_stk.add_argument("--password", help="PDF密码")
+    cv_stk.add_argument("--account", default="", help="覆盖账户名")
+    cv_stk.add_argument("--currency", default="CNY", choices=["CNY", "USD", "HKD"], help="覆盖币种")
+
+    # stock append
+    ap_stk = stk_sub.add_parser("append", help="stock CSV 批量导入")
+    ap_stk.add_argument("file", help="stock CSV 路径")
+
     stk_sub.add_parser("list", help="持仓总览")
 
     # verify
@@ -482,6 +495,14 @@ def main():
                 do_checkin_cash(args.cash, args.account, args.note, args.date)
             else:
                 print("❌ 请指定 --ticker+--shares+--avg-cost 或 --cash")
+        elif args.stock_cmd == "convert":
+            from .stock import do_convert
+            do_convert(args.file, args.source, args.output,
+                       password=args.password, account=args.account or "东方证券",
+                       currency=args.currency)
+        elif args.stock_cmd == "append":
+            from .stock import do_append
+            do_append(args.file)
         elif args.stock_cmd == "list":
             do_list()
         return
