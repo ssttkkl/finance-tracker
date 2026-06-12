@@ -155,4 +155,8 @@ ft stock append dfzq_stock.csv
 | **Normalizer 破坏 ICBC 退款匹配** | 参考 `references/icbc-refund-matching.md`：存 `_raw_cp` + `_is_refund` flag，`_pair_refunds` 中 fallback 到 `_raw_cp` |
 | **「退货」sentinel 被 normalizer 吞掉** | ICBC 退款检测依赖 `counterparty == "退货"`，但 normalizer 可能把「退货」归一化为品牌名。修复：调用 normalizer 前检查原始 `counterparty == "退货"`，设 `_is_refund = True` 标志，退款检测改为判断 `r.get("_is_refund")` |
 | **删除/新增列要检查所有 CSV header 硬编码** | 以下文件都有硬编码 header 或列序，容易被漏：`do_convert()`（主输出 + `_refunds.csv`）、`merge.py`（header 列表）、`dedup.py`（列比较代码）、`ccb_debit.py`（列构造）。改 `CSV_FIELDS` 后必须搜索全项目引用的字段名确认无残留 |
-| **convert 输出行数远少于预期** | `ft convert` 的 `skipped` 计数 > 0 时，优先检查 `mapping.yaml` 是否有未覆盖的 `payment_method`。常见遗漏：`工商银行储蓄卡(3697)*`（未加规则时 223 条被 skip）、`余额`、`中国建设银行储蓄卡`（全称前缀）。`default: error` 会打印警告并 skip。排查：`grep "未匹配规则" convert 输出` 看哪些 payment_method 未被覆盖，对应加规则 |
+| **convert 输出行数远少于预期** | `ft convert` 的 `skipped` 计数 > 0 时，优先检查 `mapping.yaml` 是否有未覆盖的 `payment_method`。常见遗漏：`工商银行储蓄卡(3697)*`（未加规则时 223 条被 skip）、`余额`、`中国建设银行储蓄卡`（全称前缀）。`default: error` 会打印警告并 skip。排查：`grep 未匹配规则 convert 输出` 看哪些 payment_method 未被覆盖，对应加规则 |
+| **Snapshot 双结构遗留** | 旧代码 `_ensure_account` 写入 `accounts.IBKR` 顶层，`repair_security` 写入 `accounts.security.IBKR`。现统一走 `accounts.security`。修改 `_ensure_account` 后须同步更新所有测试中读 snapshot 的路径。旧副本由 `repair_security` 自动清理 |
+| **`repair_security` 不保留 currency** | 从 CSV 重建 security 快照时 `currency` 字段丢失（设空字符串）。`do_list` 默认 `CNY` 兜底。如需保留币种，须在 `repair_security` 中从旧 snapshot 读取 currency |
+| **`dict(DEFAULT)` 浅拷贝污染常量** | `dict(DEFAULT)` 是浅拷贝，嵌套 dict 指向模块级 `DEFAULT` 同一个对象。修改后永久污染。必须用 `copy.deepcopy(DEFAULT)` |
+| **`do_list` 适配双结构** | `do_list` 从 `accounts.*` 和 `accounts.security.*` 同时读取，过滤掉 `cash/loan/lend` 等扁平字典。过滤逻辑：`isinstance(data, dict) and positions in data` |

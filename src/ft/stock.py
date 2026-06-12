@@ -803,13 +803,21 @@ def verify_security(records_dir=None):
 def repair_security(records_dir=None):
     """Replay security CSV and write into unified snapshot accounts.security."""
     from datetime import datetime
+    from .accounts import load_accounts
     positions, cash = _replay_security_csv(records_dir)
+
+    # Look up currency from accounts.yaml
+    acct_currencies = {a["name"]: a["currency"] for a in load_accounts()
+                       if a["type"] == "security"}
 
     accounts = {}
     for (acct_name, ticker), p in positions.items():
         if ticker:
             if acct_name not in accounts:
-                accounts[acct_name] = {"currency": "", "cash": 0.0, "positions": {}}
+                accounts[acct_name] = {
+                    "currency": acct_currencies.get(acct_name, ""),
+                    "cash": 0.0, "positions": {},
+                }
             accounts[acct_name]["positions"][ticker] = {
                 "shares": p["shares"],
                 "avg_cost": round(p["total_cost"] / p["shares"], 2) if p["shares"] > 0 else 0.0,
@@ -817,7 +825,10 @@ def repair_security(records_dir=None):
 
     for acct_name, c in cash.items():
         if acct_name not in accounts:
-            accounts[acct_name] = {"currency": "", "cash": 0.0, "positions": {}}
+            accounts[acct_name] = {
+                "currency": acct_currencies.get(acct_name, ""),
+                "cash": 0.0, "positions": {},
+            }
         accounts[acct_name]["cash"] = round(c, 2)
 
     snap = load_snapshot()

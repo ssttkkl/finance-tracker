@@ -111,7 +111,7 @@ def report_networth(records_dir=None, month=None):
             result[cur][acct_name] = balance
 
     for acct_name, acct_data in snap["accounts"].get("security", {}).items():
-        currency = acct_data.get("currency", "USD")
+        currency = acct_data.get("currency", "CNY") or "CNY"
         cash_bal = acct_data.get("cash", 0.0)
         total_value = cash_bal
         for tkr, pos in acct_data.get("positions", {}).items():
