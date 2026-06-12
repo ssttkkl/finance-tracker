@@ -2,6 +2,8 @@
 
 适用于 `ft convert` 后的转换审查（步骤 ②）和 `ft merge` 后的合并审查（步骤 ⑤）。步骤 ③ AI 修正也按此检查项执行修复。
 
+**审查方式：** 每个转换后的 CSV 文件独立审查，每文件分配一个 subagent。subagent 接收文件路径和账单类型，独立读取 CSV + `_refunds.csv` 进行检查。
+
 ## 转换审查（步骤 ②）
 
 查看 `ft convert` 输出的 CSV + `_refunds.csv`，按优先级检查：
