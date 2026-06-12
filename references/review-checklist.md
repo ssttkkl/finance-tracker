@@ -11,11 +11,12 @@
 ### P0 — 金额影响（阻塞性）
 
 - 退款配对数学正确性：全额退款 支出+退款=0、部分退款净额正确、多笔退款链累加=原始金额
+- **支付宝 gross refund 检测**：同时存在净退款和全额退款时（如 铁路12306 +83.5 和 +1025.5），全额退款等于原始支出金额的应自动核销（`_pair_refunds` 孤退款处理器已实现"原始全额匹配"），不应作为 income 残留在主 CSV
 - 部分退款净额在 CSV 中缺失 → 补加
 - 孤退款收入混在 CSV 中 → 删除（已在退款 CSV 中处理）
 - 重复支出行 → 检查并去重
 - 空 counterparty 的消费支出 → 补充 merchant 信息
-- **convert 输出行数远少于预期 / skipped 计数异常高** → 检查 `mapping.yaml` 是否有未覆盖的 `payment_method` 模式。常见遗漏：`工商银行储蓄卡(3697)*`、`余额`、`中国建设银行储蓄卡`（全称前缀）。排查：检查 convert 输出中的 `⚠️ 未匹配规则` 警告
+- **convert 抛出 ValueError**（非警告）→ 检查 `mapping.yaml` 是否有未覆盖的 `payment_method` 模式。常见遗漏：`工商银行储蓄卡(3697)*`、`余额`、`余额宝*`、`中国建设银行储蓄卡(2820)*`（全称前缀）、`工商银行信用卡(9166)*`、`云闪付-*`。注意 `fnmatch("x", "")` → False，`match: ""` 只匹配空字符串
 
 ### P1 — source 正确性
 
@@ -43,9 +44,9 @@
 
 查看 `ft merge` 输出的 `merged.csv` 和 `removed.csv`，检查：
 
-- 去重是否有误删（检查 removed 中的每一行是否真的是重复）
-- 去重是否有漏删（检查 merged 中是否有明显的重复行）
-- 跨来源的重复标记是否合理
+- **误删检查**：`removed.csv` 中每一条 `dedup_status=去除` 的行，都必须有对应的 `dedup_status=保留` 行在同一文件内（同一对）。该"保留"行必须在 `merged.csv` 中存在（去重逻辑是保留支付宝/微信版，删除银行版，因此保留行应在 merged 中、去除行不应在 merged 中）。
+- **漏删检查**：检查 merged 中是否有同来源+同日+同金额+同counterparty的明显重复行（注意区分同日不同时的多笔独立交易）。
+- **跨来源**：不同来源的相同交易保留是预期行为。
 
 ## 修复策略
 
@@ -57,11 +58,29 @@ main.append({...fields...})
 main.sort(key=lambda r: r["date"])
 ```
 
-### 代码层修复（修复转换器并重跑）
+### 代码层修复
 
-找出转换器中的 bug，在对应 importer 中修复，然后重跑：
-```
-ft convert -s <type> -o <csv> <原始账单>
+1. 找出转换器中的 bug
+2. 写 RED 测试（TDD），确认失败
+3. 修复代码，GREEN
+4. 重跑：`ft convert -s <type> -o <csv> <原始账单>`
+
+### CCB 转换器常见修复
+- `消费-` 前缀剥离：更新 `_extract_ccb_counterparty` 中的 `PAYMENT_PREFIXES` 子前缀列表，添加 `"消费-"`；注意连续剥除（while 循环）
+- 证券转账账号脱敏：正则 `r"^(银行转证券|证券转银行|银转证|证转银)\\d+\\S*$"` → 提取纯名称
+
+### ICBC 退款匹配常见修复
+- 退货 sentinel 被 normalizer 吞掉：在 normalizer 前打 `_is_refund` 旗标
+- ICBC orphan income 残留：`_pair_refunds` 后过滤 `category=income AND cp in (消费,财付通)`
+- 退款 refund 的 `_raw_cp` 需在 normalizer 前保存，`_pair_refunds` 中 fallback 匹配
+
+### 映射规则修复
+```bash
+# 修改 ~/.ft/mapping.yaml，格式：
+- source: alipay
+  match: "工商银行储蓄卡(3697)*"
+  account: "工行借记卡"
+  currency: CNY
 ```
 
 ## 输出格式
