@@ -32,7 +32,7 @@ design_spec: docs/superpowers/specs/2026-06-12-csv-only-design.md, docs/superpow
 
 convert 说明：`alipay`（支付宝 CSV）、`wechat`（微信 xlsx）、`icbc`（工行 PDF，需 --password，自动检测信用卡/借记卡）、`ccb-debit`（建行 xls）。
 
-AI 审查要点：转换阶段检查退款核销、counterparty、platform、source 是否正确。合并阶段检查去重是否有误删/漏删。
+AI 审查要点：转换阶段检查退款核销、counterparty、source 是否正确。合并阶段检查去重是否有误删/漏删。
 
 ### 账户管理
 
@@ -66,50 +66,43 @@ AI 审查要点：转换阶段检查退款核销、counterparty、platform、sou
 
 ### 账单字段
 
-每笔交易记录包含以下字段：
+每笔交易记录包含以下字段（9列）：
 
 | 字段 | 说明 | 示例 |
 |------|------|------|
 | `date` | 交易时间，精确到秒 | `2026-01-01 13:00:40` |
 | `amount` | 带符号金额，负=支出，正=收入 | `-16.30` |
 | `currency` | 币种 | `CNY` / `USD` / `HKD` |
-| `counterparty` | 交易对方 | `美团App霸王茶姬` |
-| `description` | 商品说明（80字截断） | `生椰拿铁` |
+| `counterparty` | 标准化商户名 | `麦当劳` / `渝八两重庆鸡公煲` |
+| `description` | 商品/交易说明（80字截断，含品牌提取残留） | `安尔雅家具` / `生椰拿铁` |
 | `category` | 收支类型 | `expense` / `income` |
 | `account_name` | 账户名（对应 accounts.yaml） | `支付宝余额` |
 | `source` | 支付渠道（怎么付的） | `支付宝` / `美团支付` |
-| `platform` | 消费去向（在哪花的） | `霸王茶姬` / `京东` |
 | `bill_source` | 账单来源 | `alipay` / `icbc_credit` |
 
-#### source vs platform
+#### counterparty 规范化
 
-source 是支付渠道，platform 是消费去向。两者独立：
+从原始账单数据到 `counterparty` 字段经过三级 fallthrough：
 
-- 支付宝/微信账单：source 固定为"支付宝"/"微信"，platform 从对方名+描述推断
-- 信用卡账单：source 从交易场所前缀推断（美团支付/财付通/京东支付），platform 从描述推断
-- 单笔录入 `ft add`：source 和 platform 可选，手动指定
+1. **品牌匹配** — 命中已知品牌/连锁（瑞幸咖啡、麦当劳、京东等）→ `counterparty` = 品牌名，原始剩余信息（门店/商品）迁移到 `description`
+2. **O2O 渠道剥离** — 未命中品牌，但有 O2O 中介前缀（美团App/饿了么/大众点评等）→ 去掉前缀，`counterparty` = 商铺名
+3. **原样保留** — 无匹配 → `counterparty` 保持不变
 
-#### O2O 中介规则
+| 原始交易对方 | 原始 description | → counterparty | → description |
+|:---|:---|:---|:---|
+| 安尔雅家具京东自营旗舰店 | *(空)* | 京东 | 安尔雅家具 |
+| 美团App麦当劳麦咖啡(北京武圣 | *(空)* | 麦当劳 | 麦咖啡(北京武圣) |
+| luckin coffee | 订单付款 | 瑞幸咖啡 | 订单付款 |
+| 美团App渝八两重庆鸡公煲 | *(空)* | 渝八两重庆鸡公煲 | *(空)* |
+| 先骑后付 | *(空)* | 美团 | 先骑后付 |
+| 先享后付订单到期扣款 | *(空)* | 先享后付订单到期扣款 | *(空)* |
+| 北京屏芯科技有限公司 | 工资 | 北京屏芯科技有限公司 | 工资 |
 
-O2O 平台（美团App、饿了么、淘宝闪购）是中介——钱通过它们付给真实商家。**需标注真实消费平台。**
+source 是支付渠道（怎么付的），与 counterparty 无关。
 
-- 已知连锁品牌 → 标注品牌名
-- 非连锁小店 → 留空
-- 中介名本身不记为 platform
-- 具体品牌规则排在泛化关键词前
-
-| 描述 | platform |
-|------|----------|
-| 美团App麦当劳 | 麦当劳 |
-| 美团App老王饺子馆 | (空) |
-| 美团收银麦当劳 | 麦当劳 |
-| 美团收银老王饺子馆 | (空) |
-| 先骑后付 | 美团 |
-| 小象超市 | 美团 |
-
-#### 匹配优先级
-
-公司全名 → 连锁品牌 → 电商/数字平台 → 出行 → 自有服务 → 空。绝不 fallback 到账单来源名。
+- 支付宝/微信账单：source 固定为"支付宝"/"微信"
+- 信用卡账单：source 从交易场所前缀推断（美团支付/财付通/京东支付）
+- 单笔录入 `ft add`：source 可选，手动指定
 
 ## 股票交易
 
