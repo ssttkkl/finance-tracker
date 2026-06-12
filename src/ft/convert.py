@@ -319,7 +319,26 @@ def _pair_refunds(expenses: list, refunds: list, others: list):
                     candidates.append((i, exact, True, exp["date"]))
 
         if not candidates:
-            # 孤退款 → income（二次清理前缀，保留 description 用于 source 追溯）
+            # 孤退款：检查是否为"原始全额退款"——退款金额等于某笔支出的原始金额（非剩余）
+            # 适用于支付宝中同时存在净退款(83.5)和全额退款(1025.5)的场景
+            gross_matched = False
+            for i, exp in enumerate(expenses):
+                if consumed[i]:
+                    continue
+                raw_amt = abs(exp["amount"])
+                if abs(raw_amt - ref_amt) < 0.01 and _counterparty_matches(exp["counterparty"], ref["counterparty"]):
+                    # 全额退款，消耗整笔支出
+                    consumed[i] = True
+                    tracking_pairs.append({
+                        "expense": dict(expenses[i]),
+                        "refund": dict(ref),
+                        "match_type": "full",
+                    })
+                    gross_matched = True
+                    break
+            if gross_matched:
+                continue
+            # 真孤退款 → income
             others.append({
                 "date": ref["date"],
                 "amount": ref["amount"],
@@ -726,6 +745,11 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                 new_cp, new_desc = _normalize_counterparty(raw, desc, "icbc")
                 pair[key]["counterparty"] = new_cp
                 pair[key]["description"] = new_desc
+        # 过滤 ICBC 孤退款收入行（cp 为"消费"/"财付通"的 refund orphan，非真实收入）
+        records = [r for r in records if not (
+            r["category"] == "income"
+            and r.get("counterparty", "") in ("消费", "财付通")
+        )]
     else:
         tracking_pairs = []
 
