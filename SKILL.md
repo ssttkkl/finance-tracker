@@ -154,3 +154,4 @@ ft stock append dfzq_stock.csv
 | **Normalizer 破坏 ICBC 退款匹配** | 参考 `references/icbc-refund-matching.md`：存 `_raw_cp` + `_is_refund` flag，`_pair_refunds` 中 fallback 到 `_raw_cp` |
 | **「退货」sentinel 被 normalizer 吞掉** | ICBC 退款检测依赖 `counterparty == "退货"`，但 normalizer 可能把「退货」归一化为品牌名。修复：调用 normalizer 前检查原始 `counterparty == "退货"`，设 `_is_refund = True` 标志，退款检测改为判断 `r.get("_is_refund")` |
 | **删除/新增列要检查所有 CSV header 硬编码** | 以下文件都有硬编码 header 或列序，容易被漏：`do_convert()`（主输出 + `_refunds.csv`）、`merge.py`（header 列表）、`dedup.py`（列比较代码）、`ccb_debit.py`（列构造）。改 `CSV_FIELDS` 后必须搜索全项目引用的字段名确认无残留 |
+| **convert 输出行数远少于预期** | `ft convert` 的 `skipped` 计数 > 0 时，优先检查 `mapping.yaml` 是否有未覆盖的 `payment_method`。常见遗漏：`工商银行储蓄卡(3697)*`（未加规则时 223 条被 skip）、`余额`、`中国建设银行储蓄卡`（全称前缀）。`default: error` 会打印警告并 skip。排查：`grep "未匹配规则" convert 输出` 看哪些 payment_method 未被覆盖，对应加规则 |

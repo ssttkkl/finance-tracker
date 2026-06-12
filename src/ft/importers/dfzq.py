@@ -36,7 +36,13 @@ ACTION_MAP = {
     "OTC资金划出": "WITHDRAW",
     "融券回购": "BUY",
     "融券购回": "SELL",
+    "红利入账": "DIVIDEND",
+    "红股入账": "INIT",
+    "股息红利差异扣税": "WITHDRAW",
 }
+
+# 需要清空 shares/price 的 action 类型
+_ZERO_SHARES_PRICE = {"DEPOSIT", "WITHDRAW", "DIVIDEND"}
 
 # 融券回购/购回的固定 ticker
 REPO_TICKER = "204001"
@@ -158,6 +164,14 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
             ticker = REPO_TICKER
         suffix = _ticker_suffix(ticker)
         full_ticker = ticker + suffix
+
+        # 对 DIVIDEND/WITHDRAW/DEPOSIT 清空 shares 和 price
+        # 对 INIT（红股入账）保留 shares, price=0
+        if action in _ZERO_SHARES_PRICE:
+            shares = 0.0
+            price = 0.0
+        elif action == "INIT":
+            price = 0.0
 
         # 计算 amount（不含佣金的净额）
         # amount = 总发生金额 + 手续费
