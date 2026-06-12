@@ -606,18 +606,29 @@ def do_list():
     """Read snapshot, fetch prices, display portfolio."""
     snap = load_snapshot()
     accounts = snap.get("accounts", {})
-    if not accounts:
+
+    # Collect all security accounts from both old and new snapshot structure
+    # Old: accounts.IBKR.positions  New: accounts.security.东方证券.positions
+    all_accts = {}
+    for name, data in accounts.items():
+        if isinstance(data, dict) and "positions" in data:
+            all_accts[name] = data
+    for name, data in accounts.get("security", {}).items():
+        if name not in all_accts:
+            all_accts[name] = data
+
+    if not all_accts:
         print("📭 无持仓")
         return
 
     # Collect all tickers for price fetching
     all_tickers = set()
-    for acct_data in accounts.values():
+    for acct_data in all_accts.values():
         all_tickers.update(acct_data.get("positions", {}).keys())
     prices = _fetch_prices(list(all_tickers))
 
-    for acct_name, acct_data in accounts.items():
-        currency = acct_data.get("currency", "USD")
+    for acct_name, acct_data in all_accts.items():
+        currency = acct_data.get("currency", "CNY") or "CNY"
         symbol = models.CURRENCY_SYMBOLS.get(currency, "$")
         positions = acct_data.get("positions", {})
         cash = acct_data.get("cash", 0.0)
@@ -635,13 +646,15 @@ def do_list():
         for ticker in sorted(positions.keys()):
             pos = positions[ticker]
             shares = pos["shares"]
+            if shares == 0:
+                continue
             avg_cost = pos["avg_cost"]
             cost = shares * avg_cost
             current_price = prices.get(ticker)
-            if current_price is not None:
+            if current_price is not None and shares > 0:
                 value = shares * current_price
                 pl = value - cost
-                pct = (current_price - avg_cost) / avg_cost * 100
+                pct = (current_price - avg_cost) / avg_cost * 100 if avg_cost > 0 else 0.0
                 pl_str = f"+{symbol}{pl:>,.2f}" if pl >= 0 else f"{symbol}{pl:>,.2f}"
                 pct_str = f"+{pct:.1f}%" if pct >= 0 else f"{pct:.1f}%"
             else:
