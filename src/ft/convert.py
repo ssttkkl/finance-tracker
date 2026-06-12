@@ -130,6 +130,130 @@ def _strip_payment_prefix(counterparty: str) -> str:
     return stripped
 
 
+# O2O 平台前缀（从交易对方开头去掉，但结果非空才去掉）
+O2O_PREFIXES = [
+    "美团App",
+    "饿了么",
+    "大众点评",
+    "高德团购",
+]
+
+# 品牌匹配后从 leftover 中去除的电商后缀
+ECOMMERCE_SUFFIXES = [
+    "自营旗舰店",
+    "官方旗舰店",
+    "旗舰店",
+    "官方店",
+    "专卖店",
+    "专营店",
+]
+
+
+def _strip_platform_prefix(counterparty: str) -> str:
+    """去掉交易对方中的O2O平台前缀（美团App/饿了么/大众点评/高德团购）。
+    若去掉后为空，返回原值不变。"""
+    if not counterparty:
+        return counterparty
+    for prefix in O2O_PREFIXES:
+        if counterparty.startswith(prefix):
+            stripped = counterparty[len(prefix):].lstrip()
+            if stripped:
+                return stripped
+            return counterparty
+    return counterparty
+
+
+def _extract_leftover(cp: str, brand: str) -> str:
+    """品牌匹配后，从原交易对方名中提取有用剩余文本。
+
+    1. 依次去掉品牌关键词（优先最长）
+    2. 去掉 O2O 平台前缀
+    3. 去掉常见电商后缀（自营旗舰店等）
+    4. 清理首尾标点/空格
+    """
+    import re
+
+    if not cp:
+        return ""
+
+    # 找到该品牌对应的所有关键词
+    brand_keywords = []
+    for keywords, b in PLATFORM_RULES:
+        if b == brand:
+            brand_keywords = list(keywords)
+            break
+
+    if not brand_keywords:
+        return ""
+
+    leftover = cp
+    cp_lower = leftover.lower()
+
+    # 从长到短依次去掉关键词，避免被短关键词吃掉不该吃的部分
+    for kw in sorted(brand_keywords, key=len, reverse=True):
+        if kw.lower() in cp_lower:
+            leftover = re.sub(re.escape(kw), "", leftover, flags=re.IGNORECASE)
+            cp_lower = leftover.lower()
+
+    # 去掉 O2O 平台前缀
+    leftover = _strip_platform_prefix(leftover)
+
+    # 去掉常见电商后缀
+    for suffix in ECOMMERCE_SUFFIXES:
+        if leftover.endswith(suffix):
+            leftover = leftover[: -len(suffix)]
+            break
+
+    # 清理首尾标点/括号/空白
+    leftover = re.sub(r"^[\s（(【\[、,，\-—]+", "", leftover)
+    leftover = re.sub(r"[\s）)】\]、,，\-—]+$", "", leftover)
+
+    return leftover.strip()
+
+
+def _normalize_counterparty(raw_cp: str, raw_desc: str, source: str) -> tuple[str, str]:
+    """三级回退规范化交易对方名。
+
+    1. 去掉支付源前缀（_strip_payment_prefix）
+    2. 品牌匹配（_infer_platform）→ 若命中，counterty=品牌名，剩余文本搬移到 description
+       - 特殊：先骑后付 → cp=美团，desc=先骑后付
+    3. O2O 平台前缀剥离（_strip_platform_prefix）→ 若变化，counterty=剥离结果
+    4. 无匹配 → 原样返回
+    """
+    if not raw_cp:
+        return (raw_cp, raw_desc)
+
+    # Stage 1: 去掉支付源前缀
+    cp = _strip_payment_prefix(raw_cp)
+    desc = raw_desc
+
+    # Stage 2: 品牌匹配
+    brand = _infer_platform(cp, desc, source)
+    if brand:
+        # 特殊：先骑后付 → 美团
+        if "先骑后付" in cp:
+            new_desc = "先骑后付"
+            if raw_desc:
+                new_desc = f"先骑后付|{raw_desc}"
+            return ("美团", new_desc)
+
+        cp_before = cp
+        cp = brand
+        leftover = _extract_leftover(cp_before, brand)
+        # 仅当原始描述为空或等于原始交易对方时，才用 leftover 替换
+        if leftover and (not raw_desc or raw_desc == raw_cp):
+            desc = leftover
+        return (cp, desc)
+
+    # Stage 3: O2O 平台前缀剥离
+    stripped = _strip_platform_prefix(cp)
+    if stripped != cp:
+        return (stripped, desc)
+
+    # No match
+    return (cp, desc)
+
+
 def _counterparty_matches(exp_cpy: str, ref_cpy: str) -> bool:
     """判断交易双方是否指向同一实体 — 精确/子串/前缀匹配"""
     if exp_cpy == ref_cpy:
