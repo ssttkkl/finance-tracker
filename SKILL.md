@@ -32,7 +32,7 @@ design_spec: docs/superpowers/specs/2026-06-12-csv-only-design.md, docs/superpow
 
 convert 说明：`alipay`（支付宝 CSV）、`wechat`（微信 xlsx）、`icbc`（工行 PDF，需 --password，自动检测信用卡/借记卡）、`ccb-debit`（建行 xls）。
 
-AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2(脱敏) > P3(counterparty)** 逐项检查。审查 checklist 和修复策略见 **ft-bill-review** 技能。
+AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2(脱敏) > P3(counterparty)** 逐项检查。详细审查清单见 `references/review-checklist.md`。
 
 转换阶段：退款配对数学正确性（全额=0？部分=净额正确？）、source 正确性、数据脱敏、counterparty 规范化。
 合并阶段：去重是否有误删/漏删、跨来源重复标记是否合理。
