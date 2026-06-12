@@ -37,7 +37,7 @@ ACTION_MAP = {
     "融券回购": "BUY",
     "融券购回": "SELL",
     "红利入账": "DIVIDEND",
-    "红股入账": "INIT",
+    "红股入账": "CHECKIN",
     "股息红利差异扣税": "WITHDRAW",
 }
 
@@ -166,11 +166,8 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
         full_ticker = ticker + suffix
 
         # 对 DIVIDEND/WITHDRAW/DEPOSIT 清空 shares 和 price
-        # 对 INIT（红股入账）保留 shares, price=0
         if action in _ZERO_SHARES_PRICE:
             shares = 0.0
-            price = 0.0
-        elif action == "INIT":
             price = 0.0
 
         # 计算 amount（不含佣金的净额）
