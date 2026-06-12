@@ -125,15 +125,6 @@ def main():
     div_p.add_argument("--note", default="")
     div_p.add_argument("--date")
 
-    init_p = stk_sub.add_parser("init", help="初始持仓")
-    init_p.add_argument("--ticker", required=True)
-    init_p.add_argument("--shares", type=int, required=True)
-    init_p.add_argument("--price", type=float, required=True)
-    init_p.add_argument("--account", required=True)
-    init_p.add_argument("--currency", default="USD", choices=["CNY", "USD", "HKD"])
-    init_p.add_argument("--note", default="")
-    init_p.add_argument("--date")
-
     checkin_p = stk_sub.add_parser("checkin", help="校正持仓或现金")
     checkin_p.add_argument("--account", required=True)
     checkin_p.add_argument("--ticker")
@@ -465,7 +456,7 @@ def main():
     if args.cmd == "stock":
         from .stock import (
             do_buy, do_sell, do_deposit, do_withdraw,
-            do_dividend, do_init, do_checkin_ticker, do_checkin_cash,
+            do_dividend, do_checkin_ticker, do_checkin_cash,
             do_list,
         )
 
@@ -485,8 +476,6 @@ def main():
             do_withdraw(args.amount, args.currency, args.account, args.note, args.date)
         elif args.stock_cmd == "dividend":
             do_dividend(args.ticker, args.amount, args.currency, args.account, args.note, args.date)
-        elif args.stock_cmd == "init":
-            do_init(args.ticker, args.shares, args.price, args.currency, args.account, args.note, args.date)
         elif args.stock_cmd == "checkin":
             if args.ticker and args.shares is not None and args.avg_cost is not None:
                 do_checkin_ticker(args.ticker, args.shares, args.avg_cost,

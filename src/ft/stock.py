@@ -277,40 +277,6 @@ def do_dividend(
     )
 
 
-def do_init(
-    ticker: str,
-    shares: float,
-    price: float,
-    currency: str,
-    account_name: str,
-    note: str = "",
-    date: Optional[str] = None,
-):
-    """Initialize a position — no cash impact.
-
-    Sets position {shares, avg_cost: price}.
-    """
-    if date is None:
-        date = _now()
-
-    date_key = date[:10]
-    snap = load_snapshot()
-    acct = _ensure_account(snap, account_name, currency)
-    acct["positions"][ticker] = {
-        "shares": shares,
-        "avg_cost": price,
-    }
-    snap["updated_at"] = date_key
-    save_snapshot(snap)
-
-    record_trade(
-        date=date, action="INIT", ticker=ticker,
-        shares=shares, price=price, amount=0,
-        commission=0, currency=currency,
-        account_name=account_name, note=note,
-    )
-
-
 def do_checkin_ticker(
     ticker: str,
     shares: float,

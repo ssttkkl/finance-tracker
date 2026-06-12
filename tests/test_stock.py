@@ -200,24 +200,6 @@ def test_do_sell_updates_snapshot(tmp_env):
     assert "nvda.us" not in acct.get("positions", {})
 
 
-def test_do_init(tmp_env):
-    """Init sets position without cash impact"""
-    from ft.stock import do_init, load_snapshot
-
-    # Init a position
-    do_init(ticker="nvda.us", shares=100, price=200.0,
-            currency="USD", account_name="IBKR",
-            note="init position", date="2026-06-12")
-
-    snap = load_snapshot()
-    acct = snap["accounts"]["IBKR"]
-    # Cash should be 0 (no cash impact)
-    assert acct["cash"] == pytest.approx(0.0)
-    pos = acct["positions"]["nvda.us"]
-    assert pos["shares"] == 100
-    assert pos["avg_cost"] == 200.0
-
-
 def test_do_deposit_withdraw(tmp_env):
     """Deposit and withdraw update cash correctly"""
     from ft.stock import do_deposit, do_withdraw, load_snapshot
@@ -237,9 +219,9 @@ def test_do_deposit_withdraw(tmp_env):
 
 def test_do_dividend(tmp_env):
     """Dividend adds cash with no position change"""
-    from ft.stock import do_init, do_dividend, load_snapshot
+    from ft.stock import do_dividend, do_checkin_ticker, load_snapshot
 
-    do_init(ticker="aapl", shares=50, price=150.0,
+    do_checkin_ticker(ticker="aapl", shares=50, avg_cost=150.0,
             currency="USD", account_name="IBKR", date="2026-06-01")
 
     do_dividend(ticker="aapl", amount=25.0, currency="USD",
