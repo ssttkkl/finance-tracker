@@ -136,3 +136,6 @@ ft stock list
 | 新版支付宝「不计收支」方向 | 判断 `in ("收入","不计收支")` 而非 `== "收入"` |
 | O2O 平台被误标 | 品牌规则排在平台规则前 |
 | snapshot 不一致 | `ft verify --fix` 重建 |
+| **Normalizer 破坏 ICBC 退款匹配** | `_normalize_counterparty()` 改变了 expense 的 counterparty（如「新渔阳滑雪场」→「美团」），退款的 counterparty 也变了，`_pair_refunds` 匹配不上。修复：在 record 上存 `_raw_cp`（归一化前的原始值），`_pair_refunds` 中先比 normalized cp 再比 `_raw_cp` |
+| **「退货」sentinel 被 normalizer 吞掉** | ICBC 退款检测依赖 `counterparty == "退货"`，但 normalizer 可能把「退货」归一化为品牌名。修复：调用 normalizer 前检查原始 `counterparty == "退货"`，设 `_is_refund = True` 标志，退款检测改为判断 `r.get("_is_refund")` |
+| **删除/新增列要检查所有 CSV header 硬编码** | 以下文件都有硬编码 header 或列序，容易被漏：`do_convert()`（主输出 + `_refunds.csv`）、`merge.py`（header 列表）、`dedup.py`（列比较代码）、`ccb_debit.py`（列构造）。改 `CSV_FIELDS` 后必须搜索全项目引用的字段名确认无残留 |

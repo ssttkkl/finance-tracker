@@ -74,7 +74,7 @@ cd ~/Projects/finance-tracker && uv run pytest tests/ -v
 | # | 测试名 | 场景 | 期望 |
 |---|--------|------|------|
 | G1 | test_lending_is_transfer_to_lend | "出借"关键词 | transfer, lend |
-| G2 | test_family_gift_is_expense | 给梁碧玲无标注 | expense |
+| G2 | test_family_gift_is_expense | 给[姓名]无标注 | expense |
 | G3 | test_repayment_is_transfer | "还款"收入 | transfer, lend |
 
 ### 模块H：完整性/异常值（1个测试）
