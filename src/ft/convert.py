@@ -1054,7 +1054,6 @@ def do_convert(path: str, source: str, output: str, password: str = None,
 
     # Apply mapping rules to fill account_name
     output_rows = []
-    skipped = 0
     for rec in rows:
         if account:
             acct_name = account
@@ -1071,13 +1070,14 @@ def do_convert(path: str, source: str, output: str, password: str = None,
             if match:
                 acct_name = match["account"]
                 cur = match["currency"]
-            elif default_action == "skip":
-                skipped += 1
-                continue
             else:
-                print(f"  ⚠️ 未匹配规则: source={bill_type} payment_method='{rec.get('payment_method', '')}'", file=sys.stderr)
-                skipped += 1
-                continue
+                raise ValueError(
+                    f"❌ 未匹配规则: source={bill_type} "
+                    f"payment_method='{rec.get('payment_method', '')}' "
+                    f"counterparty='{rec.get('counterparty', '')}' "
+                    f"amount={rec.get('amount', '')}\n"
+                    f"  请在 ~/.ft/mapping.yaml 中添加映射规则后重试"
+                )
 
         payment_src = _infer_payment_source(
             bill_type,
@@ -1108,7 +1108,7 @@ def do_convert(path: str, source: str, output: str, password: str = None,
                          "bill_source"])
         writer.writerows(output_rows)
 
-    print(f"✅ 已转换 {len(output_rows)} 条 (跳过 {skipped}) → {output}")
+    print(f"✅ 已转换 {len(output_rows)} 条 → {output}")
 
     # 写退款追踪 CSV
     if tracking_pairs:

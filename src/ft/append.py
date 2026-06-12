@@ -31,18 +31,15 @@ def do_append(merged_csv_path: str):
         for row in reader:
             acct_name = row.get("account_name", "").strip()
             if not acct_name:
-                print(f"  ⚠️ 跳过: account_name 为空", file=sys.stderr)
-                continue
+                raise ValueError(f"❌ merge CSV 中存在 account_name 为空的记录")
 
             acct = acct_map.get(acct_name)
             if not acct:
-                print(f"  ❌ 未知账户: '{acct_name}'，请先 ft acct add", file=sys.stderr)
-                continue
+                raise ValueError(f"❌ 账户 '{acct_name}' 不存在，请先 ft acct add 再重试")
 
             date_val = row.get("date", "").strip()
             if not date_val:
-                print(f"  ⚠️ 跳过: date 为空 (account={acct_name})", file=sys.stderr)
-                continue
+                raise ValueError(f"❌ merge CSV 中存在 date 为空的记录 (account={acct_name})")
             date_str = date_val[:10]
             typ = acct["type"]
             groups[(typ, date_str)].append(row)

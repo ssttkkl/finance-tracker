@@ -164,7 +164,9 @@ def test_append_unknown_account(tmp_env):
     ])
 
     from ft.append import do_append
-    do_append(str(merged_path))
+    import pytest
+    with pytest.raises(ValueError, match="不存在的账户"):
+        do_append(str(merged_path))
 
     # Should NOT create file for unknown account
     for t in ["cash", "loan", "lend", "security"]:
