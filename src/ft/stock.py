@@ -29,15 +29,16 @@ VALID_ACTIONS = {"BUY", "SELL", "DEPOSIT", "WITHDRAW", "DIVIDEND", "CHECKIN", "I
 
 
 def _ensure_account(snap: dict, account_name: str, currency: str) -> dict:
-    """Get-or-create an account dict inside the snapshot."""
-    accounts = snap.setdefault("accounts", {})
-    if account_name not in accounts:
-        accounts[account_name] = {
+    """Get-or-create an account dict inside snap.accounts.security."""
+    top = snap.setdefault("accounts", {})
+    sec = top.setdefault("security", {})
+    if account_name not in sec:
+        sec[account_name] = {
             "currency": currency,
             "cash": 0.0,
             "positions": {},
         }
-    return accounts[account_name]
+    return sec[account_name]
 
 
 def record_trade(
@@ -821,6 +822,13 @@ def repair_security(records_dir=None):
 
     snap = load_snapshot()
     snap.setdefault("accounts", {})["security"] = accounts
+
+    # 清理顶层旧结构中的重复 security 账户
+    top = snap["accounts"]
+    for acct_name in list(accounts.keys()):
+        if acct_name in top and acct_name != "security":
+            del top[acct_name]
+
     snap["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     save_snapshot(snap)
     print(f"✅ 已从 CSV 重建快照: {len(accounts)} 个账户, {sum(len(a.get('positions',{})) for a in accounts.values())} 个标的")

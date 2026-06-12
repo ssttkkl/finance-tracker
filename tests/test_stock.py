@@ -137,7 +137,7 @@ def test_do_buy_updates_snapshot(tmp_env):
     )
 
     snap = load_snapshot()
-    acct = snap["accounts"]["IBKR"]
+    acct = snap["accounts"]["security"]["IBKR"]
     assert acct["cash"] == pytest.approx(-10086.65)  # -45*224.14 - 0.35
 
     pos = acct["positions"]["nvda.us"]
@@ -152,7 +152,7 @@ def test_do_buy_updates_snapshot(tmp_env):
     )
 
     snap = load_snapshot()
-    acct = snap["accounts"]["IBKR"]
+    acct = snap["accounts"]["security"]["IBKR"]
     # cash: -10086.65 + (-10*230 - 0.35) = -10086.65 - 2300.35 = -12387.0
     assert acct["cash"] == pytest.approx(-12387.0)
 
@@ -173,7 +173,7 @@ def test_do_sell_updates_snapshot(tmp_env):
            date="2026-06-12")
 
     snap = load_snapshot()
-    assert snap["accounts"]["IBKR"]["positions"]["nvda.us"]["shares"] == 55
+    assert snap["accounts"]["security"]["IBKR"]["positions"]["nvda.us"]["shares"] == 55
 
     # Sell 10 shares at 250
     do_sell(ticker="nvda.us", shares=10, price=250.0,
@@ -181,7 +181,7 @@ def test_do_sell_updates_snapshot(tmp_env):
             date="2026-06-13")
 
     snap = load_snapshot()
-    acct = snap["accounts"]["IBKR"]
+    acct = snap["accounts"]["security"]["IBKR"]
     pos = acct["positions"]["nvda.us"]
     assert pos["shares"] == 45
     assert pos["avg_cost"] == pytest.approx(225.205)
@@ -195,7 +195,7 @@ def test_do_sell_updates_snapshot(tmp_env):
             date="2026-06-14")
 
     snap = load_snapshot()
-    acct = snap["accounts"]["IBKR"]
+    acct = snap["accounts"]["security"]["IBKR"]
     # Position should be removed (or empty)
     assert "nvda.us" not in acct.get("positions", {})
 
@@ -208,13 +208,13 @@ def test_do_deposit_withdraw(tmp_env):
                note="deposit", date="2026-06-12")
 
     snap = load_snapshot()
-    assert snap["accounts"]["IBKR"]["cash"] == pytest.approx(10000.0)
+    assert snap["accounts"]["security"]["IBKR"]["cash"] == pytest.approx(10000.0)
 
     do_withdraw(amount=3000.0, currency="USD", account_name="IBKR",
                 note="withdraw", date="2026-06-13")
 
     snap = load_snapshot()
-    assert snap["accounts"]["IBKR"]["cash"] == pytest.approx(7000.0)
+    assert snap["accounts"]["security"]["IBKR"]["cash"] == pytest.approx(7000.0)
 
 
 def test_do_dividend(tmp_env):
@@ -228,7 +228,7 @@ def test_do_dividend(tmp_env):
                 account_name="IBKR", note="dividend", date="2026-06-15")
 
     snap = load_snapshot()
-    acct = snap["accounts"]["IBKR"]
+    acct = snap["accounts"]["security"]["IBKR"]
     assert acct["cash"] == pytest.approx(25.0)
     # Position unchanged
     assert acct["positions"]["aapl"]["shares"] == 50
@@ -248,7 +248,7 @@ def test_do_checkin_ticker(tmp_env):
                       note="checkin", date="2026-06-12")
 
     snap = load_snapshot()
-    pos = snap["accounts"]["IBKR"]["positions"]["nvda.us"]
+    pos = snap["accounts"]["security"]["IBKR"]["positions"]["nvda.us"]
     assert pos["shares"] == 55
     assert pos["avg_cost"] == 210.0
 
@@ -264,4 +264,4 @@ def test_do_checkin_cash(tmp_env):
                     note="reconcile", date="2026-06-12")
 
     snap = load_snapshot()
-    assert snap["accounts"]["IBKR"]["cash"] == pytest.approx(12345.67)
+    assert snap["accounts"]["security"]["IBKR"]["cash"] == pytest.approx(12345.67)

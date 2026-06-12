@@ -1,4 +1,5 @@
 """Tests for unified snapshot module"""
+import copy
 import pytest
 import tempfile
 from pathlib import Path
@@ -89,7 +90,7 @@ def test_set_balance(tmp_env):
     """Sets balance for an account"""
     from ft.snapshot import set_balance, DEFAULT
 
-    snap = dict(DEFAULT)  # shallow copy
+    snap = copy.deepcopy(DEFAULT)  # deep copy to avoid polluting DEFAULT
     set_balance(snap, "wallet", "cash", 2500.0)
     assert snap["accounts"]["cash"]["wallet"] == 2500.0
 
@@ -135,7 +136,7 @@ def test_update_balance_unknown(tmp_env):
     """update_balance for unknown account is no-op"""
     from ft.snapshot import load_snapshot, DEFAULT, update_balance
 
-    snap = dict(DEFAULT)  # shallow copy
+    snap = copy.deepcopy(DEFAULT)  # deep copy to avoid polluting DEFAULT
     # Should not raise, should not modify anything
     update_balance(snap, "nonexistent", 100.0)
 
