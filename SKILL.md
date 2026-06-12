@@ -137,11 +137,12 @@ ft stock list
 # 步骤① 转换：券商PDF → stock CSV
 ft stock convert 电子对账单.pdf -s dfzq --password 099215 -o dfzq_stock.csv
 
-# 步骤② 落库：stock CSV → records/security/ + 快照
+# 步骤② AI审查：逐条审查转换结果（见 references/stock-convert-review.md）
+# 步骤③ 落库：确认后导入 records/security/ + 快照
 ft stock append dfzq_stock.csv
 ```
 
-支持 `-s` 扩展其他券商，转换器存放在 `importers/<source>.py`。详情见 **finance-tracker-converters** 技能。
+支持 `-s` 扩展其他券商，转换器存放在 `importers/<source>.py`。
 
 ## 已知陷阱
 
