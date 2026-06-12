@@ -6,20 +6,36 @@ MAPPING_PATH = Path.home() / ".ft" / "mapping.yaml"
 
 DEFAULT_RULES = """rules:
   - source: alipay
-    match: "信用卡(*)*"
-    account: "信用卡"
+    match: "工商银行信用卡(1200)*"
+    account: "工行信用卡(1200)"
     currency: CNY
   - source: alipay
-    match: "储蓄卡(*)*"
-    account: "储蓄卡"
+    match: "网商银行储蓄卡(4164)*"
+    account: "网商储蓄卡(4164)"
+    currency: CNY
+  - source: alipay
+    match: "建设银行储蓄卡(2820)*"
+    account: "建行储蓄卡(2820)"
+    currency: CNY
+  - source: alipay
+    match: "工商银行储蓄卡(3697)*"
+    account: "工行借记卡"
     currency: CNY
   - source: alipay
     match: "账户余额"
     account: "支付宝余额"
     currency: CNY
   - source: alipay
+    match: "余额"
+    account: "支付宝余额"
+    currency: CNY
+  - source: alipay
     match: "花呗*"
     account: "花呗"
+    currency: CNY
+  - source: alipay
+    match: "工商银行信用卡分期(1200)*"
+    account: "工行信用卡(1200)"
     currency: CNY
   - source: alipay
     match: ""
@@ -30,12 +46,20 @@ DEFAULT_RULES = """rules:
     account: "微信零钱"
     currency: CNY
   - source: wechat
-    match: "信用卡(*)*"
-    account: "信用卡"
+    match: "工商银行储蓄卡(3697)*"
+    account: "工行借记卡"
     currency: CNY
   - source: wechat
-    match: "储蓄卡(*)*"
-    account: "储蓄卡"
+    match: "工商银行信用卡(1200)*"
+    account: "工行信用卡(1200)"
+    currency: CNY
+  - source: wechat
+    match: "建设银行储蓄卡(2820)*"
+    account: "建行储蓄卡(2820)"
+    currency: CNY
+  - source: wechat
+    match: "工商银行信用卡(9166)*"
+    account: "工行信用卡(1200)"
     currency: CNY
   - source: wechat
     match: "/"
