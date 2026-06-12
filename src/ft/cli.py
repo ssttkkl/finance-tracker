@@ -69,6 +69,16 @@ def main():
     trf.add_argument("--date")
     trf.add_argument("--description", default="")
 
+    # add (single transaction)
+    add_p = sub.add_parser("add", help="单笔录入")
+    add_p.add_argument("-a", "--amount", type=float, required=True)
+    add_p.add_argument("-c", "--counterparty", required=True)
+    add_p.add_argument("--account", required=True)
+    add_p.add_argument("-d", "--description", default="")
+    add_p.add_argument("--source", default="")
+    add_p.add_argument("--platform", default="")
+    add_p.add_argument("--date")
+
     # stock
     stk = sub.add_parser("stock", help="股票交易")
     stk_sub = stk.add_subparsers(dest="stock_cmd")
@@ -182,6 +192,69 @@ def main():
             acct_activate(args.name, args.currency, True)
         elif args.acct_cmd == "deactivate":
             acct_activate(args.name, args.currency, False)
+        return
+
+    if args.cmd == "add":
+        from datetime import datetime
+        import csv
+        from pathlib import Path
+        from .accounts import load_accounts
+        from . import models
+        from .snapshot import load_snapshot, save_snapshot, update_balance
+
+        # Lookup account
+        accts = {a["name"]: a for a in load_accounts()}
+        acct = accts.get(args.account)
+        if not acct:
+            print(f"❌ 未找到账户: {args.account}")
+            return
+
+        currency = acct.get("currency", "CNY")
+        typ = acct["type"]
+        category = "expense" if args.amount < 0 else "income"
+        date_str = args.date or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        day = date_str[:10]
+
+        # Write CSV row
+        type_dir = models.RECORDS_DIR / typ
+        type_dir.mkdir(parents=True, exist_ok=True)
+        day_path = type_dir / f"{day}.csv"
+
+        existing = []
+        if day_path.exists():
+            with open(day_path, encoding="utf-8") as f:
+                existing = list(csv.DictReader(f))
+
+        new_row = {
+            "date": date_str,
+            "amount": str(args.amount),
+            "currency": currency,
+            "counterparty": args.counterparty,
+            "description": args.description,
+            "category": category,
+            "account_name": args.account,
+            "source": args.source,
+            "platform": args.platform,
+            "bill_source": "",
+        }
+
+        all_rows = existing + [new_row]
+        all_rows.sort(key=lambda r: r["date"])
+
+        with open(day_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
+            writer.writeheader()
+            writer.writerows(all_rows)
+
+        # Update snapshot
+        snap = load_snapshot()
+        update_balance(snap, args.account, args.amount)
+        snap["updated_at"] = date_str
+        save_snapshot(snap)
+
+        # Print
+        sym = {"CNY": "¥", "USD": "$", "HKD": "HK$"}.get(currency, "")
+        print(f"✅ 已记录: {sym}{args.amount:+.2f} {args.counterparty} ({args.account})")
         return
 
     if args.cmd == "verify":
