@@ -715,7 +715,7 @@ def _replay_security_csv(records_dir=None):
                 except (ValueError, KeyError):
                     continue
 
-                if act in ("CHECKIN", "INIT"):
+                if act == "CHECKIN":
                     if t:
                         positions[(a, t)]["shares"] = s
                         positions[(a, t)]["total_cost"] = round(s * p, 2)
