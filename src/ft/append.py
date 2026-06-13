@@ -100,6 +100,6 @@ def do_append(merged_csv_path: str):
         print(f"  {date_str}: +{stats[date_str]} 条")
     total = sum(stats.values())
     print(f"✅ 总计: 追加 {total} 条")
-    # Auto git commit
-    from .snapshot import git_auto_commit
-    git_auto_commit("append", records_dir.parent)
+    # Git stage
+    from .snapshot import git_stage
+    git_stage(records_dir.parent)

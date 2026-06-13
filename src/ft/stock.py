@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import models
-from .snapshot import git_auto_commit, load_snapshot, save_snapshot
+from .snapshot import git_stage, load_snapshot, save_snapshot
 
 # ── CSV fields for security trades ──────────────────────────────────────
 CSV_FIELDS = [
@@ -276,10 +276,10 @@ def do_append(file_path):
     # 4. Rebuild snapshot
     repair_security()
 
-    # 5. Git commit
+    # 5. Git stage
     try:
-        from .snapshot import git_auto_commit
-        git_auto_commit("stock-append")
+        from .snapshot import git_stage
+        git_stage()
     except Exception:
         pass
 
