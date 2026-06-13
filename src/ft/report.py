@@ -232,7 +232,7 @@ def report_income(records_dir=None, month=None):
 def report_flow(records_dir=None, month=None):
     """资金流向 — 转账汇总"""
     all_records = _read_records(records_dir, month)
-    transfers = [r for r in all_records if r.get("category") == "transfer"]
+    transfers = [r for r in all_records if r.get("category") in ("transfer", "transfer_in", "transfer_out")]
 
     if not transfers:
         return
@@ -240,11 +240,13 @@ def report_flow(records_dir=None, month=None):
     from collections import Counter
     by_desc = Counter()
     for r in transfers:
+        if r.get("category") == "transfer_in":
+            continue
         try:
             amt = abs(float(r["amount"]))
         except (ValueError, KeyError):
             continue
-        desc = r.get("description", "")
+        desc = r.get("transfer_account") or r.get("description", "")
         cur = r.get("currency", "CNY")
         by_desc[(desc, cur)] += amt
 
@@ -272,7 +274,8 @@ def list_txns(records_dir=None, month=None, account=None, category=None, limit=3
         return
 
     CATEGORY_LABELS = {"income": "收入", "expense": "支出",
-                       "transfer": "转账", "checkin": "📸校准"}
+                       "transfer": "转账", "transfer_in": "转入",
+                       "transfer_out": "转出", "checkin": "📸校准"}
     sym_map = models.CURRENCY_SYMBOLS
 
     print(f"  {'日期':<21} {'账户':<16} {'币种':<5} {'类型':<6} {'金额':>12} {'说明'}")

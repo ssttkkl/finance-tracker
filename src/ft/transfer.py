@@ -8,7 +8,8 @@ from .snapshot import load_snapshot, save_snapshot, update_balance
 
 
 def _write_transfer_row(path: Path, date_str: str, amount: float, currency: str,
-                        description: str, account_name: str):
+                        description: str, account_name: str,
+                        category: str, transfer_account: str):
     """Write a transfer row to a day CSV, then sort."""
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -16,7 +17,7 @@ def _write_transfer_row(path: Path, date_str: str, amount: float, currency: str,
     if path.exists():
         with open(path, encoding="utf-8") as f:
             reader = csv.DictReader(f)
-            existing = list(reader)
+            existing = [{field: row.get(field, "") for field in models.CSV_FIELDS} for row in reader]
 
     new_row = {
         "date": date_str,
@@ -24,10 +25,11 @@ def _write_transfer_row(path: Path, date_str: str, amount: float, currency: str,
         "currency": currency,
         "counterparty": "",
         "description": description,
-        "category": "transfer",
+        "category": category,
         "account_name": account_name,
         "source": "手动",
         "bill_source": "",
+        "transfer_account": transfer_account,
     }
 
     all_rows = existing + [new_row]
@@ -77,12 +79,14 @@ def do_transfer(from_name: str, to_name: str, amount: float, *,
     # Write from side
     from_path = records_dir / from_acct["type"] / f"{date}.csv"
     from_desc = description or (f"购汇至{to_cur}" if from_cur != to_cur else f"转账至{to_name}")
-    _write_transfer_row(from_path, date_str, -amount, from_cur, from_desc, from_name)
+    _write_transfer_row(from_path, date_str, -amount, from_cur, from_desc, from_name,
+                        "transfer_out", to_name)
 
     # Write to side
     to_path = records_dir / to_acct["type"] / f"{date}.csv"
     to_desc = description or (f"购汇自{from_cur}" if from_cur != to_cur else f"来自{from_name}")
-    _write_transfer_row(to_path, date_str, to_amount or amount, to_cur, to_desc, to_name)
+    _write_transfer_row(to_path, date_str, to_amount or amount, to_cur, to_desc, to_name,
+                        "transfer_in", from_name)
 
     from_sym = models.CURRENCY_SYMBOLS.get(from_cur, "")
     to_sym = models.CURRENCY_SYMBOLS.get(to_cur, "")

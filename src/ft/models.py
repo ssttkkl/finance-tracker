@@ -30,11 +30,13 @@ ACCOUNT_ICONS = {
 }
 
 # 交易类型
-CATEGORIES = ("income", "expense", "transfer", "checkin")
+CATEGORIES = ("income", "expense", "transfer", "transfer_in", "transfer_out", "checkin")
 CATEGORY_LABELS = {
     "income": "收入",
     "expense": "支出",
     "transfer": "转账",
+    "transfer_in": "转入",
+    "transfer_out": "转出",
     "checkin": "校准",
 }
 
@@ -49,7 +51,7 @@ SOURCE_LABELS = {
 # 购汇/跨境关键词 → 跨币种转账
 FOREIGN_EXCHANGE_KEYWORDS = ("购汇", "跨境", "外汇", "换汇")
 
-# CSV 字段（9 列）
+# CSV 字段（10 列）
 CSV_FIELDS = ["date", "amount", "currency", "counterparty",
               "description", "category", "account_name", "source",
-              "bill_source"]
+              "bill_source", "transfer_account"]

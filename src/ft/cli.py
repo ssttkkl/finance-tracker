@@ -50,7 +50,7 @@ def main(argv=None):
     lst = sub.add_parser("list", help="列出交易")
     lst.add_argument("--month")
     lst.add_argument("--account")
-    lst.add_argument("--category", choices=["income", "expense", "transfer", "checkin"])
+    lst.add_argument("--category", choices=["income", "expense", "transfer", "transfer_in", "transfer_out", "checkin"])
     lst.add_argument("--limit", type=int, default=30)
 
     # checkin

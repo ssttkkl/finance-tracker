@@ -8,6 +8,10 @@ from .accounts import load_accounts
 from . import models
 
 
+def _normal_row(row: dict) -> dict:
+    return {field: row.get(field, "") for field in models.CSV_FIELDS}
+
+
 def do_append(csv_paths: list[str] | str):
     """Read converted CSV files, split by date, route to records/{type}/YYYY-MM-DD.csv."""
     records_dir = models.RECORDS_DIR
@@ -51,7 +55,7 @@ def do_append(csv_paths: list[str] | str):
                 if not date_val:
                     raise ValueError(f"❌ append CSV 中存在 date 为空的记录 (account={acct_name})")
                 date_str = date_val[:10]
-                incoming_rows.append((acct["type"], date_str, row))
+                incoming_rows.append((acct["type"], date_str, _normal_row(row)))
                 stats[date_str] += 1
 
     if not incoming_rows:
@@ -73,7 +77,7 @@ def do_append(csv_paths: list[str] | str):
         if day_path.exists():
             with open(day_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f)
-                existing_rows = list(reader)
+                existing_rows = [_normal_row(row) for row in reader]
 
         # Merge and sort
         all_rows = existing_rows + rows
@@ -100,7 +104,7 @@ def do_append(csv_paths: list[str] | str):
             m = re.search(r'[\d,]+\.?\d*', desc.replace(",", ""))
             if m:
                 set_balance(snap, acct, typ, row_currency, float(m.group()))
-        elif cat != "transfer":
+        elif cat not in ("transfer", "transfer_in", "transfer_out"):
             try:
                 update_balance(snap, acct, row_currency, float(row["amount"]))
             except (ValueError, KeyError):

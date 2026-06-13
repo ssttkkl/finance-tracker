@@ -41,7 +41,7 @@ def write_csv(path: Path, rows: list[dict]):
     path.parent.mkdir(parents=True, exist_ok=True)
     fields = ["date", "amount", "currency", "counterparty",
               "description", "category", "account_name", "source",
-              "platform", "bill_source"]
+              "platform", "bill_source", "transfer_account"]
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
@@ -253,3 +253,40 @@ def test_networth_separates_same_name_multi_currency_accounts(tmp_env):
     result = report_networth(records_dir)
     assert result["CNY"]["工行信用卡(1200) [CNY]"] == -200.0
     assert result["USD"]["工行信用卡(1200) [USD]"] == -10.0
+
+
+def test_reports_exclude_directional_transfers(tmp_env):
+    records_dir, _ = tmp_env
+    write_csv(records_dir / "cash" / "2026-06-12.csv", [
+        {"date": "2026-06-12 10:00:00", "amount": "-100.00", "currency": "CNY",
+         "counterparty": "微信", "description": "转账支取", "category": "transfer_out",
+         "account_name": "支付宝余额", "source": "支付宝", "platform": "",
+         "bill_source": "alipay", "transfer_account": "微信零钱"},
+        {"date": "2026-06-12 10:00:02", "amount": "100.00", "currency": "CNY",
+         "counterparty": "微信", "description": "银联入账", "category": "transfer_in",
+         "account_name": "微信零钱", "source": "微信", "platform": "",
+         "bill_source": "wechat", "transfer_account": "支付宝余额"},
+    ])
+
+    from ft.report import report_expense, report_income
+    assert report_expense(records_dir, month="2026-06") == {"CNY": {"total": 0.0}}
+    assert report_income(records_dir, month="2026-06") == {}
+
+
+def test_report_flow_uses_transfer_account_label(tmp_env, capsys):
+    records_dir, _ = tmp_env
+    write_csv(records_dir / "cash" / "2026-06-12.csv", [
+        {"date": "2026-06-12 10:00:00", "amount": "-100.00", "currency": "CNY",
+         "counterparty": "微信", "description": "转账支取", "category": "transfer_out",
+         "account_name": "支付宝余额", "source": "支付宝", "platform": "",
+         "bill_source": "alipay", "transfer_account": "微信零钱"},
+        {"date": "2026-06-12 10:00:02", "amount": "100.00", "currency": "CNY",
+         "counterparty": "微信", "description": "银联入账", "category": "transfer_in",
+         "account_name": "微信零钱", "source": "微信", "platform": "",
+         "bill_source": "wechat", "transfer_account": "支付宝余额"},
+    ])
+
+    from ft.report import report_flow
+    report_flow(records_dir, month="2026-06")
+    out = capsys.readouterr().out
+    assert "微信零钱" in out

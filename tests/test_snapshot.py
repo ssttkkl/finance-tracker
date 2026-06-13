@@ -1,5 +1,6 @@
 """Tests for unified snapshot module"""
 import copy
+import csv
 import pytest
 import tempfile
 from pathlib import Path
@@ -172,3 +173,26 @@ def test_update_balance_updates_matching_currency_only(tmp_env):
 
     assert snap["accounts"]["loan"]["工行信用卡(1200)"]["CNY"] == -100.0
     assert snap["accounts"]["loan"]["工行信用卡(1200)"]["USD"] == -15.0
+
+
+def test_rebuild_snapshot_skips_directional_transfers(tmp_env):
+    from ft.snapshot import rebuild_snapshot_from_records
+
+    records_dir = tmp_env / "records"
+    day_path = records_dir / "cash" / "2026-06-12.csv"
+    day_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(day_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=[
+            "date", "amount", "currency", "counterparty", "description",
+            "category", "account_name", "source", "bill_source", "transfer_account",
+        ])
+        writer.writeheader()
+        writer.writerow({
+            "date": "2026-06-12 10:00:00", "amount": "-100.00", "currency": "CNY",
+            "counterparty": "", "description": "", "category": "transfer_out",
+            "account_name": "wallet", "source": "", "bill_source": "",
+            "transfer_account": "bank",
+        })
+
+    snap = rebuild_snapshot_from_records(records_dir)
+    assert snap["accounts"].get("cash", {}).get("wallet", {}).get("CNY") == 0.0

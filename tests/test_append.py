@@ -43,7 +43,7 @@ def create_merged_csv(path: Path, rows: list[dict]):
     path.parent.mkdir(parents=True, exist_ok=True)
     fields = ["date", "amount", "currency", "counterparty",
               "description", "category", "account_name", "source",
-              "bill_source"]
+              "bill_source", "transfer_account"]
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
@@ -72,6 +72,7 @@ def test_append_creates_date_file(tmp_env):
     assert len(rows) == 1
     assert rows[0]["account_name"] == "支付宝余额"
     assert rows[0]["amount"] == "-30.00"
+    assert rows[0]["transfer_account"] == ""
 
 
 def test_append_routes_by_type(tmp_env):
@@ -97,6 +98,7 @@ def test_append_routes_by_type(tmp_env):
         cash_rows = list(csv.DictReader(f))
     assert len(cash_rows) == 1
     assert cash_rows[0]["account_name"] == "支付宝余额"
+    assert cash_rows[0]["transfer_account"] == ""
 
     loan_csv = records_dir / "loan" / "2026-06-12.csv"
     assert loan_csv.exists()
@@ -104,6 +106,7 @@ def test_append_routes_by_type(tmp_env):
         loan_rows = list(csv.DictReader(f))
     assert len(loan_rows) == 1
     assert loan_rows[0]["account_name"] == "工行信用卡(1200)"
+    assert loan_rows[0]["transfer_account"] == ""
 
 
 def test_append_sorts_by_date(tmp_env):
@@ -278,3 +281,50 @@ def test_append_routes_same_name_multi_currency_accounts(tmp_env):
         rows = list(csv.DictReader(f))
 
     assert [row["currency"] for row in rows] == ["CNY", "USD"]
+    assert [row["transfer_account"] for row in rows] == ["", ""]
+
+
+def test_append_writes_transfer_account_column(tmp_env):
+    records_dir, accounts_path = tmp_env
+    csv_path = records_dir.parent / "converted.csv"
+    create_merged_csv(csv_path, [
+        {"date": "2026-06-12 10:00:00", "amount": "-30.00", "currency": "CNY",
+         "counterparty": "奶茶", "description": "奶茶", "category": "expense",
+         "account_name": "支付宝余额", "source": "支付宝",
+         "bill_source": "alipay"},
+    ])
+
+    from ft.append import do_append
+    do_append(str(csv_path))
+
+    day_csv = records_dir / "cash" / "2026-06-12.csv"
+    with open(day_csv, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        assert "transfer_account" in reader.fieldnames
+        rows = list(reader)
+    assert rows[0]["transfer_account"] == ""
+
+
+def test_append_preserves_input_transfer_account(tmp_env):
+    records_dir, accounts_path = tmp_env
+    csv_path = records_dir.parent / "converted_with_transfer_account.csv"
+    fields = ["date", "amount", "currency", "counterparty",
+              "description", "category", "account_name", "source",
+              "bill_source", "transfer_account"]
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        writer.writerow({
+            "date": "2026-06-12 10:00:00", "amount": "-30.00", "currency": "CNY",
+            "counterparty": "测试", "description": "", "category": "expense",
+            "account_name": "支付宝余额", "source": "支付宝",
+            "bill_source": "alipay", "transfer_account": "微信零钱",
+        })
+
+    from ft.append import do_append
+    do_append(str(csv_path))
+
+    day_csv = records_dir / "cash" / "2026-06-12.csv"
+    with open(day_csv, encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert rows[0]["transfer_account"] == "微信零钱"

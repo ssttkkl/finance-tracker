@@ -250,7 +250,7 @@ def rebuild_snapshot_from_records(records_dir=None):
                 start = 0
             for r in records[start:]:
                 cat = r.get("category", "")
-                if cat in ("checkin", "transfer"):
+                if cat in ("checkin", "transfer", "transfer_in", "transfer_out"):
                     continue
                 try:
                     bal += float(r["amount"])

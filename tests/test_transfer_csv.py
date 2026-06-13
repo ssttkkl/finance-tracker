@@ -51,7 +51,8 @@ def test_same_currency_transfer(tmp_env):
     assert len(rows) == 1
     assert rows[0]["account_name"] == "工行借记卡"
     assert float(rows[0]["amount"]) == -3000
-    assert rows[0]["category"] == "transfer"
+    assert rows[0]["category"] == "transfer_out"
+    assert rows[0]["transfer_account"] == "工行信用卡(1200)"
 
     to_csv = records_dir / "loan" / "2026-06-12.csv"
     assert to_csv.exists()
@@ -60,7 +61,8 @@ def test_same_currency_transfer(tmp_env):
     assert len(rows) == 1
     assert rows[0]["account_name"] == "工行信用卡(1200)"
     assert float(rows[0]["amount"]) == 3000
-    assert rows[0]["category"] == "transfer"
+    assert rows[0]["category"] == "transfer_in"
+    assert rows[0]["transfer_account"] == "工行借记卡"
 
 
 def test_cross_currency_transfer(tmp_env):
@@ -77,6 +79,8 @@ def test_cross_currency_transfer(tmp_env):
     assert float(rows[0]["amount"]) == -36250
     assert rows[0]["currency"] == "CNY"
     assert "购汇至USD" in rows[0]["description"]
+    assert rows[0]["category"] == "transfer_out"
+    assert rows[0]["transfer_account"] == "IBKR"
 
     to_csv = records_dir / "security" / "2026-06-12.csv"
     with open(to_csv, encoding="utf-8") as f:
@@ -84,6 +88,8 @@ def test_cross_currency_transfer(tmp_env):
     assert float(rows[0]["amount"]) == 5000
     assert rows[0]["currency"] == "USD"
     assert "购汇自CNY" in rows[0]["description"]
+    assert rows[0]["category"] == "transfer_in"
+    assert rows[0]["transfer_account"] == "工行借记卡"
 
 
 def test_transfer_sorts_file(tmp_env):
@@ -92,7 +98,7 @@ def test_transfer_sorts_file(tmp_env):
     from_csv.parent.mkdir(parents=True, exist_ok=True)
     fields = ["date", "amount", "currency", "counterparty",
               "description", "category", "account_name", "source",
-              "bill_source"]
+              "bill_source", "transfer_account"]
     with open(from_csv, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
