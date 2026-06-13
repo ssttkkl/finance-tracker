@@ -251,3 +251,30 @@ def test_append_is_atomic_across_multiple_files(tmp_env):
         do_append([str(good_path), str(bad_path)])
 
     assert not (records_dir / "cash" / "2026-06-12.csv").exists()
+
+
+def test_append_routes_same_name_multi_currency_accounts(tmp_env):
+    records_dir, accounts_path = tmp_env
+    save_accounts([
+        {"name": "工行信用卡(1200)", "type": "loan", "currency": "CNY", "active": True},
+        {"name": "工行信用卡(1200)", "type": "loan", "currency": "USD", "active": True},
+    ], accounts_path)
+
+    csv_path = records_dir.parent / "multi_currency.csv"
+    create_merged_csv(csv_path, [
+        {"date": "2026-06-12 10:00:00", "amount": "-100.00", "currency": "CNY",
+         "counterparty": "测试", "description": "", "category": "expense",
+         "account_name": "工行信用卡(1200)", "source": "银行卡", "bill_source": "icbc_credit"},
+        {"date": "2026-06-12 11:00:00", "amount": "-10.00", "currency": "USD",
+         "counterparty": "TEST", "description": "", "category": "expense",
+         "account_name": "工行信用卡(1200)", "source": "银行卡", "bill_source": "icbc_credit"},
+    ])
+
+    from ft.append import do_append
+    do_append([str(csv_path)])
+
+    day_csv = records_dir / "loan" / "2026-06-12.csv"
+    with open(day_csv, encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+
+    assert [row["currency"] for row in rows] == ["CNY", "USD"]

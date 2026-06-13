@@ -219,8 +219,8 @@ def main(argv=None):
         from .snapshot import load_snapshot, save_snapshot, update_balance
 
         # Lookup account
-        accts = {a["name"]: a for a in load_accounts()}
-        acct = accts.get(args.account)
+        accts = [a for a in load_accounts() if a.get("name") == args.account]
+        acct = accts[0] if accts else None
         if not acct:
             print(f"❌ 未找到账户: {args.account}")
             return
@@ -263,7 +263,7 @@ def main(argv=None):
 
         # Update snapshot
         snap = load_snapshot()
-        update_balance(snap, args.account, args.amount)
+        update_balance(snap, args.account, currency, args.amount)
         snap["updated_at"] = date_str
         save_snapshot(snap)
 
@@ -467,7 +467,7 @@ def main(argv=None):
         # Update snapshot
         from .snapshot import load_snapshot, save_snapshot, set_balance
         snap = load_snapshot()
-        set_balance(snap, args.account, acct["type"], args.balance)
+        set_balance(snap, args.account, acct["type"], acct["currency"], args.balance)
         snap["updated_at"] = date_str[:10]
         save_snapshot(snap)
         return

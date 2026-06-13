@@ -7,13 +7,20 @@ from .models import ACCOUNT_TYPES, ACCOUNT_LABELS, CURRENCY_SYMBOLS
 
 def _compute_balance(account_name: str, currency: str) -> float:
     """Compute balance from snapshot."""
-    from .snapshot import load_snapshot
-    snap = load_snapshot()
+    from .snapshot import get_balance, load_snapshot
+    bal, typ = get_balance(account_name, currency)
+    if bal is not None and typ in ("cash", "loan", "lend"):
+        if isinstance(bal, dict):
+            return float(bal.get(currency, 0.0) or 0.0)
+        return bal or 0.0
 
-    # Check cash/loan/lend first
+    snap = load_snapshot()
     for typ in ("cash", "loan", "lend"):
-        if account_name in snap.get("accounts", {}).get(typ, {}):
-            return snap["accounts"][typ][account_name] or 0.0
+        bucket = snap.get("accounts", {}).get(typ, {}).get(account_name)
+        if isinstance(bucket, dict) and currency in bucket:
+            return bucket[currency] or 0.0
+        if isinstance(bucket, (int, float)):
+            return bucket or 0.0
 
     # Check security (positions + cash = total value)
     sec = snap.get("accounts", {}).get("security", {}).get(account_name)

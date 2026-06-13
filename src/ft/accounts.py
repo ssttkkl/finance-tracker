@@ -65,21 +65,33 @@ def save_accounts(accounts: list[dict], path: Optional[Path] = None) -> None:
         )
 
 
-def find_account(name: str, path: Optional[Path] = None) -> Optional[dict]:
+def find_account(
+    name: str,
+    currency: Optional[str] = None,
+    path: Optional[Path] = None,
+) -> Optional[dict]:
     """按名称查找账户。
 
-    优先返回 active=True 的账户；若未找到则返回 None。
+    提供 currency 时按 (name, currency) 精确查找；
+    不提供 currency 时保持旧行为，优先返回 active=True 的同名账户。
     """
     accounts = load_accounts(path)
 
+    def _matches(acct: dict) -> bool:
+        if acct.get("name") != name:
+            return False
+        if currency is not None and acct.get("currency") != currency:
+            return False
+        return True
+
     # 先找 active 的
     for acct in accounts:
-        if acct.get("name") == name and acct.get("active", True):
+        if _matches(acct) and acct.get("active", True):
             return acct
 
     # 再找 inactive 的
     for acct in accounts:
-        if acct.get("name") == name:
+        if _matches(acct):
             return acct
 
     return None

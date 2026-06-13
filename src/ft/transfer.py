@@ -41,7 +41,8 @@ def _write_transfer_row(path: Path, date_str: str, amount: float, currency: str,
 
 def do_transfer(from_name: str, to_name: str, amount: float, *,
                 to_amount: float = None, date: str = None,
-                time_str: str = None, description: str = ""):
+                time_str: str = None, description: str = "",
+                from_currency: str = None, to_currency: str = None):
     """Execute a transfer between two accounts."""
     if not date:
         date = datetime.now().strftime("%Y-%m-%d")
@@ -49,14 +50,16 @@ def do_transfer(from_name: str, to_name: str, amount: float, *,
         time_str = datetime.now().strftime("%H:%M:%S")
     date_str = f"{date} {time_str}"
 
-    from_acct = find_account(from_name)
+    from_acct = find_account(from_name, from_currency)
     if not from_acct:
-        print(f"❌ 未找到来源账户: {from_name}")
+        hint = f"({from_currency})" if from_currency else ""
+        print(f"❌ 未找到来源账户: {from_name}{hint}")
         return
 
-    to_acct = find_account(to_name)
+    to_acct = find_account(to_name, to_currency)
     if not to_acct:
-        print(f"❌ 未找到目标账户: {to_name}")
+        hint = f"({to_currency})" if to_currency else ""
+        print(f"❌ 未找到目标账户: {to_name}{hint}")
         return
 
     from_cur = from_acct["currency"]
@@ -91,7 +94,7 @@ def do_transfer(from_name: str, to_name: str, amount: float, *,
 
     # Update snapshot
     snap = load_snapshot()
-    update_balance(snap, from_name, -amount)
-    update_balance(snap, to_name, to_amount or amount)
+    update_balance(snap, from_name, from_cur, -amount)
+    update_balance(snap, to_name, to_cur, to_amount or amount)
     snap["updated_at"] = date
     save_snapshot(snap)

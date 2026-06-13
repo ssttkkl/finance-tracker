@@ -142,3 +142,33 @@ def test_update_balance_unknown(tmp_env):
 
     # Snapshot should remain unchanged
     assert snap == DEFAULT
+
+
+def test_set_balance_uses_nested_currency_buckets(tmp_env):
+    from ft.snapshot import set_balance
+
+    snap = {"accounts": {"cash": {}, "loan": {}, "lend": {}, "security": {}}, "updated_at": ""}
+    set_balance(snap, "工行信用卡(1200)", "loan", "CNY", -100.0)
+    set_balance(snap, "工行信用卡(1200)", "loan", "USD", -10.0)
+
+    assert snap["accounts"]["loan"]["工行信用卡(1200)"]["CNY"] == -100.0
+    assert snap["accounts"]["loan"]["工行信用卡(1200)"]["USD"] == -10.0
+
+
+def test_update_balance_updates_matching_currency_only(tmp_env):
+    from ft.snapshot import update_balance
+
+    snap = {
+        "accounts": {
+            "cash": {},
+            "loan": {"工行信用卡(1200)": {"CNY": -100.0, "USD": -10.0}},
+            "lend": {},
+            "security": {},
+        },
+        "updated_at": "",
+    }
+
+    update_balance(snap, "工行信用卡(1200)", "USD", -5.0)
+
+    assert snap["accounts"]["loan"]["工行信用卡(1200)"]["CNY"] == -100.0
+    assert snap["accounts"]["loan"]["工行信用卡(1200)"]["USD"] == -15.0

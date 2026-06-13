@@ -38,19 +38,22 @@ def _compute_acct_balances_with_checkin(accounts, records_dict):
     
     Returns: dict {currency: {account_name: balance}}
     """
-    acct_map = {a["name"]: a for a in accounts}
+    acct_map = {(a["name"], a["currency"]): a for a in accounts}
     result = defaultdict(dict)
 
-    for acct_name, records in records_dict.items():
+    for acct_key, records in records_dict.items():
+        if isinstance(acct_key, tuple) and len(acct_key) == 2:
+            acct_name, currency = acct_key
+        else:
+            acct_name = acct_key
+            currency = records[0].get("currency", "CNY") if records else "CNY"
         records.sort(key=lambda r: r["date"])
 
-        acct = acct_map.get(acct_name)
+        acct = acct_map.get((acct_name, currency))
         if not acct:
             continue
         if not acct.get("active", True):
             continue
-
-        currency = acct["currency"]
 
         # Find last checkin
         last_checkin_idx = -1
@@ -88,7 +91,10 @@ def report_networth(records_dir=None, month=None):
     from .accounts import load_accounts as load_acct_yaml
 
     snap = load_snapshot()
-    acct_meta = {a["name"]: a for a in load_acct_yaml()}
+    acct_meta = {(a["name"], a["currency"]): a for a in load_acct_yaml()}
+    name_counts = defaultdict(int)
+    for name, _cur in acct_meta:
+        name_counts[name] += 1
 
     ACCOUNT_ICONS = {"cash": "💰", "loan": "💳", "lend": "📤", "security": "📈"}
     ACCOUNT_LABELS = {"cash": "现金", "loan": "贷款", "lend": "借款", "security": "证券"}
@@ -99,16 +105,25 @@ def report_networth(records_dir=None, month=None):
 
     # Build result from snapshot
     result = {}
+    result_meta = {}
 
     for typ in ("cash", "loan", "lend"):
-        for acct_name, balance in snap["accounts"].get(typ, {}).items():
-            if abs(balance) < 0.005:
-                continue
-            meta = acct_meta.get(acct_name, {})
-            cur = meta.get("currency", "CNY")
-            if cur not in result:
-                result[cur] = {}
-            result[cur][acct_name] = balance
+        for acct_name, balance_bucket in snap["accounts"].get(typ, {}).items():
+            if isinstance(balance_bucket, dict):
+                balance_items = balance_bucket.items()
+            else:
+                balance_items = [("CNY", balance_bucket)]
+            for cur, balance in balance_items:
+                if abs(balance) < 0.005:
+                    continue
+                if cur not in result:
+                    result[cur] = {}
+                    result_meta[cur] = {}
+                display_name = acct_name
+                if name_counts.get(acct_name, 0) > 1 or (acct_name, cur) not in acct_meta:
+                    display_name = f"{acct_name} [{cur}]"
+                result[cur][display_name] = balance
+                result_meta[cur][display_name] = acct_meta.get((acct_name, cur), {})
 
     for acct_name, acct_data in snap["accounts"].get("security", {}).items():
         currency = acct_data.get("currency", "CNY") or "CNY"
@@ -119,7 +134,9 @@ def report_networth(records_dir=None, month=None):
         total_value = round(total_value, 2)
         if currency not in result:
             result[currency] = {}
+            result_meta[currency] = {}
         result[currency][acct_name] = total_value
+        result_meta[currency][acct_name] = {"type": "security"}
 
     # Print
     for cur in sorted(result.keys()):
@@ -127,11 +144,11 @@ def report_networth(records_dir=None, month=None):
         print(f"\n  [{cur}]")
         cur_total = sum(result[cur].values())
         for acct_name, bal in result[cur].items():
-            meta = acct_meta.get(acct_name, {})
+            meta = result_meta.get(cur, {}).get(acct_name, {})
             typ = meta.get("type", "")
             icon = ACCOUNT_ICONS.get(typ, " ")
             label = ACCOUNT_LABELS.get(typ, "")
-            print(f"    {icon} {acct_name[:16]:<16s} ({label})  {sym}{bal:>+8.2f}")
+            print(f"    {icon} {acct_name[:24]:<24s} ({label})  {sym}{bal:>+8.2f}")
         print(f"    {'─' * 36}")
         print(f"    {'合计':<16s} {sym}{cur_total:>+10.2f}")
 
@@ -146,16 +163,17 @@ def report_expense(records_dir=None, month=None):
     by_acct = defaultdict(list)
     for row in all_records:
         acct_name = row.get("account_name", "").strip()
+        currency = row.get("currency", "").strip() or "CNY"
         if acct_name:
-            by_acct[acct_name].append(row)
+            by_acct[(acct_name, currency)].append(row)
 
-    acct_map = {a["name"]: a for a in accounts}
+    acct_map = {(a["name"], a["currency"]): a for a in accounts}
     sym_map = models.CURRENCY_SYMBOLS
 
     result = {}
-    for acct_name, records in by_acct.items():
+    for (acct_name, currency), records in by_acct.items():
         records.sort(key=lambda r: r["date"])
-        acct = acct_map.get(acct_name)
+        acct = acct_map.get((acct_name, currency))
         if not acct:
             continue
 

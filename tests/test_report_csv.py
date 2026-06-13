@@ -227,3 +227,29 @@ def test_expense_multi_account(tmp_env):
     from ft.report import report_expense
     result = report_expense(records_dir, month="2026-06")
     assert result["CNY"]["total"] == 250.0
+
+
+def test_networth_separates_same_name_multi_currency_accounts(tmp_env):
+    records_dir, accounts_path = tmp_env
+
+    save_accounts([
+        {"name": "工行信用卡(1200)", "type": "loan", "currency": "CNY", "active": True},
+        {"name": "工行信用卡(1200)", "type": "loan", "currency": "USD", "active": True},
+    ], accounts_path)
+
+    from ft.snapshot import save_snapshot
+    snap = {
+        "accounts": {
+            "cash": {},
+            "loan": {"工行信用卡(1200)": {"CNY": -200.0, "USD": -10.0}},
+            "lend": {},
+            "security": {},
+        },
+        "updated_at": "",
+    }
+    save_snapshot(snap)
+
+    from ft.report import report_networth
+    result = report_networth(records_dir)
+    assert result["CNY"]["工行信用卡(1200) [CNY]"] == -200.0
+    assert result["USD"]["工行信用卡(1200) [USD]"] == -10.0

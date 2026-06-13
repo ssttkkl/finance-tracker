@@ -118,7 +118,20 @@ def git_do_commit(msg: str = None, repo_dir=None):
         return False
 
 
-def get_balance(acct_name: str, path: Optional[str] = None) -> tuple:
+def _normalize_balance_bucket(bucket, currency: Optional[str] = None):
+    """Return a currency-aware balance bucket from legacy or nested data."""
+    if isinstance(bucket, dict):
+        if currency is None:
+            return bucket
+        return bucket.get(currency)
+    return bucket
+
+
+def get_balance(
+    acct_name: str,
+    currency: Optional[str] = None,
+    path: Optional[str] = None,
+) -> tuple:
     """Search for an account's balance across types cash→loan→lend.
 
     Returns (balance, type) if found, or (None, None) if not found.
@@ -128,33 +141,71 @@ def get_balance(acct_name: str, path: Optional[str] = None) -> tuple:
     search_types = ("cash", "loan", "lend")
     for typ in search_types:
         accts = snap.get("accounts", {}).get(typ, {})
-        if acct_name in accts:
-            return accts[acct_name], typ
+        if acct_name not in accts:
+            continue
+        bucket = accts[acct_name]
+        if isinstance(bucket, dict):
+            if currency is None:
+                return bucket, typ
+            if currency in bucket:
+                return bucket[currency], typ
+            continue
+        return bucket, typ
     return None, None
 
 
-def set_balance(snap: dict, acct_name: str, typ: str, balance: float) -> None:
+def set_balance(
+    snap: dict,
+    acct_name: str,
+    typ: str,
+    currency_or_balance,
+    balance: Optional[float] = None,
+) -> None:
     """Set the balance for an account in the snapshot dict.
 
-    Modifies the dict in place. The caller is responsible for saving.
+    Supports both legacy flat writes and the new nested per-currency shape.
     """
-    snap.setdefault("accounts", {}).setdefault(typ, {})[acct_name] = balance
+    accounts = snap.setdefault("accounts", {})
+    bucket = accounts.setdefault(typ, {})
+    if balance is None:
+        bucket[acct_name] = currency_or_balance
+        return
+    acct_bucket = bucket.setdefault(acct_name, {})
+    if not isinstance(acct_bucket, dict):
+        acct_bucket = {"CNY": acct_bucket}
+        bucket[acct_name] = acct_bucket
+    acct_bucket[currency_or_balance] = balance
 
 
-def update_balance(snap: dict, acct_name: str, delta: float) -> None:
+def update_balance(
+    snap: dict,
+    acct_name: str,
+    currency_or_delta,
+    delta: Optional[float] = None,
+) -> None:
     """Add a delta to an existing cash/loan/lend balance.
 
-    Only works for accounts already in the snapshot.
-    No-op for unknown accounts or security accounts.
-    Modifies the dict in place. The caller is responsible for saving.
+    Supports both legacy flat updates and currency-aware nested balances.
     """
     search_types = ("cash", "loan", "lend")
     accounts = snap.get("accounts", {})
     for typ in search_types:
         accts = accounts.get(typ, {})
-        if acct_name in accts:
-            accts[acct_name] += delta
+        if acct_name not in accts:
+            continue
+        bucket = accts[acct_name]
+        if delta is None:
+            if isinstance(bucket, dict):
+                for cur, bal in list(bucket.items()):
+                    bucket[cur] = bal + currency_or_delta
+            else:
+                accts[acct_name] = bucket + currency_or_delta
             return
+        if isinstance(bucket, dict):
+            bucket[currency_or_delta] = bucket.get(currency_or_delta, 0.0) + delta
+        else:
+            accts[acct_name] = bucket + delta
+        return
 
 
 def rebuild_snapshot_from_records(records_dir=None):
@@ -179,10 +230,11 @@ def rebuild_snapshot_from_records(records_dir=None):
             with open(csv_file, encoding="utf-8") as f:
                 for row in csv.DictReader(f):
                     acct = row.get("account_name", "").strip()
+                    currency = row.get("currency", "").strip() or "CNY"
                     if acct:
-                        acct_records[acct].append(row)
+                        acct_records[(acct, currency)].append(row)
 
-        for acct_name, records in acct_records.items():
+        for (acct_name, currency), records in acct_records.items():
             records.sort(key=lambda r: r["date"])
             last_ci = -1
             for i, r in enumerate(records):
@@ -204,7 +256,7 @@ def rebuild_snapshot_from_records(records_dir=None):
                     bal += float(r["amount"])
                 except (ValueError, KeyError):
                     pass
-            set_balance(snap, acct_name, typ, round(bal, 2))
+            set_balance(snap, acct_name, typ, currency, round(bal, 2))
 
     snap["updated_at"] = "rebuilt"
     save_snapshot(snap)

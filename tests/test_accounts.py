@@ -44,21 +44,51 @@ def test_find_account(tmp_accounts_path):
         {"name": "工行信用卡(1200)", "type": "loan", "currency": "CNY", "active": False},
     ]
     save_accounts(accounts, tmp_accounts_path)
-    found = find_account("支付宝余额", tmp_accounts_path)
+    found = find_account("支付宝余额", path=tmp_accounts_path)
     assert found == accounts[0]
-    assert find_account("nonexistent", tmp_accounts_path) is None
+    assert find_account("nonexistent", path=tmp_accounts_path) is None
 
 
 def test_find_account_not_found(tmp_accounts_path):
     accounts = [{"name": "支付宝余额", "type": "cash", "currency": "CNY", "active": True}]
     save_accounts(accounts, tmp_accounts_path)
-    assert find_account("不存在的账户", tmp_accounts_path) is None
+    assert find_account("不存在的账户", path=tmp_accounts_path) is None
+
+
+def test_find_account_by_name_and_currency(tmp_accounts_path):
+    accounts = [
+        {"name": "工行信用卡(1200)", "type": "loan", "currency": "CNY", "active": True},
+        {"name": "工行信用卡(1200)", "type": "loan", "currency": "USD", "active": True},
+    ]
+    save_accounts(accounts, tmp_accounts_path)
+    found = find_account("工行信用卡(1200)", "USD", tmp_accounts_path)
+    assert found is not None
+    assert found["currency"] == "USD"
+
+
+def test_find_account_by_name_without_currency_still_returns_active(tmp_accounts_path):
+    accounts = [
+        {"name": "工行信用卡(1200)", "type": "loan", "currency": "CNY", "active": True},
+        {"name": "工行信用卡(1200)", "type": "loan", "currency": "USD", "active": True},
+    ]
+    save_accounts(accounts, tmp_accounts_path)
+    found = find_account("工行信用卡(1200)", path=tmp_accounts_path)
+    assert found is not None
+    assert found["name"] == "工行信用卡(1200)"
+
+
+def test_find_account_by_name_and_missing_currency_returns_none(tmp_accounts_path):
+    accounts = [
+        {"name": "工行信用卡(1200)", "type": "loan", "currency": "CNY", "active": True},
+    ]
+    save_accounts(accounts, tmp_accounts_path)
+    assert find_account("工行信用卡(1200)", "USD", tmp_accounts_path) is None
 
 
 def test_add_account(tmp_accounts_path):
     load_accounts(tmp_accounts_path)  # ensure created
     add_account("新账户", "cash", "CNY", tmp_accounts_path)
-    found = find_account("新账户", tmp_accounts_path)
+    found = find_account("新账户", path=tmp_accounts_path)
     assert found is not None
     assert found["type"] == "cash"
     assert found["active"] is True

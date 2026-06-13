@@ -18,7 +18,7 @@ def do_append(csv_paths: list[str] | str):
 
     # Preload account lookup
     accounts = load_accounts(models.ACCOUNTS_PATH)
-    acct_map = {a["name"]: a for a in accounts}
+    acct_map = {(a["name"], a["currency"]): a for a in accounts}
 
     # Read and validate all inputs before writing anything.
     incoming_rows: list[tuple[str, str, dict]] = []
@@ -32,12 +32,20 @@ def do_append(csv_paths: list[str] | str):
             reader = csv.DictReader(f)
             for row in reader:
                 acct_name = row.get("account_name", "").strip()
+                row_currency = row.get("currency", "").strip()
                 if not acct_name:
                     raise ValueError("❌ append CSV 中存在 account_name 为空的记录")
 
-                acct = acct_map.get(acct_name)
+                if not row_currency:
+                    raise ValueError(
+                        f"❌ append CSV 中存在 currency 为空的记录 (account={acct_name})"
+                    )
+
+                acct = acct_map.get((acct_name, row_currency))
                 if not acct:
-                    raise ValueError(f"❌ 账户 '{acct_name}' 不存在，请先 ft acct add 再重试")
+                    raise ValueError(
+                        f"❌ 账户 '{acct_name}({row_currency})' 不存在，请先 ft acct add 再重试"
+                    )
 
                 date_val = row.get("date", "").strip()
                 if not date_val:
@@ -83,6 +91,7 @@ def do_append(csv_paths: list[str] | str):
         acct = row.get("account_name", "").strip()
         if not acct:
             continue
+        row_currency = row.get("currency", "").strip() or "CNY"
         cat = row.get("category", "")
         if cat == "checkin":
             # parse balance from description like "余额校准¥5000.00"
@@ -90,10 +99,10 @@ def do_append(csv_paths: list[str] | str):
             desc = row.get("description", "")
             m = re.search(r'[\d,]+\.?\d*', desc.replace(",", ""))
             if m:
-                set_balance(snap, acct, typ, float(m.group()))
+                set_balance(snap, acct, typ, row_currency, float(m.group()))
         elif cat != "transfer":
             try:
-                update_balance(snap, acct, float(row["amount"]))
+                update_balance(snap, acct, row_currency, float(row["amount"]))
             except (ValueError, KeyError):
                 pass
     snap["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
