@@ -776,6 +776,29 @@ class TestIcbcParseLines:
         assert records[0]["amount"] == 12.0
 
 
+
+    def test_借记卡_时间不归一为零(self):
+        """借记卡分支应提取时间行，不应硬编码 00:00:00"""
+        lines = [
+            "2023-06-13",         # 日期行
+            "17:25:13",           # 时间行
+            "161402******4636",
+            "活期", "00000", "人民币", "钞", "消费", "1614",
+            "-17.00",             # 金额行
+            "1,234.56",           # 余额行
+            "深圳市财付通支付",    # 对方户名
+            "1219****0038",
+            "其他",
+        ]
+        from ft.convert import _parse_icbc_lines
+        records, _ = _parse_icbc_lines(lines, is_credit=False)
+        assert len(records) == 1, f"应解析出1条记录，实际={len(records)}"
+        assert records[0]["date"] == "2023-06-13 17:25:13", \
+            f"date 应包含时间，实际={records[0]['date']!r}"
+        assert records[0]["description"] != "17:25:13", \
+            f"时间不应跑到 description，实际={records[0]['description']!r}"
+
+
 # ── ICBC 边界修复 ──────────────────────────────────────
 
 class TestIcbcEdgeCases:

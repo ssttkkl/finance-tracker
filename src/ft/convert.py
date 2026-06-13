@@ -731,11 +731,19 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                 i += 1
                 continue
 
+            # 提取时间（日期下行）
+            time_str = "00:00:00"
+            if date_line_idx + 1 < len(lines):
+                time_candidate = lines[date_line_idx + 1].strip()
+                if re.match(r"^\d{2}:\d{2}:\d{2}$", time_candidate):
+                    time_str = time_candidate
+
             ctx_text = " ".join(lines[max(0, date_line_idx):min(len(lines), i + 8)])
             description = ""
             for j in range(date_line_idx + 1, i):
                 s = lines[j].strip()
-                if s and len(s) <= 10 and s not in ("活期", "00000", "人民币", "钞", "汇", "1614", "4600", "2116", "6982"):
+                if s and len(s) <= 10 and s not in ("活期", "00000", "人民币", "钞", "汇", "1614", "4600", "2116", "6982") \
+                        and not re.match(r"^\d{2}:\d{2}:\d{2}$", s):
                     summary = s.replace("支", "").strip()
                     if summary:
                         description = summary
@@ -759,7 +767,7 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
 
             normalized_cp, enriched_desc = _normalize_counterparty(cpy, description[:80], "icbc")
             records.append({
-                "date": f"{date} 00:00:00",
+                "date": f"{date} {time_str}",
                 "amount": round(amount, 2),
                 "counterparty": normalized_cp,
                 "description": enriched_desc[:80] or normalized_cp[:80],
