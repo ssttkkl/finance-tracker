@@ -32,10 +32,10 @@ def _cross_verify(a: dict, b: dict) -> bool:
     return False
 
 
-def dedup(records: list[dict]) -> tuple[list[dict], list[dict]]:
-    """返回 (保留记录, 被删记录含dedup_status)"""
+def dedup_with_pairs(records: list[dict]) -> tuple[list[dict], list[dict], list[tuple[dict, dict]]]:
+    """返回 (保留记录, 被删记录含dedup_status, 保留/删除配对)"""
     if not records:
-        return [], []
+        return [], [], []
 
     # Parse dates and group by (minute, amount, currency)
     groups: dict[tuple, list[tuple[datetime, dict]]] = defaultdict(list)
@@ -100,4 +100,10 @@ def dedup(records: list[dict]) -> tuple[list[dict], list[dict]]:
     kept.sort(key=lambda r: r["date"])
     removed.sort(key=lambda r: r["date"])
 
+    return kept, removed, removed_pairs
+
+
+def dedup(records: list[dict]) -> tuple[list[dict], list[dict]]:
+    """返回 (保留记录, 被删记录含dedup_status)"""
+    kept, removed, _ = dedup_with_pairs(records)
     return kept, removed

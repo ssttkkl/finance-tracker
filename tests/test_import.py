@@ -37,13 +37,13 @@ def tmp_env():
 
 
 def test_full_pipeline_append_report(tmp_env):
-    """End-to-end: append merged.csv → verify networth"""
+    """End-to-end: append converted CSV → verify networth"""
     records_dir, _ = tmp_env
-    merged_path = records_dir.parent / "merged.csv"
+    converted_path = records_dir.parent / "converted.csv"
     fields = ["date", "amount", "currency", "counterparty",
               "description", "category", "account_name", "source",
               "bill_source"]
-    with open(merged_path, "w", newline="", encoding="utf-8") as f:
+    with open(converted_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
         writer.writerows([
@@ -62,7 +62,7 @@ def test_full_pipeline_append_report(tmp_env):
         ])
 
     from ft.append import do_append
-    do_append(str(merged_path))
+    do_append([str(converted_path)])
 
     cash_csv = records_dir / "cash" / "2026-06-12.csv"
     loan_csv = records_dir / "loan" / "2026-06-12.csv"

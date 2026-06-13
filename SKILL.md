@@ -2,7 +2,7 @@
 name: finance-tracker
 category: finance
 description: 使用场景：管理个人财务、导入银行/信用卡/支付宝/微信账单、记录股票买卖、管理多币种资产（USD/CNY/HKD）、验证财务数据一致性
-design_spec: docs/superpowers/specs/2026-06-12-csv-only-design.md, docs/superpowers/specs/2026-06-12-stock-trading-design.md, docs/superpowers/specs/2026-06-12-unified-snapshot-design.md, docs/superpowers/specs/2026-06-13-dfzq-stock-converter-design.md
+design_spec: docs/superpowers/specs/2026-06-12-csv-only-design.md, docs/superpowers/specs/2026-06-12-stock-trading-design.md, docs/superpowers/specs/2026-06-12-unified-snapshot-design.md, docs/superpowers/specs/2026-06-13-dfzq-stock-converter-design.md, docs/superpowers/specs/2026-06-13-git-transactional-commit-design.md
 ---
 
 # Finance Tracker
@@ -11,14 +11,14 @@ design_spec: docs/superpowers/specs/2026-06-12-csv-only-design.md, docs/superpow
 
 ## 架构
 
-**CSV 审计日志 + YAML 快照，无数据库。** 所有写操作同时更新两者，所有查询只读快照。`~/.ft/` 自动作为 Git 仓库，每次写操作自动 commit。
+**CSV 审计日志 + YAML 快照，无数据库。** 所有写操作同时更新两者，所有查询只读快照。`~/.ft/` 自动作为 Git 仓库，每次写入自动 `git add -A`，但**不自动 commit**。用户通过 `ft commit` 手动提交累积的变更（事务型提交）。详见设计文档 `docs/superpowers/specs/2026-06-13-git-transactional-commit.md`。
 
 ## 命令速查
 
 ### 账单导入流水线（6 步）
 
 ```
-① convert → ② AI审查转换 → ③ AI修正 → ④ merge → ⑤ AI审查合并 → ⑥ append（确认后落盘）
+① convert → ② AI审查转换 → ③ AI修正 → ④ append → ⑤ reconcile → ⑥ commit
 ```
 
 | 步骤 | 操作 | 产出 |
@@ -26,9 +26,9 @@ design_spec: docs/superpowers/specs/2026-06-12-csv-only-design.md, docs/superpow
 | ① convert | `ft convert <账单> -s alipay|wechat|icbc|ccb-debit -o <csv>` | 统一 CSV + `_refunds.csv` |
 | ② AI审查 | 逐项审查（见 `references/review-checklist.md`） | 审查报告 |
 | ③ AI修正 | AI 根据审查结果逐项修正 CSV 或转换代码 | 修正后的 CSV |
-| ④ merge | `ft merge <csvs> -o merged/` | `merged.csv` + `removed.csv` |
-| ⑤ AI审查 | 逐项审查去重决策 | 审查报告 |
-| ⑥ append | 确认后 `ft append merged.csv` | 落盘到 records/ |
+| ④ append | `ft append <csvs...>` | 落盘到 records/ |
+| ⑤ reconcile | `ft reconcile [--month YYYY-MM | --from YYYY-MM-DD --to YYYY-MM-DD]` | 去重 + 审计 CSV |
+| ⑥ commit | `ft commit` | Git 提交 |
 
 convert 说明：`alipay`（支付宝 CSV）、`wechat`（微信 xlsx）、`icbc`（工行 PDF，需 --password，自动检测信用卡/借记卡）、`ccb-debit`（建行 xls）。
 
@@ -36,7 +36,7 @@ AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2(脱敏) > P3
 
 转换阶段：退款配对数学正确性（全额=0？部分=净额正确？）、source 正确性、数据脱敏、counterparty 规范化。注意 _pair_refunds 产生的孤退款行（orphan income）可能在 CSV 中残留，需检查过滤。
 
-合并阶段：removed.csv 中每对 dedup_status=保留/去除 行—保留行必须在 merged.csv 中存在（去重是保留支付宝/微信版、删银行版），去除行不应在 merged。漏删：同来源+同日+同金额+同 counterparty 的明显重复（注意同日不同时独立交易）。
+reconcile 阶段：审计文件中每对 dedup_status=保留/去除 行必须成对出现；保留行必须仍存在于 records 中，去除行不应再出现在 records。漏删：同来源+同日+同金额+同 counterparty 的明显重复（注意同日不同时独立交易）。
 
 ### 账户管理
 
@@ -53,6 +53,8 @@ AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2(脱敏) > P3
 | `ft report [--month YYYY-MM]` | 资产负债 + 消费 + 收入 + 转账 |
 | `ft list [--month|--account|--category|--limit]` | 交易明细 |
 
+> **月度分析：** Report 的原始数字包含大量资金调拨（银证转账、基金赎回等），不反映真实收支。详见 `references/monthly-analysis.md` 的过滤方法。
+
 ### 手动记账
 
 | 命令 | 说明 |
@@ -67,6 +69,16 @@ AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2(脱敏) > P3
 |------|------|
 | `ft verify` | 检查 CSV 与快照是否一致 |
 | `ft verify --fix` | 从 CSV 全量重建快照 |
+
+### Git 版本控制（事务型提交）
+
+| 命令 | 说明 |
+|------|------|
+| `ft status` | 查看未提交的改动（git status --short） |
+| `ft commit [-m "消息"]` | 提交所有 staged 变更。无参时自动生成 `chore: YYYY-MM-DD HH:mm` |
+| `ft reset` | 丢弃所有未提交改动，执行前确认提示 |
+
+每次写入操作（`ft append`、`ft add`、`ft stock buy/sell`、`ft transfer`、`ft verify --fix` 等）自动执行 `git add -A`，不自动 commit。`ft commit` 一次性提交所有累积变更。
 
 ### 账单字段
 
@@ -146,6 +158,47 @@ ft stock append dfzq_stock.csv
 支持 `-s` 扩展其他券商，转换器存放在 `importers/<source>.py`。
 开发新券商转换器参考 `references/stock-convert-dev-prompt.md`。
 
+### 全量刷新（清空 → 重导）
+
+当需要清空已有 cash/loan 数据并替换为新的 records 内容时：
+
+```bash
+cd ~/.ft
+
+# ① 确认：检查 records 中的账户是否都在 accounts.yaml 中
+python3 -c "
+import csv
+from pathlib import Path
+accts = set()
+for p in Path('records').rglob('*.csv'):
+    with open(p) as f:
+        accts.update(r['account_name'] for r in csv.DictReader(f))
+import yaml
+with open('accounts.yaml') as f:
+    known = {a['name'] for a in yaml.safe_load(f)['accounts']}
+missing = accts - known
+if missing:
+    print('❌ accounts.yaml 缺失:', missing)
+else:
+    print('✅ 所有账户都存在')
+"
+
+# ② 清空 cash/loan
+rm records/cash/*.csv records/loan/*.csv
+
+# ③ 追加缺失账户（如 建行储蓄卡(0523) 和 花呗）
+ft acct add "建行储蓄卡(0523)" --type cash --currency CNY
+ft acct add "花呗" --type loan --currency CNY
+
+# ④ 导入
+ft append alipay.csv wechat.csv icbc.csv
+
+# ⑤ 验证
+ft verify --fix
+```
+
+**重要：** stock/security 数据不受影响，只清理 cash 和 loan。
+
 ### 消费账单导入
 
 参见「账单导入流水线（6 步）」一节。
@@ -156,7 +209,7 @@ ft stock append dfzq_stock.csv
 | 问题 | 对策 |
 |------|------|
 | 借记卡余额为负（CSV 只有消费） | `ft checkin <卡名> --balance <真实余额>` |
-| 新版支付宝「不计收支」方向 | 判断 `in ("收入","不计收支")` 而非 `== "收入"` |
+| **支付宝「不计收支」方向 — 交易关闭=跳过** | `方向=不计收支` 有三种处理方式（看原始账单 `交易状态` 列）：① **状态=交易关闭**：下单未付款，无实际资金流动，直接 `continue`；② **状态=退款成功**：真实退款，进入 `_pair_refunds` 配对核销；③ **状态=交易成功/转出成功**：余额宝收益/基金转入等，保留。**修复**：`_read_alipay_raw` 中新增 `if direction == "不计收支" and txn_status == "交易关闭": continue`。详细追踪见 `references/alipay-bujizhishou-debug-trace.md` |
 | **O2O 平台被误标** | 品牌规则排在平台规则前 |
 | **中文子串匹配误伤（京东误中北京东湖渠店）** | _infer_platform 用 kw.lower() in text 做子串匹配，中文无词边界。已知误伤：京东 in 北京东湖渠店→True。淘宝/高德中介平台：品牌匹配后在 intermediary_brands 分支从 desc 提取到分隔符为止，不用 _infer_platform 做二次匹配（也会子串误伤） |
 | **snapshot 不一致** | `ft verify --fix` 重建。security 账户统一写入 `accounts.security`，`repair_security` 构建时从 `accounts.yaml` 获取币种 |

@@ -8,7 +8,7 @@ from .acct import acct_add, acct_list, acct_rename, acct_delete, acct_activate
 from .transfer import do_transfer
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(prog="ft", description="📒 Finance Tracker")
     sub = parser.add_subparsers(dest="cmd")
 
@@ -175,16 +175,18 @@ def main():
     cv.add_argument("--currency", default="CNY", choices=["CNY", "USD", "HKD"],
                     help="覆盖币种")
 
-    # merge
-    mg = sub.add_parser("merge", help="步骤② 合并去重CSV")
-    mg.add_argument("files", nargs="+", help="输入CSV文件列表")
-    mg.add_argument("-o", "--output", required=True, help="输出目录")
-
     # append
-    ap = sub.add_parser("append", help="步骤③ 合并CSV落库")
-    ap.add_argument("file", help="merged.csv 路径")
+    ap = sub.add_parser("append", help="步骤② 导入转换后的CSV")
+    ap.add_argument("files", nargs="+", help="converted CSV 路径列表")
 
-    args = parser.parse_args()
+    # reconcile
+    rc = sub.add_parser("reconcile", help="步骤③ 导入后统一整理")
+    scope = rc.add_mutually_exclusive_group()
+    scope.add_argument("--month", help="月份 (YYYY-MM)")
+    rc.add_argument("--from", dest="date_from", help="起始日期 (YYYY-MM-DD)")
+    rc.add_argument("--to", dest="date_to", help="结束日期 (YYYY-MM-DD)")
+
+    args = parser.parse_args(argv)
 
     if not args.cmd:
         parser.print_help()
@@ -322,59 +324,13 @@ def main():
         from .accounts import load_accounts
         from . import models
         import csv
-        from pathlib import Path
-        import re
-        from collections import defaultdict
-        from .snapshot import load_snapshot, save_snapshot, set_balance
+        from .snapshot import rebuild_snapshot_from_records
 
         records_dir = models.RECORDS_DIR
         ok = True
 
         if args.fix:
-            # Rebuild ALL account types from CSV
-            from .stock import repair_security
-            repair_security()
-
-            # Cash/Loan/Lend
-            snap = load_snapshot()
-            for typ in ("cash", "loan", "lend"):
-                typedir = records_dir / typ
-                if not typedir.exists():
-                    continue
-                acct_records = defaultdict(list)
-                for csv_file in sorted(typedir.glob("*.csv")):
-                    with open(csv_file, encoding="utf-8") as f:
-                        for row in csv.DictReader(f):
-                            acct = row.get("account_name", "").strip()
-                            if acct:
-                                acct_records[acct].append(row)
-
-                for acct_name, records in acct_records.items():
-                    records.sort(key=lambda r: r["date"])
-                    last_ci = -1
-                    for i, r in enumerate(records):
-                        if r.get("category") == "checkin":
-                            last_ci = i
-                    if last_ci >= 0:
-                        desc = records[last_ci].get("description", "")
-                        m = re.search(r"[\d,]+\.?\d*", desc.replace(",", ""))
-                        bal = float(m.group()) if m else 0.0
-                        start = last_ci + 1
-                    else:
-                        bal = 0.0
-                        start = 0
-                    for r in records[start:]:
-                        cat = r.get("category", "")
-                        if cat in ("checkin", "transfer"):
-                            continue
-                        try:
-                            bal += float(r["amount"])
-                        except (ValueError, KeyError):
-                            pass
-                    set_balance(snap, acct_name, typ, round(bal, 2))
-
-            snap["updated_at"] = "rebuilt"
-            save_snapshot(snap)
+            rebuild_snapshot_from_records(records_dir)
             print("✅ 已从 CSV 重建全部账户快照")
 
         # --- Security verification ---
@@ -429,14 +385,16 @@ def main():
                    currency=args.currency)
         return
 
-    if args.cmd == "merge":
-        from .merge import do_merge
-        do_merge(args.files, args.output)
-        return
-
     if args.cmd == "append":
         from .append import do_append
-        do_append(args.file)
+        do_append(args.files)
+        return
+
+    if args.cmd == "reconcile":
+        if args.month and (args.date_from or args.date_to):
+            parser.error("--month 与 --from/--to 不能同时使用")
+        from .reconcile import do_reconcile
+        do_reconcile(month=args.month, date_from=args.date_from, date_to=args.date_to)
         return
 
     if args.cmd == "report":

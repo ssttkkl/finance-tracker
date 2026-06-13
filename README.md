@@ -34,8 +34,8 @@ cd ~/.ft && git log
 ```bash
 ft acct list              # 查看账户列表（首次自动创建 accounts.yaml）
 ft convert 支付宝.csv -s alipay -o alipay.csv       # 步骤①：原始账单→统一CSV
-ft merge alipay.csv wechat.csv -o merged.csv        # 步骤②：跨源去重
-ft append merged.csv                                # 步骤③：按天落盘
+ft append alipay.csv wechat.csv                      # 步骤②：按天落盘
+ft reconcile --month 2026-06                         # 步骤③：导入后统一整理
 ft report [--month 2026-06]                         # 资产负债 + 消费 + 收入
 ft list [--account 支付宝余额] [--limit 10]        # 交易明细
 ft checkin 支付宝余额 --balance 5000                # 余额快照（重置余额）
@@ -81,9 +81,9 @@ ft transfer --from 工行借记卡 --to IBKR --amount 36250 --to-amount 5000
 ## 流水线：账单导入
 
 ```
-① ft convert → ② AI审查 → ③ 手动修正 → ④ ft merge → ⑤ AI审查 → ⑥ ft append
-   账单→CSV     Codex审查     改错         去重         验证去重     按天落盘
-   +_refunds    逐源审查                                   +removed
+① ft convert → ② AI审查 → ③ 手动修正 → ④ ft append → ⑤ ft reconcile → ⑥ ft commit
+   账单→CSV     Codex审查     改错         按天落盘      去重/审计      Git 提交
+   +_refunds    逐源审查                    +records     +audit CSV
 ```
 
 每步产出可查看可修改的 CSV，AI 审查是必须的门禁。

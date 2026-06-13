@@ -52,8 +52,8 @@ def create_merged_csv(path: Path, rows: list[dict]):
 
 def test_append_creates_date_file(tmp_env):
     records_dir, accounts_path = tmp_env
-    merged_path = records_dir.parent / "merged.csv"
-    create_merged_csv(merged_path, [
+    csv_path = records_dir.parent / "converted.csv"
+    create_merged_csv(csv_path, [
         {"date": "2026-06-12 10:00:00", "amount": "-30.00", "currency": "CNY",
          "counterparty": "霸王茶姬", "description": "奶茶", "category": "expense",
          "account_name": "支付宝余额", "source": "支付宝",
@@ -61,7 +61,7 @@ def test_append_creates_date_file(tmp_env):
     ])
 
     from ft.append import do_append
-    do_append(str(merged_path))
+    do_append(str(csv_path))
 
     day_csv = records_dir / "cash" / "2026-06-12.csv"
     assert day_csv.exists()
@@ -76,8 +76,8 @@ def test_append_creates_date_file(tmp_env):
 
 def test_append_routes_by_type(tmp_env):
     records_dir, accounts_path = tmp_env
-    merged_path = records_dir.parent / "merged.csv"
-    create_merged_csv(merged_path, [
+    csv_path = records_dir.parent / "converted.csv"
+    create_merged_csv(csv_path, [
         {"date": "2026-06-12 10:00:00", "amount": "-30.00", "currency": "CNY",
          "counterparty": "奶茶", "description": "奶茶", "category": "expense",
          "account_name": "支付宝余额", "source": "支付宝",
@@ -89,7 +89,7 @@ def test_append_routes_by_type(tmp_env):
     ])
 
     from ft.append import do_append
-    do_append(str(merged_path))
+    do_append(str(csv_path))
 
     cash_csv = records_dir / "cash" / "2026-06-12.csv"
     assert cash_csv.exists()
@@ -108,8 +108,8 @@ def test_append_routes_by_type(tmp_env):
 
 def test_append_sorts_by_date(tmp_env):
     records_dir, accounts_path = tmp_env
-    merged_path = records_dir.parent / "merged.csv"
-    create_merged_csv(merged_path, [
+    csv_path = records_dir.parent / "converted.csv"
+    create_merged_csv(csv_path, [
         {"date": "2026-06-12 12:00:00", "amount": "-30.00", "currency": "CNY",
          "counterparty": "午饭", "description": "午饭", "category": "expense",
          "account_name": "支付宝余额", "source": "支付宝",
@@ -121,7 +121,7 @@ def test_append_sorts_by_date(tmp_env):
     ])
 
     from ft.append import do_append
-    do_append(str(merged_path))
+    do_append(str(csv_path))
 
     day_csv = records_dir / "cash" / "2026-06-12.csv"
     with open(day_csv, encoding="utf-8") as f:
@@ -132,8 +132,8 @@ def test_append_sorts_by_date(tmp_env):
 
 def test_append_multiple_dates(tmp_env):
     records_dir, accounts_path = tmp_env
-    merged_path = records_dir.parent / "merged.csv"
-    create_merged_csv(merged_path, [
+    csv_path = records_dir.parent / "converted.csv"
+    create_merged_csv(csv_path, [
         {"date": "2026-06-12 10:00:00", "amount": "-30.00", "currency": "CNY",
          "counterparty": "奶茶", "description": "奶茶", "category": "expense",
          "account_name": "支付宝余额", "source": "支付宝",
@@ -145,7 +145,7 @@ def test_append_multiple_dates(tmp_env):
     ])
 
     from ft.append import do_append
-    do_append(str(merged_path))
+    do_append(str(csv_path))
 
     csv1 = records_dir / "cash" / "2026-06-12.csv"
     csv2 = records_dir / "cash" / "2026-06-13.csv"
@@ -155,8 +155,8 @@ def test_append_multiple_dates(tmp_env):
 
 def test_append_unknown_account(tmp_env):
     records_dir, accounts_path = tmp_env
-    merged_path = records_dir.parent / "merged.csv"
-    create_merged_csv(merged_path, [
+    csv_path = records_dir.parent / "converted.csv"
+    create_merged_csv(csv_path, [
         {"date": "2026-06-12 10:00:00", "amount": "-30.00", "currency": "CNY",
          "counterparty": "奶茶", "description": "奶茶", "category": "expense",
          "account_name": "不存在的账户", "source": "支付宝",
@@ -166,7 +166,7 @@ def test_append_unknown_account(tmp_env):
     from ft.append import do_append
     import pytest
     with pytest.raises(ValueError, match="不存在的账户"):
-        do_append(str(merged_path))
+        do_append(str(csv_path))
 
     # Should NOT create file for unknown account
     for t in ["cash", "loan", "lend", "security"]:
@@ -187,8 +187,8 @@ def test_append_appends_to_existing(tmp_env):
     ])
 
     # Append new record
-    merged_path = records_dir.parent / "merged.csv"
-    create_merged_csv(merged_path, [
+    csv_path = records_dir.parent / "converted.csv"
+    create_merged_csv(csv_path, [
         {"date": "2026-06-12 12:00:00", "amount": "-30.00", "currency": "CNY",
          "counterparty": "午饭", "description": "午饭", "category": "expense",
          "account_name": "支付宝余额", "source": "支付宝",
@@ -196,10 +196,58 @@ def test_append_appends_to_existing(tmp_env):
     ])
 
     from ft.append import do_append
-    do_append(str(merged_path))
+    do_append(str(csv_path))
 
     with open(day_csv, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert len(rows) == 2
     assert rows[0]["date"] == "2026-06-12 08:00:00"
     assert rows[1]["date"] == "2026-06-12 12:00:00"
+
+
+def test_append_accepts_multiple_input_files(tmp_env):
+    records_dir, accounts_path = tmp_env
+    path_a = records_dir.parent / "a.csv"
+    path_b = records_dir.parent / "b.csv"
+
+    create_merged_csv(path_a, [{
+        "date": "2026-06-12 08:00:00", "amount": "-10.00", "currency": "CNY",
+        "counterparty": "早餐", "description": "早餐", "category": "expense",
+        "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
+    }])
+    create_merged_csv(path_b, [{
+        "date": "2026-06-12 09:00:00", "amount": "-20.00", "currency": "CNY",
+        "counterparty": "午餐", "description": "午餐", "category": "expense",
+        "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
+    }])
+
+    from ft.append import do_append
+    do_append([str(path_a), str(path_b)])
+
+    day_csv = records_dir / "cash" / "2026-06-12.csv"
+    with open(day_csv, encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert [r["amount"] for r in rows] == ["-10.00", "-20.00"]
+
+
+def test_append_is_atomic_across_multiple_files(tmp_env):
+    records_dir, accounts_path = tmp_env
+    good_path = records_dir.parent / "good.csv"
+    bad_path = records_dir.parent / "bad.csv"
+
+    create_merged_csv(good_path, [{
+        "date": "2026-06-12 08:00:00", "amount": "-10.00", "currency": "CNY",
+        "counterparty": "早餐", "description": "早餐", "category": "expense",
+        "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
+    }])
+    create_merged_csv(bad_path, [{
+        "date": "2026-06-12 09:00:00", "amount": "-20.00", "currency": "CNY",
+        "counterparty": "午餐", "description": "午餐", "category": "expense",
+        "account_name": "不存在的账户", "source": "支付宝", "bill_source": "alipay",
+    }])
+
+    from ft.append import do_append
+    with pytest.raises(ValueError, match="不存在的账户"):
+        do_append([str(good_path), str(bad_path)])
+
+    assert not (records_dir / "cash" / "2026-06-12.csv").exists()

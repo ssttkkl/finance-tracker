@@ -155,3 +155,57 @@ def update_balance(snap: dict, acct_name: str, delta: float) -> None:
         if acct_name in accts:
             accts[acct_name] += delta
             return
+
+
+def rebuild_snapshot_from_records(records_dir=None):
+    """Rebuild cash/loan/lend balances from CSV records."""
+    if records_dir is None:
+        records_dir = models.RECORDS_DIR
+
+    from collections import defaultdict
+    import csv
+    import re
+    from .stock import repair_security
+
+    repair_security()
+
+    snap = load_snapshot()
+    for typ in ("cash", "loan", "lend"):
+        typedir = Path(records_dir) / typ
+        if not typedir.exists():
+            continue
+        acct_records = defaultdict(list)
+        for csv_file in sorted(typedir.glob("*.csv")):
+            with open(csv_file, encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    acct = row.get("account_name", "").strip()
+                    if acct:
+                        acct_records[acct].append(row)
+
+        for acct_name, records in acct_records.items():
+            records.sort(key=lambda r: r["date"])
+            last_ci = -1
+            for i, r in enumerate(records):
+                if r.get("category") == "checkin":
+                    last_ci = i
+            if last_ci >= 0:
+                desc = records[last_ci].get("description", "")
+                m = re.search(r"[\d,]+\.?\d*", desc.replace(",", ""))
+                bal = float(m.group()) if m else 0.0
+                start = last_ci + 1
+            else:
+                bal = 0.0
+                start = 0
+            for r in records[start:]:
+                cat = r.get("category", "")
+                if cat in ("checkin", "transfer"):
+                    continue
+                try:
+                    bal += float(r["amount"])
+                except (ValueError, KeyError):
+                    pass
+            set_balance(snap, acct_name, typ, round(bal, 2))
+
+    snap["updated_at"] = "rebuilt"
+    save_snapshot(snap)
+    return snap
