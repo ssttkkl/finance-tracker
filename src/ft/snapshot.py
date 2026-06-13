@@ -87,7 +87,7 @@ def git_init_repo(repo_dir=None):
 
 
 def git_stage(repo_dir=None):
-    """Stage all changes via git add -A, no commit."""
+    """Stage all changes via git add -A, no commit. Prints reminder to commit."""
     if repo_dir is None:
         repo_dir = GIT_REPO
     repo_dir = Path(repo_dir)
@@ -95,6 +95,7 @@ def git_stage(repo_dir=None):
         git_init_repo(repo_dir)
         subprocess.run(["git", "add", "-A"], cwd=str(repo_dir),
                        capture_output=True, timeout=10)
+        print("💡 改动已暂存，执行 ft commit 提交")
     except Exception:
         pass
 
