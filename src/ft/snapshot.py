@@ -55,10 +55,10 @@ def save_snapshot(data: dict, path: Optional[str] = None) -> None:
     snapshot_path.parent.mkdir(parents=True, exist_ok=True)
     with snapshot_path.open("w", encoding="utf-8") as f:
         yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
-    git_auto_commit("snapshot", snapshot_path.parent)
+    git_stage(snapshot_path.parent)
 
 
-# ── Git auto-commit ────────────────────────────────────────────────────
+# ── Git staging & commit (transactional) ────────────────────────────────
 
 
 GIT_REPO = models.FT_DIR
@@ -86,8 +86,8 @@ def git_init_repo(repo_dir=None):
             pass
 
 
-def git_auto_commit(op: str, repo_dir=None):
-    """Stage all changes and commit with an auto message."""
+def git_stage(repo_dir=None):
+    """Stage all changes via git add -A, no commit."""
     if repo_dir is None:
         repo_dir = GIT_REPO
     repo_dir = Path(repo_dir)
@@ -95,12 +95,26 @@ def git_auto_commit(op: str, repo_dir=None):
         git_init_repo(repo_dir)
         subprocess.run(["git", "add", "-A"], cwd=str(repo_dir),
                        capture_output=True, timeout=10)
-        from datetime import datetime
-        subprocess.run(["git", "commit", "--allow-empty",
-                       "-m", f"auto({op}): {datetime.now().strftime('%Y-%m-%d %H:%M')}"],
-                       cwd=str(repo_dir), capture_output=True, timeout=10)
     except Exception:
         pass
+
+
+def git_do_commit(msg: str = None, repo_dir=None):
+    """Commit all staged changes. Returns True if committed."""
+    if repo_dir is None:
+        repo_dir = GIT_REPO
+    repo_dir = Path(repo_dir)
+    try:
+        git_init_repo(repo_dir)
+        from datetime import datetime
+        commit_msg = msg if msg else f"chore: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        result = subprocess.run(
+            ["git", "commit", "-m", commit_msg],
+            cwd=str(repo_dir), capture_output=True, timeout=10, text=True,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
 
 
 def get_balance(acct_name: str, path: Optional[str] = None) -> tuple:
