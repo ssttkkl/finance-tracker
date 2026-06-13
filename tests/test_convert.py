@@ -92,7 +92,7 @@ class TestAlipayCategory:
         assert records[0]["amount"] == -70.0
 
     def test_不计收支_非退款_转出(self):
-        """不计收支 + 非退款（如转出到网商银行）→ income"""
+        """不计收支 + 非退款（如转出到网商银行）→ 进入退款配对，孤退款保留为 income"""
         csv_path = str(TEST_DIR / "alipay_transfer_out_nocount.csv")
         _make_alipay_csv([
             ["2026-01-05 08:00:00", "其他", "网商银行", "转出到网商银行", "不计收支", "485.73", "账户余额"],

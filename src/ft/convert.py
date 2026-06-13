@@ -466,6 +466,14 @@ def _read_alipay_raw(path: str):
         payment_method = row[h.get("收/付款方式", 7)].strip() if "收/付款方式" in h else ""
         counterparty = row[h.get("交易对方", 2)].strip()
         desc = row[h.get("商品说明", 4)].strip() or counterparty
+        txn_type = row[h.get("交易分类", 1)].strip()
+
+        # 交易状态：用于识别"下单未付款"的假交易
+        txn_status = row[h.get("交易状态", 8)].strip() if "交易状态" in h else ""
+
+        # 方向=不计收支 + 状态=交易关闭 → 下单未付款，没有实际资金流动，跳过
+        if direction == "不计收支" and txn_status == "交易关闭":
+            continue
 
         category = "expense" if amount < 0 else "income"
 
@@ -478,6 +486,7 @@ def _read_alipay_raw(path: str):
             "description": enriched_desc[:80],
             "category": category,
             "txn_type": txn_type,
+            "_alipay_direction": direction,
         })
 
     # 退款配对核销
