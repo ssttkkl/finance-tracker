@@ -153,6 +153,16 @@ def main():
     verify_p = sub.add_parser("verify", help="验证CSV与快照一致性")
     verify_p.add_argument("--fix", action="store_true", help="从CSV重建快照")
 
+    # commit
+    commit_p = sub.add_parser("commit", help="提交所有未提交的改动")
+    commit_p.add_argument("-m", "--message", help="自定义提交信息")
+
+    # status
+    sub.add_parser("status", help="查看未提交的改动")
+
+    # reset
+    reset_p = sub.add_parser("reset", help="丢弃所有未提交改动")
+
     # convert
     cv = sub.add_parser("convert", help="步骤① 账单→统一CSV")
     cv.add_argument("file", help="账单文件路径")
@@ -258,6 +268,54 @@ def main():
         # Print
         sym = {"CNY": "¥", "USD": "$", "HKD": "HK$"}.get(currency, "")
         print(f"✅ 已记录: {sym}{args.amount:+.2f} {args.counterparty} ({args.account})")
+        return
+
+    if args.cmd == "commit":
+        from .snapshot import git_do_commit
+        committed = git_do_commit(args.message)
+        if committed:
+            print("✅ 已提交")
+        else:
+            print("📭 无待提交变更")
+        return
+
+    if args.cmd == "status":
+        import subprocess as _sp
+        from . import models as _models
+        result = _sp.run(
+            ["git", "status", "--short"],
+            cwd=str(_models.FT_DIR), capture_output=True, timeout=10, text=True,
+        )
+        output = result.stdout.strip()
+        if output:
+            print(output)
+        else:
+            print("📭 无未提交改动")
+        return
+
+    if args.cmd == "reset":
+        import subprocess as _sp
+        from . import models as _models
+        # 先显示待丢弃的文件
+        result = _sp.run(
+            ["git", "status", "--short"],
+            cwd=str(_models.FT_DIR), capture_output=True, timeout=10, text=True,
+        )
+        output = result.stdout.strip()
+        if not output:
+            print("📭 无未提交改动，无需重置")
+            return
+        print("以下未提交改动将被丢弃：")
+        print(output)
+        confirm = input("确定要丢弃以上改动？(y/N): ")
+        if confirm.lower() != "y":
+            print("已取消")
+            return
+        _sp.run(
+            ["git", "reset", "--hard", "HEAD"],
+            cwd=str(_models.FT_DIR), capture_output=True, timeout=10,
+        )
+        print("✅ 已重置到最近一次提交")
         return
 
     if args.cmd == "verify":
