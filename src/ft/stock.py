@@ -330,7 +330,9 @@ def do_buy(
 
     total_cost = _position_cost(pos) + shares * price
     pos["shares"] += shares
-    pos["avg_cost"] = total_cost / pos["shares"] if pos["shares"] > 0 else 0.0
+    pos["avg_cost"] = round(total_cost / pos["shares"], 2) if pos["shares"] != 0 else 0.0
+    if pos["shares"] == 0:
+        del acct["positions"][ticker]
     acct["cash"] += amount - commission
     acct["cash"] = round(acct["cash"], 10)  # avoid floating point noise
     snap["updated_at"] = date_key
@@ -359,7 +361,9 @@ def do_sell(
 ):
     """Sell shares — updates snapshot & records trade.
 
-    avg_cost is unchanged.  If all shares are sold the position is removed.
+    Supports regular sell (sell from existing position) and
+    short sell (sell when no position, creating negative shares).
+    avg_cost for shorts = sale price (positive).
     """
     if date is None:
         date = _now()
@@ -373,16 +377,44 @@ def do_sell(
     pos = acct["positions"].get(ticker)
 
     if pos is None:
-        print(f"⚠️  No position for {ticker} in {account_name}", file=sys.stderr)
-        return
+        # Short sell — create negative position
+        acct["positions"][ticker] = {"shares": 0, "avg_cost": 0.0}
+        pos = acct["positions"][ticker]
 
-    # avg_cost stays the same
-    pos["shares"] -= shares
-    acct["cash"] += amount - commission
-    acct["cash"] = round(acct["cash"], 10)
+    old_shares = pos["shares"]
 
-    if pos["shares"] <= 0:
-        del acct["positions"][ticker]
+    if old_shares >= 0:
+        # Regular sell or short sell from flat
+        old_cost = round(pos["avg_cost"] * old_shares, 2)  # 0 if old_shares == 0
+        pos["shares"] -= shares
+        pos_new_shares = pos["shares"]
+
+        if pos_new_shares >= 0:
+            # Still long or flat
+            new_cost = round(old_cost - amount + commission, 2)
+            if pos_new_shares > 0:
+                pos["avg_cost"] = round(new_cost / pos_new_shares, 2)
+            else:
+                # Flat, clear position
+                if pos_new_shares == 0:
+                    del acct["positions"][ticker]
+        else:
+            # Flipped into short: excess shares are shorted at current price
+            excess = -pos_new_shares
+            # The old long position's P&L is already realized
+            # The short portion starts fresh
+            pos["avg_cost"] = price  # short avg cost = short entry price
+
+        acct["cash"] += amount - commission
+        acct["cash"] = round(acct["cash"], 10)
+    else:
+        # Already short — short more
+        old_total = pos["avg_cost"] * old_shares  # negative
+        pos["shares"] -= shares  # more negative
+        new_total = round(old_total - amount + commission, 2)
+        pos["avg_cost"] = round(new_total / pos["shares"], 2) if pos["shares"] < 0 else 0.0
+        acct["cash"] += amount - commission
+        acct["cash"] = round(acct["cash"], 10)
 
     snap["updated_at"] = date_key
     save_snapshot(snap)
@@ -726,23 +758,27 @@ def _replay_security_csv(records_dir=None):
                     old_s = h["shares"]
                     old_c = h["total_cost"]
                     new_s = old_s + s
-                    if old_s > 0:
-                        avg = round((old_c + s * p) / new_s, 2)
-                        h["total_cost"] = round(avg * new_s, 2)
+                    if old_s >= 0:
+                        if old_s > 0:
+                            h["total_cost"] = round(old_c + s * p, 2)
+                        else:
+                            h["total_cost"] = round(s * p, 2)
                     else:
-                        h["total_cost"] = round(s * p, 2)
+                        # Covering short — keep cumulative cost
+                        h["total_cost"] = round(old_c + s * p, 2)
                     h["shares"] = new_s
                     cash[a] = round(cash[a] + amt - com, 2)
                 elif act == "SELL":
                     h = positions[(a, t)]
                     sold = abs(s)
                     if h["shares"] > 0:
-                        avg = round(h["total_cost"] / h["shares"], 2)
+                        # Regular sell
                         h["shares"] -= sold
-                        if h["shares"] > 0:
-                            h["total_cost"] = round(avg * h["shares"], 2)
-                        else:
-                            h["total_cost"] = 0.0
+                        h["total_cost"] = round(h["total_cost"] - abs(amt) + com, 2)
+                    else:
+                        # Short sell (shares == 0) or additional short (shares < 0)
+                        h["shares"] -= sold
+                        h["total_cost"] = round(h["total_cost"] - abs(amt) + com, 2)
                     cash[a] = round(cash[a] + amt - com, 2)
                 elif act in ("DEPOSIT", "DIVIDEND"):
                     cash[a] = round(cash[a] + amt, 2)
@@ -786,7 +822,7 @@ def verify_security(records_dir=None):
     for (acct, ticker) in positions:
         if ticker and not sec_accounts.get(acct, {}).get("positions", {}).get(ticker):
             p = positions[(acct, ticker)]
-            if p["shares"] > 0:
+            if p["shares"] != 0:
                 lines.append(f"  ❌ {acct}/{ticker}: CSV有但快照无")
                 ok = False
 
@@ -810,6 +846,8 @@ def repair_security(records_dir=None):
     accounts = {}
     for (acct_name, ticker), p in positions.items():
         if ticker:
+            if p["shares"] == 0:
+                continue
             if acct_name not in accounts:
                 accounts[acct_name] = {
                     "currency": acct_currencies.get(acct_name, ""),
@@ -817,7 +855,7 @@ def repair_security(records_dir=None):
                 }
             accounts[acct_name]["positions"][ticker] = {
                 "shares": p["shares"],
-                "avg_cost": round(p["total_cost"] / p["shares"], 2) if p["shares"] > 0 else 0.0,
+                "avg_cost": round(p["total_cost"] / p["shares"], 2) if p["shares"] != 0 else 0.0,
             }
 
     for acct_name, c in cash.items():
