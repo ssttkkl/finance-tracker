@@ -158,7 +158,7 @@ security 类型账户使用独立 CSV 格式，支持 A 股（`159740.sz`）、�
 - 做空记录参与 `verify --fix` 全量重放和 snapshot 校验
 - `repair_security` 保留负 shares（不再 `<= 0: continue`）
 
-`ft stock buy/sell` 自动扣减/增加现金并更新持仓。`ft stock checkin` 用于初始导入或校正持仓/现金（不涉及现金变动）。`ft stock list` 实时拉取 yfinance 市值。完整做空迁移记录见 `references/short-selling-support.md`。
+`ft stock buy/sell` 自动扣减/增加现金并更新持仓。`ft stock checkin` 用于初始导入或校正持仓/现金（不涉及现金变动）。`ft stock list` 实时拉取 yfinance 市值；Polymarket 持仓支持 `pm:<slug>:yes|no` 伪 ticker，并通过 Polymarket gamma API 拉取最新报价。完整做空迁移记录见 `references/short-selling-support.md`。
 
 ```bash
 # 日常买卖

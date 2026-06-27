@@ -319,3 +319,73 @@ def test_fetch_prices_multi_ticker_dataframe(monkeypatch):
         "aapl.us": pytest.approx(196.5),
         "msft.us": pytest.approx(431.2),
     }
+
+
+def test_fetch_prices_polymarket_outcome_token(monkeypatch):
+    """Polymarket outcome token tickers should resolve via gamma API."""
+    from ft.stock import _fetch_prices
+
+    class FakeResponse:
+        def __init__(self, payload: bytes):
+            self.payload = payload
+
+        def read(self):
+            return self.payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    def fake_urlopen(req, timeout=15):
+        url = req.full_url if hasattr(req, "full_url") else req
+        assert "gamma-api.polymarket.com/markets" in url
+        assert "slug=new-rhianna-album-before-gta-vi-926" in url
+        payload = b"[{\"slug\":\"new-rhianna-album-before-gta-vi-926\",\"outcomes\":[\"Yes\",\"No\"],\"outcomePrices\":[\"0.525\",\"0.475\"],\"bestBid\":0.52,\"bestAsk\":0.53}]"
+        return FakeResponse(payload)
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setitem(sys.modules, "yfinance", None)
+
+    prices = _fetch_prices([
+        "pm:new-rhianna-album-before-gta-vi-926:yes",
+        "pm:new-rhianna-album-before-gta-vi-926:no",
+    ])
+    assert prices == {
+        "pm:new-rhianna-album-before-gta-vi-926:yes": pytest.approx(0.525),
+        "pm:new-rhianna-album-before-gta-vi-926:no": pytest.approx(0.475),
+    }
+
+
+def test_security_balance_uses_current_market_price(tmp_env, monkeypatch):
+    """Security account balances should use current market prices when available."""
+    from ft.stock import load_snapshot, save_snapshot
+    from ft.acct import _compute_balance
+
+    save_snapshot({
+        "updated_at": "2026-06-12",
+        "accounts": {
+            "security": {
+                "POLY": {
+                    "currency": "USD",
+                    "cash": 100.0,
+                    "positions": {
+                        "pm:new-rhianna-album-before-gta-vi-926:yes": {
+                            "shares": 10,
+                            "avg_cost": 0.40,
+                        },
+                    },
+                },
+            },
+        },
+    })
+
+    def fake_fetch_prices(tickers):
+        assert tickers == ["pm:new-rhianna-album-before-gta-vi-926:yes"]
+        return {"pm:new-rhianna-album-before-gta-vi-926:yes": 0.75}
+
+    monkeypatch.setattr("ft.stock._fetch_prices", fake_fetch_prices)
+
+    bal = _compute_balance("POLY", "USD")
+    assert bal == pytest.approx(107.5)

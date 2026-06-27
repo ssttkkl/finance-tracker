@@ -22,12 +22,20 @@ def _compute_balance(account_name: str, currency: str) -> float:
         if isinstance(bucket, (int, float)):
             return bucket or 0.0
 
-    # Check security (positions + cash = total value)
+    # Check security (positions + cash = current market value if available)
     sec = snap.get("accounts", {}).get("security", {}).get(account_name)
     if sec:
         total = sec.get("cash", 0.0)
-        for tkr, pos in sec.get("positions", {}).items():
-            total += pos["shares"] * pos["avg_cost"]
+        positions = sec.get("positions", {})
+        if positions:
+            try:
+                from .stock import _fetch_prices
+                prices = _fetch_prices(list(positions.keys()))
+            except Exception:
+                prices = {}
+            for tkr, pos in positions.items():
+                price = prices.get(tkr, pos.get("avg_cost", 0.0))
+                total += pos.get("shares", 0.0) * price
         return round(total, 2)
 
     return 0.0

@@ -580,12 +580,16 @@ def do_checkin_cash(
 
 
 def _normalize_ticker(t: str) -> str:
-    """Normalize ticker to yfinance format.
+    """Normalize ticker to yfinance / Polymarket lookup format.
 
     ft stores tickers like 'avgo.us', '00700.hk', '159330.sz'.
     yfinance needs uppercase, and HK stocks need '0700.HK' format.
+    Polymarket tickers keep the pm: prefix and normalize to lowercase.
     """
-    t = t.upper().strip()
+    t = t.strip()
+    if t.lower().startswith("pm:"):
+        return t.lower()
+    t = t.upper()
     # ft stores hk stocks as 00700.hk → yfinance needs 0700.HK
     if t.endswith(".HK"):
         # 00700.HK → 0700.HK  (yfinance expects 4 digits for HK)
@@ -645,20 +649,125 @@ def _extract_last_close(data, ticker: str):
         return None
 
 
+def _parse_polymarket_ticker(t: str):
+    """Parse a Polymarket pseudo-ticker.
+
+    Format: pm:<slug>:yes|no
+    Returns (slug, side) or None.
+    """
+    t = t.strip().lower()
+    if not t.startswith("pm:"):
+        return None
+    parts = t.split(":")
+    if len(parts) < 3:
+        return None
+    side = parts[-1]
+    if side not in ("yes", "no"):
+        return None
+    slug = ":".join(parts[1:-1]).strip()
+    if not slug:
+        return None
+    return slug, side
+
+
+def _fetch_polymarket_prices(tickers: list[str]) -> dict[str, float]:
+    """Fetch current token prices from Polymarket gamma API."""
+    if not tickers:
+        return {}
+
+    from collections import defaultdict
+    from urllib.parse import quote
+    import json
+    import urllib.request
+
+    grouped = defaultdict(list)
+    for t in tickers:
+        parsed = _parse_polymarket_ticker(t)
+        if not parsed:
+            continue
+        slug, side = parsed
+        grouped[slug].append((t, side))
+
+    if not grouped:
+        return {}
+
+    prices = {}
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json",
+    }
+    for slug, items in grouped.items():
+        url = f"https://gamma-api.polymarket.com/markets?slug={quote(slug)}"
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                markets = json.load(resp)
+        except Exception:
+            continue
+
+        if isinstance(markets, dict):
+            markets = markets.get("data") or markets.get("markets") or [markets]
+        if not isinstance(markets, list):
+            continue
+
+        market = next((m for m in markets if m.get("slug") == slug), None)
+        if not market:
+            continue
+
+        outcomes = [str(x).strip().lower() for x in market.get("outcomes") or []]
+        outcome_prices = market.get("outcomePrices") or []
+        last_trade = market.get("lastTradePrice")
+        best_bid = market.get("bestBid")
+        best_ask = market.get("bestAsk")
+        fallback = None
+        for candidate in (last_trade, best_bid, best_ask):
+            try:
+                if candidate is not None:
+                    fallback = float(candidate)
+                    break
+            except (TypeError, ValueError):
+                continue
+        if fallback is None and len(outcome_prices) == 2:
+            try:
+                fallback = (float(outcome_prices[0]) + float(outcome_prices[1])) / 2
+            except (TypeError, ValueError):
+                fallback = None
+
+        for ticker, side in items:
+            idx = None
+            if side in outcomes:
+                idx = outcomes.index(side)
+            elif side == "yes" and len(outcome_prices) >= 1:
+                idx = 0
+                if "yes" in outcomes:
+                    idx = outcomes.index("yes")
+            elif side == "no" and len(outcome_prices) >= 2:
+                idx = 1
+                if "no" in outcomes:
+                    idx = outcomes.index("no")
+
+            if idx is not None and idx < len(outcome_prices):
+                try:
+                    prices[ticker] = float(outcome_prices[idx])
+                    continue
+                except (TypeError, ValueError):
+                    pass
+            if fallback is not None:
+                prices[ticker] = fallback
+
+    return prices
+
+
 def _fetch_prices(tickers: list[str]) -> dict[str, float]:
-    """Fetch current prices from yfinance.
+    """Fetch current prices from yfinance and Polymarket.
 
     - Normalizes ticker formats (avgo.us→AVGO, 00700.hk→0700.HK)
+    - Supports Polymarket pseudo-tickers (pm:<slug>:yes|no)
     - Respects HTTP_PROXY / HTTPS_PROXY env vars for users behind a proxy
       (e.g. in China where Yahoo Finance is blocked).
 
     Returns {} on failure (yfinance not installed or network error).
     """
-    try:
-        import yfinance as yf  # type: ignore[import-untyped]
-    except ImportError:
-        return {}
-
     if not tickers:
         return {}
 
@@ -670,18 +779,30 @@ def _fetch_prices(tickers: list[str]) -> dict[str, float]:
         ticker_map[nt] = t
         normalized.append(nt)
 
+    pm_tickers = [nt for nt in normalized if nt.startswith("pm:")]
+    regular_tickers = [nt for nt in normalized if not nt.startswith("pm:")]
+
     import os
     proxy = os.environ.get("HTTP_PROXY") or os.environ.get("HTTPS_PROXY")
     if proxy:
         os.environ.setdefault("HTTP_PROXY", proxy)
         os.environ.setdefault("HTTPS_PROXY", proxy)
 
-    prices = {}
+    prices = _fetch_polymarket_prices(pm_tickers)
+
+    if not regular_tickers:
+        return prices
+
+    try:
+        import yfinance as yf  # type: ignore[import-untyped]
+    except ImportError:
+        return prices
+
     try:
         # Split HK stocks from others — yfinance uses different API paths,
         # and mixing them in one download can cause HK tickers to fail.
-        hk_tickers = [nt for nt in normalized if nt.endswith(".HK")]
-        other_tickers = [nt for nt in normalized if not nt.endswith(".HK")]
+        hk_tickers = [nt for nt in regular_tickers if nt.endswith(".HK")]
+        other_tickers = [nt for nt in regular_tickers if not nt.endswith(".HK")]
 
         groups = [other_tickers] + [[t] for t in hk_tickers]
 

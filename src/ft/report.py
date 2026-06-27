@@ -125,13 +125,11 @@ def report_networth(records_dir=None, month=None):
                 result[cur][display_name] = balance
                 result_meta[cur][display_name] = acct_meta.get((acct_name, cur), {})
 
+    from .acct import _compute_balance
+
     for acct_name, acct_data in snap["accounts"].get("security", {}).items():
         currency = acct_data.get("currency", "CNY") or "CNY"
-        cash_bal = acct_data.get("cash", 0.0)
-        total_value = cash_bal
-        for tkr, pos in acct_data.get("positions", {}).items():
-            total_value += pos["shares"] * pos["avg_cost"]
-        total_value = round(total_value, 2)
+        total_value = _compute_balance(acct_name, currency)
         if currency not in result:
             result[currency] = {}
             result_meta[currency] = {}
