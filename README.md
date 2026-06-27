@@ -56,7 +56,7 @@ ft stock checkin --account IBKR --ticker nvda.us --shares 45 --avg-cost 220  # �
 ft stock list          # 持仓总览（实时拉取 yfinance 市值）
 ```
 
-**平均成本法：** 买入时加权平均，卖出时均价不变、按比例扣除成本。
+**平均成本法：** 买入时总成本相加摊均价，卖出时总成本减去净回收资金（price × shares - commission），剩余均价随之变化。卖亏了均价↑，卖赚了均价↓。
 
 ## 数据一致性
 

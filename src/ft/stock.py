@@ -627,45 +627,45 @@ def _fetch_prices(tickers: list[str]) -> dict[str, float]:
 
     import os
     proxy = os.environ.get("HTTP_PROXY") or os.environ.get("HTTPS_PROXY")
-    session = None
     if proxy:
-        import requests
-        session = requests.Session()
-        session.proxies = {
-            "http": proxy,
-            "https": proxy or os.environ.get("HTTPS_PROXY", proxy),
-        }
+        os.environ.setdefault("HTTP_PROXY", proxy)
+        os.environ.setdefault("HTTPS_PROXY", proxy)
 
+    prices = {}
     try:
-        data = yf.download(
-            normalized, period="1d", progress=False,
-            auto_adjust=False, session=session,
-        )
-        prices = {}
-        for nt in normalized:
-            try:
-                if "Close" in data.columns:
-                    close = data["Close"].get(nt)
-                else:
-                    close = data.xs("Close", axis=1, level=0).get(nt)
-                if close is not None and not close.empty:
-                    val = close.iloc[-1]
-                    if val is not None and not (hasattr(val, "isna") and val.isna()):
-                        prices[ticker_map[nt]] = float(val)
-                        continue
-                if "Adj Close" in data.columns:
-                    adj = data["Adj Close"].get(nt)
-                else:
-                    adj = data.xs("Adj Close", axis=1, level=0).get(nt)
-                if adj is not None and not adj.empty:
-                    val = adj.iloc[-1]
-                    if val is not None and not (hasattr(val, "isna") and val.isna()):
-                        prices[ticker_map[nt]] = float(val)
-            except (KeyError, IndexError, TypeError, ValueError):
+        # Split HK stocks from others — yfinance uses different API paths,
+        # and mixing them in one download can cause HK tickers to fail.
+        hk_tickers = [nt for nt in normalized if nt.endswith(".HK")]
+        other_tickers = [nt for nt in normalized if not nt.endswith(".HK")]
+
+        groups = [other_tickers] + [[t] for t in hk_tickers]
+
+        import time
+        for group in groups:
+            if not group:
                 continue
-        return prices
+            try:
+                data = yf.download(
+                    group, period="1d", progress=False,
+                    auto_adjust=False,
+                )
+                for nt in group:
+                    try:
+                        if "Close" in data.columns:
+                            close = data["Close"].get(nt)
+                        else:
+                            close = data.xs("Close", axis=1, level=0).get(nt)
+                        if close is not None and not close.empty:
+                            val = close.iloc[-1]
+                            if val is not None and not (hasattr(val, "isna") and val.isna()):
+                                prices[ticker_map[nt]] = float(val)
+                    except (KeyError, IndexError, TypeError, ValueError):
+                        continue
+            except Exception:
+                continue
     except Exception:
-        return {}
+        pass
+    return prices
 
 
 def _fmt(value: float, symbol: str) -> str:

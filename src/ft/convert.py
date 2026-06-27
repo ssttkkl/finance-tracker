@@ -445,7 +445,11 @@ def _read_alipay_raw(path: str):
     raw = []  # (date_str, amount, payment_method, counterparty, description, category, txn_type)
     for row in reader:
         if len(row) < 7:
-            continue
+            raise ValueError(
+                f"❌ 支付宝账单行缺少字段: 仅 {len(row)} 列，预期 >= 7\n"
+                f"   row={row}\n"
+                f"   可能是支付宝导出的格式已变更，需要更新转换器"
+            )
         date_str = row[h.get("交易时间", 0)].strip()[:19].replace("/", "-")
         direction = row[h.get("收/支", 5)].strip()
         amount_str = row[h.get("金额", 6)].strip()
@@ -453,15 +457,25 @@ def _read_alipay_raw(path: str):
         try:
             amount = float(amount_str)
         except ValueError:
-            continue
+            raise ValueError(
+                f"❌ 支付宝账单金额无法解析: amount_str={amount_str!r}\n"
+                f"   date={date_str} direction={direction} type={txn_type}"
+            )
         if amount == 0:
-            continue
-        if direction == "支出":
-            amount = -amount
-        elif direction in ("收入", "不计收支"):
-            pass
+            # 0 元交易：会员卡抵扣、积分兑换等，无资金变动，保留记录但不计入财务
+            category = "expense" if direction == "支出" else "income"
         else:
-            continue
+            category = "expense" if amount < 0 else "income"
+            if direction == "支出":
+                amount = -amount
+            elif direction in ("收入", "不计收支"):
+                pass
+            else:
+                raise ValueError(
+                    f"❌ 支付宝账单未知收/支方向: direction={direction!r}\n"
+                    f"   date={date_str} type={txn_type} amount={amount_str}\n"
+                    f"   请确认是否需更新转换器以支持新的方向类型"
+                )
 
         payment_method = row[h.get("收/付款方式", 7)].strip() if "收/付款方式" in h else ""
         counterparty = row[h.get("交易对方", 2)].strip()
@@ -475,7 +489,8 @@ def _read_alipay_raw(path: str):
         if direction == "不计收支" and txn_status == "交易关闭":
             continue
 
-        category = "expense" if amount < 0 else "income"
+        if amount != 0:
+            category = "expense" if amount < 0 else "income"
 
         normalized_cp, enriched_desc = _normalize_counterparty(counterparty, desc[:80], "alipay")
         raw.append({
@@ -542,13 +557,8 @@ def _read_wechat_raw(path: str):
             amount = float(vals[h["金额(元)"]])
         except (ValueError, KeyError):
             continue
-        if direction == "支出":
-            amount = -amount
-        elif direction != "收入":
-            continue
-        if amount == 0:
-            continue
-
+        
+        # 提前提取所有字段，后面会按需使用
         payment_method = vals[h["支付方式"]] if "支付方式" in h else ""
         counterparty = vals[h["交易对方"]] if "交易对方" in h else ""
         desc = vals[h["商品"]] if "商品" in h else ""
@@ -556,6 +566,35 @@ def _read_wechat_raw(path: str):
         date_raw = vals[h["交易时间"]] if "交易时间" in h else ""
         date_str = date_raw[:19].replace("/", "-")
 
+        if direction == "支出":
+            amount = -amount
+        elif direction == "收入":
+            pass
+        elif txn_type in ("零钱提现", "充值", "零钱通存取", "理财通"):
+            # 中性交易（零钱提现/充值等），按金额正负判断方向
+            if amount > 0:
+                category = "income"
+            else:
+                category = "expense"
+                amount = -amount
+            # 描述为空或无意义时，用交易类型代替
+            if not desc or desc in ("/", "-"):
+                desc = txn_type
+            normalized_cp, enriched_desc = _normalize_counterparty(counterparty, desc[:80], "wechat")
+            raw.append({
+                "date": date_str,
+                "amount": round(amount, 2),
+                "payment_method": payment_method,
+                "counterparty": normalized_cp,
+                "description": enriched_desc[:80],
+                "category": category,
+                "status": status,
+            })
+            continue
+        else:
+            continue
+        if amount == 0:
+            continue
         # 描述为空或无意义时，用交易类型代替
         if not desc or desc in ("/", "-"):
             desc = txn_type
@@ -920,10 +959,17 @@ def _parse_icbc_debit_row(row: list) -> dict | None:
     dm = _re.search(r"(\d{4}-\d{2}-\d{2})", dt_str)
     tm = _re.search(r"(\d{2}:\d{2}:\d{2})", dt_str)
     if not dm:
-        return None
+        raise ValueError(
+            f"❌ 工行借记卡行无法提取日期: row={row}\n"
+            f"   可能是PDF格式变更，需要更新转换器"
+        )
     # 保护：pdfplumber 可能返回截断行
     if len(row) < 13:
-        return None
+        raise ValueError(
+            f"❌ 工行借记卡行列数不足: 仅 {len(row)} 列，预期 >= 13\n"
+            f"   row={row}\n"
+            f"   可能是pdfplumber解析结果截断或PDF格式变更"
+        )
     date = f"{dm.group(1)} {tm.group(1) if tm else '00:00:00'}"
 
     # 币种
@@ -933,9 +979,13 @@ def _parse_icbc_debit_row(row: list) -> dict | None:
 
     # 金额 — 水印已过滤，干净的数字
     amt_str = (row[8] or "").replace("\n", "").strip()
-    amt_m = _re.search(r"([+-])?([\d,]+\.\d{2})", amt_str)
+    amt_m = _re.search(r"([+-])?([\d,]+\.[\d]{2})", amt_str)
     if not amt_m:
-        return None
+        raise ValueError(
+            f"❌ 工行借记卡行金额无法解析: amt_str={amt_str!r}\n"
+            f"   row={row}\n"
+            f"   可能是PDF格式变更或水印干扰"
+        )
     sign = amt_m.group(1) or ""
     num = float(amt_m.group(2).replace(",", ""))
     amount = -num if sign == "-" else num
