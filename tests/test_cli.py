@@ -39,3 +39,21 @@ def test_reconcile_range_dispatch(monkeypatch):
 def test_reconcile_rejects_month_plus_range():
     with pytest.raises(SystemExit):
         cli.main(["reconcile", "--month", "2026-06", "--from", "2026-06-01"])
+
+
+
+def test_stock_checkin_accepts_fractional_shares(monkeypatch):
+    called = {}
+
+    def fake_checkin_ticker(*args):
+        called["args"] = args
+
+    monkeypatch.setattr("ft.stock.do_checkin_ticker", fake_checkin_ticker)
+    cli.main([
+        "stock", "checkin",
+        "--account", "Polymarket",
+        "--ticker", "pm:test:no",
+        "--shares", "323.5",
+        "--avg-cost", "0.92",
+    ])
+    assert called["args"][1] == 323.5

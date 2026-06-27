@@ -301,6 +301,13 @@ def _position_cost(pos: dict) -> float:
 # ── Stock operations ────────────────────────────────────────────────────
 
 
+def _fmt_shares(shares: float) -> str:
+    """Format share counts without dropping fractional Polymarket holdings."""
+    if float(shares).is_integer():
+        return f"{shares:.0f}"
+    return f"{shares:.4f}".rstrip("0").rstrip(".")
+
+
 def _now() -> str:
     """Return current datetime string."""
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -330,6 +337,7 @@ def do_buy(
 
     total_cost = _position_cost(pos) + shares * price
     pos["shares"] += shares
+    pos["shares"] = round(pos["shares"], 10)
     pos["avg_cost"] = round(total_cost / pos["shares"], 2) if pos["shares"] != 0 else 0.0
     if pos["shares"] == 0:
         del acct["positions"][ticker]
@@ -345,7 +353,7 @@ def do_buy(
         commission=commission, currency=currency,
         account_name=account_name, note=note,
     )
-    print(f"✅ 买入 {int(shares)} 股 {ticker} @ ${price} ({account_name})")
+    print(f"✅ 买入 {_fmt_shares(shares)} 股 {ticker} @ ${price} ({account_name})")
     return True
 
 
@@ -387,6 +395,7 @@ def do_sell(
         # Regular sell or short sell from flat
         old_cost = round(pos["avg_cost"] * old_shares, 2)  # 0 if old_shares == 0
         pos["shares"] -= shares
+        pos["shares"] = round(pos["shares"], 10)
         pos_new_shares = pos["shares"]
 
         if pos_new_shares >= 0:
@@ -411,6 +420,7 @@ def do_sell(
         # Already short — short more
         old_total = pos["avg_cost"] * old_shares  # negative
         pos["shares"] -= shares  # more negative
+        pos["shares"] = round(pos["shares"], 10)
         new_total = round(old_total - amount + commission, 2)
         pos["avg_cost"] = round(new_total / pos["shares"], 2) if pos["shares"] < 0 else 0.0
         acct["cash"] += amount - commission
@@ -908,7 +918,7 @@ def do_list():
                 pct_str = "  N/A"
 
             print(
-                f"  {ticker:<16} {shares:>8.0f} {symbol}{avg_cost:>10,.2f} "
+                f"  {ticker:<16} {_fmt_shares(shares):>8} {symbol}{avg_cost:>10,.2f} "
                 f"{symbol}{cost:>12,.2f} {symbol}{value:>12,.2f} "
                 f"{pl_str:>14} {pct_str:>8}"
             )
@@ -938,7 +948,7 @@ def _replay_security_csv(records_dir=None):
     records_dir = Path(str(records_dir))
     security_dir = records_dir / "security"
 
-    positions = defaultdict(lambda: {"shares": 0, "total_cost": 0.0})
+    positions = defaultdict(lambda: {"shares": 0.0, "total_cost": 0.0})
     cash = defaultdict(float)
 
     if not security_dir.exists():
@@ -951,7 +961,7 @@ def _replay_security_csv(records_dir=None):
                 act = row["action"]
                 t = row.get("ticker", "") or ""
                 try:
-                    s = int(float(row["shares"] or 0))
+                    s = float(row["shares"] or 0)
                     p = float(row["price"] or 0)
                     amt = float(row["amount"] or 0)
                     com = float(row["commission"] or 0)

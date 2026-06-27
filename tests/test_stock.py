@@ -243,18 +243,40 @@ def test_do_checkin_ticker(tmp_env):
     from ft.stock import do_buy, do_checkin_ticker, load_snapshot
 
     do_buy(ticker="nvda.us", shares=50, price=200.0,
-           commission=0.0, currency="USD", account_name="IBKR",
-           date="2026-06-10")
+           commission=0.5, currency="USD", account_name="IBKR",
+           date="2026-06-12 09:00:00")
 
     # Checkin: overwrite position
     do_checkin_ticker(ticker="nvda.us", shares=55, avg_cost=210.0,
                       currency="USD", account_name="IBKR",
-                      note="checkin", date="2026-06-12")
+                      note="checkin", date="2026-06-12 10:00:00")
 
     snap = load_snapshot()
     pos = snap["accounts"]["security"]["IBKR"]["positions"]["nvda.us"]
     assert pos["shares"] == 55
     assert pos["avg_cost"] == 210.0
+
+
+
+def test_do_list_shows_fractional_shares(tmp_env, monkeypatch, capsys):
+    """Portfolio list preserves fractional Polymarket shares."""
+    from ft.stock import do_checkin_ticker, do_list
+
+    do_checkin_ticker(ticker="pm:test:no", shares=323.5, avg_cost=0.92,
+                      currency="USD", account_name="Polymarket",
+                      note="test", date="2026-06-12 10:00:00")
+    do_checkin_ticker(ticker="pm:other:no", shares=16.7, avg_cost=0.86,
+                      currency="USD", account_name="Polymarket",
+                      note="test", date="2026-06-12 10:01:00")
+    monkeypatch.setattr("ft.stock._fetch_prices", lambda tickers: {
+        "pm:test:no": 0.92,
+        "pm:other:no": 0.86,
+    })
+
+    do_list()
+    out = capsys.readouterr().out
+    assert "323.5" in out
+    assert "16.7" in out
 
 
 def test_do_checkin_cash(tmp_env):

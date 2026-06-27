@@ -85,7 +85,7 @@ def main(argv=None):
 
     buy_p = stk_sub.add_parser("buy", help="买入")
     buy_p.add_argument("--ticker", required=True)
-    buy_p.add_argument("--shares", type=int, required=True)
+    buy_p.add_argument("--shares", type=float, required=True)
     buy_p.add_argument("--price", type=float, required=True)
     buy_p.add_argument("--commission", type=float, default=0.0)
     buy_p.add_argument("--account", required=True)
@@ -95,7 +95,7 @@ def main(argv=None):
 
     sell_p = stk_sub.add_parser("sell", help="卖出")
     sell_p.add_argument("--ticker", required=True)
-    sell_p.add_argument("--shares", type=int, required=True)
+    sell_p.add_argument("--shares", type=float, required=True)
     sell_p.add_argument("--price", type=float, required=True)
     sell_p.add_argument("--commission", type=float, default=0.0)
     sell_p.add_argument("--account", required=True)
@@ -128,9 +128,10 @@ def main(argv=None):
     checkin_p = stk_sub.add_parser("checkin", help="校正持仓或现金")
     checkin_p.add_argument("--account", required=True)
     checkin_p.add_argument("--ticker")
-    checkin_p.add_argument("--shares", type=int)
+    checkin_p.add_argument("--shares", type=float)
     checkin_p.add_argument("--avg-cost", type=float)
     checkin_p.add_argument("--cash", type=float)
+    checkin_p.add_argument("--currency", default="USD", choices=["CNY", "USD", "HKD"])
     checkin_p.add_argument("--note", default="")
     checkin_p.add_argument("--date")
 
