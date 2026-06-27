@@ -579,8 +579,33 @@ def do_checkin_cash(
 # ── Portfolio listing ───────────────────────────────────────────────────
 
 
+def _normalize_ticker(t: str) -> str:
+    """Normalize ticker to yfinance format.
+
+    ft stores tickers like 'avgo.us', '00700.hk', '159330.sz'.
+    yfinance needs uppercase, and HK stocks need '0700.HK' format.
+    """
+    t = t.upper().strip()
+    # ft stores hk stocks as 00700.hk → yfinance needs 0700.HK
+    if t.endswith(".HK"):
+        # 00700.HK → 0700.HK  (yfinance expects 4 digits for HK)
+        code = t.replace(".HK", "")
+        if len(code) <= 4 and code.isdigit():
+            return f"{int(code):04d}.HK"
+        return t
+    # .US suffix → strip it (yfinance doesn't use .US)
+    if t.endswith(".US"):
+        return t.replace(".US", "")
+    # .SZ / .SS already correct for China A-shares
+    return t
+
+
 def _fetch_prices(tickers: list[str]) -> dict[str, float]:
     """Fetch current prices from yfinance.
+
+    - Normalizes ticker formats (avgo.us→AVGO, 00700.hk→0700.HK)
+    - Respects HTTP_PROXY / HTTPS_PROXY env vars for users behind a proxy
+      (e.g. in China where Yahoo Finance is blocked).
 
     Returns {} on failure (yfinance not installed or network error).
     """
@@ -592,35 +617,50 @@ def _fetch_prices(tickers: list[str]) -> dict[str, float]:
     if not tickers:
         return {}
 
+    # Build mapping: normalized → original
+    ticker_map = {}
+    normalized = []
+    for t in tickers:
+        nt = _normalize_ticker(t)
+        ticker_map[nt] = t
+        normalized.append(nt)
+
+    import os
+    proxy = os.environ.get("HTTP_PROXY") or os.environ.get("HTTPS_PROXY")
+    session = None
+    if proxy:
+        import requests
+        session = requests.Session()
+        session.proxies = {
+            "http": proxy,
+            "https": proxy or os.environ.get("HTTPS_PROXY", proxy),
+        }
+
     try:
         data = yf.download(
-            tickers, period="1d", progress=False,
-            auto_adjust=False,
+            normalized, period="1d", progress=False,
+            auto_adjust=False, session=session,
         )
-        # yfinance returns a multi-index DataFrame
-        # Structure depends on version, handle flexibly
         prices = {}
-        for ticker in tickers:
+        for nt in normalized:
             try:
-                # Try Close column first
                 if "Close" in data.columns:
-                    close = data["Close"].get(ticker)
+                    close = data["Close"].get(nt)
                 else:
-                    close = data.xs("Close", axis=1, level=0).get(ticker)
+                    close = data.xs("Close", axis=1, level=0).get(nt)
                 if close is not None and not close.empty:
                     val = close.iloc[-1]
                     if val is not None and not (hasattr(val, "isna") and val.isna()):
-                        prices[ticker] = float(val)
+                        prices[ticker_map[nt]] = float(val)
                         continue
-                # Fallback: Adj Close
                 if "Adj Close" in data.columns:
-                    adj = data["Adj Close"].get(ticker)
+                    adj = data["Adj Close"].get(nt)
                 else:
-                    adj = data.xs("Adj Close", axis=1, level=0).get(ticker)
+                    adj = data.xs("Adj Close", axis=1, level=0).get(nt)
                 if adj is not None and not adj.empty:
                     val = adj.iloc[-1]
                     if val is not None and not (hasattr(val, "isna") and val.isna()):
-                        prices[ticker] = float(val)
+                        prices[ticker_map[nt]] = float(val)
             except (KeyError, IndexError, TypeError, ValueError):
                 continue
         return prices
