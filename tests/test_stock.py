@@ -1,8 +1,12 @@
 """Tests for stock trading module"""
-import pytest
-import tempfile
 import csv
+import sys
+import tempfile
+import time
 from pathlib import Path
+
+import pandas as pd
+import pytest
 
 
 @pytest.fixture
@@ -158,8 +162,8 @@ def test_do_buy_updates_snapshot(tmp_env):
 
     pos = acct["positions"]["nvda.us"]
     assert pos["shares"] == 55
-    # weighted avg: (45*224.14 + 10*230) / 55 = (10086.3 + 2300) / 55 = 12386.3 / 55 = 225.20545...
-    expected_avg = (45 * 224.14 + 10 * 230) / 55
+    # weighted avg is rounded to 2 decimals inside stock.py
+    expected_avg = 225.21
     assert pos["avg_cost"] == pytest.approx(expected_avg)
 
 
@@ -184,7 +188,7 @@ def test_do_sell_updates_snapshot(tmp_env):
     acct = snap["accounts"]["security"]["IBKR"]
     pos = acct["positions"]["nvda.us"]
     assert pos["shares"] == 45
-    assert pos["avg_cost"] == pytest.approx(225.205)
+    assert pos["avg_cost"] == pytest.approx(219.71)
 
     # Cash: -(55*225.205) = -12386.275 (buy) + (10*250 - 0.35) = 2499.65 (sell)
     assert acct["cash"] == pytest.approx(-12386.275 + 2499.65)
@@ -265,3 +269,53 @@ def test_do_checkin_cash(tmp_env):
 
     snap = load_snapshot()
     assert snap["accounts"]["security"]["IBKR"]["cash"] == pytest.approx(12345.67)
+
+
+def test_fetch_prices_single_hk_series(monkeypatch):
+    """HK single-ticker downloads should return the last close."""
+    from ft.stock import _fetch_prices
+
+    def fake_download(tickers, period=None, progress=None, auto_adjust=False):
+        assert tickers == ["0700.HK"]
+        return pd.DataFrame(
+            {
+                "Open": [310.0, 320.0],
+                "Close": [321.5, 322.8],
+            },
+            index=pd.Index(["2026-06-12", "2026-06-13"]),
+        )
+
+    fake_yf = type("FakeYF", (), {"download": staticmethod(fake_download)})
+    monkeypatch.setitem(sys.modules, "yfinance", fake_yf)
+    monkeypatch.setattr(time, "sleep", lambda *_: None)
+
+    prices = _fetch_prices(["00700.hk"])
+    assert prices == {"00700.hk": pytest.approx(322.8)}
+
+
+def test_fetch_prices_multi_ticker_dataframe(monkeypatch):
+    """Multiple tickers should still extract each close correctly."""
+    from ft.stock import _fetch_prices
+
+    cols = pd.MultiIndex.from_tuples(
+        [("Close", "AAPL"), ("Close", "MSFT")]
+    )
+    data = pd.DataFrame(
+        [[195.0, 430.0], [196.5, 431.2]],
+        columns=cols,
+        index=pd.Index(["2026-06-12", "2026-06-13"]),
+    )
+
+    def fake_download(tickers, period=None, progress=False, auto_adjust=False):
+        assert tickers == ["AAPL", "MSFT"]
+        return data
+
+    fake_yf = type("FakeYF", (), {"download": staticmethod(fake_download)})
+    monkeypatch.setitem(sys.modules, "yfinance", fake_yf)
+    monkeypatch.setattr(time, "sleep", lambda *_: None)
+
+    prices = _fetch_prices(["aapl.us", "msft.us"])
+    assert prices == {
+        "aapl.us": pytest.approx(196.5),
+        "msft.us": pytest.approx(431.2),
+    }

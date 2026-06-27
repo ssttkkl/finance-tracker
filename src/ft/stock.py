@@ -590,7 +590,7 @@ def _normalize_ticker(t: str) -> str:
     if t.endswith(".HK"):
         # 00700.HK → 0700.HK  (yfinance expects 4 digits for HK)
         code = t.replace(".HK", "")
-        if len(code) <= 4 and code.isdigit():
+        if len(code) <= 5 and code.isdigit():
             return f"{int(code):04d}.HK"
         return t
     # .US suffix → strip it (yfinance doesn't use .US)
@@ -598,6 +598,51 @@ def _normalize_ticker(t: str) -> str:
         return t.replace(".US", "")
     # .SZ / .SS already correct for China A-shares
     return t
+
+
+def _extract_last_close(data, ticker: str):
+    """Extract the most recent close from a yfinance download result.
+
+    yfinance returns different shapes depending on the number of tickers:
+    - one ticker: Close is usually a Series
+    - multiple tickers: Close is usually a DataFrame
+    - some responses use MultiIndex columns requiring xs(...)
+    """
+    if data is None or getattr(data, "empty", False):
+        return None
+
+    try:
+        close = data["Close"]
+    except Exception:
+        try:
+            close = data.xs("Close", axis=1, level=0)
+        except Exception:
+            return None
+
+    # Single ticker download usually yields a Series here.
+    if hasattr(close, "iloc") and not hasattr(close, "columns"):
+        if getattr(close, "empty", False):
+            return None
+        val = close.iloc[-1]
+        return None if val is None or (hasattr(val, "isna") and val.isna()) else float(val)
+
+    # Multi-ticker download yields a DataFrame.
+    if hasattr(close, "columns"):
+        if ticker in close.columns:
+            series = close[ticker]
+        elif len(close.columns) == 1:
+            series = close.iloc[:, 0]
+        else:
+            return None
+        if getattr(series, "empty", False):
+            return None
+        val = series.iloc[-1]
+        return None if val is None or (hasattr(val, "isna") and val.isna()) else float(val)
+
+    try:
+        return float(close)
+    except (TypeError, ValueError):
+        return None
 
 
 def _fetch_prices(tickers: list[str]) -> dict[str, float]:
@@ -641,24 +686,29 @@ def _fetch_prices(tickers: list[str]) -> dict[str, float]:
         groups = [other_tickers] + [[t] for t in hk_tickers]
 
         import time
-        for group in groups:
+        for i, group in enumerate(groups):
             if not group:
                 continue
+            if i > 0:
+                time.sleep(2)
             try:
                 data = yf.download(
                     group, period="1d", progress=False,
                     auto_adjust=False,
                 )
+                # Single-ticker results often come back as a Series under Close.
+                # Multi-ticker results come back as a DataFrame.
+                if len(group) == 1:
+                    nt = group[0]
+                    val = _extract_last_close(data, nt)
+                    if val is not None:
+                        prices[ticker_map[nt]] = val
+                    continue
                 for nt in group:
                     try:
-                        if "Close" in data.columns:
-                            close = data["Close"].get(nt)
-                        else:
-                            close = data.xs("Close", axis=1, level=0).get(nt)
-                        if close is not None and not close.empty:
-                            val = close.iloc[-1]
-                            if val is not None and not (hasattr(val, "isna") and val.isna()):
-                                prices[ticker_map[nt]] = float(val)
+                        val = _extract_last_close(data, nt)
+                        if val is not None:
+                            prices[ticker_map[nt]] = val
                     except (KeyError, IndexError, TypeError, ValueError):
                         continue
             except Exception:
