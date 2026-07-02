@@ -17,7 +17,10 @@ def _write_transfer_row(path: Path, date_str: str, amount: float, currency: str,
     if path.exists():
         with open(path, encoding="utf-8") as f:
             reader = csv.DictReader(f)
-            existing = [{field: row.get(field, "") for field in models.CSV_FIELDS} for row in reader]
+            if path.parent.name == "security":
+                existing = list(reader)
+            else:
+                existing = [{field: row.get(field, "") for field in models.CSV_FIELDS} for row in reader]
 
     new_row = {
         "date": date_str,
@@ -33,12 +36,16 @@ def _write_transfer_row(path: Path, date_str: str, amount: float, currency: str,
     }
 
     all_rows = existing + [new_row]
-    all_rows.sort(key=lambda r: r["date"])
+    all_rows.sort(key=lambda r: r.get("date", ""))
 
-    with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
-        writer.writeheader()
-        writer.writerows(all_rows)
+    if path.parent.name == "security":
+        from .stock import _write_security_csv
+        _write_security_csv(path, all_rows)
+    else:
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
+            writer.writeheader()
+            writer.writerows(all_rows)
 
 
 def do_transfer(from_name: str, to_name: str, amount: float, *,

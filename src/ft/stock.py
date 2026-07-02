@@ -1,5 +1,6 @@
 """Stock trading — snapshot management + CSV recording + all stock operations"""
 import csv
+import math
 import os
 import subprocess
 import sys
@@ -21,8 +22,99 @@ CSV_FIELDS = [
 VALID_ACTIONS = {"BUY", "SELL", "DEPOSIT", "WITHDRAW", "DIVIDEND", "CHECKIN"}
 
 
-# ── Snapshot helpers ────────────────────────────────────────────────────
+def _clean_csv_row(row: dict) -> dict:
+    """Drop csv.DictReader's None key for malformed over-wide rows."""
+    return {k: v for k, v in row.items() if k is not None}
 
+
+def _security_fieldnames(rows: list[dict]) -> list[str]:
+    """Security files may mix stock rows and transfer audit rows; preserve both schemas."""
+    fieldnames = list(CSV_FIELDS)
+    for row in rows:
+        for field in row.keys():
+            if field is not None and field not in fieldnames:
+                fieldnames.append(field)
+    return fieldnames
+
+
+def _write_security_csv(path: Path, rows: list[dict]) -> None:
+    """Write security rows while preserving transfer-style audit columns if present."""
+    clean_rows = [_clean_csv_row(row) for row in rows]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile("w", newline="", encoding="utf-8", dir=path.parent, delete=False) as f:
+            tmp_path = Path(f.name)
+            writer = csv.DictWriter(
+                f,
+                fieldnames=_security_fieldnames(clean_rows),
+                extrasaction="ignore",
+            )
+            writer.writeheader()
+            writer.writerows(clean_rows)
+        tmp_path.replace(path)
+    finally:
+        if tmp_path is not None and tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+
+
+def _ensure_finite_values(**values: float) -> None:
+    for name, value in values.items():
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{name} must be numeric: {value!r}") from exc
+        if math.isnan(numeric) or math.isinf(numeric):
+            raise ValueError(f"{name} is not finite: {value!r}")
+
+
+def _snapshot_file_backup():
+    """Return the live snapshot path and its current bytes for rollback."""
+    from . import snapshot as snapshot_mod
+    path = snapshot_mod.SNAPSHOT_PATH
+    return path, path.read_bytes() if path.exists() else None
+
+
+def _restore_snapshot_file(path: Path, backup: bytes | None) -> None:
+    if backup is None:
+        path.unlink(missing_ok=True)
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(backup)
+
+
+def _save_snapshot_and_record_trade(snap: dict, **trade_kwargs) -> dict:
+    """Save snapshot and write audit row; restore snapshot/CSV if either write fails."""
+    _validate_security_snapshot_finite(snap)
+    snapshot_path, snapshot_backup = _snapshot_file_backup()
+    date_key = str(trade_kwargs.get("date", ""))[:10]
+    day_path = models.RECORDS_DIR / "security" / f"{date_key}.csv"
+    day_backup = day_path.read_bytes() if day_path.exists() else None
+    try:
+        save_snapshot(snap)
+        return record_trade(**trade_kwargs)
+    except Exception:
+        _restore_snapshot_file(snapshot_path, snapshot_backup)
+        _restore_snapshot_file(day_path, day_backup)
+        try:
+            git_stage(snapshot_path.parent)
+        except Exception:
+            pass
+        raise
+
+
+def _validate_security_snapshot_finite(snap: dict) -> None:
+    """Reject non-finite numeric values in proposed security snapshot state."""
+    security = snap.get("accounts", {}).get("security", {})
+    for account_name, account in security.items():
+        _ensure_finite_values(**{f"{account_name}.cash": account.get("cash", 0)})
+        for ticker, pos in account.get("positions", {}).items():
+            _ensure_finite_values(
+                **{
+                    f"{account_name}.{ticker}.shares": pos.get("shares", 0),
+                    f"{account_name}.{ticker}.avg_cost": pos.get("avg_cost", 0),
+                }
+            )
 
 
 # ── CSV trade recording ─────────────────────────────────────────────────
@@ -57,6 +149,7 @@ def record_trade(
 
     Returns the row dict that was written.
     """
+    _ensure_finite_values(shares=shares, price=price, amount=amount, commission=commission)
     records_dir = models.RECORDS_DIR
     date_key = date[:10]  # "2026-06-12 10:00:00" → "2026-06-12"
     security_dir = records_dir / "security"
@@ -86,12 +179,9 @@ def record_trade(
 
     # Merge, sort, write
     all_rows = existing_rows + [new_row]
-    all_rows.sort(key=lambda r: r["date"])
+    all_rows.sort(key=lambda r: r.get("date", ""))
 
-    with day_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
-        writer.writeheader()
-        writer.writerows(all_rows)
+    _write_security_csv(day_path, all_rows)
 
     return new_row
 
@@ -195,7 +285,7 @@ def do_append(file_path):
 
     if not rows:
         print("❌ CSV 为空")
-        return
+        return False
 
     # Validate 10 columns
     actual_fields = reader.fieldnames or list(rows[0].keys())
@@ -208,35 +298,51 @@ def do_append(file_path):
         if extra:
             msg.append(f"多余字段: {', '.join(sorted(extra))}")
         print(f"❌ CSV 字段不匹配: {'; '.join(msg)}")
-        return
+        return False
 
     # Validate actions
     for i, row in enumerate(rows, 1):
         if row["action"] not in VALID_ACTIONS:
             print(f"❌ 第 {i} 行: 无效 action '{row['action']}'，"
                   f"允许值: {', '.join(sorted(VALID_ACTIONS))}")
-            return
+            return False
 
     # Load accounts for validation
     from .accounts import load_accounts
     accounts = load_accounts()
-    valid_accounts = {a["name"] for a in accounts}
+    accounts_by_key = {(a.get("name"), a.get("currency")): a for a in accounts}
 
-    # Validate account names
+    # Validate account names, currencies, and types
     for i, row in enumerate(rows, 1):
-        if row["account_name"] not in valid_accounts:
-            print(f"❌ 第 {i} 行: 未知账户 '{row['account_name']}'，请先 ft acct add")
-            return
+        account = accounts_by_key.get((row["account_name"], row["currency"]))
+        if account is None:
+            print(f"❌ 第 {i} 行: 未知账户 '{row['account_name']}' ({row['currency']})，请先 ft acct add")
+            return False
+        if account.get("type") != "security":
+            print(f"❌ 第 {i} 行: 账户 '{row['account_name']}' ({row['currency']}) 不是 security 类型，不能导入股票记录")
+            return False
 
-    # Validate numeric fields
+    # Validate numeric fields and replay-derived finite values
     num_fields = ["shares", "price", "amount", "commission"]
     for i, row in enumerate(rows, 1):
+        parsed = {}
         for field in num_fields:
             try:
-                float(row[field])
+                value = float(row[field])
             except (ValueError, TypeError):
                 print(f"❌ 第 {i} 行: 字段 '{field}' 值 '{row[field]}' 不是有效数字")
-                return
+                return False
+            if not math.isfinite(value):
+                print(f"❌ 第 {i} 行: 字段 '{field}' 值 '{row[field]}' 不是有限数字")
+                return False
+            parsed[field] = value
+        try:
+            if row["action"] in {"BUY", "SELL", "CHECKIN"}:
+                _ensure_finite_values(position_value=parsed["shares"] * parsed["price"])
+            _ensure_finite_values(cash_delta=parsed["amount"] - parsed["commission"])
+        except ValueError as exc:
+            print(f"❌ 第 {i} 行: 派生数值不是有限数字: {exc}")
+            return False
 
     # 2. Sort by date
     rows.sort(key=lambda r: r["date"])
@@ -253,28 +359,62 @@ def do_append(file_path):
     security_dir.mkdir(parents=True, exist_ok=True)
 
     total_written = 0
-    for day, day_rows in sorted(by_date.items()):
-        day_path = security_dir / f"{day}.csv"
+    original_files: dict[Path, bytes | None] = {}
+    snapshot_path = None
+    snapshot_backup = None
+    try:
+        from . import snapshot as snapshot_mod
+        snapshot_path = snapshot_mod.SNAPSHOT_PATH
+        snapshot_backup = snapshot_path.read_bytes() if snapshot_path.exists() else None
+    except Exception:
+        snapshot_path = None
+        snapshot_backup = None
 
-        # Read existing rows
-        existing_rows = []
-        if day_path.exists():
-            with day_path.open(encoding="utf-8") as f:
-                existing_rows = list(csv.DictReader(f))
+    def _restore_touched_files():
+        for path, content in original_files.items():
+            if content is None:
+                path.unlink(missing_ok=True)
+            else:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
 
-        # Merge, sort, write
-        all_rows = existing_rows + day_rows
-        all_rows.sort(key=lambda r: r["date"])
+    try:
+        for day, day_rows in sorted(by_date.items()):
+            day_path = security_dir / f"{day}.csv"
+            if day_path not in original_files:
+                original_files[day_path] = day_path.read_bytes() if day_path.exists() else None
 
-        with day_path.open("w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
-            writer.writeheader()
-            writer.writerows(all_rows)
+            # Read existing rows
+            existing_rows = []
+            if day_path.exists():
+                with day_path.open(encoding="utf-8") as f:
+                    existing_rows = list(csv.DictReader(f))
 
-        total_written += len(day_rows)
+            # Merge, sort, write
+            all_rows = existing_rows + day_rows
+            all_rows.sort(key=lambda r: r.get("date", ""))
+
+            _write_security_csv(day_path, all_rows)
+            total_written += len(day_rows)
+    except Exception:
+        _restore_touched_files()
+        raise
 
     # 4. Rebuild snapshot
-    repair_security()
+    try:
+        repair_security()
+    except Exception as exc:
+        _restore_touched_files()
+        if snapshot_path is not None:
+            if snapshot_backup is None:
+                snapshot_path.unlink(missing_ok=True)
+            else:
+                snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+                snapshot_path.write_bytes(snapshot_backup)
+        if isinstance(exc, ValueError):
+            print(f"❌ security 重放失败: {exc}")
+            return False
+        raise
 
     # 5. Git stage
     try:
@@ -288,6 +428,7 @@ def do_append(file_path):
     print(f"✅ 已导入 {total_written} 条记录到 security 记录")
     for act in sorted(action_counts):
         print(f"   {act}: {action_counts[act]}")
+    return True
 
 
 # ── Position helpers ────────────────────────────────────────────────────
@@ -326,9 +467,11 @@ def do_buy(
     """Buy shares — updates snapshot & records trade."""
     if date is None:
         date = _now()
+    _ensure_finite_values(shares=shares, price=price, commission=commission)
 
     date_key = date[:10]
     amount = -shares * price
+    _ensure_finite_values(amount=amount, cash_delta=amount - commission, total_cost=shares * price)
 
     # Load & update snapshot
     snap = load_snapshot()
@@ -344,10 +487,8 @@ def do_buy(
     acct["cash"] += amount - commission
     acct["cash"] = round(acct["cash"], 10)  # avoid floating point noise
     snap["updated_at"] = date_key
-    save_snapshot(snap)
-
-    # Record trade
-    record_trade(
+    _save_snapshot_and_record_trade(
+        snap,
         date=date, action="BUY", ticker=ticker,
         shares=shares, price=price, amount=amount,
         commission=commission, currency=currency,
@@ -375,9 +516,11 @@ def do_sell(
     """
     if date is None:
         date = _now()
+    _ensure_finite_values(shares=shares, price=price, commission=commission)
 
     date_key = date[:10]
     amount = shares * price
+    _ensure_finite_values(amount=amount, cash_delta=amount - commission)
 
     # Load & update snapshot
     snap = load_snapshot()
@@ -427,10 +570,8 @@ def do_sell(
         acct["cash"] = round(acct["cash"], 10)
 
     snap["updated_at"] = date_key
-    save_snapshot(snap)
-
-    # Record trade
-    record_trade(
+    _save_snapshot_and_record_trade(
+        snap,
         date=date, action="SELL", ticker=ticker,
         shares=shares, price=price, amount=amount,
         commission=commission, currency=currency,
@@ -448,6 +589,7 @@ def do_deposit(
     """Deposit cash into account."""
     if date is None:
         date = _now()
+    _ensure_finite_values(amount=amount)
 
     date_key = date[:10]
     snap = load_snapshot()
@@ -455,9 +597,8 @@ def do_deposit(
     acct["cash"] += amount
     acct["cash"] = round(acct["cash"], 10)
     snap["updated_at"] = date_key
-    save_snapshot(snap)
-
-    record_trade(
+    _save_snapshot_and_record_trade(
+        snap,
         date=date, action="DEPOSIT", ticker="",
         shares=0, price=0, amount=amount,
         commission=0, currency=currency,
@@ -475,6 +616,7 @@ def do_withdraw(
     """Withdraw cash from account."""
     if date is None:
         date = _now()
+    _ensure_finite_values(amount=amount)
 
     date_key = date[:10]
     snap = load_snapshot()
@@ -482,9 +624,8 @@ def do_withdraw(
     acct["cash"] -= amount
     acct["cash"] = round(acct["cash"], 10)
     snap["updated_at"] = date_key
-    save_snapshot(snap)
-
-    record_trade(
+    _save_snapshot_and_record_trade(
+        snap,
         date=date, action="WITHDRAW", ticker="",
         shares=0, price=0, amount=-amount,
         commission=0, currency=currency,
@@ -503,6 +644,7 @@ def do_dividend(
     """Receive dividend — cash in, no position change."""
     if date is None:
         date = _now()
+    _ensure_finite_values(amount=amount)
 
     date_key = date[:10]
     snap = load_snapshot()
@@ -510,9 +652,8 @@ def do_dividend(
     acct["cash"] += amount
     acct["cash"] = round(acct["cash"], 10)
     snap["updated_at"] = date_key
-    save_snapshot(snap)
-
-    record_trade(
+    _save_snapshot_and_record_trade(
+        snap,
         date=date, action="DIVIDEND", ticker=ticker,
         shares=0, price=0, amount=amount,
         commission=0, currency=currency,
@@ -535,6 +676,7 @@ def do_checkin_ticker(
     """
     if date is None:
         date = _now()
+    _ensure_finite_values(shares=shares, avg_cost=avg_cost, position_value=shares * avg_cost)
 
     date_key = date[:10]
     snap = load_snapshot()
@@ -544,9 +686,8 @@ def do_checkin_ticker(
         "avg_cost": avg_cost,
     }
     snap["updated_at"] = date_key
-    save_snapshot(snap)
-
-    record_trade(
+    _save_snapshot_and_record_trade(
+        snap,
         date=date, action="CHECKIN", ticker=ticker,
         shares=shares, price=avg_cost, amount=0,
         commission=0, currency=currency,
@@ -566,6 +707,7 @@ def do_checkin_cash(
     """
     if date is None:
         date = _now()
+    _ensure_finite_values(cash=cash)
 
     date_key = date[:10]
     snap = load_snapshot()
@@ -576,9 +718,8 @@ def do_checkin_cash(
     acct["cash"] = cash
     acct["cash"] = round(acct["cash"], 10)
     snap["updated_at"] = date_key
-    save_snapshot(snap)
-
-    record_trade(
+    _save_snapshot_and_record_trade(
+        snap,
         date=date, action="CHECKIN", ticker="",
         shares=0, price=0, amount=cash,
         commission=0, currency=currency,
@@ -724,8 +865,23 @@ def _fetch_polymarket_prices(tickers: list[str]) -> dict[str, float]:
         if not market:
             continue
 
-        outcomes = [str(x).strip().lower() for x in market.get("outcomes") or []]
-        outcome_prices = market.get("outcomePrices") or []
+        def _coerce_json_list(value):
+            if isinstance(value, list):
+                return value
+            if isinstance(value, str):
+                text = value.strip()
+                if text:
+                    try:
+                        parsed = json.loads(text)
+                    except Exception:
+                        return [value]
+                    if isinstance(parsed, list):
+                        return parsed
+                    return [parsed]
+            return []
+
+        outcomes = [str(x).strip().lower() for x in _coerce_json_list(market.get("outcomes"))]
+        outcome_prices = _coerce_json_list(market.get("outcomePrices"))
         last_trade = market.get("lastTradePrice")
         best_bid = market.get("bestBid")
         best_ask = market.get("bestAsk")
@@ -809,14 +965,32 @@ def _fetch_prices(tickers: list[str]) -> dict[str, float]:
         return prices
 
     try:
-        # Split HK stocks from others — yfinance uses different API paths,
-        # and mixing them in one download can cause HK tickers to fail.
+        # Split by market because yfinance can return NaN when US, A-shares,
+        # and HK tickers are mixed in the same download call.
+        us_tickers = [nt for nt in regular_tickers if nt.endswith(".US")]
+        sz_tickers = [nt for nt in regular_tickers if nt.endswith(".SZ")]
+        ss_tickers = [nt for nt in regular_tickers if nt.endswith(".SS")]
         hk_tickers = [nt for nt in regular_tickers if nt.endswith(".HK")]
-        other_tickers = [nt for nt in regular_tickers if not nt.endswith(".HK")]
+        other_tickers = [
+            nt for nt in regular_tickers
+            if not nt.endswith((".US", ".SZ", ".SS", ".HK"))
+        ]
 
-        groups = [other_tickers] + [[t] for t in hk_tickers]
+        groups = [
+            us_tickers,
+            sz_tickers,
+            ss_tickers,
+            other_tickers,
+        ] + [[t] for t in hk_tickers]
 
+        import math
         import time
+
+        def _is_bad_price(val):
+            return val is None or (
+                isinstance(val, float) and math.isnan(val)
+            )
+
         for i, group in enumerate(groups):
             if not group:
                 continue
@@ -843,7 +1017,20 @@ def _fetch_prices(tickers: list[str]) -> dict[str, float]:
                     except (KeyError, IndexError, TypeError, ValueError):
                         continue
             except Exception:
-                continue
+                pass
+
+            # Fallback: retry any missing / NaN tickers one by one.
+            for nt in group:
+                original = ticker_map[nt]
+                if not _is_bad_price(prices.get(original)):
+                    continue
+                try:
+                    single = yf.download(nt, period="1d", progress=False, auto_adjust=False)
+                    val = _extract_last_close(single, nt)
+                    if val is not None and not (isinstance(val, float) and math.isnan(val)):
+                        prices[original] = val
+                except Exception:
+                    continue
     except Exception:
         pass
     return prices
@@ -937,74 +1124,121 @@ def do_list():
 
 
 # ── Verification ────────────────────────────────────────────────────────
-
-
 def _replay_security_csv(records_dir=None):
-    """Replay security CSV records. Returns (positions, cash) dicts."""
-    from pathlib import Path
-    from collections import defaultdict
+    """Replay security CSV into positions and cash.
+
+    Uses average cost method; supports short positions (negative shares).
+    """
     if records_dir is None:
         records_dir = models.RECORDS_DIR
     records_dir = Path(str(records_dir))
     security_dir = records_dir / "security"
 
+    if not security_dir.exists():
+        from collections import defaultdict
+        return defaultdict(lambda: {"shares": 0.0, "total_cost": 0.0}), defaultdict(float)
+
+    rows = []
+    for csv_file in sorted(security_dir.glob("*.csv")):
+        with open(csv_file, encoding="utf-8") as f:
+            rows.extend(csv.DictReader(f))
+    return _replay_security_rows(rows)
+
+
+def _replay_security_rows(rows):
+    """Replay in-memory security rows, raising ValueError on non-finite state."""
+    from collections import defaultdict
+
     positions = defaultdict(lambda: {"shares": 0.0, "total_cost": 0.0})
     cash = defaultdict(float)
 
-    if not security_dir.exists():
-        return positions, cash
+    def _normalize_position(h):
+        """Snap tiny floating-point residue to zero so closed positions disappear."""
+        if abs(h["shares"]) < 1e-9:
+            h["shares"] = 0.0
+            h["total_cost"] = 0.0
+        elif abs(h["total_cost"]) < 1e-9:
+            h["total_cost"] = 0.0
 
-    for csv_file in sorted(security_dir.glob("*.csv")):
-        with open(csv_file, encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                a = row["account_name"]
-                act = row["action"]
-                t = row.get("ticker", "") or ""
-                try:
-                    s = float(row["shares"] or 0)
-                    p = float(row["price"] or 0)
-                    amt = float(row["amount"] or 0)
-                    com = float(row["commission"] or 0)
-                except (ValueError, KeyError):
-                    continue
+    def _validate_position(account: str, ticker: str) -> None:
+        h = positions[(account, ticker)]
+        _ensure_finite_values(
+            **{
+                f"{account}.{ticker}.shares": h["shares"],
+                f"{account}.{ticker}.total_cost": h["total_cost"],
+            }
+        )
 
-                if act == "CHECKIN":
-                    if t:
-                        positions[(a, t)]["shares"] = s
-                        positions[(a, t)]["total_cost"] = round(s * p, 2)
-                    else:
-                        cash[a] = amt
-                elif act == "BUY":
-                    h = positions[(a, t)]
-                    old_s = h["shares"]
-                    old_c = h["total_cost"]
-                    new_s = old_s + s
-                    if old_s >= 0:
-                        if old_s > 0:
-                            h["total_cost"] = round(old_c + s * p, 2)
-                        else:
-                            h["total_cost"] = round(s * p, 2)
-                    else:
-                        # Covering short — keep cumulative cost
-                        h["total_cost"] = round(old_c + s * p, 2)
-                    h["shares"] = new_s
-                    cash[a] = round(cash[a] + amt - com, 2)
-                elif act == "SELL":
-                    h = positions[(a, t)]
-                    sold = abs(s)
-                    if h["shares"] > 0:
-                        # Regular sell
-                        h["shares"] -= sold
-                        h["total_cost"] = round(h["total_cost"] - abs(amt) + com, 2)
-                    else:
-                        # Short sell (shares == 0) or additional short (shares < 0)
-                        h["shares"] -= sold
-                        h["total_cost"] = round(h["total_cost"] - abs(amt) + com, 2)
-                    cash[a] = round(cash[a] + amt - com, 2)
-                elif act in ("DEPOSIT", "DIVIDEND"):
-                    cash[a] = round(cash[a] + amt, 2)
-                elif act == "WITHDRAW":
-                    cash[a] = round(cash[a] + amt, 2)
+    def _validate_cash(account: str) -> None:
+        _ensure_finite_values(**{f"{account}.cash": cash[account]})
+
+    for row in rows:
+        # Security records are mixed with some transfer-style audit rows
+        # that don't carry stock-trade fields. Skip anything that isn't a
+        # real security action row.
+        if row.get("action") not in VALID_ACTIONS or not row.get("account_name"):
+            continue
+        a = row["account_name"]
+        act = row["action"]
+        t = row.get("ticker", "") or ""
+        try:
+            s = float(row["shares"] or 0)
+            p = float(row["price"] or 0)
+            amt = float(row["amount"] or 0)
+            com = float(row["commission"] or 0)
+        except (ValueError, KeyError):
+            continue
+        _ensure_finite_values(shares=s, price=p, amount=amt, commission=com)
+
+        if act == "CHECKIN":
+            if t:
+                positions[(a, t)]["shares"] = s
+                positions[(a, t)]["total_cost"] = round(s * p, 2)
+                _normalize_position(positions[(a, t)])
+                _validate_position(a, t)
+            else:
+                cash[a] = amt
+                _validate_cash(a)
+        elif act == "BUY":
+            h = positions[(a, t)]
+            old_s = h["shares"]
+            old_c = h["total_cost"]
+            new_s = old_s + s
+            _ensure_finite_values(new_shares=new_s)
+            if old_s >= 0:
+                if old_s > 0:
+                    h["total_cost"] = round(old_c + s * p, 2)
+                else:
+                    h["total_cost"] = round(s * p, 2)
+            else:
+                # Covering short — keep cumulative cost
+                h["total_cost"] = round(old_c + s * p, 2)
+            h["shares"] = new_s
+            _normalize_position(h)
+            _validate_position(a, t)
+            cash[a] = round(cash[a] + amt - com, 2)
+            _validate_cash(a)
+        elif act == "SELL":
+            h = positions[(a, t)]
+            sold = abs(s)
+            if h["shares"] > 0:
+                # Regular sell
+                h["shares"] -= sold
+                h["total_cost"] = round(h["total_cost"] - abs(amt) + com, 2)
+            else:
+                # Short sell (shares == 0) or additional short (shares < 0)
+                h["shares"] -= sold
+                h["total_cost"] = round(h["total_cost"] - abs(amt) + com, 2)
+            _normalize_position(h)
+            _validate_position(a, t)
+            cash[a] = round(cash[a] + amt - com, 2)
+            _validate_cash(a)
+        elif act in ("DEPOSIT", "DIVIDEND"):
+            cash[a] = round(cash[a] + amt, 2)
+            _validate_cash(a)
+        elif act == "WITHDRAW":
+            cash[a] = round(cash[a] + amt, 2)
+            _validate_cash(a)
 
     return positions, cash
 

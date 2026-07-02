@@ -1,6 +1,7 @@
 """Unified snapshot for all account types"""
 import copy
 import subprocess
+import tempfile
 import yaml
 from pathlib import Path
 from typing import Optional
@@ -53,8 +54,15 @@ def save_snapshot(data: dict, path: Optional[str] = None) -> None:
     """Write the snapshot YAML to disk."""
     snapshot_path = _resolve_snapshot_path(path)
     snapshot_path.parent.mkdir(parents=True, exist_ok=True)
-    with snapshot_path.open("w", encoding="utf-8") as f:
-        yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=snapshot_path.parent, delete=False) as f:
+            tmp_path = Path(f.name)
+            yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
+        tmp_path.replace(snapshot_path)
+    finally:
+        if tmp_path is not None and tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
     git_stage(snapshot_path.parent)
 
 

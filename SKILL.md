@@ -158,7 +158,7 @@ security 类型账户使用独立 CSV 格式，支持 A 股（`159740.sz`）、�
 - 做空记录参与 `verify --fix` 全量重放和 snapshot 校验
 - `repair_security` 保留负 shares（不再 `<= 0: continue`）
 
-`ft stock buy/sell` 自动扣减/增加现金并更新持仓，`ft stock checkin` 用于初始导入或校正持仓/现金（不涉及现金变动，支持 Polymarket 这类 fractional shares）。`ft stock list` 实时拉取 yfinance 市值；Polymarket 持仓支持 `pm:<slug>:yes|no` 伪 ticker，并通过 Polymarket gamma API 拉取最新报价，且会保留小数股数显示。账户/报表估值会按当前市价计算，不再只看成本价。Polymarket 持仓的具体约定见 `references/polymarket-holdings.md`；完整做空迁移记录见 `references/short-selling-support.md`.
+`ft stock buy/sell` 自动扣减/增加现金并更新持仓，`ft stock checkin` 用于初始导入或校正持仓/现金（不涉及现金变动，支持 Polymarket 这类 fractional shares）。外部平台开户同步命令采用可扩展层级 `ft stock sync <provider>`，不要再新增 `sync-xxx` 平铺命令；变更命令形状时先写 CLI RED 测试覆盖新路径分发和旧路径移除，再更新 help/文档并用真实 `--help` + `--dry-run` 验证。`ft stock sync polymarket --wallet <profile_wallet>` 可通过 Polymarket 公开 Activity API 增量同步官方成交记录：先校验目标账户是 USD security 账户，再解析 proxy wallet、拉取 `type=TRADE` activity；既有 `transactionHash` 在同一 `account_name` 内幂等跳过，fresh batch 中同 tx 只折叠 exact duplicate rows（避免丢同一链上 tx 的多 fill/多 market 成交），再写入标准 stock CSV/records；也可用 `--proxy-wallet <0x...>` 跳过 profile 解析、`--account <账户名>` 指定另一个 Polymarket security 账户、`--dry-run` 只预览、`-o <csv>` 输出待导入 CSV。`ft stock list` 实时拉取 yfinance 市值；Polymarket 持仓支持 `pm:<slug>:yes|no` 伪 ticker，并通过 Polymarket gamma API 拉取最新报价，且会保留小数股数显示。账户/报表估值会按当前市价计算，不再只看成本价。Polymarket 持仓的具体约定见 `references/polymarket-holdings.md`；内置增量同步命令的设计/测试/维护要点见 `references/polymarket-sync-feature.md`；实现/审查任何 security 外部同步或 stock import 功能时，先按 `references/security-sync-hardening-checklist.md` 检查账户定位、去重、mixed CSV schema、原子写入和回滚测试；用公开 Data API 从钱包 Activity 全量刷新历史交易见 `references/polymarket-public-history-import.md`；用官方 Polymarket Activity 全量替换手工/半自动记录的详细流程见 `references/polymarket-official-activity-import.md`（解析 proxy wallet、优先 `/activity` 而非 `/trades`、备份不要放进 `~/.ft` git、保留换汇审计行但补 `stock deposit` 供 security replay 计现金）；重复导入去重流程见 `references/polymarket-import-dedupe.md`；Gamma 字段兼容坑见 `references/polymarket-gamma-field-quirks.md`；security 校验的转账审计行/浮点残差坑见 `references/security-verify-pitfalls.md`；完整做空迁移记录见 `references/short-selling-support.md`。长时间多轮 Codex/review 后，向用户汇报时先给“到底改了啥”的短 changelog：用户可见功能、关键安全修复、验证命令/结果、是否写入真实数据；不要先展开冗长过程叙事。 
 
 ```bash
 # 日常买卖
@@ -174,9 +174,25 @@ ft stock dividend --ticker nvda.us --amount 10 --account IBKR
 ft stock checkin --account IBKR --ticker nvda.us --shares 45 --avg-cost 224.14
 ft stock checkin --account IBKR --cash 14000
 
+# Polymarket 官方 Activity 增量同步（先 dry-run 看新增数）
+ft stock sync polymarket --wallet 0xYourProfileWallet --dry-run
+ft stock sync polymarket --wallet 0xYourProfileWallet
+# 已知 proxy wallet 时可跳过 profile 解析
+ft stock sync polymarket --proxy-wallet 0xYourProxyWallet --dry-run -o /tmp/polymarket_new.csv
+
 # 查询
 ft stock list
 ```
+
+#### 持仓成本 / 现价 / 市值 / 盈亏查询
+
+当用户问“持仓成本”“市值、成本、现价、盈亏”这类只读查询时：
+1. 先运行 `ft verify`，确认 Security CSV ↔ Snapshot 对齐；不要在校验失败时直接报数。
+2. 再运行 `HTTP_PROXY=${HTTP_PROXY:-http://127.0.0.1:7890} HTTPS_PROXY=${HTTPS_PROXY:-http://127.0.0.1:7890} ~/bin/ft stock list` 拉取实时估值。
+3. `ft stock list` 表格通常显示：股数、均价、成本、市值、盈亏、涨幅；若用户要求“现价”，用 `现价 = 市值 / 股数` 计算，不要把均价误当现价。
+4. 按账户/币种分组展示，**不要跨币种合计盈亏**；每组可列：标的、股数、现价、成本价、总成本、市值、盈亏、盈亏率。
+5. 对 `成本=0` 或 `负成本` 的标的，说明盈亏率可能无参考意义，这是平均成本法/历史卖出摊低成本导致，不一定是错误。
+6. 当用户质疑“股数/市值看着不对”“是不是有脏数据”时，不要只重复 `ft stock list`。按 `references/security-position-sanity-audit.md` 做专项排查：扫描 zero-cost/negative-cost/tiny-shares，追溯 records 来源，Polymarket 用官方 `data-api.polymarket.com/positions` 对比当前真实持仓，另扫 security CSV 币种字段与账户币种不一致。
 
 ### 证券对账单批量导入
 
@@ -310,7 +326,9 @@ find ~/.hermes/skills/finance/finance-tracker/src/ft/importers/__pycache__/ -nam
 | **支付宝「不计收支」方向 — 交易关闭=跳过** | `方向=不计收支` 有三种处理方式（看原始账单 `交易状态` 列）：① **状态=交易关闭**：下单未付款，无实际资金流动，直接 `continue`；② **状态=退款成功**：真实退款，进入 `_pair_refunds` 配对核销；③ **状态=交易成功/转出成功**：余额宝收益/基金转入等，保留。**修复**：`_read_alipay_raw` 中新增 `if direction == "不计收支" and txn_status == "交易关闭": continue`。详细追踪见 `references/alipay-bujizhishou-debug-trace.md` |
 | **O2O 平台被误标** | 品牌规则排在平台规则前 |
 | **中文子串匹配误伤（京东误中北京东湖渠店）** | _infer_platform 用 kw.lower() in text 做子串匹配，中文无词边界。已知误伤：京东 in 北京东湖渠店→True。淘宝/高德中介平台：品牌匹配后在 intermediary_brands 分支从 desc 提取到分隔符为止，不用 _infer_platform 做二次匹配（也会子串误伤） |
-| **snapshot 不一致** | `ft verify --fix` 重建。security 账户统一写入 `accounts.security`，`repair_security` 构建时从 `accounts.yaml` 获取币种 |
+| **yfinance 混合市场拉价导致 NaN** | 不要把 `.US`、`.SZ`、`.SS`、`.HK` 混在同一个 `yf.download(...)` 批次里。按市场拆组后分别拉价；如果批量结果仍有缺失，再对单票做 fallback 重试。详见 `references/yfinance-market-grouping.md` |
+| **snapshot 不一致** | `ft verify --fix` 重建。security 账户统一写入 `accounts.security`，`repair_security` 构建时从 `accounts.yaml` 获取币种。若同名账户在 `accounts.yaml` / `snapshot.yaml` 出现不同币种，先删掉脏重复条目，再用 `ft acct list` + `ft stock list` 复核。详见 `references/account-currency-hygiene.md` |
+| **证券账户参与 `ft transfer` 会在 `records/security/` 写入转账审计行** | `ft transfer --from/--to <security账户>` 可能生成 cash-style header（`date,amount,currency,...,transfer_account`）的 CSV 放在 `records/security/`，不是 stock header（`date,action,ticker,...`）。`verify_security` / `_replay_security_csv` 必须跳过没有 `action` 或 `ticker` 字段的行，否则会 `KeyError: 'action'`。记跨币种换汇时先用 `ft transfer --from 东方证券 --to Polymarket --amount 5000 --to-amount 735.29 ...`，再跑 `ft acct list` 与 `ft verify` 复核。**日期参数坑：** 当前 `ft transfer --date` 只应传 `YYYY-MM-DD`，不要传完整 `YYYY-MM-DD HH:MM:SS`；否则 `transfer.py` 会用完整字符串作为文件名，生成 `records/security/2026-06-30 10:16:09.csv`，且记录日期会变成 `2026-06-30 10:16:09 10:16:15`。若已发生，需把这两条 transfer 行搬回 `records/security/YYYY-MM-DD.csv` 并删除带时分秒的文件。 |
 | **Normalizer 破坏 ICBC 退款匹配** | `_pair_refunds` 前存 `_raw_cp` + `_is_refund` flag，fallback 匹配。同时过滤掉 `_pair_refunds` 后残留的 cp="消费"/"财付通" orphan income |
 | **「退货」sentinel 被 normalizer 吞掉** | ICBC 退款检测依赖 `counterparty == "退货"`，但 normalizer 可能把「退货」归一化为品牌名。修复：调用 normalizer 前检查原始 `counterparty == "退货"`，设 `_is_refund = True` 标志，退款检测改为判断 `r.get("_is_refund")`。**注意：** 退款记录在 `_pair_refunds` 前已经 `_normalize_counterparty` 处理（`_parse_icbc_lines` 中），此时 `_is_refund` 标志已经丢失，需在创建记录时提前打标 |
 | **删除/新增列要检查所有 CSV header 硬编码** | 以下文件都有硬编码 header 或列序，容易被漏：`do_convert()`（主输出 + `_refunds.csv`）、`reconcile.py`（审计输出字段）、`dedup.py`（列比较代码）、`ccb_debit.py`（列构造）。改 `CSV_FIELDS` 后必须搜索全项目引用的字段名确认无残留 |
@@ -326,7 +344,9 @@ find ~/.hermes/skills/finance/finance-tracker/src/ft/importers/__pycache__/ -nam
 2. **做空 SELL 后 snapshot 保留负股数（不再是跳过负股数）** | 2026-06-26 起 `repair_security()` 改为 `if p[\\\"shares\\\"] == 0: continue`（之前是 `<= 0`），做空产生的负股数会写入 snapshot。负股数的 avg_cost = 总成本 / 负股数 = 正数（做空均价）。手动查仓：`python3 -c \\\"import yaml; d=yaml.safe_load(open('snapshot.yaml')); print(d['accounts']['security']['IBKR']['positions'])\\\"` |
 | **`ft stock checkin --cash` 的 CSV record 默认用 USD 币种** | 2026-06-28 发现：`ft stock checkin --account 港股证券 --cash 15049` 在 records/security CSV 中写入 `USD`（硬编码），即使账户是 HKD/CNY。snapshot.yaml 不受影响（正确存储数值），仅 CSV 审计记录币种有误。不影响查询或重建功能，可忽略或手动修正 CSV。 |
 | **`ft stock list` yfinance 在国内被墙 → 需加 `HTTP_PROXY`** | 2026-06-28 修复：在 `_fetch_prices()` 中读取 `os.environ.get("HTTP_PROXY")`，构造带 proxy 的 `requests.Session` 传给 `yf.download(session=...)`。修复后 US/CN 股票可正常获取实时价。使用前确保 shell 中已设 `export HTTP_PROXY=http://127.0.0.1:7890`。 |
-| **yfinance ticker format不兼容 ft 的存储格式** | 2026-06-28 修复：`_fetch_prices()` 前新增 `_normalize_ticker()`：`avgo.us`→`AVGO`、`00700.hk`→`0700.HK`（HK ticker 前补零）、`.SZ/.SS` 保留不变。**进一步坑：** yfinance 对 HK 股票的返回形状不稳定，单票/多票可能分别返回 Series/DataFrame/MultiIndex；实现时要用 `_extract_last_close()` 兼容解析，并在批量下载中把 HK 与非 HK 分开。详见 `references/yfinance-hk-price-fetch.md`。 |
+| **yfinance ticker format不兼容 ft 的存储格式** | 2026-06-28 修复：`_fetch_prices()` 前新增 `_normalize_ticker()`：`avgo.us`→`AVGO`、`00700.hk`→`0700.HK`（HK ticker 前补零）、`.SZ/.SS` 保留不变。**进一步坑：** yfinance 对 HK 股票的返回形状不稳定，单票/多票可能分别返回 Series/DataFrame/MultiIndex；实现时要用 `_extract_last_close()` 兼容解析，并在批量下载中把 HK 与非 HK 分开。详见 `references/yfinance-hk-price-fetch.md`。
+| **yfinance 混批 US + A股会把美股价格拉成 NaN** | `ft stock list` 里若同时出现 `.US` 与 `.SZ/.SS`，不要把它们塞进同一个 `yf.download()` 批次。先按市场拆分：US、A股、HK 分开拉，再 merge 结果。已在 `references/yfinance-market-grouping.md` 记录复现与验证方法。 |
+| **Polymarket 价格抓取依赖浏览器风格 User-Agent** | Polymarket Gamma API 可直连，但普通 urllib/裸 requests 容易 403；抓 `pm:<slug>:yes|no` 报价时要带浏览器风格 `User-Agent`。导入/校正 Polymarket 持仓时，`--shares` 统一走 `float`，`stock list` 保留 fractional shares。详见 `references/polymarket-holdings.md`。 |
 | **做空 SELL 后 snapshot 保留负股数（不再是跳过负股数）** | 2026-06-26 起 `repair_security()` 改为 `if p["shares"] == 0: continue`（之前是 `<= 0`），做空产生的负股数会写入 snapshot。负股数的 avg_cost = 总成本 / 负股数 = 正数（做空均价）。手动查仓：`python3 -c "import yaml; d=yaml.safe_load(open('snapshot.yaml')); print(d['accounts']['security']['IBKR']['positions'])"` |
 | **CCB 转换后 account_name 不带尾号（建行储蓄卡 → 建行储蓄卡(2820)/(0523)）** | `ft convert -s ccb-debit` 输出的 CSV 中 `account_name` 是 `建行储蓄卡`，但实际账户名是 `建行储蓄卡(2820)`（卡尾号 2820）和 `建行储蓄卡(0523)`。有两种修复方式：**①（推荐）加 mapping 规则自动分流** — CCB 转换器已提取 `card_number` 字段，在 `mapping.yaml` 中加规则；**②（传统）手动 sed**：`sed -i '' 's/,建行储蓄卡,/,建行储蓄卡(2820),/g'` 修正主 CSV 和退款 CSV。 |
 | **account_name 大小写敏感 — ibkr 不等于 IBKR** | 导入 CSV 时 account_name 字符串精确匹配。若录入 `account_name=ibkr`（小写）而 accounts.yaml 中是 `IBKR`（大写），系统会创建两个独立账户。**修复**：`sed -i '' 's/,ibkr,/,IBKR,/g' records/security/*.csv` 后 `verify --fix` 合并。导入时统一用 `IBKR`。 |\n| **`_replay_security_csv` BUY 双四舍五入导致成本漂移** | 原代码 `avg = round((old_c + s*p) / new_s, 2)` 后再 `round(avg * new_s, 2)`，每次 BUY 约偏 +0.06，12 笔交易后累计偏 +$989。**修复**：改为直接 `h[\\\"total_cost\\\"] = round(old_c + s * p, 2)`，不再经 avg 再乘回。`repair_security` 在写入 snapshot 时由 `avg_cost = total_cost / shares` 即时计算。`verify --fix` 可修正已有残留。 |

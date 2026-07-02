@@ -77,16 +77,23 @@ def do_append(csv_paths: list[str] | str):
         if day_path.exists():
             with open(day_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f)
-                existing_rows = [_normal_row(row) for row in reader]
+                if typ == "security":
+                    existing_rows = list(reader)
+                else:
+                    existing_rows = [_normal_row(row) for row in reader]
 
         # Merge and sort
         all_rows = existing_rows + rows
         all_rows.sort(key=lambda r: r.get("date", ""))
 
-        with open(day_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=csv_fields)
-            writer.writeheader()
-            writer.writerows(all_rows)
+        if typ == "security":
+            from .stock import _write_security_csv
+            _write_security_csv(day_path, all_rows)
+        else:
+            with open(day_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=csv_fields)
+                writer.writeheader()
+                writer.writerows(all_rows)
 
     # Update snapshot balances
     from .snapshot import load_snapshot, save_snapshot, set_balance, update_balance

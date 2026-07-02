@@ -148,6 +148,18 @@ def main(argv=None):
     ap_stk = stk_sub.add_parser("append", help="stock CSV 批量导入")
     ap_stk.add_argument("file", help="stock CSV 路径")
 
+    # stock sync <provider>
+    sync_p = stk_sub.add_parser("sync", help="从外部平台开户同步交易记录")
+    sync_sub = sync_p.add_subparsers(dest="sync_cmd")
+    sync_pm = sync_sub.add_parser("polymarket", help="从 Polymarket 公开 Activity API 同步成交记录")
+    sync_pm.add_argument("--wallet", help="Polymarket profile/login 钱包地址（会自动解析 proxy wallet）")
+    sync_pm.add_argument("--proxy-wallet", help="已解析出的 Polymarket proxy wallet，可跳过 profile 解析")
+    sync_pm.add_argument("--account", default="Polymarket", help="ft security 账户名，默认 Polymarket")
+    sync_pm.add_argument("--dry-run", action="store_true", help="只拉取/去重/预览，不写入 ft")
+    sync_pm.add_argument("-o", "--output", help="把新增记录写出为 stock CSV")
+    sync_pm.add_argument("--limit", type=int, default=500, help="每页 Activity 条数，默认 500")
+    sync_pm.add_argument("--max-pages", type=int, help="最多拉取页数，调试用")
+
     stk_sub.add_parser("list", help="持仓总览")
 
     # verify
@@ -257,10 +269,14 @@ def main(argv=None):
         all_rows = existing + [new_row]
         all_rows.sort(key=lambda r: r["date"])
 
-        with open(day_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
-            writer.writeheader()
-            writer.writerows(all_rows)
+        if typ == "security":
+            from .stock import _write_security_csv
+            _write_security_csv(day_path, all_rows)
+        else:
+            with open(day_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
+                writer.writeheader()
+                writer.writerows(all_rows)
 
         # Update snapshot
         snap = load_snapshot()
@@ -458,10 +474,14 @@ def main(argv=None):
         all_rows = existing + [new_row]
         all_rows.sort(key=lambda r: r["date"])
 
-        with open(day_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
-            writer.writeheader()
-            writer.writerows(all_rows)
+        if acct["type"] == "security":
+            from .stock import _write_security_csv
+            _write_security_csv(day_path, all_rows)
+        else:
+            with open(day_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
+                writer.writeheader()
+                writer.writerows(all_rows)
 
         print(f"✅ {args.account}: 余额校准 {sym}{args.balance:.2f} ({day})")
 
@@ -519,7 +539,27 @@ def main(argv=None):
                        currency=args.currency)
         elif args.stock_cmd == "append":
             from .stock import do_append
-            do_append(args.file)
+            if not do_append(args.file):
+                sys.exit(1)
+        elif args.stock_cmd == "sync":
+            if args.sync_cmd == "polymarket":
+                from .polymarket_sync import sync_polymarket
+                try:
+                    sync_polymarket(
+                        wallet=args.wallet,
+                        proxy_wallet=args.proxy_wallet,
+                        account_name=args.account,
+                        dry_run=args.dry_run,
+                        output=args.output,
+                        limit=args.limit,
+                        max_pages=args.max_pages,
+                    )
+                except ValueError as exc:
+                    print(f"❌ {exc}")
+                    sys.exit(1)
+            else:
+                print("❌ 请指定 sync 子命令，例如: ft stock sync polymarket")
+                sys.exit(1)
         elif args.stock_cmd == "list":
             do_list()
         return

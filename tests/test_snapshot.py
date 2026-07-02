@@ -53,6 +53,27 @@ def test_save_roundtrip(tmp_env):
     assert loaded == data
 
 
+def test_save_snapshot_failure_does_not_truncate_existing_file(tmp_env, monkeypatch):
+    """Snapshot writes must be atomic: failed dump keeps previous snapshot intact."""
+    import ft.snapshot as snapshot
+    from ft.snapshot import load_snapshot, save_snapshot
+
+    original = {"updated_at": "old", "accounts": {"cash": {"wallet": 1}, "loan": {}, "lend": {}, "security": {}}}
+    save_snapshot(original)
+    original_text = snapshot.SNAPSHOT_PATH.read_text(encoding="utf-8")
+
+    def partial_dump_then_fail(data, stream, **kwargs):
+        stream.write("corrupted partial snapshot\n")
+        raise RuntimeError("simulated yaml dump failure")
+
+    monkeypatch.setattr(snapshot.yaml, "dump", partial_dump_then_fail)
+    with pytest.raises(RuntimeError, match="simulated yaml dump failure"):
+        save_snapshot({"updated_at": "new", "accounts": {"cash": {"wallet": 2}}})
+
+    assert snapshot.SNAPSHOT_PATH.read_text(encoding="utf-8") == original_text
+    assert load_snapshot() == original
+
+
 def test_get_balance(tmp_env):
     """Finds balance by account name across types; returns None for unknown"""
     from ft.snapshot import load_snapshot, save_snapshot, get_balance
