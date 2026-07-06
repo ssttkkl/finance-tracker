@@ -924,6 +924,66 @@ def _fetch_polymarket_prices(tickers: list[str]) -> dict[str, float]:
     return prices
 
 
+def _http_get_json(url: str, timeout: int = 15) -> dict:
+    """GET JSON with browser-style UA and HTTP(S)_PROXY support. Raises on failure."""
+    import json
+    import os
+    import urllib.request
+
+    headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+    proxy = os.environ.get("HTTP_PROXY") or os.environ.get("HTTPS_PROXY")
+    if proxy:
+        opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({"http": proxy, "https": proxy})
+        )
+    else:
+        opener = urllib.request.build_opener()
+    req = urllib.request.Request(url, headers=headers)
+    with opener.open(req, timeout=timeout) as resp:
+        return json.load(resp)
+
+
+def _fetch_crypto_prices(tickers: list[str]) -> dict[str, float]:
+    """Fetch USD prices for crypto tickers via CoinGecko simple/price.
+
+    Input tickers are ft's stored symbols (e.g. ['btc','eth']).
+    Returns {original_ticker: usd_price}; {} on failure.
+    """
+    if not tickers:
+        return {}
+    from urllib.parse import quote
+
+    id_to_ticker = {}
+    for t in tickers:
+        cid = models.CRYPTO_IDS.get(str(t).strip().lower())
+        if cid:
+            id_to_ticker[cid] = t
+    if not id_to_ticker:
+        return {}
+
+    ids = ",".join(sorted(id_to_ticker))
+    url = (
+        "https://api.coingecko.com/api/v3/simple/price"
+        f"?ids={quote(ids)}&vs_currencies=usd"
+    )
+    try:
+        data = _http_get_json(url)
+    except Exception:
+        return {}
+
+    prices = {}
+    if not isinstance(data, dict):
+        return {}
+    for cid, ticker in id_to_ticker.items():
+        entry = data.get(cid)
+        if isinstance(entry, dict) and "usd" in entry:
+            try:
+                prices[ticker] = float(entry["usd"])
+            except (TypeError, ValueError):
+                continue
+    return prices
+
+
 def _fetch_prices(tickers: list[str]) -> dict[str, float]:
     """Fetch current prices from yfinance and Polymarket.
 

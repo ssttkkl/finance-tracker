@@ -1131,3 +1131,41 @@ def test_security_balance_uses_current_market_price(tmp_env, monkeypatch):
 
     bal = _compute_balance("POLY", "USD")
     assert bal == pytest.approx(107.5)
+
+
+def test_fetch_crypto_prices_maps_symbols_to_usd(monkeypatch):
+    from ft import stock
+
+    def fake_get(url, timeout=15):
+        assert "api.coingecko.com/api/v3/simple/price" in url
+        assert "vs_currencies=usd" in url
+        assert "bitcoin" in url and "ethereum" in url
+        return {"bitcoin": {"usd": 61000.0}, "ethereum": {"usd": 3000.0}}
+
+    monkeypatch.setattr(stock, "_http_get_json", fake_get)
+    prices = stock._fetch_crypto_prices(["btc", "eth"])
+    assert prices == {"btc": pytest.approx(61000.0), "eth": pytest.approx(3000.0)}
+
+
+def test_fetch_crypto_prices_unknown_symbol_ignored(monkeypatch):
+    from ft import stock
+
+    monkeypatch.setattr(stock, "_http_get_json",
+                        lambda url, timeout=15: {"bitcoin": {"usd": 61000.0}})
+    prices = stock._fetch_crypto_prices(["btc", "notacoin"])
+    assert prices == {"btc": pytest.approx(61000.0)}
+
+
+def test_fetch_crypto_prices_network_failure_returns_empty(monkeypatch):
+    from ft import stock
+
+    def boom(url, timeout=15):
+        raise OSError("network down")
+
+    monkeypatch.setattr(stock, "_http_get_json", boom)
+    assert stock._fetch_crypto_prices(["btc"]) == {}
+
+
+def test_fetch_crypto_prices_empty_input():
+    from ft import stock
+    assert stock._fetch_crypto_prices([]) == {}
