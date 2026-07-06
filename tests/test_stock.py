@@ -1197,3 +1197,26 @@ def test_fetch_prices_routes_crypto_to_coingecko(monkeypatch):
     assert called["crypto"] == ["btc"]
     assert prices["btc"] == pytest.approx(61000.0)
     assert prices["aapl.us"] == pytest.approx(196.5)
+
+
+def test_stock_append_accepts_crypto_account(tmp_env):
+    """crypto 类型账户可导入股票风格记录。"""
+    from ft.accounts import save_accounts
+    from ft.stock import CSV_FIELDS, do_append
+    from ft import models
+
+    save_accounts([
+        {"name": "币安", "type": "crypto", "currency": "USD", "active": True},
+    ], models.ACCOUNTS_PATH)
+    csv_path = tmp_env / "binance_crypto.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        writer.writerow({
+            "date": "2026-07-07 10:00:00", "action": "BUY", "ticker": "btc",
+            "shares": "0.05", "price": "60000", "amount": "-3000", "commission": "0",
+            "currency": "USD", "account_name": "币安", "note": "crypto buy",
+        })
+
+    assert do_append(csv_path) is True
+    assert (models.RECORDS_DIR / "security" / "2026-07-07.csv").exists()

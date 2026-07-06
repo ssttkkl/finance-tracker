@@ -318,8 +318,8 @@ def do_append(file_path):
         if account is None:
             print(f"❌ 第 {i} 行: 未知账户 '{row['account_name']}' ({row['currency']})，请先 ft acct add")
             return False
-        if account.get("type") != "security":
-            print(f"❌ 第 {i} 行: 账户 '{row['account_name']}' ({row['currency']}) 不是 security 类型，不能导入股票记录")
+        if account.get("type") not in ("security", "crypto"):
+            print(f"❌ 第 {i} 行: 账户 '{row['account_name']}' ({row['currency']}) 不是 security/crypto 类型，不能导入股票记录")
             return False
 
     # Validate numeric fields and replay-derived finite values
