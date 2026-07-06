@@ -9,6 +9,7 @@ from . import models
 from .accounts import load_accounts
 from .dedup import dedup_with_pairs
 from .snapshot import rebuild_snapshot_from_records, git_stage
+from .transfer_rules import classify_single_leg
 
 
 def _parse_scope(month=None, date_from=None, date_to=None):
@@ -99,6 +100,30 @@ def _mark_transfer(out_row: dict, in_row: dict, rule: str) -> tuple[dict, dict]:
 
 def _account_type_map() -> dict[tuple[str, str], str]:
     return {(a["name"], a["currency"]): a["type"] for a in load_accounts()}
+
+
+def _mark_single_leg_transfers(rows: list[dict], used_ids: set[int]) -> list[tuple[dict, str]]:
+    """标记单腿内部转账（对手方为基金公司/购汇/货基，永远配不上对）。
+
+    只处理尚未被配对逻辑标记的 income/expense 记录。改 category 为
+    transfer_out/transfer_in，transfer_account 留空（无自有对手账户），
+    记录 _transfer_rule 供审计。返回 [(row, rule), ...]。
+    """
+    marked = []
+    for row in rows:
+        if id(row) in used_ids:
+            continue
+        result = classify_single_leg(row)
+        if result is None:
+            continue
+        side, rule = result
+        row["category"] = side
+        row["transfer_account"] = ""
+        row["_transfer_rule"] = rule
+        used_ids.add(id(row))
+        marked.append((row, rule))
+    return marked
+
 
 
 def _match_same_currency_exact(rows: list[dict]) -> list[tuple[dict, dict, str]]:
@@ -259,6 +284,8 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
     for out_row, in_row, rule in transfer_matches:
         _mark_transfer(out_row, in_row, rule)
 
+    single_leg_marks = _mark_single_leg_transfers(kept, used_transfer_ids)
+
     rows_by_file: dict[str, list[dict]] = defaultdict(list)
     for row in entries:
         if row in scoped:
@@ -283,7 +310,7 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
             writer.writerows(final_rows)
 
     rebuild_snapshot_from_records(models.RECORDS_DIR)
-    if not removed and not transfer_matches:
+    if not removed and not transfer_matches and not single_leg_marks:
         print("无重复项")
         return
 
@@ -313,6 +340,19 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
             "counterpart_account": out_row.get("account_name", ""),
             "counterpart_currency": out_row.get("currency", ""),
             "counterpart_amount": out_row.get("amount", ""),
+        })
+    for row, rule in single_leg_marks:
+        transfer_audit_rows.append({
+            **_clean_row(row),
+            "record_file": row.get("_record_file", ""),
+            "reconcile_status": "transfer_single_leg",
+            "transfer_side": "out" if _amount(row) < 0 else "in",
+            "match_rule": rule,
+            "match_confidence": "rule",
+            "counterpart_file": "",
+            "counterpart_account": "",
+            "counterpart_currency": "",
+            "counterpart_amount": "",
         })
     audit_path = _write_audit(run_at, scope_from, scope_to, pairs, transfer_audit_rows)
     print(f"✅ 去重完成，审计文件: {audit_path}")

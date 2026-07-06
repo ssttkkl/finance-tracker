@@ -245,3 +245,43 @@ def test_reconcile_marks_foreign_currency_credit_card_repayment(tmp_env):
     assert cash_rows[0]["transfer_account"] == "工行信用卡(1200)"
     assert loan_rows[0]["category"] == "transfer_in"
     assert loan_rows[0]["transfer_account"] == "工行借记卡"
+
+
+def test_reconcile_marks_single_leg_fund_and_fx(tmp_env):
+    from ft import models
+    from ft.reconcile import do_reconcile
+
+    save_accounts([
+        {"name": "支付宝余额", "type": "cash", "currency": "CNY", "active": True},
+        {"name": "工行借记卡", "type": "cash", "currency": "CNY", "active": True},
+    ], models.ACCOUNTS_PATH)
+
+    day_path = models.RECORDS_DIR / "cash" / "2026-06-15.csv"
+    _write_rows(day_path, [
+        # 基金买入（单腿，对手方是基金销售公司）→ transfer_out
+        {"date": "2026-06-15 10:00:00", "amount": "-100.00", "currency": "CNY",
+         "counterparty": "蚂蚁财富-蚂蚁（杭州）基金销售有限公司",
+         "description": "蚂蚁财富-大成纳斯达克100ETF联接(QDII)C-买入", "category": "expense",
+         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay"},
+        # 购汇（单腿）→ transfer_out
+        {"date": "2026-06-15 11:00:00", "amount": "-13959.00", "currency": "CNY",
+         "counterparty": "黄文龙", "description": "个人购汇", "category": "expense",
+         "account_name": "工行借记卡", "source": "银行卡", "bill_source": "icbc_debit"},
+        # 真实消费（麦当劳）→ 保持 expense，不动
+        {"date": "2026-06-15 12:00:00", "amount": "-30.00", "currency": "CNY",
+         "counterparty": "麦当劳", "description": "", "category": "expense",
+         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay"},
+        # 余额宝收益（真收入）→ 保持 income，不动
+        {"date": "2026-06-15 13:00:00", "amount": "3.50", "currency": "CNY",
+         "counterparty": "长城基金管理有限公司", "description": "余额宝-2026.06.15-收益发放",
+         "category": "income", "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay"},
+    ])
+
+    do_reconcile(month="2026-06")
+
+    with open(day_path, encoding="utf-8") as f:
+        rows = {r["counterparty"]: r for r in csv.DictReader(f)}
+    assert rows["蚂蚁财富-蚂蚁（杭州）基金销售有限公司"]["category"] == "transfer_out"
+    assert rows["黄文龙"]["category"] == "transfer_out"
+    assert rows["麦当劳"]["category"] == "expense"
+    assert rows["长城基金管理有限公司"]["category"] == "income"
