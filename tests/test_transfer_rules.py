@@ -70,8 +70,25 @@ def test_personal_fx_purchase_transfer_out():
 
 
 def test_cross_border_remittance_transfer_out():
-    r = _row(-50000, "Huang Wenlong", "跨境汇款")
+    r = _row(-50000, "境外券商", "跨境汇款")
     assert classify_single_leg(r) == ("transfer_out", "fx_purchase")
+
+
+def test_foreign_currency_cash_leg_transfer_in():
+    # 外汇链路补全：银行账单里 description 明确为美元/港币，正数是外汇资产流入该账户。
+    r = _row(5000, "本人外汇账户", "美元", category="income")
+    assert classify_single_leg(r) == ("transfer_in", "fx_cash_leg")
+
+
+def test_foreign_currency_cash_leg_transfer_out():
+    r = _row(-7000, "境外券商", "港币")
+    assert classify_single_leg(r) == ("transfer_out", "fx_cash_leg")
+
+
+def test_foreign_currency_words_in_real_expense_not_transfer():
+    # 真实境外消费里出现美元/港币不能误标；必须是描述整体就是币种/外汇调拨语义。
+    r = _row(-100, "PAYPAL/SOME_STORE", "美元消费")
+    assert classify_single_leg(r) is None
 
 
 # ── 规则 4：银证转账 / 本人基金申赎 ─────────────────────────────
@@ -94,6 +111,37 @@ def test_self_fund_purchase_marked_transfer_out():
 def test_self_fund_redeem_marked_transfer_in():
     r = _row(10107.2, "基金业务", "基金赎回", category="income")
     assert classify_single_leg(r) == ("transfer_in", "self_fund")
+
+
+# ── 规则 6：钱包/网商/消费贷还款 ───────────────────────────────
+def test_wechat_withdrawal_transfer_in():
+    r = _row(1376.07, "微信零钱提现", "支付机构提现", category="income")
+    assert classify_single_leg(r) == ("transfer_in", "wallet_transfer")
+
+
+def test_alipay_to_mybank_transfer_in():
+    r = _row(320, "网商银行", "转出到网商银行", category="income")
+    assert classify_single_leg(r) == ("transfer_in", "wallet_transfer")
+
+
+def test_huabei_repayment_transfer_in():
+    r = _row(1350.30, "花呗", "花呗主动还款-2023年07月账单", category="income")
+    assert classify_single_leg(r) == ("transfer_in", "consumer_loan_repayment")
+
+
+def test_meituan_monthly_repayment_transfer_out():
+    r = _row(-188.87, "美团金融服务", "美团订单-【美团月付】主动还款2023年12月账单")
+    assert classify_single_leg(r) == ("transfer_out", "consumer_loan_repayment")
+
+
+def test_jd_repayment_transfer_out():
+    r = _row(-994.86, "京东", "还款")
+    assert classify_single_leg(r) == ("transfer_out", "consumer_loan_repayment")
+
+
+def test_jd_purchase_not_consumer_loan_repayment():
+    r = _row(-200, "京东", "商城业务")
+    assert classify_single_leg(r) is None
 
 
 # ── 反例：真实收支不能被误标 ──────────────────────────────────

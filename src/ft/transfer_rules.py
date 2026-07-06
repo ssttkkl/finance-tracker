@@ -77,6 +77,13 @@ def _is_fx_transfer(row: dict) -> bool:
     return any(k in de for k in ("个人购汇", "购汇还款", "预约购汇", "跨境汇款"))
 
 
+# ── 规则 3b：外汇现金链路补全 ─────────────────────────────────
+# 命中：银行账单中 description 整体就是币种名（美元/港币等），表示外汇资产链路的入/出。
+# 反例："美元消费"/"港币消费" 是真实境外消费，不应命中。
+def _is_fx_cash_leg(row: dict) -> bool:
+    return _desc(row).strip() in {"美元", "港币", "日元", "欧元"}
+
+
 # ── 规则 4：银证转账 ───────────────────────────────────────────
 # 命中：银行现金账户 ↔ 证券资金账户。描述/对手方必须明确出现银转证/证转银语义。
 def _is_security_transfer(row: dict) -> bool:
@@ -94,12 +101,44 @@ def _is_self_fund_transfer(row: dict) -> bool:
     return any(k in de for k in ("基金购买", "基金赎回"))
 
 
+# ── 规则 6：钱包 / 网商银行调拨 ────────────────────────────────
+# 微信零钱提现、支付宝转出到网商银行等，都是自有 cash 账户之间的位置移动。
+def _is_wallet_transfer(row: dict) -> bool:
+    cp, de = _cp(row), _desc(row)
+    if "收益发放" in de or "账户结息" in de:
+        return False
+    if "微信零钱提现" in cp and "支付机构提现" in de:
+        return True
+    if "网商银行" in cp and "转出到网商银行" in de:
+        return True
+    return False
+
+
+# ── 规则 7：消费贷还款（花呗 / 美团月付 / 京东白条）───────────────
+# 这些产品已/应建为 loan 账户；还款是 cash ↔ loan 的内部调拨，不是真实消费。
+# 京东规则刻意只吃 description=还款，避免误伤京东消费/商城业务。
+def _is_consumer_loan_repayment(row: dict) -> bool:
+    cp, de = _cp(row), _desc(row)
+    if "花呗" in cp and "还款" in de:
+        return True
+    if ("美团月付" in cp or "美团金融" in cp or "美团金融服务" in cp) and "月付" in de and "还款" in de:
+        return True
+    if cp == "京东" and de == "还款":
+        return True
+    if "京东白条" in cp and "还款" in de:
+        return True
+    return False
+
+
 _RULES = (
     ("fund_redeem", _is_fund_transfer),
     ("money_fund", _is_money_fund_transfer),
     ("fx_purchase", _is_fx_transfer),
+    ("fx_cash_leg", _is_fx_cash_leg),
     ("security_transfer", _is_security_transfer),
     ("self_fund", _is_self_fund_transfer),
+    ("wallet_transfer", _is_wallet_transfer),
+    ("consumer_loan_repayment", _is_consumer_loan_repayment),
 )
 
 
