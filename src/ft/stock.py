@@ -1005,8 +1005,12 @@ def _fetch_prices(tickers: list[str]) -> dict[str, float]:
         ticker_map[nt] = t
         normalized.append(nt)
 
+    crypto_tickers = [nt for nt in normalized if nt.lower() in models.CRYPTO_IDS]
     pm_tickers = [nt for nt in normalized if nt.startswith("pm:")]
-    regular_tickers = [nt for nt in normalized if not nt.startswith("pm:")]
+    regular_tickers = [
+        nt for nt in normalized
+        if not nt.startswith("pm:") and nt.lower() not in models.CRYPTO_IDS
+    ]
 
     import os
     proxy = os.environ.get("HTTP_PROXY") or os.environ.get("HTTPS_PROXY")
@@ -1014,7 +1018,8 @@ def _fetch_prices(tickers: list[str]) -> dict[str, float]:
         os.environ.setdefault("HTTP_PROXY", proxy)
         os.environ.setdefault("HTTPS_PROXY", proxy)
 
-    prices = _fetch_polymarket_prices(pm_tickers)
+    prices = _fetch_crypto_prices([ticker_map[nt] for nt in crypto_tickers])
+    prices.update(_fetch_polymarket_prices(pm_tickers))
 
     if not regular_tickers:
         return prices

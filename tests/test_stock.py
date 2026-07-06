@@ -1169,3 +1169,31 @@ def test_fetch_crypto_prices_network_failure_returns_empty(monkeypatch):
 def test_fetch_crypto_prices_empty_input():
     from ft import stock
     assert stock._fetch_crypto_prices([]) == {}
+
+
+def test_fetch_prices_routes_crypto_to_coingecko(monkeypatch):
+    """crypto ticker 走 CoinGecko，股票 ticker 走 yfinance，互不串。"""
+    from ft import stock
+
+    called = {}
+
+    def fake_crypto(tickers):
+        called["crypto"] = list(tickers)
+        return {"btc": 61000.0}
+
+    monkeypatch.setattr(stock, "_fetch_crypto_prices", fake_crypto)
+
+    def fake_download(tickers, period=None, progress=False, auto_adjust=False):
+        assert "BTC" not in tickers  # crypto 不应流入 yfinance
+        cols = pd.MultiIndex.from_tuples([("Close", "AAPL")])
+        return pd.DataFrame([[195.0], [196.5]], columns=cols,
+                            index=pd.Index(["2026-06-12", "2026-06-13"]))
+
+    fake_yf = type("FakeYF", (), {"download": staticmethod(fake_download)})
+    monkeypatch.setitem(sys.modules, "yfinance", fake_yf)
+    monkeypatch.setattr(time, "sleep", lambda *_: None)
+
+    prices = stock._fetch_prices(["btc", "aapl.us"])
+    assert called["crypto"] == ["btc"]
+    assert prices["btc"] == pytest.approx(61000.0)
+    assert prices["aapl.us"] == pytest.approx(196.5)
