@@ -129,6 +129,16 @@ def test_huabei_repayment_transfer_in():
     assert classify_single_leg(r) == ("transfer_in", "consumer_loan_repayment")
 
 
+def test_credit_card_mobile_bank_transfer_in():
+    r = _row(3000, "转帐", "手机银行", category="income")
+    assert classify_single_leg(r) == ("transfer_in", "consumer_loan_repayment")
+
+
+def test_credit_card_wechat_transfer_in():
+    r = _row(500, "转帐收入", "财付通", category="income")
+    assert classify_single_leg(r) == ("transfer_in", "consumer_loan_repayment")
+
+
 def test_meituan_monthly_repayment_transfer_out():
     r = _row(-188.87, "美团金融服务", "美团订单-【美团月付】主动还款2023年12月账单")
     assert classify_single_leg(r) == ("transfer_out", "consumer_loan_repayment")
@@ -137,6 +147,41 @@ def test_meituan_monthly_repayment_transfer_out():
 def test_jd_repayment_transfer_out():
     r = _row(-994.86, "京东", "还款")
     assert classify_single_leg(r) == ("transfer_out", "consumer_loan_repayment")
+
+
+def test_bank_side_generic_repayment_consumption_transfer_out():
+    r = _row(-246.64, "还款", "消费")
+    assert classify_single_leg(r) == ("transfer_out", "consumer_loan_repayment")
+
+
+def test_online_payment_repayment_transfer_out():
+    r = _row(-355.16, "网银在线（北京", "还款")
+    assert classify_single_leg(r) == ("transfer_out", "consumer_loan_repayment")
+
+
+def test_qiandai_repayment_transfer_out():
+    r = _row(-245.35, "北京钱袋宝支付技", "还款")
+    assert classify_single_leg(r) == ("transfer_out", "consumer_loan_repayment")
+
+
+def test_meituan_monthly_counterparty_repayment_transfer_out():
+    r = _row(-175.06, "美团月付还款", "消费")
+    assert classify_single_leg(r) == ("transfer_out", "consumer_loan_repayment")
+
+
+def test_wallet_recharge_account_transfer_out():
+    r = _row(-240, "微信零钱充值账户", "充值")
+    assert classify_single_leg(r) == ("transfer_out", "wallet_transfer")
+
+
+def test_interop_wallet_recharge_transfer_out():
+    r = _row(-2, "互联互通", "钱包充值")
+    assert classify_single_leg(r) == ("transfer_out", "wallet_transfer")
+
+
+def test_alipay_realtime_withdrawal_transfer_in():
+    r = _row(500, "中国工商银行", "提现-实时提现", category="income")
+    assert classify_single_leg(r) == ("transfer_in", "wallet_transfer")
 
 
 def test_jd_purchase_not_consumer_loan_repayment():

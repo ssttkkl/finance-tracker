@@ -102,14 +102,22 @@ def _is_self_fund_transfer(row: dict) -> bool:
 
 
 # ── 规则 6：钱包 / 网商银行调拨 ────────────────────────────────
-# 微信零钱提现、支付宝转出到网商银行等，都是自有 cash 账户之间的位置移动。
+# 微信零钱提现、支付宝提现/充值、网商银行等，都是自有 cash 账户之间的位置移动。
 def _is_wallet_transfer(row: dict) -> bool:
     cp, de = _cp(row), _desc(row)
     if "收益发放" in de or "账户结息" in de:
         return False
-    if "微信零钱提现" in cp and "支付机构提现" in de:
+    if "微信零钱提现" in cp and ("支付机构提现" in de or "银联入账" in de):
+        return True
+    if "零钱提现" in de and ("建设银行" in cp or "微信零钱提现" in cp):
+        return True
+    if "提现-实时提现" in de and any(bank in cp for bank in ("中国工商银行", "中国建设银行", "工商银行", "建设银行")):
         return True
     if "网商银行" in cp and "转出到网商银行" in de:
+        return True
+    if "微信零钱充值账户" in cp and de == "充值":
+        return True
+    if cp == "互联互通" and de == "钱包充值":
         return True
     return False
 
@@ -121,7 +129,15 @@ def _is_consumer_loan_repayment(row: dict) -> bool:
     cp, de = _cp(row), _desc(row)
     if "花呗" in cp and "还款" in de:
         return True
-    if ("美团月付" in cp or "美团金融" in cp or "美团金融服务" in cp) and "月付" in de and "还款" in de:
+    if cp == "转帐" and de == "手机银行":
+        return True
+    if cp == "转帐收入" and de == "财付通":
+        return True
+    if cp == "还款" and de == "消费":
+        return True
+    if ("美团月付" in cp or "美团金融" in cp or "美团金融服务" in cp) and ("还款" in de or de == "消费"):
+        return True
+    if ("网银在线" in cp or "钱袋宝" in cp) and "还款" in de:
         return True
     if cp == "京东" and de == "还款":
         return True
