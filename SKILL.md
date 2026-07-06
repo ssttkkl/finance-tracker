@@ -101,6 +101,10 @@ reconcile 阶段：审计文件中每对 dedup_status=保留/去除 行必须成
 | `account_name` | 账户名（对应 accounts.yaml） | `支付宝余额` |
 | `source` | 支付渠道（怎么付的） | `支付宝` / `美团支付` |
 | `bill_source` | 账单来源 | `alipay` / `icbc_credit` |
+| `transfer_account` | 内部转账对手账户（转账行才有） | `微信零钱` |
+| `locked` | 人工锁定标记；`1`=reconcile 完全不碰此行（不去重、不配对、不单腿标记，仅原样写回）。`ft transfer` 手动写入的行自动 `locked=1` | `1` / 空 |
+
+> **reconcile 幂等性**：CSV 为 11 列。`locked=1` 的行被 reconcile 完全跳过，因此重复 `ft reconcile` 不会重标已处理行，也不会覆盖人工修正——多次执行收敛、无 git diff。
 
 #### counterparty 规范化
 

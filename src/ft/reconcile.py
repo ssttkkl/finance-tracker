@@ -69,6 +69,11 @@ def _amount(row: dict) -> float:
     return float(row.get("amount") or 0)
 
 
+def _is_locked(row: dict) -> bool:
+    """locked=1 表示该行被人工锁定，reconcile 完全不处理它。"""
+    return str(row.get("locked", "")).strip() == "1"
+
+
 def _account_key(row: dict) -> tuple[str, str]:
     return (row.get("account_name", ""), row.get("currency", ""))
 
@@ -211,7 +216,7 @@ def _write_audit(run_at: str, scope_from: str, scope_to: str, pairs: list[tuple[
     fields = [
         "run_at", "scope_from", "scope_to", "date", "amount", "currency",
         "counterparty", "description", "category", "account_name", "source",
-        "bill_source", "transfer_account", "record_file", "dedup_status",
+        "bill_source", "transfer_account", "locked", "record_file", "dedup_status",
         "reconcile_status", "transfer_side", "match_rule", "match_confidence",
         "counterpart_file", "counterpart_account", "counterpart_currency",
         "counterpart_amount",
@@ -277,7 +282,11 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
                     entries.append(row)
 
     scoped = [row for row in entries if _in_scope(row["date"], start, end)]
-    kept, removed, pairs = dedup_with_pairs(scoped)
+    # 锁定行（locked=1）：reconcile 完全不碰——不去重、不配对、不单腿标记，
+    # 仅原样写回。彻底尊重人工修正（含 ft transfer 手动写入的转账）。
+    scoped_locked = [row for row in scoped if _is_locked(row)]
+    scoped_active = [row for row in scoped if not _is_locked(row)]
+    kept, removed, pairs = dedup_with_pairs(scoped_active)
     transfer_matches = _match_same_currency_exact(kept)
     used_transfer_ids = {id(row) for match in transfer_matches for row in match[:2]}
     transfer_matches.extend(_match_fx_loan_repayment(kept, used_transfer_ids))
@@ -290,6 +299,10 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
     for row in entries:
         if row in scoped:
             continue
+        rows_by_file[row["_record_file"]].append(_clean_row(row))
+
+    # 锁定行原样写回（不经任何识别逻辑）
+    for row in scoped_locked:
         rows_by_file[row["_record_file"]].append(_clean_row(row))
 
     for row in kept:

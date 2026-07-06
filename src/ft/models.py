@@ -51,7 +51,8 @@ SOURCE_LABELS = {
 # 购汇/跨境关键词 → 跨币种转账
 FOREIGN_EXCHANGE_KEYWORDS = ("购汇", "跨境", "外汇", "换汇")
 
-# CSV 字段（10 列）
+# CSV 字段（11 列）
+# locked=1 表示该行被人工锁定：reconcile 完全不碰（不去重、不配对、不单腿标记）。
 CSV_FIELDS = ["date", "amount", "currency", "counterparty",
               "description", "category", "account_name", "source",
-              "bill_source", "transfer_account"]
+              "bill_source", "transfer_account", "locked"]

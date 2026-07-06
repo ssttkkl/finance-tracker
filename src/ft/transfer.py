@@ -33,6 +33,7 @@ def _write_transfer_row(path: Path, date_str: str, amount: float, currency: str,
         "source": "手动",
         "bill_source": "",
         "transfer_account": transfer_account,
+        "locked": "1",
     }
 
     all_rows = existing + [new_row]
