@@ -1278,7 +1278,7 @@ def _replay_security_rows(rows):
             else:
                 # Covering short — keep cumulative cost
                 h["total_cost"] = round(old_c + s * p, 2)
-            h["shares"] = new_s
+            h["shares"] = round(new_s, 10)
             _normalize_position(h)
             _validate_position(a, t)
             cash[a] = round(cash[a] + amt - com, 2)
@@ -1288,11 +1288,11 @@ def _replay_security_rows(rows):
             sold = abs(s)
             if h["shares"] > 0:
                 # Regular sell
-                h["shares"] -= sold
+                h["shares"] = round(h["shares"] - sold, 10)
                 h["total_cost"] = round(h["total_cost"] - abs(amt) + com, 2)
             else:
                 # Short sell (shares == 0) or additional short (shares < 0)
-                h["shares"] -= sold
+                h["shares"] = round(h["shares"] - sold, 10)
                 h["total_cost"] = round(h["total_cost"] - abs(amt) + com, 2)
             _normalize_position(h)
             _validate_position(a, t)

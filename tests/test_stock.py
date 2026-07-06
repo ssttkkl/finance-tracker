@@ -1220,3 +1220,32 @@ def test_stock_append_accepts_crypto_account(tmp_env):
 
     assert do_append(csv_path) is True
     assert (models.RECORDS_DIR / "security" / "2026-07-07.csv").exists()
+
+
+def test_crypto_account_buy_sell_verify_end_to_end(tmp_env, monkeypatch):
+    """crypto 账户走 ft stock deposit/buy/sell → snapshot 与 CSV 一致。"""
+    from ft.accounts import save_accounts
+    from ft import models
+    from ft.stock import (
+        do_deposit, do_buy, do_sell, load_snapshot, verify_security,
+    )
+
+    save_accounts([
+        {"name": "币安", "type": "crypto", "currency": "USD", "active": True},
+    ], models.ACCOUNTS_PATH)
+
+    do_deposit(amount=5000, currency="USD", account_name="币安",
+               date="2026-07-07 09:00:00")
+    do_buy(ticker="btc", shares=0.05, price=60000, commission=0,
+           currency="USD", account_name="币安", date="2026-07-07 10:00:00")
+    do_sell(ticker="btc", shares=0.02, price=62000, commission=0,
+            currency="USD", account_name="币安", date="2026-07-07 11:00:00")
+
+    snap = load_snapshot()
+    acct = snap["accounts"]["security"]["币安"]
+    # 现金: 5000 - 0.05*60000 + 0.02*62000 = 5000 - 3000 + 1240 = 3240
+    assert acct["cash"] == pytest.approx(3240.0)
+    assert acct["positions"]["btc"]["shares"] == pytest.approx(0.03)
+    # verify_security 返回 (ok: bool, report_lines: list[str])
+    ok, _lines = verify_security()
+    assert ok is True
