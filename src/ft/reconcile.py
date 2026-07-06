@@ -282,6 +282,8 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
                     entries.append(row)
 
     scoped = [row for row in entries if _in_scope(row["date"], start, end)]
+    # 用 id() 集合判定归属，避免值相等误判（两条内容相同的 dict 会被 `in` 混淆）。
+    scoped_ids = {id(row) for row in scoped}
     # 锁定行（locked=1）：reconcile 完全不碰——不去重、不配对、不单腿标记，
     # 仅原样写回。彻底尊重人工修正（含 ft transfer 手动写入的转账）。
     scoped_locked = [row for row in scoped if _is_locked(row)]
@@ -297,7 +299,7 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
 
     rows_by_file: dict[str, list[dict]] = defaultdict(list)
     for row in entries:
-        if row in scoped:
+        if id(row) in scoped_ids:
             continue
         rows_by_file[row["_record_file"]].append(_clean_row(row))
 

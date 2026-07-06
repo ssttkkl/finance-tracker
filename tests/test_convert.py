@@ -1421,19 +1421,19 @@ class TestIcbcDebit:
         assert rec is not None
         assert rec["description"] == "支付宝转账", f"desc={rec['description']!r}"
 
-    def test_无日期行_返回空(self):
-        """日期缺失的行应返回 None"""
+    def test_无日期行_抛错(self):
+        """日期缺失的行应抛 ValueError（格式变更即中断，不静默丢弃）"""
         row = [None, None, None, None, None, None, None, None, None, None, None, None, None]
         from ft.convert import _parse_icbc_debit_row
-        rec = _parse_icbc_debit_row(row)
-        assert rec is None
+        with pytest.raises(ValueError, match="无法提取日期"):
+            _parse_icbc_debit_row(row)
 
-    def test_短行_IndexError保护(self):
-        """不足13列的行应返回 None，不抛 IndexError"""
+    def test_短行_抛错(self):
+        """不足13列的行应抛 ValueError（疑似 pdfplumber 截断/格式变更）"""
         short_row = ["2026-01-05\n20:32:09", "1614020101021984636"]  # 只有2列
         from ft.convert import _parse_icbc_debit_row
-        rec = _parse_icbc_debit_row(short_row)
-        assert rec is None
+        with pytest.raises(ValueError):
+            _parse_icbc_debit_row(short_row)
 
     def test_基金赎回_counterparty不乱码(self):
         """基金赎回的 counterparty 不应包含摘要乱码，应清洗为基金清算专户"""

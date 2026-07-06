@@ -489,6 +489,10 @@ def _read_alipay_raw(path: str):
         if direction == "不计收支" and txn_status == "交易关闭":
             continue
 
+        # 方向=不计收支 + 金额=0 → 预授权解冻/冻结解冻等，无实际资金流动，跳过
+        if direction == "不计收支" and amount == 0:
+            continue
+
         if amount != 0:
             category = "expense" if amount < 0 else "income"
 
