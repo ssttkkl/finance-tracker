@@ -166,6 +166,103 @@ def _match_same_currency_exact(rows: list[dict]) -> list[tuple[dict, dict, str]]
     return matches
 
 
+def _is_unionpay_wechat_cash_signal(out_row: dict, in_row: dict) -> bool:
+    """同日宽窗口现金账户调拨信号：银联入账 ↔ 无卡付/转账支取。"""
+    out_text = _search_text(out_row)
+    in_text = _search_text(in_row)
+    return (
+        ("银联入账" in in_text or "电子汇入" in in_text)
+        and any(k in out_text for k in ("无卡付", "转账支取"))
+    )
+
+
+def _match_same_day_unionpay_cash_transfer(rows: list[dict], used_ids: set[int]) -> list[tuple[dict, dict, str]]:
+    """同日同额、跨现金账户、强银联/微信/云闪付信号的宽窗口转账。
+
+    银行账单入账腿常为 00:00:00，而出账腿有真实时分秒，超过 ±10 秒。
+    为避免误伤消费，只接受“银联入账/电子汇入”与“无卡付/转账支取”的组合，且必须唯一匹配。
+    """
+    acct_types = _account_type_map()
+    matches = []
+    candidates = [
+        row for row in rows
+        if id(row) not in used_ids
+        and row.get("category") in ("income", "expense")
+        and abs(_amount(row)) > 0
+        and acct_types.get(_account_key(row)) == "cash"
+    ]
+    for out_row in sorted([r for r in candidates if _amount(r) < 0], key=_effective_datetime):
+        if id(out_row) in used_ids:
+            continue
+        possible = []
+        for in_row in candidates:
+            if id(in_row) in used_ids or _amount(in_row) <= 0:
+                continue
+            if _account_key(out_row) == _account_key(in_row):
+                continue
+            if out_row.get("currency") != in_row.get("currency"):
+                continue
+            if abs(abs(_amount(out_row)) - abs(_amount(in_row))) > 0.01:
+                continue
+            if _effective_datetime(out_row).date() != _effective_datetime(in_row).date():
+                continue
+            if not _is_unionpay_wechat_cash_signal(out_row, in_row):
+                continue
+            diff = abs((_effective_datetime(out_row) - _effective_datetime(in_row)).total_seconds())
+            possible.append((diff, in_row))
+        if len(possible) != 1:
+            continue
+        _diff, in_row = sorted(possible, key=lambda x: x[0])[0]
+        used_ids.add(id(out_row))
+        used_ids.add(id(in_row))
+        matches.append((out_row, in_row, "same_day_unionpay_cash_transfer"))
+    return matches
+
+
+def _match_same_currency_cash_loan_repayment(rows: list[dict], used_ids: set[int]) -> list[tuple[dict, dict, str]]:
+    """同币种 cash→loan 还款，允许分钟级延迟。"""
+    acct_types = _account_type_map()
+    matches = []
+    candidates = [
+        row for row in rows
+        if id(row) not in used_ids
+        and row.get("category") in ("income", "expense")
+        and abs(_amount(row)) > 0
+    ]
+    out_rows = [
+        row for row in candidates
+        if _amount(row) < 0 and acct_types.get(_account_key(row)) == "cash"
+        and any(k in _search_text(row) for k in ("还款", "自动还款", "主动还款"))
+    ]
+    in_rows = [
+        row for row in candidates
+        if _amount(row) > 0 and acct_types.get(_account_key(row)) == "loan"
+        and any(k in _search_text(row) for k in ("转帐", "转账", "银行卡中心", "手机银行"))
+    ]
+    for out_row in sorted(out_rows, key=_effective_datetime):
+        if id(out_row) in used_ids:
+            continue
+        possible = []
+        for in_row in in_rows:
+            if id(in_row) in used_ids:
+                continue
+            if out_row.get("currency") != in_row.get("currency"):
+                continue
+            if abs(abs(_amount(out_row)) - abs(_amount(in_row))) > 0.01:
+                continue
+            diff = abs((_effective_datetime(out_row) - _effective_datetime(in_row)).total_seconds())
+            if diff > 600:
+                continue
+            possible.append((diff, in_row))
+        if len(possible) != 1:
+            continue
+        _diff, in_row = sorted(possible, key=lambda x: x[0])[0]
+        used_ids.add(id(out_row))
+        used_ids.add(id(in_row))
+        matches.append((out_row, in_row, "same_currency_cash_loan_repayment"))
+    return matches
+
+
 def _match_fx_loan_repayment(rows: list[dict], used_ids: set[int]) -> list[tuple[dict, dict, str]]:
     acct_types = _account_type_map()
     matches = []
@@ -291,6 +388,8 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
     kept, removed, pairs = dedup_with_pairs(scoped_active)
     transfer_matches = _match_same_currency_exact(kept)
     used_transfer_ids = {id(row) for match in transfer_matches for row in match[:2]}
+    transfer_matches.extend(_match_same_day_unionpay_cash_transfer(kept, used_transfer_ids))
+    transfer_matches.extend(_match_same_currency_cash_loan_repayment(kept, used_transfer_ids))
     transfer_matches.extend(_match_fx_loan_repayment(kept, used_transfer_ids))
     for out_row, in_row, rule in transfer_matches:
         _mark_transfer(out_row, in_row, rule)

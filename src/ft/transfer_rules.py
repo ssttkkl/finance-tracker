@@ -77,10 +77,31 @@ def _is_fx_transfer(row: dict) -> bool:
     return any(k in de for k in ("个人购汇", "购汇还款", "预约购汇", "跨境汇款"))
 
 
+# ── 规则 4：银证转账 ───────────────────────────────────────────
+# 命中：银行现金账户 ↔ 证券资金账户。描述/对手方必须明确出现银转证/证转银语义。
+def _is_security_transfer(row: dict) -> bool:
+    text = _cp(row) + " " + _desc(row)
+    return any(k in text for k in ("银转证", "银行转证券", "证转银", "证券转银行"))
+
+
+# ── 规则 5：本人名义基金申赎 ───────────────────────────────────
+# 真实漏标形态：银行账单里 counterparty=黄文龙，description=基金购买/基金赎回。
+# 只看 counterparty+description，不看 account_name；收益发放仍由基金规则负例排除。
+def _is_self_fund_transfer(row: dict) -> bool:
+    cp, de = _cp(row), _desc(row)
+    if "收益发放" in de:
+        return False
+    if not any(name in cp for name in ("黄文龙", "HUANG WENLONG", "Huang Wenlong")):
+        return False
+    return any(k in de for k in ("基金购买", "基金赎回"))
+
+
 _RULES = (
     ("fund_redeem", _is_fund_transfer),
     ("money_fund", _is_money_fund_transfer),
     ("fx_purchase", _is_fx_transfer),
+    ("security_transfer", _is_security_transfer),
+    ("self_fund", _is_self_fund_transfer),
 )
 
 

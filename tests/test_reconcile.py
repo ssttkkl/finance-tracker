@@ -247,6 +247,71 @@ def test_reconcile_marks_foreign_currency_credit_card_repayment(tmp_env):
     assert loan_rows[0]["transfer_account"] == "工行借记卡"
 
 
+def test_reconcile_marks_same_day_unionpay_wechat_transfer_beyond_10_seconds(tmp_env):
+    """真实漏标：建行 00:00 银联入账 ↔ 工行当天晚些时候无卡付，同日同额应配对。"""
+    from ft import models
+    from ft.reconcile import do_reconcile
+
+    save_accounts([
+        {"name": "建行储蓄卡(2820)", "type": "cash", "currency": "CNY", "active": True},
+        {"name": "工行借记卡", "type": "cash", "currency": "CNY", "active": True},
+    ], models.ACCOUNTS_PATH)
+
+    day_path = models.RECORDS_DIR / "cash" / "2025-08-25.csv"
+    _write_rows(day_path, [
+        {"date": "2025-08-25 00:00:00", "amount": "15000.00", "currency": "CNY",
+         "counterparty": "微信", "description": "银联入账", "category": "income",
+         "account_name": "建行储蓄卡(2820)", "source": "银行卡", "bill_source": "ccb_debit"},
+        {"date": "2025-08-25 09:30:43", "amount": "-15000.00", "currency": "CNY",
+         "counterparty": "黄文龙", "description": "无卡付", "category": "expense",
+         "account_name": "工行借记卡", "source": "银行卡", "bill_source": "icbc_debit"},
+    ])
+
+    do_reconcile(month="2025-08")
+
+    with open(day_path, encoding="utf-8") as f:
+        rows = {r["amount"]: r for r in csv.DictReader(f)}
+    assert rows["-15000.00"]["category"] == "transfer_out"
+    assert rows["-15000.00"]["transfer_account"] == "建行储蓄卡(2820)"
+    assert rows["15000.00"]["category"] == "transfer_in"
+    assert rows["15000.00"]["transfer_account"] == "工行借记卡"
+
+
+def test_reconcile_marks_same_currency_cash_to_loan_repayment_with_minutes_gap(tmp_env):
+    """真实漏标：借记卡自动还款到同币种信用卡，间隔分钟级也应配对。"""
+    from ft import models
+    from ft.reconcile import do_reconcile
+
+    save_accounts([
+        {"name": "工行借记卡", "type": "cash", "currency": "CNY", "active": True},
+        {"name": "工行信用卡(1200)", "type": "loan", "currency": "CNY", "active": True},
+    ], models.ACCOUNTS_PATH)
+
+    cash_path = models.RECORDS_DIR / "cash" / "2025-12-19.csv"
+    loan_path = models.RECORDS_DIR / "loan" / "2025-12-19.csv"
+    _write_rows(cash_path, [
+        {"date": "2025-12-19 07:05:40", "amount": "-9563.53", "currency": "CNY",
+         "counterparty": "黄文龙", "description": "自动还款", "category": "expense",
+         "account_name": "工行借记卡", "source": "银行卡", "bill_source": "icbc_debit"},
+    ])
+    _write_rows(loan_path, [
+        {"date": "2025-12-19 07:08:37", "amount": "9563.53", "currency": "CNY",
+         "counterparty": "转帐北京分行银行卡中心", "description": "", "category": "income",
+         "account_name": "工行信用卡(1200)", "source": "银行卡", "bill_source": "icbc_credit"},
+    ])
+
+    do_reconcile(month="2025-12")
+
+    with open(cash_path, encoding="utf-8") as f:
+        cash_rows = list(csv.DictReader(f))
+    with open(loan_path, encoding="utf-8") as f:
+        loan_rows = list(csv.DictReader(f))
+    assert cash_rows[0]["category"] == "transfer_out"
+    assert cash_rows[0]["transfer_account"] == "工行信用卡(1200)"
+    assert loan_rows[0]["category"] == "transfer_in"
+    assert loan_rows[0]["transfer_account"] == "工行借记卡"
+
+
 def test_reconcile_marks_single_leg_fund_and_fx(tmp_env):
     from ft import models
     from ft.reconcile import do_reconcile

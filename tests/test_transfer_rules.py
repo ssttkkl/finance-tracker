@@ -74,6 +74,28 @@ def test_cross_border_remittance_transfer_out():
     assert classify_single_leg(r) == ("transfer_out", "fx_purchase")
 
 
+# ── 规则 4：银证转账 / 本人基金申赎 ─────────────────────────────
+def test_bank_to_security_transfer_out():
+    r = _row(-10000, "银行转证券", "银转证")
+    assert classify_single_leg(r) == ("transfer_out", "security_transfer")
+
+
+def test_security_to_bank_transfer_in():
+    r = _row(26070.51, "证券转银行", "证转银", category="income")
+    assert classify_single_leg(r) == ("transfer_in", "security_transfer")
+
+
+def test_self_fund_purchase_marked_transfer_out():
+    # 真实漏标形态：工行借记卡 / 黄文龙 / 基金购买
+    r = _row(-9933.21, "黄文龙", "基金购买")
+    assert classify_single_leg(r) == ("transfer_out", "self_fund")
+
+
+def test_self_fund_redeem_marked_transfer_in():
+    r = _row(10107.2, "黄文龙", "基金赎回", category="income")
+    assert classify_single_leg(r) == ("transfer_in", "self_fund")
+
+
 # ── 反例：真实收支不能被误标 ──────────────────────────────────
 def test_real_expense_mcdonalds_not_transfer():
     r = _row(-30, "麦当劳", "")
