@@ -174,9 +174,9 @@ def test_wallet_recharge_account_transfer_out():
     assert classify_single_leg(r) == ("transfer_out", "wallet_transfer")
 
 
-def test_interop_wallet_recharge_transfer_out():
+def test_interop_wallet_recharge_not_transfer():
     r = _row(-2, "互联互通", "钱包充值")
-    assert classify_single_leg(r) == ("transfer_out", "wallet_transfer")
+    assert classify_single_leg(r) is None
 
 
 def test_alipay_realtime_withdrawal_transfer_in():

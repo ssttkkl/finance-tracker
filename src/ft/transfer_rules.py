@@ -117,8 +117,6 @@ def _is_wallet_transfer(row: dict) -> bool:
         return True
     if "微信零钱充值账户" in cp and de == "充值":
         return True
-    if cp == "互联互通" and de == "钱包充值":
-        return True
     return False
 
 
