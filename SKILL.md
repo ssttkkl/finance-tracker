@@ -48,9 +48,21 @@ reconcile 阶段：审计文件中每对 dedup_status=保留/去除 行必须成
 
 | 命令 | 说明 |
 |------|------|
-| `ft acct add <名称> --type cash|loan|lend|security --currency CNY|USD|HKD` | 新增 |
+| `ft acct add <名称> --type cash|loan|lend|security|crypto --currency CNY|USD|HKD` | 新增 |
 | `ft acct list` | 列表+余额 |
 | `ft acct rename|delete|activate|deactivate` | 管理 |
+
+#### 加密货币账户（crypto）
+
+`crypto` 类型账户复用 security 引擎（同 snapshot 桶、同 `records/security/` CSV、同 `ft stock` 命令）。运营模型为稳定币计价：**USDT=现金（1:1 USD），BTC/ETH 等为持仓，成本 USD 计价**。价格走 CoinGecko（honor `HTTP_PROXY`，失败显示 N/A）。新增币种在 `models.py` 的 `CRYPTO_IDS` 补一行 `symbol → CoinGecko id`（已内置 btc/eth/usdt/usdc/sol/bnb/xrp/doge/ada）。crypto 账户统一用 USD。
+
+```bash
+ft acct add 币安 --type crypto --currency USD
+ft stock deposit --amount 5000 --account 币安              # 充 USDT(现金)
+ft stock buy  --ticker btc --shares 0.05 --price 60000 --account 币安
+ft stock sell --ticker eth --shares 1    --price 3000  --account 币安
+ft stock list                                             # BTC/ETH 自动走 CoinGecko
+```
 
 ### 查询
 
