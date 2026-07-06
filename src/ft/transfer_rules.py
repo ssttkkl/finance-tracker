@@ -84,14 +84,12 @@ def _is_security_transfer(row: dict) -> bool:
     return any(k in text for k in ("银转证", "银行转证券", "证转银", "证券转银行"))
 
 
-# ── 规则 5：本人名义基金申赎 ───────────────────────────────────
-# 真实漏标形态：银行账单里 counterparty=黄文龙，description=基金购买/基金赎回。
-# 只看 counterparty+description，不看 account_name；收益发放仍由基金规则负例排除。
+# ── 规则 5：基金购买 / 基金赎回 ─────────────────────────────────
+# 银行账单中 description 明确为基金购买/基金赎回时，资金在现金账户与基金资产载体间移动。
+# 不绑定个人姓名；只看 counterparty+description，不看 account_name。收益发放仍是真实收入。
 def _is_self_fund_transfer(row: dict) -> bool:
-    cp, de = _cp(row), _desc(row)
+    de = _desc(row)
     if "收益发放" in de:
-        return False
-    if not any(name in cp for name in ("黄文龙", "HUANG WENLONG", "Huang Wenlong")):
         return False
     return any(k in de for k in ("基金购买", "基金赎回"))
 

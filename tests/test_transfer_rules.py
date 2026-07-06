@@ -86,13 +86,13 @@ def test_security_to_bank_transfer_in():
 
 
 def test_self_fund_purchase_marked_transfer_out():
-    # 真实漏标形态：工行借记卡 / 黄文龙 / 基金购买
-    r = _row(-9933.21, "黄文龙", "基金购买")
+    # 银行账单里基金购买/基金赎回本身就是本人基金资产载体调拨，不应写死姓名。
+    r = _row(-9933.21, "基金业务", "基金购买")
     assert classify_single_leg(r) == ("transfer_out", "self_fund")
 
 
 def test_self_fund_redeem_marked_transfer_in():
-    r = _row(10107.2, "黄文龙", "基金赎回", category="income")
+    r = _row(10107.2, "基金业务", "基金赎回", category="income")
     assert classify_single_leg(r) == ("transfer_in", "self_fund")
 
 
