@@ -4,8 +4,15 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
+import csv
+import tempfile
+from pathlib import Path
+
 from .accounts import find_account
 from .stock import CSV_FIELDS
+from . import sync_common
+from .stock import do_append
+from .credentials import load_credentials, ensure_credentials_gitignored
 
 CASH_QUOTES = {"usdt", "usd"}
 UTC_PLUS_8 = timezone(timedelta(hours=8))
@@ -165,3 +172,63 @@ def fetch_trades(client, since=None, symbols=None, limit=1000) -> list[dict]:
                 break
             cursor = int(last_ts) + 1
     return out
+
+
+def _since_to_ms(since: str | None) -> int | None:
+    if not since:
+        return None
+    dt = datetime.strptime(since, "%Y-%m-%d").replace(tzinfo=UTC_PLUS_8)
+    return int(dt.timestamp() * 1000)
+
+
+def filter_new_rows(rows, records_dir=None, account_name=None) -> list[dict]:
+    return sync_common.filter_new_rows(
+        rows, records_dir=records_dir, account_name=account_name, prefix="tid"
+    )
+
+
+def sync_exchange(provider, account_name, since=None, dry_run=False,
+                  output=None, symbols=None, _client=None) -> list[dict]:
+    """Fetch private trades via ccxt, map, dedupe, and (unless dry-run) append."""
+    validate_crypto_account(account_name)
+
+    client = _client
+    if client is None:
+        creds = load_credentials(provider)
+        ensure_credentials_gitignored()
+        client = build_client(provider, creds)
+
+    trades = fetch_trades(client, since=_since_to_ms(since), symbols=symbols)
+    rows: list[dict] = []
+    for trade in trades:
+        rows.extend(trade_to_rows(trade, account_name, provider))
+    # 稳定排序：同 tid 的 SWAP_OUT→SWAP_IN→FEE 同 timestamp，靠稳定性保序。
+    rows.sort(key=lambda r: r["date"])
+    new_rows = filter_new_rows(rows, account_name=account_name)
+
+    print(f"交易所: {provider}; 账户: {account_name}")
+    print(f"成交: {len(trades)}; 映射行: {len(rows)}; 新增行: {len(new_rows)}")
+
+    if output:
+        sync_common.write_stock_csv(new_rows, output)
+        print(f"✅ 已写出待导入 CSV: {output}")
+
+    if dry_run or not new_rows:
+        if dry_run:
+            print("DRY-RUN: 未写入 ft records")
+        elif not new_rows:
+            print("✅ 没有新增成交")
+        return new_rows
+
+    with tempfile.NamedTemporaryFile("w", newline="", encoding="utf-8",
+                                     suffix=".csv", delete=False) as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        writer.writerows(new_rows)
+        tmp_path = f.name
+    try:
+        if not do_append(tmp_path):
+            raise ValueError("交易所成交 append 失败")
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+    return new_rows

@@ -159,3 +159,91 @@ def test_fetch_trades_paginates_and_dedupes():
     assert [t["id"] for t in trades] == ["A", "B", "C"]
     # 第二页游标应为上页最后 timestamp+1
     assert client.calls[1][1] == 2001
+
+
+import csv as _csv
+import tempfile as _tempfile
+from pathlib import Path as _Path
+
+
+@pytest.fixture
+def tmp_env():
+    d = _Path(_tempfile.mkdtemp())
+    from ft import models
+    import ft.snapshot as snapshot_mod
+    olds = (models.FT_DIR, models.RECORDS_DIR, models.ACCOUNTS_PATH,
+            snapshot_mod.SNAPSHOT_PATH)
+    models.FT_DIR = d
+    models.RECORDS_DIR = d / "records"
+    models.ACCOUNTS_PATH = d / "accounts.yaml"
+    snapshot_mod.SNAPSHOT_PATH = d / "snapshot.yaml"
+    yield d
+    (models.FT_DIR, models.RECORDS_DIR, models.ACCOUNTS_PATH,
+     snapshot_mod.SNAPSHOT_PATH) = olds
+    import shutil
+    shutil.rmtree(d, ignore_errors=True)
+
+
+def _seed_crypto_account():
+    from ft.accounts import save_accounts
+    from ft import models
+    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "active": True}],
+                  models.ACCOUNTS_PATH)
+
+
+def test_sync_exchange_end_to_end_mixed(tmp_env):
+    from ft.exchange_sync import sync_exchange
+    from ft.stock import load_snapshot, verify_security
+    _seed_crypto_account()
+
+    trades = [
+        {"id": "T1", "timestamp": 1751852400000, "symbol": "BTC/USDT", "side": "buy",
+         "price": 60000.0, "amount": 0.1, "cost": 6000.0, "fee": None},
+        {"id": "T2", "timestamp": 1751856000000, "symbol": "ETH/BTC", "side": "buy",
+         "price": 0.05, "amount": 1.0, "cost": 0.05,
+         "fee": {"cost": 0.001, "currency": "BNB"}},
+    ]
+    client = _FakeClient([trades, []])
+
+    # dry-run：不写入
+    new = sync_exchange("kraken", account_name="币安", dry_run=True,
+                        symbols=["BTC/USDT", "ETH/BTC"], _client=client)
+    assert len(new) == 4          # BUY + (SWAP_OUT+SWAP_IN+FEE)
+    assert not (tmp_env / "records" / "security").exists()
+
+    # 真实 append
+    client2 = _FakeClient([trades, []])
+    sync_exchange("kraken", account_name="币安",
+                  symbols=["BTC/USDT", "ETH/BTC"], _client=client2)
+    snap = load_snapshot()
+    acct = snap["accounts"]["security"]["币安"]
+    # BTC: 买入 0.1，换出 0.05 → 0.05
+    assert acct["positions"]["btc"]["shares"] == pytest.approx(0.05)
+    # ETH: 换入 1.0
+    assert acct["positions"]["eth"]["shares"] == pytest.approx(1.0)
+    ok, _ = verify_security()
+    assert ok is True
+
+
+def test_sync_exchange_is_idempotent(tmp_env):
+    from ft.exchange_sync import sync_exchange
+    _seed_crypto_account()
+    trades = [{"id": "T1", "timestamp": 1751852400000, "symbol": "BTC/USDT",
+               "side": "buy", "price": 60000.0, "amount": 0.1, "cost": 6000.0, "fee": None}]
+    sync_exchange("kraken", account_name="币安", _client=_FakeClient([trades, []]))
+    # 再同步一次：0 新增
+    new = sync_exchange("kraken", account_name="币安", _client=_FakeClient([trades, []]))
+    assert new == []
+
+
+def test_sync_exchange_writes_output_csv(tmp_env):
+    from ft.exchange_sync import sync_exchange
+    _seed_crypto_account()
+    trades = [{"id": "T1", "timestamp": 1751852400000, "symbol": "BTC/USDT",
+               "side": "sell", "price": 60000.0, "amount": 0.1, "cost": 6000.0, "fee": None}]
+    out = tmp_env / "out.csv"
+    sync_exchange("kraken", account_name="币安", dry_run=True, output=str(out),
+                  _client=_FakeClient([trades, []]))
+    with out.open(encoding="utf-8") as f:
+        rows = list(_csv.DictReader(f))
+    assert rows[0]["action"] == "SELL"
