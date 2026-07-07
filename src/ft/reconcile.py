@@ -88,7 +88,7 @@ def _search_text(row: dict) -> str:
     ])
 
 
-def _has_signal(row_a: dict, row_b: dict, signals=("转账支取", "转账存入", "银联入账", "手机银行", "转帐", "还款", "花呗", "月付")) -> bool:
+def _has_signal(row_a: dict, row_b: dict, signals=("转账支取", "转账存入", "银联入账", "手机银行", "转帐", "还款", "花呗", "月付", "提现-实时提现")) -> bool:
     text = _search_text(row_a) + " " + _search_text(row_b)
     return any(signal in text for signal in signals)
 

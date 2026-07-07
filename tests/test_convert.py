@@ -56,6 +56,20 @@ class TestAlipayCategory:
         assert records[0]["category"] == "income"
         assert records[0]["amount"] == 100.0
 
+    def test_账户提现_不计收支方向_余额流出(self):
+        """支付宝提现到银行卡：方向=不计收支，但支付宝余额应减少。"""
+        csv_path = str(TEST_DIR / "alipay_account_withdrawal_nocount.csv")
+        _make_alipay_csv([
+            ["2023-06-15 12:25:59", "账户提现", "中国工商银行", "提现-实时提现", "不计收支", "200.00", "余额"],
+        ], csv_path)
+        from ft.convert import _read_alipay_raw
+        records, _ = _read_alipay_raw(csv_path)
+        assert len(records) == 1
+        assert records[0]["category"] == "expense"
+        assert records[0]["amount"] == -200.0
+        assert records[0]["counterparty"] == "中国工商银行"
+        assert records[0]["description"] == "提现-实时提现"
+
     def test_全额退款_收入方向(self):
         """方向=收入，全额退款 → 双向核销"""
         csv_path = str(TEST_DIR / "alipay_full_refund.csv")

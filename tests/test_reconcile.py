@@ -186,6 +186,36 @@ def test_reconcile_marks_same_currency_cash_transfer(tmp_env):
     assert by_amount["100.00"]["transfer_account"] == "支付宝余额"
 
 
+def test_reconcile_pairs_alipay_withdrawal_to_bank_deposit(tmp_env):
+    from ft import models
+    from ft.reconcile import do_reconcile
+
+    save_accounts([
+        {"name": "支付宝余额", "type": "cash", "currency": "CNY", "active": True},
+        {"name": "工行借记卡", "type": "cash", "currency": "CNY", "active": True},
+    ], models.ACCOUNTS_PATH)
+
+    day_path = models.RECORDS_DIR / "cash" / "2023-06-15.csv"
+    _write_rows(day_path, [
+        {"date": "2023-06-15 12:25:59", "amount": "-200.00", "currency": "CNY",
+         "counterparty": "中国工商银行", "description": "提现-实时提现", "category": "expense",
+         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay"},
+        {"date": "2023-06-15 12:26:00", "amount": "200.00", "currency": "CNY",
+         "counterparty": "黄文龙", "description": "黄文龙付", "category": "income",
+         "account_name": "工行借记卡", "source": "银行卡", "bill_source": "icbc_debit"},
+    ])
+
+    do_reconcile(month="2023-06")
+
+    with open(day_path, encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    by_account = {row["account_name"]: row for row in rows}
+    assert by_account["支付宝余额"]["category"] == "transfer_out"
+    assert by_account["支付宝余额"]["transfer_account"] == "工行借记卡"
+    assert by_account["工行借记卡"]["category"] == "transfer_in"
+    assert by_account["工行借记卡"]["transfer_account"] == "支付宝余额"
+
+
 def test_reconcile_does_not_mark_equal_consumption_without_transfer_signal(tmp_env):
     from ft import models
     from ft.reconcile import do_reconcile

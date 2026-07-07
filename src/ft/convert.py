@@ -468,8 +468,15 @@ def _read_alipay_raw(path: str):
             category = "expense" if amount < 0 else "income"
             if direction == "支出":
                 amount = -amount
-            elif direction in ("收入", "不计收支"):
+            elif direction == "收入":
                 pass
+            elif direction == "不计收支":
+                # 支付宝提现到银行卡在原始账单里是"不计收支"，但从支付宝余额账户视角是资产流出。
+                # 退款类不计收支仍保持正数，交给 _pair_refunds 配对核销。
+                desc_for_direction = row[h.get("商品说明", 4)].strip() if "商品说明" in h else ""
+                if txn_type == "账户提现" or "提现-实时提现" in desc_for_direction:
+                    amount = -amount
+                    category = "expense"
             else:
                 raise ValueError(
                     f"❌ 支付宝账单未知收/支方向: direction={direction!r}\n"
