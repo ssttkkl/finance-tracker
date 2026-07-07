@@ -1345,3 +1345,42 @@ def test_append_accepts_swap_fee_rows_and_keeps_currency(tmp_env):
     assert acct["currency"] == "USD"          # 币种未丢
     assert acct["positions"]["eth"]["shares"] == pytest.approx(10.0)
     assert acct["positions"]["btc"]["shares"] == pytest.approx(0.5)
+
+
+def test_do_swap_conserves_cost_and_ignores_cash(tmp_env):
+    from ft.accounts import save_accounts
+    from ft import models
+    from ft.stock import do_deposit, do_buy, do_swap, load_snapshot, verify_security
+
+    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "active": True}],
+                  models.ACCOUNTS_PATH)
+    do_deposit(amount=100000, currency="USD", account_name="币安",
+               date="2026-07-07 08:00:00")
+    do_buy(ticker="btc", shares=1, price=60000, commission=0, currency="USD",
+           account_name="币安", date="2026-07-07 09:00:00")
+
+    do_swap(account_name="币安", from_ticker="btc", from_shares=0.5,
+            to_ticker="eth", to_shares=10, date="2026-07-07 10:00:00")
+
+    snap = load_snapshot()
+    acct = snap["accounts"]["security"]["币安"]
+    assert acct["positions"]["btc"]["shares"] == pytest.approx(0.5)
+    assert acct["positions"]["eth"]["shares"] == pytest.approx(10.0)
+    # ETH 成本 = 释放的 BTC 成本 0.5*60000 = 30000 → 均价 3000
+    assert acct["positions"]["eth"]["avg_cost"] == pytest.approx(3000.0)
+    # 现金：deposit 100000 - buy 60000 = 40000，swap 不动
+    assert acct["cash"] == pytest.approx(40000.0)
+    ok, _ = verify_security()
+    assert ok is True
+
+
+def test_do_swap_insufficient_from_shares_raises(tmp_env):
+    from ft.accounts import save_accounts
+    from ft import models
+    from ft.stock import do_swap
+
+    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "active": True}],
+                  models.ACCOUNTS_PATH)
+    with pytest.raises(ValueError, match="持仓不足"):
+        do_swap(account_name="币安", from_ticker="btc", from_shares=1,
+                to_ticker="eth", to_shares=10, date="2026-07-07 10:00:00")

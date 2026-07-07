@@ -580,6 +580,64 @@ def do_sell(
     )
 
 
+def do_swap(
+    account_name: str,
+    from_ticker: str,
+    from_shares: float,
+    to_ticker: str,
+    to_shares: float,
+    currency: str = "USD",
+    note: str = "",
+    date: Optional[str] = None,
+):
+    """Crypto-to-crypto swap: carry from_ticker's released cost to to_ticker.
+
+    Records two rows (SWAP_OUT then SWAP_IN) sharing swap:<id>. Cash untouched.
+    """
+    if date is None:
+        date = _now()
+    _ensure_finite_values(from_shares=from_shares, to_shares=to_shares)
+    date_key = date[:10]
+
+    snap = load_snapshot()
+    acct = _ensure_account(snap, account_name, currency)
+
+    from_pos = acct["positions"].get(from_ticker)
+    if from_pos is None or round(from_pos["shares"] - from_shares, 10) < 0:
+        have = from_pos["shares"] if from_pos else 0
+        raise ValueError(
+            f"{account_name} 的 {from_ticker} 持仓不足：有 {have}，需 {from_shares}"
+        )
+
+    released = round(from_shares * from_pos["avg_cost"], 2)
+    from_pos["shares"] = round(from_pos["shares"] - from_shares, 10)
+    if from_pos["shares"] == 0:
+        del acct["positions"][from_ticker]
+
+    to_pos = acct["positions"].setdefault(to_ticker, {"shares": 0, "avg_cost": 0.0})
+    old_cost = round(to_pos["avg_cost"] * to_pos["shares"], 2)
+    to_pos["shares"] = round(to_pos["shares"] + to_shares, 10)
+    to_pos["avg_cost"] = round((old_cost + released) / to_pos["shares"], 2) \
+        if to_pos["shares"] != 0 else 0.0
+
+    snap["updated_at"] = date_key
+    swap_id = f"{date_key}-{from_ticker}-{to_ticker}"
+    base_note = (note + " ").lstrip() if note else ""
+    swap_note = f"{base_note}swap:{swap_id}".strip()
+
+    # 先存快照，再写两行（OUT→IN），任一失败由 record_trade 抛出。
+    save_snapshot(snap)
+    record_trade(date=date, action="SWAP_OUT", ticker=from_ticker,
+                 shares=from_shares, price=0, amount=0, commission=0,
+                 currency=currency, account_name=account_name, note=swap_note)
+    record_trade(date=date, action="SWAP_IN", ticker=to_ticker,
+                 shares=to_shares, price=0, amount=0, commission=0,
+                 currency=currency, account_name=account_name, note=swap_note)
+    print(f"✅ 兑换 {_fmt_shares(from_shares)} {from_ticker} → "
+          f"{_fmt_shares(to_shares)} {to_ticker} ({account_name})")
+    return True
+
+
 def do_deposit(
     amount: float,
     currency: str,
