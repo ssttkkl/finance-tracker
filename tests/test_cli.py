@@ -194,3 +194,46 @@ def test_cli_stock_sync_polymarket_old_hyphenated_command_is_removed():
     """The old ft stock sync-polymarket spelling should not remain as a parallel public command."""
     with pytest.raises(SystemExit):
         cli.main(["stock", "sync-polymarket", "--dry-run"])
+
+
+def test_stock_sync_exchange_dispatches_to_sync_exchange(monkeypatch, capsys):
+    """`ft stock sync kraken` 应调用 exchange_sync.sync_exchange 并透传参数。"""
+    import sys
+    from ft import cli
+
+    captured = {}
+
+    def fake_sync_exchange(provider, account_name, since=None, dry_run=False,
+                           output=None, symbols=None):
+        captured.update(provider=provider, account_name=account_name,
+                        since=since, dry_run=dry_run, output=output, symbols=symbols)
+        return []
+
+    monkeypatch.setattr("ft.exchange_sync.sync_exchange", fake_sync_exchange)
+    monkeypatch.setattr(sys, "argv", [
+        "ft", "stock", "sync", "kraken", "--account", "币安",
+        "--dry-run", "--since", "2026-01-01", "--symbol", "BTC/USDT",
+    ])
+    cli.main()
+
+    assert captured["provider"] == "kraken"
+    assert captured["account_name"] == "币安"
+    assert captured["dry_run"] is True
+    assert captured["since"] == "2026-01-01"
+    assert captured["symbols"] == ["BTC/USDT"]
+
+
+def test_stock_sync_polymarket_still_dispatches(monkeypatch):
+    """polymarket 分支零回归：仍调用 sync_polymarket。"""
+    import sys
+    from ft import cli
+
+    called = {}
+    monkeypatch.setattr("ft.polymarket_sync.sync_polymarket",
+                        lambda **kw: called.update(kw) or [])
+    monkeypatch.setattr(sys, "argv", [
+        "ft", "stock", "sync", "polymarket", "--wallet", "0xabc", "--dry-run",
+    ])
+    cli.main()
+    assert called["wallet"] == "0xabc"
+    assert called["dry_run"] is True

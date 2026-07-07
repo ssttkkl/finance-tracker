@@ -170,6 +170,15 @@ def main(argv=None):
     sync_pm.add_argument("--limit", type=int, default=500, help="每页 Activity 条数，默认 500")
     sync_pm.add_argument("--max-pages", type=int, help="最多拉取页数，调试用")
 
+    for _provider in ("kraken", "okx", "binance", "coinbase", "bybit"):
+        _sp = sync_sub.add_parser(_provider, help=f"从 {_provider} 同步私有成交（ccxt）")
+        _sp.add_argument("--account", required=True, help="目标 crypto 账户名")
+        _sp.add_argument("--since", help="起始日期 YYYY-MM-DD（增量同步）")
+        _sp.add_argument("--dry-run", action="store_true", help="只拉取/去重/预览，不写入")
+        _sp.add_argument("-o", "--output", help="把新增记录写出为 stock CSV")
+        _sp.add_argument("--symbol", action="append", dest="symbols",
+                         help="只同步指定交易对，可重复（调试用）")
+
     stk_sub.add_parser("list", help="持仓总览")
 
     # verify
@@ -561,6 +570,9 @@ def main(argv=None):
             if not do_append(args.file):
                 sys.exit(1)
         elif args.stock_cmd == "sync":
+            if not args.sync_cmd:
+                print("❌ 请指定 sync provider，例如: ft stock sync polymarket / ft stock sync kraken")
+                sys.exit(1)
             if args.sync_cmd == "polymarket":
                 from .polymarket_sync import sync_polymarket
                 try:
@@ -577,8 +589,19 @@ def main(argv=None):
                     print(f"❌ {exc}")
                     sys.exit(1)
             else:
-                print("❌ 请指定 sync 子命令，例如: ft stock sync polymarket")
-                sys.exit(1)
+                from .exchange_sync import sync_exchange
+                try:
+                    sync_exchange(
+                        provider=args.sync_cmd,
+                        account_name=args.account,
+                        since=args.since,
+                        dry_run=args.dry_run,
+                        output=args.output,
+                        symbols=args.symbols,
+                    )
+                except ValueError as exc:
+                    print(f"❌ {exc}")
+                    sys.exit(1)
         elif args.stock_cmd == "list":
             do_list()
         return
