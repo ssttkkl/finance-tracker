@@ -14,6 +14,7 @@ from typing import Iterable
 
 from . import models
 from .stock import CSV_FIELDS, do_append
+from .sync_common import row_identity as _shared_row_identity, write_stock_csv
 
 
 def validate_security_account(account_name: str, currency: str = "USD") -> None:
@@ -216,7 +217,7 @@ def _existing_polymarket_identities(
 
 
 def _row_identity(row: dict) -> tuple[str, ...]:
-    return tuple(str(row.get(field, "")) for field in CSV_FIELDS)
+    return _shared_row_identity(row)
 
 
 def filter_new_rows(
@@ -238,16 +239,6 @@ def filter_new_rows(
         new_rows.append(row)
         seen_exact.add(ident)
     return new_rows
-
-
-def write_stock_csv(rows: list[dict], output: str | Path) -> Path:
-    output_path = Path(output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
-        writer.writeheader()
-        writer.writerows(rows)
-    return output_path
 
 
 def sync_polymarket(
