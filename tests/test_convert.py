@@ -11,6 +11,8 @@ TEST_DIR = Path(tempfile.mkdtemp())
 def _make_alipay_csv(rows: list[list[str]], path: str):
     """Write a minimal Alipay-style CSV"""
     header = ["交易时间", "交易分类", "交易对方", "商品说明", "收/支", "金额", "收/付款方式"]
+    if any(len(r) > len(header) for r in rows):
+        header.append("交易状态")
     with open(path, "w", encoding="utf-8-sig", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(header)
@@ -70,6 +72,68 @@ class TestAlipayCategory:
         assert records[0]["counterparty"] == "中国工商银行"
         assert records[0]["description"] == "提现-实时提现"
 
+    def test_不计收支_已关闭订单跳过(self):
+        csv_path = str(TEST_DIR / "alipay_closed_status.csv")
+        _make_alipay_csv([
+            ["2025-07-20 19:29:50", "充值缴费", "北京市自来水集团有限责任公司", "7月-水费", "不计收支", "45.00", "", "已关闭"],
+        ], csv_path)
+        from ft.convert import _read_alipay_raw
+        records, _ = _read_alipay_raw(csv_path)
+        assert records == []
+
+    def test_不计收支_还款失败跳过(self):
+        csv_path = str(TEST_DIR / "alipay_repayment_failed.csv")
+        _make_alipay_csv([
+            ["2023-07-11 08:18:07", "信用借还", "花呗", "花呗自动还款", "不计收支", "1350.30", "", "还款失败"],
+        ], csv_path)
+        from ft.convert import _read_alipay_raw
+        records, _ = _read_alipay_raw(csv_path)
+        assert records == []
+
+    def test_不计收支_转入余利宝_余额流出(self):
+        csv_path = str(TEST_DIR / "alipay_yulibao_inflow_nocount.csv")
+        _make_alipay_csv([
+            ["2025-06-10 23:06:02", "投资理财", "网商银行", "支付宝转入到余利宝", "不计收支", "186.00", "账户余额", "交易成功"],
+        ], csv_path)
+        from ft.convert import _read_alipay_raw
+        records, _ = _read_alipay_raw(csv_path)
+        assert len(records) == 1
+        assert records[0]["category"] == "expense"
+        assert records[0]["amount"] == -186.0
+
+    def test_不计收支_基金买入_付款账户流出(self):
+        csv_path = str(TEST_DIR / "alipay_fund_buy_nocount.csv")
+        _make_alipay_csv([
+            ["2025-02-27 09:14:17", "投资理财", "蚂蚁财富-蚂蚁（杭州）基金销售有限公司", "蚂蚁财富-大成纳斯达克100ETF联接(QDII)C-买入", "不计收支", "100.00", "中国建设银行储蓄卡(2820)", "交易成功"],
+        ], csv_path)
+        from ft.convert import _read_alipay_raw
+        records, _ = _read_alipay_raw(csv_path)
+        assert len(records) == 1
+        assert records[0]["category"] == "expense"
+        assert records[0]["amount"] == -100.0
+
+    def test_不计收支_转出到网商银行_余额流出(self):
+        csv_path = str(TEST_DIR / "alipay_to_mybank_nocount.csv")
+        _make_alipay_csv([
+            ["2026-06-02 00:23:51", "其他", "网商银行", "转出到网商银行", "不计收支", "485.73", "账户余额", "交易成功"],
+        ], csv_path)
+        from ft.convert import _read_alipay_raw
+        records, _ = _read_alipay_raw(csv_path)
+        assert len(records) == 1
+        assert records[0]["category"] == "expense"
+        assert records[0]["amount"] == -485.73
+
+    def test_不计收支_收益发放保持收入(self):
+        csv_path = str(TEST_DIR / "alipay_yuebao_yield_nocount.csv")
+        _make_alipay_csv([
+            ["2025-08-17 03:04:40", "投资理财", "长城基金管理有限公司", "余额宝-2025.08.16-收益发放", "不计收支", "0.03", "余额宝", "交易成功"],
+        ], csv_path)
+        from ft.convert import _read_alipay_raw
+        records, _ = _read_alipay_raw(csv_path)
+        assert len(records) == 1
+        assert records[0]["category"] == "income"
+        assert records[0]["amount"] == 0.03
+
     def test_全额退款_收入方向(self):
         """方向=收入，全额退款 → 双向核销"""
         csv_path = str(TEST_DIR / "alipay_full_refund.csv")
@@ -106,7 +170,7 @@ class TestAlipayCategory:
         assert records[0]["amount"] == -70.0
 
     def test_不计收支_非退款_转出(self):
-        """不计收支 + 非退款（如转出到网商银行）→ 进入退款配对，孤退款保留为 income"""
+        """不计收支 + 转出到网商银行 → 从支付宝余额视角是资产流出。"""
         csv_path = str(TEST_DIR / "alipay_transfer_out_nocount.csv")
         _make_alipay_csv([
             ["2026-01-05 08:00:00", "其他", "网商银行", "转出到网商银行", "不计收支", "485.73", "账户余额"],
@@ -114,8 +178,8 @@ class TestAlipayCategory:
         from ft.convert import _read_alipay_raw
         records, _ = _read_alipay_raw(csv_path)
         assert len(records) == 1
-        assert records[0]["category"] == "income"
-        assert records[0]["amount"] == 485.73
+        assert records[0]["category"] == "expense"
+        assert records[0]["amount"] == -485.73
 
     def test_不计收支_零金额_跳过(self):
         """不计收支 + 金额为0 → 跳过"""

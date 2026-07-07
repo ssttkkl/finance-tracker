@@ -474,7 +474,18 @@ def _read_alipay_raw(path: str):
                 # 支付宝提现到银行卡在原始账单里是"不计收支"，但从支付宝余额账户视角是资产流出。
                 # 退款类不计收支仍保持正数，交给 _pair_refunds 配对核销。
                 desc_for_direction = row[h.get("商品说明", 4)].strip() if "商品说明" in h else ""
-                if txn_type == "账户提现" or "提现-实时提现" in desc_for_direction:
+                is_investment_outflow = (
+                    txn_type == "投资理财"
+                    and "收益发放" not in desc_for_direction
+                    and "转出到银行卡" not in desc_for_direction
+                    and any(k in desc_for_direction for k in ("转入", "买入", "单次转入"))
+                )
+                if (
+                    txn_type == "账户提现"
+                    or "提现-实时提现" in desc_for_direction
+                    or "转出到网商银行" in desc_for_direction
+                    or is_investment_outflow
+                ):
                     amount = -amount
                     category = "expense"
             else:
@@ -492,8 +503,8 @@ def _read_alipay_raw(path: str):
         # 交易状态：用于识别"下单未付款"的假交易
         txn_status = row[h.get("交易状态", 8)].strip() if "交易状态" in h else ""
 
-        # 方向=不计收支 + 状态=交易关闭 → 下单未付款，没有实际资金流动，跳过
-        if direction == "不计收支" and txn_status == "交易关闭":
+        # 方向=不计收支 + 状态=交易关闭/已关闭/还款失败 → 没有实际资金流动，跳过
+        if direction == "不计收支" and txn_status in ("交易关闭", "已关闭", "还款失败"):
             continue
 
         # 方向=不计收支 + 金额=0 → 预授权解冻/冻结解冻等，无实际资金流动，跳过
