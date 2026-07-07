@@ -34,7 +34,7 @@ convert 说明：`alipay`（支付宝 CSV）、`wechat`（微信 xlsx）、`icbc
 
 > **转换器路径注意：** `which ft` 指向的可能是 hermes-agent venv 中的 pip 安装版（`/Users/huangwenlong/.hermes/hermes-agent/venv/bin/ft`），而开发版在 `~/bin/ft`（uv run 模式）。开发版用了修改后的 `convert.py`（补丁/新功能），安装版用的是旧代码。**修改转换器代码后必须确保 `ft` 命令用的是开发版**。推荐用 `~/bin/ft`，或用 `PYTHONPATH` 指向开发目录后通过 venv python 调用。
 
-AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2(脱敏) > P3(counterparty)** 逐项检查。每个转换后的 CSV 文件独立审查，每文件分配一个 subagent。详细审查清单见 `references/review-checklist.md`。
+AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2数据脱敏 > P3 counterparty** 逐项检查。每个转换后的 CSV 文件独立审查，每文件分配一个 subagent。详细审查清单见 `references/review-checklist.md`。跨支付渠道排查“状态/方向/中性交易”类转换器问题时，按 `references/payment-statement-direction-audit.md` 先只读重转到 `/tmp`、统计风险类、再和 records 精确匹配；不要把历史导入范围差异直接当 bug。
 
 转换阶段：退款配对数学正确性（全额=0？部分=净额正确？）、source 正确性、数据脱敏、counterparty 规范化。注意 _pair_refunds 产生的孤退款行（orphan income）可能在 CSV 中残留，需检查过滤。
 
