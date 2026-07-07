@@ -19,7 +19,8 @@ CSV_FIELDS = [
     "commission", "currency", "account_name", "note",
 ]
 
-VALID_ACTIONS = {"BUY", "SELL", "DEPOSIT", "WITHDRAW", "DIVIDEND", "CHECKIN"}
+VALID_ACTIONS = {"BUY", "SELL", "DEPOSIT", "WITHDRAW", "DIVIDEND", "CHECKIN",
+                 "SWAP_OUT", "SWAP_IN", "FEE"}
 
 
 def _clean_csv_row(row: dict) -> dict:
@@ -1216,6 +1217,7 @@ def _replay_security_rows(rows):
 
     positions = defaultdict(lambda: {"shares": 0.0, "total_cost": 0.0})
     cash = defaultdict(float)
+    pending_swaps: dict[str, float] = {}
 
     def _normalize_position(h):
         """Snap tiny floating-point residue to zero so closed positions disappear."""
@@ -1304,6 +1306,37 @@ def _replay_security_rows(rows):
         elif act == "WITHDRAW":
             cash[a] = round(cash[a] + amt, 2)
             _validate_cash(a)
+        elif act == "SWAP_OUT":
+            import re
+            h = positions[(a, t)]
+            avg = h["total_cost"] / h["shares"] if h["shares"] else 0.0
+            released = round(s * avg, 2)
+            h["shares"] = round(h["shares"] - s, 10)
+            h["total_cost"] = round(h["total_cost"] - released, 2)
+            _normalize_position(h)
+            _validate_position(a, t)
+            m = re.search(r"swap:(\S+)", row.get("note", "") or "")
+            if not m:
+                raise ValueError(f"SWAP_OUT 缺少 note 中的 swap:<id>: {row!r}")
+            pending_swaps[m.group(1)] = released
+        elif act == "SWAP_IN":
+            import re
+            m = re.search(r"swap:(\S+)", row.get("note", "") or "")
+            if not m or m.group(1) not in pending_swaps:
+                raise ValueError(f"SWAP_IN 找不到配对的 swap released: {row!r}")
+            received = pending_swaps.pop(m.group(1))
+            h = positions[(a, t)]
+            h["shares"] = round(h["shares"] + s, 10)
+            h["total_cost"] = round(h["total_cost"] + received, 2)
+            _normalize_position(h)
+            _validate_position(a, t)
+        elif act == "FEE":
+            h = positions[(a, t)]
+            avg = h["total_cost"] / h["shares"] if h["shares"] else 0.0
+            h["total_cost"] = round(h["total_cost"] - round(s * avg, 2), 2)
+            h["shares"] = round(h["shares"] - s, 10)
+            _normalize_position(h)
+            _validate_position(a, t)
 
     return positions, cash
 

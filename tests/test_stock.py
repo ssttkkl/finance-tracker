@@ -1249,3 +1249,67 @@ def test_crypto_account_buy_sell_verify_end_to_end(tmp_env, monkeypatch):
     # verify_security 返回 (ok: bool, report_lines: list[str])
     ok, _lines = verify_security()
     assert ok is True
+
+
+def test_replay_swap_conserves_total_cost():
+    """SWAP: 换出币释放的成本原样转给换入币，USD 总成本守恒，不碰现金。"""
+    from ft.stock import _replay_security_rows
+
+    rows = [
+        # 先用现金买入 1 BTC，成本 60000
+        {"date": "2026-07-07 09:00:00", "action": "BUY", "ticker": "btc", "shares": "1",
+         "price": "60000", "amount": "-60000", "commission": "0", "currency": "USD",
+         "account_name": "币安", "note": "seed"},
+        # 用 0.5 BTC 换 10 ETH
+        {"date": "2026-07-07 10:00:00", "action": "SWAP_OUT", "ticker": "btc", "shares": "0.5",
+         "price": "", "amount": "", "commission": "", "currency": "USD",
+         "account_name": "币安", "note": "kraken tid:T1 swap:T1"},
+        {"date": "2026-07-07 10:00:00", "action": "SWAP_IN", "ticker": "eth", "shares": "10",
+         "price": "", "amount": "", "commission": "", "currency": "USD",
+         "account_name": "币安", "note": "kraken tid:T1 swap:T1"},
+    ]
+    positions, cash = _replay_security_rows(rows)
+
+    # BTC: 剩 0.5，成本 30000（释放了 0.5*60000=30000）
+    assert positions[("币安", "btc")]["shares"] == pytest.approx(0.5)
+    assert positions[("币安", "btc")]["total_cost"] == pytest.approx(30000.0)
+    # ETH: 10 股，接收成本 30000
+    assert positions[("币安", "eth")]["shares"] == pytest.approx(10.0)
+    assert positions[("币安", "eth")]["total_cost"] == pytest.approx(30000.0)
+    # 现金不动
+    assert cash["币安"] == pytest.approx(-60000.0)
+    # 总成本守恒
+    assert (positions[("币安", "btc")]["total_cost"]
+            + positions[("币安", "eth")]["total_cost"]) == pytest.approx(60000.0)
+
+
+def test_replay_swap_in_without_pair_raises():
+    """SWAP_IN 找不到配对 released 必须报错，不静默。"""
+    from ft.stock import _replay_security_rows
+
+    rows = [
+        {"date": "2026-07-07 10:00:00", "action": "SWAP_IN", "ticker": "eth", "shares": "10",
+         "price": "", "amount": "", "commission": "", "currency": "USD",
+         "account_name": "币安", "note": "kraken tid:T9 swap:T9"},
+    ]
+    with pytest.raises(ValueError, match="swap"):
+        _replay_security_rows(rows)
+
+
+def test_replay_fee_reduces_holding_by_avg_cost():
+    """FEE: 按均价核销持仓与成本。"""
+    from ft.stock import _replay_security_rows
+
+    rows = [
+        {"date": "2026-07-07 09:00:00", "action": "BUY", "ticker": "bnb", "shares": "10",
+         "price": "500", "amount": "-5000", "commission": "0", "currency": "USD",
+         "account_name": "币安", "note": "seed"},
+        {"date": "2026-07-07 10:00:00", "action": "FEE", "ticker": "bnb", "shares": "0.1",
+         "price": "", "amount": "", "commission": "", "currency": "USD",
+         "account_name": "币安", "note": "kraken tid:T1 fee"},
+    ]
+    positions, cash = _replay_security_rows(rows)
+
+    # BNB: 剩 9.9，成本 5000 - 0.1*500 = 4950
+    assert positions[("币安", "bnb")]["shares"] == pytest.approx(9.9)
+    assert positions[("币安", "bnb")]["total_cost"] == pytest.approx(4950.0)
