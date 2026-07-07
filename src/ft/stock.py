@@ -922,6 +922,32 @@ def _fetch_polymarket_prices(tickers: list[str]) -> dict[str, float]:
 
         market = next((m for m in markets if m.get("slug") == slug), None)
         if not market:
+            # Some nested/sub-market slugs stop resolving via /markets?slug=...
+            # after Polymarket reorganizes the parent event. Search can still
+            # return the parent event with nested markets; match the child slug.
+            search_q = slug.replace("-", " ")
+            search_url = f"https://gamma-api.polymarket.com/public-search?q={quote(search_q)}"
+            try:
+                req = urllib.request.Request(search_url, headers=headers)
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    search_payload = json.load(resp)
+            except Exception:
+                search_payload = None
+            events = []
+            if isinstance(search_payload, dict):
+                events = search_payload.get("events") or search_payload.get("data") or []
+            elif isinstance(search_payload, list):
+                events = search_payload
+            for event in events if isinstance(events, list) else []:
+                if not isinstance(event, dict):
+                    continue
+                for candidate in event.get("markets", []) or []:
+                    if isinstance(candidate, dict) and candidate.get("slug") == slug:
+                        market = candidate
+                        break
+                if market:
+                    break
+        if not market:
             continue
 
         def _coerce_json_list(value):

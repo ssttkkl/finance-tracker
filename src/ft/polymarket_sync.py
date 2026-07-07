@@ -37,6 +37,10 @@ USER_AGENT = (
 UTC_PLUS_8 = timezone(timedelta(hours=8))
 
 
+def _today_iso() -> str:
+    return datetime.now().strftime("%Y-%m-%d")
+
+
 def _request_json(url: str):
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -242,6 +246,49 @@ def filter_new_rows(
     return new_rows
 
 
+def _settlement_rows_for_open_positions(account_name: str = "Polymarket") -> list[dict]:
+    """Create SELL rows for open Polymarket positions whose market has resolved to 0/1."""
+    from .snapshot import load_snapshot
+    from .stock import _fetch_polymarket_prices
+
+    snap = load_snapshot()
+    account = snap.get("accounts", {}).get("security", {}).get(account_name, {})
+    positions = account.get("positions", {}) if isinstance(account, dict) else {}
+    tickers = [
+        ticker for ticker, pos in positions.items()
+        if str(ticker).startswith("pm:") and Decimal(str(pos.get("shares", 0) or 0)) > 0
+    ]
+    if not tickers:
+        return []
+
+    prices = _fetch_polymarket_prices(tickers)
+    rows: list[dict] = []
+    for ticker in sorted(tickers):
+        if ticker not in prices:
+            continue
+        price = float(prices[ticker])
+        # Resolved Gamma markets expose exact outcomePrices [0, 1]. Only auto-close
+        # when the held token is at a settlement endpoint, not for live market quotes.
+        if price not in (0.0, 1.0):
+            continue
+        shares = Decimal(str(positions[ticker].get("shares", 0)))
+        price_dec = Decimal(str(int(price)))
+        amount = shares * price_dec
+        rows.append({
+            "date": _today_iso(),
+            "action": "SELL",
+            "ticker": ticker,
+            "shares": _decimal_text(shares),
+            "price": _decimal_text(price_dec),
+            "amount": _decimal_text(amount),
+            "commission": "0",
+            "currency": "USD",
+            "account_name": account_name,
+            "note": "polymarket settlement",
+        })
+    return rows
+
+
 def sync_polymarket(
     wallet: str | None = None,
     proxy_wallet: str | None = None,
@@ -269,6 +316,8 @@ def sync_polymarket(
 
     activities = fetch_activity(proxy_wallet, limit=limit, max_pages=max_pages)
     rows = activities_to_stock_rows(activities, account_name=account_name)
+    rows.extend(_settlement_rows_for_open_positions(account_name=account_name))
+    rows.sort(key=lambda r: r["date"])
     new_rows = filter_new_rows(rows, account_name=account_name)
 
     print(f"Polymarket proxy wallet: {proxy_wallet}")

@@ -1384,3 +1384,124 @@ def test_do_swap_insufficient_from_shares_raises(tmp_env):
     with pytest.raises(ValueError, match="持仓不足"):
         do_swap(account_name="币安", from_ticker="btc", from_shares=1,
                 to_ticker="eth", to_shares=10, date="2026-07-07 10:00:00")
+
+
+
+def test_fetch_prices_polymarket_resolved_market_uses_outcome_price(monkeypatch):
+    """Resolved markets expose [0,1]; held outcome must use its own settlement price."""
+    from ft.stock import _fetch_prices
+
+    class FakeResponse:
+        def __init__(self, payload: bytes):
+            self.payload = payload
+
+        def read(self):
+            return self.payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    def fake_urlopen(req, timeout=15):
+        url = req.full_url if hasattr(req, "full_url") else req
+        assert "gamma-api.polymarket.com/markets" in url
+        payload = (
+            b'[{"slug":"resolved-market","closed":true,"acceptingOrders":false,'
+            b'"umaResolutionStatus":"resolved","outcomes":"[\\"Yes\\",\\"No\\"]",'
+            b'"outcomePrices":"[\\"0\\",\\"1\\"]","lastTradePrice":0}]'
+        )
+        return FakeResponse(payload)
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setitem(sys.modules, "yfinance", None)
+
+    prices = _fetch_prices(["pm:resolved-market:no", "pm:resolved-market:yes"])
+
+    assert prices["pm:resolved-market:no"] == pytest.approx(1.0)
+    assert prices["pm:resolved-market:yes"] == pytest.approx(0.0)
+
+
+def test_sync_polymarket_adds_settlement_sell_for_resolved_open_position(tmp_env, monkeypatch):
+    """Sync should close held Polymarket positions when Gamma says the market is resolved."""
+    from ft.accounts import save_accounts
+    from ft import models
+    from ft.snapshot import save_snapshot
+    from ft.polymarket_sync import sync_polymarket
+
+    save_accounts([
+        {"name": "Polymarket", "type": "security", "currency": "USD", "active": True},
+    ], models.ACCOUNTS_PATH)
+    save_snapshot({
+        "updated_at": "2026-07-07",
+        "accounts": {
+            "security": {
+                "Polymarket": {
+                    "currency": "USD",
+                    "cash": 0.0,
+                    "positions": {
+                        "pm:resolved-market:no": {"shares": 85.0, "avg_cost": 0.83},
+                    },
+                }
+            }
+        },
+    })
+    monkeypatch.setattr("ft.polymarket_sync.fetch_activity", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr("ft.stock._fetch_polymarket_prices", lambda tickers: {"pm:resolved-market:no": 1.0})
+    monkeypatch.setattr("ft.polymarket_sync._today_iso", lambda: "2026-07-07")
+
+    rows = sync_polymarket(proxy_wallet="0x" + "1" * 40, account_name="Polymarket", dry_run=True)
+
+    assert rows == [{
+        "date": "2026-07-07",
+        "action": "SELL",
+        "ticker": "pm:resolved-market:no",
+        "shares": "85",
+        "price": "1",
+        "amount": "85",
+        "commission": "0",
+        "currency": "USD",
+        "account_name": "Polymarket",
+        "note": "polymarket settlement",
+    }]
+
+
+
+def test_fetch_prices_polymarket_resolved_market_found_via_search_fallback(monkeypatch):
+    """If direct slug lookup is stale, search parent event and use resolved child outcomePrices."""
+    from ft.stock import _fetch_prices
+
+    class FakeResponse:
+        def __init__(self, payload: bytes):
+            self.payload = payload
+
+        def read(self):
+            return self.payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    def fake_urlopen(req, timeout=15):
+        url = req.full_url if hasattr(req, "full_url") else req
+        if "gamma-api.polymarket.com/markets?slug=stale-child-market" in url:
+            return FakeResponse(b"[]")
+        if "gamma-api.polymarket.com/public-search" in url:
+            payload = (
+                b'{"events":[{"slug":"parent-event","markets":[{"slug":"stale-child-market",'
+                b'"closed":true,"acceptingOrders":false,"umaResolutionStatus":"resolved",'
+                b'"outcomes":"[\\"Yes\\",\\"No\\"]",'
+                b'"outcomePrices":"[\\"0\\",\\"1\\"]"}]}]}'
+            )
+            return FakeResponse(payload)
+        raise AssertionError(url)
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setitem(sys.modules, "yfinance", None)
+
+    prices = _fetch_prices(["pm:stale-child-market:no"])
+
+    assert prices == {"pm:stale-child-market:no": pytest.approx(1.0)}
