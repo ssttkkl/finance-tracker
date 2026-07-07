@@ -23,6 +23,26 @@ def _make_alipay_csv(rows: list[list[str]], path: str):
 class TestAlipayCategory:
     """convert 层只看收支方向，不做语义判断"""
 
+    def test_支出_交易关闭_跳过(self):
+        """支出 + 交易关闭 → 订单未完成，无实际资金流动，跳过。"""
+        csv_path = str(TEST_DIR / "alipay_expense_closed.csv")
+        _make_alipay_csv([
+            ["2024-06-04 14:24:45", "交通出行", "铁路12306", "火车票", "支出", "433.00", "建设银行储蓄卡(2820)", "交易关闭"],
+        ], csv_path)
+        from ft.convert import _read_alipay_raw
+        records, _ = _read_alipay_raw(csv_path)
+        assert records == []
+
+    def test_收入_交易关闭_跳过(self):
+        """收入 + 交易关闭 → 未完成收款，无实际资金流动，跳过。"""
+        csv_path = str(TEST_DIR / "alipay_income_closed.csv")
+        _make_alipay_csv([
+            ["2025-06-04 02:50:01", "收入", "****0", "专拍 定金50", "收入", "999.00", "", "交易关闭"],
+        ], csv_path)
+        from ft.convert import _read_alipay_raw
+        records, _ = _read_alipay_raw(csv_path)
+        assert records == []
+
     def test_普通消费_支出(self):
         csv_path = str(TEST_DIR / "alipay_normal.csv")
         _make_alipay_csv([
