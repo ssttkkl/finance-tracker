@@ -1131,3 +1131,256 @@ def test_security_balance_uses_current_market_price(tmp_env, monkeypatch):
 
     bal = _compute_balance("POLY", "USD")
     assert bal == pytest.approx(107.5)
+
+
+def test_fetch_crypto_prices_maps_symbols_to_usd(monkeypatch):
+    from ft import stock
+
+    def fake_get(url, timeout=15):
+        assert "api.coingecko.com/api/v3/simple/price" in url
+        assert "vs_currencies=usd" in url
+        assert "bitcoin" in url and "ethereum" in url
+        return {"bitcoin": {"usd": 61000.0}, "ethereum": {"usd": 3000.0}}
+
+    monkeypatch.setattr(stock, "_http_get_json", fake_get)
+    prices = stock._fetch_crypto_prices(["btc", "eth"])
+    assert prices == {"btc": pytest.approx(61000.0), "eth": pytest.approx(3000.0)}
+
+
+def test_fetch_crypto_prices_unknown_symbol_ignored(monkeypatch):
+    from ft import stock
+
+    monkeypatch.setattr(stock, "_http_get_json",
+                        lambda url, timeout=15: {"bitcoin": {"usd": 61000.0}})
+    prices = stock._fetch_crypto_prices(["btc", "notacoin"])
+    assert prices == {"btc": pytest.approx(61000.0)}
+
+
+def test_fetch_crypto_prices_network_failure_returns_empty(monkeypatch):
+    from ft import stock
+
+    def boom(url, timeout=15):
+        raise OSError("network down")
+
+    monkeypatch.setattr(stock, "_http_get_json", boom)
+    assert stock._fetch_crypto_prices(["btc"]) == {}
+
+
+def test_fetch_crypto_prices_empty_input():
+    from ft import stock
+    assert stock._fetch_crypto_prices([]) == {}
+
+
+def test_fetch_prices_routes_crypto_to_coingecko(monkeypatch):
+    """crypto ticker 走 CoinGecko，股票 ticker 走 yfinance，互不串。"""
+    from ft import stock
+
+    called = {}
+
+    def fake_crypto(tickers):
+        called["crypto"] = list(tickers)
+        return {"btc": 61000.0}
+
+    monkeypatch.setattr(stock, "_fetch_crypto_prices", fake_crypto)
+
+    def fake_download(tickers, period=None, progress=False, auto_adjust=False):
+        assert "BTC" not in tickers  # crypto 不应流入 yfinance
+        cols = pd.MultiIndex.from_tuples([("Close", "AAPL")])
+        return pd.DataFrame([[195.0], [196.5]], columns=cols,
+                            index=pd.Index(["2026-06-12", "2026-06-13"]))
+
+    fake_yf = type("FakeYF", (), {"download": staticmethod(fake_download)})
+    monkeypatch.setitem(sys.modules, "yfinance", fake_yf)
+    monkeypatch.setattr(time, "sleep", lambda *_: None)
+
+    prices = stock._fetch_prices(["btc", "aapl.us"])
+    assert called["crypto"] == ["btc"]
+    assert prices["btc"] == pytest.approx(61000.0)
+    assert prices["aapl.us"] == pytest.approx(196.5)
+
+
+def test_stock_append_accepts_crypto_account(tmp_env):
+    """crypto 类型账户可导入股票风格记录。"""
+    from ft.accounts import save_accounts
+    from ft.stock import CSV_FIELDS, do_append
+    from ft import models
+
+    save_accounts([
+        {"name": "币安", "type": "crypto", "currency": "USD", "active": True},
+    ], models.ACCOUNTS_PATH)
+    csv_path = tmp_env / "binance_crypto.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        writer.writerow({
+            "date": "2026-07-07 10:00:00", "action": "BUY", "ticker": "btc",
+            "shares": "0.05", "price": "60000", "amount": "-3000", "commission": "0",
+            "currency": "USD", "account_name": "币安", "note": "crypto buy",
+        })
+
+    assert do_append(csv_path) is True
+    assert (models.RECORDS_DIR / "security" / "2026-07-07.csv").exists()
+
+
+def test_crypto_account_buy_sell_verify_end_to_end(tmp_env, monkeypatch):
+    """crypto 账户走 ft stock deposit/buy/sell → snapshot 与 CSV 一致。"""
+    from ft.accounts import save_accounts
+    from ft import models
+    from ft.stock import (
+        do_deposit, do_buy, do_sell, load_snapshot, verify_security,
+    )
+
+    save_accounts([
+        {"name": "币安", "type": "crypto", "currency": "USD", "active": True},
+    ], models.ACCOUNTS_PATH)
+
+    do_deposit(amount=5000, currency="USD", account_name="币安",
+               date="2026-07-07 09:00:00")
+    do_buy(ticker="btc", shares=0.05, price=60000, commission=0,
+           currency="USD", account_name="币安", date="2026-07-07 10:00:00")
+    do_sell(ticker="btc", shares=0.02, price=62000, commission=0,
+            currency="USD", account_name="币安", date="2026-07-07 11:00:00")
+
+    snap = load_snapshot()
+    acct = snap["accounts"]["security"]["币安"]
+    # 现金: 5000 - 0.05*60000 + 0.02*62000 = 5000 - 3000 + 1240 = 3240
+    assert acct["cash"] == pytest.approx(3240.0)
+    assert acct["positions"]["btc"]["shares"] == pytest.approx(0.03)
+    # verify_security 返回 (ok: bool, report_lines: list[str])
+    ok, _lines = verify_security()
+    assert ok is True
+
+
+def test_replay_swap_conserves_total_cost():
+    """SWAP: 换出币释放的成本原样转给换入币，USD 总成本守恒，不碰现金。"""
+    from ft.stock import _replay_security_rows
+
+    rows = [
+        # 先用现金买入 1 BTC，成本 60000
+        {"date": "2026-07-07 09:00:00", "action": "BUY", "ticker": "btc", "shares": "1",
+         "price": "60000", "amount": "-60000", "commission": "0", "currency": "USD",
+         "account_name": "币安", "note": "seed"},
+        # 用 0.5 BTC 换 10 ETH
+        {"date": "2026-07-07 10:00:00", "action": "SWAP_OUT", "ticker": "btc", "shares": "0.5",
+         "price": "", "amount": "", "commission": "", "currency": "USD",
+         "account_name": "币安", "note": "kraken tid:T1 swap:T1"},
+        {"date": "2026-07-07 10:00:00", "action": "SWAP_IN", "ticker": "eth", "shares": "10",
+         "price": "", "amount": "", "commission": "", "currency": "USD",
+         "account_name": "币安", "note": "kraken tid:T1 swap:T1"},
+    ]
+    positions, cash = _replay_security_rows(rows)
+
+    # BTC: 剩 0.5，成本 30000（释放了 0.5*60000=30000）
+    assert positions[("币安", "btc")]["shares"] == pytest.approx(0.5)
+    assert positions[("币安", "btc")]["total_cost"] == pytest.approx(30000.0)
+    # ETH: 10 股，接收成本 30000
+    assert positions[("币安", "eth")]["shares"] == pytest.approx(10.0)
+    assert positions[("币安", "eth")]["total_cost"] == pytest.approx(30000.0)
+    # 现金不动
+    assert cash["币安"] == pytest.approx(-60000.0)
+    # 总成本守恒
+    assert (positions[("币安", "btc")]["total_cost"]
+            + positions[("币安", "eth")]["total_cost"]) == pytest.approx(60000.0)
+
+
+def test_replay_swap_in_without_pair_raises():
+    """SWAP_IN 找不到配对 released 必须报错，不静默。"""
+    from ft.stock import _replay_security_rows
+
+    rows = [
+        {"date": "2026-07-07 10:00:00", "action": "SWAP_IN", "ticker": "eth", "shares": "10",
+         "price": "", "amount": "", "commission": "", "currency": "USD",
+         "account_name": "币安", "note": "kraken tid:T9 swap:T9"},
+    ]
+    with pytest.raises(ValueError, match="swap"):
+        _replay_security_rows(rows)
+
+
+def test_replay_fee_reduces_holding_by_avg_cost():
+    """FEE: 按均价核销持仓与成本。"""
+    from ft.stock import _replay_security_rows
+
+    rows = [
+        {"date": "2026-07-07 09:00:00", "action": "BUY", "ticker": "bnb", "shares": "10",
+         "price": "500", "amount": "-5000", "commission": "0", "currency": "USD",
+         "account_name": "币安", "note": "seed"},
+        {"date": "2026-07-07 10:00:00", "action": "FEE", "ticker": "bnb", "shares": "0.1",
+         "price": "", "amount": "", "commission": "", "currency": "USD",
+         "account_name": "币安", "note": "kraken tid:T1 fee"},
+    ]
+    positions, cash = _replay_security_rows(rows)
+
+    # BNB: 剩 9.9，成本 5000 - 0.1*500 = 4950
+    assert positions[("币安", "bnb")]["shares"] == pytest.approx(9.9)
+    assert positions[("币安", "bnb")]["total_cost"] == pytest.approx(4950.0)
+
+
+def test_append_accepts_swap_fee_rows_and_keeps_currency(tmp_env):
+    """含空数值列的 SWAP/FEE 行可导入；crypto 账户币种在重建后保留。"""
+    from ft.accounts import save_accounts
+    from ft.stock import CSV_FIELDS, do_append, load_snapshot
+    from ft import models
+
+    save_accounts([
+        {"name": "币安", "type": "crypto", "currency": "USD", "active": True},
+    ], models.ACCOUNTS_PATH)
+
+    csv_path = tmp_env / "swap.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        writer.writerow({"date": "2026-07-07 09:00:00", "action": "BUY", "ticker": "btc",
+                         "shares": "1", "price": "60000", "amount": "-60000", "commission": "0",
+                         "currency": "USD", "account_name": "币安", "note": "seed"})
+        writer.writerow({"date": "2026-07-07 10:00:00", "action": "SWAP_OUT", "ticker": "btc",
+                         "shares": "0.5", "price": "", "amount": "", "commission": "",
+                         "currency": "USD", "account_name": "币安", "note": "kraken tid:T1 swap:T1"})
+        writer.writerow({"date": "2026-07-07 10:00:00", "action": "SWAP_IN", "ticker": "eth",
+                         "shares": "10", "price": "", "amount": "", "commission": "",
+                         "currency": "USD", "account_name": "币安", "note": "kraken tid:T1 swap:T1"})
+
+    assert do_append(csv_path) is True
+    snap = load_snapshot()
+    acct = snap["accounts"]["security"]["币安"]
+    assert acct["currency"] == "USD"          # 币种未丢
+    assert acct["positions"]["eth"]["shares"] == pytest.approx(10.0)
+    assert acct["positions"]["btc"]["shares"] == pytest.approx(0.5)
+
+
+def test_do_swap_conserves_cost_and_ignores_cash(tmp_env):
+    from ft.accounts import save_accounts
+    from ft import models
+    from ft.stock import do_deposit, do_buy, do_swap, load_snapshot, verify_security
+
+    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "active": True}],
+                  models.ACCOUNTS_PATH)
+    do_deposit(amount=100000, currency="USD", account_name="币安",
+               date="2026-07-07 08:00:00")
+    do_buy(ticker="btc", shares=1, price=60000, commission=0, currency="USD",
+           account_name="币安", date="2026-07-07 09:00:00")
+
+    do_swap(account_name="币安", from_ticker="btc", from_shares=0.5,
+            to_ticker="eth", to_shares=10, date="2026-07-07 10:00:00")
+
+    snap = load_snapshot()
+    acct = snap["accounts"]["security"]["币安"]
+    assert acct["positions"]["btc"]["shares"] == pytest.approx(0.5)
+    assert acct["positions"]["eth"]["shares"] == pytest.approx(10.0)
+    # ETH 成本 = 释放的 BTC 成本 0.5*60000 = 30000 → 均价 3000
+    assert acct["positions"]["eth"]["avg_cost"] == pytest.approx(3000.0)
+    # 现金：deposit 100000 - buy 60000 = 40000，swap 不动
+    assert acct["cash"] == pytest.approx(40000.0)
+    ok, _ = verify_security()
+    assert ok is True
+
+
+def test_do_swap_insufficient_from_shares_raises(tmp_env):
+    from ft.accounts import save_accounts
+    from ft import models
+    from ft.stock import do_swap
+
+    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "active": True}],
+                  models.ACCOUNTS_PATH)
+    with pytest.raises(ValueError, match="持仓不足"):
+        do_swap(account_name="币安", from_ticker="btc", from_shares=1,
+                to_ticker="eth", to_shares=10, date="2026-07-07 10:00:00")

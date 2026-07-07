@@ -113,3 +113,17 @@ def test_add_same_name_different_currency(tmp_accounts_path):
     names = [a["currency"] for a in accounts if a["name"] == "工行信用卡(1200)"]
     assert "CNY" in names
     assert "USD" in names
+
+
+def test_crypto_account_type_registered():
+    from ft import models
+    assert "crypto" in models.ACCOUNT_TYPES
+    assert models.ACCOUNT_LABELS["crypto"] == "加密货币"
+    assert models.ACCOUNT_ICONS["crypto"] == "🪙"
+
+
+def test_crypto_ids_map():
+    from ft import models
+    assert models.CRYPTO_IDS["btc"] == "bitcoin"
+    assert models.CRYPTO_IDS["eth"] == "ethereum"
+    assert models.CRYPTO_IDS["usdt"] == "tether"

@@ -48,9 +48,21 @@ reconcile 阶段：审计文件中每对 dedup_status=保留/去除 行必须成
 
 | 命令 | 说明 |
 |------|------|
-| `ft acct add <名称> --type cash|loan|lend|security --currency CNY|USD|HKD` | 新增 |
+| `ft acct add <名称> --type cash|loan|lend|security|crypto --currency CNY|USD|HKD` | 新增 |
 | `ft acct list` | 列表+余额 |
 | `ft acct rename|delete|activate|deactivate` | 管理 |
+
+#### 加密货币账户（crypto）
+
+`crypto` 类型账户复用 security 引擎（同 snapshot 桶、同 `records/security/` CSV、同 `ft stock` 命令）。运营模型为稳定币计价：**USDT=现金（1:1 USD），BTC/ETH 等为持仓，成本 USD 计价**。价格走 CoinGecko（honor `HTTP_PROXY`，失败显示 N/A）。新增币种在 `models.py` 的 `CRYPTO_IDS` 补一行 `symbol → CoinGecko id`（已内置 btc/eth/usdt/usdc/sol/bnb/xrp/doge/ada）。crypto 账户统一用 USD。
+
+```bash
+ft acct add 币安 --type crypto --currency USD
+ft stock deposit --amount 5000 --account 币安              # 充 USDT(现金)
+ft stock buy  --ticker btc --shares 0.05 --price 60000 --account 币安
+ft stock sell --ticker eth --shares 1    --price 3000  --account 币安
+ft stock list                                             # BTC/ETH 自动走 CoinGecko
+```
 
 ### 查询
 
@@ -182,11 +194,19 @@ ft stock dividend --ticker nvda.us --amount 10 --account IBKR
 ft stock checkin --account IBKR --ticker nvda.us --shares 45 --avg-cost 224.14
 ft stock checkin --account IBKR --cash 14000
 
-# Polymarket 官方 Activity 增量同步（先 dry-run 看新增数）
+# Polymarket 官方 Activity 增量同步（先 dry-run 看新增数；wallet/proxy_wallet 可放 ~/.ft/credentials.yaml 的 polymarket 段）
+ft stock sync polymarket --dry-run
+ft stock sync polymarket
+# 也可临时覆盖 credentials.yaml 中的地址
 ft stock sync polymarket --wallet 0xYourProfileWallet --dry-run
-ft stock sync polymarket --wallet 0xYourProfileWallet
-# 已知 proxy wallet 时可跳过 profile 解析
 ft stock sync polymarket --proxy-wallet 0xYourProxyWallet --dry-run -o /tmp/polymarket_new.csv
+
+# 加密交易所成交同步（ccxt 私有 API，先 dry-run；凭证在 ~/.ft/credentials.yaml）
+ft stock sync kraken --account 币安 --dry-run --since 2026-01-01 --symbol BTC/USDT
+ft stock sync okx --account OKX -o /tmp/exchange_new.csv
+
+# 手工币币兑换（持仓换持仓，成本结转，不碰现金）
+ft stock swap --account 币安 --from-ticker btc --from-shares 0.5 --to-ticker eth --to-shares 10
 
 # 查询
 ft stock list

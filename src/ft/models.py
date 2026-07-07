@@ -15,18 +15,20 @@ CURRENCY_SYMBOLS = {
 }
 
 # 账户类型
-ACCOUNT_TYPES = ("cash", "loan", "lend", "security")
+ACCOUNT_TYPES = ("cash", "loan", "lend", "security", "crypto")
 ACCOUNT_LABELS = {
     "cash": "现金",
     "loan": "贷款",
     "lend": "借款",
     "security": "证券",
+    "crypto": "加密货币",
 }
 ACCOUNT_ICONS = {
     "cash": "💰",
     "loan": "💳",
     "lend": "📤",
     "security": "📈",
+    "crypto": "🪙",
 }
 
 # 交易类型
@@ -56,3 +58,16 @@ FOREIGN_EXCHANGE_KEYWORDS = ("购汇", "跨境", "外汇", "换汇")
 CSV_FIELDS = ["date", "amount", "currency", "counterparty",
               "description", "category", "account_name", "source",
               "bill_source", "transfer_account", "locked"]
+
+# 加密货币符号 → CoinGecko coin id（新增币种在此补一行）
+CRYPTO_IDS = {
+    "btc": "bitcoin",
+    "eth": "ethereum",
+    "usdt": "tether",
+    "usdc": "usd-coin",
+    "sol": "solana",
+    "bnb": "binancecoin",
+    "xrp": "ripple",
+    "doge": "dogecoin",
+    "ada": "cardano",
+}

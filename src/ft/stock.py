@@ -19,7 +19,8 @@ CSV_FIELDS = [
     "commission", "currency", "account_name", "note",
 ]
 
-VALID_ACTIONS = {"BUY", "SELL", "DEPOSIT", "WITHDRAW", "DIVIDEND", "CHECKIN"}
+VALID_ACTIONS = {"BUY", "SELL", "DEPOSIT", "WITHDRAW", "DIVIDEND", "CHECKIN",
+                 "SWAP_OUT", "SWAP_IN", "FEE"}
 
 
 def _clean_csv_row(row: dict) -> dict:
@@ -318,8 +319,8 @@ def do_append(file_path):
         if account is None:
             print(f"❌ 第 {i} 行: 未知账户 '{row['account_name']}' ({row['currency']})，请先 ft acct add")
             return False
-        if account.get("type") != "security":
-            print(f"❌ 第 {i} 行: 账户 '{row['account_name']}' ({row['currency']}) 不是 security 类型，不能导入股票记录")
+        if account.get("type") not in ("security", "crypto"):
+            print(f"❌ 第 {i} 行: 账户 '{row['account_name']}' ({row['currency']}) 不是 security/crypto 类型，不能导入股票记录")
             return False
 
     # Validate numeric fields and replay-derived finite values
@@ -328,7 +329,7 @@ def do_append(file_path):
         parsed = {}
         for field in num_fields:
             try:
-                value = float(row[field])
+                value = float(row[field] or 0)
             except (ValueError, TypeError):
                 print(f"❌ 第 {i} 行: 字段 '{field}' 值 '{row[field]}' 不是有效数字")
                 return False
@@ -577,6 +578,64 @@ def do_sell(
         commission=commission, currency=currency,
         account_name=account_name, note=note,
     )
+
+
+def do_swap(
+    account_name: str,
+    from_ticker: str,
+    from_shares: float,
+    to_ticker: str,
+    to_shares: float,
+    currency: str = "USD",
+    note: str = "",
+    date: Optional[str] = None,
+):
+    """Crypto-to-crypto swap: carry from_ticker's released cost to to_ticker.
+
+    Records two rows (SWAP_OUT then SWAP_IN) sharing swap:<id>. Cash untouched.
+    """
+    if date is None:
+        date = _now()
+    _ensure_finite_values(from_shares=from_shares, to_shares=to_shares)
+    date_key = date[:10]
+
+    snap = load_snapshot()
+    acct = _ensure_account(snap, account_name, currency)
+
+    from_pos = acct["positions"].get(from_ticker)
+    if from_pos is None or round(from_pos["shares"] - from_shares, 10) < 0:
+        have = from_pos["shares"] if from_pos else 0
+        raise ValueError(
+            f"{account_name} 的 {from_ticker} 持仓不足：有 {have}，需 {from_shares}"
+        )
+
+    released = round(from_shares * from_pos["avg_cost"], 2)
+    from_pos["shares"] = round(from_pos["shares"] - from_shares, 10)
+    if from_pos["shares"] == 0:
+        del acct["positions"][from_ticker]
+
+    to_pos = acct["positions"].setdefault(to_ticker, {"shares": 0, "avg_cost": 0.0})
+    old_cost = round(to_pos["avg_cost"] * to_pos["shares"], 2)
+    to_pos["shares"] = round(to_pos["shares"] + to_shares, 10)
+    to_pos["avg_cost"] = round((old_cost + released) / to_pos["shares"], 2) \
+        if to_pos["shares"] != 0 else 0.0
+
+    snap["updated_at"] = date_key
+    swap_id = f"{date_key}-{from_ticker}-{to_ticker}"
+    base_note = (note + " ").lstrip() if note else ""
+    swap_note = f"{base_note}swap:{swap_id}".strip()
+
+    # 先存快照，再写两行（OUT→IN），任一失败由 record_trade 抛出。
+    save_snapshot(snap)
+    record_trade(date=date, action="SWAP_OUT", ticker=from_ticker,
+                 shares=from_shares, price=0, amount=0, commission=0,
+                 currency=currency, account_name=account_name, note=swap_note)
+    record_trade(date=date, action="SWAP_IN", ticker=to_ticker,
+                 shares=to_shares, price=0, amount=0, commission=0,
+                 currency=currency, account_name=account_name, note=swap_note)
+    print(f"✅ 兑换 {_fmt_shares(from_shares)} {from_ticker} → "
+          f"{_fmt_shares(to_shares)} {to_ticker} ({account_name})")
+    return True
 
 
 def do_deposit(
@@ -924,6 +983,66 @@ def _fetch_polymarket_prices(tickers: list[str]) -> dict[str, float]:
     return prices
 
 
+def _http_get_json(url: str, timeout: int = 15) -> dict:
+    """GET JSON with browser-style UA and HTTP(S)_PROXY support. Raises on failure."""
+    import json
+    import os
+    import urllib.request
+
+    headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+    proxy = os.environ.get("HTTP_PROXY") or os.environ.get("HTTPS_PROXY")
+    if proxy:
+        opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({"http": proxy, "https": proxy})
+        )
+    else:
+        opener = urllib.request.build_opener()
+    req = urllib.request.Request(url, headers=headers)
+    with opener.open(req, timeout=timeout) as resp:
+        return json.load(resp)
+
+
+def _fetch_crypto_prices(tickers: list[str]) -> dict[str, float]:
+    """Fetch USD prices for crypto tickers via CoinGecko simple/price.
+
+    Input tickers are ft's stored symbols (e.g. ['btc','eth']).
+    Returns {original_ticker: usd_price}; {} on failure.
+    """
+    if not tickers:
+        return {}
+    from urllib.parse import quote
+
+    id_to_ticker = {}
+    for t in tickers:
+        cid = models.CRYPTO_IDS.get(str(t).strip().lower())
+        if cid:
+            id_to_ticker[cid] = t
+    if not id_to_ticker:
+        return {}
+
+    ids = ",".join(sorted(id_to_ticker))
+    url = (
+        "https://api.coingecko.com/api/v3/simple/price"
+        f"?ids={quote(ids)}&vs_currencies=usd"
+    )
+    try:
+        data = _http_get_json(url)
+    except Exception:
+        return {}
+
+    prices = {}
+    if not isinstance(data, dict):
+        return {}
+    for cid, ticker in id_to_ticker.items():
+        entry = data.get(cid)
+        if isinstance(entry, dict) and "usd" in entry:
+            try:
+                prices[ticker] = float(entry["usd"])
+            except (TypeError, ValueError):
+                continue
+    return prices
+
+
 def _fetch_prices(tickers: list[str]) -> dict[str, float]:
     """Fetch current prices from yfinance and Polymarket.
 
@@ -945,8 +1064,12 @@ def _fetch_prices(tickers: list[str]) -> dict[str, float]:
         ticker_map[nt] = t
         normalized.append(nt)
 
+    crypto_tickers = [nt for nt in normalized if nt.lower() in models.CRYPTO_IDS]
     pm_tickers = [nt for nt in normalized if nt.startswith("pm:")]
-    regular_tickers = [nt for nt in normalized if not nt.startswith("pm:")]
+    regular_tickers = [
+        nt for nt in normalized
+        if not nt.startswith("pm:") and nt.lower() not in models.CRYPTO_IDS
+    ]
 
     import os
     proxy = os.environ.get("HTTP_PROXY") or os.environ.get("HTTPS_PROXY")
@@ -954,7 +1077,8 @@ def _fetch_prices(tickers: list[str]) -> dict[str, float]:
         os.environ.setdefault("HTTP_PROXY", proxy)
         os.environ.setdefault("HTTPS_PROXY", proxy)
 
-    prices = _fetch_polymarket_prices(pm_tickers)
+    prices = _fetch_crypto_prices([ticker_map[nt] for nt in crypto_tickers])
+    prices.update(_fetch_polymarket_prices(pm_tickers))
 
     if not regular_tickers:
         return prices
@@ -1151,6 +1275,7 @@ def _replay_security_rows(rows):
 
     positions = defaultdict(lambda: {"shares": 0.0, "total_cost": 0.0})
     cash = defaultdict(float)
+    pending_swaps: dict[str, float] = {}
 
     def _normalize_position(h):
         """Snap tiny floating-point residue to zero so closed positions disappear."""
@@ -1213,7 +1338,7 @@ def _replay_security_rows(rows):
             else:
                 # Covering short — keep cumulative cost
                 h["total_cost"] = round(old_c + s * p, 2)
-            h["shares"] = new_s
+            h["shares"] = round(new_s, 10)
             _normalize_position(h)
             _validate_position(a, t)
             cash[a] = round(cash[a] + amt - com, 2)
@@ -1223,11 +1348,11 @@ def _replay_security_rows(rows):
             sold = abs(s)
             if h["shares"] > 0:
                 # Regular sell
-                h["shares"] -= sold
+                h["shares"] = round(h["shares"] - sold, 10)
                 h["total_cost"] = round(h["total_cost"] - abs(amt) + com, 2)
             else:
                 # Short sell (shares == 0) or additional short (shares < 0)
-                h["shares"] -= sold
+                h["shares"] = round(h["shares"] - sold, 10)
                 h["total_cost"] = round(h["total_cost"] - abs(amt) + com, 2)
             _normalize_position(h)
             _validate_position(a, t)
@@ -1239,6 +1364,37 @@ def _replay_security_rows(rows):
         elif act == "WITHDRAW":
             cash[a] = round(cash[a] + amt, 2)
             _validate_cash(a)
+        elif act == "SWAP_OUT":
+            import re
+            h = positions[(a, t)]
+            avg = h["total_cost"] / h["shares"] if h["shares"] else 0.0
+            released = round(s * avg, 2)
+            h["shares"] = round(h["shares"] - s, 10)
+            h["total_cost"] = round(h["total_cost"] - released, 2)
+            _normalize_position(h)
+            _validate_position(a, t)
+            m = re.search(r"swap:(\S+)", row.get("note", "") or "")
+            if not m:
+                raise ValueError(f"SWAP_OUT 缺少 note 中的 swap:<id>: {row!r}")
+            pending_swaps[m.group(1)] = released
+        elif act == "SWAP_IN":
+            import re
+            m = re.search(r"swap:(\S+)", row.get("note", "") or "")
+            if not m or m.group(1) not in pending_swaps:
+                raise ValueError(f"SWAP_IN 找不到配对的 swap released: {row!r}")
+            received = pending_swaps.pop(m.group(1))
+            h = positions[(a, t)]
+            h["shares"] = round(h["shares"] + s, 10)
+            h["total_cost"] = round(h["total_cost"] + received, 2)
+            _normalize_position(h)
+            _validate_position(a, t)
+        elif act == "FEE":
+            h = positions[(a, t)]
+            avg = h["total_cost"] / h["shares"] if h["shares"] else 0.0
+            h["total_cost"] = round(h["total_cost"] - round(s * avg, 2), 2)
+            h["shares"] = round(h["shares"] - s, 10)
+            _normalize_position(h)
+            _validate_position(a, t)
 
     return positions, cash
 
@@ -1296,7 +1452,7 @@ def repair_security(records_dir=None):
 
     # Look up currency from accounts.yaml
     acct_currencies = {a["name"]: a["currency"] for a in load_accounts()
-                       if a["type"] == "security"}
+                       if a["type"] in ("security", "crypto")}
 
     accounts = {}
     for (acct_name, ticker), p in positions.items():
