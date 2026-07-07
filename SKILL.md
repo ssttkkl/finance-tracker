@@ -42,7 +42,7 @@ AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2(脱敏) > P3
 
 reconcile 阶段：审计文件中每对 dedup_status=保留/去除 行必须成对出现；保留行必须仍存在于 records 中，去除行不应再出现在 records。漏删：同来源+同日+同金额+同 counterparty 的明显重复（注意同日不同时独立交易）。
 
-**合并审查（步骤 ⑤）**：reconcile 后按 3 个月一批分给 subagent 并行审查（见 `references/reconcile-review.md`）。
+**合并审查（步骤 ⑤）**：reconcile 后按 6 个月一批分给 subagent 并行审查（见 `references/reconcile-transfer-leakage-audit.md`）。审查输出保持极简：不要逐条展开所有“无需标注”，只统计无需标注数量/置信度分布；明细只列“未标注”和“误标注”，每条给 `置信度 + 判断 + 最小定位信息`。
 
 ### 账户管理
 
@@ -78,6 +78,10 @@ reconcile 阶段：审计文件中每对 dedup_status=保留/去除 行必须成
 
 ### Git 版本控制（事务型提交）
 
+### Reconcile transfer leakage audits
+
+When auditing `ft reconcile` for missed internal transfers, use the batch-review/TDD/dry-run workflow in [`references/reconcile-transfer-leakage-audit.md`](references/reconcile-transfer-leakage-audit.md). Key rule: split existing data into 6-month read-only review batches, integrate high-confidence cases, write RED tests first, then implement minimal rules, and dry-run on a copied ledger before touching real `~/.ft`.
+
 | 命令 | 说明 |
 |------|------|
 | `ft status` | 查看未提交的改动（git status --short） |
@@ -104,7 +108,7 @@ reconcile 阶段：审计文件中每对 dedup_status=保留/去除 行必须成
 | `transfer_account` | 内部转账对手账户（转账行才有） | `微信零钱` |
 | `locked` | 人工锁定标记；`1`=reconcile 完全不碰此行（不去重、不配对、不单腿标记，仅原样写回）。`ft transfer` 手动写入的行自动 `locked=1` | `1` / 空 |
 
-> **reconcile 幂等性**：CSV 为 11 列。`locked=1` 的行被 reconcile 完全跳过，因此重复 `ft reconcile` 不会重标已处理行，也不会覆盖人工修正——多次执行收敛、无 git diff。
+> **reconcile 幂等性**：CSV 为 11 列。`locked=1` 的行被 reconcile 完全跳过，因此重复 `ft reconcile` 不会重标已处理行，也不会覆盖人工修正——多次执行收敛、无 git diff。设计/实现/存量迁移/真实数据验证/回归隔离纪律见 `references/reconcile-idempotency-locked-column.md`。
 
 #### counterparty 规范化
 
@@ -327,7 +331,7 @@ find ~/.hermes/skills/finance/finance-tracker/src/ft/importers/__pycache__/ -nam
 | 问题 | 对策 |
 |------|------|
 | 借记卡余额为负（CSV 只有消费） | `ft checkin <卡名> --balance <真实余额>` |
-| **支付宝「不计收支」方向 — 交易关闭=跳过** | `方向=不计收支` 有三种处理方式（看原始账单 `交易状态` 列）：① **状态=交易关闭**：下单未付款，无实际资金流动，直接 `continue`；② **状态=退款成功**：真实退款，进入 `_pair_refunds` 配对核销；③ **状态=交易成功/转出成功**：余额宝收益/基金转入等，保留。**修复**：`_read_alipay_raw` 中新增 `if direction == "不计收支" and txn_status == "交易关闭": continue`。详细追踪见 `references/alipay-bujizhishou-debug-trace.md` |
+| **支付宝「交易关闭/已关闭/还款失败」全方向跳过；不计收支转入/买入/转出=余额流出** | 支付宝 `交易状态` 优先于 `收/支` 方向：① **状态=交易关闭/已关闭/还款失败**：无资金流动，不管 `收/支=支出/收入/不计收支` 都 `continue`；② `方向=不计收支` 且 **金额=0**（预授权/0元退款/解冻等）：无资金流动，`continue`；③ **交易分类=账户提现** 或 **商品说明含 `提现-实时提现`**：支付宝余额提现到银行卡，从 `支付宝余额` 账户视角转为负数 `expense`，后续 reconcile 与银行入账腿配成 `transfer_out/transfer_in`；④ **转出到网商银行**：从支付宝余额视角为负数 `expense`；⑤ **投资理财转入/买入/单次转入**（排除 `收益发放`、`转出到银行卡`）：付款账户流出，转为负数 `expense`；⑥ **退款成功**：真实退款，进入 `_pair_refunds` 配对核销；⑦ **收益发放/转出到银行卡**：保留正数 income。每次修改后用下载目录原始支付宝账单全量扫描 `交易状态` + `收/支`，确认 closed/failed/skip/outflow 规则没有残留。详细追踪见 `references/alipay-bujizhishou-debug-trace.md`；契约冲突裁定见 `references/reconcile-idempotency-locked-column.md` 后半段 |
 | **O2O 平台被误标** | 品牌规则排在平台规则前 |
 | **中文子串匹配误伤（京东误中北京东湖渠店）** | _infer_platform 用 kw.lower() in text 做子串匹配，中文无词边界。已知误伤：京东 in 北京东湖渠店→True。淘宝/高德中介平台：品牌匹配后在 intermediary_brands 分支从 desc 提取到分隔符为止，不用 _infer_platform 做二次匹配（也会子串误伤） |
 | **yfinance 混合市场拉价导致 NaN** | 不要把 `.US`、`.SZ`、`.SS`、`.HK` 混在同一个 `yf.download(...)` 批次里。按市场拆组后分别拉价；如果批量结果仍有缺失，再对单票做 fallback 重试。详见 `references/yfinance-market-grouping.md` |
@@ -335,7 +339,7 @@ find ~/.hermes/skills/finance/finance-tracker/src/ft/importers/__pycache__/ -nam
 | **证券账户参与 `ft transfer` 会在 `records/security/` 写入转账审计行** | `ft transfer --from/--to <security账户>` 可能生成 cash-style header（`date,amount,currency,...,transfer_account`）的 CSV 放在 `records/security/`，不是 stock header（`date,action,ticker,...`）。`verify_security` / `_replay_security_csv` 必须跳过没有 `action` 或 `ticker` 字段的行，否则会 `KeyError: 'action'`。记跨币种换汇时先用 `ft transfer --from 东方证券 --to Polymarket --amount 5000 --to-amount 735.29 ...`，再跑 `ft acct list` 与 `ft verify` 复核。**日期参数坑：** 当前 `ft transfer --date` 只应传 `YYYY-MM-DD`，不要传完整 `YYYY-MM-DD HH:MM:SS`；否则 `transfer.py` 会用完整字符串作为文件名，生成 `records/security/2026-06-30 10:16:09.csv`，且记录日期会变成 `2026-06-30 10:16:09 10:16:15`。若已发生，需把这两条 transfer 行搬回 `records/security/YYYY-MM-DD.csv` 并删除带时分秒的文件。 |
 | **Normalizer 破坏 ICBC 退款匹配** | `_pair_refunds` 前存 `_raw_cp` + `_is_refund` flag，fallback 匹配。同时过滤掉 `_pair_refunds` 后残留的 cp="消费"/"财付通" orphan income |
 | **「退货」sentinel 被 normalizer 吞掉** | ICBC 退款检测依赖 `counterparty == "退货"`，但 normalizer 可能把「退货」归一化为品牌名。修复：调用 normalizer 前检查原始 `counterparty == "退货"`，设 `_is_refund = True` 标志，退款检测改为判断 `r.get("_is_refund")`。**注意：** 退款记录在 `_pair_refunds` 前已经 `_normalize_counterparty` 处理（`_parse_icbc_lines` 中），此时 `_is_refund` 标志已经丢失，需在创建记录时提前打标 |
-| **删除/新增列要检查所有 CSV header 硬编码** | 以下文件都有硬编码 header 或列序，容易被漏：`do_convert()`（主输出 + `_refunds.csv`）、`reconcile.py`（审计输出字段）、`dedup.py`（列比较代码）、`ccb_debit.py`（列构造）。改 `CSV_FIELDS` 后必须搜索全项目引用的字段名确认无残留 |
+| **删除/新增列要检查所有 CSV header 硬编码** | 以下文件都有硬编码 header 或列序，容易被漏：`do_convert()`（主输出 + `_refunds.csv`）、`reconcile.py` 的 **`_write_audit()` 里独立的 `fields` 列表**（不是 `CSV_FIELDS`，改列后要在这个列表对应位置手动插入新列名，否则 `DictWriter` 抛 `ValueError: dict contains fields not in fieldnames`）、`dedup.py`（列比较代码）、`ccb_debit.py`（列构造）、`transfer.py`（`new_row` dict）。改 `CSV_FIELDS` 后必须搜索全项目引用的字段名确认无残留。同时存量 records CSV（1590+ 个文件）需批量迁移加新列，见 `references/reconcile-idempotency-locked-column.md` |
 | **convert 输出行数远少于预期** | 优先检查以下顺序：① `mapping.yaml` 是否有未覆盖的 `payment_method`；② **转换器代码中是否有静默丢弃逻辑**（`continue` 或 `return None` 跳过非预期数据）。常见遗漏：`工商银行储蓄卡(3697)*`、`余额`、`余额宝*`、`中国建设银行储蓄卡(2820)*`（全称前缀）、`工商银行信用卡(9166)*`。`do_convert` 现已改为无匹配时抛 ValueError 阻断，不再静默 skip。**注意：** `fnmatch.fnmatch("anything", "")` 返回 `False`，`match: ""` 规则只匹配空字符串。详见 `references/convert-no-silent-drop.md`。 |
 | **mapping.yaml 和 accounts.yaml 修改后先提交再执行 destructive git 操作** | `mapping.yaml` 和 `accounts.yaml` 的改动容易被破坏性 git 操作（`git reset --hard`、`git stash`）丢失。**在 `git reset --hard` 或 `git stash` 前，必须先确保 mapping.yaml 和 accounts.yaml 已提交**（`git add mapping.yaml accounts.yaml && ft commit -m "chore: update mapping/accounts"`）。否则映射规则丢失后重新补全极其耗时。 |
 | **Alipay 同时产生净退款和全额退款（gross refund）** | 支付宝为同一笔退款可能产生两条记录：净退款（如 +83.5）和全额退款（如 +1025.5）。全额退款金额等于原始支出金额，但此时原始支出已被净退款部分消耗。`_pair_refunds` 的孤退款处理器中需要"原始全额匹配"检查：当退款无法匹配任何剩余支出时，检查是否等于某笔支出的原始金额（非剩余金额），是则直接全额核销。已在 `convert.py` `_pair_refunds` 的 `if not candidates:` 分支中实现 |
