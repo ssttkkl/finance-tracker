@@ -259,7 +259,10 @@ def _make_wechat_xlsx(rows: list[list[str]], path: str):
     import openpyxl
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.append(["交易时间", "交易对方", "商品", "收/支", "金额(元)", "支付方式", "当前状态"])
+    header = ["交易时间", "交易对方", "商品", "收/支", "金额(元)", "支付方式", "当前状态"]
+    if any(len(r) > len(header) for r in rows):
+        header.append("交易类型")
+    ws.append(header)
     for r in rows:
         ws.append(r)
     wb.save(path)
@@ -276,6 +279,65 @@ class TestWechatCategory:
         assert len(records) == 1
         assert records[0]["category"] == "expense"
         assert records[0]["amount"] == -30.0
+
+    def test_二维码收款_已收钱_收入(self):
+        path = str(TEST_DIR / "wechat_qr_income_received.xlsx")
+        _make_wechat_xlsx([
+            ["2024-01-12 18:47:05", "聂龙羽", "收款方备注:二维码收款", "收入", "30.00", "零钱", "已收钱", "二维码收款"],
+        ], path)
+        from ft.convert import _read_wechat_raw
+        records, _ = _read_wechat_raw(path)
+        assert len(records) == 1
+        assert records[0]["category"] == "income"
+        assert records[0]["amount"] == 30.0
+
+    def test_零钱提现_中性_银行卡入账(self):
+        path = str(TEST_DIR / "wechat_wallet_withdrawal.xlsx")
+        _make_wechat_xlsx([
+            ["2025-08-17 23:54:28", "建设银行(2820)", "/", "/", "2100.00", "建设银行储蓄卡(2820)", "提现已到账", "零钱提现"],
+        ], path)
+        from ft.convert import _read_wechat_raw
+        records, _ = _read_wechat_raw(path)
+        assert len(records) == 1
+        assert records[0]["category"] == "income"
+        assert records[0]["amount"] == 2100.0
+        assert records[0]["payment_method"] == "建设银行储蓄卡(2820)"
+
+    def test_零钱充值_中性_付款账户流出(self):
+        path = str(TEST_DIR / "wechat_wallet_recharge.xlsx")
+        _make_wechat_xlsx([
+            ["2025-05-27 16:31:28", "建设银行(2820)", "/", "/", "240.00", "建设银行储蓄卡(2820)", "充值完成", "零钱充值"],
+        ], path)
+        from ft.convert import _read_wechat_raw
+        records, _ = _read_wechat_raw(path)
+        assert len(records) == 1
+        assert records[0]["category"] == "expense"
+        assert records[0]["amount"] == -240.0
+        assert records[0]["payment_method"] == "建设银行储蓄卡(2820)"
+
+    def test_购买理财通_中性_付款账户流出(self):
+        path = str(TEST_DIR / "wechat_licaitong_buy.xlsx")
+        _make_wechat_xlsx([
+            ["2025-04-10 17:32:52", "理财通", "国泰利泽90天债券C(013066)", "/", "6000.00", "建设银行储蓄卡", "支付成功", "购买理财通"],
+        ], path)
+        from ft.convert import _read_wechat_raw
+        records, _ = _read_wechat_raw(path)
+        assert len(records) == 1
+        assert records[0]["category"] == "expense"
+        assert records[0]["amount"] == -6000.0
+        assert records[0]["description"] == "国泰利泽90天债券C(013066)"
+
+    def test_信用卡还款_中性_付款账户流出(self):
+        path = str(TEST_DIR / "wechat_credit_card_repayment.xlsx")
+        _make_wechat_xlsx([
+            ["2025-10-04 16:52:41", "工商银行信用卡还款", "/", "/", "500.00", "零钱", "支付成功", "信用卡还款"],
+        ], path)
+        from ft.convert import _read_wechat_raw
+        records, _ = _read_wechat_raw(path)
+        assert len(records) == 1
+        assert records[0]["category"] == "expense"
+        assert records[0]["amount"] == -500.0
+        assert records[0]["description"] == "信用卡还款"
 
 
 # ── 消费平台推断 ──────────────────────────────────────────

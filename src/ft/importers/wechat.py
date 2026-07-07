@@ -1,5 +1,5 @@
 """微信 Excel 账单导入 → 按支付方式+币种匹配账户"""
-INCOME_OK = {"已存入零钱"}
+INCOME_OK = {"已存入零钱", "已收钱"}
 EXPENSE_OK = {"支付成功", "已转账", "对方已收钱"}
 
 from ..models import FOREIGN_EXCHANGE_KEYWORDS

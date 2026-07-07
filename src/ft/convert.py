@@ -592,13 +592,24 @@ def _read_wechat_raw(path: str):
             amount = -amount
         elif direction == "收入":
             pass
-        elif txn_type in ("零钱提现", "充值", "零钱通存取", "理财通"):
-            # 中性交易（零钱提现/充值等），按金额正负判断方向
-            if amount > 0:
+        elif txn_type in ("零钱提现", "充值", "零钱充值", "零钱通存取", "理财通", "购买理财通", "信用卡还款"):
+            # 微信中性交易（收/支="/"）金额列始终为正，不能按金额正负判断方向，必须按交易类型语义判断。
+            if txn_type == "零钱提现":
+                # 从微信零钱提现到银行卡：当前记录落在到账银行卡/支付方式账户，记入账。
                 category = "income"
-            else:
-                category = "expense"
+            elif txn_type in ("充值", "零钱充值", "购买理财通", "信用卡还款"):
+                # 银行卡/零钱流出到微信零钱、理财通或信用卡还款。
                 amount = -amount
+                category = "expense"
+            elif txn_type in ("零钱通存取", "理财通"):
+                text = f"{counterparty}{desc}{status}"
+                if any(k in text for k in ("转出", "取出", "赎回", "到账")):
+                    category = "income"
+                else:
+                    amount = -amount
+                    category = "expense"
+            else:
+                continue
             # 描述为空或无意义时，用交易类型代替
             if not desc or desc in ("/", "-"):
                 desc = txn_type
