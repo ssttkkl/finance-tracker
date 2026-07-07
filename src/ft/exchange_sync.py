@@ -212,6 +212,7 @@ def sync_exchange(provider, account_name, since=None, dry_run=False,
     if output:
         sync_common.write_stock_csv(new_rows, output)
         print(f"✅ 已写出待导入 CSV: {output}")
+        return new_rows
 
     if dry_run or not new_rows:
         if dry_run:

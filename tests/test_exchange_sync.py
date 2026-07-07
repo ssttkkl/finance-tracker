@@ -242,8 +242,9 @@ def test_sync_exchange_writes_output_csv(tmp_env):
     trades = [{"id": "T1", "timestamp": 1751852400000, "symbol": "BTC/USDT",
                "side": "sell", "price": 60000.0, "amount": 0.1, "cost": 6000.0, "fee": None}]
     out = tmp_env / "out.csv"
-    sync_exchange("kraken", account_name="币安", dry_run=True, output=str(out),
+    sync_exchange("kraken", account_name="币安", output=str(out),
                   _client=_FakeClient([trades, []]))
     with out.open(encoding="utf-8") as f:
         rows = list(_csv.DictReader(f))
     assert rows[0]["action"] == "SELL"
+    assert not (tmp_env / "records" / "security").exists()
