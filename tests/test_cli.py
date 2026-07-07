@@ -237,3 +237,49 @@ def test_stock_sync_polymarket_still_dispatches(monkeypatch):
     cli.main()
     assert called["wallet"] == "0xabc"
     assert called["dry_run"] is True
+
+
+def test_polymarket_sync_reads_proxy_wallet_from_credentials(tmp_env, monkeypatch):
+    import yaml
+    from ft import polymarket_sync
+
+    proxy_wallet = "0x" + "1" * 40
+    (tmp_env / "credentials.yaml").write_text(
+        yaml.safe_dump({"polymarket": {"proxy_wallet": proxy_wallet.upper()}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(polymarket_sync, "validate_security_account", lambda *args, **kwargs: None)
+    called = {}
+
+    def fake_fetch_activity(proxy_wallet_arg, limit=500, max_pages=None):
+        called["proxy_wallet"] = proxy_wallet_arg
+        return []
+
+    monkeypatch.setattr(polymarket_sync, "fetch_activity", fake_fetch_activity)
+    rows = polymarket_sync.sync_polymarket(dry_run=True)
+    assert rows == []
+    assert called["proxy_wallet"] == proxy_wallet
+
+
+def test_polymarket_sync_reads_wallet_from_credentials_and_resolves(tmp_env, monkeypatch):
+    import yaml
+    from ft import polymarket_sync
+
+    wallet = "0x" + "2" * 40
+    proxy_wallet = "0x" + "3" * 40
+    (tmp_env / "credentials.yaml").write_text(
+        yaml.safe_dump({"polymarket": {"wallet": wallet}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(polymarket_sync, "validate_security_account", lambda *args, **kwargs: None)
+    monkeypatch.setattr(polymarket_sync, "resolve_proxy_wallet", lambda wallet_arg: proxy_wallet)
+    called = {}
+
+    def fake_fetch_activity(proxy_wallet_arg, limit=500, max_pages=None):
+        called["proxy_wallet"] = proxy_wallet_arg
+        return []
+
+    monkeypatch.setattr(polymarket_sync, "fetch_activity", fake_fetch_activity)
+    rows = polymarket_sync.sync_polymarket(dry_run=True)
+    assert rows == []
+    assert called["proxy_wallet"] == proxy_wallet

@@ -190,10 +190,11 @@ ft stock dividend --ticker nvda.us --amount 10 --account IBKR
 ft stock checkin --account IBKR --ticker nvda.us --shares 45 --avg-cost 224.14
 ft stock checkin --account IBKR --cash 14000
 
-# Polymarket 官方 Activity 增量同步（先 dry-run 看新增数）
+# Polymarket 官方 Activity 增量同步（先 dry-run 看新增数；wallet/proxy_wallet 可放 ~/.ft/credentials.yaml 的 polymarket 段）
+ft stock sync polymarket --dry-run
+ft stock sync polymarket
+# 也可临时覆盖 credentials.yaml 中的地址
 ft stock sync polymarket --wallet 0xYourProfileWallet --dry-run
-ft stock sync polymarket --wallet 0xYourProfileWallet
-# 已知 proxy wallet 时可跳过 profile 解析
 ft stock sync polymarket --proxy-wallet 0xYourProxyWallet --dry-run -o /tmp/polymarket_new.csv
 
 # 加密交易所成交同步（ccxt 私有 API，先 dry-run；凭证在 ~/.ft/credentials.yaml）

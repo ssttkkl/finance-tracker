@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Iterable
 
 from . import models
+from .credentials import ensure_credentials_gitignored, load_polymarket_credentials
 from .stock import CSV_FIELDS, do_append
 from .sync_common import row_identity as _shared_row_identity, write_stock_csv
 
@@ -253,9 +254,15 @@ def sync_polymarket(
     """Fetch public Polymarket Activity trades, dedupe, and append to ft."""
     validate_security_account(account_name, currency="USD")
 
+    if not proxy_wallet and not wallet:
+        ensure_credentials_gitignored()
+        creds = load_polymarket_credentials()
+        proxy_wallet = creds.get("proxy_wallet")
+        wallet = creds.get("wallet")
+
     if not proxy_wallet:
         if not wallet:
-            raise ValueError("必须指定 wallet 或 proxy_wallet")
+            raise ValueError("必须指定 wallet 或 proxy_wallet，或在 credentials.yaml 的 polymarket 段配置")
         proxy_wallet = resolve_proxy_wallet(wallet)
     else:
         proxy_wallet = proxy_wallet.lower()

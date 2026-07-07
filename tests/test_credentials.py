@@ -64,3 +64,17 @@ def test_ensure_gitignored_adds_entry_and_chmods(tmp_ft):
     assert "credentials.yaml" in gitignore
     mode = stat.S_IMODE(os.stat(tmp_ft / "credentials.yaml").st_mode)
     assert mode == 0o600
+
+
+def test_load_polymarket_credentials_reads_wallet_section(tmp_ft):
+    from ft.credentials import load_polymarket_credentials
+    _write_creds(tmp_ft, {"polymarket": {"proxy_wallet": "0x" + "1" * 40}})
+    creds = load_polymarket_credentials()
+    assert creds["proxy_wallet"] == "0x" + "1" * 40
+
+
+def test_load_polymarket_credentials_requires_wallet_or_proxy(tmp_ft):
+    from ft.credentials import load_polymarket_credentials
+    _write_creds(tmp_ft, {"polymarket": {"note": "x"}})
+    with pytest.raises(ValueError, match="wallet 或 proxy_wallet"):
+        load_polymarket_credentials()
