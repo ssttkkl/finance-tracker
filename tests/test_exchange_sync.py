@@ -103,3 +103,59 @@ def test_trade_to_rows_bad_symbol_raises():
     from ft.exchange_sync import trade_to_rows
     with pytest.raises(ValueError, match="symbol"):
         trade_to_rows(_base_trade(symbol="BTCUSDT"), account_name="币安", provider="kraken")
+
+
+class _FakeClient:
+    """Mock ccxt client: serves canned pages of my-trades."""
+    def __init__(self, pages):
+        self._pages = list(pages)
+        self.calls = []
+
+    def fetch_my_trades(self, symbol=None, since=None, limit=None):
+        self.calls.append((symbol, since, limit))
+        return self._pages.pop(0) if self._pages else []
+
+
+def test_validate_crypto_account_ok(tmp_path, monkeypatch):
+    from ft import accounts, exchange_sync
+    monkeypatch.setattr(accounts, "find_account",
+                        lambda name, currency=None: {"type": "crypto"})
+    monkeypatch.setattr(exchange_sync, "find_account",
+                        accounts.find_account, raising=False)
+    # find_account is imported into exchange_sync; patch there:
+    monkeypatch.setattr("ft.exchange_sync.find_account",
+                        lambda name, currency="USD": {"type": "crypto"})
+    exchange_sync.validate_crypto_account("币安")  # no raise
+
+
+def test_validate_crypto_account_wrong_type_raises(monkeypatch):
+    from ft import exchange_sync
+    monkeypatch.setattr("ft.exchange_sync.find_account",
+                        lambda name, currency="USD": {"type": "security"})
+    with pytest.raises(ValueError, match="crypto"):
+        exchange_sync.validate_crypto_account("IBKR")
+
+
+def test_validate_crypto_account_missing_raises(monkeypatch):
+    from ft import exchange_sync
+    monkeypatch.setattr("ft.exchange_sync.find_account",
+                        lambda name, currency="USD": None)
+    with pytest.raises(ValueError, match="未知账户"):
+        exchange_sync.validate_crypto_account("nope")
+
+
+def test_build_client_unknown_provider_raises():
+    from ft.exchange_sync import build_client
+    with pytest.raises(ValueError, match="notanexchange"):
+        build_client("notanexchange", {"api_key": "K", "api_secret": "S"})
+
+
+def test_fetch_trades_paginates_and_dedupes():
+    from ft.exchange_sync import fetch_trades
+    page1 = [{"id": "A", "timestamp": 1000}, {"id": "B", "timestamp": 2000}]
+    page2 = [{"id": "B", "timestamp": 2000}, {"id": "C", "timestamp": 3000}]
+    client = _FakeClient([page1, page2, []])
+    trades = fetch_trades(client, since=0, symbols=["BTC/USDT"], limit=2)
+    assert [t["id"] for t in trades] == ["A", "B", "C"]
+    # 第二页游标应为上页最后 timestamp+1
+    assert client.calls[1][1] == 2001

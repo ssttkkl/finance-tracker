@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
+from .accounts import find_account
 from .stock import CSV_FIELDS
 
 CASH_QUOTES = {"usdt", "usd"}
@@ -116,3 +117,51 @@ def _fee_row(account_name, date, fee_ccy, fee_cost, tid, provider) -> dict:
     r["shares"] = _num(fee_cost)
     r["note"] = f"{provider} tid:{tid} fee"
     return r
+
+
+def validate_crypto_account(account_name: str, currency: str = "USD") -> None:
+    account = find_account(account_name, currency=currency)
+    if account is None:
+        raise ValueError(f"未知账户 '{account_name}' ({currency})，请先 ft acct add")
+    if account.get("type") != "crypto":
+        raise ValueError(
+            f"账户 '{account_name}' ({currency}) 不是 crypto 类型，不能同步交易所成交"
+        )
+
+
+def build_client(provider: str, creds: dict):
+    import ccxt
+    if not hasattr(ccxt, provider):
+        raise ValueError(f"ccxt 不支持交易所 '{provider}'")
+    params = {"apiKey": creds["api_key"], "secret": creds["api_secret"]}
+    if creds.get("password"):
+        params["password"] = creds["password"]
+    return getattr(ccxt, provider)(params)
+
+
+def fetch_trades(client, since=None, symbols=None, limit=1000) -> list[dict]:
+    """Paginate client.fetch_my_trades over symbols; merge & dedupe by trade id."""
+    targets = list(symbols) if symbols else [None]
+    seen: set[str] = set()
+    out: list[dict] = []
+    for symbol in targets:
+        cursor = since
+        while True:
+            batch = client.fetch_my_trades(symbol, cursor, limit)
+            if not batch:
+                break
+            fresh = 0
+            for tr in batch:
+                tid = str(tr.get("id"))
+                if tid in seen:
+                    continue
+                seen.add(tid)
+                out.append(tr)
+                fresh += 1
+            if len(batch) < limit:
+                break
+            last_ts = batch[-1].get("timestamp")
+            if last_ts is None or fresh == 0:
+                break
+            cursor = int(last_ts) + 1
+    return out
