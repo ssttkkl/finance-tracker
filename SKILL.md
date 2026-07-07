@@ -196,6 +196,13 @@ ft stock sync polymarket --wallet 0xYourProfileWallet
 # 已知 proxy wallet 时可跳过 profile 解析
 ft stock sync polymarket --proxy-wallet 0xYourProxyWallet --dry-run -o /tmp/polymarket_new.csv
 
+# 加密交易所成交同步（ccxt 私有 API，先 dry-run；凭证在 ~/.ft/credentials.yaml）
+ft stock sync kraken --account 币安 --dry-run --since 2026-01-01 --symbol BTC/USDT
+ft stock sync okx --account OKX -o /tmp/exchange_new.csv
+
+# 手工币币兑换（持仓换持仓，成本结转，不碰现金）
+ft stock swap --account 币安 --from-ticker btc --from-shares 0.5 --to-ticker eth --to-shares 10
+
 # 查询
 ft stock list
 ```
