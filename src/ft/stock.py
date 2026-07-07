@@ -329,7 +329,7 @@ def do_append(file_path):
         parsed = {}
         for field in num_fields:
             try:
-                value = float(row[field])
+                value = float(row[field] or 0)
             except (ValueError, TypeError):
                 print(f"❌ 第 {i} 行: 字段 '{field}' 值 '{row[field]}' 不是有效数字")
                 return False
@@ -1394,7 +1394,7 @@ def repair_security(records_dir=None):
 
     # Look up currency from accounts.yaml
     acct_currencies = {a["name"]: a["currency"] for a in load_accounts()
-                       if a["type"] == "security"}
+                       if a["type"] in ("security", "crypto")}
 
     accounts = {}
     for (acct_name, ticker), p in positions.items():

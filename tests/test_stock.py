@@ -1313,3 +1313,35 @@ def test_replay_fee_reduces_holding_by_avg_cost():
     # BNB: 剩 9.9，成本 5000 - 0.1*500 = 4950
     assert positions[("币安", "bnb")]["shares"] == pytest.approx(9.9)
     assert positions[("币安", "bnb")]["total_cost"] == pytest.approx(4950.0)
+
+
+def test_append_accepts_swap_fee_rows_and_keeps_currency(tmp_env):
+    """含空数值列的 SWAP/FEE 行可导入；crypto 账户币种在重建后保留。"""
+    from ft.accounts import save_accounts
+    from ft.stock import CSV_FIELDS, do_append, load_snapshot
+    from ft import models
+
+    save_accounts([
+        {"name": "币安", "type": "crypto", "currency": "USD", "active": True},
+    ], models.ACCOUNTS_PATH)
+
+    csv_path = tmp_env / "swap.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        writer.writerow({"date": "2026-07-07 09:00:00", "action": "BUY", "ticker": "btc",
+                         "shares": "1", "price": "60000", "amount": "-60000", "commission": "0",
+                         "currency": "USD", "account_name": "币安", "note": "seed"})
+        writer.writerow({"date": "2026-07-07 10:00:00", "action": "SWAP_OUT", "ticker": "btc",
+                         "shares": "0.5", "price": "", "amount": "", "commission": "",
+                         "currency": "USD", "account_name": "币安", "note": "kraken tid:T1 swap:T1"})
+        writer.writerow({"date": "2026-07-07 10:00:00", "action": "SWAP_IN", "ticker": "eth",
+                         "shares": "10", "price": "", "amount": "", "commission": "",
+                         "currency": "USD", "account_name": "币安", "note": "kraken tid:T1 swap:T1"})
+
+    assert do_append(csv_path) is True
+    snap = load_snapshot()
+    acct = snap["accounts"]["security"]["币安"]
+    assert acct["currency"] == "USD"          # 币种未丢
+    assert acct["positions"]["eth"]["shares"] == pytest.approx(10.0)
+    assert acct["positions"]["btc"]["shares"] == pytest.approx(0.5)
