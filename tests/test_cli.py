@@ -1,5 +1,7 @@
 import csv
 import tempfile
+from contextlib import redirect_stdout, redirect_stderr
+from io import StringIO
 from pathlib import Path
 
 import pytest
@@ -16,10 +18,12 @@ def tmp_env():
     old_ft = models.FT_DIR
     old_records = models.RECORDS_DIR
     old_accounts = models.ACCOUNTS_PATH
+    old_pending = models.PENDING_DIR
     old_snapshot = snapshot_mod.SNAPSHOT_PATH
     models.FT_DIR = d
     models.RECORDS_DIR = d / "records"
     models.ACCOUNTS_PATH = d / "accounts.yaml"
+    models.PENDING_DIR = d / "pending"
     snapshot_mod.SNAPSHOT_PATH = d / "snapshot.yaml"
     models.ACCOUNTS_PATH.write_text(
         "accounts:\n"
@@ -35,6 +39,7 @@ def tmp_env():
     models.FT_DIR = old_ft
     models.RECORDS_DIR = old_records
     models.ACCOUNTS_PATH = old_accounts
+    models.PENDING_DIR = old_pending
     import shutil
     shutil.rmtree(d, ignore_errors=True)
 
@@ -75,6 +80,83 @@ def test_reconcile_range_dispatch(monkeypatch):
 def test_reconcile_rejects_month_plus_range():
     with pytest.raises(SystemExit):
         cli.main(["reconcile", "--month", "2026-06", "--from", "2026-06-01"])
+
+
+def test_convert_continue_dispatch(monkeypatch):
+    called = {}
+
+    monkeypatch.setattr("ft.convert.continue_convert", lambda path: called.setdefault("path", path))
+    monkeypatch.setattr("ft.convert.abort_convert", lambda: None)
+    monkeypatch.setattr("ft.convert.do_convert", lambda *args, **kwargs: None)
+
+    cli.main(["convert", "--continue-with-decisions", "/tmp/edited.csv"])
+    assert called["path"] == "/tmp/edited.csv"
+
+
+def test_convert_abort_dispatch(monkeypatch):
+    called = {"abort": False}
+
+    monkeypatch.setattr("ft.convert.continue_convert", lambda _path: None)
+    monkeypatch.setattr("ft.convert.abort_convert", lambda: called.__setitem__("abort", True))
+    monkeypatch.setattr("ft.convert.do_convert", lambda *args, **kwargs: None)
+
+    cli.main(["convert", "--abort"])
+    assert called["abort"] is True
+
+
+def test_convert_rejects_continue_plus_normal_args(monkeypatch):
+    monkeypatch.setattr("ft.convert.continue_convert", lambda _path: None)
+    monkeypatch.setattr("ft.convert.abort_convert", lambda: None)
+    monkeypatch.setattr("ft.convert.do_convert", lambda *args, **kwargs: None)
+
+    with pytest.raises(SystemExit):
+        cli.main(["convert", "bill.csv", "-s", "alipay", "-o", "out.csv", "--continue-with-decisions", "edited.csv"])
+
+
+def test_reconcile_continue_dispatch(monkeypatch):
+    called = {}
+
+    monkeypatch.setattr("ft.reconcile.continue_reconcile", lambda path: called.setdefault("path", path))
+    monkeypatch.setattr("ft.reconcile.abort_reconcile", lambda: None)
+    monkeypatch.setattr("ft.reconcile.do_reconcile", lambda **kwargs: None)
+
+    cli.main(["reconcile", "--continue-with-decisions", "/tmp/edited.csv"])
+    assert called["path"] == "/tmp/edited.csv"
+
+
+def test_reconcile_abort_dispatch(monkeypatch):
+    called = {"abort": False}
+
+    monkeypatch.setattr("ft.reconcile.continue_reconcile", lambda _path: None)
+    monkeypatch.setattr("ft.reconcile.abort_reconcile", lambda: called.__setitem__("abort", True))
+    monkeypatch.setattr("ft.reconcile.do_reconcile", lambda **kwargs: None)
+
+    cli.main(["reconcile", "--abort"])
+    assert called["abort"] is True
+
+
+def test_convert_help_mentions_skill_and_ai_working_csv():
+    stdout = StringIO()
+    stderr = StringIO()
+    with redirect_stdout(stdout), redirect_stderr(stderr), pytest.raises(SystemExit):
+        cli.main(["convert", "--help"])
+
+    output = stdout.getvalue() + stderr.getvalue()
+    assert "SKILL.md" in output
+    assert "ai_working.csv" in output
+    assert "三个月一批" in output
+
+
+def test_reconcile_help_mentions_skill_and_ai_working_csv():
+    stdout = StringIO()
+    stderr = StringIO()
+    with redirect_stdout(stdout), redirect_stderr(stderr), pytest.raises(SystemExit):
+        cli.main(["reconcile", "--help"])
+
+    output = stdout.getvalue() + stderr.getvalue()
+    assert "SKILL.md" in output
+    assert "ai_working.csv" in output
+    assert "三个月一批" in output
 
 
 def test_stock_checkin_accepts_fractional_shares(monkeypatch):

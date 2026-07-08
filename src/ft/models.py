@@ -5,6 +5,7 @@ from pathlib import Path
 FT_DIR = Path.home() / ".ft"
 RECORDS_DIR = FT_DIR / "records"
 ACCOUNTS_PATH = FT_DIR / "accounts.yaml"
+PENDING_DIR = FT_DIR / "pending"
 
 # 币种
 CURRENCIES = ("CNY", "USD", "HKD")

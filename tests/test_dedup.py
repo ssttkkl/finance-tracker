@@ -1,6 +1,6 @@
 """tests for src/ft/dedup.py"""
 import pytest
-from ft.dedup import dedup
+from ft.dedup import _parse_dt, dedup
 
 
 def _rec(date, amount, currency, counterparty, description,
@@ -11,6 +11,26 @@ def _rec(date, amount, currency, counterparty, description,
         "category": category, "account_name": account_name,
         "source": source, "platform": platform, "bill_source": bill_source,
     }
+
+
+def test_parse_dt_accepts_full_datetime_string():
+    dt = _parse_dt("2026-01-01 13:00:00")
+    assert dt.strftime("%Y-%m-%d %H:%M:%S") == "2026-01-01 13:00:00"
+
+
+def test_parse_dt_accepts_date_only_string():
+    dt = _parse_dt("2026-01-01")
+    assert dt.strftime("%Y-%m-%d %H:%M:%S") == "2026-01-01 00:00:00"
+
+
+def test_date_only_and_datetime_do_not_crash_in_dedup():
+    a = _rec("2026-01-01", -30, "CNY", "麦当劳", "麦当劳",
+             "expense", "工行信用卡(1200)", "银行卡", "", "ccb_debit")
+    b = _rec("2026-01-01 13:00:03", -30, "CNY", "麦当劳", "麦当劳",
+             "expense", "工行信用卡(1200)", "支付宝", "", "alipay")
+    kept, removed = dedup([a, b])
+    assert len(kept) == 2
+    assert len(removed) == 0
 
 
 # ── Test 1: different time/amount → both kept ──

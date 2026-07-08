@@ -197,15 +197,18 @@ def main(argv=None):
 
     # convert
     cv = sub.add_parser("convert", help="步骤① 账单→统一CSV")
-    cv.add_argument("file", help="账单文件路径")
-    cv.add_argument("-s", "--source", required=True,
+    cv.add_argument("file", nargs="?", help="账单文件路径")
+    cv.add_argument("-s", "--source",
                     choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit"],
                     help="账单类型")
-    cv.add_argument("-o", "--output", required=True, help="输出CSV路径")
+    cv.add_argument("-o", "--output", help="输出CSV路径")
     cv.add_argument("--password", help="工行PDF密码")
     cv.add_argument("--account", help="覆盖账户名")
     cv.add_argument("--currency", default="CNY", choices=["CNY", "USD", "HKD"],
                     help="覆盖币种")
+    cv.add_argument("--continue-with-decisions", dest="continue_with_decisions",
+                    help="继续执行 pending convert；应先按 SKILL.md 审查整份 ai_working.csv，大体量按三个月一批处理")
+    cv.add_argument("--abort", action="store_true", help="放弃当前 pending convert 会话")
 
     # append
     ap = sub.add_parser("append", help="步骤② 导入转换后的CSV")
@@ -217,6 +220,9 @@ def main(argv=None):
     scope.add_argument("--month", help="月份 (YYYY-MM)")
     rc.add_argument("--from", dest="date_from", help="起始日期 (YYYY-MM-DD)")
     rc.add_argument("--to", dest="date_to", help="结束日期 (YYYY-MM-DD)")
+    rc.add_argument("--continue-with-decisions", dest="continue_with_decisions",
+                    help="继续执行 pending reconcile；应先按 SKILL.md 审查整份 ai_working.csv，大体量按三个月一批处理")
+    rc.add_argument("--abort", action="store_true", help="放弃当前 pending reconcile 会话")
 
     args = parser.parse_args(argv)
 
@@ -415,7 +421,19 @@ def main(argv=None):
         return
 
     if args.cmd == "convert":
-        from .convert import do_convert
+        from .convert import do_convert, continue_convert, abort_convert
+        if args.abort:
+            if args.file or args.source or args.output or args.continue_with_decisions:
+                parser.error("convert --abort 不能和普通转换参数或 --continue-with-decisions 同时使用")
+            abort_convert()
+            return
+        if args.continue_with_decisions:
+            if args.file or args.source or args.output:
+                parser.error("convert --continue-with-decisions 不能和普通转换参数同时使用")
+            continue_convert(args.continue_with_decisions)
+            return
+        if not args.file or not args.source or not args.output:
+            parser.error("convert 需要 file、--source 和 --output，或使用 --continue-with-decisions / --abort")
         do_convert(args.file, args.source, args.output,
                    password=args.password, account=args.account,
                    currency=args.currency)
@@ -429,7 +447,17 @@ def main(argv=None):
     if args.cmd == "reconcile":
         if args.month and (args.date_from or args.date_to):
             parser.error("--month 与 --from/--to 不能同时使用")
-        from .reconcile import do_reconcile
+        from .reconcile import do_reconcile, continue_reconcile, abort_reconcile
+        if args.abort:
+            if args.month or args.date_from or args.date_to or args.continue_with_decisions:
+                parser.error("reconcile --abort 不能和范围参数或 --continue-with-decisions 同时使用")
+            abort_reconcile()
+            return
+        if args.continue_with_decisions:
+            if args.month or args.date_from or args.date_to:
+                parser.error("reconcile --continue-with-decisions 不能和范围参数同时使用")
+            continue_reconcile(args.continue_with_decisions)
+            return
         do_reconcile(month=args.month, date_from=args.date_from, date_to=args.date_to)
         return
 

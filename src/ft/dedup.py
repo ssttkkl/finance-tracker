@@ -4,7 +4,10 @@ from datetime import datetime
 
 
 def _parse_dt(s: str) -> datetime:
-    return datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+    try:
+        return datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return datetime.strptime(s, "%Y-%m-%d")
 
 
 def _truncate_minute(dt: datetime) -> datetime:

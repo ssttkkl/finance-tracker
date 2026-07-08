@@ -108,9 +108,9 @@ def read_ccb_debit(path: str):
         cur_str = str(row_vals[2] or "").strip()
         currency = cur_map.get(cur_str, "CNY")
 
-        # 日期 YYYYMMDD → YYYY-MM-DD
+        # 日期 YYYYMMDD → YYYY-MM-DD（原始账单无时间，不伪造 00:00:00）
         date_raw = str(int(float(str(row_vals[4])))) if row_vals[4] else ""
-        date = f"{date_raw[:4]}-{date_raw[4:6]}-{date_raw[6:8]} 00:00:00" if len(date_raw) == 8 else ""
+        date = f"{date_raw[:4]}-{date_raw[4:6]}-{date_raw[6:8]}" if len(date_raw) == 8 else ""
 
         # 金额
         amt_str = str(row_vals[5] or "").replace(",", "").strip()

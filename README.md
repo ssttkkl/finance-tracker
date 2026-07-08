@@ -81,12 +81,97 @@ ft transfer --from 工行借记卡 --to IBKR --amount 36250 --to-amount 5000
 ## 流水线：账单导入
 
 ```
-① ft convert → ② AI审查 → ③ 手动修正 → ④ ft append → ⑤ ft reconcile → ⑥ ft commit
-   账单→CSV     Codex审查     改错         按天落盘      去重/审计      Git 提交
-   +_refunds    逐源审查                    +records     +audit CSV
+① ft convert → ② AI审查/编辑 working CSV → ③ ft append → ④ ft reconcile → ⑤ AI审查/编辑 working CSV → ⑥ ft commit
+   账单→CSV/pending            继续 convert      按天落盘      records/pending            继续 reconcile      Git 提交
 ```
 
 每步产出可查看可修改的 CSV，AI 审查是必须的门禁。
+
+## AI working CSV / pending 工作流
+
+当 `ft convert` 或 `ft reconcile` 遇到程序不该直接决定的边界情况时，不会立刻改正式数据，而是进入 pending 会话。
+
+### 命令
+
+```bash
+ft convert <bill> -s <source> -o out.csv
+ft convert --continue-with-decisions <edited.csv>
+ft convert --abort
+
+ft reconcile --month 2026-06
+ft reconcile --continue-with-decisions <edited.csv>
+ft reconcile --abort
+```
+
+### pending 期间的保证
+
+- `convert`：不写正式 `output.csv`
+- `reconcile`：不改正式 `records/`、不改 `snapshot.yaml`
+- 只有 `--continue-with-decisions` 成功后才正式落地
+- `--abort` 会删除当前 pending 会话
+
+### 会话目录
+
+```text
+~/.ft/pending/convert/<session_id>/
+~/.ft/pending/reconcile/<session_id>/
+```
+
+常见文件：
+
+- `manifest.json`：会话元信息
+- `status.json`：当前状态
+- `ai_working.csv`：给 AI 编辑的底稿
+- `proposed_output.csv` / `proposed_refunds.csv`：convert 中间产物
+- `staged_records/` / `proposed_audit.csv`：reconcile 中间产物
+
+### AI 允许编辑哪些列
+
+主要允许修改：
+
+- `counterparty`
+- `description`
+- `category`
+- `account_name`
+- `source`
+- `transfer_account`
+- `locked`
+- `row_status`
+- `ai_action`
+- `ai_group`
+- `ai_reason`
+
+默认只读：
+
+- `record_id`
+- `session_id`
+- `date`
+- `amount`
+- `currency`
+- `bill_source`
+- `raw_counterparty`
+- `raw_description`
+- `raw_payment_method`
+
+### ai_action 合法值
+
+- `leave_as_is`
+- `drop`
+- `modify`
+- `merge_refund_into:<record_id>`
+- `net_with:<record_id>`
+- `mark_transfer_out_to:<record_id>`
+- `mark_transfer_in_from:<record_id>`
+
+### 调用方 AI 的标准流程
+
+1. 先运行 `ft convert` 或 `ft reconcile`
+2. 如果进入 pending，打开 `ai_working.csv`
+3. 审查整份 `ai_working.csv`，不要只看局部候选行
+4. 如果体量较大，按交易日期切成三个月一批；每批只交给一个 subagent，并要求 subagent 通过推理输出标记结果，禁止用脚本批量过滤/批量判定
+5. 按 `SKILL.md` 中的 pending / `ai_working.csv` 流程处理该文件并保存为编辑后的 CSV
+6. 执行 `--continue-with-decisions`
+7. 如果要放弃，执行 `--abort`
 
 ## 安装
 

@@ -1,5 +1,6 @@
 """reconcile — post-import duplicate removal and audit output"""
 import csv
+import shutil
 import re
 from collections import defaultdict
 from datetime import datetime, date, timedelta
@@ -7,7 +8,18 @@ from pathlib import Path
 
 from . import models
 from .accounts import load_accounts
-from .dedup import dedup_with_pairs
+from .ai_apply import apply_reconcile_working_rows
+from .ai_working_csv import (
+    ALLOWED_ROW_STATUS,
+    READ_ONLY_FIELDS,
+    build_ai_working_row,
+    is_allowed_ai_action,
+    parse_ai_action_target,
+    read_ai_working_csv,
+    write_ai_working_csv,
+)
+from .dedup import _cross_verify, _parse_dt, _source_group, _truncate_minute, dedup_with_pairs
+from .pending import clear_pending_session, create_pending_session, load_manifest, require_single_pending_session
 from .snapshot import rebuild_snapshot_from_records, git_stage
 from .transfer_rules import classify_single_leg
 
@@ -49,7 +61,7 @@ def _clean_row(row: dict) -> dict:
 
 
 def _effective_datetime(row: dict) -> datetime:
-    dt = datetime.strptime(row["date"], "%Y-%m-%d %H:%M:%S")
+    dt = _parse_dt(row["date"])
     if dt.time() != datetime.min.time():
         return dt
     text = " ".join([
@@ -307,10 +319,8 @@ def _audit_path(run_at: str) -> Path:
     return audit_dir / f"{run_at}.csv"
 
 
-def _write_audit(run_at: str, scope_from: str, scope_to: str, pairs: list[tuple[dict, dict]],
-                 transfer_audit_rows: list[dict]) -> Path:
-    path = _audit_path(run_at)
-    fields = [
+def _audit_fields() -> list[str]:
+    return [
         "run_at", "scope_from", "scope_to", "date", "amount", "currency",
         "counterparty", "description", "category", "account_name", "source",
         "bill_source", "transfer_account", "locked", "record_file", "dedup_status",
@@ -318,6 +328,11 @@ def _write_audit(run_at: str, scope_from: str, scope_to: str, pairs: list[tuple[
         "counterpart_file", "counterpart_account", "counterpart_currency",
         "counterpart_amount",
     ]
+
+
+def _write_audit_rows(path: Path, run_at: str, scope_from: str, scope_to: str,
+                      pairs: list[tuple[dict, dict]], extra_audit_rows: list[dict]) -> Path:
+    fields = _audit_fields()
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
@@ -340,7 +355,7 @@ def _write_audit(run_at: str, scope_from: str, scope_to: str, pairs: list[tuple[
                 "dedup_status": "去除",
                 "reconcile_status": "dedup",
             })
-        for row in transfer_audit_rows:
+        for row in extra_audit_rows:
             writer.writerow({
                 "run_at": run_at,
                 "scope_from": scope_from or "",
@@ -350,21 +365,12 @@ def _write_audit(run_at: str, scope_from: str, scope_to: str, pairs: list[tuple[
     return path
 
 
-def do_reconcile(*, month=None, date_from=None, date_to=None):
-    start, end = _parse_scope(month=month, date_from=date_from, date_to=date_to)
-    if start and end:
-        scope_from = start.isoformat()
-        scope_to = end.isoformat()
-    elif start:
-        scope_from = start.isoformat()
-        scope_to = ""
-    elif end:
-        scope_from = ""
-        scope_to = end.isoformat()
-    else:
-        scope_from = ""
-        scope_to = ""
+def _write_audit(run_at: str, scope_from: str, scope_to: str, pairs: list[tuple[dict, dict]],
+                 extra_audit_rows: list[dict]) -> Path:
+    return _write_audit_rows(_audit_path(run_at), run_at, scope_from, scope_to, pairs, extra_audit_rows)
 
+
+def _load_entries() -> list[dict]:
     entries: list[dict] = []
     for typ in ("cash", "loan"):
         type_dir = models.RECORDS_DIR / typ
@@ -377,12 +383,26 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
                     row["_record_file"] = str(csv_file)
                     row["_record_type"] = typ
                     entries.append(row)
+    return entries
 
+
+def _build_scope_labels(start: date | None, end: date | None) -> tuple[str, str]:
+    if start and end:
+        return start.isoformat(), end.isoformat()
+    if start:
+        return start.isoformat(), ""
+    if end:
+        return "", end.isoformat()
+    return "", ""
+
+
+def _prepare_reconcile_state(*, month=None, date_from=None, date_to=None):
+    start, end = _parse_scope(month=month, date_from=date_from, date_to=date_to)
+    scope_from, scope_to = _build_scope_labels(start, end)
+
+    entries = _load_entries()
     scoped = [row for row in entries if _in_scope(row["date"], start, end)]
-    # 用 id() 集合判定归属，避免值相等误判（两条内容相同的 dict 会被 `in` 混淆）。
     scoped_ids = {id(row) for row in scoped}
-    # 锁定行（locked=1）：reconcile 完全不碰——不去重、不配对、不单腿标记，
-    # 仅原样写回。彻底尊重人工修正（含 ft transfer 手动写入的转账）。
     scoped_locked = [row for row in scoped if _is_locked(row)]
     scoped_active = [row for row in scoped if not _is_locked(row)]
     kept, removed, pairs = dedup_with_pairs(scoped_active)
@@ -393,44 +413,70 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
     transfer_matches.extend(_match_fx_loan_repayment(kept, used_transfer_ids))
     for out_row, in_row, rule in transfer_matches:
         _mark_transfer(out_row, in_row, rule)
-
     single_leg_marks = _mark_single_leg_transfers(kept, used_transfer_ids)
 
-    rows_by_file: dict[str, list[dict]] = defaultdict(list)
-    for row in entries:
-        if id(row) in scoped_ids:
+    state = {
+        "start": start,
+        "end": end,
+        "scope_from": scope_from,
+        "scope_to": scope_to,
+        "entries": entries,
+        "scoped": scoped,
+        "scoped_ids": scoped_ids,
+        "scoped_locked": scoped_locked,
+        "kept": kept,
+        "removed": removed,
+        "pairs": pairs,
+        "transfer_matches": transfer_matches,
+        "single_leg_marks": single_leg_marks,
+    }
+    return state
+
+
+def _should_enter_reconcile_pending(state: dict) -> bool:
+    return bool(state.get("scoped"))
+
+
+def _copy_scoped_records(session_dir: Path, scoped: list[dict]):
+    staged_root = session_dir / "staged_records"
+    copied = set()
+    for row in scoped:
+        src = Path(row["_record_file"])
+        if src in copied or not src.exists():
             continue
-        rows_by_file[row["_record_file"]].append(_clean_row(row))
+        rel = src.relative_to(models.RECORDS_DIR)
+        dest = staged_root / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+        copied.add(src)
 
-    # 锁定行原样写回（不经任何识别逻辑）
-    for row in scoped_locked:
-        rows_by_file[row["_record_file"]].append(_clean_row(row))
 
-    for row in kept:
-        rows_by_file[row["_record_file"]].append(_clean_row(row))
+def _create_reconcile_pending_session(state: dict):
+    manifest = {
+        "scope_from": state["scope_from"],
+        "scope_to": state["scope_to"],
+    }
+    session_dir = create_pending_session("reconcile", manifest)
+    session_id = session_dir.name
 
-    touched_files = sorted({row["_record_file"] for row in scoped})
-    for file_path_str in touched_files:
-        file_path = Path(file_path_str)
-        final_rows = rows_by_file.get(file_path_str, [])
-        if not final_rows:
-            if file_path.exists():
-                file_path.unlink()
-            continue
-        final_rows.sort(key=lambda r: r["date"])
-        with open(file_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
-            writer.writeheader()
-            writer.writerows(final_rows)
-
-    rebuild_snapshot_from_records(models.RECORDS_DIR)
-    if not removed and not transfer_matches and not single_leg_marks:
-        print("无重复项")
-        return
+    ai_rows = [
+        build_ai_working_row(
+            {
+                **_clean_row(row),
+                "record_file": row.get("_record_file", ""),
+                "record_type": row.get("_record_type", ""),
+            },
+            record_id=f"r_{idx:06d}",
+            session_id=session_id,
+        )
+        for idx, row in enumerate(state["scoped"], 1)
+    ]
+    write_ai_working_csv(session_dir / "ai_working.csv", ai_rows)
+    _copy_scoped_records(session_dir, state["scoped"])
 
     run_at = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     transfer_audit_rows = []
-    for out_row, in_row, rule in transfer_matches:
+    for out_row, in_row, rule in state["transfer_matches"]:
         transfer_audit_rows.append({
             **_clean_row(out_row),
             "record_file": out_row.get("_record_file", ""),
@@ -455,7 +501,7 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
             "counterpart_currency": out_row.get("currency", ""),
             "counterpart_amount": out_row.get("amount", ""),
         })
-    for row, rule in single_leg_marks:
+    for row, rule in state["single_leg_marks"]:
         transfer_audit_rows.append({
             **_clean_row(row),
             "record_file": row.get("_record_file", ""),
@@ -468,6 +514,204 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
             "counterpart_currency": "",
             "counterpart_amount": "",
         })
-    audit_path = _write_audit(run_at, scope_from, scope_to, pairs, transfer_audit_rows)
-    print(f"✅ 去重完成，审计文件: {audit_path}")
+    proposed_audit = _write_audit_rows(
+        session_dir / "proposed_audit.csv",
+        run_at,
+        state["scope_from"],
+        state["scope_to"],
+        state["pairs"],
+        transfer_audit_rows,
+    )
+
+    from .pending import format_pending_guidance
+    print(format_pending_guidance("reconcile", session_dir))
+
+
+def _validate_reconcile_working_rows(original_rows: list[dict], edited_rows: list[dict], session_id: str):
+    if len(original_rows) != len(edited_rows):
+        raise ValueError(f"❌ edited CSV 行数不匹配: 期望 {len(original_rows)} 行，实际 {len(edited_rows)} 行")
+
+    original_by_id = {row["record_id"]: row for row in original_rows}
+    edited_by_id = {row.get("record_id", ""): row for row in edited_rows}
+    edited_ids = list(edited_by_id)
+    if len(set(edited_ids)) != len(edited_ids):
+        raise ValueError("❌ edited CSV 中存在重复 record_id")
+    if set(edited_ids) != set(original_by_id):
+        missing = sorted(set(original_by_id) - set(edited_ids))
+        extra = sorted(set(edited_ids) - set(original_by_id))
+        raise ValueError(f"❌ edited CSV 的 record_id 集合不一致: missing={missing} extra={extra}")
+
+    for row in edited_rows:
+        if row.get("session_id") != session_id:
+            raise ValueError(f"❌ session_id 不匹配: record_id={row.get('record_id', '')} session_id={row.get('session_id', '')}")
+        original = original_by_id[row["record_id"]]
+        for field in READ_ONLY_FIELDS:
+            if row.get(field, "") != original.get(field, ""):
+                raise ValueError(f"❌ 只读字段被修改: record_id={row['record_id']} field={field}")
+
+        row_status = row.get("row_status", "active") or "active"
+        ai_action = row.get("ai_action", "leave_as_is") or "leave_as_is"
+        if row_status not in ALLOWED_ROW_STATUS:
+            raise ValueError(f"❌ 非法 row_status: record_id={row['record_id']} row_status={row_status}")
+        if not is_allowed_ai_action(ai_action):
+            raise ValueError(f"❌ 非法 ai_action: record_id={row['record_id']} ai_action={ai_action}")
+        if row_status == "dropped" and ai_action not in {"drop", "leave_as_is"}:
+            raise ValueError(f"❌ dropped 行只能配合 drop/leave_as_is: record_id={row['record_id']}")
+        if ai_action == "drop" and row.get("ai_reason", "").strip() == "":
+            raise ValueError(f"❌ drop 动作必须填写 ai_reason: record_id={row['record_id']}")
+
+        if ai_action == "modify":
+            changed_fields = [
+                field for field in ("counterparty", "description", "category", "account_name", "source", "transfer_account", "locked")
+                if row.get(field, "") != original.get(field, "")
+            ]
+            if not changed_fields:
+                raise ValueError(f"❌ ai_action=modify 但没有实际修改字段: record_id={row['record_id']}")
+            if row.get("ai_reason", "").strip() == "":
+                raise ValueError(f"❌ modify 动作必须填写 ai_reason: record_id={row['record_id']}")
+
+    for row in edited_rows:
+        ai_action = row.get("ai_action", "leave_as_is") or "leave_as_is"
+        target = parse_ai_action_target(ai_action)
+        if not target:
+            continue
+        action_name, target_id = target
+        if row.get("ai_reason", "").strip() == "":
+            raise ValueError(f"❌ {action_name} 动作必须填写 ai_reason: record_id={row['record_id']}")
+        if not target_id or target_id not in edited_by_id:
+            raise ValueError(f"❌ 引用的 record_id 不存在: record_id={row['record_id']} ai_action={ai_action}")
+        target_row = edited_by_id[target_id]
+        if action_name == "mark_transfer_out_to":
+            if row.get("amount", "").startswith("-") is False:
+                raise ValueError(f"❌ mark_transfer_out_to 只能用于支出行: record_id={row['record_id']}")
+            expected = f"mark_transfer_in_from:{row['record_id']}"
+            if (target_row.get("ai_action", "leave_as_is") or "leave_as_is") != expected:
+                raise ValueError(f"❌ 转账双边动作应成对出现: record_id={row['record_id']} target={target_id}")
+        elif action_name == "mark_transfer_in_from":
+            if row.get("amount", "").startswith("-"):
+                raise ValueError(f"❌ mark_transfer_in_from 只能用于收入行: record_id={row['record_id']}")
+            expected = f"mark_transfer_out_to:{row['record_id']}"
+            if (target_row.get("ai_action", "leave_as_is") or "leave_as_is") != expected:
+                raise ValueError(f"❌ 转账双边动作应成对出现: record_id={row['record_id']} target={target_id}")
+
+
+def continue_reconcile(edited_csv: str):
+    session_dir = require_single_pending_session("reconcile")
+    manifest = load_manifest(session_dir)
+    original_rows = read_ai_working_csv(session_dir / "ai_working.csv")
+    edited_rows = read_ai_working_csv(Path(edited_csv))
+    _validate_reconcile_working_rows(original_rows, edited_rows, manifest["session_id"])
+
+    by_file, extra_audit_rows = apply_reconcile_working_rows(edited_rows)
+
+    touched_files = sorted(by_file)
+    for file_path_str in touched_files:
+        file_path = Path(file_path_str)
+        final_rows = by_file[file_path_str]
+        final_rows.sort(key=lambda r: r["date"])
+        with open(file_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
+            writer.writeheader()
+            writer.writerows(final_rows)
+
+    rebuild_snapshot_from_records(models.RECORDS_DIR)
+    proposed_audit = session_dir / "proposed_audit.csv"
+    if proposed_audit.exists():
+        run_at = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        if extra_audit_rows:
+            audit_path = _write_audit(run_at, manifest.get("scope_from", ""), manifest.get("scope_to", ""), [], extra_audit_rows)
+        else:
+            audit_path = _audit_path(run_at)
+            shutil.copy2(proposed_audit, audit_path)
+        print(f"✅ 去重完成，审计文件: {audit_path}")
+    clear_pending_session("reconcile")
     git_stage(models.FT_DIR)
+
+
+def abort_reconcile():
+    clear_pending_session("reconcile")
+    print("✅ 已放弃当前 pending reconcile 会话")
+
+
+def do_reconcile(*, month=None, date_from=None, date_to=None):
+    state = _prepare_reconcile_state(month=month, date_from=date_from, date_to=date_to)
+
+    rows_by_file: dict[str, list[dict]] = defaultdict(list)
+    for row in state["entries"]:
+        if id(row) in state["scoped_ids"]:
+            continue
+        rows_by_file[row["_record_file"]].append(_clean_row(row))
+
+    for row in state["scoped_locked"]:
+        rows_by_file[row["_record_file"]].append(_clean_row(row))
+
+    for row in state["kept"]:
+        rows_by_file[row["_record_file"]].append(_clean_row(row))
+
+    touched_files = sorted({row["_record_file"] for row in state["scoped"]})
+
+    if not _should_enter_reconcile_pending(state):
+        for file_path_str in touched_files:
+            file_path = Path(file_path_str)
+            final_rows = rows_by_file.get(file_path_str, [])
+            if not final_rows:
+                if file_path.exists():
+                    file_path.unlink()
+                continue
+            final_rows.sort(key=lambda r: r["date"])
+            with open(file_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
+                writer.writeheader()
+                writer.writerows(final_rows)
+
+        rebuild_snapshot_from_records(models.RECORDS_DIR)
+        if not state["removed"] and not state["transfer_matches"] and not state["single_leg_marks"]:
+            print("无重复项")
+            return
+
+        run_at = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        transfer_audit_rows = []
+        for out_row, in_row, rule in state["transfer_matches"]:
+            transfer_audit_rows.append({
+                **_clean_row(out_row),
+                "record_file": out_row.get("_record_file", ""),
+                "reconcile_status": "transfer_matched",
+                "transfer_side": "out",
+                "match_rule": rule,
+                "match_confidence": "high",
+                "counterpart_file": in_row.get("_record_file", ""),
+                "counterpart_account": in_row.get("account_name", ""),
+                "counterpart_currency": in_row.get("currency", ""),
+                "counterpart_amount": in_row.get("amount", ""),
+            })
+            transfer_audit_rows.append({
+                **_clean_row(in_row),
+                "record_file": in_row.get("_record_file", ""),
+                "reconcile_status": "transfer_matched",
+                "transfer_side": "in",
+                "match_rule": rule,
+                "match_confidence": "high",
+                "counterpart_file": out_row.get("_record_file", ""),
+                "counterpart_account": out_row.get("account_name", ""),
+                "counterpart_currency": out_row.get("currency", ""),
+                "counterpart_amount": out_row.get("amount", ""),
+            })
+        for row, rule in state["single_leg_marks"]:
+            transfer_audit_rows.append({
+                **_clean_row(row),
+                "record_file": row.get("_record_file", ""),
+                "reconcile_status": "transfer_single_leg",
+                "transfer_side": "out" if _amount(row) < 0 else "in",
+                "match_rule": rule,
+                "match_confidence": "rule",
+                "counterpart_file": "",
+                "counterpart_account": "",
+                "counterpart_currency": "",
+                "counterpart_amount": "",
+            })
+        audit_path = _write_audit(run_at, state["scope_from"], state["scope_to"], state["pairs"], transfer_audit_rows)
+        print(f"✅ 去重完成，审计文件: {audit_path}")
+        git_stage(models.FT_DIR)
+        return
+
+    _create_reconcile_pending_session(state)

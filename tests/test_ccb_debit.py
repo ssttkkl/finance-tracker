@@ -140,6 +140,16 @@ class TestLegacyFallback:
 # ── Basic parsing (date/amount/currency/category/card_number) ──
 
 class TestBasicParsing:
+    def test_ccb_debit_keeps_date_only_without_fabricated_time(self):
+        path = _make_xls("6217000000000002820", [
+            ("消费", "人民币元", "钞", "20260128", "-4.23", "1,845.76",
+             "财付通-微信支付-瑞幸咖啡", "Z******0010/***咖啡"),
+        ])
+        recs, _ = read_ccb_debit(path)
+        os.unlink(path)
+        assert len(recs) == 1
+        assert recs[0]["date"] == "2026-01-28"
+
     def test_expense(self):
         path = _make_xls("6217000000000002820", [
             ("消费", "人民币元", "钞", "20260128", "-4.23", "1,845.76",
@@ -149,7 +159,7 @@ class TestBasicParsing:
         os.unlink(path)
         assert len(recs) == 1
         r = recs[0]
-        assert r["date"] == "2026-01-28 00:00:00"
+        assert r["date"] == "2026-01-28"
         assert r["amount"] == -4.23
         assert r["currency"] == "CNY"
         assert r["category"] == "expense"
@@ -277,10 +287,13 @@ class TestRefundPairingWithPairRefunds:
         expenses = [r for r in recs if r["category"] == "expense"]
         refunds = [r for r in recs if r["category"] == "income" and "退货" in r.get("description", "")]
         others = [r for r in recs if not (r["category"] == "expense" or (r["category"] == "income" and "退货" in r.get("description", "")))]
+        refunds = [{**r, "_refund_signal": "ccb_debit_desc"} for r in refunds]
         result, tp = _pair_refunds(expenses, refunds, others)
         assert len(result) == 0  # 全额配对 → 两条都删除
         assert len(tp) == 1
         assert tp[0]["match_type"] == "full"
+        assert tp[0]["match_strength"] == "strong"
+        assert tp[0]["pending_required"] is False
 
     def test_orphan_refund_with_location(self):
         """22.23 美团特约商户 — counterparty 无匹配，孤退款"""
@@ -318,10 +331,13 @@ class TestRefundPairingWithPairRefunds:
         expenses = [r for r in recs if r["category"] == "expense"]
         refunds = [r for r in recs if r["category"] == "income" and "退货" in r.get("description", "")]
         others = [r for r in recs if not (r["category"] == "expense" or (r["category"] == "income" and "退货" in r.get("description", "")))]
+        refunds = [{**r, "_refund_signal": "ccb_debit_desc"} for r in refunds]
         result, tp = _pair_refunds(expenses, refunds, others)
         assert len(result) == 0  # 全额配对
         assert len(tp) == 1
         assert tp[0]["match_type"] == "full"
+        assert tp[0]["match_strength"] == "weak"
+        assert tp[0]["pending_required"] is True
 
     def test_full_refund_next_day_legacy(self):
         """旧版 充值+退款 次日，双方归一化为 「微信」后配对"""
@@ -378,9 +394,12 @@ class TestRefundPairingWithPairRefunds:
         expenses = [r for r in recs if r["category"] == "expense"]
         refunds = [r for r in recs if r["category"] == "income" and "退货" in r.get("description", "")]
         others = [r for r in recs if not (r["category"] == "expense" or (r["category"] == "income" and "退货" in r.get("description", "")))]
+        refunds = [{**r, "_refund_signal": "ccb_debit_desc"} for r in refunds]
         result, tp = _pair_refunds(expenses, refunds, others)
         # _pair_refunds 做 partial match: 500 - 200 = 300 保留
         assert len(result) == 1
         assert result[0]["amount"] == -300.00  # 消费 500 减退款 200
         assert len(tp) == 1
         assert tp[0]["match_type"] == "partial"
+        assert tp[0]["match_strength"] == "weak"
+        assert tp[0]["pending_required"] is True
