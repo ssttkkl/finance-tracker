@@ -301,6 +301,29 @@ def test_reconcile_auto_drops_uniqlo_alias_credit_mirror_without_pending(tmp_env
     assert rows[0]["bill_source"] == "wechat"
 
 
+def test_reconcile_auto_drops_icbc_debit_stable_service_mirror_without_pending(tmp_env):
+    from ft import models
+    from ft.reconcile import do_reconcile
+
+    day_path = models.RECORDS_DIR / "cash" / "2023-10.csv"
+    _write_rows(day_path, [
+        {"date": "2023-10-09 20:15:11", "amount": "-9.9", "currency": "CNY",
+         "counterparty": "多店宝网络", "description": "购买会员", "category": "expense",
+         "account_name": "工行借记卡", "source": "微信", "bill_source": "wechat"},
+        {"date": "2023-10-09 20:15:11", "amount": "-9.9", "currency": "CNY",
+         "counterparty": "深圳市财付通支付", "description": "消费", "category": "expense",
+         "account_name": "工行借记卡", "source": "银行卡", "bill_source": "icbc_debit"},
+    ])
+
+    do_reconcile(month="2023-10")
+
+    sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
+    assert len(sessions) == 0
+    with open(day_path, encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) == 1
+    assert rows[0]["bill_source"] == "wechat"
+
 
 def test_reconcile_keeps_high_auto_drop_and_review_in_same_batch(tmp_env):
     from ft import models

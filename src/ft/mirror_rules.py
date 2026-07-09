@@ -315,6 +315,8 @@ def _classify_candidate(candidate: MirrorCandidate) -> tuple[str, MirrorPair] | 
             return "review", MirrorPair(strong_row, weak_row, "debit_purchase_mirror_icbc", "low")
         if candidate.candidate_count > 1:
             return "review", MirrorPair(strong_row, weak_row, "debit_purchase_mirror_icbc", "low")
+        if candidate.merchant_signal_kind == "stable_service":
+            return "auto", MirrorPair(strong_row, weak_row, "debit_purchase_mirror_icbc", "high")
         if _cross_verify(strong_row, weak_row):
             return "auto", MirrorPair(strong_row, weak_row, "debit_purchase_mirror_icbc", "high")
         if (

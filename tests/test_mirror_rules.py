@@ -270,6 +270,44 @@ def test_detects_high_confidence_icbc_debit_alipay_gateway_purchase_mirror():
     assert pair.confidence == "high"
 
 
+def test_detects_high_confidence_icbc_debit_wechat_gateway_stable_service_purchase_mirror():
+    rows = [
+        {
+            "record_id": "a1",
+            "date": "2023-10-09 20:15:11",
+            "amount": "-9.9",
+            "currency": "CNY",
+            "counterparty": "多店宝网络",
+            "description": "购买会员",
+            "category": "expense",
+            "account_name": "工行借记卡",
+            "source": "微信",
+            "bill_source": "wechat",
+        },
+        {
+            "record_id": "b1",
+            "date": "2023-10-09 20:15:11",
+            "amount": "-9.9",
+            "currency": "CNY",
+            "counterparty": "深圳市财付通支付",
+            "description": "消费",
+            "category": "expense",
+            "account_name": "工行借记卡",
+            "source": "银行卡",
+            "bill_source": "icbc_debit",
+        },
+    ]
+
+    result = detect_mirror_pairs(rows)
+
+    assert len(result.auto_drop_pairs) == 1
+    assert len(result.review_pairs) == 0
+    pair = result.auto_drop_pairs[0]
+    assert pair.keep_row["bill_source"] == "wechat"
+    assert pair.drop_row["bill_source"] == "icbc_debit"
+    assert pair.rule_hint == "debit_purchase_mirror_icbc"
+    assert pair.confidence == "high"
+
 
 def test_marks_icbc_debit_wechat_social_flow_as_review():
     rows = [
