@@ -1,6 +1,7 @@
 """tests for src/ft/dedup.py"""
 import pytest
 from ft.dedup import _parse_dt, dedup
+from ft.mirror_rules import detect_mirror_pairs
 
 
 def _rec(date, amount, currency, counterparty, description,
@@ -188,3 +189,92 @@ def test_different_account_name_both_kept():
     kept, removed = dedup([a, b])
     assert len(kept) == 2
     assert len(removed) == 0
+
+
+def test_dedup_keeps_low_confidence_review_pair():
+    rows = [
+        {
+            "date": "2026-06-12 12:35:31",
+            "amount": "-55.2",
+            "currency": "CNY",
+            "counterparty": "微信",
+            "description": "群收款",
+            "category": "expense",
+            "account_name": "建行储蓄卡(2820)",
+            "source": "微信",
+            "bill_source": "wechat",
+        },
+        {
+            "date": "2026-06-12",
+            "amount": "-55.2",
+            "currency": "CNY",
+            "counterparty": "微信",
+            "description": "充值",
+            "category": "expense",
+            "account_name": "建行储蓄卡(2820)",
+            "source": "建行储蓄卡",
+            "bill_source": "ccb_debit",
+        },
+    ]
+
+    kept, removed = dedup(rows)
+
+    assert len(kept) == 2
+    assert removed == []
+
+
+
+def test_dedup_runs_fallback_after_mirror_auto_drop():
+    rows = [
+        {
+            "date": "2026-06-01 09:42:02",
+            "amount": "-20.4",
+            "currency": "CNY",
+            "counterparty": "麦当劳",
+            "description": "麦当劳",
+            "category": "expense",
+            "account_name": "工行借记卡(5521)",
+            "source": "微信",
+            "bill_source": "wechat",
+        },
+        {
+            "date": "2026-06-01 09:42:03",
+            "amount": "-20.4",
+            "currency": "CNY",
+            "counterparty": "财付通支付科技有限公司",
+            "description": "财付通-微信支付",
+            "category": "expense",
+            "account_name": "工行借记卡(5521)",
+            "source": "银行卡",
+            "bill_source": "icbc_debit",
+        },
+        {
+            "date": "2026-06-01 10:00:03",
+            "amount": "-30",
+            "currency": "CNY",
+            "counterparty": "麦当劳",
+            "description": "",
+            "category": "expense",
+            "account_name": "工行信用卡(1200)",
+            "source": "支付宝",
+            "bill_source": "alipay",
+        },
+        {
+            "date": "2026-06-01 10:00:04",
+            "amount": "-30",
+            "currency": "CNY",
+            "counterparty": "麦当劳",
+            "description": "",
+            "category": "expense",
+            "account_name": "工行信用卡(1200)",
+            "source": "银行卡",
+            "bill_source": "icbc_credit",
+        },
+    ]
+
+    kept, removed = dedup(rows)
+
+    assert len(kept) == 2
+    assert {row["bill_source"] for row in kept} == {"wechat", "alipay"}
+    removed_sources = [r["bill_source"] for r in removed if r["dedup_status"] == "去除"]
+    assert set(removed_sources) == {"icbc_debit", "icbc_credit"}

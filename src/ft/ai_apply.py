@@ -5,6 +5,7 @@ from .ai_working_csv import parse_ai_action_target
 
 def _materialize_row(row: dict) -> dict:
     return {
+        "record_id": row.get("record_id", ""),
         "date": row.get("date", ""),
         "amount": row.get("amount", ""),
         "currency": row.get("currency", ""),
@@ -16,6 +17,13 @@ def _materialize_row(row: dict) -> dict:
         "bill_source": row.get("bill_source", ""),
         "transfer_account": row.get("transfer_account", ""),
         "locked": row.get("locked", ""),
+        "offset_group": row.get("offset_group", ""),
+        "offset_role": row.get("offset_role", ""),
+        "offset_strength": row.get("offset_strength", ""),
+        "offset_source": row.get("offset_source", ""),
+        "offset_rule_hint": row.get("offset_rule_hint", ""),
+        "offset_match_type": row.get("offset_match_type", ""),
+        "proposed_action": row.get("proposed_action", "leave_as_is"),
     }
 
 

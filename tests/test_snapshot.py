@@ -200,7 +200,7 @@ def test_rebuild_snapshot_skips_directional_transfers(tmp_env):
     from ft.snapshot import rebuild_snapshot_from_records
 
     records_dir = tmp_env / "records"
-    day_path = records_dir / "cash" / "2026-06-12.csv"
+    day_path = records_dir / "cash" / "2026-06.csv"
     day_path.parent.mkdir(parents=True, exist_ok=True)
     with open(day_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=[

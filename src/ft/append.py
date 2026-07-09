@@ -1,4 +1,4 @@
-"""append — converted CSV → records/{type}/YYYY-MM-DD.csv"""
+"""append — converted CSV → records/{type}/YYYY-MM.csv"""
 import csv
 import sys
 from pathlib import Path
@@ -13,7 +13,7 @@ def _normal_row(row: dict) -> dict:
 
 
 def do_append(csv_paths: list[str] | str):
-    """Read converted CSV files, split by date, route to records/{type}/YYYY-MM-DD.csv."""
+    """Read converted CSV files, split by month, route to records/{type}/YYYY-MM.csv."""
     records_dir = models.RECORDS_DIR
     csv_fields = models.CSV_FIELDS
 
@@ -54,9 +54,9 @@ def do_append(csv_paths: list[str] | str):
                 date_val = row.get("date", "").strip()
                 if not date_val:
                     raise ValueError(f"❌ append CSV 中存在 date 为空的记录 (account={acct_name})")
-                date_str = date_val[:10]
-                incoming_rows.append((acct["type"], date_str, _normal_row(row)))
-                stats[date_str] += 1
+                month_str = models.month_key(date_val)
+                incoming_rows.append((acct["type"], month_str, _normal_row(row)))
+                stats[date_val[:10]] += 1
 
     if not incoming_rows:
         print("📭 无数据", file=sys.stderr)
@@ -67,15 +67,13 @@ def do_append(csv_paths: list[str] | str):
         groups[(typ, date_str)].append(row)
 
     # Write each group
-    for (typ, date_str), rows in groups.items():
-        type_dir = records_dir / typ
-        type_dir.mkdir(parents=True, exist_ok=True)
-
-        day_path = type_dir / f"{date_str}.csv"
+    for (typ, month_str), rows in groups.items():
+        month_path = models.records_month_path(typ, month_str, records_dir)
+        month_path.parent.mkdir(parents=True, exist_ok=True)
         existing_rows = []
 
-        if day_path.exists():
-            with open(day_path, encoding="utf-8") as f:
+        if month_path.exists():
+            with open(month_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f)
                 if typ == "security":
                     existing_rows = list(reader)
@@ -88,9 +86,9 @@ def do_append(csv_paths: list[str] | str):
 
         if typ == "security":
             from .stock import _write_security_csv
-            _write_security_csv(day_path, all_rows)
+            _write_security_csv(month_path, all_rows)
         else:
-            with open(day_path, "w", newline="", encoding="utf-8") as f:
+            with open(month_path, "w", newline="", encoding="utf-8") as f:
                 writer = csv.DictWriter(f, fieldnames=csv_fields)
                 writer.writeheader()
                 writer.writerows(all_rows)

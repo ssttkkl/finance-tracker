@@ -1,10 +1,20 @@
 """建行储蓄卡 XLS 转换器测试"""
 import pytest
-import xlwt
+xlwt = pytest.importorskip("xlwt")
 import os
 import tempfile
+from ft import models
 from ft.importers.ccb_debit import read_ccb_debit, _extract_ccb_counterparty
 from ft.convert import _pair_refunds
+
+
+@pytest.fixture
+def tmp_ft_home(monkeypatch, tmp_path):
+    monkeypatch.setattr(models, "FT_DIR", tmp_path)
+    monkeypatch.setattr(models, "RECORDS_DIR", tmp_path / "records")
+    monkeypatch.setattr(models, "ACCOUNTS_PATH", tmp_path / "accounts.yaml")
+    monkeypatch.setattr(models, "PENDING_DIR", tmp_path / "pending")
+    return tmp_path
 
 
 def _make_xls(card: str, rows: list[tuple]) -> str:
@@ -53,6 +63,11 @@ class TestLocationCounterparty:
         assert tracking == []
         assert recs[0]["counterparty"] == "瑞幸咖啡"
         assert recs[0]["payment_method"] == "微信支付"
+        assert recs[0]["location"] == "财付通-微信支付-瑞幸咖啡"
+        assert recs[0]["acct_name_raw"] == "Z******0010/***咖啡"
+        assert recs[0]["_raw_cp"] == "***咖啡"
+        assert recs[0]["_ccb_location_cp"] == "瑞幸咖啡"
+        assert recs[0]["_fact_id"] == "ccb_debit_f5e72292e6c3"
 
     def test_alipay(self):
         """支付宝-淘宝-于震 → 于震"""
@@ -86,6 +101,19 @@ class TestLocationCounterparty:
         os.unlink(path)
         assert recs[0]["counterparty"] == "美团特约商户"
         assert recs[0]["payment_method"] == "美团支付"
+        assert recs[0]["_ccb_refund_signal"] == "ccb_debit_refund"
+
+    def test_refund_keyword_variants_mark_refund_signal(self):
+        path = _make_xls("6217000000000002820", [
+            ("退款", "人民币元", "钞", "20260529", "10.00", "316.54",
+             "支付宝-淘宝-某商户", "20880001/某商户"),
+            ("消费冲正", "人民币元", "钞", "20260530", "12.00", "328.54",
+             "财付通-微信支付-某商户", "100001/某商户"),
+        ])
+        recs, _ = read_ccb_debit(path)
+        os.unlink(path)
+        assert recs[0]["_ccb_refund_signal"] == "ccb_debit_refund"
+        assert recs[1]["_ccb_refund_signal"] == "ccb_debit_refund"
 
     def test_paypal(self):
         """PAYPAL_PIXIVFANBOX → pixiv（品牌归一化）"""
@@ -135,6 +163,8 @@ class TestLegacyFallback:
         recs, tracking = read_ccb_debit(path)
         os.unlink(path)
         assert recs[0]["counterparty"] == "东方财富证券股份有限公司（客户）"
+        assert recs[0]["_raw_cp"] == "东方财富证券股份有限公司（客户）"
+        assert recs[0]["_ccb_location_cp"] == ""
 
 
 # ── Basic parsing (date/amount/currency/category/card_number) ──
@@ -179,6 +209,7 @@ class TestBasicParsing:
         assert r["amount"] == 100.00
         assert r["category"] == "income"
         assert r["description"] == "银联入账"
+        assert r.get("_ccb_refund_signal", "") == ""
 
     def test_transfer_out(self):
         path = _make_xls("6236680000000000523", [
@@ -285,15 +316,14 @@ class TestRefundPairingWithPairRefunds:
 
         # 用 _pair_refunds 做退款配对
         expenses = [r for r in recs if r["category"] == "expense"]
-        refunds = [r for r in recs if r["category"] == "income" and "退货" in r.get("description", "")]
-        others = [r for r in recs if not (r["category"] == "expense" or (r["category"] == "income" and "退货" in r.get("description", "")))]
-        refunds = [{**r, "_refund_signal": "ccb_debit_desc"} for r in refunds]
+        refunds = [r for r in recs if r["category"] == "income" and r.get("_ccb_refund_signal")]
+        others = [r for r in recs if not (r["category"] == "expense" or (r["category"] == "income" and r.get("_ccb_refund_signal")))]
+        refunds = [{**r, "_refund_signal": r["_ccb_refund_signal"]} for r in refunds]
         result, tp = _pair_refunds(expenses, refunds, others)
-        assert len(result) == 0  # 全额配对 → 两条都删除
+        assert len(result) == 2
         assert len(tp) == 1
         assert tp[0]["match_type"] == "full"
         assert tp[0]["match_strength"] == "strong"
-        assert tp[0]["pending_required"] is False
 
     def test_orphan_refund_with_location(self):
         """22.23 美团特约商户 — counterparty 无匹配，孤退款"""
@@ -308,8 +338,8 @@ class TestRefundPairingWithPairRefunds:
 
         # 用 _pair_refunds — 无消费可配 → 孤退款保留为 income
         expenses = [r for r in recs if r["category"] == "expense"]
-        refunds = [r for r in recs if r["category"] == "income" and "退货" in r.get("description", "")]
-        others = [r for r in recs if not (r["category"] == "expense" or (r["category"] == "income" and "退货" in r.get("description", "")))]
+        refunds = [r for r in recs if r["category"] == "income" and r.get("_ccb_refund_signal")]
+        others = [r for r in recs if not (r["category"] == "expense" or (r["category"] == "income" and r.get("_ccb_refund_signal")))]
         result, tp = _pair_refunds(expenses, refunds, others)
         assert len(result) == 1
         assert result[0]["category"] == "income"
@@ -329,15 +359,14 @@ class TestRefundPairingWithPairRefunds:
         assert len(recs) == 2
 
         expenses = [r for r in recs if r["category"] == "expense"]
-        refunds = [r for r in recs if r["category"] == "income" and "退货" in r.get("description", "")]
-        others = [r for r in recs if not (r["category"] == "expense" or (r["category"] == "income" and "退货" in r.get("description", "")))]
-        refunds = [{**r, "_refund_signal": "ccb_debit_desc"} for r in refunds]
+        refunds = [r for r in recs if r["category"] == "income" and r.get("_ccb_refund_signal")]
+        others = [r for r in recs if not (r["category"] == "expense" or (r["category"] == "income" and r.get("_ccb_refund_signal")))]
+        refunds = [{**r, "_refund_signal": r["_ccb_refund_signal"]} for r in refunds]
         result, tp = _pair_refunds(expenses, refunds, others)
-        assert len(result) == 0  # 全额配对
+        assert len(result) == 2
         assert len(tp) == 1
         assert tp[0]["match_type"] == "full"
         assert tp[0]["match_strength"] == "weak"
-        assert tp[0]["pending_required"] is True
 
     def test_full_refund_next_day_legacy(self):
         """旧版 充值+退款 次日，双方归一化为 「微信」后配对"""
@@ -352,11 +381,11 @@ class TestRefundPairingWithPairRefunds:
         assert len(recs) == 2
 
         expenses = [r for r in recs if r["category"] == "expense"]
-        refunds = [r for r in recs if r["category"] == "income" and "退货" in r.get("description", "")]
-        others = [r for r in recs if not (r["category"] == "expense" or (r["category"] == "income" and "退货" in r.get("description", "")))]
+        refunds = [r for r in recs if r["category"] == "income" and r.get("_ccb_refund_signal")]
+        others = [r for r in recs if not (r["category"] == "expense" or (r["category"] == "income" and r.get("_ccb_refund_signal")))]
         result, tp = _pair_refunds(expenses, refunds, others)
-        # _normalize_counterparty 将两者归一化为 "微信" → 全额配对
-        assert len(result) == 0
+        # _normalize_counterparty 将两者归一化为 "微信" → 建立全额关系
+        assert len(result) == 2
         assert len(tp) == 1
         assert tp[0]["match_type"] == "full"
 
@@ -371,8 +400,8 @@ class TestRefundPairingWithPairRefunds:
         assert len(recs) == 1
 
         expenses = [r for r in recs if r["category"] == "expense"]
-        refunds = [r for r in recs if r["category"] == "income" and "退货" in r.get("description", "")]
-        others = [r for r in recs if not (r["category"] == "expense" or (r["category"] == "income" and "退货" in r.get("description", "")))]
+        refunds = [r for r in recs if r["category"] == "income" and r.get("_ccb_refund_signal")]
+        others = [r for r in recs if not (r["category"] == "expense" or (r["category"] == "income" and r.get("_ccb_refund_signal")))]
         result, tp = _pair_refunds(expenses, refunds, others)
         assert len(result) == 1
         assert result[0]["category"] == "income"
@@ -392,14 +421,51 @@ class TestRefundPairingWithPairRefunds:
         assert len(recs) == 2
 
         expenses = [r for r in recs if r["category"] == "expense"]
-        refunds = [r for r in recs if r["category"] == "income" and "退货" in r.get("description", "")]
-        others = [r for r in recs if not (r["category"] == "expense" or (r["category"] == "income" and "退货" in r.get("description", "")))]
-        refunds = [{**r, "_refund_signal": "ccb_debit_desc"} for r in refunds]
+        refunds = [r for r in recs if r["category"] == "income" and r.get("_ccb_refund_signal")]
+        others = [r for r in recs if not (r["category"] == "expense" or (r["category"] == "income" and r.get("_ccb_refund_signal")))]
+        refunds = [{**r, "_refund_signal": r["_ccb_refund_signal"]} for r in refunds]
         result, tp = _pair_refunds(expenses, refunds, others)
-        # _pair_refunds 做 partial match: 500 - 200 = 300 保留
-        assert len(result) == 1
-        assert result[0]["amount"] == -300.00  # 消费 500 减退款 200
+        assert len(result) == 2
+        assert next(r for r in result if r["category"] == "expense")["amount"] == -500.00
+        assert next(r for r in result if r["category"] == "income")["amount"] == 200.00
         assert len(tp) == 1
         assert tp[0]["match_type"] == "partial"
         assert tp[0]["match_strength"] == "weak"
-        assert tp[0]["pending_required"] is True
+
+
+class TestConvertContract:
+    def test_ccb_debit_weak_refund_writes_output_without_creating_pending(self, tmp_ft_home):
+        from ft.convert import do_convert
+
+        bill_path = _make_xls("6217000000000002820", [
+            ("消费", "人民币元", "钞", "20260314", "-500.00", "8,000.00",
+             "财付通-微信支付-某商店", "Z******0010/***店"),
+            ("消费退货", "人民币元", "钞", "20260315", "200.00", "8,200.00",
+             "财付通-某商店", "2088002502045789/某商店"),
+        ])
+        output_path = tmp_ft_home / "converted.csv"
+
+        try:
+            do_convert(bill_path, "ccb-debit", str(output_path))
+        finally:
+            os.unlink(bill_path)
+
+        sessions = list((models.PENDING_DIR / "convert").glob("*")) if (models.PENDING_DIR / "convert").exists() else []
+        assert sessions == []
+        assert output_path.exists()
+
+        with output_path.open(encoding="utf-8") as f:
+            rows = list(__import__("csv").DictReader(f))
+        assert len(rows) == 2
+        expense = next(row for row in rows if row["category"] == "expense")
+        refund = next(row for row in rows if row["category"] == "income")
+        assert expense["offset_group"]
+        assert expense["offset_role"] == "expense"
+        assert expense["offset_strength"] == "weak"
+        assert expense["offset_rule_hint"] == "refund_cp_match"
+        assert expense["offset_match_type"] == "partial"
+        assert refund["offset_group"] == expense["offset_group"]
+        assert refund["offset_role"] == "refund"
+        assert refund["offset_strength"] == "weak"
+        assert refund["offset_match_type"] == "partial"
+        assert refund["proposed_action"].startswith("merge_refund_into:")

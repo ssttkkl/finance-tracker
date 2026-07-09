@@ -19,6 +19,7 @@ from .ai_working_csv import (
     write_ai_working_csv,
 )
 from .dedup import _cross_verify, _parse_dt, _source_group, _truncate_minute, dedup_with_pairs
+from .mirror_rules import MIRROR_LOW_CONFIDENCE_RULE_HINT, detect_mirror_pairs
 from .pending import clear_pending_session, create_pending_session, load_manifest, require_single_pending_session
 from .snapshot import rebuild_snapshot_from_records, git_stage
 from .transfer_rules import classify_single_leg
@@ -321,12 +322,13 @@ def _audit_path(run_at: str) -> Path:
 
 def _audit_fields() -> list[str]:
     return [
-        "run_at", "scope_from", "scope_to", "date", "amount", "currency",
+        "run_at", "scope_from", "scope_to", "record_id", "date", "amount", "currency",
         "counterparty", "description", "category", "account_name", "source",
-        "bill_source", "transfer_account", "locked", "record_file", "dedup_status",
-        "reconcile_status", "transfer_side", "match_rule", "match_confidence",
-        "counterpart_file", "counterpart_account", "counterpart_currency",
-        "counterpart_amount",
+        "bill_source", "transfer_account", "locked", "offset_group", "offset_role",
+        "offset_strength", "offset_source", "offset_rule_hint", "offset_match_type",
+        "proposed_action", "record_file", "dedup_status", "reconcile_status",
+        "transfer_side", "match_rule", "match_confidence", "counterpart_file",
+        "counterpart_account", "counterpart_currency", "counterpart_amount",
     ]
 
 
@@ -405,7 +407,9 @@ def _prepare_reconcile_state(*, month=None, date_from=None, date_to=None):
     scoped_ids = {id(row) for row in scoped}
     scoped_locked = [row for row in scoped if _is_locked(row)]
     scoped_active = [row for row in scoped if not _is_locked(row)]
+    mirror_review_annotations = _mirror_review_annotations(scoped_active)
     kept, removed, pairs = dedup_with_pairs(scoped_active)
+    kept_base = [{**row} for row in kept]
     transfer_matches = _match_same_currency_exact(kept)
     used_transfer_ids = {id(row) for match in transfer_matches for row in match[:2]}
     transfer_matches.extend(_match_same_day_unionpay_cash_transfer(kept, used_transfer_ids))
@@ -414,6 +418,11 @@ def _prepare_reconcile_state(*, month=None, date_from=None, date_to=None):
     for out_row, in_row, rule in transfer_matches:
         _mark_transfer(out_row, in_row, rule)
     single_leg_marks = _mark_single_leg_transfers(kept, used_transfer_ids)
+
+    review_row_ids = set(mirror_review_annotations)
+    has_only_review = bool(mirror_review_annotations) and not removed
+    has_mixed_high_and_review = bool(mirror_review_annotations) and bool(removed)
+    pending_rows = [row for row in scoped if id(row) in review_row_ids] if has_mixed_high_and_review else scoped
 
     state = {
         "start": start,
@@ -424,17 +433,17 @@ def _prepare_reconcile_state(*, month=None, date_from=None, date_to=None):
         "scoped": scoped,
         "scoped_ids": scoped_ids,
         "scoped_locked": scoped_locked,
+        "mirror_review_annotations": mirror_review_annotations,
+        "pending_rows": pending_rows,
+        "has_only_review": has_only_review,
         "kept": kept,
+        "kept_base": kept_base,
         "removed": removed,
         "pairs": pairs,
         "transfer_matches": transfer_matches,
         "single_leg_marks": single_leg_marks,
     }
     return state
-
-
-def _should_enter_reconcile_pending(state: dict) -> bool:
-    return bool(state.get("scoped"))
 
 
 def _copy_scoped_records(session_dir: Path, scoped: list[dict]):
@@ -451,6 +460,32 @@ def _copy_scoped_records(session_dir: Path, scoped: list[dict]):
         copied.add(src)
 
 
+def _mirror_review_annotations(scoped: list[dict]) -> dict[int, dict]:
+    review_pairs = detect_mirror_pairs(scoped).review_pairs
+    annotations: dict[int, dict] = {}
+    for idx, pair in enumerate(review_pairs, 1):
+        group = f"mirror_{idx:04d}"
+        for row, role in ((pair.keep_row, "keep"), (pair.drop_row, "drop")):
+            annotations[id(row)] = {
+                "ai_group": group,
+                "rule_hint": pair.rule_hint or MIRROR_LOW_CONFIDENCE_RULE_HINT,
+                "ai_reason": f"{pair.rule_hint}:{role}",
+            }
+    return annotations
+
+
+def _has_low_confidence_mirror_review(state: dict) -> bool:
+    return bool(state.get("mirror_review_annotations"))
+
+
+def _should_enter_reconcile_pending(state: dict) -> bool:
+    if not state.get("scoped"):
+        return False
+    if _has_low_confidence_mirror_review(state) and state.get("removed"):
+        return True
+    return not state.get("removed")
+
+
 def _create_reconcile_pending_session(state: dict):
     manifest = {
         "scope_from": state["scope_from"],
@@ -459,6 +494,8 @@ def _create_reconcile_pending_session(state: dict):
     session_dir = create_pending_session("reconcile", manifest)
     session_id = session_dir.name
 
+    pending_rows = state["scoped"] if state.get("has_only_review") else state.get("pending_rows", state["scoped"])
+    mirror_review_annotations = state.get("mirror_review_annotations", {})
     ai_rows = [
         build_ai_working_row(
             {
@@ -468,11 +505,12 @@ def _create_reconcile_pending_session(state: dict):
             },
             record_id=f"r_{idx:06d}",
             session_id=session_id,
+            defaults=mirror_review_annotations.get(id(row), {}),
         )
-        for idx, row in enumerate(state["scoped"], 1)
+        for idx, row in enumerate(pending_rows, 1)
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", ai_rows)
-    _copy_scoped_records(session_dir, state["scoped"])
+    _copy_scoped_records(session_dir, pending_rows)
 
     run_at = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     transfer_audit_rows = []
@@ -645,10 +683,13 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
     for row in state["scoped_locked"]:
         rows_by_file[row["_record_file"]].append(_clean_row(row))
 
-    for row in state["kept"]:
+    kept_rows_for_write = state["kept_base"] if state.get("has_only_review") else state["kept"]
+    for row in kept_rows_for_write:
         rows_by_file[row["_record_file"]].append(_clean_row(row))
 
     touched_files = sorted({row["_record_file"] for row in state["scoped"]})
+    has_pending_review = _has_low_confidence_mirror_review(state)
+    has_mixed_high_and_review = has_pending_review and bool(state["removed"])
 
     if not _should_enter_reconcile_pending(state):
         for file_path_str in touched_files:
@@ -713,5 +754,65 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
         print(f"✅ 去重完成，审计文件: {audit_path}")
         git_stage(models.FT_DIR)
         return
+
+    if has_mixed_high_and_review:
+        for file_path_str in touched_files:
+            file_path = Path(file_path_str)
+            final_rows = rows_by_file.get(file_path_str, [])
+            if not final_rows:
+                if file_path.exists():
+                    file_path.unlink()
+                continue
+            final_rows.sort(key=lambda r: r["date"])
+            with open(file_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
+                writer.writeheader()
+                writer.writerows(final_rows)
+
+        rebuild_snapshot_from_records(models.RECORDS_DIR)
+
+    if has_mixed_high_and_review:
+        run_at = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        transfer_audit_rows = []
+        for out_row, in_row, rule in state["transfer_matches"]:
+            transfer_audit_rows.append({
+                **_clean_row(out_row),
+                "record_file": out_row.get("_record_file", ""),
+                "reconcile_status": "transfer_matched",
+                "transfer_side": "out",
+                "match_rule": rule,
+                "match_confidence": "high",
+                "counterpart_file": in_row.get("_record_file", ""),
+                "counterpart_account": in_row.get("account_name", ""),
+                "counterpart_currency": in_row.get("currency", ""),
+                "counterpart_amount": in_row.get("amount", ""),
+            })
+            transfer_audit_rows.append({
+                **_clean_row(in_row),
+                "record_file": in_row.get("_record_file", ""),
+                "reconcile_status": "transfer_matched",
+                "transfer_side": "in",
+                "match_rule": rule,
+                "match_confidence": "high",
+                "counterpart_file": out_row.get("_record_file", ""),
+                "counterpart_account": out_row.get("account_name", ""),
+                "counterpart_currency": out_row.get("currency", ""),
+                "counterpart_amount": out_row.get("amount", ""),
+            })
+        for row, rule in state["single_leg_marks"]:
+            transfer_audit_rows.append({
+                **_clean_row(row),
+                "record_file": row.get("_record_file", ""),
+                "reconcile_status": "transfer_single_leg",
+                "transfer_side": "out" if _amount(row) < 0 else "in",
+                "match_rule": rule,
+                "match_confidence": "rule",
+                "counterpart_file": "",
+                "counterpart_account": "",
+                "counterpart_currency": "",
+                "counterpart_amount": "",
+            })
+        _write_audit(run_at, state["scope_from"], state["scope_to"], state["pairs"], transfer_audit_rows)
+        git_stage(models.FT_DIR)
 
     _create_reconcile_pending_session(state)

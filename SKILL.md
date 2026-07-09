@@ -36,6 +36,22 @@ convert 说明：`alipay`（支付宝 CSV）、`wechat`（微信 xlsx）、`icbc
 
 AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2数据脱敏 > P3 counterparty** 逐项检查。每个转换后的 CSV 文件独立审查，每文件分配一个 subagent。详细审查清单见 `references/review-checklist.md`。跨支付渠道排查“状态/方向/中性交易”类转换器问题时，按 `references/payment-statement-direction-audit.md` 先只读重转到 `/tmp`、统计风险类、再和 records 精确匹配；不要把历史导入范围差异直接当 bug。
 
+### 退款核销目标
+
+退款自动核销的最高优先级是：
+
+- 最终净额正确
+- 账户余额正确
+- 消费统计正确
+
+在满足以上三点时，**允许对同类多候选消费采用保守的近邻归并**，不强求严格回链到唯一原单。
+
+执行时遵循以下边界：
+
+- 优先避免漏掉退款，导致净支出偏高
+- 优先避免把退款核销到不同消费类型、不同账户或错误金额
+- 对同商户 / 同平台 / 同类消费中的多候选退款，只要最终核算结果正确，可接受不精确回挂到唯一原单
+
 ### Pending / ai_working.csv 标准处理流程
 
 如果命令进入 pending，会生成 `~/.ft/pending/.../<session_id>/ai_working.csv`。CLI 只负责提示你去看 `SKILL.md`；真正的审查细则以这里为准。

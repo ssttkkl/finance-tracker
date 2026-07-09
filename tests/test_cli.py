@@ -82,37 +82,6 @@ def test_reconcile_rejects_month_plus_range():
         cli.main(["reconcile", "--month", "2026-06", "--from", "2026-06-01"])
 
 
-def test_convert_continue_dispatch(monkeypatch):
-    called = {}
-
-    monkeypatch.setattr("ft.convert.continue_convert", lambda path: called.setdefault("path", path))
-    monkeypatch.setattr("ft.convert.abort_convert", lambda: None)
-    monkeypatch.setattr("ft.convert.do_convert", lambda *args, **kwargs: None)
-
-    cli.main(["convert", "--continue-with-decisions", "/tmp/edited.csv"])
-    assert called["path"] == "/tmp/edited.csv"
-
-
-def test_convert_abort_dispatch(monkeypatch):
-    called = {"abort": False}
-
-    monkeypatch.setattr("ft.convert.continue_convert", lambda _path: None)
-    monkeypatch.setattr("ft.convert.abort_convert", lambda: called.__setitem__("abort", True))
-    monkeypatch.setattr("ft.convert.do_convert", lambda *args, **kwargs: None)
-
-    cli.main(["convert", "--abort"])
-    assert called["abort"] is True
-
-
-def test_convert_rejects_continue_plus_normal_args(monkeypatch):
-    monkeypatch.setattr("ft.convert.continue_convert", lambda _path: None)
-    monkeypatch.setattr("ft.convert.abort_convert", lambda: None)
-    monkeypatch.setattr("ft.convert.do_convert", lambda *args, **kwargs: None)
-
-    with pytest.raises(SystemExit):
-        cli.main(["convert", "bill.csv", "-s", "alipay", "-o", "out.csv", "--continue-with-decisions", "edited.csv"])
-
-
 def test_reconcile_continue_dispatch(monkeypatch):
     called = {}
 
@@ -135,16 +104,17 @@ def test_reconcile_abort_dispatch(monkeypatch):
     assert called["abort"] is True
 
 
-def test_convert_help_mentions_skill_and_ai_working_csv():
+def test_convert_help_no_longer_mentions_pending_review():
     stdout = StringIO()
     stderr = StringIO()
     with redirect_stdout(stdout), redirect_stderr(stderr), pytest.raises(SystemExit):
         cli.main(["convert", "--help"])
 
     output = stdout.getvalue() + stderr.getvalue()
-    assert "SKILL.md" in output
-    assert "ai_working.csv" in output
-    assert "三个月一批" in output
+    assert "--continue-with-decisions" not in output
+    assert "--abort" not in output
+    assert "SKILL.md" not in output
+    assert "ai_working.csv" not in output
 
 
 def test_reconcile_help_mentions_skill_and_ai_working_csv():
@@ -192,7 +162,7 @@ def test_cli_add_to_security_preserves_existing_stock_columns(tmp_env):
         "--account", "IBKR", "--date", "2026-06-30 10:00:00",
     ])
 
-    day_csv = models.RECORDS_DIR / "security" / "2026-06-30.csv"
+    day_csv = models.RECORDS_DIR / "security" / "2026-06.csv"
     with day_csv.open(encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
@@ -218,7 +188,7 @@ def test_cli_checkin_to_security_preserves_existing_stock_columns(tmp_env):
 
     cli.main(["checkin", "IBKR", "--balance", "100", "--date", "2026-06-30"])
 
-    day_csv = models.RECORDS_DIR / "security" / "2026-06-30.csv"
+    day_csv = models.RECORDS_DIR / "security" / "2026-06.csv"
     with day_csv.open(encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)

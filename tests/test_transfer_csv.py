@@ -44,7 +44,7 @@ def test_same_currency_transfer(tmp_env):
         amount=3000, date="2026-06-12"
     )
 
-    from_csv = records_dir / "cash" / "2026-06-12.csv"
+    from_csv = records_dir / "cash" / "2026-06.csv"
     assert from_csv.exists()
     with open(from_csv, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
@@ -54,7 +54,7 @@ def test_same_currency_transfer(tmp_env):
     assert rows[0]["category"] == "transfer_out"
     assert rows[0]["transfer_account"] == "工行信用卡(1200)"
 
-    to_csv = records_dir / "loan" / "2026-06-12.csv"
+    to_csv = records_dir / "loan" / "2026-06.csv"
     assert to_csv.exists()
     with open(to_csv, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
@@ -73,7 +73,7 @@ def test_cross_currency_transfer(tmp_env):
         amount=36250, to_amount=5000, date="2026-06-12"
     )
 
-    from_csv = records_dir / "cash" / "2026-06-12.csv"
+    from_csv = records_dir / "cash" / "2026-06.csv"
     with open(from_csv, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert float(rows[0]["amount"]) == -36250
@@ -82,7 +82,7 @@ def test_cross_currency_transfer(tmp_env):
     assert rows[0]["category"] == "transfer_out"
     assert rows[0]["transfer_account"] == "IBKR"
 
-    to_csv = records_dir / "security" / "2026-06-12.csv"
+    to_csv = records_dir / "security" / "2026-06.csv"
     with open(to_csv, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert float(rows[0]["amount"]) == 5000
@@ -94,7 +94,7 @@ def test_cross_currency_transfer(tmp_env):
 
 def test_transfer_sorts_file(tmp_env):
     records_dir, _ = tmp_env
-    from_csv = records_dir / "cash" / "2026-06-12.csv"
+    from_csv = records_dir / "cash" / "2026-06.csv"
     from_csv.parent.mkdir(parents=True, exist_ok=True)
     fields = ["date", "amount", "currency", "counterparty",
               "description", "category", "account_name", "source",
@@ -130,5 +130,5 @@ def test_unknown_account(tmp_env):
     )
     # Should not create any files
     for t in ["cash", "loan", "lend", "security"]:
-        day_csv = records_dir / t / "2026-06-12.csv"
+        day_csv = records_dir / t / "2026-06.csv"
         assert not day_csv.exists()

@@ -7,6 +7,15 @@ RECORDS_DIR = FT_DIR / "records"
 ACCOUNTS_PATH = FT_DIR / "accounts.yaml"
 PENDING_DIR = FT_DIR / "pending"
 
+
+def month_key(date_str: str) -> str:
+    return date_str[:7]
+
+
+def records_month_path(record_type: str, date_str: str, records_dir: Path | None = None) -> Path:
+    base = records_dir or RECORDS_DIR
+    return Path(base) / record_type / f"{month_key(date_str)}.csv"
+
 # 币种
 CURRENCIES = ("CNY", "USD", "HKD")
 CURRENCY_SYMBOLS = {
@@ -54,11 +63,29 @@ SOURCE_LABELS = {
 # 购汇/跨境关键词 → 跨币种转账
 FOREIGN_EXCHANGE_KEYWORDS = ("购汇", "跨境", "外汇", "换汇")
 
-# CSV 字段（11 列）
+# CSV 字段
 # locked=1 表示该行被人工锁定：reconcile 完全不碰（不去重、不配对、不单腿标记）。
-CSV_FIELDS = ["date", "amount", "currency", "counterparty",
-              "description", "category", "account_name", "source",
-              "bill_source", "transfer_account", "locked"]
+CSV_FIELDS = [
+    "record_id",
+    "date",
+    "amount",
+    "currency",
+    "counterparty",
+    "description",
+    "category",
+    "account_name",
+    "source",
+    "bill_source",
+    "transfer_account",
+    "locked",
+    "offset_group",
+    "offset_role",
+    "offset_strength",
+    "offset_source",
+    "offset_rule_hint",
+    "offset_match_type",
+    "proposed_action",
+]
 
 # 加密货币符号 → CoinGecko coin id（新增币种在此补一行）
 CRYPTO_IDS = {

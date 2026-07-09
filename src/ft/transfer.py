@@ -10,7 +10,7 @@ from .snapshot import load_snapshot, save_snapshot, update_balance
 def _write_transfer_row(path: Path, date_str: str, amount: float, currency: str,
                         description: str, account_name: str,
                         category: str, transfer_account: str):
-    """Write a transfer row to a day CSV, then sort."""
+    """Write a transfer row to a month CSV, then sort."""
     path.parent.mkdir(parents=True, exist_ok=True)
 
     existing = []
@@ -85,13 +85,13 @@ def do_transfer(from_name: str, to_name: str, amount: float, *,
     records_dir = models.RECORDS_DIR
 
     # Write from side
-    from_path = records_dir / from_acct["type"] / f"{date}.csv"
+    from_path = models.records_month_path(from_acct["type"], date, records_dir)
     from_desc = description or (f"购汇至{to_cur}" if from_cur != to_cur else f"转账至{to_name}")
     _write_transfer_row(from_path, date_str, -amount, from_cur, from_desc, from_name,
                         "transfer_out", to_name)
 
     # Write to side
-    to_path = records_dir / to_acct["type"] / f"{date}.csv"
+    to_path = models.records_month_path(to_acct["type"], date, records_dir)
     to_desc = description or (f"购汇自{from_cur}" if from_cur != to_cur else f"来自{from_name}")
     _write_transfer_row(to_path, date_str, to_amount or amount, to_cur, to_desc, to_name,
                         "transfer_in", from_name)

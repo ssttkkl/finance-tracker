@@ -51,13 +51,13 @@ def test_write_status_updates_status_file(tmp_pending_env):
 def test_create_pending_session_rejects_second_session_of_same_kind(tmp_pending_env):
     from ft.pending import create_pending_session
 
-    create_pending_session("convert", {"output_path": "/tmp/a.csv"})
+    create_pending_session("reconcile", {"scope_from": "2026-06-01"})
 
     with pytest.raises(ValueError) as exc:
-        create_pending_session("convert", {"output_path": "/tmp/b.csv"})
+        create_pending_session("reconcile", {"scope_from": "2026-07-01"})
 
     message = str(exc.value)
-    assert "已有未完成的 convert 会话" in message
+    assert "已有未完成的 reconcile 会话" in message
     assert "ai_working.csv" in message
     assert "SKILL.md" in message
     assert "整份 ai_working.csv" in message

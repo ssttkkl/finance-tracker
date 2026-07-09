@@ -88,8 +88,8 @@ def _save_snapshot_and_record_trade(snap: dict, **trade_kwargs) -> dict:
     """Save snapshot and write audit row; restore snapshot/CSV if either write fails."""
     _validate_security_snapshot_finite(snap)
     snapshot_path, snapshot_backup = _snapshot_file_backup()
-    date_key = str(trade_kwargs.get("date", ""))[:10]
-    day_path = models.RECORDS_DIR / "security" / f"{date_key}.csv"
+    month_key = models.month_key(str(trade_kwargs.get("date", "")))
+    day_path = models.records_month_path("security", month_key, models.RECORDS_DIR)
     day_backup = day_path.read_bytes() if day_path.exists() else None
     try:
         save_snapshot(snap)
@@ -146,16 +146,16 @@ def record_trade(
     account_name: str,
     note: str = "",
 ) -> dict:
-    """Write a trade row to records/security/{date[:10]}.csv.
+    """Write a trade row to records/security/{date[:7]}.csv.
 
     Returns the row dict that was written.
     """
     _ensure_finite_values(shares=shares, price=price, amount=amount, commission=commission)
     records_dir = models.RECORDS_DIR
-    date_key = date[:10]  # "2026-06-12 10:00:00" → "2026-06-12"
+    month_key = models.month_key(date)
     security_dir = records_dir / "security"
     security_dir.mkdir(parents=True, exist_ok=True)
-    day_path = security_dir / f"{date_key}.csv"
+    day_path = models.records_month_path("security", month_key, records_dir)
 
     # Read existing rows
     existing_rows = []
@@ -277,7 +277,7 @@ def do_convert(path, source, output, password=None, account="东方证券", curr
 def do_append(file_path):
     """将 stock CSV 批量导入 records/security/。
 
-    校验、按日写入、重建快照、git commit。
+    校验、按月写入、重建快照、git commit。
     """
     # 1. Read & validate CSV
     with open(file_path, encoding="utf-8") as f:
@@ -348,12 +348,12 @@ def do_append(file_path):
     # 2. Sort by date
     rows.sort(key=lambda r: r["date"])
 
-    # 3. Group by date and write per-day files
+    # 3. Group by month and write per-month files
     from collections import defaultdict
     by_date = defaultdict(list)
     for row in rows:
-        day = row["date"][:10]
-        by_date[day].append(row)
+        month = models.month_key(row["date"])
+        by_date[month].append(row)
 
     records_dir = models.RECORDS_DIR
     security_dir = records_dir / "security"
@@ -380,8 +380,8 @@ def do_append(file_path):
                 path.write_bytes(content)
 
     try:
-        for day, day_rows in sorted(by_date.items()):
-            day_path = security_dir / f"{day}.csv"
+        for month, day_rows in sorted(by_date.items()):
+            day_path = models.records_month_path("security", month, records_dir)
             if day_path not in original_files:
                 original_files[day_path] = day_path.read_bytes() if day_path.exists() else None
 

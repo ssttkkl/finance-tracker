@@ -11,14 +11,14 @@
 ├── accounts.yaml       # 账户元数据（名称/类型/币种/启用）
 ├── mapping.yaml        # 支付方式 → 账户名映射（convert 用）
 ├── snapshot.yaml       # 统一快照（所有账户的当前余额 + 持仓）
-└── records/            # 按天交易记录，按类型分子目录
-    ├── cash/2026-01-01.csv
-    ├── loan/2026-01-15.csv
-    └── security/2026-06-12.csv
+└── records/            # 按月交易记录，按类型分子目录
+    ├── cash/2026-01.csv
+    ├── loan/2026-01.csv
+    └── security/2026-06.csv
 ```
 
 **双层存储：**
-- **CSV 文件** — 不可篡改的审计日志，每天每账户类型一个文件
+- **CSV 文件** — 不可篡改的审计日志，每月每账户类型一个文件
 - **`snapshot.yaml`** — 当前状态快照，查询秒出
 - 所有写操作（append/checkin/transfer/stock）同时更新 **CSV + 快照**
 - 所有查询（report/acct list/stock list）只读 **快照**，不扫 CSV
@@ -34,7 +34,7 @@ cd ~/.ft && git log
 ```bash
 ft acct list              # 查看账户列表（首次自动创建 accounts.yaml）
 ft convert 支付宝.csv -s alipay -o alipay.csv       # 步骤①：原始账单→统一CSV
-ft append alipay.csv wechat.csv                      # 步骤②：按天落盘
+ft append alipay.csv wechat.csv                      # 步骤②：按月落盘
 ft reconcile --month 2026-06                         # 步骤③：导入后统一整理
 ft report [--month 2026-06]                         # 资产负债 + 消费 + 收入
 ft list [--account 支付宝余额] [--limit 10]        # 交易明细
@@ -82,10 +82,26 @@ ft transfer --from 工行借记卡 --to IBKR --amount 36250 --to-amount 5000
 
 ```
 ① ft convert → ② AI审查/编辑 working CSV → ③ ft append → ④ ft reconcile → ⑤ AI审查/编辑 working CSV → ⑥ ft commit
-   账单→CSV/pending            继续 convert      按天落盘      records/pending            继续 reconcile      Git 提交
+   账单→CSV/pending            继续 convert      按月落盘      records/pending            继续 reconcile      Git 提交
 ```
 
 每步产出可查看可修改的 CSV，AI 审查是必须的门禁。
+
+### 退款核销目标
+
+退款自动核销的最高优先级是：
+
+- 最终净额正确
+- 账户余额正确
+- 消费统计正确
+
+在满足以上三点时，**允许对同类多候选消费采用保守的近邻归并**，不强求严格回链到唯一原单。
+
+这意味着：
+
+- 优先避免漏掉退款，导致净支出偏高
+- 优先避免把退款核销到不同消费类型、不同账户或错误金额
+- 对同商户 / 同平台 / 同类消费中的多候选退款，只要最终核算结果正确，可接受不精确回挂到唯一原单
 
 ## AI working CSV / pending 工作流
 

@@ -85,7 +85,7 @@ def test_record_trade_writes_csv(tmp_env):
     )
 
     security_dir = tmp_env / "records" / "security"
-    day_csv = security_dir / "2026-06-12.csv"
+    day_csv = security_dir / "2026-06.csv"
     assert day_csv.exists()
 
     with open(day_csv, encoding="utf-8") as f:
@@ -121,7 +121,7 @@ def test_record_trade_sorts(tmp_env):
         currency="USD", account_name="IBKR", note="buy 1",
     )
 
-    day_csv = tmp_env / "records" / "security" / "2026-06-12.csv"
+    day_csv = tmp_env / "records" / "security" / "2026-06.csv"
     assert day_csv.exists()
 
     with open(day_csv, encoding="utf-8") as f:
@@ -524,7 +524,7 @@ def test_stock_append_preserves_transfer_style_security_rows(tmp_env):
     )
     security_dir = models.RECORDS_DIR / "security"
     security_dir.mkdir(parents=True, exist_ok=True)
-    day_path = security_dir / "2026-06-30.csv"
+    day_path = security_dir / "2026-06.csv"
     day_path.write_text(
         "date,amount,currency,counterparty,description,category,account_name,source,bill_source,transfer_account\n"
         "2026-06-30 09:00:00,735.29,USD,,购汇入金,transfer_in,Polymarket,手动,,东方证券\n",
@@ -657,7 +657,7 @@ def test_stock_append_rejects_non_security_account(tmp_env):
         })
 
     assert do_append(csv_path) is False
-    assert not (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
+    assert not (models.RECORDS_DIR / "security" / "2026-06.csv").exists()
 
 
 def test_stock_append_routes_same_name_by_currency_and_security_type(tmp_env):
@@ -681,7 +681,7 @@ def test_stock_append_routes_same_name_by_currency_and_security_type(tmp_env):
         })
 
     assert do_append(csv_path) is True
-    assert (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
+    assert (models.RECORDS_DIR / "security" / "2026-06.csv").exists()
 
 
 def test_sync_polymarket_rejects_non_security_account_before_network(tmp_env, monkeypatch):
@@ -770,7 +770,7 @@ def test_transfer_to_security_preserves_existing_stock_rows(tmp_env):
     )
     security_dir = models.RECORDS_DIR / "security"
     security_dir.mkdir(parents=True, exist_ok=True)
-    day_path = security_dir / "2026-06-30.csv"
+    day_path = security_dir / "2026-06.csv"
     with day_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS + ["transfer_account"])
         writer.writeheader()
@@ -805,7 +805,7 @@ def test_general_append_to_security_preserves_existing_stock_rows(tmp_env):
     )
     security_dir = models.RECORDS_DIR / "security"
     security_dir.mkdir(parents=True, exist_ok=True)
-    day_path = security_dir / "2026-06-30.csv"
+    day_path = security_dir / "2026-06.csv"
     with day_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS + ["transfer_account"])
         writer.writeheader()
@@ -873,7 +873,7 @@ def test_stock_append_rolls_back_if_later_day_write_fails(tmp_env, monkeypatch):
 
     with pytest.raises(RuntimeError, match="simulated write failure"):
         do_append(input_csv)
-    assert not (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
+    assert not (models.RECORDS_DIR / "security" / "2026-06.csv").exists()
     assert not (models.RECORDS_DIR / "security" / "2026-07-01.csv").exists()
 
 
@@ -896,7 +896,7 @@ def test_do_buy_rejects_overflow_amount_before_mutating(tmp_env):
         do_buy(ticker="nvda.us", shares=1e308, price=1e308, commission=0,
                currency="USD", account_name="IBKR", date="2026-06-30")
     assert load_snapshot()["accounts"]["security"] == {}
-    assert not (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
+    assert not (models.RECORDS_DIR / "security" / "2026-06.csv").exists()
 
 
 def test_do_buy_rolls_back_snapshot_if_record_trade_fails(tmp_env, monkeypatch):
@@ -929,7 +929,7 @@ def test_do_buy_rolls_back_csv_if_recording_partially_writes_then_fails(tmp_env,
 
     security_dir = models.RECORDS_DIR / "security"
     security_dir.mkdir(parents=True, exist_ok=True)
-    day_path = security_dir / "2026-06-30.csv"
+    day_path = security_dir / "2026-06.csv"
     original_csv = (
         "date,action,ticker,shares,price,amount,commission,currency,account_name,note\n"
         "2026-06-30 09:00:00,DEPOSIT,,0,0,100,0,USD,IBKR,initial\n"
@@ -977,7 +977,7 @@ def test_stock_append_rejects_derived_overflow_before_writing(tmp_env):
 
     assert do_append(csv_path) is False
     assert load_snapshot()["accounts"]["security"] == {}
-    assert not (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
+    assert not (models.RECORDS_DIR / "security" / "2026-06.csv").exists()
 
 
 def test_checkin_ticker_rejects_derived_overflow_before_mutating(tmp_env):
@@ -989,7 +989,7 @@ def test_checkin_ticker_rejects_derived_overflow_before_mutating(tmp_env):
         do_checkin_ticker(ticker="nvda.us", shares=1e308, avg_cost=1e308,
                           currency="USD", account_name="IBKR", date="2026-06-30")
     assert load_snapshot()["accounts"]["security"] == {}
-    assert not (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
+    assert not (models.RECORDS_DIR / "security" / "2026-06.csv").exists()
 
 
 def test_stock_append_rejects_cumulative_overflow_before_writing(tmp_env):
@@ -1014,7 +1014,7 @@ def test_stock_append_rejects_cumulative_overflow_before_writing(tmp_env):
 
     assert do_append(csv_path) is False
     assert load_snapshot()["accounts"]["security"] == {}
-    assert not (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
+    assert not (models.RECORDS_DIR / "security" / "2026-06.csv").exists()
 
 
 def test_direct_do_buy_rejects_cumulative_overflow_without_second_write(tmp_env):
@@ -1032,7 +1032,7 @@ def test_direct_do_buy_rejects_cumulative_overflow_without_second_write(tmp_env)
     pos = snap["accounts"]["security"]["IBKR"]["positions"]["nvda.us"]
     assert pos["shares"] == 1e308
     assert pos["avg_cost"] == 1.0
-    rows = (models.RECORDS_DIR / "security" / "2026-06-30.csv").read_text(encoding="utf-8").splitlines()
+    rows = (models.RECORDS_DIR / "security" / "2026-06.csv").read_text(encoding="utf-8").splitlines()
     assert len(rows) == 2  # header + first BUY only
 
 
@@ -1047,7 +1047,7 @@ def test_direct_deposit_rejects_cumulative_cash_overflow_without_write(tmp_env):
 
     snap = load_snapshot()
     assert snap["accounts"]["security"]["IBKR"]["cash"] == 1e308
-    rows = (models.RECORDS_DIR / "security" / "2026-06-30.csv").read_text(encoding="utf-8").splitlines()
+    rows = (models.RECORDS_DIR / "security" / "2026-06.csv").read_text(encoding="utf-8").splitlines()
     assert len(rows) == 2  # header + first DEPOSIT only
 
 
@@ -1089,7 +1089,7 @@ def test_replay_skips_malformed_action_rows_but_keeps_cash_rows(tmp_env):
         "2026-06-29 10:00:00,BUY,nvda.us,1,10,-10,0,USD,missing account\n",
         encoding="utf-8",
     )
-    (security_dir / "2026-06-30.csv").write_text(
+    (security_dir / "2026-06.csv").write_text(
         "date,action,ticker,shares,price,amount,commission,currency,account_name,note\n"
         "2026-06-30 10:00:00,DEPOSIT,,0,0,25,0,USD,IBKR,cash deposit\n",
         encoding="utf-8",
@@ -1219,7 +1219,7 @@ def test_stock_append_accepts_crypto_account(tmp_env):
         })
 
     assert do_append(csv_path) is True
-    assert (models.RECORDS_DIR / "security" / "2026-07-07.csv").exists()
+    assert (models.RECORDS_DIR / "security" / "2026-07.csv").exists()
 
 
 def test_crypto_account_buy_sell_verify_end_to_end(tmp_env, monkeypatch):

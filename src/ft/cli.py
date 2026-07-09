@@ -206,9 +206,6 @@ def main(argv=None):
     cv.add_argument("--account", help="覆盖账户名")
     cv.add_argument("--currency", default="CNY", choices=["CNY", "USD", "HKD"],
                     help="覆盖币种")
-    cv.add_argument("--continue-with-decisions", dest="continue_with_decisions",
-                    help="继续执行 pending convert；应先按 SKILL.md 审查整份 ai_working.csv，大体量按三个月一批处理")
-    cv.add_argument("--abort", action="store_true", help="放弃当前 pending convert 会话")
 
     # append
     ap = sub.add_parser("append", help="步骤② 导入转换后的CSV")
@@ -270,9 +267,8 @@ def main(argv=None):
         day = date_str[:10]
 
         # Write CSV row
-        type_dir = models.RECORDS_DIR / typ
-        type_dir.mkdir(parents=True, exist_ok=True)
-        day_path = type_dir / f"{day}.csv"
+        day_path = models.records_month_path(typ, date_str, models.RECORDS_DIR)
+        day_path.parent.mkdir(parents=True, exist_ok=True)
 
         existing = []
         if day_path.exists():
@@ -421,19 +417,9 @@ def main(argv=None):
         return
 
     if args.cmd == "convert":
-        from .convert import do_convert, continue_convert, abort_convert
-        if args.abort:
-            if args.file or args.source or args.output or args.continue_with_decisions:
-                parser.error("convert --abort 不能和普通转换参数或 --continue-with-decisions 同时使用")
-            abort_convert()
-            return
-        if args.continue_with_decisions:
-            if args.file or args.source or args.output:
-                parser.error("convert --continue-with-decisions 不能和普通转换参数同时使用")
-            continue_convert(args.continue_with_decisions)
-            return
+        from .convert import do_convert
         if not args.file or not args.source or not args.output:
-            parser.error("convert 需要 file、--source 和 --output，或使用 --continue-with-decisions / --abort")
+            parser.error("convert 需要 file、--source 和 --output")
         do_convert(args.file, args.source, args.output,
                    password=args.password, account=args.account,
                    currency=args.currency)
@@ -495,10 +481,9 @@ def main(argv=None):
 
         sym = {"CNY": "¥", "USD": "$", "HKD": "HK$"}.get(acct["currency"], "")
 
-        type_dir = models.RECORDS_DIR / acct["type"]
-        type_dir.mkdir(parents=True, exist_ok=True)
         day = date_str[:10]
-        day_path = type_dir / f"{day}.csv"
+        day_path = models.records_month_path(acct["type"], date_str, models.RECORDS_DIR)
+        day_path.parent.mkdir(parents=True, exist_ok=True)
 
         existing = []
         if day_path.exists():

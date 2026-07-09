@@ -64,8 +64,8 @@ def test_full_pipeline_append_report(tmp_env):
     from ft.append import do_append
     do_append([str(converted_path)])
 
-    cash_csv = records_dir / "cash" / "2026-06-12.csv"
-    loan_csv = records_dir / "loan" / "2026-06-12.csv"
+    cash_csv = records_dir / "cash" / "2026-06.csv"
+    loan_csv = records_dir / "loan" / "2026-06.csv"
     assert cash_csv.exists()
     assert loan_csv.exists()
 
@@ -96,7 +96,7 @@ def test_transfer_and_checkin_flow(tmp_env):
 
     # Simulate checkin by writing row directly
     from ft import models
-    day_path = records_dir / "cash" / "2026-06-12.csv"
+    day_path = records_dir / "cash" / "2026-06.csv"
 
     existing = []
     with open(day_path, encoding="utf-8") as f:

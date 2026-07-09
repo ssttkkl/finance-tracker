@@ -63,7 +63,7 @@ def test_append_creates_date_file(tmp_env):
     from ft.append import do_append
     do_append(str(csv_path))
 
-    day_csv = records_dir / "cash" / "2026-06-12.csv"
+    day_csv = records_dir / "cash" / "2026-06.csv"
     assert day_csv.exists()
 
     with open(day_csv, encoding="utf-8") as f:
@@ -92,7 +92,7 @@ def test_append_routes_by_type(tmp_env):
     from ft.append import do_append
     do_append(str(csv_path))
 
-    cash_csv = records_dir / "cash" / "2026-06-12.csv"
+    cash_csv = records_dir / "cash" / "2026-06.csv"
     assert cash_csv.exists()
     with open(cash_csv, encoding="utf-8") as f:
         cash_rows = list(csv.DictReader(f))
@@ -100,7 +100,7 @@ def test_append_routes_by_type(tmp_env):
     assert cash_rows[0]["account_name"] == "支付宝余额"
     assert cash_rows[0]["transfer_account"] == ""
 
-    loan_csv = records_dir / "loan" / "2026-06-12.csv"
+    loan_csv = records_dir / "loan" / "2026-06.csv"
     assert loan_csv.exists()
     with open(loan_csv, encoding="utf-8") as f:
         loan_rows = list(csv.DictReader(f))
@@ -126,7 +126,7 @@ def test_append_sorts_by_date(tmp_env):
     from ft.append import do_append
     do_append(str(csv_path))
 
-    day_csv = records_dir / "cash" / "2026-06-12.csv"
+    day_csv = records_dir / "cash" / "2026-06.csv"
     with open(day_csv, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert rows[0]["date"] == "2026-06-12 08:00:00"
@@ -150,10 +150,11 @@ def test_append_multiple_dates(tmp_env):
     from ft.append import do_append
     do_append(str(csv_path))
 
-    csv1 = records_dir / "cash" / "2026-06-12.csv"
-    csv2 = records_dir / "cash" / "2026-06-13.csv"
-    assert csv1.exists()
-    assert csv2.exists()
+    month_csv = records_dir / "cash" / "2026-06.csv"
+    assert month_csv.exists()
+    with open(month_csv, encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert [row["date"] for row in rows] == ["2026-06-12 10:00:00", "2026-06-13 10:00:00"]
 
 
 def test_append_unknown_account(tmp_env):
@@ -173,14 +174,14 @@ def test_append_unknown_account(tmp_env):
 
     # Should NOT create file for unknown account
     for t in ["cash", "loan", "lend", "security"]:
-        day_csv = records_dir / t / "2026-06-12.csv"
+        day_csv = records_dir / t / "2026-06.csv"
         assert not day_csv.exists(), f"Should not create {day_csv}"
 
 
 def test_append_appends_to_existing(tmp_env):
     records_dir, accounts_path = tmp_env
     # Pre-populate a file
-    day_csv = records_dir / "cash" / "2026-06-12.csv"
+    day_csv = records_dir / "cash" / "2026-06.csv"
     day_csv.parent.mkdir(parents=True, exist_ok=True)
     create_merged_csv(day_csv, [
         {"date": "2026-06-12 08:00:00", "amount": "-10.00", "currency": "CNY",
@@ -227,7 +228,7 @@ def test_append_accepts_multiple_input_files(tmp_env):
     from ft.append import do_append
     do_append([str(path_a), str(path_b)])
 
-    day_csv = records_dir / "cash" / "2026-06-12.csv"
+    day_csv = records_dir / "cash" / "2026-06.csv"
     with open(day_csv, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert [r["amount"] for r in rows] == ["-10.00", "-20.00"]
@@ -276,7 +277,7 @@ def test_append_routes_same_name_multi_currency_accounts(tmp_env):
     from ft.append import do_append
     do_append([str(csv_path)])
 
-    day_csv = records_dir / "loan" / "2026-06-12.csv"
+    day_csv = records_dir / "loan" / "2026-06.csv"
     with open(day_csv, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
@@ -297,7 +298,7 @@ def test_append_writes_transfer_account_column(tmp_env):
     from ft.append import do_append
     do_append(str(csv_path))
 
-    day_csv = records_dir / "cash" / "2026-06-12.csv"
+    day_csv = records_dir / "cash" / "2026-06.csv"
     with open(day_csv, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         assert "transfer_account" in reader.fieldnames
@@ -324,7 +325,7 @@ def test_append_preserves_input_transfer_account(tmp_env):
     from ft.append import do_append
     do_append(str(csv_path))
 
-    day_csv = records_dir / "cash" / "2026-06-12.csv"
+    day_csv = records_dir / "cash" / "2026-06.csv"
     with open(day_csv, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert rows[0]["transfer_account"] == "微信零钱"
