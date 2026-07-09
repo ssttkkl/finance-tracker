@@ -646,6 +646,41 @@ def test_uses_small_alias_set_for_specific_brand_vs_settlement_entity_match():
     assert result.auto_drop_pairs[0].rule_hint == "card_channel_purchase_mirror"
 
 
+def test_uses_small_alias_set_for_uniqlo_brand_vs_icbc_credit_merchant_text():
+    rows = [
+        {
+            "record_id": "a1",
+            "date": "2024-12-26 14:55:45",
+            "amount": "-79.0",
+            "currency": "CNY",
+            "counterparty": "UNIQLO",
+            "description": "优衣库商品",
+            "category": "expense",
+            "account_name": "工行信用卡(1200)",
+            "source": "微信",
+            "bill_source": "wechat",
+        },
+        {
+            "record_id": "b1",
+            "date": "2024-12-26 14:55:45",
+            "amount": "-79.0",
+            "currency": "CNY",
+            "counterparty": "优衣库",
+            "description": "",
+            "category": "expense",
+            "account_name": "工行信用卡(1200)",
+            "source": "银行卡",
+            "bill_source": "icbc_credit",
+        },
+    ]
+
+    result = detect_mirror_pairs(rows)
+
+    assert len(result.auto_drop_pairs) == 1
+    assert len(result.review_pairs) == 0
+    assert result.auto_drop_pairs[0].rule_hint == "card_channel_purchase_mirror"
+
+
 def test_does_not_upgrade_refund_chain_generic_credit_match_to_auto_drop():
     rows = [
         {

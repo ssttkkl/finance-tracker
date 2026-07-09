@@ -46,6 +46,7 @@ WEAK_GENERIC_TEXT_KEYWORDS = (
 )
 MERCHANT_ALIAS_SETS = (
     {"库迪咖啡", "Cotti Coffee"},
+    {"UNIQLO", "优衣库"},
 )
 
 
