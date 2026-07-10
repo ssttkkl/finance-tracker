@@ -224,7 +224,7 @@ def test_reconcile_writes_low_confidence_mirror_fields_into_pending(tmp_env):
     assert any(r.get("ai_group", "").startswith("mirror_") for r in rows)
 
 
-def test_reconcile_puts_loose_30s_candidates_into_ai_working_csv(tmp_env):
+def test_reconcile_auto_drops_unique_loose_30s_credit_candidate_without_pending(tmp_env):
     from ft import models
     from ft.reconcile import do_reconcile
 
@@ -241,16 +241,12 @@ def test_reconcile_puts_loose_30s_candidates_into_ai_working_csv(tmp_env):
     do_reconcile(month="2026-06")
 
     sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
-    assert len(sessions) == 1
-    with open(sessions[0] / "ai_working.csv", encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
-    assert any(r.get("rule_hint") == "possible_mirror_weak_30s_cross_source" for r in rows)
-    assert any(r.get("ai_reason") == "possible_mirror_weak_30s_cross_source:keep" for r in rows)
-    assert any(r.get("ai_reason") == "possible_mirror_weak_30s_cross_source:drop" for r in rows)
+    assert len(sessions) == 0
 
     with open(day_path, encoding="utf-8") as f:
         record_rows = list(csv.DictReader(f))
-    assert len(record_rows) == 2
+    assert len(record_rows) == 1
+    assert record_rows[0]["bill_source"] == "wechat"
 
 
 def test_reconcile_auto_drops_upgraded_generic_credit_mirror_without_pending(tmp_env):
@@ -312,6 +308,30 @@ def test_reconcile_auto_drops_icbc_debit_stable_service_mirror_without_pending(t
          "account_name": "工行借记卡", "source": "微信", "bill_source": "wechat"},
         {"date": "2023-10-09 20:15:11", "amount": "-9.9", "currency": "CNY",
          "counterparty": "深圳市财付通支付", "description": "消费", "category": "expense",
+         "account_name": "工行借记卡", "source": "银行卡", "bill_source": "icbc_debit"},
+    ])
+
+    do_reconcile(month="2023-10")
+
+    sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
+    assert len(sessions) == 0
+    with open(day_path, encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) == 1
+    assert rows[0]["bill_source"] == "wechat"
+
+
+def test_reconcile_auto_drops_unique_wechat_qr_vs_icbc_debit_scan_qr_generic_without_pending(tmp_env):
+    from ft import models
+    from ft.reconcile import do_reconcile
+
+    day_path = models.RECORDS_DIR / "cash" / "2023-10.csv"
+    _write_rows(day_path, [
+        {"date": "2023-10-22 19:07:35", "amount": "-15.0", "currency": "CNY",
+         "counterparty": "陈氏煎饼", "description": "收款方备注:二维码收款", "category": "expense",
+         "account_name": "工行借记卡", "source": "微信", "bill_source": "wechat"},
+        {"date": "2023-10-22 19:07:35", "amount": "-15.0", "currency": "CNY",
+         "counterparty": "扫二维码付款", "description": "消费", "category": "expense",
          "account_name": "工行借记卡", "source": "银行卡", "bill_source": "icbc_debit"},
     ])
 

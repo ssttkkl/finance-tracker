@@ -392,7 +392,7 @@ def test_marks_multi_candidate_gateway_mirror_as_review_not_auto_drop():
     assert result.review_pairs[0].drop_row["bill_source"] == "icbc_debit"
 
 
-def test_marks_loose_30s_cross_source_pair_as_low_confidence_review():
+def test_upgrades_unique_loose_30s_cross_source_pair_to_high_auto_drop():
     rows = [
         {
             "record_id": "a1",
@@ -422,13 +422,13 @@ def test_marks_loose_30s_cross_source_pair_as_low_confidence_review():
 
     result = detect_mirror_pairs(rows)
 
-    assert len(result.auto_drop_pairs) == 0
-    assert len(result.review_pairs) == 1
-    pair = result.review_pairs[0]
+    assert len(result.auto_drop_pairs) == 1
+    assert len(result.review_pairs) == 0
+    pair = result.auto_drop_pairs[0]
     assert pair.keep_row["bill_source"] == "wechat"
     assert pair.drop_row["bill_source"] == "icbc_credit"
-    assert pair.rule_hint == "possible_mirror_weak_30s_cross_source"
-    assert pair.confidence == "low"
+    assert pair.rule_hint == "card_channel_purchase_mirror"
+    assert pair.confidence == "high"
 
 
 def test_loose_cross_source_candidate_matches_same_day_when_one_side_is_date_only():
@@ -802,3 +802,42 @@ def test_does_not_upgrade_multi_candidate_generic_gateway_match_to_auto_drop():
     assert len(result.auto_drop_pairs) == 0
     assert len(result.review_pairs) == 1
     assert result.review_pairs[0].confidence == "low"
+
+
+def test_upgrades_unique_wechat_qr_vs_icbc_debit_scan_qr_generic_to_high_auto_drop():
+    rows = [
+        {
+            "record_id": "a1",
+            "date": "2023-10-22 19:07:35",
+            "amount": "-15.0",
+            "currency": "CNY",
+            "counterparty": "陈氏煎饼",
+            "description": "收款方备注:二维码收款",
+            "category": "expense",
+            "account_name": "工行借记卡",
+            "source": "微信",
+            "bill_source": "wechat",
+        },
+        {
+            "record_id": "b1",
+            "date": "2023-10-22 19:07:35",
+            "amount": "-15.0",
+            "currency": "CNY",
+            "counterparty": "扫二维码付款",
+            "description": "消费",
+            "category": "expense",
+            "account_name": "工行借记卡",
+            "source": "银行卡",
+            "bill_source": "icbc_debit",
+        },
+    ]
+
+    result = detect_mirror_pairs(rows)
+
+    assert len(result.auto_drop_pairs) == 1
+    assert len(result.review_pairs) == 0
+    pair = result.auto_drop_pairs[0]
+    assert pair.keep_row["bill_source"] == "wechat"
+    assert pair.drop_row["bill_source"] == "icbc_debit"
+    assert pair.rule_hint == "debit_purchase_mirror_icbc"
+    assert pair.confidence == "high"

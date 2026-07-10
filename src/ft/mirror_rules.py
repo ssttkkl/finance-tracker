@@ -43,6 +43,8 @@ WEAK_GENERIC_TEXT_KEYWORDS = (
     "网络技术",
     "银联",
     "快捷支付",
+    "扫二维码付款",
+    "扫描二维码付款",
 )
 MERCHANT_ALIAS_SETS = (
     {"库迪咖啡", "Cotti Coffee"},
@@ -93,6 +95,40 @@ def _looks_like_specific_merchant_text(row: dict) -> bool:
     if any(keyword in text for keyword in WECHAT_SOCIAL_KEYWORDS):
         return False
     if any(keyword in text for keyword in QR_COLLECT_KEYWORDS):
+        return False
+    return True
+
+
+def _looks_like_specific_counterparty(row: dict) -> bool:
+    counterparty = _counterparty(row)
+    if not counterparty.strip():
+        return False
+    generic_tokens = (
+        "微信",
+        "支付宝",
+        "财付通",
+        "银联",
+        "退款",
+        "群收款",
+        "QQ红包",
+        "扫二维码付款",
+        "扫描二维码付款",
+    )
+    return not any(token in counterparty for token in generic_tokens)
+
+
+def _is_safe_unique_cross_source_strong_candidate(candidate: MirrorCandidate) -> bool:
+    strong_row = candidate.keep_row
+    weak_row = candidate.drop_row
+    if candidate.candidate_count != 1:
+        return False
+    if candidate.merchant_signal_kind == "refund":
+        return False
+    if weak_row.get("bill_source") == "ccb_debit":
+        return False
+    if not (_has_full_datetime(strong_row) and _has_full_datetime(weak_row)):
+        return False
+    if candidate.diff_seconds > 30:
         return False
     return True
 
@@ -379,6 +415,17 @@ def detect_mirror_pairs(rows: list[dict]) -> MirrorDetectionResult:
 
     for candidate in sorted(_build_loose_cross_source_candidates(rows), key=lambda item: (item.diff_seconds, item.candidate_count)):
         if id(candidate.keep_row) in used_strong_ids or id(candidate.drop_row) in used_drop_ids:
+            continue
+        if _is_safe_unique_cross_source_strong_candidate(candidate):
+            pair = MirrorPair(
+                candidate.keep_row,
+                candidate.drop_row,
+                "debit_purchase_mirror_icbc" if candidate.drop_row.get("bill_source") == "icbc_debit" else "card_channel_purchase_mirror",
+                "high",
+            )
+            used_strong_ids.add(id(pair.keep_row))
+            used_drop_ids.add(id(pair.drop_row))
+            auto_drop_pairs.append(pair)
             continue
         pair = MirrorPair(
             candidate.keep_row,

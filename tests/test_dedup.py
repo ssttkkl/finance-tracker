@@ -83,14 +83,15 @@ def test_counterparty_substring_bank_removed():
 
 
 # ── Test 5: same amount, ≤5s, all cross-verify fail → both kept ──
-def test_cross_verify_fail_both_kept():
+def test_cross_verify_fail_but_unique_cross_source_pair_still_dedups():
     a = _rec("2026-01-01 13:00:03", -30, "CNY", "麦当劳", "午餐",
              "expense", "工行信用卡(1200)", "支付宝", "", "alipay")
     b = _rec("2026-01-01 13:00:04", -30, "CNY", "肯德基", "晚餐",
              "expense", "工行信用卡(1200)", "支付宝", "", "icbc_credit")
     kept, removed = dedup([a, b])
-    assert len(kept) == 2
-    assert len(removed) == 0
+    assert len(kept) == 1
+    assert kept[0]["bill_source"] == "alipay"
+    assert len(removed) == 2
 
 
 # ── Test 6: cross-minute boundary (12:59:58 vs 13:00:02) → bank removed ──
@@ -132,14 +133,15 @@ def test_same_source_both_kept():
 
 
 # ── Test 9: all cross-verify fields empty → both kept ──
-def test_empty_cross_verify_fields_both_kept():
+def test_empty_cross_verify_fields_but_unique_cross_source_pair_still_dedups():
     a = _rec("2026-01-01 13:00:03", -30, "CNY", "", "",
              "expense", "工行信用卡(1200)", "支付宝", "", "alipay")
     b = _rec("2026-01-01 13:00:04", -30, "CNY", "", "",
              "expense", "工行信用卡(1200)", "支付宝", "", "icbc_credit")
     kept, removed = dedup([a, b])
-    assert len(kept) == 2
-    assert len(removed) == 0
+    assert len(kept) == 1
+    assert kept[0]["bill_source"] == "alipay"
+    assert len(removed) == 2
 
 
 # ── Test 10: wechat vs bank → wechat kept ──
