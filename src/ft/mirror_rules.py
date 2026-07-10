@@ -122,8 +122,6 @@ def _is_safe_unique_cross_source_strong_candidate(candidate: MirrorCandidate) ->
     weak_row = candidate.drop_row
     if candidate.candidate_count != 1:
         return False
-    if candidate.merchant_signal_kind == "refund":
-        return False
     if weak_row.get("bill_source") == "ccb_debit":
         return False
     if not (_has_full_datetime(strong_row) and _has_full_datetime(weak_row)):
@@ -318,6 +316,10 @@ def _build_loose_cross_source_candidates(rows: list[dict]) -> list[MirrorCandida
 def _classify_candidate(candidate: MirrorCandidate) -> tuple[str, MirrorPair] | None:
     strong_row = candidate.keep_row
     weak_row = candidate.drop_row
+    if _is_safe_unique_cross_source_strong_candidate(candidate):
+        rule_hint = "debit_purchase_mirror_icbc" if weak_row.get("bill_source") == "icbc_debit" else "card_channel_purchase_mirror"
+        return "auto", MirrorPair(strong_row, weak_row, rule_hint, "high")
+
     if candidate.weak_channel_kind == "icbc_credit_card_channel":
         if candidate.candidate_count != 1:
             return None

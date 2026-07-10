@@ -156,7 +156,7 @@ def test_marks_wechat_group_collection_vs_ccb_topup_as_low_confidence_review():
     assert pair.confidence == "low"
 
 
-def test_mirror_rule_downgrades_to_review_when_refund_chain_present():
+def test_mirror_rule_upgrades_unique_refund_chain_credit_pair_to_high_auto_drop():
     rows = [
         {
             "record_id": "a1",
@@ -190,8 +190,10 @@ def test_mirror_rule_downgrades_to_review_when_refund_chain_present():
 
     result = detect_mirror_pairs(rows)
 
-    assert len(result.auto_drop_pairs) == 0
-    assert len(result.review_pairs) == 1
+    assert len(result.auto_drop_pairs) == 1
+    assert len(result.review_pairs) == 0
+    assert result.auto_drop_pairs[0].rule_hint == "card_channel_purchase_mirror"
+    assert result.auto_drop_pairs[0].confidence == "high"
 
 
 
@@ -309,7 +311,7 @@ def test_detects_high_confidence_icbc_debit_wechat_gateway_stable_service_purcha
     assert pair.confidence == "high"
 
 
-def test_marks_icbc_debit_wechat_social_flow_as_review():
+def test_upgrades_unique_icbc_debit_wechat_social_flow_to_high_auto_drop():
     rows = [
         {
             "record_id": "a1",
@@ -339,9 +341,10 @@ def test_marks_icbc_debit_wechat_social_flow_as_review():
 
     result = detect_mirror_pairs(rows)
 
-    assert len(result.auto_drop_pairs) == 0
-    assert len(result.review_pairs) == 1
-    assert result.review_pairs[0].drop_row["bill_source"] == "icbc_debit"
+    assert len(result.auto_drop_pairs) == 1
+    assert len(result.review_pairs) == 0
+    assert result.auto_drop_pairs[0].drop_row["bill_source"] == "icbc_debit"
+    assert result.auto_drop_pairs[0].confidence == "high"
 
 
 
@@ -533,7 +536,7 @@ def test_existing_high_rule_beats_loose_review_rule():
     assert len(result.review_pairs) == 0
 
 
-def test_existing_review_rule_beats_loose_review_rule():
+def test_strongest_rule_beats_existing_review_rule_for_unique_credit_pair():
     rows = [
         {
             "record_id": "a1",
@@ -567,8 +570,10 @@ def test_existing_review_rule_beats_loose_review_rule():
 
     result = detect_mirror_pairs(rows)
 
-    assert len(result.review_pairs) == 1
-    assert result.review_pairs[0].rule_hint != "possible_mirror_weak_30s_cross_source"
+    assert len(result.auto_drop_pairs) == 1
+    assert len(result.review_pairs) == 0
+    assert result.auto_drop_pairs[0].rule_hint == "card_channel_purchase_mirror"
+    assert result.auto_drop_pairs[0].confidence == "high"
 
 
 def test_upgrades_specific_merchant_vs_icbc_credit_generic_consume_to_high_auto_drop():
@@ -719,7 +724,7 @@ def test_uses_small_alias_set_for_uniqlo_brand_vs_icbc_credit_merchant_text():
     assert result.auto_drop_pairs[0].rule_hint == "card_channel_purchase_mirror"
 
 
-def test_does_not_upgrade_refund_chain_generic_credit_match_to_auto_drop():
+def test_upgrades_refund_chain_generic_credit_match_to_auto_drop():
     rows = [
         {
             "record_id": "a1",
@@ -753,8 +758,10 @@ def test_does_not_upgrade_refund_chain_generic_credit_match_to_auto_drop():
 
     result = detect_mirror_pairs(rows)
 
-    assert len(result.auto_drop_pairs) == 0
-    assert len(result.review_pairs) == 1
+    assert len(result.auto_drop_pairs) == 1
+    assert len(result.review_pairs) == 0
+    assert result.auto_drop_pairs[0].rule_hint == "card_channel_purchase_mirror"
+    assert result.auto_drop_pairs[0].confidence == "high"
 
 
 def test_does_not_upgrade_multi_candidate_generic_gateway_match_to_auto_drop():
