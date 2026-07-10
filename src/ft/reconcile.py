@@ -82,6 +82,10 @@ def _amount(row: dict) -> float:
     return float(row.get("amount") or 0)
 
 
+def _is_zero_amount(row: dict) -> bool:
+    return abs(_amount(row)) < 0.005
+
+
 def _is_locked(row: dict) -> bool:
     """locked=1 表示该行被人工锁定，reconcile 完全不处理它。"""
     return str(row.get("locked", "")).strip() == "1"
@@ -141,6 +145,70 @@ def _mark_single_leg_transfers(rows: list[dict], used_ids: set[int]) -> list[tup
         used_ids.add(id(row))
         marked.append((row, rule))
     return marked
+
+
+def _collect_unresolved_transfer_review_row_ids(rows: list[dict]) -> set[int]:
+    review_ids: set[int] = set()
+    candidates = [
+        row for row in rows
+        if row.get("category") in ("income", "expense") and abs(_amount(row)) > 0
+    ]
+    out_rows = [row for row in candidates if _amount(row) < 0]
+    in_rows = [row for row in candidates if _amount(row) > 0]
+
+    for out_row in out_rows:
+        possible = []
+        for in_row in in_rows:
+            if _account_key(out_row) == _account_key(in_row):
+                continue
+            if out_row.get("currency") != in_row.get("currency"):
+                continue
+            if abs(abs(_amount(out_row)) - abs(_amount(in_row))) > 0.01:
+                continue
+            diff = abs((_effective_datetime(out_row) - _effective_datetime(in_row)).total_seconds())
+            if diff > 10:
+                continue
+            possible.append(in_row)
+        if not possible:
+            continue
+        if len(possible) != 1 or not _has_signal(out_row, possible[0]):
+            review_ids.add(id(out_row))
+            review_ids.update(id(row) for row in possible)
+
+    return review_ids
+
+
+def _collect_unresolved_ccb_day_level_review_row_ids(rows: list[dict]) -> set[int]:
+    review_ids: set[int] = set()
+    strong_rows = [row for row in rows if row.get("bill_source") in {"wechat", "alipay"}]
+    ccb_rows = [row for row in rows if row.get("bill_source") == "ccb_debit"]
+
+    for weak_row in ccb_rows:
+        weak_dt = _effective_datetime(weak_row).date()
+        matched = []
+        for strong_row in strong_rows:
+            if strong_row.get("account_name") != weak_row.get("account_name"):
+                continue
+            if strong_row.get("amount") != weak_row.get("amount"):
+                continue
+            if strong_row.get("currency") != weak_row.get("currency"):
+                continue
+            strong_dt = _effective_datetime(strong_row).date()
+            if abs((strong_dt - weak_dt).days) > 1:
+                continue
+            matched.append(strong_row)
+        if len(matched) > 1:
+            review_ids.add(id(weak_row))
+            review_ids.update(id(row) for row in matched)
+
+    return review_ids
+
+
+def _unresolved_review_row_ids(scoped: list[dict]) -> set[int]:
+    return (
+        _collect_unresolved_transfer_review_row_ids(scoped)
+        | _collect_unresolved_ccb_day_level_review_row_ids(scoped)
+    )
 
 
 
@@ -398,16 +466,26 @@ def _build_scope_labels(start: date | None, end: date | None) -> tuple[str, str]
     return "", ""
 
 
+def _scoped_record_files(entries: list[dict], start: date | None, end: date | None) -> list[str]:
+    return sorted({
+        row["_record_file"]
+        for row in entries
+        if _in_scope(row["date"], start, end)
+    })
+
+
 def _prepare_reconcile_state(*, month=None, date_from=None, date_to=None):
     start, end = _parse_scope(month=month, date_from=date_from, date_to=date_to)
     scope_from, scope_to = _build_scope_labels(start, end)
 
     entries = _load_entries()
-    scoped = [row for row in entries if _in_scope(row["date"], start, end)]
+    scoped_record_files = _scoped_record_files(entries, start, end)
+    scoped = [row for row in entries if _in_scope(row["date"], start, end) and not _is_zero_amount(row)]
     scoped_ids = {id(row) for row in scoped}
     scoped_locked = [row for row in scoped if _is_locked(row)]
     scoped_active = [row for row in scoped if not _is_locked(row)]
     mirror_review_annotations = _mirror_review_annotations(scoped_active)
+    unresolved_review_row_ids = _unresolved_review_row_ids(scoped_active)
     kept, removed, pairs = dedup_with_pairs(scoped_active)
     kept_base = [{**row} for row in kept]
     transfer_matches = _match_same_currency_exact(kept)
@@ -419,10 +497,10 @@ def _prepare_reconcile_state(*, month=None, date_from=None, date_to=None):
         _mark_transfer(out_row, in_row, rule)
     single_leg_marks = _mark_single_leg_transfers(kept, used_transfer_ids)
 
-    review_row_ids = set(mirror_review_annotations)
+    review_row_ids = set(mirror_review_annotations) | unresolved_review_row_ids
     has_only_review = bool(mirror_review_annotations) and not removed
     has_mixed_high_and_review = bool(mirror_review_annotations) and bool(removed)
-    pending_rows = [row for row in scoped if id(row) in review_row_ids] if has_mixed_high_and_review else scoped
+    pending_rows = [row for row in scoped if id(row) in review_row_ids] if review_row_ids else scoped
 
     state = {
         "start": start,
@@ -430,10 +508,12 @@ def _prepare_reconcile_state(*, month=None, date_from=None, date_to=None):
         "scope_from": scope_from,
         "scope_to": scope_to,
         "entries": entries,
+        "scoped_record_files": scoped_record_files,
         "scoped": scoped,
         "scoped_ids": scoped_ids,
         "scoped_locked": scoped_locked,
         "mirror_review_annotations": mirror_review_annotations,
+        "unresolved_review_row_ids": unresolved_review_row_ids,
         "pending_rows": pending_rows,
         "has_only_review": has_only_review,
         "kept": kept,
@@ -478,12 +558,18 @@ def _has_low_confidence_mirror_review(state: dict) -> bool:
     return bool(state.get("mirror_review_annotations"))
 
 
+def _has_unresolved_review(state: dict) -> bool:
+    return bool(state.get("unresolved_review_row_ids"))
+
+
 def _should_enter_reconcile_pending(state: dict) -> bool:
     if not state.get("scoped"):
         return False
-    if _has_low_confidence_mirror_review(state) and state.get("removed"):
+    if _has_low_confidence_mirror_review(state):
         return True
-    return not state.get("removed")
+    if _has_unresolved_review(state):
+        return True
+    return False
 
 
 def _create_reconcile_pending_session(state: dict):
@@ -673,10 +759,37 @@ def abort_reconcile():
 
 def do_reconcile(*, month=None, date_from=None, date_to=None):
     state = _prepare_reconcile_state(month=month, date_from=date_from, date_to=date_to)
+    touched_files = state.get("scoped_record_files", sorted({row["_record_file"] for row in state["scoped"]}))
+
+    if not state["scoped"]:
+        rows_by_file: dict[str, list[dict]] = defaultdict(list)
+        for row in state["entries"]:
+            if _in_scope(row["date"], state["start"], state["end"]):
+                continue
+            rows_by_file[row["_record_file"]].append(_clean_row(row))
+
+        for file_path_str in touched_files:
+            file_path = Path(file_path_str)
+            final_rows = rows_by_file.get(file_path_str, [])
+            if not final_rows:
+                if file_path.exists():
+                    file_path.unlink()
+                continue
+            final_rows.sort(key=lambda r: r["date"])
+            with open(file_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
+                writer.writeheader()
+                writer.writerows(final_rows)
+
+        rebuild_snapshot_from_records(models.RECORDS_DIR)
+        print("无重复项")
+        return
 
     rows_by_file: dict[str, list[dict]] = defaultdict(list)
     for row in state["entries"]:
         if id(row) in state["scoped_ids"]:
+            continue
+        if _in_scope(row["date"], state["start"], state["end"]) and _is_zero_amount(row):
             continue
         rows_by_file[row["_record_file"]].append(_clean_row(row))
 
@@ -687,7 +800,6 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
     for row in kept_rows_for_write:
         rows_by_file[row["_record_file"]].append(_clean_row(row))
 
-    touched_files = sorted({row["_record_file"] for row in state["scoped"]})
     has_pending_review = _has_low_confidence_mirror_review(state)
     has_mixed_high_and_review = has_pending_review and bool(state["removed"])
 

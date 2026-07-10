@@ -484,7 +484,53 @@ def test_reconcile_does_not_cross_match_outside_scope(tmp_env):
     assert len(july_rows) == 1
 
 
-def test_reconcile_single_row_still_enters_pending_instead_of_printing_no_duplicates(tmp_env, capsys):
+def test_reconcile_filters_zero_amount_row_out_of_scoped_writeback(tmp_env, capsys):
+    from ft import models
+    from ft.reconcile import do_reconcile
+
+    day_path = models.RECORDS_DIR / "cash" / "2026-06.csv"
+    _write_rows(day_path, [
+        {"date": "2026-06-12 10:00:03", "amount": "0.00", "currency": "CNY",
+         "counterparty": "测试商户", "description": "零元占位", "category": "expense",
+         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay"},
+    ])
+
+    do_reconcile(month="2026-06")
+    out = capsys.readouterr().out
+
+    assert "无重复项" in out
+    sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
+    assert len(sessions) == 0
+    assert not day_path.exists()
+
+
+def test_reconcile_filters_zero_amount_rows_when_scope_has_other_nonzero_rows(tmp_env, capsys):
+    from ft import models
+    from ft.reconcile import do_reconcile
+
+    day_path = models.RECORDS_DIR / "cash" / "2026-06.csv"
+    _write_rows(day_path, [
+        {"date": "2026-06-12 10:00:01", "amount": "0.00", "currency": "CNY",
+         "counterparty": "测试商户", "description": "零元占位", "category": "expense",
+         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay"},
+        {"date": "2026-06-12 10:00:03", "amount": "-23.50", "currency": "CNY",
+         "counterparty": "麦当劳", "description": "麦当劳", "category": "expense",
+         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay"},
+    ])
+
+    do_reconcile(month="2026-06")
+    out = capsys.readouterr().out
+
+    assert "无重复项" in out
+    sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
+    assert len(sessions) == 0
+    with open(day_path, encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) == 1
+    assert rows[0]["amount"] == "-23.50"
+
+
+def test_reconcile_single_nonzero_row_prints_no_duplicates_instead_of_entering_pending(tmp_env, capsys):
     from ft import models
     from ft.reconcile import do_reconcile
 
@@ -498,8 +544,42 @@ def test_reconcile_single_row_still_enters_pending_instead_of_printing_no_duplic
     do_reconcile(month="2026-06")
     out = capsys.readouterr().out
 
-    assert "ai_working.csv" in out
+    assert "无重复项" in out
+    sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
+    assert len(sessions) == 0
     assert not (models.FT_DIR / "audit" / "reconcile").exists()
+
+
+def test_reconcile_pending_excludes_zero_amount_rows_from_ai_working_csv(tmp_env):
+    from ft import models
+    from ft.reconcile import do_reconcile
+
+    save_accounts([
+        {"name": "建行储蓄卡(2820)", "type": "cash", "currency": "CNY", "active": True},
+        {"name": "工行借记卡(5521)", "type": "cash", "currency": "CNY", "active": True},
+    ], models.ACCOUNTS_PATH)
+
+    day_path = models.RECORDS_DIR / "cash" / "2026-06.csv"
+    _write_rows(day_path, [
+        {"date": "2026-06-12 10:00:01", "amount": "0.00", "currency": "CNY",
+         "counterparty": "零元噪音", "description": "零元", "category": "expense",
+         "account_name": "工行借记卡(5521)", "source": "银行卡", "bill_source": "icbc_debit"},
+        {"date": "2026-06-12 12:35:31", "amount": "-55.2", "currency": "CNY",
+         "counterparty": "微信", "description": "群收款", "category": "expense",
+         "account_name": "建行储蓄卡(2820)", "source": "微信", "bill_source": "wechat"},
+        {"date": "2026-06-12", "amount": "-55.2", "currency": "CNY",
+         "counterparty": "微信", "description": "充值", "category": "expense",
+         "account_name": "建行储蓄卡(2820)", "source": "建行储蓄卡", "bill_source": "ccb_debit"},
+    ])
+
+    do_reconcile(month="2026-06")
+
+    sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
+    assert len(sessions) == 1
+    with open(sessions[0] / "ai_working.csv", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) == 2
+    assert all(row["amount"] != "0.00" for row in rows)
 
 
 def test_effective_datetime_accepts_date_only_without_embedded_time():
@@ -547,10 +627,11 @@ def test_reconcile_pending_working_csv_includes_transfer_account_column(tmp_env)
     do_reconcile(month="2026-06")
 
     sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
-    assert len(sessions) == 1
-    with open(sessions[0] / "ai_working.csv", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        assert "transfer_account" in (reader.fieldnames or [])
+    assert len(sessions) == 0
+    with open(day_path, encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert {row["category"] for row in rows} == {"transfer_out", "transfer_in"}
+    assert {row["transfer_account"] for row in rows} == {"工行信用卡(1200)", "支付宝余额"}
 
 
 def test_reconcile_enters_pending_with_full_working_csv_for_multi_candidate_transfer(tmp_env):
@@ -611,8 +692,10 @@ def test_reconcile_enters_pending_for_same_currency_cash_transfer_case(tmp_env):
     do_reconcile(month="2026-06")
 
     sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
-    assert len(sessions) == 1
-    with open(sessions[0] / "proposed_audit.csv", encoding="utf-8") as f:
+    assert len(sessions) == 0
+    audit_files = list((models.FT_DIR / "audit" / "reconcile").glob("*.csv"))
+    assert len(audit_files) == 1
+    with open(audit_files[0], encoding="utf-8") as f:
         audit_rows = list(csv.DictReader(f))
     assert {row["reconcile_status"] for row in audit_rows} == {"transfer_matched"}
     assert {row["transfer_side"] for row in audit_rows} == {"out", "in"}
@@ -640,8 +723,10 @@ def test_reconcile_enters_pending_for_alipay_withdrawal_to_bank_deposit_case(tmp
     do_reconcile(month="2023-06")
 
     sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
-    assert len(sessions) == 1
-    with open(sessions[0] / "proposed_audit.csv", encoding="utf-8") as f:
+    assert len(sessions) == 0
+    audit_files = list((models.FT_DIR / "audit" / "reconcile").glob("*.csv"))
+    assert len(audit_files) == 1
+    with open(audit_files[0], encoding="utf-8") as f:
         audit_rows = list(csv.DictReader(f))
     assert {row["reconcile_status"] for row in audit_rows} == {"transfer_matched"}
     assert {row["transfer_side"] for row in audit_rows} == {"out", "in"}
@@ -700,8 +785,10 @@ def test_reconcile_enters_pending_for_foreign_currency_credit_card_repayment_cas
     do_reconcile(month="2026-04")
 
     sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
-    assert len(sessions) == 1
-    with open(sessions[0] / "proposed_audit.csv", encoding="utf-8") as f:
+    assert len(sessions) == 0
+    audit_files = list((models.FT_DIR / "audit" / "reconcile").glob("*.csv"))
+    assert len(audit_files) == 1
+    with open(audit_files[0], encoding="utf-8") as f:
         audit_rows = list(csv.DictReader(f))
     assert {row["reconcile_status"] for row in audit_rows} == {"transfer_matched"}
     assert {row["match_rule"] for row in audit_rows} == {"fx_loan_repayment"}
@@ -730,8 +817,10 @@ def test_reconcile_enters_pending_for_same_day_unionpay_wechat_transfer_case(tmp
     do_reconcile(month="2025-08")
 
     sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
-    assert len(sessions) == 1
-    with open(sessions[0] / "proposed_audit.csv", encoding="utf-8") as f:
+    assert len(sessions) == 0
+    audit_files = list((models.FT_DIR / "audit" / "reconcile").glob("*.csv"))
+    assert len(audit_files) == 1
+    with open(audit_files[0], encoding="utf-8") as f:
         audit_rows = list(csv.DictReader(f))
     assert {row["reconcile_status"] for row in audit_rows} == {"transfer_matched"}
     assert {row["match_rule"] for row in audit_rows} == {"same_day_unionpay_cash_transfer"}
@@ -763,8 +852,10 @@ def test_reconcile_enters_pending_for_same_currency_cash_to_loan_repayment_case(
     do_reconcile(month="2025-12")
 
     sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
-    assert len(sessions) == 1
-    with open(sessions[0] / "proposed_audit.csv", encoding="utf-8") as f:
+    assert len(sessions) == 0
+    audit_files = list((models.FT_DIR / "audit" / "reconcile").glob("*.csv"))
+    assert len(audit_files) == 1
+    with open(audit_files[0], encoding="utf-8") as f:
         audit_rows = list(csv.DictReader(f))
     assert {row["reconcile_status"] for row in audit_rows} == {"transfer_matched"}
     assert {row["match_rule"] for row in audit_rows} == {"same_currency_cash_loan_repayment"}
@@ -1243,8 +1334,10 @@ def test_reconcile_enters_pending_and_writes_single_leg_audit(tmp_env):
     do_reconcile(month="2026-06")
 
     sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
-    assert len(sessions) == 1
-    with open(sessions[0] / "proposed_audit.csv", encoding="utf-8") as f:
+    assert len(sessions) == 0
+    audit_files = list((models.FT_DIR / "audit" / "reconcile").glob("*.csv"))
+    assert len(audit_files) == 1
+    with open(audit_files[0], encoding="utf-8") as f:
         audit_rows = list(csv.DictReader(f))
     single_leg_rows = [row for row in audit_rows if row["reconcile_status"] == "transfer_single_leg"]
     assert len(single_leg_rows) == 2
