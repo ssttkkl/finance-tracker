@@ -53,11 +53,21 @@ SOURCE_LABELS = {
 # 购汇/跨境关键词 → 跨币种转账
 FOREIGN_EXCHANGE_KEYWORDS = ("购汇", "跨境", "外汇", "换汇")
 
-# CSV 字段（11 列）
+# CSV 字段 — cash records (11 列)
 # locked=1 表示该行被人工锁定：reconcile 完全不碰（不去重、不配对、不单腿标记）。
-CSV_FIELDS = ["date", "amount", "currency", "counterparty",
-              "description", "category", "account_name", "source",
-              "bill_source", "transfer_account", "locked"]
+CASH_CSV_FIELDS = ["date", "amount", "currency", "counterparty",
+                   "description", "category", "account_name", "source",
+                   "bill_source", "transfer_account", "locked"]
+
+# CSV 字段 — security trades (12 列, unified swap)
+CSV_FIELDS = [
+    "date", "action", "from_ticker", "to_ticker",
+    "from_amount", "to_amount", "price", "commission",
+    "commission_asset", "currency", "account_name", "note",
+]
+
+# Valid actions for security trades
+VALID_ACTIONS = {"swap", "deposit", "withdraw", "dividend", "checkin"}
 
 # 加密货币符号 → CoinGecko coin id（新增币种在此补一行）
 CRYPTO_IDS = {

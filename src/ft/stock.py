@@ -14,13 +14,8 @@ from . import models
 from .snapshot import git_stage, load_snapshot, save_snapshot
 
 # ── CSV fields for security trades ──────────────────────────────────────
-CSV_FIELDS = [
-    "date", "action", "ticker", "shares", "price", "amount",
-    "commission", "currency", "account_name", "note",
-]
-
-VALID_ACTIONS = {"BUY", "SELL", "DEPOSIT", "WITHDRAW", "DIVIDEND", "CHECKIN",
-                 "SWAP_OUT", "SWAP_IN", "FEE"}
+CSV_FIELDS = models.CSV_FIELDS
+VALID_ACTIONS = models.VALID_ACTIONS
 
 
 def _clean_csv_row(row: dict) -> dict:

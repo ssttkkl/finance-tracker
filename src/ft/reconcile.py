@@ -41,7 +41,7 @@ TIME_RE = re.compile(r"\b([01]?\d|2[0-3]):[0-5]\d:[0-5]\d\b")
 
 
 def _normal_row(row: dict) -> dict:
-    return {field: row.get(field, "") for field in models.CSV_FIELDS}
+    return {field: row.get(field, "") for field in models.CASH_CSV_FIELDS}
 
 
 def _clean_row(row: dict) -> dict:
@@ -424,7 +424,7 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
             continue
         final_rows.sort(key=lambda r: r["date"])
         with open(file_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
+            writer = csv.DictWriter(f, fieldnames=models.CASH_CSV_FIELDS)
             writer.writeheader()
             writer.writerows(final_rows)
 

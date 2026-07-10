@@ -9,13 +9,13 @@ from . import models
 
 
 def _normal_row(row: dict) -> dict:
-    return {field: row.get(field, "") for field in models.CSV_FIELDS}
+    return {field: row.get(field, "") for field in models.CASH_CSV_FIELDS}
 
 
 def do_append(csv_paths: list[str] | str):
     """Read converted CSV files, split by date, route to records/{type}/YYYY-MM-DD.csv."""
     records_dir = models.RECORDS_DIR
-    csv_fields = models.CSV_FIELDS
+    csv_fields = models.CASH_CSV_FIELDS
 
     if isinstance(csv_paths, str):
         csv_paths = [csv_paths]

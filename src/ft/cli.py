@@ -293,7 +293,7 @@ def main(argv=None):
             _write_security_csv(day_path, all_rows)
         else:
             with open(day_path, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
+                writer = csv.DictWriter(f, fieldnames=models.CASH_CSV_FIELDS)
                 writer.writeheader()
                 writer.writerows(all_rows)
 
@@ -498,7 +498,7 @@ def main(argv=None):
             _write_security_csv(day_path, all_rows)
         else:
             with open(day_path, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
+                writer = csv.DictWriter(f, fieldnames=models.CASH_CSV_FIELDS)
                 writer.writeheader()
                 writer.writerows(all_rows)
 
