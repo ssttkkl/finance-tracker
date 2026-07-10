@@ -1095,9 +1095,9 @@ def test_replay_skips_malformed_action_rows_but_keeps_cash_rows(tmp_env):
         encoding="utf-8",
     )
 
-    positions, cash = _replay_security_csv()
+    positions, cash, cash_legacy = _replay_security_csv()
     assert positions == {}
-    assert cash["IBKR"] == pytest.approx(25)
+    assert cash_legacy["IBKR"] == pytest.approx(25)
 
 
 def test_security_balance_uses_current_market_price(tmp_env, monkeypatch):
@@ -1251,6 +1251,24 @@ def test_crypto_account_buy_sell_verify_end_to_end(tmp_env, monkeypatch):
     assert ok is True
 
 
+def test_replay_buy_with_usdt_quote_reduces_usdt_cash_not_usd():
+    """BUY rows tagged quote:usdt should debit USDT cash, not CSV currency USD."""
+    from ft.stock import _replay_security_rows
+
+    rows = [
+        {"date": "2026-07-07 10:00:00", "action": "BUY", "ticker": "btc",
+         "shares": "0.05", "price": "60000", "amount": "-3000", "commission": "0",
+         "currency": "USD", "account_name": "币安", "note": "kraken tid:T1 quote:usdt"},
+    ]
+
+    positions, cash, cash_legacy = _replay_security_rows(rows)
+
+    assert positions[("币安", "btc")]["shares"] == pytest.approx(0.05)
+    assert cash[("币安", "usdt")] == pytest.approx(-3000.0)
+    assert cash.get(("币安", "usd"), 0.0) == pytest.approx(0.0)
+    assert cash_legacy["币安"] == pytest.approx(-3000.0)
+
+
 def test_replay_swap_conserves_total_cost():
     """SWAP: 换出币释放的成本原样转给换入币，USD 总成本守恒，不碰现金。"""
     from ft.stock import _replay_security_rows
@@ -1268,7 +1286,7 @@ def test_replay_swap_conserves_total_cost():
          "price": "", "amount": "", "commission": "", "currency": "USD",
          "account_name": "币安", "note": "kraken tid:T1 swap:T1"},
     ]
-    positions, cash = _replay_security_rows(rows)
+    positions, cash, cash_legacy = _replay_security_rows(rows)
 
     # BTC: 剩 0.5，成本 30000（释放了 0.5*60000=30000）
     assert positions[("币安", "btc")]["shares"] == pytest.approx(0.5)
@@ -1277,7 +1295,7 @@ def test_replay_swap_conserves_total_cost():
     assert positions[("币安", "eth")]["shares"] == pytest.approx(10.0)
     assert positions[("币安", "eth")]["total_cost"] == pytest.approx(30000.0)
     # 现金不动
-    assert cash["币安"] == pytest.approx(-60000.0)
+    assert cash_legacy["币安"] == pytest.approx(-60000.0)
     # 总成本守恒
     assert (positions[("币安", "btc")]["total_cost"]
             + positions[("币安", "eth")]["total_cost"]) == pytest.approx(60000.0)
@@ -1308,7 +1326,7 @@ def test_replay_fee_reduces_holding_by_avg_cost():
          "price": "", "amount": "", "commission": "", "currency": "USD",
          "account_name": "币安", "note": "kraken tid:T1 fee"},
     ]
-    positions, cash = _replay_security_rows(rows)
+    positions, cash, cash_legacy = _replay_security_rows(rows)
 
     # BNB: 剩 9.9，成本 5000 - 0.1*500 = 4950
     assert positions[("币安", "bnb")]["shares"] == pytest.approx(9.9)

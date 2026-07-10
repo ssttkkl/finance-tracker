@@ -1,153 +1,177 @@
 # 月度收支分析指南
 
-用 `ft` 数据做月度收支统计时，原始 CSV 中的正负金额**不等于真实收入和支出**。大量资金调拨（银证转账、基金赎回、余额宝搬家、跨行转账、信用卡还款、自转自）被错误归类为 income/expense。需要以下过滤步骤。
+## 核心原则（用户偏好）
 
-## 核心排除规则
+**只按账单记录的 `category` 字段过滤，不要做额外的算法过滤。**
 
-| 交易类型 | 信号 | 排除理由 |
-|---------|------|---------|
-| 银证转账 | 描述/对面含"银转证"、"证转银" | 银行↔证券资金调拨 |
-| 基金赎回 | 描述/对面含"基金"+"赎回/快速赎回" | 投资变现，非收入 |
-| 余额宝/余利宝 | 描述含"余额宝转入/转出"、"余利宝" | 货币基金搬家 |
-| 跨行入账 | 描述含"电子汇入"、"银联入账" | 他行转来，非收入 |
-| 转账支取 | 描述含"转账支取" | 跨行转出 |
-| 信用卡被还款 | 工行信用卡(1200) + 手机银行 + income | 别人还信用卡 |
-| 花呗自动还款 | 描述含"花呗自动还款" | 还款行为 |
-| 自转自 | 工行借记卡 income + 对面"黄文龙" | 自己账户间转账 |
-| 退货退款 | 描述为商品名（如 Mac mini）、对面为店铺名且有对应支出的 | 商品退货非收入 |
-| 微信大额转发 | 工行借记卡 expense + 对面"微信" + 描述仅时间 | 信用卡还款/转账 |
+```python
+# 最简月度收支汇总 — 用户明确要求的方式
+for row in csv.DictReader(f):
+    cat = row.get("category", "")
+    if cat in ("transfer", "transfer_in", "transfer_out"):
+        continue  # 只排除这三类
+    # 其余全部计入真实收支，不做 is_fake_transaction 等额外过滤
+```
 
-## Python 实现模板
+**为什么不用额外过滤：** 用户明确说"他人转账要算的，只有自己转自己标注成 transfer in/out"。大额转给朋友（常杰 ¥34,400）、份子钱（¥1,314 新婚快乐）、年终奖到账等，都是真实收支，不应被算法排除。
+
+**额外过滤的适用场景：** 仅在诊断"为什么某月数字异常大"时，才用下方的诊断规则做辅助分析，不作为默认汇总逻辑。
+
+## 诊断用：额外过滤规则（非默认，仅诊断用）
+
+当某月收支数字明显异常，需要排查原因时，可按以下规则分类：
+
+| 交易类型 | 信号 | 性质 |
+|---------|------|------|
+| 银证转账 | 描述/对面含"银转证"、"证转银" | 自己银行↔证券，可排除 |
+| 基金赎回 | 描述/对面含"基金"+"赎回/快速赎回" | 投资变现，可排除 |
+| 余额宝/余利宝 | 描述含"余额宝转入/转出"、"余利宝" | 货币基金搬家，可排除 |
+| 转账支取 | 描述含"转账支取" | 跨行转出，可排除 |
+| 花呗自动还款 | 描述含"花呗自动还款" | 信用卡自还，可排除 |
+| 自转自 | 工行借记卡 income + 对面"黄文龙" | 同一人账户间，可排除 |
+| 微信时间格式转出 | 工行借记卡 expense + 对面"微信" + desc=\d{2}:\d{2}:\d{2} | 信用卡还款模式，可排除 |
+
+**不可排除的（用户明确要求保留）：**
+- 他人转账（转给别人/从别人收到）→ 真实收支
+- 年终奖/奖金 → 真实一次性收入
+- 大额微信"无卡付" → 可能是个人转账，需逐笔确认
+- 退货退款 → 部分是真实退货，部分是重复记录
+
+## 跨渠道重复记录（reconcile 未捕获）
+
+以下是 reconcile 的 dedup 逻辑无法捕获的重复模式，会导致收支同时虚增。
+
+### dedup 匹配条件（dedup.py）
+
+三个条件必须**同时**满足：
+1. `(分钟截断, 金额, 币种)` 相同 → 分到同一组
+2. `account_name` **完全相同**
+3. 时间差 ≤ 10秒 **且** `_cross_verify`（counterparty 或 description 互为子串）
+
+### dedup 失效的典型场景
+
+| 场景 | 铁路12306 | 中国铁路网络 | 失效原因 |
+|------|-----------|------------|---------|
+| 12306 app vs 银行账单 | counterparty=`铁路12306` | counterparty=`中国铁路网络有限公司` | 不互为子串 |
+
+| 场景 | counterparty A | counterparty B | 失效原因 |
+|------|---------------|---------------|---------|
+| 脱敏名 vs 真名 | `冯海洋` | `f***8` | 脱敏截断后不互为子串 |
+| 平台名 vs 商家名 | `B站` | `上海动魂文化传媒有限公司` | 完全不同 |
+| 平台名 vs 公司名 | `河南湖震商贸有限公司` | `百亿**选` | 完全不同 |
+| 支付渠道名 vs 商家名 | `飞猪` | `阿斯兰航空服务（上海）有限…` | 不互为子串 |
+
+### 已知重复类型（2023-06 ~ 2026-06）
+
+1. **铁路12306 vs 中国铁路网络有限公司** — 44对，重复金额 ¥14,843
+   - 铁路12306: bill_source=`alipay`（支付宝账单中的12306消费）
+   - 中国铁路网络: bill_source=`icbc_credit`/`ccb_debit`（信用卡/借记卡账单中的支付宝扣款）
+   - 同一笔火车票在两个账单源各记一次
+
+2. **同账户跨源重复** — 226组，前20组净增 ¥60,346
+   - 同一交易在支付宝和信用卡/借记卡各记一次
+   - counterparty 名称不同（脱敏/平台名/公司名）导致 dedup 失效
+
+3. **大额微信"无卡付"** — 12笔，合计 ¥-167,430
+   - 从银行卡转到微信或转给他人的大额资金调拨
+   - 不是消费，但被记为 expense
+   - 需逐笔确认是自转自（排除）还是转给别人（保留）
+
+4. **同日一进一出对子** — 117对，净额=0
+   - 买+退同日发生，收支各虚增相同金额
+   - 净影响为0，但拉高了毛收入和毛支出
+
+## 排查脏数据的 Python 模板
 
 ```python
 import csv
 from pathlib import Path
 from collections import defaultdict
-import re
 
-records_dir = Path.home() / ".ft" / "records"
+records_dir = Path("records")
 
-def is_fake_transaction(row):
-    """判断是否为资金调拨，非真实消费收入"""
-    desc = row.get("description", "")
-    cp = row.get("counterparty", "")
-    acct = row.get("account_name", "")
-    cat = row.get("category", "")
-    try:
-        amt = float(row.get("amount", 0))
-    except:
-        return True
-
-    # 银证转账
-    for pat in ["银转证", "证转银"]:
-        if pat in desc or pat in cp:
-            return True
-
-    # 基金赎回
-    if ("基金" in desc or "基金" in cp) and \
-       ("赎回" in desc or "快速赎回" in desc or "赎回" in cp or "快速赎回" in cp):
-        return True
-
-    # 余额宝/余利宝
-    if "余利宝" in desc or "余利宝" in cp:
-        return True
-    if "余额宝" in desc and ("转入" in desc or "转出" in desc):
-        return True
-
-    # 跨行入账
-    if cat == "income" and ("电子汇入" in desc or "银联入账" in desc):
-        return True
-
-    # 转账支取
-    if "转账支取" in desc:
-        return True
-
-    # 工行借记卡微信大额转出（信用卡还款/转账）
-    if acct == "工行借记卡" and cat == "expense" and cp == "微信" \
-       and re.match(r'^\d{2}:\d{2}:\d{2}$', desc.strip()):
-        return True
-
-    # 花呗自动还款
-    if "花呗自动还款" in desc:
-        return True
-
-    # 信用卡被还款入账
-    if acct == "工行信用卡(1200)" and cat == "income" and "手机银行" in desc:
-        return True
-
-    # 余额宝在 counterparty
-    if "余额宝" in cp and ("转出" in desc or "转入" in desc):
-        return True
-    if "余额宝" in desc and ("转出" in desc or "转入" in desc):
-        return True
-
-    # 自转自
-    if acct == "工行借记卡" and cat == "income" and cp == "黄文龙":
-        return True
-
-    # 退货退款（商品名描述 + 支付宝 income + 店铺对面）
-    if cat == "income" and cp and ("**店" in cp or "ap**" in cp):
-        return True
-
-    # 小额利息（<100元不计入收入）
-    if ("利息" in desc or "收益" in desc) and amt < 100:
-        return True
-
-    return False
-
-
-def monthly_summary():
-    """按月汇总真实收支"""
-    monthly = defaultdict(lambda: {"expense": 0.0, "income": 0.0})
-
+def find_duplicates():
+    """找出 reconcile 未捕获的重复记录"""
+    all_rows = []
     for typ in ["cash", "loan"]:
         for csv_file in sorted((records_dir / typ).glob("*.csv")):
             with open(csv_file, encoding="utf-8") as f:
                 for row in csv.DictReader(f):
-                    month = row.get("date", "")[:7]
-                    amt = float(row.get("amount", 0))
                     cat = row.get("category", "")
-                    if cat == "transfer":
+                    if cat in ("transfer", "transfer_in", "transfer_out"):
                         continue
-                    if is_fake_transaction(row):
-                        continue
-                    if amt > 0:
-                        monthly[month]["income"] += amt
-                    else:
-                        monthly[month]["expense"] += abs(amt)
+                    all_rows.append({
+                        "date": row.get("date", "")[:10],
+                        "amount": float(row.get("amount", 0)),
+                        "counterparty": row.get("counterparty", ""),
+                        "description": row.get("description", ""),
+                        "account_name": row.get("account_name", ""),
+                        "bill_source": row.get("bill_source", ""),
+                    })
 
-    return monthly
+    # 同日同额分组
+    by_date_amt = defaultdict(list)
+    for r in all_rows:
+        key = (r["date"], round(r["amount"], 2))
+        by_date_amt[key].append(r)
+
+    # 同账户重复（同日同额、同一账户、counterparty不同）
+    same_acct = {}
+    for (date, amt), items in by_date_amt.items():
+        accts = set(r["account_name"] for r in items)
+        cps = set(r["counterparty"] for r in items)
+        if len(accts) == 1 and len(cps) > 1 and len(items) >= 2 and abs(amt) > 50:
+            same_acct[(date, amt)] = items
+
+    # 一进一出对子（净额=0）
+    zero_pairs = {}
+    for (date, amt), items in by_date_amt.items():
+        if len(items) == 2 and items[0]["amount"] + items[1]["amount"] == 0:
+            zero_pairs[(date, amt)] = items
+
+    return same_acct, zero_pairs
 ```
 
 ## ⚠️ 关键陷阱：关键词匹配假阳性极高，不能匹配 account_name
 
-排查"转账被误记为收支"时，**绝不能把 `account_name` 拼进匹配文本**。典型翻车：用 `'还款'` 关键词对 `counterparty+description+account_name` 做子串匹配，命中 **3553 条**——但绝大多数是**正常刷卡消费**，因为 `account_name` 含"工行信用卡"三个字（高德打车、便利蜂、麦当劳的消费都被误抓）。真正的信用卡还款只有极少数（`counterparty=京东, description=还款` 那种十几条）。
+排查"转账被误记为收支"时，**绝不能把 `account_name` 拼进匹配文本**。典型翻车：用 `'还款'` 关键词对 `counterparty+description+account_name` 做子串匹配，命中 **3553 条**——但绝大多数是**正常刷卡消费**，因为 `account_name` 含"工行信用卡"三个字。
 
 正确做法：
 - **精确匹配 `description.strip()`** 等于 `充值/提现/群收款/转账/转账备注:微信转账` 等词，而不是子串包含。
-- 匹配 `counterparty` 而非 `account_name`（账户名含"信用卡/储蓄卡"会污染任何"还款"类关键词）。
-- 理财/基金/余额宝申赎：匹配 `counterparty` 含基金公司名 + `description` 含"买入/申购/赎回/转入/转出"。
-- 任何批量分类前，先按关键词分桶打印每桶的 `(counterparty, description, source)` **组合样本**，人眼确认假阳性率，再决定是否改。不要拿关键词命中数直接批量改 category。
+- 匹配 `counterparty` 而非 `account_name`。
+- 任何批量分类前，先按关键词分桶打印每桶的 `(counterparty, description, source)` **组合样本**，人眼确认假阳性率。
 
-## 污染规模基线（2023-06 ~ 2026-07，~10,776 条）
+## 污染规模基线（2023-06 ~ 2026-06，~10,776 条）
 
-一次全量扫描的量级参考：
 - 正确标为 transfer/transfer_in/transfer_out 的记录：**仅 ~64 条**。
-- 高置信度"转账被误记为收支"（精确匹配 description）：**~523 条**，其中误记为收入 ~287 条（虚增收入 ¥285k）、误记为支出 ~236 条（虚增支出 ¥367k）。
-- 分层：理财基金申赎（余额宝/理财通/基金买赎）、购汇换汇（境内→美股账户，单笔大额）、充值提现（银行卡↔钱包）、微信个人转账/群收款（**混着真收支与 AA 代付，需同额一进一出配对识别，不能一刀切**）。
+- 高置信度"转账被误记为收支"（精确匹配 description）：**~523 条**。
+- 跨渠道重复（reconcile 未捕获）：226 组同账户重复 + 44 对铁路重复。
 
-## report.py 的结构性缺陷（截至本次排查）
+## 已实施修复：dedup_cross_source（2026-07）
 
-`src/ft/report.py` 纯按 `category` 字段汇总，存在两处硬缺口：
-1. **没有"净收入"指标**。只有 `report_income`（纯 income 求和）和 `report_expense`（纯 expense 求和），没有 `income − expense`，也没有按月对比时间序列。
-2. **收支求和不排除 transfer 污染**。`report_expense/income` 直接把所有 expense/income 求和，转账混在里面 → 月度数字虚高。
+`dedup.py` 新增 `dedup_cross_source()` 函数，在 reconcile 中于 `dedup_with_pairs()` 之后调用。
+
+**修复逻辑：** 按 `(account_name, 日期, 金额, 类别)` 分组，只处理恰好2笔的组：
+- **跨源2笔**（alipay/wechat + bank 各1笔）：保留 alipay/wechat（信息更丰富），删除 bank 重复
+- **同源2笔**（同一来源重复记录）：保留信息量更多的，删除重复
+- 3+笔的组不自动处理（可能含不同交易，留给人工审查）
+
+**预期效果（2023-06 ~ 2026-06）：**
+- 跨源2笔：1,626 组 → 去除 1,626 笔
+- 同源2笔：223 组 → 去除 223 笔
+- 合计去除 1,849 笔，收支各虚增约 ¥15-20k 被修正
+
+**设计决策：**
+- 只处理恰好2笔（高置信度），不处理3+笔（避免误伤不同交易）
+- 保留优先级：alipay > wechat > bank（信息量递减）
+- 同源时选 counterparty+description 最长的记录保留
+
+## report.py 的结构性缺陷（截至 2026-07）
+
+1. **没有"净收入"指标**。只有 `report_income` 和 `report_expense`，没有 `income − expense`。
+2. **收支求和不排除 transfer 污染**。
 
 建议落地路线（TDD，每步用户确认）：
-1. 加"转账识别规则表"（counterparty/description → transfer）+ 同日同额一进一出的配对逻辑，单测覆盖三类边缘：真收支 / 内部转账 / AA 代付。
-2. 改 report：收支求和排除 transfer*，新增 `净收入 = income − expense`。
-3. 加 `ft report --monthly`：按月输出收入/支出/净收入/转账趋势。
-4. 一次性数据修复：523 条高置信度误记逐条经用户确认后改 category（禁止静默批量改）。
-
-## 需注意的结构性缺陷
-
-- **信用卡双重计数**：信用卡消费（记在信用卡上）+ 银行还款（记在借记卡上）会重复统计同一笔支出。要彻底解决需识别银行端的"信用卡还款"交易并排除。目前上述规则中的"微信大额转出"部分覆盖了这个场景，但不完全。
+1. 加 `净收入 = income − expense`。
+2. 加 `ft report --monthly`：按月输出收入/支出/净收入趋势。
+3. 一次性数据修复：跨渠道重复逐条经用户确认后删除（禁止静默批量删）。

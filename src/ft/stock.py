@@ -1286,21 +1286,31 @@ def _replay_security_csv(records_dir=None):
 
     if not security_dir.exists():
         from collections import defaultdict
-        return defaultdict(lambda: {"shares": 0.0, "total_cost": 0.0}), defaultdict(float)
+        return defaultdict(lambda: {"shares": 0.0, "total_cost": 0.0}), defaultdict(float), defaultdict(float)
 
     rows = []
     for csv_file in sorted(security_dir.glob("*.csv")):
         with open(csv_file, encoding="utf-8") as f:
             rows.extend(csv.DictReader(f))
-    return _replay_security_rows(rows)
+    positions, cash, cash_legacy = _replay_security_rows(rows)
+    return positions, cash, cash_legacy
 
 
 def _replay_security_rows(rows):
-    """Replay in-memory security rows, raising ValueError on non-finite state."""
+    """Replay in-memory security rows, raising ValueError on non-finite state.
+
+    Cash is tracked per (account, currency) to support multi-currency exchange
+    accounts (e.g. Kraken with USD + USDT).  Legacy single-currency rows
+    (no ``quote:XXX`` in note) fall back to the CSV ``currency`` column.
+    """
+    import re
     from collections import defaultdict
 
     positions = defaultdict(lambda: {"shares": 0.0, "total_cost": 0.0})
+    # cash keyed by (account, currency) — e.g. ("kraken", "usdt")
     cash = defaultdict(float)
+    # Legacy single-value cash for backward compat with verify/repair
+    cash_legacy = defaultdict(float)
     pending_swaps: dict[str, float] = {}
 
     def _normalize_position(h):
@@ -1320,8 +1330,20 @@ def _replay_security_rows(rows):
             }
         )
 
-    def _validate_cash(account: str) -> None:
-        _ensure_finite_values(**{f"{account}.cash": cash[account]})
+    def _validate_cash(account: str, currency: str) -> None:
+        _ensure_finite_values(**{f"{account}.{currency}.cash": cash[(account, currency)]})
+
+    def _extract_quote_currency(note: str, fallback_ccy: str) -> str:
+        """Extract quote:XXX from note, fall back to CSV currency column."""
+        m = re.search(r"quote:(\w+)", note or "")
+        return m.group(1).lower() if m else fallback_ccy.lower()
+
+    def _add_cash(account: str, currency: str, delta: float, commission: float = 0.0,
+                  deduct_commission: bool = True) -> None:
+        key = (account, currency)
+        cash[key] = round(cash[key] + delta - (commission if deduct_commission else 0), 2)
+        cash_legacy[account] = round(cash_legacy[account] + delta - (commission if deduct_commission else 0), 2)
+        _validate_cash(account, currency)
 
     for row in rows:
         # Security records are mixed with some transfer-style audit rows
@@ -1348,8 +1370,10 @@ def _replay_security_rows(rows):
                 _normalize_position(positions[(a, t)])
                 _validate_position(a, t)
             else:
-                cash[a] = amt
-                _validate_cash(a)
+                ccy = _extract_quote_currency(row.get("note", ""), row.get("currency", "USD"))
+                cash[(a, ccy)] = amt
+                cash_legacy[a] = amt
+                _validate_cash(a, ccy)
         elif act == "BUY":
             h = positions[(a, t)]
             old_s = h["shares"]
@@ -1367,8 +1391,8 @@ def _replay_security_rows(rows):
             h["shares"] = round(new_s, 10)
             _normalize_position(h)
             _validate_position(a, t)
-            cash[a] = round(cash[a] + amt - com, 2)
-            _validate_cash(a)
+            ccy = _extract_quote_currency(row.get("note", ""), row.get("currency", "USD"))
+            _add_cash(a, ccy, amt, com)
         elif act == "SELL":
             h = positions[(a, t)]
             sold = abs(s)
@@ -1382,16 +1406,15 @@ def _replay_security_rows(rows):
                 h["total_cost"] = round(h["total_cost"] - abs(amt) + com, 2)
             _normalize_position(h)
             _validate_position(a, t)
-            cash[a] = round(cash[a] + amt - com, 2)
-            _validate_cash(a)
+            ccy = _extract_quote_currency(row.get("note", ""), row.get("currency", "USD"))
+            _add_cash(a, ccy, amt, com)
         elif act in ("DEPOSIT", "DIVIDEND"):
-            cash[a] = round(cash[a] + amt, 2)
-            _validate_cash(a)
+            ccy = _extract_quote_currency(row.get("note", ""), row.get("currency", "USD"))
+            _add_cash(a, ccy, amt)
         elif act == "WITHDRAW":
-            cash[a] = round(cash[a] + amt, 2)
-            _validate_cash(a)
+            ccy = _extract_quote_currency(row.get("note", ""), row.get("currency", "USD"))
+            _add_cash(a, ccy, amt)
         elif act == "SWAP_OUT":
-            import re
             h = positions[(a, t)]
             avg = h["total_cost"] / h["shares"] if h["shares"] else 0.0
             released = round(s * avg, 2)
@@ -1422,14 +1445,14 @@ def _replay_security_rows(rows):
             _normalize_position(h)
             _validate_position(a, t)
 
-    return positions, cash
+    return positions, cash, cash_legacy
 
 
 def verify_security(records_dir=None):
     """Replay security CSV and compare against snapshot.
     Returns (ok: bool, report_lines: list[str])."""
     snap = load_snapshot()
-    positions, cash = _replay_security_csv(records_dir)
+    positions, cash, cash_legacy = _replay_security_csv(records_dir)
     lines = []
     ok = True
 
@@ -1449,11 +1472,37 @@ def verify_security(records_dir=None):
                 lines.append(f"  ❌ {acct_name}/{ticker}: CSV股数={csv_p['shares']} vs 快照={sp['shares']}")
                 ok = False
 
+        # Compare cash — support both single-value and per-currency
         sc = acct_data.get("cash", 0.0)
-        cc = cash.get(acct_name, 0.0)
-        if abs(sc - cc) > 0.02:
-            lines.append(f"  ❌ {acct_name} 现金: CSV={cc:.2f} vs 快照={sc:.2f}")
-            ok = False
+        cc_legacy = cash_legacy.get(acct_name, 0.0)
+        # Also check per-currency cash if snapshot has it
+        snap_cash_map = acct_data.get("cash_map", {})
+        csv_cash_map = {k[1]: v for k, v in cash.items() if k[0] == acct_name}
+        if snap_cash_map and csv_cash_map:
+            # Both have per-currency data — compare per currency
+            all_ccys = set(list(snap_cash_map.keys()) + list(csv_cash_map.keys()))
+            for ccy in sorted(all_ccys):
+                sv = snap_cash_map.get(ccy, 0.0)
+                cv = csv_cash_map.get(ccy, 0.0)
+                if abs(sv - cv) > 0.02:
+                    lines.append(f"  ❌ {acct_name}/{ccy}: CSV={cv:.2f} vs 快照={sv:.2f}")
+                    ok = False
+        elif snap_cash_map and not csv_cash_map:
+            # Snapshot has cash_map but CSV doesn't — compare legacy
+            if abs(sc - cc_legacy) > 0.02:
+                lines.append(f"  ❌ {acct_name} 现金: CSV={cc_legacy:.2f} vs 快照={sc:.2f}")
+                ok = False
+        elif csv_cash_map and not snap_cash_map:
+            # CSV has per-currency cash but snapshot doesn't — check if legacy matches total
+            csv_total = sum(csv_cash_map.values())
+            if abs(sc - csv_total) > 0.02 and abs(cc_legacy - csv_total) > 0.02:
+                lines.append(f"  ❌ {acct_name} 现金: CSV总计={csv_total:.2f} vs 快照={sc:.2f}")
+                ok = False
+        else:
+            # Legacy comparison
+            if abs(sc - cc_legacy) > 0.02:
+                lines.append(f"  ❌ {acct_name} 现金: CSV={cc_legacy:.2f} vs 快照={sc:.2f}")
+                ok = False
 
     # Check CSV-only positions not in snapshot
     for (acct, ticker) in positions:
@@ -1474,7 +1523,7 @@ def repair_security(records_dir=None):
     """Replay security CSV and write into unified snapshot accounts.security."""
     from datetime import datetime
     from .accounts import load_accounts
-    positions, cash = _replay_security_csv(records_dir)
+    positions, cash, cash_legacy = _replay_security_csv(records_dir)
 
     # Look up currency from accounts.yaml
     acct_currencies = {a["name"]: a["currency"] for a in load_accounts()
@@ -1488,18 +1537,28 @@ def repair_security(records_dir=None):
             if acct_name not in accounts:
                 accounts[acct_name] = {
                     "currency": acct_currencies.get(acct_name, ""),
-                    "cash": 0.0, "positions": {},
+                    "cash": 0.0, "positions": {}, "cash_map": {},
                 }
             accounts[acct_name]["positions"][ticker] = {
                 "shares": p["shares"],
                 "avg_cost": round(p["total_cost"] / p["shares"], 2) if p["shares"] != 0 else 0.0,
             }
 
-    for acct_name, c in cash.items():
+    # Write per-currency cash
+    for (acct_name, ccy), c in cash.items():
         if acct_name not in accounts:
             accounts[acct_name] = {
                 "currency": acct_currencies.get(acct_name, ""),
-                "cash": 0.0, "positions": {},
+                "cash": 0.0, "positions": {}, "cash_map": {},
+            }
+        accounts[acct_name]["cash_map"][ccy] = round(c, 2)
+
+    # Legacy single-value cash for backward compat
+    for acct_name, c in cash_legacy.items():
+        if acct_name not in accounts:
+            accounts[acct_name] = {
+                "currency": acct_currencies.get(acct_name, ""),
+                "cash": 0.0, "positions": {}, "cash_map": {},
             }
         accounts[acct_name]["cash"] = round(c, 2)
 

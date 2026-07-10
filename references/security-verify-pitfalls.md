@@ -30,11 +30,106 @@ When replaying security CSVs, closed positions can end up with tiny residual val
 
 **Normalization rule:** after each BUY/SELL/CHECKIN replay step, snap positions to zero when `abs(shares) < 1e-9`, and reset `total_cost` to zero at the same time.
 
+## 3) Legacy CHECKIN records from prior imports overwriting actual trades
+
+When CSV records contain CHECKIN entries from a prior import (e.g., initial position migration), these CHECKIN records can **overwrite actual BUY/SELL records** during `ft verify --fix` replay.
+
+**How it happens:** The CHECKIN logic in `_replay_security_csv()` SETS (not adds) the position:
+```python
+if act == "CHECKIN":
+    positions[(a, t)]["shares"] = s
+    positions[(a, t)]["total_cost"] = round(s * p, 2)
+```
+
+This means a CHECKIN record with incorrect price/shares will overwrite the position that was built from actual BUY/SELL records.
+
+**Real example:** CSV had:
+1. `BUY qcom.us 10 @ $208.9` (actual trade)
+2. `CHECKIN qcom.us 10 @ $176.38` (legacy import, wrong price)
+3. `SELL qcom.us 5 @ $186.6` (actual trade)
+
+After replay: CHECKIN overwrites to 10 shares @ $176.38, then SELL reduces to 5 shares @ $166.36. But correct calculation from BUY/SELL only should be 5 shares @ $231.60.
+
+**When user provides trading screenshots as source of truth:**
+1. Check ALL existing CSV records for the ticker: `grep -i <ticker> records/security/*.csv`
+2. Compare each record with user's screenshots
+3. Identify discrepancies: legacy CHECKIN records, missing records, wrong prices/dates
+4. Ask user to confirm which records are correct before modifying
+5. Remove incorrect CHECKIN records (and any other records not in screenshots)
+6. Add missing records from screenshots
+7. Run `ft verify --fix` to rebuild snapshot
+
+**Key indicator:** If `ft verify --fix` produces different avg_cost than manual BUY/SELL calculation, check for CHECKIN records in the CSV that are overwriting the position.
+
+### 3b) Full broker overwrite workflow (user provides screenshots as complete source of truth)
+
+When the user provides IBKR/broker screenshots and says "用截图覆盖" or "所有记录都删掉用截图的":
+
+1. **Remove ALL records for that broker** from all CSV files:
+   ```python
+   # Scan all records/security/*.csv, remove lines containing the broker name
+   for f in sorted(glob.glob("records/security/*.csv")):
+       lines = open(f).readlines()
+       new_lines = [l for l in lines if 'IBKR' not in l]  # or '嘉信', '盈立' etc.
+       open(f, 'w').writelines(new_lines)
+   ```
+
+2. **Add ONLY the records from screenshots** to the appropriate date files:
+   - Group records by date
+   - Create date files if they don't exist (include CSV header)
+   - BUY amount = -(price × shares), SELL amount = +(price × shares)
+
+3. **Add back cash CHECKIN (no ticker)** with the correct initial balance:
+   - Cash CHECKIN sets `cash[account] = amount` (not additive)
+   - Calculate: `initial_cash = final_cash + total_buy_cost - total_sell_received`
+   - Final cash comes from broker screenshot (e.g., IBKR "Cash" field)
+   - Write to the latest date file: `CHECKIN,,0,0,<initial_cash>,0,USD,IBKR,`
+
+4. **Run `ft verify --fix`** to rebuild snapshot
+
+5. **Verify positions match** manual BUY/SELL calculation
+
+**Pitfall:** Do NOT keep any legacy CHECKIN records with ticker — they will overwrite actual trades. Only the cash CHECKIN (no ticker) should remain.
+
+### 3c) Cash CHECKIN must pre-compensate for subsequent transactions
+
+**Critical:** The cash CHECKIN value cannot be the user's reported cash balance directly. CSV files are processed in date order, and BUY/SELL transactions that appear in later date files will modify the cash balance after the CHECKIN.
+
+**Formula:**
+```
+cash_CHECKIN = user_cash_balance - Σ(subsequent BUY amount+commission) + Σ(subsequent SELL amount-commission)
+```
+
+**Real examples:**
+
+| Account | User balance | Subsequent transactions | Correct CHECKIN |
+|---------|-------------|------------------------|-----------------|
+| IBKR | -$336.78 | SELL qcom +$931.98, BUY qcom -$912.75 | **-$356.01** |
+| 嘉信 | -$31.12 | BUY msft -$1932.00 | **$1900.88** |
+
+**Verification script:** After writing all CSV records, run a Python script that replays all transactions in date order and checks the final cash matches the user's reported balance:
+```python
+cash = 0
+for f in sorted(glob.glob("records/security/*.csv")):
+    for line in open(f):
+        if broker in line:
+            parts = line.split(",")
+            action, ticker, amount, commission = parts[1], parts[2], float(parts[5]), float(parts[6])
+            if action == "CHECKIN" and ticker == "":
+                cash = amount
+            elif action == "BUY":
+                cash += amount - commission
+            elif action == "SELL":
+                cash += amount - commission
+assert abs(cash - user_balance) < 0.01, f"Cash mismatch: {cash} vs {user_balance}"
+```
+
 ## Verification checklist
 
 - `ft verify` completes without exceptions.
 - `ft verify` reports `✅ Security CSV ↔ Snapshot 完全对齐`.
 - `ft stock list` does not show zero-share residue positions.
+- When reconciling with user screenshots, manually verify avg_cost matches BUY/SELL-only calculation.
 
 ## Related code
 

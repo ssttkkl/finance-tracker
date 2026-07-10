@@ -7,7 +7,7 @@ from pathlib import Path
 
 from . import models
 from .accounts import load_accounts
-from .dedup import dedup_with_pairs
+from .dedup import dedup_with_pairs, dedup_cross_source
 from .snapshot import rebuild_snapshot_from_records, git_stage
 from .transfer_rules import classify_single_leg
 
@@ -386,6 +386,11 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
     scoped_locked = [row for row in scoped if _is_locked(row)]
     scoped_active = [row for row in scoped if not _is_locked(row)]
     kept, removed, pairs = dedup_with_pairs(scoped_active)
+    # 第二轮：跨源去重（同账户+同日+同额+不同source）
+    kept2, removed2, pairs2 = dedup_cross_source(kept)
+    kept = kept2
+    removed.extend(removed2)
+    pairs.extend(pairs2)
     transfer_matches = _match_same_currency_exact(kept)
     used_transfer_ids = {id(row) for match in transfer_matches for row in match[:2]}
     transfer_matches.extend(_match_same_day_unionpay_cash_transfer(kept, used_transfer_ids))

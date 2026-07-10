@@ -32,6 +32,75 @@ def _cross_verify(a: dict, b: dict) -> bool:
     return False
 
 
+def _day_key(date_str: str) -> str:
+    """截取日期部分 YYYY-MM-DD"""
+    return date_str[:10]
+
+
+_SOURCE_PRIORITY = {"alipay": 0, "wechat": 1}
+
+
+def _best_record(records: list[dict]) -> dict:
+    """从一组重复记录中选出"最佳"保留：优先级 alipay > wechat > bank，
+    同源时选信息量最多的（counterparty+description 最长）。"""
+    def info_len(r):
+        return len(r.get("counterparty", "")) + len(r.get("description", ""))
+    return max(records, key=lambda r: (-_SOURCE_PRIORITY.get(r.get("bill_source", ""), 2), info_len(r)))
+
+
+def dedup_cross_source(records: list[dict]) -> tuple[list[dict], list[dict], list[tuple[dict, dict]]]:
+    """第二轮去重：基于 (账户, 日期, 金额, 类别) 的跨源/同源去重。
+
+    处理 dedup_with_pairs 遗漏的两类情况：
+    1. 跨源：同账户+同日+同额+同category，但 bill_source 不同
+       （如铁路12306 via alipay vs 中国铁路网络 via icbc_credit）
+    2. 同源3+：同账户+同日+同额+同category+同source，3笔以上
+    """
+    if not records:
+        return [], [], []
+
+    by_key: dict[tuple, list[dict]] = defaultdict(list)
+    for r in records:
+        key = (r.get("account_name", ""), _day_key(r.get("date", "")),
+               round(float(r.get("amount", 0)), 2), r.get("category", ""))
+        by_key[key].append(r)
+
+    removed_ids: set[int] = set()
+    removed_pairs: list[tuple[dict, dict]] = []
+
+    for key, items in by_key.items():
+        if len(items) < 2:
+            continue
+
+        sources = set(r.get("bill_source", "") for r in items)
+        # 只处理高置信度场景：
+        # 1. 跨源恰好2笔（同交易在 alipay/wechat 和 bank 各出现一次）
+        # 2. 同源恰好2笔（同一来源重复记录，如京东记了两次）
+        # 跨源3+笔或同源3+笔不自动处理（可能含不同交易）
+        is_cross_2 = len(sources) > 1 and len(items) == 2
+        is_same_2 = len(sources) == 1 and len(items) == 2
+
+        if not is_cross_2 and not is_same_2:
+            continue
+
+        best = _best_record(items)
+        for r in items:
+            if id(r) is id(best):
+                continue
+            removed_ids.add(id(r))
+            removed_pairs.append((best, r))
+
+    kept = [r for r in records if id(r) not in removed_ids]
+    removed = []
+    for keep_rec, remove_rec in removed_pairs:
+        removed.append({**keep_rec, "dedup_status": "保留"})
+        removed.append({**remove_rec, "dedup_status": "去除"})
+
+    kept.sort(key=lambda r: r.get("date", ""))
+    removed.sort(key=lambda r: r.get("date", ""))
+    return kept, removed, removed_pairs
+
+
 def dedup_with_pairs(records: list[dict]) -> tuple[list[dict], list[dict], list[tuple[dict, dict]]]:
     """返回 (保留记录, 被删记录含dedup_status, 保留/删除配对)"""
     if not records:

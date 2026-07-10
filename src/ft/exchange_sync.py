@@ -77,6 +77,8 @@ def trade_to_rows(trade: dict, account_name: str, provider: str) -> list[dict]:
     has_fee = fee_cost is not None and Decimal(str(fee_cost)) != 0
 
     note = f"{provider} tid:{tid}"
+    # Include quote currency so replay can track per-currency cash
+    cash_note = f"{note} quote:{quote}"
     rows: list[dict] = []
 
     if quote in CASH_QUOTES:
@@ -89,7 +91,7 @@ def trade_to_rows(trade: dict, account_name: str, provider: str) -> list[dict]:
         main["price"] = _num(price)
         main["amount"] = _num(-Decimal(str(cost)) if side == "buy" else Decimal(str(cost)))
         main["commission"] = _num(fee_cost) if cash_fee else "0"
-        main["note"] = note
+        main["note"] = cash_note
         rows.append(main)
         if has_fee and not cash_fee:
             rows.append(_fee_row(account_name, date, fee_ccy, fee_cost, tid, provider))

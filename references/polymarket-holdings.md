@@ -15,9 +15,44 @@ Rules:
 ## Pricing / valuation
 
 - `ft stock list` should fetch live Polymarket quotes for `pm:` tickers.
-- Account and report valuation should use current market price, not cost basis.
-- If a live quote cannot be fetched, fall back to cost so read-only reporting keeps working.
-- Polymarket Gamma API requests are more reliable with a browser-like `User-Agent`; plain urllib-style probes may 403.
+- Account and report valuation should use current market value, not only cost basis.
+- Keep fractional shares visible; Polymarket fills are often non-integer.
+- For resolved markets, use the held outcome's settlement price from Gamma `outcomePrices` directly. Example: `outcomes=["Yes","No"]`, `outcomePrices=["0","1"]` means `:yes` is priced at `0` and `:no` is priced at `1`; never fall back to `lastTradePrice=0` for the `:no` token.
+- If `/markets?slug=<child-slug>` returns empty for a nested/stale sub-market, fall back to Gamma `public-search`, inspect returned parent `events[].markets[]`, and match the exact child `slug` before pricing.
+
+## Resolved-market sync / settlement
+
+`ft stock sync polymarket` should not only import Activity API trades. It must also scan current `Polymarket` snapshot positions for `pm:` tickers and auto-close any position whose live/settled outcome price is exactly `0` or `1`:
+
+```text
+SELL <shares> @ <0-or-1>
+commission = 0
+note = polymarket settlement
+```
+
+This preserves the audit trail and removes resolved positions without deleting historical trade rows. A winning No position should therefore add cash at `shares × 1`, not disappear at zero value.
+
+TDD coverage to keep when touching this path:
+
+- Direct Gamma resolved market: `outcomes=["Yes","No"]`, `outcomePrices=["0","1"]` returns `:yes=0`, `:no=1`.
+- Stale child slug fallback: direct `/markets?slug=` empty, `public-search` parent event contains matching child market with settlement prices.
+- Sync settlement: with an open `pm:<slug>:no` snapshot position and price `1`, dry-run returns one `SELL` settlement row for the full share count.
+
+## Cash balance interpretation
+
+A negative `Polymarket` cash balance in `ft stock list` usually means the security ledger is missing one or more cash-leg records (deposit, withdrawal, redemption/settlement, or a cash checkin). It is **not** proof that the platform itself has negative cash.
+
+Important distinction:
+
+- `ft verify` passing means `records/security/*.csv` and `snapshot.yaml` are internally consistent.
+- It does **not** prove Polymarket platform cash equals the ft cash balance.
+
+When cash is negative after Activity sync:
+
+1. Do not invent or auto-adjust cash.
+2. Explain that trades were replayed but cash legs may be incomplete.
+3. Ask for the current platform available USDC/cash if the user wants a quick `stock checkin --cash` alignment.
+4. For audit-quality repair, import or reconstruct deposits, withdrawals, redemptions, and settlement cash flows instead of using a blind balancing entry.
 
 ## Import snapshot
 

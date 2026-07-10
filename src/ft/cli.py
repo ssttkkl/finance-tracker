@@ -19,7 +19,7 @@ def main(argv=None):
     acct_add_p = acct_sub.add_parser("add", help="新增账户")
     acct_add_p.add_argument("name")
     acct_add_p.add_argument("--type", required=True,
-                            choices=["cash", "loan", "lend", "security"])
+                            choices=["cash", "loan", "lend", "security", "crypto"])
     acct_add_p.add_argument("--currency", required=True,
                             choices=["CNY", "USD", "HKD"])
 

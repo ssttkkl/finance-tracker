@@ -28,7 +28,7 @@ def test_trade_to_rows_usdt_buy():
     assert r["commission"] == "0"
     assert r["currency"] == "USD"
     assert r["account_name"] == "币安"
-    assert r["note"] == "kraken tid:T1"
+    assert r["note"] == "kraken tid:T1 quote:usdt"
 
 
 def test_trade_to_rows_usdt_sell():
