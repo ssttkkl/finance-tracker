@@ -121,7 +121,7 @@ def test_cli_add_to_security_preserves_existing_stock_columns(tmp_env):
     assert "from_ticker" in fieldnames
     assert "note" in fieldnames
     assert rows[0]["action"] == "swap"
-    assert rows[0]["from_ticker"] == "USD"
+    assert rows[0]["from_ticker"] == "usd"
     assert rows[0]["to_ticker"] == "nvda.us"
     assert rows[1]["counterparty"] == "manual cash adjustment"
 

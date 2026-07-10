@@ -42,23 +42,28 @@ class TestStockAppend:
         """有效 CSV → 写入 + 快照重建"""
         records_dir, accounts_path, snapshot_path = tmp_security_env
 
-        # Create a valid stock CSV with BUY, SELL, CHECKIN
+        # Create a valid stock CSV with unified swap format
         csv_path = Path(tempfile.mktemp(suffix=".csv"))
-        fields = ["date", "action", "ticker", "shares", "price", "amount",
-                  "commission", "currency", "account_name", "note"]
+        from ft.stock import CSV_FIELDS
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fields)
+            writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
             writer.writeheader()
             writer.writerows([
-                {"date": "2026-06-10 09:30:00", "action": "BUY", "ticker": "000001.sz",
-                 "shares": "1000", "price": "11.50", "amount": "-11500.00",
-                 "commission": "5.00", "currency": "CNY", "account_name": "东方证券", "note": ""},
-                {"date": "2026-06-11 14:00:00", "action": "SELL", "ticker": "000001.sz",
-                 "shares": "500", "price": "12.00", "amount": "6000.00",
-                 "commission": "3.00", "currency": "CNY", "account_name": "东方证券", "note": "partial"},
-                {"date": "2026-06-11 15:00:00", "action": "CHECKIN", "ticker": "",
-                 "shares": "0", "price": "0", "amount": "50000.00",
-                 "commission": "0", "currency": "CNY", "account_name": "东方证券", "note": ""},
+                {"date": "2026-06-10 09:30:00", "action": "swap",
+                 "from_ticker": "CNY", "to_ticker": "000001.sz",
+                 "from_amount": "11505", "to_amount": "1000", "price": "11.50",
+                 "commission": "5.00", "commission_asset": "CNY",
+                 "currency": "CNY", "account_name": "东方证券", "note": ""},
+                {"date": "2026-06-11 14:00:00", "action": "swap",
+                 "from_ticker": "000001.sz", "to_ticker": "CNY",
+                 "from_amount": "500", "to_amount": "5997", "price": "12.00",
+                 "commission": "3.00", "commission_asset": "CNY",
+                 "currency": "CNY", "account_name": "东方证券", "note": "partial"},
+                {"date": "2026-06-11 15:00:00", "action": "checkin",
+                 "from_ticker": "CNY", "to_ticker": "",
+                 "from_amount": "0", "to_amount": "50000", "price": "1",
+                 "commission": "0", "commission_asset": "",
+                 "currency": "CNY", "account_name": "东方证券", "note": ""},
             ])
 
         try:
@@ -80,13 +85,13 @@ class TestStockAppend:
             with open(day1, encoding="utf-8") as f:
                 rows1 = list(csv.DictReader(f))
             assert len(rows1) == 1
-            assert rows1[0]["action"] == "BUY"
+            assert rows1[0]["action"] == "swap"
 
             with open(day2, encoding="utf-8") as f:
                 rows2 = list(csv.DictReader(f))
             assert len(rows2) == 2
-            assert rows2[0]["action"] == "SELL"
-            assert rows2[1]["action"] == "CHECKIN"
+            assert rows2[0]["action"] == "swap"
+            assert rows2[1]["action"] == "checkin"
 
             # Verify snapshot was rebuilt
             from ft.snapshot import load_snapshot
@@ -104,16 +109,17 @@ class TestStockAppend:
         """未知账户 → 报错不写入"""
         records_dir, accounts_path, snapshot_path = tmp_security_env
 
-        fields = ["date", "action", "ticker", "shares", "price", "amount",
-                  "commission", "currency", "account_name", "note"]
+        from ft.stock import CSV_FIELDS
         csv_path = Path(tempfile.mktemp(suffix=".csv"))
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fields)
+            writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
             writer.writeheader()
             writer.writerow({
-                "date": "2026-06-10 09:30:00", "action": "BUY", "ticker": "000001.sz",
-                "shares": "1000", "price": "11.50", "amount": "-11500.00",
-                "commission": "5.00", "currency": "CNY", "account_name": "IBKR", "note": "",
+                "date": "2026-06-10 09:30:00", "action": "swap",
+                "from_ticker": "CNY", "to_ticker": "000001.sz",
+                "from_amount": "11505", "to_amount": "1000", "price": "11.50",
+                "commission": "5.00", "commission_asset": "CNY",
+                "currency": "CNY", "account_name": "IBKR", "note": "",
             })
 
         try:
@@ -134,16 +140,17 @@ class TestStockAppend:
         """未知 action → 报错"""
         records_dir, accounts_path, snapshot_path = tmp_security_env
 
-        fields = ["date", "action", "ticker", "shares", "price", "amount",
-                  "commission", "currency", "account_name", "note"]
+        from ft.stock import CSV_FIELDS
         csv_path = Path(tempfile.mktemp(suffix=".csv"))
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fields)
+            writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
             writer.writeheader()
             writer.writerow({
-                "date": "2026-06-10 09:30:00", "action": "OPTION", "ticker": "000001.sz",
-                "shares": "1000", "price": "11.50", "amount": "-11500.00",
-                "commission": "5.00", "currency": "CNY", "account_name": "东方证券", "note": "",
+                "date": "2026-06-10 09:30:00", "action": "OPTION",
+                "from_ticker": "CNY", "to_ticker": "000001.sz",
+                "from_amount": "11505", "to_amount": "1000", "price": "11.50",
+                "commission": "5.00", "commission_asset": "CNY",
+                "currency": "CNY", "account_name": "东方证券", "note": "",
             })
 
         try:
@@ -164,14 +171,14 @@ class TestStockAppend:
         records_dir, accounts_path, snapshot_path = tmp_security_env
 
         # Only 5 columns (missing half the required fields)
-        fields = ["date", "action", "ticker", "shares", "price"]
+        fields = ["date", "action", "from_ticker", "to_ticker", "from_amount"]
         csv_path = Path(tempfile.mktemp(suffix=".csv"))
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fields)
             writer.writeheader()
             writer.writerow({
-                "date": "2026-06-10", "action": "BUY", "ticker": "000001.sz",
-                "shares": "1000", "price": "11.50",
+                "date": "2026-06-10", "action": "swap", "from_ticker": "CNY",
+                "to_ticker": "000001.sz", "from_amount": "11505",
             })
 
         try:
@@ -192,22 +199,27 @@ class TestStockAppend:
         """多天交易 → 写入多个文件"""
         records_dir, accounts_path, snapshot_path = tmp_security_env
 
-        fields = ["date", "action", "ticker", "shares", "price", "amount",
-                  "commission", "currency", "account_name", "note"]
+        from ft.stock import CSV_FIELDS
         csv_path = Path(tempfile.mktemp(suffix=".csv"))
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fields)
+            writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
             writer.writeheader()
             writer.writerows([
-                {"date": "2026-06-10 09:30:00", "action": "BUY", "ticker": "000001.sz",
-                 "shares": "500", "price": "10.00", "amount": "-5000.00",
-                 "commission": "2.50", "currency": "CNY", "account_name": "东方证券", "note": ""},
-                {"date": "2026-06-12 14:00:00", "action": "SELL", "ticker": "000001.sz",
-                 "shares": "200", "price": "11.00", "amount": "2200.00",
-                 "commission": "1.10", "currency": "CNY", "account_name": "东方证券", "note": ""},
-                {"date": "2026-06-13 10:00:00", "action": "CHECKIN", "ticker": "",
-                 "shares": "0", "price": "0", "amount": "45000.00",
-                 "commission": "0", "currency": "CNY", "account_name": "东方证券", "note": ""},
+                {"date": "2026-06-10 09:30:00", "action": "swap",
+                 "from_ticker": "CNY", "to_ticker": "000001.sz",
+                 "from_amount": "5002.5", "to_amount": "500", "price": "10.00",
+                 "commission": "2.50", "commission_asset": "CNY",
+                 "currency": "CNY", "account_name": "东方证券", "note": ""},
+                {"date": "2026-06-12 14:00:00", "action": "swap",
+                 "from_ticker": "000001.sz", "to_ticker": "CNY",
+                 "from_amount": "200", "to_amount": "2198.9", "price": "11.00",
+                 "commission": "1.10", "commission_asset": "CNY",
+                 "currency": "CNY", "account_name": "东方证券", "note": ""},
+                {"date": "2026-06-13 10:00:00", "action": "checkin",
+                 "from_ticker": "CNY", "to_ticker": "",
+                 "from_amount": "0", "to_amount": "45000", "price": "1",
+                 "commission": "0", "commission_asset": "",
+                 "currency": "CNY", "account_name": "东方证券", "note": ""},
             ])
 
         try:

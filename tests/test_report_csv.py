@@ -197,7 +197,10 @@ def test_networth_multi_currency(tmp_env):
     from ft.snapshot import save_snapshot, set_balance
     snap = {"accounts": {"cash": {}, "loan": {}, "lend": {}, "security": {}}, "updated_at": ""}
     set_balance(snap, "支付宝余额", "cash", -50.0)
-    snap["accounts"]["security"]["IBKR"] = {"currency": "USD", "cash": 100.0, "positions": {}}
+    snap["accounts"]["security"]["IBKR"] = {
+        "currency": "USD",
+        "positions": {"usd": {"shares": 100.0, "total_cost": 100.0, "cost_currency": "USD"}},
+    }
     save_snapshot(snap)
 
     from ft.report import report_networth

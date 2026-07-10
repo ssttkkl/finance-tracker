@@ -110,7 +110,7 @@ def test_transfer_and_checkin_flow(tmp_env):
     })
     existing.sort(key=lambda r: r["date"])
     with open(day_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
+        writer = csv.DictWriter(f, fieldnames=models.CASH_CSV_FIELDS)
         writer.writeheader()
         writer.writerows(existing)
 

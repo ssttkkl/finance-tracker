@@ -147,6 +147,9 @@ def record_trade(
     """
     _ensure_finite_values(from_amount=from_amount, to_amount=to_amount,
                           price=price, commission=commission)
+    # Normalize tickers to lowercase for consistent position keys
+    from_ticker = from_ticker.strip().lower() if from_ticker else ""
+    to_ticker = to_ticker.strip().lower() if to_ticker else ""
     records_dir = models.RECORDS_DIR
     date_key = date[:10]
     security_dir = records_dir / "security"
@@ -237,21 +240,58 @@ def do_convert(path, source, output, password=None, account="东方证券", curr
         print("❌ 未解析到任何交易记录")
         return
 
-    # 4. Map parser output to stock CSV 10-column format
+    # 4. Map parser output to stock CSV 12-column unified swap format
     mapped = []
     for rec in records:
-        mapped.append({
-            "date": rec["date"],
-            "action": rec["action"],
-            "ticker": rec["ticker"],
-            "shares": str(rec["shares"]),
-            "price": str(rec["price"]),
-            "amount": str(rec["amount"]),
-            "commission": str(rec["fee"]),
-            "currency": currency,
-            "account_name": account,
-            "note": rec["note"],
-        })
+        action = rec["action"]
+        if action == "BUY":
+            mapped.append({
+                "date": rec["date"], "action": "swap",
+                "from_ticker": currency, "to_ticker": rec["ticker"],
+                "from_amount": str(abs(rec["amount"])),
+                "to_amount": str(rec["shares"]),
+                "price": str(rec["price"]),
+                "commission": str(rec["fee"]),
+                "commission_asset": "",
+                "currency": currency, "account_name": account,
+                "note": rec["note"],
+            })
+        elif action == "SELL":
+            mapped.append({
+                "date": rec["date"], "action": "swap",
+                "from_ticker": rec["ticker"], "to_ticker": currency,
+                "from_amount": str(rec["shares"]),
+                "to_amount": str(abs(rec["amount"])),
+                "price": str(rec["price"]),
+                "commission": str(rec["fee"]),
+                "commission_asset": "",
+                "currency": currency, "account_name": account,
+                "note": rec["note"],
+            })
+        elif action == "CHECKIN":
+            mapped.append({
+                "date": rec["date"], "action": "checkin",
+                "from_ticker": currency, "to_ticker": "",
+                "from_amount": "0", "to_amount": str(abs(rec["amount"])),
+                "price": "1", "commission": "0",
+                "commission_asset": "",
+                "currency": currency, "account_name": account,
+                "note": rec["note"],
+            })
+        else:
+            # Pass through as-is for unknown actions (will be caught by validation)
+            mapped.append({
+                "date": rec["date"], "action": action,
+                "from_ticker": rec.get("ticker", ""),
+                "to_ticker": rec.get("ticker", ""),
+                "from_amount": str(rec.get("shares", 0)),
+                "to_amount": str(rec.get("amount", 0)),
+                "price": str(rec.get("price", 0)),
+                "commission": str(rec.get("fee", 0)),
+                "commission_asset": "",
+                "currency": currency, "account_name": account,
+                "note": rec.get("note", ""),
+            })
 
     # 5. Write CSV
     with open(output, "w", newline="", encoding="utf-8") as f:

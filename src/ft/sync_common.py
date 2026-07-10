@@ -11,8 +11,14 @@ from .stock import CSV_FIELDS
 
 
 def row_identity(row: dict) -> tuple[str, ...]:
-    """Exact-row identity across all CSV columns."""
-    return tuple(str(row.get(field, "")) for field in CSV_FIELDS)
+    """Exact-row identity across all CSV columns (tickers lowercased)."""
+    parts = []
+    for field in CSV_FIELDS:
+        val = str(row.get(field, ""))
+        if field in ("from_ticker", "to_ticker", "commission_asset"):
+            val = val.lower()
+        parts.append(val)
+    return tuple(parts)
 
 
 def id_token_from_note(note: str, prefix: str) -> str | None:

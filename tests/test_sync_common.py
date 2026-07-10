@@ -27,27 +27,34 @@ def test_id_token_from_note_extracts_prefix():
 def test_write_stock_csv_roundtrip(tmp_env):
     from ft.sync_common import write_stock_csv
     from ft.stock import CSV_FIELDS
-    rows = [{f: "" for f in CSV_FIELDS} | {"action": "BUY", "ticker": "btc"}]
+    rows = [{f: "" for f in CSV_FIELDS} | {"action": "swap", "from_ticker": "USD", "to_ticker": "btc"}]
     out = write_stock_csv(rows, tmp_env / "o.csv")
     with out.open(encoding="utf-8") as f:
         got = list(csv.DictReader(f))
-    assert got[0]["ticker"] == "btc"
+    assert got[0]["from_ticker"] == "USD"
+    assert got[0]["to_ticker"] == "btc"
 
 
 def test_filter_new_rows_dedupes_by_tid(tmp_env):
     from ft import stock
     from ft.sync_common import filter_new_rows
 
-    stock.record_trade(date="2026-07-07 10:00:00", action="BUY", ticker="btc",
-                       shares=1, price=60000, amount=-60000, commission=0,
+    stock.record_trade(date="2026-07-07 10:00:00", action="swap",
+                       from_ticker="USD", to_ticker="btc",
+                       from_amount=60000, to_amount=1, price=60000,
+                       commission=0, commission_asset="",
                        currency="USD", account_name="币安", note="kraken tid:OLD")
     rows = [
-        {"date": "2026-07-07 10:00:00", "action": "BUY", "ticker": "btc", "shares": "1",
-         "price": "60000", "amount": "-60000", "commission": "0", "currency": "USD",
-         "account_name": "币安", "note": "kraken tid:OLD"},
-        {"date": "2026-07-08 10:00:00", "action": "BUY", "ticker": "eth", "shares": "2",
-         "price": "3000", "amount": "-6000", "commission": "0", "currency": "USD",
-         "account_name": "币安", "note": "kraken tid:NEW"},
+        {"date": "2026-07-07 10:00:00", "action": "swap",
+         "from_ticker": "USD", "to_ticker": "btc",
+         "from_amount": "60000", "to_amount": "1", "price": "60000",
+         "commission": "0", "commission_asset": "",
+         "currency": "USD", "account_name": "币安", "note": "kraken tid:OLD"},
+        {"date": "2026-07-08 10:00:00", "action": "swap",
+         "from_ticker": "USD", "to_ticker": "eth",
+         "from_amount": "6000", "to_amount": "2", "price": "3000",
+         "commission": "0", "commission_asset": "",
+         "currency": "USD", "account_name": "币安", "note": "kraken tid:NEW"},
     ]
     new = filter_new_rows(rows, account_name="币安", prefix="tid")
     assert len(new) == 1

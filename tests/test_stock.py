@@ -95,7 +95,7 @@ def test_record_trade_writes_csv(tmp_env):
     assert len(rows) == 1
     r = rows[0]
     assert r["action"] == "swap"
-    assert r["from_ticker"] == "USD"
+    assert r["from_ticker"] == "usd"
     assert r["to_ticker"] == "nvda.us"
     assert float(r["from_amount"]) == 1000.35
     assert float(r["to_amount"]) == 10
@@ -106,7 +106,7 @@ def test_record_trade_writes_csv(tmp_env):
     assert r["note"] == "test buy"
     # Verify returned row matches
     assert row["action"] == "swap"
-    assert row["from_ticker"] == "USD"
+    assert row["from_ticker"] == "usd"
     assert row["to_ticker"] == "nvda.us"
 
 
@@ -1100,7 +1100,7 @@ def test_direct_deposit_rejects_cumulative_cash_overflow_without_write(tmp_env):
         do_deposit(amount=1e308, currency="USD", account_name="IBKR", date="2026-06-30 10:00:01")
 
     snap = load_snapshot()
-    assert snap["accounts"]["security"]["IBKR"]["cash"] == 1e308
+    assert snap["accounts"]["security"]["IBKR"]["positions"]["usd"]["shares"] == 1e308
     rows = (models.RECORDS_DIR / "security" / "2026-06-30.csv").read_text(encoding="utf-8").splitlines()
     assert len(rows) == 2  # header + first DEPOSIT only
 
@@ -1138,20 +1138,23 @@ def test_replay_skips_malformed_action_rows_but_keeps_cash_rows(tmp_env):
 
     security_dir = models.RECORDS_DIR / "security"
     security_dir.mkdir(parents=True, exist_ok=True)
+    # Row with empty action (malformed) — should be skipped
     (security_dir / "2026-06-29.csv").write_text(
-        "date,action,ticker,shares,price,amount,commission,currency,note\n"
-        "2026-06-29 10:00:00,BUY,nvda.us,1,10,-10,0,USD,missing account\n",
+        "date,action,from_ticker,to_ticker,from_amount,to_amount,price,commission,commission_asset,currency,account_name,note\n"
+        "2026-06-29 10:00:00,,,nvda.us,,1,10,0,,USD,IBKR,missing action\n",
         encoding="utf-8",
     )
+    # Valid deposit row
     (security_dir / "2026-06-30.csv").write_text(
-        "date,action,ticker,shares,price,amount,commission,currency,account_name,note\n"
-        "2026-06-30 10:00:00,DEPOSIT,,0,0,25,0,USD,IBKR,cash deposit\n",
+        "date,action,from_ticker,to_ticker,from_amount,to_amount,price,commission,commission_asset,currency,account_name,note\n"
+        "2026-06-30 10:00:00,deposit,,usd,0,25,1,0,,USD,IBKR,cash deposit\n",
         encoding="utf-8",
     )
 
-    positions, cash, cash_legacy = _replay_security_csv()
-    assert positions == {}
-    assert cash_legacy["IBKR"] == pytest.approx(25)
+    positions = _replay_security_csv()
+    # Malformed row skipped, only deposit counted
+    assert positions[("IBKR", "usd")]["shares"] == pytest.approx(25)
+    assert positions[("IBKR", "usd")]["total_cost"] == pytest.approx(25)
 
 
 def test_security_balance_uses_current_market_price(tmp_env, monkeypatch):
@@ -1165,11 +1168,11 @@ def test_security_balance_uses_current_market_price(tmp_env, monkeypatch):
             "security": {
                 "POLY": {
                     "currency": "USD",
-                    "cash": 100.0,
                     "positions": {
+                        "usd": {"shares": 100.0, "total_cost": 100.0, "cost_currency": "USD"},
                         "pm:new-rhianna-album-before-gta-vi-926:yes": {
                             "shares": 10,
-                            "avg_cost": 0.40,
+                            "total_cost": 4.0,
                         },
                     },
                 },
@@ -1267,8 +1270,10 @@ def test_stock_append_accepts_crypto_account(tmp_env):
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         writer.writeheader()
         writer.writerow({
-            "date": "2026-07-07 10:00:00", "action": "BUY", "ticker": "btc",
-            "shares": "0.05", "price": "60000", "amount": "-3000", "commission": "0",
+            "date": "2026-07-07 10:00:00", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "btc",
+            "from_amount": "3000", "to_amount": "0.05", "price": "60000",
+            "commission": "0", "commission_asset": "",
             "currency": "USD", "account_name": "币安", "note": "crypto buy",
         })
 
@@ -1298,7 +1303,7 @@ def test_crypto_account_buy_sell_verify_end_to_end(tmp_env, monkeypatch):
     snap = load_snapshot()
     acct = snap["accounts"]["security"]["币安"]
     # 现金: 5000 - 0.05*60000 + 0.02*62000 = 5000 - 3000 + 1240 = 3240
-    assert acct["cash"] == pytest.approx(3240.0)
+    assert acct["positions"]["usd"]["shares"] == pytest.approx(3240.0)
     assert acct["positions"]["btc"]["shares"] == pytest.approx(0.03)
     # verify_security 返回 (ok: bool, report_lines: list[str])
     ok, _lines = verify_security()
@@ -1310,17 +1315,18 @@ def test_replay_buy_with_usdt_quote_reduces_usdt_cash_not_usd():
     from ft.stock import _replay_security_rows
 
     rows = [
-        {"date": "2026-07-07 10:00:00", "action": "BUY", "ticker": "btc",
-         "shares": "0.05", "price": "60000", "amount": "-3000", "commission": "0",
+        {"date": "2026-07-07 10:00:00", "action": "swap",
+         "from_ticker": "usdt", "to_ticker": "btc",
+         "from_amount": "3000", "to_amount": "0.05", "price": "60000",
+         "commission": "0", "commission_asset": "",
          "currency": "USD", "account_name": "币安", "note": "kraken tid:T1 quote:usdt"},
     ]
 
-    positions, cash, cash_legacy = _replay_security_rows(rows)
+    positions = _replay_security_rows(rows)
 
     assert positions[("币安", "btc")]["shares"] == pytest.approx(0.05)
-    assert cash[("币安", "usdt")] == pytest.approx(-3000.0)
-    assert cash.get(("币安", "usd"), 0.0) == pytest.approx(0.0)
-    assert cash_legacy["币安"] == pytest.approx(-3000.0)
+    assert positions[("币安", "usdt")]["shares"] == pytest.approx(-3000.0)
+    assert positions.get(("币安", "usd"), {}).get("shares", 0.0) == pytest.approx(0.0)
 
 
 def test_replay_swap_conserves_total_cost():
@@ -1329,18 +1335,19 @@ def test_replay_swap_conserves_total_cost():
 
     rows = [
         # 先用现金买入 1 BTC，成本 60000
-        {"date": "2026-07-07 09:00:00", "action": "BUY", "ticker": "btc", "shares": "1",
-         "price": "60000", "amount": "-60000", "commission": "0", "currency": "USD",
-         "account_name": "币安", "note": "seed"},
+        {"date": "2026-07-07 09:00:00", "action": "swap",
+         "from_ticker": "usd", "to_ticker": "btc",
+         "from_amount": "60000", "to_amount": "1", "price": "60000",
+         "commission": "0", "commission_asset": "",
+         "currency": "USD", "account_name": "币安", "note": "seed"},
         # 用 0.5 BTC 换 10 ETH
-        {"date": "2026-07-07 10:00:00", "action": "SWAP_OUT", "ticker": "btc", "shares": "0.5",
-         "price": "", "amount": "", "commission": "", "currency": "USD",
-         "account_name": "币安", "note": "kraken tid:T1 swap:T1"},
-        {"date": "2026-07-07 10:00:00", "action": "SWAP_IN", "ticker": "eth", "shares": "10",
-         "price": "", "amount": "", "commission": "", "currency": "USD",
-         "account_name": "币安", "note": "kraken tid:T1 swap:T1"},
+        {"date": "2026-07-07 10:00:00", "action": "swap",
+         "from_ticker": "btc", "to_ticker": "eth",
+         "from_amount": "0.5", "to_amount": "10", "price": "0",
+         "commission": "0", "commission_asset": "",
+         "currency": "USD", "account_name": "币安", "note": "kraken tid:T1 swap:T1"},
     ]
-    positions, cash, cash_legacy = _replay_security_rows(rows)
+    positions = _replay_security_rows(rows)
 
     # BTC: 剩 0.5，成本 30000（释放了 0.5*60000=30000）
     assert positions[("币安", "btc")]["shares"] == pytest.approx(0.5)
@@ -1348,8 +1355,8 @@ def test_replay_swap_conserves_total_cost():
     # ETH: 10 股，接收成本 30000
     assert positions[("币安", "eth")]["shares"] == pytest.approx(10.0)
     assert positions[("币安", "eth")]["total_cost"] == pytest.approx(30000.0)
-    # 现金不动
-    assert cash_legacy["币安"] == pytest.approx(-60000.0)
+    # USD: started at -60000, then -60000 (from swap), so total_cost should reflect cost
+    assert positions[("币安", "usd")]["shares"] == pytest.approx(-60000.0)
     # 总成本守恒
     assert (positions[("币安", "btc")]["total_cost"]
             + positions[("币安", "eth")]["total_cost"]) == pytest.approx(60000.0)
@@ -1359,13 +1366,19 @@ def test_replay_swap_in_without_pair_raises():
     """SWAP_IN 找不到配对 released 必须报错，不静默。"""
     from ft.stock import _replay_security_rows
 
+    # In unified swap model, an orphan swap (spending more than available)
+    # results in negative position — no longer raises
     rows = [
-        {"date": "2026-07-07 10:00:00", "action": "SWAP_IN", "ticker": "eth", "shares": "10",
-         "price": "", "amount": "", "commission": "", "currency": "USD",
-         "account_name": "币安", "note": "kraken tid:T9 swap:T9"},
+        {"date": "2026-07-07 10:00:00", "action": "swap",
+         "from_ticker": "usdt", "to_ticker": "eth",
+         "from_amount": "5000", "to_amount": "10", "price": "500",
+         "commission": "0", "commission_asset": "",
+         "currency": "USD", "account_name": "币安", "note": "kraken tid:T9 swap:T9"},
     ]
-    with pytest.raises(ValueError, match="swap"):
-        _replay_security_rows(rows)
+    positions = _replay_security_rows(rows)
+    # USDT goes negative, eth gets 10 shares
+    assert positions[("币安", "usdt")]["shares"] == pytest.approx(-5000.0)
+    assert positions[("币安", "eth")]["shares"] == pytest.approx(10.0)
 
 
 def test_replay_fee_reduces_holding_by_avg_cost():
@@ -1373,16 +1386,21 @@ def test_replay_fee_reduces_holding_by_avg_cost():
     from ft.stock import _replay_security_rows
 
     rows = [
-        {"date": "2026-07-07 09:00:00", "action": "BUY", "ticker": "bnb", "shares": "10",
-         "price": "500", "amount": "-5000", "commission": "0", "currency": "USD",
-         "account_name": "币安", "note": "seed"},
-        {"date": "2026-07-07 10:00:00", "action": "FEE", "ticker": "bnb", "shares": "0.1",
-         "price": "", "amount": "", "commission": "", "currency": "USD",
-         "account_name": "币安", "note": "kraken tid:T1 fee"},
+        {"date": "2026-07-07 09:00:00", "action": "swap",
+         "from_ticker": "usd", "to_ticker": "bnb",
+         "from_amount": "5000", "to_amount": "10", "price": "500",
+         "commission": "0", "commission_asset": "",
+         "currency": "USD", "account_name": "币安", "note": "seed"},
+        # Fee: swap 0.1 BNB for 0 USD (fee reduces position, no cash change)
+        {"date": "2026-07-07 10:00:00", "action": "swap",
+         "from_ticker": "bnb", "to_ticker": "USD",
+         "from_amount": "0.1", "to_amount": "0", "price": "0",
+         "commission": "0", "commission_asset": "",
+         "currency": "USD", "account_name": "币安", "note": "kraken tid:T1 fee"},
     ]
-    positions, cash, cash_legacy = _replay_security_rows(rows)
+    positions = _replay_security_rows(rows)
 
-    # BNB: 剩 9.9，成本 5000 - 0.1*500 = 4950
+    # BNB: 剩 9.9，成本 5000 - 0.1*(5000/10) = 5000 - 50 = 4950
     assert positions[("币安", "bnb")]["shares"] == pytest.approx(9.9)
     assert positions[("币安", "bnb")]["total_cost"] == pytest.approx(4950.0)
 
@@ -1401,14 +1419,15 @@ def test_append_accepts_swap_fee_rows_and_keeps_currency(tmp_env):
     with csv_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         writer.writeheader()
-        writer.writerow({"date": "2026-07-07 09:00:00", "action": "BUY", "ticker": "btc",
-                         "shares": "1", "price": "60000", "amount": "-60000", "commission": "0",
+        writer.writerow({"date": "2026-07-07 09:00:00", "action": "swap",
+                         "from_ticker": "usd", "to_ticker": "btc",
+                         "from_amount": "60000", "to_amount": "1", "price": "60000",
+                         "commission": "0", "commission_asset": "",
                          "currency": "USD", "account_name": "币安", "note": "seed"})
-        writer.writerow({"date": "2026-07-07 10:00:00", "action": "SWAP_OUT", "ticker": "btc",
-                         "shares": "0.5", "price": "", "amount": "", "commission": "",
-                         "currency": "USD", "account_name": "币安", "note": "kraken tid:T1 swap:T1"})
-        writer.writerow({"date": "2026-07-07 10:00:00", "action": "SWAP_IN", "ticker": "eth",
-                         "shares": "10", "price": "", "amount": "", "commission": "",
+        writer.writerow({"date": "2026-07-07 10:00:00", "action": "swap",
+                         "from_ticker": "btc", "to_ticker": "eth",
+                         "from_amount": "0.5", "to_amount": "10", "price": "0",
+                         "commission": "0", "commission_asset": "",
                          "currency": "USD", "account_name": "币安", "note": "kraken tid:T1 swap:T1"})
 
     assert do_append(csv_path) is True
@@ -1438,10 +1457,10 @@ def test_do_swap_conserves_cost_and_ignores_cash(tmp_env):
     acct = snap["accounts"]["security"]["币安"]
     assert acct["positions"]["btc"]["shares"] == pytest.approx(0.5)
     assert acct["positions"]["eth"]["shares"] == pytest.approx(10.0)
-    # ETH 成本 = 释放的 BTC 成本 0.5*60000 = 30000 → 均价 3000
-    assert acct["positions"]["eth"]["avg_cost"] == pytest.approx(3000.0)
+    # ETH 成本 = 释放的 BTC 成本 0.5*60000 = 30000
+    assert acct["positions"]["eth"]["total_cost"] == pytest.approx(30000.0)
     # 现金：deposit 100000 - buy 60000 = 40000，swap 不动
-    assert acct["cash"] == pytest.approx(40000.0)
+    assert acct["positions"]["usd"]["shares"] == pytest.approx(40000.0)
     ok, _ = verify_security()
     assert ok is True
 
