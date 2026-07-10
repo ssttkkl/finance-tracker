@@ -94,7 +94,10 @@ def _format_activity_timestamp(value) -> str:
 
 
 def activity_to_stock_row(activity: dict, account_name: str = "Polymarket") -> dict | None:
-    """Convert one Polymarket activity item to a ft stock CSV row.
+    """Convert one Polymarket activity item to a ft security CSV row (unified swap).
+
+    BUY  → swap(USD,  pm:<slug>:<outcome>, usdc_size, size)
+    SELL → swap(pm:<slug>:<outcome), USD, size, usdc_size)
 
     Returns None for non-TRADE activity. Unexpected TRADE shapes raise ValueError
     so the importer never silently drops ambiguous money/position data.
@@ -128,18 +131,28 @@ def activity_to_stock_row(activity: dict, account_name: str = "Polymarket") -> d
     if not tx_hash:
         raise ValueError(f"missing Polymarket transactionHash: {activity!r}")
 
-    amount = Decimal(str(usdc_size))
+    pm_ticker = f"pm:{slug}:{outcome}"
+    usdc_size_text = _decimal_text(usdc_size)
+
     if side == "BUY":
-        amount = -amount
+        # Pay USDC, receive outcome tokens
+        from_ticker, to_ticker = "USD", pm_ticker
+        from_amount, to_amount = usdc_size_text, size
+    else:
+        # Sell outcome tokens, receive USDC
+        from_ticker, to_ticker = pm_ticker, "USD"
+        from_amount, to_amount = size, usdc_size_text
 
     return {
         "date": _format_activity_timestamp(activity.get("timestamp")),
-        "action": side,
-        "ticker": f"pm:{slug}:{outcome}",
-        "shares": size,
+        "action": "swap",
+        "from_ticker": from_ticker,
+        "to_ticker": to_ticker,
+        "from_amount": from_amount,
+        "to_amount": to_amount,
         "price": price,
-        "amount": _decimal_text(amount),
         "commission": "0",
+        "commission_asset": "USD",
         "currency": "USD",
         "account_name": account_name,
         "note": f"polymarket tx:{tx_hash}",
@@ -205,14 +218,14 @@ def _existing_polymarket_identities(
         with path.open(encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                if "action" not in row or "ticker" not in row:
+                if "action" not in row:
                     continue
-                ticker = row.get("ticker") or ""
+                from_ticker = row.get("from_ticker") or ""
                 row_account_name = row.get("account_name") or ""
                 if account_name is not None:
                     if row_account_name != account_name:
                         continue
-                elif row_account_name != "Polymarket" and not ticker.startswith("pm:"):
+                elif row_account_name != "Polymarket" and not from_ticker.startswith("pm:"):
                     continue
                 tx = _tx_hash_from_note(row.get("note", ""))
                 if tx:
@@ -273,15 +286,17 @@ def _settlement_rows_for_open_positions(account_name: str = "Polymarket") -> lis
             continue
         shares = Decimal(str(positions[ticker].get("shares", 0)))
         price_dec = Decimal(str(int(price)))
-        amount = shares * price_dec
+        settlement_value = shares * price_dec
         rows.append({
             "date": _today_iso(),
-            "action": "SELL",
-            "ticker": ticker,
-            "shares": _decimal_text(shares),
+            "action": "swap",
+            "from_ticker": ticker,
+            "to_ticker": "USD",
+            "from_amount": _decimal_text(shares),
+            "to_amount": _decimal_text(settlement_value),
             "price": _decimal_text(price_dec),
-            "amount": _decimal_text(amount),
             "commission": "0",
+            "commission_asset": "USD",
             "currency": "USD",
             "account_name": account_name,
             "note": "polymarket settlement",

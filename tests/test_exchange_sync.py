@@ -20,71 +20,97 @@ def test_trade_to_rows_usdt_buy():
     rows = trade_to_rows(_base_trade(), account_name="币安", provider="kraken")
     assert len(rows) == 1
     r = rows[0]
-    assert r["action"] == "BUY"
-    assert r["ticker"] == "btc"
-    assert r["shares"] == "0.05"
+    assert r["action"] == "swap"
+    assert r["from_ticker"] == "usdt"
+    assert r["to_ticker"] == "btc"
+    assert r["from_amount"] == "3000"
+    assert r["to_amount"] == "0.05"
     assert r["price"] == "60000"
-    assert r["amount"] == "-3000"
     assert r["commission"] == "0"
     assert r["currency"] == "USD"
     assert r["account_name"] == "币安"
-    assert r["note"] == "kraken tid:T1 quote:usdt"
+    assert r["note"] == "kraken tid:T1"
 
 
 def test_trade_to_rows_usdt_sell():
     from ft.exchange_sync import trade_to_rows
     rows = trade_to_rows(_base_trade(side="sell"), account_name="币安", provider="kraken")
-    assert rows[0]["action"] == "SELL"
-    assert rows[0]["amount"] == "3000"
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["action"] == "swap"
+    assert r["from_ticker"] == "btc"
+    assert r["to_ticker"] == "usdt"
+    assert r["from_amount"] == "0.05"
+    assert r["to_amount"] == "3000"
 
 
 def test_trade_to_rows_coin_pair_buy_makes_swap():
     from ft.exchange_sync import trade_to_rows
     t = _base_trade(symbol="ETH/BTC", side="buy", price=0.05, amount=10.0, cost=0.5)
     rows = trade_to_rows(t, account_name="币安", provider="kraken")
-    assert [r["action"] for r in rows] == ["SWAP_OUT", "SWAP_IN"]
-    out, inn = rows
-    assert out["ticker"] == "btc" and out["shares"] == "0.5"   # 换出 quote=btc
-    assert inn["ticker"] == "eth" and inn["shares"] == "10"    # 换入 base=eth
-    assert out["note"] == inn["note"] == "kraken tid:T1 swap:T1"
-    assert out["price"] == "" and out["amount"] == "" and out["commission"] == ""
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["action"] == "swap"
+    # buy ETH/BTC: pay btc, receive eth
+    assert r["from_ticker"] == "btc"
+    assert r["from_amount"] == "0.5"
+    assert r["to_ticker"] == "eth"
+    assert r["to_amount"] == "10"
+    assert r["note"] == "kraken tid:T1"
 
 
 def test_trade_to_rows_coin_pair_sell_reverses():
     from ft.exchange_sync import trade_to_rows
     t = _base_trade(symbol="ETH/BTC", side="sell", price=0.05, amount=10.0, cost=0.5)
     rows = trade_to_rows(t, account_name="币安", provider="kraken")
-    out, inn = rows
-    assert out["ticker"] == "eth" and out["shares"] == "10"    # 卖出 base=eth
-    assert inn["ticker"] == "btc" and inn["shares"] == "0.5"   # 得到 quote=btc
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["action"] == "swap"
+    # sell ETH/BTC: pay eth, receive btc
+    assert r["from_ticker"] == "eth"
+    assert r["from_amount"] == "10"
+    assert r["to_ticker"] == "btc"
+    assert r["to_amount"] == "0.5"
 
 
-def test_trade_to_rows_cash_fee_goes_to_commission():
+def test_trade_to_rows_fee_embedded():
     from ft.exchange_sync import trade_to_rows
     t = _base_trade(fee={"cost": 1.5, "currency": "USDT"})
     rows = trade_to_rows(t, account_name="币安", provider="kraken")
     assert len(rows) == 1
     assert rows[0]["commission"] == "1.5"
+    assert rows[0]["commission_asset"] == "usdt"
 
 
-def test_trade_to_rows_holding_fee_makes_fee_row():
+def test_trade_to_rows_non_cash_fee_embedded():
     from ft.exchange_sync import trade_to_rows
     t = _base_trade(fee={"cost": 0.001, "currency": "BNB"})
     rows = trade_to_rows(t, account_name="币安", provider="kraken")
-    assert [r["action"] for r in rows] == ["BUY", "FEE"]
-    fee_row = rows[1]
-    assert fee_row["ticker"] == "bnb"
-    assert fee_row["shares"] == "0.001"
-    assert fee_row["note"] == "kraken tid:T1 fee"
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["action"] == "swap"
+    assert r["commission"] == "0.001"
+    assert r["commission_asset"] == "bnb"
 
 
-def test_trade_to_rows_swap_fee_always_fee_row():
+def test_trade_to_rows_swap_fee_embedded():
     from ft.exchange_sync import trade_to_rows
     t = _base_trade(symbol="ETH/BTC", side="buy", price=0.05, amount=10.0, cost=0.5,
                     fee={"cost": 0.01, "currency": "USDT"})
     rows = trade_to_rows(t, account_name="币安", provider="kraken")
-    assert [r["action"] for r in rows] == ["SWAP_OUT", "SWAP_IN", "FEE"]
-    assert rows[2]["ticker"] == "usdt"
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["action"] == "swap"
+    assert r["commission"] == "0.01"
+    assert r["commission_asset"] == "usdt"
+
+
+def test_trade_to_rows_no_fee():
+    from ft.exchange_sync import trade_to_rows
+    t = _base_trade(fee=None)
+    rows = trade_to_rows(t, account_name="币安", provider="kraken")
+    assert rows[0]["commission"] == "0"
+    assert rows[0]["commission_asset"] == ""
 
 
 def test_trade_to_rows_unknown_side_raises():
@@ -208,7 +234,8 @@ def test_sync_exchange_end_to_end_mixed(tmp_env):
     # dry-run：不写入
     new = sync_exchange("kraken", account_name="币安", dry_run=True,
                         symbols=["BTC/USDT", "ETH/BTC"], _client=client)
-    assert len(new) == 4          # BUY + (SWAP_OUT+SWAP_IN+FEE)
+    # Each trade → exactly 1 swap row
+    assert len(new) == 2
     assert not (tmp_env / "records" / "security").exists()
 
     # 真实 append
@@ -246,5 +273,7 @@ def test_sync_exchange_writes_output_csv(tmp_env):
                   _client=_FakeClient([trades, []]))
     with out.open(encoding="utf-8") as f:
         rows = list(_csv.DictReader(f))
-    assert rows[0]["action"] == "SELL"
+    assert rows[0]["action"] == "swap"
+    assert rows[0]["from_ticker"] == "btc"
+    assert rows[0]["to_ticker"] == "usdt"
     assert not (tmp_env / "records" / "security").exists()

@@ -454,12 +454,14 @@ def test_polymarket_activity_trade_to_stock_row_maps_yes_no():
 
     assert row == {
         "date": "2026-06-30 10:16:09",
-        "action": "BUY",
-        "ticker": "pm:will-test-market-close-yes:no",
-        "shares": "12.3456",
+        "action": "swap",
+        "from_ticker": "USD",
+        "to_ticker": "pm:will-test-market-close-yes:no",
+        "from_amount": "11.234496",
+        "to_amount": "12.3456",
         "price": "0.91",
-        "amount": "-11.234496",
         "commission": "0",
+        "commission_asset": "USD",
         "currency": "USD",
         "account_name": "Polymarket",
         "note": "polymarket tx:0xabc123",
@@ -491,28 +493,30 @@ def test_filter_new_polymarket_rows_dedupes_by_transaction_hash(tmp_env):
     from ft.polymarket_sync import filter_new_rows
 
     stock.record_trade(
-        date="2026-06-30 10:16:09",
-        action="BUY",
-        ticker="pm:old-market:no",
-        shares=1,
-        price=0.9,
-        amount=-0.9,
-        commission=0,
-        currency="USD",
-        account_name="Polymarket",
+        date="2026-06-30 10:16:09", action="swap",
+        from_ticker="USD", to_ticker="pm:old-market:no",
+        from_amount=0.9, to_amount=1,
+        price=0.9, commission=0, commission_asset="USD",
+        currency="USD", account_name="Polymarket",
         note="polymarket tx:0xexisting",
     )
 
     rows = [
         {
-            "date": "2026-06-30 10:16:09", "action": "BUY", "ticker": "pm:old-market:no",
-            "shares": "1", "price": "0.9", "amount": "-0.9", "commission": "0",
-            "currency": "USD", "account_name": "Polymarket", "note": "polymarket tx:0xexisting",
+            "date": "2026-06-30 10:16:09", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "pm:old-market:no",
+            "from_amount": "0.9", "to_amount": "1", "price": "0.9",
+            "commission": "0", "commission_asset": "USD",
+            "currency": "USD", "account_name": "Polymarket",
+            "note": "polymarket tx:0xexisting",
         },
         {
-            "date": "2026-07-01 11:00:00", "action": "SELL", "ticker": "pm:new-market:yes",
-            "shares": "2", "price": "0.8", "amount": "1.6", "commission": "0",
-            "currency": "USD", "account_name": "Polymarket", "note": "polymarket tx:0xnew",
+            "date": "2026-07-01 11:00:00", "action": "swap",
+            "from_ticker": "pm:new-market:yes", "to_ticker": "USD",
+            "from_amount": "2", "to_amount": "1.6", "price": "0.8",
+            "commission": "0", "commission_asset": "USD",
+            "currency": "USD", "account_name": "Polymarket",
+            "note": "polymarket tx:0xnew",
         },
     ]
 
@@ -550,9 +554,12 @@ def test_stock_append_preserves_transfer_style_security_rows(tmp_env):
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         writer.writeheader()
         writer.writerow({
-            "date": "2026-06-30 10:16:09", "action": "BUY", "ticker": "pm:test:no",
-            "shares": "2", "price": "0.8", "amount": "-1.6", "commission": "0",
-            "currency": "USD", "account_name": "Polymarket", "note": "polymarket tx:0xnew",
+            "date": "2026-06-30 10:16:09", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "pm:test:no",
+            "from_amount": "1.6", "to_amount": "2", "price": "0.8",
+            "commission": "0", "commission_asset": "USD",
+            "currency": "USD", "account_name": "Polymarket",
+            "note": "polymarket tx:0xnew",
         })
 
     assert do_append(input_csv) is True
@@ -563,7 +570,7 @@ def test_stock_append_preserves_transfer_style_security_rows(tmp_env):
         rows = list(reader)
     assert "transfer_account" in fieldnames
     assert any(r.get("transfer_account") == "东方证券" for r in rows)
-    assert any(r.get("ticker") == "pm:test:no" for r in rows)
+    assert any(r.get("from_ticker") == "USD" and r.get("to_ticker") == "pm:test:no" for r in rows)
     ok, lines = verify_security()
     assert ok, "\n".join(lines)
 
@@ -574,25 +581,34 @@ def test_filter_new_polymarket_rows_keeps_distinct_fills_with_same_tx(tmp_env):
 
     rows = [
         {
-            "date": "2026-06-30 10:00:00", "action": "BUY", "ticker": "pm:market-a:yes",
-            "shares": "10", "price": "0.5", "amount": "-5", "commission": "0",
-            "currency": "USD", "account_name": "Polymarket", "note": "polymarket tx:0xabc123",
+            "date": "2026-06-30 10:00:00", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "pm:market-a:yes",
+            "from_amount": "5", "to_amount": "10", "price": "0.5",
+            "commission": "0", "commission_asset": "USD",
+            "currency": "USD", "account_name": "Polymarket",
+            "note": "polymarket tx:0xabc123",
         },
         {
-            "date": "2026-06-30 10:00:00", "action": "BUY", "ticker": "pm:market-b:no",
-            "shares": "8", "price": "0.25", "amount": "-2", "commission": "0",
-            "currency": "USD", "account_name": "Polymarket", "note": "polymarket tx:0xabc123",
+            "date": "2026-06-30 10:00:00", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "pm:market-b:no",
+            "from_amount": "2", "to_amount": "8", "price": "0.25",
+            "commission": "0", "commission_asset": "USD",
+            "currency": "USD", "account_name": "Polymarket",
+            "note": "polymarket tx:0xabc123",
         },
         {
-            "date": "2026-06-30 10:00:00", "action": "BUY", "ticker": "pm:market-b:no",
-            "shares": "8", "price": "0.25", "amount": "-2", "commission": "0",
-            "currency": "USD", "account_name": "Polymarket", "note": "polymarket tx:0xabc123",
+            "date": "2026-06-30 10:00:00", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "pm:market-b:no",
+            "from_amount": "2", "to_amount": "8", "price": "0.25",
+            "commission": "0", "commission_asset": "USD",
+            "currency": "USD", "account_name": "Polymarket",
+            "note": "polymarket tx:0xabc123",
         },
     ]
 
     new_rows = filter_new_rows(rows)
 
-    assert [row["ticker"] for row in new_rows] == ["pm:market-a:yes", "pm:market-b:no"]
+    assert [row["to_ticker"] for row in new_rows] == ["pm:market-a:yes", "pm:market-b:no"]
 
 
 def test_filter_new_polymarket_rows_scopes_tx_dedupe_by_account(tmp_env):
@@ -601,14 +617,20 @@ def test_filter_new_polymarket_rows_scopes_tx_dedupe_by_account(tmp_env):
     from ft.stock import record_trade
 
     record_trade(
-        date="2026-06-30 10:00:00", action="BUY", ticker="pm:market-a:yes",
-        shares=1, price=0.5, amount=-0.5, commission=0,
-        currency="USD", account_name="PolymarketA", note="polymarket tx:0xshared",
+        date="2026-06-30 10:00:00", action="swap",
+        from_ticker="USD", to_ticker="pm:market-a:yes",
+        from_amount=0.5, to_amount=1,
+        price=0.5, commission=0, commission_asset="USD",
+        currency="USD", account_name="PolymarketA",
+        note="polymarket tx:0xshared",
     )
     rows_for_b = [{
-        "date": "2026-06-30 10:00:00", "action": "BUY", "ticker": "pm:market-a:yes",
-        "shares": "1", "price": "0.5", "amount": "-0.5", "commission": "0",
-        "currency": "USD", "account_name": "PolymarketB", "note": "polymarket tx:0xshared",
+        "date": "2026-06-30 10:00:00", "action": "swap",
+        "from_ticker": "USD", "to_ticker": "pm:market-a:yes",
+        "from_amount": "0.5", "to_amount": "1", "price": "0.5",
+        "commission": "0", "commission_asset": "USD",
+        "currency": "USD", "account_name": "PolymarketB",
+        "note": "polymarket tx:0xshared",
     }]
     rows_for_a = [dict(rows_for_b[0], account_name="PolymarketA")]
 
@@ -628,9 +650,12 @@ def test_sync_polymarket_custom_account_uses_account_scoped_rows(tmp_env, monkey
         {"name": "Polymarket Alt", "type": "security", "currency": "USD", "active": True},
     ], models.ACCOUNTS_PATH)
     record_trade(
-        date="2026-06-30 10:00:00", action="BUY", ticker="pm:test-market:yes",
-        shares=1, price=0.5, amount=-0.5, commission=0,
-        currency="USD", account_name="Polymarket", note="polymarket tx:0xabc123",
+        date="2026-06-30 10:00:00", action="swap",
+        from_ticker="USD", to_ticker="pm:test-market:yes",
+        from_amount=0.5, to_amount=1,
+        price=0.5, commission=0, commission_asset="USD",
+        currency="USD", account_name="Polymarket",
+        note="polymarket tx:0xabc123",
     )
     monkeypatch.setattr("ft.polymarket_sync.fetch_activity", lambda *_args, **_kwargs: [{
         "timestamp": 1782785769,
@@ -665,9 +690,12 @@ def test_stock_append_rejects_non_security_account(tmp_env):
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         writer.writeheader()
         writer.writerow({
-            "date": "2026-06-30 10:00:00", "action": "BUY", "ticker": "pm:test:yes",
-            "shares": "1", "price": "0.5", "amount": "-0.5", "commission": "0",
-            "currency": "USD", "account_name": "Polymarket", "note": "polymarket tx:0xabc123",
+            "date": "2026-06-30 10:00:00", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "pm:test:yes",
+            "from_amount": "0.5", "to_amount": "1", "price": "0.5",
+            "commission": "0", "commission_asset": "USD",
+            "currency": "USD", "account_name": "Polymarket",
+            "note": "polymarket tx:0xabc123",
         })
 
     assert do_append(csv_path) is False
@@ -689,8 +717,10 @@ def test_stock_append_routes_same_name_by_currency_and_security_type(tmp_env):
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         writer.writeheader()
         writer.writerow({
-            "date": "2026-06-30 10:00:00", "action": "BUY", "ticker": "nvda.us",
-            "shares": "1", "price": "100", "amount": "-100", "commission": "0",
+            "date": "2026-06-30 10:00:00", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "nvda.us",
+            "from_amount": "100", "to_amount": "1", "price": "100",
+            "commission": "0", "commission_asset": "USD",
             "currency": "USD", "account_name": "Broker", "note": "usd security account",
         })
 
@@ -789,9 +819,12 @@ def test_transfer_to_security_preserves_existing_stock_rows(tmp_env):
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS + ["transfer_account"])
         writer.writeheader()
         writer.writerow({
-            "date": "2026-06-30 10:16:09", "action": "BUY", "ticker": "pm:test:no",
-            "shares": "2", "price": "0.8", "amount": "-1.6", "commission": "0",
-            "currency": "USD", "account_name": "Polymarket", "note": "polymarket tx:0xnew",
+            "date": "2026-06-30 10:16:09", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "pm:test:no",
+            "from_amount": "1.6", "to_amount": "2", "price": "0.8",
+            "commission": "0", "commission_asset": "USD",
+            "currency": "USD", "account_name": "Polymarket",
+            "note": "polymarket tx:0xnew",
         })
 
     do_transfer("现金", "Polymarket", 100, to_amount=10, date="2026-06-30", time_str="11:00:00")
@@ -799,7 +832,7 @@ def test_transfer_to_security_preserves_existing_stock_rows(tmp_env):
     with day_path.open(encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
-    assert any(r.get("ticker") == "pm:test:no" and r.get("action") == "BUY" for r in rows)
+    assert any(r.get("from_ticker") == "USD" and r.get("to_ticker") == "pm:test:no" and r.get("action") == "swap" for r in rows)
     assert any(r.get("transfer_account") == "现金" and r.get("category") == "transfer_in" for r in rows)
 
 
@@ -824,9 +857,12 @@ def test_general_append_to_security_preserves_existing_stock_rows(tmp_env):
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS + ["transfer_account"])
         writer.writeheader()
         writer.writerow({
-            "date": "2026-06-30 10:16:09", "action": "BUY", "ticker": "pm:test:no",
-            "shares": "2", "price": "0.8", "amount": "-1.6", "commission": "0",
-            "currency": "USD", "account_name": "Polymarket", "note": "polymarket tx:0xnew",
+            "date": "2026-06-30 10:16:09", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "pm:test:no",
+            "from_amount": "1.6", "to_amount": "2", "price": "0.8",
+            "commission": "0", "commission_asset": "USD",
+            "currency": "USD", "account_name": "Polymarket",
+            "note": "polymarket tx:0xnew",
         })
 
     input_csv = tmp_env / "transfer.csv"
@@ -841,7 +877,7 @@ def test_general_append_to_security_preserves_existing_stock_rows(tmp_env):
     with day_path.open(encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
-    assert any(r.get("ticker") == "pm:test:no" and r.get("action") == "BUY" for r in rows)
+    assert any(r.get("from_ticker") == "USD" and r.get("to_ticker") == "pm:test:no" and r.get("action") == "swap" for r in rows)
     assert any(r.get("transfer_account") == "现金" and r.get("category") == "transfer_in" for r in rows)
 
 
@@ -863,13 +899,17 @@ def test_stock_append_rolls_back_if_later_day_write_fails(tmp_env, monkeypatch):
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         writer.writeheader()
         writer.writerow({
-            "date": "2026-06-30 10:00:00", "action": "BUY", "ticker": "pm:first:no",
-            "shares": "1", "price": "0.8", "amount": "-0.8", "commission": "0",
+            "date": "2026-06-30 10:00:00", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "pm:first:no",
+            "from_amount": "0.8", "to_amount": "1", "price": "0.8",
+            "commission": "0", "commission_asset": "USD",
             "currency": "USD", "account_name": "Polymarket", "note": "first",
         })
         writer.writerow({
-            "date": "2026-07-01 10:00:00", "action": "BUY", "ticker": "pm:second:no",
-            "shares": "1", "price": "0.7", "amount": "-0.7", "commission": "0",
+            "date": "2026-07-01 10:00:00", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "pm:second:no",
+            "from_amount": "0.7", "to_amount": "1", "price": "0.7",
+            "commission": "0", "commission_asset": "USD",
             "currency": "USD", "account_name": "Polymarket", "note": "second",
         })
 
@@ -1487,12 +1527,14 @@ def test_sync_polymarket_adds_settlement_sell_for_resolved_open_position(tmp_env
 
     assert rows == [{
         "date": "2026-07-07",
-        "action": "SELL",
-        "ticker": "pm:resolved-market:no",
-        "shares": "85",
+        "action": "swap",
+        "from_ticker": "pm:resolved-market:no",
+        "to_ticker": "USD",
+        "from_amount": "85",
+        "to_amount": "85",
         "price": "1",
-        "amount": "85",
         "commission": "0",
+        "commission_asset": "USD",
         "currency": "USD",
         "account_name": "Polymarket",
         "note": "polymarket settlement",

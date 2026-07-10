@@ -100,8 +100,10 @@ def test_cli_add_to_security_preserves_existing_stock_columns(tmp_env):
     from ft.stock import record_trade
 
     record_trade(
-        date="2026-06-30 09:00:00", action="BUY", ticker="nvda.us",
-        shares=1, price=10, amount=-10, commission=0,
+        date="2026-06-30 09:00:00", action="swap",
+        from_ticker="USD", to_ticker="nvda.us",
+        from_amount=10, to_amount=1,
+        price=10, commission=0, commission_asset="USD",
         currency="USD", account_name="IBKR", note="existing stock row",
     )
 
@@ -116,10 +118,11 @@ def test_cli_add_to_security_preserves_existing_stock_columns(tmp_env):
         rows = list(reader)
     fieldnames = reader.fieldnames or []
     assert "action" in fieldnames
-    assert "ticker" in fieldnames
+    assert "from_ticker" in fieldnames
     assert "note" in fieldnames
-    assert rows[0]["action"] == "BUY"
-    assert rows[0]["ticker"] == "nvda.us"
+    assert rows[0]["action"] == "swap"
+    assert rows[0]["from_ticker"] == "USD"
+    assert rows[0]["to_ticker"] == "nvda.us"
     assert rows[1]["counterparty"] == "manual cash adjustment"
 
 
@@ -129,8 +132,10 @@ def test_cli_checkin_to_security_preserves_existing_stock_columns(tmp_env):
     from ft.stock import record_trade
 
     record_trade(
-        date="2026-06-30 09:00:00", action="BUY", ticker="nvda.us",
-        shares=1, price=10, amount=-10, commission=0,
+        date="2026-06-30 09:00:00", action="swap",
+        from_ticker="USD", to_ticker="nvda.us",
+        from_amount=10, to_amount=1,
+        price=10, commission=0, commission_asset="USD",
         currency="USD", account_name="IBKR", note="existing stock row",
     )
 
@@ -142,11 +147,11 @@ def test_cli_checkin_to_security_preserves_existing_stock_columns(tmp_env):
         rows = list(reader)
     fieldnames = reader.fieldnames or []
     assert "action" in fieldnames
-    assert "ticker" in fieldnames
+    assert "from_ticker" in fieldnames
     assert "note" in fieldnames
-    stock_row = next(row for row in rows if row["action"] == "BUY")
+    stock_row = next(row for row in rows if row["action"] == "swap")
     checkin_row = next(row for row in rows if row["category"] == "checkin")
-    assert stock_row["ticker"] == "nvda.us"
+    assert stock_row["to_ticker"] == "nvda.us"
     assert checkin_row["category"] == "checkin"
 
 

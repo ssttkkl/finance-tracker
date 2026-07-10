@@ -8,13 +8,12 @@ import csv
 import tempfile
 from pathlib import Path
 
-from .accounts import find_account
+from .accounts import find_account, load_accounts
 from .stock import CSV_FIELDS
 from . import sync_common
 from .stock import do_append
 from .credentials import load_credentials, ensure_credentials_gitignored
 
-CASH_QUOTES = {"usdt", "usd"}
 UTC_PLUS_8 = timezone(timedelta(hours=8))
 
 
@@ -39,15 +38,24 @@ def _format_trade_timestamp(ms) -> str:
             .astimezone(UTC_PLUS_8).strftime("%Y-%m-%d %H:%M:%S"))
 
 
-def _blank_row(account_name: str) -> dict:
+def _blank_row(account_name: str, currency: str = "USD") -> dict:
     row = {field: "" for field in CSV_FIELDS}
-    row["currency"] = "USD"
+    row["currency"] = currency
     row["account_name"] = account_name
     return row
 
 
+def _load_base_currencies(account_name: str) -> str:
+    """Return the base currency for *account_name* from accounts.yaml."""
+    accounts = load_accounts()
+    for acct in accounts:
+        if acct.get("name") == account_name:
+            return acct.get("currency", "USD")
+    return "USD"
+
+
 def trade_to_rows(trade: dict, account_name: str, provider: str) -> list[dict]:
-    """Map one ccxt trade to 1-3 ft stock CSV rows. Raises on ambiguous shapes."""
+    """Map one ccxt trade to exactly one ft swap CSV row. Raises on bad shapes."""
     tid = trade.get("id")
     if tid is None or str(tid) == "":
         raise ValueError(f"trade 缺少 id: {trade!r}")
@@ -77,55 +85,31 @@ def trade_to_rows(trade: dict, account_name: str, provider: str) -> list[dict]:
     has_fee = fee_cost is not None and Decimal(str(fee_cost)) != 0
 
     note = f"{provider} tid:{tid}"
-    # Include quote currency so replay can track per-currency cash
-    cash_note = f"{note} quote:{quote}"
-    rows: list[dict] = []
 
-    if quote in CASH_QUOTES:
-        cash_fee = has_fee and fee_ccy in CASH_QUOTES
-        main = _blank_row(account_name)
-        main["date"] = date
-        main["action"] = "BUY" if side == "buy" else "SELL"
-        main["ticker"] = base
-        main["shares"] = _num(amount)
-        main["price"] = _num(price)
-        main["amount"] = _num(-Decimal(str(cost)) if side == "buy" else Decimal(str(cost)))
-        main["commission"] = _num(fee_cost) if cash_fee else "0"
-        main["note"] = cash_note
-        rows.append(main)
-        if has_fee and not cash_fee:
-            rows.append(_fee_row(account_name, date, fee_ccy, fee_cost, tid, provider))
-    else:
-        swap_note = f"{provider} tid:{tid} swap:{tid}"
-        if side == "buy":
-            out_ticker, out_shares, in_ticker, in_shares = quote, cost, base, amount
-        else:
-            out_ticker, out_shares, in_ticker, in_shares = base, amount, quote, cost
-        for action, ticker, shares in (
-            ("SWAP_OUT", out_ticker, out_shares),
-            ("SWAP_IN", in_ticker, in_shares),
-        ):
-            r = _blank_row(account_name)
-            r["date"] = date
-            r["action"] = action
-            r["ticker"] = ticker
-            r["shares"] = _num(shares)
-            r["note"] = swap_note
-            rows.append(r)
-        if has_fee:
-            rows.append(_fee_row(account_name, date, fee_ccy, fee_cost, tid, provider))
+    # Determine swap direction based on side
+    # buy: pay quote → receive base
+    # sell: pay base → receive quote
+    if side == "buy":
+        from_ticker, from_amount = quote, cost
+        to_ticker, to_amount = base, amount
+    else:  # sell
+        from_ticker, from_amount = base, amount
+        to_ticker, to_amount = quote, cost
 
-    return rows
-
-
-def _fee_row(account_name, date, fee_ccy, fee_cost, tid, provider) -> dict:
-    r = _blank_row(account_name)
+    currency = _load_base_currencies(account_name)
+    r = _blank_row(account_name, currency)
     r["date"] = date
-    r["action"] = "FEE"
-    r["ticker"] = fee_ccy
-    r["shares"] = _num(fee_cost)
-    r["note"] = f"{provider} tid:{tid} fee"
-    return r
+    r["action"] = "swap"
+    r["from_ticker"] = from_ticker
+    r["to_ticker"] = to_ticker
+    r["from_amount"] = _num(from_amount)
+    r["to_amount"] = _num(to_amount)
+    r["price"] = _num(price) if price is not None else ""
+    r["commission"] = _num(fee_cost) if has_fee else "0"
+    r["commission_asset"] = fee_ccy if has_fee else ""
+    r["note"] = note
+
+    return [r]
 
 
 def validate_crypto_account(account_name: str, currency: str = "USD") -> None:
@@ -204,7 +188,6 @@ def sync_exchange(provider, account_name, since=None, dry_run=False,
     rows: list[dict] = []
     for trade in trades:
         rows.extend(trade_to_rows(trade, account_name, provider))
-    # 稳定排序：同 tid 的 SWAP_OUT→SWAP_IN→FEE 同 timestamp，靠稳定性保序。
     rows.sort(key=lambda r: r["date"])
     new_rows = filter_new_rows(rows, account_name=account_name)
 
