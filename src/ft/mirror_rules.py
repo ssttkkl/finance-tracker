@@ -119,11 +119,11 @@ def _looks_like_specific_counterparty(row: dict) -> bool:
 
 def _is_safe_unique_cross_source_strong_candidate(candidate: MirrorCandidate) -> bool:
     strong_row = candidate.keep_row
-    weak_row = candidate.drop_row
     if candidate.candidate_count != 1:
         return False
+    weak_row = candidate.drop_row
     if weak_row.get("bill_source") == "ccb_debit":
-        return False
+        return _has_full_datetime(strong_row)
     if not (_has_full_datetime(strong_row) and _has_full_datetime(weak_row)):
         return False
     if candidate.diff_seconds > 30:
@@ -317,7 +317,12 @@ def _classify_candidate(candidate: MirrorCandidate) -> tuple[str, MirrorPair] | 
     strong_row = candidate.keep_row
     weak_row = candidate.drop_row
     if _is_safe_unique_cross_source_strong_candidate(candidate):
-        rule_hint = "debit_purchase_mirror_icbc" if weak_row.get("bill_source") == "icbc_debit" else "card_channel_purchase_mirror"
+        if weak_row.get("bill_source") == "icbc_debit":
+            rule_hint = "debit_purchase_mirror_icbc"
+        elif weak_row.get("bill_source") == "ccb_debit":
+            rule_hint = "debit_purchase_mirror_ccb_unique_day"
+        else:
+            rule_hint = "card_channel_purchase_mirror"
         return "auto", MirrorPair(strong_row, weak_row, rule_hint, "high")
 
     if candidate.weak_channel_kind == "icbc_credit_card_channel":

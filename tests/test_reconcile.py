@@ -195,7 +195,7 @@ def test_reconcile_same_day_date_only_ccb_alipay_case_enters_full_table_pending(
     assert {r["row_status"] for r in rows} == {"active"}
 
 
-def test_reconcile_writes_low_confidence_mirror_fields_into_pending(tmp_env):
+def test_reconcile_auto_drops_unique_ccb_wechat_topup_pair_without_pending(tmp_env):
     from ft import models
     from ft.accounts import save_accounts
     from ft.reconcile import do_reconcile
@@ -217,11 +217,11 @@ def test_reconcile_writes_low_confidence_mirror_fields_into_pending(tmp_env):
     do_reconcile(month="2026-06")
 
     sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
-    assert len(sessions) == 1
-    with open(sessions[0] / "ai_working.csv", encoding="utf-8") as f:
+    assert len(sessions) == 0
+    with open(day_path, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
-    assert any(r.get("rule_hint") == "possible_wechat_topup_or_group_collection_mirror" for r in rows)
-    assert any(r.get("ai_group", "").startswith("mirror_") for r in rows)
+    assert len(rows) == 1
+    assert rows[0]["bill_source"] == "wechat"
 
 
 def test_reconcile_auto_drops_unique_loose_30s_credit_candidate_without_pending(tmp_env):
@@ -375,14 +375,8 @@ def test_reconcile_keeps_high_auto_drop_and_review_in_same_batch(tmp_env):
 
     with open(day_path, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
-    assert len(rows) == 3
-    assert {row["bill_source"] for row in rows} == {"wechat", "ccb_debit"}
-
-    sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
-    assert len(sessions) == 1
-    with open(sessions[0] / "ai_working.csv", encoding="utf-8") as f:
-        ai_rows = list(csv.DictReader(f))
-    assert any(r.get("rule_hint") == "possible_wechat_topup_or_group_collection_mirror" for r in ai_rows)
+    assert len(rows) == 2
+    assert {row["bill_source"] for row in rows} == {"wechat"}
 
     audit_files = list((models.FT_DIR / "audit" / "reconcile").glob("*.csv"))
     assert len(audit_files) == 1
@@ -570,7 +564,7 @@ def test_reconcile_single_nonzero_row_prints_no_duplicates_instead_of_entering_p
     assert not (models.FT_DIR / "audit" / "reconcile").exists()
 
 
-def test_reconcile_pending_excludes_zero_amount_rows_from_ai_working_csv(tmp_env):
+def test_reconcile_zero_amount_noise_does_not_block_unique_ccb_wechat_topup_auto_drop(tmp_env):
     from ft import models
     from ft.reconcile import do_reconcile
 
@@ -595,11 +589,11 @@ def test_reconcile_pending_excludes_zero_amount_rows_from_ai_working_csv(tmp_env
     do_reconcile(month="2026-06")
 
     sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
-    assert len(sessions) == 1
-    with open(sessions[0] / "ai_working.csv", encoding="utf-8") as f:
+    assert len(sessions) == 0
+    with open(day_path, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
-    assert len(rows) == 2
-    assert all(row["amount"] != "0.00" for row in rows)
+    assert len(rows) == 1
+    assert rows[0]["bill_source"] == "wechat"
 
 
 def test_effective_datetime_accepts_date_only_without_embedded_time():

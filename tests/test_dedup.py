@@ -193,7 +193,7 @@ def test_different_account_name_both_kept():
     assert len(removed) == 0
 
 
-def test_dedup_keeps_low_confidence_review_pair():
+def test_dedup_auto_drops_unique_ccb_wechat_topup_pair():
     rows = [
         {
             "date": "2026-06-12 12:35:31",
@@ -221,8 +221,9 @@ def test_dedup_keeps_low_confidence_review_pair():
 
     kept, removed = dedup(rows)
 
-    assert len(kept) == 2
-    assert removed == []
+    assert len(kept) == 1
+    assert kept[0]["bill_source"] == "wechat"
+    assert len(removed) == 2
 
 
 

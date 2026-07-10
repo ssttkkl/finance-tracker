@@ -117,7 +117,7 @@ def test_detects_high_confidence_ccb_debit_unique_day_purchase_mirror():
     assert pair.confidence == "high"
 
 
-def test_marks_wechat_group_collection_vs_ccb_topup_as_low_confidence_review():
+def test_upgrades_unique_wechat_group_collection_vs_ccb_topup_to_high_auto_drop():
     rows = [
         {
             "record_id": "a1",
@@ -147,13 +147,13 @@ def test_marks_wechat_group_collection_vs_ccb_topup_as_low_confidence_review():
 
     result = detect_mirror_pairs(rows)
 
-    assert len(result.auto_drop_pairs) == 0
-    assert len(result.review_pairs) == 1
-    pair = result.review_pairs[0]
+    assert len(result.auto_drop_pairs) == 1
+    assert len(result.review_pairs) == 0
+    pair = result.auto_drop_pairs[0]
     assert pair.keep_row["bill_source"] == "wechat"
     assert pair.drop_row["bill_source"] == "ccb_debit"
-    assert pair.rule_hint == "possible_wechat_topup_or_group_collection_mirror"
-    assert pair.confidence == "low"
+    assert pair.rule_hint == "debit_purchase_mirror_ccb_unique_day"
+    assert pair.confidence == "high"
 
 
 def test_mirror_rule_upgrades_unique_refund_chain_credit_pair_to_high_auto_drop():
@@ -847,4 +847,43 @@ def test_upgrades_unique_wechat_qr_vs_icbc_debit_scan_qr_generic_to_high_auto_dr
     assert pair.keep_row["bill_source"] == "wechat"
     assert pair.drop_row["bill_source"] == "icbc_debit"
     assert pair.rule_hint == "debit_purchase_mirror_icbc"
+    assert pair.confidence == "high"
+
+
+def test_upgrades_unique_ccb_refund_pair_to_high_auto_drop():
+    rows = [
+        {
+            "record_id": "a1",
+            "date": "2024-04-21 12:02:55",
+            "amount": "10.0",
+            "currency": "CNY",
+            "counterparty": "退款",
+            "description": "退款-高德地图景区门票订单",
+            "category": "income",
+            "account_name": "建行储蓄卡(2820)",
+            "source": "支付宝",
+            "bill_source": "alipay",
+        },
+        {
+            "record_id": "b1",
+            "date": "2024-04-21",
+            "amount": "10.0",
+            "currency": "CNY",
+            "counterparty": "高德",
+            "description": "消费退货",
+            "category": "income",
+            "account_name": "建行储蓄卡(2820)",
+            "source": "建行储蓄卡",
+            "bill_source": "ccb_debit",
+        },
+    ]
+
+    result = detect_mirror_pairs(rows)
+
+    assert len(result.auto_drop_pairs) == 1
+    assert len(result.review_pairs) == 0
+    pair = result.auto_drop_pairs[0]
+    assert pair.keep_row["bill_source"] == "alipay"
+    assert pair.drop_row["bill_source"] == "ccb_debit"
+    assert pair.rule_hint == "debit_purchase_mirror_ccb_unique_day"
     assert pair.confidence == "high"
