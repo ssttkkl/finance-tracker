@@ -67,20 +67,12 @@ AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2数据脱敏 
 7. 执行 `ft convert --continue-with-decisions edited.csv` 或 `ft reconcile --continue-with-decisions edited.csv`
 8. 若放弃本次会话，执行对应的 `--abort`
 
-补充决策规则：
-
-- `leave_as_is` 只能表示**已经审查过且明确决定保留原样**
-- **禁止**把“暂时判断不了 / 不想承担判断 / 需要用户拍板”的情况直接写成 `leave_as_is`
-- 对于证据不足、高风险或存在多种合理解释的候选，必须先整理成“待用户选择”的候选组，由调用方明确拍板后，才能继续 `reconcile`
-- 如果整份 `edited.csv` 里所有候选都保持 `leave_as_is`，调用方必须先自检：这是“逐组审查后的明确保留结论”，还是“实际上没有完成审查”。后者禁止 continue
-
 硬性要求：
 
 - **禁止为了跑通流程而对未修改的 `ai_working.csv` 直接原样 continue**
 - **禁止把审查后的文件直接覆盖回原始 `ai_working.csv`，否则 continue 校验时会丢失“原稿 vs 编辑稿”的差异**
 - **大体量 pending，尤其 `reconcile`，禁止让单个 subagent 一次性审全量；必须按三个月切批后分别审查**
 - **subagent 禁止用脚本批量过滤/批量判定；只能用推理给出标记结果，脚本最多用于切批或复制文件**
-- **禁止**把“不确定 / 高风险 / 多候选”默认落成 `leave_as_is` 后直接 continue；这类候选必须先升级给用户选择
 - 必须保持：`ai_working.csv` = 原始底稿，`edited.csv` = AI 审查后的结果
 
 ### AI working CSV 编辑协议
@@ -117,12 +109,11 @@ AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2数据脱敏 
 3. 严禁修改只读列：record_id、session_id、date、amount、currency、bill_source、raw_counterparty、raw_description、raw_payment_method。
 4. 如果当前文件体量较大，按交易日期切成三个月一批；每批只交给一个 subagent 审查。
 5. subagent 禁止用脚本批量过滤、批量判定或自动打标；必须通过推理给出标记结果。脚本最多只能用于切批、复制文件或合并已得出的结果。
-6. 如果判断应保留原样，写 `leave_as_is`。这里只能用于“已完成审查且明确决定保留”的行，不能把“不确定”伪装成保留。
+6. 如果判断应保留原样，写 leave_as_is。
 7. 如果判断应删除，写 drop，并填写 ai_reason。
 8. 如果判断应合并/配对，使用合法 ai_action（merge_refund_into:<record_id> / net_with:<record_id> / mark_transfer_out_to:<record_id> / mark_transfer_in_from:<record_id>），并填写 ai_reason。
-9. 如果存在证据不足、高风险或多候选、而你又无法明确做出 `drop/modify/配对/明确保留` 结论的组，不要默认写成 `leave_as_is` 并继续；先把这些组整理给调用方或用户选择。
-10. 修改完成后保存为 `edited.csv`，不要覆盖原始 `ai_working.csv`；只有当本轮需要拍板的组已经被明确处理后，才执行 continue 命令；如果无法完成本轮决策，则不要继续执行，由调用方选择继续补审、让用户拍板或 abort。
-11. 严禁把未修改的 `ai_working.csv` 直接拿去 continue；这会绕过 AI 审查流程，结果不具备审查意义。
+9. 修改完成后保存为 `edited.csv`，不要覆盖原始 `ai_working.csv`；随后执行 continue 命令；如果无法完成本轮决策，则不要继续执行，由调用方选择 abort。
+10. 严禁把未修改的 `ai_working.csv` 直接拿去 continue；这会绕过 AI 审查流程，结果不具备审查意义。
 ```
 
 转换阶段：重点检查退款配对数学正确性（全额=0？部分=净额正确？）、source 正确性、数据脱敏、counterparty 规范化。注意 _pair_refunds 产生的孤退款行（orphan income）可能在 CSV 中残留，需检查过滤。
