@@ -103,12 +103,11 @@ def _validate_security_snapshot_finite(snap: dict) -> None:
     """Reject non-finite numeric values in proposed security snapshot state."""
     security = snap.get("accounts", {}).get("security", {})
     for account_name, account in security.items():
-        _ensure_finite_values(**{f"{account_name}.cash": account.get("cash", 0)})
         for ticker, pos in account.get("positions", {}).items():
             _ensure_finite_values(
                 **{
                     f"{account_name}.{ticker}.shares": pos.get("shares", 0),
-                    f"{account_name}.{ticker}.avg_cost": pos.get("avg_cost", 0),
+                    f"{account_name}.{ticker}.total_cost": pos.get("total_cost", 0),
                 }
             )
 
@@ -123,7 +122,6 @@ def _ensure_account(snap: dict, account_name: str, currency: str) -> dict:
     if account_name not in sec:
         sec[account_name] = {
             "currency": currency,
-            "cash": 0.0,
             "positions": {},
         }
     return sec[account_name]
@@ -132,11 +130,13 @@ def _ensure_account(snap: dict, account_name: str, currency: str) -> dict:
 def record_trade(
     date: str,
     action: str,
-    ticker: str,
-    shares: float,
+    from_ticker: str,
+    to_ticker: str,
+    from_amount: float,
+    to_amount: float,
     price: float,
-    amount: float,
     commission: float,
+    commission_asset: str,
     currency: str,
     account_name: str,
     note: str = "",
@@ -145,35 +145,35 @@ def record_trade(
 
     Returns the row dict that was written.
     """
-    _ensure_finite_values(shares=shares, price=price, amount=amount, commission=commission)
+    _ensure_finite_values(from_amount=from_amount, to_amount=to_amount,
+                          price=price, commission=commission)
     records_dir = models.RECORDS_DIR
-    date_key = date[:10]  # "2026-06-12 10:00:00" → "2026-06-12"
+    date_key = date[:10]
     security_dir = records_dir / "security"
     security_dir.mkdir(parents=True, exist_ok=True)
     day_path = security_dir / f"{date_key}.csv"
 
-    # Read existing rows
     existing_rows = []
     if day_path.exists():
         with day_path.open(encoding="utf-8") as f:
             reader = csv.DictReader(f)
             existing_rows = list(reader)
 
-    # Build new row
     new_row = {
         "date": date,
         "action": action,
-        "ticker": ticker,
-        "shares": str(shares),
+        "from_ticker": from_ticker,
+        "to_ticker": to_ticker,
+        "from_amount": str(from_amount),
+        "to_amount": str(to_amount),
         "price": str(price),
-        "amount": str(amount),
         "commission": str(commission),
+        "commission_asset": commission_asset,
         "currency": currency,
         "account_name": account_name,
         "note": note,
     }
 
-    # Merge, sort, write
     all_rows = existing_rows + [new_row]
     all_rows.sort(key=lambda r: r.get("date", ""))
 
@@ -319,23 +319,24 @@ def do_append(file_path):
             return False
 
     # Validate numeric fields and replay-derived finite values
-    num_fields = ["shares", "price", "amount", "commission"]
+    num_fields = ["from_amount", "to_amount", "price", "commission"]
     for i, row in enumerate(rows, 1):
         parsed = {}
         for field in num_fields:
             try:
                 value = float(row[field] or 0)
             except (ValueError, TypeError):
-                print(f"❌ 第 {i} 行: 字段 '{field}' 值 '{row[field]}' 不是有效数字")
+                print(f"❌ 第 {i} 行: 字段 '{field}' 值 '{row.get(field, '')}' 不是有效数字")
                 return False
             if not math.isfinite(value):
-                print(f"❌ 第 {i} 行: 字段 '{field}' 值 '{row[field]}' 不是有限数字")
+                print(f"❌ 第 {i} 行: 字段 '{field}' 值 '{row.get(field, '')}' 不是有限数字")
                 return False
             parsed[field] = value
         try:
-            if row["action"] in {"BUY", "SELL", "CHECKIN"}:
-                _ensure_finite_values(position_value=parsed["shares"] * parsed["price"])
-            _ensure_finite_values(cash_delta=parsed["amount"] - parsed["commission"])
+            _ensure_finite_values(
+                from_total=parsed["from_amount"] + parsed["commission"],
+                to_value=parsed["to_amount"] * parsed["price"],
+            )
         except ValueError as exc:
             print(f"❌ 第 {i} 行: 派生数值不是有限数字: {exc}")
             return False
@@ -432,7 +433,7 @@ def do_append(file_path):
 
 def _position_cost(pos: dict) -> float:
     """Total cost basis for a position."""
-    return pos["shares"] * pos["avg_cost"]
+    return pos.get("total_cost", 0.0)
 
 
 # ── Stock operations ────────────────────────────────────────────────────
@@ -448,6 +449,13 @@ def _fmt_shares(shares: float) -> str:
 def _now() -> str:
     """Return current datetime string."""
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _cleanup_position(acct: dict, ticker: str) -> None:
+    """Remove position if shares are zero."""
+    pos = acct["positions"].get(ticker)
+    if pos is not None and abs(pos.get("shares", 0)) < 1e-9:
+        del acct["positions"][ticker]
 
 
 def do_buy(
@@ -466,29 +474,45 @@ def do_buy(
     _ensure_finite_values(shares=shares, price=price, commission=commission)
 
     date_key = date[:10]
-    amount = -shares * price
-    _ensure_finite_values(amount=amount, cash_delta=amount - commission, total_cost=shares * price)
+    cost = shares * price + commission
+    _ensure_finite_values(cost=cost, total_cost=shares * price)
 
     # Load & update snapshot
     snap = load_snapshot()
     acct = _ensure_account(snap, account_name, currency)
-    pos = acct["positions"].setdefault(ticker, {"shares": 0, "avg_cost": 0.0})
 
-    total_cost = _position_cost(pos) + shares * price
-    pos["shares"] += shares
-    pos["shares"] = round(pos["shares"], 10)
-    pos["avg_cost"] = round(total_cost / pos["shares"], 2) if pos["shares"] != 0 else 0.0
-    if pos["shares"] == 0:
-        del acct["positions"][ticker]
-    acct["cash"] += amount - commission
-    acct["cash"] = round(acct["cash"], 10)  # avoid floating point noise
+    # Reduce currency position (cash outflow)
+    ccy = currency.lower()
+    ccy_pos = acct["positions"].setdefault(
+        ccy, {"shares": 0, "total_cost": 0.0, "cost_currency": currency}
+    )
+    ccy_pos["shares"] = round(ccy_pos["shares"] - cost, 10)
+    ccy_pos["total_cost"] = round(ccy_pos["total_cost"] - cost, 10)
+
+    # Increase ticker position
+    pos = acct["positions"].setdefault(
+        ticker, {"shares": 0, "total_cost": 0.0, "cost_currency": currency}
+    )
+    pos["shares"] = round(pos["shares"] + shares, 10)
+    pos["total_cost"] = round(pos["total_cost"] + cost, 10)
+
+    # Clean up zero positions
+    _cleanup_position(acct, ccy)
+    _cleanup_position(acct, ticker)
+
+    _ensure_finite_values(
+        **{f"{account_name}.{ccy}.shares": ccy_pos["shares"],
+           f"{account_name}.{ccy}.total_cost": ccy_pos["total_cost"],
+           f"{account_name}.{ticker}.shares": pos["shares"],
+           f"{account_name}.{ticker}.total_cost": pos["total_cost"]}
+    )
+
     snap["updated_at"] = date_key
     _save_snapshot_and_record_trade(
         snap,
-        date=date, action="BUY", ticker=ticker,
-        shares=shares, price=price, amount=amount,
-        commission=commission, currency=currency,
-        account_name=account_name, note=note,
+        date=date, action="swap", from_ticker=currency, to_ticker=ticker,
+        from_amount=cost, to_amount=shares, price=price, commission=commission,
+        commission_asset="", currency=currency, account_name=account_name, note=note,
     )
     print(f"✅ 买入 {_fmt_shares(shares)} 股 {ticker} @ ${price} ({account_name})")
     return True
@@ -508,70 +532,64 @@ def do_sell(
 
     Supports regular sell (sell from existing position) and
     short sell (sell when no position, creating negative shares).
-    avg_cost for shorts = sale price (positive).
     """
     if date is None:
         date = _now()
     _ensure_finite_values(shares=shares, price=price, commission=commission)
 
     date_key = date[:10]
-    amount = shares * price
-    _ensure_finite_values(amount=amount, cash_delta=amount - commission)
+    proceeds = shares * price - commission
+    _ensure_finite_values(proceeds=proceeds)
 
     # Load & update snapshot
     snap = load_snapshot()
     acct = _ensure_account(snap, account_name, currency)
-    pos = acct["positions"].get(ticker)
 
+    # Reduce ticker position (release cost proportionally)
+    pos = acct["positions"].get(ticker)
     if pos is None:
         # Short sell — create negative position
-        acct["positions"][ticker] = {"shares": 0, "avg_cost": 0.0}
+        acct["positions"][ticker] = {
+            "shares": 0, "total_cost": 0.0, "cost_currency": currency,
+        }
         pos = acct["positions"][ticker]
 
     old_shares = pos["shares"]
+    old_cost = pos["total_cost"]
 
-    if old_shares >= 0:
-        # Regular sell or short sell from flat
-        old_cost = round(pos["avg_cost"] * old_shares, 2)  # 0 if old_shares == 0
-        pos["shares"] -= shares
-        pos["shares"] = round(pos["shares"], 10)
-        pos_new_shares = pos["shares"]
-
-        if pos_new_shares >= 0:
-            # Still long or flat
-            new_cost = round(old_cost - amount + commission, 2)
-            if pos_new_shares > 0:
-                pos["avg_cost"] = round(new_cost / pos_new_shares, 2)
-            else:
-                # Flat, clear position
-                if pos_new_shares == 0:
-                    del acct["positions"][ticker]
-        else:
-            # Flipped into short: excess shares are shorted at current price
-            excess = -pos_new_shares
-            # The old long position's P&L is already realized
-            # The short portion starts fresh
-            pos["avg_cost"] = price  # short avg cost = short entry price
-
-        acct["cash"] += amount - commission
-        acct["cash"] = round(acct["cash"], 10)
+    if old_shares > 0:
+        released_cost = old_cost * shares / old_shares
     else:
-        # Already short — short more
-        old_total = pos["avg_cost"] * old_shares  # negative
-        pos["shares"] -= shares  # more negative
-        pos["shares"] = round(pos["shares"], 10)
-        new_total = round(old_total - amount + commission, 2)
-        pos["avg_cost"] = round(new_total / pos["shares"], 2) if pos["shares"] < 0 else 0.0
-        acct["cash"] += amount - commission
-        acct["cash"] = round(acct["cash"], 10)
+        released_cost = shares * price  # short: cost basis = entry price
+
+    pos["shares"] = round(pos["shares"] - shares, 10)
+    pos["total_cost"] = round(pos["total_cost"] - released_cost, 10)
+
+    # Increase currency position (cash inflow)
+    ccy = currency.lower()
+    ccy_pos = acct["positions"].setdefault(
+        ccy, {"shares": 0, "total_cost": 0.0, "cost_currency": currency}
+    )
+    ccy_pos["shares"] = round(ccy_pos["shares"] + proceeds, 10)
+    ccy_pos["total_cost"] = round(ccy_pos["total_cost"] + proceeds, 10)
+
+    # Clean up zero positions
+    _cleanup_position(acct, ticker)
+    _cleanup_position(acct, ccy)
+
+    _ensure_finite_values(
+        **{f"{account_name}.{ccy}.shares": ccy_pos["shares"],
+           f"{account_name}.{ccy}.total_cost": ccy_pos["total_cost"],
+           f"{account_name}.{ticker}.shares": pos["shares"],
+           f"{account_name}.{ticker}.total_cost": pos["total_cost"]}
+    )
 
     snap["updated_at"] = date_key
     _save_snapshot_and_record_trade(
         snap,
-        date=date, action="SELL", ticker=ticker,
-        shares=shares, price=price, amount=amount,
-        commission=commission, currency=currency,
-        account_name=account_name, note=note,
+        date=date, action="swap", from_ticker=ticker, to_ticker=currency,
+        from_amount=shares, to_amount=proceeds, price=price, commission=commission,
+        commission_asset="", currency=currency, account_name=account_name, note=note,
     )
 
 
@@ -583,11 +601,13 @@ def do_swap(
     to_shares: float,
     currency: str = "USD",
     note: str = "",
+    commission: float = 0.0,
+    commission_asset: str = "",
     date: Optional[str] = None,
 ):
     """Crypto-to-crypto swap: carry from_ticker's released cost to to_ticker.
 
-    Records two rows (SWAP_OUT then SWAP_IN) sharing swap:<id>. Cash untouched.
+    Records a single SWAP row. Cash untouched.
     """
     if date is None:
         date = _now()
@@ -604,30 +624,35 @@ def do_swap(
             f"{account_name} 的 {from_ticker} 持仓不足：有 {have}，需 {from_shares}"
         )
 
-    released = round(from_shares * from_pos["avg_cost"], 2)
-    from_pos["shares"] = round(from_pos["shares"] - from_shares, 10)
-    if from_pos["shares"] == 0:
-        del acct["positions"][from_ticker]
+    old_shares = from_pos["shares"]
+    old_cost = from_pos["total_cost"]
+    released = round(old_cost * from_shares / old_shares, 2) if old_shares > 0 else 0.0
 
-    to_pos = acct["positions"].setdefault(to_ticker, {"shares": 0, "avg_cost": 0.0})
-    old_cost = round(to_pos["avg_cost"] * to_pos["shares"], 2)
+    from_pos["shares"] = round(from_pos["shares"] - from_shares, 10)
+    from_pos["total_cost"] = round(from_pos["total_cost"] - released, 10)
+
+    to_pos = acct["positions"].setdefault(
+        to_ticker, {"shares": 0, "total_cost": 0.0, "cost_currency": currency}
+    )
     to_pos["shares"] = round(to_pos["shares"] + to_shares, 10)
-    to_pos["avg_cost"] = round((old_cost + released) / to_pos["shares"], 2) \
-        if to_pos["shares"] != 0 else 0.0
+    to_pos["total_cost"] = round(to_pos["total_cost"] + released, 10)
+
+    # Clean up zero positions
+    _cleanup_position(acct, from_ticker)
+    _cleanup_position(acct, to_ticker)
+
+    _ensure_finite_values(
+        **{f"{account_name}.{from_ticker}.shares": acct["positions"].get(from_ticker, {}).get("shares", 0),
+           f"{account_name}.{to_ticker}.shares": to_pos["shares"],
+           f"{account_name}.{to_ticker}.total_cost": to_pos["total_cost"]}
+    )
 
     snap["updated_at"] = date_key
-    swap_id = f"{date_key}-{from_ticker}-{to_ticker}"
-    base_note = (note + " ").lstrip() if note else ""
-    swap_note = f"{base_note}swap:{swap_id}".strip()
-
-    # 先存快照，再写两行（OUT→IN），任一失败由 record_trade 抛出。
     save_snapshot(snap)
-    record_trade(date=date, action="SWAP_OUT", ticker=from_ticker,
-                 shares=from_shares, price=0, amount=0, commission=0,
-                 currency=currency, account_name=account_name, note=swap_note)
-    record_trade(date=date, action="SWAP_IN", ticker=to_ticker,
-                 shares=to_shares, price=0, amount=0, commission=0,
-                 currency=currency, account_name=account_name, note=swap_note)
+    record_trade(date=date, action="swap", from_ticker=from_ticker,
+                 to_ticker=to_ticker, from_amount=from_shares, to_amount=to_shares,
+                 price=0, commission=commission, commission_asset=commission_asset,
+                 currency=currency, account_name=account_name, note=note)
     print(f"✅ 兑换 {_fmt_shares(from_shares)} {from_ticker} → "
           f"{_fmt_shares(to_shares)} {to_ticker} ({account_name})")
     return True
@@ -648,15 +673,18 @@ def do_deposit(
     date_key = date[:10]
     snap = load_snapshot()
     acct = _ensure_account(snap, account_name, currency)
-    acct["cash"] += amount
-    acct["cash"] = round(acct["cash"], 10)
+    ccy = currency.lower()
+    ccy_pos = acct["positions"].setdefault(
+        ccy, {"shares": 0, "total_cost": 0.0, "cost_currency": currency}
+    )
+    ccy_pos["shares"] = round(ccy_pos["shares"] + amount, 10)
+    ccy_pos["total_cost"] = round(ccy_pos["total_cost"] + amount, 10)
     snap["updated_at"] = date_key
     _save_snapshot_and_record_trade(
         snap,
-        date=date, action="DEPOSIT", ticker="",
-        shares=0, price=0, amount=amount,
-        commission=0, currency=currency,
-        account_name=account_name, note=note,
+        date=date, action="deposit", from_ticker="", to_ticker=ccy,
+        from_amount=0, to_amount=amount, price=1, commission=0,
+        commission_asset="", currency=currency, account_name=account_name, note=note,
     )
 
 
@@ -675,15 +703,19 @@ def do_withdraw(
     date_key = date[:10]
     snap = load_snapshot()
     acct = _ensure_account(snap, account_name, currency)
-    acct["cash"] -= amount
-    acct["cash"] = round(acct["cash"], 10)
+    ccy = currency.lower()
+    ccy_pos = acct["positions"].setdefault(
+        ccy, {"shares": 0, "total_cost": 0.0, "cost_currency": currency}
+    )
+    ccy_pos["shares"] = round(ccy_pos["shares"] - amount, 10)
+    ccy_pos["total_cost"] = round(ccy_pos["total_cost"] - amount, 10)
+    _cleanup_position(acct, ccy)
     snap["updated_at"] = date_key
     _save_snapshot_and_record_trade(
         snap,
-        date=date, action="WITHDRAW", ticker="",
-        shares=0, price=0, amount=-amount,
-        commission=0, currency=currency,
-        account_name=account_name, note=note,
+        date=date, action="withdraw", from_ticker=ccy, to_ticker="",
+        from_amount=amount, to_amount=0, price=1, commission=0,
+        commission_asset="", currency=currency, account_name=account_name, note=note,
     )
 
 
@@ -703,15 +735,18 @@ def do_dividend(
     date_key = date[:10]
     snap = load_snapshot()
     acct = _ensure_account(snap, account_name, currency)
-    acct["cash"] += amount
-    acct["cash"] = round(acct["cash"], 10)
+    ccy = currency.lower()
+    ccy_pos = acct["positions"].setdefault(
+        ccy, {"shares": 0, "total_cost": 0.0, "cost_currency": currency}
+    )
+    ccy_pos["shares"] = round(ccy_pos["shares"] + amount, 10)
+    ccy_pos["total_cost"] = round(ccy_pos["total_cost"] + amount, 10)
     snap["updated_at"] = date_key
     _save_snapshot_and_record_trade(
         snap,
-        date=date, action="DIVIDEND", ticker=ticker,
-        shares=0, price=0, amount=amount,
-        commission=0, currency=currency,
-        account_name=account_name, note=note,
+        date=date, action="dividend", from_ticker=ticker, to_ticker=ccy,
+        from_amount=0, to_amount=amount, price=1, commission=0,
+        commission_asset="", currency=currency, account_name=account_name, note=note,
     )
 
 
@@ -737,21 +772,22 @@ def do_checkin_ticker(
     acct = _ensure_account(snap, account_name, currency)
     acct["positions"][ticker] = {
         "shares": shares,
-        "avg_cost": avg_cost,
+        "total_cost": round(shares * avg_cost, 2),
+        "cost_currency": currency,
     }
     snap["updated_at"] = date_key
     _save_snapshot_and_record_trade(
         snap,
-        date=date, action="CHECKIN", ticker=ticker,
-        shares=shares, price=avg_cost, amount=0,
-        commission=0, currency=currency,
-        account_name=account_name, note=note,
+        date=date, action="checkin", from_ticker=ticker, to_ticker="",
+        from_amount=0, to_amount=shares, price=avg_cost, commission=0,
+        commission_asset="", currency=currency, account_name=account_name, note=note,
     )
 
 
 def do_checkin_cash(
     cash: float,
     account_name: str,
+    currency: str = "USD",
     note: str = "",
     date: Optional[str] = None,
 ):
@@ -766,18 +802,21 @@ def do_checkin_cash(
     date_key = date[:10]
     snap = load_snapshot()
     # Need currency for the account — use the existing one or default
-    acct = snap.setdefault("accounts", {}).get(account_name, {})
-    currency = acct.get("currency", "USD")
+    acct_data = snap.setdefault("accounts", {}).get("security", {}).get(account_name, {})
+    currency = acct_data.get("currency", currency)
     acct = _ensure_account(snap, account_name, currency)
-    acct["cash"] = cash
-    acct["cash"] = round(acct["cash"], 10)
+    ccy = currency.lower()
+    acct["positions"][ccy] = {
+        "shares": cash,
+        "total_cost": cash,
+        "cost_currency": currency,
+    }
     snap["updated_at"] = date_key
     _save_snapshot_and_record_trade(
         snap,
-        date=date, action="CHECKIN", ticker="",
-        shares=0, price=0, amount=cash,
-        commission=0, currency=currency,
-        account_name=account_name, note=note,
+        date=date, action="checkin", from_ticker=ccy, to_ticker="",
+        from_amount=0, to_amount=cash, price=1, commission=0,
+        commission_asset="", currency=currency, account_name=account_name, note=note,
     )
 
 
@@ -1217,7 +1256,10 @@ def do_list():
         currency = acct_data.get("currency", "CNY") or "CNY"
         symbol = models.CURRENCY_SYMBOLS.get(currency, "$")
         positions = acct_data.get("positions", {})
-        cash = acct_data.get("cash", 0.0)
+
+        # Cash is a position in the currency ticker (e.g. "usd", "cny")
+        ccy = currency.lower()
+        cash = positions.get(ccy, {}).get("shares", 0.0)
 
         print(f"\n  📊 持仓 [{currency}]  {acct_name}")
         print(
@@ -1230,12 +1272,15 @@ def do_list():
         total_value = 0.0
 
         for ticker in sorted(positions.keys()):
+            if ticker == ccy:
+                continue  # skip currency position in the position table
             pos = positions[ticker]
             shares = pos["shares"]
             if shares == 0:
                 continue
-            avg_cost = pos["avg_cost"]
-            cost = shares * avg_cost
+            total = pos.get("total_cost", 0.0)
+            avg_cost = total / shares if shares != 0 else 0.0
+            cost = total
             current_price = prices.get(ticker)
             if current_price is not None and shares > 0:
                 value = shares * current_price
@@ -1270,9 +1315,9 @@ def do_list():
 
 # ── Verification ────────────────────────────────────────────────────────
 def _replay_security_csv(records_dir=None):
-    """Replay security CSV into positions and cash.
+    """Replay security CSV into positions.
 
-    Uses average cost method; supports short positions (negative shares).
+    Returns dict keyed by (account, ticker) → {shares, total_cost}.
     """
     if records_dir is None:
         records_dir = models.RECORDS_DIR
@@ -1281,32 +1326,25 @@ def _replay_security_csv(records_dir=None):
 
     if not security_dir.exists():
         from collections import defaultdict
-        return defaultdict(lambda: {"shares": 0.0, "total_cost": 0.0}), defaultdict(float), defaultdict(float)
+        return defaultdict(lambda: {"shares": 0.0, "total_cost": 0.0})
 
     rows = []
     for csv_file in sorted(security_dir.glob("*.csv")):
         with open(csv_file, encoding="utf-8") as f:
             rows.extend(csv.DictReader(f))
-    positions, cash, cash_legacy = _replay_security_rows(rows)
-    return positions, cash, cash_legacy
+    positions = _replay_security_rows(rows)
+    return positions
 
 
 def _replay_security_rows(rows):
     """Replay in-memory security rows, raising ValueError on non-finite state.
 
-    Cash is tracked per (account, currency) to support multi-currency exchange
-    accounts (e.g. Kraken with USD + USDT).  Legacy single-currency rows
-    (no ``quote:XXX`` in note) fall back to the CSV ``currency`` column.
+    Unified swap model: all trades are swaps between tickers.
+    Positions track {shares, total_cost}. Cash is a position in the currency ticker.
     """
-    import re
     from collections import defaultdict
 
     positions = defaultdict(lambda: {"shares": 0.0, "total_cost": 0.0})
-    # cash keyed by (account, currency) — e.g. ("kraken", "usdt")
-    cash = defaultdict(float)
-    # Legacy single-value cash for backward compat with verify/repair
-    cash_legacy = defaultdict(float)
-    pending_swaps: dict[str, float] = {}
 
     def _normalize_position(h):
         """Snap tiny floating-point residue to zero so closed positions disappear."""
@@ -1325,21 +1363,6 @@ def _replay_security_rows(rows):
             }
         )
 
-    def _validate_cash(account: str, currency: str) -> None:
-        _ensure_finite_values(**{f"{account}.{currency}.cash": cash[(account, currency)]})
-
-    def _extract_quote_currency(note: str, fallback_ccy: str) -> str:
-        """Extract quote:XXX from note, fall back to CSV currency column."""
-        m = re.search(r"quote:(\w+)", note or "")
-        return m.group(1).lower() if m else fallback_ccy.lower()
-
-    def _add_cash(account: str, currency: str, delta: float, commission: float = 0.0,
-                  deduct_commission: bool = True) -> None:
-        key = (account, currency)
-        cash[key] = round(cash[key] + delta - (commission if deduct_commission else 0), 2)
-        cash_legacy[account] = round(cash_legacy[account] + delta - (commission if deduct_commission else 0), 2)
-        _validate_cash(account, currency)
-
     for row in rows:
         # Security records are mixed with some transfer-style audit rows
         # that don't carry stock-trade fields. Skip anything that isn't a
@@ -1348,110 +1371,95 @@ def _replay_security_rows(rows):
             continue
         a = row["account_name"]
         act = row["action"]
-        t = row.get("ticker", "") or ""
         try:
-            s = float(row["shares"] or 0)
-            p = float(row["price"] or 0)
-            amt = float(row["amount"] or 0)
-            com = float(row["commission"] or 0)
+            from_amount = float(row.get("from_amount") or 0)
+            to_amount = float(row.get("to_amount") or 0)
+            price = float(row.get("price") or 0)
+            commission = float(row.get("commission") or 0)
         except (ValueError, KeyError):
             continue
-        _ensure_finite_values(shares=s, price=p, amount=amt, commission=com)
+        _ensure_finite_values(from_amount=from_amount, to_amount=to_amount,
+                              price=price, commission=commission)
 
-        if act == "CHECKIN":
-            if t:
-                positions[(a, t)]["shares"] = s
-                positions[(a, t)]["total_cost"] = round(s * p, 2)
-                _normalize_position(positions[(a, t)])
-                _validate_position(a, t)
-            else:
-                ccy = _extract_quote_currency(row.get("note", ""), row.get("currency", "USD"))
-                cash[(a, ccy)] = amt
-                cash_legacy[a] = amt
-                _validate_cash(a, ccy)
-        elif act == "BUY":
-            h = positions[(a, t)]
-            old_s = h["shares"]
-            old_c = h["total_cost"]
-            new_s = old_s + s
-            _ensure_finite_values(new_shares=new_s)
-            if old_s >= 0:
-                if old_s > 0:
-                    h["total_cost"] = round(old_c + s * p, 2)
-                else:
-                    h["total_cost"] = round(s * p, 2)
-            else:
-                # Covering short — keep cumulative cost
-                h["total_cost"] = round(old_c + s * p, 2)
-            h["shares"] = round(new_s, 10)
-            _normalize_position(h)
-            _validate_position(a, t)
-            ccy = _extract_quote_currency(row.get("note", ""), row.get("currency", "USD"))
-            _add_cash(a, ccy, amt, com)
-        elif act == "SELL":
-            h = positions[(a, t)]
-            sold = abs(s)
-            if h["shares"] > 0:
-                # Regular sell
-                h["shares"] = round(h["shares"] - sold, 10)
-                h["total_cost"] = round(h["total_cost"] - abs(amt) + com, 2)
-            else:
-                # Short sell (shares == 0) or additional short (shares < 0)
-                h["shares"] = round(h["shares"] - sold, 10)
-                h["total_cost"] = round(h["total_cost"] - abs(amt) + com, 2)
-            _normalize_position(h)
-            _validate_position(a, t)
-            ccy = _extract_quote_currency(row.get("note", ""), row.get("currency", "USD"))
-            _add_cash(a, ccy, amt, com)
-        elif act in ("DEPOSIT", "DIVIDEND"):
-            ccy = _extract_quote_currency(row.get("note", ""), row.get("currency", "USD"))
-            _add_cash(a, ccy, amt)
-        elif act == "WITHDRAW":
-            ccy = _extract_quote_currency(row.get("note", ""), row.get("currency", "USD"))
-            _add_cash(a, ccy, amt)
-        elif act == "SWAP_OUT":
-            h = positions[(a, t)]
-            avg = h["total_cost"] / h["shares"] if h["shares"] else 0.0
-            released = round(s * avg, 2)
-            h["shares"] = round(h["shares"] - s, 10)
-            h["total_cost"] = round(h["total_cost"] - released, 2)
-            _normalize_position(h)
-            _validate_position(a, t)
-            m = re.search(r"swap:(\S+)", row.get("note", "") or "")
-            if not m:
-                raise ValueError(f"SWAP_OUT 缺少 note 中的 swap:<id>: {row!r}")
-            pending_swaps[m.group(1)] = released
-        elif act == "SWAP_IN":
-            import re
-            m = re.search(r"swap:(\S+)", row.get("note", "") or "")
-            if not m or m.group(1) not in pending_swaps:
-                raise ValueError(f"SWAP_IN 找不到配对的 swap released: {row!r}")
-            received = pending_swaps.pop(m.group(1))
-            h = positions[(a, t)]
-            h["shares"] = round(h["shares"] + s, 10)
-            h["total_cost"] = round(h["total_cost"] + received, 2)
-            _normalize_position(h)
-            _validate_position(a, t)
-        elif act == "FEE":
-            h = positions[(a, t)]
-            avg = h["total_cost"] / h["shares"] if h["shares"] else 0.0
-            h["total_cost"] = round(h["total_cost"] - round(s * avg, 2), 2)
-            h["shares"] = round(h["shares"] - s, 10)
-            _normalize_position(h)
-            _validate_position(a, t)
+        if act == "swap":
+            from_ticker = row.get("from_ticker", "") or ""
+            to_ticker = row.get("to_ticker", "") or ""
 
-    return positions, cash, cash_legacy
+            # Reduce from_ticker position (release cost proportionally)
+            from_pos = positions[(a, from_ticker)]
+            old_shares = from_pos["shares"]
+            old_cost = from_pos["total_cost"]
+
+            if old_shares > 0:
+                released_cost = old_cost * from_amount / old_shares
+            else:
+                # For currency positions or flat positions, cost ≈ amount (face value)
+                released_cost = from_amount
+
+            from_pos["shares"] = round(from_pos["shares"] - from_amount, 10)
+            from_pos["total_cost"] = round(from_pos["total_cost"] - released_cost, 10)
+            _normalize_position(from_pos)
+            _validate_position(a, from_ticker)
+
+            # Increase to_ticker position
+            to_pos = positions[(a, to_ticker)]
+            to_pos["shares"] = round(to_pos["shares"] + to_amount, 10)
+            to_pos["total_cost"] = round(to_pos["total_cost"] + released_cost, 10)
+            _normalize_position(to_pos)
+            _validate_position(a, to_ticker)
+
+        elif act == "deposit":
+            to_ticker = row.get("to_ticker", "") or ""
+            if not to_ticker:
+                continue
+            h = positions[(a, to_ticker)]
+            h["shares"] = round(h["shares"] + to_amount, 10)
+            h["total_cost"] = round(h["total_cost"] + to_amount, 10)
+            _normalize_position(h)
+            _validate_position(a, to_ticker)
+
+        elif act == "withdraw":
+            from_ticker = row.get("from_ticker", "") or ""
+            if not from_ticker:
+                continue
+            h = positions[(a, from_ticker)]
+            h["shares"] = round(h["shares"] - from_amount, 10)
+            h["total_cost"] = round(h["total_cost"] - from_amount, 10)
+            _normalize_position(h)
+            _validate_position(a, from_ticker)
+
+        elif act == "dividend":
+            to_ticker = row.get("to_ticker", "") or ""
+            if not to_ticker:
+                continue
+            h = positions[(a, to_ticker)]
+            h["shares"] = round(h["shares"] + to_amount, 10)
+            h["total_cost"] = round(h["total_cost"] + to_amount, 10)
+            _normalize_position(h)
+            _validate_position(a, to_ticker)
+
+        elif act == "checkin":
+            from_ticker = row.get("from_ticker", "") or ""
+            if not from_ticker:
+                continue
+            h = positions[(a, from_ticker)]
+            h["shares"] = round(to_amount, 10)
+            h["total_cost"] = round(to_amount * price, 2)
+            _normalize_position(h)
+            _validate_position(a, from_ticker)
+
+    return positions
 
 
 def verify_security(records_dir=None):
     """Replay security CSV and compare against snapshot.
     Returns (ok: bool, report_lines: list[str])."""
     snap = load_snapshot()
-    positions, cash, cash_legacy = _replay_security_csv(records_dir)
+    positions = _replay_security_csv(records_dir)
     lines = []
     ok = True
 
-    if not positions and not cash:
+    if not positions:
         lines.append("📭 无 security CSV 记录")
         return True, lines
 
@@ -1467,41 +1475,9 @@ def verify_security(records_dir=None):
                 lines.append(f"  ❌ {acct_name}/{ticker}: CSV股数={csv_p['shares']} vs 快照={sp['shares']}")
                 ok = False
 
-        # Compare cash — support both single-value and per-currency
-        sc = acct_data.get("cash", 0.0)
-        cc_legacy = cash_legacy.get(acct_name, 0.0)
-        # Also check per-currency cash if snapshot has it
-        snap_cash_map = acct_data.get("cash_map", {})
-        csv_cash_map = {k[1]: v for k, v in cash.items() if k[0] == acct_name}
-        if snap_cash_map and csv_cash_map:
-            # Both have per-currency data — compare per currency
-            all_ccys = set(list(snap_cash_map.keys()) + list(csv_cash_map.keys()))
-            for ccy in sorted(all_ccys):
-                sv = snap_cash_map.get(ccy, 0.0)
-                cv = csv_cash_map.get(ccy, 0.0)
-                if abs(sv - cv) > 0.02:
-                    lines.append(f"  ❌ {acct_name}/{ccy}: CSV={cv:.2f} vs 快照={sv:.2f}")
-                    ok = False
-        elif snap_cash_map and not csv_cash_map:
-            # Snapshot has cash_map but CSV doesn't — compare legacy
-            if abs(sc - cc_legacy) > 0.02:
-                lines.append(f"  ❌ {acct_name} 现金: CSV={cc_legacy:.2f} vs 快照={sc:.2f}")
-                ok = False
-        elif csv_cash_map and not snap_cash_map:
-            # CSV has per-currency cash but snapshot doesn't — check if legacy matches total
-            csv_total = sum(csv_cash_map.values())
-            if abs(sc - csv_total) > 0.02 and abs(cc_legacy - csv_total) > 0.02:
-                lines.append(f"  ❌ {acct_name} 现金: CSV总计={csv_total:.2f} vs 快照={sc:.2f}")
-                ok = False
-        else:
-            # Legacy comparison
-            if abs(sc - cc_legacy) > 0.02:
-                lines.append(f"  ❌ {acct_name} 现金: CSV={cc_legacy:.2f} vs 快照={sc:.2f}")
-                ok = False
-
     # Check CSV-only positions not in snapshot
     for (acct, ticker) in positions:
-        if ticker and not sec_accounts.get(acct, {}).get("positions", {}).get(ticker):
+        if not sec_accounts.get(acct, {}).get("positions", {}).get(ticker):
             p = positions[(acct, ticker)]
             if p["shares"] != 0:
                 lines.append(f"  ❌ {acct}/{ticker}: CSV有但快照无")
@@ -1518,7 +1494,7 @@ def repair_security(records_dir=None):
     """Replay security CSV and write into unified snapshot accounts.security."""
     from datetime import datetime
     from .accounts import load_accounts
-    positions, cash, cash_legacy = _replay_security_csv(records_dir)
+    positions = _replay_security_csv(records_dir)
 
     # Look up currency from accounts.yaml
     acct_currencies = {a["name"]: a["currency"] for a in load_accounts()
@@ -1526,36 +1502,21 @@ def repair_security(records_dir=None):
 
     accounts = {}
     for (acct_name, ticker), p in positions.items():
-        if ticker:
-            if p["shares"] == 0:
-                continue
-            if acct_name not in accounts:
-                accounts[acct_name] = {
-                    "currency": acct_currencies.get(acct_name, ""),
-                    "cash": 0.0, "positions": {}, "cash_map": {},
-                }
-            accounts[acct_name]["positions"][ticker] = {
-                "shares": p["shares"],
-                "avg_cost": round(p["total_cost"] / p["shares"], 2) if p["shares"] != 0 else 0.0,
-            }
-
-    # Write per-currency cash
-    for (acct_name, ccy), c in cash.items():
+        if p["shares"] == 0:
+            continue
         if acct_name not in accounts:
+            currency = acct_currencies.get(acct_name, "")
             accounts[acct_name] = {
-                "currency": acct_currencies.get(acct_name, ""),
-                "cash": 0.0, "positions": {}, "cash_map": {},
+                "currency": currency,
+                "positions": {},
             }
-        accounts[acct_name]["cash_map"][ccy] = round(c, 2)
-
-    # Legacy single-value cash for backward compat
-    for acct_name, c in cash_legacy.items():
-        if acct_name not in accounts:
-            accounts[acct_name] = {
-                "currency": acct_currencies.get(acct_name, ""),
-                "cash": 0.0, "positions": {}, "cash_map": {},
-            }
-        accounts[acct_name]["cash"] = round(c, 2)
+        # Compute avg_cost for backward compat with display
+        avg_cost = round(p["total_cost"] / p["shares"], 2) if p["shares"] != 0 else 0.0
+        accounts[acct_name]["positions"][ticker] = {
+            "shares": p["shares"],
+            "total_cost": round(p["total_cost"], 2),
+            "cost_currency": acct_currencies.get(acct_name, ""),
+        }
 
     snap = load_snapshot()
     snap.setdefault("accounts", {})["security"] = accounts

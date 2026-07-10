@@ -73,12 +73,14 @@ def test_record_trade_writes_csv(tmp_env):
 
     row = record_trade(
         date="2026-06-12 10:00:00",
-        action="BUY",
-        ticker="nvda.us",
-        shares=10,
+        action="swap",
+        from_ticker="USD",
+        to_ticker="nvda.us",
+        from_amount=1000.35,
+        to_amount=10,
         price=100.0,
-        amount=-1000.0,
         commission=0.35,
+        commission_asset="",
         currency="USD",
         account_name="IBKR",
         note="test buy",
@@ -92,18 +94,20 @@ def test_record_trade_writes_csv(tmp_env):
         rows = list(csv.DictReader(f))
     assert len(rows) == 1
     r = rows[0]
-    assert r["action"] == "BUY"
-    assert r["ticker"] == "nvda.us"
-    assert float(r["shares"]) == 10
+    assert r["action"] == "swap"
+    assert r["from_ticker"] == "USD"
+    assert r["to_ticker"] == "nvda.us"
+    assert float(r["from_amount"]) == 1000.35
+    assert float(r["to_amount"]) == 10
     assert float(r["price"]) == 100.0
-    assert float(r["amount"]) == -1000.0
     assert float(r["commission"]) == 0.35
     assert r["currency"] == "USD"
     assert r["account_name"] == "IBKR"
     assert r["note"] == "test buy"
     # Verify returned row matches
-    assert row["action"] == "BUY"
-    assert row["ticker"] == "nvda.us"
+    assert row["action"] == "swap"
+    assert row["from_ticker"] == "USD"
+    assert row["to_ticker"] == "nvda.us"
 
 
 def test_record_trade_sorts(tmp_env):
@@ -111,14 +115,16 @@ def test_record_trade_sorts(tmp_env):
     from ft.stock import record_trade
 
     record_trade(
-        date="2026-06-12 14:00:00", action="SELL", ticker="aapl",
-        shares=5, price=200.0, amount=1000.0, commission=0.5,
-        currency="USD", account_name="IBKR", note="sell 1",
+        date="2026-06-12 14:00:00", action="swap", from_ticker="aapl",
+        to_ticker="USD", from_amount=5, to_amount=1000, price=200.0,
+        commission=0.5, commission_asset="", currency="USD",
+        account_name="IBKR", note="sell 1",
     )
     record_trade(
-        date="2026-06-12 09:00:00", action="BUY", ticker="aapl",
-        shares=10, price=190.0, amount=-1900.0, commission=0.5,
-        currency="USD", account_name="IBKR", note="buy 1",
+        date="2026-06-12 09:00:00", action="swap", from_ticker="USD",
+        to_ticker="aapl", from_amount=1900.5, to_amount=10, price=190.0,
+        commission=0.5, commission_asset="", currency="USD",
+        account_name="IBKR", note="buy 1",
     )
 
     day_csv = tmp_env / "records" / "security" / "2026-06-12.csv"
@@ -145,11 +151,13 @@ def test_do_buy_updates_snapshot(tmp_env):
 
     snap = load_snapshot()
     acct = snap["accounts"]["security"]["IBKR"]
-    assert acct["cash"] == pytest.approx(-10086.65)  # -45*224.14 - 0.35
+    # Cash is a position in "usd" — should be -(45*224.14 + 0.35) = -10086.65
+    usd_pos = acct["positions"]["usd"]
+    assert usd_pos["shares"] == pytest.approx(-10086.65)
 
     pos = acct["positions"]["nvda.us"]
     assert pos["shares"] == 45
-    assert pos["avg_cost"] == pytest.approx(224.14)
+    assert pos["total_cost"] == pytest.approx(10086.65)
 
     # Second buy at different price
     do_buy(
@@ -160,21 +168,20 @@ def test_do_buy_updates_snapshot(tmp_env):
 
     snap = load_snapshot()
     acct = snap["accounts"]["security"]["IBKR"]
-    # cash: -10086.65 + (-10*230 - 0.35) = -10086.65 - 2300.35 = -12387.0
-    assert acct["cash"] == pytest.approx(-12387.0)
+    # usd: -10086.65 + (-10*230 - 0.35) = -10086.65 - 2300.35 = -12387.0
+    usd_pos = acct["positions"]["usd"]
+    assert usd_pos["shares"] == pytest.approx(-12387.0)
 
     pos = acct["positions"]["nvda.us"]
     assert pos["shares"] == 55
-    # weighted avg is rounded to 2 decimals inside stock.py
-    expected_avg = 225.21
-    assert pos["avg_cost"] == pytest.approx(expected_avg)
+    assert pos["total_cost"] == pytest.approx(10086.65 + 2300.35)
 
 
 def test_do_sell_updates_snapshot(tmp_env):
-    """Sell removes shares and keeps avg_cost"""
+    """Sell removes shares and keeps cost proportional"""
     from ft.stock import do_buy, do_sell, load_snapshot
 
-    # Setup: buy 55 shares at ~225.205
+    # Setup: buy 55 shares
     do_buy(ticker="nvda.us", shares=55, price=225.205,
            commission=0.0, currency="USD", account_name="IBKR",
            date="2026-06-12")
@@ -191,10 +198,14 @@ def test_do_sell_updates_snapshot(tmp_env):
     acct = snap["accounts"]["security"]["IBKR"]
     pos = acct["positions"]["nvda.us"]
     assert pos["shares"] == 45
-    assert pos["avg_cost"] == pytest.approx(219.71)
+    # Released cost = total_cost * (10/55) = 55*225.205 * (10/55) = 2252.05
+    # remaining cost = 55*225.205 - 2252.05 = 12386.275 - 2252.05 = 10134.225
+    expected_cost = 55 * 225.205 - (55 * 225.205) * 10 / 55
+    assert pos["total_cost"] == pytest.approx(expected_cost)
 
-    # Cash: -(55*225.205) = -12386.275 (buy) + (10*250 - 0.35) = 2499.65 (sell)
-    assert acct["cash"] == pytest.approx(-12386.275 + 2499.65)
+    # Cash: proceeds = 10*250 - 0.35 = 2499.65
+    usd_pos = acct["positions"]["usd"]
+    assert usd_pos["shares"] == pytest.approx(-55*225.205 + 2499.65)
 
     # Sell all remaining
     do_sell(ticker="nvda.us", shares=45, price=260.0,
@@ -215,13 +226,15 @@ def test_do_deposit_withdraw(tmp_env):
                note="deposit", date="2026-06-12")
 
     snap = load_snapshot()
-    assert snap["accounts"]["security"]["IBKR"]["cash"] == pytest.approx(10000.0)
+    acct = snap["accounts"]["security"]["IBKR"]
+    assert acct["positions"]["usd"]["shares"] == pytest.approx(10000.0)
 
     do_withdraw(amount=3000.0, currency="USD", account_name="IBKR",
                 note="withdraw", date="2026-06-13")
 
     snap = load_snapshot()
-    assert snap["accounts"]["security"]["IBKR"]["cash"] == pytest.approx(7000.0)
+    acct = snap["accounts"]["security"]["IBKR"]
+    assert acct["positions"]["usd"]["shares"] == pytest.approx(7000.0)
 
 
 def test_do_dividend(tmp_env):
@@ -236,7 +249,7 @@ def test_do_dividend(tmp_env):
 
     snap = load_snapshot()
     acct = snap["accounts"]["security"]["IBKR"]
-    assert acct["cash"] == pytest.approx(25.0)
+    assert acct["positions"]["usd"]["shares"] == pytest.approx(25.0)
     # Position unchanged
     assert acct["positions"]["aapl"]["shares"] == 50
 
@@ -257,7 +270,7 @@ def test_do_checkin_ticker(tmp_env):
     snap = load_snapshot()
     pos = snap["accounts"]["security"]["IBKR"]["positions"]["nvda.us"]
     assert pos["shares"] == 55
-    assert pos["avg_cost"] == 210.0
+    assert pos["total_cost"] == pytest.approx(55 * 210.0)
 
 
 
@@ -293,7 +306,8 @@ def test_do_checkin_cash(tmp_env):
                     note="reconcile", date="2026-06-12")
 
     snap = load_snapshot()
-    assert snap["accounts"]["security"]["IBKR"]["cash"] == pytest.approx(12345.67)
+    acct = snap["accounts"]["security"]["IBKR"]
+    assert acct["positions"]["usd"]["shares"] == pytest.approx(12345.67)
 
 
 def test_fetch_prices_single_hk_series(monkeypatch):
@@ -1031,7 +1045,7 @@ def test_direct_do_buy_rejects_cumulative_overflow_without_second_write(tmp_env)
     snap = load_snapshot()
     pos = snap["accounts"]["security"]["IBKR"]["positions"]["nvda.us"]
     assert pos["shares"] == 1e308
-    assert pos["avg_cost"] == 1.0
+    assert pos["total_cost"] == pytest.approx(1e308)
     rows = (models.RECORDS_DIR / "security" / "2026-06-30.csv").read_text(encoding="utf-8").splitlines()
     assert len(rows) == 2  # header + first BUY only
 

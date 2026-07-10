@@ -557,7 +557,7 @@ def main(argv=None):
                 do_checkin_ticker(args.ticker, args.shares, args.avg_cost,
                                   args.currency or "USD", args.account, args.note, args.date)
             elif args.cash is not None:
-                do_checkin_cash(args.cash, args.account, args.note, args.date)
+                do_checkin_cash(args.cash, args.account, args.currency or "USD", args.note, args.date)
             else:
                 print("❌ 请指定 --ticker+--shares+--avg-cost 或 --cash")
         elif args.stock_cmd == "convert":
