@@ -1,7 +1,7 @@
 # Unified Swap Accounting — Design Reference
 
 **Spec**: `docs/superpowers/specs/2026-07-09-unified-swap-design.md`
-**Status**: Approved, pending implementation
+**Status**: Implemented (2026-07-10)
 **Date**: 2026-07-09
 
 ## 核心变化
@@ -87,3 +87,10 @@ Actions: `swap`（统一交易）, `deposit`, `withdraw`, `dividend`, `checkin`
 - **不兼容旧格式**：用户明确要求不保留向后兼容
 - 所有现有 CSV 需要从当前 snapshot + 交易历史重新生成
 - 银行卡/微信/支付宝（accounts.cash 类型）暂不改动
+
+## 迁移陷阱
+
+1. **CHECKIN 重复计入**：迁移脚本从旧 snapshot cash_map 添加 CHECKIN，同时旧 CSV 的 DEPOSIT 被转换为 deposit 行，导致同一笔入金被计入两次。修复：删除迁移 CHECKIN，保留原始 DEPOSIT。
+2. **verify mismatch 是预期的**：转换后的 CSV 缺少初始余额记录，replay 结果与 snapshot 不一致。snapshot 应从旧数据直接重建，不依赖转换后的 CSV。
+3. **USD position 为负**：如果 CSV 中只有 BUY（转换为 swap 减少 USD）没有对应的 DEPOSIT/CHECKIN，USD position 会变为负数。这是因为旧模型中 cash 是单独字段，不通过 CSV 记录。
+4. **`row_identity` 大小写不敏感**：`sync_common.py` 的 `row_identity` 对 `from_ticker`/`to_ticker`/`commission_asset` 做了 `.lower()` 处理，确保 dedup 不受大小写影响。record_trade 也自动 lowercases ticker。

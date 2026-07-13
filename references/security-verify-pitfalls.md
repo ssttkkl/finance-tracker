@@ -124,6 +124,54 @@ for f in sorted(glob.glob("records/security/*.csv")):
 assert abs(cash - user_balance) < 0.01, f"Cash mismatch: {cash} vs {user_balance}"
 ```
 
+## 4) Currency mismatch on A-share/HK records inflates costs
+
+When CSV records for CNY-denominated assets (A-share ETFs like 159330, 159740) have `currency=USD` instead of `currency=CNY`, the replay engine treats the amounts as USD. Since 1 USD ≈ 6.8 CNY, the cost basis gets inflated ~7x.
+
+**How it happens:** Manual CSV imports or早期数据迁移 may have stamped the wrong currency. The amounts in the CSV are correct (e.g., `from_amount=11455.77` is CNY), but the currency field says USD.
+
+**Detection:**
+```bash
+# Find records where currency doesn't match expected
+grep -h "159330" records/security/*.csv | grep "东方证券" | grep ",USD,"
+```
+
+**Fix:** Correct the currency field in the CSV, then `ft verify --fix`.
+
+**Real example (2026-07-13):** 东方证券 159330 records from 2026-06-25 and 2026-06-26 had `currency=USD` on CNY buys. Fixed by replacing `,usd,USD,` with `,cny,CNY,` in the affected rows.
+
+## 5) Missing sell records cause position divergence
+
+When historical CSV records have many BUY trades but missing SELL trades (user traded in-app but didn't export/import), the replay-calculated position will be much larger than reality.
+
+**Detection:** Compare `ft stock list` output with user's actual broker screenshot. If shares are significantly higher, missing sells are likely.
+
+**Resolution options:**
+- **Option A (recommended):** Use CHECKIN to calibrate to actual position. This is the designed mechanism for this scenario.
+- **Option B:** Manually add all missing sell records (requires user to provide complete trade history).
+
+**When to use CHECKIN vs full reimport:**
+- If user has complete trade history → full reimport (Option B)
+- If user only has recent screenshots → CHECKIN (Option A)
+- CHECKIN does NOT lose data — historical CSV records remain for reference; CHECKIN just overrides the final position calculation
+
+**Key learning:** Don't delete historical records when using CHECKIN. The records are audit trail; CHECKIN is the calibration mechanism.二者 coexist.
+
+## 6) generate_vibe_prompt.py snapshot format mismatch (fixed 2026-07-13)
+
+The script assumes `avg_cost` in snapshot positions, but `ft verify --fix` now writes `total_cost`. Fix: check for both formats.
+
+```python
+if "avg_cost" in pos:
+    avg_cost = pos["avg_cost"]
+    total_cost = round(shares * avg_cost, 2)
+elif "total_cost" in pos:
+    total_cost = pos["total_cost"]
+    avg_cost = round(total_cost / shares, 2) if shares else 0
+```
+
+Also fix the "负成本" check: `avg_cost < 0` not `avg_cost == 0`.
+
 ## Verification checklist
 
 - `ft verify` completes without exceptions.

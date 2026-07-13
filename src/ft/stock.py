@@ -268,6 +268,51 @@ def do_convert(path, source, output, password=None, account="东方证券", curr
                 "currency": currency, "account_name": account,
                 "note": rec["note"],
             })
+        elif action == "DIVIDEND":
+            # 现金红利：ticker 为空，amount 是现金金额
+            # 送股/转增：ticker 非空，shares 是送股数量
+            if rec.get("ticker"):
+                # 送股/转增：to_ticker = 股票代码，to_amount = 送股数
+                mapped.append({
+                    "date": rec["date"], "action": "dividend",
+                    "from_ticker": rec["ticker"], "to_ticker": rec["ticker"],
+                    "from_amount": "0", "to_amount": str(rec["shares"]),
+                    "price": "0", "commission": "0",
+                    "commission_asset": "",
+                    "currency": currency, "account_name": account,
+                    "note": rec["note"],
+                })
+            else:
+                # 现金红利：to_ticker = 货币，to_amount = 金额
+                mapped.append({
+                    "date": rec["date"], "action": "dividend",
+                    "from_ticker": rec.get("ticker", ""), "to_ticker": currency,
+                    "from_amount": "0", "to_amount": str(abs(rec["amount"])),
+                    "price": "1", "commission": "0",
+                    "commission_asset": "",
+                    "currency": currency, "account_name": account,
+                    "note": rec["note"],
+                })
+        elif action == "DEPOSIT":
+            mapped.append({
+                "date": rec["date"], "action": "deposit",
+                "from_ticker": "", "to_ticker": currency,
+                "from_amount": "0", "to_amount": str(abs(rec["amount"])),
+                "price": "1", "commission": "0",
+                "commission_asset": "",
+                "currency": currency, "account_name": account,
+                "note": rec["note"],
+            })
+        elif action == "WITHDRAW":
+            mapped.append({
+                "date": rec["date"], "action": "withdraw",
+                "from_ticker": currency, "to_ticker": "",
+                "from_amount": str(abs(rec["amount"])), "to_amount": "0",
+                "price": "1", "commission": "0",
+                "commission_asset": "",
+                "currency": currency, "account_name": account,
+                "note": rec["note"],
+            })
         elif action == "CHECKIN":
             mapped.append({
                 "date": rec["date"], "action": "checkin",
@@ -1474,7 +1519,10 @@ def _replay_security_rows(rows):
                 continue
             h = positions[(a, to_ticker)]
             h["shares"] = round(h["shares"] + to_amount, 10)
-            h["total_cost"] = round(h["total_cost"] + to_amount, 10)
+            # 现金分红：total_cost 增加（cash position 增加）；送股/转增：total_cost 不变
+            # 判断方法：to_ticker 含数字 → 股票代码（送股）；不含数字 → 货币代码（现金分红）
+            if not any(c.isdigit() for c in to_ticker):
+                h["total_cost"] = round(h["total_cost"] + to_amount, 10)
             _normalize_position(h)
             _validate_position(a, to_ticker)
 

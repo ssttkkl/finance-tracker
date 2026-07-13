@@ -23,33 +23,35 @@
 
 ## 规范
 
-### stock CSV 10 列格式（CSV_FIELDS）
+### stock CSV 12 列格式（CSV_FIELDS，统一 swap 模型）
 
 ```
-date,action,ticker,shares,price,amount,commission,currency,account_name,note
+date,action,from_ticker,to_ticker,from_amount,to_amount,price,commission,commission_asset,currency,account_name,note
 ```
 
 - **date**: `YYYY-MM-DD HH:MM:SS`
-- **action**: BUY / SELL / DEPOSIT / WITHDRAW / DIVIDEND / CHECKIN
-- **ticker**: 代码 + 后缀（.sz / .sh / .otc / 逆回购无后缀）
-- **shares/price/amount/commission**: float（CSV 中存字符串）
-- **currency**: CNY / USD / HKD
+- **action**: swap / deposit / withdraw / dividend / checkin（全小写）
+- **from_ticker**: 给出的资产（BUY 时为 cny，SELL 时为股票代码）
+- **to_ticker**: 收到的资产（BUY 时为股票代码，SELL 时为 cny）
+- **from_amount**: 给出的数量（BUY: CNY金额，SELL: 股数）
+- **to_amount**: 收到的数量（BUY: 股数，SELL: CNY金额）
+- **price**: 成交价格
+- **commission**: 手续费
+- **commission_asset**: 扣费资产（通常为 cny）
+- **currency**: 币种（必须小写 `cny`，见下方陷阱）
 - **account_name**: 账户名（需提前 `ft acct add`）
-- **note**: 备注（印花税/过户费等）
+- **note**: 备注
 
-### Action 映射规则
+### Action 映射规则（12 列 swap 格式）
 
-| 中文名    | Action    | 说明                           |
-|-----------|-----------|--------------------------------|
-| 证券买入  | BUY       | amount = -shares × price       |
-| 证券卖出  | SELL      | amount = shares × price        |
-| 银行转证券 | DEPOSIT   | shares=0, price=0              |
-| 红利入账  | DIVIDEND  | shares=0, price=0, amount=现金分红 |
-| 红股入账  | CHECKIN   | price=0, amount=0, ticker=股票代码 |
-| 股息扣税  | WITHDRAW  | shares=0, price=0, amount=负数 |
-| OTC资金划出| WITHDRAW  | shares=0, price=0              |
-| 融券回购  | BUY       | ticker=204001（无后缀）         |
-| 融券购回  | SELL      | ticker=204001（无后缀）         |
+| 中文名    | Action    | from_ticker | to_ticker | 说明                           |
+|-----------|-----------|-------------|-----------|--------------------------------|
+| 证券买入  | swap      | cny         | 股票代码  | from_amount=CNY支出, to_amount=股数 |
+| 证券卖出  | swap      | 股票代码    | cny       | from_amount=股数, to_amount=CNY收入 |
+| 银行转证券 | deposit   | EXTERNAL    | cny       | to_amount=入金金额              |
+| 证券转银行 | withdraw  | cny         | EXTERNAL  | from_amount=出金金额            |
+| 红利入账  | dividend  | DIV         | cny       | to_amount=分红金额              |
+| 股息扣税  | swap      | cny         | 股票代码  | from_amount=扣税金额, note说明   |
 
 ⚠️ **为保护 PII，此类 PR 说明中的 PDF 密码须脱敏，e.g. `[REDACTED]`。**
 

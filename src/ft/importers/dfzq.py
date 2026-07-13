@@ -11,7 +11,7 @@ ACTION_MAP = {
     "银行转证券": "DEPOSIT", "证券转银行": "WITHDRAW",
     "OTC资金划入": "DEPOSIT", "OTC资金划出": "WITHDRAW",
     "融券回购": "BUY", "融券购回": "SELL",
-    "红利入账": "DIVIDEND", "红股入账": "CHECKIN",
+    "红利入账": "DIVIDEND", "红股入账": "DIVIDEND",
     "股息红利差异扣税": "WITHDRAW", "利息归本": "DEPOSIT",
 }
 
@@ -230,12 +230,16 @@ def _make_txn(date_str, action_raw, **kw) -> dict[str, Any]:
     suffix = _ticker_suffix(ticker)
     full_ticker = ticker + suffix
 
-    if action in _ZERO_SHARES_PRICE or action in ("DEPOSIT", "WITHDRAW"):
-        ticker = ""
-        full_ticker = ""
     shares = kw["shares"]
     price = kw["price"]
-    if action in _ZERO_SHARES_PRICE:
+    # 送股/转增（仅"红股入账"）：保留 ticker；"红利入账"（现金分红）/DEPOSIT/WITHDRAW：清空
+    # 注意：红利入账 PDF 中 shares 是分红的股数（非额外送股），不能用 shares>0 判断
+    is_stock_dividend = action_raw == "红股入账" and shares > 0 and full_ticker
+    if (action in _ZERO_SHARES_PRICE and not is_stock_dividend) or action in ("DEPOSIT", "WITHDRAW"):
+        ticker = ""
+        full_ticker = ""
+    # 现金红利：shares/price 清零；送股/转增：保留
+    if action in _ZERO_SHARES_PRICE and not is_stock_dividend:
         shares = 0.0
         price = 0.0
 
