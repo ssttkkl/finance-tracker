@@ -18,13 +18,13 @@
 
 ```python
 h["shares"] += to_amount
-# 现金分红（to_ticker 是货币如 cny/usd）：total_cost 增加
+# 现金分红（to_ticker 是货币如 CNY/USD）：total_cost 增加
 # 送股/转增（to_ticker 是股票如 002594.sz）：total_cost 不变
-if "." not in to_ticker and to_ticker == to_ticker.lower():
+if not any(c.isdigit() for c in to_ticker):
     h["total_cost"] += to_amount
 ```
 
-判断依据：`to_ticker` 无 `.` 且全小写 → 货币（现金分红）；有 `.` 或大写 → 股票（送股）。
+判断依据：`to_ticker` 不含数字 → 货币代码（现金分红）；含数字 → 股票代码（送股）。比旧逻辑（`"." not in to_ticker and to_ticker == to_ticker.lower()`）更健壮，不依赖大小写约定。
 
 **CSV 写法：**
 ```
