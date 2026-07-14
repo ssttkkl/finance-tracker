@@ -960,6 +960,45 @@ def test_continue_reconcile_writes_records_and_clears_pending(tmp_env):
     assert not session_dir.exists()
 
 
+def test_continue_reconcile_preserves_untouched_rows_in_pending_record_file(tmp_env):
+    from ft.ai_working_csv import write_ai_working_csv
+    from ft.pending import create_pending_session
+    from ft.reconcile import continue_reconcile
+
+    day_path = tmp_env / "records" / "loan" / "2026-06.csv"
+    _write_rows(day_path, [
+        {
+            "record_id": "r_selected", "date": "2026-06-12 10:00:03", "amount": "-30.00", "currency": "CNY",
+            "counterparty": "麦当劳", "description": "", "category": "expense",
+            "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
+        },
+        {
+            "record_id": "r_untouched", "date": "2026-06-12 10:05:00", "amount": "-20.00", "currency": "CNY",
+            "counterparty": "便利蜂", "description": "", "category": "expense",
+            "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
+        },
+    ])
+
+    session_dir = create_pending_session("reconcile", {"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+    row = {
+        "record_id": "r_selected", "session_id": session_dir.name,
+        "date": "2026-06-12 10:00:03", "amount": "-30.00", "currency": "CNY",
+        "counterparty": "麦当劳", "description": "", "category": "expense",
+        "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
+        "transfer_account": "", "locked": "", "raw_counterparty": "麦当劳",
+        "raw_description": "", "raw_payment_method": "", "record_file": str(day_path),
+        "record_type": "loan", "row_status": "active", "ai_action": "leave_as_is",
+        "ai_group": "", "ai_reason": "", "rule_hint": "",
+    }
+    write_ai_working_csv(session_dir / "ai_working.csv", [row])
+    write_ai_working_csv(session_dir / "edited.csv", [row])
+
+    continue_reconcile(str(session_dir / "edited.csv"))
+
+    with open(day_path, encoding="utf-8") as f:
+        assert {row["record_id"] for row in csv.DictReader(f)} == {"r_selected", "r_untouched"}
+
+
 def test_continue_reconcile_rejects_read_only_changes(tmp_env):
     from ft.ai_working_csv import write_ai_working_csv
     from ft.pending import create_pending_session

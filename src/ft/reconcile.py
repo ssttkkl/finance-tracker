@@ -736,10 +736,24 @@ def continue_reconcile(edited_csv: str):
 
     by_file, extra_audit_rows = apply_reconcile_working_rows(edited_rows)
 
-    touched_files = sorted(by_file)
+    edited_ids_by_file: dict[str, set[str]] = defaultdict(set)
+    for row in edited_rows:
+        edited_ids_by_file[row.get("record_file", "")].add(row["record_id"])
+
+    touched_files = sorted(edited_ids_by_file)
     for file_path_str in touched_files:
         file_path = Path(file_path_str)
-        final_rows = by_file[file_path_str]
+        existing_rows = []
+        if file_path.exists():
+            with open(file_path, encoding="utf-8") as f:
+                existing_rows = [_normal_row(row) for row in csv.DictReader(f)]
+
+        # Pending edits replace only their own records; keep unrelated rows in the same month.
+        final_rows = [
+            row for row in existing_rows
+            if row.get("record_id", "") not in edited_ids_by_file[file_path_str]
+        ]
+        final_rows.extend(by_file.get(file_path_str, []))
         final_rows.sort(key=lambda r: r["date"])
         with open(file_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=models.CSV_FIELDS)
