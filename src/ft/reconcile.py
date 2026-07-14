@@ -714,12 +714,13 @@ def _validate_reconcile_working_rows(original_rows: list[dict], edited_rows: lis
             raise ValueError(f"❌ 非法 ai_action: record_id={row['record_id']} ai_action={ai_action}")
         if row_status == "dropped" and ai_action not in {"drop", "leave_as_is"}:
             raise ValueError(f"❌ dropped 行只能配合 drop/leave_as_is: record_id={row['record_id']}")
-        if ai_action == "drop" and row.get("ai_reason", "").strip() == "":
-            raise ValueError(f"❌ drop 动作必须填写 ai_reason: record_id={row['record_id']}")
+        decision_reason = row.get("decision_reason", "").strip()
+        if ai_action == "drop" and decision_reason == "":
+            raise ValueError(f"❌ drop 动作必须填写 decision_reason: record_id={row['record_id']}")
         if row_status == "active" and row.get("ai_group", "") and ai_action in {"leave_as_is", "keep"}:
-            if row.get("ai_reason", "").strip() == "":
+            if decision_reason == "":
                 raise ValueError(
-                    f"❌ {ai_action} 动作必须填写 ai_reason: record_id={row['record_id']}"
+                    f"❌ {ai_action} 动作必须填写 decision_reason: record_id={row['record_id']}"
                 )
 
         if ai_action == "modify":
@@ -729,8 +730,8 @@ def _validate_reconcile_working_rows(original_rows: list[dict], edited_rows: lis
             ]
             if not changed_fields:
                 raise ValueError(f"❌ ai_action=modify 但没有实际修改字段: record_id={row['record_id']}")
-            if row.get("ai_reason", "").strip() == "":
-                raise ValueError(f"❌ modify 动作必须填写 ai_reason: record_id={row['record_id']}")
+            if decision_reason == "":
+                raise ValueError(f"❌ modify 动作必须填写 decision_reason: record_id={row['record_id']}")
 
     for row in edited_rows:
         ai_action = row.get("ai_action", "leave_as_is") or "leave_as_is"
@@ -738,8 +739,8 @@ def _validate_reconcile_working_rows(original_rows: list[dict], edited_rows: lis
         if not target:
             continue
         action_name, target_id = target
-        if row.get("ai_reason", "").strip() == "":
-            raise ValueError(f"❌ {action_name} 动作必须填写 ai_reason: record_id={row['record_id']}")
+        if row.get("decision_reason", "").strip() == "":
+            raise ValueError(f"❌ {action_name} 动作必须填写 decision_reason: record_id={row['record_id']}")
         if not target_id or target_id not in edited_by_id:
             raise ValueError(f"❌ 引用的 record_id 不存在: record_id={row['record_id']} ai_action={ai_action}")
         target_row = edited_by_id[target_id]

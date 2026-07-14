@@ -290,6 +290,9 @@ def test_continue_reconcile_keeps_auto_dropped_rows_removed_when_date_level_revi
     with open(day_path, encoding="utf-8") as f:
         assert "ccb_debit" not in {row["bill_source"] for row in csv.DictReader(f)}
 
+    for row in original_rows:
+        if row["row_status"] == "active" and row["ai_group"]:
+            row["decision_reason"] = "确认不是同一笔交易"
     write_ai_working_csv(session_dir / "edited.csv", original_rows)
     continue_reconcile(str(session_dir / "edited.csv"))
 
@@ -1088,7 +1091,7 @@ def test_continue_reconcile_uses_source_record_id_when_dropping_pending_row(tmp_
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", [
-        dict(original[0], ai_action="drop", ai_reason="与微信支付镜像重复"),
+        dict(original[0], ai_action="drop", decision_reason="与微信支付镜像重复"),
     ])
 
     continue_reconcile(str(session_dir / "edited.csv"))
@@ -1151,7 +1154,7 @@ def test_continue_reconcile_rejects_drop_without_reason(tmp_env):
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
 
-    with pytest.raises(ValueError, match="drop 动作必须填写 ai_reason"):
+    with pytest.raises(ValueError, match="drop 动作必须填写 decision_reason"):
         continue_reconcile(str(session_dir / "edited.csv"))
 
 
@@ -1173,12 +1176,13 @@ def test_continue_reconcile_rejects_grouped_leave_as_is_without_decision_reason(
         "transfer_account": "", "locked": "", "raw_counterparty": "麦当劳",
         "raw_description": "消费", "raw_payment_method": "", "record_file": str(day_path),
         "record_type": "loan", "row_status": "active", "ai_action": "leave_as_is",
-        "ai_group": "mirror_001", "ai_reason": "", "rule_hint": "possible_mirror_weak_30s_cross_source",
+        "ai_group": "mirror_001", "ai_reason": "possible_mirror_weak_30s_cross_source:drop",
+        "rule_hint": "possible_mirror_weak_30s_cross_source",
     }
     write_ai_working_csv(session_dir / "ai_working.csv", [row])
     write_ai_working_csv(session_dir / "edited.csv", [row])
 
-    with pytest.raises(ValueError, match="leave_as_is.*填写 ai_reason"):
+    with pytest.raises(ValueError, match="leave_as_is.*填写 decision_reason"):
         continue_reconcile(str(session_dir / "edited.csv"))
 
 
@@ -1203,7 +1207,7 @@ def test_continue_reconcile_rejects_modify_without_actual_change(tmp_env):
         "record_type": "loan", "row_status": "active", "ai_action": "leave_as_is",
         "ai_group": "", "ai_reason": "", "rule_hint": "",
     }]
-    edited = [dict(original[0], ai_action="modify", ai_reason="test")]
+    edited = [dict(original[0], ai_action="modify", decision_reason="test")]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
 
@@ -1232,7 +1236,7 @@ def test_continue_reconcile_rejects_transfer_target_missing(tmp_env):
         "record_type": "cash", "row_status": "active", "ai_action": "leave_as_is",
         "ai_group": "", "ai_reason": "", "rule_hint": "possible_transfer_multi_candidate",
     }]
-    edited = [dict(original[0], ai_action="mark_transfer_out_to:r_999999", ai_reason="识别为转账")]
+    edited = [dict(original[0], ai_action="mark_transfer_out_to:r_999999", decision_reason="识别为转账")]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
 
@@ -1274,8 +1278,8 @@ def test_continue_reconcile_rejects_transfer_pair_direction_mismatch(tmp_env):
         },
     ]
     edited = [
-        dict(original[0], ai_action="mark_transfer_out_to:r_000002", ai_reason="识别为转账"),
-        dict(original[1], ai_action="leave_as_is", ai_reason="确认不是同一笔转账"),
+        dict(original[0], ai_action="mark_transfer_out_to:r_000002", decision_reason="识别为转账"),
+        dict(original[1], ai_action="leave_as_is", decision_reason="确认不是同一笔转账"),
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
@@ -1318,8 +1322,8 @@ def test_continue_reconcile_rejects_transfer_out_on_income_row(tmp_env):
         },
     ]
     edited = [
-        dict(original[0], ai_action="mark_transfer_out_to:r_000002", ai_reason="错误方向"),
-        dict(original[1], ai_action="mark_transfer_in_from:r_000001", ai_reason="错误方向"),
+        dict(original[0], ai_action="mark_transfer_out_to:r_000002", decision_reason="错误方向"),
+        dict(original[1], ai_action="mark_transfer_in_from:r_000001", decision_reason="错误方向"),
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
@@ -1362,8 +1366,8 @@ def test_continue_reconcile_applies_transfer_pair(tmp_env):
         },
     ]
     edited = [
-        dict(original[0], ai_action="mark_transfer_out_to:r_000002", ai_reason="识别为转账"),
-        dict(original[1], ai_action="mark_transfer_in_from:r_000001", ai_reason="识别为转账"),
+        dict(original[0], ai_action="mark_transfer_out_to:r_000002", decision_reason="识别为转账"),
+        dict(original[1], ai_action="mark_transfer_in_from:r_000001", decision_reason="识别为转账"),
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
@@ -1414,8 +1418,8 @@ def test_continue_reconcile_records_ai_transfer_in_audit(tmp_env):
         },
     ]
     edited = [
-        dict(original[0], ai_action="mark_transfer_out_to:r_000002", ai_reason="AI 判断为同一笔转账"),
-        dict(original[1], ai_action="mark_transfer_in_from:r_000001", ai_reason="AI 判断为同一笔转账"),
+        dict(original[0], ai_action="mark_transfer_out_to:r_000002", decision_reason="AI 判断为同一笔转账"),
+        dict(original[1], ai_action="mark_transfer_in_from:r_000001", decision_reason="AI 判断为同一笔转账"),
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
@@ -1467,8 +1471,8 @@ def test_continue_reconcile_drops_ai_duplicate_row(tmp_env):
         },
     ]
     edited = [
-        dict(original[0], ai_action="keep", ai_reason="保留支付宝侧作为同一笔交易的规范记录"),
-        dict(original[1], ai_action="drop", ai_reason="AI 判断为镜像重复"),
+        dict(original[0], ai_action="keep", decision_reason="保留支付宝侧作为同一笔交易的规范记录"),
+        dict(original[1], ai_action="drop", decision_reason="AI 判断为镜像重复"),
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
@@ -1517,8 +1521,8 @@ def test_continue_reconcile_records_ai_drop_in_audit(tmp_env):
         },
     ]
     edited = [
-        dict(original[0], ai_action="keep", ai_reason="保留支付宝侧作为同一笔交易的规范记录"),
-        dict(original[1], ai_action="drop", ai_reason="AI 判断为镜像重复"),
+        dict(original[0], ai_action="keep", decision_reason="保留支付宝侧作为同一笔交易的规范记录"),
+        dict(original[1], ai_action="drop", decision_reason="AI 判断为镜像重复"),
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)

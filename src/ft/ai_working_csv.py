@@ -10,7 +10,7 @@ AI_WORKING_FIELDS = [
     "offset_rule_hint", "offset_match_type", "proposed_action",
     "raw_counterparty", "raw_description", "raw_payment_method",
     "record_file", "record_type",
-    "row_status", "ai_action", "ai_group", "ai_reason",
+    "row_status", "ai_action", "ai_group", "ai_reason", "decision_reason",
     "rule_hint",
 ]
 
@@ -83,6 +83,7 @@ def build_ai_working_row(row: dict, *, record_id: str, session_id: str, defaults
         "ai_action": defaults.get("ai_action", "leave_as_is"),
         "ai_group": defaults.get("ai_group", ""),
         "ai_reason": defaults.get("ai_reason", ""),
+        "decision_reason": "",
         "rule_hint": defaults.get("rule_hint", ""),
     }
     return result
