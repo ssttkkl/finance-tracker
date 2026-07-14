@@ -57,8 +57,23 @@ def _normal_row(row: dict) -> dict:
     return {field: row.get(field, "") for field in models.CSV_FIELDS}
 
 
-def _offset_groups(row: dict) -> set[str]:
-    return {group for group in str(row.get("offset_group", "")).split("|") if group}
+def _linked_refund_record_ids(rows: list[dict], pending_rows: list[dict]) -> set[str]:
+    linked_ids = {row.get("record_id", "") for row in pending_rows}
+    linked_ids.discard("")
+    changed = True
+    while changed:
+        changed = False
+        for row in rows:
+            target = parse_ai_action_target(row.get("proposed_action", "") or "")
+            if not target or target[0] != "merge_refund_into":
+                continue
+            record_id = row.get("record_id", "")
+            target_id = target[1]
+            if record_id in linked_ids or target_id in linked_ids:
+                before = len(linked_ids)
+                linked_ids.update({record_id, target_id})
+                changed = changed or len(linked_ids) != before
+    return linked_ids
 
 
 def _clean_row(row: dict) -> dict:
@@ -585,12 +600,11 @@ def _create_reconcile_pending_session(state: dict):
     session_id = session_dir.name
 
     pending_rows = state["scoped"] if state.get("has_only_review") else state.get("pending_rows", state["scoped"])
-    linked_offset_groups = set().union(*(_offset_groups(row) for row in pending_rows)) if pending_rows else set()
-    if linked_offset_groups:
-        pending_ids = {id(row) for row in pending_rows}
+    linked_refund_ids = _linked_refund_record_ids(state["scoped"], pending_rows)
+    if linked_refund_ids:
         pending_rows = [
             row for row in state["scoped"]
-            if id(row) in pending_ids or _offset_groups(row) & linked_offset_groups
+            if row.get("record_id", "") in linked_refund_ids
         ]
     mirror_review_annotations = state.get("mirror_review_annotations", {})
     auto_removed_ids = {id(remove_row) for _keep_row, remove_row in state.get("pairs", [])}
