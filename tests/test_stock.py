@@ -176,6 +176,12 @@ def test_do_buy_updates_snapshot(tmp_env):
     assert pos["shares"] == 55
     assert pos["total_cost"] == pytest.approx(10086.65 + 2300.35)
 
+    # 新写入的 swap 以成交毛额表达，手续费由 commission_asset 明确扣除。
+    with (tmp_env / "records" / "security" / "2026-06-13.csv").open(encoding="utf-8") as f:
+        row = next(csv.DictReader(f))
+    assert float(row["from_amount"]) == pytest.approx(2300.0)
+    assert row["commission_asset"] == "USD"
+
 
 def test_do_sell_updates_snapshot(tmp_env):
     """Sell removes shares and keeps cost proportional"""
@@ -1360,6 +1366,37 @@ def test_replay_swap_conserves_total_cost():
     # 总成本守恒
     assert (positions[("币安", "btc")]["total_cost"]
             + positions[("币安", "eth")]["total_cost"]) == pytest.approx(60000.0)
+
+
+def test_replay_quote_commission_debits_cash_and_enters_buy_cost():
+    """券商成交以毛额记 swap 时，CNY 佣金必须从现金扣除且买入计入成本。"""
+    from ft.stock import _replay_security_rows
+
+    rows = [
+        {"date": "2026-07-01 09:00:00", "action": "deposit",
+         "from_ticker": "", "to_ticker": "cny",
+         "from_amount": "0", "to_amount": "1000", "price": "1",
+         "commission": "0", "commission_asset": "",
+         "currency": "CNY", "account_name": "东方证券", "note": "seed"},
+        # 买入毛额 500，佣金 1：现金 -501，股票总成本 501。
+        {"date": "2026-07-01 10:00:00", "action": "swap",
+         "from_ticker": "cny", "to_ticker": "159330.sz",
+         "from_amount": "500", "to_amount": "5", "price": "100",
+         "commission": "1", "commission_asset": "cny",
+         "currency": "CNY", "account_name": "东方证券", "note": "buy"},
+        # 卖出毛额 220，佣金 1：现金 +219。
+        {"date": "2026-07-02 10:00:00", "action": "swap",
+         "from_ticker": "159330.sz", "to_ticker": "cny",
+         "from_amount": "2", "to_amount": "220", "price": "110",
+         "commission": "1", "commission_asset": "cny",
+         "currency": "CNY", "account_name": "东方证券", "note": "sell"},
+    ]
+
+    positions = _replay_security_rows(rows)
+
+    assert positions[("东方证券", "cny")]["shares"] == pytest.approx(718.0)
+    assert positions[("东方证券", "159330.sz")]["shares"] == pytest.approx(3.0)
+    assert positions[("东方证券", "159330.sz")]["total_cost"] == pytest.approx(300.6)
 
 
 def test_replay_swap_in_without_pair_raises():

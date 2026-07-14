@@ -67,15 +67,17 @@ date, action, from_ticker, to_ticker, from_amount, to_amount, price, commission,
 | `dividend` | Dividend received | `DIV` | currency | 0 | amount |
 | `checkin` | Snapshot reconciliation | asset | — | 0 | shares |
 
-**Commission**: embedded in swap. `commission` field = fee amount, `commission_asset` = which asset the fee was charged in. No separate FEE action.
+**Commission**: `from_amount` / `to_amount` always record the **gross trade consideration, excluding commission**. `commission` is the separately charged fee, and `commission_asset` identifies the asset it is deducted from. No separate FEE action.
+
+> Backward compatibility: rows with an empty `commission_asset` are legacy net-leg rows whose cash leg already includes the fee; replay must not charge them again.
 
 **Examples:**
 
 ```
-# Buy 10 NVDA at $150, commission $1
-2026-07-09, swap, USD, NVDA, 1501, 10, 150, 1, USD, IBKR, ibkr
+# Buy 10 NVDA at $150, commission $1: USD outflow = $1500 + $1
+2026-07-09, swap, USD, NVDA, 1500, 10, 150, 1, USD, IBKR, ibkr
 
-# Sell 5 NVDA at $200, commission $1
+# Sell 5 NVDA at $200, commission $1: USD inflow = $1000 - $1
 2026-07-09, swap, NVDA, USD, 5, 1000, 200, 1, USD, IBKR, ibkr
 
 # BTC→USDT swap on Kraken

@@ -252,7 +252,7 @@ def do_convert(path, source, output, password=None, account="东方证券", curr
                 "to_amount": str(rec["shares"]),
                 "price": str(rec["price"]),
                 "commission": str(rec["fee"]),
-                "commission_asset": "",
+                "commission_asset": currency,
                 "currency": currency, "account_name": account,
                 "note": rec["note"],
             })
@@ -264,7 +264,7 @@ def do_convert(path, source, output, password=None, account="东方证券", curr
                 "to_amount": str(abs(rec["amount"])),
                 "price": str(rec["price"]),
                 "commission": str(rec["fee"]),
-                "commission_asset": "",
+                "commission_asset": currency,
                 "currency": currency, "account_name": account,
                 "note": rec["note"],
             })
@@ -596,8 +596,8 @@ def do_buy(
     _save_snapshot_and_record_trade(
         snap,
         date=date, action="swap", from_ticker=currency, to_ticker=ticker,
-        from_amount=cost, to_amount=shares, price=price, commission=commission,
-        commission_asset="", currency=currency, account_name=account_name, note=note,
+        from_amount=shares * price, to_amount=shares, price=price, commission=commission,
+        commission_asset=currency, currency=currency, account_name=account_name, note=note,
     )
     print(f"✅ 买入 {_fmt_shares(shares)} 股 {ticker} @ ${price} ({account_name})")
     return True
@@ -673,8 +673,8 @@ def do_sell(
     _save_snapshot_and_record_trade(
         snap,
         date=date, action="swap", from_ticker=ticker, to_ticker=currency,
-        from_amount=shares, to_amount=proceeds, price=price, commission=commission,
-        commission_asset="", currency=currency, account_name=account_name, note=note,
+        from_amount=shares, to_amount=shares * price, price=price, commission=commission,
+        commission_asset=currency, currency=currency, account_name=account_name, note=note,
     )
 
 
@@ -1492,6 +1492,32 @@ def _replay_security_rows(rows):
             to_pos["total_cost"] = round(to_pos["total_cost"] + released_cost, 10)
             _normalize_position(to_pos)
             _validate_position(a, to_ticker)
+
+            # New-format rows record gross swap legs and identify the charged
+            # asset. Legacy rows leave commission_asset empty because their
+            # cash leg already contains the fee, so do not charge them again.
+            commission_asset = (row.get("commission_asset") or "").lower()
+            if commission > 0 and commission_asset:
+                fee_pos = positions[(a, commission_asset)]
+                fee_old_shares = fee_pos["shares"]
+                fee_old_cost = fee_pos["total_cost"]
+                fee_released_cost = (
+                    fee_old_cost * commission / fee_old_shares
+                    if fee_old_shares > 0 else commission
+                )
+                fee_pos["shares"] = round(fee_old_shares - commission, 10)
+                fee_pos["total_cost"] = round(fee_old_cost - fee_released_cost, 10)
+                _normalize_position(fee_pos)
+                _validate_position(a, commission_asset)
+
+                # A fee charged from the asset swapped out is part of the
+                # received position's acquisition cost (e.g. cash buy).
+                if commission_asset == from_ticker.lower():
+                    to_pos["total_cost"] = round(
+                        to_pos["total_cost"] + fee_released_cost, 10
+                    )
+                    _normalize_position(to_pos)
+                    _validate_position(a, to_ticker)
 
         elif act == "deposit":
             to_ticker = row.get("to_ticker", "") or ""
