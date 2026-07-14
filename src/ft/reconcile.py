@@ -789,11 +789,18 @@ def continue_reconcile(edited_csv: str):
     proposed_audit = session_dir / "proposed_audit.csv"
     if proposed_audit.exists():
         run_at = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        audit_path = _audit_path(run_at)
+        shutil.copy2(proposed_audit, audit_path)
         if extra_audit_rows:
-            audit_path = _write_audit(run_at, manifest.get("scope_from", ""), manifest.get("scope_to", ""), [], extra_audit_rows)
-        else:
-            audit_path = _audit_path(run_at)
-            shutil.copy2(proposed_audit, audit_path)
+            with open(audit_path, "a", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=_audit_fields())
+                for row in extra_audit_rows:
+                    writer.writerow({
+                        "run_at": run_at,
+                        "scope_from": manifest.get("scope_from", ""),
+                        "scope_to": manifest.get("scope_to", ""),
+                        **{field: row.get(field, "") for field in _audit_fields() if field not in ("run_at", "scope_from", "scope_to")},
+                    })
         print(f"✅ 去重完成，审计文件: {audit_path}")
     clear_pending_session("reconcile")
     git_stage(models.FT_DIR)

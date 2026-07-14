@@ -981,7 +981,7 @@ def test_reconcile_enters_pending_for_same_currency_cash_to_loan_repayment_case(
 def test_continue_reconcile_writes_records_and_clears_pending(tmp_env):
     from ft.ai_working_csv import write_ai_working_csv
     from ft.pending import create_pending_session
-    from ft.reconcile import continue_reconcile
+    from ft.reconcile import _audit_fields, continue_reconcile
 
     day_path = tmp_env / "records" / "loan" / "2026-06.csv"
     day_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1001,7 +1001,10 @@ def test_continue_reconcile_writes_records_and_clears_pending(tmp_env):
     }]
     write_ai_working_csv(session_dir / "ai_working.csv", rows)
     write_ai_working_csv(session_dir / "edited.csv", rows)
-    (session_dir / "proposed_audit.csv").write_text("run_at\n", encoding="utf-8")
+    with open(session_dir / "proposed_audit.csv", "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=_audit_fields())
+        writer.writeheader()
+        writer.writerow({"record_id": "auto_drop", "reconcile_status": "dedup", "dedup_status": "去除"})
 
     continue_reconcile(str(session_dir / "edited.csv"))
 
@@ -1413,7 +1416,7 @@ def test_continue_reconcile_records_ai_drop_in_audit(tmp_env):
     from ft import models
     from ft.ai_working_csv import write_ai_working_csv
     from ft.pending import create_pending_session
-    from ft.reconcile import continue_reconcile
+    from ft.reconcile import _audit_fields, continue_reconcile
 
     day_path = tmp_env / "records" / "loan" / "2026-06.csv"
     day_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1449,7 +1452,10 @@ def test_continue_reconcile_records_ai_drop_in_audit(tmp_env):
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
-    (session_dir / "proposed_audit.csv").write_text("run_at\n", encoding="utf-8")
+    with open(session_dir / "proposed_audit.csv", "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=_audit_fields())
+        writer.writeheader()
+        writer.writerow({"record_id": "auto_drop", "reconcile_status": "dedup", "dedup_status": "去除"})
 
     continue_reconcile(str(session_dir / "edited.csv"))
 
@@ -1457,8 +1463,8 @@ def test_continue_reconcile_records_ai_drop_in_audit(tmp_env):
     assert len(audit_files) == 1
     with open(audit_files[0], encoding="utf-8") as f:
         audit_rows = list(csv.DictReader(f))
-    assert any(row["reconcile_status"] == "ai_drop" for row in audit_rows)
-    assert any(row["dedup_status"] == "去除" for row in audit_rows)
+    assert {row["reconcile_status"] for row in audit_rows} == {"dedup", "ai_drop"}
+    assert {row["dedup_status"] for row in audit_rows} == {"去除"}
 
 
 def test_reconcile_enters_pending_and_writes_single_leg_audit(tmp_env):
