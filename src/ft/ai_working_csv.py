@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 AI_WORKING_FIELDS = [
-    "record_id", "source_record_id", "session_id", "date", "amount", "currency",
+    "record_id", "date", "amount", "currency",
     "counterparty", "description", "category", "account_name",
     "source", "bill_source", "transfer_account", "locked",
     "offset_group", "offset_role", "offset_strength", "offset_source",
@@ -15,7 +15,7 @@ AI_WORKING_FIELDS = [
 ]
 
 READ_ONLY_FIELDS = {
-    "record_id", "source_record_id", "session_id", "date", "amount", "currency", "bill_source",
+    "record_id", "date", "amount", "currency", "bill_source",
     "raw_counterparty", "raw_description", "raw_payment_method",
     "rule_hint", "suggested_action", "processing_status", "ai_group",
 }
@@ -51,12 +51,10 @@ def parse_decision_action_target(action: str) -> tuple[str, str] | None:
     return None
 
 
-def build_ai_working_row(row: dict, *, record_id: str, session_id: str, defaults: dict | None = None) -> dict:
+def build_ai_working_row(row: dict, *, record_id: str, defaults: dict | None = None) -> dict:
     defaults = defaults or {}
     result = {
         "record_id": record_id,
-        "source_record_id": row.get("record_id", ""),
-        "session_id": session_id,
         "date": row.get("date", ""),
         "amount": str(row.get("amount", "")),
         "currency": row.get("currency", ""),
@@ -100,7 +98,7 @@ def write_ai_working_csv(path: Path, rows: list[dict]):
 def read_ai_working_csv(path: Path) -> list[dict]:
     with open(path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        legacy_fields = {"ai_reason", "ai_action", "row_status"}.intersection(reader.fieldnames or [])
+        legacy_fields = {"ai_reason", "ai_action", "row_status", "source_record_id", "session_id"}.intersection(reader.fieldnames or [])
         if legacy_fields:
             names = ", ".join(sorted(legacy_fields))
             raise ValueError(f"❌ pending 使用已废弃字段 ({names})，请 abort 后重新运行 reconcile")

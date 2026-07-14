@@ -115,7 +115,7 @@ convert 输出可查看的统一 CSV；reconcile 遇到低置信候选时才会�
 ft convert <bill> -s <source> -o out.csv
 
 ft reconcile --month 2026-06
-ft reconcile --continue-with-decisions <edited.csv>
+ft reconcile --continue-with-decisions
 ft reconcile --abort
 ```
 
@@ -157,8 +157,6 @@ ft reconcile --abort
 默认只读：
 
 - `record_id`
-- `source_record_id`
-- `session_id`
 - `date`
 - `amount`
 - `currency`

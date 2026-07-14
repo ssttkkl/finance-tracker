@@ -85,18 +85,18 @@ def test_reconcile_rejects_month_plus_range():
 def test_reconcile_continue_dispatch(monkeypatch):
     called = {}
 
-    monkeypatch.setattr("ft.reconcile.continue_reconcile", lambda path: called.setdefault("path", path))
+    monkeypatch.setattr("ft.reconcile.continue_reconcile", lambda: called.setdefault("continued", True))
     monkeypatch.setattr("ft.reconcile.abort_reconcile", lambda: None)
     monkeypatch.setattr("ft.reconcile.do_reconcile", lambda **kwargs: None)
 
-    cli.main(["reconcile", "--continue-with-decisions", "/tmp/edited.csv"])
-    assert called["path"] == "/tmp/edited.csv"
+    cli.main(["reconcile", "--continue-with-decisions"])
+    assert called["continued"] is True
 
 
 def test_reconcile_abort_dispatch(monkeypatch):
     called = {"abort": False}
 
-    monkeypatch.setattr("ft.reconcile.continue_reconcile", lambda _path: None)
+    monkeypatch.setattr("ft.reconcile.continue_reconcile", lambda: None)
     monkeypatch.setattr("ft.reconcile.abort_reconcile", lambda: called.__setitem__("abort", True))
     monkeypatch.setattr("ft.reconcile.do_reconcile", lambda **kwargs: None)
 

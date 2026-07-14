@@ -26,7 +26,7 @@ design_spec: docs/superpowers/specs/2026-06-12-csv-only-design.md, docs/superpow
 | ① convert | `ft convert <账单> -s alipay|wechat|icbc|ccb-debit -o <csv>` | 统一 CSV；保留退款关系元数据 |
 | ② append | `ft append <csvs...>` | 落盘到 records/ |
 | ③ reconcile | `ft reconcile [--month YYYY-MM | --from YYYY-MM-DD --to YYYY-MM-DD]` | 去重结果或 pending reconcile 会话 |
-| ④ AI审查/编辑 | 如进入 pending，编辑 `ai_working.csv` 后执行 `ft reconcile --continue-with-decisions <edited.csv>` | 正式 records + audit |
+| ④ AI审查/编辑 | 如进入 pending，在同一会话目录写出 `edited.csv` 后执行 `ft reconcile --continue-with-decisions` | 正式 records + audit |
 | ⑤ commit | `ft commit` | Git 提交 |
 
 convert 说明：`alipay`（支付宝 CSV）、`wechat`（微信 xlsx）、`icbc`（工行 PDF，需 --password，自动检测信用卡/借记卡，**支持多卡路由** — 见下方"ICBC 信用卡 PDF 内含多卡交易"陷阱）、`ccb-debit`（建行 xls）。
@@ -61,9 +61,9 @@ AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2数据脱敏 
 2. 若 reconcile 进入 pending，打开会话目录下的 `ai_working.csv`
 3. 先保留 `ai_working.csv` 作为原始底稿，不要直接在原文件上覆盖修改
 4. 审查对象是**整份 `ai_working.csv`**，不要只看局部候选行或只看程序预标记区域
-5. 复制出 `edited.csv`，再按下面的编辑协议审查并修改允许编辑的列
+5. 在同一会话目录复制出 `edited.csv`，再按下面的编辑协议审查并修改允许编辑的列
 6. 如果是体量较大的 pending，先按交易日期切成 **三个月一批** 分别审查；每批只交给一个 subagent，再由主调用方合并所有批次结果生成最终 `edited.csv`
-7. 执行 `ft reconcile --continue-with-decisions edited.csv`
+7. 执行 `ft reconcile --continue-with-decisions`
 8. 若放弃本次会话，执行 `ft reconcile --abort`
 
 补充决策规则：
@@ -90,7 +90,7 @@ AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2数据脱敏 
 调用方 AI 必须遵守：
 
 - 保留所有行，不得新增/删除 `record_id`
-- 不修改只读字段：`record_id`、`source_record_id`、`session_id`、`date`、`amount`、`currency`、`bill_source`、`raw_*`、`rule_hint`、`suggested_action`、`processing_status`、`ai_group`
+- 不修改只读字段：`record_id`、`date`、`amount`、`currency`、`bill_source`、`raw_*`、`rule_hint`、`suggested_action`、`processing_status`、`ai_group`
 - 主要编辑列：`counterparty`、`description`、`category`、`account_name`、`source`、`transfer_account`、`locked`、`decision_action`、`decision_reason`
 - `drop` / `modify` / 引用型 `decision_action` 必须填写 `decision_reason`；活跃分组的 `keep` / `leave_as_is` 也必须填写
 
@@ -117,7 +117,7 @@ AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2数据脱敏 
 请按以下顺序处理：
 1. 先通读整份 ai_working.csv，审查所有 processing_status=active 行，不要只看局部候选或局部模式。
 2. 仅修改这些允许编辑的列：counterparty、description、category、account_name、source、transfer_account、locked、decision_action、decision_reason。
-3. 严禁修改只读列：record_id、source_record_id、session_id、date、amount、currency、bill_source、raw_counterparty、raw_description、raw_payment_method、rule_hint、suggested_action、processing_status、ai_group。
+3. 严禁修改只读列：record_id、date、amount、currency、bill_source、raw_counterparty、raw_description、raw_payment_method、rule_hint、suggested_action、processing_status、ai_group。
 4. 如果当前文件体量较大，按交易日期切成三个月一批；每批只交给一个 subagent 审查。
 5. subagent 禁止用脚本批量过滤、批量判定或自动打标；必须通过推理给出标记结果。脚本最多只能用于切批、复制文件或合并已得出的结果。
 6. 审查完成的标准不是“看过几条代表样本”，而是**本批次中每一行都已经有明确结论**。任何保留在 `edited.csv` 里的行，都必须对应一个逐行审查后的动作。
@@ -126,7 +126,7 @@ AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2数据脱敏 
 9. 如果判断应合并/配对，使用合法 decision_action（merge_refund_into:<record_id> / net_with:<record_id> / mark_transfer_out_to:<record_id> / mark_transfer_in_from:<record_id>），并填写 decision_reason。
 10. `suggested_action=drop|keep` 只能视为程序提示，不得直接批量照抄成最终结论；必须逐组确认该提示是否仍然成立，尤其要检查 refund、社交转账、二维码收款、date-only、multi-candidate 等边界。
 11. 如果存在证据不足、高风险或多候选、而你又无法明确做出 `drop/modify/配对/明确保留` 结论的组，不要默认写成 `leave_as_is` 并继续；先把这些组整理给调用方或用户选择。
-12. 修改完成后保存为 `edited.csv`，不要覆盖原始 `ai_working.csv`；只有当本轮需要拍板的组已经被明确处理，且本批次保留下来的每一行都已完成逐行审查后，才执行 continue 命令；如果无法完成本轮决策，则不要继续执行，由调用方选择继续补审、让用户拍板或 abort。
+12. 修改完成后保存为当前 pending 会话目录中的 `edited.csv`，不要覆盖原始 `ai_working.csv`；只有当本轮需要拍板的组已经被明确处理，且本批次保留下来的每一行都已完成逐行审查后，才执行 continue 命令；如果无法完成本轮决策，则不要继续执行，由调用方选择继续补审、让用户拍板或 abort。
 13. 严禁把未修改的 `ai_working.csv` 直接拿去 continue；这会绕过 AI 审查流程，结果不具备审查意义。
 ```
 

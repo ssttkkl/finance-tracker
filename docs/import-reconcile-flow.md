@@ -52,7 +52,7 @@ flowchart TD
 | `pending/` | 可暂停事务的隔离工作区，不是正式账本。 |
 | `audit/reconcile` | 去重、转账、人工删除等可追溯审计结果。 |
 
-正式 records 的 `record_id` 是事实主键。reconcile 的工作 CSV 另有会话展示用的 `record_id`（如 `r_000001`），并通过只读的 `source_record_id` 指回正式事实 ID；写回和删除均以 `source_record_id` 为准。
+正式 records 的 `record_id` 是事实主键。reconcile 的工作 CSV 直接使用该 ID；写回、删除和引用型 `decision_action` 都以它为准。会话 ID 只存在于 pending 目录及其 `manifest.json`、`status.json`，不重复写入 CSV。
 
 ### 产物字段总览
 
@@ -255,7 +255,7 @@ pending/reconcile/<session_id>/
 
 `ai_working.csv` 的字段如下：
 
-- 会话与事实标识：`record_id`、`source_record_id`、`session_id`
+- 事实标识：`record_id`
 - 事实内容：`date`、`amount`、`currency`、`counterparty`、`description`、`category`、`account_name`、`source`、`bill_source`、`transfer_account`、`locked`
 - 退款/冲抵关系：`offset_group`、`offset_role`、`offset_strength`、`offset_source`、`offset_rule_hint`、`offset_match_type`、`proposed_action`
 - 原始和定位上下文：`raw_counterparty`、`raw_description`、`raw_payment_method`、`record_file`、`record_type`
@@ -263,9 +263,7 @@ pending/reconcile/<session_id>/
 
 ```yaml
 # pending/reconcile/<session_id>/ai_working.csv 中的镜像候选
-record_id: r_000042                 # 会话内展示 ID
-source_record_id: icbc_debit_a91f   # 正式 records 的事实 ID，只读
-session_id: reconcile_2026-07-14_20-30-00
+record_id: icbc_debit_a91f           # 正式 records 的事实 ID，只读
 date: "2026-06-12 12:35:32"
 amount: "-55.20"
 currency: CNY
@@ -312,7 +310,7 @@ flowchart TD
 
 `leave_as_is` 的含义是“已明确确认它不是需要处理的同一笔订单”，不能用来表示“暂时不确定”。证据不足时必须保持 pending，而不是调用 continue。
 
-continue 时会校验行数、会话 ID、只读事实字段、双边转账关系和每个决策理由。它只替换 pending 涉及的真实 `source_record_id`，保留同一月文件中未触及的其他记录，随后重建 snapshot，并将自动审计与人工审计合并写入正式 audit。
+continue 固定读取当前 pending 会话目录中的 `edited.csv`，并校验行数、真实 `record_id` 集合、只读事实字段、双边转账关系和每个决策理由。它只替换 pending 涉及的真实 `record_id`，保留同一月文件中未触及的其他记录，随后重建 snapshot，并将自动审计与人工审计合并写入正式 audit。
 
 ### Reconcile 产物：正式 audit
 
@@ -394,8 +392,7 @@ FT_DIR=/path/to/.ft uv run ft append /tmp/wechat.csv /tmp/alipay.csv /tmp/bank.c
 
 # 3. 自动整理；若进入 pending，逐行明确填写 decision_reason
 FT_DIR=/path/to/.ft uv run ft reconcile
-FT_DIR=/path/to/.ft uv run ft reconcile --continue-with-decisions \
-  /path/to/.ft/pending/reconcile/<session_id>/edited.csv
+FT_DIR=/path/to/.ft uv run ft reconcile --continue-with-decisions
 
 # 4. 验证幂等性和一致性
 FT_DIR=/path/to/.ft uv run ft reconcile

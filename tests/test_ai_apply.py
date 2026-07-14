@@ -24,8 +24,7 @@ def test_apply_convert_working_rows_merges_refund_into_net_row():
                 "offset_match_type": "partial",
                 "proposed_action": "leave_as_is",
             },
-            record_id="c_000001",
-            session_id="s1",
+            record_id="c_000001"
         ),
         build_ai_working_row(
             {
@@ -47,7 +46,6 @@ def test_apply_convert_working_rows_merges_refund_into_net_row():
                 "proposed_action": "merge_refund_into:c_000001",
             },
             record_id="c_000002",
-            session_id="s1",
             defaults={"suggested_action": "merge_refund_into:c_000001"},
         ),
     ]
@@ -92,8 +90,7 @@ def test_apply_convert_working_rows_keeps_refund_fact_when_no_ai_merge():
                 "offset_match_type": "partial",
                 "proposed_action": "leave_as_is",
             },
-            record_id="c_000001",
-            session_id="s1",
+            record_id="c_000001"
         ),
         build_ai_working_row(
             {
@@ -115,8 +112,7 @@ def test_apply_convert_working_rows_keeps_refund_fact_when_no_ai_merge():
                 "offset_match_type": "partial",
                 "proposed_action": "merge_refund_into:c_000001",
             },
-            record_id="c_000002",
-            session_id="s1",
+            record_id="c_000002"
         ),
     ]
 
@@ -158,7 +154,6 @@ def test_apply_reconcile_working_rows_marks_transfer_and_collects_ai_drop_audit(
                 "record_file": "/tmp/cash.csv",
             },
             record_id="r_000001",
-            session_id="s2",
             defaults={"suggested_action": "mark_transfer_out_to:r_000002"},
         ),
         build_ai_working_row(
@@ -175,7 +170,6 @@ def test_apply_reconcile_working_rows_marks_transfer_and_collects_ai_drop_audit(
                 "record_file": "/tmp/cash.csv",
             },
             record_id="r_000002",
-            session_id="s2",
             defaults={"suggested_action": "mark_transfer_in_from:r_000001"},
         ),
         build_ai_working_row(
@@ -192,7 +186,6 @@ def test_apply_reconcile_working_rows_marks_transfer_and_collects_ai_drop_audit(
                 "record_file": "/tmp/loan.csv",
             },
             record_id="r_000003",
-            session_id="s2",
             defaults={"suggested_action": "drop"},
         ),
     ]

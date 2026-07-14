@@ -59,6 +59,7 @@ def test_create_reconcile_pending_session_rejects_second_session(tmp_pending_env
     message = str(exc.value)
     assert "已有未完成的 reconcile 会话" in message
     assert "ai_working.csv" in message
+    assert "edited.csv" in message
     assert "SKILL.md" in message
     assert "整份 ai_working.csv" in message
     assert "三个月一批" in message

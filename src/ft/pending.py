@@ -23,7 +23,8 @@ def find_reconcile_pending_sessions() -> list[Path]:
 
 def format_reconcile_pending_guidance(session_dir: Path, *, existing_session: bool = False) -> str:
     ai_working_csv = session_dir / "ai_working.csv"
-    continue_cmd = f"ft reconcile --continue-with-decisions {ai_working_csv}"
+    edited_csv = session_dir / "edited.csv"
+    continue_cmd = "ft reconcile --continue-with-decisions"
     abort_cmd = "ft reconcile --abort"
     if existing_session:
         header = f"❌ 当前已有未完成的 reconcile 会话: {session_dir}"
@@ -32,6 +33,7 @@ def format_reconcile_pending_guidance(session_dir: Path, *, existing_session: bo
     return "\n".join([
         header,
         f"请处理: {ai_working_csv}",
+        f"审查完成后保存为: {edited_csv}",
         "请按 SKILL.md 中的 pending / ai_working.csv 审查流程检查并编辑该文件。",
         "必须审查整份 ai_working.csv，不要只看局部候选行。",
         "如果数据量大，按交易日期切成三个月一批；每批只交给一个 subagent，并要求 subagent 通过推理输出标记结果，禁止用脚本批量过滤/批量判定。",

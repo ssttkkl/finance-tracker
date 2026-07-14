@@ -44,6 +44,10 @@ def tmp_env():
 
 def _write_rows(path, rows):
     path.parent.mkdir(parents=True, exist_ok=True)
+    rows = [
+        {"record_id": f"test_{idx:06d}", **row}
+        for idx, row in enumerate(rows, 1)
+    ]
     with open(path, "w", newline="", encoding="utf-8") as f:
         fieldnames = sorted({key for row in rows for key in row.keys()})
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -243,8 +247,11 @@ def test_reconcile_pending_includes_refund_linked_to_mirror_review_row(tmp_env):
 
     session_dir = next((models.PENDING_DIR / "reconcile").glob("*"))
     with open(session_dir / "ai_working.csv", encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
+        reader = csv.DictReader(f)
+        rows = list(reader)
     assert len(rows) == 3
+    assert {"source_record_id", "session_id"}.isdisjoint(reader.fieldnames or [])
+    assert all(row["record_id"] and not row["record_id"].startswith("r_") for row in rows)
     assert any(row["offset_role"] == "refund" for row in rows)
     assert {row["suggested_action"] for row in rows}.issubset({"", "keep", "drop"})
     assert {row["decision_action"] for row in rows} == {"leave_as_is"}
@@ -296,7 +303,7 @@ def test_continue_reconcile_keeps_auto_dropped_rows_removed_when_date_level_revi
         if row["processing_status"] == "active" and row["ai_group"]:
             row["decision_reason"] = "确认不是同一笔交易"
     write_ai_working_csv(session_dir / "edited.csv", original_rows)
-    continue_reconcile(str(session_dir / "edited.csv"))
+    continue_reconcile()
 
     with open(day_path, encoding="utf-8") as f:
         final_rows = list(csv.DictReader(f))
@@ -993,9 +1000,8 @@ def test_continue_reconcile_writes_records_and_clears_pending(tmp_env):
     day_path.write_text("", encoding="utf-8")
 
     session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
-    session_id = session_dir.name
     rows = [{
-        "record_id": "r_000001", "session_id": session_id,
+        "record_id": "r_000001",
         "date": "2026-06-12 10:00:03", "amount": "-30.00", "currency": "CNY",
         "counterparty": "麦当劳", "description": "", "category": "expense",
         "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
@@ -1011,13 +1017,23 @@ def test_continue_reconcile_writes_records_and_clears_pending(tmp_env):
         writer.writeheader()
         writer.writerow({"record_id": "auto_drop", "reconcile_status": "dedup", "dedup_status": "去除"})
 
-    continue_reconcile(str(session_dir / "edited.csv"))
+    continue_reconcile()
 
     assert day_path.exists()
     with open(day_path, encoding="utf-8") as f:
         final_rows = list(csv.DictReader(f))
     assert len(final_rows) == 1
     assert not session_dir.exists()
+
+
+def test_continue_reconcile_requires_edited_csv_in_active_session(tmp_env):
+    from ft.pending import create_reconcile_pending_session
+    from ft.reconcile import continue_reconcile
+
+    session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+
+    with pytest.raises(ValueError, match=f"缺少 edited.csv: {session_dir / 'edited.csv'}"):
+        continue_reconcile()
 
 
 def test_continue_reconcile_preserves_untouched_rows_in_pending_record_file(tmp_env):
@@ -1041,7 +1057,7 @@ def test_continue_reconcile_preserves_untouched_rows_in_pending_record_file(tmp_
 
     session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     row = {
-        "record_id": "r_selected", "session_id": session_dir.name,
+        "record_id": "r_selected",
         "date": "2026-06-12 10:00:03", "amount": "-30.00", "currency": "CNY",
         "counterparty": "麦当劳", "description": "", "category": "expense",
         "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
@@ -1053,13 +1069,13 @@ def test_continue_reconcile_preserves_untouched_rows_in_pending_record_file(tmp_
     write_ai_working_csv(session_dir / "ai_working.csv", [row])
     write_ai_working_csv(session_dir / "edited.csv", [row])
 
-    continue_reconcile(str(session_dir / "edited.csv"))
+    continue_reconcile()
 
     with open(day_path, encoding="utf-8") as f:
         assert {row["record_id"] for row in csv.DictReader(f)} == {"r_selected", "r_untouched"}
 
 
-def test_continue_reconcile_uses_source_record_id_when_dropping_pending_row(tmp_env):
+def test_continue_reconcile_uses_record_id_when_dropping_pending_row(tmp_env):
     from ft.ai_working_csv import write_ai_working_csv
     from ft.pending import create_reconcile_pending_session
     from ft.reconcile import continue_reconcile
@@ -1081,7 +1097,7 @@ def test_continue_reconcile_uses_source_record_id_when_dropping_pending_row(tmp_
     session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     original = [
         {
-            "record_id": "r_000001", "source_record_id": "icbc_real_001", "session_id": session_dir.name,
+            "record_id": "icbc_real_001",
             "date": "2026-06-12 10:00:04", "amount": "-30.00", "currency": "CNY",
             "counterparty": "财付通", "description": "消费", "category": "expense",
             "account_name": "工行借记卡", "source": "银行卡", "bill_source": "icbc_debit",
@@ -1096,7 +1112,7 @@ def test_continue_reconcile_uses_source_record_id_when_dropping_pending_row(tmp_
         dict(original[0], decision_action="drop", decision_reason="与微信支付镜像重复"),
     ])
 
-    continue_reconcile(str(session_dir / "edited.csv"))
+    continue_reconcile()
 
     with open(day_path, encoding="utf-8") as f:
         assert {row["record_id"] for row in csv.DictReader(f)} == {"wechat_real_001"}
@@ -1119,9 +1135,8 @@ def test_continue_reconcile_rejects_read_only_changes(tmp_env, field, value):
     day_path.write_text("", encoding="utf-8")
 
     session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
-    session_id = session_dir.name
     original = [{
-        "record_id": "r_000001", "session_id": session_id,
+        "record_id": "r_000001",
         "date": "2026-06-12 10:00:03", "amount": "-30.00", "currency": "CNY",
         "counterparty": "麦当劳", "description": "", "category": "expense",
         "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
@@ -1135,7 +1150,7 @@ def test_continue_reconcile_rejects_read_only_changes(tmp_env, field, value):
     write_ai_working_csv(session_dir / "edited.csv", edited)
 
     with pytest.raises(ValueError, match=f"field={field}"):
-        continue_reconcile(str(session_dir / "edited.csv"))
+        continue_reconcile()
 
 
 def test_continue_reconcile_rejects_drop_without_reason(tmp_env):
@@ -1148,9 +1163,8 @@ def test_continue_reconcile_rejects_drop_without_reason(tmp_env):
     day_path.write_text("", encoding="utf-8")
 
     session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
-    session_id = session_dir.name
     original = [{
-        "record_id": "r_000001", "session_id": session_id,
+        "record_id": "r_000001",
         "date": "2026-06-12 10:00:03", "amount": "-30.00", "currency": "CNY",
         "counterparty": "麦当劳", "description": "", "category": "expense",
         "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
@@ -1164,7 +1178,7 @@ def test_continue_reconcile_rejects_drop_without_reason(tmp_env):
     write_ai_working_csv(session_dir / "edited.csv", edited)
 
     with pytest.raises(ValueError, match="drop 动作必须填写 decision_reason"):
-        continue_reconcile(str(session_dir / "edited.csv"))
+        continue_reconcile()
 
 
 def test_continue_reconcile_rejects_grouped_leave_as_is_without_decision_reason(tmp_env):
@@ -1178,7 +1192,7 @@ def test_continue_reconcile_rejects_grouped_leave_as_is_without_decision_reason(
 
     session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     row = {
-        "record_id": "r_000001", "session_id": session_dir.name,
+        "record_id": "r_000001",
         "date": "2026-06-12 10:00:03", "amount": "-30.00", "currency": "CNY",
         "counterparty": "麦当劳", "description": "消费", "category": "expense",
         "account_name": "工行借记卡", "source": "银行卡", "bill_source": "icbc_debit",
@@ -1192,7 +1206,7 @@ def test_continue_reconcile_rejects_grouped_leave_as_is_without_decision_reason(
     write_ai_working_csv(session_dir / "edited.csv", [row])
 
     with pytest.raises(ValueError, match="leave_as_is.*填写 decision_reason"):
-        continue_reconcile(str(session_dir / "edited.csv"))
+        continue_reconcile()
 
 
 def test_continue_reconcile_rejects_modify_without_actual_change(tmp_env):
@@ -1205,9 +1219,8 @@ def test_continue_reconcile_rejects_modify_without_actual_change(tmp_env):
     day_path.write_text("", encoding="utf-8")
 
     session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
-    session_id = session_dir.name
     original = [{
-        "record_id": "r_000001", "session_id": session_id,
+        "record_id": "r_000001",
         "date": "2026-06-12 10:00:03", "amount": "-30.00", "currency": "CNY",
         "counterparty": "麦当劳", "description": "", "category": "expense",
         "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
@@ -1221,7 +1234,7 @@ def test_continue_reconcile_rejects_modify_without_actual_change(tmp_env):
     write_ai_working_csv(session_dir / "edited.csv", edited)
 
     with pytest.raises(ValueError, match="decision_action=modify 但没有实际修改字段"):
-        continue_reconcile(str(session_dir / "edited.csv"))
+        continue_reconcile()
 
 
 def test_continue_reconcile_rejects_transfer_target_missing(tmp_env):
@@ -1234,9 +1247,8 @@ def test_continue_reconcile_rejects_transfer_target_missing(tmp_env):
     day_path.write_text("", encoding="utf-8")
 
     session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
-    session_id = session_dir.name
     original = [{
-        "record_id": "r_000001", "session_id": session_id,
+        "record_id": "r_000001",
         "date": "2026-06-12 10:00:00", "amount": "-100.00", "currency": "CNY",
         "counterparty": "微信", "description": "转账支取", "category": "expense",
         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
@@ -1250,7 +1262,7 @@ def test_continue_reconcile_rejects_transfer_target_missing(tmp_env):
     write_ai_working_csv(session_dir / "edited.csv", edited)
 
     with pytest.raises(ValueError, match="引用的 record_id 不存在"):
-        continue_reconcile(str(session_dir / "edited.csv"))
+        continue_reconcile()
 
 
 def test_continue_reconcile_rejects_transfer_pair_direction_mismatch(tmp_env):
@@ -1263,10 +1275,9 @@ def test_continue_reconcile_rejects_transfer_pair_direction_mismatch(tmp_env):
     day_path.write_text("", encoding="utf-8")
 
     session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
-    session_id = session_dir.name
     original = [
         {
-            "record_id": "r_000001", "session_id": session_id,
+            "record_id": "r_000001",
             "date": "2026-06-12 10:00:00", "amount": "-100.00", "currency": "CNY",
             "counterparty": "微信", "description": "转账支取", "category": "expense",
             "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
@@ -1276,7 +1287,7 @@ def test_continue_reconcile_rejects_transfer_pair_direction_mismatch(tmp_env):
             "ai_group": "transfer_001", "suggested_action": "", "rule_hint": "possible_transfer_multi_candidate",
         },
         {
-            "record_id": "r_000002", "session_id": session_id,
+            "record_id": "r_000002",
             "date": "2026-06-12 10:00:02", "amount": "100.00", "currency": "CNY",
             "counterparty": "微信", "description": "银联入账", "category": "income",
             "account_name": "微信零钱", "source": "微信", "bill_source": "wechat",
@@ -1294,7 +1305,7 @@ def test_continue_reconcile_rejects_transfer_pair_direction_mismatch(tmp_env):
     write_ai_working_csv(session_dir / "edited.csv", edited)
 
     with pytest.raises(ValueError, match="双边动作应成对出现"):
-        continue_reconcile(str(session_dir / "edited.csv"))
+        continue_reconcile()
 
 
 def test_continue_reconcile_rejects_transfer_out_on_income_row(tmp_env):
@@ -1307,10 +1318,9 @@ def test_continue_reconcile_rejects_transfer_out_on_income_row(tmp_env):
     day_path.write_text("", encoding="utf-8")
 
     session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
-    session_id = session_dir.name
     original = [
         {
-            "record_id": "r_000001", "session_id": session_id,
+            "record_id": "r_000001",
             "date": "2026-06-12 10:00:00", "amount": "100.00", "currency": "CNY",
             "counterparty": "微信", "description": "银联入账", "category": "income",
             "account_name": "微信零钱", "source": "微信", "bill_source": "wechat",
@@ -1320,7 +1330,7 @@ def test_continue_reconcile_rejects_transfer_out_on_income_row(tmp_env):
             "ai_group": "transfer_001", "suggested_action": "", "rule_hint": "possible_transfer_multi_candidate",
         },
         {
-            "record_id": "r_000002", "session_id": session_id,
+            "record_id": "r_000002",
             "date": "2026-06-12 10:00:02", "amount": "-100.00", "currency": "CNY",
             "counterparty": "微信", "description": "转账支取", "category": "expense",
             "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
@@ -1338,7 +1348,7 @@ def test_continue_reconcile_rejects_transfer_out_on_income_row(tmp_env):
     write_ai_working_csv(session_dir / "edited.csv", edited)
 
     with pytest.raises(ValueError, match="只能用于支出行"):
-        continue_reconcile(str(session_dir / "edited.csv"))
+        continue_reconcile()
 
 
 def test_continue_reconcile_applies_transfer_pair(tmp_env):
@@ -1351,10 +1361,9 @@ def test_continue_reconcile_applies_transfer_pair(tmp_env):
     day_path.write_text("", encoding="utf-8")
 
     session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
-    session_id = session_dir.name
     original = [
         {
-            "record_id": "r_000001", "session_id": session_id,
+            "record_id": "r_000001",
             "date": "2026-06-12 10:00:00", "amount": "-100.00", "currency": "CNY",
             "counterparty": "微信", "description": "转账支取", "category": "expense",
             "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
@@ -1364,7 +1373,7 @@ def test_continue_reconcile_applies_transfer_pair(tmp_env):
             "ai_group": "transfer_002", "suggested_action": "", "rule_hint": "possible_transfer_multi_candidate",
         },
         {
-            "record_id": "r_000002", "session_id": session_id,
+            "record_id": "r_000002",
             "date": "2026-06-12 10:00:02", "amount": "100.00", "currency": "CNY",
             "counterparty": "微信", "description": "银联入账", "category": "income",
             "account_name": "微信零钱", "source": "微信", "bill_source": "wechat",
@@ -1382,7 +1391,7 @@ def test_continue_reconcile_applies_transfer_pair(tmp_env):
     write_ai_working_csv(session_dir / "edited.csv", edited)
     (session_dir / "proposed_audit.csv").write_text("run_at\n", encoding="utf-8")
 
-    continue_reconcile(str(session_dir / "edited.csv"))
+    continue_reconcile()
 
     with open(day_path, encoding="utf-8") as f:
         rows = {row["amount"]: row for row in csv.DictReader(f)}
@@ -1403,10 +1412,9 @@ def test_continue_reconcile_records_ai_transfer_in_audit(tmp_env):
     day_path.write_text("", encoding="utf-8")
 
     session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
-    session_id = session_dir.name
     original = [
         {
-            "record_id": "r_000001", "session_id": session_id,
+            "record_id": "r_000001",
             "date": "2026-06-12 10:00:00", "amount": "-100.00", "currency": "CNY",
             "counterparty": "微信", "description": "转账支取", "category": "expense",
             "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
@@ -1416,7 +1424,7 @@ def test_continue_reconcile_records_ai_transfer_in_audit(tmp_env):
             "ai_group": "transfer_003", "suggested_action": "", "rule_hint": "possible_transfer_multi_candidate",
         },
         {
-            "record_id": "r_000002", "session_id": session_id,
+            "record_id": "r_000002",
             "date": "2026-06-12 10:00:02", "amount": "100.00", "currency": "CNY",
             "counterparty": "微信", "description": "银联入账", "category": "income",
             "account_name": "微信零钱", "source": "微信", "bill_source": "wechat",
@@ -1434,7 +1442,7 @@ def test_continue_reconcile_records_ai_transfer_in_audit(tmp_env):
     write_ai_working_csv(session_dir / "edited.csv", edited)
     (session_dir / "proposed_audit.csv").write_text("run_at\n", encoding="utf-8")
 
-    continue_reconcile(str(session_dir / "edited.csv"))
+    continue_reconcile()
 
     audit_files = list((models.FT_DIR / "audit" / "reconcile").glob("*.csv"))
     assert len(audit_files) == 1
@@ -1456,10 +1464,9 @@ def test_continue_reconcile_drops_ai_duplicate_row(tmp_env):
     day_path.write_text("", encoding="utf-8")
 
     session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
-    session_id = session_dir.name
     original = [
         {
-            "record_id": "r_000001", "session_id": session_id,
+            "record_id": "r_000001",
             "date": "2026-06-12 10:00:01", "amount": "-30.00", "currency": "CNY",
             "counterparty": "麦当劳", "description": "麦当劳", "category": "expense",
             "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
@@ -1469,7 +1476,7 @@ def test_continue_reconcile_drops_ai_duplicate_row(tmp_env):
             "ai_group": "dedup_001", "suggested_action": "", "rule_hint": "possible_bank_mirror_multi_candidate",
         },
         {
-            "record_id": "r_000002", "session_id": session_id,
+            "record_id": "r_000002",
             "date": "2026-06-12 10:00:03", "amount": "-30.00", "currency": "CNY",
             "counterparty": "麦当劳", "description": "麦当劳", "category": "expense",
             "account_name": "工行信用卡(1200)", "source": "银行卡", "bill_source": "icbc_credit",
@@ -1487,7 +1494,7 @@ def test_continue_reconcile_drops_ai_duplicate_row(tmp_env):
     write_ai_working_csv(session_dir / "edited.csv", edited)
     (session_dir / "proposed_audit.csv").write_text("run_at\n", encoding="utf-8")
 
-    continue_reconcile(str(session_dir / "edited.csv"))
+    continue_reconcile()
 
     with open(day_path, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
@@ -1506,10 +1513,9 @@ def test_continue_reconcile_records_ai_drop_in_audit(tmp_env):
     day_path.write_text("", encoding="utf-8")
 
     session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
-    session_id = session_dir.name
     original = [
         {
-            "record_id": "r_000001", "session_id": session_id,
+            "record_id": "r_000001",
             "date": "2026-06-12 10:00:01", "amount": "-30.00", "currency": "CNY",
             "counterparty": "麦当劳", "description": "麦当劳", "category": "expense",
             "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
@@ -1519,7 +1525,7 @@ def test_continue_reconcile_records_ai_drop_in_audit(tmp_env):
             "ai_group": "dedup_002", "suggested_action": "", "rule_hint": "possible_bank_mirror_multi_candidate",
         },
         {
-            "record_id": "r_000002", "session_id": session_id,
+            "record_id": "r_000002",
             "date": "2026-06-12 10:00:03", "amount": "-30.00", "currency": "CNY",
             "counterparty": "麦当劳", "description": "麦当劳", "category": "expense",
             "account_name": "工行信用卡(1200)", "source": "银行卡", "bill_source": "icbc_credit",
@@ -1540,7 +1546,7 @@ def test_continue_reconcile_records_ai_drop_in_audit(tmp_env):
         writer.writeheader()
         writer.writerow({"record_id": "auto_drop", "reconcile_status": "dedup", "dedup_status": "去除"})
 
-    continue_reconcile(str(session_dir / "edited.csv"))
+    continue_reconcile()
 
     audit_files = list((models.FT_DIR / "audit" / "reconcile").glob("*.csv"))
     assert len(audit_files) == 1

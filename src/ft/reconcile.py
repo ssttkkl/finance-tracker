@@ -602,9 +602,6 @@ def _create_reconcile_pending_session(state: dict):
         "scope_from": state["scope_from"],
         "scope_to": state["scope_to"],
     }
-    session_dir = create_reconcile_pending_session(manifest)
-    session_id = session_dir.name
-
     pending_rows = state["scoped"] if state.get("has_only_review") else state.get("pending_rows", state["scoped"])
     linked_refund_ids = _linked_refund_record_ids(state["scoped"], pending_rows)
     if linked_refund_ids:
@@ -612,6 +609,11 @@ def _create_reconcile_pending_session(state: dict):
             row for row in state["scoped"]
             if row.get("record_id", "") in linked_refund_ids
         ]
+    missing_record_ids = [row.get("date", "") for row in pending_rows if not row.get("record_id", "")]
+    if missing_record_ids:
+        raise ValueError(f"❌ pending records 缺少 record_id: {missing_record_ids}")
+
+    session_dir = create_reconcile_pending_session(manifest)
     mirror_review_annotations = state.get("mirror_review_annotations", {})
     auto_removed_ids = {id(remove_row) for _keep_row, remove_row in state.get("pairs", [])}
 
@@ -628,11 +630,10 @@ def _create_reconcile_pending_session(state: dict):
                 "record_file": row.get("_record_file", ""),
                 "record_type": row.get("_record_type", ""),
             },
-            record_id=f"r_{idx:06d}",
-            session_id=session_id,
+            record_id=row.get("record_id", ""),
             defaults=_pending_defaults(row),
         )
-        for idx, row in enumerate(pending_rows, 1)
+        for row in pending_rows
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", ai_rows)
     _copy_scoped_records(session_dir, pending_rows)
@@ -689,7 +690,7 @@ def _create_reconcile_pending_session(state: dict):
     print(format_reconcile_pending_guidance(session_dir))
 
 
-def _validate_reconcile_working_rows(original_rows: list[dict], edited_rows: list[dict], session_id: str):
+def _validate_reconcile_working_rows(original_rows: list[dict], edited_rows: list[dict]):
     if len(original_rows) != len(edited_rows):
         raise ValueError(f"❌ edited CSV 行数不匹配: 期望 {len(original_rows)} 行，实际 {len(edited_rows)} 行")
 
@@ -704,8 +705,6 @@ def _validate_reconcile_working_rows(original_rows: list[dict], edited_rows: lis
         raise ValueError(f"❌ edited CSV 的 record_id 集合不一致: missing={missing} extra={extra}")
 
     for row in edited_rows:
-        if row.get("session_id") != session_id:
-            raise ValueError(f"❌ session_id 不匹配: record_id={row.get('record_id', '')} session_id={row.get('session_id', '')}")
         original = original_by_id[row["record_id"]]
         for field in READ_ONLY_FIELDS:
             if row.get(field, "") != original.get(field, ""):
@@ -763,20 +762,21 @@ def _validate_reconcile_working_rows(original_rows: list[dict], edited_rows: lis
                 raise ValueError(f"❌ 转账双边动作应成对出现: record_id={row['record_id']} target={target_id}")
 
 
-def continue_reconcile(edited_csv: str):
+def continue_reconcile():
     session_dir = require_single_reconcile_pending_session()
     manifest = load_manifest(session_dir)
+    edited_csv = session_dir / "edited.csv"
+    if not edited_csv.exists():
+        raise ValueError(f"❌ 当前 pending 会话缺少 edited.csv: {edited_csv}")
     original_rows = read_ai_working_csv(session_dir / "ai_working.csv")
-    edited_rows = read_ai_working_csv(Path(edited_csv))
-    _validate_reconcile_working_rows(original_rows, edited_rows, manifest["session_id"])
+    edited_rows = read_ai_working_csv(edited_csv)
+    _validate_reconcile_working_rows(original_rows, edited_rows)
 
     by_file, extra_audit_rows = apply_reconcile_working_rows(edited_rows)
 
     edited_ids_by_file: dict[str, set[str]] = defaultdict(set)
     for row in edited_rows:
-        edited_ids_by_file[row.get("record_file", "")].add(
-            row.get("source_record_id") or row["record_id"]
-        )
+        edited_ids_by_file[row.get("record_file", "")].add(row["record_id"])
 
     touched_files = sorted(edited_ids_by_file)
     for file_path_str in touched_files:

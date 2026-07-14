@@ -217,8 +217,8 @@ def main(argv=None):
     scope.add_argument("--month", help="月份 (YYYY-MM)")
     rc.add_argument("--from", dest="date_from", help="起始日期 (YYYY-MM-DD)")
     rc.add_argument("--to", dest="date_to", help="结束日期 (YYYY-MM-DD)")
-    rc.add_argument("--continue-with-decisions", dest="continue_with_decisions",
-                    help="继续执行 pending reconcile；应先按 SKILL.md 审查整份 ai_working.csv，大体量按三个月一批处理")
+    rc.add_argument("--continue-with-decisions", action="store_true",
+                    help="继续执行当前 pending reconcile 目录中的 edited.csv；应先按 SKILL.md 审查整份 ai_working.csv，大体量按三个月一批处理")
     rc.add_argument("--abort", action="store_true", help="放弃当前 pending reconcile 会话")
 
     args = parser.parse_args(argv)
@@ -442,7 +442,7 @@ def main(argv=None):
         if args.continue_with_decisions:
             if args.month or args.date_from or args.date_to:
                 parser.error("reconcile --continue-with-decisions 不能和范围参数同时使用")
-            continue_reconcile(args.continue_with_decisions)
+            continue_reconcile()
             return
         do_reconcile(month=args.month, date_from=args.date_from, date_to=args.date_to)
         return

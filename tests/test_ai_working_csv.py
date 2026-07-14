@@ -22,8 +22,7 @@ def test_build_ai_working_row_separates_system_hints_from_decisions(tmp_path):
             "source": "支付宝",
             "bill_source": "alipay",
         },
-        record_id="r_000001",
-        session_id="reconcile_2026-07-07_10-00-00",
+        record_id="icbc_debit_a91f",
         defaults={
             "rule_hint": "possible_mirror_weak_30s_cross_source",
             "suggested_action": "drop",
@@ -31,14 +30,13 @@ def test_build_ai_working_row_separates_system_hints_from_decisions(tmp_path):
     )
 
     assert list(row.keys()) == AI_WORKING_FIELDS
-    assert row["record_id"] == "r_000001"
-    assert row["session_id"] == "reconcile_2026-07-07_10-00-00"
+    assert row["record_id"] == "icbc_debit_a91f"
     assert row["rule_hint"] == "possible_mirror_weak_30s_cross_source"
     assert row["suggested_action"] == "drop"
     assert row["decision_action"] == "leave_as_is"
     assert row["decision_reason"] == ""
     assert row["processing_status"] == "active"
-    assert {"ai_reason", "ai_action", "row_status"}.isdisjoint(row)
+    assert {"ai_reason", "ai_action", "row_status", "source_record_id", "session_id"}.isdisjoint(row)
     assert "needs_ai" not in row
     assert row["raw_counterparty"] == "麦当劳"
     assert row["raw_description"] == "麦当劳"
@@ -59,8 +57,7 @@ def test_write_and_read_ai_working_csv_preserves_field_order_and_values(tmp_path
                 "source": "支付宝",
                 "bill_source": "alipay",
             },
-            record_id="r_000001",
-            session_id="s1",
+            record_id="r_000001"
         )
     ]
 
@@ -72,7 +69,10 @@ def test_write_and_read_ai_working_csv_preserves_field_order_and_values(tmp_path
 
 def test_read_ai_working_csv_rejects_legacy_decision_fields(tmp_path):
     path = tmp_path / "legacy.csv"
-    path.write_text("record_id,ai_action,row_status,ai_reason\nr_000001,drop,active,hint\n", encoding="utf-8")
+    path.write_text(
+        "record_id,source_record_id,session_id,ai_action,row_status,ai_reason\nr_000001,real_001,s1,drop,active,hint\n",
+        encoding="utf-8",
+    )
 
     with pytest.raises(ValueError, match="已废弃字段"):
         read_ai_working_csv(path)
