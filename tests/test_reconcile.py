@@ -1054,6 +1054,49 @@ def test_continue_reconcile_preserves_untouched_rows_in_pending_record_file(tmp_
         assert {row["record_id"] for row in csv.DictReader(f)} == {"r_selected", "r_untouched"}
 
 
+def test_continue_reconcile_uses_source_record_id_when_dropping_pending_row(tmp_env):
+    from ft.ai_working_csv import write_ai_working_csv
+    from ft.pending import create_pending_session
+    from ft.reconcile import continue_reconcile
+
+    day_path = tmp_env / "records" / "cash" / "2026-06.csv"
+    _write_rows(day_path, [
+        {
+            "record_id": "wechat_real_001", "date": "2026-06-12 10:00:03", "amount": "-30.00", "currency": "CNY",
+            "counterparty": "麦当劳", "description": "麦当劳", "category": "expense",
+            "account_name": "工行借记卡", "source": "微信", "bill_source": "wechat",
+        },
+        {
+            "record_id": "icbc_real_001", "date": "2026-06-12 10:00:04", "amount": "-30.00", "currency": "CNY",
+            "counterparty": "财付通", "description": "消费", "category": "expense",
+            "account_name": "工行借记卡", "source": "银行卡", "bill_source": "icbc_debit",
+        },
+    ])
+
+    session_dir = create_pending_session("reconcile", {"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+    original = [
+        {
+            "record_id": "r_000001", "source_record_id": "icbc_real_001", "session_id": session_dir.name,
+            "date": "2026-06-12 10:00:04", "amount": "-30.00", "currency": "CNY",
+            "counterparty": "财付通", "description": "消费", "category": "expense",
+            "account_name": "工行借记卡", "source": "银行卡", "bill_source": "icbc_debit",
+            "transfer_account": "", "locked": "", "raw_counterparty": "财付通",
+            "raw_description": "消费", "raw_payment_method": "", "record_file": str(day_path),
+            "record_type": "cash", "row_status": "active", "ai_action": "leave_as_is",
+            "ai_group": "mirror_001", "ai_reason": "", "rule_hint": "possible_mirror_weak_30s_cross_source",
+        },
+    ]
+    write_ai_working_csv(session_dir / "ai_working.csv", original)
+    write_ai_working_csv(session_dir / "edited.csv", [
+        dict(original[0], ai_action="drop", ai_reason="与微信支付镜像重复"),
+    ])
+
+    continue_reconcile(str(session_dir / "edited.csv"))
+
+    with open(day_path, encoding="utf-8") as f:
+        assert {row["record_id"] for row in csv.DictReader(f)} == {"wechat_real_001"}
+
+
 def test_continue_reconcile_rejects_read_only_changes(tmp_env):
     from ft.ai_working_csv import write_ai_working_csv
     from ft.pending import create_pending_session

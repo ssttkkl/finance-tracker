@@ -763,7 +763,9 @@ def continue_reconcile(edited_csv: str):
 
     edited_ids_by_file: dict[str, set[str]] = defaultdict(set)
     for row in edited_rows:
-        edited_ids_by_file[row.get("record_file", "")].add(row["record_id"])
+        edited_ids_by_file[row.get("record_file", "")].add(
+            row.get("source_record_id") or row["record_id"]
+        )
 
     touched_files = sorted(edited_ids_by_file)
     for file_path_str in touched_files:
@@ -787,20 +789,20 @@ def continue_reconcile(edited_csv: str):
 
     rebuild_snapshot_from_records(models.RECORDS_DIR)
     proposed_audit = session_dir / "proposed_audit.csv"
+    proposed_audit_rows = []
     if proposed_audit.exists():
+        with open(proposed_audit, encoding="utf-8") as f:
+            proposed_audit_rows = list(csv.DictReader(f))
+    if proposed_audit_rows or extra_audit_rows:
         run_at = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        audit_path = _audit_path(run_at)
-        shutil.copy2(proposed_audit, audit_path)
-        if extra_audit_rows:
-            with open(audit_path, "a", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=_audit_fields())
-                for row in extra_audit_rows:
-                    writer.writerow({
-                        "run_at": run_at,
-                        "scope_from": manifest.get("scope_from", ""),
-                        "scope_to": manifest.get("scope_to", ""),
-                        **{field: row.get(field, "") for field in _audit_fields() if field not in ("run_at", "scope_from", "scope_to")},
-                    })
+        audit_path = _write_audit_rows(
+            _audit_path(run_at),
+            run_at,
+            manifest.get("scope_from", ""),
+            manifest.get("scope_to", ""),
+            [],
+            proposed_audit_rows + extra_audit_rows,
+        )
         print(f"✅ 去重完成，审计文件: {audit_path}")
     clear_pending_session("reconcile")
     git_stage(models.FT_DIR)

@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 AI_WORKING_FIELDS = [
-    "record_id", "session_id", "date", "amount", "currency",
+    "record_id", "source_record_id", "session_id", "date", "amount", "currency",
     "counterparty", "description", "category", "account_name",
     "source", "bill_source", "transfer_account", "locked",
     "offset_group", "offset_role", "offset_strength", "offset_source",
@@ -15,7 +15,7 @@ AI_WORKING_FIELDS = [
 ]
 
 READ_ONLY_FIELDS = {
-    "record_id", "session_id", "date", "amount", "currency", "bill_source",
+    "record_id", "source_record_id", "session_id", "date", "amount", "currency", "bill_source",
     "raw_counterparty", "raw_description", "raw_payment_method",
 }
 
@@ -54,6 +54,7 @@ def build_ai_working_row(row: dict, *, record_id: str, session_id: str, defaults
     defaults = defaults or {}
     result = {
         "record_id": record_id,
+        "source_record_id": row.get("record_id", ""),
         "session_id": session_id,
         "date": row.get("date", ""),
         "amount": str(row.get("amount", "")),

@@ -5,7 +5,7 @@ from .ai_working_csv import parse_ai_action_target
 
 def _materialize_row(row: dict) -> dict:
     return {
-        "record_id": row.get("record_id", ""),
+        "record_id": row.get("source_record_id") or row.get("record_id", ""),
         "date": row.get("date", ""),
         "amount": row.get("amount", ""),
         "currency": row.get("currency", ""),
