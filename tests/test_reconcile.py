@@ -160,7 +160,7 @@ def test_reconcile_same_day_date_only_ccb_wechat_case_enters_full_table_pending(
     with open(sessions[0] / "ai_working.csv", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert len(rows) == 3
-    assert {r["row_status"] for r in rows} == {"active"}
+    assert {r["processing_status"] for r in rows} == {"active"}
 
 
 def test_reconcile_same_day_date_only_ccb_alipay_case_enters_full_table_pending(tmp_env):
@@ -193,7 +193,7 @@ def test_reconcile_same_day_date_only_ccb_alipay_case_enters_full_table_pending(
     with open(sessions[0] / "ai_working.csv", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert len(rows) == 3
-    assert {r["row_status"] for r in rows} == {"active"}
+    assert {r["processing_status"] for r in rows} == {"active"}
 
 
 def test_reconcile_pending_includes_refund_linked_to_mirror_review_row(tmp_env):
@@ -246,6 +246,8 @@ def test_reconcile_pending_includes_refund_linked_to_mirror_review_row(tmp_env):
         rows = list(csv.DictReader(f))
     assert len(rows) == 3
     assert any(row["offset_role"] == "refund" for row in rows)
+    assert {row["suggested_action"] for row in rows}.issubset({"", "keep", "drop"})
+    assert {row["decision_action"] for row in rows} == {"leave_as_is"}
 
 
 def test_continue_reconcile_keeps_auto_dropped_rows_removed_when_date_level_review_is_pending(tmp_env):
@@ -291,7 +293,7 @@ def test_continue_reconcile_keeps_auto_dropped_rows_removed_when_date_level_revi
         assert "ccb_debit" not in {row["bill_source"] for row in csv.DictReader(f)}
 
     for row in original_rows:
-        if row["row_status"] == "active" and row["ai_group"]:
+        if row["processing_status"] == "active" and row["ai_group"]:
             row["decision_reason"] = "确认不是同一笔交易"
     write_ai_working_csv(session_dir / "edited.csv", original_rows)
     continue_reconcile(str(session_dir / "edited.csv"))
@@ -785,7 +787,7 @@ def test_reconcile_enters_pending_with_full_working_csv_for_multi_candidate_tran
     with open(session_dir / "ai_working.csv", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert len(rows) == 3
-    assert {r["row_status"] for r in rows} == {"active"}
+    assert {r["processing_status"] for r in rows} == {"active"}
     assert {r["ai_group"] for r in rows} == {""}
 
 
@@ -999,8 +1001,8 @@ def test_continue_reconcile_writes_records_and_clears_pending(tmp_env):
         "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
         "transfer_account": "", "locked": "", "raw_counterparty": "麦当劳",
         "raw_description": "", "raw_payment_method": "", "record_file": str(day_path),
-        "record_type": "loan", "row_status": "active", "ai_action": "leave_as_is",
-        "ai_group": "", "ai_reason": "", "rule_hint": "",
+        "record_type": "loan", "processing_status": "active", "decision_action": "leave_as_is",
+        "ai_group": "", "suggested_action": "", "rule_hint": "",
     }]
     write_ai_working_csv(session_dir / "ai_working.csv", rows)
     write_ai_working_csv(session_dir / "edited.csv", rows)
@@ -1045,8 +1047,8 @@ def test_continue_reconcile_preserves_untouched_rows_in_pending_record_file(tmp_
         "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
         "transfer_account": "", "locked": "", "raw_counterparty": "麦当劳",
         "raw_description": "", "raw_payment_method": "", "record_file": str(day_path),
-        "record_type": "loan", "row_status": "active", "ai_action": "leave_as_is",
-        "ai_group": "", "ai_reason": "", "rule_hint": "",
+        "record_type": "loan", "processing_status": "active", "decision_action": "leave_as_is",
+        "ai_group": "", "suggested_action": "", "rule_hint": "",
     }
     write_ai_working_csv(session_dir / "ai_working.csv", [row])
     write_ai_working_csv(session_dir / "edited.csv", [row])
@@ -1085,13 +1087,13 @@ def test_continue_reconcile_uses_source_record_id_when_dropping_pending_row(tmp_
             "account_name": "工行借记卡", "source": "银行卡", "bill_source": "icbc_debit",
             "transfer_account": "", "locked": "", "raw_counterparty": "财付通",
             "raw_description": "消费", "raw_payment_method": "", "record_file": str(day_path),
-            "record_type": "cash", "row_status": "active", "ai_action": "leave_as_is",
-            "ai_group": "mirror_001", "ai_reason": "", "rule_hint": "possible_mirror_weak_30s_cross_source",
+            "record_type": "cash", "processing_status": "active", "decision_action": "leave_as_is",
+            "ai_group": "mirror_001", "suggested_action": "", "rule_hint": "possible_mirror_weak_30s_cross_source",
         },
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", [
-        dict(original[0], ai_action="drop", decision_reason="与微信支付镜像重复"),
+        dict(original[0], decision_action="drop", decision_reason="与微信支付镜像重复"),
     ])
 
     continue_reconcile(str(session_dir / "edited.csv"))
@@ -1100,7 +1102,14 @@ def test_continue_reconcile_uses_source_record_id_when_dropping_pending_row(tmp_
         assert {row["record_id"] for row in csv.DictReader(f)} == {"wechat_real_001"}
 
 
-def test_continue_reconcile_rejects_read_only_changes(tmp_env):
+@pytest.mark.parametrize(("field", "value"), [
+    ("currency", "USD"),
+    ("rule_hint", "possible_mirror_weak_30s_cross_source"),
+    ("suggested_action", "drop"),
+    ("processing_status", "dropped"),
+    ("ai_group", "mirror_9999"),
+])
+def test_continue_reconcile_rejects_read_only_changes(tmp_env, field, value):
     from ft.ai_working_csv import write_ai_working_csv
     from ft.pending import create_reconcile_pending_session
     from ft.reconcile import continue_reconcile
@@ -1118,14 +1127,14 @@ def test_continue_reconcile_rejects_read_only_changes(tmp_env):
         "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
         "transfer_account": "", "locked": "", "raw_counterparty": "麦当劳",
         "raw_description": "", "raw_payment_method": "", "record_file": str(day_path),
-        "record_type": "loan", "row_status": "active", "ai_action": "leave_as_is",
-        "ai_group": "", "ai_reason": "", "rule_hint": "",
+        "record_type": "loan", "processing_status": "active", "decision_action": "leave_as_is",
+        "ai_group": "", "suggested_action": "", "rule_hint": "",
     }]
-    edited = [dict(original[0], currency="USD")]
+    edited = [dict(original[0], **{field: value})]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
 
-    with pytest.raises(ValueError, match="只读字段被修改"):
+    with pytest.raises(ValueError, match=f"field={field}"):
         continue_reconcile(str(session_dir / "edited.csv"))
 
 
@@ -1147,10 +1156,10 @@ def test_continue_reconcile_rejects_drop_without_reason(tmp_env):
         "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
         "transfer_account": "", "locked": "", "raw_counterparty": "麦当劳",
         "raw_description": "", "raw_payment_method": "", "record_file": str(day_path),
-        "record_type": "loan", "row_status": "active", "ai_action": "leave_as_is",
-        "ai_group": "", "ai_reason": "", "rule_hint": "",
+        "record_type": "loan", "processing_status": "active", "decision_action": "leave_as_is",
+        "ai_group": "", "suggested_action": "", "rule_hint": "",
     }]
-    edited = [dict(original[0], ai_action="drop")]
+    edited = [dict(original[0], decision_action="drop")]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
 
@@ -1175,8 +1184,8 @@ def test_continue_reconcile_rejects_grouped_leave_as_is_without_decision_reason(
         "account_name": "工行借记卡", "source": "银行卡", "bill_source": "icbc_debit",
         "transfer_account": "", "locked": "", "raw_counterparty": "麦当劳",
         "raw_description": "消费", "raw_payment_method": "", "record_file": str(day_path),
-        "record_type": "loan", "row_status": "active", "ai_action": "leave_as_is",
-        "ai_group": "mirror_001", "ai_reason": "possible_mirror_weak_30s_cross_source:drop",
+        "record_type": "loan", "processing_status": "active", "decision_action": "leave_as_is",
+        "ai_group": "mirror_001", "suggested_action": "drop",
         "rule_hint": "possible_mirror_weak_30s_cross_source",
     }
     write_ai_working_csv(session_dir / "ai_working.csv", [row])
@@ -1204,14 +1213,14 @@ def test_continue_reconcile_rejects_modify_without_actual_change(tmp_env):
         "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
         "transfer_account": "", "locked": "", "raw_counterparty": "麦当劳",
         "raw_description": "", "raw_payment_method": "", "record_file": str(day_path),
-        "record_type": "loan", "row_status": "active", "ai_action": "leave_as_is",
-        "ai_group": "", "ai_reason": "", "rule_hint": "",
+        "record_type": "loan", "processing_status": "active", "decision_action": "leave_as_is",
+        "ai_group": "", "suggested_action": "", "rule_hint": "",
     }]
-    edited = [dict(original[0], ai_action="modify", decision_reason="test")]
+    edited = [dict(original[0], decision_action="modify", decision_reason="test")]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
 
-    with pytest.raises(ValueError, match="ai_action=modify 但没有实际修改字段"):
+    with pytest.raises(ValueError, match="decision_action=modify 但没有实际修改字段"):
         continue_reconcile(str(session_dir / "edited.csv"))
 
 
@@ -1233,10 +1242,10 @@ def test_continue_reconcile_rejects_transfer_target_missing(tmp_env):
         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
         "transfer_account": "", "locked": "", "raw_counterparty": "微信",
         "raw_description": "转账支取", "raw_payment_method": "", "record_file": str(day_path),
-        "record_type": "cash", "row_status": "active", "ai_action": "leave_as_is",
-        "ai_group": "", "ai_reason": "", "rule_hint": "possible_transfer_multi_candidate",
+        "record_type": "cash", "processing_status": "active", "decision_action": "leave_as_is",
+        "ai_group": "", "suggested_action": "", "rule_hint": "possible_transfer_multi_candidate",
     }]
-    edited = [dict(original[0], ai_action="mark_transfer_out_to:r_999999", decision_reason="识别为转账")]
+    edited = [dict(original[0], decision_action="mark_transfer_out_to:r_999999", decision_reason="识别为转账")]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
 
@@ -1263,8 +1272,8 @@ def test_continue_reconcile_rejects_transfer_pair_direction_mismatch(tmp_env):
             "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
             "transfer_account": "", "locked": "", "raw_counterparty": "微信",
             "raw_description": "转账支取", "raw_payment_method": "", "record_file": str(day_path),
-            "record_type": "cash", "row_status": "active", "ai_action": "leave_as_is",
-            "ai_group": "transfer_001", "ai_reason": "", "rule_hint": "possible_transfer_multi_candidate",
+            "record_type": "cash", "processing_status": "active", "decision_action": "leave_as_is",
+            "ai_group": "transfer_001", "suggested_action": "", "rule_hint": "possible_transfer_multi_candidate",
         },
         {
             "record_id": "r_000002", "session_id": session_id,
@@ -1273,13 +1282,13 @@ def test_continue_reconcile_rejects_transfer_pair_direction_mismatch(tmp_env):
             "account_name": "微信零钱", "source": "微信", "bill_source": "wechat",
             "transfer_account": "", "locked": "", "raw_counterparty": "微信",
             "raw_description": "银联入账", "raw_payment_method": "", "record_file": str(day_path),
-            "record_type": "cash", "row_status": "active", "ai_action": "leave_as_is",
-            "ai_group": "transfer_001", "ai_reason": "", "rule_hint": "possible_transfer_multi_candidate",
+            "record_type": "cash", "processing_status": "active", "decision_action": "leave_as_is",
+            "ai_group": "transfer_001", "suggested_action": "", "rule_hint": "possible_transfer_multi_candidate",
         },
     ]
     edited = [
-        dict(original[0], ai_action="mark_transfer_out_to:r_000002", decision_reason="识别为转账"),
-        dict(original[1], ai_action="leave_as_is", decision_reason="确认不是同一笔转账"),
+        dict(original[0], decision_action="mark_transfer_out_to:r_000002", decision_reason="识别为转账"),
+        dict(original[1], decision_action="leave_as_is", decision_reason="确认不是同一笔转账"),
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
@@ -1307,8 +1316,8 @@ def test_continue_reconcile_rejects_transfer_out_on_income_row(tmp_env):
             "account_name": "微信零钱", "source": "微信", "bill_source": "wechat",
             "transfer_account": "", "locked": "", "raw_counterparty": "微信",
             "raw_description": "银联入账", "raw_payment_method": "", "record_file": str(day_path),
-            "record_type": "cash", "row_status": "active", "ai_action": "leave_as_is",
-            "ai_group": "transfer_001", "ai_reason": "", "rule_hint": "possible_transfer_multi_candidate",
+            "record_type": "cash", "processing_status": "active", "decision_action": "leave_as_is",
+            "ai_group": "transfer_001", "suggested_action": "", "rule_hint": "possible_transfer_multi_candidate",
         },
         {
             "record_id": "r_000002", "session_id": session_id,
@@ -1317,13 +1326,13 @@ def test_continue_reconcile_rejects_transfer_out_on_income_row(tmp_env):
             "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
             "transfer_account": "", "locked": "", "raw_counterparty": "微信",
             "raw_description": "转账支取", "raw_payment_method": "", "record_file": str(day_path),
-            "record_type": "cash", "row_status": "active", "ai_action": "leave_as_is",
-            "ai_group": "transfer_001", "ai_reason": "", "rule_hint": "possible_transfer_multi_candidate",
+            "record_type": "cash", "processing_status": "active", "decision_action": "leave_as_is",
+            "ai_group": "transfer_001", "suggested_action": "", "rule_hint": "possible_transfer_multi_candidate",
         },
     ]
     edited = [
-        dict(original[0], ai_action="mark_transfer_out_to:r_000002", decision_reason="错误方向"),
-        dict(original[1], ai_action="mark_transfer_in_from:r_000001", decision_reason="错误方向"),
+        dict(original[0], decision_action="mark_transfer_out_to:r_000002", decision_reason="错误方向"),
+        dict(original[1], decision_action="mark_transfer_in_from:r_000001", decision_reason="错误方向"),
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
@@ -1351,8 +1360,8 @@ def test_continue_reconcile_applies_transfer_pair(tmp_env):
             "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
             "transfer_account": "", "locked": "", "raw_counterparty": "微信",
             "raw_description": "转账支取", "raw_payment_method": "", "record_file": str(day_path),
-            "record_type": "cash", "row_status": "active", "ai_action": "leave_as_is",
-            "ai_group": "transfer_002", "ai_reason": "", "rule_hint": "possible_transfer_multi_candidate",
+            "record_type": "cash", "processing_status": "active", "decision_action": "leave_as_is",
+            "ai_group": "transfer_002", "suggested_action": "", "rule_hint": "possible_transfer_multi_candidate",
         },
         {
             "record_id": "r_000002", "session_id": session_id,
@@ -1361,13 +1370,13 @@ def test_continue_reconcile_applies_transfer_pair(tmp_env):
             "account_name": "微信零钱", "source": "微信", "bill_source": "wechat",
             "transfer_account": "", "locked": "", "raw_counterparty": "微信",
             "raw_description": "银联入账", "raw_payment_method": "", "record_file": str(day_path),
-            "record_type": "cash", "row_status": "active", "ai_action": "leave_as_is",
-            "ai_group": "transfer_002", "ai_reason": "", "rule_hint": "possible_transfer_multi_candidate",
+            "record_type": "cash", "processing_status": "active", "decision_action": "leave_as_is",
+            "ai_group": "transfer_002", "suggested_action": "", "rule_hint": "possible_transfer_multi_candidate",
         },
     ]
     edited = [
-        dict(original[0], ai_action="mark_transfer_out_to:r_000002", decision_reason="识别为转账"),
-        dict(original[1], ai_action="mark_transfer_in_from:r_000001", decision_reason="识别为转账"),
+        dict(original[0], decision_action="mark_transfer_out_to:r_000002", decision_reason="识别为转账"),
+        dict(original[1], decision_action="mark_transfer_in_from:r_000001", decision_reason="识别为转账"),
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
@@ -1403,8 +1412,8 @@ def test_continue_reconcile_records_ai_transfer_in_audit(tmp_env):
             "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
             "transfer_account": "", "locked": "", "raw_counterparty": "微信",
             "raw_description": "转账支取", "raw_payment_method": "", "record_file": str(day_path),
-            "record_type": "cash", "row_status": "active", "ai_action": "leave_as_is",
-            "ai_group": "transfer_003", "ai_reason": "", "rule_hint": "possible_transfer_multi_candidate",
+            "record_type": "cash", "processing_status": "active", "decision_action": "leave_as_is",
+            "ai_group": "transfer_003", "suggested_action": "", "rule_hint": "possible_transfer_multi_candidate",
         },
         {
             "record_id": "r_000002", "session_id": session_id,
@@ -1413,13 +1422,13 @@ def test_continue_reconcile_records_ai_transfer_in_audit(tmp_env):
             "account_name": "微信零钱", "source": "微信", "bill_source": "wechat",
             "transfer_account": "", "locked": "", "raw_counterparty": "微信",
             "raw_description": "银联入账", "raw_payment_method": "", "record_file": str(day_path),
-            "record_type": "cash", "row_status": "active", "ai_action": "leave_as_is",
-            "ai_group": "transfer_003", "ai_reason": "", "rule_hint": "possible_transfer_multi_candidate",
+            "record_type": "cash", "processing_status": "active", "decision_action": "leave_as_is",
+            "ai_group": "transfer_003", "suggested_action": "", "rule_hint": "possible_transfer_multi_candidate",
         },
     ]
     edited = [
-        dict(original[0], ai_action="mark_transfer_out_to:r_000002", decision_reason="AI 判断为同一笔转账"),
-        dict(original[1], ai_action="mark_transfer_in_from:r_000001", decision_reason="AI 判断为同一笔转账"),
+        dict(original[0], decision_action="mark_transfer_out_to:r_000002", decision_reason="AI 判断为同一笔转账"),
+        dict(original[1], decision_action="mark_transfer_in_from:r_000001", decision_reason="AI 判断为同一笔转账"),
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
@@ -1456,8 +1465,8 @@ def test_continue_reconcile_drops_ai_duplicate_row(tmp_env):
             "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
             "transfer_account": "", "locked": "", "raw_counterparty": "麦当劳",
             "raw_description": "麦当劳", "raw_payment_method": "", "record_file": str(day_path),
-            "record_type": "loan", "row_status": "active", "ai_action": "leave_as_is",
-            "ai_group": "dedup_001", "ai_reason": "", "rule_hint": "possible_bank_mirror_multi_candidate",
+            "record_type": "loan", "processing_status": "active", "decision_action": "leave_as_is",
+            "ai_group": "dedup_001", "suggested_action": "", "rule_hint": "possible_bank_mirror_multi_candidate",
         },
         {
             "record_id": "r_000002", "session_id": session_id,
@@ -1466,13 +1475,13 @@ def test_continue_reconcile_drops_ai_duplicate_row(tmp_env):
             "account_name": "工行信用卡(1200)", "source": "银行卡", "bill_source": "icbc_credit",
             "transfer_account": "", "locked": "", "raw_counterparty": "麦当劳",
             "raw_description": "麦当劳", "raw_payment_method": "", "record_file": str(day_path),
-            "record_type": "loan", "row_status": "active", "ai_action": "leave_as_is",
-            "ai_group": "dedup_001", "ai_reason": "", "rule_hint": "possible_bank_mirror_multi_candidate",
+            "record_type": "loan", "processing_status": "active", "decision_action": "leave_as_is",
+            "ai_group": "dedup_001", "suggested_action": "", "rule_hint": "possible_bank_mirror_multi_candidate",
         },
     ]
     edited = [
-        dict(original[0], ai_action="keep", decision_reason="保留支付宝侧作为同一笔交易的规范记录"),
-        dict(original[1], ai_action="drop", decision_reason="AI 判断为镜像重复"),
+        dict(original[0], decision_action="keep", decision_reason="保留支付宝侧作为同一笔交易的规范记录"),
+        dict(original[1], decision_action="drop", decision_reason="AI 判断为镜像重复"),
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)
@@ -1506,8 +1515,8 @@ def test_continue_reconcile_records_ai_drop_in_audit(tmp_env):
             "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay",
             "transfer_account": "", "locked": "", "raw_counterparty": "麦当劳",
             "raw_description": "麦当劳", "raw_payment_method": "", "record_file": str(day_path),
-            "record_type": "loan", "row_status": "active", "ai_action": "leave_as_is",
-            "ai_group": "dedup_002", "ai_reason": "", "rule_hint": "possible_bank_mirror_multi_candidate",
+            "record_type": "loan", "processing_status": "active", "decision_action": "leave_as_is",
+            "ai_group": "dedup_002", "suggested_action": "", "rule_hint": "possible_bank_mirror_multi_candidate",
         },
         {
             "record_id": "r_000002", "session_id": session_id,
@@ -1516,13 +1525,13 @@ def test_continue_reconcile_records_ai_drop_in_audit(tmp_env):
             "account_name": "工行信用卡(1200)", "source": "银行卡", "bill_source": "icbc_credit",
             "transfer_account": "", "locked": "", "raw_counterparty": "麦当劳",
             "raw_description": "麦当劳", "raw_payment_method": "", "record_file": str(day_path),
-            "record_type": "loan", "row_status": "active", "ai_action": "leave_as_is",
-            "ai_group": "dedup_002", "ai_reason": "", "rule_hint": "possible_bank_mirror_multi_candidate",
+            "record_type": "loan", "processing_status": "active", "decision_action": "leave_as_is",
+            "ai_group": "dedup_002", "suggested_action": "", "rule_hint": "possible_bank_mirror_multi_candidate",
         },
     ]
     edited = [
-        dict(original[0], ai_action="keep", decision_reason="保留支付宝侧作为同一笔交易的规范记录"),
-        dict(original[1], ai_action="drop", decision_reason="AI 判断为镜像重复"),
+        dict(original[0], decision_action="keep", decision_reason="保留支付宝侧作为同一笔交易的规范记录"),
+        dict(original[1], decision_action="drop", decision_reason="AI 判断为镜像重复"),
     ]
     write_ai_working_csv(session_dir / "ai_working.csv", original)
     write_ai_working_csv(session_dir / "edited.csv", edited)

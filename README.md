@@ -149,12 +149,10 @@ ft reconcile --abort
 - `source`
 - `transfer_account`
 - `locked`
-- `row_status`
-- `ai_action`
-- `ai_group`
+- `decision_action`
 - `decision_reason`
 
-`ai_reason` 是程序提供的规则提示；`decision_reason` 才是审查者填写的决定依据。
+`rule_hint` 说明程序命中的规则，`suggested_action` 是程序的建议动作；`decision_action` 和 `decision_reason` 才是审查者的最终决定。
 
 默认只读：
 
@@ -168,8 +166,12 @@ ft reconcile --abort
 - `raw_counterparty`
 - `raw_description`
 - `raw_payment_method`
+- `rule_hint`
+- `suggested_action`
+- `processing_status`
+- `ai_group`
 
-### ai_action 合法值
+### decision_action 合法值
 
 - `leave_as_is`
 - `keep`

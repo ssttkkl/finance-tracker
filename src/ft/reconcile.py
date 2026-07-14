@@ -10,11 +10,11 @@ from . import models
 from .accounts import load_accounts
 from .ai_apply import apply_reconcile_working_rows
 from .ai_working_csv import (
-    ALLOWED_ROW_STATUS,
+    ALLOWED_PROCESSING_STATUS,
     READ_ONLY_FIELDS,
     build_ai_working_row,
-    is_allowed_ai_action,
-    parse_ai_action_target,
+    is_allowed_decision_action,
+    parse_decision_action_target,
     read_ai_working_csv,
     write_ai_working_csv,
 )
@@ -70,7 +70,7 @@ def _linked_refund_record_ids(rows: list[dict], pending_rows: list[dict]) -> set
     while changed:
         changed = False
         for row in rows:
-            target = parse_ai_action_target(row.get("proposed_action", "") or "")
+            target = parse_decision_action_target(row.get("proposed_action", "") or "")
             if not target or target[0] != "merge_refund_into":
                 continue
             record_id = row.get("record_id", "")
@@ -574,7 +574,7 @@ def _mirror_review_annotations(scoped: list[dict]) -> dict[int, dict]:
             annotations[id(row)] = {
                 "ai_group": group,
                 "rule_hint": pair.rule_hint,
-                "ai_reason": f"{pair.rule_hint}:{role}",
+                "suggested_action": role,
             }
     return annotations
 
@@ -618,7 +618,7 @@ def _create_reconcile_pending_session(state: dict):
     def _pending_defaults(row: dict) -> dict:
         defaults = dict(mirror_review_annotations.get(id(row), {}))
         if id(row) in auto_removed_ids:
-            defaults["row_status"] = "dropped"
+            defaults["processing_status"] = "dropped"
         return defaults
 
     ai_rows = [
@@ -711,55 +711,55 @@ def _validate_reconcile_working_rows(original_rows: list[dict], edited_rows: lis
             if row.get(field, "") != original.get(field, ""):
                 raise ValueError(f"❌ 只读字段被修改: record_id={row['record_id']} field={field}")
 
-        row_status = row.get("row_status", "active") or "active"
-        ai_action = row.get("ai_action", "leave_as_is") or "leave_as_is"
-        if row_status not in ALLOWED_ROW_STATUS:
-            raise ValueError(f"❌ 非法 row_status: record_id={row['record_id']} row_status={row_status}")
-        if not is_allowed_ai_action(ai_action):
-            raise ValueError(f"❌ 非法 ai_action: record_id={row['record_id']} ai_action={ai_action}")
-        if row_status == "dropped" and ai_action not in {"drop", "leave_as_is"}:
+        processing_status = row.get("processing_status", "active") or "active"
+        decision_action = row.get("decision_action", "leave_as_is") or "leave_as_is"
+        if processing_status not in ALLOWED_PROCESSING_STATUS:
+            raise ValueError(f"❌ 非法 processing_status: record_id={row['record_id']} processing_status={processing_status}")
+        if not is_allowed_decision_action(decision_action):
+            raise ValueError(f"❌ 非法 decision_action: record_id={row['record_id']} decision_action={decision_action}")
+        if processing_status == "dropped" and decision_action not in {"drop", "leave_as_is"}:
             raise ValueError(f"❌ dropped 行只能配合 drop/leave_as_is: record_id={row['record_id']}")
         decision_reason = row.get("decision_reason", "").strip()
-        if ai_action == "drop" and decision_reason == "":
+        if decision_action == "drop" and decision_reason == "":
             raise ValueError(f"❌ drop 动作必须填写 decision_reason: record_id={row['record_id']}")
-        if row_status == "active" and row.get("ai_group", "") and ai_action in {"leave_as_is", "keep"}:
+        if processing_status == "active" and row.get("ai_group", "") and decision_action in {"leave_as_is", "keep"}:
             if decision_reason == "":
                 raise ValueError(
-                    f"❌ {ai_action} 动作必须填写 decision_reason: record_id={row['record_id']}"
+                    f"❌ {decision_action} 动作必须填写 decision_reason: record_id={row['record_id']}"
                 )
 
-        if ai_action == "modify":
+        if decision_action == "modify":
             changed_fields = [
                 field for field in ("counterparty", "description", "category", "account_name", "source", "transfer_account", "locked")
                 if row.get(field, "") != original.get(field, "")
             ]
             if not changed_fields:
-                raise ValueError(f"❌ ai_action=modify 但没有实际修改字段: record_id={row['record_id']}")
+                raise ValueError(f"❌ decision_action=modify 但没有实际修改字段: record_id={row['record_id']}")
             if decision_reason == "":
                 raise ValueError(f"❌ modify 动作必须填写 decision_reason: record_id={row['record_id']}")
 
     for row in edited_rows:
-        ai_action = row.get("ai_action", "leave_as_is") or "leave_as_is"
-        target = parse_ai_action_target(ai_action)
+        decision_action = row.get("decision_action", "leave_as_is") or "leave_as_is"
+        target = parse_decision_action_target(decision_action)
         if not target:
             continue
         action_name, target_id = target
         if row.get("decision_reason", "").strip() == "":
             raise ValueError(f"❌ {action_name} 动作必须填写 decision_reason: record_id={row['record_id']}")
         if not target_id or target_id not in edited_by_id:
-            raise ValueError(f"❌ 引用的 record_id 不存在: record_id={row['record_id']} ai_action={ai_action}")
+            raise ValueError(f"❌ 引用的 record_id 不存在: record_id={row['record_id']} decision_action={decision_action}")
         target_row = edited_by_id[target_id]
         if action_name == "mark_transfer_out_to":
             if row.get("amount", "").startswith("-") is False:
                 raise ValueError(f"❌ mark_transfer_out_to 只能用于支出行: record_id={row['record_id']}")
             expected = f"mark_transfer_in_from:{row['record_id']}"
-            if (target_row.get("ai_action", "leave_as_is") or "leave_as_is") != expected:
+            if (target_row.get("decision_action", "leave_as_is") or "leave_as_is") != expected:
                 raise ValueError(f"❌ 转账双边动作应成对出现: record_id={row['record_id']} target={target_id}")
         elif action_name == "mark_transfer_in_from":
             if row.get("amount", "").startswith("-"):
                 raise ValueError(f"❌ mark_transfer_in_from 只能用于收入行: record_id={row['record_id']}")
             expected = f"mark_transfer_out_to:{row['record_id']}"
-            if (target_row.get("ai_action", "leave_as_is") or "leave_as_is") != expected:
+            if (target_row.get("decision_action", "leave_as_is") or "leave_as_is") != expected:
                 raise ValueError(f"❌ 转账双边动作应成对出现: record_id={row['record_id']} target={target_id}")
 
 

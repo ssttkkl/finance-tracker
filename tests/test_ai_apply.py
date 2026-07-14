@@ -48,9 +48,10 @@ def test_apply_convert_working_rows_merges_refund_into_net_row():
             },
             record_id="c_000002",
             session_id="s1",
-            defaults={"ai_action": "merge_refund_into:c_000001", "ai_reason": "退款并入原消费"},
+            defaults={"suggested_action": "merge_refund_into:c_000001"},
         ),
     ]
+    rows[1]["decision_action"] = "merge_refund_into:c_000001"
 
     final_rows = apply_convert_working_rows(rows)
 
@@ -158,7 +159,7 @@ def test_apply_reconcile_working_rows_marks_transfer_and_collects_ai_drop_audit(
             },
             record_id="r_000001",
             session_id="s2",
-            defaults={"ai_action": "mark_transfer_out_to:r_000002", "ai_reason": "识别为转账"},
+            defaults={"suggested_action": "mark_transfer_out_to:r_000002"},
         ),
         build_ai_working_row(
             {
@@ -175,7 +176,7 @@ def test_apply_reconcile_working_rows_marks_transfer_and_collects_ai_drop_audit(
             },
             record_id="r_000002",
             session_id="s2",
-            defaults={"ai_action": "mark_transfer_in_from:r_000001", "ai_reason": "识别为转账"},
+            defaults={"suggested_action": "mark_transfer_in_from:r_000001"},
         ),
         build_ai_working_row(
             {
@@ -192,9 +193,12 @@ def test_apply_reconcile_working_rows_marks_transfer_and_collects_ai_drop_audit(
             },
             record_id="r_000003",
             session_id="s2",
-            defaults={"ai_action": "drop", "ai_reason": "AI 判断为镜像重复"},
+            defaults={"suggested_action": "drop"},
         ),
     ]
+    rows[0]["decision_action"] = "mark_transfer_out_to:r_000002"
+    rows[1]["decision_action"] = "mark_transfer_in_from:r_000001"
+    rows[2]["decision_action"] = "drop"
 
     by_file, extra_audit_rows = apply_reconcile_working_rows(rows)
 

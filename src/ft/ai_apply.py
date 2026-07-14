@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from .ai_working_csv import parse_ai_action_target
+from .ai_working_csv import parse_decision_action_target
 
 
 def _materialize_row(row: dict) -> dict:
@@ -31,7 +31,7 @@ def apply_convert_working_rows(edited_rows: list[dict]) -> list[dict]:
     rows_by_id = {row["record_id"]: row for row in edited_rows}
     referenced_ids = set()
     for row in edited_rows:
-        target = parse_ai_action_target(row.get("ai_action", "leave_as_is") or "leave_as_is")
+        target = parse_decision_action_target(row.get("decision_action", "leave_as_is") or "leave_as_is")
         if target and target[0] in {"merge_refund_into", "net_with"}:
             referenced_ids.add(target[1])
 
@@ -42,19 +42,19 @@ def apply_convert_working_rows(edited_rows: list[dict]) -> list[dict]:
         record_id = row["record_id"]
         if record_id in consumed_ids:
             continue
-        if row.get("row_status", "active") == "dropped":
+        if row.get("processing_status", "active") == "dropped":
             consumed_ids.add(record_id)
             continue
 
-        ai_action = row.get("ai_action", "leave_as_is") or "leave_as_is"
-        if ai_action == "drop":
+        decision_action = row.get("decision_action", "leave_as_is") or "leave_as_is"
+        if decision_action == "drop":
             consumed_ids.add(record_id)
             continue
-        if record_id in referenced_ids and not parse_ai_action_target(ai_action):
+        if record_id in referenced_ids and not parse_decision_action_target(decision_action):
             consumed_ids.add(record_id)
             continue
 
-        target = parse_ai_action_target(ai_action)
+        target = parse_decision_action_target(decision_action)
         if target:
             action_name, target_id = target
             target_row = rows_by_id[target_id]
@@ -87,9 +87,9 @@ def apply_reconcile_working_rows(edited_rows: list[dict]) -> tuple[dict[str, lis
     by_file: dict[str, list[dict]] = defaultdict(list)
 
     for row in edited_rows:
-        ai_action = row.get("ai_action", "leave_as_is") or "leave_as_is"
-        if row.get("row_status", "active") == "dropped" or ai_action == "drop":
-            if ai_action == "drop":
+        decision_action = row.get("decision_action", "leave_as_is") or "leave_as_is"
+        if row.get("processing_status", "active") == "dropped" or decision_action == "drop":
+            if decision_action == "drop":
                 extra_audit_rows.append({
                     **_materialize_row(row),
                     "record_file": row.get("record_file", ""),
@@ -106,7 +106,7 @@ def apply_reconcile_working_rows(edited_rows: list[dict]) -> tuple[dict[str, lis
             continue
 
         materialized = _materialize_row(row)
-        target = parse_ai_action_target(ai_action)
+        target = parse_decision_action_target(decision_action)
         if target:
             action_name, target_id = target
             target_row = rows_by_id[target_id]

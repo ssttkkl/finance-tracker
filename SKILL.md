@@ -70,7 +70,7 @@ AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2数据脱敏 
 
 - `leave_as_is` 只能表示**已经审查过且明确决定保留原样**
 - **禁止**把“暂时判断不了 / 不想承担判断 / 需要用户拍板”的情况直接写成 `leave_as_is`
-- **禁止**因为程序预填了 `ai_reason=...:drop`、`...:keep`、`rule_hint`、`ai_group`，就把它们直接当成最终审查结论批量落盘；这些字段只能当线索，不能替代逐组审查
+- **禁止**因为程序预填了 `rule_hint`、`suggested_action=drop|keep`、`ai_group`，就把它们直接当成最终审查结论批量落盘；这些字段只能当线索，不能替代逐组审查
 - 对于证据不足、高风险或存在多种合理解释的候选，必须先整理成“待用户选择”的候选组，由调用方明确拍板后，才能继续 `reconcile`
 - 如果整份 `edited.csv` 里所有候选都保持 `leave_as_is`，调用方必须先自检：这是“逐组审查后的明确保留结论”，还是“实际上没有完成审查”。后者禁止 continue
 
@@ -82,7 +82,7 @@ AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2数据脱敏 
 - **subagent 禁止用脚本批量过滤/批量判定；只能用推理给出标记结果，脚本最多用于切批或复制文件**
 - **AI 必须对 `edited.csv` 中保留的每一行给出结论**（drop / leave_as_is / modify / 配对类动作之一）；禁止只阅读少量样本后，用脚本按关键词或现成 hint 批量改写大批记录
 - **禁止**把“不确定 / 高风险 / 多候选”默认落成 `leave_as_is` 后直接 continue；这类候选必须先升级给用户选择
-- **禁止**仅依据 `ai_reason` 里自带的 `:drop/:keep` 后缀，批量把整批候选改成 `drop` 或 `leave_as_is`；必须先验证这些 hint 是否在本轮审查边界内成立
+- **禁止**仅依据 `suggested_action=drop|keep` 批量把整批候选改成 `drop` 或 `leave_as_is`；必须先验证这些 hint 是否在本轮审查边界内成立
 - 必须保持：`ai_working.csv` = 原始底稿，`edited.csv` = AI 审查后的结果
 
 ### AI working CSV 编辑协议
@@ -90,11 +90,11 @@ AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2数据脱敏 
 调用方 AI 必须遵守：
 
 - 保留所有行，不得新增/删除 `record_id`
-- 不修改只读字段：`record_id`、`source_record_id`、`session_id`、`date`、`amount`、`currency`、`bill_source`、`raw_*`、`ai_reason`
-- 主要编辑列：`counterparty`、`description`、`category`、`account_name`、`source`、`transfer_account`、`locked`、`row_status`、`ai_action`、`ai_group`、`decision_reason`
-- `drop` / `modify` / 引用型 `ai_action` 必须填写 `decision_reason`；活跃分组的 `keep` / `leave_as_is` 也必须填写
+- 不修改只读字段：`record_id`、`source_record_id`、`session_id`、`date`、`amount`、`currency`、`bill_source`、`raw_*`、`rule_hint`、`suggested_action`、`processing_status`、`ai_group`
+- 主要编辑列：`counterparty`、`description`、`category`、`account_name`、`source`、`transfer_account`、`locked`、`decision_action`、`decision_reason`
+- `drop` / `modify` / 引用型 `decision_action` 必须填写 `decision_reason`；活跃分组的 `keep` / `leave_as_is` 也必须填写
 
-合法 `ai_action`：
+合法 `decision_action`：
 
 - `leave_as_is`
 - `keep`
@@ -115,16 +115,16 @@ AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2数据脱敏 
 目标：只在证据充分时修改允许编辑的列；不要新增或删除行；不要修改只读字段；所有最终决策都要写 decision_reason。
 
 请按以下顺序处理：
-1. 先通读整份 ai_working.csv，审查所有 active 行，不要只看局部候选或局部模式。
-2. 仅修改这些允许编辑的列：counterparty、description、category、account_name、source、transfer_account、locked、row_status、ai_action、ai_group、decision_reason。
-3. 严禁修改只读列：record_id、source_record_id、session_id、date、amount、currency、bill_source、raw_counterparty、raw_description、raw_payment_method、ai_reason。
+1. 先通读整份 ai_working.csv，审查所有 processing_status=active 行，不要只看局部候选或局部模式。
+2. 仅修改这些允许编辑的列：counterparty、description、category、account_name、source、transfer_account、locked、decision_action、decision_reason。
+3. 严禁修改只读列：record_id、source_record_id、session_id、date、amount、currency、bill_source、raw_counterparty、raw_description、raw_payment_method、rule_hint、suggested_action、processing_status、ai_group。
 4. 如果当前文件体量较大，按交易日期切成三个月一批；每批只交给一个 subagent 审查。
 5. subagent 禁止用脚本批量过滤、批量判定或自动打标；必须通过推理给出标记结果。脚本最多只能用于切批、复制文件或合并已得出的结果。
 6. 审查完成的标准不是“看过几条代表样本”，而是**本批次中每一行都已经有明确结论**。任何保留在 `edited.csv` 里的行，都必须对应一个逐行审查后的动作。
 7. 如果判断应保留原样，写 `keep` 或 `leave_as_is`，并填写 decision_reason。这里只能用于“已完成审查且明确决定保留”的行，不能把“不确定”伪装成保留。
 8. 如果判断应删除，写 drop，并填写 decision_reason。
-9. 如果判断应合并/配对，使用合法 ai_action（merge_refund_into:<record_id> / net_with:<record_id> / mark_transfer_out_to:<record_id> / mark_transfer_in_from:<record_id>），并填写 decision_reason。
-10. `ai_reason` 中若出现 `...:drop`、`...:keep`，只能视为程序提示，不得直接批量照抄成最终结论；必须逐组确认该提示是否仍然成立，尤其要检查 refund、社交转账、二维码收款、date-only、multi-candidate 等边界。
+9. 如果判断应合并/配对，使用合法 decision_action（merge_refund_into:<record_id> / net_with:<record_id> / mark_transfer_out_to:<record_id> / mark_transfer_in_from:<record_id>），并填写 decision_reason。
+10. `suggested_action=drop|keep` 只能视为程序提示，不得直接批量照抄成最终结论；必须逐组确认该提示是否仍然成立，尤其要检查 refund、社交转账、二维码收款、date-only、multi-candidate 等边界。
 11. 如果存在证据不足、高风险或多候选、而你又无法明确做出 `drop/modify/配对/明确保留` 结论的组，不要默认写成 `leave_as_is` 并继续；先把这些组整理给调用方或用户选择。
 12. 修改完成后保存为 `edited.csv`，不要覆盖原始 `ai_working.csv`；只有当本轮需要拍板的组已经被明确处理，且本批次保留下来的每一行都已完成逐行审查后，才执行 continue 命令；如果无法完成本轮决策，则不要继续执行，由调用方选择继续补审、让用户拍板或 abort。
 13. 严禁把未修改的 `ai_working.csv` 直接拿去 continue；这会绕过 AI 审查流程，结果不具备审查意义。

@@ -137,7 +137,7 @@ pending/reconcile/<session_id>/
 └── proposed_audit.csv
 ```
 
-`ai_working.csv` 提供候选及必要上下文，包含退款关联行和已经自动删除的行。自动删除行以 `row_status=dropped` 显示，便于审查整条链路，但不会在 continue 时被恢复。
+`ai_working.csv` 提供候选及必要上下文，包含退款关联行和已经自动删除的行。自动删除行以 `processing_status=dropped` 显示，便于审查整条链路，但不会在 continue 时被恢复。
 
 ## 6. Reconcile Pending 决策语义
 
@@ -158,10 +158,11 @@ flowchart TD
 
 字段分工：
 
-- `ai_reason`：程序预填的规则建议，例如弱侧建议 `drop`、强侧建议 `keep`；它不是审查结论。
-- `decision_reason`：审查者写入的证据和结论。带 `ai_group` 的 active 行选择 `keep` 或 `leave_as_is` 时必须填写；`drop`、`modify`、退款合并和转账动作同样必须填写。
-- `ai_action`：`keep`、`leave_as_is`、`drop`、`modify`，或退款/转账的引用动作。
-- `row_status`：描述工作行状态；自动删除行通常是 `dropped`。
+- `rule_hint`：程序命中的候选规则，例如 `possible_mirror_weak_30s_cross_source`。
+- `suggested_action`：程序建议的动作，例如弱侧 `drop`、强侧 `keep`；它不是审查结论。
+- `decision_action`：审查者最终选择的 `keep`、`leave_as_is`、`drop`、`modify`，或退款/转账的引用动作。
+- `decision_reason`：审查者写入的证据和结论。带 `ai_group` 的 `processing_status=active` 行选择 `keep` 或 `leave_as_is` 时必须填写；`drop`、`modify`、退款合并和转账动作同样必须填写。
+- `processing_status`：系统描述的工作行状态；自动删除行通常是 `dropped`，不可由审查者编辑。
 
 `leave_as_is` 的含义是“已明确确认它不是需要处理的同一笔订单”，不能用来表示“暂时不确定”。证据不足时必须保持 pending，而不是调用 continue。
 

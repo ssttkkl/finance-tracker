@@ -10,17 +10,18 @@ AI_WORKING_FIELDS = [
     "offset_rule_hint", "offset_match_type", "proposed_action",
     "raw_counterparty", "raw_description", "raw_payment_method",
     "record_file", "record_type",
-    "row_status", "ai_action", "ai_group", "ai_reason", "decision_reason",
-    "rule_hint",
+    "rule_hint", "suggested_action", "decision_action", "decision_reason",
+    "processing_status", "ai_group",
 ]
 
 READ_ONLY_FIELDS = {
     "record_id", "source_record_id", "session_id", "date", "amount", "currency", "bill_source",
     "raw_counterparty", "raw_description", "raw_payment_method",
+    "rule_hint", "suggested_action", "processing_status", "ai_group",
 }
 
 EDITABLE_FIELDS = set(AI_WORKING_FIELDS) - READ_ONLY_FIELDS
-ALLOWED_ROW_STATUS = {
+ALLOWED_PROCESSING_STATUS = {
     "active",
     "dropped",
     "drop_after_merge",
@@ -28,7 +29,7 @@ ALLOWED_ROW_STATUS = {
     "transfer_out",
     "transfer_in",
 }
-ALLOWED_AI_ACTIONS = {"leave_as_is", "keep", "drop", "modify"}
+ALLOWED_DECISION_ACTIONS = {"leave_as_is", "keep", "drop", "modify"}
 ACTION_PREFIXES = (
     "merge_refund_into:",
     "net_with:",
@@ -37,13 +38,13 @@ ACTION_PREFIXES = (
 )
 
 
-def is_allowed_ai_action(action: str) -> bool:
-    if action in ALLOWED_AI_ACTIONS:
+def is_allowed_decision_action(action: str) -> bool:
+    if action in ALLOWED_DECISION_ACTIONS:
         return True
     return any(action.startswith(prefix) for prefix in ACTION_PREFIXES)
 
 
-def parse_ai_action_target(action: str) -> tuple[str, str] | None:
+def parse_decision_action_target(action: str) -> tuple[str, str] | None:
     for prefix in ACTION_PREFIXES:
         if action.startswith(prefix):
             return prefix[:-1], action[len(prefix):]
@@ -79,12 +80,12 @@ def build_ai_working_row(row: dict, *, record_id: str, session_id: str, defaults
         "raw_payment_method": row.get("raw_payment_method", row.get("payment_method", "")),
         "record_file": row.get("record_file", row.get("_record_file", "")),
         "record_type": row.get("record_type", row.get("_record_type", "")),
-        "row_status": defaults.get("row_status", "active"),
-        "ai_action": defaults.get("ai_action", "leave_as_is"),
-        "ai_group": defaults.get("ai_group", ""),
-        "ai_reason": defaults.get("ai_reason", ""),
-        "decision_reason": "",
         "rule_hint": defaults.get("rule_hint", ""),
+        "suggested_action": defaults.get("suggested_action", ""),
+        "decision_action": "leave_as_is",
+        "decision_reason": "",
+        "processing_status": defaults.get("processing_status", "active"),
+        "ai_group": defaults.get("ai_group", ""),
     }
     return result
 
@@ -98,4 +99,9 @@ def write_ai_working_csv(path: Path, rows: list[dict]):
 
 def read_ai_working_csv(path: Path) -> list[dict]:
     with open(path, encoding="utf-8") as f:
-        return list(csv.DictReader(f))
+        reader = csv.DictReader(f)
+        legacy_fields = {"ai_reason", "ai_action", "row_status"}.intersection(reader.fieldnames or [])
+        if legacy_fields:
+            names = ", ".join(sorted(legacy_fields))
+            raise ValueError(f"❌ pending 使用已废弃字段 ({names})，请 abort 后重新运行 reconcile")
+        return list(reader)
