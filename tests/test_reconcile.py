@@ -196,6 +196,48 @@ def test_reconcile_same_day_date_only_ccb_alipay_case_enters_full_table_pending(
     assert {r["row_status"] for r in rows} == {"active"}
 
 
+def test_reconcile_pending_includes_refund_linked_to_mirror_review_row(tmp_env):
+    from ft import models
+    from ft.reconcile import do_reconcile
+
+    save_accounts([
+        {"name": "工行借记卡", "type": "cash", "currency": "CNY", "active": True},
+        {"name": "建行储蓄卡(2820)", "type": "cash", "currency": "CNY", "active": True},
+    ], models.ACCOUNTS_PATH)
+
+    day_path = models.RECORDS_DIR / "cash" / "2026-06.csv"
+    _write_rows(day_path, [
+        {"record_id": "bank_expense", "date": "2026-06-12 10:00:00", "amount": "-10.00", "currency": "CNY",
+         "counterparty": "深圳市财付通支付科技有限公司", "description": "消费", "category": "expense",
+         "account_name": "工行借记卡", "source": "银行卡", "bill_source": "icbc_debit",
+         "offset_group": "refund_000001", "offset_role": "expense", "offset_strength": "strong"},
+        {"record_id": "bank_refund", "date": "2026-06-12 11:00:00", "amount": "10.00", "currency": "CNY",
+         "counterparty": "深圳市财付通支付科技有限公司", "description": "退款", "category": "income",
+         "account_name": "工行借记卡", "source": "银行卡", "bill_source": "icbc_debit",
+         "offset_group": "refund_000001", "offset_role": "refund", "offset_strength": "strong"},
+        {"record_id": "wechat_one", "date": "2026-06-12 10:00:01", "amount": "-10.00", "currency": "CNY",
+         "counterparty": "商户甲", "description": "二维码收款", "category": "expense",
+         "account_name": "工行借记卡", "source": "微信", "bill_source": "wechat"},
+        {"record_id": "wechat_two", "date": "2026-06-12 10:00:02", "amount": "-10.00", "currency": "CNY",
+         "counterparty": "商户乙", "description": "二维码收款", "category": "expense",
+         "account_name": "工行借记卡", "source": "微信", "bill_source": "wechat"},
+        {"record_id": "ccb_expense", "date": "2026-06-12", "amount": "-20.00", "currency": "CNY",
+         "counterparty": "麦当劳", "description": "消费", "category": "expense",
+         "account_name": "建行储蓄卡(2820)", "source": "建行储蓄卡", "bill_source": "ccb_debit"},
+        {"record_id": "wechat_auto", "date": "2026-06-12 12:00:00", "amount": "-20.00", "currency": "CNY",
+         "counterparty": "麦当劳", "description": "麦当劳", "category": "expense",
+         "account_name": "建行储蓄卡(2820)", "source": "微信", "bill_source": "wechat"},
+    ])
+
+    do_reconcile(month="2026-06")
+
+    session_dir = next((models.PENDING_DIR / "reconcile").glob("*"))
+    with open(session_dir / "ai_working.csv", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) == 3
+    assert any(row["offset_role"] == "refund" for row in rows)
+
+
 def test_continue_reconcile_keeps_auto_dropped_rows_removed_when_date_level_review_is_pending(tmp_env):
     from ft import models
     from ft.ai_working_csv import read_ai_working_csv, write_ai_working_csv

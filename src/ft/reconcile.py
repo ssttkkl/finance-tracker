@@ -57,6 +57,10 @@ def _normal_row(row: dict) -> dict:
     return {field: row.get(field, "") for field in models.CSV_FIELDS}
 
 
+def _offset_groups(row: dict) -> set[str]:
+    return {group for group in str(row.get("offset_group", "")).split("|") if group}
+
+
 def _clean_row(row: dict) -> dict:
     return _normal_row({k: v for k, v in row.items() if not k.startswith("_")})
 
@@ -581,6 +585,13 @@ def _create_reconcile_pending_session(state: dict):
     session_id = session_dir.name
 
     pending_rows = state["scoped"] if state.get("has_only_review") else state.get("pending_rows", state["scoped"])
+    linked_offset_groups = set().union(*(_offset_groups(row) for row in pending_rows)) if pending_rows else set()
+    if linked_offset_groups:
+        pending_ids = {id(row) for row in pending_rows}
+        pending_rows = [
+            row for row in state["scoped"]
+            if id(row) in pending_ids or _offset_groups(row) & linked_offset_groups
+        ]
     mirror_review_annotations = state.get("mirror_review_annotations", {})
     auto_removed_ids = {id(remove_row) for _keep_row, remove_row in state.get("pairs", [])}
 
