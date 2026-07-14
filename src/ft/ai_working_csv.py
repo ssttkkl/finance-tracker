@@ -28,7 +28,7 @@ ALLOWED_ROW_STATUS = {
     "transfer_out",
     "transfer_in",
 }
-ALLOWED_AI_ACTIONS = {"leave_as_is", "drop", "modify"}
+ALLOWED_AI_ACTIONS = {"leave_as_is", "keep", "drop", "modify"}
 ACTION_PREFIXES = (
     "merge_refund_into:",
     "net_with:",

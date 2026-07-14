@@ -716,6 +716,11 @@ def _validate_reconcile_working_rows(original_rows: list[dict], edited_rows: lis
             raise ValueError(f"❌ dropped 行只能配合 drop/leave_as_is: record_id={row['record_id']}")
         if ai_action == "drop" and row.get("ai_reason", "").strip() == "":
             raise ValueError(f"❌ drop 动作必须填写 ai_reason: record_id={row['record_id']}")
+        if row_status == "active" and row.get("ai_group", "") and ai_action in {"leave_as_is", "keep"}:
+            if row.get("ai_reason", "").strip() == "":
+                raise ValueError(
+                    f"❌ {ai_action} 动作必须填写 ai_reason: record_id={row['record_id']}"
+                )
 
         if ai_action == "modify":
             changed_fields = [
