@@ -491,40 +491,40 @@ def _alipay_refund_signal(*, txn_type: str, txn_status: str, direction: str, des
 
 
 def _classify_refund_match(*, ref: dict, rule_hint: str, exact_amt: bool,
-                           candidate_count: int, expense: dict) -> tuple[str, bool]:
+                           candidate_count: int, expense: dict) -> str:
     if rule_hint in {"refund_desc_fallback", "refund_gross_candidate"}:
-        return "weak", True
+        return "weak"
     if not _refund_signal_is_strong(ref):
-        return "weak", True
+        return "weak"
     if ref.get("_refund_signal") == "icbc_credit_return" and ref.get("offset_type") == "merchant_refund":
         trusted = ref.get("_icbc_refund_merchant_trusted", False)
         if not trusted:
-            return "weak", True
+            return "weak"
         if rule_hint not in {"refund_raw_cp_match", "refund_cp_match"}:
-            return "weak", True
+            return "weak"
         if not ref.get("_icbc_refund_same_cluster", False):
-            return "weak", True
+            return "weak"
         if not ref.get("_icbc_refund_same_account_cluster", False):
-            return "weak", True
+            return "weak"
     if ref.get("_refund_signal") == "icbc_debit_refund":
         if rule_hint not in {"refund_raw_cp_match", "refund_cp_match"}:
-            return "weak", True
+            return "weak"
         if candidate_count == 1:
-            return "strong", False
+            return "strong"
         if not ref.get("_icbc_debit_refund_same_cluster", False):
-            return "weak", True
+            return "weak"
         if not ref.get("_icbc_debit_refund_same_account_cluster", False):
-            return "weak", True
+            return "weak"
     if ref.get("_refund_signal") == "ccb_debit_refund":
         if rule_hint not in {"refund_raw_cp_match", "refund_cp_match"}:
-            return "weak", True
+            return "weak"
         if not ref.get("_ccb_refund_same_cluster", False):
-            return "weak", True
+            return "weak"
         if not exact_amt:
-            return "weak", True
+            return "weak"
         if candidate_count == 1:
-            return "strong", False
-        return "weak", True
+            return "strong"
+        return "weak"
     delta_days = (_parse_record_datetime(ref["date"]) - _parse_record_datetime(expense["date"])).days
     order_locked_hints = {
         "refund_merchant_order_match",
@@ -544,24 +544,21 @@ def _classify_refund_match(*, ref: dict, rule_hint: str, exact_amt: bool,
             and ref.get("counterparty", "") == expense.get("counterparty", "")
             and desc_confirms
         ):
-            return "weak", True
+            return "weak"
     if rule_hint == "refund_raw_cp_match" and "***" in expense.get("counterparty", ""):
-        return "weak", True
-    if exact_amt:
-        return "strong", False
-    return "strong", False
+        return "weak"
+    return "strong"
 
 
 def _build_refund_tracking_pair(*, expense: dict, refund: dict, match_type: str,
                                rule_hint: str, match_strength: str,
-                               pending_required: bool, candidate_count: int) -> dict:
+                               candidate_count: int) -> dict:
     return {
         "expense": dict(expense),
         "refund": dict(refund),
         "match_type": match_type,
         "rule_hint": rule_hint,
         "match_strength": match_strength,
-        "pending_required": pending_required,
         "candidate_count": candidate_count,
         "source_refund_signal": _refund_source_signal(refund),
     }
@@ -1029,7 +1026,7 @@ def _pair_refunds(expenses: list, refunds: list, others: list):
                     exact_amt = best["exact_amt"]
                     rule_hint = best["rule_hint"]
 
-        match_strength, pending_required = _classify_refund_match(
+        match_strength = _classify_refund_match(
             ref=ref,
             rule_hint=rule_hint,
             exact_amt=exact_amt,
@@ -1043,7 +1040,6 @@ def _pair_refunds(expenses: list, refunds: list, others: list):
             match_type="full" if exact_amt else "partial",
             rule_hint=rule_hint,
             match_strength=match_strength,
-            pending_required=pending_required,
             candidate_count=len(candidates),
         ))
         fact_rows.append(dict(ref))
@@ -1634,7 +1630,6 @@ def _pair_reversals(records: list) -> tuple[list, list]:
                 "refund": dict(inc),
                 "match_type": "full",
                 "match_strength": "strong",
-                "pending_required": False,
                 "candidate_count": 1,
                 "rule_hint": "reversal_same_day_amount",
                 "source_refund_signal": "reversal",

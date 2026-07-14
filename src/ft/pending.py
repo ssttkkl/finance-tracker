@@ -6,31 +6,27 @@ from pathlib import Path
 from . import models
 
 
-def _kind_dir(kind: str) -> Path:
-    if kind == "convert":
-        return models.PENDING_DIR / "convert"
-    if kind == "reconcile":
-        return models.PENDING_DIR / "reconcile"
-    raise ValueError(f"unknown pending kind: {kind}")
+def _reconcile_pending_dir() -> Path:
+    return models.PENDING_DIR / "reconcile"
 
 
-def _ensure_kind(kind: str) -> Path:
-    path = _kind_dir(kind)
+def _ensure_reconcile_pending_dir() -> Path:
+    path = _reconcile_pending_dir()
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
-def find_pending_sessions(kind: str) -> list[Path]:
-    kind_dir = _ensure_kind(kind)
-    return sorted([p for p in kind_dir.iterdir() if p.is_dir()])
+def find_reconcile_pending_sessions() -> list[Path]:
+    pending_dir = _ensure_reconcile_pending_dir()
+    return sorted([p for p in pending_dir.iterdir() if p.is_dir()])
 
 
-def format_pending_guidance(kind: str, session_dir: Path, *, existing_session: bool = False) -> str:
+def format_reconcile_pending_guidance(session_dir: Path, *, existing_session: bool = False) -> str:
     ai_working_csv = session_dir / "ai_working.csv"
-    continue_cmd = f"ft {kind} --continue-with-decisions {ai_working_csv}"
-    abort_cmd = f"ft {kind} --abort"
+    continue_cmd = f"ft reconcile --continue-with-decisions {ai_working_csv}"
+    abort_cmd = "ft reconcile --abort"
     if existing_session:
-        header = f"❌ 当前已有未完成的 {kind} 会话: {session_dir}"
+        header = f"❌ 当前已有未完成的 reconcile 会话: {session_dir}"
     else:
         header = f"🕒 已进入待决策状态: {session_dir}"
     return "\n".join([
@@ -45,27 +41,27 @@ def format_pending_guidance(kind: str, session_dir: Path, *, existing_session: b
     ])
 
 
-def require_no_pending_session(kind: str):
-    sessions = find_pending_sessions(kind)
+def require_no_reconcile_pending_session():
+    sessions = find_reconcile_pending_sessions()
     if sessions:
-        raise ValueError(format_pending_guidance(kind, sessions[0], existing_session=True))
+        raise ValueError(format_reconcile_pending_guidance(sessions[0], existing_session=True))
 
 
-def require_single_pending_session(kind: str) -> Path:
-    sessions = find_pending_sessions(kind)
+def require_single_reconcile_pending_session() -> Path:
+    sessions = find_reconcile_pending_sessions()
     if not sessions:
-        raise ValueError(f"❌ 当前没有待继续的 {kind} 会话")
+        raise ValueError("❌ 当前没有待继续的 reconcile 会话")
     if len(sessions) > 1:
-        raise ValueError(f"❌ 检测到多个待继续的 {kind} 会话，请手动清理: {sessions}")
+        raise ValueError(f"❌ 检测到多个待继续的 reconcile 会话，请手动清理: {sessions}")
     return sessions[0]
 
 
-def load_pending_session(kind: str) -> dict | None:
-    sessions = find_pending_sessions(kind)
+def load_reconcile_pending_session() -> dict | None:
+    sessions = find_reconcile_pending_sessions()
     if not sessions:
         return None
     if len(sessions) > 1:
-        raise ValueError(f"❌ 检测到多个待继续的 {kind} 会话，请手动清理: {sessions}")
+        raise ValueError(f"❌ 检测到多个待继续的 reconcile 会话，请手动清理: {sessions}")
     session_dir = sessions[0]
     return {
         "session_dir": session_dir,
@@ -74,14 +70,14 @@ def load_pending_session(kind: str) -> dict | None:
     }
 
 
-def create_pending_session(kind: str, manifest: dict) -> Path:
-    require_no_pending_session(kind)
-    kind_dir = _ensure_kind(kind)
+def create_reconcile_pending_session(manifest: dict) -> Path:
+    require_no_reconcile_pending_session()
+    pending_dir = _ensure_reconcile_pending_dir()
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    session_id = f"{kind}_{ts}"
-    session_dir = kind_dir / session_id
+    session_id = f"reconcile_{ts}"
+    session_dir = pending_dir / session_id
     session_dir.mkdir(parents=True, exist_ok=False)
-    manifest = {**manifest, "session_id": session_id, "kind": kind, "created_at": ts}
+    manifest = {**manifest, "session_id": session_id, "kind": "reconcile", "created_at": ts}
     write_json(session_dir / "manifest.json", manifest)
     write_json(session_dir / "status.json", {"session_id": session_id, "status": "waiting_for_decisions"})
     return session_dir
@@ -96,8 +92,8 @@ def write_status(session_dir: Path, status: str):
     write_json(session_dir / "status.json", {"session_id": manifest["session_id"], "status": status})
 
 
-def clear_pending_session(kind: str):
-    session_dir = require_single_pending_session(kind)
+def clear_reconcile_pending_session():
+    session_dir = require_single_reconcile_pending_session()
     shutil.rmtree(session_dir)
 
 

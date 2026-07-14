@@ -982,7 +982,7 @@ class TestInferPaymentSource:
 class TestCcbRefundClassification:
     def test_ccb_refund_signal_single_candidate_can_be_strong(self):
         from ft.convert import _classify_refund_match
-        strength, pending = _classify_refund_match(
+        strength = _classify_refund_match(
             ref={"_refund_signal": "ccb_debit_refund", "_ccb_refund_same_cluster": True, "date": "2026-03-15"},
             rule_hint="refund_cp_match",
             exact_amt=True,
@@ -990,11 +990,10 @@ class TestCcbRefundClassification:
             expense={"date": "2026-03-14"},
         )
         assert strength == "strong"
-        assert pending is False
 
     def test_ccb_refund_signal_multi_candidate_same_cluster_stays_weak(self):
         from ft.convert import _classify_refund_match
-        strength, pending = _classify_refund_match(
+        strength = _classify_refund_match(
             ref={"_refund_signal": "ccb_debit_refund", "_ccb_refund_same_cluster": True, "date": "2026-03-15"},
             rule_hint="refund_cp_match",
             exact_amt=True,
@@ -1002,7 +1001,6 @@ class TestCcbRefundClassification:
             expense={"date": "2026-03-14"},
         )
         assert strength == "weak"
-        assert pending is True
 
 
 # ── ICBC PDF 行解析 ──────────────────────────────────────
@@ -2866,4 +2864,3 @@ class TestIcbcDebitReversal:
         assert len(tracking_pairs) == 0
         incomes = [r for r in records if r["category"] == "income"]
         assert len(incomes) == 1
-

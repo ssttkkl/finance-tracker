@@ -20,7 +20,13 @@ from .ai_working_csv import (
 )
 from .dedup import _cross_verify, _parse_dt, _source_group, _truncate_minute, dedup_with_pairs
 from .mirror_rules import detect_mirror_pairs
-from .pending import clear_pending_session, create_pending_session, load_manifest, require_single_pending_session
+from .pending import (
+    clear_reconcile_pending_session,
+    create_reconcile_pending_session,
+    format_reconcile_pending_guidance,
+    load_manifest,
+    require_single_reconcile_pending_session,
+)
 from .snapshot import rebuild_snapshot_from_records, git_stage
 from .transfer_rules import classify_single_leg
 
@@ -596,7 +602,7 @@ def _create_reconcile_pending_session(state: dict):
         "scope_from": state["scope_from"],
         "scope_to": state["scope_to"],
     }
-    session_dir = create_pending_session("reconcile", manifest)
+    session_dir = create_reconcile_pending_session(manifest)
     session_id = session_dir.name
 
     pending_rows = state["scoped"] if state.get("has_only_review") else state.get("pending_rows", state["scoped"])
@@ -680,8 +686,7 @@ def _create_reconcile_pending_session(state: dict):
         transfer_audit_rows,
     )
 
-    from .pending import format_pending_guidance
-    print(format_pending_guidance("reconcile", session_dir))
+    print(format_reconcile_pending_guidance(session_dir))
 
 
 def _validate_reconcile_working_rows(original_rows: list[dict], edited_rows: list[dict], session_id: str):
@@ -759,7 +764,7 @@ def _validate_reconcile_working_rows(original_rows: list[dict], edited_rows: lis
 
 
 def continue_reconcile(edited_csv: str):
-    session_dir = require_single_pending_session("reconcile")
+    session_dir = require_single_reconcile_pending_session()
     manifest = load_manifest(session_dir)
     original_rows = read_ai_working_csv(session_dir / "ai_working.csv")
     edited_rows = read_ai_working_csv(Path(edited_csv))
@@ -810,12 +815,12 @@ def continue_reconcile(edited_csv: str):
             proposed_audit_rows + extra_audit_rows,
         )
         print(f"✅ 去重完成，审计文件: {audit_path}")
-    clear_pending_session("reconcile")
+    clear_reconcile_pending_session()
     git_stage(models.FT_DIR)
 
 
 def abort_reconcile():
-    clear_pending_session("reconcile")
+    clear_reconcile_pending_session()
     print("✅ 已放弃当前 pending reconcile 会话")
 
 

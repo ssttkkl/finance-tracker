@@ -983,14 +983,14 @@ def test_reconcile_enters_pending_for_same_currency_cash_to_loan_repayment_case(
 
 def test_continue_reconcile_writes_records_and_clears_pending(tmp_env):
     from ft.ai_working_csv import write_ai_working_csv
-    from ft.pending import create_pending_session
+    from ft.pending import create_reconcile_pending_session
     from ft.reconcile import _audit_fields, continue_reconcile
 
     day_path = tmp_env / "records" / "loan" / "2026-06.csv"
     day_path.parent.mkdir(parents=True, exist_ok=True)
     day_path.write_text("", encoding="utf-8")
 
-    session_dir = create_pending_session("reconcile", {"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+    session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     session_id = session_dir.name
     rows = [{
         "record_id": "r_000001", "session_id": session_id,
@@ -1020,7 +1020,7 @@ def test_continue_reconcile_writes_records_and_clears_pending(tmp_env):
 
 def test_continue_reconcile_preserves_untouched_rows_in_pending_record_file(tmp_env):
     from ft.ai_working_csv import write_ai_working_csv
-    from ft.pending import create_pending_session
+    from ft.pending import create_reconcile_pending_session
     from ft.reconcile import continue_reconcile
 
     day_path = tmp_env / "records" / "loan" / "2026-06.csv"
@@ -1037,7 +1037,7 @@ def test_continue_reconcile_preserves_untouched_rows_in_pending_record_file(tmp_
         },
     ])
 
-    session_dir = create_pending_session("reconcile", {"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+    session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     row = {
         "record_id": "r_selected", "session_id": session_dir.name,
         "date": "2026-06-12 10:00:03", "amount": "-30.00", "currency": "CNY",
@@ -1059,7 +1059,7 @@ def test_continue_reconcile_preserves_untouched_rows_in_pending_record_file(tmp_
 
 def test_continue_reconcile_uses_source_record_id_when_dropping_pending_row(tmp_env):
     from ft.ai_working_csv import write_ai_working_csv
-    from ft.pending import create_pending_session
+    from ft.pending import create_reconcile_pending_session
     from ft.reconcile import continue_reconcile
 
     day_path = tmp_env / "records" / "cash" / "2026-06.csv"
@@ -1076,7 +1076,7 @@ def test_continue_reconcile_uses_source_record_id_when_dropping_pending_row(tmp_
         },
     ])
 
-    session_dir = create_pending_session("reconcile", {"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+    session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     original = [
         {
             "record_id": "r_000001", "source_record_id": "icbc_real_001", "session_id": session_dir.name,
@@ -1102,14 +1102,14 @@ def test_continue_reconcile_uses_source_record_id_when_dropping_pending_row(tmp_
 
 def test_continue_reconcile_rejects_read_only_changes(tmp_env):
     from ft.ai_working_csv import write_ai_working_csv
-    from ft.pending import create_pending_session
+    from ft.pending import create_reconcile_pending_session
     from ft.reconcile import continue_reconcile
 
     day_path = tmp_env / "records" / "loan" / "2026-06.csv"
     day_path.parent.mkdir(parents=True, exist_ok=True)
     day_path.write_text("", encoding="utf-8")
 
-    session_dir = create_pending_session("reconcile", {"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+    session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     session_id = session_dir.name
     original = [{
         "record_id": "r_000001", "session_id": session_id,
@@ -1131,14 +1131,14 @@ def test_continue_reconcile_rejects_read_only_changes(tmp_env):
 
 def test_continue_reconcile_rejects_drop_without_reason(tmp_env):
     from ft.ai_working_csv import write_ai_working_csv
-    from ft.pending import create_pending_session
+    from ft.pending import create_reconcile_pending_session
     from ft.reconcile import continue_reconcile
 
     day_path = tmp_env / "records" / "loan" / "2026-06.csv"
     day_path.parent.mkdir(parents=True, exist_ok=True)
     day_path.write_text("", encoding="utf-8")
 
-    session_dir = create_pending_session("reconcile", {"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+    session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     session_id = session_dir.name
     original = [{
         "record_id": "r_000001", "session_id": session_id,
@@ -1160,14 +1160,14 @@ def test_continue_reconcile_rejects_drop_without_reason(tmp_env):
 
 def test_continue_reconcile_rejects_grouped_leave_as_is_without_decision_reason(tmp_env):
     from ft.ai_working_csv import write_ai_working_csv
-    from ft.pending import create_pending_session
+    from ft.pending import create_reconcile_pending_session
     from ft.reconcile import continue_reconcile
 
     day_path = tmp_env / "records" / "loan" / "2026-06.csv"
     day_path.parent.mkdir(parents=True, exist_ok=True)
     day_path.write_text("", encoding="utf-8")
 
-    session_dir = create_pending_session("reconcile", {"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+    session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     row = {
         "record_id": "r_000001", "session_id": session_dir.name,
         "date": "2026-06-12 10:00:03", "amount": "-30.00", "currency": "CNY",
@@ -1188,14 +1188,14 @@ def test_continue_reconcile_rejects_grouped_leave_as_is_without_decision_reason(
 
 def test_continue_reconcile_rejects_modify_without_actual_change(tmp_env):
     from ft.ai_working_csv import write_ai_working_csv
-    from ft.pending import create_pending_session
+    from ft.pending import create_reconcile_pending_session
     from ft.reconcile import continue_reconcile
 
     day_path = tmp_env / "records" / "loan" / "2026-06.csv"
     day_path.parent.mkdir(parents=True, exist_ok=True)
     day_path.write_text("", encoding="utf-8")
 
-    session_dir = create_pending_session("reconcile", {"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+    session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     session_id = session_dir.name
     original = [{
         "record_id": "r_000001", "session_id": session_id,
@@ -1217,14 +1217,14 @@ def test_continue_reconcile_rejects_modify_without_actual_change(tmp_env):
 
 def test_continue_reconcile_rejects_transfer_target_missing(tmp_env):
     from ft.ai_working_csv import write_ai_working_csv
-    from ft.pending import create_pending_session
+    from ft.pending import create_reconcile_pending_session
     from ft.reconcile import continue_reconcile
 
     day_path = tmp_env / "records" / "cash" / "2026-06.csv"
     day_path.parent.mkdir(parents=True, exist_ok=True)
     day_path.write_text("", encoding="utf-8")
 
-    session_dir = create_pending_session("reconcile", {"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+    session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     session_id = session_dir.name
     original = [{
         "record_id": "r_000001", "session_id": session_id,
@@ -1246,14 +1246,14 @@ def test_continue_reconcile_rejects_transfer_target_missing(tmp_env):
 
 def test_continue_reconcile_rejects_transfer_pair_direction_mismatch(tmp_env):
     from ft.ai_working_csv import write_ai_working_csv
-    from ft.pending import create_pending_session
+    from ft.pending import create_reconcile_pending_session
     from ft.reconcile import continue_reconcile
 
     day_path = tmp_env / "records" / "cash" / "2026-06.csv"
     day_path.parent.mkdir(parents=True, exist_ok=True)
     day_path.write_text("", encoding="utf-8")
 
-    session_dir = create_pending_session("reconcile", {"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+    session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     session_id = session_dir.name
     original = [
         {
@@ -1290,14 +1290,14 @@ def test_continue_reconcile_rejects_transfer_pair_direction_mismatch(tmp_env):
 
 def test_continue_reconcile_rejects_transfer_out_on_income_row(tmp_env):
     from ft.ai_working_csv import write_ai_working_csv
-    from ft.pending import create_pending_session
+    from ft.pending import create_reconcile_pending_session
     from ft.reconcile import continue_reconcile
 
     day_path = tmp_env / "records" / "cash" / "2026-06.csv"
     day_path.parent.mkdir(parents=True, exist_ok=True)
     day_path.write_text("", encoding="utf-8")
 
-    session_dir = create_pending_session("reconcile", {"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+    session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     session_id = session_dir.name
     original = [
         {
@@ -1334,14 +1334,14 @@ def test_continue_reconcile_rejects_transfer_out_on_income_row(tmp_env):
 
 def test_continue_reconcile_applies_transfer_pair(tmp_env):
     from ft.ai_working_csv import write_ai_working_csv
-    from ft.pending import create_pending_session
+    from ft.pending import create_reconcile_pending_session
     from ft.reconcile import continue_reconcile
 
     day_path = tmp_env / "records" / "cash" / "2026-06.csv"
     day_path.parent.mkdir(parents=True, exist_ok=True)
     day_path.write_text("", encoding="utf-8")
 
-    session_dir = create_pending_session("reconcile", {"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+    session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     session_id = session_dir.name
     original = [
         {
@@ -1386,14 +1386,14 @@ def test_continue_reconcile_applies_transfer_pair(tmp_env):
 def test_continue_reconcile_records_ai_transfer_in_audit(tmp_env):
     from ft import models
     from ft.ai_working_csv import write_ai_working_csv
-    from ft.pending import create_pending_session
+    from ft.pending import create_reconcile_pending_session
     from ft.reconcile import continue_reconcile
 
     day_path = tmp_env / "records" / "cash" / "2026-06.csv"
     day_path.parent.mkdir(parents=True, exist_ok=True)
     day_path.write_text("", encoding="utf-8")
 
-    session_dir = create_pending_session("reconcile", {"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+    session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     session_id = session_dir.name
     original = [
         {
@@ -1439,14 +1439,14 @@ def test_continue_reconcile_records_ai_transfer_in_audit(tmp_env):
 
 def test_continue_reconcile_drops_ai_duplicate_row(tmp_env):
     from ft.ai_working_csv import write_ai_working_csv
-    from ft.pending import create_pending_session
+    from ft.pending import create_reconcile_pending_session
     from ft.reconcile import continue_reconcile
 
     day_path = tmp_env / "records" / "loan" / "2026-06.csv"
     day_path.parent.mkdir(parents=True, exist_ok=True)
     day_path.write_text("", encoding="utf-8")
 
-    session_dir = create_pending_session("reconcile", {"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+    session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     session_id = session_dir.name
     original = [
         {
@@ -1489,14 +1489,14 @@ def test_continue_reconcile_drops_ai_duplicate_row(tmp_env):
 def test_continue_reconcile_records_ai_drop_in_audit(tmp_env):
     from ft import models
     from ft.ai_working_csv import write_ai_working_csv
-    from ft.pending import create_pending_session
+    from ft.pending import create_reconcile_pending_session
     from ft.reconcile import _audit_fields, continue_reconcile
 
     day_path = tmp_env / "records" / "loan" / "2026-06.csv"
     day_path.parent.mkdir(parents=True, exist_ok=True)
     day_path.write_text("", encoding="utf-8")
 
-    session_dir = create_pending_session("reconcile", {"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
+    session_dir = create_reconcile_pending_session({"scope_from": "2026-06-01", "scope_to": "2026-06-30"})
     session_id = session_dir.name
     original = [
         {
