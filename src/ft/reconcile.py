@@ -19,7 +19,7 @@ from .ai_working_csv import (
     write_ai_working_csv,
 )
 from .dedup import _cross_verify, _parse_dt, _source_group, _truncate_minute, dedup_with_pairs
-from .mirror_rules import MIRROR_LOW_CONFIDENCE_RULE_HINT, detect_mirror_pairs
+from .mirror_rules import detect_mirror_pairs
 from .pending import clear_pending_session, create_pending_session, load_manifest, require_single_pending_session
 from .snapshot import rebuild_snapshot_from_records, git_stage
 from .transfer_rules import classify_single_leg
@@ -548,7 +548,7 @@ def _mirror_review_annotations(scoped: list[dict]) -> dict[int, dict]:
         for row, role in ((pair.keep_row, "keep"), (pair.drop_row, "drop")):
             annotations[id(row)] = {
                 "ai_group": group,
-                "rule_hint": pair.rule_hint or MIRROR_LOW_CONFIDENCE_RULE_HINT,
+                "rule_hint": pair.rule_hint,
                 "ai_reason": f"{pair.rule_hint}:{role}",
             }
     return annotations
