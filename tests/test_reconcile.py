@@ -136,6 +136,7 @@ def test_reconcile_same_day_date_only_ccb_wechat_case_enters_full_table_pending(
 
     save_accounts([
         {"name": "建行储蓄卡(2820)", "type": "cash", "currency": "CNY", "active": True},
+        {"name": "工行借记卡", "type": "cash", "currency": "CNY", "active": True},
         {"name": "微信零钱", "type": "cash", "currency": "CNY", "active": True},
     ], models.ACCOUNTS_PATH)
 
@@ -193,6 +194,56 @@ def test_reconcile_same_day_date_only_ccb_alipay_case_enters_full_table_pending(
         rows = list(csv.DictReader(f))
     assert len(rows) == 3
     assert {r["row_status"] for r in rows} == {"active"}
+
+
+def test_continue_reconcile_keeps_auto_dropped_rows_removed_when_date_level_review_is_pending(tmp_env):
+    from ft import models
+    from ft.ai_working_csv import read_ai_working_csv, write_ai_working_csv
+    from ft.reconcile import continue_reconcile, do_reconcile
+
+    save_accounts([
+        {"name": "建行储蓄卡(2820)", "type": "cash", "currency": "CNY", "active": True},
+    ], models.ACCOUNTS_PATH)
+
+    day_path = models.RECORDS_DIR / "cash" / "2026-06.csv"
+    _write_rows(day_path, [
+        {"date": "2026-06-12", "amount": "-30.00", "currency": "CNY",
+         "counterparty": "麦当劳", "description": "消费", "category": "expense",
+         "account_name": "建行储蓄卡(2820)", "source": "建行储蓄卡", "bill_source": "ccb_debit"},
+        {"date": "2026-06-12 10:00:03", "amount": "-30.00", "currency": "CNY",
+         "counterparty": "麦当劳", "description": "麦当劳", "category": "expense",
+         "account_name": "建行储蓄卡(2820)", "source": "微信", "bill_source": "wechat"},
+        {"date": "2026-06-13", "amount": "-30.00", "currency": "CNY",
+         "counterparty": "肯德基", "description": "消费", "category": "expense",
+         "account_name": "建行储蓄卡(2820)", "source": "建行储蓄卡", "bill_source": "ccb_debit"},
+        {"date": "2026-06-13 10:00:03", "amount": "-30.00", "currency": "CNY",
+         "counterparty": "肯德基", "description": "肯德基", "category": "expense",
+         "account_name": "建行储蓄卡(2820)", "source": "微信", "bill_source": "wechat"},
+        {"date": "2026-06-14 11:00:00", "amount": "-5.00", "currency": "CNY",
+         "counterparty": "深圳市财付通支付科技有限公司", "description": "消费", "category": "expense",
+         "account_name": "工行借记卡", "source": "银行卡", "bill_source": "icbc_debit"},
+        {"date": "2026-06-14 11:00:01", "amount": "-5.00", "currency": "CNY",
+         "counterparty": "商户甲", "description": "二维码收款", "category": "expense",
+         "account_name": "工行借记卡", "source": "微信", "bill_source": "wechat"},
+        {"date": "2026-06-14 11:00:02", "amount": "-5.00", "currency": "CNY",
+         "counterparty": "商户乙", "description": "二维码收款", "category": "expense",
+         "account_name": "工行借记卡", "source": "微信", "bill_source": "wechat"},
+    ])
+
+    do_reconcile(month="2026-06")
+
+    session_dir = next((models.PENDING_DIR / "reconcile").glob("*"))
+    original_rows = read_ai_working_csv(session_dir / "ai_working.csv")
+    assert len(original_rows) == 6
+    with open(day_path, encoding="utf-8") as f:
+        assert "ccb_debit" not in {row["bill_source"] for row in csv.DictReader(f)}
+
+    write_ai_working_csv(session_dir / "edited.csv", original_rows)
+    continue_reconcile(str(session_dir / "edited.csv"))
+
+    with open(day_path, encoding="utf-8") as f:
+        final_rows = list(csv.DictReader(f))
+    assert "ccb_debit" not in {row["bill_source"] for row in final_rows}
 
 
 def test_reconcile_auto_drops_unique_ccb_wechat_topup_pair_without_pending(tmp_env):

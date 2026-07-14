@@ -582,6 +582,14 @@ def _create_reconcile_pending_session(state: dict):
 
     pending_rows = state["scoped"] if state.get("has_only_review") else state.get("pending_rows", state["scoped"])
     mirror_review_annotations = state.get("mirror_review_annotations", {})
+    auto_removed_ids = {id(remove_row) for _keep_row, remove_row in state.get("pairs", [])}
+
+    def _pending_defaults(row: dict) -> dict:
+        defaults = dict(mirror_review_annotations.get(id(row), {}))
+        if id(row) in auto_removed_ids:
+            defaults["row_status"] = "dropped"
+        return defaults
+
     ai_rows = [
         build_ai_working_row(
             {
@@ -591,7 +599,7 @@ def _create_reconcile_pending_session(state: dict):
             },
             record_id=f"r_{idx:06d}",
             session_id=session_id,
-            defaults=mirror_review_annotations.get(id(row), {}),
+            defaults=_pending_defaults(row),
         )
         for idx, row in enumerate(pending_rows, 1)
     ]
