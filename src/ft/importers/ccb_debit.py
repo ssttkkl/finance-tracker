@@ -133,6 +133,7 @@ def read_ccb_debit(path: str):
             amount = round(float(amt_str), 2)
         except ValueError:
             continue
+        balance = str(row_vals[6] or "").replace(",", "").strip()
 
         # 交易地点（列 7）
         location = str(row_vals[7] or "").strip() if len(row_vals) > 7 else ""
@@ -159,6 +160,7 @@ def read_ccb_debit(path: str):
             normalized_cp,
             enriched_desc,
             card_last4,
+            balance,
         )
         record = {
             "date": date,

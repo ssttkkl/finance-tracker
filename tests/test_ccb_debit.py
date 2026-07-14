@@ -67,7 +67,7 @@ class TestLocationCounterparty:
         assert recs[0]["acct_name_raw"] == "Z******0010/***咖啡"
         assert recs[0]["_raw_cp"] == "***咖啡"
         assert recs[0]["_ccb_location_cp"] == "瑞幸咖啡"
-        assert recs[0]["_fact_id"] == "ccb_debit_f5e72292e6c3"
+        assert recs[0]["_fact_id"] == "ccb_debit_d4e3cd26facd"
 
     def test_alipay(self):
         """支付宝-淘宝-于震 → 于震"""
@@ -170,6 +170,23 @@ class TestLegacyFallback:
 # ── Basic parsing (date/amount/currency/category/card_number) ──
 
 class TestBasicParsing:
+    def test_same_day_same_amount_ccb_transactions_keep_distinct_fact_rows(self):
+        from ft.convert import _build_convert_fact_rows
+
+        path = _make_xls("6217000000000002820", [
+            ("消费", "人民币元", "钞", "20260128", "-8.00", "112.77",
+             "财付通-微信支付-丰巢", "Z******0010/*巢"),
+            ("消费", "人民币元", "钞", "20260128", "-8.00", "104.77",
+             "财付通-微信支付-丰巢", "Z******0010/*巢"),
+        ])
+
+        recs, _ = read_ccb_debit(path)
+        os.unlink(path)
+
+        assert len(recs) == 2
+        assert recs[0]["_fact_id"] != recs[1]["_fact_id"]
+        assert len(_build_convert_fact_rows(recs, [])) == 2
+
     def test_ccb_debit_keeps_date_only_without_fabricated_time(self):
         path = _make_xls("6217000000000002820", [
             ("消费", "人民币元", "钞", "20260128", "-4.23", "1,845.76",
