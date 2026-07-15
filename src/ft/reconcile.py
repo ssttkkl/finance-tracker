@@ -512,6 +512,11 @@ def _prepare_reconcile_state(*, month=None, date_from=None, date_to=None):
     scoped_active = [row for row in scoped if not _is_locked(row)]
     mirror_review_annotations = _mirror_review_annotations(scoped_active)
     unresolved_review_row_ids = _unresolved_review_row_ids(scoped_active)
+    refund_blocked_record_ids = {
+        row.get("record_id", "")
+        for row in scoped_active
+        if id(row) in mirror_review_annotations or id(row) in unresolved_review_row_ids
+    }
     kept, removed, pairs = dedup_with_pairs(scoped_active)
     canonical_ids = {
         remove_row.get("record_id", ""): keep_row.get("record_id", "")
@@ -522,6 +527,7 @@ def _prepare_reconcile_state(*, month=None, date_from=None, date_to=None):
         scoped_active,
         kept,
         canonical_ids,
+        blocked_record_ids=refund_blocked_record_ids,
     )
     kept, refund_auto_audit_rows = settle_refund_relations(kept, refund_auto_relations)
     kept_base = [{**row} for row in kept]
@@ -614,6 +620,8 @@ def _has_unresolved_review(state: dict) -> bool:
 def _should_enter_reconcile_pending(state: dict) -> bool:
     if not state.get("scoped"):
         return False
+    if state.get("refund_pending_relations"):
+        return True
     if _has_low_confidence_mirror_review(state):
         return True
     if _has_unresolved_review(state):
@@ -627,7 +635,7 @@ def _create_reconcile_pending_session(state: dict):
         "scope_to": state["scope_to"],
     }
     pending_rows = state["scoped"] if state.get("has_only_review") else state.get("pending_rows", state["scoped"])
-    linked_refund_ids = _linked_refund_record_ids(state["scoped"], pending_rows)
+    linked_refund_ids = _linked_refund_record_ids(state["kept"], pending_rows)
     if linked_refund_ids:
         pending_rows = [
             row for row in state["scoped"]
@@ -896,6 +904,10 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
 
     has_pending_review = _has_low_confidence_mirror_review(state)
     has_mixed_high_and_review = has_pending_review and bool(state["removed"])
+    has_pending_with_auto_refund = (
+        _should_enter_reconcile_pending(state)
+        and bool(state.get("refund_auto_audit_rows"))
+    )
 
     if not _should_enter_reconcile_pending(state):
         for file_path_str in touched_files:
@@ -965,7 +977,7 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
         git_stage(models.FT_DIR)
         return
 
-    if has_mixed_high_and_review:
+    if has_mixed_high_and_review or has_pending_with_auto_refund:
         for file_path_str in touched_files:
             file_path = Path(file_path_str)
             final_rows = rows_by_file.get(file_path_str, [])
@@ -981,7 +993,7 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
 
         rebuild_snapshot_from_records(models.RECORDS_DIR)
 
-    if has_mixed_high_and_review:
+    if has_mixed_high_and_review or has_pending_with_auto_refund:
         run_at = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         transfer_audit_rows = [
             *state.get("refund_relation_audit_rows", []),

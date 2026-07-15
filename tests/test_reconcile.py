@@ -139,6 +139,140 @@ def test_reconcile_rebinds_and_settles_strong_full_refund_after_dedup(tmp_env):
     assert "refund_full_auto" in {row["reconcile_status"] for row in audit_rows}
 
 
+def test_reconcile_enters_pending_for_weak_refund_without_mirror_candidate(tmp_env):
+    from ft import models
+    from ft.reconcile import do_reconcile
+
+    day_path = models.RECORDS_DIR / "cash" / "2026-06.csv"
+    _write_rows(day_path, [
+        {"record_id": "expense", "date": "2026-06-12 10:00:00", "amount": "-100.00", "currency": "CNY",
+         "counterparty": "商户", "description": "消费", "category": "expense",
+         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
+         "offset_group": "refund_000001", "offset_role": "expense", "offset_strength": "weak",
+         "offset_source": "alipay_status", "offset_rule_hint": "refund_desc_fallback",
+         "offset_match_type": "partial", "proposed_action": "leave_as_is"},
+        {"record_id": "refund", "date": "2026-06-13 10:00:00", "amount": "30.00", "currency": "CNY",
+         "counterparty": "商户", "description": "退款", "category": "income",
+         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
+         "offset_group": "refund_000001", "offset_role": "refund", "offset_strength": "weak",
+         "offset_source": "alipay_status", "offset_rule_hint": "refund_desc_fallback",
+         "offset_match_type": "partial", "proposed_action": "merge_refund_into:expense"},
+    ])
+
+    do_reconcile(month="2026-06")
+
+    session_dir = next((models.PENDING_DIR / "reconcile").glob("*"))
+    with open(session_dir / "ai_working.csv", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert {row["record_id"] for row in rows} == {"expense", "refund"}
+
+
+def test_continue_reconcile_settles_confirmed_weak_partial_refund(tmp_env):
+    from ft import models
+    from ft.ai_working_csv import read_ai_working_csv, write_ai_working_csv
+    from ft.reconcile import continue_reconcile, do_reconcile
+
+    day_path = models.RECORDS_DIR / "cash" / "2026-06.csv"
+    _write_rows(day_path, [
+        {"record_id": "expense", "date": "2026-06-12 10:00:00", "amount": "-100.00", "currency": "CNY",
+         "counterparty": "商户", "description": "消费", "category": "expense",
+         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
+         "offset_group": "refund_000001", "offset_role": "expense", "offset_strength": "weak",
+         "offset_source": "alipay_status", "offset_rule_hint": "refund_desc_fallback",
+         "offset_match_type": "partial", "proposed_action": "leave_as_is"},
+        {"record_id": "refund", "date": "2026-06-13 10:00:00", "amount": "30.00", "currency": "CNY",
+         "counterparty": "商户", "description": "退款", "category": "income",
+         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
+         "offset_group": "refund_000001", "offset_role": "refund", "offset_strength": "weak",
+         "offset_source": "alipay_status", "offset_rule_hint": "refund_desc_fallback",
+         "offset_match_type": "partial", "proposed_action": "merge_refund_into:expense"},
+    ])
+    do_reconcile(month="2026-06")
+
+    session_dir = next((models.PENDING_DIR / "reconcile").glob("*"))
+    edited_rows = read_ai_working_csv(session_dir / "ai_working.csv")
+    for row in edited_rows:
+        if row["record_id"] == "refund":
+            row["decision_action"] = "merge_refund_into:expense"
+            row["decision_reason"] = "确认是同一笔订单的退款"
+    write_ai_working_csv(session_dir / "edited.csv", edited_rows)
+
+    continue_reconcile()
+
+    with open(day_path, encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert [(row["record_id"], row["amount"]) for row in rows] == [("expense", "-70.0")]
+    audit_paths = sorted((models.FT_DIR / "audit" / "reconcile").glob("*.csv"))
+    with open(audit_paths[-1], encoding="utf-8") as f:
+        assert "refund_partial_ai" in {row["reconcile_status"] for row in csv.DictReader(f)}
+
+
+def test_reconcile_applies_strong_refund_while_weak_refund_waits_for_decision(tmp_env):
+    from ft import models
+    from ft.reconcile import do_reconcile
+
+    day_path = models.RECORDS_DIR / "cash" / "2026-06.csv"
+    _write_rows(day_path, [
+        {"record_id": "strong_expense", "date": "2026-06-10 10:00:00", "amount": "-100.00", "currency": "CNY",
+         "counterparty": "强商户", "description": "消费", "category": "expense",
+         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
+         "offset_group": "refund_000001", "offset_role": "expense", "offset_strength": "strong"},
+        {"record_id": "strong_refund", "date": "2026-06-11 10:00:00", "amount": "30.00", "currency": "CNY",
+         "counterparty": "强商户", "description": "退款", "category": "income",
+         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
+         "offset_group": "refund_000001", "offset_role": "refund", "offset_strength": "strong",
+         "offset_rule_hint": "refund_cp_match", "proposed_action": "merge_refund_into:strong_expense"},
+        {"record_id": "weak_expense", "date": "2026-06-12 10:00:00", "amount": "-50.00", "currency": "CNY",
+         "counterparty": "弱商户", "description": "消费", "category": "expense",
+         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
+         "offset_group": "refund_000002", "offset_role": "expense", "offset_strength": "weak"},
+        {"record_id": "weak_refund", "date": "2026-06-13 10:00:00", "amount": "10.00", "currency": "CNY",
+         "counterparty": "弱商户", "description": "退款", "category": "income",
+         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
+         "offset_group": "refund_000002", "offset_role": "refund", "offset_strength": "weak",
+         "offset_rule_hint": "refund_desc_fallback", "proposed_action": "merge_refund_into:weak_expense"},
+    ])
+
+    do_reconcile(month="2026-06")
+
+    with open(day_path, encoding="utf-8") as f:
+        rows = {row["record_id"]: row for row in csv.DictReader(f)}
+    assert rows["strong_expense"]["amount"] == "-70.0"
+    assert "strong_refund" not in rows
+    session_dir = next((models.PENDING_DIR / "reconcile").glob("*"))
+    with open(session_dir / "proposed_audit.csv", encoding="utf-8") as f:
+        assert "refund_partial_auto" in {row["reconcile_status"] for row in csv.DictReader(f)}
+
+
+def test_reconcile_rebinds_weak_refund_target_before_pending_review(tmp_env):
+    from ft import models
+    from ft.reconcile import do_reconcile
+
+    day_path = models.RECORDS_DIR / "cash" / "2026-06.csv"
+    _write_rows(day_path, [
+        {"record_id": "bank_expense", "date": "2026-06-12 10:00:00", "amount": "-10.00", "currency": "CNY",
+         "counterparty": "商户", "description": "消费", "category": "expense",
+         "account_name": "支付宝余额", "source": "银行卡", "bill_source": "icbc_debit",
+         "offset_group": "refund_000001", "offset_role": "expense", "offset_strength": "weak"},
+        {"record_id": "wechat_expense", "date": "2026-06-12 10:00:02", "amount": "-10.00", "currency": "CNY",
+         "counterparty": "商户", "description": "消费", "category": "expense",
+         "account_name": "支付宝余额", "source": "微信", "bill_source": "wechat"},
+        {"record_id": "refund", "date": "2026-06-13 10:00:00", "amount": "10.00", "currency": "CNY",
+         "counterparty": "商户", "description": "退款", "category": "income",
+         "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
+         "offset_group": "refund_000001", "offset_role": "refund", "offset_strength": "weak",
+         "offset_rule_hint": "refund_desc_fallback", "proposed_action": "merge_refund_into:bank_expense"},
+    ])
+
+    do_reconcile(month="2026-06")
+
+    session_dir = next((models.PENDING_DIR / "reconcile").glob("*"))
+    with open(session_dir / "ai_working.csv", encoding="utf-8") as f:
+        rows = {row["record_id"]: row for row in csv.DictReader(f)}
+    assert set(rows) == {"wechat_expense", "refund"}
+    assert rows["refund"]["proposed_action"] == "merge_refund_into:wechat_expense"
+
+
 def test_reconcile_auto_drops_multi_mirror_case_by_closest_strong_source(tmp_env):
     from ft import models
     from ft.reconcile import do_reconcile

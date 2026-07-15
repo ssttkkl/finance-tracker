@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 from .ai_working_csv import parse_decision_action_target
+from .refund_reconcile import RefundRelation, settle_refund_relations
 
 
 def _materialize_row(row: dict) -> dict:
@@ -85,6 +86,7 @@ def apply_reconcile_working_rows(edited_rows: list[dict]) -> tuple[dict[str, lis
     rows_by_id = {row["record_id"]: row for row in edited_rows}
     extra_audit_rows = []
     by_file: dict[str, list[dict]] = defaultdict(list)
+    active_rows = []
 
     for row in edited_rows:
         decision_action = row.get("decision_action", "leave_as_is") or "leave_as_is"
@@ -104,9 +106,30 @@ def apply_reconcile_working_rows(edited_rows: list[dict]) -> tuple[dict[str, lis
                     "counterpart_amount": "",
                 })
             continue
+        active_rows.append(row)
 
+    active_ids = {row["record_id"] for row in active_rows}
+    refund_relations = []
+    for row in active_rows:
+        target = parse_decision_action_target(row.get("decision_action", "leave_as_is") or "leave_as_is")
+        if not target or target[0] != "merge_refund_into":
+            continue
+        _action_name, target_id = target
+        if target_id not in active_ids:
+            raise ValueError(f"退款目标记录已被删除: record_id={row['record_id']} target={target_id}")
+        refund_relations.append(RefundRelation(
+            refund_id=row["record_id"],
+            expense_id=target_id,
+            strength=row.get("offset_strength", "weak") or "weak",
+            rule_hint=row.get("offset_rule_hint", ""),
+        ))
+
+    settled_rows, refund_audit_rows = settle_refund_relations(active_rows, refund_relations, mode="ai")
+    extra_audit_rows.extend(refund_audit_rows)
+
+    for row in settled_rows:
         materialized = _materialize_row(row)
-        target = parse_decision_action_target(decision_action)
+        target = parse_decision_action_target(row.get("decision_action", "leave_as_is") or "leave_as_is")
         if target:
             action_name, target_id = target
             target_row = rows_by_id[target_id]

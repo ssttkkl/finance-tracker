@@ -74,11 +74,14 @@ def _relation_audit(row: dict, *, status: str, counterpart: dict | None = None,
 
 
 def resolve_refund_relations(source_rows: list[dict], kept_rows: list[dict],
-                             canonical_ids: dict[str, str]) -> tuple[list[RefundRelation], list[RefundRelation], list[dict]]:
+                             canonical_ids: dict[str, str], *,
+                             blocked_record_ids: set[str] | None = None) -> tuple[list[RefundRelation], list[RefundRelation], list[dict]]:
     """解析退款关系并将被去重删除的关系端映射到保留记录。"""
+    source_by_id = {row.get("record_id", ""): row for row in source_rows}
     kept_by_id = {row.get("record_id", ""): row for row in kept_rows}
     candidates: dict[str, list[RefundRelation]] = {}
     audit_rows = []
+    blocked_record_ids = blocked_record_ids or set()
 
     for source_refund in source_rows:
         source_refund_id = source_refund.get("record_id", "")
@@ -91,6 +94,13 @@ def resolve_refund_relations(source_rows: list[dict], kept_rows: list[dict],
         expense = kept_by_id.get(expense_id)
         if not refund or not expense:
             continue
+        if refund_id != source_refund_id or expense_id != source_expense_id:
+            refund["proposed_action"] = f"merge_refund_into:{expense_id}"
+            source_expense = source_by_id.get(source_expense_id, {})
+            for field in OFFSET_FIELDS:
+                if not expense.get(field, ""):
+                    expense[field] = source_expense.get(field, "")
+            expense["offset_role"] = expense.get("offset_role", "") or "expense"
         rule_hint = source_refund.get("offset_rule_hint", "")
         relation = RefundRelation(
             refund_id=refund_id,
@@ -118,7 +128,8 @@ def resolve_refund_relations(source_rows: list[dict], kept_rows: list[dict],
         relation = relations[0]
         refund = kept_by_id[relation.refund_id]
         expense = kept_by_id[relation.expense_id]
-        if (relation.strength != "strong" or _is_locked(refund) or _is_locked(expense)
+        if (relation.refund_id in blocked_record_ids or relation.expense_id in blocked_record_ids
+                or relation.strength != "strong" or _is_locked(refund) or _is_locked(expense)
                 or not _is_compatible(refund, expense)):
             pending.append(relation)
             continue
