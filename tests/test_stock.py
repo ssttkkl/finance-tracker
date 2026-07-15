@@ -3,6 +3,7 @@ import csv
 import sys
 import tempfile
 import time
+from decimal import Decimal
 from pathlib import Path
 
 import pandas as pd
@@ -474,6 +475,26 @@ def test_polymarket_activity_trade_to_stock_row_maps_yes_no():
     }
 
 
+def test_polymarket_activity_trade_note_prefers_api_row_id():
+    """When Activity exposes a fill/activity id, it becomes the row-level identity."""
+    from ft.polymarket_sync import activity_to_stock_row
+
+    row = activity_to_stock_row({
+        "id": "fill-123",
+        "timestamp": 1782785769,
+        "type": "TRADE",
+        "side": "BUY",
+        "slug": "will-test-market-close-yes",
+        "outcome": "No",
+        "size": "2",
+        "price": "0.5",
+        "usdcSize": "1",
+        "transactionHash": "0xabc123",
+    }, account_name="Polymarket")
+
+    assert row["note"] == "polymarket id:fill-123 tx:0xabc123"
+
+
 def test_polymarket_activity_trade_rejects_unknown_outcome():
     """Unknown outcome labels must fail loudly rather than being silently imported."""
     from ft.polymarket_sync import activity_to_stock_row
@@ -493,7 +514,7 @@ def test_polymarket_activity_trade_rejects_unknown_outcome():
 
 
 def test_filter_new_polymarket_rows_dedupes_by_transaction_hash(tmp_env):
-    """Incremental sync should skip rows whose tx hash is already recorded."""
+    """Incremental sync should skip an exact already-recorded Polymarket fill."""
     import csv
     from ft import stock
     from ft.polymarket_sync import filter_new_rows
@@ -527,6 +548,71 @@ def test_filter_new_polymarket_rows_dedupes_by_transaction_hash(tmp_env):
     ]
 
     assert filter_new_rows(rows)[0]["note"] == "polymarket tx:0xnew"
+
+
+def test_filter_new_polymarket_rows_keeps_new_fill_with_existing_tx_hash(tmp_env):
+    """Same transaction hash can contain a later-discovered distinct fill."""
+    from ft import stock
+    from ft.polymarket_sync import filter_new_rows
+
+    stock.record_trade(
+        date="2026-06-30 10:00:00", action="swap",
+        from_ticker="USD", to_ticker="pm:market-a:yes",
+        from_amount=5, to_amount=10,
+        price=0.5, commission=0, commission_asset="USD",
+        currency="USD", account_name="Polymarket",
+        note="polymarket tx:0xabc123",
+    )
+
+    rows = [
+        {
+            "date": "2026-06-30 10:00:00", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "pm:market-a:yes",
+            "from_amount": "5", "to_amount": "10", "price": "0.5",
+            "commission": "0", "commission_asset": "USD",
+            "currency": "USD", "account_name": "Polymarket",
+            "note": "polymarket tx:0xabc123",
+        },
+        {
+            "date": "2026-06-30 10:00:01", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "pm:market-b:no",
+            "from_amount": "2", "to_amount": "8", "price": "0.25",
+            "commission": "0", "commission_asset": "USD",
+            "currency": "USD", "account_name": "Polymarket",
+            "note": "polymarket tx:0xabc123",
+        },
+    ]
+
+    new_rows = filter_new_rows(rows, account_name="Polymarket")
+
+    assert len(new_rows) == 1
+    assert new_rows[0]["to_ticker"] == "pm:market-b:no"
+
+
+def test_filter_new_polymarket_rows_dedupes_by_api_row_id(tmp_env):
+    """API fill/activity id is the preferred stable identity when present."""
+    from ft import stock
+    from ft.polymarket_sync import filter_new_rows
+
+    stock.record_trade(
+        date="2026-06-30 10:00:00", action="swap",
+        from_ticker="USD", to_ticker="pm:market-a:yes",
+        from_amount=5, to_amount=10,
+        price=0.5, commission=0, commission_asset="USD",
+        currency="USD", account_name="Polymarket",
+        note="polymarket id:fill-123 tx:0xabc123",
+    )
+
+    rows = [{
+        "date": "2026-06-30 10:00:01", "action": "swap",
+        "from_ticker": "USD", "to_ticker": "pm:market-a:yes",
+        "from_amount": "5.0", "to_amount": "10.0", "price": "0.50",
+        "commission": "0", "commission_asset": "USD",
+        "currency": "USD", "account_name": "Polymarket",
+        "note": "polymarket id:fill-123 tx:0xabc123",
+    }]
+
+    assert filter_new_rows(rows, account_name="Polymarket") == []
 
 
 def test_stock_append_preserves_transfer_style_security_rows(tmp_env):
@@ -1576,7 +1662,10 @@ def test_sync_polymarket_adds_settlement_sell_for_resolved_open_position(tmp_env
         },
     })
     monkeypatch.setattr("ft.polymarket_sync.fetch_activity", lambda *_args, **_kwargs: [])
-    monkeypatch.setattr("ft.stock._fetch_polymarket_prices", lambda tickers: {"pm:resolved-market:no": 1.0})
+    monkeypatch.setattr(
+        "ft.polymarket_sync._fetch_polymarket_resolution_prices",
+        lambda tickers: _resolved_metadata({"pm:resolved-market:no": "1"}),
+    )
     monkeypatch.setattr("ft.polymarket_sync._today_iso", lambda: "2026-07-07")
 
     rows = sync_polymarket(proxy_wallet="0x" + "1" * 40, account_name="Polymarket", dry_run=True)
@@ -1593,9 +1682,187 @@ def test_sync_polymarket_adds_settlement_sell_for_resolved_open_position(tmp_env
         "commission_asset": "USD",
         "currency": "USD",
         "account_name": "Polymarket",
-        "note": "polymarket settlement",
+        "note": "polymarket settlement token:pm:resolved-market:no price:1",
     }]
 
+
+def _save_polymarket_security_account():
+    from ft.accounts import save_accounts
+    from ft import models
+
+    save_accounts([
+        {"name": "Polymarket", "type": "security", "currency": "USD", "active": True},
+    ], models.ACCOUNTS_PATH)
+
+
+def _resolved_metadata(prices: dict[str, str]):
+    return {ticker: Decimal(value) for ticker, value in prices.items()}
+
+
+def _polymarket_sell_activity(slug: str, outcome: str, size: str, price: str, tx_hash: str) -> dict:
+    return {
+        "timestamp": 1782785769,
+        "type": "TRADE",
+        "side": "SELL",
+        "slug": slug,
+        "outcome": outcome,
+        "size": size,
+        "price": price,
+        "usdcSize": str(Decimal(size) * Decimal(price)),
+        "transactionHash": tx_hash,
+    }
+
+
+def test_sync_polymarket_full_real_sell_does_not_add_settlement(tmp_env, monkeypatch):
+    """A same-sync real SELL that fully exits a resolved token must not be double-settled."""
+    from ft.polymarket_sync import sync_polymarket
+    from ft.stock import do_buy, load_snapshot
+
+    _save_polymarket_security_account()
+    do_buy(
+        ticker="pm:resolved-full:no", shares=10, price=0.4,
+        commission=0, currency="USD", account_name="Polymarket",
+        date="2026-07-01 09:00:00",
+    )
+    monkeypatch.setattr("ft.polymarket_sync.fetch_activity", lambda *_args, **_kwargs: [
+        _polymarket_sell_activity("resolved-full", "No", "10", "0.6", "0xsellfull"),
+    ])
+    monkeypatch.setattr("ft.stock._fetch_polymarket_prices", lambda tickers: {"pm:resolved-full:no": 1.0})
+    monkeypatch.setattr(
+        "ft.polymarket_sync._fetch_polymarket_resolution_prices",
+        lambda tickers: _resolved_metadata({"pm:resolved-full:no": "1"}),
+        raising=False,
+    )
+    monkeypatch.setattr("ft.polymarket_sync._today_iso", lambda: "2026-07-07")
+
+    rows = sync_polymarket(proxy_wallet="0x" + "1" * 40, account_name="Polymarket")
+
+    assert len(rows) == 1
+    assert rows[0]["note"] == "polymarket tx:0xsellfull"
+    positions = load_snapshot()["accounts"]["security"]["Polymarket"]["positions"]
+    assert "pm:resolved-full:no" not in positions
+
+
+def test_sync_polymarket_partial_real_sell_settles_only_remaining_shares(tmp_env, monkeypatch):
+    """A same-sync partial SELL should settle only the projected remaining position."""
+    from ft.polymarket_sync import sync_polymarket
+    from ft.stock import do_buy, load_snapshot
+
+    _save_polymarket_security_account()
+    do_buy(
+        ticker="pm:resolved-partial:no", shares=10, price=0.4,
+        commission=0, currency="USD", account_name="Polymarket",
+        date="2026-07-01 09:00:00",
+    )
+    monkeypatch.setattr("ft.polymarket_sync.fetch_activity", lambda *_args, **_kwargs: [
+        _polymarket_sell_activity("resolved-partial", "No", "4", "0.6", "0xsellpartial"),
+    ])
+    monkeypatch.setattr("ft.stock._fetch_polymarket_prices", lambda tickers: {"pm:resolved-partial:no": 1.0})
+    monkeypatch.setattr(
+        "ft.polymarket_sync._fetch_polymarket_resolution_prices",
+        lambda tickers: _resolved_metadata({"pm:resolved-partial:no": "1"}),
+        raising=False,
+    )
+    monkeypatch.setattr("ft.polymarket_sync._today_iso", lambda: "2026-07-07")
+
+    rows = sync_polymarket(proxy_wallet="0x" + "1" * 40, account_name="Polymarket")
+
+    settlement_rows = [row for row in rows if "settlement" in row["note"]]
+    assert len(settlement_rows) == 1
+    assert settlement_rows[0]["from_amount"] == "6"
+    assert settlement_rows[0]["to_amount"] == "6"
+    positions = load_snapshot()["accounts"]["security"]["Polymarket"]["positions"]
+    assert "pm:resolved-partial:no" not in positions
+
+
+def test_sync_polymarket_live_zero_one_quote_does_not_settle(tmp_env, monkeypatch):
+    """Endpoint-looking live quotes are valuation data, not settlement authority."""
+    from ft.polymarket_sync import sync_polymarket
+    from ft.stock import do_buy
+
+    _save_polymarket_security_account()
+    do_buy(
+        ticker="pm:live-market:no", shares=10, price=0.4,
+        commission=0, currency="USD", account_name="Polymarket",
+        date="2026-07-01 09:00:00",
+    )
+    monkeypatch.setattr("ft.polymarket_sync.fetch_activity", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr("ft.stock._fetch_polymarket_prices", lambda tickers: {"pm:live-market:no": 1.0})
+    monkeypatch.setattr(
+        "ft.polymarket_sync._fetch_polymarket_resolution_prices",
+        lambda tickers: {},
+        raising=False,
+    )
+    monkeypatch.setattr("ft.polymarket_sync._today_iso", lambda: "2026-07-07")
+
+    rows = sync_polymarket(proxy_wallet="0x" + "1" * 40, account_name="Polymarket", dry_run=True)
+
+    assert rows == []
+
+
+def test_sync_polymarket_existing_settlement_is_idempotent_across_dates(tmp_env, monkeypatch):
+    """A stale snapshot must not generate another settlement for an already-settled token."""
+    from ft import models
+    from ft.polymarket_sync import sync_polymarket
+    from ft.snapshot import save_snapshot
+    from ft.stock import record_trade
+
+    _save_polymarket_security_account()
+    save_snapshot({
+        "updated_at": "2026-07-01",
+        "accounts": {
+            "security": {
+                "Polymarket": {
+                    "currency": "USD",
+                    "positions": {
+                        "pm:already-settled:no": {"shares": 10, "total_cost": 4},
+                    },
+                },
+            },
+        },
+    })
+    record_trade(
+        date="2026-07-02", action="swap",
+        from_ticker="pm:already-settled:no", to_ticker="USD",
+        from_amount=10, to_amount=10, price=1, commission=0,
+        commission_asset="USD", currency="USD", account_name="Polymarket",
+        note="polymarket settlement token:pm:already-settled:no price:1",
+    )
+    assert (models.RECORDS_DIR / "security" / "2026-07-02.csv").exists()
+    monkeypatch.setattr("ft.polymarket_sync.fetch_activity", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr("ft.stock._fetch_polymarket_prices", lambda tickers: {"pm:already-settled:no": 1.0})
+    monkeypatch.setattr(
+        "ft.polymarket_sync._fetch_polymarket_resolution_prices",
+        lambda tickers: _resolved_metadata({"pm:already-settled:no": "1"}),
+        raising=False,
+    )
+    monkeypatch.setattr("ft.polymarket_sync._today_iso", lambda: "2026-07-07")
+
+    rows = sync_polymarket(proxy_wallet="0x" + "1" * 40, account_name="Polymarket", dry_run=True)
+
+    assert rows == []
+
+
+def test_polymarket_resolution_metadata_requires_closed_resolved_market(monkeypatch):
+    """Settlement metadata parser must ignore live markets even when outcomePrices are 0/1."""
+    import ft.polymarket_sync as polymarket_sync
+
+    def fake_request_json(url):
+        assert "gamma-api.polymarket.com/markets" in url
+        return [{
+            "slug": "live-market",
+            "closed": False,
+            "umaResolutionStatus": "unresolved",
+            "outcomes": "[\"Yes\", \"No\"]",
+            "outcomePrices": "[\"0\", \"1\"]",
+        }]
+
+    monkeypatch.setattr("ft.polymarket_sync._request_json", fake_request_json)
+
+    assert hasattr(polymarket_sync, "_fetch_polymarket_resolution_prices")
+    prices = polymarket_sync._fetch_polymarket_resolution_prices(["pm:live-market:no"])
+
+    assert prices == {}
 
 
 def test_fetch_prices_polymarket_resolved_market_found_via_search_fallback(monkeypatch):
