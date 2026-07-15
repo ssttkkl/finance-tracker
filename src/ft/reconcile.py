@@ -27,6 +27,7 @@ from .pending import (
     load_manifest,
     require_single_reconcile_pending_session,
 )
+from .refund_reconcile import resolve_refund_relations, settle_refund_relations
 from .snapshot import rebuild_snapshot_from_records, git_stage
 from .transfer_rules import classify_single_leg
 
@@ -512,6 +513,17 @@ def _prepare_reconcile_state(*, month=None, date_from=None, date_to=None):
     mirror_review_annotations = _mirror_review_annotations(scoped_active)
     unresolved_review_row_ids = _unresolved_review_row_ids(scoped_active)
     kept, removed, pairs = dedup_with_pairs(scoped_active)
+    canonical_ids = {
+        remove_row.get("record_id", ""): keep_row.get("record_id", "")
+        for keep_row, remove_row in pairs
+        if remove_row.get("record_id", "") and keep_row.get("record_id", "")
+    }
+    refund_auto_relations, refund_pending_relations, refund_relation_audit_rows = resolve_refund_relations(
+        scoped_active,
+        kept,
+        canonical_ids,
+    )
+    kept, refund_auto_audit_rows = settle_refund_relations(kept, refund_auto_relations)
     kept_base = [{**row} for row in kept]
     transfer_matches = _match_same_currency_exact(kept)
     used_transfer_ids = {id(row) for match in transfer_matches for row in match[:2]}
@@ -525,7 +537,15 @@ def _prepare_reconcile_state(*, month=None, date_from=None, date_to=None):
     review_row_ids = set(mirror_review_annotations) | unresolved_review_row_ids
     has_only_review = bool(mirror_review_annotations) and not removed
     has_mixed_high_and_review = bool(mirror_review_annotations) and bool(removed)
-    pending_rows = [row for row in scoped if id(row) in review_row_ids] if review_row_ids else scoped
+    refund_pending_record_ids = {
+        record_id
+        for relation in refund_pending_relations
+        for record_id in (relation.refund_id, relation.expense_id)
+    }
+    pending_rows = [
+        row for row in scoped
+        if id(row) in review_row_ids or row.get("record_id", "") in refund_pending_record_ids
+    ]
 
     state = {
         "start": start,
@@ -547,6 +567,10 @@ def _prepare_reconcile_state(*, month=None, date_from=None, date_to=None):
         "pairs": pairs,
         "transfer_matches": transfer_matches,
         "single_leg_marks": single_leg_marks,
+        "refund_auto_audit_rows": refund_auto_audit_rows,
+        "refund_relation_audit_rows": refund_relation_audit_rows,
+        "refund_pending_relations": refund_pending_relations,
+        "refund_pending_record_ids": refund_pending_record_ids,
     }
     return state
 
@@ -639,7 +663,10 @@ def _create_reconcile_pending_session(state: dict):
     _copy_scoped_records(session_dir, pending_rows)
 
     run_at = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    transfer_audit_rows = []
+    transfer_audit_rows = [
+        *state.get("refund_relation_audit_rows", []),
+        *state.get("refund_auto_audit_rows", []),
+    ]
     for out_row, in_row, rule in state["transfer_matches"]:
         transfer_audit_rows.append({
             **_clean_row(out_row),
@@ -885,12 +912,16 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
                 writer.writerows(final_rows)
 
         rebuild_snapshot_from_records(models.RECORDS_DIR)
-        if not state["removed"] and not state["transfer_matches"] and not state["single_leg_marks"]:
+        if (not state["removed"] and not state["transfer_matches"] and not state["single_leg_marks"]
+                and not state["refund_relation_audit_rows"] and not state["refund_auto_audit_rows"]):
             print("无重复项")
             return
 
         run_at = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        transfer_audit_rows = []
+        transfer_audit_rows = [
+            *state.get("refund_relation_audit_rows", []),
+            *state.get("refund_auto_audit_rows", []),
+        ]
         for out_row, in_row, rule in state["transfer_matches"]:
             transfer_audit_rows.append({
                 **_clean_row(out_row),
@@ -952,7 +983,10 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
 
     if has_mixed_high_and_review:
         run_at = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        transfer_audit_rows = []
+        transfer_audit_rows = [
+            *state.get("refund_relation_audit_rows", []),
+            *state.get("refund_auto_audit_rows", []),
+        ]
         for out_row, in_row, rule in state["transfer_matches"]:
             transfer_audit_rows.append({
                 **_clean_row(out_row),

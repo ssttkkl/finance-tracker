@@ -106,6 +106,39 @@ def test_reconcile_auto_drops_legacy_bank_mirror_case(tmp_env, capsys):
     assert rows[0]["bill_source"] == "wechat"
 
 
+def test_reconcile_rebinds_and_settles_strong_full_refund_after_dedup(tmp_env):
+    from ft import models
+    from ft.reconcile import do_reconcile
+
+    day_path = models.RECORDS_DIR / "cash" / "2026-06.csv"
+    _write_rows(day_path, [
+        {"record_id": "bank_expense", "date": "2026-06-12 10:00:00", "amount": "-10.00", "currency": "CNY",
+         "counterparty": "商户", "description": "消费", "category": "expense",
+         "account_name": "支付宝余额", "source": "银行卡", "bill_source": "icbc_debit",
+         "offset_group": "refund_000001", "offset_role": "expense", "offset_strength": "strong",
+         "offset_source": "alipay_status", "offset_rule_hint": "refund_cp_match",
+         "offset_match_type": "full", "proposed_action": "leave_as_is"},
+        {"record_id": "wechat_expense", "date": "2026-06-12 10:00:02", "amount": "-10.00", "currency": "CNY",
+         "counterparty": "商户", "description": "消费", "category": "expense",
+         "account_name": "支付宝余额", "source": "微信", "bill_source": "wechat"},
+        {"record_id": "refund", "date": "2026-06-13 10:00:00", "amount": "10.00", "currency": "CNY",
+         "counterparty": "商户", "description": "退款", "category": "income",
+         "account_name": "支付宝余额", "source": "银行卡", "bill_source": "icbc_debit",
+         "offset_group": "refund_000001", "offset_role": "refund", "offset_strength": "strong",
+         "offset_source": "alipay_status", "offset_rule_hint": "refund_cp_match",
+         "offset_match_type": "full", "proposed_action": "merge_refund_into:bank_expense"},
+    ])
+
+    do_reconcile(month="2026-06")
+
+    assert not day_path.exists()
+    audit_paths = sorted((models.FT_DIR / "audit" / "reconcile").glob("*.csv"))
+    with open(audit_paths[-1], encoding="utf-8") as f:
+        audit_rows = list(csv.DictReader(f))
+    assert "refund_rebound_after_dedup" in {row["reconcile_status"] for row in audit_rows}
+    assert "refund_full_auto" in {row["reconcile_status"] for row in audit_rows}
+
+
 def test_reconcile_auto_drops_multi_mirror_case_by_closest_strong_source(tmp_env):
     from ft import models
     from ft.reconcile import do_reconcile

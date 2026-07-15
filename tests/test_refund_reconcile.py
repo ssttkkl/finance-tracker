@@ -84,3 +84,13 @@ def test_deleted_expense_relation_is_rebound_to_kept_expense():
     assert pending == []
     assert audit_rows[0]["reconcile_status"] == "refund_rebound_after_dedup"
     assert audit_rows[0]["counterpart_record_id"] == "kept"
+
+
+def test_settling_no_relations_preserves_rows_with_duplicate_record_ids():
+    expense = _expense("same-id", -100)
+    refund = _refund("same-id", 100, "expense")
+
+    result, audit_rows = settle_refund_relations([expense, refund], [])
+
+    assert result == [expense, refund]
+    assert audit_rows == []

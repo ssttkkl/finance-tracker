@@ -139,6 +139,8 @@ def resolve_refund_relations(source_rows: list[dict], kept_rows: list[dict],
 
 def settle_refund_relations(rows: list[dict], relations: list[RefundRelation], *, mode: str = "auto") -> tuple[list[dict], list[dict]]:
     """应用已经确认的退款关系，并返回写回行和双边审计行。"""
+    if not relations:
+        return rows, []
     by_id = {row.get("record_id", ""): dict(row) for row in rows}
     removed_ids = set()
     settled_expense_ids = set()
