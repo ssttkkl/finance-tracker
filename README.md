@@ -105,9 +105,16 @@ convert 输出可查看的统一 CSV；reconcile 遇到低置信候选时才会�
 - 优先避免把退款核销到不同消费类型、不同账户或错误金额
 - 对同商户 / 同平台 / 同类消费中的多候选退款，只要最终核算结果正确，可接受不精确回挂到唯一原单
 
+实际核销发生在 `reconcile` 的镜像去重之后：
+
+- 去重删除了退款或原消费时，关系先重绑到保留记录；重绑冲突则进入 pending。
+- `strong` 关系自动核销：部分退款将原消费改为净额并删除退款；全额退款删除消费和退款两条记录。
+- `weak` 关系进入 pending。确认时在退款行填写 `merge_refund_into:<消费 record_id>`；拒绝时用 `leave_as_is` 并写明理由。
+- 每次重绑、核销和删除都会在 reconcile audit 中保留双边追溯记录。
+
 ## AI working CSV / pending 工作流
 
-当 `ft reconcile` 遇到程序不该直接决定的跨来源候选时，不会立刻改正式 records，而是进入 pending 会话。convert 会保留退款事实和关联元数据，并直接输出统一 CSV。
+当 `ft reconcile` 遇到程序不该直接决定的跨来源候选或 weak 退款关系时，会创建 pending 会话。convert 会保留退款事实和关联元数据，并直接输出统一 CSV。
 
 ### 命令
 
@@ -121,7 +128,8 @@ ft reconcile --abort
 
 ### pending 期间的保证
 
-- `reconcile`：不改正式 `records/`、不改 `snapshot.yaml`
+- 只有 weak pending 且不存在自动结果时，`reconcile` 不改正式 `records/`、不改 `snapshot.yaml`
+- 同一批次已判定的强去重、转账或 `strong` 退款会先写入；其审计行暂存于 `proposed_audit.csv`，在 continue 时正式写入 audit
 - 只有 `--continue-with-decisions` 成功后才正式落地
 - `--abort` 会删除当前 pending 会话
 

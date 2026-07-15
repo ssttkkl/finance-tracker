@@ -191,11 +191,11 @@ flowchart TD
     A[读取 scope 内 records] -->|排除 locked 和零额边界| B[构建候选状态]
     B -->|high mirror 规则| C[自动删弱侧]
     B -->|weak mirror 规则| D[review 候选组]
-    B -->|退款和冲抵规则| E[退款关联]
+    B -->|退款关系重绑| E[退款核销]
     B -->|转账规则| F[配对或单腿标记]
     C -->|汇聚自动结果| G{存在低置信待审}
     D -->|汇聚 review| G
-    E -->|汇聚退款上下文| G
+    E -->|strong 自动核销 / weak 待审| G
     F -->|汇聚转账结果| G
     G -->|否| H[改写 records 和重建 snapshot]
     G -->|是| I[创建 reconcile pending]
@@ -208,10 +208,12 @@ flowchart TD
 reconcile 的自动结果包括：
 
 - 高置信镜像：同账户、同金额、同币种、时间满足渠道窗口，且一侧是具体商户/服务、另一侧是银行卡通道化文本时，只删除弱侧。
-- 明确退款/冲抵：按既有退款规则净额化或关联。
+- 明确 `strong` 退款：在镜像去重后结算。部分退款保留原消费 ID 并改写为净额、删除退款；全额退款删除消费与退款两条记录。
 - 明确转账：标记两侧 `transfer_out`/`transfer_in`；无法配对但信号明确时可标记单腿转账。
 
-自动规则不会升级以下高风险场景：退款链、社交流/红包/群收款/转账、建行仅日期记录、多候选、双方文本都泛化或锁定记录。
+自动规则不会升级以下高风险场景：weak 退款链、社交流/红包/群收款/转账、建行仅日期记录、多候选、双方文本都泛化或锁定记录。
+
+镜像去重删除退款链任一侧时，reconcile 先将关系重绑到去重保留侧。重绑后存在多个目标、金额/币种/账户/方向不再兼容，或消费仍在镜像审查中时，退款关系降为 weak 并随关联行进入 pending。没有可重绑保留侧时，幸存事实保持未核销状态。
 
 ### Reconcile pending 的内容
 
@@ -226,7 +228,7 @@ pending/reconcile/<session_id>/
 └── proposed_audit.csv
 ```
 
-`ai_working.csv` 提供候选及必要上下文，包含退款关联行和已经自动删除的行。自动删除行以 `processing_status=dropped` 显示，便于审查整条链路，但不会在 continue 时被恢复。
+`ai_working.csv` 提供候选及必要上下文，包含 weak 退款的消费与退款两侧，以及已经自动删除的行。自动删除行以 `processing_status=dropped` 显示，便于审查整条链路，但不会在 continue 时被恢复。
 
 ### Reconcile 产物：审查底稿、暂存副本与拟议审计
 
@@ -304,13 +306,13 @@ flowchart TD
 
 - `rule_hint`：程序命中的候选规则，例如 `possible_mirror_weak_30s_cross_source`。
 - `suggested_action`：程序建议的动作，例如弱侧 `drop`、强侧 `keep`；它不是审查结论。
-- `decision_action`：审查者最终选择的 `keep`、`leave_as_is`、`drop`、`modify`，或退款/转账的引用动作。
+- `decision_action`：审查者最终选择的 `keep`、`leave_as_is`、`drop`、`modify`，或退款/转账的引用动作。弱退款确认使用 `merge_refund_into:<消费 record_id>`；部分退款改写消费净额并删除退款，全额退款删除两侧。
 - `decision_reason`：审查者写入的证据和结论。带 `ai_group` 的 `processing_status=active` 行选择 `keep` 或 `leave_as_is` 时必须填写；`drop`、`modify`、退款合并和转账动作同样必须填写。
 - `processing_status`：系统描述的工作行状态；自动删除行通常是 `dropped`，不可由审查者编辑。
 
 `leave_as_is` 的含义是“已明确确认它不是需要处理的同一笔订单”，不能用来表示“暂时不确定”。证据不足时必须保持 pending，而不是调用 continue。
 
-continue 固定读取当前 pending 会话目录中的 `edited.csv`，并校验行数、真实 `record_id` 集合、只读事实字段、双边转账关系和每个决策理由。它只替换 pending 涉及的真实 `record_id`，保留同一月文件中未触及的其他记录，随后重建 snapshot，并将自动审计与人工审计合并写入正式 audit。
+continue 固定读取当前 pending 会话目录中的 `edited.csv`，并校验行数、真实 `record_id` 集合、只读事实字段、双边转账关系和每个决策理由。它只替换 pending 涉及的真实 `record_id`，保留同一月文件中未触及的其他记录；确认的 weak 退款和自动结果使用同一结算规则，随后重建 snapshot，并将自动审计与人工审计合并写入正式 audit。
 
 ### Reconcile 产物：正式 audit
 
@@ -318,7 +320,7 @@ continue 固定读取当前 pending 会话目录中的 `edited.csv`，并校验�
 
 - 运行范围：`run_at`、`scope_from`、`scope_to`
 - 被处理的正式事实：`record_id`、`date`、`amount`、`currency`、`counterparty`、`description`、`category`、`account_name`、`source`、`bill_source`、`transfer_account`、`locked`、`offset_group`、`offset_role`、`offset_strength`、`offset_source`、`offset_rule_hint`、`offset_match_type`、`proposed_action`
-- 审计定位与结论：`record_file`、`dedup_status`、`reconcile_status`
+- 审计定位与结论：`record_file`、`dedup_status`、`reconcile_status`。退款会分别记录消费与退款，并通过对手记录字段追溯重绑、部分核销或全额核销。
 - 转账对手信息：`transfer_side`、`match_rule`、`match_confidence`、`counterpart_file`、`counterpart_account`、`counterpart_currency`、`counterpart_amount`
 
 ```yaml
