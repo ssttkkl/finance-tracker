@@ -75,17 +75,15 @@ def dedup_with_pairs(records: list[dict]) -> tuple[list[dict], list[dict], list[
         for b_dt, b_rec in bank:
             if id(b_rec) in removed_ids:
                 continue
-            best_match = None
-            best_diff = float("inf")
+            possible = []
             for c_dt, c_rec in candidates:
                 if id(c_rec) in matched_candidate_ids:
                     continue
                 diff = abs((b_dt - c_dt).total_seconds())
                 if diff <= 10 and b_rec["account_name"] == c_rec["account_name"] and _cross_verify(b_rec, c_rec):
-                    if diff < best_diff:
-                        best_diff = diff
-                        best_match = c_rec
-            if best_match is not None:
+                    possible.append(c_rec)
+            if len(possible) == 1:
+                best_match = possible[0]
                 removed_ids.add(id(b_rec))
                 removed_pairs.append((best_match, b_rec))
                 matched_candidate_ids.add(id(best_match))

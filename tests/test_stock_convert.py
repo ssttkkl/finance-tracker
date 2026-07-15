@@ -71,22 +71,10 @@ class TestStockAppend:
             security_dir = records_dir / "security"
             assert security_dir.exists()
 
-            # Two daily files: 2026-06-10 (BUY) and 2026-06-11 (SELL+CHECKIN)
-            day1 = security_dir / "2026-06-10.csv"
-            day2 = security_dir / "2026-06-11.csv"
-            assert day1.exists(), f"Missing {day1}"
-            assert day2.exists(), f"Missing {day2}"
-
-            with open(day1, encoding="utf-8") as f:
-                rows1 = list(csv.DictReader(f))
-            assert len(rows1) == 1
-            assert rows1[0]["action"] == "BUY"
-
-            with open(day2, encoding="utf-8") as f:
-                rows2 = list(csv.DictReader(f))
-            assert len(rows2) == 2
-            assert rows2[0]["action"] == "SELL"
-            assert rows2[1]["action"] == "CHECKIN"
+            month_path = security_dir / "2026-06.csv"
+            assert month_path.exists(), f"Missing {month_path}"
+            with open(month_path, encoding="utf-8") as f:
+                assert [row["action"] for row in csv.DictReader(f)] == ["BUY", "SELL", "CHECKIN"]
 
             # Verify snapshot was rebuilt
             from ft.snapshot import load_snapshot
@@ -218,8 +206,7 @@ class TestStockAppend:
             assert security_dir.exists()
 
             csv_files = sorted(security_dir.glob("*.csv"))
-            # Three different dates → 3 files
-            assert len(csv_files) >= 2, f"Expected at least 2 files, got {[f.name for f in csv_files]}"
+            assert [f.name for f in csv_files] == ["2026-06.csv"]
 
             # Verify content
             for csv_file in csv_files:

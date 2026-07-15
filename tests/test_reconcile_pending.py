@@ -44,9 +44,13 @@ def tmp_env():
 
 def _write_rows(path, rows):
     path.parent.mkdir(parents=True, exist_ok=True)
+    rows = [
+        {"record_id": f"pending_{idx:06d}", **row}
+        for idx, row in enumerate(rows, 1)
+    ]
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=[
-            "date", "amount", "currency", "counterparty",
+            "record_id", "date", "amount", "currency", "counterparty",
             "description", "category", "account_name", "source", "bill_source",
         ])
         writer.writeheader()
@@ -57,7 +61,7 @@ def test_reconcile_pending_does_not_write_formal_audit_or_modify_records(tmp_env
     from ft import models
     from ft.reconcile import do_reconcile
 
-    day_path = models.RECORDS_DIR / "loan" / "2026-06-12.csv"
+    day_path = models.RECORDS_DIR / "loan" / "2026-06.csv"
     _write_rows(day_path, [
         {"date": "2026-06-12 10:00:01", "amount": "-30.00", "currency": "CNY",
          "counterparty": "麦当劳", "description": "麦当劳", "category": "expense",

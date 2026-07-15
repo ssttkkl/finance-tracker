@@ -230,10 +230,31 @@ def _collect_unresolved_ccb_day_level_review_row_ids(rows: list[dict]) -> set[in
     return review_ids
 
 
+def _collect_unresolved_legacy_mirror_review_row_ids(rows: list[dict]) -> set[int]:
+    review_ids: set[int] = set()
+    strong_rows = [row for row in rows if _source_group(row.get("bill_source", "")) in {"alipay", "wechat"}]
+    bank_rows = [row for row in rows if _source_group(row.get("bill_source", "")) == "bank"]
+
+    for bank_row in bank_rows:
+        candidates = [
+            strong_row for strong_row in strong_rows
+            if bank_row.get("account_name") == strong_row.get("account_name")
+            and bank_row.get("currency") == strong_row.get("currency")
+            and abs(_amount(bank_row) - _amount(strong_row)) < 0.005
+            and abs((_effective_datetime(bank_row) - _effective_datetime(strong_row)).total_seconds()) <= 10
+            and _cross_verify(bank_row, strong_row)
+        ]
+        if len(candidates) > 1:
+            review_ids.add(id(bank_row))
+            review_ids.update(id(row) for row in candidates)
+    return review_ids
+
+
 def _unresolved_review_row_ids(scoped: list[dict]) -> set[int]:
     return (
         _collect_unresolved_transfer_review_row_ids(scoped)
         | _collect_unresolved_ccb_day_level_review_row_ids(scoped)
+        | _collect_unresolved_legacy_mirror_review_row_ids(scoped)
     )
 
 

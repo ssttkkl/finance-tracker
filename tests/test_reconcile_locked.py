@@ -75,7 +75,7 @@ def _read_rows(path):
 # ─────────────────────────────────────────────────────────────
 
 def test_reconcile_is_idempotent_on_single_leg(tmp_env):
-    """单腿候选进入 pending 时，不应直接改写原记录。"""
+    """单腿候选自动标记为转账后，再次 reconcile 不再改变它。"""
     from ft import models
     from ft.reconcile import do_reconcile
 
@@ -89,13 +89,15 @@ def test_reconcile_is_idempotent_on_single_leg(tmp_env):
 
     do_reconcile(month="2026-06")
     first = _read_rows(day_path)
-    assert first[0]["category"] == "expense"
+    assert first[0]["category"] == "transfer_out"
     sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
-    assert len(sessions) == 1
+    assert len(sessions) == 0
+    do_reconcile(month="2026-06")
+    assert _read_rows(day_path) == first
 
 
 def test_reconcile_idempotent_on_paired_transfer(tmp_env):
-    """配对型转账进入 pending 时，不应直接改写原记录。"""
+    """确定的配对型转账自动标记后保持幂等。"""
     from ft import models
     from ft.reconcile import do_reconcile
 
@@ -111,10 +113,12 @@ def test_reconcile_idempotent_on_paired_transfer(tmp_env):
 
     do_reconcile(month="2026-06")
     first = _read_rows(day_path)
-    assert first[0]["category"] == "expense"
-    assert first[1]["category"] == "income"
+    assert first[0]["category"] == "transfer_out"
+    assert first[1]["category"] == "transfer_in"
     sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
-    assert len(sessions) == 1
+    assert len(sessions) == 0
+    do_reconcile(month="2026-06")
+    assert _read_rows(day_path) == first
 
 
 # ─────────────────────────────────────────────────────────────
@@ -209,7 +213,7 @@ def test_locked_row_excluded_from_paired_transfer(tmp_env):
 
 
 def test_unlocked_rows_still_reconcile_normally(tmp_env):
-    """没有锁的行仍会进入正常 reconcile pending 流程。"""
+    """未锁定的单腿转账仍会被自动标记。"""
     from ft import models
     from ft.reconcile import do_reconcile
 
@@ -223,9 +227,9 @@ def test_unlocked_rows_still_reconcile_normally(tmp_env):
 
     do_reconcile(month="2026-06")
     rows = _read_rows(day_path)
-    assert rows[0]["category"] == "expense"
+    assert rows[0]["category"] == "transfer_out"
     sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
-    assert len(sessions) == 1
+    assert len(sessions) == 0
 
 
 def test_ft_transfer_writes_locked_rows(tmp_env):
@@ -269,4 +273,4 @@ def test_locked_survives_reconcile_rewrite(tmp_env):
     rows = {r["counterparty"]: r for r in _read_rows(day_path)}
     assert rows["麦当劳"]["locked"] == "1"
     assert rows["麦当劳"]["category"] == "expense"
-    assert rows["蚂蚁财富-蚂蚁（杭州）基金销售有限公司"]["category"] == "expense"
+    assert rows["蚂蚁财富-蚂蚁（杭州）基金销售有限公司"]["category"] == "transfer_out"

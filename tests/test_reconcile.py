@@ -273,7 +273,7 @@ def test_reconcile_rebinds_weak_refund_target_before_pending_review(tmp_env):
     assert rows["refund"]["proposed_action"] == "merge_refund_into:wechat_expense"
 
 
-def test_reconcile_auto_drops_multi_mirror_case_by_closest_strong_source(tmp_env):
+def test_reconcile_keeps_multi_mirror_case_for_pending_review(tmp_env):
     from ft import models
     from ft.reconcile import do_reconcile
 
@@ -293,11 +293,11 @@ def test_reconcile_auto_drops_multi_mirror_case_by_closest_strong_source(tmp_env
     do_reconcile(month="2026-06")
 
     sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
-    assert len(sessions) == 0
+    assert len(sessions) == 1
     with open(day_path, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
-    assert len(rows) == 2
-    assert {row["bill_source"] for row in rows} == {"alipay", "wechat"}
+    assert len(rows) == 3
+    assert {row["bill_source"] for row in rows} == {"alipay", "wechat", "icbc_credit"}
 
 
 def test_reconcile_same_day_date_only_ccb_wechat_case_enters_full_table_pending(tmp_env):
