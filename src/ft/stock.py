@@ -11,8 +11,9 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Optional
 
+import yaml
+
 from . import models
-from .accounts import load_accounts
 from .snapshot import git_stage, load_snapshot, save_snapshot
 
 # ── CSV fields for security trades ──────────────────────────────────────
@@ -71,15 +72,213 @@ def _canonical_ticker(ticker: str | None) -> str:
     return (ticker or "").strip().lower()
 
 
+def _normalize_currency_code(currency: str | None, *, field: str = "currency") -> str:
+    value = (currency or "").strip().upper()
+    if not value:
+        raise ValueError(f"{field} is required")
+    return value
+
+
+def _configured_base_currencies(account: dict) -> list[str]:
+    """Return account-configured allowed cash/settlement currencies.
+
+    `base_currencies` is the authoritative multi-currency list. Older account
+    files did not have it, so their single `currency` remains the only allowed
+    manual stock currency.
+    """
+    raw = account.get("base_currencies")
+    if raw is None:
+        return [_normalize_currency_code(account.get("currency"), field="account currency")]
+    if isinstance(raw, str):
+        items = [raw]
+    else:
+        items = list(raw or [])
+    currencies = []
+    for item in items:
+        code = _normalize_currency_code(str(item), field="base_currencies")
+        if code not in currencies:
+            currencies.append(code)
+    if not currencies:
+        raise ValueError(f"account {account.get('name')!r} has empty base_currencies")
+    return currencies
+
+
+def _has_configured_base_currencies(account: dict) -> bool:
+    return "base_currencies" in account and account.get("base_currencies") is not None
+
+
+def resolve_security_account_currency(
+    account_name: str,
+    currency: str | None = None,
+) -> tuple[dict, str]:
+    """Resolve and validate a manual stock account plus settlement currency.
+
+    Configured security/crypto accounts have no default reporting currency, so
+    direct writes must pass an explicit currency. Legacy accounts without
+    base_currencies are the only fallback and allow their legacy currency.
+    """
+    from .accounts import load_accounts
+
+    candidates = [a for a in load_accounts() if a.get("name") == account_name]
+    if not candidates:
+        raise ValueError(f"unknown account: {account_name}")
+
+    stock_candidates = [a for a in candidates if a.get("type") in ("security", "crypto")]
+    if not stock_candidates:
+        raise ValueError(f"account {account_name!r} is not security/crypto")
+
+    active = [a for a in stock_candidates if a.get("active", True)]
+    stock_candidates = active or stock_candidates
+
+    if currency is not None:
+        requested = _normalize_currency_code(currency)
+        for account in stock_candidates:
+            if requested in _configured_base_currencies(account):
+                return account, requested
+        allowed = sorted({c for account in stock_candidates for c in _configured_base_currencies(account)})
+        raise ValueError(
+            f"currency {requested} is not configured for account {account_name}; "
+            f"allowed: {', '.join(allowed)}"
+        )
+
+    if len(stock_candidates) > 1:
+        raise ValueError(f"account {account_name!r} is ambiguous; pass --currency")
+
+    account = stock_candidates[0]
+    allowed = _configured_base_currencies(account)
+    if _has_configured_base_currencies(account):
+        raise ValueError(
+            f"currency is required for account {account_name}; "
+            f"allowed: {', '.join(allowed)}"
+        )
+    return account, allowed[0]
+
+
+def _account_display_currency(account: dict) -> str:
+    try:
+        return _normalize_currency_code(account.get("currency"), field="account currency")
+    except ValueError:
+        return ""
+
+
+def _base_currency_set(currencies) -> set[str]:
+    if currencies is None:
+        return set()
+    if isinstance(currencies, str):
+        items = [currencies]
+    else:
+        items = list(currencies)
+    return {(str(item) or "").strip().upper() for item in items if (str(item) or "").strip()}
+
+
+def _account_base_currency_set(account: dict) -> set[str]:
+    return set(_configured_base_currencies(account))
+
+
+def _load_security_account_base_currencies() -> dict[str, set[str]]:
+    """Read account cash ticker config without creating a missing accounts.yaml."""
+    path = models.ACCOUNTS_PATH
+    if not path.exists():
+        return {}
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+
+    base_by_account: dict[str, set[str]] = {}
+    for account in data.get("accounts", []) or []:
+        if account.get("type") not in ("security", "crypto") or not account.get("name"):
+            continue
+        base_by_account[account["name"]] = _account_base_currency_set(account)
+    return base_by_account
+
+
+def _validate_security_row_account_currency(account_name: str, currency: str) -> None:
+    from .accounts import load_accounts
+
+    accounts = load_accounts()
+    if not accounts:
+        return
+    resolve_security_account_currency(account_name, currency)
+
+
+def _normalize_trade_asset(asset: str | None, currency: str) -> str:
+    asset = (asset or "").strip()
+    if not asset:
+        return ""
+    upper = asset.upper()
+    if upper == currency:
+        return upper
+    return asset.lower()
+
+
+def _is_currency_ticker(ticker: str, base_currencies) -> bool:
+    upper = _canonical_ticker(ticker).upper()
+    return upper in _base_currency_set(base_currencies)
+
+
+def _assert_cost_currency_compatible(
+    positions: dict,
+    account_name: str,
+    ticker: str,
+    currency: str | None,
+    base_currencies,
+) -> None:
+    ticker = _canonical_ticker(ticker)
+    currency = _normalize_currency_code(currency)
+    if not ticker or _is_currency_ticker(ticker, base_currencies):
+        return
+    pos = positions.get(ticker)
+    if not pos or abs(float(pos.get("shares", 0) or 0)) < 1e-9:
+        return
+    existing = (pos.get("cost_currency") or "").strip().upper()
+    if existing and existing != currency:
+        raise ValueError(
+            f"{account_name}/{ticker} cost_currency mismatch: "
+            f"existing {existing!r} vs input {currency!r}"
+        )
+
+
+def _assert_cash_dividend_currency_compatible(
+    positions: dict,
+    account_name: str,
+    ticker: str,
+    dividend_currency: str | None,
+    base_currencies,
+) -> None:
+    ticker = _canonical_ticker(ticker)
+    currency = _normalize_currency_code(dividend_currency)
+    if not ticker or _is_currency_ticker(ticker, base_currencies):
+        return
+    pos = positions.get(ticker)
+    if not pos or abs(float(pos.get("shares", 0) or 0)) < 1e-9:
+        return
+    existing = (pos.get("cost_currency") or "").strip().upper()
+    if existing and existing != currency:
+        raise ValueError(
+            f"{account_name}/{ticker} dividend currency mismatch: "
+            f"holding cost_currency {existing!r} vs dividend {currency!r}; "
+            f"record the dividend in {existing} and add a separate swap if converted"
+        )
+
+
 def _position_bucket(cost_currency: str = "") -> dict:
     return {"shares": 0.0, "total_cost": 0.0, "cost_currency": cost_currency}
 
 
-def _cost_currency_for_ticker(ticker: str, default_currency: str = "") -> str:
+def _cost_currency_for_ticker(
+    ticker: str,
+    default_currency: str = "",
+    base_currencies=None,
+) -> str:
     ticker_upper = _canonical_ticker(ticker).upper()
-    if ticker_upper in models.CURRENCIES:
+    default_upper = (default_currency or "").strip().upper()
+    currencies = _base_currency_set(base_currencies)
+    if not currencies and default_upper:
+        currencies = {default_upper}
+    if ticker_upper in currencies:
         return ticker_upper
-    return default_currency or ""
+    return default_upper or ""
 
 
 def _merge_cost_currency(existing: str, incoming: str, ticker: str) -> str:
@@ -162,6 +361,7 @@ def _apply_swap_to_positions(
     commission: float,
     commission_asset: str,
     cost_currency: str,
+    base_currencies,
     enforce_available: bool = False,
 ) -> None:
     from_ticker = _canonical_ticker(from_ticker)
@@ -183,7 +383,9 @@ def _apply_swap_to_positions(
         _ensure_position_available(account_name, from_ticker, from_pos, required_from)
 
     from_pos = _get_position(
-        positions, from_ticker, _cost_currency_for_ticker(from_ticker, cost_currency)
+        positions,
+        from_ticker,
+        _cost_currency_for_ticker(from_ticker, cost_currency, base_currencies),
     )
     old_shares = from_pos["shares"]
     old_cost = from_pos["total_cost"]
@@ -195,12 +397,14 @@ def _apply_swap_to_positions(
     _validate_position_values(account_name, from_ticker, from_pos)
 
     to_pos = _get_position(
-        positions, to_ticker, _cost_currency_for_ticker(to_ticker, cost_currency)
+        positions,
+        to_ticker,
+        _cost_currency_for_ticker(to_ticker, cost_currency, base_currencies),
     )
     to_pos["shares"] = round(to_pos["shares"] + to_amount, 10)
     incoming_cost = (
         to_amount
-        if _cost_currency_for_ticker(to_ticker, "") else released_cost
+        if _cost_currency_for_ticker(to_ticker, "", base_currencies) else released_cost
     )
     to_pos["total_cost"] = round(to_pos["total_cost"] + incoming_cost, 10)
     _normalize_position(to_pos)
@@ -213,7 +417,7 @@ def _apply_swap_to_positions(
         fee_pos = _get_position(
             positions,
             commission_asset,
-            _cost_currency_for_ticker(commission_asset, cost_currency),
+            _cost_currency_for_ticker(commission_asset, cost_currency, base_currencies),
         )
         fee_old_shares = fee_pos["shares"]
         fee_old_cost = fee_pos["total_cost"]
@@ -303,6 +507,7 @@ def _validate_security_snapshot_finite(snap: dict) -> None:
 
 def _ensure_account(snap: dict, account_name: str, currency: str) -> dict:
     """Get-or-create an account dict inside snap.accounts.security."""
+    currency = _normalize_currency_code(currency)
     top = snap.setdefault("accounts", {})
     sec = top.setdefault("security", {})
     if account_name not in sec:
@@ -310,6 +515,8 @@ def _ensure_account(snap: dict, account_name: str, currency: str) -> dict:
             "currency": currency,
             "positions": {},
         }
+    else:
+        sec[account_name]["currency"] = sec[account_name].get("currency") or currency
     return sec[account_name]
 
 
@@ -323,7 +530,7 @@ def record_trade(
     price: float,
     commission: float,
     commission_asset: str,
-    currency: str,
+    currency: str | None,
     account_name: str,
     note: str = "",
 ) -> dict:
@@ -333,6 +540,8 @@ def record_trade(
     """
     _ensure_finite_values(from_amount=from_amount, to_amount=to_amount,
                           price=price, commission=commission)
+    currency = _normalize_currency_code(currency)
+    commission_asset = _normalize_trade_asset(commission_asset, currency)
     # Normalize tickers to lowercase for consistent position keys
     from_ticker = from_ticker.strip().lower() if from_ticker else ""
     to_ticker = to_ticker.strip().lower() if to_ticker else ""
@@ -574,19 +783,12 @@ def do_append(file_path):
                   f"允许值: {', '.join(sorted(VALID_ACTIONS))}")
             return False
 
-    # Load accounts for validation
-    from .accounts import load_accounts
-    accounts = load_accounts()
-    accounts_by_key = {(a.get("name"), a.get("currency")): a for a in accounts}
-
     # Validate account names, currencies, and types
     for i, row in enumerate(rows, 1):
-        account = accounts_by_key.get((row["account_name"], row["currency"]))
-        if account is None:
-            print(f"❌ 第 {i} 行: 未知账户 '{row['account_name']}' ({row['currency']})，请先 ft acct add")
-            return False
-        if account.get("type") not in ("security", "crypto"):
-            print(f"❌ 第 {i} 行: 账户 '{row['account_name']}' ({row['currency']}) 不是 security/crypto 类型，不能导入股票记录")
+        try:
+            resolve_security_account_currency(row["account_name"], row["currency"])
+        except ValueError as exc:
+            print(f"❌ 第 {i} 行: {exc}")
             return False
 
     # Validate numeric fields and replay-derived finite values
@@ -615,7 +817,23 @@ def do_append(file_path):
     # 2. Sort by date
     rows.sort(key=lambda r: r["date"])
 
-    # 3. Group by date and write per-day files
+    # 3. Validate the merged replay state before touching records.
+    security_dir = models.RECORDS_DIR / "security"
+    merged_rows_for_replay = []
+    if security_dir.exists():
+        for csv_file in sorted(security_dir.glob("*.csv")):
+            with csv_file.open(encoding="utf-8") as f:
+                merged_rows_for_replay.extend(csv.DictReader(f))
+    try:
+        _replay_security_rows(
+            _order_security_rows_for_replay(merged_rows_for_replay + rows),
+            validate_accounts=True,
+        )
+    except ValueError as exc:
+        print(f"❌ security 重放失败: {exc}")
+        return False
+
+    # 4. Group by date and write per-day files
     from collections import defaultdict
     by_date = defaultdict(list)
     for row in rows:
@@ -668,7 +886,7 @@ def do_append(file_path):
         _restore_touched_files()
         raise
 
-    # 4. Rebuild snapshot
+    # 5. Rebuild snapshot
     try:
         repair_security()
     except Exception as exc:
@@ -684,14 +902,14 @@ def do_append(file_path):
             return False
         raise
 
-    # 5. Git stage
+    # 6. Git stage
     try:
         from .snapshot import git_stage
         git_stage()
     except Exception:
         pass
 
-    # 6. Print statistics
+    # 7. Print statistics
     action_counts = Counter(r["action"] for r in rows)
     print(f"✅ 已导入 {total_written} 条记录到 security 记录")
     for act in sorted(action_counts):
@@ -734,7 +952,7 @@ def do_buy(
     shares: float,
     price: float,
     commission: float,
-    currency: str,
+    currency: str | None,
     account_name: str,
     note: str = "",
     date: Optional[str] = None,
@@ -742,6 +960,9 @@ def do_buy(
     """Buy shares — updates snapshot & records trade."""
     if date is None:
         date = _now()
+    account, currency = resolve_security_account_currency(account_name, currency)
+    account_currency = _account_display_currency(account)
+    base_currencies = _account_base_currency_set(account)
     _ensure_finite_values(shares=shares, price=price, commission=commission)
     ticker = _canonical_ticker(ticker)
 
@@ -751,8 +972,11 @@ def do_buy(
 
     # Load & update snapshot
     snap = load_snapshot()
-    acct = _ensure_account(snap, account_name, currency)
+    acct = _ensure_account(snap, account_name, account_currency)
     _canonicalize_account_positions(acct, currency)
+    _assert_cost_currency_compatible(
+        acct["positions"], account_name, ticker, currency, base_currencies
+    )
 
     # Reduce currency position (cash outflow)
     ccy = _canonical_ticker(currency)
@@ -796,7 +1020,7 @@ def do_sell(
     shares: float,
     price: float,
     commission: float,
-    currency: str,
+    currency: str | None,
     account_name: str,
     note: str = "",
     date: Optional[str] = None,
@@ -808,6 +1032,9 @@ def do_sell(
     """
     if date is None:
         date = _now()
+    account, currency = resolve_security_account_currency(account_name, currency)
+    account_currency = _account_display_currency(account)
+    base_currencies = _account_base_currency_set(account)
     _ensure_finite_values(shares=shares, price=price, commission=commission)
     ticker = _canonical_ticker(ticker)
 
@@ -817,8 +1044,11 @@ def do_sell(
 
     # Load & update snapshot
     snap = load_snapshot()
-    acct = _ensure_account(snap, account_name, currency)
+    acct = _ensure_account(snap, account_name, account_currency)
     _canonicalize_account_positions(acct, currency)
+    _assert_cost_currency_compatible(
+        acct["positions"], account_name, ticker, currency, base_currencies
+    )
 
     # Reduce ticker position (release cost proportionally)
     pos = acct["positions"].get(ticker)
@@ -874,7 +1104,7 @@ def do_swap(
     from_shares: float,
     to_ticker: str,
     to_shares: float,
-    currency: str = "USD",
+    currency: str | None = None,
     note: str = "",
     commission: float = 0.0,
     commission_asset: str = "",
@@ -886,6 +1116,9 @@ def do_swap(
     """
     if date is None:
         date = _now()
+    account, currency = resolve_security_account_currency(account_name, currency)
+    account_currency = _account_display_currency(account)
+    base_currencies = _account_base_currency_set(account)
     _ensure_finite_values(from_shares=from_shares, to_shares=to_shares, commission=commission)
     from_ticker = _canonical_ticker(from_ticker)
     to_ticker = _canonical_ticker(to_ticker)
@@ -893,8 +1126,18 @@ def do_swap(
     date_key = date[:10]
 
     snap = load_snapshot()
-    acct = _ensure_account(snap, account_name, currency)
+    acct = _ensure_account(snap, account_name, account_currency)
     _canonicalize_account_positions(acct, currency)
+    _assert_cost_currency_compatible(
+        acct["positions"], account_name, from_ticker, currency, base_currencies
+    )
+    _assert_cost_currency_compatible(
+        acct["positions"], account_name, to_ticker, currency, base_currencies
+    )
+    if commission_asset:
+        _assert_cost_currency_compatible(
+            acct["positions"], account_name, commission_asset, currency, base_currencies
+        )
     _apply_swap_to_positions(
         acct["positions"],
         account_name,
@@ -905,6 +1148,7 @@ def do_swap(
         commission,
         commission_asset,
         currency,
+        base_currencies,
         enforce_available=True,
     )
 
@@ -929,7 +1173,7 @@ def do_swap(
 
 def do_deposit(
     amount: float,
-    currency: str,
+    currency: str | None,
     account_name: str,
     note: str = "",
     date: Optional[str] = None,
@@ -937,11 +1181,13 @@ def do_deposit(
     """Deposit cash into account."""
     if date is None:
         date = _now()
+    account, currency = resolve_security_account_currency(account_name, currency)
+    account_currency = _account_display_currency(account)
     _ensure_finite_values(amount=amount)
 
     date_key = date[:10]
     snap = load_snapshot()
-    acct = _ensure_account(snap, account_name, currency)
+    acct = _ensure_account(snap, account_name, account_currency)
     _canonicalize_account_positions(acct, currency)
     ccy = _canonical_ticker(currency)
     ccy_pos = acct["positions"].setdefault(
@@ -960,7 +1206,7 @@ def do_deposit(
 
 def do_withdraw(
     amount: float,
-    currency: str,
+    currency: str | None,
     account_name: str,
     note: str = "",
     date: Optional[str] = None,
@@ -968,11 +1214,13 @@ def do_withdraw(
     """Withdraw cash from account."""
     if date is None:
         date = _now()
+    account, currency = resolve_security_account_currency(account_name, currency)
+    account_currency = _account_display_currency(account)
     _ensure_finite_values(amount=amount)
 
     date_key = date[:10]
     snap = load_snapshot()
-    acct = _ensure_account(snap, account_name, currency)
+    acct = _ensure_account(snap, account_name, account_currency)
     _canonicalize_account_positions(acct, currency)
     ccy = _canonical_ticker(currency)
     ccy_pos = acct["positions"].setdefault(
@@ -1001,13 +1249,19 @@ def do_dividend(
     """Receive dividend — cash in, no position change."""
     if date is None:
         date = _now()
+    account, currency = resolve_security_account_currency(account_name, currency)
+    account_currency = _account_display_currency(account)
+    base_currencies = _account_base_currency_set(account)
     _ensure_finite_values(amount=amount)
     ticker = _canonical_ticker(ticker)
 
     date_key = date[:10]
     snap = load_snapshot()
-    acct = _ensure_account(snap, account_name, currency)
+    acct = _ensure_account(snap, account_name, account_currency)
     _canonicalize_account_positions(acct, currency)
+    _assert_cash_dividend_currency_compatible(
+        acct["positions"], account_name, ticker, currency, base_currencies
+    )
     ccy = _canonical_ticker(currency)
     ccy_pos = acct["positions"].setdefault(
         ccy, {"shares": 0, "total_cost": 0.0, "cost_currency": currency}
@@ -1038,18 +1292,26 @@ def do_checkin_ticker(
     """
     if date is None:
         date = _now()
+    account, currency = resolve_security_account_currency(account_name, currency)
+    account_currency = _account_display_currency(account)
+    base_currencies = _account_base_currency_set(account)
     _ensure_finite_values(shares=shares, avg_cost=avg_cost, position_value=shares * avg_cost)
     ticker = _canonical_ticker(ticker)
 
     date_key = date[:10]
     snap = load_snapshot()
-    acct = _ensure_account(snap, account_name, currency)
+    acct = _ensure_account(snap, account_name, account_currency)
     _canonicalize_account_positions(acct, currency)
+    if abs(float(shares or 0)) >= 1e-9:
+        _assert_cost_currency_compatible(
+            acct["positions"], account_name, ticker, currency, base_currencies
+        )
     acct["positions"][ticker] = {
         "shares": shares,
         "total_cost": round(shares * avg_cost, 2),
         "cost_currency": currency,
     }
+    _cleanup_position(acct, ticker)
     snap["updated_at"] = date_key
     _save_snapshot_and_record_trade(
         snap,
@@ -1062,7 +1324,7 @@ def do_checkin_ticker(
 def do_checkin_cash(
     cash: float,
     account_name: str,
-    currency: str = "USD",
+    currency: str | None = None,
     note: str = "",
     date: Optional[str] = None,
 ):
@@ -1072,14 +1334,13 @@ def do_checkin_cash(
     """
     if date is None:
         date = _now()
+    account, currency = resolve_security_account_currency(account_name, currency)
+    account_currency = _account_display_currency(account)
     _ensure_finite_values(cash=cash)
 
     date_key = date[:10]
     snap = load_snapshot()
-    # Need currency for the account — use the existing one or default
-    acct_data = snap.setdefault("accounts", {}).get("security", {}).get(account_name, {})
-    currency = acct_data.get("currency", currency)
-    acct = _ensure_account(snap, account_name, currency)
+    acct = _ensure_account(snap, account_name, account_currency)
     _canonicalize_account_positions(acct, currency)
     ccy = _canonical_ticker(currency)
     acct["positions"][ccy] = {
@@ -1087,6 +1348,7 @@ def do_checkin_cash(
         "total_cost": cash,
         "cost_currency": currency,
     }
+    _cleanup_position(acct, ccy)
     snap["updated_at"] = date_key
     _save_snapshot_and_record_trade(
         snap,
@@ -1503,38 +1765,11 @@ def _fmt(value: float, symbol: str) -> str:
     return f"{symbol}{value:>,.2f}"
 
 
-def _format_money(value: float, currency: str) -> str:
-    """Format money in its native currency without assuming account currency."""
-    currency = str(currency or "").upper()
-    symbol = models.CURRENCY_SYMBOLS.get(currency)
-    if symbol:
-        return f"{symbol}{value:,.2f}"
-    return f"{currency} {value:,.2f}" if currency else f"{value:,.2f}"
-
-
-def _base_currencies_by_account() -> dict[str, tuple[str, ...]]:
-    """Return configured base currencies per account, with legacy fallback.
-
-    A base currency is cash in that account; it must not be quoted or included
-    in a cross-currency total. Older account definitions only have ``currency``.
-    """
-    result = {}
-    for account in load_accounts():
-        name = account.get("name")
-        if not name:
-            continue
-        configured = account.get("base_currencies") or [account.get("currency", "CNY")]
-        currencies = tuple(
-            str(currency).upper() for currency in configured if str(currency).strip()
-        )
-        result[name] = currencies or ("CNY",)
-    return result
-
-
 def do_list():
     """Read snapshot, fetch prices, display portfolio."""
     snap = load_snapshot()
     accounts = snap.get("accounts", {})
+    base_currencies_by_account = _load_security_account_base_currencies()
 
     # Collect all security accounts from both old and new snapshot structure
     # Old: accounts.IBKR.positions  New: accounts.security.东方证券.positions
@@ -1550,110 +1785,80 @@ def do_list():
         print("📭 无持仓")
         return
 
-    base_currencies_by_account = _base_currencies_by_account()
-    configured_currency_tickers = {
-        base_currency.lower()
-        for base_currencies in base_currencies_by_account.values()
-        for base_currency in base_currencies
-    }
-
-    # Account configuration is the sole currency registry. A configured base
-    # currency is cash wherever it appears, so it is never sent to a quote API.
-    # This handles, for example, a CNY position held in an HKD account without
-    # hard-coding CNY/USD/HKD in the display or pricing path.
-    all_tickers = {
-        ticker
-        for acct_data in all_accts.values()
-        for ticker in acct_data.get("positions", {})
-        if str(ticker).lower() not in configured_currency_tickers
-    }
+    # Collect all tickers for price fetching
+    all_tickers = set()
+    for acct_data in all_accts.values():
+        all_tickers.update(acct_data.get("positions", {}).keys())
     prices = _fetch_prices(list(all_tickers))
 
     for acct_name, acct_data in all_accts.items():
-        currency = str(acct_data.get("currency", "CNY") or "CNY").upper()
         positions = acct_data.get("positions", {})
-        base_currencies = base_currencies_by_account.get(acct_name, (currency,))
-        base_currency_keys = {base_currency.lower() for base_currency in base_currencies}
-        cash_by_currency = {
-            base_currency: sum(
-                pos.get("shares", 0.0)
-                for ticker, pos in positions.items()
-                if str(ticker).lower() == base_currency.lower()
-            )
-            for base_currency in base_currencies
-        }
+        allowed_cash = base_currencies_by_account.get(acct_name)
+        if not allowed_cash:
+            legacy = (acct_data.get("currency") or "").strip().upper()
+            allowed_cash = {legacy} if legacy else set()
 
-        print(f"\n  📊 持仓 [{currency}]  {acct_name}")
-        print(
-            f"  {'代码':<16} {'股数':>8} {'均价':>12} {'成本':>14} "
-            f"{'市值':>14} {'盈亏':>14} {'涨幅':>8}"
-        )
-        print("  " + "-" * 90)
-
-        market_values_by_currency: dict[str, float] = {}
-
-        for ticker in sorted(positions.keys()):
-            if str(ticker).lower() in base_currency_keys:
-                continue  # base-currency positions are cash, not securities
-            pos = positions[ticker]
-            shares = pos["shares"]
-            if shares == 0:
+        grouped: dict[str, list[tuple[str, dict]]] = {}
+        cash_positions: dict[str, dict] = {}
+        for ticker, pos in positions.items():
+            if abs(float(pos.get("shares", 0) or 0)) < 1e-9:
                 continue
-            total = pos.get("total_cost", 0.0)
-            avg_cost = total / shares if shares != 0 else 0.0
-            ticker_key = str(ticker).lower()
-            position_currency = (
-                str(ticker).upper()
-                if ticker_key in configured_currency_tickers
-                else str(pos.get("cost_currency") or currency).upper()
-            )
-            current_price = None if ticker_key in configured_currency_tickers else prices.get(ticker)
-            if isinstance(current_price, float) and math.isnan(current_price):
-                current_price = None
-            if current_price is not None:
-                value = shares * current_price
-                pl = value - total
-                pct = (current_price - avg_cost) / avg_cost * 100 if avg_cost > 0 else 0.0
-                value_str = _format_money(value, position_currency)
-                pl_str = (
-                    f"+{_format_money(pl, position_currency)}"
-                    if pl >= 0 else _format_money(pl, position_currency)
-                )
-                pct_str = f"+{pct:.1f}%" if pct >= 0 else f"{pct:.1f}%"
-                market_values_by_currency[position_currency] = (
-                    market_values_by_currency.get(position_currency, 0.0) + value
-                )
-            else:
-                value_str = "N/A"
-                pl_str = "N/A"
-                pct_str = "N/A"
+            ticker_currency = ticker.upper()
+            if ticker_currency in allowed_cash:
+                cash_positions[ticker_currency] = pos
+                continue
+            cost_currency = (pos.get("cost_currency") or "").strip().upper() or "UNKNOWN"
+            grouped.setdefault(cost_currency, []).append((ticker, pos))
 
+        display_currencies = sorted(set(grouped) | set(cash_positions))
+        if not display_currencies:
+            continue
+
+        for currency in display_currencies:
+            symbol = models.CURRENCY_SYMBOLS.get(currency, "")
+            cash = cash_positions.get(currency, {}).get("shares", 0.0)
+            rows_for_currency = sorted(grouped.get(currency, []))
+
+            print(f"\n  📊 持仓 [{currency}]  {acct_name}")
             print(
-                f"  {ticker:<16} {_fmt_shares(shares):>8} "
-                f"{_format_money(avg_cost, position_currency):>12} "
-                f"{_format_money(total, position_currency):>14} {value_str:>14} "
-                f"{pl_str:>14} {pct_str:>8}"
+                f"  {'代码':<16} {'股数':>8} {'均价':>12} {'成本':>14} "
+                f"{'市值':>14} {'盈亏':>14} {'涨幅':>8}"
             )
+            print("  " + "-" * 90)
 
-        print("  " + "─" * 90)
-        for value_currency, value in market_values_by_currency.items():
-            print(f"  {f'持仓市值 [{value_currency}]':<16} {'':>8} {'':>12} {'':>14} "
-                  f"{_format_money(value, value_currency):>14}")
-        for base_currency, cash in cash_by_currency.items():
-            print(f"  {f'现金 [{base_currency}]':<16} {'':>8} {'':>12} {'':>14} "
-                  f"{_format_money(cash, base_currency):>14}")
+            total_cost = 0.0
+            total_value = 0.0
 
-        displayed_currencies = set(market_values_by_currency) | set(cash_by_currency)
-        if len(displayed_currencies) == 1:
-            total_currency = next(iter(displayed_currencies))
-            total_combined = (
-                market_values_by_currency.get(total_currency, 0.0)
-                + cash_by_currency.get(total_currency, 0.0)
-            )
-            print(f"  {f'合计 [{total_currency}]':<16} {'':>8} {'':>12} {'':>14} "
-                  f"{_format_money(total_combined, total_currency):>14}")
-        else:
-            print("  合计：多币种，未合并")
+            for ticker, pos in rows_for_currency:
+                shares = pos["shares"]
+                total = pos.get("total_cost", 0.0)
+                avg_cost = total / shares if shares != 0 else 0.0
+                current_price = prices.get(ticker)
+                if current_price is not None and shares > 0:
+                    value = shares * current_price
+                    pl = value - total
+                    pct = (current_price - avg_cost) / avg_cost * 100 if avg_cost > 0 else 0.0
+                    pl_str = f"+{symbol}{pl:>,.2f}" if pl >= 0 else f"{symbol}{pl:>,.2f}"
+                    pct_str = f"+{pct:.1f}%" if pct >= 0 else f"{pct:.1f}%"
+                else:
+                    value = 0.0
+                    pl_str = "   N/A"
+                    pct_str = "  N/A"
+
+                print(
+                    f"  {ticker:<16} {_fmt_shares(shares):>8} {symbol}{avg_cost:>10,.2f} "
+                    f"{symbol}{total:>12,.2f} {symbol}{value:>12,.2f} "
+                    f"{pl_str:>14} {pct_str:>8}"
+                )
+
+                total_cost += total
+                total_value += value
+
+            print("  " + "─" * 90)
+            print(f"  {'持仓市值':<16} {'':>8} {'':>12} {'':>14} "
+                  f"{symbol}{total_value:>12,.2f}")
+            print(f"  {'现金':<16} {'':>8} {'':>12} {'':>14} "
+                  f"{symbol}{cash:>12,.2f}")
 
 
 # ── Verification ────────────────────────────────────────────────────────
@@ -1675,11 +1880,25 @@ def _replay_security_csv(records_dir=None):
     for csv_file in sorted(security_dir.glob("*.csv")):
         with open(csv_file, encoding="utf-8") as f:
             rows.extend(csv.DictReader(f))
-    positions = _replay_security_rows(rows)
+    positions = _replay_security_rows(
+        _order_security_rows_for_replay(rows),
+        validate_accounts=True,
+    )
     return positions
 
 
-def _replay_security_rows(rows):
+def _order_security_rows_for_replay(rows):
+    """Return rows in deterministic chronological replay order.
+
+    The primary ordering is the CSV ``date`` field. Ties intentionally preserve
+    the input order from the source CSVs. That matches persisted records because
+    each day file is written with Python's stable date sort; during append,
+    existing same-timestamp rows are placed before incoming same-timestamp rows.
+    """
+    return sorted(rows, key=lambda row: row.get("date", ""))
+
+
+def _replay_security_rows(rows, validate_accounts: bool = False):
     """Replay in-memory security rows, raising ValueError on non-finite state.
 
     Unified swap model: all trades are swaps between tickers.
@@ -1688,6 +1907,10 @@ def _replay_security_rows(rows):
     from collections import defaultdict
 
     positions = defaultdict(lambda: _position_bucket(""))
+    base_currencies_by_account = _load_security_account_base_currencies()
+
+    def _row_base_currencies(account: str, cost_currency: str) -> set[str]:
+        return base_currencies_by_account.get(account) or _base_currency_set(cost_currency)
 
     def _account_positions(account: str, cost_currency: str) -> dict:
         return {
@@ -1700,9 +1923,16 @@ def _replay_security_rows(rows):
         for ticker, pos in account_positions.items():
             positions[(account, ticker)] = pos
 
-    def _replay_position(account: str, ticker: str, cost_currency: str) -> dict:
+    def _replay_position(
+        account: str,
+        ticker: str,
+        cost_currency: str,
+        base_currencies,
+    ) -> dict:
         pos = positions[(account, ticker)]
-        position_cost_currency = _cost_currency_for_ticker(ticker, cost_currency)
+        position_cost_currency = _cost_currency_for_ticker(
+            ticker, cost_currency, base_currencies
+        )
         if position_cost_currency:
             pos["cost_currency"] = _merge_cost_currency(
                 pos.get("cost_currency", ""), position_cost_currency, ticker
@@ -1718,6 +1948,9 @@ def _replay_security_rows(rows):
         a = row["account_name"]
         act = row["action"]
         cost_currency = row.get("currency", "") or ""
+        if validate_accounts:
+            _validate_security_row_account_currency(a, cost_currency)
+        base_currencies = _row_base_currencies(a, cost_currency)
         try:
             from_amount = float(row.get("from_amount") or 0)
             to_amount = float(row.get("to_amount") or 0)
@@ -1740,6 +1973,7 @@ def _replay_security_rows(rows):
                 commission,
                 row.get("commission_asset", "") or "",
                 cost_currency,
+                base_currencies,
                 enforce_available=False,
             )
             _write_account_positions(a, account_positions)
@@ -1748,7 +1982,7 @@ def _replay_security_rows(rows):
             to_ticker = _canonical_ticker(row.get("to_ticker", "") or "")
             if not to_ticker:
                 continue
-            h = _replay_position(a, to_ticker, cost_currency)
+            h = _replay_position(a, to_ticker, cost_currency, base_currencies)
             h["shares"] = round(h["shares"] + to_amount, 10)
             h["total_cost"] = round(h["total_cost"] + to_amount, 10)
             _normalize_position(h)
@@ -1758,21 +1992,34 @@ def _replay_security_rows(rows):
             from_ticker = _canonical_ticker(row.get("from_ticker", "") or "")
             if not from_ticker:
                 continue
-            h = _replay_position(a, from_ticker, cost_currency)
+            h = _replay_position(a, from_ticker, cost_currency, base_currencies)
             h["shares"] = round(h["shares"] - from_amount, 10)
             h["total_cost"] = round(h["total_cost"] - from_amount, 10)
             _normalize_position(h)
             _validate_position_values(a, from_ticker, h)
 
         elif act == "dividend":
+            from_ticker = _canonical_ticker(row.get("from_ticker", "") or "")
             to_ticker = _canonical_ticker(row.get("to_ticker", "") or "")
             if not to_ticker:
                 continue
-            h = _replay_position(a, to_ticker, cost_currency)
+            is_stock_dividend = (
+                bool(from_ticker)
+                and from_ticker == to_ticker
+                and not _is_currency_ticker(to_ticker, base_currencies)
+            )
+            if not is_stock_dividend:
+                _assert_cash_dividend_currency_compatible(
+                    _account_positions(a, cost_currency),
+                    a,
+                    from_ticker,
+                    cost_currency,
+                    base_currencies,
+                )
+            h = _replay_position(a, to_ticker, cost_currency, base_currencies)
             h["shares"] = round(h["shares"] + to_amount, 10)
             # 现金分红：total_cost 增加（cash position 增加）；送股/转增：total_cost 不变
-            # 判断方法：to_ticker 含数字 → 股票代码（送股）；不含数字 → 货币代码（现金分红）
-            if not any(c.isdigit() for c in to_ticker):
+            if not is_stock_dividend:
                 h["total_cost"] = round(h["total_cost"] + to_amount, 10)
             _normalize_position(h)
             _validate_position_values(a, to_ticker, h)
@@ -1781,7 +2028,19 @@ def _replay_security_rows(rows):
             from_ticker = _canonical_ticker(row.get("from_ticker", "") or "")
             if not from_ticker:
                 continue
-            h = _replay_position(a, from_ticker, cost_currency)
+            if _is_currency_ticker(from_ticker, base_currencies):
+                h = _replay_position(a, from_ticker, cost_currency, base_currencies)
+                h["shares"] = round(to_amount, 10)
+                h["total_cost"] = round(to_amount, 10)
+                _normalize_position(h)
+                _validate_position_values(a, from_ticker, h)
+                if h["shares"] == 0:
+                    positions.pop((a, from_ticker), None)
+                continue
+            if abs(to_amount) < 1e-9:
+                positions.pop((a, from_ticker), None)
+                continue
+            h = _replay_position(a, from_ticker, cost_currency, base_currencies)
             h["shares"] = round(to_amount, 10)
             h["total_cost"] = round(to_amount * price, 2)
             _normalize_position(h)
@@ -1875,7 +2134,7 @@ def repair_security(records_dir=None):
         accounts[acct_name]["positions"][ticker] = {
             "shares": p["shares"],
             "total_cost": round(p["total_cost"], 2),
-            "cost_currency": acct_currencies.get(acct_name, ""),
+            "cost_currency": p.get("cost_currency") or acct_currencies.get(acct_name, ""),
         }
 
     snap = load_snapshot()

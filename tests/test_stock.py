@@ -27,6 +27,18 @@ def tmp_env():
     models.RECORDS_DIR = records_dir
     models.ACCOUNTS_PATH = d / "accounts.yaml"
     snapshot_mod.SNAPSHOT_PATH = d / "snapshot.yaml"
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: IBKR\n"
+        "    type: security\n"
+        "    currency: USD\n"
+        "    active: true\n"
+        "  - name: Polymarket\n"
+        "    type: security\n"
+        "    currency: USD\n"
+        "    active: true\n",
+        encoding="utf-8",
+    )
 
     yield d
 
@@ -437,6 +449,602 @@ def test_do_checkin_cash(tmp_env):
     snap = load_snapshot()
     acct = snap["accounts"]["security"]["IBKR"]
     assert acct["positions"]["usd"]["shares"] == pytest.approx(12345.67)
+
+
+def test_zero_cash_checkin_does_not_leave_zero_position(tmp_env):
+    from ft.stock import do_deposit, do_checkin_cash, load_snapshot, verify_security
+
+    do_deposit(amount=5000.0, currency="USD", account_name="IBKR",
+               note="deposit", date="2026-06-10")
+    do_checkin_cash(cash=0, account_name="IBKR", currency="USD",
+                    note="reconcile", date="2026-06-12")
+
+    acct = load_snapshot()["accounts"]["security"]["IBKR"]
+    assert "usd" not in acct["positions"]
+    ok, lines = verify_security()
+    assert ok is True, lines
+
+
+def test_append_zero_cash_checkin_does_not_leave_zero_position(tmp_env):
+    from ft.stock import CSV_FIELDS, do_append, load_snapshot, verify_security
+
+    csv_path = tmp_env / "zero-cash-checkin.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        writer.writerow({
+            "date": "2026-06-10 10:00:00", "action": "deposit",
+            "from_ticker": "", "to_ticker": "USD",
+            "from_amount": "0", "to_amount": "5000", "price": "1",
+            "commission": "0", "commission_asset": "",
+            "currency": "USD", "account_name": "IBKR", "note": "deposit",
+        })
+        writer.writerow({
+            "date": "2026-06-12 10:00:00", "action": "checkin",
+            "from_ticker": "USD", "to_ticker": "",
+            "from_amount": "0", "to_amount": "0", "price": "1",
+            "commission": "0", "commission_asset": "",
+            "currency": "USD", "account_name": "IBKR", "note": "reconcile",
+        })
+
+    assert do_append(csv_path) is True
+    acct = load_snapshot()["accounts"]["security"].get("IBKR", {})
+    assert "usd" not in acct.get("positions", {})
+    ok, lines = verify_security()
+    assert ok is True, lines
+
+
+def test_stock_account_currency_resolves_dynamic_base_currencies(tmp_env):
+    """Manual stock operations should accept configured base currencies beyond built-ins."""
+    from ft import models
+    from ft.stock import do_deposit, load_snapshot
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: Kraken\n"
+        "    type: crypto\n"
+        "    currency: USDT\n"
+        "    base_currencies: [USDT, USDG]\n"
+        "    active: true\n",
+        encoding="utf-8",
+    )
+
+    do_deposit(amount=25, currency="usdg", account_name="Kraken", date="2026-06-30")
+
+    snap = load_snapshot()
+    acct = snap["accounts"]["security"]["Kraken"]
+    assert acct["currency"] == "USDT"
+    assert acct["positions"]["usdg"]["shares"] == pytest.approx(25)
+    with (models.RECORDS_DIR / "security" / "2026-06-30.csv").open(encoding="utf-8") as f:
+        row = next(csv.DictReader(f))
+    assert row["currency"] == "USDG"
+    assert row["to_ticker"] == "usdg"
+
+
+def test_stock_operation_rejects_unconfigured_currency(tmp_env):
+    from ft.stock import do_deposit, load_snapshot
+
+    with pytest.raises(ValueError, match="not configured"):
+        do_deposit(amount=1, currency="CNY", account_name="IBKR", date="2026-06-30")
+    assert load_snapshot()["accounts"]["security"] == {}
+
+
+def test_stock_operation_rejects_unknown_and_wrong_type_accounts(tmp_env):
+    from ft import models
+    from ft.stock import do_deposit, load_snapshot
+
+    with pytest.raises(ValueError, match="unknown account"):
+        do_deposit(amount=1, currency="USD", account_name="Missing", date="2026-06-30")
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: CashBox\n"
+        "    type: cash\n"
+        "    currency: USD\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="not security/crypto"):
+        do_deposit(amount=1, currency="USD", account_name="CashBox", date="2026-06-30")
+    assert load_snapshot()["accounts"]["security"] == {}
+
+
+def test_configured_stock_account_requires_explicit_currency_without_writing(tmp_env):
+    from ft import models
+    from ft.stock import do_checkin_cash, load_snapshot
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: Kraken\n"
+        "    type: crypto\n"
+        "    currency: USDT\n"
+        "    base_currencies: [USDT, USDG]\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="currency is required"):
+        do_checkin_cash(cash=100, account_name="Kraken", date="2026-06-30")
+
+    assert load_snapshot()["accounts"]["security"] == {}
+    assert not (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
+
+
+def test_legacy_account_without_base_currencies_falls_back_to_legacy_currency(tmp_env):
+    from ft import models
+    from ft.stock import do_deposit, load_snapshot
+
+    do_deposit(amount=100, currency=None, account_name="IBKR", date="2026-06-30")
+
+    acct = load_snapshot()["accounts"]["security"]["IBKR"]
+    assert acct["positions"]["usd"]["shares"] == pytest.approx(100)
+    with (models.RECORDS_DIR / "security" / "2026-06-30.csv").open(encoding="utf-8") as f:
+        row = next(csv.DictReader(f))
+    assert row["currency"] == "USD"
+    assert row["to_ticker"] == "usd"
+
+
+def test_configured_base_currencies_need_not_include_legacy_currency(tmp_env):
+    from ft import models
+    from ft.stock import do_deposit, load_snapshot
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: Kraken\n"
+        "    type: crypto\n"
+        "    currency: USDT\n"
+        "    base_currencies: [USDG]\n",
+        encoding="utf-8",
+    )
+
+    do_deposit(amount=1, currency="USDG", account_name="Kraken", date="2026-06-30")
+
+    acct = load_snapshot()["accounts"]["security"]["Kraken"]
+    assert acct["currency"] == "USDT"
+    assert acct["positions"]["usdg"]["shares"] == pytest.approx(1)
+    assert "usdt" not in acct["positions"]
+
+
+def test_configured_account_does_not_default_to_legacy_or_first_base_currency(tmp_env):
+    from ft import models
+    from ft.stock import do_deposit, load_snapshot
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: Kraken\n"
+        "    type: crypto\n"
+        "    currency: USDT\n"
+        "    base_currencies: [USDG, USDT]\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="currency is required"):
+        do_deposit(amount=1, currency=None, account_name="Kraken", date="2026-06-30")
+
+    assert load_snapshot()["accounts"]["security"] == {}
+    assert not (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
+
+
+def test_stock_buy_rejects_cost_currency_conflict_before_writing(tmp_env):
+    from ft import models
+    from ft.stock import do_buy, load_snapshot
+
+    do_buy(ticker="goog.us", shares=1, price=100, commission=0,
+           currency="USD", account_name="IBKR", date="2026-06-29 10:00:00")
+    before_snapshot = (tmp_env / "snapshot.yaml").read_text(encoding="utf-8")
+    before_records = sorted((models.RECORDS_DIR / "security").glob("*.csv"))
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: IBKR\n"
+        "    type: security\n"
+        "    currency: USD\n"
+        "    base_currencies: [USD, CNY]\n"
+        "    active: true\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="cost_currency mismatch"):
+        do_buy(ticker="GOOG.US", shares=1, price=700, commission=0,
+               currency="cny", account_name="IBKR", date="2026-06-30 10:00:00")
+
+    assert (tmp_env / "snapshot.yaml").read_text(encoding="utf-8") == before_snapshot
+    assert sorted((models.RECORDS_DIR / "security").glob("*.csv")) == before_records
+    assert not (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
+    assert load_snapshot()["accounts"]["security"]["IBKR"]["positions"]["goog.us"]["cost_currency"] == "USD"
+
+
+def test_stock_allows_new_cost_currency_after_position_closed(tmp_env):
+    from ft import models
+    from ft.stock import do_buy, do_sell, load_snapshot
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: IBKR\n"
+        "    type: security\n"
+        "    currency: USD\n"
+        "    base_currencies: [USD, CNY]\n",
+        encoding="utf-8",
+    )
+
+    do_buy("goog.us", 1, 100, 0, "USD", "IBKR", date="2026-06-28 10:00:00")
+    do_sell("goog.us", 1, 110, 0, "USD", "IBKR", date="2026-06-29 10:00:00")
+    do_buy("goog.us", 1, 700, 0, "CNY", "IBKR", date="2026-06-30 10:00:00")
+
+    pos = load_snapshot()["accounts"]["security"]["IBKR"]["positions"]["goog.us"]
+    assert pos["shares"] == pytest.approx(1)
+    assert pos["cost_currency"] == "CNY"
+
+
+def test_zero_share_checkin_closes_position_before_cost_currency_change(tmp_env):
+    from ft import models
+    from ft.stock import do_buy, do_checkin_ticker, load_snapshot, verify_security
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: IBKR\n"
+        "    type: security\n"
+        "    currency: USD\n"
+        "    base_currencies: [USD, CNY]\n",
+        encoding="utf-8",
+    )
+
+    do_buy("aapl.us", 1, 100, 0, "USD", "IBKR", date="2026-06-28 10:00:00")
+    do_checkin_ticker("aapl.us", 0, 0, "CNY", "IBKR", date="2026-06-29 10:00:00")
+    do_buy("aapl.us", 1, 700, 0, "CNY", "IBKR", date="2026-06-30 10:00:00")
+
+    snap = load_snapshot()
+    pos = snap["accounts"]["security"]["IBKR"]["positions"]["aapl.us"]
+    assert pos["shares"] == pytest.approx(1)
+    assert pos["total_cost"] == pytest.approx(700)
+    assert pos["cost_currency"] == "CNY"
+    ok, lines = verify_security()
+    assert ok is True, lines
+
+
+def test_zero_share_checkin_rejects_unconfigured_currency_without_writing(tmp_env):
+    from ft import models
+    from ft.stock import do_buy, do_checkin_ticker, load_snapshot
+
+    do_buy("aapl.us", 1, 100, 0, "USD", "IBKR", date="2026-06-28 10:00:00")
+    before_snapshot = (tmp_env / "snapshot.yaml").read_text(encoding="utf-8")
+    before_rows = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in (models.RECORDS_DIR / "security").glob("*.csv")
+    }
+
+    with pytest.raises(ValueError, match="not configured"):
+        do_checkin_ticker("aapl.us", 0, 0, "CNY", "IBKR", date="2026-06-29 10:00:00")
+
+    assert (tmp_env / "snapshot.yaml").read_text(encoding="utf-8") == before_snapshot
+    after_rows = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in (models.RECORDS_DIR / "security").glob("*.csv")
+    }
+    assert after_rows == before_rows
+    assert load_snapshot()["accounts"]["security"]["IBKR"]["positions"]["aapl.us"]["cost_currency"] == "USD"
+
+
+def test_append_zero_share_checkin_allows_later_different_cost_currency(tmp_env):
+    from ft import models
+    from ft.stock import CSV_FIELDS, do_append, load_snapshot, verify_security
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: IBKR\n"
+        "    type: security\n"
+        "    currency: USD\n"
+        "    base_currencies: [USD, CNY]\n",
+        encoding="utf-8",
+    )
+    csv_path = tmp_env / "zero-checkin-reopen.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        writer.writerow({
+            "date": "2026-06-28 10:00:00", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "aapl.us",
+            "from_amount": "100", "to_amount": "1", "price": "100",
+            "commission": "0", "commission_asset": "USD",
+            "currency": "USD", "account_name": "IBKR", "note": "buy usd",
+        })
+        writer.writerow({
+            "date": "2026-06-29 10:00:00", "action": "checkin",
+            "from_ticker": "aapl.us", "to_ticker": "",
+            "from_amount": "0", "to_amount": "0", "price": "0",
+            "commission": "0", "commission_asset": "",
+            "currency": "CNY", "account_name": "IBKR", "note": "close",
+        })
+        writer.writerow({
+            "date": "2026-06-30 10:00:00", "action": "swap",
+            "from_ticker": "CNY", "to_ticker": "aapl.us",
+            "from_amount": "700", "to_amount": "1", "price": "700",
+            "commission": "0", "commission_asset": "CNY",
+            "currency": "CNY", "account_name": "IBKR", "note": "buy cny",
+        })
+
+    assert do_append(csv_path) is True
+    pos = load_snapshot()["accounts"]["security"]["IBKR"]["positions"]["aapl.us"]
+    assert pos["shares"] == pytest.approx(1)
+    assert pos["total_cost"] == pytest.approx(700)
+    assert pos["cost_currency"] == "CNY"
+    ok, lines = verify_security()
+    assert ok is True, lines
+
+
+def test_append_historical_backfill_replays_before_later_existing_cost_currency(tmp_env):
+    from ft import models
+    from ft.stock import CSV_FIELDS, do_append, do_buy, load_snapshot, verify_security
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: IBKR\n"
+        "    type: security\n"
+        "    currency: USD\n"
+        "    base_currencies: [USD, CNY]\n",
+        encoding="utf-8",
+    )
+    do_buy("x.us", 1, 700, 0, "CNY", "IBKR", date="2026-06-30 10:00:00")
+
+    csv_path = tmp_env / "historical-backfill.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        writer.writerow({
+            "date": "2026-06-29 09:00:00", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "x.us",
+            "from_amount": "100", "to_amount": "1", "price": "100",
+            "commission": "0", "commission_asset": "USD",
+            "currency": "USD", "account_name": "IBKR", "note": "backfill usd buy",
+        })
+        writer.writerow({
+            "date": "2026-06-29 10:00:00", "action": "checkin",
+            "from_ticker": "x.us", "to_ticker": "",
+            "from_amount": "0", "to_amount": "0", "price": "0",
+            "commission": "0", "commission_asset": "",
+            "currency": "CNY", "account_name": "IBKR", "note": "close usd lot",
+        })
+
+    assert do_append(csv_path) is True
+    pos = load_snapshot()["accounts"]["security"]["IBKR"]["positions"]["x.us"]
+    assert pos["shares"] == pytest.approx(1)
+    assert pos["total_cost"] == pytest.approx(700)
+    assert pos["cost_currency"] == "CNY"
+    ok, lines = verify_security()
+    assert ok is True, lines
+
+
+def test_dividend_settlement_currency_must_match_existing_stock_cost_currency(tmp_env):
+    from ft import models
+    from ft.stock import do_buy, do_deposit, do_dividend, load_snapshot
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: IBKR\n"
+        "    type: security\n"
+        "    currency: USD\n"
+        "    base_currencies: [USD, HKD]\n",
+        encoding="utf-8",
+    )
+
+    do_deposit(200, "USD", "IBKR", date="2026-06-28 09:00:00")
+    do_buy("aapl.us", 2, 100, 0, "USD", "IBKR", date="2026-06-28 10:00:00")
+    before_snapshot = (tmp_env / "snapshot.yaml").read_text(encoding="utf-8")
+    before_rows = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in (models.RECORDS_DIR / "security").glob("*.csv")
+    }
+
+    with pytest.raises(ValueError, match="dividend currency mismatch"):
+        do_dividend("aapl.us", 8, "HKD", "IBKR", date="2026-06-29 10:00:00")
+
+    assert (tmp_env / "snapshot.yaml").read_text(encoding="utf-8") == before_snapshot
+    after_rows = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in (models.RECORDS_DIR / "security").glob("*.csv")
+    }
+    assert after_rows == before_rows
+    acct = load_snapshot()["accounts"]["security"]["IBKR"]
+    assert acct["positions"]["aapl.us"]["shares"] == pytest.approx(2)
+    assert acct["positions"]["aapl.us"]["cost_currency"] == "USD"
+    assert "hkd" not in acct["positions"]
+
+
+def test_usd_dividend_then_independent_usd_to_hkd_swap_is_valid(tmp_env):
+    from ft import models
+    from ft.stock import do_buy, do_deposit, do_dividend, do_swap, load_snapshot, verify_security
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: IBKR\n"
+        "    type: security\n"
+        "    currency: USD\n"
+        "    base_currencies: [USD, HKD]\n",
+        encoding="utf-8",
+    )
+
+    do_deposit(200, "USD", "IBKR", date="2026-06-28 09:00:00")
+    do_buy("aapl.us", 2, 100, 0, "USD", "IBKR", date="2026-06-28 10:00:00")
+    do_dividend("aapl.us", 8, "USD", "IBKR", date="2026-06-29 10:00:00")
+    do_swap("IBKR", "USD", 8, "HKD", 62.4, "USD", date="2026-06-29 11:00:00")
+
+    acct = load_snapshot()["accounts"]["security"]["IBKR"]
+    assert acct["positions"]["aapl.us"]["cost_currency"] == "USD"
+    assert acct["positions"]["hkd"]["shares"] == pytest.approx(62.4)
+    ok, lines = verify_security()
+    assert ok is True, lines
+
+
+def test_append_dividend_settlement_currency_mismatch_rolls_back(tmp_env):
+    from ft import models
+    from ft.stock import CSV_FIELDS, do_append, load_snapshot
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: IBKR\n"
+        "    type: security\n"
+        "    currency: USD\n"
+        "    base_currencies: [USD, HKD]\n",
+        encoding="utf-8",
+    )
+    csv_path = tmp_env / "cross-currency-dividend.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        writer.writerow({
+            "date": "2026-06-28 10:00:00", "action": "swap",
+            "from_ticker": "USD", "to_ticker": "aapl.us",
+            "from_amount": "200", "to_amount": "2", "price": "100",
+            "commission": "0", "commission_asset": "USD",
+            "currency": "USD", "account_name": "IBKR", "note": "buy",
+        })
+        writer.writerow({
+            "date": "2026-06-29 10:00:00", "action": "dividend",
+            "from_ticker": "aapl.us", "to_ticker": "HKD",
+            "from_amount": "0", "to_amount": "8", "price": "1",
+            "commission": "0", "commission_asset": "",
+            "currency": "HKD", "account_name": "IBKR", "note": "dividend",
+        })
+
+    snapshot_path = tmp_env / "snapshot.yaml"
+    before_snapshot = snapshot_path.read_text(encoding="utf-8") if snapshot_path.exists() else None
+    before_files = sorted((models.RECORDS_DIR / "security").glob("*.csv"))
+
+    assert do_append(csv_path) is False
+    after_snapshot = snapshot_path.read_text(encoding="utf-8") if snapshot_path.exists() else None
+    assert after_snapshot == before_snapshot
+    assert sorted((models.RECORDS_DIR / "security").glob("*.csv")) == before_files
+    assert load_snapshot()["accounts"]["security"] == {}
+
+
+def test_stock_append_accepts_configured_currency_when_legacy_currency_differs(tmp_env):
+    from ft import models
+    from ft.stock import CSV_FIELDS, do_append, load_snapshot
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: Kraken\n"
+        "    type: crypto\n"
+        "    currency: USDT\n"
+        "    base_currencies: [USDG]\n",
+        encoding="utf-8",
+    )
+    csv_path = tmp_env / "invalid-base-currency.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        writer.writerow({
+            "date": "2026-06-30 10:00:00", "action": "deposit",
+            "from_ticker": "", "to_ticker": "USDG",
+            "from_amount": "0", "to_amount": "1", "price": "1",
+            "commission": "0", "commission_asset": "",
+            "currency": "USDG", "account_name": "Kraken", "note": "",
+        })
+
+    assert do_append(csv_path) is True
+    acct = load_snapshot()["accounts"]["security"]["Kraken"]
+    assert acct["positions"]["usdg"]["shares"] == pytest.approx(1)
+    assert "usdt" not in acct["positions"]
+
+
+def test_stock_replay_accepts_configured_currency_when_legacy_currency_differs(tmp_env):
+    from ft import models
+    from ft.stock import CSV_FIELDS, _replay_security_csv
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: Kraken\n"
+        "    type: crypto\n"
+        "    currency: USDT\n"
+        "    base_currencies: [USDG]\n",
+        encoding="utf-8",
+    )
+    security_dir = models.RECORDS_DIR / "security"
+    security_dir.mkdir(parents=True, exist_ok=True)
+    with (security_dir / "2026-06-30.csv").open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        writer.writerow({
+            "date": "2026-06-30 10:00:00", "action": "deposit",
+            "from_ticker": "", "to_ticker": "USDG",
+            "from_amount": "0", "to_amount": "1", "price": "1",
+            "commission": "0", "commission_asset": "",
+            "currency": "USDG", "account_name": "Kraken", "note": "",
+        })
+
+    positions = _replay_security_csv()
+    assert positions[("Kraken", "usdg")]["shares"] == pytest.approx(1)
+    assert positions[("Kraken", "usdg")]["cost_currency"] == "USDG"
+
+
+def test_repair_security_preserves_row_cost_currency_for_multibase_account(tmp_env):
+    from ft import models
+    from ft.stock import CSV_FIELDS, repair_security, load_snapshot
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: Kraken\n"
+        "    type: crypto\n"
+        "    currency: USDT\n"
+        "    base_currencies: [USDT, USDG]\n",
+        encoding="utf-8",
+    )
+    security_dir = models.RECORDS_DIR / "security"
+    security_dir.mkdir(parents=True, exist_ok=True)
+    with (security_dir / "2026-06-30.csv").open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        writer.writerow({
+            "date": "2026-06-30 10:00:00", "action": "deposit",
+            "from_ticker": "", "to_ticker": "usdg",
+            "from_amount": "0", "to_amount": "100", "price": "1",
+            "commission": "0", "commission_asset": "",
+            "currency": "USDG", "account_name": "Kraken", "note": "",
+        })
+
+    repair_security()
+
+    pos = load_snapshot()["accounts"]["security"]["Kraken"]["positions"]["usdg"]
+    assert pos["shares"] == pytest.approx(100)
+    assert pos["cost_currency"] == "USDG"
+
+
+def test_stock_list_separates_values_by_allowed_cash_settlement_currency(tmp_env, monkeypatch, capsys):
+    from ft import models
+    import ft.stock as stock
+    from ft.stock import save_snapshot
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: IBKR\n"
+        "    type: security\n"
+        "    currency: USD\n"
+        "    base_currencies: [USD, HKD]\n",
+        encoding="utf-8",
+    )
+    save_snapshot({
+        "updated_at": "2026-06-30",
+        "accounts": {
+            "security": {
+                "IBKR": {
+                    "currency": "USD",
+                    "positions": {
+                        "usd": {"shares": 10.0, "total_cost": 10.0, "cost_currency": "USD"},
+                        "hkd": {"shares": 78.0, "total_cost": 78.0, "cost_currency": "HKD"},
+                        "aapl.us": {"shares": 1.0, "total_cost": 100.0, "cost_currency": "USD"},
+                        "00700.hk": {"shares": 1.0, "total_cost": 300.0, "cost_currency": "HKD"},
+                    },
+                }
+            }
+        },
+    })
+    monkeypatch.setattr(stock, "_fetch_prices", lambda tickers: {"aapl.us": 110.0, "00700.hk": 320.0})
+
+    stock.do_list()
+
+    out = capsys.readouterr().out
+    assert "持仓 [USD]  IBKR" in out
+    assert "持仓 [HKD]  IBKR" in out
+    assert "aapl.us" in out
+    assert "00700.hk" in out
+    assert "合计" not in out
 
 
 def test_fetch_prices_single_hk_series(monkeypatch):
@@ -1737,6 +2345,97 @@ def test_do_swap_conserves_cost_and_ignores_cash(tmp_env):
     assert ok is True
 
 
+def test_direct_cash_swap_uses_configured_base_currencies(tmp_env):
+    from ft.accounts import save_accounts
+    from ft import models
+    from ft.stock import do_deposit, do_swap, load_snapshot, verify_security
+
+    save_accounts([
+        {
+            "name": "Kraken",
+            "type": "crypto",
+            "currency": "USDT",
+            "base_currencies": ["USDT", "USDG"],
+            "active": True,
+        },
+    ], models.ACCOUNTS_PATH)
+
+    do_deposit(amount=100, currency="USDT", account_name="Kraken",
+               date="2026-07-08 08:00:00")
+    do_deposit(amount=20, currency="USDG", account_name="Kraken",
+               date="2026-07-08 08:05:00")
+
+    do_swap(account_name="Kraken", from_ticker="USDT", from_shares=40,
+            to_ticker="USDG", to_shares=39.5, currency="USDT",
+            commission=0.5, commission_asset="USDG",
+            date="2026-07-08 09:00:00")
+
+    positions = load_snapshot()["accounts"]["security"]["Kraken"]["positions"]
+    assert positions["usdt"] == {
+        "shares": pytest.approx(60),
+        "total_cost": pytest.approx(60),
+        "cost_currency": "USDT",
+    }
+    assert positions["usdg"] == {
+        "shares": pytest.approx(59),
+        "total_cost": pytest.approx(59),
+        "cost_currency": "USDG",
+    }
+    ok, lines = verify_security()
+    assert ok is True, lines
+
+
+def test_append_replay_cash_swap_uses_configured_base_currencies(tmp_env):
+    from ft.accounts import save_accounts
+    from ft import models
+    from ft.stock import CSV_FIELDS, do_append, load_snapshot, verify_security
+
+    save_accounts([
+        {
+            "name": "Kraken",
+            "type": "crypto",
+            "currency": "USDT",
+            "base_currencies": ["USDT", "USDG"],
+            "active": True,
+        },
+    ], models.ACCOUNTS_PATH)
+
+    csv_path = tmp_env / "cash_swap.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        writer.writerow({
+            "date": "2026-07-08 08:00:00", "action": "deposit",
+            "from_ticker": "", "to_ticker": "USDT",
+            "from_amount": "0", "to_amount": "100", "price": "1",
+            "commission": "0", "commission_asset": "",
+            "currency": "USDT", "account_name": "Kraken", "note": "seed usdt",
+        })
+        writer.writerow({
+            "date": "2026-07-08 08:05:00", "action": "deposit",
+            "from_ticker": "", "to_ticker": "USDG",
+            "from_amount": "0", "to_amount": "20", "price": "1",
+            "commission": "0", "commission_asset": "",
+            "currency": "USDG", "account_name": "Kraken", "note": "seed usdg",
+        })
+        writer.writerow({
+            "date": "2026-07-08 09:00:00", "action": "swap",
+            "from_ticker": "USDT", "to_ticker": "USDG",
+            "from_amount": "40", "to_amount": "39.5", "price": "0",
+            "commission": "0.5", "commission_asset": "USDG",
+            "currency": "USDT", "account_name": "Kraken", "note": "cash fx",
+        })
+
+    assert do_append(csv_path) is True
+    positions = load_snapshot()["accounts"]["security"]["Kraken"]["positions"]
+    assert positions["usdt"]["shares"] == pytest.approx(60)
+    assert positions["usdt"]["cost_currency"] == "USDT"
+    assert positions["usdg"]["shares"] == pytest.approx(59)
+    assert positions["usdg"]["cost_currency"] == "USDG"
+    ok, lines = verify_security()
+    assert ok is True, lines
+
+
 def test_do_swap_insufficient_from_shares_raises(tmp_env):
     from ft.accounts import save_accounts
     from ft import models
@@ -1759,14 +2458,14 @@ def test_verify_security_detects_total_cost_mismatch(tmp_env):
     security_dir.mkdir(parents=True, exist_ok=True)
     (security_dir / "2026-07-08.csv").write_text(
         "date,action,from_ticker,to_ticker,from_amount,to_amount,price,commission,commission_asset,currency,account_name,note\n"
-        "2026-07-08 10:00:00,checkin,btc,,0,2,50,0,,USD,币安,seed\n",
+        "2026-07-08 10:00:00,checkin,btc,,0,2,50,0,,USD,IBKR,seed\n",
         encoding="utf-8",
     )
     save_snapshot({
         "updated_at": "2026-07-08",
         "accounts": {
             "security": {
-                "币安": {
+                "IBKR": {
                     "currency": "USD",
                     "positions": {
                         "btc": {
@@ -1796,14 +2495,14 @@ def test_verify_security_detects_cost_currency_mismatch(tmp_env):
     security_dir.mkdir(parents=True, exist_ok=True)
     (security_dir / "2026-07-08.csv").write_text(
         "date,action,from_ticker,to_ticker,from_amount,to_amount,price,commission,commission_asset,currency,account_name,note\n"
-        "2026-07-08 10:00:00,checkin,btc,,0,2,50,0,,USD,币安,seed\n",
+        "2026-07-08 10:00:00,checkin,btc,,0,2,50,0,,USD,IBKR,seed\n",
         encoding="utf-8",
     )
     save_snapshot({
         "updated_at": "2026-07-08",
         "accounts": {
             "security": {
-                "币安": {
+                "IBKR": {
                     "currency": "USD",
                     "positions": {
                         "btc": {
@@ -1833,12 +2532,12 @@ def test_verify_security_detects_missing_cost_currency(tmp_env):
     security_dir.mkdir(parents=True, exist_ok=True)
     (security_dir / "2026-07-08.csv").write_text(
         "date,action,from_ticker,to_ticker,from_amount,to_amount,price,commission,commission_asset,currency,account_name,note\n"
-        "2026-07-08 10:00:00,checkin,btc,,0,2,50,0,,USD,币安,seed\n",
+        "2026-07-08 10:00:00,checkin,btc,,0,2,50,0,,USD,IBKR,seed\n",
         encoding="utf-8",
     )
     save_snapshot({
         "updated_at": "2026-07-08",
-        "accounts": {"security": {"币安": {"currency": "USD", "positions": {
+        "accounts": {"security": {"IBKR": {"currency": "USD", "positions": {
             "btc": {"shares": 2, "total_cost": 100},
         }}}},
     })
