@@ -226,7 +226,7 @@ def rebuild_snapshot_from_records(records_dir=None):
     import re
     from .stock import repair_security
 
-    repair_security()
+    repair_security(records_dir)
 
     snap = load_snapshot()
     for typ in ("cash", "loan", "lend"):
