@@ -1,8 +1,11 @@
 """账户增删改查 — YAML backend"""
 from .accounts import (
-    load_accounts, save_accounts, find_account, add_account as _add_account,
+    load_accounts, save_accounts, find_account,
 )
 from .models import ACCOUNT_TYPES, ACCOUNT_LABELS, CURRENCY_SYMBOLS
+from . import models
+from .adapters.local_csv import LocalCsvUnitOfWork
+from .application.accounts import AccountService
 
 
 def _compute_balance(account_name: str, currency: str) -> float:
@@ -61,10 +64,14 @@ def _compute_balance(account_name: str, currency: str) -> float:
 
 def acct_add(name: str, type_: str, currency: str):
     """新增账户"""
-    _add_account(name.strip(), type_, currency)
+    service = AccountService(LocalCsvUnitOfWork(models.FT_DIR))
+    result = service.create_account(name.strip(), type_, currency)
+    if not result.ok:
+        print(f"❌ {result.error.message}")
+        return
     label = ACCOUNT_LABELS.get(type_, type_)
     sym = CURRENCY_SYMBOLS.get(currency, "")
-    print(f"✅ 已添加账户: {name} ({label} · {sym}{currency})")
+    print(f"✅ 已添加账户: {result.account.name} ({label} · {sym}{currency})")
 
 
 def acct_list():

@@ -429,8 +429,14 @@ def main(argv=None):
     if args.cmd == "reconcile":
         if args.month and (args.date_from or args.date_to):
             parser.error("--month 与 --from/--to 不能同时使用")
+        from . import models
+        from .adapters.local_csv import LocalCsvUnitOfWork
+        from .application.reconcile import ReconcileService
         from .reconcile import do_reconcile
-        do_reconcile(month=args.month, date_from=args.date_from, date_to=args.date_to)
+        ReconcileService(
+            LocalCsvUnitOfWork(models.FT_DIR),
+            do_reconcile,
+        ).reconcile(month=args.month, date_from=args.date_from, date_to=args.date_to)
         return
 
     if args.cmd == "report":
