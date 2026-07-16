@@ -5,38 +5,18 @@ from typing import Optional
 
 import yaml
 
-from ft import models
-from ft.models import ACCOUNT_TYPES, CURRENCIES
+from ft.schema import ACCOUNT_TYPES, CURRENCIES, DEFAULT_ACCOUNTS_YAML
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_ACCOUNTS_YAML = """\
-accounts:
-  - name: 支付宝余额
-    type: cash
-    currency: CNY
-    active: true
-  - name: 微信零钱
-    type: cash
-    currency: CNY
-    active: true
-  - name: 工行借记卡
-    type: cash
-    currency: CNY
-    active: true
-  - name: 工行信用卡(1200)
-    type: loan
-    currency: CNY
-    active: true
-"""
-
 
 def load_accounts(path: Optional[Path] = None) -> list[dict]:
     """加载账户列表。
 
     如果文件不存在则创建默认账户文件再读取。
     """
-    path = path or models.ACCOUNTS_PATH
+    if path is None:
+        from ft import models
+        path = models.ACCOUNTS_PATH
 
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -54,7 +34,9 @@ def load_accounts(path: Optional[Path] = None) -> list[dict]:
 
 def save_accounts(accounts: list[dict], path: Optional[Path] = None) -> None:
     """保存账户列表到 YAML 文件。"""
-    path = path or models.ACCOUNTS_PATH
+    if path is None:
+        from ft import models
+        path = models.ACCOUNTS_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
         yaml.dump(

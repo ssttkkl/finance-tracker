@@ -5,10 +5,9 @@ from collections import defaultdict
 from datetime import datetime, date, timedelta
 from pathlib import Path
 
-from . import models
 from .accounts import load_accounts
 from .dedup import dedup_with_pairs, dedup_cross_source
-from .snapshot import rebuild_snapshot_from_records, git_stage
+from .schema import CASH_CSV_FIELDS
 from .transfer_rules import classify_single_leg
 
 
@@ -41,7 +40,7 @@ TIME_RE = re.compile(r"\b([01]?\d|2[0-3]):[0-5]\d:[0-5]\d\b")
 
 
 def _normal_row(row: dict) -> dict:
-    return {field: row.get(field, "") for field in models.CASH_CSV_FIELDS}
+    return {field: row.get(field, "") for field in CASH_CSV_FIELDS}
 
 
 def _clean_row(row: dict) -> dict:
@@ -103,8 +102,8 @@ def _mark_transfer(out_row: dict, in_row: dict, rule: str) -> tuple[dict, dict]:
     return out_row, in_row
 
 
-def _account_type_map() -> dict[tuple[str, str], str]:
-    return {(a["name"], a["currency"]): a["type"] for a in load_accounts()}
+def _account_type_map(accounts_path: Path | None = None) -> dict[tuple[str, str], str]:
+    return {(a["name"], a["currency"]): a["type"] for a in load_accounts(accounts_path)}
 
 
 def _mark_single_leg_transfers(rows: list[dict], used_ids: set[int]) -> list[tuple[dict, str]]:
@@ -176,13 +175,14 @@ def _is_unionpay_wechat_cash_signal(out_row: dict, in_row: dict) -> bool:
     )
 
 
-def _match_same_day_unionpay_cash_transfer(rows: list[dict], used_ids: set[int]) -> list[tuple[dict, dict, str]]:
+def _match_same_day_unionpay_cash_transfer(rows: list[dict], used_ids: set[int],
+                                           accounts_path: Path | None = None) -> list[tuple[dict, dict, str]]:
     """同日同额、跨现金账户、强银联/微信/云闪付信号的宽窗口转账。
 
     银行账单入账腿常为 00:00:00，而出账腿有真实时分秒，超过 ±10 秒。
     为避免误伤消费，只接受“银联入账/电子汇入”与“无卡付/转账支取”的组合，且必须唯一匹配。
     """
-    acct_types = _account_type_map()
+    acct_types = _account_type_map(accounts_path)
     matches = []
     candidates = [
         row for row in rows
@@ -219,9 +219,10 @@ def _match_same_day_unionpay_cash_transfer(rows: list[dict], used_ids: set[int])
     return matches
 
 
-def _match_same_currency_cash_loan_repayment(rows: list[dict], used_ids: set[int]) -> list[tuple[dict, dict, str]]:
+def _match_same_currency_cash_loan_repayment(rows: list[dict], used_ids: set[int],
+                                             accounts_path: Path | None = None) -> list[tuple[dict, dict, str]]:
     """同币种 cash→loan 还款，允许分钟级延迟。"""
-    acct_types = _account_type_map()
+    acct_types = _account_type_map(accounts_path)
     matches = []
     candidates = [
         row for row in rows
@@ -263,8 +264,9 @@ def _match_same_currency_cash_loan_repayment(rows: list[dict], used_ids: set[int
     return matches
 
 
-def _match_fx_loan_repayment(rows: list[dict], used_ids: set[int]) -> list[tuple[dict, dict, str]]:
-    acct_types = _account_type_map()
+def _match_fx_loan_repayment(rows: list[dict], used_ids: set[int],
+                             accounts_path: Path | None = None) -> list[tuple[dict, dict, str]]:
+    acct_types = _account_type_map(accounts_path)
     matches = []
     candidates = [
         row for row in rows
@@ -301,15 +303,18 @@ def _match_fx_loan_repayment(rows: list[dict], used_ids: set[int]) -> list[tuple
     return matches
 
 
-def _audit_path(run_at: str) -> Path:
-    audit_dir = models.FT_DIR / "audit" / "reconcile"
+def _audit_path(run_at: str, ledger_root: Path | None = None) -> Path:
+    if ledger_root is None:
+        from . import models
+        ledger_root = models.FT_DIR
+    audit_dir = Path(ledger_root) / "audit" / "reconcile"
     audit_dir.mkdir(parents=True, exist_ok=True)
     return audit_dir / f"{run_at}.csv"
 
 
 def _write_audit(run_at: str, scope_from: str, scope_to: str, pairs: list[tuple[dict, dict]],
-                 transfer_audit_rows: list[dict]) -> Path:
-    path = _audit_path(run_at)
+                 transfer_audit_rows: list[dict], ledger_root: Path | None = None) -> Path:
+    path = _audit_path(run_at, ledger_root)
     fields = [
         "run_at", "scope_from", "scope_to", "date", "amount", "currency",
         "counterparty", "description", "category", "account_name", "source",
@@ -350,7 +355,14 @@ def _write_audit(run_at: str, scope_from: str, scope_to: str, pairs: list[tuple[
     return path
 
 
-def do_reconcile(*, month=None, date_from=None, date_to=None):
+def do_reconcile(*, month=None, date_from=None, date_to=None, ledger_root: Path | None = None,
+                 emit_output: bool = True, stage_changes: bool = True):
+    if ledger_root is None:
+        from . import models
+        ledger_root = models.FT_DIR
+    ledger_root = Path(ledger_root)
+    records_dir = ledger_root / "records"
+    accounts_path = ledger_root / "accounts.yaml"
     start, end = _parse_scope(month=month, date_from=date_from, date_to=date_to)
     if start and end:
         scope_from = start.isoformat()
@@ -367,7 +379,7 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
 
     entries: list[dict] = []
     for typ in ("cash", "loan"):
-        type_dir = models.RECORDS_DIR / typ
+        type_dir = records_dir / typ
         if not type_dir.exists():
             continue
         for csv_file in sorted(type_dir.glob("*.csv")):
@@ -393,9 +405,9 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
     pairs.extend(pairs2)
     transfer_matches = _match_same_currency_exact(kept)
     used_transfer_ids = {id(row) for match in transfer_matches for row in match[:2]}
-    transfer_matches.extend(_match_same_day_unionpay_cash_transfer(kept, used_transfer_ids))
-    transfer_matches.extend(_match_same_currency_cash_loan_repayment(kept, used_transfer_ids))
-    transfer_matches.extend(_match_fx_loan_repayment(kept, used_transfer_ids))
+    transfer_matches.extend(_match_same_day_unionpay_cash_transfer(kept, used_transfer_ids, accounts_path))
+    transfer_matches.extend(_match_same_currency_cash_loan_repayment(kept, used_transfer_ids, accounts_path))
+    transfer_matches.extend(_match_fx_loan_repayment(kept, used_transfer_ids, accounts_path))
     for out_row, in_row, rule in transfer_matches:
         _mark_transfer(out_row, in_row, rule)
 
@@ -424,14 +436,22 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
             continue
         final_rows.sort(key=lambda r: r["date"])
         with open(file_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=models.CASH_CSV_FIELDS)
+            writer = csv.DictWriter(f, fieldnames=CASH_CSV_FIELDS)
             writer.writeheader()
             writer.writerows(final_rows)
 
-    rebuild_snapshot_from_records(models.RECORDS_DIR)
+    from .snapshot import git_stage, rebuild_snapshot_from_records
+    rebuild_snapshot_from_records(records_dir, ledger_root / "snapshot.yaml", stage_changes=stage_changes)
     if not removed and not transfer_matches and not single_leg_marks:
-        print("无重复项")
-        return
+        if emit_output:
+            print("无重复项")
+        return {
+            "removed": 0,
+            "transfer_matches": 0,
+            "single_leg_marks": 0,
+            "audit_path": None,
+            "message": "无重复项",
+        }
 
     run_at = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     transfer_audit_rows = []
@@ -473,6 +493,15 @@ def do_reconcile(*, month=None, date_from=None, date_to=None):
             "counterpart_currency": "",
             "counterpart_amount": "",
         })
-    audit_path = _write_audit(run_at, scope_from, scope_to, pairs, transfer_audit_rows)
-    print(f"✅ 去重完成，审计文件: {audit_path}")
-    git_stage(models.FT_DIR)
+    audit_path = _write_audit(run_at, scope_from, scope_to, pairs, transfer_audit_rows, ledger_root)
+    if emit_output:
+        print(f"✅ 去重完成，审计文件: {audit_path}")
+    if stage_changes:
+        git_stage(ledger_root)
+    return {
+        "removed": len(removed),
+        "transfer_matches": len(transfer_matches),
+        "single_leg_marks": len(single_leg_marks),
+        "audit_path": audit_path,
+        "message": f"✅ 去重完成，审计文件: {audit_path}",
+    }

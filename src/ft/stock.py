@@ -13,12 +13,15 @@ from typing import Optional
 
 import yaml
 
-from . import models
 from .snapshot import git_stage, load_snapshot, save_snapshot
+from .schema import CRYPTO_IDS, CSV_FIELDS, CURRENCY_SYMBOLS, VALID_ACTIONS
 
 # ── CSV fields for security trades ──────────────────────────────────────
-CSV_FIELDS = models.CSV_FIELDS
-VALID_ACTIONS = models.VALID_ACTIONS
+
+
+def _models():
+    from . import models
+    return models
 
 
 def _clean_csv_row(row: dict) -> dict:
@@ -110,6 +113,7 @@ def _has_configured_base_currencies(account: dict) -> bool:
 def resolve_security_account_currency(
     account_name: str,
     currency: str | None = None,
+    accounts_path=None,
 ) -> tuple[dict, str]:
     """Resolve and validate a manual stock account plus settlement currency.
 
@@ -119,7 +123,7 @@ def resolve_security_account_currency(
     """
     from .accounts import load_accounts
 
-    candidates = [a for a in load_accounts() if a.get("name") == account_name]
+    candidates = [a for a in load_accounts(accounts_path) if a.get("name") == account_name]
     if not candidates:
         raise ValueError(f"unknown account: {account_name}")
 
@@ -175,9 +179,9 @@ def _account_base_currency_set(account: dict) -> set[str]:
     return set(_configured_base_currencies(account))
 
 
-def _load_security_account_base_currencies() -> dict[str, set[str]]:
+def _load_security_account_base_currencies(accounts_path=None) -> dict[str, set[str]]:
     """Read account cash ticker config without creating a missing accounts.yaml."""
-    path = models.ACCOUNTS_PATH
+    path = Path(accounts_path) if accounts_path is not None else _models().ACCOUNTS_PATH
     if not path.exists():
         return {}
     try:
@@ -193,13 +197,13 @@ def _load_security_account_base_currencies() -> dict[str, set[str]]:
     return base_by_account
 
 
-def _validate_security_row_account_currency(account_name: str, currency: str) -> None:
+def _validate_security_row_account_currency(account_name: str, currency: str, accounts_path=None) -> None:
     from .accounts import load_accounts
 
-    accounts = load_accounts()
+    accounts = load_accounts(accounts_path)
     if not accounts:
         return
-    resolve_security_account_currency(account_name, currency)
+    resolve_security_account_currency(account_name, currency, accounts_path=accounts_path)
 
 
 def _normalize_trade_asset(asset: str | None, currency: str) -> str:
@@ -276,7 +280,7 @@ def _cost_currency_for_ticker(
     currencies = _base_currency_set(base_currencies)
     if not currencies and default_upper:
         currencies = {default_upper}
-    if ticker_upper in currencies:
+    if ticker_upper in currencies or ticker_upper in CURRENCY_SYMBOLS:
         return ticker_upper
     return default_upper or ""
 
@@ -457,7 +461,7 @@ def _cost_currency_equal(left, right) -> bool:
 def _snapshot_file_backup():
     """Return the live snapshot path and its current bytes for rollback."""
     from . import snapshot as snapshot_mod
-    path = snapshot_mod.SNAPSHOT_PATH
+    path = snapshot_mod._resolve_snapshot_path()
     return path, path.read_bytes() if path.exists() else None
 
 
@@ -474,7 +478,7 @@ def _save_snapshot_and_record_trade(snap: dict, **trade_kwargs) -> dict:
     _validate_security_snapshot_finite(snap)
     snapshot_path, snapshot_backup = _snapshot_file_backup()
     date_key = str(trade_kwargs.get("date", ""))[:10]
-    day_path = models.RECORDS_DIR / "security" / f"{date_key}.csv"
+    day_path = _models().RECORDS_DIR / "security" / f"{date_key}.csv"
     day_backup = day_path.read_bytes() if day_path.exists() else None
     try:
         save_snapshot(snap)
@@ -545,7 +549,7 @@ def record_trade(
     # Normalize tickers to lowercase for consistent position keys
     from_ticker = from_ticker.strip().lower() if from_ticker else ""
     to_ticker = to_ticker.strip().lower() if to_ticker else ""
-    records_dir = models.RECORDS_DIR
+    records_dir = _models().RECORDS_DIR
     date_key = date[:10]
     security_dir = records_dir / "security"
     security_dir.mkdir(parents=True, exist_ok=True)
@@ -818,7 +822,7 @@ def do_append(file_path):
     rows.sort(key=lambda r: r["date"])
 
     # 3. Validate the merged replay state before touching records.
-    security_dir = models.RECORDS_DIR / "security"
+    security_dir = _models().RECORDS_DIR / "security"
     merged_rows_for_replay = []
     if security_dir.exists():
         for csv_file in sorted(security_dir.glob("*.csv")):
@@ -840,7 +844,7 @@ def do_append(file_path):
         day = row["date"][:10]
         by_date[day].append(row)
 
-    records_dir = models.RECORDS_DIR
+    records_dir = _models().RECORDS_DIR
     security_dir = records_dir / "security"
     security_dir.mkdir(parents=True, exist_ok=True)
 
@@ -850,7 +854,7 @@ def do_append(file_path):
     snapshot_backup = None
     try:
         from . import snapshot as snapshot_mod
-        snapshot_path = snapshot_mod.SNAPSHOT_PATH
+        snapshot_path = snapshot_mod._resolve_snapshot_path()
         snapshot_backup = snapshot_path.read_bytes() if snapshot_path.exists() else None
     except Exception:
         snapshot_path = None
@@ -1612,7 +1616,7 @@ def _fetch_crypto_prices(tickers: list[str]) -> dict[str, float]:
 
     id_to_ticker = {}
     for t in tickers:
-        cid = models.CRYPTO_IDS.get(str(t).strip().lower())
+        cid = CRYPTO_IDS.get(str(t).strip().lower())
         if cid:
             id_to_ticker[cid] = t
     if not id_to_ticker:
@@ -1662,11 +1666,11 @@ def _fetch_prices(tickers: list[str]) -> dict[str, float]:
         ticker_map[nt] = t
         normalized.append(nt)
 
-    crypto_tickers = [nt for nt in normalized if nt.lower() in models.CRYPTO_IDS]
+    crypto_tickers = [nt for nt in normalized if nt.lower() in CRYPTO_IDS]
     pm_tickers = [nt for nt in normalized if nt.startswith("pm:")]
     regular_tickers = [
         nt for nt in normalized
-        if not nt.startswith("pm:") and nt.lower() not in models.CRYPTO_IDS
+        if not nt.startswith("pm:") and nt.lower() not in CRYPTO_IDS
     ]
 
     import os
@@ -1834,7 +1838,7 @@ def do_list():
 
         market_totals: dict[str, float | None] = {}
         for currency in display_currencies:
-            symbol = models.CURRENCY_SYMBOLS.get(currency) or f"{currency} "
+            symbol = CURRENCY_SYMBOLS.get(currency) or f"{currency} "
             cash = cash_positions.get(currency, {}).get("shares", 0.0)
             rows_for_currency = sorted(grouped.get(currency, []))
 
@@ -1892,7 +1896,7 @@ def do_list():
         }
         if len(combined_currencies) == 1:
             currency = next(iter(combined_currencies))
-            symbol = models.CURRENCY_SYMBOLS.get(currency) or f"{currency} "
+            symbol = CURRENCY_SYMBOLS.get(currency) or f"{currency} "
             total = (market_totals.get(currency) or 0.0) + float(
                 cash_positions.get(currency, {}).get("shares", 0.0)
             )
@@ -1903,13 +1907,13 @@ def do_list():
 
 
 # ── Verification ────────────────────────────────────────────────────────
-def _replay_security_csv(records_dir=None):
+def _replay_security_csv(records_dir=None, accounts_path=None):
     """Replay security CSV into positions.
 
     Returns dict keyed by (account, ticker) → {shares, total_cost}.
     """
     if records_dir is None:
-        records_dir = models.RECORDS_DIR
+        records_dir = _models().RECORDS_DIR
     records_dir = Path(str(records_dir))
     security_dir = records_dir / "security"
 
@@ -1924,6 +1928,7 @@ def _replay_security_csv(records_dir=None):
     positions = _replay_security_rows(
         _order_security_rows_for_replay(rows),
         validate_accounts=True,
+        accounts_path=accounts_path,
     )
     return positions
 
@@ -1939,7 +1944,7 @@ def _order_security_rows_for_replay(rows):
     return sorted(rows, key=lambda row: row.get("date", ""))
 
 
-def _replay_security_rows(rows, validate_accounts: bool = False):
+def _replay_security_rows(rows, validate_accounts: bool = False, accounts_path=None):
     """Replay in-memory security rows, raising ValueError on non-finite state.
 
     Unified swap model: all trades are swaps between tickers.
@@ -1948,7 +1953,7 @@ def _replay_security_rows(rows, validate_accounts: bool = False):
     from collections import defaultdict
 
     positions = defaultdict(lambda: _position_bucket(""))
-    base_currencies_by_account = _load_security_account_base_currencies()
+    base_currencies_by_account = _load_security_account_base_currencies(accounts_path)
 
     def _row_base_currencies(account: str, cost_currency: str) -> set[str]:
         return base_currencies_by_account.get(account) or _base_currency_set(cost_currency)
@@ -1990,7 +1995,7 @@ def _replay_security_rows(rows, validate_accounts: bool = False):
         act = row["action"]
         cost_currency = row.get("currency", "") or ""
         if validate_accounts:
-            _validate_security_row_account_currency(a, cost_currency)
+            _validate_security_row_account_currency(a, cost_currency, accounts_path=accounts_path)
         base_currencies = _row_base_currencies(a, cost_currency)
         try:
             from_amount = float(row.get("from_amount") or 0)
@@ -2150,14 +2155,15 @@ def verify_security(records_dir=None):
     return ok, lines
 
 
-def repair_security(records_dir=None):
+def repair_security(records_dir=None, accounts_path=None, snapshot_path=None,
+                    stage_changes: bool = True, emit_output: bool = True):
     """Replay security CSV and write into unified snapshot accounts.security."""
     from datetime import datetime
     from .accounts import load_accounts
-    positions = _replay_security_csv(records_dir)
+    positions = _replay_security_csv(records_dir, accounts_path=accounts_path)
 
     # Look up currency from accounts.yaml
-    acct_currencies = {a["name"]: a["currency"] for a in load_accounts()
+    acct_currencies = {a["name"]: a["currency"] for a in load_accounts(accounts_path)
                        if a["type"] in ("security", "crypto")}
 
     accounts = {}
@@ -2178,7 +2184,7 @@ def repair_security(records_dir=None):
             "cost_currency": p.get("cost_currency") or acct_currencies.get(acct_name, ""),
         }
 
-    snap = load_snapshot()
+    snap = load_snapshot(snapshot_path)
     snap.setdefault("accounts", {})["security"] = accounts
 
     # 清理顶层旧结构中的重复 security 账户
@@ -2188,5 +2194,6 @@ def repair_security(records_dir=None):
             del top[acct_name]
 
     snap["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    save_snapshot(snap)
-    print(f"✅ 已从 CSV 重建快照: {len(accounts)} 个账户, {sum(len(a.get('positions',{})) for a in accounts.values())} 个标的")
+    save_snapshot(snap, snapshot_path, stage_changes=stage_changes)
+    if emit_output:
+        print(f"✅ 已从 CSV 重建快照: {len(accounts)} 个账户, {sum(len(a.get('positions',{})) for a in accounts.values())} 个标的")

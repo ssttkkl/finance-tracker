@@ -6,20 +6,12 @@ import yaml
 from pathlib import Path
 from typing import Optional
 
-from . import models
+from .schema import DEFAULT_SNAPSHOT
 
 # ── Snapshot path (module-level so tests can patch it) ──────────────────
-SNAPSHOT_PATH = models.FT_DIR / "snapshot.yaml"
+SNAPSHOT_PATH = None
 
-DEFAULT = {
-    "updated_at": "",
-    "accounts": {
-        "cash": {},
-        "loan": {},
-        "lend": {},
-        "security": {},
-    },
-}
+DEFAULT = DEFAULT_SNAPSHOT
 
 
 # ── Internal helpers ────────────────────────────────────────────────────
@@ -29,7 +21,10 @@ def _resolve_snapshot_path(path: Optional[str] = None) -> Path:
     """Return the snapshot file path."""
     if path:
         return Path(path)
-    return SNAPSHOT_PATH
+    if SNAPSHOT_PATH is not None:
+        return Path(SNAPSHOT_PATH)
+    from . import models
+    return Path(models.FT_DIR) / "snapshot.yaml"
 
 
 # ── CRUD ────────────────────────────────────────────────────────────────
@@ -50,7 +45,7 @@ def load_snapshot(path: Optional[str] = None) -> dict:
     return data
 
 
-def save_snapshot(data: dict, path: Optional[str] = None) -> None:
+def save_snapshot(data: dict, path: Optional[str] = None, stage_changes: bool = True) -> None:
     """Write the snapshot YAML to disk."""
     snapshot_path = _resolve_snapshot_path(path)
     snapshot_path.parent.mkdir(parents=True, exist_ok=True)
@@ -63,20 +58,28 @@ def save_snapshot(data: dict, path: Optional[str] = None) -> None:
     finally:
         if tmp_path is not None and tmp_path.exists():
             tmp_path.unlink(missing_ok=True)
-    git_stage(snapshot_path.parent)
+    if stage_changes:
+        git_stage(snapshot_path.parent)
 
 
 # ── Git staging & commit (transactional) ────────────────────────────────
 
 
-GIT_REPO = models.FT_DIR
+GIT_REPO = None
+
+
+def _resolve_git_repo(repo_dir=None) -> Path:
+    if repo_dir is not None:
+        return Path(repo_dir)
+    if GIT_REPO is not None:
+        return Path(GIT_REPO)
+    from . import models
+    return Path(models.FT_DIR)
 
 
 def git_init_repo(repo_dir=None):
     """Init ~/.ft as a git repo if not already."""
-    if repo_dir is None:
-        repo_dir = GIT_REPO
-    repo_dir = Path(repo_dir)
+    repo_dir = _resolve_git_repo(repo_dir)
     git_dir = repo_dir / ".git"
     if not git_dir.exists():
         try:
@@ -96,9 +99,7 @@ def git_init_repo(repo_dir=None):
 
 def git_stage(repo_dir=None):
     """Stage all changes via git add -A, no commit. Prints reminder to commit."""
-    if repo_dir is None:
-        repo_dir = GIT_REPO
-    repo_dir = Path(repo_dir)
+    repo_dir = _resolve_git_repo(repo_dir)
     try:
         git_init_repo(repo_dir)
         subprocess.run(["git", "add", "-A"], cwd=str(repo_dir),
@@ -110,9 +111,7 @@ def git_stage(repo_dir=None):
 
 def git_do_commit(msg: str = None, repo_dir=None):
     """Commit all staged changes. Returns True if committed."""
-    if repo_dir is None:
-        repo_dir = GIT_REPO
-    repo_dir = Path(repo_dir)
+    repo_dir = _resolve_git_repo(repo_dir)
     try:
         git_init_repo(repo_dir)
         from datetime import datetime
@@ -216,19 +215,28 @@ def update_balance(
         return
 
 
-def rebuild_snapshot_from_records(records_dir=None):
+def rebuild_snapshot_from_records(records_dir=None, snapshot_path=None, stage_changes: bool = True,
+                                  repair_security_snapshot: bool = True):
     """Rebuild cash/loan/lend balances from CSV records."""
     if records_dir is None:
+        from . import models
         records_dir = models.RECORDS_DIR
 
     from collections import defaultdict
     import csv
     import re
-    from .stock import repair_security
+    if repair_security_snapshot:
+        from .stock import repair_security
+        records_root = Path(records_dir).parent
+        repair_security(
+            records_dir,
+            accounts_path=records_root / "accounts.yaml",
+            snapshot_path=snapshot_path,
+            stage_changes=False,
+            emit_output=False,
+        )
 
-    repair_security(records_dir)
-
-    snap = load_snapshot()
+    snap = load_snapshot(snapshot_path)
     for typ in ("cash", "loan", "lend"):
         typedir = Path(records_dir) / typ
         if not typedir.exists():
@@ -267,5 +275,13 @@ def rebuild_snapshot_from_records(records_dir=None):
             set_balance(snap, acct_name, typ, currency, round(bal, 2))
 
     snap["updated_at"] = "rebuilt"
-    save_snapshot(snap)
+    if stage_changes:
+        save_snapshot(snap, snapshot_path)
+    else:
+        snapshot_file = _resolve_snapshot_path(snapshot_path)
+        snapshot_file.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=snapshot_file.parent, delete=False) as f:
+            tmp_path = Path(f.name)
+            yaml.dump(snap, f, allow_unicode=True, default_flow_style=False)
+        tmp_path.replace(snapshot_file)
     return snap

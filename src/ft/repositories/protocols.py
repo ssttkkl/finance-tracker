@@ -17,13 +17,31 @@ class AccountRepository(Protocol):
     def add(self, account: AccountDTO) -> None:
         ...
 
+    def replace_all(self, accounts: list[AccountDTO]) -> None:
+        ...
+
 
 @runtime_checkable
 class CashflowRepository(Protocol):
-    def list(self) -> list[dict]:
+    def list(self, account_type: str | None = None) -> list[dict]:
         ...
 
-    def add(self, row: dict) -> None:
+    def add(self, account_type: str, row: dict) -> None:
+        ...
+
+
+@runtime_checkable
+class SnapshotRepository(Protocol):
+    def load(self) -> dict:
+        ...
+
+    def save(self, data: dict) -> None:
+        ...
+
+    def set_balance(self, snap: dict, account_name: str, account_type: str, currency: str, balance) -> None:
+        ...
+
+    def update_balance(self, snap: dict, account_name: str, account_type: str, currency: str, delta) -> None:
         ...
 
 
@@ -47,7 +65,10 @@ class ReviewRepository(Protocol):
 
 @runtime_checkable
 class UnitOfWork(Protocol):
+    ledger_root: object
     accounts: AccountRepository
+    cashflows: CashflowRepository
+    snapshot: SnapshotRepository
 
     def __enter__(self) -> "UnitOfWork":
         ...

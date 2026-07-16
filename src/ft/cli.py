@@ -1,11 +1,11 @@
 """Finance Tracker CLI — ft 统一入口"""
 import argparse
 import sys
+from decimal import Decimal
 from .report import (
     report_networth, report_expense, report_income, report_flow, list_txns,
 )
 from .acct import acct_add, acct_list, acct_rename, acct_delete, acct_activate
-from .transfer import do_transfer
 
 
 def main(argv=None):
@@ -56,22 +56,22 @@ def main(argv=None):
     # checkin
     chk = sub.add_parser("checkin", help="记录余额快照")
     chk.add_argument("account", help="账户名")
-    chk.add_argument("--balance", type=float, required=True)
+    chk.add_argument("--balance", required=True)
     chk.add_argument("--date")
 
     # transfer
     trf = sub.add_parser("transfer", help="转账/换汇")
     trf.add_argument("--from", dest="from_acct", required=True)
     trf.add_argument("--to", dest="to_acct", required=True)
-    trf.add_argument("--amount", type=float, required=True)
-    trf.add_argument("--to-amount", dest="to_amount", type=float,
+    trf.add_argument("--amount", required=True)
+    trf.add_argument("--to-amount", dest="to_amount",
                      help="跨币种目标金额")
     trf.add_argument("--date")
     trf.add_argument("--description", default="")
 
     # add (single transaction)
     add_p = sub.add_parser("add", help="单笔录入")
-    add_p.add_argument("-a", "--amount", type=float, required=True)
+    add_p.add_argument("-a", "--amount", required=True)
     add_p.add_argument("-c", "--counterparty", required=True)
     add_p.add_argument("--account", required=True)
     add_p.add_argument("-d", "--description", default="")
@@ -243,69 +243,24 @@ def main(argv=None):
         return
 
     if args.cmd == "add":
-        from datetime import datetime
-        import csv
-        from pathlib import Path
-        from .accounts import load_accounts
         from . import models
-        from .snapshot import load_snapshot, save_snapshot, update_balance
-
-        # Lookup account
-        accts = [a for a in load_accounts() if a.get("name") == args.account]
-        acct = accts[0] if accts else None
-        if not acct:
-            print(f"❌ 未找到账户: {args.account}")
+        from .adapters.local_csv import LocalCsvUnitOfWork
+        from .application.cashflow import CashflowService
+        service = CashflowService(LocalCsvUnitOfWork(models.FT_DIR))
+        result = service.add_manual_transaction(
+            amount=Decimal(args.amount),
+            counterparty=args.counterparty,
+            account_name=args.account,
+            description=args.description,
+            source=args.source,
+            date=args.date,
+        )
+        if not result.ok:
+            print(f"❌ {result.error.message}")
             return
-
-        currency = acct.get("currency", "CNY")
-        typ = acct["type"]
-        category = "expense" if args.amount < 0 else "income"
-        date_str = args.date or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        day = date_str[:10]
-
-        # Write CSV row
-        type_dir = models.RECORDS_DIR / typ
-        type_dir.mkdir(parents=True, exist_ok=True)
-        day_path = type_dir / f"{day}.csv"
-
-        existing = []
-        if day_path.exists():
-            with open(day_path, encoding="utf-8") as f:
-                existing = list(csv.DictReader(f))
-
-        new_row = {
-            "date": date_str,
-            "amount": str(args.amount),
-            "currency": currency,
-            "counterparty": args.counterparty,
-            "description": args.description,
-            "category": category,
-            "account_name": args.account,
-            "source": args.source,
-            "bill_source": "",
-        }
-
-        all_rows = existing + [new_row]
-        all_rows.sort(key=lambda r: r["date"])
-
-        if typ == "security":
-            from .stock import _write_security_csv
-            _write_security_csv(day_path, all_rows)
-        else:
-            with open(day_path, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=models.CASH_CSV_FIELDS)
-                writer.writeheader()
-                writer.writerows(all_rows)
-
-        # Update snapshot
-        snap = load_snapshot()
-        update_balance(snap, args.account, currency, args.amount)
-        snap["updated_at"] = date_str
-        save_snapshot(snap)
-
-        # Print
-        sym = {"CNY": "¥", "USD": "$", "HKD": "HK$"}.get(currency, "")
-        print(f"✅ 已记录: {sym}{args.amount:+.2f} {args.counterparty} ({args.account})")
+        account = result.details["account"]
+        sym = models.CURRENCY_SYMBOLS.get(account.currency, "")
+        print(f"✅ 已记录: {sym}{Decimal(args.amount):+.2f} {args.counterparty} ({args.account})")
         return
 
     if args.cmd == "commit":
@@ -432,11 +387,10 @@ def main(argv=None):
         from . import models
         from .adapters.local_csv import LocalCsvUnitOfWork
         from .application.reconcile import ReconcileService
-        from .reconcile import do_reconcile
-        ReconcileService(
-            LocalCsvUnitOfWork(models.FT_DIR),
-            do_reconcile,
-        ).reconcile(month=args.month, date_from=args.date_from, date_to=args.date_to)
+        result = ReconcileService(LocalCsvUnitOfWork(models.FT_DIR)).reconcile(
+            month=args.month, date_from=args.date_from, date_to=args.date_to
+        )
+        print(result.message)
         return
 
     if args.cmd == "report":
@@ -455,75 +409,48 @@ def main(argv=None):
         return
 
     if args.cmd == "checkin":
-        from datetime import datetime
-        import csv
-        from pathlib import Path
-        from .accounts import find_account
         from . import models
-
-        if not args.date:
-            date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            date_str = args.date + " 00:00:00"
-
-        acct = find_account(args.account)
-        if not acct:
-            print(f"❌ 未找到账户: {args.account}")
+        from .adapters.local_csv import LocalCsvUnitOfWork
+        from .application.cashflow import CashflowService
+        service = CashflowService(LocalCsvUnitOfWork(models.FT_DIR))
+        result = service.checkin_balance(
+            account_name=args.account,
+            balance=Decimal(args.balance),
+            date=args.date,
+        )
+        if not result.ok:
+            print(f"❌ {result.error.message}")
             return
-
-        sym = {"CNY": "¥", "USD": "$", "HKD": "HK$"}.get(acct["currency"], "")
-
-        type_dir = models.RECORDS_DIR / acct["type"]
-        type_dir.mkdir(parents=True, exist_ok=True)
-        day = date_str[:10]
-        day_path = type_dir / f"{day}.csv"
-
-        existing = []
-        if day_path.exists():
-            with open(day_path, encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                existing = list(reader)
-
-        new_row = {
-            "date": date_str,
-            "amount": "0",
-            "currency": acct["currency"],
-            "counterparty": "",
-            "description": f"余额校准{sym}{args.balance:.2f}",
-            "category": "checkin",
-            "account_name": args.account,
-            "source": "手动",
-            "bill_source": "",
-        }
-
-        all_rows = existing + [new_row]
-        all_rows.sort(key=lambda r: r["date"])
-
-        if acct["type"] == "security":
-            from .stock import _write_security_csv
-            _write_security_csv(day_path, all_rows)
-        else:
-            with open(day_path, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=models.CASH_CSV_FIELDS)
-                writer.writeheader()
-                writer.writerows(all_rows)
-
-        print(f"✅ {args.account}: 余额校准 {sym}{args.balance:.2f} ({day})")
-
-        # Update snapshot
-        from .snapshot import load_snapshot, save_snapshot, set_balance
-        snap = load_snapshot()
-        set_balance(snap, args.account, acct["type"], acct["currency"], args.balance)
-        snap["updated_at"] = date_str[:10]
-        save_snapshot(snap)
+        account = result.details["account"]
+        sym = models.CURRENCY_SYMBOLS.get(account.currency, "")
+        print(f"✅ {args.account}: 余额校准 {sym}{Decimal(args.balance):.2f} ({result.details['day']})")
         return
 
     if args.cmd == "transfer":
-        do_transfer(
+        from . import models
+        from .adapters.local_csv import LocalCsvUnitOfWork
+        from .application.cashflow import TransferService
+        service = TransferService(LocalCsvUnitOfWork(models.FT_DIR))
+        result = service.transfer(
             from_name=args.from_acct, to_name=args.to_acct,
-            amount=args.amount, to_amount=args.to_amount,
+            amount=Decimal(args.amount),
+            to_amount=Decimal(args.to_amount) if args.to_amount is not None else None,
             date=args.date, description=args.description,
         )
+        if not result.ok:
+            print(f"❌ {result.error.message}")
+            return
+        if result.details.get("warning"):
+            print(f"⚠️ {result.details['warning']}")
+        from_acct = result.details["from_account"]
+        to_acct = result.details["to_account"]
+        amount = result.details["amount"]
+        to_amount = result.details["to_amount"]
+        from_sym = models.CURRENCY_SYMBOLS.get(from_acct.currency, "")
+        to_sym = models.CURRENCY_SYMBOLS.get(to_acct.currency, "")
+        print(f"✅ {args.from_acct} {from_sym}{-amount:,.2f} → {args.to_acct} {to_sym}{to_amount:,.2f} ({result.details['date']})")
+        if "rate" in result.details:
+            print(f"   汇率: 1 {to_acct.currency} = {result.details['rate']:.4f} {from_acct.currency}")
         return
 
     if args.cmd == "stock":

@@ -2151,9 +2151,16 @@ def test_replay_buy_with_usdt_quote_reduces_usdt_cash_not_usd():
     assert positions.get(("币安", "usd"), {}).get("shares", 0.0) == pytest.approx(0.0)
 
 
-def test_replay_cross_currency_cash_positions_keep_native_cost_currency():
+def test_replay_cross_currency_cash_positions_keep_native_cost_currency(tmp_env):
     """现金 ticker 的 cost_currency 跟随自身币种，不能被交易行 currency 覆盖。"""
+    from ft import models
+    from ft.accounts import save_accounts
     from ft.stock import _replay_security_rows
+
+    save_accounts([
+        {"name": "IBKR", "type": "security", "currency": "CNY",
+         "base_currencies": ["CNY"], "active": True},
+    ], models.ACCOUNTS_PATH)
 
     rows = [
         {"date": "2026-07-07 09:00:00", "action": "deposit",

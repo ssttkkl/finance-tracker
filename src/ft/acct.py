@@ -1,8 +1,5 @@
-"""账户增删改查 — YAML backend"""
-from .accounts import (
-    load_accounts, save_accounts, find_account,
-)
-from .models import ACCOUNT_TYPES, ACCOUNT_LABELS, CURRENCY_SYMBOLS
+"""账户增删改查 CLI rendering helpers."""
+from .models import ACCOUNT_LABELS, CURRENCY_SYMBOLS
 from . import models
 from .adapters.local_csv import LocalCsvUnitOfWork
 from .application.accounts import AccountService
@@ -76,7 +73,8 @@ def acct_add(name: str, type_: str, currency: str):
 
 def acct_list():
     """列出所有账户及当前余额"""
-    accounts = load_accounts()
+    service = AccountService(LocalCsvUnitOfWork(models.FT_DIR))
+    accounts = service.list_accounts()
     if not accounts:
         print("  📭 暂无账户，请使用 ft acct add 创建")
         return
@@ -84,58 +82,42 @@ def acct_list():
     print(f"  {'账户名':<20} {'类型':<8} {'币种':<6} {'余额':>12} {'活跃'}")
     print("  " + "-" * 62)
     for a in accounts:
-        label = ACCOUNT_LABELS.get(a["type"], a["type"])
-        sym = CURRENCY_SYMBOLS.get(a["currency"], "")
-        bal = _compute_balance(a["name"], a["currency"])
+        label = ACCOUNT_LABELS.get(a.type, a.type)
+        sym = CURRENCY_SYMBOLS.get(a.currency, "")
+        bal = _compute_balance(a.name, a.currency)
         bal_str = f"{sym}{bal:>+.2f}" if bal != 0 else f"{sym}0.00"
-        active = "✅" if a.get("active", True) else "⛔"
-        name_display = a["name"][:20]
-        print(f"  {name_display:<20} {label:<8} {a['currency']:<6} {bal_str:>12} {active}")
+        active = "✅" if a.active else "⛔"
+        name_display = a.name[:20]
+        print(f"  {name_display:<20} {label:<8} {a.currency:<6} {bal_str:>12} {active}")
 
 
 def acct_rename(old_name: str, new_name: str, currency: str):
     """重命名账户"""
     new_name = new_name.strip()
-    if not new_name:
-        print("❌ 新账户名不能为空")
+    service = AccountService(LocalCsvUnitOfWork(models.FT_DIR))
+    result = service.rename_account(old_name, new_name, currency)
+    if not result.ok:
+        print(f"❌ {result.error.message}")
         return
-    accounts = load_accounts()
-    found = False
-    for a in accounts:
-        if a["name"] == old_name and a["currency"] == currency:
-            a["name"] = new_name
-            found = True
-            break
-    if found:
-        save_accounts(accounts)
-        print(f"✅ 已重命名: {old_name}({currency}) → {new_name}")
-    else:
-        print(f"❌ 未找到账户: {old_name}({currency})")
+    print(f"✅ 已重命名: {old_name}({currency}) → {result.account.name}")
 
 
 def acct_delete(name: str, currency: str):
     """删除账户"""
-    accounts = load_accounts()
-    new_accounts = [a for a in accounts if not (a["name"] == name and a["currency"] == currency)]
-    if len(new_accounts) == len(accounts):
-        print(f"❌ 未找到账户: {name}({currency})")
+    service = AccountService(LocalCsvUnitOfWork(models.FT_DIR))
+    result = service.delete_account(name, currency)
+    if not result.ok:
+        print(f"❌ {result.error.message}")
         return
-    save_accounts(new_accounts)
     print(f"✅ 已删除账户: {name}({currency})")
 
 
 def acct_activate(name: str, currency: str, active: bool = True):
     """启用/停用账户"""
-    accounts = load_accounts()
-    found = False
-    for a in accounts:
-        if a["name"] == name and a["currency"] == currency:
-            a["active"] = active
-            found = True
-            break
-    if found:
-        save_accounts(accounts)
-        status = "启用" if active else "停用"
-        print(f"✅ 已{status}账户: {name}({currency})")
-    else:
-        print(f"❌ 未找到账户: {name}({currency})")
+    service = AccountService(LocalCsvUnitOfWork(models.FT_DIR))
+    result = service.set_active(name, currency, active)
+    if not result.ok:
+        print(f"❌ {result.error.message}")
+        return
+    status = "启用" if active else "停用"
+    print(f"✅ 已{status}账户: {name}({currency})")

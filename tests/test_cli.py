@@ -1,4 +1,7 @@
 import csv
+import os
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -53,10 +56,15 @@ def test_append_accepts_multiple_files(monkeypatch):
 def test_reconcile_month_dispatch(monkeypatch):
     called = {}
 
-    def fake_reconcile(*, month=None, date_from=None, date_to=None):
-        called["args"] = (month, date_from, date_to)
+    class FakeService:
+        def __init__(self, uow):
+            called["uow"] = uow
 
-    monkeypatch.setattr("ft.reconcile.do_reconcile", fake_reconcile)
+        def reconcile(self, *, month=None, date_from=None, date_to=None):
+            called["args"] = (month, date_from, date_to)
+            return type("Result", (), {"message": "无重复项"})()
+
+    monkeypatch.setattr("ft.application.reconcile.ReconcileService", FakeService)
     cli.main(["reconcile", "--month", "2026-06"])
     assert called["args"] == ("2026-06", None, None)
 
@@ -64,12 +72,96 @@ def test_reconcile_month_dispatch(monkeypatch):
 def test_reconcile_range_dispatch(monkeypatch):
     called = {}
 
-    def fake_reconcile(*, month=None, date_from=None, date_to=None):
-        called["args"] = (month, date_from, date_to)
+    class FakeService:
+        def __init__(self, uow):
+            called["uow"] = uow
 
-    monkeypatch.setattr("ft.reconcile.do_reconcile", fake_reconcile)
+        def reconcile(self, *, month=None, date_from=None, date_to=None):
+            called["args"] = (month, date_from, date_to)
+            return type("Result", (), {"message": "无重复项"})()
+
+    monkeypatch.setattr("ft.application.reconcile.ReconcileService", FakeService)
     cli.main(["reconcile", "--from", "2026-06-01", "--to", "2026-06-30"])
     assert called["args"] == (None, "2026-06-01", "2026-06-30")
+
+
+def test_cli_add_checkin_transfer_dispatch_to_services(monkeypatch):
+    calls = []
+
+    class FakeCashflowService:
+        def __init__(self, uow):
+            self.uow = uow
+
+        def add_manual_transaction(self, **kwargs):
+            calls.append(("add", kwargs))
+            account = type("Account", (), {"currency": "CNY"})()
+            return type("Result", (), {"ok": True, "details": {"account": account}})()
+
+        def checkin_balance(self, **kwargs):
+            calls.append(("checkin", kwargs))
+            account = type("Account", (), {"currency": "CNY"})()
+            return type("Result", (), {"ok": True, "details": {"account": account, "day": "2026-07-16"}})()
+
+    class FakeTransferService:
+        def __init__(self, uow):
+            self.uow = uow
+
+        def transfer(self, **kwargs):
+            calls.append(("transfer", kwargs))
+            from_account = type("Account", (), {"currency": "CNY"})()
+            to_account = type("Account", (), {"currency": "CNY"})()
+            return type("Result", (), {
+                "ok": True,
+                "details": {
+                    "from_account": from_account,
+                    "to_account": to_account,
+                    "amount": kwargs["amount"],
+                    "to_amount": kwargs["amount"],
+                    "date": kwargs["date"],
+                    "warning": "",
+                },
+            })()
+
+    monkeypatch.setattr("ft.application.cashflow.CashflowService", FakeCashflowService)
+    monkeypatch.setattr("ft.application.cashflow.TransferService", FakeTransferService)
+
+    cli.main(["add", "-a", "1.23", "-c", "Shop", "--account", "Cash", "--date", "2026-07-16 10:00:00"])
+    cli.main(["checkin", "Cash", "--balance", "9.99", "--date", "2026-07-16"])
+    cli.main(["transfer", "--from", "Cash", "--to", "Card", "--amount", "2.50", "--date", "2026-07-16"])
+
+    assert [call[0] for call in calls] == ["add", "checkin", "transfer"]
+    assert calls[0][1]["amount"].as_tuple().exponent == -2
+    assert calls[1][1]["balance"].as_tuple().exponent == -2
+
+
+def test_cli_report_after_fractional_add_uses_numeric_snapshot_balance(tmp_path):
+    home = tmp_path / "home"
+    home.mkdir()
+    repo_root = Path(__file__).resolve().parents[1]
+    env = {
+        **os.environ,
+        "HOME": str(home),
+    }
+
+    commands = [
+        ["uv", "run", "ft", "acct", "add", "Cash", "--type", "cash", "--currency", "CNY"],
+        [
+            "uv", "run", "ft", "add", "-a", "-12.34", "-c", "Coffee",
+            "--account", "Cash", "--date", "2026-07-16 08:00:00",
+        ],
+        ["uv", "run", "ft", "report"],
+    ]
+    results = [
+        subprocess.run(cmd, cwd=repo_root, env=env, text=True, capture_output=True, check=False)
+        for cmd in commands
+    ]
+
+    assert all(result.returncode == 0 for result in results), "\n".join(
+        result.stdout + result.stderr for result in results
+    )
+    assert "Cash" in results[-1].stdout
+    assert "-12.34" in results[-1].stdout
+    assert (home / ".ft" / "records" / "cash" / "2026-07-16.csv").exists()
 
 
 def test_reconcile_rejects_month_plus_range():
