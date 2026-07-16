@@ -112,6 +112,112 @@ def trade_to_rows(trade: dict, account_name: str, provider: str) -> list[dict]:
     return [r]
 
 
+_TRANSFER_LEDGER_TYPES = {
+    "transaction",
+    "transfer",
+    "derivativescrossexchangetransfer",
+}
+_INCOME_LEDGER_TYPES = {"reward", "staking"}
+
+
+def _ledger_context(provider: str, lid: str, entry: dict) -> str:
+    return (
+        f"provider={provider} id={lid} type={entry.get('type')!r} "
+        f"direction={entry.get('direction')!r} currency={entry.get('currency')!r} "
+        f"amount={entry.get('amount')!r}"
+    )
+
+
+def _ledger_abs_decimal(entry: dict, lid: str, field: str) -> Decimal:
+    try:
+        amount = abs(Decimal(str(entry.get(field))))
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError(f"invalid ledger {field} for {lid}: {entry.get(field)!r}") from exc
+    if not amount.is_finite():
+        raise ValueError(f"invalid ledger {field} for {lid}: {entry.get(field)!r}")
+    return amount
+
+
+def ledger_to_rows(entry: dict, account_name: str, provider: str) -> list[dict]:
+    """Map one ccxt ledger entry to ft rows.
+
+    CCXT ledger amount is treated as the net credited/debited amount. Fees are
+    kept in commission fields for audit, but replay must not charge them again.
+    """
+    lid = entry.get("id")
+    if lid is None or str(lid) == "":
+        raise ValueError(f"ledger 缺少 id: {entry!r}")
+    lid = str(lid)
+
+    typ = str(entry.get("type", "")).lower()
+    if typ == "trade":
+        return []
+
+    direction = str(entry.get("direction", "")).lower()
+    currency = str(entry.get("currency", "")).lower()
+    if not currency:
+        raise ValueError(f"ledger {lid} 缺少 currency: {_ledger_context(provider, lid, entry)}")
+
+    if typ not in _TRANSFER_LEDGER_TYPES and typ not in _INCOME_LEDGER_TYPES:
+        raise ValueError(
+            f"unsupported balance-affecting ledger entry: "
+            f"{_ledger_context(provider, lid, entry)}"
+        )
+    if typ in _TRANSFER_LEDGER_TYPES and direction not in {"in", "out"}:
+        raise ValueError(
+            f"unsupported transfer ledger direction: {_ledger_context(provider, lid, entry)}"
+        )
+    if typ in _INCOME_LEDGER_TYPES and direction != "in":
+        raise ValueError(
+            f"unsupported income ledger direction: {_ledger_context(provider, lid, entry)}"
+        )
+
+    amount = _ledger_abs_decimal(entry, lid, "amount")
+    if typ in _INCOME_LEDGER_TYPES and amount <= 0:
+        raise ValueError(f"invalid income ledger amount: {_ledger_context(provider, lid, entry)}")
+
+    fee = entry.get("fee") or {}
+    fee_cost = fee.get("cost")
+    fee_amount = Decimal("0")
+    if fee_cost is not None:
+        try:
+            fee_amount = abs(Decimal(str(fee_cost)))
+        except (InvalidOperation, ValueError) as exc:
+            raise ValueError(f"invalid ledger fee for {lid}: {fee_cost!r}") from exc
+        if not fee_amount.is_finite():
+            raise ValueError(f"invalid ledger fee for {lid}: {fee_cost!r}")
+    fee_ccy = str(fee.get("currency", "")).lower()
+
+    base_currency = _load_base_currencies(account_name)
+    r = _blank_row(account_name, base_currency)
+    r["date"] = _format_trade_timestamp(entry.get("timestamp"))
+    r["price"] = "1"
+    r["commission"] = _num(fee_amount) if fee_amount else "0"
+    r["commission_asset"] = fee_ccy if fee_amount else ""
+    r["note"] = f"{provider} lid:{lid} type:{typ}"
+
+    if typ in _INCOME_LEDGER_TYPES:
+        r["action"] = "dividend"
+        r["from_ticker"] = ""
+        r["to_ticker"] = currency
+        r["from_amount"] = "0"
+        r["to_amount"] = _num(amount)
+    elif direction == "in":
+        r["action"] = "deposit"
+        r["from_ticker"] = ""
+        r["to_ticker"] = currency
+        r["from_amount"] = "0"
+        r["to_amount"] = _num(amount)
+    else:
+        r["action"] = "withdraw"
+        r["from_ticker"] = currency
+        r["to_ticker"] = ""
+        r["from_amount"] = _num(amount)
+        r["to_amount"] = "0"
+
+    return [r]
+
+
 def validate_crypto_account(account_name: str, currency: str = "USD") -> None:
     account = find_account(account_name, currency=currency)
     if account is None:
@@ -160,6 +266,34 @@ def fetch_trades(client, since=None, symbols=None, limit=1000) -> list[dict]:
     return out
 
 
+def fetch_ledger(client, since=None, limit=1000) -> list[dict]:
+    """Paginate client.fetch_ledger and dedupe by ledger id."""
+    if not hasattr(client, "fetch_ledger"):
+        return []
+    seen: set[str] = set()
+    out: list[dict] = []
+    cursor = since
+    while True:
+        batch = client.fetch_ledger(None, cursor, limit)
+        if not batch:
+            break
+        fresh = 0
+        for entry in batch:
+            lid = str(entry.get("id"))
+            if lid in seen:
+                continue
+            seen.add(lid)
+            out.append(entry)
+            fresh += 1
+        if len(batch) < limit:
+            break
+        last_ts = batch[-1].get("timestamp")
+        if last_ts is None or fresh == 0:
+            break
+        cursor = int(last_ts) + 1
+    return out
+
+
 def _since_to_ms(since: str | None) -> int | None:
     if not since:
         return None
@@ -173,26 +307,49 @@ def filter_new_rows(rows, records_dir=None, account_name=None) -> list[dict]:
     )
 
 
+def _filter_new_rows_by_prefix(rows, prefix, records_dir=None, account_name=None) -> list[dict]:
+    return sync_common.filter_new_rows(
+        rows, records_dir=records_dir, account_name=account_name, prefix=prefix
+    )
+
+
 def sync_exchange(provider, account_name, since=None, dry_run=False,
                   output=None, symbols=None, _client=None) -> list[dict]:
-    """Fetch private trades via ccxt, map, dedupe, and (unless dry-run) append."""
+    """Fetch private trades/ledger via ccxt, map, dedupe, and append unless dry-run."""
     validate_crypto_account(account_name)
 
     client = _client
     if client is None:
         creds = load_credentials(provider)
-        ensure_credentials_gitignored()
         client = build_client(provider, creds)
 
-    trades = fetch_trades(client, since=_since_to_ms(since), symbols=symbols)
-    rows: list[dict] = []
+    since_ms = _since_to_ms(since)
+    trades = fetch_trades(client, since=since_ms, symbols=symbols)
+    trade_rows: list[dict] = []
     for trade in trades:
-        rows.extend(trade_to_rows(trade, account_name, provider))
-    rows.sort(key=lambda r: r["date"])
-    new_rows = filter_new_rows(rows, account_name=account_name)
+        trade_rows.extend(trade_to_rows(trade, account_name, provider))
+
+    ledger_entries = fetch_ledger(client, since=since_ms) if provider == "kraken" else []
+    ledger_rows: list[dict] = []
+    for entry in ledger_entries:
+        ledger_rows.extend(ledger_to_rows(entry, account_name, provider))
+
+    trade_rows.sort(key=lambda r: r["date"])
+    ledger_rows.sort(key=lambda r: r["date"])
+    new_trade_rows = _filter_new_rows_by_prefix(
+        trade_rows, "tid", account_name=account_name
+    )
+    new_ledger_rows = _filter_new_rows_by_prefix(
+        ledger_rows, "lid", account_name=account_name
+    )
+    new_rows = sorted(new_trade_rows + new_ledger_rows, key=lambda r: r["date"])
+    rows = trade_rows + ledger_rows
 
     print(f"交易所: {provider}; 账户: {account_name}")
-    print(f"成交: {len(trades)}; 映射行: {len(rows)}; 新增行: {len(new_rows)}")
+    print(
+        f"成交: {len(trades)}; ledger: {len(ledger_entries)}; "
+        f"映射行: {len(rows)}; 新增行: {len(new_rows)}"
+    )
 
     if output:
         sync_common.write_stock_csv(new_rows, output)
@@ -203,7 +360,7 @@ def sync_exchange(provider, account_name, since=None, dry_run=False,
         if dry_run:
             print("DRY-RUN: 未写入 ft records")
         elif not new_rows:
-            print("✅ 没有新增成交")
+            print("✅ 没有新增成交或资金流水")
         return new_rows
 
     with tempfile.NamedTemporaryFile("w", newline="", encoding="utf-8",
@@ -213,8 +370,9 @@ def sync_exchange(provider, account_name, since=None, dry_run=False,
         writer.writerows(new_rows)
         tmp_path = f.name
     try:
+        ensure_credentials_gitignored()
         if not do_append(tmp_path):
-            raise ValueError("交易所成交 append 失败")
+            raise ValueError("交易所同步 append 失败")
     finally:
         Path(tmp_path).unlink(missing_ok=True)
     return new_rows
