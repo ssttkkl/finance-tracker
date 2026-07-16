@@ -63,7 +63,7 @@ def test_networth_simple_sum(tmp_env):
 
     from ft.snapshot import save_snapshot, set_balance
     snap = {"accounts": {"cash": {}, "loan": {}, "lend": {}, "security": {}}, "updated_at": ""}
-    set_balance(snap, "支付宝余额", "cash", 1950.0)
+    set_balance(snap, "支付宝余额", "cash", "CNY", 1950.0)
     save_snapshot(snap)
 
     from ft.report import report_networth
@@ -95,7 +95,7 @@ def test_networth_with_checkin_reset(tmp_env):
 
     from ft.snapshot import save_snapshot, set_balance
     snap = {"accounts": {"cash": {}, "loan": {}, "lend": {}, "security": {}}, "updated_at": ""}
-    set_balance(snap, "支付宝余额", "cash", 4800.0)
+    set_balance(snap, "支付宝余额", "cash", "CNY", 4800.0)
     save_snapshot(snap)
 
     from ft.report import report_networth
@@ -119,7 +119,7 @@ def test_networth_checkin_before_all_records(tmp_env):
 
     from ft.snapshot import save_snapshot, set_balance
     snap = {"accounts": {"cash": {}, "loan": {}, "lend": {}, "security": {}}, "updated_at": ""}
-    set_balance(snap, "支付宝余额", "cash", 4900.0)
+    set_balance(snap, "支付宝余额", "cash", "CNY", 4900.0)
     save_snapshot(snap)
 
     from ft.report import report_networth
@@ -196,7 +196,7 @@ def test_networth_multi_currency(tmp_env):
 
     from ft.snapshot import save_snapshot, set_balance
     snap = {"accounts": {"cash": {}, "loan": {}, "lend": {}, "security": {}}, "updated_at": ""}
-    set_balance(snap, "支付宝余额", "cash", -50.0)
+    set_balance(snap, "支付宝余额", "cash", "CNY", -50.0)
     snap["accounts"]["security"]["IBKR"] = {
         "currency": "USD",
         "positions": {"usd": {"shares": 100.0, "total_cost": 100.0, "cost_currency": "USD"}},

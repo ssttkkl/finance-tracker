@@ -28,7 +28,8 @@ def tmp_env():
         "accounts:\n"
         "  - name: IBKR\n"
         "    type: security\n"
-        "    currency: USD\n",
+        "    currency: USD\n"
+        "    base_currencies: [USD]\n",
         encoding="utf-8",
     )
 
@@ -243,18 +244,26 @@ def test_cli_stock_configured_account_requires_explicit_currency(tmp_env, capsys
     assert not (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
 
 
-def test_cli_stock_legacy_no_base_currency_falls_back_to_account_currency(tmp_env):
+def test_cli_stock_missing_base_currencies_rejects_old_config(tmp_env, capsys):
     from ft import models
 
-    cli.main([
-        "stock", "deposit", "--amount", "10", "--account", "IBKR",
-        "--date", "2026-06-30",
-    ])
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: IBKR\n"
+        "    type: security\n"
+        "    currency: USD\n",
+        encoding="utf-8",
+    )
 
-    with (models.RECORDS_DIR / "security" / "2026-06-30.csv").open(encoding="utf-8") as f:
-        row = next(csv.DictReader(f))
-    assert row["currency"] == "USD"
-    assert row["to_ticker"] == "usd"
+    with pytest.raises(SystemExit) as exc:
+        cli.main([
+            "stock", "deposit", "--amount", "10", "--account", "IBKR",
+            "--currency", "USD", "--date", "2026-06-30",
+        ])
+
+    assert exc.value.code == 1
+    assert "base_currencies is required" in capsys.readouterr().out
+    assert not (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
 
 
 def test_cli_stock_validation_errors_exit_nonzero(tmp_env, capsys):

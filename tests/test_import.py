@@ -72,8 +72,8 @@ def test_full_pipeline_append_report(tmp_env):
     # Update snapshot with expected balances
     from ft.snapshot import load_snapshot, save_snapshot, set_balance
     snap = load_snapshot()
-    set_balance(snap, "支付宝余额", "cash", 1970.0)
-    set_balance(snap, "工行信用卡(1200)", "loan", -200.0)
+    set_balance(snap, "支付宝余额", "cash", "CNY", 1970.0)
+    set_balance(snap, "工行信用卡(1200)", "loan", "CNY", -200.0)
     snap["updated_at"] = "2026-06-12"
     save_snapshot(snap)
 
@@ -117,8 +117,8 @@ def test_transfer_and_checkin_flow(tmp_env):
     # Update snapshot to reflect checkin reset
     from ft.snapshot import load_snapshot, save_snapshot, set_balance
     snap = load_snapshot()
-    set_balance(snap, "支付宝余额", "cash", 10000.0)
-    set_balance(snap, "微信零钱", "cash", 500.0)
+    set_balance(snap, "支付宝余额", "cash", "CNY", 10000.0)
+    set_balance(snap, "微信零钱", "cash", "CNY", 500.0)
     snap["updated_at"] = "2026-06-12"
     save_snapshot(snap)
 

@@ -32,10 +32,12 @@ def tmp_env():
         "  - name: IBKR\n"
         "    type: security\n"
         "    currency: USD\n"
+        "    base_currencies: [USD]\n"
         "    active: true\n"
         "  - name: Polymarket\n"
         "    type: security\n"
         "    currency: USD\n"
+        "    base_currencies: [USD]\n"
         "    active: true\n",
         encoding="utf-8",
     )
@@ -443,7 +445,7 @@ def test_do_checkin_cash(tmp_env):
     do_deposit(amount=5000.0, currency="USD", account_name="IBKR",
                note="deposit", date="2026-06-10")
 
-    do_checkin_cash(cash=12345.67, account_name="IBKR",
+    do_checkin_cash(cash=12345.67, account_name="IBKR", currency="USD",
                     note="reconcile", date="2026-06-12")
 
     snap = load_snapshot()
@@ -568,18 +570,23 @@ def test_configured_stock_account_requires_explicit_currency_without_writing(tmp
     assert not (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
 
 
-def test_legacy_account_without_base_currencies_falls_back_to_legacy_currency(tmp_env):
+def test_account_without_base_currencies_rejects_old_config(tmp_env):
     from ft import models
     from ft.stock import do_deposit, load_snapshot
 
-    do_deposit(amount=100, currency=None, account_name="IBKR", date="2026-06-30")
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: IBKR\n"
+        "    type: security\n"
+        "    currency: USD\n",
+        encoding="utf-8",
+    )
 
-    acct = load_snapshot()["accounts"]["security"]["IBKR"]
-    assert acct["positions"]["usd"]["shares"] == pytest.approx(100)
-    with (models.RECORDS_DIR / "security" / "2026-06-30.csv").open(encoding="utf-8") as f:
-        row = next(csv.DictReader(f))
-    assert row["currency"] == "USD"
-    assert row["to_ticker"] == "usd"
+    with pytest.raises(ValueError, match="base_currencies is required"):
+        do_deposit(amount=100, currency="USD", account_name="IBKR", date="2026-06-30")
+
+    assert load_snapshot()["accounts"]["security"] == {}
+    assert not (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
 
 
 def test_configured_base_currencies_need_not_include_legacy_currency(tmp_env):
@@ -1355,10 +1362,12 @@ def test_stock_append_preserves_transfer_style_security_rows(tmp_env):
         "  - name: Polymarket\n"
         "    type: security\n"
         "    currency: USD\n"
+        "    base_currencies: [USD]\n"
         "    active: true\n"
         "  - name: 东方证券\n"
         "    type: security\n"
         "    currency: CNY\n"
+        "    base_currencies: [CNY]\n"
         "    active: true\n",
         encoding="utf-8",
     )
@@ -1366,8 +1375,8 @@ def test_stock_append_preserves_transfer_style_security_rows(tmp_env):
     security_dir.mkdir(parents=True, exist_ok=True)
     day_path = security_dir / "2026-06-30.csv"
     day_path.write_text(
-        "date,amount,currency,counterparty,description,category,account_name,source,bill_source,transfer_account\n"
-        "2026-06-30 09:00:00,735.29,USD,,购汇入金,transfer_in,Polymarket,手动,,东方证券\n",
+        "date,amount,currency,counterparty,description,category,account_name,source,bill_source,transfer_account,locked\n"
+        "2026-06-30 09:00:00,735.29,USD,,购汇入金,transfer_in,Polymarket,手动,,东方证券,1\n",
         encoding="utf-8",
     )
 
@@ -1468,7 +1477,7 @@ def test_sync_polymarket_custom_account_uses_account_scoped_rows(tmp_env, monkey
     from ft import models
 
     save_accounts([
-        {"name": "Polymarket", "type": "security", "currency": "USD", "active": True},
+        {"name": "Polymarket", "type": "security", "currency": "USD", "base_currencies": ["USD"], "active": True},
         {"name": "Polymarket Alt", "type": "security", "currency": "USD", "active": True},
     ], models.ACCOUNTS_PATH)
     record_trade(
@@ -1532,7 +1541,7 @@ def test_stock_append_routes_same_name_by_currency_and_security_type(tmp_env):
 
     save_accounts([
         {"name": "Broker", "type": "cash", "currency": "CNY", "active": True},
-        {"name": "Broker", "type": "security", "currency": "USD", "active": True},
+        {"name": "Broker", "type": "security", "currency": "USD", "base_currencies": ["USD"], "active": True},
     ], models.ACCOUNTS_PATH)
     csv_path = tmp_env / "broker_usd_stock.csv"
     with csv_path.open("w", newline="", encoding="utf-8") as f:
@@ -1606,6 +1615,7 @@ def test_cli_sync_polymarket_errors_exit_nonzero(tmp_env, capsys):
         "  - name: Polymarket\n"
         "    type: security\n"
         "    currency: USD\n"
+        "    base_currencies: [USD]\n"
         "    active: true\n",
         encoding="utf-8",
     )
@@ -1669,6 +1679,7 @@ def test_general_append_to_security_preserves_existing_stock_rows(tmp_env):
         "  - name: Polymarket\n"
         "    type: security\n"
         "    currency: USD\n"
+        "    base_currencies: [USD]\n"
         "    active: true\n",
         encoding="utf-8",
     )
@@ -1713,6 +1724,7 @@ def test_stock_append_rolls_back_if_later_day_write_fails(tmp_env, monkeypatch):
         "  - name: Polymarket\n"
         "    type: security\n"
         "    currency: USD\n"
+        "    base_currencies: [USD]\n"
         "    active: true\n",
         encoding="utf-8",
     )
@@ -1807,8 +1819,8 @@ def test_do_buy_rolls_back_csv_if_recording_partially_writes_then_fails(tmp_env,
     security_dir.mkdir(parents=True, exist_ok=True)
     day_path = security_dir / "2026-06-30.csv"
     original_csv = (
-        "date,action,ticker,shares,price,amount,commission,currency,account_name,note\n"
-        "2026-06-30 09:00:00,DEPOSIT,,0,0,100,0,USD,IBKR,initial\n"
+        "date,action,from_ticker,to_ticker,from_amount,to_amount,price,commission,commission_asset,currency,account_name,note\n"
+        "2026-06-30 09:00:00,deposit,,USD,0,100,1,0,,USD,IBKR,initial\n"
     )
     day_path.write_text(original_csv, encoding="utf-8")
     save_snapshot({
@@ -1979,6 +1991,44 @@ def test_replay_skips_malformed_action_rows_but_keeps_cash_rows(tmp_env):
     assert positions[("IBKR", "usd")]["total_cost"] == pytest.approx(25)
 
 
+def test_replay_rejects_old_ten_column_security_header(tmp_env):
+    from ft import models
+    from ft.stock import _replay_security_csv
+
+    security_dir = models.RECORDS_DIR / "security"
+    security_dir.mkdir(parents=True, exist_ok=True)
+    (security_dir / "2026-06-29.csv").write_text(
+        "date,action,ticker,shares,price,amount,fee,currency,account_name,note\n"
+        "2026-06-29 10:00:00,BUY,nvda.us,1,10,-10,0,USD,IBKR,old format\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="invalid security CSV schema.*unified 12-column header"):
+        _replay_security_csv()
+
+
+def test_replay_accepts_current_unified_security_header(tmp_env):
+    from ft import models
+    from ft.stock import CSV_FIELDS, _replay_security_csv
+
+    security_dir = models.RECORDS_DIR / "security"
+    security_dir.mkdir(parents=True, exist_ok=True)
+    with (security_dir / "2026-06-30.csv").open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        writer.writerow({
+            "date": "2026-06-30 10:00:00", "action": "deposit",
+            "from_ticker": "", "to_ticker": "USD",
+            "from_amount": "0", "to_amount": "25", "price": "1",
+            "commission": "0", "commission_asset": "",
+            "currency": "USD", "account_name": "IBKR", "note": "cash deposit",
+        })
+
+    positions = _replay_security_csv()
+
+    assert positions[("IBKR", "usd")]["shares"] == pytest.approx(25)
+
+
 def test_security_balance_uses_current_market_price(tmp_env, monkeypatch):
     """Security account balances should use current market prices when available."""
     from ft.stock import load_snapshot, save_snapshot
@@ -2085,7 +2135,7 @@ def test_stock_append_accepts_crypto_account(tmp_env):
     from ft import models
 
     save_accounts([
-        {"name": "币安", "type": "crypto", "currency": "USD", "active": True},
+        {"name": "币安", "type": "crypto", "currency": "USD", "base_currencies": ["USD", "USDT"], "active": True},
     ], models.ACCOUNTS_PATH)
     csv_path = tmp_env / "binance_crypto.csv"
     with csv_path.open("w", newline="", encoding="utf-8") as f:
@@ -2112,7 +2162,7 @@ def test_crypto_account_buy_sell_verify_end_to_end(tmp_env, monkeypatch):
     )
 
     save_accounts([
-        {"name": "币安", "type": "crypto", "currency": "USD", "active": True},
+        {"name": "币安", "type": "crypto", "currency": "USD", "base_currencies": ["USD", "USDT"], "active": True},
     ], models.ACCOUNTS_PATH)
 
     do_deposit(amount=5000, currency="USD", account_name="币安",
@@ -2132,9 +2182,16 @@ def test_crypto_account_buy_sell_verify_end_to_end(tmp_env, monkeypatch):
     assert ok is True
 
 
-def test_replay_buy_with_usdt_quote_reduces_usdt_cash_not_usd():
+def test_replay_buy_with_usdt_quote_reduces_usdt_cash_not_usd(tmp_env):
     """BUY rows tagged quote:usdt should debit USDT cash, not CSV currency USD."""
+    from ft import models
+    from ft.accounts import save_accounts
     from ft.stock import _replay_security_rows
+
+    save_accounts([
+        {"name": "币安", "type": "crypto", "currency": "USD",
+         "base_currencies": ["USD", "USDT"], "active": True},
+    ], models.ACCOUNTS_PATH)
 
     rows = [
         {"date": "2026-07-07 10:00:00", "action": "swap",
@@ -2159,7 +2216,7 @@ def test_replay_cross_currency_cash_positions_keep_native_cost_currency(tmp_env)
 
     save_accounts([
         {"name": "IBKR", "type": "security", "currency": "CNY",
-         "base_currencies": ["CNY"], "active": True},
+         "base_currencies": ["USD", "CNY"], "active": True},
     ], models.ACCOUNTS_PATH)
 
     rows = [
@@ -2185,9 +2242,16 @@ def test_replay_cross_currency_cash_positions_keep_native_cost_currency(tmp_env)
     assert positions[("IBKR", "cny")]["total_cost"] == pytest.approx(70)
 
 
-def test_replay_swap_conserves_total_cost():
+def test_replay_swap_conserves_total_cost(tmp_env):
     """SWAP: 换出币释放的成本原样转给换入币，USD 总成本守恒，不碰现金。"""
+    from ft import models
+    from ft.accounts import save_accounts
     from ft.stock import _replay_security_rows
+
+    save_accounts([
+        {"name": "币安", "type": "crypto", "currency": "USD",
+         "base_currencies": ["USD", "USDT"], "active": True},
+    ], models.ACCOUNTS_PATH)
 
     rows = [
         # 先用现金买入 1 BTC，成本 60000
@@ -2218,9 +2282,16 @@ def test_replay_swap_conserves_total_cost():
             + positions[("币安", "eth")]["total_cost"]) == pytest.approx(60000.0)
 
 
-def test_replay_quote_commission_debits_cash_and_enters_buy_cost():
+def test_replay_quote_commission_debits_cash_and_enters_buy_cost(tmp_env):
     """券商成交以毛额记 swap 时，CNY 佣金必须从现金扣除且买入计入成本。"""
+    from ft import models
+    from ft.accounts import save_accounts
     from ft.stock import _replay_security_rows
+
+    save_accounts([
+        {"name": "东方证券", "type": "security", "currency": "CNY",
+         "base_currencies": ["CNY"], "active": True},
+    ], models.ACCOUNTS_PATH)
 
     rows = [
         {"date": "2026-07-01 09:00:00", "action": "deposit",
@@ -2249,9 +2320,16 @@ def test_replay_quote_commission_debits_cash_and_enters_buy_cost():
     assert positions[("东方证券", "159330.sz")]["total_cost"] == pytest.approx(300.6)
 
 
-def test_replay_swap_in_without_pair_raises():
+def test_replay_swap_in_without_pair_raises(tmp_env):
     """SWAP_IN 找不到配对 released 必须报错，不静默。"""
+    from ft import models
+    from ft.accounts import save_accounts
     from ft.stock import _replay_security_rows
+
+    save_accounts([
+        {"name": "币安", "type": "crypto", "currency": "USD",
+         "base_currencies": ["USD", "USDT"], "active": True},
+    ], models.ACCOUNTS_PATH)
 
     # In unified swap model, an orphan swap (spending more than available)
     # results in negative position — no longer raises
@@ -2268,9 +2346,16 @@ def test_replay_swap_in_without_pair_raises():
     assert positions[("币安", "eth")]["shares"] == pytest.approx(10.0)
 
 
-def test_replay_fee_reduces_holding_by_avg_cost():
+def test_replay_fee_reduces_holding_by_avg_cost(tmp_env):
     """FEE: 按均价核销持仓与成本。"""
+    from ft import models
+    from ft.accounts import save_accounts
     from ft.stock import _replay_security_rows
+
+    save_accounts([
+        {"name": "币安", "type": "crypto", "currency": "USD",
+         "base_currencies": ["USD", "USDT"], "active": True},
+    ], models.ACCOUNTS_PATH)
 
     rows = [
         {"date": "2026-07-07 09:00:00", "action": "swap",
@@ -2299,7 +2384,7 @@ def test_append_accepts_swap_fee_rows_and_keeps_currency(tmp_env):
     from ft import models
 
     save_accounts([
-        {"name": "币安", "type": "crypto", "currency": "USD", "active": True},
+        {"name": "币安", "type": "crypto", "currency": "USD", "base_currencies": ["USD", "USDT"], "active": True},
     ], models.ACCOUNTS_PATH)
 
     csv_path = tmp_env / "swap.csv"
@@ -2330,7 +2415,7 @@ def test_do_swap_conserves_cost_and_ignores_cash(tmp_env):
     from ft import models
     from ft.stock import do_deposit, do_buy, do_swap, load_snapshot, verify_security
 
-    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "active": True}],
+    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "base_currencies": ["USD", "USDT"], "active": True}],
                   models.ACCOUNTS_PATH)
     do_deposit(amount=100000, currency="USD", account_name="币安",
                date="2026-07-07 08:00:00")
@@ -2338,6 +2423,7 @@ def test_do_swap_conserves_cost_and_ignores_cash(tmp_env):
            account_name="币安", date="2026-07-07 09:00:00")
 
     do_swap(account_name="币安", from_ticker="btc", from_shares=0.5,
+            currency="USD",
             to_ticker="eth", to_shares=10, date="2026-07-07 10:00:00")
 
     snap = load_snapshot()
@@ -2448,10 +2534,11 @@ def test_do_swap_insufficient_from_shares_raises(tmp_env):
     from ft import models
     from ft.stock import do_swap
 
-    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "active": True}],
+    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "base_currencies": ["USD", "USDT"], "active": True}],
                   models.ACCOUNTS_PATH)
     with pytest.raises(ValueError, match="持仓不足"):
         do_swap(account_name="币安", from_ticker="btc", from_shares=1,
+                currency="USD",
                 to_ticker="eth", to_shares=10, date="2026-07-07 10:00:00")
 
 
@@ -2561,7 +2648,7 @@ def test_direct_do_swap_matches_csv_replay_for_partial_sell_with_fee(tmp_env):
     from ft import models
     from ft.stock import do_buy, do_deposit, do_swap, load_snapshot, _replay_security_csv
 
-    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "active": True}],
+    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "base_currencies": ["USD", "USDT"], "active": True}],
                   models.ACCOUNTS_PATH)
     do_deposit(amount=100000, currency="USD", account_name="币安",
                date="2026-07-08 08:00:00")
@@ -2590,7 +2677,7 @@ def test_failed_do_swap_keeps_snapshot_and_security_csv_unchanged(tmp_env):
     import ft.snapshot as snapshot_mod
     from ft.stock import do_buy, do_deposit, do_swap
 
-    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "active": True}],
+    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "base_currencies": ["USD", "USDT"], "active": True}],
                   models.ACCOUNTS_PATH)
     do_deposit(amount=100000, currency="USD", account_name="币安",
                date="2026-07-08 08:00:00")
@@ -2617,7 +2704,7 @@ def test_mixed_case_buy_swap_and_replay_use_single_canonical_ticker(tmp_env):
     from ft import models
     from ft.stock import do_buy, do_deposit, do_swap, load_snapshot, repair_security
 
-    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "active": True}],
+    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "base_currencies": ["USD", "USDT"], "active": True}],
                   models.ACCOUNTS_PATH)
     do_deposit(amount=50000, currency="USD", account_name="币安",
                date="2026-07-08 08:00:00")
@@ -2688,7 +2775,7 @@ def test_sync_polymarket_adds_settlement_sell_for_resolved_open_position(tmp_env
     from ft.polymarket_sync import sync_polymarket
 
     save_accounts([
-        {"name": "Polymarket", "type": "security", "currency": "USD", "active": True},
+        {"name": "Polymarket", "type": "security", "currency": "USD", "base_currencies": ["USD"], "active": True},
     ], models.ACCOUNTS_PATH)
     save_snapshot({
         "updated_at": "2026-07-07",
@@ -2734,7 +2821,7 @@ def _save_polymarket_security_account():
     from ft import models
 
     save_accounts([
-        {"name": "Polymarket", "type": "security", "currency": "USD", "active": True},
+        {"name": "Polymarket", "type": "security", "currency": "USD", "base_currencies": ["USD"], "active": True},
     ], models.ACCOUNTS_PATH)
 
 

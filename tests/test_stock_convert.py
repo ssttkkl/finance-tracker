@@ -25,7 +25,8 @@ def tmp_security_env():
     # Register test account
     from ft.accounts import save_accounts
     save_accounts([
-        {"name": "东方证券", "type": "security", "currency": "CNY", "active": True},
+        {"name": "东方证券", "type": "security", "currency": "CNY",
+         "base_currencies": ["CNY"], "active": True},
     ], accounts_path)
 
     yield records_dir, accounts_path, snapshot_path

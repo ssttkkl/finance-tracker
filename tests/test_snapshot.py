@@ -42,9 +42,9 @@ def test_save_roundtrip(tmp_env):
     data = {
         "updated_at": "2026-06-12",
         "accounts": {
-            "cash": {"wallet": 1500.0},
-            "loan": {"mortgage": -300000.0},
-            "lend": {"friend_loan": 5000.0},
+            "cash": {"wallet": {"CNY": 1500.0}},
+            "loan": {"mortgage": {"CNY": -300000.0}},
+            "lend": {"friend_loan": {"CNY": 5000.0}},
             "security": {"IBKR": {"currency": "USD", "cash": 10000.0, "positions": {}}},
         },
     }
@@ -58,7 +58,7 @@ def test_save_snapshot_failure_does_not_truncate_existing_file(tmp_env, monkeypa
     import ft.snapshot as snapshot
     from ft.snapshot import load_snapshot, save_snapshot
 
-    original = {"updated_at": "old", "accounts": {"cash": {"wallet": 1}, "loan": {}, "lend": {}, "security": {}}}
+    original = {"updated_at": "old", "accounts": {"cash": {"wallet": {"CNY": 1}}, "loan": {}, "lend": {}, "security": {}}}
     save_snapshot(original)
     original_text = snapshot.SNAPSHOT_PATH.read_text(encoding="utf-8")
 
@@ -81,24 +81,24 @@ def test_get_balance(tmp_env):
     data = {
         "updated_at": "2026-06-12",
         "accounts": {
-            "cash": {"wallet": 1500.0},
-            "loan": {"mortgage": -300000.0, "car_loan": -20000.0},
-            "lend": {"friend_loan": 5000.0},
+            "cash": {"wallet": {"CNY": 1500.0}},
+            "loan": {"mortgage": {"CNY": -300000.0}, "car_loan": {"CNY": -20000.0}},
+            "lend": {"friend_loan": {"CNY": 5000.0}},
             "security": {},
         },
     }
     save_snapshot(data)
 
     # Find across types
-    bal, typ = get_balance("wallet")
+    bal, typ = get_balance("wallet", "CNY")
     assert bal == 1500.0
     assert typ == "cash"
 
-    bal, typ = get_balance("mortgage")
+    bal, typ = get_balance("mortgage", "CNY")
     assert bal == -300000.0
     assert typ == "loan"
 
-    bal, typ = get_balance("friend_loan")
+    bal, typ = get_balance("friend_loan", "CNY")
     assert bal == 5000.0
     assert typ == "lend"
 
@@ -113,15 +113,11 @@ def test_set_balance(tmp_env):
     from ft.snapshot import set_balance, DEFAULT
 
     snap = copy.deepcopy(DEFAULT)  # deep copy to avoid polluting DEFAULT
-    set_balance(snap, "wallet", "cash", 2500.0)
-    assert snap["accounts"]["cash"]["wallet"] == 2500.0
+    set_balance(snap, "wallet", "cash", "CNY", 2500.0)
+    assert snap["accounts"]["cash"]["wallet"]["CNY"] == 2500.0
 
-    set_balance(snap, "mortgage", "loan", -400000.0)
-    assert snap["accounts"]["loan"]["mortgage"] == -400000.0
-
-    # Set on security account (still works, but just sets the field)
-    set_balance(snap, "IBKR", "security", 10000.0)
-    assert snap["accounts"]["security"]["IBKR"] == 10000.0
+    set_balance(snap, "mortgage", "loan", "CNY", -400000.0)
+    assert snap["accounts"]["loan"]["mortgage"]["CNY"] == -400000.0
 
 
 def test_update_balance(tmp_env):
@@ -131,9 +127,9 @@ def test_update_balance(tmp_env):
     data = {
         "updated_at": "2026-06-12",
         "accounts": {
-            "cash": {"wallet": 1500.0},
-            "loan": {"mortgage": -300000.0},
-            "lend": {"friend_loan": 5000.0},
+            "cash": {"wallet": {"CNY": 1500.0}},
+            "loan": {"mortgage": {"CNY": -300000.0}},
+            "lend": {"friend_loan": {"CNY": 5000.0}},
             "security": {},
         },
     }
@@ -142,16 +138,16 @@ def test_update_balance(tmp_env):
     snap = load_snapshot()
 
     # Add to wallet
-    update_balance(snap, "wallet", 200.0)
-    assert snap["accounts"]["cash"]["wallet"] == 1700.0
+    update_balance(snap, "wallet", "CNY", 200.0)
+    assert snap["accounts"]["cash"]["wallet"]["CNY"] == 1700.0
 
     # Subtract from mortgage
-    update_balance(snap, "mortgage", 5000.0)
-    assert snap["accounts"]["loan"]["mortgage"] == -295000.0
+    update_balance(snap, "mortgage", "CNY", 5000.0)
+    assert snap["accounts"]["loan"]["mortgage"]["CNY"] == -295000.0
 
     # Add to lend
-    update_balance(snap, "friend_loan", -1000.0)
-    assert snap["accounts"]["lend"]["friend_loan"] == 4000.0
+    update_balance(snap, "friend_loan", "CNY", -1000.0)
+    assert snap["accounts"]["lend"]["friend_loan"]["CNY"] == 4000.0
 
 
 def test_update_balance_unknown(tmp_env):
@@ -160,10 +156,37 @@ def test_update_balance_unknown(tmp_env):
 
     snap = copy.deepcopy(DEFAULT)  # deep copy to avoid polluting DEFAULT
     # Should not raise, should not modify anything
-    update_balance(snap, "nonexistent", 100.0)
+    update_balance(snap, "nonexistent", "CNY", 100.0)
 
     # Snapshot should remain unchanged
     assert snap == DEFAULT
+
+
+def test_balance_helpers_reject_legacy_scalar_snapshot_buckets(tmp_env):
+    from ft.snapshot import get_balance, save_snapshot, set_balance, update_balance
+
+    snap = {"accounts": {"cash": {"wallet": 1500.0}, "loan": {}, "lend": {}, "security": {}}, "updated_at": ""}
+    save_snapshot(snap)
+
+    with pytest.raises(ValueError, match="cash account 'wallet'.*account -> currency -> numeric balance"):
+        get_balance("wallet", "CNY")
+
+    with pytest.raises(ValueError, match="cash account 'wallet'.*account -> currency -> numeric balance"):
+        set_balance(snap, "wallet", "cash", "CNY", 1.0)
+
+    with pytest.raises(ValueError, match="cash account 'wallet'.*account -> currency -> numeric balance"):
+        update_balance(snap, "wallet", "CNY", 1.0)
+
+
+def test_balance_helpers_require_currency_for_writes(tmp_env):
+    from ft.snapshot import set_balance, update_balance
+
+    snap = {"accounts": {"cash": {}, "loan": {}, "lend": {}, "security": {}}, "updated_at": ""}
+
+    with pytest.raises(ValueError, match="currency is required"):
+        set_balance(snap, "wallet", "cash", 1.0)
+    with pytest.raises(ValueError, match="currency is required"):
+        update_balance(snap, "wallet", 1.0)
 
 
 def test_set_balance_uses_nested_currency_buckets(tmp_env):

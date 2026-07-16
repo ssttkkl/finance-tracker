@@ -189,8 +189,10 @@ class _BufferedSnapshotRepository:
         bucket = accounts.setdefault(account_type, {})
         acct_bucket = bucket.setdefault(account_name, {})
         if not isinstance(acct_bucket, dict):
-            acct_bucket = {"CNY": acct_bucket}
-            bucket[account_name] = acct_bucket
+            raise ValueError(
+                f"invalid snapshot schema for {account_type} account {account_name!r}: "
+                "expected account -> currency -> numeric balance"
+            )
         acct_bucket[currency] = _number_for_yaml(balance)
         self.dirty = True
 
@@ -203,7 +205,10 @@ class _BufferedSnapshotRepository:
                 current = Decimal(str(bucket.get(currency, 0)))
                 bucket[currency] = _number_for_yaml(current + Decimal(str(delta)))
             else:
-                accts[account_name] = _number_for_yaml(Decimal(str(bucket)) + Decimal(str(delta)))
+                raise ValueError(
+                    f"invalid snapshot schema for {account_type} account {account_name!r}: "
+                    "expected account -> currency -> numeric balance"
+                )
             self.dirty = True
             return
         account_bucket = accts.setdefault(account_name, {})
@@ -293,7 +298,7 @@ def _normal_cash_row(row: dict) -> dict:
 
 
 def _number_for_yaml(value):
-    """Return a legacy numeric YAML scalar for snapshot balances."""
+    """Return a plain numeric YAML value for snapshot balances."""
     dec = Decimal(str(value))
     if dec == dec.to_integral_value():
         return int(dec)

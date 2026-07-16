@@ -14,9 +14,11 @@ from typing import Optional
 import yaml
 
 from .snapshot import git_stage, load_snapshot, save_snapshot
-from .schema import CRYPTO_IDS, CSV_FIELDS, CURRENCY_SYMBOLS, VALID_ACTIONS
+from .schema import CASH_CSV_FIELDS, CRYPTO_IDS, CSV_FIELDS, CURRENCY_SYMBOLS, VALID_ACTIONS
 
 # ── CSV fields for security trades ──────────────────────────────────────
+
+TRANSFER_AUDIT_FIELDS = CASH_CSV_FIELDS
 
 
 def _models():
@@ -37,6 +39,33 @@ def _security_fieldnames(rows: list[dict]) -> list[str]:
             if field is not None and field not in fieldnames:
                 fieldnames.append(field)
     return fieldnames
+
+
+def _validate_security_csv_header(fieldnames, path: Path | str | None = None) -> None:
+    """Reject obsolete stock CSV schemas while allowing supported transfer audit rows."""
+    actual = list(fieldnames or [])
+    label = str(path) if path is not None else "security CSV"
+    transfer_extras = [field for field in TRANSFER_AUDIT_FIELDS if field not in CSV_FIELDS]
+    if actual == CSV_FIELDS or actual == CSV_FIELDS + ["transfer_account"]:
+        return
+    if actual[:len(CSV_FIELDS)] == CSV_FIELDS and all(
+        field in transfer_extras for field in actual[len(CSV_FIELDS):]
+    ):
+        return
+    if actual == TRANSFER_AUDIT_FIELDS:
+        return
+    missing = [field for field in CSV_FIELDS if field not in actual]
+    extra = [field for field in actual if field not in CSV_FIELDS]
+    detail = []
+    if missing:
+        detail.append(f"missing fields: {', '.join(missing)}")
+    if extra:
+        detail.append(f"extra fields: {', '.join(extra)}")
+    raise ValueError(
+        f"invalid security CSV schema for {label}: expected unified "
+        f"{len(CSV_FIELDS)}-column header ({', '.join(CSV_FIELDS)}); "
+        + "; ".join(detail)
+    )
 
 
 def _write_security_csv(path: Path, rows: list[dict]) -> None:
@@ -83,31 +112,37 @@ def _normalize_currency_code(currency: str | None, *, field: str = "currency") -
 
 
 def _configured_base_currencies(account: dict) -> list[str]:
-    """Return account-configured allowed cash/settlement currencies.
-
-    `base_currencies` is the authoritative multi-currency list. Older account
-    files did not have it, so their single `currency` remains the only allowed
-    manual stock currency.
-    """
+    """Return account-configured allowed cash/settlement currencies."""
     raw = account.get("base_currencies")
     if raw is None:
-        return [_normalize_currency_code(account.get("currency"), field="account currency")]
+        raise ValueError(
+            f"invalid account config for {account.get('type', 'security')} account "
+            f"{account.get('name')!r}: base_currencies is required"
+        )
     if isinstance(raw, str):
-        items = [raw]
+        raise ValueError(
+            f"invalid account config for {account.get('type', 'security')} account "
+            f"{account.get('name')!r}: base_currencies must be a nonempty sequence"
+        )
     else:
-        items = list(raw or [])
+        try:
+            items = list(raw or [])
+        except TypeError as exc:
+            raise ValueError(
+                f"invalid account config for {account.get('type', 'security')} account "
+                f"{account.get('name')!r}: base_currencies must be a nonempty sequence"
+            ) from exc
     currencies = []
     for item in items:
         code = _normalize_currency_code(str(item), field="base_currencies")
         if code not in currencies:
             currencies.append(code)
     if not currencies:
-        raise ValueError(f"account {account.get('name')!r} has empty base_currencies")
+        raise ValueError(
+            f"invalid account config for {account.get('type', 'security')} account "
+            f"{account.get('name')!r}: base_currencies must be nonempty"
+        )
     return currencies
-
-
-def _has_configured_base_currencies(account: dict) -> bool:
-    return "base_currencies" in account and account.get("base_currencies") is not None
 
 
 def resolve_security_account_currency(
@@ -117,9 +152,8 @@ def resolve_security_account_currency(
 ) -> tuple[dict, str]:
     """Resolve and validate a manual stock account plus settlement currency.
 
-    Configured security/crypto accounts have no default reporting currency, so
-    direct writes must pass an explicit currency. Legacy accounts without
-    base_currencies are the only fallback and allow their legacy currency.
+    Security/crypto accounts have no default settlement currency, so direct
+    writes must pass an explicit currency from ``base_currencies``.
     """
     from .accounts import load_accounts
 
@@ -150,12 +184,10 @@ def resolve_security_account_currency(
 
     account = stock_candidates[0]
     allowed = _configured_base_currencies(account)
-    if _has_configured_base_currencies(account):
-        raise ValueError(
-            f"currency is required for account {account_name}; "
-            f"allowed: {', '.join(allowed)}"
-        )
-    return account, allowed[0]
+    raise ValueError(
+        f"currency is required for account {account_name}; "
+        f"allowed: {', '.join(allowed)}"
+    )
 
 
 def _account_display_currency(account: dict) -> str:
@@ -193,7 +225,10 @@ def _load_security_account_base_currencies(accounts_path=None) -> dict[str, set[
     for account in data.get("accounts", []) or []:
         if not account.get("name"):
             continue
-        base_by_account[account["name"]] = _account_base_currency_set(account)
+        if account.get("type") in ("security", "crypto"):
+            base_by_account[account["name"]] = _account_base_currency_set(account)
+        elif account.get("base_currencies") is not None:
+            base_by_account[account["name"]] = _base_currency_set(account.get("base_currencies"))
     return base_by_account
 
 
@@ -559,6 +594,7 @@ def record_trade(
     if day_path.exists():
         with day_path.open(encoding="utf-8") as f:
             reader = csv.DictReader(f)
+            _validate_security_csv_header(reader.fieldnames, day_path)
             existing_rows = list(reader)
 
     new_row = {
@@ -767,17 +803,14 @@ def do_append(file_path):
         print("❌ CSV 为空")
         return False
 
-    # Validate 10 columns
+    # Validate unified 12-column stock CSV header
     actual_fields = reader.fieldnames or list(rows[0].keys())
-    if set(actual_fields) != set(CSV_FIELDS):
-        missing = set(CSV_FIELDS) - set(actual_fields)
-        extra = set(actual_fields) - set(CSV_FIELDS)
-        msg = []
-        if missing:
-            msg.append(f"缺少字段: {', '.join(sorted(missing))}")
-        if extra:
-            msg.append(f"多余字段: {', '.join(sorted(extra))}")
-        print(f"❌ CSV 字段不匹配: {'; '.join(msg)}")
+    try:
+        if actual_fields != CSV_FIELDS:
+            _validate_security_csv_header(actual_fields, file_path)
+            raise ValueError("stock imports must use the exact unified 12-column header")
+    except ValueError as exc:
+        print(f"❌ CSV 字段不匹配: {exc}")
         return False
 
     # Validate actions
@@ -827,7 +860,9 @@ def do_append(file_path):
     if security_dir.exists():
         for csv_file in sorted(security_dir.glob("*.csv")):
             with csv_file.open(encoding="utf-8") as f:
-                merged_rows_for_replay.extend(csv.DictReader(f))
+                reader = csv.DictReader(f)
+                _validate_security_csv_header(reader.fieldnames, csv_file)
+                merged_rows_for_replay.extend(reader)
     try:
         _replay_security_rows(
             _order_security_rows_for_replay(merged_rows_for_replay + rows),
@@ -878,7 +913,9 @@ def do_append(file_path):
             existing_rows = []
             if day_path.exists():
                 with day_path.open(encoding="utf-8") as f:
-                    existing_rows = list(csv.DictReader(f))
+                    reader = csv.DictReader(f)
+                    _validate_security_csv_header(reader.fieldnames, day_path)
+                    existing_rows = list(reader)
 
             # Merge, sort, write
             all_rows = existing_rows + day_rows
@@ -1809,8 +1846,10 @@ def do_list():
         positions = acct_data.get("positions", {})
         allowed_cash = base_currencies_by_account.get(acct_name)
         if not allowed_cash:
-            legacy = (acct_data.get("currency") or "").strip().upper()
-            allowed_cash = {legacy} if legacy else set()
+            raise ValueError(
+                f"invalid account config for security account {acct_name!r}: "
+                "base_currencies is required for display"
+            )
 
         grouped: dict[str, list[tuple[str, dict]]] = {}
         cash_positions: dict[str, dict] = {}
@@ -1924,7 +1963,9 @@ def _replay_security_csv(records_dir=None, accounts_path=None):
     rows = []
     for csv_file in sorted(security_dir.glob("*.csv")):
         with open(csv_file, encoding="utf-8") as f:
-            rows.extend(csv.DictReader(f))
+            reader = csv.DictReader(f)
+            _validate_security_csv_header(reader.fieldnames, csv_file)
+            rows.extend(reader)
     positions = _replay_security_rows(
         _order_security_rows_for_replay(rows),
         validate_accounts=True,
@@ -1955,8 +1996,13 @@ def _replay_security_rows(rows, validate_accounts: bool = False, accounts_path=N
     positions = defaultdict(lambda: _position_bucket(""))
     base_currencies_by_account = _load_security_account_base_currencies(accounts_path)
 
-    def _row_base_currencies(account: str, cost_currency: str) -> set[str]:
-        return base_currencies_by_account.get(account) or _base_currency_set(cost_currency)
+    def _row_base_currencies(account: str) -> set[str]:
+        if account not in base_currencies_by_account:
+            raise ValueError(
+                f"invalid account config for security/crypto account {account!r}: "
+                "base_currencies is required for replay"
+            )
+        return base_currencies_by_account[account]
 
     def _account_positions(account: str, cost_currency: str) -> dict:
         return {
@@ -1996,7 +2042,7 @@ def _replay_security_rows(rows, validate_accounts: bool = False, accounts_path=N
         cost_currency = row.get("currency", "") or ""
         if validate_accounts:
             _validate_security_row_account_currency(a, cost_currency, accounts_path=accounts_path)
-        base_currencies = _row_base_currencies(a, cost_currency)
+        base_currencies = _row_base_currencies(a)
         try:
             from_amount = float(row.get("from_amount") or 0)
             to_amount = float(row.get("to_amount") or 0)

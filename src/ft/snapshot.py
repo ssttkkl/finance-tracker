@@ -125,13 +125,14 @@ def git_do_commit(msg: str = None, repo_dir=None):
         return False
 
 
-def _normalize_balance_bucket(bucket, currency: Optional[str] = None):
-    """Return a currency-aware balance bucket from legacy or nested data."""
+def _require_nested_balance_bucket(acct_name: str, typ: str, bucket) -> dict:
+    """Return a nested currency bucket or raise for obsolete snapshot shapes."""
     if isinstance(bucket, dict):
-        if currency is None:
-            return bucket
-        return bucket.get(currency)
-    return bucket
+        return bucket
+    raise ValueError(
+        f"invalid snapshot schema for {typ} account {acct_name!r}: "
+        "expected account -> currency -> numeric balance"
+    )
 
 
 def get_balance(
@@ -150,14 +151,12 @@ def get_balance(
         accts = snap.get("accounts", {}).get(typ, {})
         if acct_name not in accts:
             continue
-        bucket = accts[acct_name]
-        if isinstance(bucket, dict):
-            if currency is None:
-                return bucket, typ
-            if currency in bucket:
-                return bucket[currency], typ
-            continue
-        return bucket, typ
+        bucket = _require_nested_balance_bucket(acct_name, typ, accts[acct_name])
+        if currency is None:
+            return bucket, typ
+        if currency in bucket:
+            return bucket[currency], typ
+        continue
     return None, None
 
 
@@ -170,17 +169,21 @@ def set_balance(
 ) -> None:
     """Set the balance for an account in the snapshot dict.
 
-    Supports both legacy flat writes and the new nested per-currency shape.
+    Requires the nested account -> currency -> numeric balance snapshot schema.
     """
+    if balance is None:
+        raise ValueError(
+            f"invalid snapshot schema write for {typ} account {acct_name!r}: "
+            "currency is required for account -> currency -> numeric balance"
+        )
     accounts = snap.setdefault("accounts", {})
     bucket = accounts.setdefault(typ, {})
-    if balance is None:
-        bucket[acct_name] = currency_or_balance
-        return
     acct_bucket = bucket.setdefault(acct_name, {})
     if not isinstance(acct_bucket, dict):
-        acct_bucket = {"CNY": acct_bucket}
-        bucket[acct_name] = acct_bucket
+        raise ValueError(
+            f"invalid snapshot schema for {typ} account {acct_name!r}: "
+            "expected account -> currency -> numeric balance"
+        )
     acct_bucket[currency_or_balance] = balance
 
 
@@ -192,26 +195,21 @@ def update_balance(
 ) -> None:
     """Add a delta to an existing cash/loan/lend balance.
 
-    Supports both legacy flat updates and currency-aware nested balances.
+    Requires the nested account -> currency -> numeric balance snapshot schema.
     """
+    if delta is None:
+        raise ValueError(
+            f"invalid snapshot schema update for account {acct_name!r}: "
+            "currency is required for account -> currency -> numeric balance"
+        )
     search_types = ("cash", "loan", "lend")
     accounts = snap.get("accounts", {})
     for typ in search_types:
         accts = accounts.get(typ, {})
         if acct_name not in accts:
             continue
-        bucket = accts[acct_name]
-        if delta is None:
-            if isinstance(bucket, dict):
-                for cur, bal in list(bucket.items()):
-                    bucket[cur] = bal + currency_or_delta
-            else:
-                accts[acct_name] = bucket + currency_or_delta
-            return
-        if isinstance(bucket, dict):
-            bucket[currency_or_delta] = bucket.get(currency_or_delta, 0.0) + delta
-        else:
-            accts[acct_name] = bucket + delta
+        bucket = _require_nested_balance_bucket(acct_name, typ, accts[acct_name])
+        bucket[currency_or_delta] = bucket.get(currency_or_delta, 0.0) + delta
         return
 
 

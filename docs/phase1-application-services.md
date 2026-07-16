@@ -20,4 +20,17 @@
 
 - Security-specific stock commands, converters, external sync, `append`, `verify`, `report`, `list`, `commit`, `status`, and `reset`.
 - Full investment repository extraction and external provider adapters.
-- Removing legacy compatibility helpers that are still used by unmigrated commands and tests.
+
+## Breaking Cleanup Applied In Phase 1
+
+Historical ledger compatibility was removed instead of being carried forward:
+
+- `snapshot.yaml` cash/loan/lend balances must use the nested `accounts -> type -> account -> currency -> numeric balance` shape. Scalar account balances are rejected as invalid snapshot schema.
+- Every security/crypto account in `accounts.yaml` must define `base_currencies` as a nonempty sequence. Runtime stock operations, CSV append/replay, display grouping, and price exclusion no longer fall back to the legacy account `currency`.
+- Security ledger CSV files use the unified 12-column swap schema: `date, action, from_ticker, to_ticker, from_amount, to_amount, price, commission, commission_asset, currency, account_name, note`. Old 10-column `ticker/shares/amount` stock records are rejected. Current transfer audit rows in `records/security` remain supported as transfer audit rows and are skipped by security replay.
+
+Migration preconditions before applying this code to a ledger:
+
+- Existing `snapshot.yaml` has no top-level or account-level scalar balance buckets for cash/loan/lend accounts.
+- Every security/crypto account has nonempty `base_currencies`.
+- Non-empty historical security trade CSVs have already been converted to the unified 12-column header. Empty old-format files may be removed or migrated separately before replay.

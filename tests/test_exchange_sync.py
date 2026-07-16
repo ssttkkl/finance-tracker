@@ -376,7 +376,7 @@ def tmp_env():
 def _seed_crypto_account():
     from ft.accounts import save_accounts
     from ft import models
-    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "active": True}],
+    save_accounts([{"name": "币安", "type": "crypto", "currency": "USD", "base_currencies": ["USD", "USDT"], "active": True}],
                   models.ACCOUNTS_PATH)
 
 

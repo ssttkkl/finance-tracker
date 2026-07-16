@@ -37,7 +37,7 @@ def _enable_polymarket_account():
     from ft import models
 
     save_accounts([
-        {"name": "Polymarket", "type": "security", "currency": "USD", "active": True},
+        {"name": "Polymarket", "type": "security", "currency": "USD", "base_currencies": ["USD"], "active": True},
     ], models.ACCOUNTS_PATH)
 
 
