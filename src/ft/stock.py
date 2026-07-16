@@ -187,7 +187,7 @@ def _load_security_account_base_currencies() -> dict[str, set[str]]:
 
     base_by_account: dict[str, set[str]] = {}
     for account in data.get("accounts", []) or []:
-        if account.get("type") not in ("security", "crypto") or not account.get("name"):
+        if not account.get("name"):
             continue
         base_by_account[account["name"]] = _account_base_currency_set(account)
     return base_by_account
@@ -1785,10 +1785,20 @@ def do_list():
         print("📭 无持仓")
         return
 
-    # Collect all tickers for price fetching
-    all_tickers = set()
-    for acct_data in all_accts.values():
-        all_tickers.update(acct_data.get("positions", {}).keys())
+    # Configuration is the sole currency registry.  A configured settlement
+    # ticker is cash wherever it appears, including when an old snapshot keeps
+    # it under another account; never send it to a price API.
+    configured_currency_tickers = {
+        currency.lower()
+        for currencies in base_currencies_by_account.values()
+        for currency in currencies
+    }
+    all_tickers = {
+        ticker
+        for acct_data in all_accts.values()
+        for ticker in acct_data.get("positions", {})
+        if str(ticker).lower() not in configured_currency_tickers
+    }
     prices = _fetch_prices(list(all_tickers))
 
     for acct_name, acct_data in all_accts.items():
@@ -1807,15 +1817,24 @@ def do_list():
             if ticker_currency in allowed_cash:
                 cash_positions[ticker_currency] = pos
                 continue
-            cost_currency = (pos.get("cost_currency") or "").strip().upper() or "UNKNOWN"
-            grouped.setdefault(cost_currency, []).append((ticker, pos))
+            # A configured currency held outside this account's allowed cash
+            # set remains a currency position: show it in its own denomination
+            # as N/A (there is no FX conversion module), rather than pricing it
+            # as a security or displaying its cost currency's symbol.
+            display_currency = (
+                ticker_currency
+                if ticker.lower() in configured_currency_tickers
+                else (pos.get("cost_currency") or "").strip().upper() or "UNKNOWN"
+            )
+            grouped.setdefault(display_currency, []).append((ticker, pos))
 
         display_currencies = sorted(set(grouped) | set(cash_positions))
         if not display_currencies:
             continue
 
+        market_totals: dict[str, float | None] = {}
         for currency in display_currencies:
-            symbol = models.CURRENCY_SYMBOLS.get(currency, "")
+            symbol = models.CURRENCY_SYMBOLS.get(currency) or f"{currency} "
             cash = cash_positions.get(currency, {}).get("shares", 0.0)
             rows_for_currency = sorted(grouped.get(currency, []))
 
@@ -1828,13 +1847,15 @@ def do_list():
 
             total_cost = 0.0
             total_value = 0.0
+            has_priced_position = False
 
             for ticker, pos in rows_for_currency:
                 shares = pos["shares"]
                 total = pos.get("total_cost", 0.0)
                 avg_cost = total / shares if shares != 0 else 0.0
                 current_price = prices.get(ticker)
-                if current_price is not None and shares > 0:
+                if current_price is not None:
+                    has_priced_position = True
                     value = shares * current_price
                     pl = value - total
                     pct = (current_price - avg_cost) / avg_cost * 100 if avg_cost > 0 else 0.0
@@ -1847,18 +1868,38 @@ def do_list():
 
                 print(
                     f"  {ticker:<16} {_fmt_shares(shares):>8} {symbol}{avg_cost:>10,.2f} "
-                    f"{symbol}{total:>12,.2f} {symbol}{value:>12,.2f} "
+                    f"{symbol}{total:>12,.2f} {_fmt(value, symbol):>12} "
                     f"{pl_str:>14} {pct_str:>8}"
                 )
 
                 total_cost += total
                 total_value += value
 
+            market_totals[currency] = total_value if has_priced_position else None
             print("  " + "─" * 90)
-            print(f"  {'持仓市值':<16} {'':>8} {'':>12} {'':>14} "
-                  f"{symbol}{total_value:>12,.2f}")
-            print(f"  {'现金':<16} {'':>8} {'':>12} {'':>14} "
-                  f"{symbol}{cash:>12,.2f}")
+            print(f"  {f'持仓市值 [{currency}]':<16} {'':>8} {'':>12} {'':>14} "
+                  f"{_fmt(total_value, symbol):>14}")
+            print(f"  {f'现金 [{currency}]':<16} {'':>8} {'':>12} {'':>14} "
+                  f"{_fmt(cash, symbol):>14}")
+
+        # A per-currency total is meaningful only when every valued position
+        # and cash balance shares one denomination.  Never aggregate across
+        # currencies, and do not let an unpriced foreign-currency position
+        # suppress a valid same-currency account total.
+        combined_currencies = {
+            currency for currency, value in market_totals.items()
+            if value is not None or currency in cash_positions
+        }
+        if len(combined_currencies) == 1:
+            currency = next(iter(combined_currencies))
+            symbol = models.CURRENCY_SYMBOLS.get(currency) or f"{currency} "
+            total = (market_totals.get(currency) or 0.0) + float(
+                cash_positions.get(currency, {}).get("shares", 0.0)
+            )
+            print(f"  {f'合计 [{currency}]':<16} {'':>8} {'':>12} {'':>14} "
+                  f"{_fmt(total, symbol):>14}")
+        elif len(combined_currencies) > 1:
+            print("  合计：多币种，未合并")
 
 
 # ── Verification ────────────────────────────────────────────────────────

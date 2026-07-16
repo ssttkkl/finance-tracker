@@ -1044,7 +1044,7 @@ def test_stock_list_separates_values_by_allowed_cash_settlement_currency(tmp_env
     assert "持仓 [HKD]  IBKR" in out
     assert "aapl.us" in out
     assert "00700.hk" in out
-    assert "合计" not in out
+    assert "合计：多币种，未合并" in out
 
 
 def test_fetch_prices_single_hk_series(monkeypatch):
