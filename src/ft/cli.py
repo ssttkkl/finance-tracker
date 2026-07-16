@@ -89,7 +89,7 @@ def main(argv=None):
     buy_p.add_argument("--price", type=float, required=True)
     buy_p.add_argument("--commission", type=float, default=0.0)
     buy_p.add_argument("--account", required=True)
-    buy_p.add_argument("--currency", default="USD", choices=["CNY", "USD", "HKD"])
+    buy_p.add_argument("--currency")
     buy_p.add_argument("--note", default="")
     buy_p.add_argument("--date")
 
@@ -99,7 +99,7 @@ def main(argv=None):
     sell_p.add_argument("--price", type=float, required=True)
     sell_p.add_argument("--commission", type=float, default=0.0)
     sell_p.add_argument("--account", required=True)
-    sell_p.add_argument("--currency", default="USD", choices=["CNY", "USD", "HKD"])
+    sell_p.add_argument("--currency")
     sell_p.add_argument("--note", default="")
     sell_p.add_argument("--date")
 
@@ -109,21 +109,21 @@ def main(argv=None):
     swap_p.add_argument("--to-ticker", required=True)
     swap_p.add_argument("--to-shares", type=float, required=True)
     swap_p.add_argument("--account", required=True)
-    swap_p.add_argument("--currency", default="USD", choices=["CNY", "USD", "HKD"])
+    swap_p.add_argument("--currency")
     swap_p.add_argument("--note", default="")
     swap_p.add_argument("--date")
 
     dep_p = stk_sub.add_parser("deposit", help="入金")
     dep_p.add_argument("--amount", type=float, required=True)
     dep_p.add_argument("--account", required=True)
-    dep_p.add_argument("--currency", default="USD", choices=["CNY", "USD", "HKD"])
+    dep_p.add_argument("--currency")
     dep_p.add_argument("--note", default="")
     dep_p.add_argument("--date")
 
     wd_p = stk_sub.add_parser("withdraw", help="出金")
     wd_p.add_argument("--amount", type=float, required=True)
     wd_p.add_argument("--account", required=True)
-    wd_p.add_argument("--currency", default="USD", choices=["CNY", "USD", "HKD"])
+    wd_p.add_argument("--currency")
     wd_p.add_argument("--note", default="")
     wd_p.add_argument("--date")
 
@@ -131,7 +131,7 @@ def main(argv=None):
     div_p.add_argument("--ticker", required=True)
     div_p.add_argument("--amount", type=float, required=True)
     div_p.add_argument("--account", required=True)
-    div_p.add_argument("--currency", default="USD", choices=["CNY", "USD", "HKD"])
+    div_p.add_argument("--currency")
     div_p.add_argument("--note", default="")
     div_p.add_argument("--date")
 
@@ -141,7 +141,7 @@ def main(argv=None):
     checkin_p.add_argument("--shares", type=float)
     checkin_p.add_argument("--avg-cost", type=float)
     checkin_p.add_argument("--cash", type=float)
-    checkin_p.add_argument("--currency", default="USD", choices=["CNY", "USD", "HKD"])
+    checkin_p.add_argument("--currency")
     checkin_p.add_argument("--note", default="")
     checkin_p.add_argument("--date")
 
@@ -531,36 +531,39 @@ def main(argv=None):
             do_list()
             return
 
-        if args.stock_cmd == "buy":
-            do_buy(args.ticker, args.shares, args.price, args.commission,
-                   args.currency, args.account, args.note, args.date)
-        elif args.stock_cmd == "sell":
-            do_sell(args.ticker, args.shares, args.price, args.commission,
-                    args.currency, args.account, args.note, args.date)
-        elif args.stock_cmd == "swap":
-            from .stock import do_swap
-            try:
+        try:
+            if args.stock_cmd == "buy":
+                do_buy(args.ticker, args.shares, args.price, args.commission,
+                       args.currency, args.account, args.note, args.date)
+            elif args.stock_cmd == "sell":
+                do_sell(args.ticker, args.shares, args.price, args.commission,
+                        args.currency, args.account, args.note, args.date)
+            elif args.stock_cmd == "swap":
+                from .stock import do_swap
                 do_swap(args.account, args.from_ticker, args.from_shares,
                         args.to_ticker, args.to_shares, args.currency,
-                        args.note, args.date)
-            except ValueError as exc:
-                print(f"❌ {exc}")
-                sys.exit(1)
-        elif args.stock_cmd == "deposit":
-            do_deposit(args.amount, args.currency, args.account, args.note, args.date)
-        elif args.stock_cmd == "withdraw":
-            do_withdraw(args.amount, args.currency, args.account, args.note, args.date)
-        elif args.stock_cmd == "dividend":
-            do_dividend(args.ticker, args.amount, args.currency, args.account, args.note, args.date)
-        elif args.stock_cmd == "checkin":
-            if args.ticker and args.shares is not None and args.avg_cost is not None:
-                do_checkin_ticker(args.ticker, args.shares, args.avg_cost,
-                                  args.currency or "USD", args.account, args.note, args.date)
-            elif args.cash is not None:
-                do_checkin_cash(args.cash, args.account, args.currency or "USD", args.note, args.date)
-            else:
-                print("❌ 请指定 --ticker+--shares+--avg-cost 或 --cash")
-        elif args.stock_cmd == "convert":
+                        args.note, date=args.date)
+            elif args.stock_cmd == "deposit":
+                do_deposit(args.amount, args.currency, args.account, args.note, args.date)
+            elif args.stock_cmd == "withdraw":
+                do_withdraw(args.amount, args.currency, args.account, args.note, args.date)
+            elif args.stock_cmd == "dividend":
+                do_dividend(args.ticker, args.amount, args.currency, args.account, args.note, args.date)
+            elif args.stock_cmd == "checkin":
+                if args.ticker and args.shares is not None and args.avg_cost is not None:
+                    do_checkin_ticker(args.ticker, args.shares, args.avg_cost,
+                                      args.currency, args.account, args.note, args.date)
+                elif args.cash is not None:
+                    do_checkin_cash(args.cash, args.account, args.currency, args.note, args.date)
+                else:
+                    print("❌ 请指定 --ticker+--shares+--avg-cost 或 --cash")
+        except ValueError as exc:
+            print(f"❌ {exc}")
+            sys.exit(1)
+
+        if args.stock_cmd in {"buy", "sell", "swap", "deposit", "withdraw", "dividend", "checkin"}:
+            return
+        if args.stock_cmd == "convert":
             from .stock import do_convert
             do_convert(args.file, args.source, args.output,
                        password=args.password, account=args.account or "东方证券",

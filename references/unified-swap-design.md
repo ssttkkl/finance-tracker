@@ -27,9 +27,9 @@ accounts:
         BTC:  {shares: 0.02049, avg_cost: 63710, cost_currency: USD}
 ```
 
-- `base_currencies`: 本位币列表（fiat/stablecoin），从 accounts.yaml 配置
-- 本位币 position: avg_cost 固定 1.0，cost_currency = 自身
-- 非本位币 position: avg_cost + cost_currency 追踪 acquisition cost
+- `base_currencies`: 兼容字段名，表示账户允许的现金/结算货币（allowed cash/settlement currencies），从 accounts.yaml 配置；不是 primary/default/reporting currency
+- 现金/结算货币 position: avg_cost 固定 1.0，cost_currency = 自身
+- 非现金/结算货币 position: avg_cost + cost_currency 追踪 acquisition cost
 
 ## CSV 新格式（12 列）
 
@@ -45,7 +45,7 @@ Actions: `swap`（统一交易）, `deposit`, `withdraw`, `dividend`, `checkin`
 
 | 旧概念 | 替代 |
 |--------|------|
-| `cash` 字段 | base currency positions |
+| `cash` 字段 | allowed cash/settlement currency positions |
 | `cash_map` | deleted |
 | `cash_legacy` | deleted |
 | `FIAT` set | `base_currencies` from account config |

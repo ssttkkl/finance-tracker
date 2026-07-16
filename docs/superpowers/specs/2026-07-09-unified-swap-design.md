@@ -43,7 +43,7 @@ accounts:
         ETH:   {shares: 0.2028, avg_cost: 2692, cost_currency: USD}
 ```
 
-- **`base_currencies`**: list of fiat/stablecoin tickers for this account. Determines what counts as "cash" for display and what triggers BUY vs SWAP in exchange_sync.
+- **`base_currencies`**: compatibility key for the account's allowed cash/settlement currencies. Determines what counts as cash for display and what triggers BUY vs SWAP in exchange_sync; it is not a primary/default/reporting currency list.
 - **Position**: `{shares: float, avg_cost: float, cost_currency: str}`. All assets share this shape.
 - **Base currency positions**: `avg_cost` is always 1.0, `cost_currency` = self. Shares represent the balance.
 - **Non-base positions**: `avg_cost` and `cost_currency` track the acquisition cost in whatever currency was used.
@@ -274,7 +274,7 @@ No backward compatibility. All existing CSVs must be regenerated from current sn
 
 ### Deleted Concepts
 
-- `cash` field in snapshot → replaced by base currency positions
+- `cash` field in snapshot → replaced by allowed cash/settlement currency positions
 - `cash_map` → deleted
 - `cash_legacy` → deleted
 - `FIAT` set → replaced by `base_currencies` from account config

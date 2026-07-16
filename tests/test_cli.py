@@ -94,6 +94,88 @@ def test_stock_checkin_accepts_fractional_shares(monkeypatch):
     assert called["args"][1] == 323.5
 
 
+def test_cli_stock_currency_help_has_no_hardcoded_choices(capsys):
+    with pytest.raises(SystemExit):
+        cli.main(["stock", "buy", "--help"])
+    out = capsys.readouterr().out
+    assert "--currency" in out
+    assert "{CNY,USD,HKD}" not in out
+    assert "{CNY, USD, HKD}" not in out
+
+
+def test_cli_stock_buy_accepts_configured_non_builtin_currency(tmp_env):
+    from ft import models
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: Kraken\n"
+        "    type: crypto\n"
+        "    currency: USDT\n"
+        "    base_currencies: [USDT, USDG]\n"
+        "    active: true\n",
+        encoding="utf-8",
+    )
+
+    cli.main([
+        "stock", "deposit", "--amount", "10", "--account", "Kraken",
+        "--currency", "usdg", "--date", "2026-06-30",
+    ])
+
+    with (models.RECORDS_DIR / "security" / "2026-06-30.csv").open(encoding="utf-8") as f:
+        row = next(csv.DictReader(f))
+    assert row["currency"] == "USDG"
+    assert row["to_ticker"] == "usdg"
+
+
+def test_cli_stock_configured_account_requires_explicit_currency(tmp_env, capsys):
+    from ft import models
+
+    models.ACCOUNTS_PATH.write_text(
+        "accounts:\n"
+        "  - name: Kraken\n"
+        "    type: crypto\n"
+        "    currency: USDT\n"
+        "    base_currencies: [USDT, USDG]\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main([
+            "stock", "deposit", "--amount", "10", "--account", "Kraken",
+            "--date", "2026-06-30",
+        ])
+
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert "currency is required" in out
+    assert not (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
+
+
+def test_cli_stock_legacy_no_base_currency_falls_back_to_account_currency(tmp_env):
+    from ft import models
+
+    cli.main([
+        "stock", "deposit", "--amount", "10", "--account", "IBKR",
+        "--date", "2026-06-30",
+    ])
+
+    with (models.RECORDS_DIR / "security" / "2026-06-30.csv").open(encoding="utf-8") as f:
+        row = next(csv.DictReader(f))
+    assert row["currency"] == "USD"
+    assert row["to_ticker"] == "usd"
+
+
+def test_cli_stock_validation_errors_exit_nonzero(tmp_env, capsys):
+    with pytest.raises(SystemExit) as exc:
+        cli.main([
+            "stock", "deposit", "--amount", "10", "--account", "IBKR",
+            "--currency", "CNY", "--date", "2026-06-30",
+        ])
+
+    assert exc.value.code == 1
+    assert "not configured" in capsys.readouterr().out
+
+
 def test_cli_add_to_security_preserves_existing_stock_columns(tmp_env):
     """Top-level ft add must not corrupt mixed security CSV files."""
     from ft import models
