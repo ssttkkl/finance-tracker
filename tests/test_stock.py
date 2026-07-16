@@ -302,6 +302,128 @@ def test_do_list_shows_fractional_shares(tmp_env, monkeypatch, capsys):
     assert "16.7" in out
 
 
+def test_fetch_prices_does_not_hardcode_currency_tickers(monkeypatch):
+    """Only do_list knows account base currencies; the price helper must not."""
+    from ft.stock import _fetch_prices
+
+    def fake_download(tickers, period=None, progress=False, auto_adjust=False):
+        assert tickers == ["USD"]
+        return pd.DataFrame({"Close": [12.34]})
+
+    fake_yf = type("FakeYF", (), {"download": staticmethod(fake_download)})
+    monkeypatch.setitem(sys.modules, "yfinance", fake_yf)
+    monkeypatch.setattr(time, "sleep", lambda *_: None)
+
+    assert _fetch_prices(["usd"]) == {"usd": pytest.approx(12.34)}
+
+
+def test_do_list_excludes_any_configured_base_currency_from_prices(tmp_env, monkeypatch, capsys):
+    """Configured base cash is not priced, even when it is not USD/CNY/HKD."""
+    from ft.accounts import save_accounts
+    from ft.snapshot import save_snapshot
+    from ft.stock import do_list
+
+    save_accounts([{
+        "name": "Kraken", "type": "crypto", "currency": "USD",
+        "base_currencies": ["USDT", "USDG"], "active": True,
+    }])
+    save_snapshot({"accounts": {"security": {"Kraken": {
+        "currency": "USD",
+        "positions": {
+            "usdt": {"shares": 1020.98, "total_cost": 1020.98, "cost_currency": "USDT"},
+            "USDG": {"shares": 3.0, "total_cost": 3.0, "cost_currency": "USDG"},
+            "btc": {"shares": 0.01, "total_cost": 700.0, "cost_currency": "USDT"},
+        },
+    }}}})
+    requested = []
+
+    def fake_fetch(tickers):
+        requested.extend(tickers)
+        return {"btc": 80000.0}
+
+    monkeypatch.setattr("ft.stock._fetch_prices", fake_fetch)
+
+    do_list()
+    out = capsys.readouterr().out
+    assert requested == ["btc"]
+    assert "现金 [USDT]" in out
+    assert "USDT 1,020.98" in out
+    assert "现金 [USDG]" in out
+    assert "USDG 3.00" in out
+    assert "合计：多币种，未合并" in out
+
+
+def test_do_list_non_base_currency_position_is_not_priced_or_mislabeled(tmp_env, monkeypatch, capsys):
+    """A non-base currency position has no FX valuation and uses its own currency."""
+    from ft.accounts import save_accounts
+    from ft.snapshot import save_snapshot
+    from ft.stock import do_list
+
+    save_accounts([
+        {
+            "name": "港股证券", "type": "security", "currency": "HKD",
+            "base_currencies": ["HKD"], "active": True,
+        },
+        {
+            "name": "人民币现金", "type": "cash", "currency": "CNY",
+            "base_currencies": ["CNY"], "active": True,
+        },
+    ])
+    save_snapshot({"accounts": {"security": {"港股证券": {
+        "currency": "HKD",
+        "positions": {
+            "hkd": {"shares": 100.0, "total_cost": 100.0, "cost_currency": "HKD"},
+            "cny": {"shares": 5294.16, "total_cost": 5294.16, "cost_currency": "HKD"},
+            "00700.hk": {"shares": 2.0, "total_cost": 600.0, "cost_currency": "HKD"},
+        },
+    }}}})
+    requested = []
+
+    def fake_fetch(tickers):
+        requested.extend(tickers)
+        return {"00700.hk": 350.0}
+
+    monkeypatch.setattr("ft.stock._fetch_prices", fake_fetch)
+
+    do_list()
+    out = capsys.readouterr().out
+    cny_line = next(line for line in out.splitlines() if "cny" in line)
+    assert requested == ["00700.hk"]
+    assert "¥" in cny_line
+    assert "HK$" not in cny_line
+    assert "N/A" in cny_line
+    assert "合计 [HKD]" in out
+    assert "HK$800.00" in out
+
+
+def test_do_list_values_negative_position_with_a_valid_quote(tmp_env, monkeypatch, capsys):
+    """A short position with a quote has negative market value, not N/A."""
+    from ft.accounts import save_accounts
+    from ft.snapshot import save_snapshot
+    from ft.stock import do_list
+
+    save_accounts([{
+        "name": "IBKR", "type": "security", "currency": "USD",
+        "base_currencies": ["USD"], "active": True,
+    }])
+    save_snapshot({"accounts": {"security": {"IBKR": {
+        "currency": "USD",
+        "positions": {
+            "usd": {"shares": 0.0, "total_cost": 0.0, "cost_currency": "USD"},
+            "nvda.us": {"shares": -2.0, "total_cost": -160.0, "cost_currency": "USD"},
+        },
+    }}}})
+    monkeypatch.setattr("ft.stock._fetch_prices", lambda tickers: {"nvda.us": 100.0})
+
+    do_list()
+    out = capsys.readouterr().out
+    nvda_line = next(line for line in out.splitlines() if "nvda.us" in line)
+    assert "$-200.00" in nvda_line
+    assert "N/A" not in nvda_line
+    assert "持仓市值 [USD]" in out
+    assert "$-200.00" in out
+
+
 def test_do_checkin_cash(tmp_env):
     """Checkin cash overwrites cash balance"""
     from ft.stock import do_deposit, do_checkin_cash, load_snapshot

@@ -31,6 +31,17 @@ Useful fields:
 - `usdcSize` → amount basis; BUY stored negative, SELL stored positive
 - `transactionHash` → include in `note` for idempotence/audit
 
+## Full-coverage Activity types: TRADE, REDEEM, YIELD
+
+A full history replacement must account for every monetary Activity type returned by the API; do **not** silently discard non-`TRADE` rows.
+
+- **TRADE**: map to the normal unified `swap` row as documented below.
+- **REDEEM**: Activity can contain an empty `outcome`/`asset`, while supplying `slug`, `conditionId`, `size`/`usdcSize`, and `transactionHash`. Replay the official TRADE stream chronologically in memory before writing. At each REDEEM, identify the held `pm:<slug>:yes|no` token whose pre-redeem shares exactly equal the payout. Only when there is exactly one candidate, write `swap(token → USD, shares=payout, to_amount=payout, price=1)` with a stable note containing `conditionId` and transaction hash. If zero or multiple candidates match, stop for review rather than guessing.
+- **YIELD**: map the USDC payout to `dividend(DIV → USD)` with a transaction-hash note. It is a cash credit, not a market-token trade.
+- **External funding**: public Activity does not include deposits. Preserve or explicitly recreate the evidence-backed `deposit` cash leg needed by security replay; do not fabricate a balancing amount.
+
+After reimport, compare ledger `pm:` positions to the official Positions API. If the only residuals are tiny (`abs(shares) < 0.01`) tokens absent/zero in the API, append auditable zero-share `checkin` rows after the final Activity timestamp, then rebuild and compare again. Never use this cleanup for a material mismatch.
+
 ## Conversion to ft stock CSV
 
 Target fields:

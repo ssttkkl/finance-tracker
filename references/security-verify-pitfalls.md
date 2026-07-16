@@ -172,12 +172,57 @@ elif "total_cost" in pos:
 
 Also fix the "负成本" check: `avg_cost < 0` not `avg_cost == 0`.
 
+## 7) Determine whether a screenshot CHECKIN is actually necessary
+
+A screenshot CHECKIN can be either a legitimate calibration or a mask over dirty history. Before retaining or deleting it, replay the account **up to immediately before that CHECKIN** and compare two paths:
+
+1. **Raw replay:** replay every current CSV row exactly as stored.
+2. **Canonical replay:** replay the clean converter output plus confirmed post-statement trades. If no canonical file exists, perform a duplicate audit first; do not blindly `set()`-deduplicate because two genuinely identical fills can occur.
+
+Compare, per ticker:
+
+- shares before CHECKIN vs screenshot shares
+- computed `total_cost / shares` vs screenshot average cost
+- cash separately from securities
+
+Interpretation:
+
+- Canonical transactions reproduce shares and average cost exactly → the stock CHECKIN is redundant, but remove it **only after** duplicate rows are fixed.
+- Raw replay disagrees while canonical replay agrees → duplicate/malformed history is being hidden by the CHECKIN. `ft verify` may still pass because snapshot and duplicated CSV are internally consistent.
+- Cash alone disagrees → do not infer that the stock history is wrong. Calculate the unexplained cash movement: `replayed_cash - screenshot_cash`; retain the cash CHECKIN until the missing deposit/withdrawal/transfer is found.
+
+Useful manual checks under the unified swap model:
+
+```text
+shares = Σ(to_amount where to_ticker=ticker) - Σ(from_amount where from_ticker=ticker)
+remaining_total_cost = prior_total_cost + buy_from_amount - sell_to_amount
+avg_cost = remaining_total_cost / remaining_shares
+```
+
+When a position was fully sold and later repurchased, the new holding should derive entirely from the repurchase chain.
+
+## 8) Safe targeted edits on CRLF security CSVs
+
+Many security CSVs use `\r\n`. Fuzzy text replacement written with `\n` can match too broadly and remove an adjacent unrelated row while still reporting success.
+
+Safe workflow:
+
+1. Read the exact target file first and preserve its line ending.
+2. Make the smallest row-level edit with unique surrounding context.
+3. Immediately run `git diff -- <affected files>` against the pre-edit index/worktree.
+4. The diff must contain only the intended row additions/removals. If any neighboring trade or another account's row disappears, restore it before running `ft verify --fix`.
+5. Recount the targeted action/account rows, then run `ft verify --fix && ft verify`.
+
+Do not treat `ft verify` as proof that the edit scope was correct: rebuilding the snapshot from an accidentally edited CSV can still produce an internally consistent but wrong ledger.
+
 ## Verification checklist
 
 - `ft verify` completes without exceptions.
 - `ft verify` reports `✅ Security CSV ↔ Snapshot 完全对齐`.
 - `ft stock list` does not show zero-share residue positions.
 - When reconciling with user screenshots, manually verify avg_cost matches BUY/SELL-only calculation.
+- Before deleting a CHECKIN, raw replay and canonical replay have both been compared.
+- After editing CRLF CSVs, `git diff -- <affected files>` shows only the intended rows.
 
 ## Related code
 

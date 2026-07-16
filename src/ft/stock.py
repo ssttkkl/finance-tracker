@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import models
+from .accounts import load_accounts
 from .snapshot import git_stage, load_snapshot, save_snapshot
 
 # ── CSV fields for security trades ──────────────────────────────────────
@@ -1502,6 +1503,34 @@ def _fmt(value: float, symbol: str) -> str:
     return f"{symbol}{value:>,.2f}"
 
 
+def _format_money(value: float, currency: str) -> str:
+    """Format money in its native currency without assuming account currency."""
+    currency = str(currency or "").upper()
+    symbol = models.CURRENCY_SYMBOLS.get(currency)
+    if symbol:
+        return f"{symbol}{value:,.2f}"
+    return f"{currency} {value:,.2f}" if currency else f"{value:,.2f}"
+
+
+def _base_currencies_by_account() -> dict[str, tuple[str, ...]]:
+    """Return configured base currencies per account, with legacy fallback.
+
+    A base currency is cash in that account; it must not be quoted or included
+    in a cross-currency total. Older account definitions only have ``currency``.
+    """
+    result = {}
+    for account in load_accounts():
+        name = account.get("name")
+        if not name:
+            continue
+        configured = account.get("base_currencies") or [account.get("currency", "CNY")]
+        currencies = tuple(
+            str(currency).upper() for currency in configured if str(currency).strip()
+        )
+        result[name] = currencies or ("CNY",)
+    return result
+
+
 def do_list():
     """Read snapshot, fetch prices, display portfolio."""
     snap = load_snapshot()
@@ -1521,20 +1550,38 @@ def do_list():
         print("📭 无持仓")
         return
 
-    # Collect all tickers for price fetching
-    all_tickers = set()
-    for acct_data in all_accts.values():
-        all_tickers.update(acct_data.get("positions", {}).keys())
+    base_currencies_by_account = _base_currencies_by_account()
+    configured_currency_tickers = {
+        base_currency.lower()
+        for base_currencies in base_currencies_by_account.values()
+        for base_currency in base_currencies
+    }
+
+    # Account configuration is the sole currency registry. A configured base
+    # currency is cash wherever it appears, so it is never sent to a quote API.
+    # This handles, for example, a CNY position held in an HKD account without
+    # hard-coding CNY/USD/HKD in the display or pricing path.
+    all_tickers = {
+        ticker
+        for acct_data in all_accts.values()
+        for ticker in acct_data.get("positions", {})
+        if str(ticker).lower() not in configured_currency_tickers
+    }
     prices = _fetch_prices(list(all_tickers))
 
     for acct_name, acct_data in all_accts.items():
-        currency = acct_data.get("currency", "CNY") or "CNY"
-        symbol = models.CURRENCY_SYMBOLS.get(currency, "$")
+        currency = str(acct_data.get("currency", "CNY") or "CNY").upper()
         positions = acct_data.get("positions", {})
-
-        # Cash is a position in the currency ticker (e.g. "usd", "cny")
-        ccy = currency.lower()
-        cash = positions.get(ccy, {}).get("shares", 0.0)
+        base_currencies = base_currencies_by_account.get(acct_name, (currency,))
+        base_currency_keys = {base_currency.lower() for base_currency in base_currencies}
+        cash_by_currency = {
+            base_currency: sum(
+                pos.get("shares", 0.0)
+                for ticker, pos in positions.items()
+                if str(ticker).lower() == base_currency.lower()
+            )
+            for base_currency in base_currencies
+        }
 
         print(f"\n  📊 持仓 [{currency}]  {acct_name}")
         print(
@@ -1543,49 +1590,70 @@ def do_list():
         )
         print("  " + "-" * 90)
 
-        total_cost = 0.0
-        total_value = 0.0
+        market_values_by_currency: dict[str, float] = {}
 
         for ticker in sorted(positions.keys()):
-            if ticker == ccy:
-                continue  # skip currency position in the position table
+            if str(ticker).lower() in base_currency_keys:
+                continue  # base-currency positions are cash, not securities
             pos = positions[ticker]
             shares = pos["shares"]
             if shares == 0:
                 continue
             total = pos.get("total_cost", 0.0)
             avg_cost = total / shares if shares != 0 else 0.0
-            cost = total
-            current_price = prices.get(ticker)
-            if current_price is not None and shares > 0:
+            ticker_key = str(ticker).lower()
+            position_currency = (
+                str(ticker).upper()
+                if ticker_key in configured_currency_tickers
+                else str(pos.get("cost_currency") or currency).upper()
+            )
+            current_price = None if ticker_key in configured_currency_tickers else prices.get(ticker)
+            if isinstance(current_price, float) and math.isnan(current_price):
+                current_price = None
+            if current_price is not None:
                 value = shares * current_price
-                pl = value - cost
+                pl = value - total
                 pct = (current_price - avg_cost) / avg_cost * 100 if avg_cost > 0 else 0.0
-                pl_str = f"+{symbol}{pl:>,.2f}" if pl >= 0 else f"{symbol}{pl:>,.2f}"
+                value_str = _format_money(value, position_currency)
+                pl_str = (
+                    f"+{_format_money(pl, position_currency)}"
+                    if pl >= 0 else _format_money(pl, position_currency)
+                )
                 pct_str = f"+{pct:.1f}%" if pct >= 0 else f"{pct:.1f}%"
+                market_values_by_currency[position_currency] = (
+                    market_values_by_currency.get(position_currency, 0.0) + value
+                )
             else:
-                value = 0.0
-                pl = 0.0
-                pl_str = "   N/A"
-                pct_str = "  N/A"
+                value_str = "N/A"
+                pl_str = "N/A"
+                pct_str = "N/A"
 
             print(
-                f"  {ticker:<16} {_fmt_shares(shares):>8} {symbol}{avg_cost:>10,.2f} "
-                f"{symbol}{cost:>12,.2f} {symbol}{value:>12,.2f} "
+                f"  {ticker:<16} {_fmt_shares(shares):>8} "
+                f"{_format_money(avg_cost, position_currency):>12} "
+                f"{_format_money(total, position_currency):>14} {value_str:>14} "
                 f"{pl_str:>14} {pct_str:>8}"
             )
 
-            total_cost += cost
-            total_value += value
-
         print("  " + "─" * 90)
-        print(f"  {'持仓市值':<16} {'':>8} {'':>12} {'':>14} "
-              f"{symbol}{total_value:>12,.2f}")
-        print(f"  {'现金':<16} {'':>8} {'':>12} {'':>14} "
-              f"{symbol}{cash:>12,.2f}")
-        total_combined = total_value + cash
-        print(f"  {'合计':<16} {'':>8} {'':>12} {'':>14} "
-              f"{symbol}{total_combined:>12,.2f}")
+        for value_currency, value in market_values_by_currency.items():
+            print(f"  {f'持仓市值 [{value_currency}]':<16} {'':>8} {'':>12} {'':>14} "
+                  f"{_format_money(value, value_currency):>14}")
+        for base_currency, cash in cash_by_currency.items():
+            print(f"  {f'现金 [{base_currency}]':<16} {'':>8} {'':>12} {'':>14} "
+                  f"{_format_money(cash, base_currency):>14}")
+
+        displayed_currencies = set(market_values_by_currency) | set(cash_by_currency)
+        if len(displayed_currencies) == 1:
+            total_currency = next(iter(displayed_currencies))
+            total_combined = (
+                market_values_by_currency.get(total_currency, 0.0)
+                + cash_by_currency.get(total_currency, 0.0)
+            )
+            print(f"  {f'合计 [{total_currency}]':<16} {'':>8} {'':>12} {'':>14} "
+                  f"{_format_money(total_combined, total_currency):>14}")
+        else:
+            print("  合计：多币种，未合并")
 
 
 # ── Verification ────────────────────────────────────────────────────────
