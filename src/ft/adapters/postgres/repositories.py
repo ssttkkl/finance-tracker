@@ -61,6 +61,31 @@ class PostgresAccountRepository:
             active=account.active,
         ))
 
+    def add_raw(self, account: dict) -> None:
+        known = {"name", "type", "currency", "active"}
+        self._session.add(AccountModel(
+            workspace_id=self._workspace_id,
+            name=account.get("name", ""),
+            type=account.get("type", ""),
+            currency=account.get("currency", ""),
+            active=account.get("active", True),
+            metadata_json={key: _json_safe(value) for key, value in account.items() if key not in known},
+        ))
+
+    def list_raw(self) -> list[dict]:
+        rows = self._session.scalars(
+            select(AccountModel)
+            .where(AccountModel.workspace_id == self._workspace_id)
+            .order_by(AccountModel.created_at, AccountModel.id)
+        )
+        return [{
+            "name": row.name,
+            "type": row.type,
+            "currency": row.currency,
+            "active": row.active,
+            **row.metadata_json,
+        } for row in rows]
+
     def replace_all(self, accounts: list[AccountDTO]) -> None:
         self._session.execute(
             delete(AccountModel).where(AccountModel.workspace_id == self._workspace_id)
