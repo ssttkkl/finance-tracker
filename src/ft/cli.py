@@ -367,24 +367,23 @@ def main(argv=None):
     if args.cmd == "reconcile":
         if args.month and (args.date_from or args.date_to):
             parser.error("--month 与 --from/--to 不能同时使用")
+        from . import models
+        service = build_local_services(models.FT_DIR).reconciliation
         if args.abort:
             if args.month or args.date_from or args.date_to or args.continue_with_decisions:
                 parser.error("reconcile --abort 不能和范围参数或 --continue-with-decisions 同时使用")
-            from .reconcile import abort_reconcile
-            abort_reconcile()
-            return
-        if args.continue_with_decisions:
+            result = service.abort()
+        elif args.continue_with_decisions:
             if args.month or args.date_from or args.date_to:
                 parser.error("reconcile --continue-with-decisions 不能和范围参数同时使用")
-            from .reconcile import continue_reconcile
-            continue_reconcile()
-            return
-        from . import models
-        from .adapters.local_csv import LocalCsvUnitOfWork
-        from .application.reconcile import ReconcileService
-        result = ReconcileService(LocalCsvUnitOfWork(models.FT_DIR)).reconcile(
-            month=args.month, date_from=args.date_from, date_to=args.date_to
-        )
+            result = service.continue_with_decisions()
+        else:
+            result = service.start(
+                month=args.month, date_from=args.date_from, date_to=args.date_to
+            )
+        if not result.ok:
+            print(f"❌ {result.error.message}")
+            raise SystemExit(1)
         print(result.message)
         return
 

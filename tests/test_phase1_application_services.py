@@ -1094,17 +1094,18 @@ def test_reconcile_service_uses_injected_ledger_for_matching_and_audit(tmp_path,
         encoding="utf-8",
     )
 
-    from ft.adapters.local_csv import LocalCsvUnitOfWork
+    from ft.adapters.local_reconciliation import LocalReconciliationRepository
     from ft.application.reconcile import ReconcileService
 
-    result = ReconcileService(LocalCsvUnitOfWork(ledger)).reconcile(
+    changes = type("Changes", (), {"stage": lambda self: None})()
+    result = ReconcileService(LocalReconciliationRepository(ledger), changes).start(
         date_from="2026-07-16",
         date_to="2026-07-16",
     )
 
     assert result.ok is True
     assert result.transfer_matches == 1
-    assert result.audit_path and result.audit_path.is_relative_to(ledger)
+    assert result.audit_reference and Path(result.audit_reference).is_relative_to(ledger)
     cash_rows = _read_rows(cash_dir / "2026-07.csv")
     loan_rows = _read_rows(loan_dir / "2026-07.csv")
     assert cash_rows[0]["category"] == "transfer_out"
@@ -1142,10 +1143,11 @@ def test_reconcile_service_repairs_security_snapshot_without_home_or_git_stage(t
         encoding="utf-8",
     )
 
-    from ft.adapters.local_csv import LocalCsvUnitOfWork
+    from ft.adapters.local_reconciliation import LocalReconciliationRepository
     from ft.application.reconcile import ReconcileService
 
-    result = ReconcileService(LocalCsvUnitOfWork(ledger)).reconcile(
+    changes = type("Changes", (), {"stage": lambda self: None})()
+    result = ReconcileService(LocalReconciliationRepository(ledger), changes).start(
         date_from="2026-07-16",
         date_to="2026-07-16",
     )

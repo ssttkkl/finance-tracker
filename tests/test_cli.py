@@ -71,14 +71,13 @@ def test_reconcile_month_dispatch(monkeypatch):
     called = {}
 
     class FakeService:
-        def __init__(self, uow):
-            called["uow"] = uow
-
-        def reconcile(self, *, month=None, date_from=None, date_to=None):
+        def start(self, *, month=None, date_from=None, date_to=None):
+            from ft.domain.reconciliation import ReconcileResultDTO, ReconciliationState
             called["args"] = (month, date_from, date_to)
-            return type("Result", (), {"message": "无重复项"})()
+            return ReconcileResultDTO(True, ReconciliationState.COMPLETED, "无重复项")
 
-    monkeypatch.setattr("ft.application.reconcile.ReconcileService", FakeService)
+    bundle = type("Bundle", (), {"reconciliation": FakeService()})()
+    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
     cli.main(["reconcile", "--month", "2026-06"])
     assert called["args"] == ("2026-06", None, None)
 
@@ -87,14 +86,13 @@ def test_reconcile_range_dispatch(monkeypatch):
     called = {}
 
     class FakeService:
-        def __init__(self, uow):
-            called["uow"] = uow
-
-        def reconcile(self, *, month=None, date_from=None, date_to=None):
+        def start(self, *, month=None, date_from=None, date_to=None):
+            from ft.domain.reconciliation import ReconcileResultDTO, ReconciliationState
             called["args"] = (month, date_from, date_to)
-            return type("Result", (), {"message": "无重复项"})()
+            return ReconcileResultDTO(True, ReconciliationState.COMPLETED, "无重复项")
 
-    monkeypatch.setattr("ft.application.reconcile.ReconcileService", FakeService)
+    bundle = type("Bundle", (), {"reconciliation": FakeService()})()
+    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
     cli.main(["reconcile", "--from", "2026-06-01", "--to", "2026-06-30"])
     assert called["args"] == (None, "2026-06-01", "2026-06-30")
 
@@ -188,9 +186,14 @@ def test_reconcile_rejects_month_plus_range():
 def test_reconcile_continue_dispatch(monkeypatch):
     called = {}
 
-    monkeypatch.setattr("ft.reconcile.continue_reconcile", lambda: called.setdefault("continued", True))
-    monkeypatch.setattr("ft.reconcile.abort_reconcile", lambda: None)
-    monkeypatch.setattr("ft.reconcile.do_reconcile", lambda **kwargs: None)
+    class FakeService:
+        def continue_with_decisions(self):
+            from ft.domain.reconciliation import ReconcileResultDTO, ReconciliationState
+            called["continued"] = True
+            return ReconcileResultDTO(True, ReconciliationState.COMPLETED, "continued")
+
+    bundle = type("Bundle", (), {"reconciliation": FakeService()})()
+    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
 
     cli.main(["reconcile", "--continue-with-decisions"])
     assert called["continued"] is True
@@ -199,9 +202,14 @@ def test_reconcile_continue_dispatch(monkeypatch):
 def test_reconcile_abort_dispatch(monkeypatch):
     called = {"abort": False}
 
-    monkeypatch.setattr("ft.reconcile.continue_reconcile", lambda: None)
-    monkeypatch.setattr("ft.reconcile.abort_reconcile", lambda: called.__setitem__("abort", True))
-    monkeypatch.setattr("ft.reconcile.do_reconcile", lambda **kwargs: None)
+    class FakeService:
+        def abort(self):
+            from ft.domain.reconciliation import ReconcileResultDTO, ReconciliationState
+            called["abort"] = True
+            return ReconcileResultDTO(True, ReconciliationState.ABORTED, "aborted")
+
+    bundle = type("Bundle", (), {"reconciliation": FakeService()})()
+    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
 
     cli.main(["reconcile", "--abort"])
     assert called["abort"] is True

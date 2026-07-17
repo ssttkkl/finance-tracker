@@ -19,10 +19,12 @@ from ft.adapters.local_sync import (
     LocalInvestmentEventRepository,
     LocalSecretStore,
 )
+from ft.adapters.local_reconciliation import LocalReconciliationRepository
 from ft.application.change_sets import ChangeSetService
 from ft.application.imports import CashflowImportService
 from ft.application.investment import InvestmentService, PortfolioQueryService
 from ft.application.queries import FinanceQueryService
+from ft.application.reconcile import ReconcileService
 from ft.application.sync import ConnectorSyncService
 from ft.application.verification import VerificationService
 from ft.runtime import ServiceBundle
@@ -63,6 +65,10 @@ def build_local_services(ledger_root) -> ServiceBundle:
         LocalInvestmentEventRepository(ledger_root),
         change_set_repository,
     )
+    reconciliation = ReconcileService(
+        LocalReconciliationRepository(ledger_root),
+        change_set_repository,
+    )
     return ServiceBundle(
         queries=queries,
         cashflow_imports=cashflow_imports,
@@ -71,4 +77,5 @@ def build_local_services(ledger_root) -> ServiceBundle:
         investments=investments,
         portfolio=portfolio,
         connector_sync=connector_sync,
+        reconciliation=reconciliation,
     )
