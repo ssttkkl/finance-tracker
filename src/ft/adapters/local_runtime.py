@@ -8,9 +8,15 @@ from ft.adapters.market_data import LegacyMarketDataProvider
 from ft.adapters.local_change_set import LocalGitChangeSetRepository
 from ft.adapters.local_config import LocalMappingProvider
 from ft.adapters.local_import import LocalCashflowImporter, LocalCashflowImportRepository
+from ft.adapters.local_investment import (
+    LocalInvestmentCommandRepository,
+    LocalInvestmentImporter,
+    LocalPortfolioRepository,
+)
 from ft.adapters.local_verification import LocalVerificationRepository
 from ft.application.change_sets import ChangeSetService
 from ft.application.imports import CashflowImportService
+from ft.application.investment import InvestmentService, PortfolioQueryService
 from ft.application.queries import FinanceQueryService
 from ft.application.verification import VerificationService
 from ft.runtime import ServiceBundle
@@ -35,9 +41,20 @@ def build_local_services(ledger_root) -> ServiceBundle:
         LocalVerificationRepository(ledger_root),
         change_sets=change_set_repository,
     )
+    investments = InvestmentService(
+        repository=LocalInvestmentCommandRepository(ledger_root),
+        importer=LocalInvestmentImporter(ledger_root),
+        change_sets=change_set_repository,
+    )
+    portfolio = PortfolioQueryService(
+        LocalPortfolioRepository(ledger_root),
+        LegacyMarketDataProvider(),
+    )
     return ServiceBundle(
         queries=queries,
         cashflow_imports=cashflow_imports,
         verification=verification,
         change_sets=change_sets,
+        investments=investments,
+        portfolio=portfolio,
     )

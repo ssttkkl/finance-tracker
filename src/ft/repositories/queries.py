@@ -53,6 +53,12 @@ class InvestmentEventRepository(Protocol):
 
 
 @runtime_checkable
+class PortfolioRepository(Protocol):
+    def load_portfolio(self) -> dict:
+        ...
+
+
+@runtime_checkable
 class VerificationRepository(Protocol):
     def verify_cashflows(self) -> tuple[int, tuple[object, ...]]:
         ...

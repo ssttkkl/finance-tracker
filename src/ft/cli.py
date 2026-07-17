@@ -5,7 +5,9 @@ from decimal import Decimal
 from .report import render_finance_report, render_transactions
 from .acct import acct_add, acct_list, acct_rename, acct_delete, acct_activate
 from .adapters.export_csv import write_csv_export
+from .adapters.portfolio_cli import render_portfolio
 from .domain.imports import CashflowConvertCommand
+from .domain.investment import InvestmentConvertCommand
 from .runtime import build_local_services
 
 
@@ -446,58 +448,12 @@ def main(argv=None):
         return
 
     if args.cmd == "stock":
-        from .stock import (
-            do_buy, do_sell, do_deposit, do_withdraw,
-            do_dividend, do_checkin_ticker, do_checkin_cash,
-            do_list,
-        )
-
+        from . import models
         if not args.stock_cmd:
-            do_list()
+            render_portfolio(build_local_services(models.FT_DIR).portfolio.get_portfolio())
             return
 
-        try:
-            if args.stock_cmd == "buy":
-                do_buy(args.ticker, args.shares, args.price, args.commission,
-                       args.currency, args.account, args.note, args.date)
-            elif args.stock_cmd == "sell":
-                do_sell(args.ticker, args.shares, args.price, args.commission,
-                        args.currency, args.account, args.note, args.date)
-            elif args.stock_cmd == "swap":
-                from .stock import do_swap
-                do_swap(args.account, args.from_ticker, args.from_shares,
-                        args.to_ticker, args.to_shares, args.currency,
-                        args.note, date=args.date)
-            elif args.stock_cmd == "deposit":
-                do_deposit(args.amount, args.currency, args.account, args.note, args.date)
-            elif args.stock_cmd == "withdraw":
-                do_withdraw(args.amount, args.currency, args.account, args.note, args.date)
-            elif args.stock_cmd == "dividend":
-                do_dividend(args.ticker, args.amount, args.currency, args.account, args.note, args.date)
-            elif args.stock_cmd == "checkin":
-                if args.ticker and args.shares is not None and args.avg_cost is not None:
-                    do_checkin_ticker(args.ticker, args.shares, args.avg_cost,
-                                      args.currency, args.account, args.note, args.date)
-                elif args.cash is not None:
-                    do_checkin_cash(args.cash, args.account, args.currency, args.note, args.date)
-                else:
-                    print("❌ 请指定 --ticker+--shares+--avg-cost 或 --cash")
-        except ValueError as exc:
-            print(f"❌ {exc}")
-            sys.exit(1)
-
-        if args.stock_cmd in {"buy", "sell", "swap", "deposit", "withdraw", "dividend", "checkin"}:
-            return
-        if args.stock_cmd == "convert":
-            from .stock import do_convert
-            do_convert(args.file, args.source, args.output,
-                       password=args.password, account=args.account or "东方证券",
-                       currency=args.currency)
-        elif args.stock_cmd == "append":
-            from .stock import do_append
-            if not do_append(args.file):
-                sys.exit(1)
-        elif args.stock_cmd == "sync":
+        if args.stock_cmd == "sync":
             if not args.sync_cmd:
                 print("❌ 请指定 sync provider，例如: ft stock sync polymarket / ft stock sync kraken")
                 sys.exit(1)
@@ -530,8 +486,83 @@ def main(argv=None):
                 except ValueError as exc:
                     print(f"❌ {exc}")
                     sys.exit(1)
-        elif args.stock_cmd == "list":
-            do_list()
+            return
+
+        bundle = build_local_services(models.FT_DIR)
+        service = bundle.investments
+        try:
+            result = None
+            if args.stock_cmd == "buy":
+                result = service.buy(
+                    args.ticker, args.shares, args.price, args.commission,
+                    args.currency, args.account, args.note, args.date,
+                )
+            elif args.stock_cmd == "sell":
+                result = service.sell(
+                    args.ticker, args.shares, args.price, args.commission,
+                    args.currency, args.account, args.note, args.date,
+                )
+            elif args.stock_cmd == "swap":
+                result = service.swap(
+                    args.account, args.from_ticker, args.from_shares,
+                    args.to_ticker, args.to_shares, args.currency,
+                    args.note, args.date,
+                )
+            elif args.stock_cmd == "deposit":
+                result = service.deposit(
+                    args.amount, args.currency, args.account, args.note, args.date,
+                )
+            elif args.stock_cmd == "withdraw":
+                result = service.withdraw(
+                    args.amount, args.currency, args.account, args.note, args.date,
+                )
+            elif args.stock_cmd == "dividend":
+                result = service.dividend(
+                    args.ticker, args.amount, args.currency, args.account,
+                    args.note, args.date,
+                )
+            elif args.stock_cmd == "checkin":
+                if args.ticker and args.shares is not None and args.avg_cost is not None:
+                    result = service.checkin_ticker(
+                        args.ticker, args.shares, args.avg_cost, args.currency,
+                        args.account, args.note, args.date,
+                    )
+                elif args.cash is not None:
+                    result = service.checkin_cash(
+                        args.cash, args.currency, args.account, args.note, args.date,
+                    )
+                else:
+                    print("❌ 请指定 --ticker+--shares+--avg-cost 或 --cash")
+                    return
+            elif args.stock_cmd == "convert":
+                result = service.convert(InvestmentConvertCommand(
+                    source_path=args.file,
+                    source=args.source,
+                    password=args.password,
+                    account=args.account or "东方证券",
+                    currency=args.currency,
+                ))
+                if result.ok:
+                    write_csv_export(result.export, args.output)
+                    print(f"✅ 已转换 {result.count} 条记录 → {args.output}")
+                else:
+                    print("❌ 未解析到任何交易记录")
+                return
+            elif args.stock_cmd == "append":
+                result = service.append(args.file)
+                if not result.ok:
+                    print(f"❌ {result.message}")
+                    raise SystemExit(1)
+                print(f"✅ 已导入 {result.count} 条记录到 security 记录")
+                return
+            elif args.stock_cmd == "list":
+                render_portfolio(bundle.portfolio.get_portfolio())
+                return
+            if result is not None and result.message:
+                print(result.message)
+        except (ValueError, FileNotFoundError) as exc:
+            print(f"❌ {exc}")
+            raise SystemExit(1)
         return
 
 
