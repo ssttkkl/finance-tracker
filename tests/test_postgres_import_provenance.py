@@ -1,0 +1,118 @@
+import pytest
+
+from test_postgres_adapter import _database
+
+
+def test_import_batch_is_idempotent_by_workspace_kind_and_digest():
+    sessions, unit_of_work = _database()
+
+    with unit_of_work(sessions, "workspace-a") as uow:
+        first = uow.imports.start_batch(
+            source_kind="local_migration",
+            source_digest="sha256:ledger-a",
+            source_ref="/redacted/ledger",
+        )
+        second = uow.imports.start_batch(
+            source_kind="local_migration",
+            source_digest="sha256:ledger-a",
+            source_ref="/another/path",
+        )
+        uow.imports.complete_batch(first)
+        uow.commit()
+
+    assert first == second
+    with unit_of_work(sessions, "workspace-a") as uow:
+        batch = uow.imports.get_batch(first)
+        uow.commit()
+    assert batch["status"] == "completed"
+    assert batch["source_ref"] == "/redacted/ledger"
+
+
+def test_raw_files_records_and_revisions_are_append_only_and_scoped():
+    sessions, unit_of_work = _database()
+
+    with unit_of_work(sessions, "workspace-a") as uow:
+        batch_id = uow.imports.start_batch(
+            source_kind="local_migration",
+            source_digest="sha256:ledger-a",
+            source_ref="ledger",
+        )
+        raw_file_id = uow.imports.add_raw_file(
+            batch_id=batch_id,
+            source_path="records/cash/2026-07.csv",
+            content_digest="sha256:file-a",
+            size_bytes=128,
+            media_type="text/csv",
+        )
+        record_ids = uow.imports.add_raw_records(
+            batch_id=batch_id,
+            raw_file_id=raw_file_id,
+            source_type="cash",
+            records=[
+                {"source_identity": "cash:2026-07.csv:2", "source_line": 2, "payload": {"amount": "-1.20"}},
+                {"source_identity": "cash:2026-07.csv:3", "source_line": 3, "payload": {"amount": "2.00"}},
+            ],
+        )
+        revision_id = uow.imports.append_revision(
+            entity_type="cash_transaction",
+            entity_id="transaction-1",
+            before={"category": "expense"},
+            after={"category": "dining"},
+            actor_type="migration",
+            reason="canonicalize category",
+        )
+        uow.commit()
+
+    with unit_of_work(sessions, "workspace-a") as uow:
+        assert uow.imports.list_raw_records(batch_id) == [
+            {"id": record_ids[0], "source_identity": "cash:2026-07.csv:2", "source_line": 2, "payload": {"amount": "-1.20"}},
+            {"id": record_ids[1], "source_identity": "cash:2026-07.csv:3", "source_line": 3, "payload": {"amount": "2.00"}},
+        ]
+        assert uow.imports.list_revisions("cash_transaction", "transaction-1") == [{
+            "id": revision_id,
+            "before": {"category": "expense"},
+            "after": {"category": "dining"},
+            "actor_type": "migration",
+            "reason": "canonicalize category",
+        }]
+        with pytest.raises(ValueError, match="immutable"):
+            uow.imports.replace_raw_record(record_ids[0], {"amount": "999"})
+        uow.commit()
+
+    with unit_of_work(sessions, "workspace-b") as uow:
+        assert uow.imports.list_raw_records(batch_id) == []
+        assert uow.imports.list_revisions("cash_transaction", "transaction-1") == []
+        uow.commit()
+
+
+def test_raw_record_identity_is_idempotent_within_workspace():
+    sessions, unit_of_work = _database()
+    record = {"source_identity": "cash:file:2", "source_line": 2, "payload": {"amount": "1"}}
+
+    with unit_of_work(sessions, "workspace-a") as uow:
+        batch_id = uow.imports.start_batch(
+            source_kind="local_migration", source_digest="sha256:a", source_ref="ledger"
+        )
+        first = uow.imports.add_raw_records(
+            batch_id=batch_id, raw_file_id=None, source_type="cash", records=[record]
+        )
+        second = uow.imports.add_raw_records(
+            batch_id=batch_id, raw_file_id=None, source_type="cash", records=[record]
+        )
+        uow.commit()
+
+    assert first == second
+
+
+def test_import_provenance_rolls_back_with_unit_of_work():
+    sessions, unit_of_work = _database()
+    with pytest.raises(RuntimeError, match="boom"):
+        with unit_of_work(sessions, "workspace-a") as uow:
+            uow.imports.start_batch(
+                source_kind="local_migration", source_digest="sha256:a", source_ref="ledger"
+            )
+            raise RuntimeError("boom")
+
+    with unit_of_work(sessions, "workspace-a") as uow:
+        assert uow.imports.list_batches() == []
+        uow.commit()

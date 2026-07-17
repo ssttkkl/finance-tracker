@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from .models import Base, WorkspaceModel
+from .imports import PostgresImportRepository
 from .repositories import (
     PostgresAccountRepository,
     PostgresCashflowRepository,
@@ -56,6 +57,7 @@ class PostgresUnitOfWork:
         self.cashflows = PostgresCashflowRepository(self._session, self.workspace_id)
         self.investments = PostgresInvestmentRepository(self._session, self.workspace_id)
         self.snapshot = PostgresSnapshotRepository(self._session, self.workspace_id)
+        self.imports = PostgresImportRepository(self._session, self.workspace_id)
         self._committed = False
         return self
 

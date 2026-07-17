@@ -20,6 +20,10 @@ def test_initial_alembic_revision_upgrades_and_downgrades(tmp_path):
         "cash_transactions",
         "investment_events",
         "ledger_snapshots",
+        "import_batches",
+        "raw_files",
+        "raw_records",
+        "record_revisions",
     }
 
     command.downgrade(config, "base")

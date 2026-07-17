@@ -147,3 +147,97 @@ class LedgerSnapshotModel(Base):
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now, nullable=False)
+
+
+class ImportBatchModel(Base):
+    __tablename__ = "import_batches"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "source_kind", "source_digest",
+            name="uq_import_batches_workspace_kind_digest",
+        ),
+        Index("ix_import_batches_workspace", "workspace_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    source_kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_digest: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_ref: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class RawFileModel(Base):
+    __tablename__ = "raw_files"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "content_digest", name="uq_raw_files_workspace_digest"
+        ),
+        Index("ix_raw_files_workspace_batch", "workspace_id", "batch_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    batch_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("import_batches.id", ondelete="CASCADE"), nullable=False
+    )
+    source_path: Mapped[str] = mapped_column(Text, nullable=False)
+    content_digest: Mapped[str] = mapped_column(String(128), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    media_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
+class RawRecordModel(Base):
+    __tablename__ = "raw_records"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "source_type", "source_identity",
+            name="uq_raw_records_workspace_source_identity",
+        ),
+        Index("ix_raw_records_workspace_batch", "workspace_id", "batch_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    batch_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("import_batches.id", ondelete="CASCADE"), nullable=False
+    )
+    raw_file_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("raw_files.id", ondelete="SET NULL"), nullable=True
+    )
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_identity: Mapped[str] = mapped_column(String(512), nullable=False)
+    source_line: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
+class RecordRevisionModel(Base):
+    __tablename__ = "record_revisions"
+    __table_args__ = (
+        Index(
+            "ix_record_revisions_workspace_entity",
+            "workspace_id", "entity_type", "entity_id", "created_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    entity_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    before: Mapped[dict] = mapped_column(JSON, nullable=False)
+    after: Mapped[dict] = mapped_column(JSON, nullable=False)
+    actor_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
