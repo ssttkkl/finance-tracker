@@ -5,15 +5,39 @@ from ft.adapters.local_query import (
     LocalTransactionQueryRepository,
 )
 from ft.adapters.market_data import LegacyMarketDataProvider
+from ft.adapters.local_change_set import LocalGitChangeSetRepository
+from ft.adapters.local_config import LocalMappingProvider
+from ft.adapters.local_import import LocalCashflowImporter, LocalCashflowImportRepository
+from ft.adapters.local_verification import LocalVerificationRepository
+from ft.application.change_sets import ChangeSetService
+from ft.application.imports import CashflowImportService
 from ft.application.queries import FinanceQueryService
+from ft.application.verification import VerificationService
 from ft.runtime import ServiceBundle
 
 
 def build_local_services(ledger_root) -> ServiceBundle:
+    change_set_repository = LocalGitChangeSetRepository(ledger_root)
+    change_sets = ChangeSetService(change_set_repository)
     queries = FinanceQueryService(
         accounts=LocalAccountQueryRepository(ledger_root),
         transactions=LocalTransactionQueryRepository(ledger_root),
         snapshots=LocalSnapshotQueryRepository(ledger_root),
         market_data=LegacyMarketDataProvider(),
     )
-    return ServiceBundle(queries=queries)
+    cashflow_imports = CashflowImportService(
+        importer=LocalCashflowImporter(),
+        repository=LocalCashflowImportRepository(ledger_root),
+        mappings=LocalMappingProvider(ledger_root),
+        change_sets=change_set_repository,
+    )
+    verification = VerificationService(
+        LocalVerificationRepository(ledger_root),
+        change_sets=change_set_repository,
+    )
+    return ServiceBundle(
+        queries=queries,
+        cashflow_imports=cashflow_imports,
+        verification=verification,
+        change_sets=change_sets,
+    )

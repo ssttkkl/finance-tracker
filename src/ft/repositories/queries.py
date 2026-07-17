@@ -54,7 +54,10 @@ class InvestmentEventRepository(Protocol):
 
 @runtime_checkable
 class VerificationRepository(Protocol):
-    def verify(self) -> tuple[object, ...]:
+    def verify_cashflows(self) -> tuple[int, tuple[object, ...]]:
+        ...
+
+    def verify_investments(self) -> tuple[object, ...]:
         ...
 
     def rebuild(self) -> None:
@@ -78,6 +81,9 @@ class ReconciliationRepository(Protocol):
 
 @runtime_checkable
 class ChangeSetRepository(Protocol):
+    def stage(self) -> None:
+        ...
+
     def status(self) -> tuple[str, ...]:
         ...
 

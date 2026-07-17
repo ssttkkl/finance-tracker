@@ -6,7 +6,10 @@ from typing import Protocol, runtime_checkable
 
 @runtime_checkable
 class CashflowImporter(Protocol):
-    def convert(self, command: object) -> list[dict]:
+    def convert(self, command: object, *, mapping: object) -> list[dict]:
+        ...
+
+    def read_converted(self, sources: tuple[str, ...]) -> list[dict]:
         ...
 
 

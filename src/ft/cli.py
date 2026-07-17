@@ -4,6 +4,8 @@ import sys
 from decimal import Decimal
 from .report import render_finance_report, render_transactions
 from .acct import acct_add, acct_list, acct_rename, acct_delete, acct_activate
+from .adapters.export_csv import write_csv_export
+from .domain.imports import CashflowConvertCommand
 from .runtime import build_local_services
 
 
@@ -272,123 +274,91 @@ def main(argv=None):
         return
 
     if args.cmd == "commit":
-        from .snapshot import git_do_commit
-        committed = git_do_commit(args.message)
-        if committed:
+        from . import models
+        result = build_local_services(models.FT_DIR).change_sets.commit(args.message)
+        if result.details["committed"]:
             print("✅ 已提交")
         else:
             print("📭 无待提交变更")
         return
 
     if args.cmd == "status":
-        import subprocess as _sp
-        from . import models as _models
-        result = _sp.run(
-            ["git", "status", "--short"],
-            cwd=str(_models.FT_DIR), capture_output=True, timeout=10, text=True,
-        )
-        output = result.stdout.strip()
-        if output:
-            print(output)
-        else:
+        from . import models
+        status = build_local_services(models.FT_DIR).change_sets.status()
+        if status.clean:
             print("📭 无未提交改动")
+        else:
+            print("\n".join(status.changed_files))
         return
 
     if args.cmd == "reset":
-        import subprocess as _sp
-        from . import models as _models
-        # 先显示待丢弃的文件
-        result = _sp.run(
-            ["git", "status", "--short"],
-            cwd=str(_models.FT_DIR), capture_output=True, timeout=10, text=True,
-        )
-        output = result.stdout.strip()
-        if not output:
+        from . import models
+        service = build_local_services(models.FT_DIR).change_sets
+        status = service.status()
+        if status.clean:
             print("📭 无未提交改动，无需重置")
             return
         print("以下未提交改动将被丢弃：")
-        print(output)
+        print("\n".join(status.changed_files))
         confirm = input("确定要丢弃以上改动？(y/N): ")
         if confirm.lower() != "y":
             print("已取消")
             return
-        _sp.run(
-            ["git", "reset", "--hard", "HEAD"],
-            cwd=str(_models.FT_DIR), capture_output=True, timeout=10,
-        )
+        service.reset()
         print("✅ 已重置到最近一次提交")
         return
 
     if args.cmd == "verify":
-        from .accounts import load_accounts
         from . import models
-        import csv
-        from .snapshot import rebuild_snapshot_from_records
-        from .ledger_layout import ensure_monthly_cash_ledger
-
-        records_dir = models.RECORDS_DIR
-        ensure_monthly_cash_ledger(records_dir)
-        ok = True
-
-        if args.fix:
-            rebuild_snapshot_from_records(records_dir)
+        result = build_local_services(models.FT_DIR).verification.verify(fix=args.fix)
+        if result.rebuilt:
             print("✅ 已从 CSV 重建全部账户快照")
-
-        # --- Security verification ---
-        from .stock import verify_security
-        sec_ok, sec_lines = verify_security()
         print("🔍 Security 校验")
-        for l in sec_lines:
-            print(l)
-        if not sec_ok:
-            ok = False
-
-        # --- Cash/Loan/Lend verification ---
+        for finding in result.investment_findings:
+            print(finding.message)
         print("\n🔍 Cash/Loan/Lend 校验")
-        accounts = {a["name"]: a for a in load_accounts() if a.get("active", True) and a["type"] != "security"}
-
-        all_records = []
-        for t in ["cash", "loan", "lend"]:
-            d = records_dir / t
-            if not d.exists():
-                continue
-            for f in sorted(d.glob("*.csv")):
-                with open(f, encoding="utf-8") as fh:
-                    all_records.extend([(t, row) for row in csv.DictReader(fh)])
-
-        if not all_records:
+        if result.cashflow_count == 0:
             print("  📭 无现金类记录")
+        elif result.cashflow_findings:
+            for finding in result.cashflow_findings[:5]:
+                print(f"  ⚠️ {finding.message}")
+            print(f"  ❌ {len(result.cashflow_findings)} 条记录来自未知账户，请 ft acct add")
         else:
-            errors = 0
-            for typ, row in all_records:
-                acct_name = row.get("account_name", "").strip()
-                if acct_name and acct_name not in accounts:
-                    errors += 1
-                    if errors <= 5:
-                        print(f"  ⚠️ 未知账户 \'{acct_name}\' 在 {typ} 记录中")
-            if errors:
-                print(f"  ❌ {errors} 条记录来自未知账户，请 ft acct add")
-                ok = False
-            else:
-                print(f"  ✅ 共 {len(all_records)} 条记录，账户一致")
-
-        if ok:
+            print(f"  ✅ 共 {result.cashflow_count} 条记录，账户一致")
+        if result.ok:
             print("\n✅ 全部校验通过")
         else:
             print("\n❌ 存在不一致，请检查")
-
         return
 
     if args.cmd == "convert":
-        from .convert import do_convert
-        do_convert(args.file, args.source, args.output,
-                   password=args.password, account=args.account,
-                   currency=args.currency)
+        from . import models
+        result = build_local_services(models.FT_DIR).cashflow_imports.convert(
+            CashflowConvertCommand(
+                source_path=args.file,
+                source=args.source,
+                password=args.password,
+                account=args.account,
+                currency=args.currency,
+            )
+        )
+        if not result.ok:
+            print("❌ 无数据可输出")
+            return
+        write_csv_export(result.export, args.output)
+        print(f"✅ 已转换 {result.count} 条 → {args.output}")
         return
 
     if args.cmd == "append":
-        from .append import do_append
-        do_append(args.files)
+        from . import models
+        result = build_local_services(models.FT_DIR).cashflow_imports.append(args.files)
+        if result.count == 0:
+            print("📭 无数据", file=sys.stderr)
+            return
+        for date, count in result.details["by_date"].items():
+            print(f"  {date}: +{count} 条")
+        print(f"✅ 总计: 追加 {result.count} 条")
+        print("💡 改动已暂存，执行 ft commit 提交")
         return
 
     if args.cmd == "reconcile":

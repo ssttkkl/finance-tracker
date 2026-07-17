@@ -52,10 +52,17 @@ def tmp_env():
 def test_append_accepts_multiple_files(monkeypatch):
     called = {}
 
-    def fake_append(files):
-        called["files"] = files
+    class FakeImports:
+        def append(self, files):
+            from ft.domain.application import OperationResult
+            called["files"] = files
+            return OperationResult(
+                ok=True, count=2,
+                details={"by_date": {"2026-06-01": 2}},
+            )
 
-    monkeypatch.setattr("ft.append.do_append", fake_append)
+    bundle = type("Bundle", (), {"cashflow_imports": FakeImports()})()
+    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
     cli.main(["append", "a.csv", "b.csv"])
     assert called["files"] == ["a.csv", "b.csv"]
 

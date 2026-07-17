@@ -65,6 +65,9 @@ def test_ports_are_runtime_checkable_with_hand_written_fakes():
             return object()
 
     class FakeChangeSet:
+        def stage(self):
+            pass
+
         def status(self):
             return ()
 
