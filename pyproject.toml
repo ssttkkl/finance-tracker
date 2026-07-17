@@ -5,10 +5,13 @@ description = "Finance Tracker - 资产+消费趋势管理"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "alembic>=1.16.0",
     "ccxt>=4.4.0",
     "openpyxl>=3.1.5",
     "pdfplumber>=0.11.9",
+    "psycopg[binary]>=3.2.0",
     "pyyaml>=6.0.3",
+    "sqlalchemy>=2.0.41",
     "xlrd>=2.0.2",
     "yfinance>=1.4.1",
 ]
