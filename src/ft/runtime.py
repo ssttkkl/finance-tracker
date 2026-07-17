@@ -17,9 +17,21 @@ class ServiceBundle:
     portfolio: Any = None
     connector_sync: Any = None
     reconciliation: Any = None
+    accounts: Any = None
+    cashflow: Any = None
+    transfers: Any = None
+    uow: Any = None
 
 
 def build_local_services(ledger_root) -> ServiceBundle:
     from ft.adapters.local_runtime import build_local_services as build
 
     return build(ledger_root)
+
+
+def build_services(settings) -> ServiceBundle:
+    if settings.backend == "local":
+        from ft.adapters.local_runtime import build_local_services as build
+        return build(settings.ledger_root)
+    from ft.adapters.postgres.runtime import build_postgres_services
+    return build_postgres_services(settings)

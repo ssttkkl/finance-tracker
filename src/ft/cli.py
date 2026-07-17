@@ -1,5 +1,7 @@
 """Finance Tracker CLI — ft 统一入口"""
 import argparse
+from dataclasses import asdict, is_dataclass
+import json
 import sys
 from decimal import Decimal
 from .report import render_finance_report, render_transactions
@@ -10,6 +12,18 @@ from .domain.imports import CashflowConvertCommand
 from .domain.investment import InvestmentConvertCommand
 from .domain.sync import ConnectorSyncCommand
 from .runtime import build_local_services
+
+
+def _json_default(value):
+    if is_dataclass(value):
+        return asdict(value)
+    if isinstance(value, Decimal):
+        return format(value, "f")
+    raise TypeError(f"not JSON serializable: {type(value).__name__}")
+
+
+def _print_json(value):
+    print(json.dumps(value, default=_json_default, ensure_ascii=False, sort_keys=True))
 
 
 def main(argv=None):
@@ -229,10 +243,55 @@ def main(argv=None):
                     help="应用 pending/ai_working.csv 的审查决定")
     rc.add_argument("--abort", action="store_true", help="放弃当前 pending reconcile 会话")
 
+    # migrate
+    migrate_p = sub.add_parser("migrate", help="本地账本与 PostgreSQL 迁移")
+    migrate_sub = migrate_p.add_subparsers(dest="migrate_cmd")
+    inspect_p = migrate_sub.add_parser("inspect", help="检查本地账本")
+    inspect_p.add_argument("--from", dest="source_root", required=True)
+    import_p = migrate_sub.add_parser("import", help="导入本地账本")
+    import_p.add_argument("--from", dest="source_root", required=True)
+    verify_migration_p = migrate_sub.add_parser("verify", help="执行 shadow comparison")
+    verify_migration_p.add_argument("--from", dest="source_root", required=True)
+    export_p = migrate_sub.add_parser("export", help="从数据库导出本地账本")
+    export_p.add_argument("--to", dest="destination", required=True)
+    for migration_parser in (import_p, verify_migration_p, export_p):
+        migration_parser.add_argument("--database-url", required=True)
+        migration_parser.add_argument("--workspace", required=True)
+
     args = parser.parse_args(argv)
 
     if not args.cmd:
         parser.print_help()
+        return
+
+    if args.cmd == "migrate":
+        if not args.migrate_cmd:
+            migrate_p.print_help()
+            return
+        from .adapters.local_migration import LocalMigrationSource
+        from .application.migration import MigrationService
+        if args.migrate_cmd == "inspect":
+            source = LocalMigrationSource(args.source_root)
+            _print_json(MigrationService(source, None).inspect())
+            return
+        from sqlalchemy import create_engine
+        from .adapters.postgres import create_session_factory, ensure_workspace
+        from .adapters.postgres.migration import PostgresMigrationTarget
+        sessions = create_session_factory(create_engine(args.database_url, pool_pre_ping=True))
+        if args.migrate_cmd == "import":
+            ensure_workspace(sessions, args.workspace)
+        target = PostgresMigrationTarget(sessions, args.workspace)
+        source_root = getattr(args, "source_root", None) or args.destination
+        service = MigrationService(LocalMigrationSource(source_root), target)
+        if args.migrate_cmd == "import":
+            _print_json(service.import_ledger())
+        elif args.migrate_cmd == "verify":
+            report = service.verify()
+            _print_json(report)
+            if not report.ok:
+                raise SystemExit(1)
+        else:
+            _print_json(service.export(args.destination))
         return
 
     if args.cmd == "acct":
