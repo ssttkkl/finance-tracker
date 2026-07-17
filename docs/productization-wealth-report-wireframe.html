@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>财富变化与趋势对比线框</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f5f5f2;color:#202020;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{max-width:1360px;margin:22px auto;padding:0 22px}.row,.top,.toolbar,.metric-head,.legend,.chart-head,.split-head{display:flex;align-items:center;justify-content:space-between;gap:14px}
+    h1{font-size:25px;margin:0}h2{font-size:17px;margin:0}h3{font-size:14px;margin:0}p{margin:4px 0;color:#666}.small{font-size:12px;color:#666}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+    button,.control{border:1px solid #999;background:#fff;border-radius:4px;padding:8px 11px;color:#222}.active{background:#222;color:#fff;border-color:#222}.status{border:1px solid #888;background:#fff;border-radius:20px;padding:4px 9px;font-size:12px}.status.dashed{border-style:dashed}.panel{background:#fff;border:1px solid #999;border-radius:5px;margin-top:15px}.section{padding:17px;border-bottom:1px solid #ccc}.section:last-child{border-bottom:0}
+    .view-tabs{display:flex;gap:6px;margin-top:18px}.view{display:none}.view.show{display:block}.toolbar{align-items:flex-end}.toolbar-group{display:flex;gap:6px;flex-wrap:wrap}.toolbar-label{display:block;font-size:11px;color:#666;margin-bottom:5px}
+    .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}.summary>div{border:1px solid #aaa;padding:12px}.summary strong{display:block;font-size:20px;margin-top:8px}.summary a{font-size:11px;text-decoration:underline;color:#333}
+    .chart-layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:15px;margin-top:15px}.chart-panel{margin-top:0}.chart-area{position:relative;height:330px;border-top:1px solid #bbb;background:repeating-linear-gradient(0deg,#fff,#fff 54px,#e3e3e3 55px)}
+    .chart-area svg{width:100%;height:100%;display:block}.axis-label{font-size:10px;fill:#555}.line{fill:none;stroke:#222;stroke-width:2}.line-gap{fill:none;stroke:#222;stroke-width:2;stroke-dasharray:5 5}.point{fill:#fff;stroke:#222;stroke-width:2}.selected{fill:#222}.coverage{stroke:#555;stroke-width:1;stroke-dasharray:4 4}.missing-zone{fill:url(#hatch);opacity:.65}.bar-cash{fill:#333}.bar-invest{fill:#888}.bar-fx{fill:url(#diag)}.bar-other{fill:#ddd;stroke:#555}.return-line{fill:none;stroke:#222;stroke-width:1.5;stroke-dasharray:3 2}
+    .tooltip{position:absolute;left:54%;top:24px;width:220px;border:1px solid #555;background:#fff;padding:10px;box-shadow:4px 4px 0 #ddd;font-size:12px}.tooltip strong{display:block;margin-bottom:5px}.tooltip-grid{display:grid;grid-template-columns:1fr auto;gap:4px}.state-note{position:absolute;border:1px dashed #666;background:#f7f7f3;padding:5px 7px;font-size:10px}.coverage-note{left:35%;top:8px}.stale-note{right:2%;bottom:10px}
+    .legend{justify-content:flex-start;flex-wrap:wrap;font-size:11px}.key{display:inline-block;width:16px;height:10px;border:1px solid #555;margin-right:5px;vertical-align:middle}.cash{background:#333}.invest{background:#888}.fx{background:repeating-linear-gradient(135deg,#fff,#fff 3px,#777 3px,#777 5px)}.other{background:#ddd}.line-key{height:0;border-top:2px solid #222}.dash-key{height:0;border-top:2px dashed #222}
+    .drawer{margin-top:0}.drawer .item{padding:11px 0;border-bottom:1px solid #d0d0d0}.drawer .item:last-child{border-bottom:0}.drawer strong{display:block}.evidence{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:6px;font-size:11px}.warning{border:1px dashed #666;background:#f2f2ed;padding:10px;margin-top:10px}.warning strong{display:block;margin-bottom:3px}
+    .equation{display:grid;grid-template-columns:1.25fr repeat(4,1fr) 1.25fr;gap:8px;align-items:stretch;margin-top:14px}.term{border:1px solid #999;padding:13px;min-height:92px;position:relative}.term:not(:last-child)::after{content:'+';position:absolute;right:-9px;top:34px;background:#fff;padding:2px}.term:nth-last-child(2)::after{content:'='}.term b{display:block;font-size:19px;margin-top:11px}.term a{display:block;margin-top:8px;font-size:11px;text-decoration:underline}.bridge{height:230px;display:flex;align-items:flex-end;gap:16px;padding:24px 18px 14px}.bar-wrap{flex:1;text-align:center;font-size:11px}.bridge-bar{border:1px solid #555;background:repeating-linear-gradient(135deg,#eee,#eee 7px,#d5d5d5 7px,#d5d5d5 14px);width:72%;margin:5px auto;min-height:10px}.bridge-bar.neg{background:repeating-linear-gradient(45deg,#fff,#fff 7px,#bbb 7px,#bbb 14px)}
+    .footer-note{margin:15px 0 28px;border:1px dashed #777;padding:11px;color:#555}.hidden-mobile{display:inline}
+    @media(max-width:940px){.top,.toolbar{align-items:flex-start;flex-direction:column}.summary{grid-template-columns:1fr 1fr}.chart-layout{grid-template-columns:1fr}.equation{grid-template-columns:1fr 1fr}.term::after{display:none}.hidden-mobile{display:none}.tooltip{left:auto;right:8px;width:200px}}
+  </style>
+</head>
+<body>
+<main>
+  <!-- 两个视图共享同一日期口径、状态模型和证据下钻。 -->
+  <div class="top">
+    <div><h1>财富报告</h1><p>先看什么时候发生变化，再解释为什么发生</p></div>
+    <div class="row"><span class="status">数据截至 7 月 16 日 23:59</span><span class="control">基础币种 CNY</span></div>
+  </div>
+
+  <nav class="view-tabs" aria-label="报告视图">
+    <button data-target="trend" class="active">趋势对比</button>
+    <button data-target="interval">区间解释</button>
+  </nav>
+
+  <div id="trend" class="view show">
+    <section class="panel">
+      <div class="section toolbar">
+        <div>
+          <span class="toolbar-label">时间范围</span>
+          <div class="toolbar-group"><button>7D</button><button class="active">30D</button><button>90D</button><button>1Y</button><span class="control mono">2026/06/17 – 2026/07/16</span></div>
+        </div>
+        <div>
+          <span class="toolbar-label">对比粒度</span>
+          <div class="toolbar-group"><button class="active">日</button><button>周</button><button>月</button></div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="metric-head"><div><h2>30 天净资产增加 <span class="mono">¥18,730</span></h2><p>这是净资产变化，不是投资收益率</p></div><span class="status dashed">2 个时间段需注意数据状态</span></div>
+        <div class="summary mono">
+          <div><span class="small">期末净资产</span><strong>¥896,170</strong><a>查看账户覆盖</a></div>
+          <div><span class="small">外部现金流</span><strong>+¥14,920</strong><a>工资与消费</a></div>
+          <div><span class="small">投资贡献</span><strong>+¥4,850</strong><a>组合回报贡献</a></div>
+          <div><span class="small">投资市场收益率（不含 FX）</span><strong>+0.61%</strong><a>Daily Dietz linked</a></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="chart-layout">
+      <section class="panel chart-panel">
+        <div class="section chart-head"><div><h2>净资产、变化构成与投资收益率</h2><p>点击任一柱查看该日的解释与证据</p></div><button>导出序列</button></div>
+        <div class="section legend">
+          <span><i class="key line-key"></i>净资产</span><span><i class="key cash"></i>外部现金流</span><span><i class="key invest"></i>投资收益</span><span><i class="key fx"></i>FX</span><span><i class="key other"></i>调整/未解释</span><span><i class="key dash-key"></i>投资市场收益率（不含 FX）</span>
+        </div>
+        <div class="chart-area">
+          <!-- 纯展示线框：实际图表数据全部由 API 返回，前端不聚合、不计算收益率。 -->
+          <svg viewBox="0 0 900 330" role="img" aria-label="净资产和每日变化趋势草图">
+            <defs>
+              <pattern id="diag" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#555" stroke-width="2"/></pattern>
+              <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="#aaa" stroke-width="3"/></pattern>
+            </defs>
+            <text x="8" y="20" class="axis-label">净资产 CNY</text><text x="770" y="20" class="axis-label">投资收益率（不含 FX）</text>
+            <rect x="320" y="0" width="52" height="330" class="missing-zone"/><line x1="346" y1="0" x2="346" y2="330" class="coverage"/>
+            <!-- coverage 变化处折线断开；不会把资产新增误画成收益。 -->
+            <path class="line" d="M45 104 L105 96 L165 101 L225 84 L285 88 L318 74"/>
+            <path class="line-gap" d="M375 102 L405 96 L465 78 L525 82 L585 65 L645 70 L705 54 L765 60 L825 46"/>
+            <circle cx="45" cy="104" r="4" class="point"/><circle cx="165" cy="101" r="4" class="point"/><circle cx="285" cy="88" r="4" class="point"/><circle cx="465" cy="78" r="5" class="point selected"/><circle cx="705" cy="54" r="4" class="point"/><circle cx="825" cy="46" r="4" class="point"/>
+            <!-- 每日变化堆叠柱，零线在 y=225。 -->
+            <line x1="35" y1="225" x2="850" y2="225" stroke="#777" stroke-width="1"/>
+            <g><rect x="55" y="199" width="18" height="26" class="bar-cash"/><rect x="55" y="190" width="18" height="9" class="bar-invest"/></g>
+            <g><rect x="115" y="207" width="18" height="18" class="bar-invest"/><rect x="115" y="225" width="18" height="8" class="bar-fx"/></g>
+            <g><rect x="175" y="213" width="18" height="12" class="bar-cash"/><rect x="175" y="225" width="18" height="11" class="bar-invest"/></g>
+            <g><rect x="235" y="184" width="18" height="41" class="bar-cash"/><rect x="235" y="173" width="18" height="11" class="bar-invest"/></g>
+            <g><rect x="295" y="211" width="18" height="14" class="bar-invest"/><rect x="295" y="225" width="18" height="7" class="bar-other"/></g>
+            <g><rect x="395" y="201" width="18" height="24" class="bar-cash"/><rect x="395" y="190" width="18" height="11" class="bar-invest"/></g>
+            <g><rect x="455" y="178" width="18" height="47" class="bar-invest"/><rect x="455" y="225" width="18" height="8" class="bar-fx"/></g>
+            <g><rect x="515" y="209" width="18" height="16" class="bar-cash"/><rect x="515" y="225" width="18" height="15" class="bar-invest"/></g>
+            <g><rect x="575" y="194" width="18" height="31" class="bar-invest"/></g>
+            <g><rect x="635" y="212" width="18" height="13" class="bar-cash"/><rect x="635" y="204" width="18" height="8" class="bar-fx"/></g>
+            <g><rect x="695" y="187" width="18" height="38" class="bar-invest"/></g>
+            <g><rect x="755" y="207" width="18" height="18" class="bar-cash"/><rect x="755" y="225" width="18" height="10" class="bar-other"/></g>
+            <g><rect x="815" y="196" width="18" height="29" class="bar-invest"/></g>
+            <!-- 独立收益率线，不把工资和消费计入回报。 -->
+            <path class="return-line" d="M45 286 L105 276 L165 296 L225 270 L285 281 M375 291 L405 279 L465 255 L525 300 L585 266 L645 278 L705 252 L765 287 L825 261"/>
+            <text x="42" y="322" class="axis-label">6/17</text><text x="222" y="322" class="axis-label">6/24</text><text x="445" y="322" class="axis-label">7/01</text><text x="625" y="322" class="axis-label">7/08</text><text x="802" y="322" class="axis-label">7/16</text>
+          </svg>
+          <div class="state-note coverage-note"><strong>COVERAGE_CHANGED</strong><br>7/02 覆盖集合变化，折线断开</div>
+          <div class="state-note stale-note">7/15 行情陈旧 18h · 斜纹显示</div>
+          <div class="tooltip mono"><strong>7 月 3 日 · 已选择</strong><div class="tooltip-grid"><span>期初净资产</span><span>¥883,120</span><span>期末净资产</span><span>¥887,430</span><span>净变化</span><span>+¥4,310</span><span>外部现金流</span><span>+¥0</span><span>投资收益</span><span>+¥4,850</span><span>FX</span><span>−¥420</span><span>未解释</span><span>−¥120</span><span>投资收益率（不含 FX）</span><span>+0.58%</span></div></div>
+        </div>
+      </section>
+
+      <!-- 右侧复用单区间解释，不为趋势图另造一套解释算法。 -->
+      <aside class="panel drawer">
+        <div class="section"><div class="split-head"><div><h2>7 月 3 日解释</h2><p>单日净资产 <span class="mono">+¥4,310</span></p></div><span class="status">完整</span></div></div>
+        <div class="section">
+          <div class="item"><strong>投资收益 <span class="mono">+¥4,850</span></strong><div class="evidence"><span>4 个持仓贡献</span><a>查看 →</a></div></div>
+          <div class="item"><strong>汇率影响 <span class="mono">−¥420</span></strong><div class="evidence"><span>USD/CNY 日终汇率</span><a>查看 →</a></div></div>
+          <div class="item"><strong>未解释差额 <span class="mono">−¥120</span></strong><div class="evidence"><span>1 个缺失费用候选</span><a>排查 →</a></div></div>
+          <div class="item"><strong>外部现金流 <span class="mono">¥0</span></strong><div class="evidence"><span>内部转账已排除</span><a>查看 →</a></div></div>
+          <div class="warning"><strong>为什么净资产涨幅不等于 0.58%？</strong><span class="small">0.58% 只衡量投资组合；净资产变化还包含现金流、FX、负债和调整。</span></div>
+        </div>
+        <div class="section"><button style="width:100%">打开完整区间解释 →</button></div>
+      </aside>
+    </div>
+  </div>
+
+  <div id="interval" class="view">
+    <section class="panel">
+      <div class="section">
+        <div class="metric-head"><div><h2>本月净资产增加 <span class="mono">¥13,240</span></h2><p>已解释 97.8%，每一项都可下钻到原始记录</p></div><span class="status">2026/06/01 – 2026/06/30</span></div>
+        <div class="equation mono">
+          <div class="term"><span>期初净资产</span><b>¥864,200</b><a>账户余额</a></div>
+          <div class="term"><span>外部现金流</span><b>+¥12,010</b><a>37 笔证据</a></div>
+          <div class="term"><span>投资收益</span><b>+¥1,880</b><a>8 个持仓</a></div>
+          <div class="term"><span>汇率影响</span><b>−¥360</b><a>USD / HKD</a></div>
+          <div class="term"><span>调整与差额</span><b>−¥290</b><a>2 项待解释</a></div>
+          <div class="term"><span>期末净资产</span><b>¥877,440</b><a>账户余额</a></div>
+        </div>
+        <div class="warning"><strong>有 ¥290 尚未解释</strong><span class="small">可能来自缺失行情、历史汇率或未配对转账。差额不会被静默吞掉。</span></div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="section chart-head"><div><h2>区间变化构成</h2><p>与趋势对比中的选中时间桶使用相同 breakdown</p></div><button>查看全部证据</button></div>
+      <div class="bridge">
+        <div class="bar-wrap mono">期初<div class="bridge-bar" style="height:145px"></div>864,200</div>
+        <div class="bar-wrap mono">现金流<div class="bridge-bar" style="height:70px"></div>+12,010</div>
+        <div class="bar-wrap mono">投资<div class="bridge-bar" style="height:42px"></div>+1,880</div>
+        <div class="bar-wrap mono">汇率<div class="bridge-bar neg" style="height:18px"></div>−360</div>
+        <div class="bar-wrap mono">调整<div class="bridge-bar neg" style="height:14px"></div>−290</div>
+        <div class="bar-wrap mono">期末<div class="bridge-bar" style="height:154px"></div>877,440</div>
+      </div>
+    </section>
+  </div>
+
+  <div class="footer-note small">状态约束：coverage 变化必须断线；stale、partial、missing 必须可见；周/月只聚合每日桶；任何金额都能下钻；页面不计算金额、聚合或收益率。</div>
+</main>
+<script>
+  // 仅用于线框的视图切换，不代表业务计算。
+  document.querySelectorAll('[data-target]').forEach(function(button){
+    button.addEventListener('click',function(){
+      document.querySelectorAll('[data-target]').forEach(function(item){item.classList.remove('active')})
+      document.querySelectorAll('.view').forEach(function(view){view.classList.remove('show')})
+      button.classList.add('active')
+      document.getElementById(button.dataset.target).classList.add('show')
+    })
+  })
+</script>
+</body>
+</html>

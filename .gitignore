@@ -5,3 +5,6 @@ __pycache__/
 uv.lock
 outputs/
 .worktrees/
+.gstack/
+.DS_Store
+AGENTS.md.before-spec-kit-gstack.bak

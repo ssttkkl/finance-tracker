@@ -842,7 +842,7 @@ API 约束：
 
 目标：在不影响本地模式的前提下建立 Web 存储。
 
-实现状态（2026-07-17）：代码级验收完成。
+实现状态（2026-07-17）：代码级验收完成。实现结构、命令矩阵、迁移不变量和测试证据见 [Phase 2 PostgreSQL Storage](phase2-postgresql-storage.md)。
 
 - 已建立 SQLAlchemy 2 workspace-scoped schema、两步 Alembic migration 和 PostgreSQL `NUMERIC(38, 18)` 金额类型；
 - 已实现 accounts、cash transactions、investment events、snapshot、import batches、raw files、raw records 和 append-only revisions；

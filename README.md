@@ -1,10 +1,10 @@
 # 📒 Finance Tracker (ft)
 
-纯 CSV 多币种个人记账工具，支持统一快照查询、股票交易和 Git 版本控制。
+默认以本地 CSV/YAML 运行的多币种个人记账工具，支持统一快照查询、股票交易和 Git 版本控制；产品化路径可选用 PostgreSQL 存储。
 
-## 架构
+## 本地模式架构
 
-**纯 CSV 审计日志 + YAML 快照，无数据库。**
+**默认本地模式使用 CSV 审计日志 + YAML 快照，不需要数据库。**
 
 ```
 ~/.ft/
@@ -23,7 +23,7 @@
 - 所有写操作（append/checkin/transfer/stock）同时更新 **CSV + 快照**
 - 所有查询（report/acct list/stock list）只读 **快照**，不扫 CSV
 
-**Git 版本控制：** `~/.ft/` 自动作为 git 仓库。每次写操作自动 commit。历史查看：
+**Git 版本控制：** `~/.ft/` 自动作为 git 仓库。写操作会暂存变更，由用户执行 `ft commit` 创建提交。历史查看：
 
 ```bash
 cd ~/.ft && git log
@@ -88,6 +88,12 @@ ft transfer --from 工行借记卡 --to IBKR --amount 36250 --to-amount 5000
 ```
 
 convert 输出可查看的统一 CSV；reconcile 遇到低置信候选时才会进入 AI 审查门禁。
+
+## 工程与产品化文档
+
+- [Web 产品化与渐进重构计划](docs/productization-refactor-plan.md)
+- [Phase 1 Application Services](docs/phase1-application-services.md)
+- [Phase 2 PostgreSQL Storage](docs/phase2-postgresql-storage.md)
 
 ### 退款核销目标
 
