@@ -5,6 +5,7 @@ import re
 from collections import defaultdict
 from .accounts import load_accounts
 from . import models
+from .ledger_layout import ensure_monthly_cash_ledger
 
 
 def _read_records(records_dir=None, month=None) -> list[dict]:
@@ -12,6 +13,7 @@ def _read_records(records_dir=None, month=None) -> list[dict]:
     if records_dir is None:
         records_dir = models.RECORDS_DIR
     records_dir = Path(records_dir)
+    ensure_monthly_cash_ledger(records_dir)
 
     all_records = []
     if not records_dir.exists():
@@ -89,6 +91,8 @@ def report_networth(records_dir=None, month=None):
     """资产负债总览 — 从 unified snapshot 读取"""
     from .snapshot import load_snapshot
     from .accounts import load_accounts as load_acct_yaml
+
+    ensure_monthly_cash_ledger(records_dir or models.RECORDS_DIR)
 
     snap = load_snapshot()
     acct_meta = {(a["name"], a["currency"]): a for a in load_acct_yaml()}

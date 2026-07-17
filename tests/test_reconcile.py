@@ -677,14 +677,11 @@ def test_reconcile_cross_day_date_only_ccb_case_still_enters_full_table_pending(
         {"name": "微信零钱", "type": "cash", "currency": "CNY", "active": True},
     ], models.ACCOUNTS_PATH)
 
-    day_a = models.RECORDS_DIR / "cash" / "2026-06-12.csv"
-    day_b = models.RECORDS_DIR / "cash" / "2026-06-13.csv"
-    _write_rows(day_a, [
+    month_file = models.RECORDS_DIR / "cash" / "2026-06.csv"
+    _write_rows(month_file, [
         {"date": "2026-06-12", "amount": "-30.00", "currency": "CNY",
          "counterparty": "麦当劳", "description": "充值", "category": "expense",
          "account_name": "建行储蓄卡(2820)", "source": "建行储蓄卡", "bill_source": "ccb_debit"},
-    ])
-    _write_rows(day_b, [
         {"date": "2026-06-13 18:00:02", "amount": "-30.00", "currency": "CNY",
          "counterparty": "麦当劳", "description": "群收款", "category": "expense",
          "account_name": "建行储蓄卡(2820)", "source": "微信", "bill_source": "wechat"},
@@ -757,14 +754,14 @@ def test_reconcile_does_not_cross_match_outside_scope(tmp_env):
     from ft import models
     from ft.reconcile import do_reconcile
 
-    day_a = models.RECORDS_DIR / "loan" / "2026-06-30.csv"
-    day_b = models.RECORDS_DIR / "loan" / "2026-07-01.csv"
-    _write_rows(day_a, [
+    month_a = models.RECORDS_DIR / "loan" / "2026-06.csv"
+    month_b = models.RECORDS_DIR / "loan" / "2026-07.csv"
+    _write_rows(month_a, [
         {"date": "2026-06-30 23:59:58", "amount": "-30.00", "currency": "CNY",
          "counterparty": "Steam", "description": "", "category": "expense",
          "account_name": "工行信用卡(1200)", "source": "支付宝", "bill_source": "alipay"},
     ])
-    _write_rows(day_b, [
+    _write_rows(month_b, [
         {"date": "2026-07-01 00:00:02", "amount": "-30.00", "currency": "CNY",
          "counterparty": "Steam", "description": "", "category": "expense",
          "account_name": "工行信用卡(1200)", "source": "银行卡", "bill_source": "icbc_credit"},
@@ -772,9 +769,9 @@ def test_reconcile_does_not_cross_match_outside_scope(tmp_env):
 
     do_reconcile(month="2026-06")
 
-    with open(day_a, encoding="utf-8") as f:
+    with open(month_a, encoding="utf-8") as f:
         june_rows = list(csv.DictReader(f))
-    with open(day_b, encoding="utf-8") as f:
+    with open(month_b, encoding="utf-8") as f:
         july_rows = list(csv.DictReader(f))
     assert len(june_rows) == 1
     assert len(july_rows) == 1

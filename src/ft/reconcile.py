@@ -494,6 +494,8 @@ def _write_audit(run_at: str, scope_from: str, scope_to: str, pairs: list[tuple[
 
 
 def _load_entries(records_dir: Path) -> list[dict]:
+    from .ledger_layout import ensure_monthly_cash_ledger
+    ensure_monthly_cash_ledger(records_dir)
     entries: list[dict] = []
     for typ in ("cash", "loan"):
         type_dir = records_dir / typ

@@ -1352,8 +1352,8 @@ def test_filter_new_polymarket_rows_dedupes_by_api_row_id(tmp_env):
     assert filter_new_rows(rows, account_name="Polymarket") == []
 
 
-def test_stock_append_preserves_transfer_style_security_rows(tmp_env):
-    """Appending stock rows on a day with security transfer audit rows must not crash or drop audit fields."""
+def test_stock_append_rejects_legacy_transfer_style_security_header(tmp_env):
+    """Phase 1 rejects the obsolete 11-column security transfer header."""
     from ft import models
     from ft.stock import do_append, verify_security, CSV_FIELDS
 
@@ -1393,17 +1393,19 @@ def test_stock_append_preserves_transfer_style_security_rows(tmp_env):
             "note": "polymarket tx:0xnew",
         })
 
-    assert do_append(input_csv) is True
+    with pytest.raises(ValueError, match="invalid security CSV schema"):
+        do_append(input_csv)
 
     with day_path.open(encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        fieldnames = reader.fieldnames or []
-        rows = list(reader)
-    assert "transfer_account" in fieldnames
-    assert any(r.get("transfer_account") == "东方证券" for r in rows)
-    assert any(r.get("from_ticker") == "USD" and r.get("to_ticker") == "pm:test:no" for r in rows)
-    ok, lines = verify_security()
-    assert ok, "\n".join(lines)
+        assert list(csv.DictReader(f))[0]["transfer_account"] == "东方证券"
+
+
+def test_security_header_rejects_cash_transfer_schema():
+    from ft.schema import CASH_CSV_FIELDS
+    from ft.stock import _validate_security_csv_header
+
+    with pytest.raises(ValueError, match="invalid security CSV schema"):
+        _validate_security_csv_header(CASH_CSV_FIELDS)
 
 
 def test_filter_new_polymarket_rows_keeps_distinct_fills_with_same_tx(tmp_env):
@@ -1499,6 +1501,10 @@ def test_sync_polymarket_custom_account_uses_account_scoped_rows(tmp_env, monkey
         "usdcSize": "1",
         "transactionHash": "0xabc123",
     }])
+    monkeypatch.setattr(
+        "ft.polymarket_sync._fetch_polymarket_resolution_prices",
+        lambda _tickers: {},
+    )
 
     rows = sync_polymarket(proxy_wallet="0x" + "1" * 40, account_name="Polymarket Alt", dry_run=True)
 
@@ -1626,10 +1632,12 @@ def test_cli_sync_polymarket_errors_exit_nonzero(tmp_env, capsys):
     assert "必须指定 wallet 或 proxy_wallet" in capsys.readouterr().out
 
 
-def test_transfer_to_security_preserves_existing_stock_rows(tmp_env):
-    """Transfer writes to security records must preserve same-day stock audit columns."""
+def test_transfer_to_security_writes_unified_event_without_mixed_columns(tmp_env):
+    """The legacy transfer entry point must not emit cash rows into security CSVs."""
     from ft import models
-    from ft.transfer import do_transfer
+    from decimal import Decimal
+    from ft.adapters.local_csv import LocalCsvUnitOfWork
+    from ft.application.cashflow import TransferService
     from ft.stock import CSV_FIELDS
 
     models.ACCOUNTS_PATH.write_text(
@@ -1641,6 +1649,7 @@ def test_transfer_to_security_preserves_existing_stock_rows(tmp_env):
         "  - name: Polymarket\n"
         "    type: security\n"
         "    currency: USD\n"
+        "    base_currencies: [USD]\n"
         "    active: true\n",
         encoding="utf-8",
     )
@@ -1648,7 +1657,7 @@ def test_transfer_to_security_preserves_existing_stock_rows(tmp_env):
     security_dir.mkdir(parents=True, exist_ok=True)
     day_path = security_dir / "2026-06-30.csv"
     with day_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS + ["transfer_account"])
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         writer.writeheader()
         writer.writerow({
             "date": "2026-06-30 10:16:09", "action": "swap",
@@ -1659,17 +1668,27 @@ def test_transfer_to_security_preserves_existing_stock_rows(tmp_env):
             "note": "polymarket tx:0xnew",
         })
 
-    do_transfer("现金", "Polymarket", 100, to_amount=10, date="2026-06-30", time_str="11:00:00")
+    assert TransferService(LocalCsvUnitOfWork(models.FT_DIR)).transfer(
+        from_name="现金", to_name="Polymarket", amount=Decimal("100"),
+        to_amount=Decimal("10"), date="2026-06-30", time_str="11:00:00",
+    ).ok is True
 
     with day_path.open(encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
+    assert reader.fieldnames == CSV_FIELDS
     assert any(r.get("from_ticker") == "USD" and r.get("to_ticker") == "pm:test:no" and r.get("action") == "swap" for r in rows)
-    assert any(r.get("transfer_account") == "现金" and r.get("category") == "transfer_in" for r in rows)
+    assert any(
+        r.get("action") == "deposit"
+        and r.get("to_ticker") == "usd"
+        and r.get("to_amount") == "10"
+        and r.get("account_name") == "Polymarket"
+        for r in rows
+    )
 
 
-def test_general_append_to_security_preserves_existing_stock_rows(tmp_env):
-    """Generic ft append routed to security must not rewrite stock rows as transfer-only rows."""
+def test_general_append_rejects_cash_rows_for_security_account(tmp_env):
+    """Generic cash append cannot write into the unified investment ledger."""
     from ft import models
     from ft.append import do_append as generic_append
     from ft.stock import CSV_FIELDS
@@ -1704,14 +1723,12 @@ def test_general_append_to_security_preserves_existing_stock_rows(tmp_env):
         "2026-06-30 11:00:00,10,USD,,manual transfer,transfer_in,Polymarket,手动,,现金\n",
         encoding="utf-8",
     )
+    original = day_path.read_bytes()
 
-    generic_append(str(input_csv))
+    with pytest.raises(ValueError, match="investment account"):
+        generic_append(str(input_csv))
 
-    with day_path.open(encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)
-    assert any(r.get("from_ticker") == "USD" and r.get("to_ticker") == "pm:test:no" and r.get("action") == "swap" for r in rows)
-    assert any(r.get("transfer_account") == "现金" and r.get("category") == "transfer_in" for r in rows)
+    assert day_path.read_bytes() == original
 
 
 def test_stock_append_rolls_back_if_later_day_write_fails(tmp_env, monkeypatch):
@@ -1965,30 +1982,69 @@ def test_direct_save_snapshot_failure_restores_previous_snapshot(tmp_env, monkey
     assert snap["accounts"]["security"]["IBKR"]["cash"] == 100
 
 
-def test_replay_skips_malformed_action_rows_but_keeps_cash_rows(tmp_env):
-    """Malformed stock rows should not crash replay, while ticker-empty cash rows remain valid."""
+@pytest.mark.parametrize("action", ("", "transfer"))
+def test_replay_rejects_malformed_action_rows(tmp_env, action):
+    """Unified security ledgers must fail fast instead of dropping malformed events."""
     from ft import models
     from ft.stock import _replay_security_csv
 
     security_dir = models.RECORDS_DIR / "security"
     security_dir.mkdir(parents=True, exist_ok=True)
-    # Row with empty action (malformed) — should be skipped
+    # Invalid legacy audit actions must not be silently skipped.
     (security_dir / "2026-06-29.csv").write_text(
         "date,action,from_ticker,to_ticker,from_amount,to_amount,price,commission,commission_asset,currency,account_name,note\n"
-        "2026-06-29 10:00:00,,,nvda.us,,1,10,0,,USD,IBKR,missing action\n",
+        f"2026-06-29 10:00:00,{action},,nvda.us,,1,10,0,,USD,IBKR,invalid action\n",
         encoding="utf-8",
     )
-    # Valid deposit row
     (security_dir / "2026-06-30.csv").write_text(
         "date,action,from_ticker,to_ticker,from_amount,to_amount,price,commission,commission_asset,currency,account_name,note\n"
-        "2026-06-30 10:00:00,deposit,,usd,0,25,1,0,,USD,IBKR,cash deposit\n",
+        "2026-06-30 10:00:00,deposit,,usd,0,25,1,0,,USD,IBKR,later valid event\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="invalid security action"):
+        _replay_security_csv()
+
+
+def test_replay_rejects_malformed_numeric_security_rows(tmp_env):
+    from ft import models
+    from ft.stock import _replay_security_csv
+
+    security_dir = models.RECORDS_DIR / "security"
+    security_dir.mkdir(parents=True, exist_ok=True)
+    (security_dir / "2026-06-30.csv").write_text(
+        "date,action,from_ticker,to_ticker,from_amount,to_amount,price,commission,commission_asset,currency,account_name,note\n"
+        "2026-06-30 10:00:00,deposit,,usd,0,not-a-number,1,0,,USD,IBKR,invalid amount\n",
         encoding="utf-8",
     )
 
-    positions = _replay_security_csv()
-    # Malformed row skipped, only deposit counted
-    assert positions[("IBKR", "usd")]["shares"] == pytest.approx(25)
-    assert positions[("IBKR", "usd")]["total_cost"] == pytest.approx(25)
+    with pytest.raises(ValueError, match="invalid numeric security value"):
+        _replay_security_csv()
+
+
+@pytest.mark.parametrize("action, from_ticker, to_ticker", (
+    ("swap", "", "usd"),
+    ("swap", "usd", ""),
+    ("deposit", "", ""),
+    ("withdraw", "", ""),
+    ("dividend", "nvda.us", ""),
+    ("checkin", "", ""),
+))
+def test_replay_rejects_security_events_missing_required_ticker(
+    tmp_env, action, from_ticker, to_ticker,
+):
+    from ft import models
+    from ft.stock import _replay_security_csv
+
+    security_dir = models.RECORDS_DIR / "security"
+    security_dir.mkdir(parents=True, exist_ok=True)
+    (security_dir / "2026-06-30.csv").write_text(
+        "date,action,from_ticker,to_ticker,from_amount,to_amount,price,commission,commission_asset,currency,account_name,note\n"
+        f"2026-06-30 10:00:00,{action},{from_ticker},{to_ticker},1,1,1,0,,USD,IBKR,missing ticker\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=f"{action}.*ticker"):
+        _replay_security_csv()
 
 
 def test_replay_rejects_old_ten_column_security_header(tmp_env):

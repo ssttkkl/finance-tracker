@@ -50,7 +50,7 @@ class InvestmentRepository(Protocol):
     def list(self) -> list[dict]:
         ...
 
-    def add(self, row: dict) -> None:
+    def add(self, account_type: str, row: dict) -> None:
         ...
 
 
@@ -68,6 +68,7 @@ class UnitOfWork(Protocol):
     ledger_root: object
     accounts: AccountRepository
     cashflows: CashflowRepository
+    investments: InvestmentRepository
     snapshot: SnapshotRepository
 
     def __enter__(self) -> "UnitOfWork":

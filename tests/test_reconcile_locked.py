@@ -235,9 +235,14 @@ def test_unlocked_rows_still_reconcile_normally(tmp_env):
 def test_ft_transfer_writes_locked_rows(tmp_env):
     """ft transfer 手动写入的转账行自动 locked=1。"""
     from ft import models
-    from ft.transfer import do_transfer
+    from decimal import Decimal
+    from ft.adapters.local_csv import LocalCsvUnitOfWork
+    from ft.application.cashflow import TransferService
 
-    do_transfer("支付宝余额", "微信零钱", 200.0, date="2026-06-20", time_str="09:00:00")
+    assert TransferService(LocalCsvUnitOfWork(models.FT_DIR)).transfer(
+        from_name="支付宝余额", to_name="微信零钱", amount=Decimal("200"),
+        date="2026-06-20", time_str="09:00:00",
+    ).ok is True
 
     cash_dir = models.RECORDS_DIR / "cash"
     files = list(cash_dir.glob("*.csv"))

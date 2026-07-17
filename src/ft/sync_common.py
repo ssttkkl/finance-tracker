@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Iterable
 
 from . import models
-from .stock import CSV_FIELDS
+from .stock import CSV_FIELDS, _validate_security_csv_header
 
 
 def row_identity(row: dict) -> tuple[str, ...]:
@@ -51,7 +51,9 @@ def _existing_identities(
         return id_tokens, exact_rows
     for path in sorted(security_dir.glob("*.csv")):
         with path.open(encoding="utf-8") as f:
-            for row in csv.DictReader(f):
+            reader = csv.DictReader(f)
+            _validate_security_csv_header(reader.fieldnames, path)
+            for row in reader:
                 if row.get("account_name") != account_name:
                     continue
                 tok = id_token_from_note(row.get("note", ""), prefix)

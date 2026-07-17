@@ -264,7 +264,7 @@ def main(argv=None):
         )
         if not result.ok:
             print(f"❌ {result.error.message}")
-            return
+            raise SystemExit(1)
         account = result.details["account"]
         sym = models.CURRENCY_SYMBOLS.get(account.currency, "")
         print(f"✅ 已记录: {sym}{Decimal(args.amount):+.2f} {args.counterparty} ({args.account})")
@@ -323,8 +323,10 @@ def main(argv=None):
         from . import models
         import csv
         from .snapshot import rebuild_snapshot_from_records
+        from .ledger_layout import ensure_monthly_cash_ledger
 
         records_dir = models.RECORDS_DIR
+        ensure_monthly_cash_ledger(records_dir)
         ok = True
 
         if args.fix:
@@ -439,7 +441,7 @@ def main(argv=None):
         )
         if not result.ok:
             print(f"❌ {result.error.message}")
-            return
+            raise SystemExit(1)
         account = result.details["account"]
         sym = models.CURRENCY_SYMBOLS.get(account.currency, "")
         print(f"✅ {args.account}: 余额校准 {sym}{Decimal(args.balance):.2f} ({result.details['day']})")
@@ -458,7 +460,7 @@ def main(argv=None):
         )
         if not result.ok:
             print(f"❌ {result.error.message}")
-            return
+            raise SystemExit(1)
         if result.details.get("warning"):
             print(f"⚠️ {result.details['warning']}")
         from_acct = result.details["from_account"]

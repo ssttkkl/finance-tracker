@@ -208,3 +208,19 @@ def test_filter_new_rows_keeps_new_fill_when_same_tx_hash_was_partially_recorded
     new_fill = dict(existing, to_ticker="pm:market-b:no", from_amount="2", to_amount="8", price="0.25")
 
     assert filter_new_rows([existing, new_fill], account_name="Polymarket") == [new_fill]
+
+
+def test_polymarket_filter_rejects_legacy_security_transfer_header(tmp_env):
+    from ft import models
+    from ft.polymarket_sync import filter_new_rows
+
+    security_dir = models.RECORDS_DIR / "security"
+    security_dir.mkdir(parents=True, exist_ok=True)
+    (security_dir / "2026-07-07.csv").write_text(
+        "date,amount,currency,counterparty,description,category,account_name,source,bill_source,transfer_account,locked\n"
+        "2026-07-07 10:00:00,1,USD,,legacy,transfer_in,Polymarket,manual,,,1\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="invalid security CSV schema"):
+        filter_new_rows([], account_name="Polymarket")

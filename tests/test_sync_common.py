@@ -59,3 +59,18 @@ def test_filter_new_rows_dedupes_by_tid(tmp_env):
     new = filter_new_rows(rows, account_name="币安", prefix="tid")
     assert len(new) == 1
     assert new[0]["note"] == "kraken tid:NEW"
+
+
+def test_filter_new_rows_rejects_legacy_security_transfer_header(tmp_env):
+    from ft.sync_common import filter_new_rows
+
+    security_dir = tmp_env / "records" / "security"
+    security_dir.mkdir(parents=True)
+    (security_dir / "2026-07-07.csv").write_text(
+        "date,amount,currency,counterparty,description,category,account_name,source,bill_source,transfer_account,locked\n"
+        "2026-07-07 10:00:00,1,USD,,legacy,transfer_in,币安,manual,,,1\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="invalid security CSV schema"):
+        filter_new_rows([], records_dir=tmp_env / "records", account_name="币安", prefix="tid")

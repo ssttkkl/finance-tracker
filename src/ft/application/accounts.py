@@ -33,6 +33,18 @@ class AccountService:
             active=True,
         )
         with self._uow as uow:
+            accounts = uow.accounts.list()
+            if type_ in {"security", "crypto"} and any(
+                candidate.name == normalized_name
+                and candidate.type in {"security", "crypto"}
+                for candidate in accounts
+            ):
+                uow.rollback()
+                return AccountResult.fail(
+                    "account.duplicate_investment_name",
+                    f"投资账户展示名必须唯一: {normalized_name}",
+                    name=normalized_name,
+                )
             existing = uow.accounts.find(normalized_name, currency)
             if existing is not None:
                 uow.rollback()
@@ -66,6 +78,18 @@ class AccountService:
             if target is None:
                 uow.rollback()
                 return AccountResult.fail("account.not_found", f"未找到账户: {old_name} ({currency})")
+            if target.type in {"security", "crypto"} and any(
+                account is not target
+                and account.name == normalized_new
+                and account.type in {"security", "crypto"}
+                for account in accounts
+            ):
+                uow.rollback()
+                return AccountResult.fail(
+                    "account.duplicate_investment_name",
+                    f"投资账户展示名必须唯一: {normalized_new}",
+                    name=normalized_new,
+                )
             if any(a.name == normalized_new and a.currency == currency for a in accounts):
                 uow.rollback()
                 return AccountResult.fail("account.duplicate", f"账户已存在: {normalized_new} ({currency})")

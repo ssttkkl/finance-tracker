@@ -14,7 +14,7 @@ from typing import Iterable
 
 from . import models
 from .credentials import ensure_credentials_gitignored, load_polymarket_credentials
-from .stock import CSV_FIELDS, do_append
+from .stock import CSV_FIELDS, _validate_security_csv_header, do_append
 from .sync_common import row_identity as _shared_row_identity, write_stock_csv
 
 
@@ -230,6 +230,7 @@ def _existing_polymarket_identities(
     for path in sorted(security_dir.glob("*.csv")):
         with path.open(encoding="utf-8") as f:
             reader = csv.DictReader(f)
+            _validate_security_csv_header(reader.fieldnames, path)
             for row in reader:
                 if "action" not in row:
                     continue
@@ -442,7 +443,9 @@ def _existing_settlement_tokens(account_name: str, records_dir: Path | None = No
         return tokens
     for path in sorted(security_dir.glob("*.csv")):
         with path.open(encoding="utf-8") as f:
-            for row in csv.DictReader(f):
+            reader = csv.DictReader(f)
+            _validate_security_csv_header(reader.fieldnames, path)
+            for row in reader:
                 if row.get("account_name") != account_name:
                     continue
                 note = row.get("note", "")

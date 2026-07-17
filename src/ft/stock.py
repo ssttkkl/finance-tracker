@@ -14,16 +14,9 @@ from typing import Optional
 import yaml
 
 from .snapshot import git_stage, load_snapshot, save_snapshot
-from .schema import CASH_CSV_FIELDS, CRYPTO_IDS, CSV_FIELDS, CURRENCY_SYMBOLS, VALID_ACTIONS
+from .schema import CRYPTO_IDS, CSV_FIELDS, CURRENCY_SYMBOLS, VALID_ACTIONS
 
 # ── CSV fields for security trades ──────────────────────────────────────
-
-TRANSFER_AUDIT_FIELDS = CASH_CSV_FIELDS
-LEGACY_TRANSFER_AUDIT_FIELDS = [
-    "date", "amount", "currency", "counterparty", "description", "category",
-    "account_name", "source", "bill_source", "transfer_account", "locked",
-]
-
 
 def _models():
     from . import models
@@ -36,27 +29,14 @@ def _clean_csv_row(row: dict) -> dict:
 
 
 def _security_fieldnames(rows: list[dict]) -> list[str]:
-    """Security files may mix stock rows and transfer audit rows; preserve both schemas."""
-    fieldnames = list(CSV_FIELDS)
-    for row in rows:
-        for field in row.keys():
-            if field is not None and field not in fieldnames:
-                fieldnames.append(field)
-    return fieldnames
+    return list(CSV_FIELDS)
 
 
 def _validate_security_csv_header(fieldnames, path: Path | str | None = None) -> None:
-    """Reject obsolete stock CSV schemas while allowing supported transfer audit rows."""
+    """Require the unified security event schema."""
     actual = list(fieldnames or [])
     label = str(path) if path is not None else "security CSV"
-    transfer_extras = [field for field in TRANSFER_AUDIT_FIELDS if field not in CSV_FIELDS]
-    if actual == CSV_FIELDS or actual == CSV_FIELDS + ["transfer_account"]:
-        return
-    if actual[:len(CSV_FIELDS)] == CSV_FIELDS and all(
-        field in transfer_extras for field in actual[len(CSV_FIELDS):]
-    ):
-        return
-    if actual in (TRANSFER_AUDIT_FIELDS, LEGACY_TRANSFER_AUDIT_FIELDS):
+    if actual == CSV_FIELDS:
         return
     missing = [field for field in CSV_FIELDS if field not in actual]
     extra = [field for field in actual if field not in CSV_FIELDS]
@@ -73,7 +53,7 @@ def _validate_security_csv_header(fieldnames, path: Path | str | None = None) ->
 
 
 def _write_security_csv(path: Path, rows: list[dict]) -> None:
-    """Write security rows while preserving transfer-style audit columns if present."""
+    """Write unified security event rows."""
     clean_rows = [_clean_csv_row(row) for row in rows]
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = None
@@ -2036,13 +2016,13 @@ def _replay_security_rows(rows, validate_accounts: bool = False, accounts_path=N
         return pos
 
     for row in rows:
-        # Security records are mixed with some transfer-style audit rows
-        # that don't carry stock-trade fields. Skip anything that isn't a
-        # real security action row.
-        if row.get("action") not in VALID_ACTIONS or not row.get("account_name"):
-            continue
+        action = row.get("action")
+        if action not in VALID_ACTIONS:
+            raise ValueError(f"invalid security action: {action!r}")
+        if not row.get("account_name"):
+            raise ValueError("invalid security event: account_name is required")
         a = row["account_name"]
-        act = row["action"]
+        act = action
         cost_currency = row.get("currency", "") or ""
         if validate_accounts:
             _validate_security_row_account_currency(a, cost_currency, accounts_path=accounts_path)
@@ -2052,8 +2032,8 @@ def _replay_security_rows(rows, validate_accounts: bool = False, accounts_path=N
             to_amount = float(row.get("to_amount") or 0)
             price = float(row.get("price") or 0)
             commission = float(row.get("commission") or 0)
-        except (ValueError, KeyError):
-            continue
+        except (ValueError, KeyError) as exc:
+            raise ValueError(f"invalid numeric security value in event for {a!r}") from exc
         _ensure_finite_values(from_amount=from_amount, to_amount=to_amount,
                               price=price, commission=commission)
 
@@ -2077,7 +2057,7 @@ def _replay_security_rows(rows, validate_accounts: bool = False, accounts_path=N
         elif act == "deposit":
             to_ticker = _canonical_ticker(row.get("to_ticker", "") or "")
             if not to_ticker:
-                continue
+                raise ValueError("invalid deposit event: to_ticker is required")
             h = _replay_position(a, to_ticker, cost_currency, base_currencies)
             h["shares"] = round(h["shares"] + to_amount, 10)
             h["total_cost"] = round(h["total_cost"] + to_amount, 10)
@@ -2087,7 +2067,7 @@ def _replay_security_rows(rows, validate_accounts: bool = False, accounts_path=N
         elif act == "withdraw":
             from_ticker = _canonical_ticker(row.get("from_ticker", "") or "")
             if not from_ticker:
-                continue
+                raise ValueError("invalid withdraw event: from_ticker is required")
             h = _replay_position(a, from_ticker, cost_currency, base_currencies)
             h["shares"] = round(h["shares"] - from_amount, 10)
             h["total_cost"] = round(h["total_cost"] - from_amount, 10)
@@ -2098,7 +2078,7 @@ def _replay_security_rows(rows, validate_accounts: bool = False, accounts_path=N
             from_ticker = _canonical_ticker(row.get("from_ticker", "") or "")
             to_ticker = _canonical_ticker(row.get("to_ticker", "") or "")
             if not to_ticker:
-                continue
+                raise ValueError("invalid dividend event: to_ticker is required")
             is_stock_dividend = (
                 bool(from_ticker)
                 and from_ticker == to_ticker
@@ -2123,7 +2103,7 @@ def _replay_security_rows(rows, validate_accounts: bool = False, accounts_path=N
         elif act == "checkin":
             from_ticker = _canonical_ticker(row.get("from_ticker", "") or "")
             if not from_ticker:
-                continue
+                raise ValueError("invalid checkin event: from_ticker is required")
             if _is_currency_ticker(from_ticker, base_currencies):
                 h = _replay_position(a, from_ticker, cost_currency, base_currencies)
                 h["shares"] = round(to_amount, 10)

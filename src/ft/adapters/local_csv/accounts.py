@@ -10,6 +10,7 @@ import tempfile
 import yaml
 
 from ft.domain.accounts import AccountDTO
+from ft.ledger_layout import ensure_monthly_cash_ledger
 from ft.schema import CASH_CSV_FIELDS, DEFAULT_ACCOUNTS_YAML, DEFAULT_SNAPSHOT
 
 
@@ -98,7 +99,14 @@ class _BufferedCashflowRepository:
 
     def list(self, account_type: str | None = None) -> list[dict]:
         rows = []
-        types = [account_type] if account_type else ["cash", "loan", "lend", "security", "crypto"]
+        if account_type in {"security", "crypto"}:
+            raise ValueError(
+                "cashflow repository only supports cash, loan, and lend records; "
+                "use the investment repository"
+            )
+        self.ensure_no_legacy_crypto_records()
+        ensure_monthly_cash_ledger(self.records_dir)
+        types = [account_type] if account_type else ["cash", "loan", "lend"]
         for typ in types:
             type_dir = self.records_dir / typ
             if not type_dir.exists():
@@ -112,28 +120,23 @@ class _BufferedCashflowRepository:
         return rows
 
     def add(self, account_type: str, row: dict) -> None:
-        day = row["date"][:10]
-        key = (account_type, day)
-        rows = self._rows_for(account_type, day)
+        if account_type not in {"cash", "loan", "lend"}:
+            raise ValueError(
+                "cashflow repository only supports cash, loan, and lend records; "
+                "use the investment repository"
+            )
+        ensure_monthly_cash_ledger(self.records_dir)
+        month = row["date"][:7]
+        key = (account_type, month)
+        rows = self._rows_for(account_type, month)
         rows.append(dict(row) if account_type == "security" else _normal_cash_row(row))
         rows.sort(key=lambda item: item.get("date", ""))
         self.dirty.add(key)
 
-    def replace_day(self, account_type: str, day: str, rows: list[dict]) -> None:
-        key = (account_type, day)
-        normalized = [_normal_cash_row(row) for row in rows]
-        normalized.sort(key=lambda item: item.get("date", ""))
-        self._cache[key] = normalized
-        self.dirty.add(key)
-
-    def delete_day(self, account_type: str, day: str) -> None:
-        self._cache[(account_type, day)] = []
-        self.dirty.add((account_type, day))
-
     def commit(self) -> None:
-        for account_type, day in sorted(self.dirty):
-            path = self.records_dir / account_type / f"{day}.csv"
-            rows = self._cache.get((account_type, day), [])
+        for account_type, month in sorted(self.dirty):
+            path = self.records_dir / account_type / f"{month}.csv"
+            rows = self._cache.get((account_type, month), [])
             if not rows:
                 path.unlink(missing_ok=True)
                 continue
@@ -160,8 +163,59 @@ class _BufferedCashflowRepository:
             return []
         with path.open(encoding="utf-8") as f:
             if account_type == "security":
-                return [dict(row) for row in csv.DictReader(f)]
+                from ft.stock import _validate_security_csv_header
+
+                reader = csv.DictReader(f)
+                _validate_security_csv_header(reader.fieldnames, path)
+                return [dict(row) for row in reader]
             return [_normal_cash_row(row) for row in csv.DictReader(f)]
+
+    def ensure_no_legacy_crypto_records(self) -> None:
+        legacy_files = sorted((self.records_dir / "crypto").glob("*.csv"))
+        if legacy_files:
+            raise ValueError(
+                "legacy crypto ledger is unsupported; move investment events to records/security: "
+                + ", ".join(str(path) for path in legacy_files)
+            )
+
+    def ensure_no_legacy_daily_cash_records(self) -> None:
+        ensure_monthly_cash_ledger(self.records_dir)
+
+
+class _BufferedInvestmentRepository:
+    """Investment events share the UnitOfWork's buffered record transaction."""
+
+    def __init__(self, records: _BufferedCashflowRepository):
+        self._records = records
+
+    def list(self) -> list[dict]:
+        self._records.ensure_no_legacy_crypto_records()
+        self._records.ensure_no_legacy_daily_cash_records()
+        return self._read_security_events()
+
+    def add(self, account_type: str, row: dict) -> None:
+        if account_type not in {"security", "crypto"}:
+            raise ValueError(f"investment events require security or crypto account: {account_type}")
+        self._records.ensure_no_legacy_crypto_records()
+        self._records.ensure_no_legacy_daily_cash_records()
+        day = row["date"][:10]
+        rows = self._records._rows_for("security", day)
+        rows.append(dict(row))
+        rows.sort(key=lambda item: item.get("date", ""))
+        self._records.dirty.add(("security", day))
+
+    def _read_security_events(self) -> list[dict]:
+        rows = []
+        type_dir = self._records.records_dir / "security"
+        if not type_dir.exists():
+            return rows
+        for path in sorted(type_dir.glob("*.csv")):
+            for row in self._records._read_file("security", path.stem):
+                copied = dict(row)
+                copied["_record_type"] = "security"
+                copied["_record_file"] = str(path)
+                rows.append(copied)
+        return rows
 
 
 class _BufferedSnapshotRepository:
@@ -238,6 +292,7 @@ class LocalCsvUnitOfWork:
         self._working_accounts: list[dict] | None = None
         self.accounts = _BufferedAccountRepository(self._load_working_accounts)
         self.cashflows = _BufferedCashflowRepository(self.ledger_root)
+        self.investments = _BufferedInvestmentRepository(self.cashflows)
         self.snapshot = _BufferedSnapshotRepository(self.ledger_root)
         self._committed = False
 
@@ -245,6 +300,7 @@ class LocalCsvUnitOfWork:
         self._working_accounts = None
         self.accounts = _BufferedAccountRepository(self._load_working_accounts)
         self.cashflows = _BufferedCashflowRepository(self.ledger_root)
+        self.investments = _BufferedInvestmentRepository(self.cashflows)
         self.snapshot = _BufferedSnapshotRepository(self.ledger_root)
         self._committed = False
         return self
@@ -254,10 +310,41 @@ class LocalCsvUnitOfWork:
             self.rollback()
 
     def commit(self) -> None:
-        if self._working_accounts is not None and self.accounts.dirty:
-            self._repository._write_raw(self._working_accounts)
-        self.cashflows.commit()
-        self.snapshot.commit()
+        self.cashflows.ensure_no_legacy_crypto_records()
+        self.cashflows.ensure_no_legacy_daily_cash_records()
+        affected_paths = self._affected_paths()
+        backups = {
+            path: path.read_bytes() if path.exists() else None
+            for path in affected_paths
+        }
+        dirty_state = (
+            self.accounts.dirty,
+            set(self.cashflows.dirty),
+            self.snapshot.dirty,
+        )
+        try:
+            if self._working_accounts is not None and self.accounts.dirty:
+                self._repository._write_raw(self._working_accounts)
+            self.cashflows.commit()
+            self.snapshot.commit()
+        except Exception as original_error:
+            restore_errors = []
+            for path, content in backups.items():
+                try:
+                    if content is None:
+                        path.unlink(missing_ok=True)
+                    else:
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        path.write_bytes(content)
+                except Exception as restore_error:
+                    restore_errors.append(f"{path}: {restore_error}")
+            self.accounts.dirty, self.cashflows.dirty, self.snapshot.dirty = dirty_state
+            self.rollback()
+            if restore_errors and hasattr(original_error, "add_note"):
+                original_error.add_note(
+                    "rollback restoration failures: " + "; ".join(restore_errors)
+                )
+            raise
         self._committed = True
 
     def rollback(self) -> None:
@@ -267,6 +354,17 @@ class LocalCsvUnitOfWork:
         if self._working_accounts is None:
             self._working_accounts = deepcopy(self._repository._read_raw())
         return self._working_accounts
+
+    def _affected_paths(self) -> set[Path]:
+        paths = {
+            self.cashflows.records_dir / account_type / f"{day}.csv"
+            for account_type, day in self.cashflows.dirty
+        }
+        if self._working_accounts is not None and self.accounts.dirty:
+            paths.add(self._repository.accounts_path)
+        if self.snapshot.dirty:
+            paths.add(self.snapshot.snapshot_path)
+        return paths
 
 
 def _to_dto(item: dict) -> AccountDTO:

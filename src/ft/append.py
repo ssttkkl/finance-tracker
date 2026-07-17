@@ -6,6 +6,7 @@ from collections import defaultdict
 from datetime import datetime
 from .accounts import load_accounts
 from . import models
+from .ledger_layout import ensure_monthly_cash_ledger
 
 
 def _normal_row(row: dict) -> dict:
@@ -15,6 +16,7 @@ def _normal_row(row: dict) -> dict:
 def do_append(csv_paths: list[str] | str):
     """Read converted CSV files, split by month, route to records/{type}/YYYY-MM.csv."""
     records_dir = models.RECORDS_DIR
+    ensure_monthly_cash_ledger(records_dir)
     csv_fields = models.CASH_CSV_FIELDS
 
     if isinstance(csv_paths, str):
@@ -50,11 +52,16 @@ def do_append(csv_paths: list[str] | str):
                     raise ValueError(
                         f"❌ 账户 '{acct_name}({row_currency})' 不存在，请先 ft acct add 再重试"
                     )
+                if acct["type"] in {"security", "crypto"}:
+                    raise ValueError(
+                        "❌ generic append only accepts cash, loan, and lend rows; "
+                        "use ft stock append for an investment account"
+                    )
 
                 date_val = row.get("date", "").strip()
                 if not date_val:
                     raise ValueError(f"❌ append CSV 中存在 date 为空的记录 (account={acct_name})")
-                period_key = date_val[:10] if acct["type"] == "security" else models.month_key(date_val)
+                period_key = models.month_key(date_val)
                 incoming_rows.append((acct["type"], period_key, _normal_row(row)))
                 stats[date_val[:10]] += 1
 
@@ -68,34 +75,23 @@ def do_append(csv_paths: list[str] | str):
 
     # Write each group
     for (typ, period_key), rows in groups.items():
-        month_path = (
-            records_dir / typ / f"{period_key}.csv"
-            if typ == "security"
-            else models.records_month_path(typ, period_key, records_dir)
-        )
+        month_path = models.records_month_path(typ, period_key, records_dir)
         month_path.parent.mkdir(parents=True, exist_ok=True)
         existing_rows = []
 
         if month_path.exists():
             with open(month_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f)
-                if typ == "security":
-                    existing_rows = list(reader)
-                else:
-                    existing_rows = [_normal_row(row) for row in reader]
+                existing_rows = [_normal_row(row) for row in reader]
 
         # Merge and sort
         all_rows = existing_rows + rows
         all_rows.sort(key=lambda r: r.get("date", ""))
 
-        if typ == "security":
-            from .stock import _write_security_csv
-            _write_security_csv(month_path, all_rows)
-        else:
-            with open(month_path, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=csv_fields)
-                writer.writeheader()
-                writer.writerows(all_rows)
+        with open(month_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=csv_fields)
+            writer.writeheader()
+            writer.writerows(all_rows)
 
     # Update snapshot balances
     from .snapshot import load_snapshot, save_snapshot, set_balance, update_balance

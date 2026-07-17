@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import shutil
 from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
 from pathlib import Path
@@ -141,6 +142,8 @@ def test_cli_add_checkin_transfer_dispatch_to_services(monkeypatch):
 
 
 def test_cli_report_after_fractional_add_uses_numeric_snapshot_balance(tmp_path):
+    if shutil.which("uv") is None:
+        pytest.skip("uv is not installed")
     home = tmp_path / "home"
     home.mkdir()
     repo_root = Path(__file__).resolve().parents[1]
@@ -167,7 +170,7 @@ def test_cli_report_after_fractional_add_uses_numeric_snapshot_balance(tmp_path)
     )
     assert "Cash" in results[-1].stdout
     assert "-12.34" in results[-1].stdout
-    assert (home / ".ft" / "records" / "cash" / "2026-07-16.csv").exists()
+    assert (home / ".ft" / "records" / "cash" / "2026-07.csv").exists()
 
 
 def test_reconcile_rejects_month_plus_range():
@@ -329,9 +332,10 @@ def test_cli_stock_validation_errors_exit_nonzero(tmp_env, capsys):
     assert "not configured" in capsys.readouterr().out
 
 
-def test_cli_add_to_security_preserves_existing_stock_columns(tmp_env):
-    """Top-level ft add must not corrupt mixed security CSV files."""
+def test_cli_add_rejects_security_account_without_writing_cash_row(tmp_env, capsys):
+    """Top-level ft add must not write a cash row into a unified security ledger."""
     from ft import models
+    import ft.snapshot as snapshot_mod
     from ft.stock import record_trade
 
     record_trade(
@@ -342,10 +346,11 @@ def test_cli_add_to_security_preserves_existing_stock_columns(tmp_env):
         currency="USD", account_name="IBKR", note="existing stock row",
     )
 
-    cli.main([
-        "add", "-a", "5", "-c", "manual cash adjustment",
-        "--account", "IBKR", "--date", "2026-06-30 10:00:00",
-    ])
+    with pytest.raises(SystemExit) as exc:
+        cli.main([
+            "add", "-a", "5", "-c", "manual cash adjustment",
+            "--account", "IBKR", "--date", "2026-06-30 10:00:00",
+        ])
 
     day_csv = models.RECORDS_DIR / "security" / "2026-06-30.csv"
     with day_csv.open(encoding="utf-8") as f:
@@ -358,12 +363,17 @@ def test_cli_add_to_security_preserves_existing_stock_columns(tmp_env):
     assert rows[0]["action"] == "swap"
     assert rows[0]["from_ticker"] == "usd"
     assert rows[0]["to_ticker"] == "nvda.us"
-    assert rows[1]["counterparty"] == "manual cash adjustment"
+    assert len(rows) == 1
+    assert exc.value.code == 1
+    assert "手工现金交易不支持 security 或 crypto 账户" in capsys.readouterr().out
+    assert not snapshot_mod.SNAPSHOT_PATH.exists()
+    assert not any((models.RECORDS_DIR / typ).exists() for typ in ("cash", "loan", "lend"))
 
 
-def test_cli_checkin_to_security_preserves_existing_stock_columns(tmp_env):
-    """Top-level ft checkin must not corrupt mixed security CSV files."""
+def test_cli_checkin_rejects_security_account_without_writing_cash_row(tmp_env, capsys):
+    """Top-level ft checkin must not write a cash row into a unified security ledger."""
     from ft import models
+    import ft.snapshot as snapshot_mod
     from ft.stock import record_trade
 
     record_trade(
@@ -374,7 +384,8 @@ def test_cli_checkin_to_security_preserves_existing_stock_columns(tmp_env):
         currency="USD", account_name="IBKR", note="existing stock row",
     )
 
-    cli.main(["checkin", "IBKR", "--balance", "100", "--date", "2026-06-30"])
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["checkin", "IBKR", "--balance", "100", "--date", "2026-06-30"])
 
     day_csv = models.RECORDS_DIR / "security" / "2026-06-30.csv"
     with day_csv.open(encoding="utf-8") as f:
@@ -385,9 +396,12 @@ def test_cli_checkin_to_security_preserves_existing_stock_columns(tmp_env):
     assert "from_ticker" in fieldnames
     assert "note" in fieldnames
     stock_row = next(row for row in rows if row["action"] == "swap")
-    checkin_row = next(row for row in rows if row["category"] == "checkin")
     assert stock_row["to_ticker"] == "nvda.us"
-    assert checkin_row["category"] == "checkin"
+    assert len(rows) == 1
+    assert exc.value.code == 1
+    assert "现金余额校准不支持 security 或 crypto 账户" in capsys.readouterr().out
+    assert not snapshot_mod.SNAPSHOT_PATH.exists()
+    assert not any((models.RECORDS_DIR / typ).exists() for typ in ("cash", "loan", "lend"))
 
 
 def test_cli_stock_append_returns_nonzero_when_append_fails(monkeypatch):
@@ -398,6 +412,25 @@ def test_cli_stock_append_returns_nonzero_when_append_fails(monkeypatch):
         cli.main(["stock", "append", "bad.csv"])
 
     assert exc.value.code == 1
+
+
+def test_cli_transfer_errors_exit_nonzero(monkeypatch, capsys):
+    from ft.domain.cashflow import CashflowResult
+
+    class FailingTransferService:
+        def __init__(self, _uow):
+            pass
+
+        def transfer(self, **_kwargs):
+            return CashflowResult.fail("account.not_found", "未找到来源账户: Missing")
+
+    monkeypatch.setattr("ft.application.cashflow.TransferService", FailingTransferService)
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["transfer", "--from", "Missing", "--to", "Cash", "--amount", "1"])
+
+    assert exc.value.code == 1
+    assert "未找到来源账户: Missing" in capsys.readouterr().out
 
 
 def test_cli_stock_sync_polymarket_dispatches_nested_subcommand(monkeypatch):

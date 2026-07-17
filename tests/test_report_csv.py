@@ -102,7 +102,7 @@ def test_networth_with_checkin_reset(tmp_env):
 
 def test_networth_checkin_before_all_records(tmp_env):
     records_dir, _ = tmp_env
-    write_csv(records_dir / "cash" / "2026-06-01.csv", [
+    write_csv(records_dir / "cash" / "2026-06.csv", [
         {"date": "2026-06-01 09:00:00", "amount": "0", "currency": "CNY",
          "counterparty": "", "description": "余额校准¥5000.00", "category": "checkin",
          "account_name": "支付宝余额", "source": "手动", "platform": "",
@@ -155,7 +155,7 @@ def test_month_filter(tmp_env):
          "account_name": "支付宝余额", "source": "支付宝", "platform": "",
          "bill_source": "alipay"},
     ])
-    write_csv(records_dir / "cash" / "2026-07-01.csv", [
+    write_csv(records_dir / "cash" / "2026-07.csv", [
         {"date": "2026-07-01 10:00:00", "amount": "-100.00", "currency": "CNY",
          "counterparty": "外卖", "description": "外卖", "category": "expense",
          "account_name": "支付宝余额", "source": "支付宝", "platform": "",
@@ -212,7 +212,7 @@ def test_expense_multi_account(tmp_env):
          "account_name": "支付宝余额", "source": "支付宝", "platform": "",
          "bill_source": "alipay"},
     ])
-    write_csv(records_dir / "loan" / "2026-06-12.csv", [
+    write_csv(records_dir / "loan" / "2026-06.csv", [
         {"date": "2026-06-12 11:00:00", "amount": "-200.00", "currency": "CNY",
          "counterparty": "京东", "description": "耳机", "category": "expense",
          "account_name": "工行信用卡(1200)", "source": "京东支付", "platform": "京东",

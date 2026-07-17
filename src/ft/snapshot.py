@@ -219,6 +219,8 @@ def rebuild_snapshot_from_records(records_dir=None, snapshot_path=None, stage_ch
     if records_dir is None:
         from . import models
         records_dir = models.RECORDS_DIR
+    from .ledger_layout import ensure_monthly_cash_ledger
+    ensure_monthly_cash_ledger(records_dir)
 
     from collections import defaultdict
     import csv

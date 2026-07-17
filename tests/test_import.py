@@ -87,40 +87,16 @@ def test_transfer_and_checkin_flow(tmp_env):
     """End-to-end: transfer → checkin → networth reflects reset"""
     records_dir, _ = tmp_env
 
-    from ft.transfer import do_transfer
-    # Use explicit time_str so checkin can be ordered after transfer
-    do_transfer(
+    from ft.adapters.local_csv import LocalCsvUnitOfWork
+    from ft.application.cashflow import CashflowService, TransferService
+
+    assert TransferService(LocalCsvUnitOfWork(records_dir.parent)).transfer(
         from_name="支付宝余额", to_name="微信零钱",
-        amount=500, date="2026-06-12", time_str="10:00:00"
-    )
-
-    # Simulate checkin by writing row directly
-    from ft import models
-    day_path = records_dir / "cash" / "2026-06.csv"
-
-    existing = []
-    with open(day_path, encoding="utf-8") as f:
-        existing = list(csv.DictReader(f))
-
-    existing.append({
-        "date": "2026-06-12 12:00:00", "amount": "0", "currency": "CNY",
-        "counterparty": "", "description": "余额校准¥10000.00",
-        "category": "checkin", "account_name": "支付宝余额",
-        "source": "手动", "bill_source": "",
-    })
-    existing.sort(key=lambda r: r["date"])
-    with open(day_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=models.CASH_CSV_FIELDS)
-        writer.writeheader()
-        writer.writerows(existing)
-
-    # Update snapshot to reflect checkin reset
-    from ft.snapshot import load_snapshot, save_snapshot, set_balance
-    snap = load_snapshot()
-    set_balance(snap, "支付宝余额", "cash", "CNY", 10000.0)
-    set_balance(snap, "微信零钱", "cash", "CNY", 500.0)
-    snap["updated_at"] = "2026-06-12"
-    save_snapshot(snap)
+        amount=500, date="2026-06-12", time_str="10:00:00",
+    ).ok is True
+    assert CashflowService(LocalCsvUnitOfWork(records_dir.parent)).checkin_balance(
+        account_name="支付宝余额", balance=10000, date="2026-06-13",
+    ).ok is True
 
     from ft.report import report_networth
     result = report_networth(records_dir)
