@@ -18,6 +18,9 @@ class InvestmentImporter(Protocol):
     def convert(self, command: object) -> list[dict]:
         ...
 
+    def read_converted(self, source: str) -> list[dict]:
+        ...
+
 
 @runtime_checkable
 class ExternalConnector(Protocol):

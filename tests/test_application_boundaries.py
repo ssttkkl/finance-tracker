@@ -34,6 +34,7 @@ def test_shared_application_dtos_are_immutable_and_decimal_safe():
 def test_ports_are_runtime_checkable_with_hand_written_fakes():
     from ft.connectors import (
         ConnectorRegistry,
+        InvestmentImporter,
         MappingProvider,
         MarketDataProvider,
         SecretStore,
@@ -63,6 +64,14 @@ def test_ports_are_runtime_checkable_with_hand_written_fakes():
     class FakeRegistry:
         def get_connector(self, provider):
             return object()
+
+    class IncompleteInvestmentImporter:
+        def convert(self, command):
+            return []
+
+    class FakeInvestmentImporter(IncompleteInvestmentImporter):
+        def read_converted(self, source):
+            return []
 
     class FakeChangeSet:
         def stage(self):
@@ -95,6 +104,8 @@ def test_ports_are_runtime_checkable_with_hand_written_fakes():
     assert isinstance(FakeSecrets(), SecretStore)
     assert isinstance(FakeMappings(), MappingProvider)
     assert isinstance(FakeRegistry(), ConnectorRegistry)
+    assert not isinstance(IncompleteInvestmentImporter(), InvestmentImporter)
+    assert isinstance(FakeInvestmentImporter(), InvestmentImporter)
     assert isinstance(FakeChangeSet(), ChangeSetRepository)
     assert isinstance(FakeReconciliation(), ReconciliationRepository)
 
