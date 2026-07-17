@@ -45,7 +45,10 @@ class InvestmentCommandRepository(Protocol):
 
 @runtime_checkable
 class InvestmentEventRepository(Protocol):
-    def existing_external_ids(self, provider: str, account: str) -> set[str]:
+    def validate_destination(self, provider: str, account: str) -> None:
+        ...
+
+    def existing_identities(self, provider: str, account: str) -> tuple[set[str], set[tuple]]:
         ...
 
     def append_events(self, rows: list[dict]) -> int:

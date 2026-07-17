@@ -8,6 +8,7 @@ from .adapters.export_csv import write_csv_export
 from .adapters.portfolio_cli import render_portfolio
 from .domain.imports import CashflowConvertCommand
 from .domain.investment import InvestmentConvertCommand
+from .domain.sync import ConnectorSyncCommand
 from .runtime import build_local_services
 
 
@@ -457,35 +458,35 @@ def main(argv=None):
             if not args.sync_cmd:
                 print("❌ 请指定 sync provider，例如: ft stock sync polymarket / ft stock sync kraken")
                 sys.exit(1)
-            if args.sync_cmd == "polymarket":
-                from .polymarket_sync import sync_polymarket
-                try:
-                    sync_polymarket(
-                        wallet=args.wallet,
-                        proxy_wallet=args.proxy_wallet,
-                        account_name=args.account,
-                        dry_run=args.dry_run,
-                        output=args.output,
-                        limit=args.limit,
-                        max_pages=args.max_pages,
-                    )
-                except ValueError as exc:
-                    print(f"❌ {exc}")
-                    sys.exit(1)
-            else:
-                from .exchange_sync import sync_exchange
-                try:
-                    sync_exchange(
-                        provider=args.sync_cmd,
-                        account_name=args.account,
-                        since=args.since,
-                        dry_run=args.dry_run,
-                        output=args.output,
-                        symbols=args.symbols,
-                    )
-                except ValueError as exc:
-                    print(f"❌ {exc}")
-                    sys.exit(1)
+            command = ConnectorSyncCommand(
+                provider=args.sync_cmd,
+                account=args.account,
+                since=getattr(args, "since", None),
+                dry_run=args.dry_run,
+                export=bool(args.output),
+                symbols=tuple(getattr(args, "symbols", None) or ()),
+                wallet=getattr(args, "wallet", None),
+                proxy_wallet=getattr(args, "proxy_wallet", None),
+                limit=getattr(args, "limit", 500),
+                max_pages=getattr(args, "max_pages", None),
+            )
+            try:
+                result = build_local_services(models.FT_DIR).connector_sync.sync(command)
+            except ValueError as exc:
+                print(f"❌ {exc}")
+                raise SystemExit(1)
+            print(f"Connector: {result.provider}; 账户: {result.account}")
+            print(
+                f"映射行: {result.fetched_count}; 新增行: {result.new_count}; "
+                f"跳过: {result.skipped_count}"
+            )
+            if args.output and result.export is not None:
+                write_csv_export(result.export, args.output)
+                print(f"✅ 已写出待导入 CSV: {args.output}")
+            elif args.dry_run:
+                print("DRY-RUN: 未写入 ft records")
+            elif result.new_count == 0:
+                print("✅ 没有新增交易或资金流水")
             return
 
         bundle = build_local_services(models.FT_DIR)

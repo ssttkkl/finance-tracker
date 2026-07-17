@@ -444,10 +444,17 @@ def test_cli_stock_sync_polymarket_dispatches_nested_subcommand(monkeypatch):
     """Polymarket sync should be ft stock sync polymarket, leaving room for future sync providers."""
     called = {}
 
-    def fake_sync_polymarket(**kwargs):
-        called.update(kwargs)
+    class FakeSync:
+        def sync(self, command):
+            from ft.domain.sync import ConnectorSyncResultDTO
+            called["command"] = command
+            return ConnectorSyncResultDTO(
+                provider=command.provider, account=command.account,
+                fetched_count=0, new_count=0, skipped_count=0,
+            )
 
-    monkeypatch.setattr("ft.polymarket_sync.sync_polymarket", fake_sync_polymarket)
+    bundle = type("Bundle", (), {"connector_sync": FakeSync()})()
+    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
 
     cli.main([
         "stock", "sync", "polymarket",
@@ -459,15 +466,14 @@ def test_cli_stock_sync_polymarket_dispatches_nested_subcommand(monkeypatch):
         "-o", "/tmp/polymarket.csv",
     ])
 
-    assert called == {
-        "wallet": None,
-        "proxy_wallet": "0x" + "1" * 40,
-        "account_name": "Polymarket Alt",
-        "dry_run": True,
-        "output": "/tmp/polymarket.csv",
-        "limit": 123,
-        "max_pages": 2,
-    }
+    command = called["command"]
+    assert command.wallet is None
+    assert command.proxy_wallet == "0x" + "1" * 40
+    assert command.account == "Polymarket Alt"
+    assert command.dry_run is True
+    assert command.export is True
+    assert command.limit == 123
+    assert command.max_pages == 2
 
 
 def test_cli_stock_sync_polymarket_old_hyphenated_command_is_removed():
@@ -477,46 +483,61 @@ def test_cli_stock_sync_polymarket_old_hyphenated_command_is_removed():
 
 
 def test_stock_sync_exchange_dispatches_to_sync_exchange(monkeypatch, capsys):
-    """`ft stock sync kraken` 应调用 exchange_sync.sync_exchange 并透传参数。"""
+    """`ft stock sync kraken` 应调用 ConnectorSyncService 并透传参数。"""
     import sys
     from ft import cli
 
     captured = {}
 
-    def fake_sync_exchange(provider, account_name, since=None, dry_run=False,
-                           output=None, symbols=None):
-        captured.update(provider=provider, account_name=account_name,
-                        since=since, dry_run=dry_run, output=output, symbols=symbols)
-        return []
+    class FakeSync:
+        def sync(self, command):
+            from ft.domain.sync import ConnectorSyncResultDTO
+            captured["command"] = command
+            return ConnectorSyncResultDTO(
+                provider=command.provider, account=command.account,
+                fetched_count=0, new_count=0, skipped_count=0,
+            )
 
-    monkeypatch.setattr("ft.exchange_sync.sync_exchange", fake_sync_exchange)
+    bundle = type("Bundle", (), {"connector_sync": FakeSync()})()
+    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
     monkeypatch.setattr(sys, "argv", [
         "ft", "stock", "sync", "kraken", "--account", "币安",
         "--dry-run", "--since", "2026-01-01", "--symbol", "BTC/USDT",
     ])
     cli.main()
 
-    assert captured["provider"] == "kraken"
-    assert captured["account_name"] == "币安"
-    assert captured["dry_run"] is True
-    assert captured["since"] == "2026-01-01"
-    assert captured["symbols"] == ["BTC/USDT"]
+    command = captured["command"]
+    assert command.provider == "kraken"
+    assert command.account == "币安"
+    assert command.dry_run is True
+    assert command.since == "2026-01-01"
+    assert command.symbols == ("BTC/USDT",)
 
 
 def test_stock_sync_polymarket_still_dispatches(monkeypatch):
-    """polymarket 分支零回归：仍调用 sync_polymarket。"""
+    """polymarket 分支零回归：仍调用 ConnectorSyncService。"""
     import sys
     from ft import cli
 
     called = {}
-    monkeypatch.setattr("ft.polymarket_sync.sync_polymarket",
-                        lambda **kw: called.update(kw) or [])
+
+    class FakeSync:
+        def sync(self, command):
+            from ft.domain.sync import ConnectorSyncResultDTO
+            called["command"] = command
+            return ConnectorSyncResultDTO(
+                provider=command.provider, account=command.account,
+                fetched_count=0, new_count=0, skipped_count=0,
+            )
+
+    bundle = type("Bundle", (), {"connector_sync": FakeSync()})()
+    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
     monkeypatch.setattr(sys, "argv", [
         "ft", "stock", "sync", "polymarket", "--wallet", "0xabc", "--dry-run",
     ])
     cli.main()
-    assert called["wallet"] == "0xabc"
-    assert called["dry_run"] is True
+    assert called["command"].wallet == "0xabc"
+    assert called["command"].dry_run is True
 
 
 def test_polymarket_sync_reads_proxy_wallet_from_credentials(tmp_env, monkeypatch):

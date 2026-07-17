@@ -463,12 +463,14 @@ def _existing_settlement_tokens(account_name: str, records_dir: Path | None = No
 def _settlement_rows_for_open_positions(
     account_name: str = "Polymarket",
     positions: dict[str, Decimal] | None = None,
+    settled_tokens: set[str] | None = None,
 ) -> list[dict]:
     """Create SELL rows for projected positive positions in resolved Polymarket markets."""
     if positions is None:
         positions = _snapshot_pm_positions(account_name)
 
-    settled_tokens = _existing_settlement_tokens(account_name)
+    if settled_tokens is None:
+        settled_tokens = _existing_settlement_tokens(account_name)
     tickers = [
         ticker for ticker, shares in positions.items()
         if str(ticker).startswith("pm:") and shares > 0 and ticker not in settled_tokens

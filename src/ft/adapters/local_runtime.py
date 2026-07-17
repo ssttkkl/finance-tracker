@@ -14,10 +14,16 @@ from ft.adapters.local_investment import (
     LocalPortfolioRepository,
 )
 from ft.adapters.local_verification import LocalVerificationRepository
+from ft.adapters.local_sync import (
+    LocalConnectorRegistry,
+    LocalInvestmentEventRepository,
+    LocalSecretStore,
+)
 from ft.application.change_sets import ChangeSetService
 from ft.application.imports import CashflowImportService
 from ft.application.investment import InvestmentService, PortfolioQueryService
 from ft.application.queries import FinanceQueryService
+from ft.application.sync import ConnectorSyncService
 from ft.application.verification import VerificationService
 from ft.runtime import ServiceBundle
 
@@ -50,6 +56,13 @@ def build_local_services(ledger_root) -> ServiceBundle:
         LocalPortfolioRepository(ledger_root),
         LegacyMarketDataProvider(),
     )
+    connector_sync = ConnectorSyncService(
+        LocalConnectorRegistry(ledger_root),
+        LocalSecretStore(ledger_root),
+        LocalMappingProvider(ledger_root),
+        LocalInvestmentEventRepository(ledger_root),
+        change_set_repository,
+    )
     return ServiceBundle(
         queries=queries,
         cashflow_imports=cashflow_imports,
@@ -57,4 +70,5 @@ def build_local_services(ledger_root) -> ServiceBundle:
         change_sets=change_sets,
         investments=investments,
         portfolio=portfolio,
+        connector_sync=connector_sync,
     )
