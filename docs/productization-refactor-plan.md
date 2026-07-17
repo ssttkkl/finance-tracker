@@ -849,7 +849,7 @@ API 约束：
 - 已实现 `ft migrate inspect|import|verify|export`，导入使用单事务并按 source digest 幂等；
 - shadow comparison 覆盖账户、现金交易、投资事件、snapshot、余额、收支汇总、portfolio 和净值投影；
 - 已支持 YAML/环境变量形式的 `storage.backend=local|postgres`，local 仍为默认；
-- 自动化证据：`798 passed, 1 skipped`；当前开发环境无 Docker/`psql`/`initdb`，live PostgreSQL smoke test 留给具备实例的 CI/部署环境执行。
+- 自动化证据：使用本地 PostgreSQL 17.10 运行 live integration test 后，完整测试为 `799 passed, 1 skipped`；实际数据库中的金额列确认为 `numeric(38,18)`，workspace 隔离、幂等迁移和 shadow comparison 均通过。
 
 工作项：
 
