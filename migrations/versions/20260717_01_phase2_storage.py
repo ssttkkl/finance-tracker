@@ -9,12 +9,6 @@ branch_labels = None
 depends_on = None
 
 
-def _timestamps():
-    return [
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-    ]
-
-
 def upgrade() -> None:
     op.create_table(
         "workspaces",

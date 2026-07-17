@@ -842,6 +842,15 @@ API 约束：
 
 目标：在不影响本地模式的前提下建立 Web 存储。
 
+实现状态（2026-07-17）：代码级验收完成。
+
+- 已建立 SQLAlchemy 2 workspace-scoped schema、两步 Alembic migration 和 PostgreSQL `NUMERIC(38, 18)` 金额类型；
+- 已实现 accounts、cash transactions、investment events、snapshot、import batches、raw files、raw records 和 append-only revisions；
+- 已实现 `ft migrate inspect|import|verify|export`，导入使用单事务并按 source digest 幂等；
+- shadow comparison 覆盖账户、现金交易、投资事件、snapshot、余额、收支汇总、portfolio 和净值投影；
+- 已支持 YAML/环境变量形式的 `storage.backend=local|postgres`，local 仍为默认；
+- 自动化证据：`798 passed, 1 skipped`；当前开发环境无 Docker/`psql`/`initdb`，live PostgreSQL smoke test 留给具备实例的 CI/部署环境执行。
+
 工作项：
 
 - 建立 PostgreSQL schema 和 Alembic；
