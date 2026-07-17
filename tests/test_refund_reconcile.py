@@ -86,6 +86,25 @@ def test_deleted_expense_relation_is_rebound_to_kept_expense():
     assert audit_rows[0]["counterpart_record_id"] == "kept"
 
 
+def test_removed_refund_mirror_does_not_override_kept_refund_relation():
+    alipay_expense = _expense("alipay_expense", -100)
+    bank_expense = _expense("bank_expense", -100)
+    alipay_refund = _refund("alipay_refund", 20, "alipay_expense")
+    bank_refund = _refund("bank_refund", 20, "bank_expense", strength="weak")
+
+    relations, pending, _audit = resolve_refund_relations(
+        [alipay_expense, bank_expense, alipay_refund, bank_refund],
+        [alipay_expense, bank_expense, alipay_refund],
+        {"bank_refund": "alipay_refund"},
+    )
+
+    assert [(pair.refund_id, pair.expense_id) for pair in relations] == [
+        ("alipay_refund", "alipay_expense"),
+    ]
+    assert pending == []
+    assert alipay_refund["proposed_action"] == "merge_refund_into:alipay_expense"
+
+
 def test_settling_no_relations_preserves_rows_with_duplicate_record_ids():
     expense = _expense("same-id", -100)
     refund = _refund("same-id", 100, "expense")

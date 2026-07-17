@@ -79,7 +79,7 @@ def resolve_refund_relations(source_rows: list[dict], kept_rows: list[dict],
     """解析退款关系并将被去重删除的关系端映射到保留记录。"""
     source_by_id = {row.get("record_id", ""): row for row in source_rows}
     kept_by_id = {row.get("record_id", ""): row for row in kept_rows}
-    candidates: dict[str, list[RefundRelation]] = {}
+    candidates: dict[str, list[tuple[RefundRelation, bool, bool, str]]] = {}
     audit_rows = []
     blocked_record_ids = blocked_record_ids or set()
 
@@ -94,13 +94,6 @@ def resolve_refund_relations(source_rows: list[dict], kept_rows: list[dict],
         expense = kept_by_id.get(expense_id)
         if not refund or not expense:
             continue
-        if refund_id != source_refund_id or expense_id != source_expense_id:
-            refund["proposed_action"] = f"merge_refund_into:{expense_id}"
-            source_expense = source_by_id.get(source_expense_id, {})
-            for field in OFFSET_FIELDS:
-                if not expense.get(field, ""):
-                    expense[field] = source_expense.get(field, "")
-            expense["offset_role"] = expense.get("offset_role", "") or "expense"
         rule_hint = source_refund.get("offset_rule_hint", "")
         relation = RefundRelation(
             refund_id=refund_id,
@@ -108,8 +101,33 @@ def resolve_refund_relations(source_rows: list[dict], kept_rows: list[dict],
             strength=source_refund.get("offset_strength", "weak") or "weak",
             rule_hint=rule_hint,
         )
-        candidates.setdefault(refund_id, []).append(relation)
-        if refund_id != source_refund_id or expense_id != source_expense_id:
+        candidates.setdefault(refund_id, []).append((
+            relation,
+            source_refund_id == refund_id,
+            refund_id != source_refund_id or expense_id != source_expense_id,
+            source_expense_id,
+        ))
+
+    automatic = []
+    pending = []
+    audit_rows = []
+    for refund_id, candidate_relations in candidates.items():
+        direct_relations = [candidate for candidate in candidate_relations if candidate[1]]
+        selected_relations = direct_relations or candidate_relations
+        target_ids = {relation.expense_id for relation, *_metadata in selected_relations}
+        if len(target_ids) != 1:
+            pending.extend(relation for relation, *_metadata in selected_relations)
+            continue
+        relation, _is_direct, rebound, source_expense_id = selected_relations[0]
+        refund = kept_by_id[refund_id]
+        expense = kept_by_id[relation.expense_id]
+        if rebound:
+            refund["proposed_action"] = f"merge_refund_into:{relation.expense_id}"
+            source_expense = source_by_id.get(source_expense_id, {})
+            for field in OFFSET_FIELDS:
+                if not expense.get(field, ""):
+                    expense[field] = source_expense.get(field, "")
+            expense["offset_role"] = expense.get("offset_role", "") or "expense"
             audit_rows.append(_relation_audit(
                 refund,
                 status="refund_rebound_after_dedup",
@@ -117,17 +135,6 @@ def resolve_refund_relations(source_rows: list[dict], kept_rows: list[dict],
                 rule_hint=rule_hint,
                 confidence=relation.strength,
             ))
-
-    automatic = []
-    pending = []
-    for relations in candidates.values():
-        target_ids = {relation.expense_id for relation in relations}
-        if len(target_ids) != 1:
-            pending.extend(relations)
-            continue
-        relation = relations[0]
-        refund = kept_by_id[relation.refund_id]
-        expense = kept_by_id[relation.expense_id]
         if (relation.refund_id in blocked_record_ids or relation.expense_id in blocked_record_ids
                 or relation.strength != "strong" or _is_locked(refund) or _is_locked(expense)
                 or not _is_compatible(refund, expense)):
