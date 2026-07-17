@@ -212,11 +212,18 @@ def main(argv=None):
     ap.add_argument("files", nargs="+", help="converted CSV 路径列表")
 
     # reconcile
-    rc = sub.add_parser("reconcile", help="步骤③ 导入后统一整理")
+    rc = sub.add_parser(
+        "reconcile",
+        help="步骤③ 导入后统一整理",
+        description="按 SKILL.md 审查 pending/ai_working.csv；数据量大时按三个月一批处理。",
+    )
     scope = rc.add_mutually_exclusive_group()
     scope.add_argument("--month", help="月份 (YYYY-MM)")
     rc.add_argument("--from", dest="date_from", help="起始日期 (YYYY-MM-DD)")
     rc.add_argument("--to", dest="date_to", help="结束日期 (YYYY-MM-DD)")
+    rc.add_argument("--continue-with-decisions", action="store_true",
+                    help="应用 pending/ai_working.csv 的审查决定")
+    rc.add_argument("--abort", action="store_true", help="放弃当前 pending reconcile 会话")
 
     args = parser.parse_args(argv)
 
@@ -384,6 +391,18 @@ def main(argv=None):
     if args.cmd == "reconcile":
         if args.month and (args.date_from or args.date_to):
             parser.error("--month 与 --from/--to 不能同时使用")
+        if args.abort:
+            if args.month or args.date_from or args.date_to or args.continue_with_decisions:
+                parser.error("reconcile --abort 不能和范围参数或 --continue-with-decisions 同时使用")
+            from .reconcile import abort_reconcile
+            abort_reconcile()
+            return
+        if args.continue_with_decisions:
+            if args.month or args.date_from or args.date_to:
+                parser.error("reconcile --continue-with-decisions 不能和范围参数同时使用")
+            from .reconcile import continue_reconcile
+            continue_reconcile()
+            return
         from . import models
         from .adapters.local_csv import LocalCsvUnitOfWork
         from .application.reconcile import ReconcileService

@@ -50,7 +50,7 @@ def write_csv(path: Path, rows: list[dict]):
 
 def test_networth_simple_sum(tmp_env):
     records_dir, _ = tmp_env
-    write_csv(records_dir / "cash" / "2026-06-12.csv", [
+    write_csv(records_dir / "cash" / "2026-06.csv", [
         {"date": "2026-06-12 10:00:00", "amount": "-50.00", "currency": "CNY",
          "counterparty": "奶茶", "description": "奶茶", "category": "expense",
          "account_name": "支付宝余额", "source": "支付宝", "platform": "霸王茶姬",
@@ -74,19 +74,15 @@ def test_networth_simple_sum(tmp_env):
 
 def test_networth_with_checkin_reset(tmp_env):
     records_dir, _ = tmp_env
-    write_csv(records_dir / "cash" / "2026-06-01.csv", [
+    write_csv(records_dir / "cash" / "2026-06.csv", [
         {"date": "2026-06-01 10:00:00", "amount": "-100.00", "currency": "CNY",
          "counterparty": "超市", "description": "超市", "category": "expense",
          "account_name": "支付宝余额", "source": "支付宝", "platform": "",
          "bill_source": "alipay"},
-    ])
-    write_csv(records_dir / "cash" / "2026-06-10.csv", [
         {"date": "2026-06-10 12:00:00", "amount": "0", "currency": "CNY",
          "counterparty": "", "description": "余额校准¥5000.00", "category": "checkin",
          "account_name": "支付宝余额", "source": "手动", "platform": "",
          "bill_source": ""},
-    ])
-    write_csv(records_dir / "cash" / "2026-06-12.csv", [
         {"date": "2026-06-12 10:00:00", "amount": "-200.00", "currency": "CNY",
          "counterparty": "京东", "description": "耳机", "category": "expense",
          "account_name": "支付宝余额", "source": "支付宝", "platform": "京东",
@@ -129,19 +125,15 @@ def test_networth_checkin_before_all_records(tmp_env):
 
 def test_expense_with_checkin(tmp_env):
     records_dir, _ = tmp_env
-    write_csv(records_dir / "cash" / "2026-06-01.csv", [
+    write_csv(records_dir / "cash" / "2026-06.csv", [
         {"date": "2026-06-01 10:00:00", "amount": "-100.00", "currency": "CNY",
          "counterparty": "超市", "description": "超市", "category": "expense",
          "account_name": "支付宝余额", "source": "支付宝", "platform": "",
          "bill_source": "alipay"},
-    ])
-    write_csv(records_dir / "cash" / "2026-06-10.csv", [
         {"date": "2026-06-10 12:00:00", "amount": "0", "currency": "CNY",
          "counterparty": "", "description": "余额校准¥5000.00", "category": "checkin",
          "account_name": "支付宝余额", "source": "手动", "platform": "",
          "bill_source": ""},
-    ])
-    write_csv(records_dir / "cash" / "2026-06-12.csv", [
         {"date": "2026-06-12 10:00:00", "amount": "-200.00", "currency": "CNY",
          "counterparty": "京东", "description": "耳机", "category": "expense",
          "account_name": "支付宝余额", "source": "支付宝", "platform": "京东",
@@ -157,7 +149,7 @@ def test_expense_with_checkin(tmp_env):
 
 def test_month_filter(tmp_env):
     records_dir, _ = tmp_env
-    write_csv(records_dir / "cash" / "2026-06-12.csv", [
+    write_csv(records_dir / "cash" / "2026-06.csv", [
         {"date": "2026-06-12 10:00:00", "amount": "-50.00", "currency": "CNY",
          "counterparty": "奶茶", "description": "奶茶", "category": "expense",
          "account_name": "支付宝余额", "source": "支付宝", "platform": "",
@@ -180,14 +172,14 @@ def test_month_filter(tmp_env):
 def test_networth_multi_currency(tmp_env):
     records_dir, _ = tmp_env
     # CNY account
-    write_csv(records_dir / "cash" / "2026-06-12.csv", [
+    write_csv(records_dir / "cash" / "2026-06.csv", [
         {"date": "2026-06-12 10:00:00", "amount": "-50.00", "currency": "CNY",
          "counterparty": "奶茶", "description": "奶茶", "category": "expense",
          "account_name": "支付宝余额", "source": "支付宝", "platform": "",
          "bill_source": "alipay"},
     ])
     # USD account
-    write_csv(records_dir / "security" / "2026-06-12.csv", [
+    write_csv(records_dir / "security" / "2026-06.csv", [
         {"date": "2026-06-12 10:00:00", "amount": "+100.00", "currency": "USD",
          "counterparty": "deposit", "description": "deposit", "category": "income",
          "account_name": "IBKR", "source": "transfer", "platform": "",
@@ -214,7 +206,7 @@ def test_networth_multi_currency(tmp_env):
 def test_expense_multi_account(tmp_env):
     """Expense from multiple accounts of same currency"""
     records_dir, _ = tmp_env
-    write_csv(records_dir / "cash" / "2026-06-12.csv", [
+    write_csv(records_dir / "cash" / "2026-06.csv", [
         {"date": "2026-06-12 10:00:00", "amount": "-50.00", "currency": "CNY",
          "counterparty": "奶茶", "description": "奶茶", "category": "expense",
          "account_name": "支付宝余额", "source": "支付宝", "platform": "",
@@ -260,7 +252,7 @@ def test_networth_separates_same_name_multi_currency_accounts(tmp_env):
 
 def test_reports_exclude_directional_transfers(tmp_env):
     records_dir, _ = tmp_env
-    write_csv(records_dir / "cash" / "2026-06-12.csv", [
+    write_csv(records_dir / "cash" / "2026-06.csv", [
         {"date": "2026-06-12 10:00:00", "amount": "-100.00", "currency": "CNY",
          "counterparty": "微信", "description": "转账支取", "category": "transfer_out",
          "account_name": "支付宝余额", "source": "支付宝", "platform": "",
@@ -278,7 +270,7 @@ def test_reports_exclude_directional_transfers(tmp_env):
 
 def test_report_flow_uses_transfer_account_label(tmp_env, capsys):
     records_dir, _ = tmp_env
-    write_csv(records_dir / "cash" / "2026-06-12.csv", [
+    write_csv(records_dir / "cash" / "2026-06.csv", [
         {"date": "2026-06-12 10:00:00", "amount": "-100.00", "currency": "CNY",
          "counterparty": "微信", "description": "转账支取", "category": "transfer_out",
          "account_name": "支付宝余额", "source": "支付宝", "platform": "",

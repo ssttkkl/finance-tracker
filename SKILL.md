@@ -16,20 +16,19 @@ design_plan: docs/superpowers/plans/2026-07-09-unified-swap-plan.md
 
 ## 命令速查
 
-### 账单导入流水线（6 步）
+### 账单导入流水线（5 步）
 
 ```
-① convert → ② AI审查转换 → ③ AI修正 → ④ append → ⑤ reconcile → ⑥ commit
+① convert → ② append → ③ reconcile → ④ AI审查/编辑 working CSV → ⑤ commit
 ```
 
 | 步骤 | 操作 | 产出 |
 |------|------|------|
-| ① convert | `ft convert <账单> -s alipay|wechat|icbc|ccb-debit -o <csv>` | 统一 CSV + `_refunds.csv` |
-| ② AI审查 | 逐项审查（见 `references/review-checklist.md`） | 审查报告 |
-| ③ AI修正 | AI 根据审查结果逐项修正 CSV 或转换代码 | 修正后的 CSV |
-| ④ append | `ft append <csvs...>` | 落盘到 records/ |
-| ⑤ reconcile | `ft reconcile [--month YYYY-MM | --from YYYY-MM-DD --to YYYY-MM-DD]` | 去重 + 审计 CSV |
-| ⑥ commit | `ft commit` | Git 提交 |
+| ① convert | `ft convert <账单> -s alipay|wechat|icbc|ccb-debit -o <csv>` | 统一 CSV；保留退款关系元数据 |
+| ② append | `ft append <csvs...>` | 落盘到 records/ |
+| ③ reconcile | `ft reconcile [--month YYYY-MM | --from YYYY-MM-DD --to YYYY-MM-DD]` | 去重结果或 pending reconcile 会话 |
+| ④ AI审查/编辑 | 如进入 pending，在同一会话目录写出 `edited.csv` 后执行 `ft reconcile --continue-with-decisions` | 正式 records + audit |
+| ⑤ commit | `ft commit` | Git 提交 |
 
 convert 说明：`alipay`（支付宝 CSV）、`wechat`（微信 xlsx）、`icbc`（工行 PDF，需 --password，自动检测信用卡/借记卡，**支持多卡路由** — 见下方"ICBC 信用卡 PDF 内含多卡交易"陷阱）、`ccb-debit`（建行 xls）。
 
@@ -37,13 +36,108 @@ convert 说明：`alipay`（支付宝 CSV）、`wechat`（微信 xlsx）、`icbc
 
 AI 审查要点：按优先级 **P0(金额影响) > P1(source) > P2数据脱敏 > P3 counterparty** 逐项检查。每个转换后的 CSV 文件独立审查，每文件分配一个 subagent。详细审查清单见 `references/review-checklist.md`。跨支付渠道排查“状态/方向/中性交易”类转换器问题时，按 `references/payment-statement-direction-audit.md` 先只读重转到 `/tmp`、统计风险类、再和 records 精确匹配；不要把历史导入范围差异直接当 bug。
 
-转换阶段：退款配对数学正确性（全额=0？部分=净额正确？）、source 正确性、数据脱敏、counterparty 规范化。注意 _pair_refunds 产生的孤退款行（orphan income）可能在 CSV 中残留，需检查过滤。
+### 退款核销目标
+
+退款自动核销的最高优先级是：
+
+- 最终净额正确
+- 账户余额正确
+- 消费统计正确
+
+在满足以上三点时，**允许对同类多候选消费采用保守的近邻归并**，不强求严格回链到唯一原单。
+
+执行时遵循以下边界：
+
+- 优先避免漏掉退款，导致净支出偏高
+- 优先避免把退款核销到不同消费类型、不同账户或错误金额
+- 对同商户 / 同平台 / 同类消费中的多候选退款，只要最终核算结果正确，可接受不精确回挂到唯一原单
+
+### Pending / ai_working.csv 标准处理流程
+
+如果命令进入 pending，会生成 `~/.ft/pending/.../<session_id>/ai_working.csv`。CLI 只负责提示你去看 `SKILL.md`；真正的审查细则以这里为准。
+
+标准处理步骤：
+
+1. 运行 `ft convert`、`ft append` 和 `ft reconcile`
+2. 若 reconcile 进入 pending，打开会话目录下的 `ai_working.csv`
+3. 先保留 `ai_working.csv` 作为原始底稿，不要直接在原文件上覆盖修改
+4. 审查对象是**整份 `ai_working.csv`**，不要只看局部候选行或只看程序预标记区域
+5. 在同一会话目录复制出 `edited.csv`，再按下面的编辑协议审查并修改允许编辑的列
+6. 如果是体量较大的 pending，先按交易日期切成 **三个月一批** 分别审查；每批只交给一个 subagent，再由主调用方合并所有批次结果生成最终 `edited.csv`
+7. 执行 `ft reconcile --continue-with-decisions`
+8. 若放弃本次会话，执行 `ft reconcile --abort`
+
+补充决策规则：
+
+- `leave_as_is` 只能表示**已经审查过且明确决定保留原样**
+- **禁止**把“暂时判断不了 / 不想承担判断 / 需要用户拍板”的情况直接写成 `leave_as_is`
+- **禁止**因为程序预填了 `rule_hint`、`suggested_action=drop|keep`、`ai_group`，就把它们直接当成最终审查结论批量落盘；这些字段只能当线索，不能替代逐组审查
+- 对于证据不足、高风险或存在多种合理解释的候选，必须先整理成“待用户选择”的候选组，由调用方明确拍板后，才能继续 `reconcile`
+- 如果整份 `edited.csv` 里所有候选都保持 `leave_as_is`，调用方必须先自检：这是“逐组审查后的明确保留结论”，还是“实际上没有完成审查”。后者禁止 continue
+
+硬性要求：
+
+- **禁止为了跑通流程而对未修改的 `ai_working.csv` 直接原样 continue**
+- **禁止把审查后的文件直接覆盖回原始 `ai_working.csv`，否则 continue 校验时会丢失“原稿 vs 编辑稿”的差异**
+- **大体量 pending，尤其 `reconcile`，禁止让单个 subagent 一次性审全量；必须按三个月切批后分别审查**
+- **subagent 禁止用脚本批量过滤/批量判定；只能用推理给出标记结果，脚本最多用于切批或复制文件**
+- **AI 必须对 `edited.csv` 中保留的每一行给出结论**（drop / leave_as_is / modify / 配对类动作之一）；禁止只阅读少量样本后，用脚本按关键词或现成 hint 批量改写大批记录
+- **禁止**把“不确定 / 高风险 / 多候选”默认落成 `leave_as_is` 后直接 continue；这类候选必须先升级给用户选择
+- **禁止**仅依据 `suggested_action=drop|keep` 批量把整批候选改成 `drop` 或 `leave_as_is`；必须先验证这些 hint 是否在本轮审查边界内成立
+- 必须保持：`ai_working.csv` = 原始底稿，`edited.csv` = AI 审查后的结果
+
+### AI working CSV 编辑协议
+
+调用方 AI 必须遵守：
+
+- 保留所有行，不得新增/删除 `record_id`
+- 不修改只读字段：`record_id`、`date`、`amount`、`currency`、`bill_source`、`raw_*`、`rule_hint`、`suggested_action`、`processing_status`、`ai_group`
+- 主要编辑列：`counterparty`、`description`、`category`、`account_name`、`source`、`transfer_account`、`locked`、`decision_action`、`decision_reason`
+- `drop` / `modify` / 引用型 `decision_action` 必须填写 `decision_reason`；活跃分组的 `keep` / `leave_as_is` 也必须填写
+
+合法 `decision_action`：
+
+- `leave_as_is`
+- `keep`
+- `drop`
+- `modify`
+- `merge_refund_into:<record_id>`
+- `net_with:<record_id>`
+- `mark_transfer_out_to:<record_id>`
+- `mark_transfer_in_from:<record_id>`
+
+### 调用方 AI 审查提示词模板
+
+可直接把下面这段作为外部 AI 的工作提示词，只替换文件路径和当前阶段：
+
+```text
+你正在审查 finance-tracker 的 pending 工作底稿 ai_working.csv。
+
+目标：只在证据充分时修改允许编辑的列；不要新增或删除行；不要修改只读字段；所有最终决策都要写 decision_reason。
+
+请按以下顺序处理：
+1. 先通读整份 ai_working.csv，审查所有 processing_status=active 行，不要只看局部候选或局部模式。
+2. 仅修改这些允许编辑的列：counterparty、description、category、account_name、source、transfer_account、locked、decision_action、decision_reason。
+3. 严禁修改只读列：record_id、date、amount、currency、bill_source、raw_counterparty、raw_description、raw_payment_method、rule_hint、suggested_action、processing_status、ai_group。
+4. 如果当前文件体量较大，按交易日期切成三个月一批；每批只交给一个 subagent 审查。
+5. subagent 禁止用脚本批量过滤、批量判定或自动打标；必须通过推理给出标记结果。脚本最多只能用于切批、复制文件或合并已得出的结果。
+6. 审查完成的标准不是“看过几条代表样本”，而是**本批次中每一行都已经有明确结论**。任何保留在 `edited.csv` 里的行，都必须对应一个逐行审查后的动作。
+7. 如果判断应保留原样，写 `keep` 或 `leave_as_is`，并填写 decision_reason。这里只能用于“已完成审查且明确决定保留”的行，不能把“不确定”伪装成保留。
+8. 如果判断应删除，写 drop，并填写 decision_reason。
+9. 如果判断应合并/配对，使用合法 decision_action（merge_refund_into:<record_id> / net_with:<record_id> / mark_transfer_out_to:<record_id> / mark_transfer_in_from:<record_id>），并填写 decision_reason。
+10. `suggested_action=drop|keep` 只能视为程序提示，不得直接批量照抄成最终结论；必须逐组确认该提示是否仍然成立，尤其要检查 refund、社交转账、二维码收款、date-only、multi-candidate 等边界。
+11. 如果存在证据不足、高风险或多候选、而你又无法明确做出 `drop/modify/配对/明确保留` 结论的组，不要默认写成 `leave_as_is` 并继续；先把这些组整理给调用方或用户选择。
+12. 修改完成后保存为当前 pending 会话目录中的 `edited.csv`，不要覆盖原始 `ai_working.csv`；只有当本轮需要拍板的组已经被明确处理，且本批次保留下来的每一行都已完成逐行审查后，才执行 continue 命令；如果无法完成本轮决策，则不要继续执行，由调用方选择继续补审、让用户拍板或 abort。
+13. 严禁把未修改的 `ai_working.csv` 直接拿去 continue；这会绕过 AI 审查流程，结果不具备审查意义。
+```
+
+转换阶段：重点检查退款配对数学正确性（全额=0？部分=净额正确？）、source 正确性、数据脱敏、counterparty 规范化。注意 _pair_refunds 产生的孤退款行（orphan income）可能在 CSV 中残留，需检查过滤。
 
 **关键：每转完一个文件就停下来让用户确认，不要一次转完所有文件再统一审查。**
 
 reconcile 阶段：审计文件中每对 dedup_status=保留/去除 行必须成对出现；保留行必须仍存在于 records 中，去除行不应再出现在 records。漏删：同来源+同日+同金额+同 counterparty 的明显重复（注意同日不同时独立交易）。
 
-**合并审查（步骤 ⑤）**：reconcile 后按 6 个月一批分给 subagent 并行审查（见 `references/reconcile-transfer-leakage-audit.md`）。审查输出保持极简：不要逐条展开所有“无需标注”，只统计无需标注数量/置信度分布；明细只列“未标注”和“误标注”，每条给 `置信度 + 判断 + 最小定位信息`。
+**合并审查（步骤 ⑤）**：reconcile 后按 6 个月一批分给 subagent 并行审查（见 `references/reconcile-transfer-leakage-audit.md`）。每个 subagent 只看自己那一批，不能跨批次做全局判断；主调用方负责把各批次修改合并回同一个最终 `edited.csv`。审查输出保持极简：不要逐条展开所有“无需标注”，只统计无需标注数量/置信度分布；明细只列“未标注”和“误标注”，每条给 `置信度 + 判断 + 最小定位信息`。
 
 ### 账户管理
 

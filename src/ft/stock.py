@@ -19,6 +19,10 @@ from .schema import CASH_CSV_FIELDS, CRYPTO_IDS, CSV_FIELDS, CURRENCY_SYMBOLS, V
 # ── CSV fields for security trades ──────────────────────────────────────
 
 TRANSFER_AUDIT_FIELDS = CASH_CSV_FIELDS
+LEGACY_TRANSFER_AUDIT_FIELDS = [
+    "date", "amount", "currency", "counterparty", "description", "category",
+    "account_name", "source", "bill_source", "transfer_account", "locked",
+]
 
 
 def _models():
@@ -52,7 +56,7 @@ def _validate_security_csv_header(fieldnames, path: Path | str | None = None) ->
         field in transfer_extras for field in actual[len(CSV_FIELDS):]
     ):
         return
-    if actual == TRANSFER_AUDIT_FIELDS:
+    if actual in (TRANSFER_AUDIT_FIELDS, LEGACY_TRANSFER_AUDIT_FIELDS):
         return
     missing = [field for field in CSV_FIELDS if field not in actual]
     extra = [field for field in actual if field not in CSV_FIELDS]

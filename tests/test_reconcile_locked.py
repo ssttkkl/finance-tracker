@@ -26,11 +26,13 @@ def tmp_env():
     old_ft_dir = models.FT_DIR
     old_records = models.RECORDS_DIR
     old_accounts = models.ACCOUNTS_PATH
+    old_pending = models.PENDING_DIR
     old_snapshot = ft_snap.SNAPSHOT_PATH
 
     models.FT_DIR = d
     models.RECORDS_DIR = d / "records"
     models.ACCOUNTS_PATH = d / "accounts.yaml"
+    models.PENDING_DIR = d / "pending"
     ft_snap.SNAPSHOT_PATH = d / "snapshot.yaml"
 
     save_accounts([
@@ -44,6 +46,7 @@ def tmp_env():
     models.FT_DIR = old_ft_dir
     models.RECORDS_DIR = old_records
     models.ACCOUNTS_PATH = old_accounts
+    models.PENDING_DIR = old_pending
     ft_snap.SNAPSHOT_PATH = old_snapshot
     import shutil
     shutil.rmtree(d, ignore_errors=True)
@@ -72,11 +75,11 @@ def _read_rows(path):
 # ─────────────────────────────────────────────────────────────
 
 def test_reconcile_is_idempotent_on_single_leg(tmp_env):
-    """单腿转账标记后，再跑一次 reconcile 结果完全不变（幂等）。"""
+    """单腿候选自动标记为转账后，再次 reconcile 不再改变它。"""
     from ft import models
     from ft.reconcile import do_reconcile
 
-    day_path = models.RECORDS_DIR / "cash" / "2026-06-15.csv"
+    day_path = models.RECORDS_DIR / "cash" / "2026-06.csv"
     _write_rows(day_path, [
         {"date": "2026-06-15 10:00:00", "amount": "-100.00", "currency": "CNY",
          "counterparty": "蚂蚁财富-蚂蚁（杭州）基金销售有限公司",
@@ -87,19 +90,18 @@ def test_reconcile_is_idempotent_on_single_leg(tmp_env):
     do_reconcile(month="2026-06")
     first = _read_rows(day_path)
     assert first[0]["category"] == "transfer_out"
-
-    # 第二次跑，结果必须与第一次逐字节一致
+    sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
+    assert len(sessions) == 0
     do_reconcile(month="2026-06")
-    second = _read_rows(day_path)
-    assert first == second
+    assert _read_rows(day_path) == first
 
 
 def test_reconcile_idempotent_on_paired_transfer(tmp_env):
-    """配对型转账标记后再跑一次，结果不变。"""
+    """确定的配对型转账自动标记后保持幂等。"""
     from ft import models
     from ft.reconcile import do_reconcile
 
-    day_path = models.RECORDS_DIR / "cash" / "2026-06-12.csv"
+    day_path = models.RECORDS_DIR / "cash" / "2026-06.csv"
     _write_rows(day_path, [
         {"date": "2026-06-12 10:00:00", "amount": "-100.00", "currency": "CNY",
          "counterparty": "微信", "description": "转账支取", "category": "expense",
@@ -111,9 +113,12 @@ def test_reconcile_idempotent_on_paired_transfer(tmp_env):
 
     do_reconcile(month="2026-06")
     first = _read_rows(day_path)
+    assert first[0]["category"] == "transfer_out"
+    assert first[1]["category"] == "transfer_in"
+    sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
+    assert len(sessions) == 0
     do_reconcile(month="2026-06")
-    second = _read_rows(day_path)
-    assert first == second
+    assert _read_rows(day_path) == first
 
 
 # ─────────────────────────────────────────────────────────────
@@ -125,7 +130,7 @@ def test_locked_row_not_re_marked_after_manual_revert(tmp_env):
     from ft import models
     from ft.reconcile import do_reconcile
 
-    day_path = models.RECORDS_DIR / "cash" / "2026-06-15.csv"
+    day_path = models.RECORDS_DIR / "cash" / "2026-06.csv"
     # 这条本会被单腿规则标成 transfer_out，但用户手动认定它是真实支出并加锁
     _write_rows(day_path, [
         {"date": "2026-06-15 10:00:00", "amount": "-100.00", "currency": "CNY",
@@ -147,7 +152,7 @@ def test_locked_row_excluded_from_dedup(tmp_env):
     from ft import models
     from ft.reconcile import do_reconcile
 
-    day_path = models.RECORDS_DIR / "loan" / "2026-06-12.csv"
+    day_path = models.RECORDS_DIR / "loan" / "2026-06.csv"
     _write_rows(day_path, [
         {"date": "2026-06-12 10:00:03", "amount": "-30.00", "currency": "CNY",
          "counterparty": "麦当劳", "description": "", "category": "expense",
@@ -164,12 +169,33 @@ def test_locked_row_excluded_from_dedup(tmp_env):
     assert len(rows) == 2
 
 
+def test_locked_rows_do_not_enter_mirror_detection(tmp_env):
+    from ft import models
+    from ft.reconcile import do_reconcile
+
+    day_path = models.RECORDS_DIR / "loan" / "2026-06.csv"
+    _write_rows(day_path, [
+        {"date": "2026-06-01 09:42:02", "amount": "-20.4", "currency": "CNY",
+         "counterparty": "麦当劳", "description": "麦当劳", "category": "expense",
+         "account_name": "工行信用卡(1200)", "source": "微信", "bill_source": "wechat",
+         "locked": "1"},
+        {"date": "2026-06-01 09:42:03", "amount": "-20.4", "currency": "CNY",
+         "counterparty": "麦当劳", "description": "北京食品有限公司", "category": "expense",
+         "account_name": "工行信用卡(1200)", "source": "银行卡", "bill_source": "icbc_credit"},
+    ])
+
+    do_reconcile(month="2026-06")
+    with open(day_path, encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) == 2
+
+
 def test_locked_row_excluded_from_paired_transfer(tmp_env):
     """带锁的行不参与配对转账识别。"""
     from ft import models
     from ft.reconcile import do_reconcile
 
-    day_path = models.RECORDS_DIR / "cash" / "2026-06-12.csv"
+    day_path = models.RECORDS_DIR / "cash" / "2026-06.csv"
     _write_rows(day_path, [
         {"date": "2026-06-12 10:00:00", "amount": "-100.00", "currency": "CNY",
          "counterparty": "微信", "description": "转账支取", "category": "expense",
@@ -187,11 +213,11 @@ def test_locked_row_excluded_from_paired_transfer(tmp_env):
 
 
 def test_unlocked_rows_still_reconcile_normally(tmp_env):
-    """没有锁的行照常识别（锁不影响正常流程）。"""
+    """未锁定的单腿转账仍会被自动标记。"""
     from ft import models
     from ft.reconcile import do_reconcile
 
-    day_path = models.RECORDS_DIR / "cash" / "2026-06-15.csv"
+    day_path = models.RECORDS_DIR / "cash" / "2026-06.csv"
     _write_rows(day_path, [
         {"date": "2026-06-15 10:00:00", "amount": "-100.00", "currency": "CNY",
          "counterparty": "蚂蚁财富-蚂蚁（杭州）基金销售有限公司",
@@ -202,6 +228,8 @@ def test_unlocked_rows_still_reconcile_normally(tmp_env):
     do_reconcile(month="2026-06")
     rows = _read_rows(day_path)
     assert rows[0]["category"] == "transfer_out"
+    sessions = list((models.PENDING_DIR / "reconcile").glob("*"))
+    assert len(sessions) == 0
 
 
 def test_ft_transfer_writes_locked_rows(tmp_env):
@@ -223,18 +251,18 @@ def test_ft_transfer_writes_locked_rows(tmp_env):
 
 
 def test_locked_survives_reconcile_rewrite(tmp_env):
-    """reconcile 重写文件时保留 locked 列的值（不丢锁）。"""
+    """进入 pending 前后，locked 列值保持不变。"""
     from ft import models
     from ft.reconcile import do_reconcile
 
-    day_path = models.RECORDS_DIR / "cash" / "2026-06-15.csv"
+    day_path = models.RECORDS_DIR / "cash" / "2026-06.csv"
     _write_rows(day_path, [
         # 锁定行
         {"date": "2026-06-15 10:00:00", "amount": "-50.00", "currency": "CNY",
          "counterparty": "麦当劳", "description": "", "category": "expense",
          "account_name": "支付宝余额", "source": "支付宝", "bill_source": "alipay",
          "locked": "1"},
-        # 会被识别为单腿转账的未锁行（触发文件重写）
+        # 会被识别为单腿转账的未锁行
         {"date": "2026-06-15 11:00:00", "amount": "-100.00", "currency": "CNY",
          "counterparty": "蚂蚁财富-蚂蚁（杭州）基金销售有限公司",
          "description": "买入", "category": "expense",

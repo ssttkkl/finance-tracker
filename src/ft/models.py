@@ -21,3 +21,13 @@ from .schema import (
 FT_DIR = Path.home() / ".ft"
 RECORDS_DIR = FT_DIR / "records"
 ACCOUNTS_PATH = FT_DIR / "accounts.yaml"
+PENDING_DIR = FT_DIR / "pending"
+
+
+def month_key(date_str: str) -> str:
+    return date_str[:7]
+
+
+def records_month_path(record_type: str, date_str: str, records_dir: Path | None = None) -> Path:
+    base = records_dir or RECORDS_DIR
+    return Path(base) / record_type / f"{month_key(date_str)}.csv"

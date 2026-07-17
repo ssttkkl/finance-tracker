@@ -1,6 +1,10 @@
 """convert — 账单 → 统一CSV"""
 import csv
+import hashlib
 import sys
+from datetime import datetime
+from pathlib import Path
+
 from .mapping import load_rules, match_payment_method
 
 # 消费平台推断规则 — 从交易对方/描述中识别
@@ -284,6 +288,16 @@ def _normalize_counterparty(raw_cp: str, raw_desc: str, source: str) -> tuple[st
     return (cp, desc)
 
 
+def _stable_short_hash(*parts: str, length: int = 12) -> str:
+    normalized = [" ".join(str(part or "").split()) for part in parts]
+    payload = "|".join(normalized)
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:length]
+
+
+REFUND_MATCH_MAX_DAYS = 30
+REFUND_AUTO_PASS_MAX_DAYS = 14
+
+
 def _counterparty_matches(exp_cpy: str, ref_cpy: str) -> bool:
     """判断交易双方是否指向同一实体 — 精确/子串/前缀匹配"""
     if exp_cpy == ref_cpy:
@@ -295,128 +309,743 @@ def _counterparty_matches(exp_cpy: str, ref_cpy: str) -> bool:
     return False
 
 
+def _parse_record_datetime(value: str) -> datetime:
+    fmt = "%Y-%m-%d" if len(value) == 10 else "%Y-%m-%d %H:%M:%S"
+    return datetime.strptime(value, fmt)
+
+
+def _specific_payment_account(value: str) -> str:
+    generic_methods = {
+        "银行卡",
+        "支付宝",
+        "微信",
+        "微信支付",
+        "美团支付",
+        "京东支付",
+        "网银在线",
+        "Apple Pay",
+        "拼多多支付",
+        "携程",
+        "抖音支付",
+        "银联云闪付",
+        "云闪付",
+    }
+    value = (value or "").strip()
+    if not value or value in generic_methods:
+        return ""
+    return value
+
+
+def _icbc_credit_offset_text(counterparty: str, description: str) -> str:
+    return " ".join(
+        part.strip() for part in (counterparty or "", description or "") if part and part.strip()
+    )
+
+
+def _classify_icbc_credit_offset_type(counterparty: str, description: str) -> str:
+    text = _icbc_credit_offset_text(counterparty, description)
+    if "减免年费" in text:
+        return "fee_reversal"
+    if "刷卡金入账" in text or "刷卡金退款" in text:
+        return "benefit_rebate"
+    if "返现" in text or "Rebate" in text:
+        return "campaign_cashback"
+    if "退货" in text or "退款" in text:
+        return "merchant_refund"
+    return ""
+
+
+def _build_icbc_credit_offset_income(rec: dict, offset_type: str) -> dict:
+    return {
+        **rec,
+        "offset_type": offset_type,
+        "offset_strength": "strong",
+        "offset_action": "keep_as_offset_income",
+    }
+
+
+def _icbc_credit_offset_cluster(value: str, description: str) -> str:
+    text = f"{value or ''} {description or ''}"
+    if "中国铁路网络有限公司" in text:
+        return "railway_travel"
+    if any(token in text for token in ("京东", "网银在线")):
+        return "ecommerce_jd"
+    if any(token in text for token in ("美团", "北京象鲜科技有限公司")):
+        return "local_life_meituan"
+    if "自助侠" in text:
+        return "device_service"
+    if any(token in text for token in ("携程", "去哪儿", "上海顺途科技有限公司")):
+        return "rideshare_travel"
+    if any(token in text for token in ("拼多多", "抖音")):
+        return "group_buy_food"
+    return ""
+
+
+def _icbc_credit_account_cluster(payment_method: str, card_number: str) -> str:
+    card_tail = (card_number or "").strip()
+    if card_tail:
+        return f"icbc_credit_card_{card_tail}"
+    return f"icbc_credit_channel_{payment_method or 'unknown'}"
+
+
+def _icbc_debit_refund_cluster(counterparty: str, description: str) -> str:
+    text = f"{counterparty or ''} {description or ''}"
+    if "支付宝" in text:
+        return "alipay_refund"
+    if any(token in text for token in ("财付通", "深圳市财付通支付科技有限公司")):
+        return "tenpay_refund"
+    if any(token in text for token in ("中国银联无卡快捷支付业务专户", "银联无卡支付业务")):
+        return "unionpay_refund"
+    if any(token in text for token in ("京东", "网银在线")):
+        return "jd_refund"
+    if "淘宝" in text:
+        return "taobao_refund"
+    return ""
+
+
+def _icbc_debit_account_cluster(rec: dict) -> str:
+    payment_method = (rec.get("payment_method", "") or "").strip()
+    if payment_method:
+        return f"icbc_debit_channel_{payment_method}"
+    return "icbc_debit_channel_unknown"
+
+
+def _ccb_refund_cluster(rec: dict) -> str:
+    location = (rec.get("location", "") or "").strip()
+    payment_method = (rec.get("payment_method", "") or "").strip()
+    counterparty = (rec.get("counterparty", "") or "").strip()
+    raw_cp = (rec.get("_raw_cp", "") or "").strip()
+    location_cp = (rec.get("_ccb_location_cp", "") or "").strip()
+    text = " ".join(part for part in (location, payment_method, counterparty, raw_cp, location_cp) if part)
+    if location.startswith("财付通-") or "微信" in payment_method:
+        return "ccb_wechat"
+    if location.startswith("支付宝-") or "支付宝" in payment_method:
+        return "ccb_alipay"
+    if location.startswith("美团支付-") or "美团" in payment_method:
+        return "ccb_meituan"
+    if "PAYPAL" in text.upper() or "PayPal" in payment_method:
+        return "ccb_paypal"
+    if payment_method.startswith("建行储蓄卡"):
+        return "ccb_card"
+    return ""
+
+
+def _is_icbc_credit_refund_text(counterparty: str, description: str) -> bool:
+    return _classify_icbc_credit_offset_type(counterparty, description) == "merchant_refund"
+
+
+def _refund_matches_basic_constraints(exp: dict, ref: dict, ref_amt: float, remaining_amount: float) -> bool:
+    exp_account = _specific_payment_account(exp.get("payment_method", ""))
+    ref_account = _specific_payment_account(ref.get("payment_method", ""))
+    if exp_account and ref_account and exp_account != ref_account:
+        return False
+    if ref_amt > remaining_amount:
+        return False
+    if exp["date"] > ref["date"]:
+        return False
+    delta_days = (_parse_record_datetime(ref["date"]) - _parse_record_datetime(exp["date"])).days
+    if delta_days > REFUND_MATCH_MAX_DAYS:
+        return False
+    return True
+
+
+def _refund_source_signal(ref: dict) -> str:
+    return ref.get("_refund_signal", "")
+
+
+def _is_icbc_credit_untrusted_merchant_text(value: str) -> bool:
+    import re
+
+    value = (value or "").strip()
+    if not value:
+        return True
+    if value in {"A", "F", "D", "工商", "银行", "中国", "请扫描二维码"}:
+        return True
+    if re.fullmatch(r"[:\d\s.-]+", value):
+        return True
+    if len(value) <= 1:
+        return True
+    return False
+
+
+def _refund_signal_is_strong(ref: dict) -> bool:
+    return _refund_source_signal(ref) in {
+        "alipay_status",
+        "alipay_category_nocount",
+        "wechat_status",
+        "icbc_credit_return",
+        "icbc_debit_refund",
+        "ccb_debit_refund",
+        "ccb_debit_desc",
+    }
+
+
+def _alipay_refund_signal(*, txn_type: str, txn_status: str, direction: str, description: str) -> str:
+    if txn_status == "退款成功":
+        return "alipay_status"
+    if txn_type == "退款" and direction == "不计收支":
+        return "alipay_category_nocount"
+    if "退款" in description:
+        return "alipay_desc"
+    return ""
+
+
+def _classify_refund_match(*, ref: dict, rule_hint: str, exact_amt: bool,
+                           candidate_count: int, expense: dict) -> str:
+    if rule_hint in {"refund_desc_fallback", "refund_gross_candidate"}:
+        return "weak"
+    if not _refund_signal_is_strong(ref):
+        return "weak"
+    if ref.get("_refund_signal") == "icbc_credit_return" and ref.get("offset_type") == "merchant_refund":
+        trusted = ref.get("_icbc_refund_merchant_trusted", False)
+        if not trusted:
+            return "weak"
+        if rule_hint not in {"refund_raw_cp_match", "refund_cp_match"}:
+            return "weak"
+        if not ref.get("_icbc_refund_same_cluster", False):
+            return "weak"
+        if not ref.get("_icbc_refund_same_account_cluster", False):
+            return "weak"
+    if ref.get("_refund_signal") == "icbc_debit_refund":
+        if rule_hint not in {"refund_raw_cp_match", "refund_cp_match"}:
+            return "weak"
+        if candidate_count == 1:
+            return "strong"
+        if not ref.get("_icbc_debit_refund_same_cluster", False):
+            return "weak"
+        if not ref.get("_icbc_debit_refund_same_account_cluster", False):
+            return "weak"
+    if ref.get("_refund_signal") == "ccb_debit_refund":
+        if rule_hint not in {"refund_raw_cp_match", "refund_cp_match"}:
+            return "weak"
+        if not ref.get("_ccb_refund_same_cluster", False):
+            return "weak"
+        if not exact_amt:
+            return "weak"
+        if candidate_count == 1:
+            return "strong"
+        return "weak"
+    delta_days = (_parse_record_datetime(ref["date"]) - _parse_record_datetime(expense["date"])).days
+    order_locked_hints = {
+        "refund_merchant_order_match",
+        "refund_txn_base_match",
+        "refund_desc_order_match",
+        "refund_wechat_meituan_order",
+    }
+    strong_signal = _refund_source_signal(ref)
+    if delta_days > REFUND_AUTO_PASS_MAX_DAYS and rule_hint not in order_locked_hints:
+        desc_confirms = _refund_desc_confirms_match(ref.get("description", ""), expense.get("description", ""))
+        if not (
+            candidate_count == 1
+            and exact_amt
+            and strong_signal == "alipay_status"
+            and rule_hint == "refund_cp_match"
+            and ref.get("payment_method", "") == expense.get("payment_method", "")
+            and ref.get("counterparty", "") == expense.get("counterparty", "")
+            and desc_confirms
+        ):
+            return "weak"
+    if rule_hint == "refund_raw_cp_match" and "***" in expense.get("counterparty", ""):
+        return "weak"
+    return "strong"
+
+
+def _build_refund_tracking_pair(*, expense: dict, refund: dict, match_type: str,
+                               rule_hint: str, match_strength: str,
+                               candidate_count: int) -> dict:
+    return {
+        "expense": dict(expense),
+        "refund": dict(refund),
+        "match_type": match_type,
+        "rule_hint": rule_hint,
+        "match_strength": match_strength,
+        "candidate_count": candidate_count,
+        "source_refund_signal": _refund_source_signal(refund),
+    }
+
+
+def _build_convert_fact_rows(rows: list[dict], tracking_pairs) -> list[dict]:
+    combined: dict[str, dict] = {}
+
+    def merge_row(rec: dict):
+        fact_id = rec.get("_fact_id") or rec.get("record_id")
+        if not fact_id:
+            return
+        if fact_id not in combined:
+            combined[fact_id] = dict(rec)
+            return
+        existing = combined[fact_id]
+        for key, value in rec.items():
+            if key not in existing or existing.get(key, "") in {"", None}:
+                existing[key] = value
+
+    for row in rows:
+        merge_row(row)
+    for pair in tracking_pairs:
+        merge_row(pair.get("expense", {}))
+        merge_row(pair.get("refund", {}))
+
+    fact_rows = list(combined.values())
+    fact_rows.sort(key=lambda r: (r.get("date", ""), r.get("amount", 0)))
+    return fact_rows
+
+
+def _attach_tracking_metadata(rows: list[dict], tracking_pairs) -> list[dict]:
+    by_fact_id = {}
+    for idx, row in enumerate(rows, 1):
+        record_id = row.get("record_id") or row.get("_fact_id") or f"c_{idx:06d}"
+        row["record_id"] = record_id
+        row.setdefault("proposed_action", "leave_as_is")
+        row.setdefault("offset_group", "")
+        row.setdefault("offset_role", "")
+        row.setdefault("offset_strength", "")
+        row.setdefault("offset_source", "")
+        row.setdefault("offset_rule_hint", "")
+        row.setdefault("offset_match_type", "")
+        by_fact_id[row.get("_fact_id", record_id)] = row
+
+    expense_groups: dict[str, list[str]] = {}
+    expense_strengths: dict[str, list[str]] = {}
+    expense_sources: dict[str, list[str]] = {}
+    expense_rules: dict[str, list[str]] = {}
+    expense_match_types: dict[str, list[str]] = {}
+
+    for group_index, pair in enumerate(tracking_pairs, 1):
+        expense_id = pair["expense"].get("_fact_id")
+        refund_id = pair["refund"].get("_fact_id")
+        if not expense_id or not refund_id:
+            continue
+        expense_row = by_fact_id.get(expense_id)
+        refund_row = by_fact_id.get(refund_id)
+        if not expense_row or not refund_row:
+            continue
+        group = f"refund_{group_index:06d}"
+        strength = pair.get("match_strength", "")
+        source = pair.get("source_refund_signal", "")
+        rule_hint = pair.get("rule_hint", "")
+        match_type = pair.get("match_type", "")
+
+        refund_row["offset_group"] = group
+        refund_row["offset_role"] = "refund"
+        refund_row["offset_strength"] = strength
+        refund_row["offset_source"] = source
+        refund_row["offset_rule_hint"] = rule_hint
+        refund_row["offset_match_type"] = match_type
+        refund_row["proposed_action"] = f"merge_refund_into:{expense_row['record_id']}"
+
+        expense_groups.setdefault(expense_id, []).append(group)
+        expense_strengths.setdefault(expense_id, []).append(strength)
+        expense_sources.setdefault(expense_id, []).append(source)
+        expense_rules.setdefault(expense_id, []).append(rule_hint)
+        expense_match_types.setdefault(expense_id, []).append(match_type)
+
+    for expense_id, groups in expense_groups.items():
+        expense_row = by_fact_id[expense_id]
+        expense_row["offset_group"] = "|".join(groups)
+        expense_row["offset_role"] = "expense"
+        strengths = expense_strengths.get(expense_id, [])
+        expense_row["offset_strength"] = "weak" if "weak" in strengths else (strengths[0] if strengths else "")
+        expense_row["offset_source"] = "|".join(expense_sources.get(expense_id, []))
+        expense_row["offset_rule_hint"] = "|".join(expense_rules.get(expense_id, []))
+        expense_row["offset_match_type"] = "|".join(expense_match_types.get(expense_id, []))
+
+    return rows
+
+
+def _refund_txn_base_id(txn_id: str) -> str:
+    txn_id = (txn_id or "").strip()
+    if not txn_id or "_" not in txn_id:
+        return ""
+    return txn_id.split("_", 1)[0]
+
+
+def _alipay_desc_order_key(description: str) -> str:
+    import re
+
+    description = (description or "").strip()
+    patterns = [
+        r"美团订单-([A-Za-z0-9]+)",
+        r"商户单号([A-Za-z0-9]+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, description)
+        if match:
+            return match.group(1)
+    return ""
+
+
+def _refund_desc_normalized(description: str) -> str:
+    description = (description or "").strip()
+    prefixes = ["退款-", "退款"]
+    for prefix in prefixes:
+        if description.startswith(prefix):
+            description = description[len(prefix):].strip()
+            break
+    return description
+
+
+def _long_common_prefix_len(a: str, b: str) -> int:
+    length = 0
+    for ch_a, ch_b in zip(a, b):
+        if ch_a != ch_b:
+            break
+        length += 1
+    return length
+
+
+def _refund_desc_confirms_match(ref_desc: str, exp_desc: str) -> bool:
+    normalized_ref = _refund_desc_normalized(ref_desc)
+    exp_desc = (exp_desc or "").strip()
+    if not normalized_ref or not exp_desc:
+        return False
+    if normalized_ref == exp_desc:
+        return True
+    if normalized_ref in exp_desc or exp_desc in normalized_ref:
+        return True
+    return _long_common_prefix_len(normalized_ref, exp_desc) >= 16
+
+
+def _wechat_device_key(description: str) -> str:
+    import re
+
+    description = (description or "").strip()
+    match = re.search(r"((?:充电柜|充电插座)-[A-Za-z0-9_\-]+)", description)
+    return match.group(1) if match else ""
+
+
+def _wechat_meituan_order_key(description: str) -> str:
+    import re
+
+    description = (description or "").strip()
+    patterns = [
+        r"美团订单-(\d{20,})",
+        r"-美团App-(\d{20,})",
+        r"-美团微信小程序-(\d{20,})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, description)
+        if match:
+            return match.group(1)
+    return ""
+
+
+def _wechat_meituan_cashier_key(description: str) -> str:
+    import re
+
+    description = (description or "").strip()
+    match = re.search(r"(美团收银\d+)", description)
+    return match.group(1) if match else ""
+
+
+def _wechat_stable_refund_token(description: str) -> str:
+    description = (description or "").strip()
+    tokens = {
+        "钱包充值",
+        "寄件",
+        "预付费充电订单",
+        "自助机押金",
+        "订单付款",
+        "存包柜预付费",
+        "先乘车后付款",
+        "转账备注:微信转账",
+    }
+    return description if description in tokens else ""
+
+
+def _wechat_refund_brand_aliases(value: str) -> set[str]:
+    value = (value or "").strip()
+    aliases = {value} if value else set()
+    pairs = [
+        ("麦当劳", "北京麦当劳食品有限公司"),
+        ("UNIQLO", "优衣库"),
+        ("luckin coffee", "瑞幸咖啡"),
+        ("广州骑安", "滴滴"),
+        ("立普世", "立普世咖啡"),
+    ]
+    for a, b in pairs:
+        if value in {a, b}:
+            aliases.update({a, b})
+    return aliases
+
+
+def _wechat_is_social_refund(*, expense: dict, refund: dict) -> bool:
+    text = " ".join([
+        expense.get("txn_type", ""),
+        expense.get("description", ""),
+        refund.get("txn_type", ""),
+        refund.get("description", ""),
+    ])
+    return any(token in text for token in ("红包", "转账"))
+
+
+def _collect_order_based_refund_candidates(expenses: list, ref: dict, consumed: list[bool], remaining: list[float], ref_amt: float):
+    matches: dict[int, str] = {}
+    merchant_order_id = (ref.get("merchant_order_id", "") or "").strip()
+    refund_txn_base_id = _refund_txn_base_id(ref.get("txn_id", ""))
+    desc_order_key = _alipay_desc_order_key(ref.get("description", ""))
+
+    def try_add(expense_index: int, rule_hint: str):
+        if consumed[expense_index]:
+            return
+        exp = expenses[expense_index]
+        if not _refund_matches_basic_constraints(exp, ref, ref_amt, remaining[expense_index]):
+            return
+        matches.setdefault(expense_index, rule_hint)
+
+    if merchant_order_id:
+        for i, exp in enumerate(expenses):
+            if (exp.get("merchant_order_id", "") or "").strip() == merchant_order_id:
+                try_add(i, "refund_merchant_order_match")
+    if refund_txn_base_id:
+        for i, exp in enumerate(expenses):
+            if (exp.get("txn_id", "") or "").strip() == refund_txn_base_id:
+                try_add(i, "refund_txn_base_match")
+    if desc_order_key:
+        for i, exp in enumerate(expenses):
+            exp_desc_order_key = _alipay_desc_order_key(exp.get("description", ""))
+            if exp_desc_order_key and exp_desc_order_key == desc_order_key:
+                try_add(i, "refund_desc_order_match")
+
+    candidates = []
+    for i, rule_hint in matches.items():
+        exp = expenses[i]
+        exact_amt = abs(remaining[i] - ref_amt) < 0.01
+        desc_match = bool(ref.get("description")) and (
+            ref["description"] == exp.get("description", "")
+            or ref["description"] in exp.get("description", "")
+            or exp.get("description", "") in ref["description"]
+        )
+        candidates.append({
+            "expense_index": i,
+            "exact_amt": exact_amt,
+            "desc_match": desc_match,
+            "expense_date": exp["date"],
+            "rule_hint": rule_hint,
+        })
+    return candidates
+
+
+def _collect_wechat_refund_candidates(expenses: list, ref: dict, consumed: list[bool], remaining: list[float], ref_amt: float):
+    matches: dict[int, str] = {}
+    ref_desc = ref.get("description", "")
+    ref_cp = ref.get("counterparty", "")
+    priority = {
+        "refund_wechat_device_key": 0,
+        "refund_wechat_meituan_order": 1,
+        "refund_wechat_meituan_cashier": 2,
+        "refund_wechat_desc_token": 3,
+        "refund_wechat_brand_alias": 4,
+    }
+
+    def try_add(expense_index: int, rule_hint: str):
+        if consumed[expense_index]:
+            return
+        exp = expenses[expense_index]
+        if not _refund_matches_basic_constraints(exp, ref, ref_amt, remaining[expense_index]):
+            return
+        current = matches.get(expense_index)
+        if current is None or priority.get(rule_hint, 99) < priority.get(current, 99):
+            matches[expense_index] = rule_hint
+
+    ref_aliases = _wechat_refund_brand_aliases(ref_cp) | _wechat_refund_brand_aliases(ref_desc)
+    ref_txn_type = ref.get("txn_type", "")
+    for i, exp in enumerate(expenses):
+        exp_device = _wechat_device_key(exp.get("description", ""))
+        exp_meituan_order = _wechat_meituan_order_key(exp.get("description", ""))
+        exp_meituan_cashier = _wechat_meituan_cashier_key(exp.get("description", ""))
+        exp_token = _wechat_stable_refund_token(exp.get("description", ""))
+        exp_aliases = _wechat_refund_brand_aliases(exp.get("counterparty", "")) | _wechat_refund_brand_aliases(exp.get("description", ""))
+
+        if ref_txn_type == "自助侠-退款" and exp_device:
+            try_add(i, "refund_wechat_device_key")
+        if "美团" in ref_txn_type and exp_meituan_order:
+            try_add(i, "refund_wechat_meituan_order")
+        if "美团" in ref_txn_type and exp_meituan_cashier:
+            try_add(i, "refund_wechat_meituan_cashier")
+        if ref_txn_type == "互联互通-退款" and exp_token == "钱包充值":
+            try_add(i, "refund_wechat_desc_token")
+        if ref_aliases and exp_aliases and ref_aliases & exp_aliases:
+            try_add(i, "refund_wechat_brand_alias")
+
+    candidates = []
+    for i, rule_hint in matches.items():
+        exp = expenses[i]
+        exact_amt = abs(remaining[i] - ref_amt) < 0.01
+        candidates.append({
+            "expense_index": i,
+            "exact_amt": exact_amt,
+            "desc_match": False,
+            "expense_date": exp["date"],
+            "rule_hint": rule_hint,
+            "rule_priority": priority.get(rule_hint, 99),
+        })
+    if candidates:
+        best_priority = min(c["rule_priority"] for c in candidates)
+        candidates = [c for c in candidates if c["rule_priority"] == best_priority]
+        if any(c["exact_amt"] for c in candidates):
+            candidates = [c for c in candidates if c["exact_amt"]]
+    candidates.sort(key=lambda c: (-int(c["exact_amt"]), c["expense_date"]))
+    for c in candidates:
+        c.pop("rule_priority", None)
+    return candidates
+
+
 def _pair_refunds(expenses: list, refunds: list, others: list):
-    """通用的退款配对核销逻辑（Alipay 和 WeChat 共用）
-    返回 (cleaned_records, tracking_pairs)
+    """通用的退款关系识别逻辑（Alipay / WeChat / 银行卡共用）。
+    返回 (fact_rows, tracking_pairs)，不在 convert 阶段净额化或删掉原始事实。
     """
     expense_ids = {id(r) for r in expenses}
     refund_ids = {id(r) for r in refunds}
-    others = [r for r in others if id(r) not in expense_ids and id(r) not in refund_ids]
+    fact_rows = [r for r in others if id(r) not in expense_ids and id(r) not in refund_ids]
+    fact_rows.extend(dict(exp) for exp in expenses)
 
-    consumed = [False] * len(expenses)
-    remaining = [abs(exp["amount"]) for exp in expenses]
     tracking_pairs = []
 
     for ref in sorted(refunds, key=lambda x: x["date"]):
         ref_amt = abs(ref["amount"])
-        candidates = []
-        for i, exp in enumerate(expenses):
-            if consumed[i]:
-                continue
-            # 尝试匹配：先比 normalized cp，再比原始 cp（ICBC 退款匹配需要）
-            if not _counterparty_matches(exp["counterparty"], ref["counterparty"]):
-                raw_cp = exp.get("_raw_cp", "")
-                if not raw_cp or not _counterparty_matches(raw_cp, ref["counterparty"]):
+        candidate_expenses = expenses
+        amount_budget = [abs(exp["amount"]) for exp in candidate_expenses]
+        candidates = _collect_order_based_refund_candidates(candidate_expenses, ref, [False] * len(candidate_expenses), amount_budget, ref_amt)
+        if not candidates and _refund_source_signal(ref) == "wechat_status":
+            candidates = _collect_wechat_refund_candidates(candidate_expenses, ref, [False] * len(candidate_expenses), amount_budget, ref_amt)
+        if not candidates:
+            for i, exp in enumerate(candidate_expenses):
+                rule_hint = "refund_cp_match"
+                if not _counterparty_matches(exp["counterparty"], ref["counterparty"]):
+                    raw_cp = exp.get("_raw_cp", "")
+                    if not raw_cp or not _counterparty_matches(raw_cp, ref["counterparty"]):
+                        continue
+                    rule_hint = "refund_raw_cp_match"
+                if not _refund_matches_basic_constraints(exp, ref, ref_amt, abs(exp["amount"])):
                     continue
-            if ref_amt > remaining[i]:
-                continue
-            if exp["date"] > ref["date"]:
-                continue
 
-            exact_amt = abs(remaining[i] - ref_amt) < 0.01
-            desc_match = bool(ref["description"]) and (
-                ref["description"] == exp["description"]
-                or ref["description"] in exp["description"]
-                or exp["description"] in ref["description"]
-            )
-            candidates.append((i, exact_amt, desc_match, exp["date"]))
+                exact_amt = abs(abs(exp["amount"]) - ref_amt) < 0.01
+                desc_match = bool(ref["description"]) and (
+                    ref["description"] == exp["description"]
+                    or ref["description"] in exp["description"]
+                    or exp["description"] in ref["description"]
+                )
+                candidates.append({
+                    "expense_index": i,
+                    "exact_amt": exact_amt,
+                    "desc_match": desc_match,
+                    "expense_date": exp["date"],
+                    "rule_hint": rule_hint,
+                })
 
         if not candidates:
-            # 用描述兜底匹配（当对方名不可靠时）
-            for i, exp in enumerate(expenses):
-                if consumed[i]:
-                    continue
-                if ref_amt > remaining[i]:
-                    continue
-                if exp["date"] > ref["date"]:
+            for i, exp in enumerate(candidate_expenses):
+                if not _refund_matches_basic_constraints(exp, ref, ref_amt, abs(exp["amount"])):
                     continue
                 if not exp["description"] or not ref["description"]:
                     continue
                 if (ref["description"] == exp["description"]
                         or ref["description"] in exp["description"]
                         or exp["description"] in ref["description"]):
-                    exact = abs(remaining[i] - ref_amt) < 0.01
-                    candidates.append((i, exact, True, exp["date"]))
+                    exact = abs(abs(exp["amount"]) - ref_amt) < 0.01
+                    candidates.append({
+                        "expense_index": i,
+                        "exact_amt": exact,
+                        "desc_match": True,
+                        "expense_date": exp["date"],
+                        "rule_hint": "refund_desc_fallback",
+                    })
 
         if not candidates:
-            # 孤退款：检查是否为"原始全额退款"——退款金额等于某笔支出的原始金额（非剩余）
-            # 适用于支付宝中同时存在净退款(83.5)和全额退款(1025.5)的场景
-            gross_matched = False
-            for i, exp in enumerate(expenses):
-                if consumed[i]:
-                    continue
-                raw_amt = abs(exp["amount"])
-                if abs(raw_amt - ref_amt) < 0.01 and _counterparty_matches(exp["counterparty"], ref["counterparty"]):
-                    # 全额退款，消耗整笔支出
-                    consumed[i] = True
-                    tracking_pairs.append({
-                        "expense": dict(expenses[i]),
-                        "refund": dict(ref),
-                        "match_type": "full",
-                    })
-                    gross_matched = True
-                    break
-            if gross_matched:
-                continue
-            # 真孤退款 → income
-            others.append({
-                "date": ref["date"],
-                "amount": ref["amount"],
-                "currency": ref.get("currency", "CNY"),
-                "payment_method": ref["payment_method"],
-                "card_number": ref.get("card_number", ""),
+            fact_rows.append({
+                **ref,
                 "counterparty": _strip_payment_prefix(ref["counterparty"]),
-                "description": ref["description"],
                 "category": "income",
             })
             continue
 
-        # 优先级：精确金额 > 说明匹配 > 最近消费
-        candidates.sort(key=lambda c: (c[1], c[2], c[3]), reverse=True)
-        best_idx, exact_amt, _, _ = candidates[0]
+        candidates.sort(key=lambda c: (c["exact_amt"], c["desc_match"], c["expense_date"]), reverse=True)
+        best = candidates[0]
+        best_idx = best["expense_index"]
+        exact_amt = best["exact_amt"]
+        rule_hint = best["rule_hint"]
 
-        if exact_amt:
-            consumed[best_idx] = True
-            tracking_pairs.append({
-                "expense": dict(expenses[best_idx]),
-                "refund": dict(ref),
-                "match_type": "full",
-            })
-        else:
-            # 记录原始金额快照
-            original_amount = -remaining[best_idx]  # 调整前的原始金额
-            remaining[best_idx] = round(remaining[best_idx] - ref_amt, 2)
-            tracking_pairs.append({
-                "expense": {**expenses[best_idx], "amount": original_amount},
-                "refund": dict(ref),
-                "match_type": "partial",
-            })
+        if ref.get("_refund_signal") == "icbc_credit_return":
+            matched_expenses = [candidate_expenses[c["expense_index"]] for c in candidates]
+            offset_clusters = {
+                _icbc_credit_offset_cluster(exp.get("counterparty", ""), exp.get("description", ""))
+                for exp in matched_expenses
+            }
+            account_clusters = {
+                _icbc_credit_account_cluster(exp.get("payment_method", ""), exp.get("card_number", ""))
+                for exp in matched_expenses
+            }
+            ref["_icbc_refund_same_cluster"] = len(offset_clusters) == 1 and "" not in offset_clusters
+            ref["_icbc_refund_same_account_cluster"] = len(account_clusters) == 1 and "" not in account_clusters
 
-    result = []
-    for i, exp in enumerate(expenses):
-        if not consumed[i]:
-            result.append({
-                "date": exp["date"],
-                "amount": -remaining[i],
-                "currency": exp.get("currency", "CNY"),
-                "payment_method": exp["payment_method"],
-                "card_number": exp.get("card_number", ""),
-                "counterparty": exp["counterparty"],
-                "description": exp["description"],
-                "category": "expense",
-            })
-    result.extend(others)
-    return result, tracking_pairs
+            if ref.get("_icbc_refund_same_cluster") and ref.get("_icbc_refund_same_account_cluster"):
+                amount_covering = [c for c in candidates if abs(candidate_expenses[c["expense_index"]]["amount"]) + 0.01 >= ref_amt]
+                if amount_covering:
+                    amount_covering.sort(key=lambda c: c["expense_date"], reverse=True)
+                    best = amount_covering[0]
+                    best_idx = best["expense_index"]
+                    exact_amt = best["exact_amt"]
+                    rule_hint = best["rule_hint"]
+
+        if ref.get("_refund_signal") == "icbc_debit_refund":
+            matched_expenses = [candidate_expenses[c["expense_index"]] for c in candidates]
+            offset_clusters = {
+                _icbc_debit_refund_cluster(exp.get("counterparty", ""), exp.get("description", ""))
+                for exp in matched_expenses
+            }
+            account_clusters = {
+                _icbc_debit_account_cluster(exp)
+                for exp in matched_expenses
+            }
+            ref["_icbc_debit_refund_same_cluster"] = len(offset_clusters) == 1 and "" not in offset_clusters
+            ref["_icbc_debit_refund_same_account_cluster"] = len(account_clusters) == 1 and "" not in account_clusters
+
+            if ref.get("_icbc_debit_refund_same_cluster") and ref.get("_icbc_debit_refund_same_account_cluster"):
+                amount_covering = [c for c in candidates if abs(candidate_expenses[c["expense_index"]]["amount"]) + 0.01 >= ref_amt]
+                if amount_covering:
+                    amount_covering.sort(key=lambda c: c["expense_date"], reverse=True)
+                    best = amount_covering[0]
+                    best_idx = best["expense_index"]
+                    exact_amt = best["exact_amt"]
+                    rule_hint = best["rule_hint"]
+
+        if ref.get("_refund_signal") == "ccb_debit_refund":
+            matched_expenses = [candidate_expenses[c["expense_index"]] for c in candidates]
+            offset_clusters = {
+                _ccb_refund_cluster(exp)
+                for exp in matched_expenses
+            }
+            ref["_ccb_refund_same_cluster"] = len(offset_clusters) == 1 and "" not in offset_clusters
+
+            if ref.get("_ccb_refund_same_cluster"):
+                amount_covering = [c for c in candidates if abs(candidate_expenses[c["expense_index"]]["amount"]) + 0.01 >= ref_amt]
+                if amount_covering:
+                    amount_covering.sort(key=lambda c: c["expense_date"], reverse=True)
+                    best = amount_covering[0]
+                    best_idx = best["expense_index"]
+                    exact_amt = best["exact_amt"]
+                    rule_hint = best["rule_hint"]
+
+        match_strength = _classify_refund_match(
+            ref=ref,
+            rule_hint=rule_hint,
+            exact_amt=exact_amt,
+            candidate_count=len(candidates),
+            expense=candidate_expenses[best_idx],
+        )
+
+        tracking_pairs.append(_build_refund_tracking_pair(
+            expense=candidate_expenses[best_idx],
+            refund=ref,
+            match_type="full" if exact_amt else "partial",
+            rule_hint=rule_hint,
+            match_strength=match_strength,
+            candidate_count=len(candidates),
+        ))
+        fact_rows.append(dict(ref))
+
+    fact_rows.sort(key=lambda r: (r.get("date", ""), r.get("amount", 0)))
+    return fact_rows, tracking_pairs
 
 
 def _read_alipay_raw(path: str):
@@ -515,6 +1144,15 @@ def _read_alipay_raw(path: str):
             category = "expense" if amount < 0 else "income"
 
         normalized_cp, enriched_desc = _normalize_counterparty(counterparty, desc[:80], "alipay")
+        refund_signal = _alipay_refund_signal(
+            txn_type=txn_type,
+            txn_status=txn_status,
+            direction=direction,
+            description=enriched_desc,
+        )
+        txn_id = row[h.get("交易订单号", 9)].strip() if "交易订单号" in h else ""
+        merchant_order_id = row[h.get("商家订单号", 10)].strip() if "商家订单号" in h else ""
+        fact_id = f"alipay_{txn_id}" if txn_id else f"alipay_{len(raw)+1:06d}"
         raw.append({
             "date": date_str,
             "amount": round(amount, 2),
@@ -523,12 +1161,16 @@ def _read_alipay_raw(path: str):
             "description": enriched_desc[:80],
             "category": category,
             "txn_type": txn_type,
+            "txn_id": txn_id,
+            "merchant_order_id": merchant_order_id,
             "_alipay_direction": direction,
+            "_refund_signal": refund_signal,
+            "_fact_id": fact_id,
         })
 
     # 退款配对核销
     expenses = [r for r in raw if r["category"] == "expense"]
-    refunds = [r for r in raw if r["amount"] > 0 and ("退款" in r["txn_type"] or "退款" in r["description"])]
+    refunds = [r for r in raw if r["amount"] > 0 and r.get("_refund_signal")]
     records, tracking_pairs = _pair_refunds(expenses, refunds, raw)
     return records, tracking_pairs
 
@@ -585,6 +1227,8 @@ def _read_wechat_raw(path: str):
         counterparty = vals[h["交易对方"]] if "交易对方" in h else ""
         desc = vals[h["商品"]] if "商品" in h else ""
         txn_type = vals[h["交易类型"]] if "交易类型" in h else ""
+        txn_id = vals[h["交易单号"]] if "交易单号" in h else ""
+        merchant_order_id = vals[h["商户单号"]] if "商户单号" in h else ""
         date_raw = vals[h["交易时间"]] if "交易时间" in h else ""
         date_str = date_raw[:19].replace("/", "-")
 
@@ -614,6 +1258,7 @@ def _read_wechat_raw(path: str):
             if not desc or desc in ("/", "-"):
                 desc = txn_type
             normalized_cp, enriched_desc = _normalize_counterparty(counterparty, desc[:80], "wechat")
+            fact_id = f"wechat_{txn_id}" if txn_id else f"wechat_{len(raw)+1:06d}"
             raw.append({
                 "date": date_str,
                 "amount": round(amount, 2),
@@ -622,6 +1267,11 @@ def _read_wechat_raw(path: str):
                 "description": enriched_desc[:80],
                 "category": category,
                 "status": status,
+                "txn_type": txn_type,
+                "txn_id": txn_id,
+                "merchant_order_id": merchant_order_id,
+                "_refund_signal": "wechat_status" if "退款" in status else "",
+                "_fact_id": fact_id,
             })
             continue
         else:
@@ -636,6 +1286,7 @@ def _read_wechat_raw(path: str):
         category = "expense" if amount < 0 else "income"
 
         normalized_cp, enriched_desc = _normalize_counterparty(counterparty, desc[:80], "wechat")
+        fact_id = f"wechat_{txn_id}" if txn_id else f"wechat_{len(raw)+1:06d}"
         raw.append({
             "date": date_str,
             "amount": round(amount, 2),
@@ -644,6 +1295,11 @@ def _read_wechat_raw(path: str):
             "description": enriched_desc[:80],
             "category": category,
             "status": status,
+            "txn_type": txn_type,
+            "txn_id": txn_id,
+            "merchant_order_id": merchant_order_id,
+            "_refund_signal": "wechat_status" if "退款" in status else "",
+            "_fact_id": fact_id,
         })
 
     # 退款配对核销
@@ -764,7 +1420,19 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                         break
                     counterparty = s
 
+                offset_type = _classify_icbc_credit_offset_type(counterparty, description)
+                is_refund = offset_type == "merchant_refund"
                 normalized_cp, enriched_desc = _normalize_counterparty(counterparty, description[:80], "icbc")
+                payment_method = _infer_payment_source("icbc", normalized_cp, enriched_desc[:80])
+                card_number = current_card[-4:] if current_card else ""
+                fact_hash = _stable_short_hash(
+                    f"{current_date} {current_time}",
+                    f"{round(amount, 2):.2f}",
+                    currency,
+                    normalized_cp,
+                    enriched_desc[:80],
+                    card_number,
+                )
                 rec = {
                     "date": f"{current_date} {current_time}",
                     "amount": round(amount, 2),
@@ -772,12 +1440,21 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     "counterparty": normalized_cp,
                     "description": enriched_desc[:80],
                     "category": category,
-                    "payment_method": _infer_payment_source("icbc", normalized_cp, enriched_desc[:80]),
-                    "card_number": current_card[-4:] if current_card else "",
+                    "payment_method": payment_method,
+                    "card_number": card_number,
                     "_raw_cp": counterparty,  # 保存原始 cp 用于退款匹配
+                    "_refund_signal": "",
+                    "_fact_id": f"icbc_credit_{fact_hash}",
                 }
-                if counterparty == "退货":
+                if offset_type:
+                    rec["offset_type"] = offset_type
+                if is_refund:
+                    merchant_text = description if counterparty == "退货" and description else counterparty
                     rec["_is_refund"] = True
+                    rec["_refund_signal"] = "icbc_credit_return"
+                    rec["_icbc_refund_merchant_trusted"] = not _is_icbc_credit_untrusted_merchant_text(merchant_text)
+                elif offset_type in {"benefit_rebate", "campaign_cashback", "fee_reversal"}:
+                    rec = _build_icbc_credit_offset_income(rec, offset_type)
                 records.append(rec)
                 current_date = None
             i += 1
@@ -803,60 +1480,77 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                 i += 1
                 continue
 
-            # 提取时间（日期下行）
             time_str = "00:00:00"
             if date_line_idx + 1 < len(lines):
                 time_candidate = lines[date_line_idx + 1].strip()
                 if re.match(r"^\d{2}:\d{2}:\d{2}$", time_candidate):
                     time_str = time_candidate
 
-            ctx_text = " ".join(lines[max(0, date_line_idx):min(len(lines), i + 8)])
-            description = ""
-            for j in range(date_line_idx + 1, i):
-                s = lines[j].strip()
-                if s and len(s) <= 10 and s not in ("活期", "00000", "人民币", "钞", "汇", "1614", "4600", "2116", "6982") \
-                        and not re.match(r"^\d{2}:\d{2}:\d{2}$", s):
-                    summary = s.replace("支", "").strip()
-                    if summary:
-                        description = summary
-                        break
+            between = [lines[j].strip() for j in range(date_line_idx + 1, i) if lines[j].strip()]
+            summary = ""
+            for s in between:
+                if s in ("活期", "00000", "人民币", "钞", "汇", "1614", "4600", "2116", "6982"):
+                    continue
+                if re.match(r"^\d{2}:\d{2}:\d{2}$", s):
+                    continue
+                summary = s.replace("支", "").strip()
+                if summary:
+                    break
 
+            lookahead = [lines[j].strip() for j in range(i + 1, min(len(lines), i + 6)) if lines[j].strip()]
+            if not summary and lookahead:
+                if lookahead[0] in {"退款", "退货", "撤销交易", "利息", "基金购买", "基金赎回", "银联消费", "还款"}:
+                    summary = lookahead[0]
+
+            channel = ""
             cpy = ""
-            for j in range(i + 1, min(len(lines), i + 6)):
-                s = lines[j].strip()
-                if s and not re.match(r"^[\d,]+\.\d{2}$", s):
-                    if s not in ("手机银行", "网上银行", "快捷支付", "其他", "批量业务", "(空)"):
-                        cpy = s
-                        break
+            for s in lookahead:
+                if s == summary:
+                    continue
+                if s in ("手机银行", "网上银行", "快捷支付", "其他", "批量业务", "(空)"):
+                    if not channel:
+                        channel = s
+                    continue
+                if re.match(r"^[+-]?[\d,]+\.\d{2}$", s):
+                    continue
+                if not cpy:
+                    cpy = s
 
-            is_reversal = "撤销" in ctx_text
-            if is_reversal:
-                i += 1
-                continue
+            if summary == "撤销交易":
+                cpy = cpy or ""
+            elif summary in {"退款", "退货"}:
+                cpy = cpy or ""
 
-            # convert 层只看收支方向
             category = "expense" if amount < 0 else "income"
-
-            normalized_cp, enriched_desc = _normalize_counterparty(cpy, description[:80], "icbc")
-            records.append({
+            normalized_cp, enriched_desc = _normalize_counterparty(cpy, summary[:80], "icbc")
+            rec = {
                 "date": f"{date} {time_str}",
                 "amount": round(amount, 2),
                 "counterparty": normalized_cp,
                 "description": enriched_desc[:80] or normalized_cp[:80],
                 "category": category,
-            })
+                "payment_method": channel,
+                "_raw_cp": cpy,
+                "_refund_signal": "",
+                "_fact_id": f"icbc_debit_{len(records)+1:06d}",
+            }
+            if summary in {"退款", "退货"} and amount > 0:
+                rec["_is_refund"] = True
+                rec["_refund_signal"] = "icbc_debit_refund"
+                rec["counterparty"] = cpy or summary
+                rec["description"] = summary
+            records.append(rec)
             i += 1
 
-    # ICBC 退货配对核销（用 description 中的原始商家匹配对应消费）
     expenses = [r for r in records if r["category"] == "expense"]
     refunds = [r for r in records if r["amount"] > 0 and r.get("_is_refund")]
     if refunds:
         for r in refunds:
-            if r.get("description"):
-                # 用原始描述匹配，保留 _raw_cp 用于 _pair_refunds
+            if r.get("_refund_signal") == "icbc_debit_refund" and r.get("_raw_cp"):
+                r["counterparty"] = r["_raw_cp"]
+            elif r.get("description"):
                 r["counterparty"] = r["description"]
         records, tracking_pairs = _pair_refunds(expenses, refunds, records)
-        # 退款配对后，normalize tracking pair 中的 counterparty
         for pair in tracking_pairs:
             for key in ("expense", "refund"):
                 raw = pair[key].get("counterparty", "")
@@ -864,7 +1558,6 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                 new_cp, new_desc = _normalize_counterparty(raw, desc, "icbc")
                 pair[key]["counterparty"] = new_cp
                 pair[key]["description"] = new_desc
-        # 过滤 ICBC 孤退款收入行（cp 为"消费"/"财付通"的 refund orphan，非真实收入）
         records = [r for r in records if not (
             r["category"] == "income"
             and r.get("counterparty", "") in ("消费", "财付通")
@@ -909,23 +1602,15 @@ def _read_icbc_raw(path: str, password: str):
 
 
 def _pair_reversals(records: list) -> tuple[list, list]:
-    """配对反向冲销交易（撤销交易、退款等）。
-
-    匹配条件：
-    1. 金额相反（abs(a) == abs(b)）
-    2. 同一对方（counterparty 相同）
-    3. 收入行的 description 包含 "撤销"（说明这是撤销操作）
-    4. 收入时间 >= 支出时间，且在同一天内
-    """
+    """识别反向冲销交易关系，但保留双方原始事实。"""
     expenses = [(i, r) for i, r in enumerate(records) if r["category"] == "expense"]
     incomes = [(i, r) for i, r in enumerate(records)
                if r["category"] == "income" and "撤销" in r.get("description", "")]
 
     tracking_pairs = []
     paired_exp = set()
-    paired_inc = set()
 
-    for ii, inc in incomes:
+    for _, inc in incomes:
         inc_amt = abs(inc["amount"])
         for ei, exp in expenses:
             if ei in paired_exp:
@@ -939,23 +1624,19 @@ def _pair_reversals(records: list) -> tuple[list, list]:
             if exp["date"] > inc["date"]:
                 continue
 
-            # 匹配成功
             paired_exp.add(ei)
-            paired_inc.add(ii)
             tracking_pairs.append({
                 "expense": dict(exp),
                 "refund": dict(inc),
                 "match_type": "full",
+                "match_strength": "strong",
+                "candidate_count": 1,
+                "rule_hint": "reversal_same_day_amount",
+                "source_refund_signal": "reversal",
             })
             break
 
-    result = []
-    for i, rec in enumerate(records):
-        if i in paired_exp or i in paired_inc:
-            continue
-        result.append(rec)
-
-    return result, tracking_pairs
+    return list(records), tracking_pairs
 
 
 def _read_icbc_debit_raw(path: str, password: str):
@@ -980,8 +1661,16 @@ def _read_icbc_debit_raw(path: str, password: str):
 
     pdf.close()
 
-    records, rev_pairs = _pair_reversals(records)
-    return records, "icbc_debit", rev_pairs
+    fact_rows = list(records)
+    _, tracking_pairs = _pair_reversals(records)
+
+    expenses = [r for r in records if r["category"] == "expense"]
+    refunds = [r for r in records if r["amount"] > 0 and r.get("_is_refund")]
+    others = [r for r in records if r not in expenses and r not in refunds]
+    if refunds:
+        _, refund_pairs = _pair_refunds(expenses, refunds, others)
+        tracking_pairs.extend(refund_pairs)
+    return fact_rows, "icbc_debit", tracking_pairs
 
 
 def _parse_icbc_debit_row(row: list) -> dict | None:
@@ -1042,6 +1731,13 @@ def _parse_icbc_debit_row(row: list) -> dict | None:
 
     category = "expense" if amount < 0 else "income"
 
+    debit_offset_type = ""
+    if summary == "撤销交易":
+        debit_offset_type = "reversal"
+    elif summary in {"退款", "退货"}:
+        debit_offset_type = "refund"
+
+    fact_hash = _stable_short_hash(date, f"{amount:.2f}", counterparty, summary, channel)
     return {
         "date": date,
         "amount": amount,
@@ -1050,6 +1746,12 @@ def _parse_icbc_debit_row(row: list) -> dict | None:
         "description": summary,
         "category": category,
         "payment_method": channel,
+        "_raw_cp": counterparty,
+        "_fact_id": f"icbc_debit_{fact_hash}",
+        "_debit_offset_type": debit_offset_type,
+        "_is_refund": debit_offset_type == "refund",
+        "_is_reversal": debit_offset_type == "reversal",
+        "_refund_signal": "icbc_debit_refund" if debit_offset_type == "refund" and amount > 0 else "",
     }
 
 
@@ -1144,11 +1846,15 @@ def _build_refund_tracking_rows(tracking_pairs, rules, default_action, bill_type
     for pair in tracking_pairs:
         exp = pair["expense"]
         ref = pair["refund"]
+        strength = pair.get("match_strength", "")
+        status_suffix = f"[{strength}]" if strength else ""
 
         # 消费行
         exp_net = round(exp["amount"] + ref["amount"], 2)
         exp_status = "已全额退款" if abs(exp_net) < 0.01 else \
                      f"已部分退款(净额{exp_net})"
+        if status_suffix:
+            exp_status = f"{exp_status}{status_suffix}"
         exp_acct = _route_account(exp, rules, default_action, bill_type)
         exp_source = _infer_payment_source(bill_type, exp.get("counterparty", ""), exp.get("description", ""))
         rows.append([
@@ -1161,28 +1867,116 @@ def _build_refund_tracking_rows(tracking_pairs, rules, default_action, bill_type
         # 退款行
         ref_acct = _route_account(ref, rules, default_action, bill_type)
         ref_source = _infer_payment_source(bill_type, ref.get("counterparty", ""), ref.get("description", ""))
+        refund_status = "退款核销"
+        if status_suffix:
+            refund_status = f"{refund_status}{status_suffix}"
         rows.append([
             ref["date"], ref["amount"], ref.get("currency", "CNY"),
             ref.get("counterparty", ""), ref.get("description", ""),
             "income", ref_acct, ref_source,
-            bill_type, "退款核销",
+            bill_type, refund_status,
         ])
     return rows
 
 
-def do_convert(path: str, source: str, output: str, password: str = None,
-               account: str = None, currency: str = None):
-    """convert 命令入口"""
-    rules, default_action = load_rules()
+def _build_output_row(rec: dict, *, bill_type: str, rules, default_action, account: str = None,
+                      currency: str = None) -> dict:
+    if account:
+        acct_name = account
+        cur = currency or "CNY"
+    else:
+        card_num = rec.get("card_number", "")
+        if card_num:
+            match = match_payment_method(rules, f"{bill_type}_{card_num}", "*")
+        else:
+            match = None
+        if not match:
+            match = match_payment_method(rules, bill_type, rec.get("payment_method", ""))
+        if match:
+            acct_name = match["account"]
+            cur = match["currency"]
+        else:
+            raise ValueError(
+                f"❌ 未匹配规则: source={bill_type} "
+                f"payment_method='{rec.get('payment_method', '')}' "
+                f"counterparty='{rec.get('counterparty', '')}' "
+                f"amount={rec.get('amount', '')}\n"
+                f"  请在 ~/.ft/mapping.yaml 中添加映射规则后重试"
+            )
 
+    payment_src = _infer_payment_source(
+        bill_type,
+        rec.get("counterparty", ""),
+        rec.get("description", ""),
+    )
+
+    cpy = rec.get("counterparty", "")
+    if bill_type == "icbc_credit" or bill_type == "icbc_debit":
+        cpy = _strip_payment_prefix(cpy)
+
+    return {
+        "record_id": rec.get("record_id", rec.get("_fact_id", "")),
+        "date": rec["date"],
+        "amount": rec["amount"],
+        "currency": rec.get("currency", cur) or cur,
+        "counterparty": cpy,
+        "description": rec.get("description", ""),
+        "category": rec["category"],
+        "account_name": acct_name,
+        "source": payment_src,
+        "bill_source": bill_type,
+        "transfer_account": rec.get("transfer_account", ""),
+        "locked": rec.get("locked", ""),
+        "offset_group": rec.get("offset_group", ""),
+        "offset_role": rec.get("offset_role", ""),
+        "offset_strength": rec.get("offset_strength", ""),
+        "offset_source": rec.get("offset_source", ""),
+        "offset_rule_hint": rec.get("offset_rule_hint", ""),
+        "offset_match_type": rec.get("offset_match_type", ""),
+        "proposed_action": rec.get("proposed_action", "leave_as_is"),
+    }
+
+
+def _write_output_csv(path: str | Path, rows: list[dict]):
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["record_id", "date", "amount", "currency", "counterparty",
+                         "description", "category", "account_name", "source",
+                         "bill_source", "offset_group", "offset_role", "offset_strength",
+                         "offset_source", "offset_rule_hint", "offset_match_type", "proposed_action"])
+        writer.writerows([
+            [
+                row.get("record_id", ""), row["date"], row["amount"], row["currency"], row["counterparty"],
+                row["description"], row["category"], row["account_name"], row["source"],
+                row["bill_source"], row.get("offset_group", ""), row.get("offset_role", ""),
+                row.get("offset_strength", ""), row.get("offset_source", ""),
+                row.get("offset_rule_hint", ""), row.get("offset_match_type", ""),
+                row.get("proposed_action", "leave_as_is"),
+            ]
+            for row in rows
+        ])
+
+
+def _write_refund_csv(path: str | Path, tracking_pairs, rules, default_action, bill_type: str):
+    refund_rows = _build_refund_tracking_rows(tracking_pairs, rules, default_action, bill_type)
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["date", "amount", "currency", "counterparty",
+                         "description", "category", "account_name", "source",
+                         "bill_source", "refund_status"])
+        writer.writerows(refund_rows)
+
+
+def _prepare_convert_rows(path: str, source: str, password: str = None):
+    tracking_pairs = []
     if source == "icbc":
         rows, bill_type, tracking_pairs = _read_icbc_raw(path, password)
         if not rows:
-            return
+            return [], "", []
     elif source == "icbc-debit":
         rows, bill_type, tracking_pairs = _read_icbc_debit_raw(path, password)
         if not rows:
-            return
+            return [], "", []
     elif source == "alipay":
         rows, tracking_pairs = _read_alipay_raw(path)
         bill_type = "alipay"
@@ -1193,85 +1987,40 @@ def do_convert(path: str, source: str, output: str, password: str = None,
         from .importers.ccb_debit import read_ccb_debit
         rows, _ = read_ccb_debit(path)
         bill_type = "ccb_debit"
-        # 退款配对：使用 _pair_refunds（与支付宝/微信一致）
         expenses = [r for r in rows if r["category"] == "expense"]
-        refunds = [r for r in rows if r["category"] == "income" and "退货" in r.get("description", "")]
-        others = [r for r in rows if not (r["category"] == "expense" or (r["category"] == "income" and "退货" in r.get("description", "")))]
+        refunds = []
+        others = []
+        for row in rows:
+            if row["category"] == "income" and row.get("_ccb_refund_signal"):
+                refunds.append({**row, "_refund_signal": row["_ccb_refund_signal"]})
+            elif row["category"] == "expense":
+                continue
+            else:
+                others.append(row)
         rows, tracking_pairs = _pair_refunds(expenses, refunds, others)
     else:
         print(f"❌ 未知账单类型: {source}")
-        return
+        return [], "", []
+
+    rows = _build_convert_fact_rows(rows, tracking_pairs)
+    rows = _attach_tracking_metadata(rows, tracking_pairs)
+    return rows, bill_type, tracking_pairs
+
+
+def do_convert(path: str, source: str, output: str, password: str = None,
+               account: str = None, currency: str = None):
+    """convert 命令入口"""
+    rules, default_action = load_rules()
+    rows, bill_type, tracking_pairs = _prepare_convert_rows(path, source, password)
 
     if not rows:
         print("❌ 无数据可输出")
         return
 
-    # Apply mapping rules to fill account_name
-    output_rows = []
-    for rec in rows:
-        if account:
-            acct_name = account
-            cur = currency or "CNY"
-        else:
-            # 优先按卡号路由（信用卡账单）
-            card_num = rec.get("card_number", "")
-            if card_num:
-                match = match_payment_method(rules, f"{bill_type}_{card_num}", "*")
-            else:
-                match = None
-            if not match:
-                match = match_payment_method(rules, bill_type, rec.get("payment_method", ""))
-            if match:
-                acct_name = match["account"]
-                cur = match["currency"]
-            else:
-                raise ValueError(
-                    f"❌ 未匹配规则: source={bill_type} "
-                    f"payment_method='{rec.get('payment_method', '')}' "
-                    f"counterparty='{rec.get('counterparty', '')}' "
-                    f"amount={rec.get('amount', '')}\n"
-                    f"  请在 ~/.ft/mapping.yaml 中添加映射规则后重试"
-                )
-
-        payment_src = _infer_payment_source(
-            bill_type,
-            rec.get("counterparty", ""),
-            rec.get("description", ""),
-        )
-
-        cpy = rec.get("counterparty", "")
-        if bill_type == "icbc_credit" or bill_type == "icbc_debit":
-            cpy = _strip_payment_prefix(cpy)
-
-        output_rows.append([
-            rec["date"],
-            rec["amount"],
-            rec.get("currency", cur) or cur,
-            cpy,
-            rec.get("description", ""),
-            rec["category"],
-            acct_name,
-            payment_src,
-            bill_type,  # "alipay" / "wechat" / "icbc_credit" / "icbc_debit"
-        ])
-
-    with open(output, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["date", "amount", "currency", "counterparty",
-                         "description", "category", "account_name", "source",
-                         "bill_source"])
-        writer.writerows(output_rows)
-
+    output_rows = [
+        _build_output_row(rec, bill_type=bill_type, rules=rules, default_action=default_action,
+                          account=account, currency=currency)
+        for rec in rows
+    ]
+    _write_output_csv(output, output_rows)
     print(f"✅ 已转换 {len(output_rows)} 条 → {output}")
-
-    # 写退款追踪 CSV
-    if tracking_pairs:
-        refund_output = output.replace(".csv", "_refunds.csv")
-        refund_rows = _build_refund_tracking_rows(tracking_pairs, rules, default_action, bill_type)
-        with open(refund_output, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["date", "amount", "currency", "counterparty",
-                             "description", "category", "account_name", "source",
-                             "bill_source", "refund_status"])
-            writer.writerows(refund_rows)
-        print(f"✅ 退款追踪 {len(tracking_pairs)} 对 → {refund_output}")

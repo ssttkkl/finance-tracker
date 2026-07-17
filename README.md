@@ -11,14 +11,14 @@
 ├── accounts.yaml       # 账户元数据（名称/类型/币种/启用）
 ├── mapping.yaml        # 支付方式 → 账户名映射（convert 用）
 ├── snapshot.yaml       # 统一快照（所有账户的当前余额 + 持仓）
-└── records/            # 按天交易记录，按类型分子目录
-    ├── cash/2026-01-01.csv
-    ├── loan/2026-01-15.csv
-    └── security/2026-06-12.csv
+└── records/            # 按月交易记录，按类型分子目录
+    ├── cash/2026-01.csv
+    ├── loan/2026-01.csv
+    └── security/2026-06.csv
 ```
 
 **双层存储：**
-- **CSV 文件** — 不可篡改的审计日志，每天每账户类型一个文件
+- **CSV 文件** — 不可篡改的审计日志，每月每账户类型一个文件
 - **`snapshot.yaml`** — 当前状态快照，查询秒出
 - 所有写操作（append/checkin/transfer/stock）同时更新 **CSV + 快照**
 - 所有查询（report/acct list/stock list）只读 **快照**，不扫 CSV
@@ -34,7 +34,7 @@ cd ~/.ft && git log
 ```bash
 ft acct list              # 查看账户列表（首次自动创建 accounts.yaml）
 ft convert 支付宝.csv -s alipay -o alipay.csv       # 步骤①：原始账单→统一CSV
-ft append alipay.csv wechat.csv                      # 步骤②：按天落盘
+ft append alipay.csv wechat.csv                      # 步骤②：按月落盘
 ft reconcile --month 2026-06                         # 步骤③：导入后统一整理
 ft report [--month 2026-06]                         # 资产负债 + 消费 + 收入
 ft list [--account 支付宝余额] [--limit 10]        # 交易明细
@@ -80,13 +80,123 @@ ft transfer --from 工行借记卡 --to IBKR --amount 36250 --to-amount 5000
 
 ## 流水线：账单导入
 
+完整的数据流、pending 决策语义和审计闭环见 [账单导入与 Reconcile 全流程](docs/import-reconcile-flow.md)。
+
 ```
-① ft convert → ② AI审查 → ③ 手动修正 → ④ ft append → ⑤ ft reconcile → ⑥ ft commit
-   账单→CSV     Codex审查     改错         按天落盘      去重/审计      Git 提交
-   +_refunds    逐源审查                    +records     +audit CSV
+① ft convert → ② ft append → ③ ft reconcile → ④ AI审查/编辑 working CSV → ⑤ ft commit
+   账单→统一 CSV      按月落盘       自动整理/pending        继续 reconcile       Git 提交
 ```
 
-每步产出可查看可修改的 CSV，AI 审查是必须的门禁。
+convert 输出可查看的统一 CSV；reconcile 遇到低置信候选时才会进入 AI 审查门禁。
+
+### 退款核销目标
+
+退款自动核销的最高优先级是：
+
+- 最终净额正确
+- 账户余额正确
+- 消费统计正确
+
+在满足以上三点时，**允许对同类多候选消费采用保守的近邻归并**，不强求严格回链到唯一原单。
+
+这意味着：
+
+- 优先避免漏掉退款，导致净支出偏高
+- 优先避免把退款核销到不同消费类型、不同账户或错误金额
+- 对同商户 / 同平台 / 同类消费中的多候选退款，只要最终核算结果正确，可接受不精确回挂到唯一原单
+
+实际核销发生在 `reconcile` 的镜像去重之后：
+
+- 去重删除了退款或原消费时，关系先重绑到保留记录；重绑冲突则进入 pending。
+- `strong` 关系自动核销：部分退款将原消费改为净额并删除退款；全额退款删除消费和退款两条记录。
+- `weak` 关系进入 pending。确认时在退款行填写 `merge_refund_into:<消费 record_id>`；拒绝时用 `leave_as_is` 并写明理由。
+- 每次重绑、核销和删除都会在 reconcile audit 中保留双边追溯记录。
+
+## AI working CSV / pending 工作流
+
+当 `ft reconcile` 遇到程序不该直接决定的跨来源候选或 weak 退款关系时，会创建 pending 会话。convert 会保留退款事实和关联元数据，并直接输出统一 CSV。
+
+### 命令
+
+```bash
+ft convert <bill> -s <source> -o out.csv
+
+ft reconcile --month 2026-06
+ft reconcile --continue-with-decisions
+ft reconcile --abort
+```
+
+### pending 期间的保证
+
+- 只有 weak pending 且不存在自动结果时，`reconcile` 不改正式 `records/`、不改 `snapshot.yaml`
+- 同一批次已判定的强去重、转账或 `strong` 退款会先写入；其审计行暂存于 `proposed_audit.csv`，在 continue 时正式写入 audit
+- 只有 `--continue-with-decisions` 成功后才正式落地
+- `--abort` 会删除当前 pending 会话
+
+### 会话目录
+
+```text
+~/.ft/pending/reconcile/<session_id>/
+```
+
+常见文件：
+
+- `manifest.json`：会话元信息
+- `status.json`：当前状态
+- `ai_working.csv`：给 AI 编辑的底稿
+- `staged_records/` / `proposed_audit.csv`：reconcile 中间产物
+
+### AI 允许编辑哪些列
+
+主要允许修改：
+
+- `counterparty`
+- `description`
+- `category`
+- `account_name`
+- `source`
+- `transfer_account`
+- `locked`
+- `decision_action`
+- `decision_reason`
+
+`rule_hint` 说明程序命中的规则，`suggested_action` 是程序的建议动作；`decision_action` 和 `decision_reason` 才是审查者的最终决定。
+
+默认只读：
+
+- `record_id`
+- `date`
+- `amount`
+- `currency`
+- `bill_source`
+- `raw_counterparty`
+- `raw_description`
+- `raw_payment_method`
+- `rule_hint`
+- `suggested_action`
+- `processing_status`
+- `ai_group`
+
+### decision_action 合法值
+
+- `leave_as_is`
+- `keep`
+- `drop`
+- `modify`
+- `merge_refund_into:<record_id>`
+- `net_with:<record_id>`
+- `mark_transfer_out_to:<record_id>`
+- `mark_transfer_in_from:<record_id>`
+
+### 调用方 AI 的标准流程
+
+1. 先运行 `ft convert`、`ft append` 和 `ft reconcile`
+2. 如果 reconcile 进入 pending，打开 `ai_working.csv`
+3. 审查整份 `ai_working.csv`，不要只看局部候选行
+4. 如果体量较大，按交易日期切成三个月一批；每批只交给一个 subagent，并要求 subagent 通过推理输出标记结果，禁止用脚本批量过滤/批量判定
+5. 按 `SKILL.md` 中的 pending / `ai_working.csv` 流程处理该文件并保存为编辑后的 CSV
+6. 执行 `ft reconcile --continue-with-decisions`
+7. 如果要放弃，执行 `ft reconcile --abort`
 
 ## 安装
 

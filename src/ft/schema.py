@@ -47,9 +47,13 @@ SOURCE_LABELS = {
 
 FOREIGN_EXCHANGE_KEYWORDS = ("购汇", "跨境", "外汇", "换汇")
 
-CASH_CSV_FIELDS = ["date", "amount", "currency", "counterparty",
-                   "description", "category", "account_name", "source",
-                   "bill_source", "transfer_account", "locked"]
+CASH_CSV_FIELDS = [
+    "record_id", "date", "amount", "currency", "counterparty",
+    "description", "category", "account_name", "source", "bill_source",
+    "transfer_account", "locked", "offset_group", "offset_role",
+    "offset_strength", "offset_source", "offset_rule_hint",
+    "offset_match_type", "proposed_action",
+]
 
 CSV_FIELDS = [
     "date", "action", "from_ticker", "to_ticker",
