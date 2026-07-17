@@ -2,10 +2,9 @@
 import argparse
 import sys
 from decimal import Decimal
-from .report import (
-    report_networth, report_expense, report_income, report_flow, list_txns,
-)
+from .report import render_finance_report, render_transactions
 from .acct import acct_add, acct_list, acct_rename, acct_delete, acct_activate
+from .runtime import build_local_services
 
 
 def main(argv=None):
@@ -233,12 +232,14 @@ def main(argv=None):
 
     if args.cmd == "acct":
         if not args.acct_cmd:
-            acct_list()
+            from . import models
+            acct_list(build_local_services(models.FT_DIR).queries)
             return
         if args.acct_cmd == "add":
             acct_add(args.name, args.type, args.currency)
         elif args.acct_cmd == "list":
-            acct_list()
+            from . import models
+            acct_list(build_local_services(models.FT_DIR).queries)
         elif args.acct_cmd == "rename":
             acct_rename(args.old_name, args.new_name, args.currency)
         elif args.acct_cmd == "delete":
@@ -415,18 +416,18 @@ def main(argv=None):
         return
 
     if args.cmd == "report":
-        report_networth()
-        print()
-        report_expense(month=args.month)
-        print()
-        report_flow()
-        print()
-        report_income(month=args.month)
+        from . import models
+        result = build_local_services(models.FT_DIR).queries.report(month=args.month)
+        render_finance_report(result, month=args.month)
         return
 
     if args.cmd == "list":
-        list_txns(month=args.month, account=args.account,
-                  category=args.category, limit=args.limit)
+        from . import models
+        result = build_local_services(models.FT_DIR).queries.list_transactions(
+            month=args.month, account=args.account,
+            category=args.category, limit=args.limit,
+        )
+        render_transactions(result)
         return
 
     if args.cmd == "checkin":

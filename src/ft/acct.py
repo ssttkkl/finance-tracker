@@ -71,20 +71,22 @@ def acct_add(name: str, type_: str, currency: str):
     print(f"✅ 已添加账户: {result.account.name} ({label} · {sym}{currency})")
 
 
-def acct_list():
+def acct_list(service=None):
     """列出所有账户及当前余额"""
-    service = AccountService(LocalCsvUnitOfWork(models.FT_DIR))
-    accounts = service.list_accounts()
-    if not accounts:
+    if service is None:
+        from .runtime import build_local_services
+        service = build_local_services(models.FT_DIR).queries
+    result = service.list_accounts()
+    if not result.accounts:
         print("  📭 暂无账户，请使用 ft acct add 创建")
         return
 
     print(f"  {'账户名':<20} {'类型':<8} {'币种':<6} {'余额':>12} {'活跃'}")
     print("  " + "-" * 62)
-    for a in accounts:
+    for a in result.accounts:
         label = ACCOUNT_LABELS.get(a.type, a.type)
         sym = CURRENCY_SYMBOLS.get(a.currency, "")
-        bal = _compute_balance(a.name, a.currency)
+        bal = a.balance
         bal_str = f"{sym}{bal:>+.2f}" if bal != 0 else f"{sym}0.00"
         active = "✅" if a.active else "⛔"
         name_display = a.name[:20]

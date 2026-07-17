@@ -1,0 +1,50 @@
+"""DTOs for reusable finance read use cases."""
+from dataclasses import dataclass, field
+from decimal import Decimal
+from typing import Mapping
+
+
+@dataclass(frozen=True)
+class AccountBalanceDTO:
+    name: str
+    type: str
+    currency: str
+    active: bool
+    balance: Decimal
+
+
+@dataclass(frozen=True)
+class AccountListDTO:
+    accounts: tuple[AccountBalanceDTO, ...]
+
+
+@dataclass(frozen=True)
+class FlowDTO:
+    description: str
+    currency: str
+    amount: Decimal
+
+
+@dataclass(frozen=True)
+class TransactionDTO:
+    date: str
+    account_name: str
+    currency: str
+    category: str
+    amount: Decimal
+    description: str = ""
+    counterparty: str = ""
+    transfer_account: str = ""
+
+
+@dataclass(frozen=True)
+class TransactionPageDTO:
+    items: tuple[TransactionDTO, ...]
+
+
+@dataclass(frozen=True)
+class FinanceReportDTO:
+    accounts: AccountListDTO
+    expenses: Mapping[str, Decimal] = field(default_factory=dict)
+    income: Mapping[str, Decimal] = field(default_factory=dict)
+    flows: tuple[FlowDTO, ...] = ()

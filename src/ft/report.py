@@ -3,9 +3,62 @@ from pathlib import Path
 import csv
 import re
 from collections import defaultdict
+from decimal import Decimal
 from .accounts import load_accounts
 from . import models
 from .ledger_layout import ensure_monthly_cash_ledger
+
+
+def render_finance_report(result, month=None):
+    """Render a structured application report for the CLI."""
+    account_icons = {"cash": "💰", "loan": "💳", "lend": "📤", "security": "📈", "crypto": "📈"}
+    account_labels = {"cash": "现金", "loan": "贷款", "lend": "借款", "security": "证券", "crypto": "加密"}
+    print("  🏦 资产负债总览")
+    print("  " + "=" * 46)
+    by_currency = defaultdict(list)
+    for account in result.accounts.accounts:
+        if abs(account.balance) >= Decimal("0.005"):
+            by_currency[account.currency].append(account)
+    for currency in sorted(by_currency):
+        symbol = models.CURRENCY_SYMBOLS.get(currency, "")
+        print(f"\n  [{currency}]")
+        for account in by_currency[currency]:
+            icon = account_icons.get(account.type, " ")
+            label = account_labels.get(account.type, "")
+            print(f"    {icon} {account.name[:24]:<24s} ({label})  {symbol}{account.balance:>+8.2f}")
+        total = sum((item.balance for item in by_currency[currency]), Decimal("0"))
+        print(f"    {'─' * 36}")
+        print(f"    {'合计':<16s} {symbol}{total:>+10.2f}")
+
+    for currency in sorted(result.expenses):
+        total = result.expenses[currency]
+        if total:
+            symbol = models.CURRENCY_SYMBOLS.get(currency, "")
+            print(f"\n  📊 消费分析 [{currency}] {month or ''}")
+            print(f"    总支出: {symbol}{total:.2f}")
+    for flow in result.flows:
+        symbol = models.CURRENCY_SYMBOLS.get(flow.currency, "")
+        print(f"  🔄 {flow.description[:20]:<20s} {symbol}{flow.amount:>10.2f}")
+    for currency in sorted(result.income):
+        symbol = models.CURRENCY_SYMBOLS.get(currency, "")
+        print(f"\n  📥 收入来源 [{currency}]")
+        print(f"    总额 {symbol}{result.income[currency]:.2f}")
+
+
+def render_transactions(result):
+    """Render a structured transaction page for the CLI."""
+    if not result.items:
+        print("  📭 暂无记录")
+        return
+    labels = {"income": "收入", "expense": "支出", "transfer": "转账", "transfer_in": "转入", "transfer_out": "转出", "checkin": "📸校准"}
+    print(f"  {'日期':<21} {'账户':<16} {'币种':<5} {'类型':<6} {'金额':>12} {'说明'}")
+    print("  " + "-" * 80)
+    for item in result.items:
+        symbol = models.CURRENCY_SYMBOLS.get(item.currency, "")
+        label = labels.get(item.category, "")
+        amount = "" if item.amount == 0 else f"{symbol}{item.amount:>+8.2f}"
+        description = (item.description or item.counterparty)[:30]
+        print(f"  {item.date[:19]:<21} {item.account_name[:16]:<16} {item.currency:<5} {label:<6} {amount:>12} {description}")
 
 
 def _read_records(records_dir=None, month=None) -> list[dict]:
