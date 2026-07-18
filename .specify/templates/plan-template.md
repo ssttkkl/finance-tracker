@@ -42,6 +42,11 @@
 
 [Gates determined based on constitution file]
 
+For persistence changes, the completed plan MUST include a PostgreSQL/SQLite parity
+matrix covering schema, transactions, concurrency, queries, errors, and permitted
+operational differences. Automatic fallback, dual writes, and implicit cross-backend
+migration are constitution violations.
+
 ## Project Structure
 
 ### Documentation (this feature)

@@ -21,6 +21,7 @@
 - [Phase 1 Application Services](phase1-application-services.md)：已完成的应用边界基线。
 - [Phase 2 PostgreSQL Storage](phase2-postgresql-storage.md)：已完成的双 backend 历史基线。
 - [001-postgres-only-storage](../specs/001-postgres-only-storage/spec.md)：已完成的 PostgreSQL-only 存储收口。
+- 双数据库运行时支持：已批准产品方向，待独立 Spec Kit feature 落地。
 - [财富解释与趋势对比设计](productization-wealth-report-design.md)：已批准、但非实施权威的产品决策输入。
 
 ## 2. 产品定位
@@ -65,9 +66,16 @@ Finance Tracker 面向同时使用银行、支付平台、券商和交易所的�
 具体范围和验证证据见 `specs/001-postgres-only-storage/`。README、CLI help 和当前操作文档已经同步为
 PostgreSQL-only；旧文件账本、迁移、shadow comparison、Connector sync 和文件 reconcile 已从产品表面删除。
 
+### 已批准：PostgreSQL 与 SQLite 双数据库运行时
+
+后续 feature 将把 PostgreSQL 与 SQLite 都设为正式运行时后端，由 `FT_DATABASE_URL` 显式选择。
+两个后端共享 Application Service、CLI 契约、财务语义、审计关系和 schema 迁移入口；不提供自动回退、
+双写或隐式跨后端迁移。`001-postgres-only-storage` 保留为已完成的历史收口记录，不回写新需求。
+
 ## 4. 产品与架构原则
 
-1. **一个事实源**：目标运行时只使用 PostgreSQL，不建设双写或文件回退。
+1. **一次选择一个事实源**：运行时通过 `FT_DATABASE_URL` 显式选择 PostgreSQL 或 SQLite，不建设双写、
+   自动回退或文件账本回退。
 2. **业务规则只有一份**：CLI、Web、Worker、AI 和 MCP 调用相同 Application Service。
 3. **模块化单体优先**：没有当前 feature 的具体需求，不增加微服务、队列或通用平台层。
 4. **可审计优先**：导入、自动规则、人工决定和 AI 建议必须能追溯来源与修订。
@@ -92,7 +100,7 @@ PostgreSQL-only；旧文件账本、迁移、shadow comparison、Connector sync 
 
 ### 5.2 `wealth-attribution-core`：财富归因内核
 
-依赖：`001-postgres-only-storage` 完成。
+依赖：双数据库运行时 feature 完成。
 
 范围：
 
@@ -101,7 +109,7 @@ PostgreSQL-only；旧文件账本、迁移、shadow comparison、Connector sync 
 - 每日原子桶与日/周/月聚合；
 - 投资市场收益率、coverage、partial/stale/unsupported；
 - component、evidence 和 canonical DTO；
-- PostgreSQL contract、性能和重建测试。
+- PostgreSQL/SQLite 等价 contract、性能基线和重建测试。
 
 非目标：Web、认证、Review Inbox、Connector、AI 和 MCP。
 
@@ -141,9 +149,9 @@ PostgreSQL-only；旧文件账本、迁移、shadow comparison、Connector sync 
 
 ### C1：托管单 workspace
 
-触发：本地 PostgreSQL 安装成为重复使用的主要阻碍，而非产品价值不足。
+触发：本地运行方式仍成为重复使用的主要阻碍，而非产品价值不足。
 
-可能范围：最小登录、单 workspace 授权、托管 PostgreSQL、备份与恢复。
+可能范围：最小登录、单 workspace 授权、托管数据库、备份与恢复。
 
 ### C2：自助导入与 Review Inbox
 
@@ -171,7 +179,7 @@ PostgreSQL-only；旧文件账本、迁移、shadow comparison、Connector sync 
 
 ## 7. 当前明确不做
 
-- 为可丢弃开发数据保留 local backend、迁移或运行时回滚；
+- 为可丢弃开发数据提供隐式跨数据库迁移、双写或自动回退；
 - 在财富报告前建设完整登录、家庭协作或组织模型；
 - 通用对象存储、任务平台或微服务拆分；
 - 在确定性财务口径稳定前加入 AI 写入；
@@ -183,7 +191,7 @@ PostgreSQL-only；旧文件账本、迁移、shadow comparison、Connector sync 
 ### 工程
 
 - Application Service 被 CLI/Web/MCP 复用；
-- PostgreSQL repository、事务和 workspace 隔离测试通过；
+- PostgreSQL/SQLite repository、事务和 workspace 隔离等价测试通过；
 - 导入和同步重复执行保持幂等；
 - 财富恒等式在受支持范围内 100% 成立；
 - 任意金额可以定位到来源、规则和修订；

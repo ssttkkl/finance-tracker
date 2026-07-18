@@ -1,22 +1,23 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 -> 2.0.0
+- Version change: 2.0.0 -> 3.0.0
 - Modified principles:
-  - IV. 兼容、迁移与可回滚演进 -> IV. 单一事实源与零历史包袱
+  - IV. 单一事实源与零历史包袱 -> IV. 显式数据库选择与行为等价
 - Modified sections:
-  - 工程约束 — PostgreSQL 直接成为唯一运行时事实源，删除 legacy backend 与迁移兼容层
+  - 工程约束 — PostgreSQL 与 SQLite 均为正式运行时后端，并增加跨后端等价性门禁
 - Added sections: none
 - Removed sections: none
 - Templates/commands:
-  - ✅ .specify/templates/plan-template.md — Constitution Check 可承载破坏性替换与旧代码删除门禁
-  - ✅ .specify/templates/spec-template.md — 现有场景、边界和成功标准足以描述不兼容替换
-  - ✅ .specify/templates/tasks-template.md — 已要求行为变更、数据和接口测试先行
-  - ✅ .agents/skills/speckit-*/SKILL.md — 均以 constitution 为最高项目约束，无存储默认值冲突
-  - ✅ docs/productization-refactor-plan.md — 顶层路线改为 PostgreSQL-only，并引用财富报告设计
-  - ✅ docs/productization-wealth-report-design.md — Phase 1/2 基线和 PostgreSQL-only 决策已同步
-  - ⚠ README.md — 保持描述当前已交付行为；待 postgres-only feature 实施完成后同步改写
+  - ✅ .specify/templates/plan-template.md — 增加双数据库等价性与差异清单门禁
+  - ✅ .specify/templates/spec-template.md — 增加双数据库场景与边界要求
+  - ✅ .specify/templates/tasks-template.md — 增加 PostgreSQL/SQLite 测试矩阵要求
+  - ✅ .agents/skills/speckit-*/SKILL.md — 均以 constitution 为最高项目约束，无固定单数据库冲突
+  - ✅ AGENTS.md — 工作流增加双数据库规格、方案和验证门禁
+  - ✅ docs/productization-refactor-plan.md — 顶层路线记录双数据库正式支持方向
 - Follow-up TODOs:
-  - ✅ specs/001-postgres-only-storage 已完成旧后端、迁移兼容层和相关文档包袱删除
+  - ⚠ README.md — 保持描述当前已交付的 PostgreSQL-only 行为；双数据库 feature 完成后同步
+  - ⚠ docs/productization-wealth-report-design.md — 双数据库 feature 完成后同步后续财富功能基线
+  - ⚠ specs/001-postgres-only-storage — 作为已完成历史 feature 保留，不回写新需求
 -->
 
 # Finance Tracker Constitution
@@ -46,16 +47,16 @@ Worker/MCP 能力的变更，MUST 由一个目标单一的 Spec Kit feature 驱�
 项目提供的类型检查、lint 和构建，并检查最终 diff。无法运行的验证 MUST 报告准确原因、风险和
 补跑命令，不得用推测代替证据。
 
-### IV. 单一事实源与零历史包袱
+### IV. 显式数据库选择与行为等价
 
-项目当前处于未上线的快速开发阶段，legacy 运行时、未发布 CLI 契约和本地开发数据不享有兼容、
-迁移或回滚承诺。PostgreSQL MUST 是唯一运行时事实源；CSV/YAML/Git 账本 backend、双后端选择、
-shadow compare、旧数据迁移和文件账本回退 MUST 在同一 feature 中删除，不得以“兼容”为理由长期
-保留不可达代码、抽象、配置、测试或文档。破坏性替换 MUST 在 spec 中明确范围，并以全新数据库
-基线和可重复测试数据验证；现有本地数据视为可丢弃开发数据，应用不得读取、迁移或自动删除它。
-该原则不削弱财务审计：正式 PostgreSQL 数据的来源、修订、金额精度和可追溯性仍 MUST 满足原则 I。
-当项目明确进入需要保护真实用户持久化数据的阶段时，MUST 再次修订 constitution，恢复 schema
-演进、备份、迁移和灾难恢复门禁。
+PostgreSQL 与 SQLite MUST 都是正式支持的运行时事实源；每个进程 MUST 仅通过
+`FT_DATABASE_URL` 显式选择其中一个后端，不得自动探测、静默回退、双写或 shadow compare。
+两个后端 MUST 对相同 Application Service、CLI 契约、财务语义、金额精度、事务原子性、幂等、
+来源审计和 workspace 隔离提供等价结果。数据库方言、并发能力、部署方式和性能等不可避免的运行差异
+MUST 在 feature artifacts 与操作文档中明确列出，但不得成为账务结果或用户可见业务行为分叉的理由。
+所有持久化、schema 或查询变更 MUST 同时提供 SQLite 自动化集成证据与真实 PostgreSQL 集成证据。
+跨后端数据复制或迁移不是隐式运行时职责；若产品需要，MUST 由独立 feature 定义可审计、可恢复的
+显式流程。CSV/YAML/Git 文件账本和其他 legacy backend 仍不得作为运行时事实源或数据库回退。
 
 ### V. 清晰边界与最小复杂度
 
@@ -67,13 +68,15 @@ shadow compare、旧数据迁移和文件账本回退 MUST 在同一 feature 中
 ## 工程约束
 
 - 运行时基线为 Python 3.11+；依赖与命令以 `pyproject.toml` 和 `uv` 工作流为准。
-- PostgreSQL 是 CLI、Web、Worker 和 MCP 唯一受支持的运行时事实源。postgres-only feature 完成前，
-  任何新能力不得依赖或扩展现有 CSV/YAML/Git backend。
+- PostgreSQL 与 SQLite 是 CLI、Web、Worker 和 MCP 正式支持的运行时事实源；调用方必须通过
+  `FT_DATABASE_URL` 显式选择一个后端。任何新能力不得依赖或扩展 CSV/YAML/Git 文件账本 backend。
 - CSV、JSON、YAML 和 PDF 只可作为当前产品明确需要的原始账单输入格式；不得作为 repository、当前
   快照、事务日志、运行时 backend、迁移载体或兼容回退。原始文件的身份、摘要、导入状态和审计
-  关系 MUST 由 PostgreSQL 管理。
-- 未发布的 schema 和 Alembic 历史 MAY 在 feature 中重建为干净基线；不得为可丢弃开发数据保留旧
-  schema、迁移链或适配层。测试数据 MUST 可重复生成并去标识化。
+  关系 MUST 由当前显式选择的数据库管理。
+- PostgreSQL 与 SQLite MUST 共享同一逻辑 schema 基线与迁移入口；方言专用实现 MUST 局限在
+  persistence adapter 内，并由等价性测试证明不会改变领域结果、审计关系或错误合同。
+- 未发布的 schema 和 Alembic 历史 MAY 在 feature 中重建为干净基线；测试数据 MUST 可重复生成并
+  去标识化。不得为可丢弃开发数据引入隐式跨后端迁移或长期兼容层。
 - 金额、币种、时间、账户身份和外部记录 ID 的语义 MUST 在 spec 与数据模型中明确，不得依赖字符串
   猜测或隐式默认值。
 - 凭据、Token、账户隐私和原始账单 MUST 保持在受控存储中；测试夹具与日志 MUST 去标识化。
@@ -95,4 +98,4 @@ MAJOR，新增原则或实质扩展升 MINOR，澄清文字升 PATCH。每个 pl
 Constitution Check；`$speckit-analyze` 和代码评审 MUST 把违反 MUST 的问题视为阻断项。例外必须
 由用户明确批准、写入 plan 的 Complexity Tracking，并包含到期或消除路径。
 
-**Version**: 2.0.0 | **Ratified**: 2026-07-17 | **Last Amended**: 2026-07-17
+**Version**: 3.0.0 | **Ratified**: 2026-07-17 | **Last Amended**: 2026-07-18

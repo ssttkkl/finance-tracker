@@ -12,6 +12,8 @@ description: "Task list template for feature implementation"
 **Tests**: Tests are MANDATORY for executable behavior, financial logic, data,
 migration, compatibility, and interface changes. Write failing tests before the
 corresponding implementation. Documentation-only work uses appropriate static validation.
+Persistence changes require the same contract matrix against SQLite and real PostgreSQL;
+neither backend may be represented only by mocks.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 

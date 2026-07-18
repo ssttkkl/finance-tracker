@@ -1,0 +1,3 @@
+[agents.speckit_implementer]
+description = "Implement an approved Spec Kit plan and converge the result."
+config_file = "./agents/speckit-implementer.toml"

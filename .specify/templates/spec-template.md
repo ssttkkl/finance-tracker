@@ -77,6 +77,8 @@
 
 - What happens when [boundary condition]?
 - How does system handle [error scenario]?
+- For persistence behavior, what must remain equivalent across PostgreSQL and SQLite,
+  and which operational differences are explicitly permitted?
 
 ## Requirements *(mandatory)*
 

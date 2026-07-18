@@ -58,6 +58,8 @@ gstack 只承担产品与架构挑战、代码评审、Web QA 和发布验证。
 
 规格必须包含可独立验证的用户场景、边界/失败场景、明确的非目标和可度量成功标准。涉及金额、
 币种、持久化或迁移时，还必须写明精度、舍入、幂等、来源追踪、兼容与回滚口径。
+涉及数据库行为时，还必须分别定义 PostgreSQL 与 SQLite 的等价行为、允许的运行差异，以及禁止的
+自动回退、双写和隐式跨后端迁移。
 
 ### 2. 技术方案与架构挑战
 
@@ -67,26 +69,39 @@ gstack 只承担产品与架构挑战、代码评审、Web QA 和发布验证。
    gstack `plan-eng-review`；把采纳的结论回写 `plan.md` 及相关设计产物。
 3. 再次执行 plan 中的 Constitution Check。存在未获明确批准的 constitution 违例时不得进入任务拆分。
 
+持久化方案必须包含 PostgreSQL/SQLite schema、事务、并发、查询和错误合同的差异清单，并说明如何
+通过共享 Application Service 与后端测试矩阵证明用户可见行为基本等价。
+
 ### 3. 任务拆分与一致性门禁
 
 1. 使用 `$speckit-tasks` 生成按依赖排序、可执行的 `tasks.md`。
 2. 任务必须覆盖规格中的每项需求与验收场景。所有可执行行为、财务逻辑、数据、迁移和接口变更
    都必须先安排失败测试，再安排最小实现和验证。
+   持久化相关任务必须同时安排 SQLite 集成测试和真实 PostgreSQL 集成测试。
 3. 使用 `$speckit-analyze` 检查 spec、plan 和 tasks 的一致性与覆盖率。
 4. 存在 CRITICAL 或 HIGH 问题时，回到对应 artifact 修正并重新 analyze；不得直接实施。
 
 ### 4. 实施
 
-1. 在独立 feature 分支或 worktree 中使用 `$speckit-implement` 按 tasks 顺序实施。
-2. 先运行新增测试确认其因目标行为缺失而失败，再小步实现并转绿；每完成一项立即更新 task 状态。
-3. 不扩大 feature 范围，不顺手重构无关代码。实施发现的新需求或架构决策必须先回写 artifacts。
-4. 完成后使用 `$speckit-converge` 对照 spec、plan、tasks 和代码；若追加任务，继续实施直至收敛。
+1. 主 session 负责完成规格、澄清、方案、任务拆分和一致性门禁，但不得直接实施产品代码。
+2. 只有 `spec.md`、`plan.md`、`tasks.md` 均已就绪，Constitution Check 已通过，且
+   `$speckit-analyze` 不存在未解决的 CRITICAL 或 HIGH 问题时，主 session 才能进入实施阶段。
+3. 进入实施阶段后，主 session 必须调用项目级 `speckit_implementer` agent；由该 agent 在独立
+   feature 分支或 worktree 中使用 `$speckit-implement` 按 tasks 顺序实施。阶段交接只以 Spec Kit
+   artifacts 为依据，不得依赖未写入 artifacts 的对话决策。
+4. `speckit_implementer` 不可用或启动失败时必须停止并报告，不得由主 session 静默代替实施。
+5. 先运行新增测试确认其因目标行为缺失而失败，再小步实现并转绿；每完成一项立即更新 task 状态。
+6. 不扩大 feature 范围，不顺手重构无关代码。实施发现的新需求或架构决策必须先返回主 session，
+   由主 session 回写 artifacts 后才能继续。
+7. 完成后由 `speckit_implementer` 使用 `$speckit-converge` 对照 spec、plan、tasks 和代码；若追加任务，
+   继续实施直至收敛。
 
 ### 5. 评审与验证
 
 1. 所有代码变更必须运行 gstack `review`。阻断性 finding 必须修复并重新评审；若 finding 反映规格
    或方案缺口，先更新对应 Spec Kit artifact。
 2. 运行受影响测试、完整测试套件、类型检查、lint 和构建中项目实际提供的命令。
+   存储行为变更必须在 SQLite 与真实 PostgreSQL 上运行同一契约矩阵；任一后端缺少证据均不得声明完成。
 3. Web 行为或交互变更必须运行 gstack `qa`，覆盖主流程、错误/空状态和相关回归；修复后重新 QA。
 4. 检查最终 diff、未跟踪文件和 tasks 完成状态后，才能声明完成。
 
