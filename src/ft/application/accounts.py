@@ -93,41 +93,42 @@ class AccountService:
             if any(a.name == normalized_new and a.currency == currency for a in accounts):
                 uow.rollback()
                 return AccountResult.fail("account.duplicate", f"账户已存在: {normalized_new} ({currency})")
-            updated = [
-                AccountDTO(normalized_new, a.type, a.currency, a.active)
-                if a.name == old_name and a.currency == currency else a
-                for a in accounts
-            ]
-            uow.accounts.replace_all(updated)
+            updated = uow.accounts.rename(old_name, currency, normalized_new)
             uow.commit()
-            return AccountResult.success(AccountDTO(normalized_new, target.type, target.currency, target.active))
+            return AccountResult.success(updated)
 
     def delete_account(self, name: str, currency: str) -> AccountResult:
         with self._uow as uow:
-            accounts = uow.accounts.list()
-            remaining = [a for a in accounts if not (a.name == name and a.currency == currency)]
-            if len(remaining) == len(accounts):
+            target = uow.accounts.find(name, currency)
+            if target is None:
                 uow.rollback()
                 return AccountResult.fail("account.not_found", f"未找到账户: {name} ({currency})")
-            removed = next(a for a in accounts if a.name == name and a.currency == currency)
-            uow.accounts.replace_all(remaining)
+            if uow.accounts.has_facts(name, currency):
+                uow.rollback()
+                return AccountResult.fail(
+                    "account.in_use",
+                    "账户已有正式事实，不能删除；请停用账户",
+                    name=name,
+                    currency=currency,
+                )
+            if target.active:
+                uow.rollback()
+                return AccountResult.fail(
+                    "account.active",
+                    "账户仍处于启用状态，请先停用账户",
+                    name=name,
+                    currency=currency,
+                )
+            removed = uow.accounts.delete(name, currency)
             uow.commit()
             return AccountResult.success(removed)
 
     def set_active(self, name: str, currency: str, active: bool) -> AccountResult:
         with self._uow as uow:
-            accounts = uow.accounts.list()
-            target = None
-            updated = []
-            for account in accounts:
-                if account.name == name and account.currency == currency:
-                    target = AccountDTO(account.name, account.type, account.currency, active)
-                    updated.append(target)
-                else:
-                    updated.append(account)
+            target = uow.accounts.find(name, currency)
             if target is None:
                 uow.rollback()
                 return AccountResult.fail("account.not_found", f"未找到账户: {name} ({currency})")
-            uow.accounts.replace_all(updated)
+            target = uow.accounts.set_active(name, currency, active)
             uow.commit()
             return AccountResult.success(target)

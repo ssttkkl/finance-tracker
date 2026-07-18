@@ -109,10 +109,9 @@ class FinanceQueryService:
         limit: int = 30,
     ) -> TransactionPageDTO:
         rows = self._transactions.list_transactions(
-            month=month, account=account, category=category
+            month=month, account=account, category=category, limit=limit
         )
-        rows.sort(key=lambda row: row.get("date", ""), reverse=True)
-        items = tuple(self._transaction_dto(row) for row in rows[:limit])
+        items = tuple(self._transaction_dto(row) for row in rows)
         return TransactionPageDTO(items)
 
     def _account_balance(self, account, snapshot: dict) -> Decimal:

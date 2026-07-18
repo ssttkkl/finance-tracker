@@ -4,9 +4,12 @@
 
 ```bash
 brew install qpdf mupdf-tools
-qpdf --decrypt --password=<PW> encrypted.pdf decrypted.pdf
-mutool draw -F text -o output.txt decrypted.pdf
+uv run ft import statement.pdf --source icbc --account Card --currency CNY \
+  --password-file /path/to/mode-0600-password-file
 ```
+
+Finance Tracker 在 mode-0700 临时目录中调用 qpdf/mutool，完成后自动删除解密产物；不要在账单
+目录手工生成明文 PDF 或文本 sidecar。
 
 **避免使用 pdftotext / pdfminer** — 工行 PDF 含中文水印，这两种工具会混入水印文字。
 

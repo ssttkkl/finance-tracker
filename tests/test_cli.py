@@ -1,594 +1,213 @@
-import csv
-import os
-import subprocess
-import sys
-import tempfile
-import shutil
-from contextlib import redirect_stdout, redirect_stderr
-from io import StringIO
-from pathlib import Path
+from decimal import Decimal
 
 import pytest
 
 from ft import cli
 
 
-@pytest.fixture
-def tmp_env():
-    d = Path(tempfile.mkdtemp())
-    from ft import models
-    import ft.snapshot as snapshot_mod
-
-    old_ft = models.FT_DIR
-    old_records = models.RECORDS_DIR
-    old_accounts = models.ACCOUNTS_PATH
-    old_pending = models.PENDING_DIR
-    old_snapshot = snapshot_mod.SNAPSHOT_PATH
-    models.FT_DIR = d
-    models.RECORDS_DIR = d / "records"
-    models.ACCOUNTS_PATH = d / "accounts.yaml"
-    models.PENDING_DIR = d / "pending"
-    snapshot_mod.SNAPSHOT_PATH = d / "snapshot.yaml"
-    models.ACCOUNTS_PATH.write_text(
-        "accounts:\n"
-        "  - name: IBKR\n"
-        "    type: security\n"
-        "    currency: USD\n"
-        "    base_currencies: [USD]\n",
-        encoding="utf-8",
-    )
-
-    yield d
-
-    snapshot_mod.SNAPSHOT_PATH = old_snapshot
-    models.FT_DIR = old_ft
-    models.RECORDS_DIR = old_records
-    models.ACCOUNTS_PATH = old_accounts
-    models.PENDING_DIR = old_pending
-    import shutil
-    shutil.rmtree(d, ignore_errors=True)
+def _install_bundle(monkeypatch, bundle):
+    monkeypatch.setattr("ft.config.StorageSettings.load", lambda: object())
+    monkeypatch.setattr("ft.cli.build_services", lambda _settings: bundle)
 
 
-def test_append_accepts_multiple_files(monkeypatch):
-    called = {}
+def test_cli_direct_statement_import_dispatches_without_intermediate_csv(monkeypatch, tmp_path):
+    from ft.domain.application import OperationResult
 
-    class FakeImports:
-        def append(self, files):
-            from ft.domain.application import OperationResult
-            called["files"] = files
-            return OperationResult(
-                ok=True, count=2,
-                details={"by_date": {"2026-06-01": 2}},
-            )
-
-    bundle = type("Bundle", (), {"cashflow_imports": FakeImports()})()
-    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
-    cli.main(["append", "a.csv", "b.csv"])
-    assert called["files"] == ["a.csv", "b.csv"]
-
-
-def test_reconcile_month_dispatch(monkeypatch):
-    called = {}
-
-    class FakeService:
-        def start(self, *, month=None, date_from=None, date_to=None):
-            from ft.domain.reconciliation import ReconcileResultDTO, ReconciliationState
-            called["args"] = (month, date_from, date_to)
-            return ReconcileResultDTO(True, ReconciliationState.COMPLETED, "无重复项")
-
-    bundle = type("Bundle", (), {"reconciliation": FakeService()})()
-    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
-    cli.main(["reconcile", "--month", "2026-06"])
-    assert called["args"] == ("2026-06", None, None)
-
-
-def test_reconcile_range_dispatch(monkeypatch):
-    called = {}
-
-    class FakeService:
-        def start(self, *, month=None, date_from=None, date_to=None):
-            from ft.domain.reconciliation import ReconcileResultDTO, ReconciliationState
-            called["args"] = (month, date_from, date_to)
-            return ReconcileResultDTO(True, ReconciliationState.COMPLETED, "无重复项")
-
-    bundle = type("Bundle", (), {"reconciliation": FakeService()})()
-    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
-    cli.main(["reconcile", "--from", "2026-06-01", "--to", "2026-06-30"])
-    assert called["args"] == (None, "2026-06-01", "2026-06-30")
-
-
-def test_cli_add_checkin_transfer_dispatch_to_services(monkeypatch):
+    source = tmp_path / "statement.csv"
+    source.write_text("raw", encoding="utf-8")
     calls = []
 
-    class FakeCashflowService:
-        def __init__(self, uow):
-            self.uow = uow
+    class Importer:
+        def import_statement(self, command):
+            calls.append(command)
+            return OperationResult(ok=True, count=2, details={"duplicate": False})
 
+    _install_bundle(monkeypatch, type("Bundle", (), {"statement_import": Importer()})())
+    cli.main([
+        "import", str(source), "--source", "alipay",
+        "--account", "支付宝", "--currency", "CNY",
+    ])
+
+    assert calls[0].source_path == str(source)
+    assert calls[0].account == "支付宝"
+
+
+def test_cli_reads_encrypted_statement_password_from_file(monkeypatch, tmp_path):
+    from ft.domain.application import OperationResult
+
+    source = tmp_path / "statement.pdf"
+    password_file = tmp_path / "password.txt"
+    source.write_bytes(b"pdf")
+    password_file.write_text("top-secret\nignored", encoding="utf-8")
+    calls = []
+
+    class Importer:
+        def import_statement(self, command):
+            calls.append(command)
+            return OperationResult(ok=True, count=1, details={"duplicate": False})
+
+    _install_bundle(monkeypatch, type("Bundle", (), {"statement_import": Importer()})())
+    cli.main([
+        "import", str(source), "--source", "icbc", "--account", "Card",
+        "--password-file", str(password_file),
+    ])
+
+    assert calls[0].password == "top-secret"
+
+
+def test_cli_rejects_inline_statement_password():
+    with pytest.raises(SystemExit) as exc:
+        cli.main([
+            "import", "statement.pdf", "--source", "icbc", "--account", "Card",
+            "--password", "top-secret",
+        ])
+    assert exc.value.code == 2
+
+
+def test_cli_help_excludes_removed_local_storage_commands(capsys):
+    removed = {"verify", "commit", "status", "reset", "append", "reconcile", "migrate"}
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--help"])
+    assert exc.value.code == 0
+    command_line = next(
+        line for line in capsys.readouterr().out.splitlines()
+        if line.strip().startswith("{")
+    )
+    assert all(command not in command_line for command in removed)
+
+
+@pytest.mark.parametrize(
+    "command", ["verify", "commit", "status", "reset", "append", "reconcile", "migrate"],
+)
+def test_removed_local_storage_command_is_unknown(command):
+    with pytest.raises(SystemExit) as exc:
+        cli.main([command, "--help"])
+    assert exc.value.code == 2
+
+
+def test_stock_help_excludes_append_and_sync(capsys):
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["stock", "--help"])
+    assert exc.value.code == 0
+    output = capsys.readouterr().out
+    assert "append" not in output
+    assert "sync" not in output
+
+
+def test_cli_add_checkin_transfer_dispatch_to_postgres_services(monkeypatch):
+    calls = []
+    account = type("Account", (), {"currency": "CNY"})()
+
+    class Cashflow:
         def add_manual_transaction(self, **kwargs):
             calls.append(("add", kwargs))
-            account = type("Account", (), {"currency": "CNY"})()
             return type("Result", (), {"ok": True, "details": {"account": account}})()
 
         def checkin_balance(self, **kwargs):
             calls.append(("checkin", kwargs))
-            account = type("Account", (), {"currency": "CNY"})()
-            return type("Result", (), {"ok": True, "details": {"account": account, "day": "2026-07-16"}})()
-
-    class FakeTransferService:
-        def __init__(self, uow):
-            self.uow = uow
-
-        def transfer(self, **kwargs):
-            calls.append(("transfer", kwargs))
-            from_account = type("Account", (), {"currency": "CNY"})()
-            to_account = type("Account", (), {"currency": "CNY"})()
             return type("Result", (), {
-                "ok": True,
-                "details": {
-                    "from_account": from_account,
-                    "to_account": to_account,
-                    "amount": kwargs["amount"],
-                    "to_amount": kwargs["amount"],
-                    "date": kwargs["date"],
-                    "warning": "",
-                },
+                "ok": True, "details": {"account": account, "day": "2026-07-17"},
             })()
 
-    monkeypatch.setattr("ft.application.cashflow.CashflowService", FakeCashflowService)
-    monkeypatch.setattr("ft.application.cashflow.TransferService", FakeTransferService)
+    class Transfers:
+        def transfer(self, **kwargs):
+            calls.append(("transfer", kwargs))
+            return type("Result", (), {"ok": True, "details": {
+                "from_account": account, "to_account": account,
+                "amount": kwargs["amount"], "to_amount": kwargs["amount"],
+                "date": kwargs["date"], "warning": "",
+            }})()
 
-    cli.main(["add", "-a", "1.23", "-c", "Shop", "--account", "Cash", "--date", "2026-07-16 10:00:00"])
-    cli.main(["checkin", "Cash", "--balance", "9.99", "--date", "2026-07-16"])
-    cli.main(["transfer", "--from", "Cash", "--to", "Card", "--amount", "2.50", "--date", "2026-07-16"])
+    bundle = type("Bundle", (), {"cashflow": Cashflow(), "transfers": Transfers()})()
+    _install_bundle(monkeypatch, bundle)
+    cli.main(["add", "--amount", "1.23", "--counterparty", "Shop", "--account", "Cash", "--currency", "CNY"])
+    cli.main(["checkin", "Cash", "--balance", "9.99", "--currency", "CNY", "--date", "2026-07-17"])
+    cli.main(["transfer", "--from", "Cash", "--from-currency", "CNY", "--to", "Card", "--to-currency", "CNY", "--amount", "2.50"])
 
-    assert [call[0] for call in calls] == ["add", "checkin", "transfer"]
-    assert calls[0][1]["amount"].as_tuple().exponent == -2
-    assert calls[1][1]["balance"].as_tuple().exponent == -2
+    assert [item[0] for item in calls] == ["add", "checkin", "transfer"]
+    assert calls[0][1]["amount"] == Decimal("1.23")
 
 
-def test_cli_report_after_fractional_add_uses_numeric_snapshot_balance(tmp_path):
-    if shutil.which("uv") is None:
-        pytest.skip("uv is not installed")
-    home = tmp_path / "home"
-    home.mkdir()
-    repo_root = Path(__file__).resolve().parents[1]
-    env = {
-        **os.environ,
-        "HOME": str(home),
-    }
+def test_convert_is_explicit_export_and_does_not_build_runtime_bundle(monkeypatch, tmp_path):
+    from ft.domain.application import ExportPayload
 
-    commands = [
-        ["uv", "run", "ft", "acct", "add", "Cash", "--type", "cash", "--currency", "CNY"],
-        [
-            "uv", "run", "ft", "add", "-a", "-12.34", "-c", "Coffee",
-            "--account", "Cash", "--date", "2026-07-16 08:00:00",
-        ],
-        ["uv", "run", "ft", "report"],
-    ]
-    results = [
-        subprocess.run(cmd, cwd=repo_root, env=env, text=True, capture_output=True, check=False)
-        for cmd in commands
-    ]
-
-    assert all(result.returncode == 0 for result in results), "\n".join(
-        result.stdout + result.stderr for result in results
+    output = tmp_path / "out.csv"
+    seen = []
+    monkeypatch.setattr(
+        "ft.cli._statement_export",
+        lambda command: seen.append(command) or ExportPayload(
+            ({"amount": "1.20"},), fieldnames=("amount",),
+        ),
     )
-    assert "Cash" in results[-1].stdout
-    assert "-12.34" in results[-1].stdout
-    assert (home / ".ft" / "records" / "cash" / "2026-07.csv").exists()
-
-
-def test_reconcile_rejects_month_plus_range():
-    with pytest.raises(SystemExit):
-        cli.main(["reconcile", "--month", "2026-06", "--from", "2026-06-01"])
-
-
-def test_reconcile_continue_dispatch(monkeypatch):
-    called = {}
-
-    class FakeService:
-        def continue_with_decisions(self):
-            from ft.domain.reconciliation import ReconcileResultDTO, ReconciliationState
-            called["continued"] = True
-            return ReconcileResultDTO(True, ReconciliationState.COMPLETED, "continued")
-
-    bundle = type("Bundle", (), {"reconciliation": FakeService()})()
-    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
-
-    cli.main(["reconcile", "--continue-with-decisions"])
-    assert called["continued"] is True
-
-
-def test_reconcile_abort_dispatch(monkeypatch):
-    called = {"abort": False}
-
-    class FakeService:
-        def abort(self):
-            from ft.domain.reconciliation import ReconcileResultDTO, ReconciliationState
-            called["abort"] = True
-            return ReconcileResultDTO(True, ReconciliationState.ABORTED, "aborted")
-
-    bundle = type("Bundle", (), {"reconciliation": FakeService()})()
-    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
-
-    cli.main(["reconcile", "--abort"])
-    assert called["abort"] is True
-
-
-def test_convert_help_no_longer_mentions_pending_review():
-    stdout = StringIO()
-    stderr = StringIO()
-    with redirect_stdout(stdout), redirect_stderr(stderr), pytest.raises(SystemExit):
-        cli.main(["convert", "--help"])
-
-    output = stdout.getvalue() + stderr.getvalue()
-    assert "--continue-with-decisions" not in output
-    assert "--abort" not in output
-    assert "SKILL.md" not in output
-    assert "ai_working.csv" not in output
-
-
-def test_reconcile_help_mentions_skill_and_ai_working_csv():
-    stdout = StringIO()
-    stderr = StringIO()
-    with redirect_stdout(stdout), redirect_stderr(stderr), pytest.raises(SystemExit):
-        cli.main(["reconcile", "--help"])
-
-    output = stdout.getvalue() + stderr.getvalue()
-    assert "SKILL.md" in output
-    assert "ai_working.csv" in output
-    assert "三个月一批" in output
-
-
-def test_stock_checkin_accepts_fractional_shares(monkeypatch):
-    called = {}
-
-    def fake_checkin_ticker(*args):
-        called["args"] = args
-
-    monkeypatch.setattr("ft.stock.do_checkin_ticker", fake_checkin_ticker)
-    cli.main([
-        "stock", "checkin",
-        "--account", "Polymarket",
-        "--ticker", "pm:test:no",
-        "--shares", "323.5",
-        "--avg-cost", "0.92",
-    ])
-    assert called["args"][1] == 323.5
-
-
-def test_cli_stock_currency_help_has_no_hardcoded_choices(capsys):
-    with pytest.raises(SystemExit):
-        cli.main(["stock", "buy", "--help"])
-    out = capsys.readouterr().out
-    assert "--currency" in out
-    assert "{CNY,USD,HKD}" not in out
-    assert "{CNY, USD, HKD}" not in out
-
-
-def test_cli_stock_buy_accepts_configured_non_builtin_currency(tmp_env):
-    from ft import models
-
-    models.ACCOUNTS_PATH.write_text(
-        "accounts:\n"
-        "  - name: Kraken\n"
-        "    type: crypto\n"
-        "    currency: USDT\n"
-        "    base_currencies: [USDT, USDG]\n"
-        "    active: true\n",
-        encoding="utf-8",
+    monkeypatch.setattr(
+        "ft.cli.build_services",
+        lambda _settings: (_ for _ in ()).throw(AssertionError("runtime bundle built")),
     )
 
     cli.main([
-        "stock", "deposit", "--amount", "10", "--account", "Kraken",
-        "--currency", "usdg", "--date", "2026-06-30",
+        "convert", "statement.csv", "--source", "alipay",
+        "--account", "Cash", "--output", str(output),
     ])
 
-    with (models.RECORDS_DIR / "security" / "2026-06-30.csv").open(encoding="utf-8") as f:
-        row = next(csv.DictReader(f))
-    assert row["currency"] == "USDG"
-    assert row["to_ticker"] == "usdg"
+    assert seen[0].account == "Cash"
+    assert output.read_text(encoding="utf-8").splitlines() == ["amount", "1.20"]
 
 
-def test_cli_stock_configured_account_requires_explicit_currency(tmp_env, capsys):
-    from ft import models
+def test_stock_convert_is_explicit_export_and_does_not_build_runtime_bundle(monkeypatch, tmp_path):
+    from ft.domain.application import ExportPayload
 
-    models.ACCOUNTS_PATH.write_text(
-        "accounts:\n"
-        "  - name: Kraken\n"
-        "    type: crypto\n"
-        "    currency: USDT\n"
-        "    base_currencies: [USDT, USDG]\n",
-        encoding="utf-8",
+    output = tmp_path / "stock.csv"
+    monkeypatch.setattr(
+        "ft.cli._statement_export",
+        lambda _command: ExportPayload(({"action": "deposit"},), fieldnames=("action",)),
     )
-
-    with pytest.raises(SystemExit) as exc:
-        cli.main([
-            "stock", "deposit", "--amount", "10", "--account", "Kraken",
-            "--date", "2026-06-30",
-        ])
-
-    assert exc.value.code == 1
-    out = capsys.readouterr().out
-    assert "currency is required" in out
-    assert not (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
-
-
-def test_cli_stock_missing_base_currencies_rejects_old_config(tmp_env, capsys):
-    from ft import models
-
-    models.ACCOUNTS_PATH.write_text(
-        "accounts:\n"
-        "  - name: IBKR\n"
-        "    type: security\n"
-        "    currency: USD\n",
-        encoding="utf-8",
+    monkeypatch.setattr(
+        "ft.cli._runtime_services",
+        lambda: (_ for _ in ()).throw(AssertionError("runtime bundle built")),
     )
-
-    with pytest.raises(SystemExit) as exc:
-        cli.main([
-            "stock", "deposit", "--amount", "10", "--account", "IBKR",
-            "--currency", "USD", "--date", "2026-06-30",
-        ])
-
-    assert exc.value.code == 1
-    assert "base_currencies is required" in capsys.readouterr().out
-    assert not (models.RECORDS_DIR / "security" / "2026-06-30.csv").exists()
-
-
-def test_cli_stock_validation_errors_exit_nonzero(tmp_env, capsys):
-    with pytest.raises(SystemExit) as exc:
-        cli.main([
-            "stock", "deposit", "--amount", "10", "--account", "IBKR",
-            "--currency", "CNY", "--date", "2026-06-30",
-        ])
-
-    assert exc.value.code == 1
-    assert "not configured" in capsys.readouterr().out
-
-
-def test_cli_add_rejects_security_account_without_writing_cash_row(tmp_env, capsys):
-    """Top-level ft add must not write a cash row into a unified security ledger."""
-    from ft import models
-    import ft.snapshot as snapshot_mod
-    from ft.stock import record_trade
-
-    record_trade(
-        date="2026-06-30 09:00:00", action="swap",
-        from_ticker="USD", to_ticker="nvda.us",
-        from_amount=10, to_amount=1,
-        price=10, commission=0, commission_asset="USD",
-        currency="USD", account_name="IBKR", note="existing stock row",
-    )
-
-    with pytest.raises(SystemExit) as exc:
-        cli.main([
-            "add", "-a", "5", "-c", "manual cash adjustment",
-            "--account", "IBKR", "--date", "2026-06-30 10:00:00",
-        ])
-
-    day_csv = models.RECORDS_DIR / "security" / "2026-06-30.csv"
-    with day_csv.open(encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)
-    fieldnames = reader.fieldnames or []
-    assert "action" in fieldnames
-    assert "from_ticker" in fieldnames
-    assert "note" in fieldnames
-    assert rows[0]["action"] == "swap"
-    assert rows[0]["from_ticker"] == "usd"
-    assert rows[0]["to_ticker"] == "nvda.us"
-    assert len(rows) == 1
-    assert exc.value.code == 1
-    assert "手工现金交易不支持 security 或 crypto 账户" in capsys.readouterr().out
-    assert not snapshot_mod.SNAPSHOT_PATH.exists()
-    assert not any((models.RECORDS_DIR / typ).exists() for typ in ("cash", "loan", "lend"))
-
-
-def test_cli_checkin_rejects_security_account_without_writing_cash_row(tmp_env, capsys):
-    """Top-level ft checkin must not write a cash row into a unified security ledger."""
-    from ft import models
-    import ft.snapshot as snapshot_mod
-    from ft.stock import record_trade
-
-    record_trade(
-        date="2026-06-30 09:00:00", action="swap",
-        from_ticker="USD", to_ticker="nvda.us",
-        from_amount=10, to_amount=1,
-        price=10, commission=0, commission_asset="USD",
-        currency="USD", account_name="IBKR", note="existing stock row",
-    )
-
-    with pytest.raises(SystemExit) as exc:
-        cli.main(["checkin", "IBKR", "--balance", "100", "--date", "2026-06-30"])
-
-    day_csv = models.RECORDS_DIR / "security" / "2026-06-30.csv"
-    with day_csv.open(encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)
-    fieldnames = reader.fieldnames or []
-    assert "action" in fieldnames
-    assert "from_ticker" in fieldnames
-    assert "note" in fieldnames
-    stock_row = next(row for row in rows if row["action"] == "swap")
-    assert stock_row["to_ticker"] == "nvda.us"
-    assert len(rows) == 1
-    assert exc.value.code == 1
-    assert "现金余额校准不支持 security 或 crypto 账户" in capsys.readouterr().out
-    assert not snapshot_mod.SNAPSHOT_PATH.exists()
-    assert not any((models.RECORDS_DIR / typ).exists() for typ in ("cash", "loan", "lend"))
-
-
-def test_cli_stock_append_returns_nonzero_when_append_fails(monkeypatch):
-    """ft stock append must surface do_append(False) as a non-zero CLI exit."""
-    monkeypatch.setattr("ft.stock.do_append", lambda _path: False)
-
-    with pytest.raises(SystemExit) as exc:
-        cli.main(["stock", "append", "bad.csv"])
-
-    assert exc.value.code == 1
-
-
-def test_cli_transfer_errors_exit_nonzero(monkeypatch, capsys):
-    from ft.domain.cashflow import CashflowResult
-
-    class FailingTransferService:
-        def __init__(self, _uow):
-            pass
-
-        def transfer(self, **_kwargs):
-            return CashflowResult.fail("account.not_found", "未找到来源账户: Missing")
-
-    monkeypatch.setattr("ft.application.cashflow.TransferService", FailingTransferService)
-
-    with pytest.raises(SystemExit) as exc:
-        cli.main(["transfer", "--from", "Missing", "--to", "Cash", "--amount", "1"])
-
-    assert exc.value.code == 1
-    assert "未找到来源账户: Missing" in capsys.readouterr().out
-
-
-def test_cli_stock_sync_polymarket_dispatches_nested_subcommand(monkeypatch):
-    """Polymarket sync should be ft stock sync polymarket, leaving room for future sync providers."""
-    called = {}
-
-    class FakeSync:
-        def sync(self, command):
-            from ft.domain.sync import ConnectorSyncResultDTO
-            called["command"] = command
-            return ConnectorSyncResultDTO(
-                provider=command.provider, account=command.account,
-                fetched_count=0, new_count=0, skipped_count=0,
-            )
-
-    bundle = type("Bundle", (), {"connector_sync": FakeSync()})()
-    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
 
     cli.main([
-        "stock", "sync", "polymarket",
-        "--proxy-wallet", "0x" + "1" * 40,
-        "--account", "Polymarket Alt",
-        "--dry-run",
-        "--limit", "123",
-        "--max-pages", "2",
-        "-o", "/tmp/polymarket.csv",
+        "stock", "convert", "statement.pdf", "--source", "dfzq",
+        "--output", str(output),
     ])
 
-    command = called["command"]
-    assert command.wallet is None
-    assert command.proxy_wallet == "0x" + "1" * 40
-    assert command.account == "Polymarket Alt"
-    assert command.dry_run is True
-    assert command.export is True
-    assert command.limit == 123
-    assert command.max_pages == 2
+    assert output.read_text(encoding="utf-8").splitlines() == ["action", "deposit"]
 
 
-def test_cli_stock_sync_polymarket_old_hyphenated_command_is_removed():
-    """The old ft stock sync-polymarket spelling should not remain as a parallel public command."""
-    with pytest.raises(SystemExit):
-        cli.main(["stock", "sync-polymarket", "--dry-run"])
+def test_cli_help_does_not_require_database(monkeypatch):
+    monkeypatch.delenv("FT_DATABASE_URL", raising=False)
+    monkeypatch.delenv("FT_WORKSPACE_ID", raising=False)
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--help"])
+    assert exc.value.code == 0
 
 
-def test_stock_sync_exchange_dispatches_to_sync_exchange(monkeypatch, capsys):
-    """`ft stock sync kraken` 应调用 ConnectorSyncService 并透传参数。"""
-    import sys
-    from ft import cli
+@pytest.mark.parametrize("argv", [
+    ["acct", "add", "Cash", "--type", "cash", "--currency", "CNY"],
+    ["acct", "rename", "Cash", "Wallet", "--currency", "CNY"],
+    ["acct", "delete", "Cash", "--currency", "CNY"],
+    ["acct", "activate", "Cash", "--currency", "CNY"],
+    ["acct", "deactivate", "Cash", "--currency", "CNY"],
+])
+def test_rejected_account_writes_exit_nonzero(monkeypatch, argv):
+    from ft.domain.accounts import AccountResult
 
-    captured = {}
+    class Accounts:
+        def create_account(self, *_args):
+            return AccountResult.fail("account.rejected", "rejected")
 
-    class FakeSync:
-        def sync(self, command):
-            from ft.domain.sync import ConnectorSyncResultDTO
-            captured["command"] = command
-            return ConnectorSyncResultDTO(
-                provider=command.provider, account=command.account,
-                fetched_count=0, new_count=0, skipped_count=0,
-            )
+        def rename_account(self, *_args):
+            return AccountResult.fail("account.rejected", "rejected")
 
-    bundle = type("Bundle", (), {"connector_sync": FakeSync()})()
-    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
-    monkeypatch.setattr(sys, "argv", [
-        "ft", "stock", "sync", "kraken", "--account", "币安",
-        "--dry-run", "--since", "2026-01-01", "--symbol", "BTC/USDT",
-    ])
-    cli.main()
+        def delete_account(self, *_args):
+            return AccountResult.fail("account.rejected", "rejected")
 
-    command = captured["command"]
-    assert command.provider == "kraken"
-    assert command.account == "币安"
-    assert command.dry_run is True
-    assert command.since == "2026-01-01"
-    assert command.symbols == ("BTC/USDT",)
+        def set_active(self, *_args):
+            return AccountResult.fail("account.rejected", "rejected")
 
+    _install_bundle(monkeypatch, type("Bundle", (), {"accounts": Accounts()})())
 
-def test_stock_sync_polymarket_still_dispatches(monkeypatch):
-    """polymarket 分支零回归：仍调用 ConnectorSyncService。"""
-    import sys
-    from ft import cli
+    with pytest.raises(SystemExit) as exc:
+        cli.main(argv)
 
-    called = {}
-
-    class FakeSync:
-        def sync(self, command):
-            from ft.domain.sync import ConnectorSyncResultDTO
-            called["command"] = command
-            return ConnectorSyncResultDTO(
-                provider=command.provider, account=command.account,
-                fetched_count=0, new_count=0, skipped_count=0,
-            )
-
-    bundle = type("Bundle", (), {"connector_sync": FakeSync()})()
-    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
-    monkeypatch.setattr(sys, "argv", [
-        "ft", "stock", "sync", "polymarket", "--wallet", "0xabc", "--dry-run",
-    ])
-    cli.main()
-    assert called["command"].wallet == "0xabc"
-    assert called["command"].dry_run is True
-
-
-def test_polymarket_sync_reads_proxy_wallet_from_credentials(tmp_env, monkeypatch):
-    import yaml
-    from ft import polymarket_sync
-
-    proxy_wallet = "0x" + "1" * 40
-    (tmp_env / "credentials.yaml").write_text(
-        yaml.safe_dump({"polymarket": {"proxy_wallet": proxy_wallet.upper()}}),
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(polymarket_sync, "validate_security_account", lambda *args, **kwargs: None)
-    called = {}
-
-    def fake_fetch_activity(proxy_wallet_arg, limit=500, max_pages=None):
-        called["proxy_wallet"] = proxy_wallet_arg
-        return []
-
-    monkeypatch.setattr(polymarket_sync, "fetch_activity", fake_fetch_activity)
-    rows = polymarket_sync.sync_polymarket(dry_run=True)
-    assert rows == []
-    assert called["proxy_wallet"] == proxy_wallet
-
-
-def test_polymarket_sync_reads_wallet_from_credentials_and_resolves(tmp_env, monkeypatch):
-    import yaml
-    from ft import polymarket_sync
-
-    wallet = "0x" + "2" * 40
-    proxy_wallet = "0x" + "3" * 40
-    (tmp_env / "credentials.yaml").write_text(
-        yaml.safe_dump({"polymarket": {"wallet": wallet}}),
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(polymarket_sync, "validate_security_account", lambda *args, **kwargs: None)
-    monkeypatch.setattr(polymarket_sync, "resolve_proxy_wallet", lambda wallet_arg: proxy_wallet)
-    called = {}
-
-    def fake_fetch_activity(proxy_wallet_arg, limit=500, max_pages=None):
-        called["proxy_wallet"] = proxy_wallet_arg
-        return []
-
-    monkeypatch.setattr(polymarket_sync, "fetch_activity", fake_fetch_activity)
-    rows = polymarket_sync.sync_polymarket(dry_run=True)
-    assert rows == []
-    assert called["proxy_wallet"] == proxy_wallet
+    assert exc.value.code == 1

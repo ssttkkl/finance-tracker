@@ -38,7 +38,7 @@ python3 -c "
 import csv
 with open('/tmp/dfzq_test.csv') as f:
     reader = csv.DictReader(f)
-    bad = sum(1 for r in reader if r['action'] == 'DEPOSIT' and float(r['amount']) == 0.0)
+    bad = sum(1 for r in reader if r['action'] == 'DEPOSIT' and Decimal(r['amount']) == 0)
     print(f'零金额DEPOSIT: {bad}')
 "
 
@@ -49,7 +49,7 @@ with open('/tmp/dfzq_test.csv') as f:
     reader = csv.DictReader(f)
     bad = [(r['date'][:10], r['action'], r['amount'], r['commission'])
            for r in reader if r['action'] in ('DEPOSIT','WITHDRAW')
-           and abs(float(r['amount'])) > 0 and r['amount'] == r['commission']]
+           and abs(Decimal(r['amount'])) > 0 and Decimal(r['amount']) == Decimal(r['commission'])]
     print(f'fee==amount的DEPOSIT/WITHDRAW: {len(bad)}')
     for b in bad[:5]: print(b)
 "

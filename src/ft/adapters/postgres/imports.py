@@ -4,9 +4,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from .models import (
+    AccountModel,
+    CashTransactionModel,
     ImportBatchModel,
+    InvestmentEventModel,
     RawFileModel,
     RawRecordModel,
     RecordRevisionModel,
@@ -19,7 +23,19 @@ class PostgresImportRepository:
         self._session = session
         self._workspace_id = workspace_id
 
-    def start_batch(self, *, source_kind: str, source_digest: str, source_ref: str) -> str:
+    def start_batch(
+        self, *, source_kind: str, source_digest: str, source_ref: str,
+        target_account_name: str, target_account_currency: str,
+    ) -> str:
+        target_account_id = self._session.scalar(select(AccountModel.id).where(
+            AccountModel.workspace_id == self._workspace_id,
+            AccountModel.name == target_account_name,
+            AccountModel.currency == target_account_currency,
+        ))
+        if target_account_id is None:
+            raise ValueError(
+                f"target account not found: {target_account_name} ({target_account_currency})"
+            )
         existing = self._session.scalar(select(ImportBatchModel).where(
             ImportBatchModel.workspace_id == self._workspace_id,
             ImportBatchModel.source_kind == source_kind,
@@ -29,14 +45,30 @@ class PostgresImportRepository:
             return existing.id
         batch = ImportBatchModel(
             workspace_id=self._workspace_id,
+            target_account_id=target_account_id,
             source_kind=source_kind,
             source_digest=source_digest,
             source_ref=source_ref,
             status="pending",
         )
-        self._session.add(batch)
-        self._session.flush()
-        return batch.id
+        if self._session.bind.dialect.name == "sqlite":
+            self._session.add(batch)
+            self._session.flush()
+            return batch.id
+        try:
+            with self._session.begin_nested():
+                self._session.add(batch)
+                self._session.flush()
+            return batch.id
+        except IntegrityError:
+            existing = self._session.scalar(select(ImportBatchModel).where(
+                ImportBatchModel.workspace_id == self._workspace_id,
+                ImportBatchModel.source_kind == source_kind,
+                ImportBatchModel.source_digest == source_digest,
+            ))
+            if existing is None:
+                raise
+            return existing.id
 
     def complete_batch(self, batch_id: str) -> None:
         batch = self._batch(batch_id)
@@ -65,6 +97,7 @@ class PostgresImportRepository:
         self._batch(batch_id)
         existing = self._session.scalar(select(RawFileModel).where(
             RawFileModel.workspace_id == self._workspace_id,
+            RawFileModel.batch_id == batch_id,
             RawFileModel.content_digest == content_digest,
         ))
         if existing is not None:
@@ -77,27 +110,45 @@ class PostgresImportRepository:
             size_bytes=size_bytes,
             media_type=media_type,
         )
-        self._session.add(raw_file)
-        self._session.flush()
-        return raw_file.id
+        if self._session.bind.dialect.name == "sqlite":
+            self._session.add(raw_file)
+            self._session.flush()
+            return raw_file.id
+        try:
+            with self._session.begin_nested():
+                self._session.add(raw_file)
+                self._session.flush()
+            return raw_file.id
+        except IntegrityError:
+            existing = self._session.scalar(select(RawFileModel).where(
+                RawFileModel.workspace_id == self._workspace_id,
+                RawFileModel.batch_id == batch_id,
+                RawFileModel.content_digest == content_digest,
+            ))
+            if existing is None:
+                raise
+            return existing.id
 
     def add_raw_records(
         self, *, batch_id: str, raw_file_id: str | None,
         source_type: str, records: list[dict],
     ) -> list[str]:
         self._batch(batch_id)
-        ids = []
-        for item in records:
-            identity = str(item["source_identity"])
-            existing = self._session.scalar(select(RawRecordModel).where(
+        identities = [str(item["source_identity"]) for item in records]
+        ids_by_identity: dict[str, str] = {}
+        for start in range(0, len(identities), 500):
+            chunk = identities[start:start + 500]
+            existing_rows = self._session.scalars(select(RawRecordModel).where(
                 RawRecordModel.workspace_id == self._workspace_id,
                 RawRecordModel.source_type == source_type,
-                RawRecordModel.source_identity == identity,
+                RawRecordModel.source_identity.in_(chunk),
             ))
-            if existing is not None:
-                ids.append(existing.id)
-                continue
-            record = RawRecordModel(
+            ids_by_identity.update({row.source_identity: row.id for row in existing_rows})
+
+        first_by_identity = {
+            str(item["source_identity"]): item for item in reversed(records)
+        }
+        new_rows = [RawRecordModel(
                 workspace_id=self._workspace_id,
                 batch_id=batch_id,
                 raw_file_id=raw_file_id,
@@ -105,11 +156,54 @@ class PostgresImportRepository:
                 source_identity=identity,
                 source_line=item.get("source_line"),
                 payload=_json_safe(item.get("payload", {})),
-            )
-            self._session.add(record)
+            ) for identity, item in sorted(first_by_identity.items())
+            if identity not in ids_by_identity]
+        if not new_rows:
+            return [ids_by_identity[identity] for identity in identities]
+
+        if self._session.bind.dialect.name == "sqlite":
+            self._session.add_all(new_rows)
             self._session.flush()
-            ids.append(record.id)
-        return ids
+            ids_by_identity.update({row.source_identity: row.id for row in new_rows})
+            return [ids_by_identity[identity] for identity in identities]
+
+        try:
+            with self._session.begin_nested():
+                self._session.add_all(new_rows)
+                self._session.flush()
+            ids_by_identity.update({row.source_identity: row.id for row in new_rows})
+        except IntegrityError:
+            raced_identities = [row.source_identity for row in new_rows]
+            raced_rows = self._session.scalars(select(RawRecordModel).where(
+                RawRecordModel.workspace_id == self._workspace_id,
+                RawRecordModel.source_type == source_type,
+                RawRecordModel.source_identity.in_(raced_identities),
+            ))
+            ids_by_identity.update({row.source_identity: row.id for row in raced_rows})
+            for row in new_rows:
+                if row.source_identity in ids_by_identity:
+                    continue
+                replacement = RawRecordModel(
+                    workspace_id=row.workspace_id, batch_id=row.batch_id,
+                    raw_file_id=row.raw_file_id, source_type=row.source_type,
+                    source_identity=row.source_identity, source_line=row.source_line,
+                    payload=row.payload,
+                )
+                try:
+                    with self._session.begin_nested():
+                        self._session.add(replacement)
+                        self._session.flush()
+                    ids_by_identity[replacement.source_identity] = replacement.id
+                except IntegrityError:
+                    existing_id = self._session.scalar(select(RawRecordModel.id).where(
+                        RawRecordModel.workspace_id == self._workspace_id,
+                        RawRecordModel.source_type == source_type,
+                        RawRecordModel.source_identity == replacement.source_identity,
+                    ))
+                    if existing_id is None:
+                        raise
+                    ids_by_identity[replacement.source_identity] = existing_id
+        return [ids_by_identity[identity] for identity in identities]
 
     def list_raw_records(self, batch_id: str) -> list[dict]:
         rows = self._session.scalars(
@@ -125,17 +219,90 @@ class PostgresImportRepository:
             "payload": row.payload,
         } for row in rows]
 
+    def formal_fact_targets(
+        self, raw_record_ids: list[str],
+    ) -> dict[str, tuple[str, str]]:
+        found: dict[str, tuple[str, str]] = {}
+        ordered_ids = sorted(set(raw_record_ids))
+        for start in range(0, len(ordered_ids), 500):
+            chunk = ordered_ids[start:start + 500]
+            if not chunk:
+                continue
+            self._session.scalars(
+                select(RawRecordModel.id).where(
+                    RawRecordModel.workspace_id == self._workspace_id,
+                    RawRecordModel.id.in_(chunk),
+                ).order_by(RawRecordModel.id).with_for_update()
+            ).all()
+            cash_rows = self._session.execute(
+                select(
+                    CashTransactionModel.raw_record_id,
+                    AccountModel.name,
+                    AccountModel.currency,
+                ).join(AccountModel, (
+                    AccountModel.workspace_id == CashTransactionModel.workspace_id
+                ) & (AccountModel.id == CashTransactionModel.account_id)).where(
+                    CashTransactionModel.workspace_id == self._workspace_id,
+                    CashTransactionModel.raw_record_id.in_(chunk),
+                )
+            )
+            investment_rows = self._session.execute(
+                select(
+                    InvestmentEventModel.raw_record_id,
+                    AccountModel.name,
+                    AccountModel.currency,
+                ).join(AccountModel, (
+                    AccountModel.workspace_id == InvestmentEventModel.workspace_id
+                ) & (AccountModel.id == InvestmentEventModel.account_id)).where(
+                    InvestmentEventModel.workspace_id == self._workspace_id,
+                    InvestmentEventModel.raw_record_id.in_(chunk),
+                )
+            )
+            found.update({raw_id: (name, currency) for raw_id, name, currency in cash_rows})
+            found.update({raw_id: (name, currency) for raw_id, name, currency in investment_rows})
+        return found
+
+    def batch_target_accounts(self, batch_id: str) -> set[tuple[str, str]]:
+        target = self._session.execute(
+            select(AccountModel.name, AccountModel.currency)
+            .join(ImportBatchModel, (
+                ImportBatchModel.workspace_id == AccountModel.workspace_id
+            ) & (ImportBatchModel.target_account_id == AccountModel.id))
+            .where(
+                ImportBatchModel.workspace_id == self._workspace_id,
+                ImportBatchModel.id == batch_id,
+            )
+        ).one_or_none()
+        if target is None:
+            raise ValueError(f"import batch not found: {batch_id}")
+        return {(target.name, target.currency)}
+
     def replace_raw_record(self, record_id: str, payload: dict) -> None:
         raise ValueError("raw records are immutable")
 
     def append_revision(
-        self, *, entity_type: str, entity_id: str, before: dict, after: dict,
+        self, *, cash_transaction_id: str | None = None,
+        investment_event_id: str | None = None, before: dict, after: dict,
         actor_type: str, reason: str,
     ) -> str:
+        if (cash_transaction_id is None) == (investment_event_id is None):
+            raise ValueError("revision requires exactly one formal fact target")
+        if cash_transaction_id is not None:
+            target = self._session.scalar(select(CashTransactionModel.id).where(
+                CashTransactionModel.workspace_id == self._workspace_id,
+                CashTransactionModel.id == cash_transaction_id,
+            ))
+        else:
+            target = self._session.scalar(select(InvestmentEventModel.id).where(
+                InvestmentEventModel.workspace_id == self._workspace_id,
+                InvestmentEventModel.id == investment_event_id,
+            ))
+        if target is None:
+            raise ValueError("revision target not found in workspace")
         revision = RecordRevisionModel(
             workspace_id=self._workspace_id,
-            entity_type=entity_type,
-            entity_id=entity_id,
+            cash_transaction_id=cash_transaction_id,
+            investment_event_id=investment_event_id,
             before=_json_safe(before),
             after=_json_safe(after),
             actor_type=actor_type,
@@ -145,14 +312,22 @@ class PostgresImportRepository:
         self._session.flush()
         return revision.id
 
-    def list_revisions(self, entity_type: str, entity_id: str) -> list[dict]:
-        rows = self._session.scalars(
-            select(RecordRevisionModel).where(
-                RecordRevisionModel.workspace_id == self._workspace_id,
-                RecordRevisionModel.entity_type == entity_type,
-                RecordRevisionModel.entity_id == entity_id,
-            ).order_by(RecordRevisionModel.created_at, RecordRevisionModel.id)
+    def list_revisions(
+        self, *, cash_transaction_id: str | None = None,
+        investment_event_id: str | None = None,
+    ) -> list[dict]:
+        if (cash_transaction_id is None) == (investment_event_id is None):
+            raise ValueError("revision query requires exactly one formal fact target")
+        statement = select(RecordRevisionModel).where(
+            RecordRevisionModel.workspace_id == self._workspace_id
         )
+        if cash_transaction_id is not None:
+            statement = statement.where(RecordRevisionModel.cash_transaction_id == cash_transaction_id)
+        else:
+            statement = statement.where(RecordRevisionModel.investment_event_id == investment_event_id)
+        rows = self._session.scalars(statement.order_by(
+            RecordRevisionModel.created_at, RecordRevisionModel.id
+        ))
         return [{
             "id": row.id,
             "before": row.before,

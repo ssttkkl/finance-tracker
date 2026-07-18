@@ -1,7 +1,5 @@
 """Cashflow domain DTOs and structured results."""
 from dataclasses import dataclass
-from decimal import Decimal
-
 from .errors import DomainError
 
 
@@ -22,10 +20,3 @@ class CashflowResult:
     @classmethod
     def fail(cls, code: str, message: str, **details) -> "CashflowResult":
         return cls(ok=False, error=DomainError(code, message, details))
-
-
-def coerce_decimal(value, field: str = "amount") -> Decimal:
-    try:
-        return Decimal(str(value))
-    except Exception:
-        raise ValueError(f"{field} must be decimal-compatible")

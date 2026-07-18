@@ -19,34 +19,10 @@ class FakeInvestmentRepository:
         return len(rows)
 
 
-class FakeInvestmentImporter:
-    def __init__(self, converted=(), incoming=()):
-        self.converted = [dict(row) for row in converted]
-        self.incoming = [dict(row) for row in incoming]
-
-    def convert(self, command):
-        return [dict(row) for row in self.converted]
-
-    def read_converted(self, source):
-        return [dict(row) for row in self.incoming]
-
-
-class FakeChanges:
-    def __init__(self):
-        self.staged = 0
-
-    def stage(self):
-        self.staged += 1
-
-
-def _investment_service(repository=None, importer=None, changes=None):
+def _investment_service(repository=None):
     from ft.application.investment import InvestmentService
 
-    return InvestmentService(
-        repository=repository or FakeInvestmentRepository(),
-        importer=importer or FakeInvestmentImporter(),
-        change_sets=changes or FakeChanges(),
-    )
+    return InvestmentService(repository=repository or FakeInvestmentRepository())
 
 
 def test_all_investment_commands_build_decimal_dtos():
@@ -82,23 +58,56 @@ def test_investment_service_rejects_non_finite_numbers_before_repository():
     assert repository.commands == []
 
 
-def test_investment_convert_is_read_only_and_append_stages_once():
-    from ft.domain.investment import InvestmentConvertCommand
+def test_investment_projection_deducts_commission_from_cash_settlement_and_rejects_cost_currency_mix():
+    from ft.domain.investment_projection import apply_investment_event
 
-    row = {"date": "2026-06-01", "action": "deposit", "to_amount": "1"}
-    repository = FakeInvestmentRepository()
-    importer = FakeInvestmentImporter(converted=[row], incoming=[row])
-    changes = FakeChanges()
-    service = _investment_service(repository, importer, changes)
+    snapshot = {"accounts": {"security": {"IBKR": {
+        "currency": "USD", "positions": {
+            "aapl": {"shares": "1", "total_cost": "10", "cost_currency": "USD"},
+            "usd": {"shares": "600", "total_cost": "600", "cost_currency": "USD"},
+        },
+    }}}}
+    apply_investment_event(snapshot, {
+        "date": "2026-07-17", "action": "swap", "currency": "USD", "account_name": "IBKR",
+        "from_ticker": "aapl", "to_ticker": "usd", "from_amount": "1", "to_amount": "120",
+        "commission": "2", "commission_asset": "usd",
+    }, default_currency="USD")
+    assert snapshot["accounts"]["security"]["IBKR"]["positions"]["usd"]["shares"] == "718"
 
-    converted = service.convert(InvestmentConvertCommand("statement.pdf", "dfzq"))
-    appended = service.append("converted.csv")
+    conflict_snapshot = {"accounts": {"security": {"IBKR": {
+        "currency": "USD", "positions": {
+            "aapl": {"shares": "1", "total_cost": "10", "cost_currency": "USD"},
+        },
+    }}}}
+    with pytest.raises(ValueError, match="cost currency"):
+        apply_investment_event(conflict_snapshot, {
+            "date": "2026-07-17", "action": "swap", "currency": "CNY", "account_name": "IBKR",
+            "from_ticker": "cny", "to_ticker": "aapl", "from_amount": "1", "to_amount": "1",
+            "commission": "0", "commission_asset": "",
+        }, default_currency="USD")
 
-    assert converted.export.rows == (row,)
-    assert converted.count == 1
-    assert repository.appended == [row]
-    assert appended.count == 1
-    assert changes.staged == 1
+
+def test_investment_projection_rejects_short_positions_and_numeric_overflow():
+    from ft.domain.investment_projection import apply_investment_event
+
+    snapshot = {"accounts": {"security": {"IBKR": {
+        "currency": "USD", "positions": {
+            "aapl": {"shares": "1", "total_cost": "10", "cost_currency": "USD"},
+        },
+    }}}}
+    with pytest.raises(ValueError, match="insufficient aapl position"):
+        apply_investment_event(snapshot, {
+            "date": "2026-07-17", "action": "swap", "currency": "USD", "account_name": "IBKR",
+            "from_ticker": "aapl", "to_ticker": "usd", "from_amount": "2", "to_amount": "40",
+            "commission": "0", "commission_asset": "",
+        }, default_currency="USD")
+
+    with pytest.raises(ValueError, match=r"NUMERIC\(38,18\)"):
+        apply_investment_event({"accounts": {}}, {
+            "date": "2026-07-17", "action": "deposit", "currency": "USD", "account_name": "IBKR",
+            "from_ticker": "", "to_ticker": "usd", "from_amount": "0", "to_amount": "1e100",
+            "commission": "0", "commission_asset": "",
+        }, default_currency="USD")
 
 
 class FakePortfolioRepository:
@@ -153,9 +162,9 @@ def test_investment_application_imports_do_not_touch_home(monkeypatch):
     assert ft.application.investment.InvestmentService
 
 
-def test_cli_stock_leaves_enter_investment_services(monkeypatch, tmp_path, capsys):
+def test_cli_stock_leaves_enter_investment_services(monkeypatch, capsys):
     from ft import cli
-    from ft.domain.application import ExportPayload, OperationResult
+    from ft.domain.application import OperationResult
     from ft.domain.investment import PortfolioDTO
 
     calls = []
@@ -165,27 +174,155 @@ def test_cli_stock_leaves_enter_investment_services(monkeypatch, tmp_path, capsy
             calls.append(("buy", args))
             return OperationResult(ok=True, message="bought")
 
-        def convert(self, command):
-            calls.append(("convert", command))
-            return OperationResult(ok=True, count=1, export=ExportPayload(({"action": "deposit"},), fieldnames=("action",)))
-
-        def append(self, source):
-            calls.append(("append", source))
-            return OperationResult(ok=True, count=1)
-
     class Portfolio:
         def get_portfolio(self):
             calls.append(("list",))
             return PortfolioDTO(())
 
     bundle = type("Bundle", (), {"investments": Investments(), "portfolio": Portfolio()})()
-    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
-    monkeypatch.setattr("ft.cli.write_csv_export", lambda payload, output: calls.append(("write", output)))
-
+    monkeypatch.setattr("ft.config.StorageSettings.load", lambda: object())
+    monkeypatch.setattr("ft.cli.build_services", lambda _settings: bundle)
     cli.main(["stock", "buy", "--ticker", "AAPL.US", "--shares", "1", "--price", "2", "--account", "IBKR"])
-    cli.main(["stock", "convert", "statement.pdf", "-s", "dfzq", "-o", str(tmp_path / "out.csv")])
-    cli.main(["stock", "append", "rows.csv"])
     cli.main(["stock", "list"])
 
-    assert [call[0] for call in calls] == ["buy", "convert", "write", "append", "list"]
+    assert [call[0] for call in calls] == ["buy", "list"]
     assert "bought" in capsys.readouterr().out
+
+
+def test_cli_stock_service_rejection_exits_nonzero(monkeypatch, capsys):
+    from ft import cli
+    from ft.domain.application import OperationResult
+
+    class Investments:
+        def buy(self, *args):
+            return OperationResult(ok=False, message="account not found: Missing")
+
+    bundle = type("Bundle", (), {"investments": Investments()})()
+    monkeypatch.setattr("ft.config.StorageSettings.load", lambda: object())
+    monkeypatch.setattr("ft.cli.build_services", lambda _settings: bundle)
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main([
+            "stock", "buy", "--ticker", "AAPL.US", "--shares", "1",
+            "--price", "2", "--account", "Missing",
+        ])
+
+    assert exc.value.code == 1
+    assert "account not found: Missing" in capsys.readouterr().out
+
+
+def test_created_investment_account_currency_is_valued_as_cash():
+    from test_postgres_adapter import _database
+    from ft.adapters.postgres.investments import PostgresInvestmentCommandRepository
+    from ft.adapters.postgres.queries import PostgresPortfolioRepository
+    from ft.application.accounts import AccountService
+    from ft.application.investment import InvestmentService, PortfolioQueryService
+
+    sessions, unit_of_work = _database()
+    assert AccountService(unit_of_work(sessions, "workspace-a")).create_account(
+        "Broker", "security", "USD"
+    ).ok
+    service = InvestmentService(repository=PostgresInvestmentCommandRepository(
+        unit_of_work(sessions, "workspace-a")
+    ))
+    assert service.deposit("100", None, "Broker").ok
+
+    class MarketData:
+        def __init__(self):
+            self.calls = []
+
+        def get_prices(self, tickers, *, quote_currency):
+            self.calls.append((tuple(tickers), quote_currency))
+            return {}
+
+    market = MarketData()
+    result = PortfolioQueryService(
+        PostgresPortfolioRepository(sessions, "workspace-a"), market
+    ).get_portfolio()
+
+    position = result.accounts[0].positions[0]
+    assert position.ticker == "usd"
+    assert position.is_cash is True
+    assert position.market_value == Decimal("100")
+    assert market.calls == []
+
+
+def test_postgres_investment_commands_write_events_and_projection_atomically():
+    from test_postgres_adapter import _database
+    from ft.adapters.postgres.investments import PostgresInvestmentCommandRepository
+    from ft.application.investment import InvestmentService
+
+    sessions, unit_of_work = _database()
+    with unit_of_work(sessions, "workspace-a") as uow:
+        uow.accounts.add_raw({
+            "name": "IBKR", "type": "security", "currency": "USD",
+            "base_currencies": ["USD"],
+        })
+        uow.commit()
+
+    service = InvestmentService(repository=PostgresInvestmentCommandRepository(
+        unit_of_work(sessions, "workspace-a")
+    ))
+    assert service.deposit("100", "USD", "IBKR", "seed", "2026-07-17").ok
+    assert service.buy("AAPL.US", "2", "10", "1", "USD", "IBKR", "buy", "2026-07-17").ok
+    assert service.sell("AAPL.US", "1", "12", "1", "USD", "IBKR", "sell", "2026-07-17").ok
+    assert service.dividend("AAPL.US", "2", "USD", "IBKR", "dividend", "2026-07-17").ok
+    assert service.checkin_ticker("AAPL.US", "3", "8", "USD", "IBKR", "check", "2026-07-17").ok
+    assert service.swap("IBKR", "AAPL.US", "1", "MSFT.US", "2", "USD", "swap", "2026-07-17").ok
+    assert service.withdraw("2", "USD", "IBKR", "withdraw", "2026-07-17").ok
+    assert service.checkin_cash("8.75", "USD", "IBKR", "cash", "2026-07-17").ok
+
+    with unit_of_work(sessions, "workspace-a") as uow:
+        assert len(uow.investments.list()) == 8
+        snapshot = uow.snapshot.load()
+        positions = snapshot["accounts"]["security"]["IBKR"]["positions"]
+        assert positions["usd"]["shares"] == "8.75"
+        assert positions["aapl.us"] == {
+            "shares": "2", "total_cost": "16", "cost_currency": "USD",
+        }
+        assert positions["msft.us"] == {
+            "shares": "2", "total_cost": "8", "cost_currency": "USD",
+        }
+        uow.commit()
+
+
+@pytest.mark.parametrize("action", ["sell", "swap"])
+def test_computed_investment_projection_scale_over_18_rolls_back_atomically(action):
+    from ft.adapters.postgres.investments import PostgresInvestmentCommandRepository
+    from ft.application.investment import InvestmentService
+    from test_postgres_adapter import _database
+
+    sessions, unit_of_work = _database()
+    with unit_of_work(sessions, "workspace-a") as uow:
+        uow.accounts.add_raw({
+            "name": "IBKR", "type": "security", "currency": "USD",
+            "base_currencies": ["USD"],
+        })
+        uow.snapshot.save({
+            "accounts": {"security": {"IBKR": {
+                "currency": "USD",
+                "positions": {
+                    "aapl.us": {
+                        "shares": "3", "total_cost": "1", "cost_currency": "USD",
+                    },
+                },
+            }}},
+        })
+        uow.commit()
+
+    service = InvestmentService(
+        repository=PostgresInvestmentCommandRepository(unit_of_work(sessions, "workspace-a"))
+    )
+    with pytest.raises(ValueError, match="at most 18 decimal places"):
+        if action == "sell":
+            service.sell("AAPL.US", "1", "1", "0", "USD", "IBKR")
+        else:
+            service.swap("IBKR", "AAPL.US", "1", "MSFT.US", "1", "USD")
+
+    with unit_of_work(sessions, "workspace-a") as uow:
+        assert uow.investments.list() == []
+        positions = uow.snapshot.load()["accounts"]["security"]["IBKR"]["positions"]
+        assert positions == {
+            "aapl.us": {"shares": "3", "total_cost": "1", "cost_currency": "USD"},
+        }
+        uow.commit()

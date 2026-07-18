@@ -1,4 +1,4 @@
-"""Live PostgreSQL integration test, gated by a dedicated test database URL."""
+"""Live PostgreSQL integration tests gated by a dedicated test database URL."""
 from decimal import Decimal
 import os
 from pathlib import Path
@@ -41,53 +41,81 @@ def postgres_sessions():
         command.downgrade(config, "base")
 
 
-def test_live_postgres_workspace_application_and_migration_contracts(
-    postgres_sessions, tmp_path,
+def test_live_postgres_runtime_cross_entrypoint_and_empty_home(
+    postgres_sessions, tmp_path, monkeypatch, capsys,
 ):
-    from ft.adapters.local_migration import LocalMigrationSource
+    from ft import cli
+    from ft.adapters.postgres import ensure_workspace
+
+    ensure_workspace(postgres_sessions, "live-workspace")
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("FT_DATABASE_URL", DATABASE_URL)
+    monkeypatch.setenv("FT_WORKSPACE_ID", "live-workspace")
+
+    cli.main(["acct", "add", "Cash", "--type", "cash", "--currency", "CNY"])
+    cli.main([
+        "add", "--amount", "-12.34", "--counterparty", "Coffee",
+        "--account", "Cash", "--currency", "CNY", "--date", "2026-07-17 09:00:00",
+    ])
+    cli.main(["list", "--account", "Cash"])
+
+    assert "Coffee" in capsys.readouterr().out
+    assert not (home / ".ft").exists()
+
+
+def test_live_postgres_workspace_isolation_and_transaction_rollback(postgres_sessions):
     from ft.adapters.postgres import PostgresUnitOfWork, ensure_workspace
-    from ft.adapters.postgres.migration import PostgresMigrationTarget
     from ft.application.accounts import AccountService
     from ft.application.cashflow import CashflowService
-    from ft.application.migration import MigrationService
-    from test_storage_migration import _ledger_fixture
 
-    ensure_workspace(postgres_sessions, "live-workspace-a")
-    ensure_workspace(postgres_sessions, "live-workspace-b")
-    ensure_workspace(postgres_sessions, "migration-workspace")
-
-    workspace_a = PostgresUnitOfWork(postgres_sessions, "live-workspace-a")
-    workspace_b = PostgresUnitOfWork(postgres_sessions, "live-workspace-b")
-    assert AccountService(workspace_a).create_account("Cash", "cash", "CNY").ok
-    result = CashflowService(workspace_a).add_manual_transaction(
-        amount=Decimal("-12.34"),
-        counterparty="Coffee",
-        account_name="Cash",
-        date="2026-07-17 09:00:00",
-    )
-    assert result.ok
+    ensure_workspace(postgres_sessions, "workspace-a")
+    ensure_workspace(postgres_sessions, "workspace-b")
+    workspace_a = PostgresUnitOfWork(postgres_sessions, "workspace-a")
+    workspace_b = PostgresUnitOfWork(postgres_sessions, "workspace-b")
+    AccountService(workspace_a).create_account("Cash", "cash", "CNY")
+    assert CashflowService(workspace_a).add_manual_transaction(
+        amount=Decimal("1.230000000000000001"), counterparty="Exact",
+        account_name="Cash", date="2026-07-17 09:00:00",
+    ).ok
     assert AccountService(workspace_b).list_accounts() == []
 
+    with pytest.raises(RuntimeError, match="boom"):
+        with workspace_a as uow:
+            uow.cashflows.add("cash", {
+                "date": "2026-07-17 10:00:00", "amount": "2", "currency": "CNY",
+                "account_name": "Cash",
+            })
+            raise RuntimeError("boom")
+
     with workspace_a as uow:
-        assert uow.cashflows.list()[0]["amount"] == Decimal("-12.34")
-        assert Decimal(str(
-            uow.snapshot.load()["accounts"]["cash"]["Cash"]["CNY"]
-        )) == Decimal("-12.34")
-        uow.commit()
-    with workspace_b as uow:
-        assert uow.cashflows.list() == []
+        rows = uow.cashflows.list()
+        assert [row["amount"] for row in rows] == [Decimal("1.230000000000000001")]
         uow.commit()
 
-    source = LocalMigrationSource(_ledger_fixture(tmp_path / "ledger"))
-    target = PostgresMigrationTarget(postgres_sessions, "migration-workspace")
-    migration = MigrationService(source, target)
-    first = migration.import_ledger()
-    second = migration.import_ledger()
-    verification = migration.verify()
 
-    assert first.imported is True
-    assert second.imported is False
-    assert second.batch_id == first.batch_id
-    assert verification.ok is True
-    assert all(verification.checks.values())
-    assert target.raw_record_count(first.batch_id) == 6
+def test_live_shared_uow_serializes_concurrent_projection_updates(postgres_sessions):
+    from concurrent.futures import ThreadPoolExecutor
+    from ft.adapters.postgres import PostgresUnitOfWork, ensure_workspace
+    from ft.application.accounts import AccountService
+    from ft.application.cashflow import CashflowService
+
+    ensure_workspace(postgres_sessions, "concurrent-workspace")
+    shared = PostgresUnitOfWork(postgres_sessions, "concurrent-workspace")
+    AccountService(shared).create_account("Cash", "cash", "CNY")
+
+    def add(amount):
+        return CashflowService(shared).add_manual_transaction(
+            amount=Decimal(amount), counterparty=amount, account_name="Cash",
+            currency="CNY", date="2026-07-17 09:00:00",
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(add, ["1", "2"]))
+
+    assert all(result.ok for result in results)
+    with shared as uow:
+        assert uow.snapshot.load()["accounts"]["cash"]["Cash"]["CNY"] == "3"
+        assert len(uow.cashflows.list()) == 2
+        uow.commit()

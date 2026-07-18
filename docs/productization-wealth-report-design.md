@@ -5,14 +5,24 @@ Branch: refactor/web
 Repo: ssttkkl/finance-tracker
 Status: APPROVED
 Mode: Startup
+Parent roadmap: [Finance Tracker 产品化重构顶层路线](productization-refactor-plan.md)
+Implementation authority: [Spec Kit features](../specs/)
+
+> 本文是 gstack 产出的已批准产品设计输入，不是独立实施事实源。存储基线由
+> [001-postgres-only-storage](../specs/001-postgres-only-storage/spec.md) 定义；后续财富 feature 的
+> `spec.md`、`plan.md` 和 `tasks.md` 建立后，本文只保留为产品决策记录。
 
 ## Problem Statement
 
-Finance Tracker 已经具备账单导入、退款与转账识别、多币种账户、证券和加密资产事件、快照重建与审计能力，但这些能力主要以本地 CLI、CSV/YAML 和 Git 工作流存在。原产品化计划试图一次性建设多用户 Web、导入审查、投资、财富分析、AI 与 Remote MCP，导致真正的差异化价值要到后期才能被用户验证。
+Finance Tracker 已经完成 Phase 1 Application Services、Phase 2 PostgreSQL Storage 和后续 PostgreSQL-only
+存储收口，具备账单直接导入、退款与转账识别、多币种账户、证券和加密资产事件、workspace 隔离、
+精确金额、来源记录、稳定 account ID、UTC 业务时间与审计能力。Phase 2 的双 backend、迁移和 shadow
+comparison 过渡层已经删除。原产品化计划试图一次性建设多用户 Web、导入审查、投资、财富分析、AI
+与 Remote MCP，导致真正的差异化价值要到后期才能被用户验证。
 
 本设计先交付一个单用户、只读的“财富变化解释”产品楔子：用户查看一个完整自然月的解释，或查看最长 366 天的日/周/月趋势；系统以固定 CNY 口径展示期初净资产、外部现金流、投资收益、汇率影响、其他调整和期末净资产，并允许逐项下钻到组成交易、持仓、行情、汇率和审计证据。
 
-长期目标仍是原计划中的完整平台，但后续阶段通过替换身份、存储、任务和分发适配器扩展，而不是重写财富计算内核。
+长期目标仍是顶层路线中的完整平台；后续阶段扩展身份、任务和分发边缘，不再替换存储 backend，也不重写财富计算内核。
 
 ## Demand Evidence
 
@@ -24,7 +34,9 @@ Finance Tracker 已经具备账单导入、退款与转账识别、多币种账�
 
 目标用户目前通常通过银行、支付宝、微信、券商和交易所各自的页面查看局部余额，再用电子表格或心理估算解释财富变化。现有 Finance Tracker 可以统一数据，但用户仍需理解 CLI、文件结构、快照和对账流程，且缺少一个直接回答“这段时间我的钱为什么变化”的产品界面。
 
-当前仓库已完成大量 Phase 1 Application Service 抽取，并开始 Phase 2 PostgreSQL Adapter。现有接口和测试是可复用资产，但数据库模型仍包含过渡结构，例如交易引用 `account_name`、业务时间保存为字符串。这些结构不应在继续扩张 Web schema 前被冻结。
+Phase 1、Phase 2 和 PostgreSQL-only 收口均已完成。现有 Application Service、PostgreSQL
+repository/query、workspace 隔离、稳定 account ID、UTC `timestamptz` 和测试是可复用资产。下一步可以
+直接创建 `wealth-attribution-core`，不再承担 backend 迁移或兼容清理。
 
 ## Target User & Narrowest Wedge
 
@@ -48,7 +60,7 @@ Finance Tracker 已经具备账单导入、退款与转账识别、多币种账�
 - CNY 作为唯一基础币种；领域模型不阻止未来增加其他币种，但 A 不承诺、不暴露也不测试该能力；
 - 只读报告和明细下钻；
 - 最长一年的日/周/月财富序列，点击任一时间桶进入对应区间解释；
-- 本地数据源与本地运行；
+- 本地运行的 PostgreSQL workspace；不支持文件账本；
 - 明确的 Partial、Stale、Unexplained 状态。
 
 第一版明确不做：
@@ -65,7 +77,7 @@ Finance Tracker 已经具备账单导入、退款与转账识别、多币种账�
 
 1. 财务恒等式必须始终成立；无法解释的差额必须显示为 `unexplained_adjustment`，不能静默吞掉。
 2. 每个汇总项必须能追溯到交易、持仓、行情、汇率或显式调整。
-3. A 阶段继续使用现有本地事实源，不引入长期双写。
+3. A 阶段只使用 PostgreSQL 事实源，不保留 local backend、迁移、双写或运行时回退。
 4. 业务计算只能存在于 Application/Domain 层，CLI、API 和页面不得重复实现。
 5. A 的单用户假设只能存在于 composition/auth adapter，不能渗入财富计算接口。
 6. 缺少期初/期末估值、历史 FX 或行情时，系统返回部分结果和缺口说明，不伪造精确值。
@@ -75,31 +87,31 @@ Finance Tracker 已经具备账单导入、退款与转账识别、多币种账�
 
 1. 用户最有价值的问题不是“统一管理所有金融操作”，而是“可信地解释财富变化”。
 2. 只读产品足以验证价值；写入工作流可以在用户已经反复查看报告后再建设。
-3. 本地运行能显著降低首批用户对财务隐私的顾虑，也能复用现有数据，无需先解决云端上传。
+3. 本地运行的 PostgreSQL 能降低首批用户对财务隐私的顾虑；现有本地账本数据不复用、不迁移。
 4. A 与 C 之间真正需要稳定的是查询契约、财务口径和证据引用，不是第一版的部署拓扑。
 5. AI 和 MCP 是交互及分发层，不是第一阶段的核心价值或护城河。
-6. 多租户 schema 在外部需求得到验证前不应继续扩张，但现有 PostgreSQL 适配器可以作为未来 C 的受测实现保留。
+6. 多租户 schema 在外部需求得到验证前不应继续扩张；现有 PostgreSQL workspace schema 是 A 的唯一存储基线。
 7. 净资产变化和投资收益率不是同一个指标。外部收入、消费和投资入金不能被包装成“收益率”。
 
 ## Approaches Considered
 
-### Approach A: 本地只读财富解释纵向切片（已选择）
+### Approach A: PostgreSQL-only 本地只读财富解释纵向切片（已选择）
 
-实现稳定的财富变化查询服务、只读 API、单页 Web 报告和证据下钻。数据通过现有 local adapter 读取，使用固定的本地 workspace resolver。
+实现稳定的财富变化查询服务、只读 API、单页 Web 报告和证据下钻。数据通过 PostgreSQL query/repository 读取，使用固定的本地 workspace resolver。
 
 - Effort: M-L
 - Risk: Medium
-- Reuses: Application Service、local repositories、投资回放、行情与 FX 能力、现有测试数据。
+- Reuses: Application Service、PostgreSQL repositories/queries、投资回放、行情与 FX 能力、可重复生成的测试数据。
 - 优点：最快验证核心价值；不要求用户上传敏感数据；后续 API、DTO 和页面可直接进入 C。
 - 缺点：新用户仍需要本地安装和辅助导入；不验证云端注册及协作需求。
 
 ### Approach B: 托管式 Concierge 报告
 
-由构建者人工帮助用户导入数据，在私有部署中生成同一份报告。计算契约与 A 相同，但更早使用 PostgreSQL 和简单登录。
+由构建者人工帮助用户准备 PostgreSQL workspace，在私有部署中生成同一份报告。计算契约与 A 相同，但更早增加简单登录。
 
 - Effort: M
 - Risk: Medium
-- Reuses: PostgreSQL adapter、migration service、未来 API。
+- Reuses: PostgreSQL runtime、workspace 隔离和未来 API。
 - 优点：用户不需要配置本地环境，访谈和迭代更快。
 - 缺点：财务数据托管会显著提高信任、安全和合规门槛，也容易过早建设账户体系。
 
@@ -128,7 +140,7 @@ WealthChangeService
         ↓
 Cashflow / Investment / Valuation / FX / Evidence Ports
         ↓
-Local adapters（A） → PostgreSQL/Object Storage/Workers（C）
+PostgreSQL repositories/queries（A） → Hosted PostgreSQL/Object Storage/Workers（C）
 ```
 
 以下内容从 A 开始保持稳定：
@@ -145,9 +157,8 @@ API 和页面在 A3 验证完成前标记为 `experimental`。A3 达标后才冻
 以下内容允许在 C 中替换：
 
 - 固定 workspace resolver → 登录用户和 workspace membership；
-- local CSV/YAML adapter → PostgreSQL adapter；
 - 同步计算 → Worker 与投影表；
-- 本地文件引用 → 对象存储和签名 URL；
+- 原始 artifact locator → 对象存储和签名 URL；
 - `ft web` 本地分发 → 云 SaaS 或自托管容器；
 - 手工导入 → Web Upload、Connector 和 Review Inbox。
 
@@ -554,15 +565,17 @@ A 支持现金、银行存款、普通借贷、现货多头股票/ETF、现货�
 
 ### 实施阶段
 
-#### A0：修正财富报告实际经过的契约
+#### A0：PostgreSQL-only 基线与财富契约收口
 
-- 只为财富报告会读取的账户、现金事实和投资事件增加兼容 `account_id` 解析层；不在 A0 全量迁移所有旧模块。
-- 报告读取层将原始字符串时间解析为时区明确的领域时间，保留原始文本用于 provenance；PostgreSQL 列迁移留到 C1，除非当前 fixture 已暴露歧义。
-- 为报告路径建立稳定 source identity；其他写入路径的幂等迁移按实际 fixture 问题进入后续 backlog。
+- 已完成 [001-postgres-only-storage](../specs/001-postgres-only-storage/spec.md)，删除 local backend、迁移兼容层和双存储配置。
+- 财富报告读取的账户、现金事实和投资事件直接使用稳定 `account_id`，不增加 account name 兼容解析层。
+- 报告读取层已有 UTC `timestamptz` 与 Asia/Shanghai 分桶合同；后续财富 feature 直接复用。
+- statement import 已建立 digest、raw record、formal fact 和 revision 的稳定 source identity。
 - 固定 Money、FX、Valuation 和 Evidence DTO。
 - 不继续扩展 users、membership、OAuth、object storage 等 schema。
 
-退出条件：local report fixtures 通过；同名账户和跨时区 fixture 不产生歧义。PostgreSQL 规范化 DTO 测试作为非阻塞回归检查，不是 A 发布门槛。
+退出条件已满足：不存在可执行 local runtime；PostgreSQL fixture 覆盖稳定账户身份、跨时区和来源关系；
+数据库模型与 DTO 不依赖旧文件账本结构。
 
 #### A1：财富计算内核
 
@@ -587,7 +600,7 @@ A 支持现金、银行存款、普通借贷、现货多头股票/ETF、现货�
 - `GET /experimental/wealth/components/{component_id}/evidence?cursor=...`
 - `GET /experimental/wealth/data-health?month={yyyy_mm}`
 - Next.js 只实现一个财富报告页面和一个证据抽屉；页面顶部提供“区间解释 / 趋势对比”切换，趋势对比提供 7D、30D、90D、1Y 和日、周、月粒度控件。
-- `ft web` 通过本地 composition root 启动 API 与页面，自动选择本地 workspace。
+- `ft web` 通过 PostgreSQL composition root 启动 API 与页面，绑定显式 workspace；数据库或 workspace 缺失时失败关闭。
 - 区间解释必须显示基础币种、时间区间、计算版本、数据截止时间、解释比例和差额。
 - 趋势对比必须显示净资产折线、组成项堆叠柱和独立投资收益率线；点击任一时间桶复用相同的 breakdown 与 evidence 下钻。
 - 收益率线和 Tooltip 标签必须写“投资市场收益率（不含 FX）”，避免与独立 FX 归因重复或被误解为总财富回报。
@@ -674,7 +687,7 @@ Partial/unsupported：
 }
 ```
 
-Canonical serialization 规定：金额为无指数 Decimal 字符串；时间为带 offset 的 RFC 3339；component 使用固定 kind 顺序；证据按 `occurred_at, source_identity, evidence_kind` 排序；warnings 按稳定 code 排序。local 和 PostgreSQL 兼容测试只比较该规范化结果，不比较数据库 ID。
+Canonical serialization 规定：金额为无指数 Decimal 字符串；时间为带 offset 的 RFC 3339；component 使用固定 kind 顺序；证据按 `occurred_at, source_identity, evidence_kind` 排序；warnings 按稳定 code 排序。PostgreSQL contract、API schema snapshot 和缓存投影只比较该规范化结果，不比较数据库 ID。
 
 退出条件：用户从打开页面到找到任意数字的原始依据不超过三次操作；前端没有财务计算、日周月聚合或收益率计算逻辑。
 
@@ -693,13 +706,12 @@ Canonical serialization 规定：金额为无指数 Decimal 字符串；时间�
 
 以下 C1-C5 是非承诺 roadmap。A 阶段 backlog 不得因为这张路线图加入用户体系、队列、对象存储或 OAuth 任务。
 
-#### C1：托管单用户工作区
+#### C1：托管现有 PostgreSQL workspace
 
 触发条件：本地安装成为重复使用的主要阻碍，而非价值不足。
 
-- 启用现有 PostgreSQL adapter 和 migration verify；
 - 增加最小登录和单 workspace 授权；
-- 原始文件暂由辅助迁移处理，不立即建设通用上传平台；
+- 将本地 PostgreSQL workspace 复制或重新建立到托管环境；具体数据搬运只在出现真实托管需求后单独设计；
 - 同一 API 和报告页保持不变。
 
 #### C2：自助导入与 Review Inbox
@@ -748,7 +760,7 @@ Canonical serialization 规定：金额为无指数 Decimal 字符串；时间�
 
 ### 本地分发实现
 
-前端使用 Next.js static export，在构建时生成静态资源并打包进 Python wheel。运行时不要求 Node：FastAPI 同一进程托管 `/experimental` API 和静态前端，`ft web` 默认绑定 `127.0.0.1`，自动选择空闲端口并尝试打开浏览器。浏览器打开失败只打印 URL，不终止服务；端口冲突自动选择下一端口；Ctrl-C 统一关闭服务。A 不启动独立 Worker 或第二个长期进程。
+前端使用 Next.js static export，在构建时生成静态资源并打包进 Python wheel。运行时不要求 Node：FastAPI 同一进程托管 `/experimental` API 和静态前端，`ft web` 默认绑定 `127.0.0.1`，连接显式配置的 PostgreSQL workspace，自动选择空闲端口并尝试打开浏览器。浏览器打开失败只打印 URL，不终止服务；端口冲突自动选择下一端口；Ctrl-C 统一关闭服务。A 不启动独立 Worker，但 PostgreSQL 是必需的独立运行依赖。
 
 ### Visual Sketch
 
@@ -767,7 +779,7 @@ Canonical serialization 规定：金额为无指数 Decimal 字符串；时间�
 - 财富变化恒等式对所有受支持区间 100% 成立；
 - 没有静默丢弃或自动修补差额；
 - 所有组成项都有可访问的 evidence reference；
-- local adapter 对所有 A fixture 返回 canonical DTO；PostgreSQL 对同一 canonical serializer 的兼容测试作为非阻塞回归运行；
+- PostgreSQL repository/query 对所有 A fixture 返回 canonical DTO；不存在 local adapter parity 要求；
 - 计算版本、FX 来源、行情时间和数据新鲜度可见；
 - 任意 366 天内，coverage 连续且字段完整的范围日→周→月聚合金额零漂移，周/月投资收益率只由每日有效收益率链式计算；异常范围严格按空值传播规则返回 null；
 - 完整自然月的 monthly series point 与 month breakdown 在共享财务字段、component identity 与 evidence 集合上零差异；任意 point 的聚合 evidence 可核对金额；
@@ -795,23 +807,23 @@ Canonical serialization 规定：金额为无指数 Decimal 字符串；时间�
 
 ### A
 
-通过现有 Python 包和 CLI 分发，提供 `ft web` 启动本地只读 API 与页面，并打开 localhost。数据默认不离开用户机器。CI 构建 Python 包和前端静态产物，运行领域测试、adapter contract、API schema snapshot 和前端 smoke test。
+通过现有 Python 包和 CLI 分发，提供 `ft web` 连接本机 PostgreSQL、启动只读 API 与页面并打开 localhost。数据默认不离开用户机器，但不提供无数据库文件模式。CI 构建 Python 包和前端静态产物，运行领域测试、PostgreSQL contract/integration tests、API schema snapshot 和前端 smoke test。
 
 首批用户采用辅助安装，不为一次性 onboarding 提前建设完整安装器。
 
 ### C
 
-单仓库继续维护 Web、API 和 Worker。CI 构建独立容器、运行 Alembic migration 检查、contract tests 和端到端测试；生产部署只发布已通过迁移验证的版本。后续可增加自托管 Compose/Helm，但不在 A 阶段承诺双轨分发。
+单仓库继续维护 Web、API 和 Worker。当前未上线阶段使用干净 schema 基线、contract tests 和端到端测试，不维护开发数据库兼容迁移。出现需要保护的真实用户数据后，通过新的 constitution amendment 和独立 feature 定义 schema 演进、备份与恢复。后续可增加自托管 Compose/Helm，但不在 A 阶段承诺双轨分发。
 
 ## Dependencies
 
 - 现有 Application Service 与 repository protocols；
-- local CSV/YAML adapters；
-- PostgreSQL adapter 和 migration verify 作为未来 C 的备用实现；
+- 已完成的 PostgreSQL repositories、queries、workspace 隔离和事务边界；
+- 已完成的 [001-postgres-only-storage](../specs/001-postgres-only-storage/spec.md) 基线；
 - 证券与加密事件回放；
 - 历史行情与 FX 数据；
 - 至少三组能覆盖财富恒等式的真实匿名 fixture；
-- account identity、业务时间和 source identity 的契约修正。
+- 已落地的 account identity、业务时间和 source identity 契约。
 
 ## The Assignment
 

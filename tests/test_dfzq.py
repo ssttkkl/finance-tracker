@@ -1,5 +1,6 @@
 """Tests for dfzq.py — 东方证券PDF文本解析器"""
 import pytest
+from decimal import Decimal
 from ft.importers.dfzq import _ticker_suffix, parse_dfzq_text
 
 
@@ -66,8 +67,8 @@ class TestParseDfzqText:
         assert r["price"] == 11.50
         assert r["amount"] == -11500.0
         assert r["fee"] == 5.0
-        assert r["stamp_tax"] == 1.15
-        assert r["transfer_fee"] == 0.50
+        assert r["stamp_tax"] == Decimal("1.15")
+        assert r["transfer_fee"] == Decimal("0.50")
         assert r["balance"] == 50000.0
         assert "印花税" in r["note"]
         assert "过户费" in r["note"]
@@ -183,7 +184,7 @@ class TestParseDfzqText:
         records = parse_dfzq_text(lines)
         checkin = records[-1]
         assert checkin["action"] == "CHECKIN"
-        assert checkin["amount"] == 57493.35
+        assert checkin["amount"] == Decimal("57493.35")
         assert checkin["date"] == "2024-07-03 00:00:00"
         assert checkin["ticker"] == ""
         assert checkin["name"] == ""

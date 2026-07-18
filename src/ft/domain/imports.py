@@ -11,9 +11,9 @@ CASHFLOW_EXPORT_FIELDS = (
 
 
 @dataclass(frozen=True)
-class CashflowConvertCommand:
+class StatementImportCommand:
     source_path: str
     source: str
+    account: str
+    currency: str = "CNY"
     password: str | None = None
-    account: str | None = None
-    currency: str | None = None

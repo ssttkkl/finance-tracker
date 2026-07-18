@@ -1,0 +1,112 @@
+"""Raw statement parsers without runtime persistence."""
+from __future__ import annotations
+
+from decimal import Decimal
+from pathlib import Path
+import tempfile
+
+
+CASH_SOURCES = {"alipay", "wechat", "icbc", "icbc-debit", "ccb-debit"}
+
+
+def _decimal_text(value) -> str:
+    decimal = Decimal(str(value))
+    if not decimal.is_finite():
+        raise ValueError("statement amount must be finite")
+    normalized = decimal.normalize() if decimal else decimal
+    if max(0, -normalized.as_tuple().exponent) > 18:
+        raise ValueError("statement amount must have at most 18 decimal places")
+    return format(decimal, "f")
+
+
+def _parse_cash_statement(command):
+    from ft.convert import _build_output_row, _prepare_convert_rows
+
+    rows, bill_type, _tracking = _prepare_convert_rows(
+        command.source_path, command.source, command.password
+    )
+    output = []
+    for row in rows:
+        item = _build_output_row(
+            row, bill_type=bill_type, account=command.account,
+            currency=command.currency,
+        )
+        item["amount"] = _decimal_text(item["amount"])
+        output.append(item)
+    return output
+
+
+def _dfzq_rows(records, command):
+    currency = command.currency.upper()
+    mapped = []
+    for record in records:
+        action = record["action"]
+        common = {
+            "date": record["date"], "currency": currency,
+            "account_name": command.account, "note": record.get("note", ""),
+            "commission_asset": "", "commission": "0",
+        }
+        if action == "BUY":
+            amount = abs(Decimal(str(record["amount"])))
+            row = {**common, "action": "swap", "from_ticker": currency.lower(),
+                   "to_ticker": record["ticker"], "from_amount": amount,
+                   "to_amount": record["shares"], "price": record["price"],
+                   "commission": record["fee"], "commission_asset": currency.lower()}
+        elif action == "SELL":
+            amount = abs(Decimal(str(record["amount"])))
+            row = {**common, "action": "swap", "from_ticker": record["ticker"],
+                   "to_ticker": currency.lower(), "from_amount": record["shares"],
+                   "to_amount": amount, "price": record["price"],
+                   "commission": record["fee"], "commission_asset": currency.lower()}
+        elif action == "DIVIDEND":
+            ticker = record.get("ticker", "")
+            row = {**common, "action": "dividend", "from_ticker": ticker,
+                   "to_ticker": ticker or currency.lower(), "from_amount": "0",
+                   "to_amount": record["shares"] if ticker else abs(Decimal(str(record["amount"]))),
+                   "price": "0" if ticker else "1"}
+        elif action in {"DEPOSIT", "WITHDRAW"}:
+            incoming = action == "DEPOSIT"
+            amount = abs(Decimal(str(record["amount"])))
+            row = {**common, "action": action.lower(),
+                   "from_ticker": "" if incoming else currency.lower(),
+                   "to_ticker": currency.lower() if incoming else "",
+                   "from_amount": "0" if incoming else amount,
+                   "to_amount": amount if incoming else "0", "price": "1"}
+        elif action == "CHECKIN":
+            row = {**common, "action": "checkin", "from_ticker": currency.lower(),
+                   "to_ticker": "", "from_amount": "0",
+                   "to_amount": abs(Decimal(str(record["amount"]))), "price": "1"}
+        else:
+            raise ValueError(f"unsupported DFZQ action: {action}")
+        for key in ("from_amount", "to_amount", "price", "commission"):
+            row[key] = _decimal_text(row.get(key, 0))
+        mapped.append(row)
+    return mapped
+
+
+def _parse_dfzq_statement(command):
+    from ft.importers.dfzq import parse_dfzq_text
+    from ft.importers.pdf_tools import decrypt_pdf, extract_pdf_text
+
+    source = Path(command.source_path)
+    with tempfile.TemporaryDirectory(prefix="ft-dfzq-") as temp_dir:
+        pdf_path = source
+        if command.password is not None:
+            pdf_path = Path(temp_dir) / "statement.pdf"
+            decrypt_pdf(source, pdf_path, command.password, timeout=30)
+        records = parse_dfzq_text(extract_pdf_text(pdf_path).splitlines())
+    if not records:
+        raise ValueError("DFZQ statement contains no supported records")
+    return _dfzq_rows(records, command)
+
+
+class StatementParser:
+    def parse(self, command):
+        path = Path(command.source_path)
+        if not path.is_file():
+            raise FileNotFoundError(f"statement file not found: {path}")
+        if command.source in CASH_SOURCES:
+            return _parse_cash_statement(command)
+        if command.source == "dfzq":
+            return _parse_dfzq_statement(command)
+        raise ValueError(f"unsupported statement source: {command.source}")

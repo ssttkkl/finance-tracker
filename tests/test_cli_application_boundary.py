@@ -1,6 +1,5 @@
 import ast
 from pathlib import Path
-import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,7 +38,7 @@ def test_cli_does_not_call_legacy_business_entry_points():
 
 def test_application_package_has_no_local_adapter_or_terminal_dependencies():
     forbidden_imports = {
-        "csv", "subprocess", "yaml", "pathlib",
+        "csv", "subprocess", "yaml",
         "ft.models", "ft.snapshot", "ft.stock", "ft.report", "ft.convert",
         "ft.reconcile", "ft.exchange_sync", "ft.polymarket_sync",
         "ft.credentials", "ft.mapping",
@@ -61,11 +60,52 @@ def test_application_package_has_no_local_adapter_or_terminal_dependencies():
         assert "ledger_root" not in path.read_text(encoding="utf-8"), path.name
 
 
-def test_phase1_document_has_evidence_for_all_36_leaf_commands():
-    text = (ROOT / "docs" / "phase1-application-services.md").read_text(encoding="utf-8")
-    matrix_rows = re.findall(r"^\| (\d+) \| `([^`]+)` \| `([^`]+)` \|", text, re.MULTILINE)
+def test_cli_runtime_commands_build_one_postgres_bundle(monkeypatch, capsys):
+    from ft import cli
+    from ft.domain.queries import AccountListDTO, FinanceReportDTO
 
-    assert [int(number) for number, _command, _service in matrix_rows] == list(range(1, 37))
-    assert len({command for _number, command, _service in matrix_rows}) == 36
-    assert "## Still Outside This Slice" not in text
-    assert "Phase 1 closure is complete" in text
+    calls = []
+    settings = object()
+
+    class Queries:
+        def report(self, *, month=None):
+            calls.append(("report", month))
+            return FinanceReportDTO(accounts=AccountListDTO(()))
+
+    bundle = type("Bundle", (), {"queries": Queries()})()
+    monkeypatch.setattr("ft.config.StorageSettings.load", lambda: calls.append(("settings",)) or settings)
+    monkeypatch.setattr("ft.cli.build_services", lambda value: calls.append(("bundle", value)) or bundle)
+
+    cli.main(["report", "--month", "2026-07"])
+
+    assert calls == [("settings",), ("bundle", settings), ("report", "2026-07")]
+
+
+def test_cli_account_and_cash_commands_use_injected_services(monkeypatch):
+    from decimal import Decimal
+    from ft import cli
+
+    calls = []
+
+    class Accounts:
+        def create_account(self, name, type_, currency):
+            calls.append(("account", name, type_, currency))
+            account = type("Account", (), {"name": name})()
+            return type("Result", (), {"ok": True, "account": account})()
+
+    class Cashflow:
+        def add_manual_transaction(self, **kwargs):
+            calls.append(("cash", kwargs))
+            account = type("Account", (), {"currency": "CNY"})()
+            return type("Result", (), {"ok": True, "details": {"account": account}})()
+
+    bundle = type("Bundle", (), {"accounts": Accounts(), "cashflow": Cashflow()})()
+    monkeypatch.setattr("ft.config.StorageSettings.load", lambda: object())
+    monkeypatch.setattr("ft.cli.build_services", lambda _settings: bundle)
+
+    cli.main(["acct", "add", "Cash", "--type", "cash", "--currency", "CNY"])
+    cli.main(["add", "--amount", "1.20", "--counterparty", "Seed", "--account", "Cash", "--currency", "CNY"])
+
+    assert calls[0] == ("account", "Cash", "cash", "CNY")
+    assert calls[1][0] == "cash"
+    assert calls[1][1]["amount"] == Decimal("1.20")

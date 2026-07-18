@@ -1,22 +1,22 @@
 <!--
 Sync Impact Report
-- Version change: template -> 1.0.0
-- Added principles:
-  - I. 财务正确性与可审计性
-  - II. Spec Kit 规格驱动
-  - III. 测试先行与验证证据
-  - IV. 兼容、迁移与可回滚演进
-  - V. 清晰边界与最小复杂度
-- Added sections: 工程约束; 交付与评审流程
-- Removed sections: none (initial ratification)
+- Version change: 1.0.0 -> 2.0.0
+- Modified principles:
+  - IV. 兼容、迁移与可回滚演进 -> IV. 单一事实源与零历史包袱
+- Modified sections:
+  - 工程约束 — PostgreSQL 直接成为唯一运行时事实源，删除 legacy backend 与迁移兼容层
+- Added sections: none
+- Removed sections: none
 - Templates/commands:
-  - ✅ .specify/templates/plan-template.md — existing Constitution Check is compatible
-  - ✅ .specify/templates/spec-template.md — existing scenarios, edge cases, requirements,
-    and measurable outcomes support these principles
-  - ✅ .specify/templates/tasks-template.md — updated to require test-first tasks
-  - ✅ .agents/skills/speckit-tasks/SKILL.md — updated to enforce repository test policy
-  - ✅ other .agents/skills/speckit-*/SKILL.md — constitution is already loaded as authority
-- Follow-up TODOs: none
+  - ✅ .specify/templates/plan-template.md — Constitution Check 可承载破坏性替换与旧代码删除门禁
+  - ✅ .specify/templates/spec-template.md — 现有场景、边界和成功标准足以描述不兼容替换
+  - ✅ .specify/templates/tasks-template.md — 已要求行为变更、数据和接口测试先行
+  - ✅ .agents/skills/speckit-*/SKILL.md — 均以 constitution 为最高项目约束，无存储默认值冲突
+  - ✅ docs/productization-refactor-plan.md — 顶层路线改为 PostgreSQL-only，并引用财富报告设计
+  - ✅ docs/productization-wealth-report-design.md — Phase 1/2 基线和 PostgreSQL-only 决策已同步
+  - ⚠ README.md — 保持描述当前已交付行为；待 postgres-only feature 实施完成后同步改写
+- Follow-up TODOs:
+  - ✅ specs/001-postgres-only-storage 已完成旧后端、迁移兼容层和相关文档包袱删除
 -->
 
 # Finance Tracker Constitution
@@ -46,12 +46,16 @@ Worker/MCP 能力的变更，MUST 由一个目标单一的 Spec Kit feature 驱�
 项目提供的类型检查、lint 和构建，并检查最终 diff。无法运行的验证 MUST 报告准确原因、风险和
 补跑命令，不得用推测代替证据。
 
-### IV. 兼容、迁移与可回滚演进
+### IV. 单一事实源与零历史包袱
 
-现有 CSV/YAML 本地模式、已持久化数据和公开 CLI 契约 MUST 保持兼容，除非 spec 明确声明破坏性
-变化及迁移路径。schema、数据格式或存储变更 MUST 定义前向迁移、回滚或安全恢复、旧数据验证、
-部分失败处理和审计对账；迁移前后 MUST 证明关键财务不变量不变。不可逆操作 MUST 有显式用户授权
-和可验证备份，不得把破坏性动作隐藏在普通启动、查询或导入流程中。
+项目当前处于未上线的快速开发阶段，legacy 运行时、未发布 CLI 契约和本地开发数据不享有兼容、
+迁移或回滚承诺。PostgreSQL MUST 是唯一运行时事实源；CSV/YAML/Git 账本 backend、双后端选择、
+shadow compare、旧数据迁移和文件账本回退 MUST 在同一 feature 中删除，不得以“兼容”为理由长期
+保留不可达代码、抽象、配置、测试或文档。破坏性替换 MUST 在 spec 中明确范围，并以全新数据库
+基线和可重复测试数据验证；现有本地数据视为可丢弃开发数据，应用不得读取、迁移或自动删除它。
+该原则不削弱财务审计：正式 PostgreSQL 数据的来源、修订、金额精度和可追溯性仍 MUST 满足原则 I。
+当项目明确进入需要保护真实用户持久化数据的阶段时，MUST 再次修订 constitution，恢复 schema
+演进、备份、迁移和灾难恢复门禁。
 
 ### V. 清晰边界与最小复杂度
 
@@ -63,7 +67,13 @@ Worker/MCP 能力的变更，MUST 由一个目标单一的 Spec Kit feature 驱�
 ## 工程约束
 
 - 运行时基线为 Python 3.11+；依赖与命令以 `pyproject.toml` 和 `uv` 工作流为准。
-- 默认本地模式使用 CSV 审计日志与 YAML 快照；PostgreSQL 等产品化存储是适配器，不得污染领域语义。
+- PostgreSQL 是 CLI、Web、Worker 和 MCP 唯一受支持的运行时事实源。postgres-only feature 完成前，
+  任何新能力不得依赖或扩展现有 CSV/YAML/Git backend。
+- CSV、JSON、YAML 和 PDF 只可作为当前产品明确需要的原始账单输入格式；不得作为 repository、当前
+  快照、事务日志、运行时 backend、迁移载体或兼容回退。原始文件的身份、摘要、导入状态和审计
+  关系 MUST 由 PostgreSQL 管理。
+- 未发布的 schema 和 Alembic 历史 MAY 在 feature 中重建为干净基线；不得为可丢弃开发数据保留旧
+  schema、迁移链或适配层。测试数据 MUST 可重复生成并去标识化。
 - 金额、币种、时间、账户身份和外部记录 ID 的语义 MUST 在 spec 与数据模型中明确，不得依赖字符串
   猜测或隐式默认值。
 - 凭据、Token、账户隐私和原始账单 MUST 保持在受控存储中；测试夹具与日志 MUST 去标识化。
@@ -85,4 +95,4 @@ MAJOR，新增原则或实质扩展升 MINOR，澄清文字升 PATCH。每个 pl
 Constitution Check；`$speckit-analyze` 和代码评审 MUST 把违反 MUST 的问题视为阻断项。例外必须
 由用户明确批准、写入 plan 的 Complexity Tracking，并包含到期或消除路径。
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-17 | **Last Amended**: 2026-07-17
+**Version**: 2.0.0 | **Ratified**: 2026-07-17 | **Last Amended**: 2026-07-17

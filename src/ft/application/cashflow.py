@@ -3,10 +3,22 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from ft.domain.cashflow import CashflowResult
+from ft.domain.decimal import exact_decimal
 from ft.repositories import UnitOfWork
 from ft.schema import CURRENCY_SYMBOLS
+
+WORKSPACE_TIMEZONE = ZoneInfo("Asia/Shanghai")
+
+
+def _exact_decimal(value, field: str) -> Decimal:
+    return exact_decimal(value, field)
+
+
+def _decimal_text(value, field: str) -> str:
+    return format(_exact_decimal(value, field), "f")
 
 
 class CashflowService:
@@ -14,10 +26,17 @@ class CashflowService:
         self._uow = uow
 
     def add_manual_transaction(self, *, amount: Decimal, counterparty: str, account_name: str,
-                               description: str = "", source: str = "", date: str | None = None) -> CashflowResult:
-        date_str = date or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                               description: str = "", source: str = "", date: str | None = None,
+                               currency: str | None = None) -> CashflowResult:
+        date_str = date or datetime.now(WORKSPACE_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
         with self._uow as uow:
-            account = uow.accounts.find(account_name)
+            try:
+                account = uow.accounts.find(account_name, currency)
+            except ValueError:
+                uow.rollback()
+                return CashflowResult.fail(
+                    "account.ambiguous", f"账户名不唯一，请指定币种: {account_name}",
+                )
             if account is None:
                 uow.rollback()
                 return CashflowResult.fail("account.not_found", f"未找到账户: {account_name}")
@@ -42,7 +61,7 @@ class CashflowService:
                 "locked": "",
             }
             uow.cashflows.add(account.type, row)
-            snap = uow.snapshot.load()
+            snap = uow.snapshot.load(lock=True)
             _ensure_snapshot_account(snap, account.type, account_name, account.currency)
             uow.snapshot.update_balance(snap, account_name, account.type, account.currency, amount)
             snap["updated_at"] = date_str
@@ -50,11 +69,21 @@ class CashflowService:
             uow.commit()
             return CashflowResult.success(row={**row, "amount": format(amount, "f")}, account=account)
 
-    def checkin_balance(self, *, account_name: str, balance: Decimal, date: str | None = None) -> CashflowResult:
-        date_str = f"{date} 00:00:00" if date else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    def checkin_balance(self, *, account_name: str, balance: Decimal, date: str | None = None,
+                        currency: str | None = None) -> CashflowResult:
+        date_str = (
+            f"{date} 00:00:00" if date
+            else datetime.now(WORKSPACE_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
+        )
         day = date_str[:10]
         with self._uow as uow:
-            account = uow.accounts.find(account_name)
+            try:
+                account = uow.accounts.find(account_name, currency)
+            except ValueError:
+                uow.rollback()
+                return CashflowResult.fail(
+                    "account.ambiguous", f"账户名不唯一，请指定币种: {account_name}",
+                )
             if account is None:
                 uow.rollback()
                 return CashflowResult.fail("account.not_found", f"未找到账户: {account_name}")
@@ -80,7 +109,7 @@ class CashflowService:
                 "locked": "",
             }
             uow.cashflows.add(account.type, row)
-            snap = uow.snapshot.load()
+            snap = uow.snapshot.load(lock=True)
             _ensure_snapshot_account(snap, account.type, account_name, account.currency)
             uow.snapshot.set_balance(snap, account_name, account.type, account.currency, balance)
             snap["updated_at"] = day
@@ -97,10 +126,15 @@ class TransferService:
                  to_amount: Decimal | None = None, date: str | None = None,
                  time_str: str | None = None, description: str = "",
                  from_currency: str | None = None, to_currency: str | None = None) -> CashflowResult:
+        amount = _exact_decimal(amount, "amount")
+        if to_amount is not None:
+            to_amount = _exact_decimal(to_amount, "to_amount")
+        if amount <= 0 or (to_amount is not None and to_amount <= 0):
+            return CashflowResult.fail("transfer.invalid_amount", "转账金额必须大于零")
         if not date:
-            date = datetime.now().strftime("%Y-%m-%d")
+            date = datetime.now(WORKSPACE_TIMEZONE).strftime("%Y-%m-%d")
         if not time_str:
-            time_str = datetime.now().strftime("%H:%M:%S")
+            time_str = datetime.now(WORKSPACE_TIMEZONE).strftime("%H:%M:%S")
         date_str = f"{date} {time_str}"
 
         with self._uow as uow:
@@ -132,7 +166,7 @@ class TransferService:
                 uow.rollback()
                 return CashflowResult.fail("transfer.to_amount_required", "跨币种转账需要 --to-amount")
 
-            real_to = effective_to_amount or amount
+            real_to = amount if effective_to_amount is None else effective_to_amount
             from_row = _transfer_event(
                 date_str, amount, from_acct, to_acct, "out", description
             )
@@ -141,7 +175,7 @@ class TransferService:
             )
             _stage_transfer_event(uow, from_acct, from_row)
             _stage_transfer_event(uow, to_acct, to_row)
-            snap = uow.snapshot.load()
+            snap = uow.snapshot.load(lock=True)
             _apply_transfer_snapshot(snap, from_acct, -amount)
             _apply_transfer_snapshot(snap, to_acct, real_to)
             snap["updated_at"] = date
@@ -238,8 +272,11 @@ def _apply_transfer_snapshot(snap: dict, account, amount: Decimal) -> None:
     if account.type not in {"security", "crypto"}:
         _ensure_snapshot_account(snap, account.type, account.name, account.currency)
         accounts = snap.setdefault("accounts", {}).setdefault(account.type, {})
-        accounts[account.name][account.currency] = float(
-            Decimal(str(accounts[account.name].get(account.currency, 0))) + amount
+        accounts[account.name][account.currency] = _decimal_text(
+            _exact_decimal(
+                accounts[account.name].get(account.currency, 0), "current balance"
+            ) + amount,
+            "projected balance",
         )
         return
 
@@ -251,12 +288,18 @@ def _apply_transfer_snapshot(snap: dict, account, amount: Decimal) -> None:
     positions = account_snapshot.setdefault("positions", {})
     ticker = account.currency.lower()
     position = positions.setdefault(ticker, {
-        "shares": 0,
-        "total_cost": 0,
+        "shares": "0",
+        "total_cost": "0",
         "cost_currency": account.currency,
     })
-    position["shares"] = float(Decimal(str(position["shares"])) + amount)
-    position["total_cost"] = float(Decimal(str(position["total_cost"])) + amount)
+    position["shares"] = _decimal_text(
+        _exact_decimal(position["shares"], "current shares") + amount,
+        "projected shares",
+    )
+    position["total_cost"] = _decimal_text(
+        _exact_decimal(position["total_cost"], "current cost") + amount,
+        "projected cost",
+    )
 
 
 def _ensure_snapshot_account(snap: dict, account_type: str, account_name: str, currency: str) -> None:

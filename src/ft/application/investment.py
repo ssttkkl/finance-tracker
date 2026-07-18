@@ -1,31 +1,22 @@
 """Investment write and portfolio query application services."""
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
-from ft.domain.application import ExportPayload, OperationResult
+from ft.domain.decimal import exact_decimal
 from ft.domain.investment import (
     InvestmentCommandDTO,
     PortfolioAccountDTO,
     PortfolioDTO,
     PortfolioPositionDTO,
 )
-from ft.schema import CSV_FIELDS
 
 
 def _finite_decimal(value, field):
-    try:
-        result = Decimal(str(value))
-    except (InvalidOperation, ValueError, TypeError) as exc:
-        raise ValueError(f"{field} must be decimal-compatible") from exc
-    if not result.is_finite():
-        raise ValueError(f"{field} must be finite")
-    return result
+    return exact_decimal(value, field)
 
 
 class InvestmentService:
-    def __init__(self, *, repository, importer, change_sets):
+    def __init__(self, *, repository):
         self._repository = repository
-        self._importer = importer
-        self._change_sets = change_sets
 
     def buy(self, ticker, shares, price, commission, currency, account, note="", date=None):
         return self._execute(InvestmentCommandDTO(
@@ -88,26 +79,8 @@ class InvestmentService:
             amount=_finite_decimal(cash, "cash"), note=note, date=date,
         ))
 
-    def convert(self, command) -> OperationResult:
-        rows = self._importer.convert(command)
-        return OperationResult(
-            ok=bool(rows), count=len(rows),
-            export=ExportPayload(tuple(rows), fieldnames=tuple(CSV_FIELDS)),
-            message="converted" if rows else "no data",
-        )
-
-    def append(self, source) -> OperationResult:
-        rows = self._importer.read_converted(source)
-        if not rows:
-            return OperationResult(ok=False, message="CSV 为空")
-        count = self._repository.append_investments(rows)
-        self._change_sets.stage()
-        return OperationResult(ok=True, count=count, message="imported")
-
     def _execute(self, command):
-        result = self._repository.execute(command)
-        self._change_sets.stage()
-        return result
+        return self._repository.execute(command)
 
 
 class PortfolioQueryService:

@@ -19,12 +19,6 @@ class ExportPayload:
 
 
 @dataclass(frozen=True)
-class ChangeSetStatusDTO:
-    changed_files: tuple[str, ...]
-    clean: bool
-
-
-@dataclass(frozen=True)
 class OperationResult:
     ok: bool
     message: str = ""

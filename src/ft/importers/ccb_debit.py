@@ -1,6 +1,7 @@
 """建行储蓄卡 XLS 转换器"""
 import xlrd
 import re
+from decimal import Decimal, InvalidOperation
 from datetime import datetime, timedelta
 from ft.convert import _normalize_counterparty, _stable_short_hash
 
@@ -74,7 +75,7 @@ def _extract_ccb_acct_name_counterparty(acct_name_raw: str) -> str:
     return acct_name_raw.strip()
 
 
-def _infer_ccb_refund_signal(summary: str, amount: float) -> str:
+def _infer_ccb_refund_signal(summary: str, amount: Decimal) -> str:
     if amount <= 0:
         return ""
     text = summary.strip()
@@ -115,7 +116,7 @@ def read_ccb_debit(path: str):
             continue
 
         # 确定数据起始：第 1 列是序号（纯数字字符串如 '1'/'2'）
-        seq = str(int(float(str(row_vals[0])))) if row_vals[0] else ""
+        seq = str(int(Decimal(str(row_vals[0])))) if row_vals[0] else ""
         if not seq:
             continue
 
@@ -124,14 +125,14 @@ def read_ccb_debit(path: str):
         currency = cur_map.get(cur_str, "CNY")
 
         # 日期 YYYYMMDD → YYYY-MM-DD（原始账单无时间，不伪造 00:00:00）
-        date_raw = str(int(float(str(row_vals[4])))) if row_vals[4] else ""
+        date_raw = str(int(Decimal(str(row_vals[4])))) if row_vals[4] else ""
         date = f"{date_raw[:4]}-{date_raw[4:6]}-{date_raw[6:8]}" if len(date_raw) == 8 else ""
 
         # 金额
         amt_str = str(row_vals[5] or "").replace(",", "").strip()
         try:
-            amount = round(float(amt_str), 2)
-        except ValueError:
+            amount = Decimal(amt_str)
+        except (InvalidOperation, ValueError):
             continue
         balance = str(row_vals[6] or "").replace(",", "").strip()
 

@@ -1,33 +1,44 @@
 """Finance Tracker CLI — ft 统一入口"""
 import argparse
-from dataclasses import asdict, is_dataclass
-import json
-import sys
 from decimal import Decimal
+from pathlib import Path
 from .report import render_finance_report, render_transactions
 from .acct import acct_add, acct_list, acct_rename, acct_delete, acct_activate
 from .adapters.export_csv import write_csv_export
 from .adapters.portfolio_cli import render_portfolio
-from .domain.imports import CashflowConvertCommand
-from .domain.investment import InvestmentConvertCommand
-from .domain.sync import ConnectorSyncCommand
-from .runtime import build_local_services
+from .domain.application import ExportPayload
+from .domain.imports import CASHFLOW_EXPORT_FIELDS, StatementImportCommand
+from .runtime import build_services
+from .schema import CSV_FIELDS
 
 
-def _json_default(value):
-    if is_dataclass(value):
-        return asdict(value)
-    if isinstance(value, Decimal):
-        return format(value, "f")
-    raise TypeError(f"not JSON serializable: {type(value).__name__}")
+def _runtime_services():
+    from .config import StorageSettings
+
+    return build_services(StorageSettings.load())
 
 
-def _print_json(value):
-    print(json.dumps(value, default=_json_default, ensure_ascii=False, sort_keys=True))
+def _read_password_file(path: str | None) -> str | None:
+    if path is None:
+        return None
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    if not lines:
+        raise ValueError("password file is empty")
+    return lines[0]
+
+
+def _statement_export(command: StatementImportCommand) -> ExportPayload:
+    from .adapters.statement_import import StatementParser
+
+    rows = StatementParser().parse(command)
+    fields = CSV_FIELDS if command.source == "dfzq" else CASHFLOW_EXPORT_FIELDS
+    return ExportPayload(tuple(rows), fieldnames=tuple(fields))
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="ft", description="📒 Finance Tracker")
+    parser = argparse.ArgumentParser(
+        prog="ft", description="📒 Finance Tracker", allow_abbrev=False,
+    )
     sub = parser.add_subparsers(dest="cmd")
 
     # acct
@@ -75,12 +86,15 @@ def main(argv=None):
     chk = sub.add_parser("checkin", help="记录余额快照")
     chk.add_argument("account", help="账户名")
     chk.add_argument("--balance", required=True)
+    chk.add_argument("--currency", required=True)
     chk.add_argument("--date")
 
     # transfer
     trf = sub.add_parser("transfer", help="转账/换汇")
     trf.add_argument("--from", dest="from_acct", required=True)
     trf.add_argument("--to", dest="to_acct", required=True)
+    trf.add_argument("--from-currency", required=True)
+    trf.add_argument("--to-currency", required=True)
     trf.add_argument("--amount", required=True)
     trf.add_argument("--to-amount", dest="to_amount",
                      help="跨币种目标金额")
@@ -92,6 +106,7 @@ def main(argv=None):
     add_p.add_argument("-a", "--amount", required=True)
     add_p.add_argument("-c", "--counterparty", required=True)
     add_p.add_argument("--account", required=True)
+    add_p.add_argument("--currency", required=True)
     add_p.add_argument("-d", "--description", default="")
     add_p.add_argument("--source", default="")
     add_p.add_argument("--platform", default="")
@@ -103,9 +118,9 @@ def main(argv=None):
 
     buy_p = stk_sub.add_parser("buy", help="买入")
     buy_p.add_argument("--ticker", required=True)
-    buy_p.add_argument("--shares", type=float, required=True)
-    buy_p.add_argument("--price", type=float, required=True)
-    buy_p.add_argument("--commission", type=float, default=0.0)
+    buy_p.add_argument("--shares", required=True)
+    buy_p.add_argument("--price", required=True)
+    buy_p.add_argument("--commission", default="0")
     buy_p.add_argument("--account", required=True)
     buy_p.add_argument("--currency")
     buy_p.add_argument("--note", default="")
@@ -113,9 +128,9 @@ def main(argv=None):
 
     sell_p = stk_sub.add_parser("sell", help="卖出")
     sell_p.add_argument("--ticker", required=True)
-    sell_p.add_argument("--shares", type=float, required=True)
-    sell_p.add_argument("--price", type=float, required=True)
-    sell_p.add_argument("--commission", type=float, default=0.0)
+    sell_p.add_argument("--shares", required=True)
+    sell_p.add_argument("--price", required=True)
+    sell_p.add_argument("--commission", default="0")
     sell_p.add_argument("--account", required=True)
     sell_p.add_argument("--currency")
     sell_p.add_argument("--note", default="")
@@ -123,23 +138,23 @@ def main(argv=None):
 
     swap_p = stk_sub.add_parser("swap", help="币币兑换（持仓换持仓，成本结转）")
     swap_p.add_argument("--from-ticker", required=True)
-    swap_p.add_argument("--from-shares", type=float, required=True)
+    swap_p.add_argument("--from-shares", required=True)
     swap_p.add_argument("--to-ticker", required=True)
-    swap_p.add_argument("--to-shares", type=float, required=True)
+    swap_p.add_argument("--to-shares", required=True)
     swap_p.add_argument("--account", required=True)
     swap_p.add_argument("--currency")
     swap_p.add_argument("--note", default="")
     swap_p.add_argument("--date")
 
     dep_p = stk_sub.add_parser("deposit", help="入金")
-    dep_p.add_argument("--amount", type=float, required=True)
+    dep_p.add_argument("--amount", required=True)
     dep_p.add_argument("--account", required=True)
     dep_p.add_argument("--currency")
     dep_p.add_argument("--note", default="")
     dep_p.add_argument("--date")
 
     wd_p = stk_sub.add_parser("withdraw", help="出金")
-    wd_p.add_argument("--amount", type=float, required=True)
+    wd_p.add_argument("--amount", required=True)
     wd_p.add_argument("--account", required=True)
     wd_p.add_argument("--currency")
     wd_p.add_argument("--note", default="")
@@ -147,7 +162,7 @@ def main(argv=None):
 
     div_p = stk_sub.add_parser("dividend", help="股息")
     div_p.add_argument("--ticker", required=True)
-    div_p.add_argument("--amount", type=float, required=True)
+    div_p.add_argument("--amount", required=True)
     div_p.add_argument("--account", required=True)
     div_p.add_argument("--currency")
     div_p.add_argument("--note", default="")
@@ -156,107 +171,49 @@ def main(argv=None):
     checkin_p = stk_sub.add_parser("checkin", help="校正持仓或现金")
     checkin_p.add_argument("--account", required=True)
     checkin_p.add_argument("--ticker")
-    checkin_p.add_argument("--shares", type=float)
-    checkin_p.add_argument("--avg-cost", type=float)
-    checkin_p.add_argument("--cash", type=float)
+    checkin_p.add_argument("--shares")
+    checkin_p.add_argument("--avg-cost")
+    checkin_p.add_argument("--cash")
     checkin_p.add_argument("--currency")
     checkin_p.add_argument("--note", default="")
     checkin_p.add_argument("--date")
 
     # stock convert
-    cv_stk = stk_sub.add_parser("convert", help="股票对账单→stock CSV")
+    cv_stk = stk_sub.add_parser(
+        "convert", help="股票对账单→stock CSV", allow_abbrev=False,
+    )
     cv_stk.add_argument("file", help="对账单文件路径")
     cv_stk.add_argument("-s", "--source", required=True, help="券商类型（如 dfzq）")
     cv_stk.add_argument("-o", "--output", required=True, help="输出CSV路径")
-    cv_stk.add_argument("--password", help="PDF密码")
+    cv_stk.add_argument("--password-file", help="从文件首行读取 PDF 密码")
     cv_stk.add_argument("--account", default="", help="覆盖账户名")
     cv_stk.add_argument("--currency", default="CNY", choices=["CNY", "USD", "HKD"], help="覆盖币种")
 
-    # stock append
-    ap_stk = stk_sub.add_parser("append", help="stock CSV 批量导入")
-    ap_stk.add_argument("file", help="stock CSV 路径")
-
-    # stock sync <provider>
-    sync_p = stk_sub.add_parser("sync", help="从外部平台开户同步交易记录")
-    sync_sub = sync_p.add_subparsers(dest="sync_cmd")
-    sync_pm = sync_sub.add_parser("polymarket", help="从 Polymarket 公开 Activity API 同步成交记录")
-    sync_pm.add_argument("--wallet", help="Polymarket profile/login 钱包地址（会自动解析 proxy wallet；未提供时读 credentials.yaml）")
-    sync_pm.add_argument("--proxy-wallet", help="已解析出的 Polymarket proxy wallet，可跳过 profile 解析；未提供时读 credentials.yaml")
-    sync_pm.add_argument("--account", default="Polymarket", help="ft security 账户名，默认 Polymarket")
-    sync_pm.add_argument("--dry-run", action="store_true", help="只拉取/去重/预览，不写入 ft")
-    sync_pm.add_argument("-o", "--output", help="把新增记录写出为 stock CSV")
-    sync_pm.add_argument("--limit", type=int, default=500, help="每页 Activity 条数，默认 500")
-    sync_pm.add_argument("--max-pages", type=int, help="最多拉取页数，调试用")
-
-    for _provider in ("kraken", "okx", "binance", "coinbase", "bybit"):
-        _sp = sync_sub.add_parser(_provider, help=f"从 {_provider} 同步私有成交（ccxt）")
-        _sp.add_argument("--account", required=True, help="目标 crypto 账户名")
-        _sp.add_argument("--since", help="起始日期 YYYY-MM-DD（增量同步）")
-        _sp.add_argument("--dry-run", action="store_true", help="只拉取/去重/预览，不写入")
-        _sp.add_argument("-o", "--output", help="把新增记录写出为 stock CSV")
-        _sp.add_argument("--symbol", action="append", dest="symbols",
-                         help="只同步指定交易对，可重复（调试用）")
-
     stk_sub.add_parser("list", help="持仓总览")
 
-    # verify
-    verify_p = sub.add_parser("verify", help="验证CSV与快照一致性")
-    verify_p.add_argument("--fix", action="store_true", help="从CSV重建快照")
-
-    # commit
-    commit_p = sub.add_parser("commit", help="提交所有未提交的改动")
-    commit_p.add_argument("-m", "--message", help="自定义提交信息")
-
-    # status
-    sub.add_parser("status", help="查看未提交的改动")
-
-    # reset
-    reset_p = sub.add_parser("reset", help="丢弃所有未提交改动")
-
     # convert
-    cv = sub.add_parser("convert", help="步骤① 账单→统一CSV")
+    cv = sub.add_parser("convert", help="步骤① 账单→统一CSV", allow_abbrev=False)
     cv.add_argument("file", help="账单文件路径")
     cv.add_argument("-s", "--source", required=True,
                     choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit"],
                     help="账单类型")
     cv.add_argument("-o", "--output", required=True, help="输出CSV路径")
-    cv.add_argument("--password", help="工行PDF密码")
-    cv.add_argument("--account", help="覆盖账户名")
+    cv.add_argument("--password-file", help="从文件首行读取工行 PDF 密码")
+    cv.add_argument("--account", required=True, help="目标账户名")
     cv.add_argument("--currency", default="CNY", choices=["CNY", "USD", "HKD"],
                     help="覆盖币种")
 
-    # append
-    ap = sub.add_parser("append", help="步骤② 导入转换后的CSV")
-    ap.add_argument("files", nargs="+", help="converted CSV 路径列表")
-
-    # reconcile
-    rc = sub.add_parser(
-        "reconcile",
-        help="步骤③ 导入后统一整理",
-        description="按 SKILL.md 审查 pending/ai_working.csv；数据量大时按三个月一批处理。",
+    statement_import = sub.add_parser(
+        "import", help="原始账单直接导入 PostgreSQL", allow_abbrev=False,
     )
-    scope = rc.add_mutually_exclusive_group()
-    scope.add_argument("--month", help="月份 (YYYY-MM)")
-    rc.add_argument("--from", dest="date_from", help="起始日期 (YYYY-MM-DD)")
-    rc.add_argument("--to", dest="date_to", help="结束日期 (YYYY-MM-DD)")
-    rc.add_argument("--continue-with-decisions", action="store_true",
-                    help="应用 pending/ai_working.csv 的审查决定")
-    rc.add_argument("--abort", action="store_true", help="放弃当前 pending reconcile 会话")
-
-    # migrate
-    migrate_p = sub.add_parser("migrate", help="本地账本与 PostgreSQL 迁移")
-    migrate_sub = migrate_p.add_subparsers(dest="migrate_cmd")
-    inspect_p = migrate_sub.add_parser("inspect", help="检查本地账本")
-    inspect_p.add_argument("--from", dest="source_root", required=True)
-    import_p = migrate_sub.add_parser("import", help="导入本地账本")
-    import_p.add_argument("--from", dest="source_root", required=True)
-    verify_migration_p = migrate_sub.add_parser("verify", help="执行 shadow comparison")
-    verify_migration_p.add_argument("--from", dest="source_root", required=True)
-    export_p = migrate_sub.add_parser("export", help="从数据库导出本地账本")
-    export_p.add_argument("--to", dest="destination", required=True)
-    for migration_parser in (import_p, verify_migration_p, export_p):
-        migration_parser.add_argument("--database-url", required=True)
-        migration_parser.add_argument("--workspace", required=True)
+    statement_import.add_argument("file", help="原始账单文件路径")
+    statement_import.add_argument(
+        "--source", required=True,
+        choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "dfzq"],
+    )
+    statement_import.add_argument("--account", required=True, help="目标账户名")
+    statement_import.add_argument("--currency", default="CNY")
+    statement_import.add_argument("--password-file", help="从文件首行读取 PDF 密码")
 
     args = parser.parse_args(argv)
 
@@ -264,65 +221,50 @@ def main(argv=None):
         parser.print_help()
         return
 
-    if args.cmd == "migrate":
-        if not args.migrate_cmd:
-            migrate_p.print_help()
-            return
-        from .adapters.local_migration import LocalMigrationSource
-        from .application.migration import MigrationService
-        if args.migrate_cmd == "inspect":
-            source = LocalMigrationSource(args.source_root)
-            _print_json(MigrationService(source, None).inspect())
-            return
-        from sqlalchemy import create_engine
-        from .adapters.postgres import create_session_factory, ensure_workspace
-        from .adapters.postgres.migration import PostgresMigrationTarget
-        sessions = create_session_factory(create_engine(args.database_url, pool_pre_ping=True))
-        if args.migrate_cmd == "import":
-            ensure_workspace(sessions, args.workspace)
-        target = PostgresMigrationTarget(sessions, args.workspace)
-        source_root = getattr(args, "source_root", None) or args.destination
-        service = MigrationService(LocalMigrationSource(source_root), target)
-        if args.migrate_cmd == "import":
-            _print_json(service.import_ledger())
-        elif args.migrate_cmd == "verify":
-            report = service.verify()
-            _print_json(report)
-            if not report.ok:
-                raise SystemExit(1)
+    if args.cmd == "import":
+        result = _runtime_services().statement_import.import_statement(StatementImportCommand(
+            source_path=args.file,
+            source=args.source,
+            account=args.account,
+            currency=args.currency,
+            password=_read_password_file(args.password_file),
+        ))
+        if not result.ok:
+            print(f"❌ {result.message}")
+            raise SystemExit(1)
+        if result.details.get("duplicate"):
+            print("📭 该账单已导入")
         else:
-            _print_json(service.export(args.destination))
+            print(f"✅ 已导入 {result.count} 条 → PostgreSQL")
         return
 
     if args.cmd == "acct":
+        bundle = _runtime_services()
         if not args.acct_cmd:
-            from . import models
-            acct_list(build_local_services(models.FT_DIR).queries)
+            acct_list(bundle.queries)
             return
         if args.acct_cmd == "add":
-            acct_add(args.name, args.type, args.currency)
+            acct_add(bundle.accounts, args.name, args.type, args.currency)
         elif args.acct_cmd == "list":
-            from . import models
-            acct_list(build_local_services(models.FT_DIR).queries)
+            acct_list(bundle.queries)
         elif args.acct_cmd == "rename":
-            acct_rename(args.old_name, args.new_name, args.currency)
+            acct_rename(bundle.accounts, args.old_name, args.new_name, args.currency)
         elif args.acct_cmd == "delete":
-            acct_delete(args.name, args.currency)
+            acct_delete(bundle.accounts, args.name, args.currency)
         elif args.acct_cmd == "activate":
-            acct_activate(args.name, args.currency, True)
+            acct_activate(bundle.accounts, args.name, args.currency, True)
         elif args.acct_cmd == "deactivate":
-            acct_activate(args.name, args.currency, False)
+            acct_activate(bundle.accounts, args.name, args.currency, False)
         return
 
     if args.cmd == "add":
-        from . import models
-        from .adapters.local_csv import LocalCsvUnitOfWork
-        from .application.cashflow import CashflowService
-        service = CashflowService(LocalCsvUnitOfWork(models.FT_DIR))
+        from .schema import CURRENCY_SYMBOLS
+        service = _runtime_services().cashflow
         result = service.add_manual_transaction(
             amount=Decimal(args.amount),
             counterparty=args.counterparty,
             account_name=args.account,
+            currency=args.currency,
             description=args.description,
             source=args.source,
             date=args.date,
@@ -331,130 +273,32 @@ def main(argv=None):
             print(f"❌ {result.error.message}")
             raise SystemExit(1)
         account = result.details["account"]
-        sym = models.CURRENCY_SYMBOLS.get(account.currency, "")
+        sym = CURRENCY_SYMBOLS.get(account.currency, "")
         print(f"✅ 已记录: {sym}{Decimal(args.amount):+.2f} {args.counterparty} ({args.account})")
         return
 
-    if args.cmd == "commit":
-        from . import models
-        result = build_local_services(models.FT_DIR).change_sets.commit(args.message)
-        if result.details["committed"]:
-            print("✅ 已提交")
-        else:
-            print("📭 无待提交变更")
-        return
-
-    if args.cmd == "status":
-        from . import models
-        status = build_local_services(models.FT_DIR).change_sets.status()
-        if status.clean:
-            print("📭 无未提交改动")
-        else:
-            print("\n".join(status.changed_files))
-        return
-
-    if args.cmd == "reset":
-        from . import models
-        service = build_local_services(models.FT_DIR).change_sets
-        status = service.status()
-        if status.clean:
-            print("📭 无未提交改动，无需重置")
-            return
-        print("以下未提交改动将被丢弃：")
-        print("\n".join(status.changed_files))
-        confirm = input("确定要丢弃以上改动？(y/N): ")
-        if confirm.lower() != "y":
-            print("已取消")
-            return
-        service.reset()
-        print("✅ 已重置到最近一次提交")
-        return
-
-    if args.cmd == "verify":
-        from . import models
-        result = build_local_services(models.FT_DIR).verification.verify(fix=args.fix)
-        if result.rebuilt:
-            print("✅ 已从 CSV 重建全部账户快照")
-        print("🔍 Security 校验")
-        for finding in result.investment_findings:
-            print(finding.message)
-        print("\n🔍 Cash/Loan/Lend 校验")
-        if result.cashflow_count == 0:
-            print("  📭 无现金类记录")
-        elif result.cashflow_findings:
-            for finding in result.cashflow_findings[:5]:
-                print(f"  ⚠️ {finding.message}")
-            print(f"  ❌ {len(result.cashflow_findings)} 条记录来自未知账户，请 ft acct add")
-        else:
-            print(f"  ✅ 共 {result.cashflow_count} 条记录，账户一致")
-        if result.ok:
-            print("\n✅ 全部校验通过")
-        else:
-            print("\n❌ 存在不一致，请检查")
-        return
-
     if args.cmd == "convert":
-        from . import models
-        result = build_local_services(models.FT_DIR).cashflow_imports.convert(
-            CashflowConvertCommand(
-                source_path=args.file,
-                source=args.source,
-                password=args.password,
-                account=args.account,
-                currency=args.currency,
+        payload = _statement_export(
+            StatementImportCommand(
+                source_path=args.file, source=args.source,
+                password=_read_password_file(args.password_file),
+                account=args.account, currency=args.currency,
             )
         )
-        if not result.ok:
+        if not payload.rows:
             print("❌ 无数据可输出")
             return
-        write_csv_export(result.export, args.output)
-        print(f"✅ 已转换 {result.count} 条 → {args.output}")
-        return
-
-    if args.cmd == "append":
-        from . import models
-        result = build_local_services(models.FT_DIR).cashflow_imports.append(args.files)
-        if result.count == 0:
-            print("📭 无数据", file=sys.stderr)
-            return
-        for date, count in result.details["by_date"].items():
-            print(f"  {date}: +{count} 条")
-        print(f"✅ 总计: 追加 {result.count} 条")
-        print("💡 改动已暂存，执行 ft commit 提交")
-        return
-
-    if args.cmd == "reconcile":
-        if args.month and (args.date_from or args.date_to):
-            parser.error("--month 与 --from/--to 不能同时使用")
-        from . import models
-        service = build_local_services(models.FT_DIR).reconciliation
-        if args.abort:
-            if args.month or args.date_from or args.date_to or args.continue_with_decisions:
-                parser.error("reconcile --abort 不能和范围参数或 --continue-with-decisions 同时使用")
-            result = service.abort()
-        elif args.continue_with_decisions:
-            if args.month or args.date_from or args.date_to:
-                parser.error("reconcile --continue-with-decisions 不能和范围参数同时使用")
-            result = service.continue_with_decisions()
-        else:
-            result = service.start(
-                month=args.month, date_from=args.date_from, date_to=args.date_to
-            )
-        if not result.ok:
-            print(f"❌ {result.error.message}")
-            raise SystemExit(1)
-        print(result.message)
+        write_csv_export(payload, args.output)
+        print(f"✅ 已转换 {len(payload.rows)} 条 → {args.output}")
         return
 
     if args.cmd == "report":
-        from . import models
-        result = build_local_services(models.FT_DIR).queries.report(month=args.month)
+        result = _runtime_services().queries.report(month=args.month)
         render_finance_report(result, month=args.month)
         return
 
     if args.cmd == "list":
-        from . import models
-        result = build_local_services(models.FT_DIR).queries.list_transactions(
+        result = _runtime_services().queries.list_transactions(
             month=args.month, account=args.account,
             category=args.category, limit=args.limit,
         )
@@ -462,33 +306,31 @@ def main(argv=None):
         return
 
     if args.cmd == "checkin":
-        from . import models
-        from .adapters.local_csv import LocalCsvUnitOfWork
-        from .application.cashflow import CashflowService
-        service = CashflowService(LocalCsvUnitOfWork(models.FT_DIR))
+        from .schema import CURRENCY_SYMBOLS
+        service = _runtime_services().cashflow
         result = service.checkin_balance(
             account_name=args.account,
             balance=Decimal(args.balance),
             date=args.date,
+            currency=args.currency,
         )
         if not result.ok:
             print(f"❌ {result.error.message}")
             raise SystemExit(1)
         account = result.details["account"]
-        sym = models.CURRENCY_SYMBOLS.get(account.currency, "")
+        sym = CURRENCY_SYMBOLS.get(account.currency, "")
         print(f"✅ {args.account}: 余额校准 {sym}{Decimal(args.balance):.2f} ({result.details['day']})")
         return
 
     if args.cmd == "transfer":
-        from . import models
-        from .adapters.local_csv import LocalCsvUnitOfWork
-        from .application.cashflow import TransferService
-        service = TransferService(LocalCsvUnitOfWork(models.FT_DIR))
+        from .schema import CURRENCY_SYMBOLS
+        service = _runtime_services().transfers
         result = service.transfer(
             from_name=args.from_acct, to_name=args.to_acct,
             amount=Decimal(args.amount),
             to_amount=Decimal(args.to_amount) if args.to_amount is not None else None,
             date=args.date, description=args.description,
+            from_currency=args.from_currency, to_currency=args.to_currency,
         )
         if not result.ok:
             print(f"❌ {result.error.message}")
@@ -499,55 +341,31 @@ def main(argv=None):
         to_acct = result.details["to_account"]
         amount = result.details["amount"]
         to_amount = result.details["to_amount"]
-        from_sym = models.CURRENCY_SYMBOLS.get(from_acct.currency, "")
-        to_sym = models.CURRENCY_SYMBOLS.get(to_acct.currency, "")
+        from_sym = CURRENCY_SYMBOLS.get(from_acct.currency, "")
+        to_sym = CURRENCY_SYMBOLS.get(to_acct.currency, "")
         print(f"✅ {args.from_acct} {from_sym}{-amount:,.2f} → {args.to_acct} {to_sym}{to_amount:,.2f} ({result.details['date']})")
         if "rate" in result.details:
             print(f"   汇率: 1 {to_acct.currency} = {result.details['rate']:.4f} {from_acct.currency}")
         return
 
     if args.cmd == "stock":
-        from . import models
+        if args.stock_cmd == "convert":
+            payload = _statement_export(StatementImportCommand(
+                source_path=args.file, source=args.source,
+                password=_read_password_file(args.password_file),
+                account=args.account or "东方证券", currency=args.currency,
+            ))
+            if payload.rows:
+                write_csv_export(payload, args.output)
+                print(f"✅ 已转换 {len(payload.rows)} 条记录 → {args.output}")
+            else:
+                print("❌ 未解析到任何交易记录")
+            return
+        bundle = _runtime_services()
         if not args.stock_cmd:
-            render_portfolio(build_local_services(models.FT_DIR).portfolio.get_portfolio())
+            render_portfolio(bundle.portfolio.get_portfolio())
             return
 
-        if args.stock_cmd == "sync":
-            if not args.sync_cmd:
-                print("❌ 请指定 sync provider，例如: ft stock sync polymarket / ft stock sync kraken")
-                sys.exit(1)
-            command = ConnectorSyncCommand(
-                provider=args.sync_cmd,
-                account=args.account,
-                since=getattr(args, "since", None),
-                dry_run=args.dry_run,
-                export=bool(args.output),
-                symbols=tuple(getattr(args, "symbols", None) or ()),
-                wallet=getattr(args, "wallet", None),
-                proxy_wallet=getattr(args, "proxy_wallet", None),
-                limit=getattr(args, "limit", 500),
-                max_pages=getattr(args, "max_pages", None),
-            )
-            try:
-                result = build_local_services(models.FT_DIR).connector_sync.sync(command)
-            except ValueError as exc:
-                print(f"❌ {exc}")
-                raise SystemExit(1)
-            print(f"Connector: {result.provider}; 账户: {result.account}")
-            print(
-                f"映射行: {result.fetched_count}; 新增行: {result.new_count}; "
-                f"跳过: {result.skipped_count}"
-            )
-            if args.output and result.export is not None:
-                write_csv_export(result.export, args.output)
-                print(f"✅ 已写出待导入 CSV: {args.output}")
-            elif args.dry_run:
-                print("DRY-RUN: 未写入 ft records")
-            elif result.new_count == 0:
-                print("✅ 没有新增交易或资金流水")
-            return
-
-        bundle = build_local_services(models.FT_DIR)
         service = bundle.investments
         try:
             result = None
@@ -593,30 +411,12 @@ def main(argv=None):
                 else:
                     print("❌ 请指定 --ticker+--shares+--avg-cost 或 --cash")
                     return
-            elif args.stock_cmd == "convert":
-                result = service.convert(InvestmentConvertCommand(
-                    source_path=args.file,
-                    source=args.source,
-                    password=args.password,
-                    account=args.account or "东方证券",
-                    currency=args.currency,
-                ))
-                if result.ok:
-                    write_csv_export(result.export, args.output)
-                    print(f"✅ 已转换 {result.count} 条记录 → {args.output}")
-                else:
-                    print("❌ 未解析到任何交易记录")
-                return
-            elif args.stock_cmd == "append":
-                result = service.append(args.file)
-                if not result.ok:
-                    print(f"❌ {result.message}")
-                    raise SystemExit(1)
-                print(f"✅ 已导入 {result.count} 条记录到 security 记录")
-                return
             elif args.stock_cmd == "list":
                 render_portfolio(bundle.portfolio.get_portfolio())
                 return
+            if result is not None and not result.ok:
+                print(f"❌ {result.message}")
+                raise SystemExit(1)
             if result is not None and result.message:
                 print(result.message)
         except (ValueError, FileNotFoundError) as exc:

@@ -1,186 +1,56 @@
-# 统一账单 CSV 格式
+# 显式 CSV 导出格式
 
-## convert / records 主 CSV 字段
+CSV 只是一种用户选择的导出格式，不是 Finance Tracker 的运行时存储。导出文件不会注册为账本、
+snapshot、pending session 或恢复来源，也没有 `append` 命令把它提交为正式事实。
 
-当前主 CSV 已升级为“**事实账本 + 关系建议**”，不再是旧版只适合最终记账结果的 9 列格式。
+## 现金账单导出
 
-| 列名 | 含义 | 示例 |
-|------|------|------|
-| `record_id` | 稳定记录 ID | `alipay_000123` |
-| `date` | 交易时间 | `2026-06-09 12:24:54` |
-| `amount` | 原始金额（负数=支出） | `-4.50` |
-| `currency` | 币种 | `CNY`, `USD`, `HKD` |
-| `counterparty` | 交易对方（**已剥离支付源前缀**） | `霸王茶姬（鼎成中心店）`, `麦当劳` |
-| `description` | 补充说明（仅有意义时填充） | 空 / `手机银行` / `10/24 京东支付-京东商城业务` |
-| `category` | 收支分类 | `expense`, `income`, `transfer_out`, `transfer_in` |
-| `account_name` | 使用的账户 | `工行信用卡(1200)`, `微信零钱` |
-| `source` | **支付源**（怎么付的） | `支付宝`, `微信`, `美团支付`, `微信支付` |
-| `bill_source` | 账单来源类型 | `alipay`, `wechat`, `icbc_credit` |
-| `transfer_account` | 转账对侧账户 | `微信零钱` |
-| `locked` | 是否人工锁定 | `1` / 空 |
-| `offset_group` | 同一组退款/撤销/offset 关系 ID | `refund_000001` |
-| `offset_role` | 当前行在关系中的角色 | `expense`, `refund`, `offset_income` |
-| `offset_strength` | 关系置信度 | `strong`, `weak` |
-| `offset_source` | 关系来源信号 | `alipay_status`, `wechat_status`, `reversal` |
-| `offset_rule_hint` | 关系命中规则 | `refund_cp_match` |
-| `offset_match_type` | 关系类型 | `full`, `partial` |
-| `proposed_action` | 建议动作 | `leave_as_is`, `merge_refund_into:<record_id>` |
+字段来自 `ft.domain.imports.CASHFLOW_EXPORT_FIELDS`：
 
----
+| 字段 | 含义 |
+|---|---|
+| `record_id` | provider 记录身份 |
+| `date` | 原始业务时间 |
+| `amount` | 精确十进制文本 |
+| `currency` | 三字符币种 |
+| `counterparty` / `description` | 交易对方与说明 |
+| `category` | income / expense / transfer 等 |
+| `account_name` | 用户显式指定的目标账户 |
+| `source` / `bill_source` | 支付来源与 provider |
+| `offset_*` | parser 产生的退款/冲正关系证据 |
+| `proposed_action` | 解析建议，仅供检查 |
 
-## convert 合同
+命令：
 
-`convert` 的职责是：
+```bash
+ft convert statement.csv --source alipay --account Wallet --output preview.csv
+```
 
-- 保留原始消费事实
-- 保留原始退款 / 撤销 / offset 事实
-- 输出关系元信息和建议动作
-- **不在 convert 阶段净额化、删行或产出最终记账结果**
+## 投资账单导出
 
-这意味着：
+字段来自 `ft.schema.CSV_FIELDS`，采用统一事件语义：
 
-- 全额退款：消费与退款两条事实都保留
-- 部分退款：消费金额保持原值，退款单独保留
-- 撤销交易：原交易与撤销交易都保留，只通过关系字段关联
-- offset income（刷卡金、返现、减免年费）：保留原始事实，不伪装成别的最终结果
+| 字段 | 含义 |
+|---|---|
+| `date` | 业务时间 |
+| `action` | swap / deposit / withdraw / dividend / checkin |
+| `from_ticker` / `to_ticker` | 资产流出/流入腿 |
+| `from_amount` / `to_amount` | 精确数量文本 |
+| `price` | provider 价格证据 |
+| `commission` / `commission_asset` | 手续费数量与资产 |
+| `currency` | 成本/结算币种 |
+| `account_name` | 目标投资账户 |
+| `note` | 来源说明 |
 
-真正的净额执行、镜像去重和最终账本投影后移到：
+命令：
 
-- `ai_apply`
-- `reconcile`
-- 或未来明确的 apply/netting 阶段
+```bash
+ft stock convert statement.pdf --source dfzq --account 东方证券 --output preview.csv
+```
 
----
+## 精度与安全边界
 
-## counterparty（交易对方）规则
-
-### 支付源前缀剥离
-
-`counterparty` 从工行信用卡 PDF 的交易场所提取后，会去掉已知支付源前缀，保留纯商家名。
-支付源信息已独立在 `source` 列中，无需冗余。
-
-| 原始交易场所 | 剥离后 counterparty | source |
-|-------------|---------------------|--------|
-| `美团支付-美团App霸王茶姬（鼎成中心店）` | `美团App霸王茶姬（鼎成中心店）` | 美团支付 |
-| `支付宝-北京嘀嘀无限科技发展有限公司` | `北京嘀嘀无限科技发展有限公司` | 支付宝 |
-| `财付通-新渔阳滑雪场` | `新渔阳滑雪场` | 微信支付 |
-| `京东支付-爽威京东自营旗舰店` | `爽威京东自营旗舰店` | 京东支付 |
-| `程支付-上海携程国际旅行社有限公司` | `上海携程国际旅行社有限公司` | 携程 |
-
-**剥离的前缀列表**（按优先级匹配，只匹配一次）：
-`美团支付-`、`京东支付-`、`财付通-`、`支付宝-`、`网银在线-`、`拼多多支付-`、`程支付-`、`抖音支付-`
-
-**不分期记录**如 `10/24 京东支付-京东商城业务` 保留完整字符串（分期标记+商家），不剥离前缀。
-
-### 商家名换行合并
-
-工行信用卡 PDF 中商家名常因排版换行被截断，解析时自动合并：
-- `外卖霸王茶姬（鼎` + `成中心店）` → `外卖霸王茶姬（鼎成中心店）`
-- `北京嘀嘀无限科技发展有` + `限公司` → `北京嘀嘀无限科技发展有限公司`
-
----
-
-## description（描述）规则
-
-`description` **只保留有含义的补充信息**，不充当商家名的溢出容器。
-
-| 场景 | counterparty | description | 说明 |
-|------|-------------|-------------|------|
-| 普通消费 | `新渔阳滑雪场` | 空 | 商家名已在 counterparty |
-| 商户名跨行 | `美团App霸王茶姬（鼎成中心店）` | 空 | 换行内容合并进 counterparty |
-| 手机银行转账 | `测试用户` | `手机银行` | 转账渠道为补充信息 |
-| 京东分期 | `10/24 京东支付-京东商城业务` | 空 | 分期信息在 counterparty |
-| 可配对退款 | 保留原消费/退款各自描述 | 保留原始文本 | 不再在 convert 阶段核销消除 |
-| 孤退款 | `京东商城业务` | `网银在线-京东商城业务` | 保留溯源信息 |
-
----
-
-## 退款 / 撤销关系规则
-
-工行信用卡、支付宝、微信、工行借记卡、建行借记卡统一遵循：
-
-1. 先识别退款 / 撤销候选事实
-2. 再匹配对应消费或被冲销交易
-3. 命中后只写入 `offset_*` 与 `proposed_action`
-4. **不在 convert 阶段删除任何已命中的原始事实**
-
-### 关系字段含义
-
-- `offset_group`：同一组关系的共享 ID
-- `offset_role`：当前行是 `expense`、`refund` 还是 `offset_income`
-- `offset_strength`：关系置信度
-- `offset_source`：识别来源信号
-- `offset_rule_hint`：命中的具体规则
-- `offset_match_type`：`full` / `partial`
-- `proposed_action`：后续执行层可消费的建议动作
-
-### 关系结果示例
-
-#### 部分退款
-- 消费行：`amount=-100.00`, `offset_role=expense`, `offset_match_type=partial`
-- 退款行：`amount=30.00`, `offset_role=refund`, `proposed_action=merge_refund_into:<record_id>`
-
-#### 全额退款
-- 消费行保留
-- 退款行保留
-- 两边共享同一 `offset_group`
-
-#### 撤销交易
-- 原支出保留
-- 撤销收入保留
-- 通过关系字段标明为同组 reversal
-
----
-
-## 金额方向检测（ICBC）
-
-工行信用卡 PDF 中 `借`/`贷` 出现在金额行**之前**。通过**后向扫描**精确匹配：
-
-- 从金额行向前扫描最多 10 行，跳过空白行、币种行
-- **精确匹配** `line.strip() == "借"`（非子串匹配，避免`借记卡`误触发）
-- 匹配到 `借` → 金额取反，category=expense
-- 匹配到 `贷` → 金额保持正数，category=income
-
----
-
-## source（支付源）规则
-
-表示资金通过哪个渠道支付。不从账单层级直接确定，从信用卡交易场所推断。
-
-| 账单类型 | source 值 |
-|----------|-----------|
-| 支付宝账单 | `支付宝` |
-| 微信账单 | `微信` |
-| 工行信用卡（交易场所含前缀） | `美团支付`, `京东支付`, `微信支付`, `支付宝`, `网银在线`, `Apple Pay` 等 |
-| 工行信用卡（无前缀/直接刷卡） | `银行卡` |
-
-### 信用卡支付源推断（PAYMENT_SOURCE_RULES）
-
-从 `交易场所` 列的前缀推断：
-
-| 前缀 | 支付源 | 示例 |
-|------|--------|------|
-| `美团支付-` | 美团支付 | `外卖霸王茶姬` |
-| `京东支付-` | 京东支付 | `爽威京东自营旗舰店` |
-| `财付通-` | 微信支付 | `瑞幸咖啡` |
-| `财付通(银联云闪付)` | 银联云闪付 | — |
-| `支付宝-` | 支付宝 | `北京嘀嘀无限科技发展有限公司` |
-| `网银在线-` | 网银在线 | `海天京东自营旗舰店` |
-| `Apple.com/bill` | Apple Pay | `Apple.com/bill MQZF72ZG2Fa0S` |
-| `拼多多支付-` | 拼多多支付 | `橙予进口专营店` |
-| `程支付-` | 携程 | `上海携程国际旅行社有限公司` |
-| `（特约）抖音支付` | 抖音支付 | — |
-| 无匹配 | 银行卡 | 直接刷卡消费 |
-
-注意：`source` 的推断基于**原始**交易场所（含前缀），不受 `counterparty` 剥离前缀影响。
-
----
-
-## 对比：source vs 关系字段
-
-| | source（支付源） | offset / proposed_action（关系字段） |
-|--|-----------------|--------------------------------------|
-| 回答的问题 | 钱从哪个支付渠道走的 | 这条事实与哪条退款/撤销/offset 有关系 |
-| 示例 | `支付宝` | `offset_role=refund` |
-| 是否影响金额 | 否 | 否，convert 阶段只标关系，不改原金额 |
-| 主要消费阶段 | convert / append / records | reconcile / ai_apply |
+- 导出金额和数量使用十进制字符串，不写二进制浮点结果。
+- 超过 18 位小数、NaN 和 Infinity 在导出前失败。
+- 导出可能含敏感财务描述，用户负责选择受控路径；应用不会自动提交或上传输出文件。
+- 数据库中的 raw record、formal fact 和 revision 才构成正式审计链。

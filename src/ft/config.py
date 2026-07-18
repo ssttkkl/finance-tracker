@@ -1,11 +1,10 @@
-"""Explicit storage configuration with a local-compatible default."""
+"""PostgreSQL-only runtime configuration."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 import os
-from pathlib import Path
 
-import yaml
+from sqlalchemy.engine import make_url
 
 
 class StorageConfigurationError(ValueError):
@@ -14,41 +13,33 @@ class StorageConfigurationError(ValueError):
 
 @dataclass(frozen=True)
 class StorageSettings:
-    backend: str
-    ledger_root: Path
-    database_url: str | None = None
-    workspace_id: str | None = None
+    database_url: str
+    workspace_id: str
 
     def __post_init__(self):
-        if self.backend not in {"local", "postgres"}:
-            raise StorageConfigurationError(
-                f"storage.backend must be local or postgres, got {self.backend!r}"
-            )
-        if self.backend == "postgres" and not self.database_url:
-            raise StorageConfigurationError("storage.database_url is required for postgres")
-        if self.backend == "postgres" and not self.workspace_id:
-            raise StorageConfigurationError("storage.workspace_id is required for postgres")
+        if not self.database_url:
+            raise StorageConfigurationError("FT_DATABASE_URL is required")
+        if not self.workspace_id:
+            raise StorageConfigurationError("FT_WORKSPACE_ID is required")
+        try:
+            backend = make_url(self.database_url).get_backend_name()
+        except Exception as exc:
+            raise StorageConfigurationError("FT_DATABASE_URL is invalid") from exc
+        if backend != "postgresql":
+            raise StorageConfigurationError("FT_DATABASE_URL must use PostgreSQL")
 
     @classmethod
-    def load(cls, config_path=None, *, environ=None) -> "StorageSettings":
+    def load(cls, *, environ=None) -> "StorageSettings":
         environment = dict(os.environ if environ is None else environ)
-        data = {}
-        if config_path is not None:
-            raw = yaml.safe_load(Path(config_path).read_text(encoding="utf-8")) or {}
-            data = dict(raw.get("storage", {}))
-            for key in ("backend", "ledger_root", "database_url", "workspace_id"):
-                dotted = f"storage.{key}"
-                if dotted in raw:
-                    data[key] = raw[dotted]
-        backend = environment.get("FT_STORAGE_BACKEND", data.get("backend", "local"))
-        home = environment.get("HOME")
-        default_root = Path(home) / ".ft" if home else Path.home() / ".ft"
-        ledger_root = Path(environment.get(
-            "FT_DIR", data.get("ledger_root", default_root)
-        )).expanduser()
-        return cls(
-            backend=str(backend),
-            ledger_root=ledger_root,
-            database_url=environment.get("FT_DATABASE_URL", data.get("database_url")),
-            workspace_id=environment.get("FT_WORKSPACE_ID", data.get("workspace_id")),
-        )
+        for legacy_key in ("FT_STORAGE_BACKEND", "FT_DIR"):
+            if legacy_key in environment:
+                raise StorageConfigurationError(
+                    f"{legacy_key} is no longer supported; PostgreSQL is the only runtime storage"
+                )
+        database_url = environment.get("FT_DATABASE_URL", "")
+        workspace_id = environment.get("FT_WORKSPACE_ID", "")
+        if not database_url:
+            raise StorageConfigurationError("FT_DATABASE_URL is required")
+        if not workspace_id:
+            raise StorageConfigurationError("FT_WORKSPACE_ID is required")
+        return cls(database_url=database_url, workspace_id=workspace_id)

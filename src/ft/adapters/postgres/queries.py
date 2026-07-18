@@ -1,15 +1,14 @@
 """Read adapters used by storage-independent application query services."""
 from __future__ import annotations
 
-from copy import deepcopy
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
 from ft.domain.accounts import AccountDTO
-from ft.schema import DEFAULT_SNAPSHOT
-
-from .models import AccountModel, CashTransactionModel, LedgerSnapshotModel
-from .repositories import PostgresCashflowRepository
+from .models import AccountModel, CashTransactionModel
+from .repositories import PostgresCashflowRepository, PostgresSnapshotRepository, _parse_timestamp
 
 
 class PostgresAccountQueryRepository:
@@ -32,21 +31,38 @@ class PostgresTransactionQueryRepository:
         self._sessions = session_factory
         self._workspace_id = workspace_id
 
-    def list_transactions(self, *, month=None, account=None, category=None):
+    def list_transactions(self, *, month=None, account=None, category=None, limit=None):
         with self._sessions() as session:
-            statement = select(CashTransactionModel).where(
-                CashTransactionModel.workspace_id == self._workspace_id
+            statement = (
+                select(CashTransactionModel, AccountModel)
+                .join(AccountModel, (
+                    AccountModel.workspace_id == CashTransactionModel.workspace_id
+                ) & (AccountModel.id == CashTransactionModel.account_id))
+                .where(CashTransactionModel.workspace_id == self._workspace_id)
             )
             if month:
-                statement = statement.where(CashTransactionModel.occurred_at.like(f"{month}%"))
+                start_local = datetime.strptime(month, "%Y-%m").replace(
+                    day=1, tzinfo=ZoneInfo("Asia/Shanghai")
+                )
+                if start_local.month == 12:
+                    end_local = start_local.replace(year=start_local.year + 1, month=1)
+                else:
+                    end_local = start_local.replace(month=start_local.month + 1)
+                statement = statement.where(
+                    CashTransactionModel.occurred_at >= _parse_timestamp(start_local),
+                    CashTransactionModel.occurred_at < _parse_timestamp(end_local),
+                )
             if account:
-                statement = statement.where(CashTransactionModel.account_name == account)
+                statement = statement.where(AccountModel.name == account)
             if category:
                 statement = statement.where(CashTransactionModel.category == category)
-            rows = session.scalars(statement.order_by(
-                CashTransactionModel.occurred_at, CashTransactionModel.id
-            ))
-            return [PostgresCashflowRepository._to_row(row) for row in rows]
+            statement = statement.order_by(
+                CashTransactionModel.occurred_at.desc(), CashTransactionModel.id.desc()
+            )
+            if limit is not None:
+                statement = statement.limit(limit)
+            rows = session.execute(statement)
+            return [PostgresCashflowRepository._to_row(row, account_row) for row, account_row in rows]
 
 
 class PostgresSnapshotQueryRepository:
@@ -56,8 +72,7 @@ class PostgresSnapshotQueryRepository:
 
     def load_snapshot(self):
         with self._sessions() as session:
-            model = session.get(LedgerSnapshotModel, self._workspace_id)
-            return deepcopy(model.payload if model is not None else DEFAULT_SNAPSHOT)
+            return PostgresSnapshotRepository(session, self._workspace_id).load()
 
 
 class PostgresPortfolioRepository:
@@ -71,12 +86,15 @@ class PostgresPortfolioRepository:
                 AccountModel.workspace_id == self._workspace_id,
                 AccountModel.type.in_(("security", "crypto")),
             )))
-            snapshot = session.get(LedgerSnapshotModel, self._workspace_id)
-            payload = snapshot.payload if snapshot is not None else DEFAULT_SNAPSHOT
+            payload = PostgresSnapshotRepository(session, self._workspace_id).load()
         base_currencies = {
-            account.name: tuple(
-                str(item).upper() for item in account.metadata_json.get("base_currencies", ())
-            )
+            account.name: tuple(sorted({
+                account.currency.upper(),
+                *(
+                    str(item).upper()
+                    for item in account.metadata_json.get("base_currencies", ())
+                ),
+            }))
             for account in accounts
         }
         configured = sorted({item for values in base_currencies.values() for item in values})

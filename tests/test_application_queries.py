@@ -14,7 +14,7 @@ class FakeTransactions:
     def __init__(self, rows):
         self.rows = [dict(row) for row in rows]
 
-    def list_transactions(self, *, month=None, account=None, category=None):
+    def list_transactions(self, *, month=None, account=None, category=None, limit=None):
         rows = self.rows
         if month:
             rows = [row for row in rows if row["date"].startswith(month)]
@@ -22,7 +22,8 @@ class FakeTransactions:
             rows = [row for row in rows if row.get("account_name") == account]
         if category:
             rows = [row for row in rows if row.get("category") == category]
-        return [dict(row) for row in rows]
+        rows = sorted(rows, key=lambda row: row.get("date", ""), reverse=True)
+        return [dict(row) for row in (rows[:limit] if limit is not None else rows)]
 
 
 class FakeSnapshot:
@@ -157,7 +158,8 @@ def test_cli_report_and_list_enter_query_service(monkeypatch, capsys):
             ),))
 
     bundle = type("Bundle", (), {"queries": FakeService()})()
-    monkeypatch.setattr("ft.cli.build_local_services", lambda _root: bundle)
+    monkeypatch.setattr("ft.config.StorageSettings.load", lambda: object())
+    monkeypatch.setattr("ft.cli.build_services", lambda _settings: bundle)
 
     cli.main(["report", "--month", "2026-06"])
     cli.main(["list", "--month", "2026-06", "--limit", "1"])

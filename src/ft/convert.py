@@ -1,11 +1,11 @@
 """convert — 账单 → 统一CSV"""
-import csv
 import hashlib
-import sys
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
+import os
+import tempfile
 
-from .mapping import load_rules, match_payment_method
 
 # 消费平台推断规则 — 从交易对方/描述中识别
 PLATFORM_RULES = [
@@ -430,10 +430,6 @@ def _ccb_refund_cluster(rec: dict) -> str:
     return ""
 
 
-def _is_icbc_credit_refund_text(counterparty: str, description: str) -> bool:
-    return _classify_icbc_credit_offset_type(counterparty, description) == "merchant_refund"
-
-
 def _refund_matches_basic_constraints(exp: dict, ref: dict, ref_amt: float, remaining_amount: float) -> bool:
     exp_account = _specific_payment_account(exp.get("payment_method", ""))
     ref_account = _specific_payment_account(ref.get("payment_method", ""))
@@ -768,16 +764,6 @@ def _wechat_refund_brand_aliases(value: str) -> set[str]:
     return aliases
 
 
-def _wechat_is_social_refund(*, expense: dict, refund: dict) -> bool:
-    text = " ".join([
-        expense.get("txn_type", ""),
-        expense.get("description", ""),
-        refund.get("txn_type", ""),
-        refund.get("description", ""),
-    ])
-    return any(token in text for token in ("红包", "转账"))
-
-
 def _collect_order_based_refund_candidates(expenses: list, ref: dict, consumed: list[bool], remaining: list[float], ref_amt: float):
     matches: dict[int, str] = {}
     merchant_order_id = (ref.get("merchant_order_id", "") or "").strip()
@@ -809,7 +795,7 @@ def _collect_order_based_refund_candidates(expenses: list, ref: dict, consumed: 
     candidates = []
     for i, rule_hint in matches.items():
         exp = expenses[i]
-        exact_amt = abs(remaining[i] - ref_amt) < 0.01
+        exact_amt = abs(remaining[i] - ref_amt) < Decimal("0.01")
         desc_match = bool(ref.get("description")) and (
             ref["description"] == exp.get("description", "")
             or ref["description"] in exp.get("description", "")
@@ -870,7 +856,7 @@ def _collect_wechat_refund_candidates(expenses: list, ref: dict, consumed: list[
     candidates = []
     for i, rule_hint in matches.items():
         exp = expenses[i]
-        exact_amt = abs(remaining[i] - ref_amt) < 0.01
+        exact_amt = abs(remaining[i] - ref_amt) < Decimal("0.01")
         candidates.append({
             "expense_index": i,
             "exact_amt": exact_amt,
@@ -919,7 +905,7 @@ def _pair_refunds(expenses: list, refunds: list, others: list):
                 if not _refund_matches_basic_constraints(exp, ref, ref_amt, abs(exp["amount"])):
                     continue
 
-                exact_amt = abs(abs(exp["amount"]) - ref_amt) < 0.01
+                exact_amt = abs(abs(exp["amount"]) - ref_amt) < Decimal("0.01")
                 desc_match = bool(ref["description"]) and (
                     ref["description"] == exp["description"]
                     or ref["description"] in exp["description"]
@@ -942,7 +928,7 @@ def _pair_refunds(expenses: list, refunds: list, others: list):
                 if (ref["description"] == exp["description"]
                         or ref["description"] in exp["description"]
                         or exp["description"] in ref["description"]):
-                    exact = abs(abs(exp["amount"]) - ref_amt) < 0.01
+                    exact = abs(abs(exp["amount"]) - ref_amt) < Decimal("0.01")
                     candidates.append({
                         "expense_index": i,
                         "exact_amt": exact,
@@ -979,7 +965,7 @@ def _pair_refunds(expenses: list, refunds: list, others: list):
             ref["_icbc_refund_same_account_cluster"] = len(account_clusters) == 1 and "" not in account_clusters
 
             if ref.get("_icbc_refund_same_cluster") and ref.get("_icbc_refund_same_account_cluster"):
-                amount_covering = [c for c in candidates if abs(candidate_expenses[c["expense_index"]]["amount"]) + 0.01 >= ref_amt]
+                amount_covering = [c for c in candidates if abs(candidate_expenses[c["expense_index"]]["amount"]) + Decimal("0.01") >= ref_amt]
                 if amount_covering:
                     amount_covering.sort(key=lambda c: c["expense_date"], reverse=True)
                     best = amount_covering[0]
@@ -1001,7 +987,7 @@ def _pair_refunds(expenses: list, refunds: list, others: list):
             ref["_icbc_debit_refund_same_account_cluster"] = len(account_clusters) == 1 and "" not in account_clusters
 
             if ref.get("_icbc_debit_refund_same_cluster") and ref.get("_icbc_debit_refund_same_account_cluster"):
-                amount_covering = [c for c in candidates if abs(candidate_expenses[c["expense_index"]]["amount"]) + 0.01 >= ref_amt]
+                amount_covering = [c for c in candidates if abs(candidate_expenses[c["expense_index"]]["amount"]) + Decimal("0.01") >= ref_amt]
                 if amount_covering:
                     amount_covering.sort(key=lambda c: c["expense_date"], reverse=True)
                     best = amount_covering[0]
@@ -1018,7 +1004,7 @@ def _pair_refunds(expenses: list, refunds: list, others: list):
             ref["_ccb_refund_same_cluster"] = len(offset_clusters) == 1 and "" not in offset_clusters
 
             if ref.get("_ccb_refund_same_cluster"):
-                amount_covering = [c for c in candidates if abs(candidate_expenses[c["expense_index"]]["amount"]) + 0.01 >= ref_amt]
+                amount_covering = [c for c in candidates if abs(candidate_expenses[c["expense_index"]]["amount"]) + Decimal("0.01") >= ref_amt]
                 if amount_covering:
                     amount_covering.sort(key=lambda c: c["expense_date"], reverse=True)
                     best = amount_covering[0]
@@ -1076,7 +1062,6 @@ def _read_alipay_raw(path: str):
         if len(row) < 7:
             raise ValueError(
                 f"❌ 支付宝账单行缺少字段: 仅 {len(row)} 列，预期 >= 7\n"
-                f"   row={row}\n"
                 f"   可能是支付宝导出的格式已变更，需要更新转换器"
             )
         date_str = row[h.get("交易时间", 0)].strip()[:19].replace("/", "-")
@@ -1084,8 +1069,8 @@ def _read_alipay_raw(path: str):
         amount_str = row[h.get("金额", 6)].strip()
         txn_type = row[h.get("交易分类", 1)].strip()
         try:
-            amount = float(amount_str)
-        except ValueError:
+            amount = Decimal(amount_str)
+        except (InvalidOperation, ValueError):
             raise ValueError(
                 f"❌ 支付宝账单金额无法解析: amount_str={amount_str!r}\n"
                 f"   date={date_str} direction={direction} type={txn_type}"
@@ -1155,7 +1140,7 @@ def _read_alipay_raw(path: str):
         fact_id = f"alipay_{txn_id}" if txn_id else f"alipay_{len(raw)+1:06d}"
         raw.append({
             "date": date_str,
-            "amount": round(amount, 2),
+            "amount": amount,
             "payment_method": payment_method,
             "counterparty": normalized_cp,
             "description": enriched_desc[:80],
@@ -1218,8 +1203,8 @@ def _read_wechat_raw(path: str):
                 continue
 
         try:
-            amount = float(vals[h["金额(元)"]])
-        except (ValueError, KeyError):
+            amount = Decimal(vals[h["金额(元)"]])
+        except (InvalidOperation, ValueError, KeyError):
             continue
         
         # 提前提取所有字段，后面会按需使用
@@ -1261,7 +1246,7 @@ def _read_wechat_raw(path: str):
             fact_id = f"wechat_{txn_id}" if txn_id else f"wechat_{len(raw)+1:06d}"
             raw.append({
                 "date": date_str,
-                "amount": round(amount, 2),
+                "amount": amount,
                 "payment_method": payment_method,
                 "counterparty": normalized_cp,
                 "description": enriched_desc[:80],
@@ -1289,7 +1274,7 @@ def _read_wechat_raw(path: str):
         fact_id = f"wechat_{txn_id}" if txn_id else f"wechat_{len(raw)+1:06d}"
         raw.append({
             "date": date_str,
-            "amount": round(amount, 2),
+            "amount": amount,
             "payment_method": payment_method,
             "counterparty": normalized_cp,
             "description": enriched_desc[:80],
@@ -1427,7 +1412,7 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                 card_number = current_card[-4:] if current_card else ""
                 fact_hash = _stable_short_hash(
                     f"{current_date} {current_time}",
-                    f"{round(amount, 2):.2f}",
+                    f"{amount:.2f}",
                     currency,
                     normalized_cp,
                     enriched_desc[:80],
@@ -1435,7 +1420,7 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                 )
                 rec = {
                     "date": f"{current_date} {current_time}",
-                    "amount": round(amount, 2),
+                    "amount": amount,
                     "currency": currency,
                     "counterparty": normalized_cp,
                     "description": enriched_desc[:80],
@@ -1523,16 +1508,20 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
 
             category = "expense" if amount < 0 else "income"
             normalized_cp, enriched_desc = _normalize_counterparty(cpy, summary[:80], "icbc")
+            fact_hash = _stable_short_hash(
+                date, time_str, f"{amount:.2f}", normalized_cp,
+                enriched_desc[:80], channel,
+            )
             rec = {
                 "date": f"{date} {time_str}",
-                "amount": round(amount, 2),
+                "amount": amount,
                 "counterparty": normalized_cp,
                 "description": enriched_desc[:80] or normalized_cp[:80],
                 "category": category,
                 "payment_method": channel,
                 "_raw_cp": cpy,
                 "_refund_signal": "",
-                "_fact_id": f"icbc_debit_{len(records)+1:06d}",
+                "_fact_id": f"icbc_debit_{fact_hash}",
             }
             if summary in {"退款", "退货"} and amount > 0:
                 rec["_is_refund"] = True
@@ -1570,30 +1559,13 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
 
 def _read_icbc_raw(path: str, password: str):
     """解析工行PDF，不落库，返回 (list[dict], bill_type, tracking_pairs)"""
-    import subprocess, os
+    from ft.importers.pdf_tools import decrypt_pdf, extract_pdf_text
 
-    decrypted = path + ".decrypted.pdf"
-    ret = subprocess.run(
-        ["qpdf", "--decrypt", "--password=" + password, path, decrypted],
-        capture_output=True, text=True, timeout=30,
-    )
-    if ret.returncode != 0:
-        print(f"❌ 解密失败: {ret.stderr.strip()}")
-        return [], "", []
-
-    txt_path = path + ".txt"
-    ret = subprocess.run(
-        ["mutool", "draw", "-F", "text", "-o", txt_path, decrypted],
-        capture_output=True, text=True, timeout=60,
-    )
-    os.unlink(decrypted)
-    if ret.returncode != 0:
-        print(f"❌ 提取文本失败: {ret.stderr.strip()}")
-        return [], "", []
-
-    with open(txt_path, encoding="utf-8") as f:
-        text = f.read()
-    os.unlink(txt_path)
+    with tempfile.TemporaryDirectory(prefix="ft-icbc-") as temp_dir:
+        os.chmod(temp_dir, 0o700)
+        decrypted = Path(temp_dir) / "statement.pdf"
+        decrypt_pdf(path, decrypted, password, timeout=30)
+        text = extract_pdf_text(decrypted)
 
     is_credit = "信用卡" in text
     lines = text.split("\n")
@@ -1615,7 +1587,7 @@ def _pair_reversals(records: list) -> tuple[list, list]:
         for ei, exp in expenses:
             if ei in paired_exp:
                 continue
-            if abs(abs(exp["amount"]) - inc_amt) > 0.005:
+            if abs(abs(exp["amount"]) - inc_amt) > Decimal("0.005"):
                 continue
             if exp["counterparty"] != inc["counterparty"]:
                 continue
@@ -1682,14 +1654,13 @@ def _parse_icbc_debit_row(row: list) -> dict | None:
     tm = _re.search(r"(\d{2}:\d{2}:\d{2})", dt_str)
     if not dm:
         raise ValueError(
-            f"❌ 工行借记卡行无法提取日期: row={row}\n"
+            "❌ 工行借记卡行无法提取日期\n"
             f"   可能是PDF格式变更，需要更新转换器"
         )
     # 保护：pdfplumber 可能返回截断行
     if len(row) < 13:
         raise ValueError(
             f"❌ 工行借记卡行列数不足: 仅 {len(row)} 列，预期 >= 13\n"
-            f"   row={row}\n"
             f"   可能是pdfplumber解析结果截断或PDF格式变更"
         )
     date = f"{dm.group(1)} {tm.group(1) if tm else '00:00:00'}"
@@ -1704,12 +1675,11 @@ def _parse_icbc_debit_row(row: list) -> dict | None:
     amt_m = _re.search(r"([+-])?([\d,]+\.[\d]{2})", amt_str)
     if not amt_m:
         raise ValueError(
-            f"❌ 工行借记卡行金额无法解析: amt_str={amt_str!r}\n"
-            f"   row={row}\n"
+            "❌ 工行借记卡行金额无法解析\n"
             f"   可能是PDF格式变更或水印干扰"
         )
     sign = amt_m.group(1) or ""
-    num = float(amt_m.group(2).replace(",", ""))
+    num = Decimal(amt_m.group(2).replace(",", ""))
     amount = -num if sign == "-" else num
 
     # 摘要 — 匹配已知关键词（水印噪声可能把关键词拆散）
@@ -1783,126 +1753,21 @@ def _is_subseq(pattern: str, text: str) -> bool:
     return all(ch in it for ch in pattern)
 
 
-def _parse_amt(s: str) -> float:
+def _parse_amt(s: str) -> Decimal:
     s = s.strip().replace(",", "").replace("+", "")
     try:
-        return float(s)
-    except ValueError:
-        return 0.0
+        return Decimal(s)
+    except (InvalidOperation, ValueError):
+        return Decimal("0")
 
 
-def _extract_merchant(ctx: str, nearby: list) -> str:
-    import re as _re
-    candidates = []
-    for line in nearby:
-        s = line.strip()
-        if s in ("", "借", "贷", "消费", "入账日期", "交易卡号", "收", "支",
-                 "交易币种", "入账币种", "入账金额", "账户余额",
-                 "人民币", "美元", "港币", "欧元", "日元",
-                 "对方户名", "对方账号", "摘要", "交易场所"):
-            continue
-        if _re.match(r"^[\d,]+\.[\d]{2}$", s):
-            continue
-        if _re.match(r"^\d{4}-\d{2}-\d{2}$", s):
-            continue
-        if _re.match(r"^\d{2}:\d{2}:\d{2}$", s):
-            continue
-        if len(s) < 2:
-            continue
-        if _re.match(r"^\d{16,}$", s):   # 过滤卡号（非商户名）
-            continue
-        candidates.append(s)
-
-    for c in candidates:
-        for kw in ["美团支付-", "京东支付-", "财付通-", "支付宝-", "网银在线-"]:
-            if kw in c:
-                after = c.split(kw, 1)[1]
-                after = after.split(",")[0].split("（")[0].strip()
-                after = after.split("…")[0].strip()
-                return f"{kw.split('-')[0]}-{after[:24]}"
-
-    candidates = [c for c in candidates if c != "消费"]
-    return candidates[0][:60] if candidates else ""
-
-
-def _route_account(rec, rules, default_action, bill_type):
-    """路由单条 rec 到账户名（复用 do_convert 中的映射逻辑）"""
-    from .mapping import match_payment_method
-    card_num = rec.get("card_number", "")
-    if card_num:
-        match = match_payment_method(rules, f"{bill_type}_{card_num}", "*")
-    else:
-        match = None
-    if not match:
-        match = match_payment_method(rules, bill_type, rec.get("payment_method", ""))
-    if match:
-        return match["account"]
-    return "未知"
-
-
-def _build_refund_tracking_rows(tracking_pairs, rules, default_action, bill_type):
-    """将 tracking_pairs 转成 10 列追踪 CSV 行（每对两行）"""
-    rows = []
-    for pair in tracking_pairs:
-        exp = pair["expense"]
-        ref = pair["refund"]
-        strength = pair.get("match_strength", "")
-        status_suffix = f"[{strength}]" if strength else ""
-
-        # 消费行
-        exp_net = round(exp["amount"] + ref["amount"], 2)
-        exp_status = "已全额退款" if abs(exp_net) < 0.01 else \
-                     f"已部分退款(净额{exp_net})"
-        if status_suffix:
-            exp_status = f"{exp_status}{status_suffix}"
-        exp_acct = _route_account(exp, rules, default_action, bill_type)
-        exp_source = _infer_payment_source(bill_type, exp.get("counterparty", ""), exp.get("description", ""))
-        rows.append([
-            exp["date"], exp["amount"], exp.get("currency", "CNY"),
-            exp.get("counterparty", ""), exp.get("description", ""),
-            "expense", exp_acct, exp_source,
-            bill_type, exp_status,
-        ])
-
-        # 退款行
-        ref_acct = _route_account(ref, rules, default_action, bill_type)
-        ref_source = _infer_payment_source(bill_type, ref.get("counterparty", ""), ref.get("description", ""))
-        refund_status = "退款核销"
-        if status_suffix:
-            refund_status = f"{refund_status}{status_suffix}"
-        rows.append([
-            ref["date"], ref["amount"], ref.get("currency", "CNY"),
-            ref.get("counterparty", ""), ref.get("description", ""),
-            "income", ref_acct, ref_source,
-            bill_type, refund_status,
-        ])
-    return rows
-
-
-def _build_output_row(rec: dict, *, bill_type: str, rules, default_action, account: str = None,
-                      currency: str = None) -> dict:
-    if account:
-        acct_name = account
-        cur = currency or "CNY"
-    else:
-        card_num = rec.get("card_number", "")
-        if card_num:
-            match = match_payment_method(rules, f"{bill_type}_{card_num}", "*")
-        else:
-            match = None
-        if not match:
-            match = match_payment_method(rules, bill_type, rec.get("payment_method", ""))
-        if match:
-            acct_name = match["account"]
-            cur = match["currency"]
-        else:
-            raise ValueError(
-                f"❌ 未匹配规则: source={bill_type} "
-                f"payment_method='{rec.get('payment_method', '')}' "
-                f"counterparty='{rec.get('counterparty', '')}' "
-                f"amount={rec.get('amount', '')}\n"
-                f"  请在 ~/.ft/mapping.yaml 中添加映射规则后重试"
-            )
+def _build_output_row(
+    rec: dict, *, bill_type: str, account: str, currency: str | None = None,
+) -> dict:
+    if not account:
+        raise ValueError("target account is required")
+    acct_name = account
+    cur = currency or "CNY"
 
     payment_src = _infer_payment_source(
         bill_type,
@@ -1914,8 +1779,17 @@ def _build_output_row(rec: dict, *, bill_type: str, rules, default_action, accou
     if bill_type == "icbc_credit" or bill_type == "icbc_debit":
         cpy = _strip_payment_prefix(cpy)
 
+    # Only provider-owned identifiers are safe for overlap idempotency.  The
+    # parser's `_fact_id` fallback may be row-position based; leaving it empty
+    # lets the import service derive a canonical content identity instead.
+    provider_record_id = ""
+    if bill_type in {"alipay", "wechat"}:
+        provider_record_id = rec.get("txn_id") or rec.get("merchant_order_id") or ""
+    elif bill_type in {"icbc_credit", "icbc_debit", "ccb_debit"}:
+        provider_record_id = rec.get("_fact_id", "")
+
     return {
-        "record_id": rec.get("record_id", rec.get("_fact_id", "")),
+        "record_id": provider_record_id,
         "date": rec["date"],
         "amount": rec["amount"],
         "currency": rec.get("currency", cur) or cur,
@@ -1935,36 +1809,6 @@ def _build_output_row(rec: dict, *, bill_type: str, rules, default_action, accou
         "offset_match_type": rec.get("offset_match_type", ""),
         "proposed_action": rec.get("proposed_action", "leave_as_is"),
     }
-
-
-def _write_output_csv(path: str | Path, rows: list[dict]):
-    with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["record_id", "date", "amount", "currency", "counterparty",
-                         "description", "category", "account_name", "source",
-                         "bill_source", "offset_group", "offset_role", "offset_strength",
-                         "offset_source", "offset_rule_hint", "offset_match_type", "proposed_action"])
-        writer.writerows([
-            [
-                row.get("record_id", ""), row["date"], row["amount"], row["currency"], row["counterparty"],
-                row["description"], row["category"], row["account_name"], row["source"],
-                row["bill_source"], row.get("offset_group", ""), row.get("offset_role", ""),
-                row.get("offset_strength", ""), row.get("offset_source", ""),
-                row.get("offset_rule_hint", ""), row.get("offset_match_type", ""),
-                row.get("proposed_action", "leave_as_is"),
-            ]
-            for row in rows
-        ])
-
-
-def _write_refund_csv(path: str | Path, tracking_pairs, rules, default_action, bill_type: str):
-    refund_rows = _build_refund_tracking_rows(tracking_pairs, rules, default_action, bill_type)
-    with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["date", "amount", "currency", "counterparty",
-                         "description", "category", "account_name", "source",
-                         "bill_source", "refund_status"])
-        writer.writerows(refund_rows)
 
 
 def _prepare_convert_rows(path: str, source: str, password: str = None):
@@ -2005,22 +1849,3 @@ def _prepare_convert_rows(path: str, source: str, password: str = None):
     rows = _build_convert_fact_rows(rows, tracking_pairs)
     rows = _attach_tracking_metadata(rows, tracking_pairs)
     return rows, bill_type, tracking_pairs
-
-
-def do_convert(path: str, source: str, output: str, password: str = None,
-               account: str = None, currency: str = None):
-    """convert 命令入口"""
-    rules, default_action = load_rules()
-    rows, bill_type, tracking_pairs = _prepare_convert_rows(path, source, password)
-
-    if not rows:
-        print("❌ 无数据可输出")
-        return
-
-    output_rows = [
-        _build_output_row(rec, bill_type=bill_type, rules=rules, default_action=default_action,
-                          account=account, currency=currency)
-        for rec in rows
-    ]
-    _write_output_csv(output, output_rows)
-    print(f"✅ 已转换 {len(output_rows)} 条 → {output}")

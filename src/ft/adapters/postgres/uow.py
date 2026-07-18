@@ -1,6 +1,8 @@
 """Transactional unit of work for workspace-bound database operations."""
 from __future__ import annotations
 
+from contextvars import ContextVar
+from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
@@ -19,6 +21,7 @@ class UnknownWorkspaceError(ValueError):
 
 
 def create_schema(engine) -> None:
+    """Create metadata for isolated adapter tests only; runtime uses Alembic."""
     Base.metadata.create_all(engine)
 
 
@@ -36,45 +39,84 @@ def ensure_workspace(session_factory, workspace_id: str, *, name: str | None = N
 
 
 class PostgresUnitOfWork:
-    ledger_root = None
-
     def __init__(self, session_factory, workspace_id: str):
         self._session_factory = session_factory
         self.workspace_id = workspace_id
-        self._session = None
-        self._committed = False
+        self._state_var = ContextVar(f"postgres_uow_{id(self)}", default=None)
+
+    @dataclass
+    class _State:
+        session: object
+        committed: bool = False
+        token: object | None = None
+        accounts: object | None = None
+        cashflows: object | None = None
+        investments: object | None = None
+        snapshot: object | None = None
+        imports: object | None = None
+
+    def _state(self) -> "PostgresUnitOfWork._State":
+        state = self._state_var.get()
+        if state is None:
+            raise RuntimeError("unit of work is not active")
+        return state
+
+    @property
+    def accounts(self):
+        return self._state().accounts
+
+    @property
+    def cashflows(self):
+        return self._state().cashflows
+
+    @property
+    def investments(self):
+        return self._state().investments
+
+    @property
+    def snapshot(self):
+        return self._state().snapshot
+
+    @property
+    def imports(self):
+        return self._state().imports
 
     def __enter__(self) -> "PostgresUnitOfWork":
-        self._session = self._session_factory()
-        workspace = self._session.scalar(
+        session = self._session_factory()
+        workspace = session.scalar(
             select(WorkspaceModel.id).where(WorkspaceModel.id == self.workspace_id)
         )
         if workspace is None:
-            self._session.close()
-            self._session = None
+            session.close()
             raise UnknownWorkspaceError(f"unknown workspace: {self.workspace_id}")
-        self.accounts = PostgresAccountRepository(self._session, self.workspace_id)
-        self.cashflows = PostgresCashflowRepository(self._session, self.workspace_id)
-        self.investments = PostgresInvestmentRepository(self._session, self.workspace_id)
-        self.snapshot = PostgresSnapshotRepository(self._session, self.workspace_id)
-        self.imports = PostgresImportRepository(self._session, self.workspace_id)
-        self._committed = False
+        state = self._State(
+            session=session,
+            accounts=PostgresAccountRepository(session, self.workspace_id),
+            cashflows=PostgresCashflowRepository(session, self.workspace_id),
+            investments=PostgresInvestmentRepository(session, self.workspace_id),
+            snapshot=PostgresSnapshotRepository(session, self.workspace_id),
+            imports=PostgresImportRepository(session, self.workspace_id),
+        )
+        state.token = self._state_var.set(state)
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
-        if self._session is None:
+        state = self._state_var.get()
+        if state is None:
             return
         try:
-            if exc_type is not None or not self._committed:
-                self._session.rollback()
+            if exc_type is not None or not state.committed:
+                state.session.rollback()
         finally:
-            self._session.close()
-            self._session = None
+            state.session.close()
+            self._state_var.reset(state.token)
 
     def commit(self) -> None:
-        self._session.commit()
-        self._committed = True
+        state = self._state()
+        state.session.commit()
+        state.committed = True
 
     def rollback(self) -> None:
-        self._session.rollback()
-        self._committed = False
+        state = self._state()
+        state.session.rollback()
+        state.committed = False

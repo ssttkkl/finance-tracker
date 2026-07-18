@@ -21,15 +21,6 @@ class InvestmentCommandDTO:
 
 
 @dataclass(frozen=True)
-class InvestmentConvertCommand:
-    source_path: str
-    source: str
-    password: str | None = None
-    account: str = "东方证券"
-    currency: str = "CNY"
-
-
-@dataclass(frozen=True)
 class PortfolioPositionDTO:
     ticker: str
     shares: Decimal

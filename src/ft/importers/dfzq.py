@@ -4,6 +4,7 @@
 """
 
 import re
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 ACTION_MAP = {
@@ -49,9 +50,9 @@ _COLUMN_HEADERS = frozenset([
 def _is_numeric(s: str) -> bool:
     """Check if a string is purely numeric (integer or decimal)."""
     try:
-        float(s)
+        Decimal(s)
         return True
-    except ValueError:
+    except (InvalidOperation, ValueError):
         return False
 
 
@@ -106,9 +107,10 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
             txns.append(_make_txn(
                 date_str, action_raw,
                 ticker=block[2], name=block[3],
-                shares=float(block[4]), price=float(block[5]),
-                total_amount=0.0, fee=0.0,
-                stamp_tax=0.0, transfer_fee=0.0, balance=0.0,
+                shares=Decimal(block[4]), price=Decimal(block[5]),
+                total_amount=Decimal("0"), fee=Decimal("0"),
+                stamp_tax=Decimal("0"), transfer_fee=Decimal("0"),
+                balance=Decimal("0"),
             ))
             continue
 
@@ -130,67 +132,67 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
                     continue
                 ticker = block[2]
                 name = ""
-                price = float(block[3])
+                price = Decimal(block[3])
                 ta_str = block[4]
                 if ta_str == "--":
                     continue
-                total_amount = float(ta_str)
-                fee = float(block[5])
+                total_amount = Decimal(ta_str)
+                fee = Decimal(block[5])
                 if len(block) >= 8:
-                    stamp_tax = float(block[6])
-                    transfer_fee = float(block[7])
-                    balance = float(block[8]) if len(block) >= 9 else 0.0
+                    stamp_tax = Decimal(block[6])
+                    transfer_fee = Decimal(block[7])
+                    balance = Decimal(block[8]) if len(block) >= 9 else Decimal("0")
                 else:
-                    stamp_tax = 0.0
-                    transfer_fee = 0.0
-                    balance = float(block[6])
-                shares = 0.0
+                    stamp_tax = Decimal("0")
+                    transfer_fee = Decimal("0")
+                    balance = Decimal(block[6])
+                shares = Decimal("0")
             else:
                 # OTC格式 / 纯整数 → 缺名称
                 if len(block) < 8:
                     continue
                 ticker = block[2]
                 name = ""
-                shares = float(block[3])
-                price = float(block[4])
+                shares = Decimal(block[3])
+                price = Decimal(block[4])
                 ta_str = block[5]
                 if ta_str == "--":
                     continue
-                total_amount = float(ta_str)
-                fee = float(block[6])
+                total_amount = Decimal(ta_str)
+                fee = Decimal(block[6])
                 if len(block) >= 9:
-                    stamp_tax = float(block[7])
-                    transfer_fee = float(block[8])
-                    balance = float(block[9]) if len(block) >= 10 else 0.0
+                    stamp_tax = Decimal(block[7])
+                    transfer_fee = Decimal(block[8])
+                    balance = Decimal(block[9]) if len(block) >= 10 else Decimal("0")
                 else:
-                    stamp_tax = 0.0
-                    transfer_fee = 0.0
-                    balance = float(block[7])
+                    stamp_tax = Decimal("0")
+                    transfer_fee = Decimal("0")
+                    balance = Decimal(block[7])
         else:
             # ---- 标准交易（含名称列）至少 9 字段 ----
             if len(block) < 9:
                 continue
             ticker = block[2]
             name = block[3]
-            shares = float(block[4])
-            price = float(block[5])
+            shares = Decimal(block[4])
+            price = Decimal(block[5])
 
             # 处理 -- 总金额
             ta_str = block[6]
             if ta_str == "--":
                 continue
-            total_amount = float(ta_str)
-            fee = float(block[7])
+            total_amount = Decimal(ta_str)
+            fee = Decimal(block[7])
 
             # 11 字段（含印花税+过户费）或 9 字段
             if len(block) >= 11:
-                stamp_tax = float(block[8])
-                transfer_fee = float(block[9])
-                balance = float(block[10])
+                stamp_tax = Decimal(block[8])
+                transfer_fee = Decimal(block[9])
+                balance = Decimal(block[10])
             else:
-                stamp_tax = 0.0
-                transfer_fee = 0.0
-                balance = float(block[8])
+                stamp_tax = Decimal("0")
+                transfer_fee = Decimal("0")
+                balance = Decimal(block[8])
 
         txns.append(_make_txn(
             date_str, action_raw,
@@ -211,10 +213,10 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
             "date": last["date"],
             "action": "CHECKIN",
             "ticker": "", "name": "",
-            "shares": 0, "price": 0,
+            "shares": Decimal("0"), "price": Decimal("0"),
             "amount": last["balance"],
-            "fee": 0, "stamp_tax": 0, "transfer_fee": 0,
-            "balance": 0, "note": "",
+            "fee": Decimal("0"), "stamp_tax": Decimal("0"),
+            "transfer_fee": Decimal("0"), "balance": Decimal("0"), "note": "",
         })
 
     return txns
@@ -240,8 +242,8 @@ def _make_txn(date_str, action_raw, **kw) -> dict[str, Any]:
         full_ticker = ""
     # 现金红利：shares/price 清零；送股/转增：保留
     if action in _ZERO_SHARES_PRICE and not is_stock_dividend:
-        shares = 0.0
-        price = 0.0
+        shares = Decimal("0")
+        price = Decimal("0")
 
     total_amount = kw["total_amount"]
     fee = kw["fee"]
@@ -265,8 +267,8 @@ def _make_txn(date_str, action_raw, **kw) -> dict[str, Any]:
         "price": price,
         "amount": amount,
         "fee": fee,
-        "stamp_tax": kw.get("stamp_tax", 0.0),
-        "transfer_fee": kw.get("transfer_fee", 0.0),
-        "balance": kw.get("balance", 0.0),
+        "stamp_tax": kw.get("stamp_tax", Decimal("0")),
+        "transfer_fee": kw.get("transfer_fee", Decimal("0")),
+        "balance": kw.get("balance", Decimal("0")),
         "note": note,
     }

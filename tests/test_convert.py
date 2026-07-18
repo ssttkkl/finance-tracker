@@ -3,20 +3,11 @@ import os
 import pytest
 import tempfile
 import csv
+from decimal import Decimal
 from pathlib import Path
 
-from ft import models
 
 TEST_DIR = Path(tempfile.mkdtemp())
-
-
-@pytest.fixture
-def tmp_ft_home(monkeypatch, tmp_path):
-    monkeypatch.setattr(models, "FT_DIR", tmp_path)
-    monkeypatch.setattr(models, "RECORDS_DIR", tmp_path / "records")
-    monkeypatch.setattr(models, "ACCOUNTS_PATH", tmp_path / "accounts.yaml")
-    monkeypatch.setattr(models, "PENDING_DIR", tmp_path / "pending")
-    return tmp_path
 
 
 def _make_alipay_csv(rows: list[list[str]], path: str):
@@ -164,7 +155,7 @@ class TestAlipayCategory:
         records, _ = _read_alipay_raw(csv_path)
         assert len(records) == 1
         assert records[0]["category"] == "expense"
-        assert records[0]["amount"] == -485.73
+        assert records[0]["amount"] == Decimal("-485.73")
 
     def test_不计收支_收益发放保持收入(self):
         csv_path = str(TEST_DIR / "alipay_yuebao_yield_nocount.csv")
@@ -175,7 +166,7 @@ class TestAlipayCategory:
         records, _ = _read_alipay_raw(csv_path)
         assert len(records) == 1
         assert records[0]["category"] == "income"
-        assert records[0]["amount"] == 0.03
+        assert records[0]["amount"] == Decimal("0.03")
 
     def test_全额退款_收入方向(self):
         """方向=收入，全额退款 → convert 保留消费与退款两条事实。"""
@@ -229,7 +220,7 @@ class TestAlipayCategory:
         records, _ = _read_alipay_raw(csv_path)
         assert len(records) == 1
         assert records[0]["category"] == "expense"
-        assert records[0]["amount"] == -485.73
+        assert records[0]["amount"] == Decimal("-485.73")
 
     def test_不计收支_零金额_跳过(self):
         """不计收支 + 金额为0 → 跳过"""
@@ -279,7 +270,7 @@ class TestAlipayCategory:
         records, tracking_pairs = _read_alipay_raw(csv_path)
         assert len(records) == 2
         assert next(r for r in records if r["category"] == "expense")["amount"] == -22.0
-        assert next(r for r in records if r["category"] == "income")["amount"] == 5.29
+        assert next(r for r in records if r["category"] == "income")["amount"] == Decimal("5.29")
         assert tracking_pairs[0]["source_refund_signal"] == "alipay_status"
         assert tracking_pairs[0]["match_strength"] == "strong"
 
@@ -375,7 +366,7 @@ class TestAlipayCategory:
         assert len(records) == 2
         expense = next(r for r in records if r["category"] == "expense")
         refund = next(r for r in records if r["category"] == "income")
-        assert expense["amount"] == -296.98
+        assert expense["amount"] == Decimal("-296.98")
         assert refund["amount"] == 89.5
 
     def test_退款_不能跨过长时间窗口匹配(self):
@@ -389,8 +380,8 @@ class TestAlipayCategory:
         assert len(records) == 2
         expense = next(r for r in records if r["category"] == "expense")
         refund = next(r for r in records if r["category"] == "income")
-        assert expense["amount"] == -62.62
-        assert refund["amount"] == 51.3
+        assert expense["amount"] == Decimal("-62.62")
+        assert refund["amount"] == Decimal("51.30")
 
 
 # ── 微信 ──────────────────────────────────────────────────
@@ -501,7 +492,7 @@ class TestWechatCategory:
         records, tracking_pairs = _read_wechat_raw(path)
         assert len(records) == 2
         assert next(r for r in records if r["category"] == "expense")["amount"] == -2.0
-        assert next(r for r in records if r["category"] == "income")["amount"] == 0.73
+        assert next(r for r in records if r["category"] == "income")["amount"] == Decimal("0.73")
         assert tracking_pairs[0]["rule_hint"] == "refund_wechat_device_key"
         assert tracking_pairs[0]["match_strength"] == "strong"
 
@@ -542,7 +533,7 @@ class TestWechatCategory:
         records, tracking_pairs = _read_wechat_raw(path)
         assert len(records) == 2
         assert next(r for r in records if r["category"] == "expense")["amount"] == -2.0
-        assert next(r for r in records if r["category"] == "income")["amount"] == 0.7
+        assert next(r for r in records if r["category"] == "income")["amount"] == Decimal("0.70")
         assert tracking_pairs[0]["rule_hint"] == "refund_wechat_desc_token"
         assert tracking_pairs[0]["match_strength"] == "strong"
 
@@ -595,7 +586,7 @@ class TestWechatCategory:
         refund = next(r for r in records if r["category"] == "income")
         assert retained["amount"] == -2.0
         assert matched["amount"] == -2.0
-        assert refund["amount"] == 0.73
+        assert refund["amount"] == Decimal("0.73")
         assert tracking_pairs[0]["expense"]["date"] == "2025-05-07 08:00:00"
         assert tracking_pairs[0]["rule_hint"] == "refund_wechat_device_key"
         assert tracking_pairs[0]["candidate_count"] == 2
@@ -612,7 +603,7 @@ class TestWechatCategory:
         from ft.convert import _read_wechat_raw
         records, tracking_pairs = _read_wechat_raw(path)
         assert len(records) == 4
-        assert next(r for r in records if r["category"] == "expense")["amount"] == -557.92
+        assert next(r for r in records if r["category"] == "expense")["amount"] == Decimal("-557.92")
         assert len([r for r in records if r["category"] == "income"]) == 3
         assert len(tracking_pairs) == 3
         assert all(p["match_strength"] == "strong" for p in tracking_pairs)
@@ -1556,7 +1547,7 @@ class TestIcbcRefundPairing:
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
         assert len(records) == 2
         assert next(r for r in records if r["category"] == "expense")["amount"] == -22.0
-        assert next(r for r in records if r["category"] == "income")["amount"] == 5.29
+        assert next(r for r in records if r["category"] == "income")["amount"] == Decimal("5.29")
         assert tracking_pairs[0]["match_type"] == "partial"
 
     def test_孤退货_保留收入(self):
@@ -1629,7 +1620,7 @@ class TestIcbcRefundPairing:
         assert len(tracking_pairs) == 0
         assert len(records) == 1
         assert records[0]["category"] == "expense"
-        assert records[0]["amount"] == -3.88
+        assert records[0]["amount"] == Decimal("-3.88")
         assert records[0]["offset_type"] == "benefit_rebate"
         assert records[0]["offset_action"] == "keep_as_offset_income"
         assert records[0]["counterparty"] == "刷卡金退款-美好星期五3.88元刷卡金"
@@ -1652,7 +1643,7 @@ class TestIcbcRefundPairing:
         assert len(tracking_pairs) == 0
         assert len(records) == 1
         assert records[0]["category"] == "income"
-        assert records[0]["amount"] == 0.66
+        assert records[0]["amount"] == Decimal("0.66")
         assert records[0]["offset_type"] == "benefit_rebate"
         assert records[0]["offset_strength"] == "strong"
         assert records[0]["offset_action"] == "keep_as_offset_income"
@@ -2025,7 +2016,7 @@ class TestIcbcRefundPairing:
         assert len(records) == 2
         benefit = next(r for r in records if r.get("offset_type") == "benefit_rebate")
         assert benefit["category"] == "expense"
-        assert benefit["amount"] == -3.88
+        assert benefit["amount"] == Decimal("-3.88")
         assert benefit["offset_action"] == "keep_as_offset_income"
 
     def test_混合场景_退款核销与刷卡金并存(self):
@@ -2290,33 +2281,6 @@ class TestCardNumber:
         assert len(records) == 2
         assert len(tracking_pairs) == 1
         assert all(r["card_number"] == "1200" for r in records)
-
-    def test_mapping_卡号路由_1200(self):
-        """卡号路由：按 source+payment_method 匹配，长规则优先"""
-        from ft.mapping import match_payment_method
-        rules = [
-            {"source": "icbc_credit_1200", "match": "*", "account": "工行信用卡(1200)", "currency": "CNY"},
-            {"source": "icbc_credit", "match": "*", "account": "工行信用卡", "currency": "CNY"},
-        ]
-        # 精确卡号路由优先
-        match = match_payment_method(rules, "icbc_credit_1200", "*")
-        assert match is not None
-        assert match["account"] == "工行信用卡(1200)"
-        # 泛用路由
-        match2 = match_payment_method(rules, "icbc_credit_9999", "*")
-        assert match2 is None  # 无匹配
-
-    def test_mapping_卡号路由_9166(self):
-        """icbc_credit_9166 → 按 mapping 动态路由"""
-        from ft.mapping import match_payment_method
-        rules = [
-            {"source": "icbc_credit_9166", "match": "*", "account": "工行信用卡(9166)", "currency": "CNY"},
-        ]
-        match = match_payment_method(rules, "icbc_credit_9166", "*")
-        assert match is not None
-        assert match["currency"] == "CNY"  # 路由行为由 mapping 文件决定，不硬编码 account
-        assert match["account"] == "工行信用卡(9166)"
-
 
 class TestTDDRegressions:
     """TDD 回归 — 先 RED 后 GREEN"""
@@ -2600,85 +2564,6 @@ class TestIcbcDebit:
 
 # ─── 退款追踪行构建 ──────────────────────────────────────────────
 
-class TestRefundTracking:
-    """_build_refund_tracking_rows — 退款状态 + 全额/部分核销"""
-
-    def test_部分退款的_refund_status(self):
-        """部分退款的 refund_status 应为 已部分退款(净额-xx.xx)"""
-        from ft.convert import _build_refund_tracking_rows
-        from ft.mapping import load_rules
-
-        rules, default_action = load_rules()
-        pair = {
-            "expense": {
-                "date": "2026-01-01", "amount": -178.23, "currency": "CNY",
-                "counterparty": "洁丽", "description": "被子", "platform": "",
-                "card_number": "1200", "payment_method": "工商银行信用卡(1200)*",
-            },
-            "refund": {
-                "date": "2026-01-02", "amount": 89.12, "currency": "CNY",
-                "counterparty": "洁丽", "description": "退款", "platform": "",
-                "card_number": "1200", "payment_method": "工商银行信用卡(1200)*",
-            },
-            "match_type": "partial",
-        }
-        rows = _build_refund_tracking_rows([pair], rules, default_action, "icbc_credit")
-        assert len(rows) == 2
-        # 消费行最后一列是 refund_status
-        assert rows[0][-1] == "已部分退款(净额-89.11)", \
-            f"actual={rows[0][-1]!r}"
-        # 退款行最后一列固定为 退款核销
-        assert rows[1][-1] == "退款核销"
-
-    def test_全额退款的_refund_status(self):
-        """全额退款的 refund_status 应为 已全额退款"""
-        from ft.convert import _build_refund_tracking_rows
-        from ft.mapping import load_rules
-
-        rules, default_action = load_rules()
-        pair = {
-            "expense": {
-                "date": "2026-01-01", "amount": -100.00, "currency": "CNY",
-                "counterparty": "京东", "description": "商品", "platform": "",
-                "card_number": "1200", "payment_method": "工商银行信用卡(1200)*",
-            },
-            "refund": {
-                "date": "2026-01-02", "amount": 100.00, "currency": "CNY",
-                "counterparty": "京东", "description": "退款", "platform": "",
-                "card_number": "1200", "payment_method": "工商银行信用卡(1200)*",
-            },
-            "match_type": "full",
-        }
-        rows = _build_refund_tracking_rows([pair], rules, default_action, "icbc_credit")
-        assert len(rows) == 2
-        assert rows[0][-1] == "已全额退款", \
-            f"actual={rows[0][-1]!r}"
-        assert rows[1][-1] == "退款核销"
-
-    def test_platform_一致性(self):
-        """counterparty 规范化后，支出和退款的 counterparty 应一致"""
-        from ft.convert import _build_refund_tracking_rows
-        from ft.mapping import load_rules
-
-        rules, default_action = load_rules()
-        pair = {
-            "expense": {"date": "2026-01-17", "amount": -60.9, "currency": "CNY",
-                        "counterparty": "拼多多支付-橙予进口专营店", "description": "拼多多支付-橙予进口专营店",
-                        "card_number": "1200", "payment_method": "拼多多支付"},
-            "refund": {"date": "2026-01-18", "amount": 60.9, "currency": "CNY",
-                       "counterparty": "拼多多支付-橙予进口专营店", "description": "拼多多支付-橙予进口专营店",
-                       "card_number": "1200", "payment_method": "拼多多支付"},
-            "match_type": "full",
-        }
-        rows = _build_refund_tracking_rows([pair], rules, default_action, "icbc_credit")
-        assert len(rows) == 2
-        # 两行的 counterparty 应一致
-        cp_exp = rows[0][3]
-        cp_ref = rows[1][3]
-        assert cp_exp == cp_ref, f"counterparty mismatch: {cp_exp} vs {cp_ref}"
-
-
-
 # ── ICBC 退款平台修正 ──────────────────────────────────────
 
 class TestIcbcRefundPlatform:
@@ -2686,8 +2571,7 @@ class TestIcbcRefundPlatform:
 
     def test_退款行platform跟随counterparty更新(self):
         """_parse_icbc_lines 将退货的 counterparty 归一化为品牌名（如「拼多多」）"""
-        from ft.convert import _parse_icbc_lines, _build_refund_tracking_rows
-        from ft.mapping import load_rules
+        from ft.convert import _parse_icbc_lines
 
         lines = [
             "2026-01-17",

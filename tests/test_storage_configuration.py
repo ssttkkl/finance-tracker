@@ -12,97 +12,63 @@ def test_config_module_import_does_not_resolve_home(monkeypatch):
     assert ft.config.StorageSettings
 
 
-def test_storage_settings_default_local_and_environment_overrides(tmp_path):
+def test_storage_settings_require_postgres_url_and_workspace():
     from ft.config import StorageSettings
 
-    local = StorageSettings.load(environ={"HOME": str(tmp_path)})
-    postgres = StorageSettings.load(environ={
-        "HOME": str(tmp_path),
-        "FT_STORAGE_BACKEND": "postgres",
+    settings = StorageSettings.load(environ={
         "FT_DATABASE_URL": "postgresql+psycopg://db/finance",
         "FT_WORKSPACE_ID": "workspace-a",
     })
 
-    assert local.backend == "local"
-    assert local.ledger_root == tmp_path / ".ft"
-    assert postgres.backend == "postgres"
-    assert postgres.database_url == "postgresql+psycopg://db/finance"
-    assert postgres.workspace_id == "workspace-a"
-
-
-def test_storage_settings_loads_nested_yaml_and_env_wins(tmp_path):
-    from ft.config import StorageSettings
-
-    config = tmp_path / "config.yaml"
-    config.write_text(
-        "storage:\n"
-        "  backend: postgres\n"
-        "  database_url: postgresql+psycopg://file/finance\n"
-        "  workspace_id: workspace-file\n",
-        encoding="utf-8",
-    )
-    settings = StorageSettings.load(config, environ={
-        "HOME": str(tmp_path),
-        "FT_WORKSPACE_ID": "workspace-env",
-    })
-
-    assert settings.backend == "postgres"
-    assert settings.workspace_id == "workspace-env"
+    assert settings.database_url == "postgresql+psycopg://db/finance"
+    assert settings.workspace_id == "workspace-a"
+    assert not hasattr(settings, "backend")
+    assert not hasattr(settings, "ledger_root")
 
 
 @pytest.mark.parametrize("environment, message", [
-    ({"FT_STORAGE_BACKEND": "unknown"}, "storage.backend"),
-    ({"FT_STORAGE_BACKEND": "postgres", "FT_WORKSPACE_ID": "workspace-a"}, "database_url"),
-    ({"FT_STORAGE_BACKEND": "postgres", "FT_DATABASE_URL": "sqlite://"}, "workspace_id"),
+    ({}, "FT_DATABASE_URL"),
+    ({"FT_DATABASE_URL": "postgresql+psycopg://db/finance"}, "FT_WORKSPACE_ID"),
+    ({"FT_DATABASE_URL": "sqlite+pysqlite:///:memory:", "FT_WORKSPACE_ID": "a"}, "PostgreSQL"),
+    ({
+        "FT_DATABASE_URL": "postgresql+psycopg://db/finance", "FT_WORKSPACE_ID": "a",
+        "FT_STORAGE_BACKEND": "postgres",
+    }, "FT_STORAGE_BACKEND"),
+    ({
+        "FT_DATABASE_URL": "postgresql+psycopg://db/finance", "FT_WORKSPACE_ID": "a",
+        "FT_DIR": "/tmp/ledger",
+    }, "FT_DIR"),
 ])
-def test_storage_settings_reject_invalid_or_incomplete_config(tmp_path, environment, message):
+def test_storage_settings_reject_incomplete_non_postgres_or_legacy_config(environment, message):
     from ft.config import StorageConfigurationError, StorageSettings
 
     with pytest.raises(StorageConfigurationError, match=message):
-        StorageSettings.load(environ={"HOME": str(tmp_path), **environment})
+        StorageSettings.load(environ=environment)
 
 
-def test_runtime_selects_backend_without_import_time_filesystem_access(monkeypatch, tmp_path):
+def test_runtime_has_only_the_postgres_composition_root(monkeypatch):
     from ft.config import StorageSettings
     from ft.runtime import build_services
-
-    local_marker = object()
-    postgres_marker = object()
-    monkeypatch.setattr(
-        "ft.adapters.local_runtime.build_local_services", lambda root: (local_marker, root)
-    )
-    monkeypatch.setattr(
-        "ft.adapters.postgres.runtime.build_postgres_services", lambda settings: (postgres_marker, settings)
-    )
-
-    local = StorageSettings(backend="local", ledger_root=tmp_path)
-    postgres = StorageSettings(
-        backend="postgres", ledger_root=tmp_path,
-        database_url="postgresql+psycopg://db/finance", workspace_id="workspace-a",
-    )
-    assert build_services(local) == (local_marker, tmp_path)
-    assert build_services(postgres) == (postgres_marker, postgres)
-
-
-def test_postgres_runtime_exposes_workspace_scoped_queries(tmp_path):
-    from sqlalchemy import create_engine
-
-    from ft.adapters.postgres import create_schema, create_session_factory, ensure_workspace
-    from ft.application.accounts import AccountService
-    from ft.config import StorageSettings
-    from ft.runtime import build_services
-
-    database_url = f"sqlite+pysqlite:///{tmp_path / 'runtime.db'}"
-    engine = create_engine(database_url)
-    create_schema(engine)
-    sessions = create_session_factory(engine)
-    ensure_workspace(sessions, "workspace-a")
 
     settings = StorageSettings(
-        backend="postgres", ledger_root=tmp_path,
-        database_url=database_url, workspace_id="workspace-a",
+        database_url="postgresql+psycopg://db/finance", workspace_id="workspace-a"
     )
-    bundle = build_services(settings)
-    assert AccountService(bundle.uow).create_account("Cash", "cash", "CNY").ok is True
-    accounts = bundle.queries.list_accounts().accounts
-    assert [(item.name, item.currency) for item in accounts] == [("Cash", "CNY")]
+    marker = object()
+    monkeypatch.setattr(
+        "ft.adapters.postgres.runtime.build_postgres_services", lambda value: (marker, value)
+    )
+
+    assert build_services(settings) == (marker, settings)
+
+
+def test_storage_settings_load_never_reads_a_runtime_yaml_file(tmp_path):
+    from ft.config import StorageSettings
+
+    legacy = tmp_path / "config.yaml"
+    legacy.write_text("storage:\n  backend: local\n  ledger_root: ~/.ft\n", encoding="utf-8")
+
+    with pytest.raises(TypeError):
+        StorageSettings.load(legacy, environ={
+            "FT_DATABASE_URL": "postgresql+psycopg://db/finance",
+            "FT_WORKSPACE_ID": "workspace-a",
+        })

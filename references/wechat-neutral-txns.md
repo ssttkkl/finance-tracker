@@ -28,7 +28,7 @@ date_raw = vals[h["交易时间"]] if "交易时间" in h else ""
 date_str = date_raw[:19].replace("/", "-")
 ```
 
-移到 `amount = float(...)` 解析之后、`if direction:` 之前。
+移到 `amount = Decimal(...)` 解析之后、`if direction:` 之前。
 
 **为什么要提前：** 原代码把这些变量定义在 if/elif 链之后 75 行的地方，新增的中性交易分支（需要引用 `txn_type`）无法访问这些变量。变量定义应该始终放在它被第一次引用的位置**之前**，而不是放在某个隐含"肯定不会用到的"位置。
 

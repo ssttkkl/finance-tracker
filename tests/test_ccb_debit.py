@@ -1,20 +1,11 @@
 """建行储蓄卡 XLS 转换器测试"""
 import pytest
+from decimal import Decimal
 xlwt = pytest.importorskip("xlwt")
 import os
 import tempfile
-from ft import models
 from ft.importers.ccb_debit import read_ccb_debit, _extract_ccb_counterparty
 from ft.convert import _pair_refunds
-
-
-@pytest.fixture
-def tmp_ft_home(monkeypatch, tmp_path):
-    monkeypatch.setattr(models, "FT_DIR", tmp_path)
-    monkeypatch.setattr(models, "RECORDS_DIR", tmp_path / "records")
-    monkeypatch.setattr(models, "ACCOUNTS_PATH", tmp_path / "accounts.yaml")
-    monkeypatch.setattr(models, "PENDING_DIR", tmp_path / "pending")
-    return tmp_path
 
 
 def _make_xls(card: str, rows: list[tuple]) -> str:
@@ -207,7 +198,7 @@ class TestBasicParsing:
         assert len(recs) == 1
         r = recs[0]
         assert r["date"] == "2026-01-28"
-        assert r["amount"] == -4.23
+        assert r["amount"] == Decimal("-4.23")
         assert r["currency"] == "CNY"
         assert r["category"] == "expense"
         assert r["counterparty"] == "瑞幸咖啡"
@@ -236,7 +227,7 @@ class TestBasicParsing:
         recs, _ = read_ccb_debit(path)
         os.unlink(path)
         assert len(recs) == 1
-        assert recs[0]["amount"] == -27572.03
+        assert recs[0]["amount"] == Decimal("-27572.03")
         assert recs[0]["description"] == "转账支取"
         assert recs[0]["card_number"] == "0523"
 
@@ -247,7 +238,7 @@ class TestBasicParsing:
         ])
         recs, _ = read_ccb_debit(path)
         os.unlink(path)
-        assert recs[0]["amount"] == 26070.51
+        assert recs[0]["amount"] == Decimal("26070.51")
         assert recs[0]["description"] == "证转银"
         assert recs[0]["category"] == "income"
 
@@ -269,7 +260,7 @@ class TestBasicParsing:
         ])
         recs, _ = read_ccb_debit(path)
         os.unlink(path)
-        assert recs[0]["amount"] == 0.51
+        assert recs[0]["amount"] == Decimal("0.51")
         assert recs[0]["description"] == "利息存入"
 
     def test_topup(self):
@@ -279,7 +270,7 @@ class TestBasicParsing:
         ])
         recs, _ = read_ccb_debit(path)
         os.unlink(path)
-        assert recs[0]["amount"] == -4.90
+        assert recs[0]["amount"] == Decimal("-4.90")
         assert recs[0]["description"] == "充值"
         assert recs[0]["category"] == "expense"
         assert recs[0]["counterparty"] == "苹果电脑贸易（上海）有限公司"
@@ -360,7 +351,7 @@ class TestRefundPairingWithPairRefunds:
         result, tp = _pair_refunds(expenses, refunds, others)
         assert len(result) == 1
         assert result[0]["category"] == "income"
-        assert result[0]["amount"] == 22.23
+        assert result[0]["amount"] == Decimal("22.23")
         assert len(tp) == 0  # 孤退款不进 tracking
 
     def test_full_refund_same_day_legacy(self):
@@ -422,7 +413,7 @@ class TestRefundPairingWithPairRefunds:
         result, tp = _pair_refunds(expenses, refunds, others)
         assert len(result) == 1
         assert result[0]["category"] == "income"
-        assert result[0]["amount"] == 22.23
+        assert result[0]["amount"] == Decimal("22.23")
         assert result[0]["description"] == "消费退货"
 
     def test_partial_refund_kept_as_orphan(self):
@@ -448,41 +439,3 @@ class TestRefundPairingWithPairRefunds:
         assert len(tp) == 1
         assert tp[0]["match_type"] == "partial"
         assert tp[0]["match_strength"] == "weak"
-
-
-class TestConvertContract:
-    def test_ccb_debit_weak_refund_writes_output_without_creating_pending(self, tmp_ft_home):
-        from ft.convert import do_convert
-
-        bill_path = _make_xls("6217000000000002820", [
-            ("消费", "人民币元", "钞", "20260314", "-500.00", "8,000.00",
-             "财付通-微信支付-某商店", "Z******0010/***店"),
-            ("消费退货", "人民币元", "钞", "20260315", "200.00", "8,200.00",
-             "财付通-某商店", "2088002502045789/某商店"),
-        ])
-        output_path = tmp_ft_home / "converted.csv"
-
-        try:
-            do_convert(bill_path, "ccb-debit", str(output_path))
-        finally:
-            os.unlink(bill_path)
-
-        sessions = list((models.PENDING_DIR / "convert").glob("*")) if (models.PENDING_DIR / "convert").exists() else []
-        assert sessions == []
-        assert output_path.exists()
-
-        with output_path.open(encoding="utf-8") as f:
-            rows = list(__import__("csv").DictReader(f))
-        assert len(rows) == 2
-        expense = next(row for row in rows if row["category"] == "expense")
-        refund = next(row for row in rows if row["category"] == "income")
-        assert expense["offset_group"]
-        assert expense["offset_role"] == "expense"
-        assert expense["offset_strength"] == "weak"
-        assert expense["offset_rule_hint"] == "refund_cp_match"
-        assert expense["offset_match_type"] == "partial"
-        assert refund["offset_group"] == expense["offset_group"]
-        assert refund["offset_role"] == "refund"
-        assert refund["offset_strength"] == "weak"
-        assert refund["offset_match_type"] == "partial"
-        assert refund["proposed_action"].startswith("merge_refund_into:")
