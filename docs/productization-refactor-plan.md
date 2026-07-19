@@ -21,7 +21,7 @@
 - [Phase 1 Application Services](phase1-application-services.md)：已完成的应用边界基线。
 - [Phase 2 PostgreSQL Storage](phase2-postgresql-storage.md)：已完成的双 backend 历史基线。
 - [001-postgres-only-storage](../specs/001-postgres-only-storage/spec.md)：已完成的 PostgreSQL-only 存储收口。
-- 双数据库运行时支持：已批准产品方向，待独立 Spec Kit feature 落地。
+- [002-dual-database-runtime](../specs/002-dual-database-runtime/spec.md)：当前双数据库运行时 feature；完成状态以其 `tasks.md` 为准。
 - [财富解释与趋势对比设计](productization-wealth-report-design.md)：已批准、但非实施权威的产品决策输入。
 
 ## 2. 产品定位
@@ -66,11 +66,12 @@ Finance Tracker 面向同时使用银行、支付平台、券商和交易所的�
 具体范围和验证证据见 `specs/001-postgres-only-storage/`。README、CLI help 和当前操作文档已经同步为
 PostgreSQL-only；旧文件账本、迁移、shadow comparison、Connector sync 和文件 reconcile 已从产品表面删除。
 
-### 已批准：PostgreSQL 与 SQLite 双数据库运行时
+### 当前：PostgreSQL 与 SQLite 双数据库运行时
 
-后续 feature 将把 PostgreSQL 与 SQLite 都设为正式运行时后端，由 `FT_DATABASE_URL` 显式选择。
+当前 feature 将 PostgreSQL 与文件型 SQLite 都设为正式运行时后端，由 `FT_DATABASE_URL` 显式选择。
 两个后端共享 Application Service、CLI 契约、财务语义、审计关系和 schema 迁移入口；不提供自动回退、
-双写或隐式跨后端迁移。`001-postgres-only-storage` 保留为已完成的历史收口记录，不回写新需求。
+双写或隐式跨后端迁移。SQLite 使用 WAL、外键和有界写锁等待；既有权限过宽的文件只给出修复建议，
+不会自动 chmod。`001-postgres-only-storage` 保留为已完成的历史收口记录，不回写新需求。
 
 ## 4. 产品与架构原则
 

@@ -5,14 +5,15 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import DBAPIError, OperationalError
 
 from .models import Base, WorkspaceModel
-from .imports import PostgresImportRepository
+from .imports import RelationalImportRepository
 from .repositories import (
-    PostgresAccountRepository,
-    PostgresCashflowRepository,
-    PostgresInvestmentRepository,
-    PostgresSnapshotRepository,
+    RelationalAccountRepository,
+    RelationalCashflowRepository,
+    RelationalInvestmentRepository,
+    RelationalSnapshotRepository,
 )
 
 
@@ -38,11 +39,11 @@ def ensure_workspace(session_factory, workspace_id: str, *, name: str | None = N
             workspace.name = name
 
 
-class PostgresUnitOfWork:
+class RelationalUnitOfWork:
     def __init__(self, session_factory, workspace_id: str):
         self._session_factory = session_factory
         self.workspace_id = workspace_id
-        self._state_var = ContextVar(f"postgres_uow_{id(self)}", default=None)
+        self._state_var = ContextVar(f"relational_uow_{id(self)}", default=None)
 
     @dataclass
     class _State:
@@ -55,7 +56,7 @@ class PostgresUnitOfWork:
         snapshot: object | None = None
         imports: object | None = None
 
-    def _state(self) -> "PostgresUnitOfWork._State":
+    def _state(self) -> "RelationalUnitOfWork._State":
         state = self._state_var.get()
         if state is None:
             raise RuntimeError("unit of work is not active")
@@ -81,21 +82,27 @@ class PostgresUnitOfWork:
     def imports(self):
         return self._state().imports
 
-    def __enter__(self) -> "PostgresUnitOfWork":
+    def __enter__(self) -> "RelationalUnitOfWork":
         session = self._session_factory()
-        workspace = session.scalar(
-            select(WorkspaceModel.id).where(WorkspaceModel.id == self.workspace_id)
-        )
+        try:
+            if session.bind.dialect.name == "sqlite" and session.bind.url.database != ":memory:":
+                session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+            workspace = session.scalar(select(WorkspaceModel.id).where(WorkspaceModel.id == self.workspace_id))
+        except (DBAPIError, OperationalError) as exc:
+            session.rollback(); session.close()
+            from .runtime import storage_error
+            raise storage_error(exc, str(session.bind.url)) from exc
         if workspace is None:
+            session.rollback()
             session.close()
             raise UnknownWorkspaceError(f"unknown workspace: {self.workspace_id}")
         state = self._State(
             session=session,
-            accounts=PostgresAccountRepository(session, self.workspace_id),
-            cashflows=PostgresCashflowRepository(session, self.workspace_id),
-            investments=PostgresInvestmentRepository(session, self.workspace_id),
-            snapshot=PostgresSnapshotRepository(session, self.workspace_id),
-            imports=PostgresImportRepository(session, self.workspace_id),
+            accounts=RelationalAccountRepository(session, self.workspace_id),
+            cashflows=RelationalCashflowRepository(session, self.workspace_id),
+            investments=RelationalInvestmentRepository(session, self.workspace_id),
+            snapshot=RelationalSnapshotRepository(session, self.workspace_id),
+            imports=RelationalImportRepository(session, self.workspace_id),
         )
         state.token = self._state_var.set(state)
         return self
@@ -113,7 +120,12 @@ class PostgresUnitOfWork:
 
     def commit(self) -> None:
         state = self._state()
-        state.session.commit()
+        try:
+            state.session.commit()
+        except (DBAPIError, OperationalError) as exc:
+            state.session.rollback()
+            from .runtime import storage_error
+            raise storage_error(exc, str(state.session.bind.url)) from exc
         state.committed = True
 
     def rollback(self) -> None:

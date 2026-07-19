@@ -5,7 +5,7 @@ from ft.domain.application import OperationResult
 from ft.domain.investment_projection import apply_investment_command
 
 
-class PostgresInvestmentCommandRepository:
+class RelationalInvestmentCommandRepository:
     def __init__(self, unit_of_work):
         self._uow = unit_of_work
 

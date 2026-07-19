@@ -8,30 +8,30 @@ from test_postgres_adapter import _database
 
 
 def test_runtime_validation_rejects_missing_schema():
-    from ft.adapters.postgres.runtime import PostgresRuntimeError, validate_runtime
+    from ft.adapters.relational.runtime import StorageError, validate_runtime
 
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    with pytest.raises(PostgresRuntimeError, match="schema"):
-        validate_runtime(engine, "workspace-a")
+    with pytest.raises(StorageError, match="storage.schema"):
+        validate_runtime(engine, "workspace-a", "sqlite+pysqlite:///:memory:")
 
 
 def test_runtime_validation_rejects_unknown_workspace():
-    from ft.adapters.postgres.runtime import PostgresRuntimeError, validate_runtime
+    from ft.adapters.relational.runtime import StorageError, validate_runtime
 
     sessions, _ = _database()
-    with pytest.raises(PostgresRuntimeError, match="unknown workspace"):
-        validate_runtime(sessions.kw["bind"], "missing")
+    with pytest.raises(StorageError, match="storage.workspace"):
+        validate_runtime(sessions.kw["bind"], "missing", "sqlite+pysqlite:///:memory:")
 
 
 def test_runtime_validation_accepts_current_schema_and_workspace():
-    from ft.adapters.postgres.runtime import validate_runtime
+    from ft.adapters.relational.runtime import validate_runtime
 
     sessions, _ = _database()
-    validate_runtime(sessions.kw["bind"], "workspace-a")
+    validate_runtime(sessions.kw["bind"], "workspace-a", "sqlite+pysqlite:///:memory:")
 
 
 def test_cli_help_does_not_load_settings_or_touch_home(monkeypatch, capsys):

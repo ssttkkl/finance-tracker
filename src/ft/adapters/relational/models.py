@@ -1,4 +1,4 @@
-"""PostgreSQL-only SQLAlchemy persistence models."""
+"""Shared PostgreSQL and SQLite SQLAlchemy persistence models."""
 from __future__ import annotations
 
 from datetime import datetime, timezone

@@ -3,6 +3,11 @@
 This guide validates the implemented feature. It is not a cross-database migration procedure. Use
 fresh disposable databases and the same workspace/business inputs on each backend.
 
+`FT_DATABASE_URL` selects exactly one formal backend: PostgreSQL or file SQLite. There is no fallback,
+dual-write, or implicit migration. A SQLite `storage.busy` failure is retried by the
+operator after the competing writer exits; permission and schema failures require correcting the
+selected file/directory or explicitly running the schema migration.
+
 ## Prerequisites
 
 - Python 3.11+ and `uv`

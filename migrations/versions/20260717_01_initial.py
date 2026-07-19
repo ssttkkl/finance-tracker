@@ -1,6 +1,7 @@
-"""Create the PostgreSQL-only initial schema."""
+"""Create the shared PostgreSQL and SQLite initial schema."""
 from alembic import op
 import sqlalchemy as sa
+from ft.adapters.relational.models import ExactDecimal
 
 
 revision = "20260717_01"
@@ -133,7 +134,7 @@ def upgrade() -> None:
         sa.Column("raw_record_id", sa.String(36), nullable=True),
         sa.Column("record_id", sa.String(255), nullable=False),
         sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("amount", sa.Numeric(38, 18), nullable=False),
+        sa.Column("amount", ExactDecimal(), nullable=False),
         sa.Column("currency", sa.String(3), nullable=False),
         sa.Column("counterparty", sa.String(512), nullable=False),
         sa.Column("description", sa.Text(), nullable=False),

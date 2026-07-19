@@ -61,7 +61,7 @@ def _validate_currency(value: str) -> str:
     return currency
 
 
-class PostgresAccountRepository:
+class RelationalAccountRepository:
     def __init__(self, session, workspace_id: str):
         self._session = session
         self._workspace_id = workspace_id
@@ -166,7 +166,7 @@ class PostgresAccountRepository:
         self._session.delete(row)
         return result
 
-class PostgresCashflowRepository:
+class RelationalCashflowRepository:
     def __init__(self, session, workspace_id: str):
         self._session = session
         self._workspace_id = workspace_id
@@ -251,7 +251,7 @@ class PostgresCashflowRepository:
         }
 
 
-class PostgresInvestmentRepository:
+class RelationalInvestmentRepository:
     def __init__(self, session, workspace_id: str):
         self._session = session
         self._workspace_id = workspace_id
@@ -300,7 +300,7 @@ class PostgresInvestmentRepository:
         return model.id
 
 
-class PostgresSnapshotRepository:
+class RelationalSnapshotRepository:
     def __init__(self, session, workspace_id: str):
         self._session = session
         self._workspace_id = workspace_id

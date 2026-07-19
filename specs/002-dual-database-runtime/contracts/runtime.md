@@ -17,7 +17,7 @@ sqlite+pysqlite:////absolute/path/to/finance-tracker.db
 Rejected examples include absent/empty values, malformed URLs, MySQL/other dialects, SQLite memory
 URLs in runtime configuration, SQLite URLs without a durable file, and any legacy storage selector.
 Rejection occurs before engine creation or business work. The process never probes or connects to a
-second backend.
+second backend: there is no fallback, dual-write, or implicit migration.
 
 ## Composition
 
@@ -70,6 +70,18 @@ For file-backed SQLite:
 
 SQLite files must be placed on a filesystem with reliable SQLite locking. Unsupported shared/network
 filesystem behavior is an operator error and is not masked by another backend.
+
+## Operator Troubleshooting
+
+- `storage.busy` means another writer retained SQLite's single writer reservation past the bounded
+  wait. Let the other command finish and retry; do not run a second backend or replay the command
+  automatically.
+- `storage.readonly` means the selected SQLite database or its parent directory cannot be written.
+  Verify owner-only permissions and the filesystem mount, then retry against the same explicit URL.
+- `storage.schema` means migrations have not reached the single Alembic head. Run `alembic upgrade
+  head` for the selected database explicitly; the runtime never performs an implicit migration.
+- CLI diagnostics identify only PostgreSQL or file SQLite. They deliberately omit credentials, URL
+  query parameters, and the complete SQLite path.
 
 ## PostgreSQL Operating Contract
 

@@ -12,8 +12,8 @@ def _database():
     from sqlalchemy import create_engine
     from sqlalchemy.pool import StaticPool
 
-    from ft.adapters.postgres import (
-        PostgresUnitOfWork,
+    from ft.adapters.relational import (
+        RelationalUnitOfWork,
         create_session_factory,
         ensure_workspace,
     )
@@ -32,7 +32,7 @@ def _database():
     sessions = create_session_factory(engine)
     ensure_workspace(sessions, "workspace-a", name="Workspace A")
     ensure_workspace(sessions, "workspace-b", name="Workspace B")
-    return sessions, PostgresUnitOfWork
+    return sessions, RelationalUnitOfWork
 
 
 def test_account_service_contract_and_workspace_isolation():
@@ -181,7 +181,7 @@ def test_unit_of_work_rolls_back_all_repositories_on_error():
 
 
 def test_unknown_workspace_is_rejected():
-    from ft.adapters.postgres import UnknownWorkspaceError
+    from ft.adapters.relational import UnknownWorkspaceError
 
     sessions, unit_of_work = _database()
     with pytest.raises(UnknownWorkspaceError, match="missing"):
@@ -192,7 +192,7 @@ def test_unknown_workspace_is_rejected():
 def test_account_rename_preserves_fact_identity_and_projection():
     from sqlalchemy import select
 
-    from ft.adapters.postgres.models import AccountModel, CashTransactionModel, LedgerSnapshotModel
+    from ft.adapters.relational.models import AccountModel, CashTransactionModel, LedgerSnapshotModel
     from ft.application.accounts import AccountService
     from ft.application.cashflow import CashflowService
 
@@ -317,14 +317,14 @@ def test_transfer_rejects_non_positive_amounts(amount, to_amount):
     "99999999999999999999.9999999999999999999",
 ])
 def test_numeric_38_18_overflow_is_rejected_before_commit(value):
-    from ft.adapters.postgres.models import exact_decimal
+    from ft.adapters.relational.models import exact_decimal
 
     with pytest.raises(ValueError, match=r"NUMERIC\(38,18\)"):
         exact_decimal(value)
 
 
 def test_numeric_38_18_maximum_value_is_accepted_exactly():
-    from ft.adapters.postgres.models import exact_decimal
+    from ft.adapters.relational.models import exact_decimal
 
     value = "99999999999999999999.999999999999999999"
     assert exact_decimal(value) == Decimal(value)
@@ -333,7 +333,7 @@ def test_numeric_38_18_maximum_value_is_accepted_exactly():
 def test_naive_statement_time_is_stored_as_utc_and_returned_in_workspace_time():
     from sqlalchemy import select
 
-    from ft.adapters.postgres.models import CashTransactionModel
+    from ft.adapters.relational.models import CashTransactionModel
     from ft.application.accounts import AccountService
     from ft.application.cashflow import CashflowService
 

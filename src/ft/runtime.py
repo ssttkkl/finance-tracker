@@ -1,4 +1,4 @@
-"""PostgreSQL-only dependency composition entry point."""
+"""Dependency composition entry point for the selected relational database."""
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,7 +13,8 @@ class ServiceBundle:
     transfers: Any = None
     statement_import: Any = None
     uow: Any = None
+    notices: tuple[str, ...] = ()
 
 def build_services(settings) -> ServiceBundle:
-    from ft.adapters.postgres.runtime import build_postgres_services
-    return build_postgres_services(settings)
+    from ft.adapters.relational.runtime import build_relational_services
+    return build_relational_services(settings)

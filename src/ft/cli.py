@@ -13,9 +13,17 @@ from .schema import CSV_FIELDS
 
 
 def _runtime_services():
-    from .config import StorageSettings
+    from .config import StorageConfigurationError, StorageSettings
+    from .adapters.relational.runtime import StorageError
 
-    return build_services(StorageSettings.load())
+    try:
+        bundle = build_services(StorageSettings.load())
+    except (StorageConfigurationError, StorageError) as exc:
+        print(f"ERROR: {exc}", file=__import__("sys").stderr)
+        raise SystemExit(1) from exc
+    for notice in getattr(bundle, "notices", ()):
+        print(f"WARNING: {notice}", file=__import__("sys").stderr)
+    return bundle
 
 
 def _read_password_file(path: str | None) -> str | None:
@@ -36,8 +44,24 @@ def _statement_export(command: StatementImportCommand) -> ExportPayload:
 
 
 def main(argv=None):
+    try:
+        return _main(argv)
+    except Exception as exc:
+        from .adapters.relational.runtime import StorageError
+        if isinstance(exc, StorageError):
+            print(f"ERROR: {exc}", file=__import__("sys").stderr)
+            raise SystemExit(1) from exc
+        raise
+
+
+def _main(argv=None):
     parser = argparse.ArgumentParser(
-        prog="ft", description="📒 Finance Tracker", allow_abbrev=False,
+        prog="ft",
+        description=(
+            "Finance Tracker (PostgreSQL or file SQLite; no fallback, dual-write, or implicit migration). "
+            "SQLite busy, permission, and schema failures are reported with sanitized storage codes."
+        ),
+        allow_abbrev=False,
     )
     sub = parser.add_subparsers(dest="cmd")
 
@@ -204,7 +228,7 @@ def main(argv=None):
                     help="覆盖币种")
 
     statement_import = sub.add_parser(
-        "import", help="原始账单直接导入 PostgreSQL", allow_abbrev=False,
+        "import", help="原始账单直接导入 PostgreSQL 或文件 SQLite", allow_abbrev=False,
     )
     statement_import.add_argument("file", help="原始账单文件路径")
     statement_import.add_argument(
@@ -235,7 +259,7 @@ def main(argv=None):
         if result.details.get("duplicate"):
             print("📭 该账单已导入")
         else:
-            print(f"✅ 已导入 {result.count} 条 → PostgreSQL")
+            print(f"✅ 已导入 {result.count} 条 → selected database")
         return
 
     if args.cmd == "acct":

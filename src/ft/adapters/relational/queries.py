@@ -8,10 +8,10 @@ from sqlalchemy import select
 
 from ft.domain.accounts import AccountDTO
 from .models import AccountModel, CashTransactionModel
-from .repositories import PostgresCashflowRepository, PostgresSnapshotRepository, _parse_timestamp
+from .repositories import RelationalCashflowRepository, RelationalSnapshotRepository, _parse_timestamp
 
 
-class PostgresAccountQueryRepository:
+class RelationalAccountQueryRepository:
     def __init__(self, session_factory, workspace_id):
         self._sessions = session_factory
         self._workspace_id = workspace_id
@@ -26,7 +26,7 @@ class PostgresAccountQueryRepository:
             return [AccountDTO(row.name, row.type, row.currency, row.active) for row in rows]
 
 
-class PostgresTransactionQueryRepository:
+class RelationalTransactionQueryRepository:
     def __init__(self, session_factory, workspace_id):
         self._sessions = session_factory
         self._workspace_id = workspace_id
@@ -62,20 +62,20 @@ class PostgresTransactionQueryRepository:
             if limit is not None:
                 statement = statement.limit(limit)
             rows = session.execute(statement)
-            return [PostgresCashflowRepository._to_row(row, account_row) for row, account_row in rows]
+            return [RelationalCashflowRepository._to_row(row, account_row) for row, account_row in rows]
 
 
-class PostgresSnapshotQueryRepository:
+class RelationalSnapshotQueryRepository:
     def __init__(self, session_factory, workspace_id):
         self._sessions = session_factory
         self._workspace_id = workspace_id
 
     def load_snapshot(self):
         with self._sessions() as session:
-            return PostgresSnapshotRepository(session, self._workspace_id).load()
+            return RelationalSnapshotRepository(session, self._workspace_id).load()
 
 
-class PostgresPortfolioRepository:
+class RelationalPortfolioRepository:
     def __init__(self, session_factory, workspace_id):
         self._sessions = session_factory
         self._workspace_id = workspace_id
@@ -86,7 +86,7 @@ class PostgresPortfolioRepository:
                 AccountModel.workspace_id == self._workspace_id,
                 AccountModel.type.in_(("security", "crypto")),
             )))
-            payload = PostgresSnapshotRepository(session, self._workspace_id).load()
+            payload = RelationalSnapshotRepository(session, self._workspace_id).load()
         base_currencies = {
             account.name: tuple(sorted({
                 account.currency.upper(),

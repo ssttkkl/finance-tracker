@@ -18,7 +18,7 @@ from .models import (
 from .repositories import _json_safe
 
 
-class PostgresImportRepository:
+class RelationalImportRepository:
     def __init__(self, session, workspace_id: str):
         self._session = session
         self._workspace_id = workspace_id

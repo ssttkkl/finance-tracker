@@ -56,7 +56,7 @@ def _service(rows):
 
 
 def test_cash_statement_import_persists_lineage_revision_and_projection(tmp_path):
-    from ft.adapters.postgres.models import (
+    from ft.adapters.relational.models import (
         CashTransactionModel, ImportBatchModel, RawRecordModel, RecordRevisionModel,
     )
 
@@ -84,7 +84,7 @@ def test_cash_statement_import_persists_lineage_revision_and_projection(tmp_path
 
 
 def test_statement_import_is_idempotent_by_source_digest(tmp_path):
-    from ft.adapters.postgres.models import CashTransactionModel, ImportBatchModel
+    from ft.adapters.relational.models import CashTransactionModel, ImportBatchModel
 
     source = tmp_path / "alipay.csv"
     source.write_bytes(b"same bytes")
@@ -138,7 +138,7 @@ def test_overlap_only_batch_preserves_target_for_duplicate_digest(tmp_path):
 
 
 def test_same_statement_duplicate_provider_id_projects_once(tmp_path):
-    from ft.adapters.postgres.models import CashTransactionModel, RawRecordModel
+    from ft.adapters.relational.models import CashTransactionModel, RawRecordModel
 
     source = tmp_path / "duplicate-provider-id.csv"
     source.write_bytes(b"duplicate provider id")
@@ -177,7 +177,7 @@ def test_overlapping_digest_rejects_existing_record_from_a_different_account(tmp
 
 
 def test_fallback_identity_is_stable_when_preceding_rows_change(tmp_path):
-    from ft.adapters.postgres.models import CashTransactionModel
+    from ft.adapters.relational.models import CashTransactionModel
     from ft.application.statement_import import StatementImportService
 
     first_source = tmp_path / "first.csv"
@@ -199,7 +199,7 @@ def test_fallback_identity_is_stable_when_preceding_rows_change(tmp_path):
 
 
 def test_cash_statement_currency_must_match_selected_account(tmp_path):
-    from ft.adapters.postgres.models import ImportBatchModel
+    from ft.adapters.relational.models import ImportBatchModel
 
     source = tmp_path / "statement.csv"
     source.write_bytes(b"currency mismatch")
@@ -213,7 +213,7 @@ def test_cash_statement_currency_must_match_selected_account(tmp_path):
 
 
 def test_overlapping_statement_reuses_provider_record_without_duplicate_fact(tmp_path):
-    from ft.adapters.postgres.models import CashTransactionModel, ImportBatchModel, RawRecordModel
+    from ft.adapters.relational.models import CashTransactionModel, ImportBatchModel, RawRecordModel
 
     first_source = tmp_path / "first.csv"
     second_source = tmp_path / "second.csv"
@@ -264,7 +264,7 @@ def test_statement_digest_and_parser_use_same_immutable_capture(tmp_path):
     assert result.count == 1
     assert not seen["captured"].exists()
     with sessions() as session:
-        from ft.adapters.postgres.models import ImportBatchModel, RawFileModel
+        from ft.adapters.relational.models import ImportBatchModel, RawFileModel
         batch = session.scalar(select(ImportBatchModel))
         raw_file = session.scalar(select(RawFileModel))
         import hashlib
@@ -275,7 +275,7 @@ def test_statement_digest_and_parser_use_same_immutable_capture(tmp_path):
 
 
 def test_statement_import_rolls_back_raw_and_formal_facts_on_any_invalid_row(tmp_path):
-    from ft.adapters.postgres.models import CashTransactionModel, ImportBatchModel, RawRecordModel
+    from ft.adapters.relational.models import CashTransactionModel, ImportBatchModel, RawRecordModel
 
     source = tmp_path / "alipay.csv"
     source.write_bytes(b"invalid batch")
@@ -302,12 +302,12 @@ def test_statement_import_rejects_decimal_scale_before_any_commit(tmp_path):
         service.import_statement(_command(source))
 
     with sessions() as session:
-        from ft.adapters.postgres.models import ImportBatchModel
+        from ft.adapters.relational.models import ImportBatchModel
         assert session.scalar(select(func.count()).select_from(ImportBatchModel)) == 0
 
 
 def test_dfzq_statement_import_writes_investment_event_and_projection(tmp_path):
-    from ft.adapters.postgres.models import InvestmentEventModel
+    from ft.adapters.relational.models import InvestmentEventModel
     from ft.application.statement_import import StatementImportService
 
     source = tmp_path / "dfzq.pdf"

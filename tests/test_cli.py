@@ -182,6 +182,32 @@ def test_cli_help_does_not_require_database(monkeypatch):
     assert exc.value.code == 0
 
 
+def test_cli_commit_time_storage_error_is_controlled_and_nonzero(monkeypatch, capsys):
+    from ft.adapters.relational.runtime import StorageError
+
+    calls = []
+
+    class Accounts:
+        def create_account(self, *_args):
+            calls.append("create")
+            raise StorageError(
+                "storage.readonly",
+                "postgresql+psycopg://user:secret@host/finance?sslkey=hidden",
+            )
+
+    _install_bundle(monkeypatch, type("Bundle", (), {"accounts": Accounts()})())
+
+    with pytest.raises(SystemExit) as status:
+        cli.main(["acct", "add", "Cash", "--type", "cash", "--currency", "CNY"])
+
+    assert status.value.code == 1
+    error = capsys.readouterr().err
+    assert "storage.readonly" in error
+    assert "secret" not in error
+    assert "sslkey" not in error
+    assert calls == ["create"]
+
+
 @pytest.mark.parametrize("argv", [
     ["acct", "add", "Cash", "--type", "cash", "--currency", "CNY"],
     ["acct", "rename", "Cash", "Wallet", "--currency", "CNY"],

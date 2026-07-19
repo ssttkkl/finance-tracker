@@ -12,7 +12,7 @@ def test_config_module_import_does_not_resolve_home(monkeypatch):
     assert ft.config.StorageSettings
 
 
-def test_storage_settings_require_postgres_url_and_workspace():
+def test_storage_settings_accept_postgres_or_file_sqlite_url_and_workspace():
     from ft.config import StorageSettings
 
     settings = StorageSettings.load(environ={
@@ -22,6 +22,11 @@ def test_storage_settings_require_postgres_url_and_workspace():
 
     assert settings.database_url == "postgresql+psycopg://db/finance"
     assert settings.workspace_id == "workspace-a"
+    sqlite = StorageSettings.load(environ={
+        "FT_DATABASE_URL": "sqlite+pysqlite:////tmp/finance.db",
+        "FT_WORKSPACE_ID": "workspace-a",
+    })
+    assert sqlite.dialect == "sqlite"
     assert not hasattr(settings, "backend")
     assert not hasattr(settings, "ledger_root")
 
@@ -29,7 +34,9 @@ def test_storage_settings_require_postgres_url_and_workspace():
 @pytest.mark.parametrize("environment, message", [
     ({}, "FT_DATABASE_URL"),
     ({"FT_DATABASE_URL": "postgresql+psycopg://db/finance"}, "FT_WORKSPACE_ID"),
-    ({"FT_DATABASE_URL": "sqlite+pysqlite:///:memory:", "FT_WORKSPACE_ID": "a"}, "PostgreSQL"),
+    ({"FT_DATABASE_URL": "sqlite+pysqlite:///:memory:", "FT_WORKSPACE_ID": "a"}, "file"),
+    ({"FT_DATABASE_URL": "mysql+pymysql://db/finance", "FT_WORKSPACE_ID": "a"}, "PostgreSQL or file SQLite"),
+    ({"FT_DATABASE_URL": "not a url", "FT_WORKSPACE_ID": "a"}, "invalid"),
     ({
         "FT_DATABASE_URL": "postgresql+psycopg://db/finance", "FT_WORKSPACE_ID": "a",
         "FT_STORAGE_BACKEND": "postgres",
@@ -46,7 +53,7 @@ def test_storage_settings_reject_incomplete_non_postgres_or_legacy_config(enviro
         StorageSettings.load(environ=environment)
 
 
-def test_runtime_has_only_the_postgres_composition_root(monkeypatch):
+def test_runtime_has_one_relational_composition_root(monkeypatch):
     from ft.config import StorageSettings
     from ft.runtime import build_services
 
@@ -55,7 +62,7 @@ def test_runtime_has_only_the_postgres_composition_root(monkeypatch):
     )
     marker = object()
     monkeypatch.setattr(
-        "ft.adapters.postgres.runtime.build_postgres_services", lambda value: (marker, value)
+        "ft.adapters.relational.runtime.build_relational_services", lambda value: (marker, value)
     )
 
     assert build_services(settings) == (marker, settings)

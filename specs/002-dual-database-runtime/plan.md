@@ -395,17 +395,17 @@ green but is too small to justify a second worktree.
 
 ## Implementation Tasks From Engineering Review
 
-- [ ] **ER1 (P1)**: Introduce and route all production, migration, provisioning, and integration
+- [X] **ER1 (P1)**: Introduce and route all production, migration, provisioning, and integration
   engine creation through the relational engine factory; verify secure SQLite creation and pragmas.
-- [ ] **ER2 (P1)**: Add the shared storage error hierarchy and one CLI outer boundary; verify every
+- [X] **ER2 (P1)**: Add the shared storage error hierarchy and one CLI outer boundary; verify every
   category, exit status, rollback behavior, and secret/path redaction.
-- [ ] **ER3 (P2)**: Add immutable runtime notices and the warning-only SQLite permission flow; verify
+- [X] **ER3 (P2)**: Add immutable runtime notices and the warning-only SQLite permission flow; verify
   new/existing DB and sidecar modes without mutation.
-- [ ] **ER4 (P1)**: Implement backend-aware command transaction acquisition and real concurrent
+- [X] **ER4 (P1)**: Implement backend-aware command transaction acquisition and real concurrent
   tests; verify PostgreSQL serialization and SQLite correct-sum-or-busy behavior.
-- [ ] **ER5 (P1)**: Build the shared migrated contract matrix and required-PostgreSQL mode; verify all
+- [X] **ER5 (P1)**: Build the shared migrated contract matrix and required-PostgreSQL mode; verify all
   storage-dependent Application/CLI workflows on both backends with no unexplained skips.
-- [ ] **ER6 (P2)**: Update README/help/current product docs and execute both quickstarts, full tests,
+- [X] **ER6 (P2)**: Update README/help/current product docs and execute both quickstarts, full tests,
   Alembic head check, build, and diff check.
 
 ## GSTACK REVIEW REPORT
@@ -415,9 +415,10 @@ green but is too small to justify a second worktree.
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 1 | CLEAR | mode: HOLD_SCOPE, 0 critical gaps |
 | Codex Review | `/codex review` | Independent 2nd opinion | 0 | NOT RUN | No outside-voice review requested |
 | Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 5 issues incorporated, 0 critical gaps |
+| Code Review | `/review` | Final implementation diff (required) | 1 | CLEAR | Scope clean for feature, 0 unresolved findings |
 | Design Review | `/plan-design-review` | UI/UX gaps | 0 | NOT APPLICABLE | No UI scope |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 0 | NOT RUN | Not required by repository workflow |
 
-**VERDICT:** CEO + ENG CLEARED - ready for task generation and consistency analysis.
+**VERDICT:** CEO + ENG + CODE REVIEW CLEARED - implementation and verification complete.
 
 NO UNRESOLVED DECISIONS

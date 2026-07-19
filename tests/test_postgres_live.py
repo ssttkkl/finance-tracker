@@ -31,7 +31,7 @@ def postgres_sessions():
     command.downgrade(config, "base")
     command.upgrade(config, "head")
 
-    from ft.adapters.postgres import create_session_factory
+    from ft.adapters.relational import create_session_factory
 
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
     try:
@@ -45,7 +45,7 @@ def test_live_postgres_runtime_cross_entrypoint_and_empty_home(
     postgres_sessions, tmp_path, monkeypatch, capsys,
 ):
     from ft import cli
-    from ft.adapters.postgres import ensure_workspace
+    from ft.adapters.relational import ensure_workspace
 
     ensure_workspace(postgres_sessions, "live-workspace")
     home = tmp_path / "home"
@@ -66,14 +66,14 @@ def test_live_postgres_runtime_cross_entrypoint_and_empty_home(
 
 
 def test_live_postgres_workspace_isolation_and_transaction_rollback(postgres_sessions):
-    from ft.adapters.postgres import PostgresUnitOfWork, ensure_workspace
+    from ft.adapters.relational import RelationalUnitOfWork, ensure_workspace
     from ft.application.accounts import AccountService
     from ft.application.cashflow import CashflowService
 
     ensure_workspace(postgres_sessions, "workspace-a")
     ensure_workspace(postgres_sessions, "workspace-b")
-    workspace_a = PostgresUnitOfWork(postgres_sessions, "workspace-a")
-    workspace_b = PostgresUnitOfWork(postgres_sessions, "workspace-b")
+    workspace_a = RelationalUnitOfWork(postgres_sessions, "workspace-a")
+    workspace_b = RelationalUnitOfWork(postgres_sessions, "workspace-b")
     AccountService(workspace_a).create_account("Cash", "cash", "CNY")
     assert CashflowService(workspace_a).add_manual_transaction(
         amount=Decimal("1.230000000000000001"), counterparty="Exact",
@@ -97,12 +97,12 @@ def test_live_postgres_workspace_isolation_and_transaction_rollback(postgres_ses
 
 def test_live_shared_uow_serializes_concurrent_projection_updates(postgres_sessions):
     from concurrent.futures import ThreadPoolExecutor
-    from ft.adapters.postgres import PostgresUnitOfWork, ensure_workspace
+    from ft.adapters.relational import RelationalUnitOfWork, ensure_workspace
     from ft.application.accounts import AccountService
     from ft.application.cashflow import CashflowService
 
     ensure_workspace(postgres_sessions, "concurrent-workspace")
-    shared = PostgresUnitOfWork(postgres_sessions, "concurrent-workspace")
+    shared = RelationalUnitOfWork(postgres_sessions, "concurrent-workspace")
     AccountService(shared).create_account("Cash", "cash", "CNY")
 
     def add(amount):

@@ -213,8 +213,8 @@ def test_cli_stock_service_rejection_exits_nonzero(monkeypatch, capsys):
 
 def test_created_investment_account_currency_is_valued_as_cash():
     from test_postgres_adapter import _database
-    from ft.adapters.postgres.investments import PostgresInvestmentCommandRepository
-    from ft.adapters.postgres.queries import PostgresPortfolioRepository
+    from ft.adapters.relational.investments import RelationalInvestmentCommandRepository
+    from ft.adapters.relational.queries import RelationalPortfolioRepository
     from ft.application.accounts import AccountService
     from ft.application.investment import InvestmentService, PortfolioQueryService
 
@@ -222,7 +222,7 @@ def test_created_investment_account_currency_is_valued_as_cash():
     assert AccountService(unit_of_work(sessions, "workspace-a")).create_account(
         "Broker", "security", "USD"
     ).ok
-    service = InvestmentService(repository=PostgresInvestmentCommandRepository(
+    service = InvestmentService(repository=RelationalInvestmentCommandRepository(
         unit_of_work(sessions, "workspace-a")
     ))
     assert service.deposit("100", None, "Broker").ok
@@ -237,7 +237,7 @@ def test_created_investment_account_currency_is_valued_as_cash():
 
     market = MarketData()
     result = PortfolioQueryService(
-        PostgresPortfolioRepository(sessions, "workspace-a"), market
+        RelationalPortfolioRepository(sessions, "workspace-a"), market
     ).get_portfolio()
 
     position = result.accounts[0].positions[0]
@@ -249,7 +249,7 @@ def test_created_investment_account_currency_is_valued_as_cash():
 
 def test_postgres_investment_commands_write_events_and_projection_atomically():
     from test_postgres_adapter import _database
-    from ft.adapters.postgres.investments import PostgresInvestmentCommandRepository
+    from ft.adapters.relational.investments import RelationalInvestmentCommandRepository
     from ft.application.investment import InvestmentService
 
     sessions, unit_of_work = _database()
@@ -260,7 +260,7 @@ def test_postgres_investment_commands_write_events_and_projection_atomically():
         })
         uow.commit()
 
-    service = InvestmentService(repository=PostgresInvestmentCommandRepository(
+    service = InvestmentService(repository=RelationalInvestmentCommandRepository(
         unit_of_work(sessions, "workspace-a")
     ))
     assert service.deposit("100", "USD", "IBKR", "seed", "2026-07-17").ok
@@ -288,7 +288,7 @@ def test_postgres_investment_commands_write_events_and_projection_atomically():
 
 @pytest.mark.parametrize("action", ["sell", "swap"])
 def test_computed_investment_projection_scale_over_18_rolls_back_atomically(action):
-    from ft.adapters.postgres.investments import PostgresInvestmentCommandRepository
+    from ft.adapters.relational.investments import RelationalInvestmentCommandRepository
     from ft.application.investment import InvestmentService
     from test_postgres_adapter import _database
 
@@ -311,7 +311,7 @@ def test_computed_investment_projection_scale_over_18_rolls_back_atomically(acti
         uow.commit()
 
     service = InvestmentService(
-        repository=PostgresInvestmentCommandRepository(unit_of_work(sessions, "workspace-a"))
+        repository=RelationalInvestmentCommandRepository(unit_of_work(sessions, "workspace-a"))
     )
     with pytest.raises(ValueError, match="at most 18 decimal places"):
         if action == "sell":

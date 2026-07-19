@@ -1,4 +1,4 @@
-"""PostgreSQL-only runtime configuration."""
+"""Explicit runtime configuration for the supported relational databases."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -22,11 +22,22 @@ class StorageSettings:
         if not self.workspace_id:
             raise StorageConfigurationError("FT_WORKSPACE_ID is required")
         try:
-            backend = make_url(self.database_url).get_backend_name()
+            url = make_url(self.database_url)
+            backend = url.get_backend_name()
         except Exception as exc:
             raise StorageConfigurationError("FT_DATABASE_URL is invalid") from exc
-        if backend != "postgresql":
-            raise StorageConfigurationError("FT_DATABASE_URL must use PostgreSQL")
+        if backend not in {"postgresql", "sqlite"}:
+            raise StorageConfigurationError(
+                "FT_DATABASE_URL must use PostgreSQL or file SQLite"
+            )
+        if backend == "sqlite" and (not url.database or url.database == ":memory:"):
+            raise StorageConfigurationError(
+                "FT_DATABASE_URL must use a persistent file SQLite database"
+            )
+
+    @property
+    def dialect(self) -> str:
+        return make_url(self.database_url).get_backend_name()
 
     @classmethod
     def load(cls, *, environ=None) -> "StorageSettings":
@@ -34,7 +45,7 @@ class StorageSettings:
         for legacy_key in ("FT_STORAGE_BACKEND", "FT_DIR"):
             if legacy_key in environment:
                 raise StorageConfigurationError(
-                    f"{legacy_key} is no longer supported; PostgreSQL is the only runtime storage"
+                    f"{legacy_key} is no longer supported; use FT_DATABASE_URL"
                 )
         database_url = environment.get("FT_DATABASE_URL", "")
         workspace_id = environment.get("FT_WORKSPACE_ID", "")
