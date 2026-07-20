@@ -72,6 +72,7 @@ For each workspace group by `name`:
    - account_lifecycle_events.account_id
    - valuation_observations.owner_account_id (+ rewrite cash identities)
    - import_batches.target_account_id when set
+   - wealth_coverage_dispositions.owner_account_id
 4. Delete loser account rows
 5. Drop `accounts.currency` column / unique constraint; add name unique
 6. Rebuild ledger snapshot from facts (or merge currency maps under survivor name)

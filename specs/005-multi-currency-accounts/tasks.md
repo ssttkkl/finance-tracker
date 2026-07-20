@@ -128,6 +128,10 @@
 - [X] T031 Run `uv run pytest` (and postgres matrix if env set); fix failures; `uv build` if project provides it
 - [X] T032 `$speckit-converge` against spec/plan/tasks after implementation
 
+## Post-convergence coverage repair
+
+- [X] T033 Add migration regression coverage in `tests/test_multi_currency_migration.py` for every rehang target: investment events, lifecycle events, targeted import batches, wealth coverage dispositions, and rebuilt multi-currency snapshots; run the SQLite migration suite and the real PostgreSQL matrix when `FT_TEST_POSTGRES_URL` is configured.
+
 ---
 
 ## Dependencies

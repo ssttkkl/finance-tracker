@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import json
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -53,6 +54,23 @@ def _seed_legacy_same_name_accounts(engine, *, conflict: bool = False) -> None:
             "('tx-jpy', 'w', 'a-jpy', 'r2', :late, 20, 'JPY', '', '', 'income', '', '', '', "
             " '', '', '', '', '', '', '', '', 1, :late)"
         ), {"early": at_early, "late": at_late})
+        connection.execute(text(
+            "INSERT INTO investment_events "
+            "(id, workspace_id, account_id, raw_record_id, occurred_at, kind, currency, payload, revision, created_at) "
+            "VALUES ('investment-jpy', 'w', 'a-jpy', NULL, :late, 'deposit', 'JPY', '{}', 1, :late)"
+        ), {"late": at_late})
+        connection.execute(text(
+            "INSERT INTO account_lifecycle_events "
+            "(event_id, workspace_id, account_id, event_kind, effective_at, source_identity, "
+            "source_revision, reason, created_at) "
+            "VALUES ('lifecycle-jpy', 'w', 'a-jpy', 'opened', :late, 'seed:lifecycle', "
+            "'seed', '', :late)"
+        ), {"late": at_late})
+        connection.execute(text(
+            "INSERT INTO import_batches "
+            "(id, workspace_id, target_account_id, source_kind, source_digest, source_ref, status, created_at, completed_at) "
+            "VALUES ('batch-jpy', 'w', 'a-jpy', 'seed', 'digest-jpy', 'seed.csv', 'completed', :late, :late)"
+        ), {"late": at_late})
         connection.execute(text(
             "INSERT INTO valuation_observations "
             "(observation_id, workspace_id, identity_kind, identity, owner_account_id, "
@@ -164,6 +182,24 @@ def test_merge_same_name_same_type_rewrites_cash_valuation_identities(tmp_path, 
             "WHERE workspace_id = 'w'"
         )).scalars().all()
         assert coverage_owners == ["a-cny"]
+        investment_owners = connection.execute(text(
+            "SELECT account_id FROM investment_events WHERE workspace_id = 'w'"
+        )).scalars().all()
+        assert investment_owners == ["a-cny"]
+        lifecycle_owners = connection.execute(text(
+            "SELECT account_id FROM account_lifecycle_events WHERE workspace_id = 'w'"
+        )).scalars().all()
+        assert lifecycle_owners == ["a-cny"]
+        import_targets = connection.execute(text(
+            "SELECT target_account_id FROM import_batches WHERE workspace_id = 'w'"
+        )).scalars().all()
+        assert import_targets == ["a-cny"]
+        snapshot_payload = connection.execute(text(
+            "SELECT payload FROM ledger_snapshots WHERE workspace_id = 'w'"
+        )).scalar_one()
+        if isinstance(snapshot_payload, str):
+            snapshot_payload = json.loads(snapshot_payload)
+        assert snapshot_payload["accounts"]["cash"]["工行"] == {"CNY": "10", "JPY": "20"}
     engine.dispose()
     if backend == "postgresql":
         command.downgrade(config, "base")
