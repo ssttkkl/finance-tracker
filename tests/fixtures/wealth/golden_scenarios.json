@@ -1,0 +1,11 @@
+{
+  "cashflow": {"opening": "100.00", "closing": "150.00", "external_cashflow": "50.00"},
+  "cash_investment": {"opening": "100.00", "closing": "115.00", "investment_return": "15.00"},
+  "multi_currency_residual": {"opening": "100.00", "closing": "112.00", "fx_impact": "10.00", "unexplained_adjustment": "2.00"},
+  "missing_boundary": {"status": "partial"},
+  "unsupported_position": {"status": "unsupported"},
+  "multi_account_dietz": {"opening": "100.00", "closing": "121.00", "external_cashflow": "10.00"},
+  "fx_conversion": {"from": "USD", "to": "EUR", "amount": "10.00"},
+  "lifecycle": {"events": ["opened", "closed", "reactivated"]},
+  "coverage_change": {"before": "supported", "after": "missing"}
+}

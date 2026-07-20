@@ -12,6 +12,7 @@ class ServiceBundle:
     cashflow: Any = None
     transfers: Any = None
     statement_import: Any = None
+    wealth: Any = None
     uow: Any = None
     notices: tuple[str, ...] = ()
 
