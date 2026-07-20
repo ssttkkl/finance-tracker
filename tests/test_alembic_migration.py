@@ -4,11 +4,13 @@ import os
 import pytest
 
 
-def test_repository_has_one_clean_initial_revision():
+def test_repository_has_clean_linear_revisions():
     root = Path(__file__).parents[1]
     revisions = sorted((root / "migrations" / "versions").glob("*.py"))
 
-    assert [path.name for path in revisions] == ["20260717_01_initial.py"]
+    assert [path.name for path in revisions] == [
+        "20260717_01_initial.py", "20260719_02_wealth_attribution.py",
+    ]
 
 
 def test_initial_alembic_revision_upgrades_and_downgrades(tmp_path):

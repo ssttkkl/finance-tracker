@@ -114,6 +114,8 @@ PostgreSQL-only；旧文件账本、迁移、shadow comparison、Connector sync 
 
 非目标：Web、认证、Review Inbox、Connector、AI 和 MCP。
 
+实现交接以 [`003-wealth-attribution-core`](../specs/003-wealth-attribution-core/spec.md) 的 Spec Kit artifacts 为唯一事实源。内核保持 transport-neutral：Web/API 适配和展示 URL 不属于该 feature；正式估值、账户生命周期和不可变 generation/evidence 是 PostgreSQL 与 SQLite 共享的可重建输入/读模型边界。
+
 ### 5.3 `wealth-report-web`：本地只读财富报告
 
 依赖：财富归因内核完成。

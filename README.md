@@ -120,8 +120,14 @@ git diff --check
 
 ```bash
 FT_TEST_POSTGRES_URL='postgresql+psycopg://localhost/finance_tracker_test' \
-  FT_REQUIRE_TEST_POSTGRES=1 uv run pytest
+FT_REQUIRE_TEST_POSTGRES=1 uv run pytest
 ```
+
+## 财富归因内核
+
+财富归因是 transport-neutral 的 Application Service：`ServiceBundle.wealth` 提供自然月 breakdown、日/周/月 series、immutable component evidence 和 rebuild 入口。它固定使用 CNY 与 Asia/Shanghai，并只从正式的 valuation observation、账户生命周期和可审计事实构建结果；不会读取可变 snapshot 或即时行情作为历史输入。
+
+此 feature 不提供 HTTP/Web 路由、认证、Connector、AI 或 MCP surface。调用方必须继续通过显式 `FT_DATABASE_URL` 选择 PostgreSQL 或 SQLite；没有自动回退、双写或跨后端同步。
 
 ## 文档
 

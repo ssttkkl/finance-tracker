@@ -109,6 +109,11 @@ class CashflowService:
                 "locked": "",
             }
             uow.cashflows.add(account.type, row)
+            if hasattr(uow, "wealth_facts"):
+                observed_at = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=WORKSPACE_TIMEZONE)
+                uow.wealth_facts.record_cash_checkin(
+                    account_name=account_name, currency=account.currency, balance=balance, occurred_at=observed_at,
+                )
             snap = uow.snapshot.load(lock=True)
             _ensure_snapshot_account(snap, account.type, account_name, account.currency)
             uow.snapshot.set_balance(snap, account_name, account.type, account.currency, balance)

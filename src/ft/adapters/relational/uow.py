@@ -9,6 +9,7 @@ from sqlalchemy.exc import DBAPIError, OperationalError
 
 from .models import Base, WorkspaceModel
 from .imports import RelationalImportRepository
+from .wealth_facts import RelationalWealthFactWriter
 from .repositories import (
     RelationalAccountRepository,
     RelationalCashflowRepository,
@@ -55,6 +56,7 @@ class RelationalUnitOfWork:
         investments: object | None = None
         snapshot: object | None = None
         imports: object | None = None
+        wealth_facts: object | None = None
 
     def _state(self) -> "RelationalUnitOfWork._State":
         state = self._state_var.get()
@@ -82,6 +84,10 @@ class RelationalUnitOfWork:
     def imports(self):
         return self._state().imports
 
+    @property
+    def wealth_facts(self):
+        return self._state().wealth_facts
+
     def __enter__(self) -> "RelationalUnitOfWork":
         session = self._session_factory()
         try:
@@ -103,6 +109,7 @@ class RelationalUnitOfWork:
             investments=RelationalInvestmentRepository(session, self.workspace_id),
             snapshot=RelationalSnapshotRepository(session, self.workspace_id),
             imports=RelationalImportRepository(session, self.workspace_id),
+            wealth_facts=RelationalWealthFactWriter(session, self.workspace_id),
         )
         state.token = self._state_var.set(state)
         return self
