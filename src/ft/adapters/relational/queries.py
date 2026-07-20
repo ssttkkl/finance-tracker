@@ -23,7 +23,7 @@ class RelationalAccountQueryRepository:
                 .where(AccountModel.workspace_id == self._workspace_id)
                 .order_by(AccountModel.created_at, AccountModel.id)
             )
-            return [AccountDTO(row.name, row.type, row.currency, row.active) for row in rows]
+            return [AccountDTO(row.name, row.type, row.active) for row in rows]
 
 
 class RelationalTransactionQueryRepository:
@@ -89,11 +89,10 @@ class RelationalPortfolioRepository:
             payload = RelationalSnapshotRepository(session, self._workspace_id).load()
         base_currencies = {
             account.name: tuple(sorted({
-                account.currency.upper(),
-                *(
-                    str(item).upper()
-                    for item in account.metadata_json.get("base_currencies", ())
-                ),
+                *(str(item).upper() for item in account.metadata_json.get("base_currencies", ())),
+                *(str(position.get("cost_currency", "")).upper()
+                  for position in payload.get("accounts", {}).get("security", {}).get(account.name, {}).get("positions", {}).values()
+                  if position.get("cost_currency")),
             }))
             for account in accounts
         }

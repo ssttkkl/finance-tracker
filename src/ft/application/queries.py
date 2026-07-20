@@ -31,14 +31,9 @@ class FinanceQueryService:
     def list_accounts(self) -> AccountListDTO:
         snapshot = self._snapshots.load_snapshot()
         items = tuple(
-            AccountBalanceDTO(
-                name=account.name,
-                type=account.type,
-                currency=account.currency,
-                active=account.active,
-                balance=self._account_balance(account, snapshot),
-            )
+            AccountBalanceDTO(account.name, account.type, currency, account.active, balance)
             for account in self._accounts.list_accounts()
+            for currency, balance in self._account_balances(account, snapshot)
         )
         return AccountListDTO(items)
 
@@ -46,7 +41,7 @@ class FinanceQueryService:
         month_rows = self._transactions.list_transactions(month=month)
         all_rows = self._transactions.list_transactions()
         active_accounts = {
-            (account.name, account.currency)
+            account.name
             for account in self._accounts.list_accounts()
             if account.active
         }
@@ -62,7 +57,7 @@ class FinanceQueryService:
 
         expenses: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
         for key, rows in by_account.items():
-            if key not in active_accounts:
+            if key[0] not in active_accounts:
                 continue
             rows.sort(key=lambda row: row.get("date", ""))
             last_checkin = max(
@@ -114,17 +109,20 @@ class FinanceQueryService:
         items = tuple(self._transaction_dto(row) for row in rows)
         return TransactionPageDTO(items)
 
-    def _account_balance(self, account, snapshot: dict) -> Decimal:
+    def _account_balances(self, account, snapshot: dict) -> tuple[tuple[str, Decimal], ...]:
         accounts = snapshot.get("accounts", {})
         if account.type in {"cash", "loan", "lend"}:
             bucket = accounts.get(account.type, {}).get(account.name, {})
             if isinstance(bucket, dict):
-                return _decimal(bucket.get(account.currency, 0))
-            return _decimal(bucket)
+                return tuple((currency, _decimal(balance)) for currency, balance in sorted(bucket.items()))
+            return (("CNY", _decimal(bucket)),)
 
         security = accounts.get("security", {}).get(account.name, {})
         positions = security.get("positions", {}) if isinstance(security, dict) else {}
-        currency_ticker = account.currency.lower()
+        quote_currency = str(
+            security.get("currency") or next(iter(getattr(account, "metadata", {}).get("base_currencies", ())), "CNY")
+        ).upper()
+        currency_ticker = quote_currency.lower()
         total = Decimal("0")
         market_tickers = []
         for ticker, position in positions.items():
@@ -133,7 +131,7 @@ class FinanceQueryService:
             elif _decimal(position.get("shares")) != 0:
                 market_tickers.append(ticker)
         prices = self._market_data.get_prices(
-            market_tickers, quote_currency=account.currency
+            market_tickers, quote_currency=quote_currency
         ) if market_tickers else {}
         for ticker in market_tickers:
             position = positions[ticker]
@@ -142,7 +140,7 @@ class FinanceQueryService:
                 total += shares * _decimal(prices[ticker])
             else:
                 total += _decimal(position.get("total_cost"))
-        return total
+        return ((quote_currency, total),)
 
     @staticmethod
     def _transaction_dto(row: dict) -> TransactionDTO:

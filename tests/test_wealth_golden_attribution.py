@@ -68,8 +68,8 @@ def _insert_golden_formal_fixture(sessions) -> None:
     at = lambda day, hour=0: datetime(2026, 7, day, hour, tzinfo=tz)
     with sessions.begin() as session:
         session.add_all((
-            AccountModel(id="cash", workspace_id="wealth-golden", name="Cash", type="cash", currency="CNY"),
-            AccountModel(id="broker", workspace_id="wealth-golden", name="Broker", type="security", currency="USD"),
+            AccountModel(id="cash", workspace_id="wealth-golden", name="Cash", type="cash"),
+            AccountModel(id="broker", workspace_id="wealth-golden", name="Broker", type="security"),
         ))
         session.flush()
         session.add_all((
@@ -106,7 +106,7 @@ def _insert_golden_formal_fixture(sessions) -> None:
             (4, "120", "12", "7.3"),
         ):
             for identity_kind, identity, value, currency in (
-                ("cash_account", "cash", cash, "CNY"),
+                ("cash_account", "cash:CNY", cash, "CNY"),
                 ("position", "broker:global-etf", position, "USD"),
                 ("fx", "USD/CNY", fx, "CNY"),
             ):

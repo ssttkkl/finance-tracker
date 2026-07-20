@@ -106,26 +106,26 @@ def test_stock_help_excludes_append_and_sync(capsys):
 
 def test_cli_add_checkin_transfer_dispatch_to_postgres_services(monkeypatch):
     calls = []
-    account = type("Account", (), {"currency": "CNY"})()
+    account = type("Account", (), {"name": "Cash"})()
 
     class Cashflow:
         def add_manual_transaction(self, **kwargs):
             calls.append(("add", kwargs))
-            return type("Result", (), {"ok": True, "details": {"account": account}})()
+            return type("Result", (), {"ok": True, "row": {"currency": "CNY"}})()
 
         def checkin_balance(self, **kwargs):
             calls.append(("checkin", kwargs))
             return type("Result", (), {
-                "ok": True, "details": {"account": account, "day": "2026-07-17"},
+                "ok": True, "row": {"currency": "CNY"}, "details": {"day": "2026-07-17"},
             })()
 
     class Transfers:
         def transfer(self, **kwargs):
             calls.append(("transfer", kwargs))
             return type("Result", (), {"ok": True, "details": {
-                "from_account": account, "to_account": account,
                 "amount": kwargs["amount"], "to_amount": kwargs["amount"],
                 "date": kwargs["date"], "warning": "",
+                "from_currency": kwargs["from_currency"], "to_currency": kwargs["to_currency"],
             }})()
 
     bundle = type("Bundle", (), {"cashflow": Cashflow(), "transfers": Transfers()})()
@@ -221,10 +221,10 @@ def test_cli_commit_time_storage_error_is_controlled_and_nonzero(monkeypatch, ca
 
 @pytest.mark.parametrize("argv", [
     ["acct", "add", "Cash", "--type", "cash", "--currency", "CNY"],
-    ["acct", "rename", "Cash", "Wallet", "--currency", "CNY"],
-    ["acct", "delete", "Cash", "--currency", "CNY"],
-    ["acct", "activate", "Cash", "--currency", "CNY"],
-    ["acct", "deactivate", "Cash", "--currency", "CNY"],
+    ["acct", "rename", "Cash", "Wallet"],
+    ["acct", "delete", "Cash"],
+    ["acct", "activate", "Cash"],
+    ["acct", "deactivate", "Cash"],
 ])
 def test_rejected_account_writes_exit_nonzero(monkeypatch, argv):
     from ft.domain.accounts import AccountResult

@@ -30,17 +30,12 @@ class RelationalImportRepository:
     ) -> str:
         target_account_id = None
         if target_account_name is not None:
-            if target_account_currency is None:
-                raise ValueError("target_account_currency is required when target_account_name is set")
             target_account_id = self._session.scalar(select(AccountModel.id).where(
                 AccountModel.workspace_id == self._workspace_id,
                 AccountModel.name == target_account_name,
-                AccountModel.currency == target_account_currency,
             ))
             if target_account_id is None:
-                raise ValueError(
-                    f"target account not found: {target_account_name} ({target_account_currency})"
-                )
+                raise ValueError(f"target account not found: {target_account_name}")
         existing = self._session.scalar(select(ImportBatchModel).where(
             ImportBatchModel.workspace_id == self._workspace_id,
             ImportBatchModel.source_kind == source_kind,
@@ -243,7 +238,7 @@ class RelationalImportRepository:
                 select(
                     CashTransactionModel.raw_record_id,
                     AccountModel.name,
-                    AccountModel.currency,
+                    CashTransactionModel.currency,
                 ).join(AccountModel, (
                     AccountModel.workspace_id == CashTransactionModel.workspace_id
                 ) & (AccountModel.id == CashTransactionModel.account_id)).where(
@@ -255,7 +250,7 @@ class RelationalImportRepository:
                 select(
                     InvestmentEventModel.raw_record_id,
                     AccountModel.name,
-                    AccountModel.currency,
+                    InvestmentEventModel.currency,
                 ).join(AccountModel, (
                     AccountModel.workspace_id == InvestmentEventModel.workspace_id
                 ) & (AccountModel.id == InvestmentEventModel.account_id)).where(
@@ -272,7 +267,7 @@ class RelationalImportRepository:
         if batch.target_account_id is None:
             # Multi-account batch: derive targets from formal facts linked to batch raw records.
             cash_rows = self._session.execute(
-                select(AccountModel.name, AccountModel.currency)
+                select(AccountModel.name, CashTransactionModel.currency)
                 .join(CashTransactionModel, (
                     CashTransactionModel.workspace_id == AccountModel.workspace_id
                 ) & (CashTransactionModel.account_id == AccountModel.id))
@@ -285,7 +280,7 @@ class RelationalImportRepository:
                 )
             )
             inv_rows = self._session.execute(
-                select(AccountModel.name, AccountModel.currency)
+                select(AccountModel.name, InvestmentEventModel.currency)
                 .join(InvestmentEventModel, (
                     InvestmentEventModel.workspace_id == AccountModel.workspace_id
                 ) & (InvestmentEventModel.account_id == AccountModel.id))
@@ -301,7 +296,7 @@ class RelationalImportRepository:
                 (name, currency) for name, currency in inv_rows
             }
         target = self._session.execute(
-            select(AccountModel.name, AccountModel.currency)
+            select(AccountModel.name)
             .where(
                 AccountModel.workspace_id == self._workspace_id,
                 AccountModel.id == batch.target_account_id,
@@ -309,7 +304,11 @@ class RelationalImportRepository:
         ).one_or_none()
         if target is None:
             return set()
-        return {(target.name, target.currency)}
+        currencies = self._session.scalars(select(CashTransactionModel.currency).where(
+            CashTransactionModel.workspace_id == self._workspace_id,
+            CashTransactionModel.account_id == batch.target_account_id,
+        )).all()
+        return {(target.name, currency) for currency in currencies}
 
     def replace_raw_record(self, record_id: str, payload: dict) -> None:
         raise ValueError("raw records are immutable")

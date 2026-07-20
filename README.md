@@ -36,11 +36,11 @@ SQLite 启用 WAL、外键和约 5 秒写锁等待；`storage.busy` 表示需等
 
 ```bash
 # 账户
-uv run ft acct add Cash --type cash --currency CNY
-uv run ft acct add '工行信用卡(1200)' --type loan --currency JPY
+uv run ft acct add Cash --type cash --currency CNY  # 可选：创建一个零余额 CNY 口袋
+uv run ft acct add '工行信用卡(1200)' --type loan
 uv run ft acct list
-uv run ft acct rename Cash Wallet --currency CNY
-uv run ft acct deactivate Wallet --currency CNY
+uv run ft acct rename Cash Wallet
+uv run ft acct deactivate Wallet
 
 # 现金、余额校准和转账
 uv run ft add --amount -12.50 --counterparty Coffee --account Wallet --currency CNY
@@ -52,8 +52,9 @@ uv run ft report --month 2026-07
 uv run ft list --account Wallet --limit 20
 ```
 
-有正式事实引用的账户不能硬删除，应使用 `acct deactivate`。账户重命名不会改变历史事实归属。
-币种接受任意 3 位字母码（如 CNY/USD/JPY），无白名单限制。
+账户名在 workspace 内唯一；一个现金、借款或出借账户可同时拥有多个币种口袋。`acct add --currency` 仅创建可选的零余额口袋，所有现金写入、校准和转账都必须显式提供操作币种。账户重命名不会改变历史事实归属；有正式事实引用的账户不能硬删除，应使用 `acct deactivate`。币种接受任意 3 位字母码（如 CNY/USD/JPY），无白名单限制。
+
+从旧的“名称 + 币种”账户模型升级时，运行一次 `uv run alembic upgrade head`。迁移会按名称合并同类型账户、保留所有币种口袋并重写相关事实；同名但类型不同会失败并保持原数据库不变，不提供运行时兼容或自动回退。
 
 ## 投资事件
 

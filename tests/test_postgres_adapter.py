@@ -46,12 +46,12 @@ def test_account_service_contract_and_workspace_isolation():
     assert workspace_a.create_account("Broker", "security", "USD").ok is True
     assert workspace_b.create_account("Cash", "cash", "USD").ok is True
 
-    assert [(item.name, item.currency) for item in workspace_a.list_accounts()] == [
-        ("Cash", "CNY"),
-        ("Broker", "USD"),
+    assert [(item.name, item.type) for item in workspace_a.list_accounts()] == [
+        ("Cash", "cash"),
+        ("Broker", "security"),
     ]
-    assert [(item.name, item.currency) for item in workspace_b.list_accounts()] == [
-        ("Cash", "USD"),
+    assert [(item.name, item.type) for item in workspace_b.list_accounts()] == [
+        ("Cash", "cash"),
     ]
 
 
@@ -86,6 +86,7 @@ def test_cashflow_service_contract_persists_decimal_snapshot():
         amount=Decimal("-12.34"),
         counterparty="Coffee",
         account_name="Cash",
+        currency="CNY",
         date="2026-07-17 09:00:00",
     )
 
@@ -165,7 +166,7 @@ def test_unit_of_work_rolls_back_all_repositories_on_error():
     sessions, unit_of_work = _database()
     with pytest.raises(RuntimeError, match="boom"):
         with unit_of_work(sessions, "workspace-a") as uow:
-            uow.accounts.add(AccountDTO("Cash", "cash", "CNY"))
+            uow.accounts.add(AccountDTO("Cash", "cash"))
             uow.cashflows.add("cash", {
                 "date": "2026-07-17 11:00:00",
                 "amount": Decimal("1"),
@@ -201,12 +202,12 @@ def test_account_rename_preserves_fact_identity_and_projection():
     service.create_account("Cash", "cash", "CNY")
     CashflowService(unit_of_work(sessions, "workspace-a")).add_manual_transaction(
         amount=Decimal("1.23"), counterparty="Seed", account_name="Cash",
-        date="2026-07-17 09:00:00",
+        currency="CNY", date="2026-07-17 09:00:00",
     )
     with sessions() as session:
         before_id = session.scalar(select(AccountModel.id).where(AccountModel.name == "Cash"))
 
-    result = service.rename_account("Cash", "Wallet", "CNY")
+    result = service.rename_account("Cash", "Wallet")
 
     assert result.ok is True
     with sessions() as session:
@@ -227,10 +228,10 @@ def test_referenced_account_cannot_be_deleted():
     service.create_account("Cash", "cash", "CNY")
     CashflowService(unit_of_work(sessions, "workspace-a")).add_manual_transaction(
         amount=Decimal("1"), counterparty="Seed", account_name="Cash",
-        date="2026-07-17 09:00:00",
+        currency="CNY", date="2026-07-17 09:00:00",
     )
 
-    result = service.delete_account("Cash", "CNY")
+    result = service.delete_account("Cash")
 
     assert result.ok is False
     assert result.error.code == "account.in_use"
@@ -244,12 +245,12 @@ def test_active_empty_account_must_be_deactivated_before_delete():
     service = AccountService(unit_of_work(sessions, "workspace-a"))
     assert service.create_account("Empty", "cash", "CNY").ok
 
-    active_result = service.delete_account("Empty", "CNY")
+    active_result = service.delete_account("Empty")
 
     assert active_result.ok is False
     assert active_result.error.code == "account.active"
-    assert service.set_active("Empty", "CNY", False).ok
-    assert service.delete_account("Empty", "CNY").ok
+    assert service.set_active("Empty", False).ok
+    assert service.delete_account("Empty").ok
     assert service.list_accounts() == []
 
 
@@ -263,22 +264,21 @@ def test_decimal_scale_over_18_places_is_rejected_before_commit():
     with pytest.raises(ValueError, match="18 decimal places"):
         CashflowService(unit_of_work(sessions, "workspace-a")).add_manual_transaction(
             amount=Decimal("0.1234567890123456789"), counterparty="Scale",
-            account_name="Cash", date="2026-07-17 09:00:00",
+            account_name="Cash", currency="CNY", date="2026-07-17 09:00:00",
         )
 
 
-def test_cash_write_requires_currency_when_account_name_is_ambiguous():
+def test_cash_write_requires_explicit_operation_currency():
     from ft.application.accounts import AccountService
     from ft.application.cashflow import CashflowService
 
     sessions, unit_of_work = _database()
     accounts = AccountService(unit_of_work(sessions, "workspace-a"))
-    accounts.create_account("Cash", "cash", "CNY")
-    accounts.create_account("Cash", "cash", "USD")
+    accounts.create_account("Cash", "cash")
     service = CashflowService(unit_of_work(sessions, "workspace-a"))
 
     assert service.add_manual_transaction(
-        amount=Decimal("1"), counterparty="ambiguous", account_name="Cash",
+        amount=Decimal("1"), counterparty="missing currency", account_name="Cash",
         date="2026-07-17 09:00:00",
     ).ok is False
     result = service.add_manual_transaction(
@@ -341,7 +341,7 @@ def test_naive_statement_time_is_stored_as_utc_and_returned_in_workspace_time():
     AccountService(unit_of_work(sessions, "workspace-a")).create_account("Cash", "cash", "CNY")
     CashflowService(unit_of_work(sessions, "workspace-a")).add_manual_transaction(
         amount=Decimal("1"), counterparty="Time", account_name="Cash",
-        date="2026-07-17 09:00:00",
+        currency="CNY", date="2026-07-17 09:00:00",
     )
 
     with sessions() as session:
@@ -359,9 +359,9 @@ def test_cross_currency_cash_to_security_transfer_preserves_exact_projection_val
 
     sessions, unit_of_work = _database()
     with unit_of_work(sessions, "workspace-a") as uow:
-        uow.accounts.add_raw({"name": "Cash", "type": "cash", "currency": "CNY"})
+        uow.accounts.add_raw({"name": "Cash", "type": "cash"})
         uow.accounts.add_raw({
-            "name": "IBKR", "type": "security", "currency": "USD",
+            "name": "IBKR", "type": "security",
             "base_currencies": ["USD"],
         })
         uow.commit()
@@ -370,6 +370,7 @@ def test_cross_currency_cash_to_security_transfer_preserves_exact_projection_val
         from_name="Cash", to_name="IBKR",
         amount=Decimal("1.230000000000000001"),
         to_amount=Decimal("0.123456789012345678"),
+        from_currency="CNY", to_currency="USD",
         date="2026-07-17", time_str="12:00:00",
     )
 

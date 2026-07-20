@@ -191,7 +191,7 @@ def test_shared_runtime_rolls_back_injected_fact_and_projection_failure(relation
     services = relational_runtime.services
     with pytest.raises(RuntimeError, match="inject"):
         with services.uow as uow:
-            uow.accounts.add(AccountDTO("Cash", "cash", "CNY"))
+            uow.accounts.add(AccountDTO("Cash", "cash"))
             snapshot = uow.snapshot.load(lock=True)
             uow.snapshot.set_balance(snapshot, "Cash", "cash", "CNY", Decimal("99"))
             uow.snapshot.save(snapshot)

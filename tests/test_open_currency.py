@@ -32,7 +32,10 @@ def test_account_service_accepts_jpy():
     service = AccountService(unit_of_work(sessions, "workspace-a"))
     result = service.create_account("工行信用卡(1200)", "loan", "jpy")
     assert result.ok is True
-    assert result.account.currency == "JPY"
+    assert result.account.name == "工行信用卡(1200)"
+    with unit_of_work(sessions, "workspace-a") as uow:
+        assert uow.snapshot.load()["accounts"]["loan"]["工行信用卡(1200)"]["JPY"] == "0"
+        uow.commit()
 
 
 def test_account_service_rejects_two_letter_currency():
@@ -64,7 +67,7 @@ def test_jpy_loan_import_updates_projection(tmp_path):
 
     sessions, unit_of_work = _database()
     with unit_of_work(sessions, "workspace-a") as uow:
-        uow.accounts.add_raw({"name": "工行信用卡(1200)", "type": "loan", "currency": "JPY"})
+        uow.accounts.add_raw({"name": "工行信用卡(1200)", "type": "loan"})
         uow.commit()
 
     row = _cash_row(

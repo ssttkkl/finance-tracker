@@ -49,8 +49,8 @@ def _service(rows=()):
     from ft.domain.accounts import AccountDTO
 
     accounts = [
-        AccountDTO("Cash", "cash", "CNY"),
-        AccountDTO("Broker", "security", "USD"),
+        AccountDTO("Cash", "cash"),
+        AccountDTO("Broker", "security"),
     ]
     snapshot = {
         "accounts": {

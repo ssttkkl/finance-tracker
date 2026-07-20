@@ -12,6 +12,7 @@ def test_repository_has_clean_linear_revisions():
         "20260717_01_initial.py",
         "20260719_02_wealth_attribution.py",
         "20260720_03_import_batch_multi_account.py",
+        "20260720_04_multi_currency_accounts.py",
     ]
 
 
@@ -41,8 +42,9 @@ def test_initial_alembic_revision_upgrades_and_downgrades(tmp_path):
         "record_revisions",
     }
 
-    command.downgrade(config, "base")
-    assert set(inspect(engine).get_table_names()) == {"alembic_version"}
+    # 005 is an explicitly one-shot, non-reversible account merge.
+    with pytest.raises(NotImplementedError, match="one-shot"):
+        command.downgrade(config, "base")
 
 
 def test_alembic_uses_ft_database_url_environment_override(tmp_path, monkeypatch):
@@ -153,7 +155,7 @@ def test_migrated_sqlite_amount_columns_use_canonical_text_and_round_trip_exactl
         assert amount["type"].__class__.__name__.upper() == "VARCHAR"
         with engine.begin() as connection:
             connection.execute(text("INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', CURRENT_TIMESTAMP)"))
-            connection.execute(text("INSERT INTO accounts (id, workspace_id, name, type, currency, active, metadata_json, created_at, updated_at) VALUES ('a', 'w', 'Cash', 'cash', 'CNY', 1, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
+            connection.execute(text("INSERT INTO accounts (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) VALUES ('a', 'w', 'Cash', 'cash', 1, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
             connection.execute(text("INSERT INTO cash_transactions (id, workspace_id, account_id, record_id, occurred_at, amount, currency, counterparty, description, category, source, bill_source, transfer_account, locked, offset_group, offset_role, offset_strength, offset_source, offset_rule_hint, offset_match_type, proposed_action, revision, created_at) VALUES ('c', 'w', 'a', '', CURRENT_TIMESTAMP, '1.230000000000000001', 'CNY', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 1, CURRENT_TIMESTAMP)"))
             assert connection.scalar(text("SELECT amount FROM cash_transactions WHERE id = 'c'")) == "1.230000000000000001"
     finally:

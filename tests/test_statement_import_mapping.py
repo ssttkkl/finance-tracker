@@ -292,3 +292,67 @@ def test_convert_and_import_account_distribution_match(tmp_path, mapping_path):
         }
         import_dist = Counter(accounts[fact.account_id] for fact in facts)
     assert convert_dist == import_dist
+
+
+def test_single_account_accepts_cny_and_jpy_rows_without_currency_match(tmp_path):
+    from ft.adapters.relational.models import CashTransactionModel
+    from ft.application.statement_import import StatementImportService
+    from ft.domain.imports import StatementImportCommand
+    from test_postgres_adapter import _database
+    from test_postgres_statement_import import FakeStatementParser, _cash_row
+
+    sessions, unit_of_work = _database()
+    with unit_of_work(sessions, "workspace-a") as uow:
+        uow.accounts.add_raw({"name": "工行", "type": "cash"})
+        uow.commit()
+
+    rows = [
+        _cash_row(account_name="工行", currency="CNY", amount="-12.00", record_id="cny-1"),
+        _cash_row(account_name="工行", currency="JPY", amount="-500", record_id="jpy-1"),
+    ]
+    service = StatementImportService(
+        unit_of_work(sessions, "workspace-a"), FakeStatementParser(rows)
+    )
+    source = tmp_path / "mixed.csv"
+    source.write_bytes(b"mixed statement")
+    result = service.import_statement(
+        StatementImportCommand(source_path=str(source), source="icbc-debit")
+    )
+    assert result.ok is True
+    assert result.count == 2
+    with sessions() as session:
+        facts = list(session.scalars(select(CashTransactionModel)))
+        assert sorted(fact.currency for fact in facts) == ["CNY", "JPY"]
+        assert len({fact.account_id for fact in facts}) == 1
+    with unit_of_work(sessions, "workspace-a") as uow:
+        snap = uow.snapshot.load()
+        assert snap["accounts"]["cash"]["工行"]["CNY"] == "-12.00"
+        assert snap["accounts"]["cash"]["工行"]["JPY"] == "-500"
+        uow.commit()
+
+
+def test_import_missing_account_name_rolls_back(tmp_path):
+    from ft.adapters.relational.models import CashTransactionModel, ImportBatchModel
+    from ft.application.statement_import import StatementImportService
+    from ft.domain.imports import StatementImportCommand
+    from test_postgres_adapter import _database
+    from test_postgres_statement_import import FakeStatementParser, _cash_row
+
+    sessions, unit_of_work = _database()
+    with unit_of_work(sessions, "workspace-a") as uow:
+        uow.accounts.add_raw({"name": "工行", "type": "cash"})
+        uow.commit()
+
+    row = _cash_row(account_name="不存在", currency="CNY", amount="-1", record_id="missing")
+    service = StatementImportService(
+        unit_of_work(sessions, "workspace-a"), FakeStatementParser([row])
+    )
+    source = tmp_path / "missing.csv"
+    source.write_bytes(b"missing")
+    with pytest.raises(ValueError, match="account not found"):
+        service.import_statement(
+            StatementImportCommand(source_path=str(source), source="icbc-debit")
+        )
+    with sessions() as session:
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 0
+        assert session.scalar(select(func.count()).select_from(ImportBatchModel)) == 0

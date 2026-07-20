@@ -48,7 +48,7 @@ class RelationalWealthFactRepository:
             rows = session.scalars(select(AccountModel).where(
                 AccountModel.workspace_id == self._workspace_id
             ).order_by(AccountModel.id)).all()
-        return tuple(AccountFact(row.workspace_id, row.id, row.type, row.currency, row.metadata_json) for row in rows)
+        return tuple(AccountFact(row.workspace_id, row.id, row.type, row.metadata_json) for row in rows)
 
     def valuations(self, *, starts_at: datetime, ends_at: datetime) -> tuple[ValuationFact, ...]:
         with self._sessions() as session:
@@ -123,7 +123,7 @@ class RelationalWealthFactRepository:
                 session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
             account_rows = session.execute(select(
                 AccountModel.workspace_id, AccountModel.id, AccountModel.type,
-                AccountModel.currency, AccountModel.metadata_json,
+                AccountModel.metadata_json,
             ).where(AccountModel.workspace_id == self._workspace_id).order_by(AccountModel.id)).all()
             valuation_rows = session.execute(select(
                 ValuationObservationModel.workspace_id, ValuationObservationModel.observation_id,
@@ -216,7 +216,7 @@ class RelationalWealthFactRepository:
                 return "investment_funding", amount
             return None, None
         items = [
-            WealthSourceItem("account", row.account_id, "account", canonical_digest({"type": row.account_type, "currency": row.currency, "metadata": dict(row.metadata)}))
+            WealthSourceItem("account", row.account_id, "account", canonical_digest({"type": row.account_type, "metadata": dict(row.metadata)}))
             for row in accounts
         ]
         items.extend(WealthSourceItem("valuation", row.observation_id, row.source_revision, _digest_parts(
@@ -285,7 +285,7 @@ class RelationalWealthFactRepository:
         digest = hashlib.sha256()
         # Match the column projection and ordering used by ``_source_state``.
         self._absorb_source_state_rows(digest, (
-            (row[1], row[2], row[3], row[4]) for row in account_rows
+            (row[1], row[2], row[3]) for row in account_rows
         ))
         self._absorb_source_state_rows(digest, (
             (row[1], row[12], row[6], row[4], row[9], row[10]) for row in valuation_rows
@@ -314,7 +314,7 @@ class RelationalWealthFactRepository:
             # rebuild budget even at 100k formal facts.
             digest = hashlib.sha256()
             self._absorb_source_state_rows(digest, active_session.execute(select(
-                AccountModel.id, AccountModel.type, AccountModel.currency, AccountModel.metadata_json,
+            AccountModel.id, AccountModel.type, AccountModel.metadata_json,
             ).where(AccountModel.workspace_id == self._workspace_id).order_by(AccountModel.id)).yield_per(2_000))
             self._absorb_source_state_rows(digest, active_session.execute(select(
                 ValuationObservationModel.observation_id, ValuationObservationModel.source_revision,
@@ -358,26 +358,24 @@ class RelationalWealthFactWriter:
     def record_cash_checkin(self, *, account_name: str, currency: str, balance, occurred_at: datetime) -> None:
         account = self._session.scalar(select(AccountModel).where(
             AccountModel.workspace_id == self._workspace_id, AccountModel.name == account_name,
-            AccountModel.currency == currency,
         ))
         if account is None:
             raise ValueError("account not found")
-        seed = {"workspace": self._workspace_id, "account": account.id, "at": occurred_at, "balance": balance}
+        seed = {"workspace": self._workspace_id, "account": account.id, "currency": currency, "at": occurred_at, "balance": balance}
         observation_id = canonical_digest(seed)
         if self._session.get(ValuationObservationModel, observation_id) is None:
             self._session.add(ValuationObservationModel(
                 observation_id=observation_id, workspace_id=self._workspace_id,
-                identity_kind="cash_account", identity=account.id, observation_kind="boundary_checkin",
+                identity_kind="cash_account", identity=f"{account.id}:{currency}", observation_kind="boundary_checkin",
                 owner_account_id=account.id,
                 value=balance, currency=currency, unit="currency", as_of=occurred_at, observed_at=occurred_at,
                 source_identity=f"manual-checkin:{account.id}:{occurred_at.isoformat()}",
                 source_revision=observation_id, trust="trusted_checkin",
             ))
 
-    def record_lifecycle(self, *, account_name: str, currency: str, event_kind: str, effective_at: datetime) -> None:
+    def record_lifecycle(self, *, account_name: str, event_kind: str, effective_at: datetime) -> None:
         account = self._session.scalar(select(AccountModel).where(
             AccountModel.workspace_id == self._workspace_id, AccountModel.name == account_name,
-            AccountModel.currency == currency,
         ))
         if account is None:
             raise ValueError("account not found")

@@ -6,6 +6,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from ft.domain.cashflow import CashflowResult
+from ft.domain.accounts import normalize_currency
 from ft.domain.decimal import exact_decimal
 from ft.repositories import UnitOfWork
 from ft.schema import CURRENCY_SYMBOLS
@@ -28,15 +29,13 @@ class CashflowService:
     def add_manual_transaction(self, *, amount: Decimal, counterparty: str, account_name: str,
                                description: str = "", source: str = "", date: str | None = None,
                                currency: str | None = None) -> CashflowResult:
+        try:
+            operation_currency = normalize_currency(currency or "")
+        except ValueError:
+            return CashflowResult.fail("cashflow.currency_required", "必须显式提供有效的 3 位币种码")
         date_str = date or datetime.now(WORKSPACE_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
         with self._uow as uow:
-            try:
-                account = uow.accounts.find(account_name, currency)
-            except ValueError:
-                uow.rollback()
-                return CashflowResult.fail(
-                    "account.ambiguous", f"账户名不唯一，请指定币种: {account_name}",
-                )
+            account = uow.accounts.find(account_name)
             if account is None:
                 uow.rollback()
                 return CashflowResult.fail("account.not_found", f"未找到账户: {account_name}")
@@ -50,7 +49,7 @@ class CashflowService:
             row = {
                 "date": date_str,
                 "amount": amount,
-                "currency": account.currency,
+                "currency": operation_currency,
                 "counterparty": counterparty,
                 "description": description,
                 "category": "expense" if amount < 0 else "income",
@@ -62,8 +61,8 @@ class CashflowService:
             }
             uow.cashflows.add(account.type, row)
             snap = uow.snapshot.load(lock=True)
-            _ensure_snapshot_account(snap, account.type, account_name, account.currency)
-            uow.snapshot.update_balance(snap, account_name, account.type, account.currency, amount)
+            _ensure_snapshot_account(snap, account.type, account_name, operation_currency)
+            uow.snapshot.update_balance(snap, account_name, account.type, operation_currency, amount)
             snap["updated_at"] = date_str
             uow.snapshot.save(snap)
             uow.commit()
@@ -71,19 +70,17 @@ class CashflowService:
 
     def checkin_balance(self, *, account_name: str, balance: Decimal, date: str | None = None,
                         currency: str | None = None) -> CashflowResult:
+        try:
+            operation_currency = normalize_currency(currency or "")
+        except ValueError:
+            return CashflowResult.fail("cashflow.currency_required", "必须显式提供有效的 3 位币种码")
         date_str = (
             f"{date} 00:00:00" if date
             else datetime.now(WORKSPACE_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
         )
         day = date_str[:10]
         with self._uow as uow:
-            try:
-                account = uow.accounts.find(account_name, currency)
-            except ValueError:
-                uow.rollback()
-                return CashflowResult.fail(
-                    "account.ambiguous", f"账户名不唯一，请指定币种: {account_name}",
-                )
+            account = uow.accounts.find(account_name)
             if account is None:
                 uow.rollback()
                 return CashflowResult.fail("account.not_found", f"未找到账户: {account_name}")
@@ -94,11 +91,11 @@ class CashflowService:
                     "现金余额校准不支持 security 或 crypto 账户",
                     account_type=account.type,
                 )
-            sym = CURRENCY_SYMBOLS.get(account.currency, "")
+            sym = CURRENCY_SYMBOLS.get(operation_currency, "")
             row = {
                 "date": date_str,
                 "amount": Decimal("0"),
-                "currency": account.currency,
+                "currency": operation_currency,
                 "counterparty": "",
                 "description": f"余额校准{sym}{balance:.2f}",
                 "category": "checkin",
@@ -112,11 +109,11 @@ class CashflowService:
             if hasattr(uow, "wealth_facts"):
                 observed_at = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=WORKSPACE_TIMEZONE)
                 uow.wealth_facts.record_cash_checkin(
-                    account_name=account_name, currency=account.currency, balance=balance, occurred_at=observed_at,
+                    account_name=account_name, currency=operation_currency, balance=balance, occurred_at=observed_at,
                 )
             snap = uow.snapshot.load(lock=True)
-            _ensure_snapshot_account(snap, account.type, account_name, account.currency)
-            uow.snapshot.set_balance(snap, account_name, account.type, account.currency, balance)
+            _ensure_snapshot_account(snap, account.type, account_name, operation_currency)
+            uow.snapshot.set_balance(snap, account_name, account.type, operation_currency, balance)
             snap["updated_at"] = day
             uow.snapshot.save(snap)
             uow.commit()
@@ -142,13 +139,18 @@ class TransferService:
             time_str = datetime.now(WORKSPACE_TIMEZONE).strftime("%H:%M:%S")
         date_str = f"{date} {time_str}"
 
+        try:
+            from_currency = normalize_currency(from_currency or "")
+            to_currency = normalize_currency(to_currency or "")
+        except ValueError:
+            return CashflowResult.fail("transfer.currency_required", "转账双方必须显式提供有效的 3 位币种码")
         with self._uow as uow:
-            from_acct = uow.accounts.find(from_name, from_currency)
+            from_acct = uow.accounts.find(from_name)
             if from_acct is None:
                 uow.rollback()
                 hint = f"({from_currency})" if from_currency else ""
                 return CashflowResult.fail("account.not_found", f"未找到来源账户: {from_name}{hint}")
-            to_acct = uow.accounts.find(to_name, to_currency)
+            to_acct = uow.accounts.find(to_name)
             if to_acct is None:
                 uow.rollback()
                 hint = f"({to_currency})" if to_currency else ""
@@ -164,25 +166,25 @@ class TransferService:
 
             effective_to_amount = to_amount
             warning = ""
-            if from_acct.currency == to_acct.currency and effective_to_amount is not None:
+            if from_currency == to_currency and effective_to_amount is not None:
                 warning = "同币种转账无需 --to-amount，忽略"
                 effective_to_amount = None
-            elif from_acct.currency != to_acct.currency and effective_to_amount is None:
+            elif from_currency != to_currency and effective_to_amount is None:
                 uow.rollback()
                 return CashflowResult.fail("transfer.to_amount_required", "跨币种转账需要 --to-amount")
 
             real_to = amount if effective_to_amount is None else effective_to_amount
             from_row = _transfer_event(
-                date_str, amount, from_acct, to_acct, "out", description
+                date_str, amount, from_acct, to_acct, from_currency, to_currency, "out", description
             )
             to_row = _transfer_event(
-                date_str, real_to, to_acct, from_acct, "in", description
+                date_str, real_to, to_acct, from_acct, to_currency, from_currency, "in", description
             )
             _stage_transfer_event(uow, from_acct, from_row)
             _stage_transfer_event(uow, to_acct, to_row)
             snap = uow.snapshot.load(lock=True)
-            _apply_transfer_snapshot(snap, from_acct, -amount)
-            _apply_transfer_snapshot(snap, to_acct, real_to)
+            _apply_transfer_snapshot(snap, from_acct, from_currency, -amount)
+            _apply_transfer_snapshot(snap, to_acct, to_currency, real_to)
             snap["updated_at"] = date
             uow.snapshot.save(snap)
             uow.commit()
@@ -192,10 +194,12 @@ class TransferService:
                 "to_account": to_acct,
                 "amount": amount,
                 "to_amount": real_to,
+                "from_currency": from_currency,
+                "to_currency": to_currency,
                 "date": date,
                 "warning": warning,
             }
-            if from_acct.currency != to_acct.currency:
+            if from_currency != to_currency:
                 details["rate"] = amount / real_to
             return CashflowResult.success(rows=[from_row, to_row], **details)
 
@@ -217,26 +221,26 @@ def _transfer_row(date_str: str, amount: Decimal, currency: str, description: st
     }
 
 
-def _transfer_event(date_str: str, amount: Decimal, account, counterpart, direction: str,
+def _transfer_event(date_str: str, amount: Decimal, account, counterpart, currency: str, counterpart_currency: str, direction: str,
                     description: str) -> dict:
     if account.type not in {"security", "crypto"}:
         category = "transfer_out" if direction == "out" else "transfer_in"
         default_description = (
-            f"购汇至{counterpart.currency}" if direction == "out" and account.currency != counterpart.currency
-            else f"购汇自{counterpart.currency}" if direction == "in" and account.currency != counterpart.currency
+            f"购汇至{counterpart_currency}" if direction == "out" and currency != counterpart_currency
+            else f"购汇自{counterpart_currency}" if direction == "in" and currency != counterpart_currency
             else f"转账至{counterpart.name}" if direction == "out" else f"来自{counterpart.name}"
         )
         return _transfer_row(
             date_str,
             -amount if direction == "out" else amount,
-            account.currency,
+            currency,
             description or default_description,
             account.name,
             category,
             counterpart.name,
         )
 
-    ticker = account.currency.lower()
+    ticker = currency.lower()
     return {
         "date": date_str,
         "action": "withdraw" if direction == "out" else "deposit",
@@ -247,7 +251,7 @@ def _transfer_event(date_str: str, amount: Decimal, account, counterpart, direct
         "price": "1",
         "commission": "0",
         "commission_asset": "",
-        "currency": account.currency,
+        "currency": currency,
         "account_name": account.name,
         "note": description or f"transfer {'to' if direction == 'out' else 'from'}:{counterpart.name}",
     }
@@ -273,13 +277,13 @@ def _ambiguous_investment_account_name(uow: UnitOfWork, *accounts):
     return None
 
 
-def _apply_transfer_snapshot(snap: dict, account, amount: Decimal) -> None:
+def _apply_transfer_snapshot(snap: dict, account, currency: str, amount: Decimal) -> None:
     if account.type not in {"security", "crypto"}:
-        _ensure_snapshot_account(snap, account.type, account.name, account.currency)
+        _ensure_snapshot_account(snap, account.type, account.name, currency)
         accounts = snap.setdefault("accounts", {}).setdefault(account.type, {})
-        accounts[account.name][account.currency] = _decimal_text(
+        accounts[account.name][currency] = _decimal_text(
             _exact_decimal(
-                accounts[account.name].get(account.currency, 0), "current balance"
+                accounts[account.name].get(currency, 0), "current balance"
             ) + amount,
             "projected balance",
         )
@@ -287,15 +291,15 @@ def _apply_transfer_snapshot(snap: dict, account, amount: Decimal) -> None:
 
     security_accounts = snap.setdefault("accounts", {}).setdefault("security", {})
     account_snapshot = security_accounts.setdefault(account.name, {
-        "currency": account.currency,
+        "currency": currency,
         "positions": {},
     })
     positions = account_snapshot.setdefault("positions", {})
-    ticker = account.currency.lower()
+    ticker = currency.lower()
     position = positions.setdefault(ticker, {
         "shares": "0",
         "total_cost": "0",
-        "cost_currency": account.currency,
+        "cost_currency": currency,
     })
     position["shares"] = _decimal_text(
         _exact_decimal(position["shares"], "current shares") + amount,

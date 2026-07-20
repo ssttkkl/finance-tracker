@@ -206,19 +206,20 @@ def test_fallback_identity_is_stable_when_preceding_rows_change(tmp_path):
         assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 2
 
 
-def test_cash_statement_currency_must_match_selected_account(tmp_path):
+def test_cash_statement_currency_creates_another_pocket_on_selected_account(tmp_path):
     from ft.adapters.relational.models import ImportBatchModel
 
     source = tmp_path / "statement.csv"
     source.write_bytes(b"currency mismatch")
-    # Only Cash/CNY exists; a row routed to Cash/USD must not create a batch.
+    # One account may hold both CNY and USD; the statement currency selects the pocket.
     sessions, _unit_of_work, service = _service([_cash_row(currency="USD")])
 
-    with pytest.raises(ValueError, match="account not found|currency"):
-        service.import_statement(_command(source))
+    result = service.import_statement(_command(source))
+    assert result.ok is True
+    assert result.count == 1
 
     with sessions() as session:
-        assert session.scalar(select(func.count()).select_from(ImportBatchModel)) == 0
+        assert session.scalar(select(func.count()).select_from(ImportBatchModel)) == 1
 
 
 def test_overlapping_statement_reuses_provider_record_without_duplicate_fact(tmp_path):

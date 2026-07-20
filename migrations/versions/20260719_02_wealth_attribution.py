@@ -28,6 +28,14 @@ def upgrade() -> None:
     bind = op.get_bind()
     for name in _TABLES:
         Base.metadata.tables[name].create(bind, checkfirst=False)
+    # This historical revision predates multi-currency cash pockets.  Keep its
+    # schema faithful so 20260720_04 can migrate real legacy observations.
+    with op.batch_alter_table("valuation_observations") as batch:
+        batch.drop_constraint("ck_valuation_cash_owner_identity", type_="check")
+        batch.create_check_constraint(
+            "ck_valuation_cash_owner_identity",
+            "identity_kind != 'cash_account' OR identity = owner_account_id",
+        )
     accounts = sa.table(
         "accounts", sa.column("id"), sa.column("workspace_id"), sa.column("created_at"),
     )

@@ -63,8 +63,8 @@ def _seed_base(sessions, *, with_fee=True) -> None:
     at = lambda day, hour=0: datetime(2026, 7, day, hour, tzinfo=tz)
     with sessions.begin() as session:
         session.add_all((
-            AccountModel(id="cash", workspace_id="wealth-runtime-golden", name="Cash", type="cash", currency="CNY"),
-            AccountModel(id="broker", workspace_id="wealth-runtime-golden", name="Broker", type="security", currency="USD"),
+            AccountModel(id="cash", workspace_id="wealth-runtime-golden", name="Cash", type="cash"),
+            AccountModel(id="broker", workspace_id="wealth-runtime-golden", name="Broker", type="security"),
         ))
         session.flush()
         session.add_all((
@@ -101,7 +101,7 @@ def _seed_base(sessions, *, with_fee=True) -> None:
             (4, "120", "12", "7.3"),
         ):
             for identity_kind, identity, value, currency in (
-                ("cash_account", "cash", cash, "CNY"),
+                ("cash_account", "cash:CNY", cash, "CNY"),
                 ("position", "broker:global-etf", position, "USD"),
                 ("fx", "USD/CNY", fx, "CNY"),
             ):
@@ -208,7 +208,7 @@ def test_runtime_crypto_freshness_uses_crypto_age_bands(runtime_golden, monkeypa
     at = lambda day, hour=0: datetime(2026, 7, day, hour, tzinfo=tz)
     with sessions.begin() as session:
         session.add(AccountModel(
-            id="crypto", workspace_id="wealth-runtime-golden", name="Crypto", type="crypto", currency="USD",
+            id="crypto", workspace_id="wealth-runtime-golden", name="Crypto", type="crypto",
         ))
         session.flush()
         session.add(AccountLifecycleEventModel(
@@ -266,7 +266,7 @@ def test_runtime_foreign_cash_midday_flow_uses_flow_weighted_fx(runtime_golden, 
     at = lambda day, hour=0: datetime(2026, 7, day, hour, tzinfo=tz)
     with sessions.begin() as session:
         session.add(AccountModel(
-            id="usd-cash", workspace_id="wealth-runtime-golden", name="USD Cash", type="cash", currency="USD",
+            id="usd-cash", workspace_id="wealth-runtime-golden", name="USD Cash", type="cash",
         ))
         session.flush()
         session.add(AccountLifecycleEventModel(
@@ -284,7 +284,7 @@ def test_runtime_foreign_cash_midday_flow_uses_flow_weighted_fx(runtime_golden, 
         for day, cash, fx in ((1, "100", "7.0"), (2, "120", "7.2"), (3, "120", "7.2")):
             session.add(ValuationObservationModel(
                 observation_id=f"usd-cash:{day}", workspace_id="wealth-runtime-golden",
-                identity_kind="cash_account", identity="usd-cash", owner_account_id="usd-cash",
+                identity_kind="cash_account", identity="usd-cash:USD", owner_account_id="usd-cash",
                 observation_kind="boundary_checkin", value=Decimal(cash), currency="USD",
                 unit="currency", as_of=at(day), observed_at=at(day),
                 source_identity=f"fixture:usd-cash:{day}", source_revision=f"usd-cash:{day}",

@@ -225,7 +225,7 @@ def test_created_investment_account_currency_is_valued_as_cash():
     service = InvestmentService(repository=RelationalInvestmentCommandRepository(
         unit_of_work(sessions, "workspace-a")
     ))
-    assert service.deposit("100", None, "Broker").ok
+    assert service.deposit("100", "USD", "Broker").ok
 
     class MarketData:
         def __init__(self):

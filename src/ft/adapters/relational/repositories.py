@@ -66,23 +66,17 @@ class RelationalAccountRepository:
         self._session = session
         self._workspace_id = workspace_id
 
-    def _find_model(self, name: str, currency: str | None = None) -> AccountModel | None:
-        statement = select(AccountModel).where(
-            AccountModel.workspace_id == self._workspace_id,
-            AccountModel.name == name,
+    def _find_model(self, name: str) -> AccountModel | None:
+        return self._session.scalar(
+            select(AccountModel).where(
+                AccountModel.workspace_id == self._workspace_id,
+                AccountModel.name == name,
+            ).order_by(AccountModel.created_at, AccountModel.id)
         )
-        if currency is not None:
-            statement = statement.where(AccountModel.currency == currency)
-        rows = list(self._session.scalars(statement.order_by(AccountModel.created_at, AccountModel.id)))
-        active = [row for row in rows if row.active]
-        candidates = active or rows
-        if currency is None and len(candidates) > 1:
-            raise ValueError("account name is ambiguous; specify currency")
-        return (candidates or [None])[0]
 
     @staticmethod
     def _dto(row: AccountModel) -> AccountDTO:
-        return AccountDTO(row.name, row.type, row.currency, row.active)
+        return AccountDTO(row.name, row.type, row.active)
 
     def list(self) -> list[AccountDTO]:
         rows = self._session.scalars(
@@ -92,8 +86,8 @@ class RelationalAccountRepository:
         )
         return [self._dto(row) for row in rows]
 
-    def find(self, name: str, currency: str | None = None) -> AccountDTO | None:
-        row = self._find_model(name, currency)
+    def find(self, name: str) -> AccountDTO | None:
+        row = self._find_model(name)
         return None if row is None else self._dto(row)
 
     def add(self, account: AccountDTO) -> None:
@@ -101,19 +95,29 @@ class RelationalAccountRepository:
             workspace_id=self._workspace_id,
             name=account.name,
             type=account.type,
-            currency=_validate_currency(account.currency),
             active=account.active,
         ))
 
     def add_raw(self, account: dict) -> None:
         known = {"name", "type", "currency", "active"}
+        metadata = {
+            key: _json_safe(value)
+            for key, value in account.items()
+            if key not in known
+        }
+        # Optional legacy seed currency may seed display metadata only; never identity.
+        seed = account.get("currency")
+        if seed and "base_currencies" not in metadata and account.get("type") in {"security", "crypto"}:
+            try:
+                metadata.setdefault("base_currencies", [_validate_currency(seed)])
+            except ValueError:
+                pass
         self._session.add(AccountModel(
             workspace_id=self._workspace_id,
             name=account.get("name", ""),
             type=account.get("type", ""),
-            currency=_validate_currency(account.get("currency", "")),
             active=account.get("active", True),
-            metadata_json={key: _json_safe(value) for key, value in account.items() if key not in known},
+            metadata_json=metadata,
         ))
 
     def list_raw(self) -> list[dict]:
@@ -125,27 +129,26 @@ class RelationalAccountRepository:
         return [{
             "name": row.name,
             "type": row.type,
-            "currency": row.currency,
             "active": row.active,
             **row.metadata_json,
         } for row in rows]
 
-    def rename(self, name: str, currency: str, new_name: str) -> AccountDTO:
-        row = self._find_model(name, currency)
+    def rename(self, name: str, new_name: str) -> AccountDTO:
+        row = self._find_model(name)
         if row is None:
-            raise ValueError(f"account not found: {name} ({currency})")
+            raise ValueError(f"account not found: {name}")
         row.name = new_name
         return self._dto(row)
 
-    def set_active(self, name: str, currency: str, active: bool) -> AccountDTO:
-        row = self._find_model(name, currency)
+    def set_active(self, name: str, active: bool) -> AccountDTO:
+        row = self._find_model(name)
         if row is None:
-            raise ValueError(f"account not found: {name} ({currency})")
+            raise ValueError(f"account not found: {name}")
         row.active = active
         return self._dto(row)
 
-    def has_facts(self, name: str, currency: str) -> bool:
-        row = self._find_model(name, currency)
+    def has_facts(self, name: str) -> bool:
+        row = self._find_model(name)
         if row is None:
             return False
         cash = self._session.scalar(select(func.count()).select_from(CashTransactionModel).where(
@@ -158,10 +161,10 @@ class RelationalAccountRepository:
         ))
         return bool(cash or investments)
 
-    def delete(self, name: str, currency: str) -> AccountDTO:
-        row = self._find_model(name, currency)
+    def delete(self, name: str) -> AccountDTO:
+        row = self._find_model(name)
         if row is None:
-            raise ValueError(f"account not found: {name} ({currency})")
+            raise ValueError(f"account not found: {name}")
         result = self._dto(row)
         self._session.delete(row)
         return result
@@ -190,10 +193,10 @@ class RelationalCashflowRepository:
         if account_type not in {"cash", "loan", "lend"}:
             raise ValueError("cashflow repository only supports cash, loan, and lend records")
         normalized = {field: row.get(field, "") for field in CASH_CSV_FIELDS}
+        currency = _validate_currency(normalized["currency"])
         account = self._session.scalar(select(AccountModel).where(
             AccountModel.workspace_id == self._workspace_id,
             AccountModel.name == str(normalized["account_name"]),
-            AccountModel.currency == _validate_currency(normalized["currency"]),
             AccountModel.type == account_type,
         ))
         if account is None:
@@ -205,7 +208,7 @@ class RelationalCashflowRepository:
             record_id=str(normalized["record_id"] or ""),
             occurred_at=_parse_timestamp(normalized["date"]),
             amount=exact_decimal(normalized["amount"]),
-            currency=account.currency,
+            currency=currency,
             counterparty=str(normalized["counterparty"] or ""),
             description=str(normalized["description"] or ""),
             category=str(normalized["category"] or ""),
@@ -342,11 +345,7 @@ class RelationalSnapshotRepository:
                 if not candidates:
                     identified[name] = value
                     continue
-                if isinstance(value, dict) and "positions" not in value and len(candidates) > 1:
-                    for account in candidates:
-                        if account.currency in value:
-                            identified[account.id] = {account.currency: value[account.currency]}
-                    continue
+                # Name is unique; take the single candidate account.
                 identified[candidates[0].id] = value
             result["accounts"][account_type] = identified
         return result
