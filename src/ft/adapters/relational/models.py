@@ -107,7 +107,7 @@ class AccountModel(Base):
     __tablename__ = "accounts"
     __table_args__ = (
         UniqueConstraint("workspace_id", "id", name="uq_accounts_workspace_id"),
-        UniqueConstraint("workspace_id", "name", "currency", name="uq_accounts_workspace_name_currency"),
+        UniqueConstraint("workspace_id", "name", name="uq_accounts_workspace_name"),
         Index("ix_accounts_workspace", "workspace_id"),
     )
 
@@ -117,7 +117,6 @@ class AccountModel(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     type: Mapped[str] = mapped_column(String(32), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
@@ -375,7 +374,11 @@ class ValuationObservationModel(Base):
             name="ck_valuation_owner_kind",
         ),
         CheckConstraint(
-            "identity_kind != 'cash_account' OR owner_account_id = identity",
+            # Multi-currency cash identity is "{account_id}:{currency}".
+            "identity_kind != 'cash_account' OR ("
+            "owner_account_id IS NOT NULL AND "
+            "identity LIKE owner_account_id || ':%'"
+            ")",
             name="ck_valuation_cash_owner_identity",
         ),
         Index("ix_valuation_workspace_identity_asof", "workspace_id", "identity", "as_of"),

@@ -11,22 +11,22 @@ class AccountRepository(Protocol):
     def list(self) -> list[AccountDTO]:
         ...
 
-    def find(self, name: str, currency: str | None = None) -> AccountDTO | None:
+    def find(self, name: str) -> AccountDTO | None:
         ...
 
     def add(self, account: AccountDTO) -> None:
         ...
 
-    def rename(self, name: str, currency: str, new_name: str) -> AccountDTO:
+    def rename(self, name: str, new_name: str) -> AccountDTO:
         ...
 
-    def set_active(self, name: str, currency: str, active: bool) -> AccountDTO:
+    def set_active(self, name: str, active: bool) -> AccountDTO:
         ...
 
-    def has_facts(self, name: str, currency: str) -> bool:
+    def has_facts(self, name: str) -> bool:
         ...
 
-    def delete(self, name: str, currency: str) -> AccountDTO:
+    def delete(self, name: str) -> AccountDTO:
         ...
 
 
@@ -68,7 +68,7 @@ class ImportRepository(Protocol):
     def start_batch(
         self, *, source_kind: str, source_digest: str, source_ref: str,
         target_account_name: str | None = None,
-        target_account_currency: str | None = None,
+        target_account_currency: str | None = None,  # ignored; name-only resolve
     ) -> str:
         ...
 

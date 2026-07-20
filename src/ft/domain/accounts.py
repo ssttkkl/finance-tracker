@@ -32,7 +32,6 @@ def normalize_currency(currency: str) -> str:
 class AccountDTO:
     name: str
     type: str
-    currency: str
     active: bool = True
 
 

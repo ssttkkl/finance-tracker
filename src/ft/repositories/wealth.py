@@ -12,7 +12,6 @@ class AccountFact:
     workspace_id: str
     account_id: str
     account_type: str
-    currency: str
     metadata: Mapping[str, str]
 
 
