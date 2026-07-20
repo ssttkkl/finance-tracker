@@ -146,7 +146,7 @@ class ImportBatchModel(Base):
     workspace_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
-    target_account_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    target_account_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     source_kind: Mapped[str] = mapped_column(String(64), nullable=False)
     source_digest: Mapped[str] = mapped_column(String(128), nullable=False)
     source_ref: Mapped[str] = mapped_column(Text, nullable=False)

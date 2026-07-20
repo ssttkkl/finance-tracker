@@ -2,7 +2,30 @@ from ft.adapters.statement_import import _dfzq_rows
 from ft.domain.imports import StatementImportCommand
 
 
-def test_dfzq_rows_map_buy_sell_and_cash_with_exact_decimal_text():
+def test_dfzq_rows_map_buy_sell_and_cash_with_exact_decimal_text(tmp_path, monkeypatch):
+    from ft import mapping as mapping_mod
+    import yaml
+
+    mapping = tmp_path / "mapping.yaml"
+    mapping.write_text(
+        yaml.safe_dump(
+            {
+                "rules": [
+                    {
+                        "source": "dfzq",
+                        "match": "*",
+                        "account": "东方证券",
+                        "currency": "CNY",
+                    }
+                ],
+                "default": "error",
+            },
+            allow_unicode=True,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(mapping_mod, "MAPPING_PATH", mapping)
+
     records = [
         {"date": "2026-07-01", "action": "BUY", "ticker": "600000.ss",
          "amount": "-10.123456789012345678", "shares": "2", "price": "5",
@@ -12,12 +35,15 @@ def test_dfzq_rows_map_buy_sell_and_cash_with_exact_decimal_text():
         {"date": "2026-07-03", "action": "DEPOSIT", "ticker": "",
          "amount": "3.5", "shares": "0", "price": "0", "fee": "0", "note": "cash"},
     ]
-    command = StatementImportCommand("statement.pdf", "dfzq", "东方证券", "CNY")
+    command = StatementImportCommand(
+        source_path="statement.pdf", source="dfzq", currency="CNY",
+    )
 
     rows = _dfzq_rows(records, command)
 
     assert rows[0]["from_amount"] == "10.123456789012345678"
     assert rows[0]["to_ticker"] == "600000.ss"
+    assert rows[0]["account_name"] == "东方证券"
     assert rows[1]["from_ticker"] == "600000.ss"
     assert rows[2]["action"] == "deposit"
     assert rows[2]["to_amount"] == "3.5"
@@ -59,14 +85,39 @@ def test_statement_output_only_promotes_provider_stable_ids():
     assert ccb_hash["record_id"] == "ccb_debit_abc123"
 
 
-def test_dfzq_rows_reject_amount_scale_over_18():
-    command = StatementImportCommand("statement.pdf", "dfzq", "东方证券", "CNY")
+def test_dfzq_rows_reject_amount_scale_over_18(tmp_path, monkeypatch):
+    from ft import mapping as mapping_mod
+    import yaml
+    import pytest
+
+    mapping = tmp_path / "mapping.yaml"
+    mapping.write_text(
+        yaml.safe_dump(
+            {
+                "rules": [
+                    {
+                        "source": "dfzq",
+                        "match": "*",
+                        "account": "东方证券",
+                        "currency": "CNY",
+                    }
+                ],
+                "default": "error",
+            },
+            allow_unicode=True,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(mapping_mod, "MAPPING_PATH", mapping)
+
+    command = StatementImportCommand(
+        source_path="statement.pdf", source="dfzq", currency="CNY",
+    )
     records = [{
         "date": "2026-07-01", "action": "DEPOSIT", "ticker": "",
         "amount": "0.1234567890123456789", "shares": "0", "price": "0",
         "fee": "0", "note": "",
     }]
 
-    import pytest
     with pytest.raises(ValueError, match="at most 18"):
         _dfzq_rows(records, command)

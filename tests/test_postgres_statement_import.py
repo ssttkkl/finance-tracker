@@ -36,10 +36,11 @@ def _command(path, **overrides):
     from ft.domain.imports import StatementImportCommand
 
     values = {
-        "source_path": str(path), "source": "alipay", "account": "Cash",
-        "currency": "CNY",
+        "source_path": str(path), "source": "alipay", "currency": "CNY",
     }
     values.update(overrides)
+    # Legacy tests used account=; map to pre-routed rows via FakeStatementParser.
+    values.pop("account", None)
     return StatementImportCommand(**values)
 
 
@@ -101,7 +102,7 @@ def test_statement_import_is_idempotent_by_source_digest(tmp_path):
         assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 1
 
 
-def test_duplicate_digest_rejects_a_different_target_account(tmp_path):
+def test_duplicate_digest_is_idempotent_without_account_override(tmp_path):
     source = tmp_path / "alipay.csv"
     source.write_bytes(b"same bytes")
     sessions, unit_of_work, service = _service([_cash_row()])
@@ -109,13 +110,14 @@ def test_duplicate_digest_rejects_a_different_target_account(tmp_path):
         uow.accounts.add_raw({"name": "Other", "type": "cash", "currency": "CNY"})
         uow.commit()
 
-    service.import_statement(_command(source))
+    first = service.import_statement(_command(source))
+    second = service.import_statement(_command(source))
+    assert first.count == 1
+    assert second.count == 0
+    assert second.details["duplicate"] is True
 
-    with pytest.raises(ValueError, match="different account"):
-        service.import_statement(_command(source, account="Other"))
 
-
-def test_overlap_only_batch_preserves_target_for_duplicate_digest(tmp_path):
+def test_overlap_only_batch_preserves_existing_fact_account(tmp_path):
     from ft.application.statement_import import StatementImportService
 
     first_source = tmp_path / "first.csv"
@@ -126,15 +128,15 @@ def test_overlap_only_batch_preserves_target_for_duplicate_digest(tmp_path):
     with unit_of_work(sessions, "workspace-a") as uow:
         uow.accounts.add_raw({"name": "Other", "type": "cash", "currency": "CNY"})
         uow.commit()
+    # Same provider id, different account_name in parser output must fail.
     overlap_service = StatementImportService(
-        unit_of_work(sessions, "workspace-a"), FakeStatementParser([_cash_row()])
+        unit_of_work(sessions, "workspace-a"),
+        FakeStatementParser([_cash_row(account_name="Other")]),
     )
 
     assert first_service.import_statement(_command(first_source)).count == 1
-    assert overlap_service.import_statement(_command(overlap_source)).count == 0
-
     with pytest.raises(ValueError, match="different account"):
-        overlap_service.import_statement(_command(overlap_source, account="Other"))
+        overlap_service.import_statement(_command(overlap_source))
 
 
 def test_same_statement_duplicate_provider_id_projects_once(tmp_path):
@@ -172,8 +174,14 @@ def test_overlapping_digest_rejects_existing_record_from_a_different_account(tmp
 
     service.import_statement(_command(first_source))
 
+    other_service = __import__(
+        "ft.application.statement_import", fromlist=["StatementImportService"]
+    ).StatementImportService(
+        unit_of_work(sessions, "workspace-a"),
+        FakeStatementParser([_cash_row(account_name="Other")]),
+    )
     with pytest.raises(ValueError, match="different account"):
-        service.import_statement(_command(second_source, account="Other"))
+        other_service.import_statement(_command(second_source))
 
 
 def test_fallback_identity_is_stable_when_preceding_rows_change(tmp_path):
@@ -203,9 +211,10 @@ def test_cash_statement_currency_must_match_selected_account(tmp_path):
 
     source = tmp_path / "statement.csv"
     source.write_bytes(b"currency mismatch")
+    # Only Cash/CNY exists; a row routed to Cash/USD must not create a batch.
     sessions, _unit_of_work, service = _service([_cash_row(currency="USD")])
 
-    with pytest.raises(ValueError, match="currency"):
+    with pytest.raises(ValueError, match="account not found|currency"):
         service.import_statement(_command(source))
 
     with sessions() as session:

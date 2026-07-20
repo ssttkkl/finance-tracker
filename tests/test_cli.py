@@ -25,11 +25,12 @@ def test_cli_direct_statement_import_dispatches_without_intermediate_csv(monkeyp
     _install_bundle(monkeypatch, type("Bundle", (), {"statement_import": Importer()})())
     cli.main([
         "import", str(source), "--source", "alipay",
-        "--account", "支付宝", "--currency", "CNY",
+        "--currency", "CNY",
     ])
 
     assert calls[0].source_path == str(source)
-    assert calls[0].account == "支付宝"
+    assert calls[0].source == "alipay"
+    assert not hasattr(calls[0], "account") or getattr(calls[0], "account", None) is None
 
 
 def test_cli_reads_encrypted_statement_password_from_file(monkeypatch, tmp_path):
@@ -48,7 +49,7 @@ def test_cli_reads_encrypted_statement_password_from_file(monkeypatch, tmp_path)
 
     _install_bundle(monkeypatch, type("Bundle", (), {"statement_import": Importer()})())
     cli.main([
-        "import", str(source), "--source", "icbc", "--account", "Card",
+        "import", str(source), "--source", "icbc",
         "--password-file", str(password_file),
     ])
 
@@ -58,8 +59,17 @@ def test_cli_reads_encrypted_statement_password_from_file(monkeypatch, tmp_path)
 def test_cli_rejects_inline_statement_password():
     with pytest.raises(SystemExit) as exc:
         cli.main([
-            "import", "statement.pdf", "--source", "icbc", "--account", "Card",
+            "import", "statement.pdf", "--source", "icbc",
             "--password", "top-secret",
+        ])
+    assert exc.value.code == 2
+
+
+def test_cli_rejects_import_account_flag():
+    with pytest.raises(SystemExit) as exc:
+        cli.main([
+            "import", "statement.csv", "--source", "alipay",
+            "--account", "Cash",
         ])
     assert exc.value.code == 2
 
@@ -146,10 +156,11 @@ def test_convert_is_explicit_export_and_does_not_build_runtime_bundle(monkeypatc
 
     cli.main([
         "convert", "statement.csv", "--source", "alipay",
-        "--account", "Cash", "--output", str(output),
+        "--output", str(output),
     ])
 
-    assert seen[0].account == "Cash"
+    assert seen[0].source == "alipay"
+    assert not hasattr(seen[0], "account") or getattr(seen[0], "account", None) is None
     assert output.read_text(encoding="utf-8").splitlines() == ["amount", "1.20"]
 
 

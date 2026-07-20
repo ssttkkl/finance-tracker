@@ -21,29 +21,61 @@ def _decimal_text(value) -> str:
 
 def _parse_cash_statement(command):
     from ft.convert import _build_output_row, _prepare_convert_rows
+    from ft.mapping import load_rules
 
     rows, bill_type, _tracking = _prepare_convert_rows(
         command.source_path, command.source, command.password
     )
+    rules, default_action = load_rules()
     output = []
+    skipped = 0
     for row in rows:
         item = _build_output_row(
-            row, bill_type=bill_type, account=command.account,
+            row,
+            bill_type=bill_type,
             currency=command.currency,
+            rules=rules,
+            default_action=default_action,
         )
+        if item is None:
+            skipped += 1
+            continue
         item["amount"] = _decimal_text(item["amount"])
         output.append(item)
+    if not output and skipped:
+        raise ValueError(
+            f"all {skipped} statement rows were skipped by mapping default=skip; "
+            f"add rules to ~/.ft/mapping.yaml"
+        )
     return output
 
 
+def _route_dfzq_account(command) -> tuple[str, str]:
+    """Resolve DFZQ account via mapping (source=dfzq, match=*) or fail."""
+    from ft.mapping import load_rules, match_payment_method
+
+    rules, default_action = load_rules()
+    match = match_payment_method(rules, "dfzq", "*")
+    if match:
+        currency = match.get("currency") or command.currency or "CNY"
+        return match["account"], str(currency).upper()
+    action = (default_action or "error").lower()
+    if action in {"error", "fail"}:
+        raise ValueError(
+            "未匹配 mapping 规则: source=dfzq match='*'\n"
+            "  请在 ~/.ft/mapping.yaml 中添加 dfzq 映射规则后重试"
+        )
+    raise ValueError("dfzq statement skipped by mapping default=skip")
+
+
 def _dfzq_rows(records, command):
-    currency = command.currency.upper()
+    account_name, currency = _route_dfzq_account(command)
     mapped = []
     for record in records:
         action = record["action"]
         common = {
             "date": record["date"], "currency": currency,
-            "account_name": command.account, "note": record.get("note", ""),
+            "account_name": account_name, "note": record.get("note", ""),
             "commission_asset": "", "commission": "0",
         }
         if action == "BUY":

@@ -73,8 +73,10 @@ def _main(argv=None):
     acct_add_p.add_argument("name")
     acct_add_p.add_argument("--type", required=True,
                             choices=["cash", "loan", "lend", "security", "crypto"])
-    acct_add_p.add_argument("--currency", required=True,
-                            choices=["CNY", "USD", "HKD"])
+    acct_add_p.add_argument(
+        "--currency", required=True,
+        help="3-letter currency code (e.g. CNY, USD, JPY)",
+    )
 
     acct_sub.add_parser("list", help="列出所有账户")
 
@@ -210,12 +212,14 @@ def _main(argv=None):
     cv_stk.add_argument("-s", "--source", required=True, help="券商类型（如 dfzq）")
     cv_stk.add_argument("-o", "--output", required=True, help="输出CSV路径")
     cv_stk.add_argument("--password-file", help="从文件首行读取 PDF 密码")
-    cv_stk.add_argument("--account", default="", help="覆盖账户名")
-    cv_stk.add_argument("--currency", default="CNY", choices=["CNY", "USD", "HKD"], help="覆盖币种")
+    cv_stk.add_argument(
+        "--currency", default="CNY",
+        help="3-letter currency code default for stock convert",
+    )
 
     stk_sub.add_parser("list", help="持仓总览")
 
-    # convert
+    # convert — account routing from bill + mapping (no CLI account override)
     cv = sub.add_parser("convert", help="步骤① 账单→统一CSV", allow_abbrev=False)
     cv.add_argument("file", help="账单文件路径")
     cv.add_argument("-s", "--source", required=True,
@@ -223,20 +227,25 @@ def _main(argv=None):
                     help="账单类型")
     cv.add_argument("-o", "--output", required=True, help="输出CSV路径")
     cv.add_argument("--password-file", help="从文件首行读取工行 PDF 密码")
-    cv.add_argument("--account", required=True, help="目标账户名")
-    cv.add_argument("--currency", default="CNY", choices=["CNY", "USD", "HKD"],
-                    help="覆盖币种")
+    cv.add_argument(
+        "--currency", default=None,
+        help="Optional default currency when a row has none (3-letter code)",
+    )
 
     statement_import = sub.add_parser(
-        "import", help="原始账单直接导入 PostgreSQL 或文件 SQLite", allow_abbrev=False,
+        "import",
+        help="原始账单导入（账户仅由账单字段 + ~/.ft/mapping.yaml 推断；禁止 --account）",
+        allow_abbrev=False,
     )
     statement_import.add_argument("file", help="原始账单文件路径")
     statement_import.add_argument(
         "--source", required=True,
         choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "dfzq"],
     )
-    statement_import.add_argument("--account", required=True, help="目标账户名")
-    statement_import.add_argument("--currency", default="CNY")
+    statement_import.add_argument(
+        "--currency", default=None,
+        help="Optional default currency when a row has none (3-letter code)",
+    )
     statement_import.add_argument("--password-file", help="从文件首行读取 PDF 密码")
 
     args = parser.parse_args(argv)
@@ -249,7 +258,6 @@ def _main(argv=None):
         result = _runtime_services().statement_import.import_statement(StatementImportCommand(
             source_path=args.file,
             source=args.source,
-            account=args.account,
             currency=args.currency,
             password=_read_password_file(args.password_file),
         ))
@@ -259,7 +267,12 @@ def _main(argv=None):
         if result.details.get("duplicate"):
             print("📭 该账单已导入")
         else:
-            print(f"✅ 已导入 {result.count} 条 → selected database")
+            by_account = result.details.get("by_account") or {}
+            if by_account:
+                parts = ", ".join(f"{name}:{count}" for name, count in sorted(by_account.items()))
+                print(f"✅ 已导入 {result.count} 条（{parts}） → selected database")
+            else:
+                print(f"✅ 已导入 {result.count} 条 → selected database")
         return
 
     if args.cmd == "acct":
@@ -306,7 +319,7 @@ def _main(argv=None):
             StatementImportCommand(
                 source_path=args.file, source=args.source,
                 password=_read_password_file(args.password_file),
-                account=args.account, currency=args.currency,
+                currency=args.currency,
             )
         )
         if not payload.rows:
@@ -377,7 +390,7 @@ def _main(argv=None):
             payload = _statement_export(StatementImportCommand(
                 source_path=args.file, source=args.source,
                 password=_read_password_file(args.password_file),
-                account=args.account or "东方证券", currency=args.currency,
+                currency=args.currency or "CNY",
             ))
             if payload.rows:
                 write_csv_export(payload, args.output)

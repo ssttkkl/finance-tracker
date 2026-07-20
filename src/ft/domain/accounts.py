@@ -14,7 +14,18 @@ class AccountType(str, Enum):
 
 
 ACCOUNT_TYPES = tuple(item.value for item in AccountType)
+# Display-oriented known codes only; validation is open (any 3-letter alpha).
 CURRENCIES = ("CNY", "USD", "HKD")
+
+
+def normalize_currency(currency: str) -> str:
+    """Accept any 3-letter alphabetic currency code; normalize to uppercase."""
+    code = (currency or "").strip().upper()
+    if len(code) != 3 or not code.isalpha():
+        raise ValueError(
+            f"invalid currency '{currency}': must be a 3-letter alphabetic code"
+        )
+    return code
 
 
 @dataclass(frozen=True)
