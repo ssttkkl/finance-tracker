@@ -25,17 +25,22 @@ class RelationalImportRepository:
 
     def start_batch(
         self, *, source_kind: str, source_digest: str, source_ref: str,
-        target_account_name: str, target_account_currency: str,
+        target_account_name: str | None = None,
+        target_account_currency: str | None = None,
     ) -> str:
-        target_account_id = self._session.scalar(select(AccountModel.id).where(
-            AccountModel.workspace_id == self._workspace_id,
-            AccountModel.name == target_account_name,
-            AccountModel.currency == target_account_currency,
-        ))
-        if target_account_id is None:
-            raise ValueError(
-                f"target account not found: {target_account_name} ({target_account_currency})"
-            )
+        target_account_id = None
+        if target_account_name is not None:
+            if target_account_currency is None:
+                raise ValueError("target_account_currency is required when target_account_name is set")
+            target_account_id = self._session.scalar(select(AccountModel.id).where(
+                AccountModel.workspace_id == self._workspace_id,
+                AccountModel.name == target_account_name,
+                AccountModel.currency == target_account_currency,
+            ))
+            if target_account_id is None:
+                raise ValueError(
+                    f"target account not found: {target_account_name} ({target_account_currency})"
+                )
         existing = self._session.scalar(select(ImportBatchModel).where(
             ImportBatchModel.workspace_id == self._workspace_id,
             ImportBatchModel.source_kind == source_kind,
@@ -263,18 +268,47 @@ class RelationalImportRepository:
         return found
 
     def batch_target_accounts(self, batch_id: str) -> set[tuple[str, str]]:
+        batch = self._batch(batch_id)
+        if batch.target_account_id is None:
+            # Multi-account batch: derive targets from formal facts linked to batch raw records.
+            cash_rows = self._session.execute(
+                select(AccountModel.name, AccountModel.currency)
+                .join(CashTransactionModel, (
+                    CashTransactionModel.workspace_id == AccountModel.workspace_id
+                ) & (CashTransactionModel.account_id == AccountModel.id))
+                .join(RawRecordModel, (
+                    RawRecordModel.workspace_id == CashTransactionModel.workspace_id
+                ) & (RawRecordModel.id == CashTransactionModel.raw_record_id))
+                .where(
+                    RawRecordModel.workspace_id == self._workspace_id,
+                    RawRecordModel.batch_id == batch_id,
+                )
+            )
+            inv_rows = self._session.execute(
+                select(AccountModel.name, AccountModel.currency)
+                .join(InvestmentEventModel, (
+                    InvestmentEventModel.workspace_id == AccountModel.workspace_id
+                ) & (InvestmentEventModel.account_id == AccountModel.id))
+                .join(RawRecordModel, (
+                    RawRecordModel.workspace_id == InvestmentEventModel.workspace_id
+                ) & (RawRecordModel.id == InvestmentEventModel.raw_record_id))
+                .where(
+                    RawRecordModel.workspace_id == self._workspace_id,
+                    RawRecordModel.batch_id == batch_id,
+                )
+            )
+            return {(name, currency) for name, currency in cash_rows} | {
+                (name, currency) for name, currency in inv_rows
+            }
         target = self._session.execute(
             select(AccountModel.name, AccountModel.currency)
-            .join(ImportBatchModel, (
-                ImportBatchModel.workspace_id == AccountModel.workspace_id
-            ) & (ImportBatchModel.target_account_id == AccountModel.id))
             .where(
-                ImportBatchModel.workspace_id == self._workspace_id,
-                ImportBatchModel.id == batch_id,
+                AccountModel.workspace_id == self._workspace_id,
+                AccountModel.id == batch.target_account_id,
             )
         ).one_or_none()
         if target is None:
-            raise ValueError(f"import batch not found: {batch_id}")
+            return set()
         return {(target.name, target.currency)}
 
     def replace_raw_record(self, record_id: str, payload: dict) -> None:

@@ -1762,12 +1762,51 @@ def _parse_amt(s: str) -> Decimal:
 
 
 def _build_output_row(
-    rec: dict, *, bill_type: str, account: str, currency: str | None = None,
+    rec: dict, *, bill_type: str, account: str | None = None,
+    currency: str | None = None, rules=None, default_action: str = "error",
 ) -> dict:
-    if not account:
-        raise ValueError("target account is required")
-    acct_name = account
-    cur = currency or "CNY"
+    """Build a normalized output row; route account via mapping unless explicitly given.
+
+    Prefer bill_type + card_number composite source, then bill_type + payment_method.
+    Longer mapping match wins (see ft.mapping.match_payment_method).
+    """
+    from .mapping import match_payment_method
+
+    if account:
+        acct_name = account
+        cur = currency or "CNY"
+    else:
+        if rules is None:
+            from .mapping import load_rules
+            rules, default_action = load_rules()
+        card_num = rec.get("card_number", "") or ""
+        match = None
+        if card_num:
+            match = match_payment_method(rules, f"{bill_type}_{card_num}", "*")
+        if not match:
+            match = match_payment_method(
+                rules, bill_type, rec.get("payment_method", "") or ""
+            )
+        if match:
+            acct_name = match["account"]
+            cur = match.get("currency") or currency or "CNY"
+        else:
+            action = (default_action or "error").lower()
+            detail = (
+                f"source={bill_type} payment_method='{rec.get('payment_method', '')}' "
+                f"card_number='{card_num}' counterparty='{rec.get('counterparty', '')}' "
+                f"amount={rec.get('amount', '')}"
+            )
+            if action in {"error", "fail"}:
+                raise ValueError(
+                    f"未匹配 mapping 规则: {detail}\n"
+                    f"  请在 ~/.ft/mapping.yaml 中添加映射规则后重试"
+                )
+            if action == "skip":
+                return None  # type: ignore[return-value]
+            raise ValueError(
+                f"未匹配 mapping 规则且 default='{default_action}': {detail}"
+            )
 
     payment_src = _infer_payment_source(
         bill_type,
@@ -1788,11 +1827,15 @@ def _build_output_row(
     elif bill_type in {"icbc_credit", "icbc_debit", "ccb_debit"}:
         provider_record_id = rec.get("_fact_id", "")
 
+    row_currency = rec.get("currency", cur) or cur
+    if currency and not rec.get("currency"):
+        row_currency = currency
+
     return {
         "record_id": provider_record_id,
         "date": rec["date"],
         "amount": rec["amount"],
-        "currency": rec.get("currency", cur) or cur,
+        "currency": str(row_currency).upper(),
         "counterparty": cpy,
         "description": rec.get("description", ""),
         "category": rec["category"],

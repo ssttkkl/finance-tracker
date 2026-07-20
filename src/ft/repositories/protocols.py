@@ -67,7 +67,8 @@ class InvestmentRepository(Protocol):
 class ImportRepository(Protocol):
     def start_batch(
         self, *, source_kind: str, source_digest: str, source_ref: str,
-        target_account_name: str, target_account_currency: str,
+        target_account_name: str | None = None,
+        target_account_currency: str | None = None,
     ) -> str:
         ...
 

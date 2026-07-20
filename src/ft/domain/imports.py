@@ -14,6 +14,5 @@ CASHFLOW_EXPORT_FIELDS = (
 class StatementImportCommand:
     source_path: str
     source: str
-    account: str
-    currency: str = "CNY"
+    currency: str | None = None
     password: str | None = None

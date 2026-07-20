@@ -37,6 +37,7 @@ SQLite 启用 WAL、外键和约 5 秒写锁等待；`storage.busy` 表示需等
 ```bash
 # 账户
 uv run ft acct add Cash --type cash --currency CNY
+uv run ft acct add '工行信用卡(1200)' --type loan --currency JPY
 uv run ft acct list
 uv run ft acct rename Cash Wallet --currency CNY
 uv run ft acct deactivate Wallet --currency CNY
@@ -52,6 +53,7 @@ uv run ft list --account Wallet --limit 20
 ```
 
 有正式事实引用的账户不能硬删除，应使用 `acct deactivate`。账户重命名不会改变历史事实归属。
+币种接受任意 3 位字母码（如 CNY/USD/JPY），无白名单限制。
 
 ## 投资事件
 
@@ -71,7 +73,10 @@ uv run ft stock list
 ## 原始账单直接导入
 
 ```bash
-uv run ft import statement.csv --source alipay --account Wallet --currency CNY
+# 账户仅由账单字段 + ~/.ft/mapping.yaml 推断；禁止 --account
+uv run ft import statement.csv --source alipay
+uv run ft import icbc.pdf --source icbc --password-file /tmp/pw.txt
+uv run ft import hqmx.xls --source ccb-debit
 ```
 
 支持的起始矩阵：
@@ -86,13 +91,14 @@ uv run ft import statement.csv --source alipay --account Wallet --currency CNY
 | `dfzq` | PDF |
 
 导入在一个数据库事务内完成内容摘要、batch、raw records、正式事实、revision、projection 和完成状态。
-重复导入同一 workspace/source/digest 不会重复发布事实；任一行失败会回滚整批。
+同一文件可写入多个账户（`import_batches.target_account_id` 可空）；重复导入同一
+workspace/source/digest 不会重复发布事实；任一行失败会回滚整批。
 
-如只想检查解析结果，可显式导出 CSV：
+如只想检查解析结果，可显式导出 CSV（账户路由与 import 相同）：
 
 ```bash
-uv run ft convert statement.csv --source alipay --account Wallet --output preview.csv
-uv run ft stock convert statement.pdf --source dfzq --account 东方证券 --output preview.csv
+uv run ft convert statement.csv --source alipay --output preview.csv
+uv run ft stock convert statement.pdf --source dfzq --output preview.csv
 ```
 
 导出文件不会注册成运行时状态，也不能通过 `append` 再成为正式账本；正式导入始终使用 `ft import`。

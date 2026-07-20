@@ -5,6 +5,7 @@ application services and adapters can be imported without touching the user
 ledger.
 """
 
+# Known display codes only; validation uses normalize_currency (open 3-letter).
 CURRENCIES = ("CNY", "USD", "HKD")
 CURRENCY_SYMBOLS = {
     "CNY": "¥",

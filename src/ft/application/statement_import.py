@@ -9,6 +9,7 @@ import json
 import mimetypes
 from pathlib import Path
 import tempfile
+from collections import Counter
 
 from ft.domain.application import OperationResult
 from ft.domain.investment_projection import apply_investment_event
@@ -46,39 +47,52 @@ class StatementImportService:
             rows = [dict(row) for row in self._parser.parse(captured_command)]
         if not rows:
             raise ValueError("statement contains no supported records")
+
+        # Normalize currencies; account_name must already be set by parser/mapping.
         for row in rows:
-            row["account_name"] = command.account
-            row["currency"] = str(row.get("currency") or command.currency).upper()
+            if not row.get("account_name"):
+                raise ValueError(
+                    "statement row missing account_name; mapping must resolve every row"
+                )
+            raw_currency = row.get("currency") or command.currency or "CNY"
+            row["currency"] = str(raw_currency).upper()
 
         with self._uow as uow:
-            account = uow.accounts.find(command.account, command.currency)
-            if account is None:
-                raise ValueError(
-                    f"account not found: {command.account} ({command.currency})"
-                )
-            if account.type in {"cash", "loan", "lend"}:
-                mismatched = [row for row in rows if row["currency"] != account.currency]
-                if mismatched:
-                    raise ValueError(
-                        "cash statement currency does not match the selected account"
-                    )
             batch_id = uow.imports.start_batch(
-                source_kind=command.source, source_digest=digest, source_ref=path.name,
-                target_account_name=account.name,
-                target_account_currency=account.currency,
+                source_kind=command.source,
+                source_digest=digest,
+                source_ref=path.name,
+                target_account_name=None,
+                target_account_currency=None,
             )
             existing = uow.imports.get_batch(batch_id)
             if existing["status"] == "completed":
-                targets = uow.imports.batch_target_accounts(batch_id)
-                if targets and (account.name, account.currency) not in targets:
-                    raise ValueError(
-                        "statement was already imported to a different account"
-                    )
                 uow.commit()
                 return OperationResult(
                     ok=True, count=0, message="already imported",
-                    details={"batch_id": batch_id, "duplicate": True},
+                    details={"batch_id": batch_id, "duplicate": True, "by_account": {}},
                 )
+
+            # Resolve accounts per unique (name, currency)
+            account_cache: dict[tuple[str, str], object] = {}
+            for row in rows:
+                key = (row["account_name"], row["currency"])
+                if key in account_cache:
+                    continue
+                account = uow.accounts.find(row["account_name"], row["currency"])
+                if account is None:
+                    raise ValueError(
+                        f"account not found: {row['account_name']} ({row['currency']})"
+                    )
+                account_cache[key] = account
+
+            for row in rows:
+                account = account_cache[(row["account_name"], row["currency"])]
+                if account.type in {"cash", "loan", "lend"} and row["currency"] != account.currency:
+                    raise ValueError(
+                        "cash statement currency does not match the selected account"
+                    )
+
             raw_file_id = uow.imports.add_raw_file(
                 batch_id=batch_id, source_path=path.name, content_digest=digest,
                 size_bytes=len(content), media_type=mimetypes.guess_type(path.name)[0] or "application/octet-stream",
@@ -110,14 +124,14 @@ class StatementImportService:
                 source_type=command.source, records=raw_items,
             )
             existing_targets = uow.imports.formal_fact_targets(raw_ids)
-            conflicting_targets = {
-                target for target in existing_targets.values()
-                if target != (account.name, account.currency)
-            }
-            if conflicting_targets:
-                raise ValueError(
-                    "statement record was already imported to a different account"
-                )
+            for row, raw_id in zip(rows, raw_ids, strict=True):
+                expected = (row["account_name"], row["currency"])
+                existing_target = existing_targets.get(raw_id)
+                if existing_target is not None and existing_target != expected:
+                    raise ValueError(
+                        "statement record was already imported to a different account"
+                    )
+
             seen_fact_ids = set(existing_targets)
             rows_to_import = []
             for row, raw_id in zip(rows, raw_ids, strict=True):
@@ -125,9 +139,12 @@ class StatementImportService:
                     continue
                 seen_fact_ids.add(raw_id)
                 rows_to_import.append((row, raw_id))
+
             snapshot = uow.snapshot.load(lock=True)
             imported_count = 0
+            by_account: Counter[str] = Counter()
             for row, raw_id in rows_to_import:
+                account = account_cache[(row["account_name"], row["currency"])]
                 row["raw_record_id"] = raw_id
                 if account.type in {"cash", "loan", "lend"}:
                     fact_id = uow.cashflows.add(account.type, row)
@@ -149,6 +166,7 @@ class StatementImportService:
                 else:
                     raise ValueError(f"unsupported account type: {account.type}")
                 imported_count += 1
+                by_account[account.name] += 1
             if imported_count:
                 snapshot["updated_at"] = max(str(row.get("date", "")) for row in rows)
             uow.snapshot.save(snapshot)
@@ -156,5 +174,9 @@ class StatementImportService:
             uow.commit()
         return OperationResult(
             ok=True, count=imported_count, message="imported",
-            details={"batch_id": batch_id, "duplicate": False},
+            details={
+                "batch_id": batch_id,
+                "duplicate": False,
+                "by_account": dict(by_account),
+            },
         )

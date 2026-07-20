@@ -1,7 +1,7 @@
 """Account application service."""
 from datetime import datetime, timezone
 
-from ft.domain.accounts import ACCOUNT_TYPES, CURRENCIES, AccountDTO, AccountResult
+from ft.domain.accounts import ACCOUNT_TYPES, AccountDTO, AccountResult, normalize_currency
 from ft.repositories import UnitOfWork
 
 
@@ -20,12 +20,13 @@ class AccountService:
                 type=type_,
                 allowed=ACCOUNT_TYPES,
             )
-        if currency not in CURRENCIES:
+        try:
+            currency = normalize_currency(currency)
+        except ValueError:
             return AccountResult.fail(
                 "account.invalid_currency",
-                f"无效币种 '{currency}'，可用币种: {CURRENCIES}",
+                f"无效币种 '{currency}'，须为 3 位字母币种码（如 CNY/USD/JPY）",
                 currency=currency,
-                allowed=CURRENCIES,
             )
 
         account = AccountDTO(

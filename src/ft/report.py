@@ -5,6 +5,10 @@ from decimal import Decimal
 from ft.schema import CURRENCY_SYMBOLS
 
 
+def _currency_symbol(currency: str) -> str:
+    return CURRENCY_SYMBOLS.get(currency) or f"{currency} "
+
+
 def render_finance_report(result, month=None):
     account_icons = {
         "cash": "💰", "loan": "💳", "lend": "📤",
@@ -21,7 +25,7 @@ def render_finance_report(result, month=None):
         if abs(account.balance) >= Decimal("0.005"):
             by_currency[account.currency].append(account)
     for currency in sorted(by_currency):
-        symbol = CURRENCY_SYMBOLS.get(currency, "")
+        symbol = _currency_symbol(currency)
         print(f"\n  [{currency}]")
         for account in by_currency[currency]:
             icon = account_icons.get(account.type, " ")
@@ -37,14 +41,14 @@ def render_finance_report(result, month=None):
     for currency in sorted(result.expenses):
         total = result.expenses[currency]
         if total:
-            symbol = CURRENCY_SYMBOLS.get(currency, "")
+            symbol = _currency_symbol(currency)
             print(f"\n  📊 消费分析 [{currency}] {month or ''}")
             print(f"    总支出: {symbol}{total:.2f}")
     for flow in result.flows:
-        symbol = CURRENCY_SYMBOLS.get(flow.currency, "")
+        symbol = _currency_symbol(flow.currency)
         print(f"  🔄 {flow.description[:20]:<20s} {symbol}{flow.amount:>10.2f}")
     for currency in sorted(result.income):
-        symbol = CURRENCY_SYMBOLS.get(currency, "")
+        symbol = _currency_symbol(currency)
         print(f"\n  📥 收入来源 [{currency}]")
         print(f"    总额 {symbol}{result.income[currency]:.2f}")
 
@@ -60,7 +64,7 @@ def render_transactions(result):
     print(f"  {'日期':<21} {'账户':<16} {'币种':<5} {'类型':<6} {'金额':>12} {'说明'}")
     print("  " + "-" * 80)
     for item in result.items:
-        symbol = CURRENCY_SYMBOLS.get(item.currency, "")
+        symbol = _currency_symbol(item.currency)
         label = labels.get(item.category, "")
         amount = "" if item.amount == 0 else f"{symbol}{item.amount:>+8.2f}"
         description = (item.description or item.counterparty)[:30]

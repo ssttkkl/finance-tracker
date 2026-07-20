@@ -9,7 +9,9 @@ def test_repository_has_clean_linear_revisions():
     revisions = sorted((root / "migrations" / "versions").glob("*.py"))
 
     assert [path.name for path in revisions] == [
-        "20260717_01_initial.py", "20260719_02_wealth_attribution.py",
+        "20260717_01_initial.py",
+        "20260719_02_wealth_attribution.py",
+        "20260720_03_import_batch_multi_account.py",
     ]
 
 
@@ -83,7 +85,7 @@ def test_metadata_uses_enforceable_fact_and_revision_relationships():
         for constraint in ImportBatchModel.__table__.constraints
         if isinstance(constraint, ForeignKeyConstraint)
     ]
-    assert ImportBatchModel.__table__.c.target_account_id.nullable is False
+    assert ImportBatchModel.__table__.c.target_account_id.nullable is True
     assert any(
         tuple(constraint.columns.keys()) == ("workspace_id", "target_account_id")
         and constraint.ondelete == "RESTRICT"

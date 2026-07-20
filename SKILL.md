@@ -44,28 +44,30 @@ uv run ft stock list
 ## 原始账单导入
 
 ```bash
-uv run ft import FILE --source SOURCE --account ACCOUNT [--currency CURRENCY] [--password-file FILE]
+uv run ft import FILE --source SOURCE [--currency CURRENCY] [--password-file FILE]
 ```
 
-SOURCE 支持 `alipay`、`wechat`、`icbc`、`icbc-debit`、`ccb-debit` 和 `dfzq`。导入必须显式指定账户；
-不要根据支付方式或本地 mapping 猜账户。
+SOURCE 支持 `alipay`、`wechat`、`icbc`、`icbc-debit`、`ccb-debit` 和 `dfzq`。
+**禁止** `--account`：每行账户只从账单字段 + `~/.ft/mapping.yaml` 推断（长 match 优先）。
+`--currency` 仅作行内缺省币种回退；币种为任意 3 位字母码（如 JPY）。
 
 导入的正确性门禁：
 
 1. 相同 workspace/source/digest 重复执行不产生重复事实；
 2. 金额和数量保持 Decimal 文本，拒绝非有限值和超过 18 位小数；
 3. 中国账单 naive 时间按 Asia/Shanghai 解释并保存为 UTC；
-4. parser、账户校验或数据库写入任一失败时整批回滚；
-5. 每条 statement-derived fact 必须能追溯到 raw record 和 initial revision。
+4. parser、mapping 未匹配（default=error）、账户校验或数据库写入任一失败时整批回滚；
+5. 每条 statement-derived fact 必须能追溯到 raw record 和 initial revision；
+6. 单次导入可多账户，事实账户以 `fact.account_id` 为准。
 
 ## 显式导出
 
 ```bash
-uv run ft convert FILE --source SOURCE --account ACCOUNT --output preview.csv
-uv run ft stock convert FILE --source dfzq --account ACCOUNT --output preview.csv
+uv run ft convert FILE --source SOURCE --output preview.csv
+uv run ft stock convert FILE --source dfzq --output preview.csv
 ```
 
-导出只用于检查，不是正式导入步骤。不要把输出文件当作账本、snapshot 或事务日志；正式写入使用原始
+导出只用于检查，账户路由与 import 相同。不要把输出文件当作账本、snapshot 或事务日志；正式写入使用原始
 文件执行 `ft import`。
 
 ## 财务与数据规则
