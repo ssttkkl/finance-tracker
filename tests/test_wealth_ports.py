@@ -5,7 +5,7 @@ from decimal import Decimal
 def test_typed_wealth_fact_values_preserve_identity_and_exact_values() -> None:
     from ft.repositories.wealth import AccountFact, ValuationFact
 
-    account = AccountFact("w", "account-1", "cash", "CNY", {})
+    account = AccountFact("w", "account-1", "cash", {})
     valuation = ValuationFact(
         workspace_id="w", observation_id="obs-1", identity_kind="cash_account",
         identity="account-1", observation_kind="boundary_checkin", value=Decimal("1.23"),

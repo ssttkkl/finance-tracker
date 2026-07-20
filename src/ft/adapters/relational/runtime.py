@@ -32,7 +32,7 @@ from .investments import RelationalInvestmentCommandRepository
 from ft.adapters.statement_import import StatementParser
 
 
-SCHEMA_REVISION = "20260720_03"
+SCHEMA_REVISION = "20260720_04"
 REQUIRED_TABLES = {
     "workspaces", "accounts", "cash_transactions", "investment_events",
     "ledger_snapshots", "import_batches", "raw_files", "raw_records",

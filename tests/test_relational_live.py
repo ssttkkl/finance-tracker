@@ -78,7 +78,7 @@ def test_command_exception_rolls_back_and_returns_connection_to_pool(sqlite_runt
 
     with pytest.raises(RuntimeError, match="injected failure"):
         with uow as active:
-            active.accounts.add(AccountDTO("Cash", "cash", "CNY"))
+            active.accounts.add(AccountDTO("Cash", "cash"))
             raise RuntimeError("injected failure")
 
     with uow as active:

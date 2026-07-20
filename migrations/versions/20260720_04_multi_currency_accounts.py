@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import defaultdict
 
 import sqlalchemy as sa
@@ -19,7 +20,7 @@ def _dialect() -> str:
     return op.get_bind().dialect.name
 
 
-def _merge_accounts(connection) -> None:
+def _account_merge_map(connection) -> dict[str, str]:
     rows = connection.execute(text(
         "SELECT id, workspace_id, name, type, currency, active, metadata_json, created_at "
         "FROM accounts ORDER BY workspace_id, name, created_at, id"
@@ -48,6 +49,11 @@ def _merge_accounts(connection) -> None:
         for member in members[1:]:
             id_map[member["id"]] = survivor["id"]
 
+    return id_map
+
+
+def _merge_accounts(connection) -> None:
+    id_map = _account_merge_map(connection)
     if not id_map:
         return
 
@@ -71,6 +77,10 @@ def _merge_accounts(connection) -> None:
         ), {"survivor": survivor_id, "loser": loser_id})
         connection.execute(text(
             "UPDATE valuation_observations SET owner_account_id = :survivor "
+            "WHERE owner_account_id = :loser"
+        ), {"survivor": survivor_id, "loser": loser_id})
+        connection.execute(text(
+            "UPDATE wealth_coverage_dispositions SET owner_account_id = :survivor "
             "WHERE owner_account_id = :loser"
         ), {"survivor": survivor_id, "loser": loser_id})
         # Rewrite cash valuation identities that still equal the loser id.
@@ -147,19 +157,21 @@ def _rebuild_snapshots(connection) -> None:
         ), {"payload": json.dumps(data, ensure_ascii=False), "ws": workspace_id})
 
 
-def _drop_currency_sqlite(connection) -> None:
-    connection.execute(text("PRAGMA foreign_keys=OFF"))
+def _drop_currency_sqlite(connection, id_map: dict[str, str]) -> None:
+    """Atomically replace account-dependent SQLite tables without disabling FKs.
+
+    SQLite cannot alter a referenced table in place.  Shadow-copy every table
+    carrying an FK (including transitive dependants), remove children first,
+    then install the account and table shadows in one Alembic transaction.
+    """
+    connection.execute(text("PRAGMA defer_foreign_keys=ON"))
     connection.execute(text(
         """
         CREATE TABLE accounts_new (
-            id VARCHAR(36) NOT NULL,
-            workspace_id VARCHAR(64) NOT NULL,
-            name VARCHAR(255) NOT NULL,
-            type VARCHAR(32) NOT NULL,
-            active BOOLEAN NOT NULL,
-            metadata_json JSON NOT NULL,
-            created_at DATETIME NOT NULL,
-            updated_at DATETIME NOT NULL,
+            id VARCHAR(36) NOT NULL, workspace_id VARCHAR(64) NOT NULL,
+            name VARCHAR(255) NOT NULL, type VARCHAR(32) NOT NULL,
+            active BOOLEAN NOT NULL, metadata_json JSON NOT NULL,
+            created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
             PRIMARY KEY (id),
             CONSTRAINT uq_accounts_workspace_id UNIQUE (workspace_id, id),
             CONSTRAINT uq_accounts_workspace_name UNIQUE (workspace_id, name),
@@ -167,83 +179,131 @@ def _drop_currency_sqlite(connection) -> None:
         )
         """
     ))
-    connection.execute(text(
-        """
-        INSERT INTO accounts_new (
-            id, workspace_id, name, type, active, metadata_json, created_at, updated_at
+    survivors = connection.execute(text(
+        "SELECT id, workspace_id, name, type, active, metadata_json, created_at, updated_at FROM accounts"
+    )).mappings().all()
+    survivor_rows = [dict(row) for row in survivors if row["id"] not in id_map]
+    if survivor_rows:
+        connection.execute(text(
+            "INSERT INTO accounts_new (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) "
+            "VALUES (:id, :workspace_id, :name, :type, :active, :metadata_json, :created_at, :updated_at)"
+        ), survivor_rows)
+
+    table_rows = connection.execute(text(
+        "SELECT name, sql FROM sqlite_master WHERE type='table' "
+        "AND name NOT LIKE 'sqlite_%' AND name NOT IN "
+        "('accounts', 'accounts_new', 'workspaces', 'ledger_snapshots', 'alembic_version')"
+    )).all()
+    tables = {name: ddl for name, ddl in table_rows if ddl}
+    index_ddls = connection.execute(text(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND sql IS NOT NULL"
+    )).scalars().all()
+
+    def shadow_name(name: str) -> str:
+        return f"__mc_{name}"
+
+    def shadow_ddl(name: str, ddl: str) -> str:
+        rewritten = re.sub(
+            r"^CREATE TABLE\s+(?:\"?%s\"?)" % re.escape(name),
+            f'CREATE TABLE "{shadow_name(name)}"', ddl, count=1, flags=re.IGNORECASE,
         )
-        SELECT id, workspace_id, name, type, active, metadata_json, created_at, updated_at
-        FROM accounts
-        """
-    ))
+        if name == "valuation_observations":
+            rewritten = rewritten.replace(
+                "identity_kind != 'cash_account' OR identity = owner_account_id",
+                "identity_kind != 'cash_account' OR (owner_account_id IS NOT NULL "
+                "AND identity LIKE owner_account_id || ':%')",
+            )
+        for parent in tables:
+            rewritten = re.sub(
+                rf"REFERENCES\s+(?:\"?{re.escape(parent)}\"?)",
+                f'REFERENCES "{shadow_name(parent)}"', rewritten, flags=re.IGNORECASE,
+            )
+        rewritten = re.sub(
+            r"REFERENCES\s+(?:\"?accounts\"?)", "REFERENCES accounts_new", rewritten, flags=re.IGNORECASE,
+        )
+        return rewritten
+
+    for name, ddl in tables.items():
+        connection.execute(text(shadow_ddl(name, ddl)))
+
+    # Copy rows before removing old tables.  Cash identity and loser owner ids
+    # are normalized while loading the final valuation table.
+    for name in tables:
+        columns = [row[1] for row in connection.execute(text(f'PRAGMA table_info("{name}")'))]
+        quoted = ", ".join(f'"{column}"' for column in columns)
+        if name != "valuation_observations":
+            connection.execute(text(f'INSERT INTO "{shadow_name(name)}" ({quoted}) SELECT {quoted} FROM "{name}"'))
+            continue
+        owner_case = "owner_account_id"
+        for index, (loser, survivor) in enumerate(id_map.items()):
+            owner_case = f"CASE WHEN {owner_case} = :loser_{index} THEN :survivor_{index} ELSE {owner_case} END"
+        selections = []
+        for column in columns:
+            if column == "owner_account_id":
+                selections.append(f"{owner_case} AS owner_account_id")
+            elif column == "identity":
+                selections.append(
+                    f"CASE WHEN identity_kind = 'cash_account' THEN ({owner_case}) || ':' || currency "
+                    "ELSE identity END AS identity"
+                )
+            else:
+                selections.append(f'"{column}"')
+        parameters = {
+            item: value
+            for index, pair in enumerate(id_map.items())
+            for item, value in ((f"loser_{index}", pair[0]), (f"survivor_{index}", pair[1]))
+        }
+        connection.execute(text(
+            f'INSERT INTO "{shadow_name(name)}" ({quoted}) SELECT {", ".join(selections)} FROM "{name}"'
+        ), parameters)
+
+    # Rehang account references in shadows.  Constraints are deferred until the
+    # complete shadow graph and the survivor accounts are installed.
+    for name, column in (
+        ("cash_transactions", "account_id"), ("investment_events", "account_id"),
+        ("account_lifecycle_events", "account_id"), ("import_batches", "target_account_id"),
+        ("wealth_coverage_dispositions", "owner_account_id"),
+    ):
+        if name not in tables:
+            continue
+        for loser, survivor in id_map.items():
+            connection.execute(text(
+                f'UPDATE "{shadow_name(name)}" SET "{column}" = :survivor WHERE "{column}" = :loser'
+            ), {"loser": loser, "survivor": survivor})
+
+    # Drop children before parents based on the FK graph of the old tables.
+    parents = {name: set() for name in tables}
+    for name in tables:
+        for fk in connection.execute(text(f'PRAGMA foreign_key_list("{name}")')):
+            if fk[2] in tables:
+                parents[name].add(fk[2])
+    dropped: set[str] = set()
+    def drop_with_children(parent: str) -> None:
+        for child, refs in parents.items():
+            if parent in refs and child not in dropped:
+                drop_with_children(child)
+        if parent not in dropped:
+            connection.execute(text(f'DROP TABLE "{parent}"'))
+            dropped.add(parent)
+    for name in tables:
+        drop_with_children(name)
+
     connection.execute(text("DROP TABLE accounts"))
     connection.execute(text("ALTER TABLE accounts_new RENAME TO accounts"))
     connection.execute(text(
         "CREATE INDEX ix_accounts_workspace ON accounts (workspace_id)"
     ))
 
-    # Rebuild valuation_observations to relax cash identity check.
-    connection.execute(text(
-        """
-        CREATE TABLE valuation_observations_new (
-            observation_id VARCHAR(128) NOT NULL,
-            workspace_id VARCHAR(64) NOT NULL,
-            identity_kind VARCHAR(32) NOT NULL,
-            identity VARCHAR(255) NOT NULL,
-            owner_account_id VARCHAR(36),
-            observation_kind VARCHAR(32) NOT NULL,
-            value VARCHAR(96) NOT NULL,
-            currency VARCHAR(3) NOT NULL,
-            unit VARCHAR(32) NOT NULL,
-            as_of DATETIME NOT NULL,
-            observed_at DATETIME NOT NULL,
-            source_identity VARCHAR(255) NOT NULL,
-            source_revision VARCHAR(128) NOT NULL,
-            raw_record_id VARCHAR(36),
-            trust VARCHAR(32) NOT NULL,
-            created_at DATETIME NOT NULL,
-            PRIMARY KEY (observation_id),
-            CONSTRAINT uq_valuation_revision
-                UNIQUE (workspace_id, observation_id, source_revision),
-            CONSTRAINT fk_valuation_workspace_owner_account
-                FOREIGN KEY(workspace_id, owner_account_id)
-                REFERENCES accounts (workspace_id, id) ON DELETE RESTRICT,
-            CONSTRAINT ck_valuation_owner_kind CHECK (
-                (identity_kind IN ('cash_account', 'position') AND owner_account_id IS NOT NULL)
-                OR (identity_kind IN ('instrument_quote', 'currency_pair', 'fx')
-                    AND owner_account_id IS NULL)
-            ),
-            CONSTRAINT ck_valuation_cash_owner_identity CHECK (
-                identity_kind != 'cash_account'
-                OR (owner_account_id IS NOT NULL AND identity LIKE owner_account_id || ':%')
-            ),
-            FOREIGN KEY(workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE
-        )
-        """
-    ))
-    connection.execute(text(
-        """
-        INSERT INTO valuation_observations_new (
-            observation_id, workspace_id, identity_kind, identity, owner_account_id,
-            observation_kind, value, currency, unit, as_of, observed_at,
-            source_identity, source_revision, raw_record_id, trust, created_at
-        )
-        SELECT
-            observation_id, workspace_id, identity_kind, identity, owner_account_id,
-            observation_kind, value, currency, unit, as_of, observed_at,
-            source_identity, source_revision, raw_record_id, trust, created_at
-        FROM valuation_observations
-        """
-    ))
-    connection.execute(text("DROP TABLE valuation_observations"))
-    connection.execute(text(
-        "ALTER TABLE valuation_observations_new RENAME TO valuation_observations"
-    ))
-    connection.execute(text(
-        "CREATE INDEX ix_valuation_workspace_identity_asof "
-        "ON valuation_observations (workspace_id, identity, as_of)"
-    ))
-    connection.execute(text("PRAGMA foreign_keys=ON"))
+    for name in tables:
+        connection.execute(text(f'ALTER TABLE "{shadow_name(name)}" RENAME TO "{name}"'))
+    # Recreate explicit indexes after old index names have been released.
+    for ddl in index_ddls:
+        if re.search(r"\bON\s+(?:\"?accounts\"?)\b", ddl, re.IGNORECASE):
+            continue
+        connection.execute(text(ddl))
+    violations = connection.execute(text("PRAGMA foreign_key_check")).all()
+    if violations:
+        raise RuntimeError(f"SQLite foreign_key_check failed: {violations}")
 
 
 def _drop_currency_postgres(connection) -> None:
@@ -264,7 +324,12 @@ def _drop_currency_postgres(connection) -> None:
 
 def upgrade() -> None:
     connection = op.get_bind()
-    # Rewrite single-currency cash identities before drop (when still = account id).
+    if _dialect() == "sqlite":
+        id_map = _account_merge_map(connection)
+        _rebuild_snapshots(connection)
+        _drop_currency_sqlite(connection, id_map)
+        return
+    # PostgreSQL can update referenced rows and alter the constraints in place.
     valuations = connection.execute(text(
         "SELECT v.observation_id, v.identity, v.owner_account_id, v.currency, a.currency AS account_currency "
         "FROM valuation_observations v "
@@ -298,10 +363,7 @@ def upgrade() -> None:
 
     _rebuild_snapshots(connection)
 
-    if _dialect() == "sqlite":
-        _drop_currency_sqlite(connection)
-    else:
-        _drop_currency_postgres(connection)
+    _drop_currency_postgres(connection)
 
 
 def downgrade() -> None:

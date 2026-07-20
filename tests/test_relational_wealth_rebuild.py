@@ -71,8 +71,8 @@ def _insert_three_day_formal_fixture(sessions) -> None:
     at = lambda day: datetime(2026, 7, day, tzinfo=tz)
     with sessions.begin() as session:
         session.add_all((
-            AccountModel(id="cash", workspace_id="wealth-rebuild", name="Cash", type="cash", currency="CNY"),
-            AccountModel(id="broker", workspace_id="wealth-rebuild", name="Broker", type="security", currency="USD"),
+            AccountModel(id="cash", workspace_id="wealth-rebuild", name="Cash", type="cash"),
+            AccountModel(id="broker", workspace_id="wealth-rebuild", name="Broker", type="security"),
         ))
         session.flush()
         session.add_all((
@@ -104,7 +104,7 @@ def _insert_three_day_formal_fixture(sessions) -> None:
             (4, "120", "12", "7.3"),
         ):
             for identity_kind, identity, value, currency in (
-                ("cash_account", "cash", cash, "CNY"),
+                ("cash_account", "cash:CNY", cash, "CNY"),
                 ("position", "broker:global-etf", position, "USD"),
                 ("fx", "USD/CNY", fx, "CNY"),
             ):
@@ -365,7 +365,7 @@ def test_runtime_keeps_same_ticker_positions_distinct_by_formal_owner(rebuilt_ru
     _insert_three_day_formal_fixture(sessions)
     tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
     with sessions.begin() as session:
-        session.add(AccountModel(id="broker-two", workspace_id="wealth-rebuild", name="Broker 2", type="security", currency="CNY"))
+        session.add(AccountModel(id="broker-two", workspace_id="wealth-rebuild", name="Broker 2", type="security"))
         session.flush()
         session.add_all((
             AccountLifecycleEventModel(
@@ -610,7 +610,7 @@ def test_publish_rejects_staged_invalid_component_coverage_evidence_parents(rebu
     with sessions.begin() as session:
         if session.get(AccountModel, "cash") is None:
             session.add(AccountModel(
-                id="cash", workspace_id="wealth-rebuild", name="Cash", type="cash", currency="CNY",
+                id="cash", workspace_id="wealth-rebuild", name="Cash", type="cash",
             ))
 
     def _stage_publishable(build: str, result_digest: str, payload: str) -> None:

@@ -16,6 +16,22 @@
 7. Rebuild or merge cash snapshot maps under single account name with all currencies preserved.
 8. Investment snapshot quote currency: if previously taken from account.currency, set from snapshot payload / metadata.base_currencies / first event currency without inventing new investment semantics.
 
+### SQLite schema-change procedure
+
+SQLite must keep the migration atomic.  Because an Alembic upgrade has already opened
+its transaction, it MUST NOT rely on toggling `PRAGMA foreign_keys=OFF` to drop the
+referenced `accounts` table.  Instead, the revision must, in that same transaction:
+
+1. identify every table with a direct foreign key to `accounts`;
+2. preserve and rebuild those dependent tables (including all rows and equivalent
+   constraints) so `accounts` can be rebuilt without `currency`;
+3. recreate their foreign keys to the rebuilt `accounts` table; and
+4. run `PRAGMA foreign_key_check` before the transaction commits.
+
+The procedure may not introduce a commit/reopen boundary or disable enforcement as a
+durable migration state.  Any copy, constraint, or foreign-key failure aborts the
+entire migration.
+
 ## Outcomes
 
 | Case | Result |

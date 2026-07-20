@@ -20,7 +20,7 @@ class RelationalInvestmentCommandRepository:
                 return OperationResult(ok=False, message="investment command requires an investment account")
             snapshot = uow.snapshot.load(lock=True)
             row = apply_investment_command(
-                snapshot, command, account_type=account.type, default_currency=account.currency
+                snapshot, command, account_type=account.type, default_currency=command.currency
             )
             uow.investments.add(account.type, row)
             uow.snapshot.save(snapshot)

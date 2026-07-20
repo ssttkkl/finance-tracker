@@ -9,13 +9,13 @@ def _print_failure(result) -> bool:
     raise SystemExit(1)
 
 
-def acct_add(service, name: str, type_: str, currency: str):
+def acct_add(service, name: str, type_: str, currency: str | None = None):
     result = service.create_account(name.strip(), type_, currency)
     if _print_failure(result):
         return
     label = ACCOUNT_LABELS.get(type_, type_)
-    sym = CURRENCY_SYMBOLS.get(currency, "")
-    print(f"✅ 已添加账户: {result.account.name} ({label} · {sym}{currency})")
+    suffix = f" · {CURRENCY_SYMBOLS.get(currency, '')}{currency}" if currency else ""
+    print(f"✅ 已添加账户: {result.account.name} ({label}{suffix})")
 
 
 def acct_list(service):
@@ -34,22 +34,22 @@ def acct_list(service):
         print(f"  {account.name[:20]:<20} {label:<8} {account.currency:<6} {balance_text:>12} {active}")
 
 
-def acct_rename(service, old_name: str, new_name: str, currency: str):
-    result = service.rename_account(old_name, new_name.strip(), currency)
+def acct_rename(service, old_name: str, new_name: str):
+    result = service.rename_account(old_name, new_name.strip())
     if _print_failure(result):
         return
-    print(f"✅ 已重命名: {old_name}({currency}) → {result.account.name}")
+    print(f"✅ 已重命名: {old_name} → {result.account.name}")
 
 
-def acct_delete(service, name: str, currency: str):
-    result = service.delete_account(name, currency)
+def acct_delete(service, name: str):
+    result = service.delete_account(name)
     if _print_failure(result):
         return
-    print(f"✅ 已删除账户: {name}({currency})")
+    print(f"✅ 已删除账户: {name}")
 
 
-def acct_activate(service, name: str, currency: str, active: bool = True):
-    result = service.set_active(name, currency, active)
+def acct_activate(service, name: str, active: bool = True):
+    result = service.set_active(name, active)
     if _print_failure(result):
         return
-    print(f"✅ 已{'启用' if active else '停用'}账户: {name}({currency})")
+    print(f"✅ 已{'启用' if active else '停用'}账户: {name}")

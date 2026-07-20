@@ -13,7 +13,7 @@ def test_cash_checkin_commits_exact_formal_valuation_with_command():
     create_schema(engine); sessions = create_session_factory(engine); ensure_workspace(sessions, "workspace-a")
     uow = RelationalUnitOfWork(sessions, "workspace-a")
     AccountService(uow).create_account("Cash", "cash", "CNY")
-    assert CashflowService(uow).checkin_balance(account_name="Cash", balance=Decimal("12.340000000000000001"), date="2026-07-01").ok
+    assert CashflowService(uow).checkin_balance(account_name="Cash", balance=Decimal("12.340000000000000001"), currency="CNY", date="2026-07-01").ok
     with sessions() as session:
         observation = session.query(ValuationObservationModel).one()
     assert observation.value == Decimal("12.340000000000000001")

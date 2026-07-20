@@ -66,16 +66,15 @@ def _main(argv=None):
     sub = parser.add_subparsers(dest="cmd")
 
     # acct
-    acct_p = sub.add_parser("acct", help="账户管理")
+    acct_p = sub.add_parser("acct", help="名称唯一的多币种账户管理")
     acct_sub = acct_p.add_subparsers(dest="acct_cmd")
 
-    acct_add_p = acct_sub.add_parser("add", help="新增账户")
+    acct_add_p = acct_sub.add_parser("add", help="新增名称唯一账户（可选初始化零余额币种口袋）")
     acct_add_p.add_argument("name")
     acct_add_p.add_argument("--type", required=True,
                             choices=["cash", "loan", "lend", "security", "crypto"])
     acct_add_p.add_argument(
-        "--currency", required=True,
-        help="3-letter currency code (e.g. CNY, USD, JPY)",
+        "--currency", help="Optional zero-balance pocket currency (e.g. CNY, USD, JPY)",
     )
 
     acct_sub.add_parser("list", help="列出所有账户")
@@ -83,19 +82,15 @@ def _main(argv=None):
     acct_rename_p = acct_sub.add_parser("rename", help="重命名")
     acct_rename_p.add_argument("old_name")
     acct_rename_p.add_argument("new_name")
-    acct_rename_p.add_argument("--currency", required=True)
 
     acct_delete_p = acct_sub.add_parser("delete", help="删除账户")
     acct_delete_p.add_argument("name")
-    acct_delete_p.add_argument("--currency", required=True)
 
     acct_deact_p = acct_sub.add_parser("deactivate", help="停用账户")
     acct_deact_p.add_argument("name")
-    acct_deact_p.add_argument("--currency", required=True)
 
     acct_act_p = acct_sub.add_parser("activate", help="启用账户")
     acct_act_p.add_argument("name")
-    acct_act_p.add_argument("--currency", required=True)
 
     # report
     rpt = sub.add_parser("report", help="资产负债 + 消费总览")
@@ -234,7 +229,7 @@ def _main(argv=None):
 
     statement_import = sub.add_parser(
         "import",
-        help="原始账单导入（账户仅由账单字段 + ~/.ft/mapping.yaml 推断；禁止 --account）",
+        help="原始账单导入（按账户名路由、按行币种入账；禁止 --account）",
         allow_abbrev=False,
     )
     statement_import.add_argument("file", help="原始账单文件路径")
@@ -285,13 +280,13 @@ def _main(argv=None):
         elif args.acct_cmd == "list":
             acct_list(bundle.queries)
         elif args.acct_cmd == "rename":
-            acct_rename(bundle.accounts, args.old_name, args.new_name, args.currency)
+            acct_rename(bundle.accounts, args.old_name, args.new_name)
         elif args.acct_cmd == "delete":
-            acct_delete(bundle.accounts, args.name, args.currency)
+            acct_delete(bundle.accounts, args.name)
         elif args.acct_cmd == "activate":
-            acct_activate(bundle.accounts, args.name, args.currency, True)
+            acct_activate(bundle.accounts, args.name, True)
         elif args.acct_cmd == "deactivate":
-            acct_activate(bundle.accounts, args.name, args.currency, False)
+            acct_activate(bundle.accounts, args.name, False)
         return
 
     if args.cmd == "add":
@@ -309,8 +304,7 @@ def _main(argv=None):
         if not result.ok:
             print(f"❌ {result.error.message}")
             raise SystemExit(1)
-        account = result.details["account"]
-        sym = CURRENCY_SYMBOLS.get(account.currency, "")
+        sym = CURRENCY_SYMBOLS.get(result.row["currency"], "")
         print(f"✅ 已记录: {sym}{Decimal(args.amount):+.2f} {args.counterparty} ({args.account})")
         return
 
@@ -354,8 +348,7 @@ def _main(argv=None):
         if not result.ok:
             print(f"❌ {result.error.message}")
             raise SystemExit(1)
-        account = result.details["account"]
-        sym = CURRENCY_SYMBOLS.get(account.currency, "")
+        sym = CURRENCY_SYMBOLS.get(result.row["currency"], "")
         print(f"✅ {args.account}: 余额校准 {sym}{Decimal(args.balance):.2f} ({result.details['day']})")
         return
 
@@ -374,15 +367,15 @@ def _main(argv=None):
             raise SystemExit(1)
         if result.details.get("warning"):
             print(f"⚠️ {result.details['warning']}")
-        from_acct = result.details["from_account"]
-        to_acct = result.details["to_account"]
         amount = result.details["amount"]
         to_amount = result.details["to_amount"]
-        from_sym = CURRENCY_SYMBOLS.get(from_acct.currency, "")
-        to_sym = CURRENCY_SYMBOLS.get(to_acct.currency, "")
+        from_currency = result.details["from_currency"]
+        to_currency = result.details["to_currency"]
+        from_sym = CURRENCY_SYMBOLS.get(from_currency, "")
+        to_sym = CURRENCY_SYMBOLS.get(to_currency, "")
         print(f"✅ {args.from_acct} {from_sym}{-amount:,.2f} → {args.to_acct} {to_sym}{to_amount:,.2f} ({result.details['date']})")
         if "rate" in result.details:
-            print(f"   汇率: 1 {to_acct.currency} = {result.details['rate']:.4f} {from_acct.currency}")
+            print(f"   汇率: 1 {to_currency} = {result.details['rate']:.4f} {from_currency}")
         return
 
     if args.cmd == "stock":

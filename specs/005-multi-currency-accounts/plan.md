@@ -46,6 +46,17 @@ Change account modeling from **one account row per (name, currency)** to **one a
 
 **Permitted operational differences**: lock implementation, concurrency throughput, driver error text — must not fork ledger results or account identity.
 
+### SQLite migration implementation boundary
+
+SQLite cannot safely drop/recreate `accounts` while tables directly reference it after
+the Alembic transaction has begun: changing `PRAGMA foreign_keys` at that point is not
+a valid escape hatch.  The SQLite revision MUST therefore preserve atomicity by
+rebuilding, within the same Alembic transaction, every table that directly references
+`accounts` (and its required data) around the `accounts` table rebuild.  It MUST copy
+all rows, recreate the equivalent foreign-key and uniqueness constraints, and run
+`PRAGMA foreign_key_check` before commit.  A commit-before-rebuild/disable-FK boundary
+is prohibited because it would violate the feature's fail-closed migration contract.
+
 ## Project Structure
 
 ### Documentation (this feature)

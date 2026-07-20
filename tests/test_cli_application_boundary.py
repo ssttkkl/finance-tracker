@@ -88,7 +88,7 @@ def test_cli_account_and_cash_commands_use_injected_services(monkeypatch):
     calls = []
 
     class Accounts:
-        def create_account(self, name, type_, currency):
+        def create_account(self, name, type_, currency=None):
             calls.append(("account", name, type_, currency))
             account = type("Account", (), {"name": name})()
             return type("Result", (), {"ok": True, "account": account})()
@@ -96,8 +96,7 @@ def test_cli_account_and_cash_commands_use_injected_services(monkeypatch):
     class Cashflow:
         def add_manual_transaction(self, **kwargs):
             calls.append(("cash", kwargs))
-            account = type("Account", (), {"currency": "CNY"})()
-            return type("Result", (), {"ok": True, "details": {"account": account}})()
+            return type("Result", (), {"ok": True, "row": {"currency": kwargs["currency"]}})()
 
     bundle = type("Bundle", (), {"accounts": Accounts(), "cashflow": Cashflow()})()
     monkeypatch.setattr("ft.config.StorageSettings.load", lambda: object())

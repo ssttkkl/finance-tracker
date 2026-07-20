@@ -73,25 +73,16 @@ class StatementImportService:
                     details={"batch_id": batch_id, "duplicate": True, "by_account": {}},
                 )
 
-            # Resolve accounts per unique (name, currency)
-            account_cache: dict[tuple[str, str], object] = {}
+            # Account identity is name-only; a statement row owns its currency.
+            account_cache: dict[str, object] = {}
             for row in rows:
-                key = (row["account_name"], row["currency"])
+                key = row["account_name"]
                 if key in account_cache:
                     continue
-                account = uow.accounts.find(row["account_name"], row["currency"])
+                account = uow.accounts.find(row["account_name"])
                 if account is None:
-                    raise ValueError(
-                        f"account not found: {row['account_name']} ({row['currency']})"
-                    )
+                    raise ValueError(f"account not found: {row['account_name']}")
                 account_cache[key] = account
-
-            for row in rows:
-                account = account_cache[(row["account_name"], row["currency"])]
-                if account.type in {"cash", "loan", "lend"} and row["currency"] != account.currency:
-                    raise ValueError(
-                        "cash statement currency does not match the selected account"
-                    )
 
             raw_file_id = uow.imports.add_raw_file(
                 batch_id=batch_id, source_path=path.name, content_digest=digest,
@@ -144,20 +135,20 @@ class StatementImportService:
             imported_count = 0
             by_account: Counter[str] = Counter()
             for row, raw_id in rows_to_import:
-                account = account_cache[(row["account_name"], row["currency"])]
+                account = account_cache[row["account_name"]]
                 row["raw_record_id"] = raw_id
                 if account.type in {"cash", "loan", "lend"}:
                     fact_id = uow.cashflows.add(account.type, row)
                     if row.get("category") not in {"transfer", "transfer_in", "transfer_out"}:
                         uow.snapshot.update_balance(
-                            snapshot, account.name, account.type, account.currency, row["amount"]
+                            snapshot, account.name, account.type, row["currency"], row["amount"]
                         )
                     uow.imports.append_revision(
                         cash_transaction_id=fact_id, before={}, after=_json_safe(row),
                         actor_type="statement_import", reason="initial statement import",
                     )
                 elif account.type in {"security", "crypto"}:
-                    apply_investment_event(snapshot, row, default_currency=account.currency)
+                    apply_investment_event(snapshot, row, default_currency=row["currency"])
                     fact_id = uow.investments.add(account.type, row)
                     uow.imports.append_revision(
                         investment_event_id=fact_id, before={}, after=_json_safe(row),

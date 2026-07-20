@@ -65,6 +65,22 @@ def _seed_legacy_same_name_accounts(engine, *, conflict: bool = False) -> None:
             " 200, 'JPY', 'currency', :late, :late, 's:jpy', 'r-jpy', 'trusted_checkin', :late)"
         ), {"early": at_early, "late": at_late})
         connection.execute(text(
+            "INSERT INTO wealth_daily_results "
+            "(result_digest, workspace_id, local_date, calculation_version, "
+            "valuation_policy_version, source_revision, result_revision, canonical_payload, created_at) "
+            "VALUES ('daily-merge', 'w', '2026-02-01', 'wealth-attribution-v0.1', "
+            "'valuation-v0.1', 'seed', 'seed', '{}', :late)"
+        ), {"late": at_late})
+        # Coverage is a direct account FK too; migration must rehang it before
+        # deleting the later same-name account row.
+        connection.execute(text(
+            "INSERT INTO wealth_coverage_dispositions "
+            "(id, workspace_id, result_digest, local_date, source_revision, owner_account_id, "
+            "identity_kind, identity, disposition) "
+            "VALUES ('coverage-jpy', 'w', 'daily-merge', '2026-02-01', 'seed', 'a-jpy', "
+            "'cash_account', 'a-jpy:JPY', 'supported')"
+        ))
+        connection.execute(text(
             "INSERT INTO ledger_snapshots (workspace_id, payload, version, updated_at) "
             "VALUES ('w', :payload, 1, :early)"
         ), {
@@ -123,6 +139,11 @@ def test_merge_same_name_same_type_rewrites_cash_valuation_identities(tmp_path, 
                 )).all()
             }
         assert "currency" not in columns
+        if backend == "sqlite":
+            indexes = {
+                row[1] for row in connection.execute(text("PRAGMA index_list('accounts')"))
+            }
+            assert "ix_accounts_workspace" in indexes
 
         facts = connection.execute(text(
             "SELECT account_id, currency FROM cash_transactions WHERE workspace_id = 'w' "
@@ -138,6 +159,11 @@ def test_merge_same_name_same_type_rewrites_cash_valuation_identities(tmp_path, 
             ("a-cny:CNY", "a-cny", "CNY"),
             ("a-cny:JPY", "a-cny", "JPY"),
         ]
+        coverage_owners = connection.execute(text(
+            "SELECT owner_account_id FROM wealth_coverage_dispositions "
+            "WHERE workspace_id = 'w'"
+        )).scalars().all()
+        assert coverage_owners == ["a-cny"]
     engine.dispose()
     if backend == "postgresql":
         command.downgrade(config, "base")

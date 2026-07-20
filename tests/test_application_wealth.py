@@ -15,7 +15,7 @@ class FakeWealthFacts:
             ValuationFact("w", "o2", "cash_account", "cash", "boundary_checkin", Decimal("125"), "CNY", "currency", datetime(2026, 8, 1, tzinfo=tz), datetime(2026, 8, 1, tzinfo=tz), "m:2", "r2", "trusted_checkin"),
         )
 
-    def accounts(self): return (AccountFact("w", "cash", "cash", "CNY", {}),)
+    def accounts(self): return (AccountFact("w", "cash", "cash", {}),)
     def valuations(self, *, starts_at, ends_at): return tuple(v for v in self._valuations if starts_at <= v.as_of <= ends_at)
     def lifecycle_events(self): return ()
     def capture_source_manifest(self): return "source-r2", (WealthSourceItem("valuation", "o2", "r2", "d"),)
@@ -45,7 +45,7 @@ def test_breakdown_fails_closed_but_returns_known_coverage() -> None:
 
     class PartialFacts(FakeWealthFacts):
         def accounts(self):
-            return (*super().accounts(), AccountFact("w", "option", "option", "CNY", {}))
+            return (*super().accounts(), AccountFact("w", "option", "option", {}))
 
     result = WealthChangeService(PartialFacts()).breakdown(WealthChangeQuery("2026-07"))
     assert result.status is WealthStatus.UNSUPPORTED
