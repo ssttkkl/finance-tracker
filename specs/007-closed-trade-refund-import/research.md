@@ -54,3 +54,13 @@
 ## Decision 13: Convert must not net amounts
 
 **Decision**: `_pair_refunds` must not rewrite amounts as authority; relations only.
+
+## Decision 17: Transfer as dedicated Phase C
+
+**Decision**: After mirror (B), run **transfer_pair / credit_repayment** as **Phase C** using source-native taxonomy gates then fine matching. Bank merchant refunds and weak/open-leg run in **Phase D** after C.
+
+**Rationale**: Real bills — withdraw and card-bridge pairs are reliable; P2P/QR must not enter transfer pool; bank refund is a different problem and must not interleave before transfer settles self-account moves.
+
+## Decision 18: Transfer taxonomy attachment
+
+**Decision**: Canonical Stage-1 tables live in `attachments/transfer-source-taxonomy.md` (alipay status×direction+family, wechat status×type, ccb summary, icbc pm/cp).

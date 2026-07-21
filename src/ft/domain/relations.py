@@ -104,7 +104,19 @@ BANK_CHANNEL_SOURCES = frozenset({
 TRANSFER_SIGNAL_TOKENS = (
     "转账", "转出", "转入", "调拨", "内部转", "汇款", "汇入", "汇出",
     "transfer", "银联", "无卡付", "电子汇入", "转账支取", "转账存入",
+    # 007 Phase C: withdraw / brokerage (real-bill strong paths)
+    "提现", "实时提现", "零钱提现", "提现已到账", "支付机构提现",
+    "银转证", "证转银", "银行转证券", "证券转银行",
+    "转出到银行卡", "转账到银行卡",
 )
+# Stage-1 exclusions: never auto transfer_pair (P2P / QR / pure redpacket)
+TRANSFER_EXCLUDE_TOKENS = (
+    "二维码收款", "扫二维码付款", "收款方备注",
+    "转账备注", "微信转账",  # P2P wechat transfer notes
+    "群收款",
+    "微信红包", "红包（单发）", "红包(单发)", "微信红包（群红包）",
+)
+RULE_TRANSFER_WITHDRAW_V1 = "transfer_pair.withdraw_to_bank.v1"
 REPAYMENT_SIGNAL_TOKENS = (
     "还款", "还信用卡", "信用卡还款", "偿清", "repayment", "repay",
 )
@@ -488,6 +500,69 @@ def source_group(fact: FactView) -> str:
 def has_transfer_signal(text: str) -> bool:
     blob = _text_blob(text)
     return any(token.lower() in blob for token in TRANSFER_SIGNAL_TOKENS)
+
+def has_transfer_exclude_signal(text: str) -> bool:
+    """P2P/QR/redpacket legs must not enter transfer auto pool (007 FR-043)."""
+    blob = _text_blob(text).lower()
+    return any(token.lower() in blob for token in TRANSFER_EXCLUDE_TOKENS)
+
+
+def is_withdraw_platform_out(fact: "FactView") -> bool:
+    """Alipay-style withdraw out-leg (negative + 提现)."""
+    if fact.signed_amount >= 0:
+        return False
+    blob = _text_blob(fact.text, fact.bill_source, fact.source)
+    if any(x in blob for x in ("二维码", "转账备注", "群收款")):
+        return False
+    return any(x in blob for x in ("提现", "转账到银行卡", "转出到银行卡"))
+
+
+def is_withdraw_platform_receipt(fact: "FactView") -> bool:
+    """WeChat 提现已到账 / 零钱提现 receipt (often positive amount)."""
+    blob = _text_blob(fact.text, fact.bill_source, fact.source)
+    return "提现已到账" in blob or ("零钱提现" in blob and "退款" not in blob)
+
+
+def is_bank_transfer_in(fact: "FactView") -> bool:
+    if fact.signed_amount <= 0:
+        return False
+    blob = _text_blob(fact.text, fact.bill_source, fact.source)
+    if source_group(fact) != "bank" and not any(
+        k in (fact.bill_source or "").lower() + (fact.source or "").lower()
+        for k in ("icbc", "ccb", "bank", "工行", "建行", "debit", "credit")
+    ):
+        # still allow if text screams bank channel
+        if not any(x in blob for x in ("银联入账", "支付机构提现", "电子汇入", "转账存入")):
+            return False
+    return any(
+        x in blob
+        for x in (
+            "银联入账", "支付机构提现", "电子汇入", "转账存入",
+            "快捷支付",  # icbc debit self-name credits often only this
+        )
+    ) or source_group(fact) == "bank"
+
+
+def is_transfer_taxonomy_out(fact: "FactView") -> bool:
+    """Stage-1: may initiate transfer (out-leg or withdraw receipt treated specially)."""
+    if fact.deleted:
+        return False
+    if has_transfer_exclude_signal(fact.text) and not is_withdraw_platform_out(fact) and not is_withdraw_platform_receipt(fact):
+        # QR/P2P excluded unless withdraw
+        if any(x in _text_blob(fact.text) for x in ("二维码", "转账备注", "群收款", "对方已收钱")):
+            return False
+    if is_withdraw_platform_out(fact) or is_withdraw_platform_receipt(fact):
+        return True
+    if fact.signed_amount >= 0:
+        return False
+    blob = _text_blob(fact.text)
+    if has_transfer_exclude_signal(blob) and "转账支取" not in blob and "无卡" not in blob:
+        return False
+    if any(x in blob for x in ("转账支取", "无卡自助", "银转证", "银行转证券", "信用卡还款", "还款")):
+        return True
+    return has_transfer_signal(blob) and not has_transfer_exclude_signal(blob)
+
+
 
 
 def has_repayment_signal(text: str) -> bool:
@@ -1093,6 +1168,15 @@ def evaluate_transfer_pair(
             continue
         if cand.account_id == seed.account_id:
             continue
+        # 007 FR-043: exclude pure P2P/QR legs from transfer matching
+        if has_transfer_exclude_signal(seed.text) and not (
+            is_withdraw_platform_out(seed) or is_withdraw_platform_receipt(seed)
+        ):
+            return None
+        if has_transfer_exclude_signal(cand.text) and not is_bank_transfer_in(cand):
+            # allow bank in-leg even if text weak; skip QR/P2P cand
+            if any(x in _text_blob(cand.text) for x in ("二维码", "转账备注", "群收款", "对方已收钱", "已存入零钱")):
+                continue
         cand_amount = cand.signed_amount
         if (seed_amount > 0) == (cand_amount > 0):
             continue
@@ -1126,6 +1210,15 @@ def evaluate_transfer_pair(
                 status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_CREDIT_REPAYMENT_V1
             else:
                 status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_CREDIT_REPAYMENT_V1
+        elif (
+            same_currency and exact
+            and is_withdraw_platform_out(seed)
+            and cand_amount > 0
+            and (dt <= 60 or same_day)
+        ):
+            # 007: alipay 提现 → bank credit (real bills 6/6 within 1s)
+            status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_TRANSFER_WITHDRAW_V1
+            transfer_signal = True
         elif same_currency and exact and dt <= TRANSFER_PAIR_STRONG_SECONDS and transfer_signal:
             status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_TRANSFER_PAIR_STRONG_V1
         elif same_currency and exact and same_day and has_unionpay_pair_signals(seed_text, cand_text):
@@ -1301,6 +1394,121 @@ def refund_title_exact_match(refund: FactView, expense: FactView) -> bool:
     if not refund_title or not expense_title:
         return False
     return refund_title == expense_title
+
+
+def match_withdraw_receipt_to_bank(
+    facts: Sequence[FactView],
+    *,
+    used: set[str] | None = None,
+) -> list[RelationProposal]:
+    """Phase C special: WeChat 提现已到账 (+amount) ↔ bank +amount same day.
+
+    Classic evaluate_transfer_pair requires opposite signs; withdraw receipts are positive.
+    """
+    used = used if used is not None else set()
+    receipts = [
+        f for f in facts
+        if not f.deleted and f.id not in used and is_withdraw_platform_receipt(f) and f.signed_amount > 0
+    ]
+    banks = [
+        f for f in facts
+        if not f.deleted and f.id not in used and f.signed_amount > 0 and is_bank_transfer_in(f)
+    ]
+    proposals: list[RelationProposal] = []
+    for rec in receipts:
+        if rec.id in used:
+            continue
+        hits: list[FactView] = []
+        for b in banks:
+            if b.id in used or b.account_id == rec.account_id:
+                continue
+            if str(rec.currency).upper() != str(b.currency).upper():
+                continue
+            if _abs_decimal(rec.signed_amount) != _abs_decimal(b.signed_amount):
+                continue
+            if not _same_calendar_day(rec.occurred_at, b.occurred_at):
+                # also allow 60s if timestamps exist
+                if _time_delta_seconds(rec.occurred_at, b.occurred_at) > 60:
+                    continue
+            hits.append(b)
+        if len(hits) != 1:
+            continue
+        bank = hits[0]
+        evidence = RelationEvidence(
+            amount_delta="0",
+            time_delta_seconds=_time_delta_seconds(rec.occurred_at, bank.occurred_at),
+            same_currency=True,
+            source_pair=(rec.bill_source or rec.source, bank.bill_source or bank.source),
+            rule_id=RULE_TRANSFER_WITHDRAW_V1,
+            candidate_count=1,
+            signals=("withdraw_receipt", "exact_amount", "same_day"),
+        )
+        proposals.append(RelationProposal(
+            kind=RelationKind.TRANSFER_PAIR.value,
+            primary_fact_id=rec.id,
+            secondary_fact_id=bank.id,
+            status=RelationStatus.ACCEPTED.value,
+            rule_id=RULE_TRANSFER_WITHDRAW_V1,
+            confidence=CONFIDENCE_STRONG,
+            evidence=evidence,
+            anchor_fact_id=rec.id,
+            open_leg=False,
+        ))
+        used.add(rec.id)
+        used.add(bank.id)
+    return proposals
+
+
+def match_transfer_pairs_phase_c(
+    facts: Sequence[FactView],
+    *,
+    seed_ids: Sequence[str] | None = None,
+    index: FactCandidateIndex | None = None,
+) -> list[RelationProposal]:
+    """Phase C: taxonomy-aware transfer matching (007)."""
+    active = [f for f in facts if not f.deleted and f.fact_type == FactType.CASH.value]
+    by_id = {f.id: f for f in active}
+    if seed_ids is None:
+        seeds = [f for f in active if is_transfer_taxonomy_out(f) or f.signed_amount < 0]
+    else:
+        seeds = [by_id[s] for s in seed_ids if s in by_id]
+    # Prefer withdraw outs first
+    seeds.sort(
+        key=lambda f: (
+            0 if is_withdraw_platform_out(f) else 1,
+            0 if f.signed_amount < 0 else 1,
+            str(f.occurred_at),
+            f.id,
+        )
+    )
+    used: set[str] = set()
+    proposals: list[RelationProposal] = []
+    # Same-sign withdraw receipts first
+    for prop in match_withdraw_receipt_to_bank(active, used=used):
+        proposals.append(prop)
+    for seed in seeds:
+        if seed.id in used:
+            continue
+        if seed.signed_amount > 0 and not is_withdraw_platform_receipt(seed):
+            continue
+        if has_transfer_exclude_signal(seed.text) and not is_withdraw_platform_out(seed):
+            if any(x in _text_blob(seed.text) for x in ("二维码", "转账备注", "群收款", "对方已收钱")):
+                continue
+        if index is not None:
+            others = [f for f in index.transfer_candidates(seed) if f.id not in used]
+        else:
+            others = [f for f in active if f.id != seed.id and f.id not in used]
+        prop = evaluate_transfer_pair(seed, others)
+        if prop is None:
+            continue
+        if prop.secondary_fact_id:
+            used.add(prop.primary_fact_id)
+            used.add(prop.secondary_fact_id)
+        else:
+            used.add(prop.primary_fact_id)
+        proposals.append(prop)
+    return proposals
+
 
 
 def evaluate_refund_offset(

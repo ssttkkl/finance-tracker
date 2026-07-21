@@ -25,6 +25,7 @@ from ft.domain.relations import (
     evaluate_transfer_pair,
     is_open_leg_relation,
     match_payment_mirrors_greedy,
+    match_transfer_pairs_phase_c,
     ordered_fact_pair,
     project_balances_and_pnl,
 )
@@ -123,11 +124,43 @@ class RelationService:
                     elif outcome["status"] == RelationStatus.PENDING_REVIEW.value:
                         stats["pending"] += 1
 
+                # Phase C: transfer_pair (taxonomy + withdraw) before bank refund weak path
+                transfer_linked: set[str] = set()
+                for rel in uow.relations.list_active(kind=RelationKind.TRANSFER_PAIR.value):
+                    if rel.get("status") == RelationStatus.SUPERSEDED.value:
+                        continue
+                    transfer_linked.add(rel["primary_fact_id"])
+                    if rel.get("secondary_fact_id"):
+                        transfer_linked.add(rel["secondary_fact_id"])
+                transfer_proposals = match_transfer_pairs_phase_c(
+                    active_facts,
+                    seed_ids=seeds,
+                    index=index,
+                )
+                stats["phase_c_transfers"] = 0
+                for proposal in transfer_proposals:
+                    if proposal.primary_fact_id in transfer_linked or (
+                        proposal.secondary_fact_id and proposal.secondary_fact_id in transfer_linked
+                    ):
+                        stats["skipped"] += 1
+                        continue
+                    outcome = self._persist_proposal(uow, proposal, remaining)
+                    if outcome is None:
+                        stats["skipped"] += 1
+                        continue
+                    created.append(outcome)
+                    transfer_linked.add(outcome["primary_fact_id"])
+                    if outcome.get("secondary_fact_id"):
+                        transfer_linked.add(outcome["secondary_fact_id"])
+                    stats["phase_c_transfers"] = stats.get("phase_c_transfers", 0) + 1
+                    if outcome["status"] == RelationStatus.ACCEPTED.value:
+                        stats["accepted"] += 1
+                    elif outcome["status"] == RelationStatus.PENDING_REVIEW.value:
+                        stats["pending"] += 1
+
+                # Phase D: bank refund / remaining refund_offset (not already linked)
                 for seed in seed_views:
                     proposals = []
-                    tp = evaluate_transfer_pair(seed, index.transfer_candidates(seed))
-                    if tp is not None:
-                        proposals.append(tp)
                     # Phase A already handled platform hard-key refunds.
                     # Skip merchant weak path only when already linked.
                     skip_refund_scan = seed.id in refund_linked

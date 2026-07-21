@@ -36,3 +36,13 @@
 ## Dependencies
 
 T110–T117 before T120–T125; T130 after implementation.
+
+## Phase 5 — Transfer Phase C
+
+- [x] T140 Spec attachment transfer taxonomy (done with living spec)
+- [x] T141 Test: withdraw alipay→bank accepts in check
+- [x] T142 Test: wechat QR / P2P transfer not auto transfer_pair
+- [x] T143 Test: phase order C before bank refund path (ordering)
+- [x] T144 Implement taxonomy tags + withdraw/card-bridge rules in evaluate or phase_c helper
+- [x] T145 Wire check: A → B → C transfer → D refund weak
+- [x] T146 Push

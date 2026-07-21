@@ -9,7 +9,7 @@
 1. No silent skip; whitelist unpaid-closed + failed-repay only.
 2. No funding_status.
 3. **Import**: facts + **raw payload contract**; **no** relation inserts.
-4. **Scan**: Phase A platform hard-key refunds → Phase B mirror → Phase C bank/transfer/open-leg.
+4. **Scan**: Phase A platform refunds → Phase B mirror → **Phase C transfer** → Phase D bank refund/weak/open-leg.
 5. Reuse pure matchers (`platform_refund.py`); call from relation check, not statement_import.
 6. Fail closed on mapping/parse errors; Decimal; dual-backend.
 

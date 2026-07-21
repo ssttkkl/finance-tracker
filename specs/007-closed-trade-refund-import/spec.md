@@ -18,7 +18,8 @@
 5. **统一扫描编排**：所有源导入完成后，由 **一次** `relations check`（sync）建关系，阶段顺序固定：  
    - **Phase A** — 支付宝/微信平台硬键退款（及免押→解冻）→ `refund_offset`  
    - **Phase B** — `payment_mirror`（platform×bank）  
-   - **Phase C** — 银行消费退货、`transfer_pair`、弱匹配、open-leg  
+   - **Phase C** — **`transfer_pair` / 信用还款**（先分类闸门再精细配对；见附件 transfer 分类表）  
+   - **Phase D** — 银行消费退货 `refund_offset`、弱匹配、open-leg 及其余  
 6. **支付宝订单键规则**（真实账单验证）：`refund.txn == origin.txn` 或 `startswith(origin + "_")` 或 `startswith(origin + "*")`；禁止仅 `rsplit("_",1)`；标题不得优先于订单键；不得把关单退款 auto 配到不同订单号的重拍成功单。  
 7. **微信退款双行**：支出原单行与收入退款行 MUST 都导入；扫描 Phase A 按微信规则写 `refund_offset`；**禁止** convert 净额改写原单金额。  
 8. **银行退款不在导入期做**：银行无订单硬键；消费退货在 **Phase C** 处理；导入仅保证事实 + 信号字段可恢复。  
@@ -59,6 +60,16 @@
 - Q: 匹配规则是否改变？ → A: 支付宝订单键、微信双行/residual/对方已退还、免押解冻等 **语义不变**；仅 **落点从 import 改为 scan Phase A**。rule_id 建议 `scan.alipay.order_prefix.v1` / `scan.wechat.*.v1`（实现可兼容旧 `import.*` 已落边为已存在关系）。  
 - Q: 已有 import 期写入的关系？ → A: 扫描 MUST 跳过已有活跃同业务键边；不强制历史回填。  
 - Q: convert `_pair_refunds`？ → A: MUST NOT 改金额；tracking 不得作为权威核销；权威只在 `transaction_relations`。
+
+
+### Session 2026-07-22 — 转账单独 Phase C（分类闸门 + 精细配对）
+
+- Q: 转账是否与银行退款同一 phase？ → A: **否**。`transfer_pair` 为 **Phase C**；银行消费退货与其它弱配对为 **Phase D**（在 C 之后）。  
+- Q: 是否全库扫「转账」词？ → A: **否**。MUST 先按各源**原生分类**（支付宝 status×方向+文案族；微信 status×type；建行 summary；工行支付方式/对手）打标进候选池，再在池内等额/时间/账户精细配对（与退款「先分类再配对」同一套路）。  
+- Q: 哪些算 transfer？ → A: **自有账户调拨**（提现到银行卡、卡间银联、平台内余额宝/余利宝到卡、银证）、**信用还款**（信用卡/花呗/月付）。**不是**：P2P 微信转账/红包/二维码收款、商户消费、退款、通道消费（走 mirror）。  
+- Q: 真实数据锚点？ → A: 支付宝提现→工行 6/6 秒级；建行跨卡支取↔银联入账多组；微信提现已到账↔建行入账（常 date-only）；银证常单腿。  
+- Q: 「提现」信号？ → A: MUST 纳入 Phase C 强规则（当前仅通用 transfer 词表会漏提现）。  
+- Q: 落点？ → A: 仅 scan Phase C 写 `transfer_pair`；import 不写 transfer 关系，但 MUST 保留原始 status/type/summary 于 payload。
 
 ### Session 2026-07-21 — 订单键 / 预授权 / 微信（规则保留，落点改为扫描）
 
@@ -166,11 +177,12 @@
 - **FR-018**: `relations check` MUST 按顺序执行：  
   1. **Phase A — 平台硬键退款**：支付宝订单键 `refund_offset`；免押→解冻；微信双行/residual/转账退还；  
   2. **Phase B — `payment_mirror`**；  
-  3. **Phase C — 其余**：银行消费退货 `refund_offset`、`transfer_pair`、弱匹配、open-leg。  
+  3. **Phase C — `transfer_pair` / 信用还款**：先源生分类闸门再精细配对（FR-040+；附件）；  
+  4. **Phase D — 其余**：银行消费退货 `refund_offset`、弱匹配、open-leg。  
 - **FR-019**: Phase A 支付宝匹配 MUST 使用：`==` / `startswith(origin+"_")` / `startswith(origin+"*")`；唯一才 auto-accept；标题不得优先；不得配错重拍单 B。  
 - **FR-020**: Phase A 微信匹配 MUST 使用 FR-029 优先级（见下，规则同前，触发在扫描）；MUST NOT 用支付宝 txn 前缀。  
 - **FR-021**: Phase A 免押→解冻：优先订单/商户键；否则同日状态对+唯一；多候选 open-leg。  
-- **FR-022**: Phase C 银行退货：同卡+商户簇+金额/剩余+时间；**禁止** `refund_desc_fallback` 级 auto-accept（最多 pending/open-leg）。  
+- **FR-022**: Phase D 银行退货：同卡+商户簇+金额/剩余+时间；**禁止** `refund_desc_fallback` 级 auto-accept（最多 pending/open-leg）。  
 - **FR-023**: 已有活跃关系 MUST 跳过重复自动推荐。  
 - **FR-024**: MUST NOT 用「退款早于任意成功消费 N 小时」替代原单或订单键。  
 - **FR-025**: 核销只追加关系，不删事实、不改金额。
@@ -220,6 +232,13 @@
 - **SC-015**: 银行消费退货不在 import 落边；check 后 Phase C 可建边或 pending。  
 - **SC-016**: convert/import **不得**把支付 amount 改为净额。
 
+
+- **SC-017**: `relations check` 阶段顺序为 A→B→**C(transfer)**→**D(银行退货/弱)**（测试或 rule_id/phase 证据可观测）。  
+- **SC-018**: 支付宝「提现-实时提现」↔ 工行等额入账（Δt≤60s）样本 Phase C 后 **accepted** `transfer_pair`（基线 6/6 形态）。  
+- **SC-019**: 建行跨卡「转账支取↔银联入账」等额同日样本 Phase C 可 accepted。  
+- **SC-020**: 微信 `扫二维码付款` / `对方已收钱×转账` / `已存入零钱×转账` MUST NOT 仅因「转账」字样成为 transfer auto 边。  
+- **SC-021**: 银行「消费退货」关系若产生，MUST 不早于 Phase C 完成（属 Phase D）。  
+
 ## Assumptions
 
 - `raw_records.payload` 已存在；本 feature 强化契约与写入完整性。  
@@ -234,7 +253,9 @@
 - 不把未支付关闭做成正式事实。  
 - 不强制历史库回填 payload/关系。  
 - 不重写 006 全部规则细节（时间窗数值等以 006 为准，本 feature 定阶段顺序与平台硬键）。  
-- 不以改金额/删行核销。  
+- 不以改金额/删行核销。
+- 不把微信 P2P 转账/二维码/红包当作自有账户 `transfer_pair` auto。
+- 不在 Phase C 之前做银行退货主路径。  
 - 不把银联入账/刷卡金当 bank refund auto。
 
 ## 附录：Raw Payload 契约（最低必填）
@@ -319,5 +340,6 @@ Import all sources → facts + raw payload
 relations check
   Phase A: alipay/wechat hard-key refund_offset (+ auth unfreeze)
   Phase B: payment_mirror
-  Phase C: bank refund_offset, transfer_pair, weak/open-leg
+  Phase C: transfer_pair / credit_repayment (taxonomy gate → fine match)
+  Phase D: bank refund_offset, weak/open-leg
 ```
