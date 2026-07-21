@@ -34,10 +34,10 @@
 
 ## Phase E — Integration & real bills
 
-- [ ] T018 Integration tests dual-backend when FT_TEST_POSTGRES_URL set
-- [ ] T019 Real `~/.ft/bills` alipay copy: counters + paid closed + skip counts
-- [ ] T020 Real wechat copy: 0 business skips; refund pairs; no amount netting
-- [ ] T021 Update tasks checkboxes; run full related pytest suite
+- [x] T018 Integration tests dual-backend when FT_TEST_POSTGRES_URL set
+- [x] T019 Real `~/.ft/bills` alipay copy: counters + paid closed + skip counts
+- [x] T020 Real wechat copy: 0 business skips; refund pairs; no amount netting
+- [x] T021 Update tasks checkboxes; run full related pytest suite
 
 ## Dependencies
 

@@ -302,31 +302,54 @@ class RelationService:
         tracking_pairs: list,
         new_cash_fact_ids: list[str] | None = None,
     ) -> list[dict]:
-        """Persist import-time refund_offset from convert tracking (007). Amounts unchanged."""
+        """Persist import-time refund_offset from convert tracking (007). Amounts unchanged.
+
+        Matching keys (in order):
+        - expense/refund ``record_id`` as stored on cash facts (provider txn id)
+        - convert ``_fact_id`` (e.g. ``alipay_<txn>``) stripped to txn suffix
+        """
         from ft.domain.relations import RelationKind, RelationStatus
 
         created: list[dict] = []
         if not tracking_pairs:
             return created
+
+        def keys_for(side: dict) -> set[str]:
+            out: set[str] = set()
+            for k in ("record_id", "_fact_id", "txn_id"):
+                v = str(side.get(k) or "").strip()
+                if v:
+                    out.add(v)
+                    if v.startswith("alipay_"):
+                        out.add(v[len("alipay_"):])
+                    if v.startswith("wechat_"):
+                        out.add(v[len("wechat_"):])
+            return out
+
         with self._uow as uow:
             if hasattr(uow.cashflows, "list_detailed"):
                 rows = uow.cashflows.list_detailed(include_deleted=False)
             else:
                 rows = []
-            id_by_record = {
-                str(row.get("record_id") or ""): str(row.get("id") or "")
-                for row in rows
-                if row.get("record_id") and row.get("id")
-            }
+            # map many possible keys -> fact id
+            id_by_key: dict[str, str] = {}
+            for row in rows:
+                fid = str(row.get("id") or "")
+                if not fid:
+                    continue
+                rec = str(row.get("record_id") or "").strip()
+                if rec:
+                    id_by_key[rec] = fid
+                    id_by_key[f"alipay_{rec}"] = fid
+                    id_by_key[f"wechat_{rec}"] = fid
+
             for pair in tracking_pairs:
                 if not isinstance(pair, dict) or pair.get("_acceptance"):
                     continue
                 exp = pair.get("expense") or {}
                 ref = pair.get("refund") or {}
-                exp_rec = str(exp.get("record_id") or exp.get("_fact_id") or "")
-                ref_rec = str(ref.get("record_id") or ref.get("_fact_id") or "")
-                exp_id = id_by_record.get(exp_rec)
-                ref_id = id_by_record.get(ref_rec)
+                exp_id = next((id_by_key[k] for k in keys_for(exp) if k in id_by_key), None)
+                ref_id = next((id_by_key[k] for k in keys_for(ref) if k in id_by_key), None)
                 if not exp_id or not ref_id:
                     continue
                 existing = uow.relations.list_for_facts([exp_id, ref_id], active_only=True)
@@ -345,6 +368,7 @@ class RelationService:
                     or pair.get("rule_hint")
                     or "import.platform.refund.v1"
                 )
+                # Prefer import.* rule ids from 007 matchers
                 strength = pair.get("match_strength") or "strong"
                 status = (
                     RelationStatus.ACCEPTED.value
