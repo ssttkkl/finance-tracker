@@ -70,3 +70,31 @@ def test_legacy_offset_fields_not_used_in_projection():
     result = project_balances_and_pnl(facts, [])
     # expense 100 + refund not auto-netted without relation; refund may be income or skipped by signal
     assert result.expenses["CNY"] == Decimal("100")
+
+
+def test_income_without_refund_word_not_refund_seed():
+    expense = _fv(
+        id="e", amount=Decimal("-100"), account_id="1",
+        occurred_at="2026-01-01 10:00:00", counterparty="商家A", category="expense",
+    )
+    income = _fv(
+        id="i", amount=Decimal("100"), account_id="1",
+        occurred_at="2026-01-05 10:00:00", counterparty="工资", description="工资发放",
+        category="income",
+    )
+    assert evaluate_refund_offset(income, [expense]) is None
+
+
+def test_refund_same_account_exact_without_merchant_is_pending_not_silent():
+    expense = _fv(
+        id="e", amount=Decimal("-100"), account_id="1",
+        occurred_at="2026-01-01 10:00:00", counterparty="商家A", category="expense",
+    )
+    refund = _fv(
+        id="r", amount=Decimal("100"), account_id="1",
+        occurred_at="2026-01-05 10:00:00", counterparty="其他", description="退款到账",
+        category="income",
+    )
+    proposal = evaluate_refund_offset(refund, [expense])
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value

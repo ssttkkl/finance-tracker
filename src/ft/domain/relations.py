@@ -925,6 +925,7 @@ def evaluate_transfer_pair(
         return None
     matches: list[tuple[FactView, RelationEvidence, str, str, str]] = []
     seed_text = seed.text
+    TRANSFER_PENDING_OUTER = 5 * 60
     for cand in candidates:
         if cand.id == seed.id or cand.deleted:
             continue
@@ -958,13 +959,25 @@ def evaluate_transfer_pair(
                 status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_CREDIT_REPAYMENT_V1
             elif (not same_currency) and dt <= CREDIT_REPAYMENT_FX_SECONDS:
                 status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_CREDIT_REPAYMENT_FX_V1
+            elif same_currency and exact and dt <= TRANSFER_PENDING_OUTER:
+                # Near repayment window but not unique-ready yet; keep high-recall pending.
+                status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_CREDIT_REPAYMENT_V1
             else:
                 status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_CREDIT_REPAYMENT_V1
         elif same_currency and exact and dt <= TRANSFER_PAIR_STRONG_SECONDS and transfer_signal:
             status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_TRANSFER_PAIR_STRONG_V1
         elif same_currency and exact and same_day and has_unionpay_pair_signals(seed_text, cand_text):
             status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_TRANSFER_PAIR_UNIONPAY_V1
-        elif same_currency and transfer_signal and same_day:
+        elif same_currency and exact and transfer_signal and TRANSFER_PAIR_STRONG_SECONDS < dt <= TRANSFER_PENDING_OUTER:
+            # Signal+exact beyond 10s up to 5min → pending (not silent).
+            status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_TRANSFER_PAIR_STRONG_V1
+        elif same_currency and exact and transfer_signal and same_day:
+            status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_TRANSFER_PAIR_STRONG_V1
+        elif same_currency and exact and dt <= TRANSFER_PAIR_STRONG_SECONDS and not transfer_signal:
+            # High-recall: opposite exact within 10s without signal words → pending.
+            status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_TRANSFER_PAIR_STRONG_V1
+        elif same_currency and (not exact) and transfer_signal and dt <= TRANSFER_PAIR_STRONG_SECONDS:
+            # Amount delta with transfer signal near window → pending.
             status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_TRANSFER_PAIR_STRONG_V1
         else:
             continue
@@ -1021,7 +1034,8 @@ def evaluate_transfer_pair(
             confidence=conf,
             evidence=evidence,
         )
-    matches.sort(key=lambda m: (m[1].time_delta_seconds, m[0].id))
+    # Multiple autos or only pending candidates → high-recall pending (never silent if matched).
+    matches.sort(key=lambda m: (0 if m[2] == RelationStatus.ACCEPTED.value else 1, m[1].time_delta_seconds, m[0].id))
     cand, evidence, _, conf, subtype = matches[0]
     evidence = RelationEvidence(**{**evidence.__dict__, "candidate_count": len(matches)})
     primary_id, secondary_id = seed.id, cand.id
@@ -1045,13 +1059,19 @@ def evaluate_refund_offset(
     *,
     remaining_by_expense: Mapping[str, Decimal] | None = None,
 ) -> RelationProposal | None:
+    """Refund pairing: auto strict, pending high-recall, no bare-income flood.
+
+    - Only amounts with explicit refund signals may be refund legs (not all income).
+    - Candidate requires merchant/order link, or same-account+refund-signal+exact.
+    - Auto only unique strong merchant/order within policy windows.
+    - Multi/over/late/weak-link → pending (not silent).
+    """
     if seed.deleted or seed.fact_type != FactType.CASH.value:
         return None
     remaining_by_expense = remaining_by_expense or {}
     seed_amount = seed.signed_amount
-    is_refund_seed = seed_amount > 0 and (
-        has_refund_signal(seed.text) or seed.category in {"income", "refund", ""}
-    )
+    # CRITICAL: do not treat every positive income as refund seed.
+    is_refund_seed = seed_amount > 0 and has_refund_signal(seed.text)
     is_expense_seed = seed_amount < 0
     if not is_refund_seed and not is_expense_seed:
         return None
@@ -1066,7 +1086,12 @@ def evaluate_refund_offset(
             continue
         if is_refund_seed:
             refund, expense = seed, cand
+            if expense.signed_amount >= 0:
+                continue
         else:
+            # expense seed: only pair with explicit refund legs
+            if cand.signed_amount <= 0 or not has_refund_signal(cand.text):
+                continue
             refund, expense = cand, seed
         if refund.signed_amount <= 0 or expense.signed_amount >= 0:
             continue
@@ -1085,29 +1110,50 @@ def evaluate_refund_offset(
         order_lock = bool(
             refund.record_id and expense.record_id and refund.record_id == expense.record_id
         ) or (
-            texts_cross_match(
-                _text_blob(refund.counterparty, refund.description, refund.record_id),
-                _text_blob(expense.counterparty, expense.description, expense.record_id),
-            )
+            main_style_cross_verify(refund, expense)
             and any(
                 tok in _text_blob(refund.description, expense.description)
-                for tok in ("订单", "order", "交易号", "txn")
+                for tok in ("订单", "order", "交易号", "txn", "商户单号")
             )
         )
-        merchant_match = texts_cross_match(refund.counterparty, expense.counterparty) or (
+        merchant_match = main_style_cross_verify(
+            FactView(
+                id=refund.id, amount=refund.amount, currency=refund.currency,
+                account_id=refund.account_id, counterparty=refund.counterparty,
+                description="", bill_source=refund.bill_source,
+            ),
+            FactView(
+                id=expense.id, amount=expense.amount, currency=expense.currency,
+                account_id=expense.account_id, counterparty=expense.counterparty,
+                description="", bill_source=expense.bill_source,
+            ),
+        ) or (
             bool(refund.counterparty) and refund.counterparty == expense.counterparty
         )
-        if not merchant_match and not order_lock and not has_refund_signal(refund.text):
+        same_account = refund.account_id == expense.account_id
+        exact = refund_abs == expense_abs or refund_abs == remaining
+        refund_word = has_refund_signal(refund.text)
+        strong_link = merchant_match or order_lock
+        weak_link = same_account and refund_word and (exact or refund_abs <= remaining)
+        # Require a real link — refund word alone must not attach to arbitrary expenses.
+        if not strong_link and not weak_link:
             continue
         over = refund_abs > remaining
         within_auto = days <= REFUND_AUTO_ACCEPT_DAYS or (
             order_lock and days <= REFUND_ORDER_LOCK_AUTO_ACCEPT_DAYS
         )
-        unique_ready = merchant_match or order_lock
-        if over or not within_auto or not unique_ready:
-            status, conf = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK
-        else:
+        # Auto only strong unique merchant/order; uniqueness enforced after loop.
+        if strong_link and not over and within_auto and not weak_link:
             status, conf = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG
+        elif strong_link and not over and within_auto:
+            # strong_link true; treat as auto candidate (uniqueness later)
+            status, conf = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG
+        else:
+            # High-recall pending: multi will demote; over/late/weak_link stay pending.
+            status, conf = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK
+        # weak_link never auto
+        if weak_link and not strong_link:
+            status, conf = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK
         evidence = RelationEvidence(
             amount_delta=format(remaining - refund_abs, "f"),
             time_delta_seconds=int((refund_dt - expense_dt).total_seconds()),
@@ -1119,6 +1165,8 @@ def evaluate_refund_offset(
                 "refund",
                 "merchant" if merchant_match else "",
                 "order_lock" if order_lock else "",
+                "same_account" if same_account else "",
+                "weak_link" if weak_link and not strong_link else "",
                 "over_refund" if over else "",
             ))),
             extras={
@@ -1157,7 +1205,8 @@ def evaluate_refund_offset(
             confidence=conf,
             evidence=evidence,
         )
-    matches.sort(key=lambda m: (m[1].time_delta_seconds, m[0].id))
+    # Multi or only pending → high-recall pending (never drop a linked candidate silently).
+    matches.sort(key=lambda m: (0 if m[2] == RelationStatus.ACCEPTED.value else 1, m[1].time_delta_seconds, m[0].id))
     other, evidence, _, conf = matches[0]
     evidence = RelationEvidence(**{**evidence.__dict__, "candidate_count": len(matches)})
     if is_refund_seed:

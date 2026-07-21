@@ -93,3 +93,31 @@ def test_credit_repayment_fx_without_amount_equality():
     assert proposal.subtype == SUBTYPE_CREDIT_REPAYMENT
     assert proposal.status == RelationStatus.ACCEPTED.value
     assert proposal.evidence.extras.get("seed_currency") in {"CNY", "USD"} or True
+
+
+def test_transfer_exact_no_signal_within_10s_is_pending_high_recall():
+    out_leg = _fv(
+        id="a", amount=Decimal("-100"), account_id="1", account_name="A",
+        occurred_at="2026-01-01 10:00:00", description="支出",
+    )
+    in_leg = _fv(
+        id="b", amount=Decimal("100"), account_id="2", account_name="B",
+        occurred_at="2026-01-01 10:00:05", description="收入",
+    )
+    proposal = evaluate_transfer_pair(out_leg, [in_leg])
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+
+
+def test_transfer_signal_exact_beyond_10s_within_5min_pending():
+    out_leg = _fv(
+        id="a", amount=Decimal("-100"), account_id="1", account_name="A",
+        occurred_at="2026-01-01 10:00:00", description="转账支取",
+    )
+    in_leg = _fv(
+        id="b", amount=Decimal("100"), account_id="2", account_name="B",
+        occurred_at="2026-01-01 10:02:00", description="转账存入",
+    )
+    proposal = evaluate_transfer_pair(out_leg, [in_leg])
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
