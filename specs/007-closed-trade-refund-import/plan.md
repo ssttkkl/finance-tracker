@@ -6,7 +6,7 @@
 
 ## Summary
 
-Deliver **import no-skip** for all wired bill sources, **publish closed/failed Alipay/WeChat rows** as normal formal facts (no `funding_status` field), and **create alipay `refund_offset` at import** when order keys uniquely match (`==` / `prefix_` / `prefix*`). Relation scan does **not** backfill alipay same-platform order refunds; it keeps cross-source mirror and transfers. Balance net-zero for closed+full refund comes from **amount cancel** (-A +A), not a funding enum.
+Deliver **import no-skip** for all wired bill sources, **publish **paid** closed Alipay rows** as normal formal facts; **skip unpaid-closed** (documented); no `funding_status` field, and **create alipay `refund_offset` at import** when order keys uniquely match (`==` / `prefix_` / `prefix*`). Relation scan does **not** backfill alipay same-platform order refunds; it keeps cross-source mirror and transfers. Balance net-zero for closed+full refund comes from **amount cancel** (-A +A), not a funding enum.
 
 ## Technical Context
 
@@ -78,7 +78,13 @@ No constitution violations requiring justification.
 - Import result counters: `source_lines`, `published`, `idempotent_hits`, `failed`.
 - Success invariant: `published + idempotent_hits == source_lines`.
 
-### Phase B — Remove silent skips
+### Phase B — Remove silent skips (except unpaid-closed)
+
+- Remove blanket `continue` on all 交易关闭.
+- **Keep/add** skip only for unpaid-closed (FR-008a) with comment + counter.
+- Import paid `交易关闭|支出` + refunds; emit refund_offset on order key.
+
+### Phase B0 — Remove silent skips
 
 - Alipay: stop skipping 交易关闭/已关闭/还款失败; emit non-funding facts.
 - WeChat: stop skipping 交易失败/已关闭/已撤销 and non-whitelist income silence; emit non-funding or fail-closed.

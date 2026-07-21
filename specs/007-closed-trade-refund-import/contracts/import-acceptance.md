@@ -7,13 +7,16 @@
   "ok": true,
   "source_lines": 100,
   "published": 12,
-  "idempotent_hits": 88,
+  "idempotent_hits": 80,
+  "skipped_unpaid_closed": 8,
   "failed": 0,
   "batch_id": "…"
 }
 ```
 
-**MUST**: when `ok=true` and `failed=0`, `source_lines == published + idempotent_hits`.
+**MUST**: when `ok=true` and `failed=0`, `source_lines == published + idempotent_hits + skipped_unpaid_closed`.
+
+`skipped_unpaid_closed`: Alipay unpaid-closed (and equivalent) per FR-008a — documented skip only.
 
 ## Failure result
 

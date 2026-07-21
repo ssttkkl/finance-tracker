@@ -32,6 +32,8 @@
 
 ## Notes
 
+- User decision: **unpaid-closed rows are skipped** (not imported), with code comments; not silent no-skip violation.
+- Paid `交易关闭|支出` still imported + order-key refund_offset.
 - Converged decisions written into spec:
   - no-skip all sources
   - closed/failed rows import as normal amounts (no funding_status field)
