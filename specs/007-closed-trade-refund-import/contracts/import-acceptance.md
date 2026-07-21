@@ -9,14 +9,16 @@
   "published": 12,
   "idempotent_hits": 80,
   "skipped_unpaid_closed": 8,
+  "skipped_failed_repay": 1,
   "failed": 0,
   "batch_id": "…"
 }
 ```
 
-**MUST**: when `ok=true` and `failed=0`, `source_lines == published + idempotent_hits + skipped_unpaid_closed`.
+**MUST**: when `ok=true` and `failed=0`, `source_lines == published + idempotent_hits + skipped_unpaid_closed + skipped_failed_repay`.
 
-`skipped_unpaid_closed`: Alipay unpaid-closed (and equivalent) per FR-008a — documented skip only.
+`skipped_unpaid_closed`: FR-008a unpaid-closed.
+`skipped_failed_repay`: FR-008c 还款失败未扣款.
 
 ## Failure result
 

@@ -2,7 +2,7 @@
 
 ## Decision 1: No silent skip (with one documented skip)
 
-**Decision**: Every source transaction line is accepted, **explicitly skipped as unpaid-closed**, or import fails closed. Silent drop is forbidden.
+**Decision**: Every source transaction line is accepted, **explicitly skipped** (unpaid-closed or failed-repay-no-debit), or import fails closed. Silent drop is forbidden.
 
 **Rationale**: User requirement; unpaid-closed rows must not become fake expenses.
 
@@ -60,3 +60,11 @@
 - leave as unrelated 0-amount lines → rejected by user
 - transfer_pair → rejected (not account transfer; it's hold release)
 - relation-scan only → rejected (import-owned, like alipay order refunds)
+
+## Decision 12: Skip 还款失败 when no debit
+
+**Decision**: Skip Alipay `还款失败` when direction is 不计收支 and payment method is empty. Count `skipped_failed_repay`. Comment required. Import `还款成功` always (payment method present in real data).
+
+**Rationale**: 2 real rows are failed auto-repay attempts (1350.30) with empty pay; later `还款成功` with bank card is the real debit. Importing failure would add misleading amount without offset.
+
+**Alternatives considered**: import as audit non-balance → user prefers skip like unpaid-closed; no funding_status field.

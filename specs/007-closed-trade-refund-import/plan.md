@@ -81,7 +81,7 @@ No constitution violations requiring justification.
 ### Phase B — Remove silent skips (except unpaid-closed)
 
 - Remove blanket `continue` on all 交易关闭.
-- **Keep/add** skip only for unpaid-closed (FR-008a) with comment + counter.
+- **Keep/add** skip only for unpaid-closed (FR-008a/FR-008c) with comment + counter.
 - Import paid `交易关闭|支出` + refunds; emit refund_offset on order key.
 
 ### Phase B0 — Remove silent skips
