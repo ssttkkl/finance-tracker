@@ -5,7 +5,9 @@
 
 **Tests**: MANDATORY failing tests before implementation. Persistence/relation/projection changes require SQLite + real PostgreSQL matrix; neither backend may be mocks-only. If `FT_TEST_POSTGRES_URL` is unset, leave SQLite evidence and report missing PG matrix explicitly.
 
-**Organization**: Setup → Foundational → User Stories US1–US9 (spec priority) → Polish.
+**Organization**: Setup → Foundational → User Stories US1–US9 (base 006, done) → **Open-Leg phase (remaining)** → Polish.
+
+**Open-leg extension**: FR-042–047 / User Story 6b. Branch `006-open-leg-pending`.
 
 ## Format: `[ID] [P?] [Story?] Description`
 
@@ -241,6 +243,17 @@
 
 **Checkpoint**: Feature ready for converge/review
 
+### Calibration follow-ups (post T057, real-ledger)
+
+- [x] T058 [US3] Exclude transfer/receipt/redpacket/withdraw legs from `refund_offset` (both sides) unless explicit refund signal; tokens + `is_refund_excluded_leg` in `src/ft/domain/relations.py`; prune in `FactCandidateIndex` refund buckets; FR-020 + edge cases + research Decision 7 updated; tests in `tests/test_transaction_relations_refund.py`
+- [x] T059 [US3] Real-ledger verification on `~/.ft` copy: refund accepted 162 / pending 3218 (vs prior 165 / 3305); transferish pollution 0; 消费退货 still accepted; 0 true-refund positives lost all candidates in simulation
+- [x] T060 [US3] Tighten weak refund pending: exact amount only (not ≤ remaining); expense seeds strong_link only; FR-020 + research; real-ledger pending 3218 → 226, accepted stays 162
+- [x] T061 [US3] Spec first: asymmetric P2P refund rule in FR-020 + edge cases + research (bare p2p income ≠ refund; p2p expense MAY pair with 微信红包-退款 as strong; merchant refunds still exclude p2p expenses)
+- [x] T062 [US3] Implement T061: asymmetric P2P + fine subtype (红包/转账/收款/提现); p2p expense strong only via same subtype or order_lock; tests; real-ledger 微信红包-退款 pairs 微信红包（单发） without merchant×p2p flood
+- [x] T063 Converge + dual-backend verification: all `tasks.md` items `[x]` (T001–T062); domain/application surface check 19/19; `pytest tests/test_transaction_relations_*.py tests/test_alembic_migration.py` **69 passed** with `FT_TEST_POSTGRES_URL=postgresql+psycopg://finance_tracker:finance_tracker_test@127.0.0.1:55432/finance_tracker_test` + `FT_REQUIRE_TEST_POSTGRES=1` (foundation/delete parametrize sqlite+postgresql green); real-ledger `~/.ft` copy check ~5s → mirror acc 2213 / pend 160, transfer acc 8 / pend 104, refund acc **163** / pend **226**, 微信红包-退款→微信红包（单发） accepted. Full-repo `pytest tests/` on same PG: 629 passed + unrelated wealth/multi-currency PG teardown errors (`NotImplementedError: multi-currency account merge is one-shot and not irreversible`) and 1 wealth perf budget miss — **out of 006 scope**, not regressions of this feature. No project ruff/mypy config. No push/PR (no user auth).
+
+**Checkpoint**: Feature 006 implementation + calibration + dual-backend evidence complete; ready for optional gstack `review` / user-authorized ship.
+
 ---
 
 ## Dependencies
@@ -286,3 +299,62 @@ Recommended first shippable correctness slice after MVP: US2 + US3 + US6.
 - No `duplicate_of`; no amount tolerance; no import rollback on check failure
 - Dual-backend: same Application Service assertions on SQLite and real PostgreSQL
 - Do not expand into FX product, full Web UI, or CSV reconcile revival
+
+## Phase Open-Leg: 开放单腿 pending（006 extension）
+
+**Purpose**: Implement FR-042–047 / US6b — multi/zero candidate → one open-leg pending; accept with `--other`; no fan-out.
+
+**Prerequisites**: Base 006 relation layer green (T001–T057). Branch `006-open-leg-pending`.
+
+**Independent test**: 1 refund × N expenses → 1 open-leg pending; accept requires other; projection ignores open-leg; mirror never open-leg; SQLite+PG migration.
+
+### OL Setup / inventory
+
+- [ ] T100 Confirm open-leg updates in `specs/006-transaction-relations/{spec,plan,research,data-model}.md` and contracts `contracts/review-inbox.md`, `contracts/relation-check.md`
+- [ ] T101 [P] Inventory current `secondary_fact_id` NOT NULL, business key, accept API in `migrations/versions/20260721_05_transaction_relations.py`, `src/ft/adapters/relational/models.py`, `src/ft/application/relations.py`, `src/ft/cli.py`
+
+### OL Foundational (schema + red tests)
+
+- [ ] T102 [P] Write failing tests for open-leg multi-candidate refund → single pending in `tests/test_transaction_relations_open_leg.py`
+- [ ] T103 [P] Write failing tests: open-leg accept requires other_fact_id; illegal other fails; projection ignores open-leg in `tests/test_transaction_relations_open_leg.py`
+- [ ] T104 [P] Write failing tests: transfer multi-candidate open-leg; reject suppresses re-open; payment_mirror never null secondary in `tests/test_transaction_relations_open_leg.py`
+- [ ] T105 Create Alembic revision `migrations/versions/20260722_06_open_leg_pending.py`: nullable secondary, `anchor_fact_id`, checks, partial unique for open-leg; dual-backend; update `tests/test_alembic_migration.py`
+- [ ] T106 Update ORM/repositories for nullable secondary + anchor + open key in `src/ft/adapters/relational/models.py`, `src/ft/adapters/relational/repositories.py`, `src/ft/repositories/protocols.py`
+
+**Checkpoint**: Migration applies SQLite (+PG if available); open-leg tests red for missing behavior
+
+### OL Domain + application (US6b / US6)
+
+- [ ] T107 [US6b] Extend domain proposals for open-leg (`secondary_fact_id` optional, evidence candidate_fact_ids top-K=20) in `src/ft/domain/relations.py`
+- [ ] T108 [US6b] Change `evaluate_refund_offset` multi/zero-candidate path to one open-leg; stop expense-seed fan-out of multi bilateral pendings in `src/ft/domain/relations.py`
+- [ ] T109 [US6b] Change `evaluate_transfer_pair` multi/zero-candidate path to one open-leg with anchor_role in `src/ft/domain/relations.py`
+- [ ] T110 [US6b] Persist open-leg keys; accept(other_fact_id); reject open anchor occupancy; projection skip open-leg in `src/ft/application/relations.py`
+- [ ] T111 [US6] CLI list shows open-leg; `accept` requires `--other` for open-leg in `src/ft/cli.py`
+- [ ] T112 Green `tests/test_transaction_relations_open_leg.py` and adjust `tests/test_transaction_relations_refund.py` / `tests/test_transaction_relations_transfer.py` for multi-candidate → open-leg
+
+**Checkpoint**: US6b acceptance scenarios pass on SQLite
+
+### OL Polish
+
+- [ ] T113 [P] Dual-backend matrix for open-leg migration + core open-leg tests when `FT_TEST_POSTGRES_URL` set
+- [ ] T114 [P] Real-ledger smoke optional: multi 京东退货 candidates → 1 open pending (document path under `/tmp`)
+- [ ] T115 Update `specs/006-transaction-relations/tasks.md` checkboxes; `$speckit-converge` if available
+- [ ] T116 Commit on `006-open-leg-pending` with message covering schema+behavior (no push unless authorized)
+
+---
+
+## Dependencies (open-leg)
+
+```text
+T100–T101 → T102–T104 (red) → T105–T106 (schema) → T107–T111 (impl) → T112 green → T113–T116 polish
+```
+
+## MVP (open-leg only)
+
+T100–T112: schema + refund open-leg + accept/reject + tests. Transfer open-leg included in T109. Mirror out of scope for open-leg.
+
+## Notes
+
+- Base tasks T001–T057 remain completed for original 006.
+- Open-leg tasks are the **only** remaining implementation work on this branch.
+- Main session must use `speckit_implementer` for T102–T112 product code per constitution.
