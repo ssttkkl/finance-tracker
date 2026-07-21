@@ -1,133 +1,93 @@
-# Implementation Plan: Import No-Skip & Closed-Trade Anchors
+# Implementation Plan: Import No-Skip & Platform Refund at Import
 
 **Branch**: `007-import-no-skip` | **Date**: 2026-07-21 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `specs/007-closed-trade-refund-import/spec.md`
-
 ## Summary
 
-Deliver **import no-skip** for all wired bill sources, **publish **paid** closed Alipay rows** as normal formal facts; **skip unpaid-closed** (documented); no `funding_status` field, and **create alipay + wechat `refund_offset` at import** when order keys uniquely match (`==` / `prefix_` / `prefix*`). Relation scan does **not** backfill alipay same-platform order refunds; it keeps cross-source mirror and transfers. Balance net-zero for closed+full refund comes from **amount cancel** (-A +A), not a funding enum.
+1. **No silent skip** on all wired bill sources; only documented whitelist skips (Alipay unpaid-closed, failed-repay-no-debit) with counters + code comments.
+2. **No `funding_status` field** — paid closed expenses import as negative amounts; refunds positive; pairs cancel via amounts + `refund_offset`.
+3. **Alipay**: import paid `交易关闭|支出`; skip unpaid-closed / failed-repay; order-key (`==`/`_`/`*`) unique → import-time `refund_offset`; auth-hold→unfreeze → `refund_offset`.
+4. **WeChat**: import all dual-row refund legs; import-time `refund_offset` (pay + embedded amount + residual + transfer-return); **no** amount netting in convert; **no** Alipay txn-prefix.
+5. **Relation scan**: does not own Alipay order-refund or WeChat dual-row main path; keeps mirror/transfer/exceptions.
+6. **Mapping miss / parse errors**: fail closed.
 
 ## Technical Context
 
 **Language/Version**: Python 3.11+  
-**Primary Dependencies**: existing `ft` CLI, Application Services, SQLAlchemy 2.x, Alembic, uv  
-**Storage**: PostgreSQL + SQLite via `FT_DATABASE_URL` (shared logical schema)  
-**Testing**: pytest; dual-backend matrix when `FT_TEST_POSTGRES_URL` set  
-**Target Platform**: local CLI / developer machine  
-**Project Type**: CLI + domain/application services + relational adapter  
-**Performance Goals**: full real bill files import without silent loss; relation check budget remains 006 concern  
-**Constraints**: Decimal money; no silent skip; fail closed on mapping/parse errors; dual-backend equivalence  
-**Scale/Scope**: all wired sources (alipay, wechat, icbc credit/debit, ccb debit, dfzq); convert + statement_import + cash fact funding flag + balance snapshot path
+**Primary Dependencies**: `ft` CLI, Application Services, SQLAlchemy 2.x, Alembic, uv  
+**Storage**: PostgreSQL + SQLite via `FT_DATABASE_URL`  
+**Testing**: pytest; dual-backend when `FT_TEST_POSTGRES_URL` set  
+**Constraints**: Decimal money; dual-backend equivalence; formal facts immutable  
+**Scale/Scope**: convert + statement_import + import-time relation insert; minimal check skip-if-linked
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
-
 | Principle | Status | Notes |
 |---|---|---|
-| I. Financial correctness & auditability | PASS | No silent discard; closed anchors + raw chain; Decimal |
-| II. Spec Kit driven | PASS | Spec/plan/tasks only source of truth for this change |
-| III. Test-first | PASS | Tasks require failing tests for each former skip path |
-| IV. Explicit dual DB | PASS | Schema + import acceptance + balance exclusion equivalent on PG/SQLite |
-| V. Clear boundaries | PASS | Convert/import publish facts; 006 owns relations; no time-window hack |
+| I. Financial correctness | PASS | No silent discard; Decimal; relation not amount rewrite |
+| II. Spec Kit driven | PASS | spec/plan/tasks sole truth |
+| III. Test-first | PASS | failing tests per skip removal + refund import |
+| IV. Dual DB | PASS | acceptance counters + relations equivalent |
+| V. Boundaries | PASS | import writes platform refunds; 006 owns cross-source |
 
-**Post-design re-check**: still PASS — funding/settlement flag is domain field on formal cash facts; parsers stay free of relation engine.
+**Post-design**: PASS — no funding_status column; platform_status/origin metadata only as needed.
 
 ## Project Structure
 
-### Documentation (this feature)
-
 ```text
-specs/007-closed-trade-refund-import/
-├── plan.md
-├── research.md
-├── data-model.md
-├── quickstart.md
-├── contracts/
-│   ├── import-acceptance.md
-│   └── closed-trade-anchor.md
-├── checklists/requirements.md
-└── spec.md
-```
-
-### Source Code (expected touch set)
-
-```text
-src/ft/convert.py                    # remove status continues; emit settlement flags + order prefix
-src/ft/importers/*.py                # wechat/alipay/etc. no silent status drops
-src/ft/application/statement_import.py  # acceptance counters; fail-closed mapping; balance skip non-funding
-src/ft/adapters/relational/models.py    # funding_status / settlement fields if needed
-migrations/versions/                    # nullable-safe columns for settlement + origin_order_id
-src/ft/domain/relations.py              # consume origin_order_id / closed facts as refund counterparty (minimal)
+src/ft/convert.py
+src/ft/importers/wechat.py          # INCOME_OK usage audit
+src/ft/application/statement_import.py
+src/ft/application/relations.py     # skip if already linked; optional import helper
+src/ft/domain/relations.py          # optional pure match helpers for import
 tests/test_import_no_skip_*.py
-tests/test_closed_trade_import_*.py
+tests/test_import_alipay_refund_*.py
+tests/test_import_wechat_refund_*.py
+specs/007-closed-trade-refund-import/
 ```
 
-**Structure Decision**: extend existing convert → statement_import pipeline; no new runtime backend.
+## Implementation Phases
+
+### Phase A — Acceptance contract
+- Source line counts; published + idempotent + whitelist skips.
+- Expose skip reason counters on import result.
+
+### Phase B — Remove silent skips
+- Alipay: stop blanket skip of 交易关闭/已关闭/还款失败; apply FR-008a/c only.
+- WeChat: remove silent expense-fail and income-not-INCOME_OK continues; fail-closed or import.
+- Mapping: fail closed on miss.
+- Zero-amount: import (non unpaid-closed).
+
+### Phase C — Alipay closed + order-key refund_offset
+- Paid closed expense import.
+- origin_order_id / prefix match FR-013.
+- Import-time refund_offset unique; multi → open-leg/pending.
+- Auth-hold → unfreeze FR-014a.
+
+### Phase D — WeChat dual-row refund_offset
+- Both legs import; no amount rewrite.
+- FR-029 rules: mer/txn, full, partial embedded (≤60d), residual split, transfer return.
+- Tests: 味多美 30d, JD split, 对方已退还, redpacket mer.
+
+### Phase E — Scan boundary
+- Relation check skips pairs with active refund_offset from import.
+- No alipay order-refund 补漏 mission; wechat main path import-owned.
+
+### Phase F — Verification
+- Unit/integration + real `~/.ft/bills` alipay/wechat dry or copy import counts.
+- PG matrix when URL set.
 
 ## Complexity Tracking
 
-No constitution violations requiring justification.
+| Violation | Why needed | Simpler alternative rejected |
+|---|---|---|
+| Import writes relations | Spec: platform keys known at import | Full defer to 006 scan loses order keys / dual-row |
+| Whitelist skips | Unpaid-closed / failed-repay pollute balances | funding_status enum rejected by product |
 
-## Implementation Phases (design)
+## Risks
 
-### Phase A — Acceptance contract
-
-- Define source-transaction-line vs layout noise.
-- Import result counters: `source_lines`, `published`, `idempotent_hits`, `failed`.
-- Success invariant: `published + idempotent_hits == source_lines`.
-
-### Phase B — Remove silent skips (except unpaid-closed)
-
-- Remove blanket `continue` on all 交易关闭.
-- **Keep/add** skip only for unpaid-closed (FR-008a/FR-008c) with comment + counter.
-- Import paid `交易关闭|支出` + refunds; emit refund_offset on order key.
-
-### Phase B0 — Remove silent skips
-
-- Alipay: stop skipping 交易关闭/已关闭/还款失败; emit non-funding facts.
-- WeChat: stop skipping 交易失败/已关闭/已撤销 and non-whitelist income silence; emit non-funding or fail-closed.
-- Mapping: remove silent `default: skip` path → error.
-- Parse errors: raise with file+line; no continue-success.
-
-### Phase C0 — WeChat dual-row refund_offset
-
-- Import all WeChat lines (no silent status continue).
-- Pair refunds per FR-027–032 (full/partial/residual/transfer-return); no amount rewrite.
-- Tests: 味多美 30d, JD split, 对方已退还.
-
-### Phase C — Closed-trade + order prefix
-
-- Persist platform status + `origin_order_id` / order base for refunds.
-- Balance snapshot updates **only** for funding-occupying facts.
-- Minimal 006 hook: refund matching may use origin_order_id exact before title.
-
-### Phase C0 — WeChat dual-row refund_offset
-
-- Import all WeChat lines (no silent status continue).
-- Pair refunds per FR-027–032 (full/partial/residual/transfer-return); no amount rewrite.
-- Tests: 味多美 30d, JD split, 对方已退还.
-
-### Phase C2 — Import emits refund_offset; scan does not 补漏 alipay orders
-
-- Order-key alipay refunds → refund_offset at import.
-- **Auth unfreeze**: 芝麻免押下单成功 → 解冻成功 as refund_offset (`import.alipay.auth_unfreeze`).
-- Relation check skips already-linked pairs.
-
-### Phase C0 — WeChat dual-row refund_offset
-
-- Import all WeChat lines (no silent status continue).
-- Pair refunds per FR-027–032 (full/partial/residual/transfer-return); no amount rewrite.
-- Tests: 味多美 30d, JD split, 对方已退还.
-
-### Phase C2b — Import emits refund_offset; scan does not 补漏 alipay orders
-
-- On unique order-key match, insert `transaction_relations` refund_offset at import.
-- Relation check skips facts that already have active refund_offset for that pair/refund.
-- **No alipay refund 补漏** path in check for order-key cases.
-
-### Phase D — Verification
-
-- Dual-backend tests.
-- Real `~/.ft/bills` closed→refund→reorder fixtures (anonymized copies in tests where needed).
+| Risk | Mitigation |
+|---|---|
+| WeChat residual mis-attach | Require same pay + status T + time cluster; open-leg if multi origin |
+| Alipay unpaid-closed misclassified | Require all three FR-008a predicates + tests |
+| Convert still nets refunds | Delete/bypass _pair_refunds amount mutation; tests assert amounts |

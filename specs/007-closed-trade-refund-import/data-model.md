@@ -1,59 +1,38 @@
-# Data Model: Import No-Skip & Closed-Trade Anchors
+# Data Model: 007 Import No-Skip & Platform Refund
 
-## Entities
+## Entities (no new funding_status)
 
-### SourceTransactionLine (ephemeral parse output)
+### CashTransaction (formal fact)
+Existing fields remain authority for amount/currency/account.
+**Optional metadata** (if not already present; prefer evidence/JSON over required columns when possible):
+- `platform_status` (text, optional): e.g. 交易关闭, 已全额退款
+- `origin_order_id` / txn linkage for alipay refunds (may live in evidence or existing record_id/txn fields)
 
-| Field | Notes |
-|---|---|
-| source_type | alipay / wechat / icbc_* / ccb_debit / dfzq |
-| occurred_at | required |
-| amount | Decimal |
-| currency | required at formalize |
-| direction / category | expense/income/… |
-| counterparty, description | text |
-| platform_status | e.g. 交易关闭, 退款成功, 交易成功 |
-| txn_id | platform order id |
-| origin_order_id | optional; for refunds base of txn_id |
-| funding_status | `funding` \| `non_funding` |
-| source_identity components | feed RawRecord identity |
+**Rules**:
+- Paid closed expense: normal negative amount.
+- Refund: positive amount; never rewrite original expense amount.
+- Unpaid-closed / failed-repay: **not persisted** as formal facts (skipped).
 
-### RawRecord (existing)
+### TransactionRelation
+Existing 006 model:
+- `kind=refund_offset`
+- `status=accepted|pending_review|...`
+- `rule_id` e.g. `import.alipay.order_prefix.v1`, `import.wechat.partial_embedded.v1`
+- open-leg allowed for multi-candidate per 006
 
-Unchanged identity model; **every** accepted source transaction line produces one RawRecord in a successful batch.
+### ImportBatch / acceptance counters
+Logical result fields (API/DTO, not necessarily new tables):
+- `source_lines`
+- `published`
+- `idempotent_hits`
+- `skipped_unpaid_closed`
+- `skipped_failed_repay`
+- `failed` (if fail-closed)
 
-### CashTransaction (formal fact, extended)
+Constraint: `source_lines = published + idempotent_hits + skipped_unpaid_closed + skipped_failed_repay` on success.
 
-| Field | Change |
-|---|---|
-| existing money/account/time fields | unchanged |
-| platform_status | **add** (string, default "") |
-| funding_status | **add** (`funding` default for success paths; `non_funding` for closed/failed) |
-| origin_order_id | **add** (string, default ""; refunds set when parseable) |
-| txn_id / record_id | ensure platform order id retained in payload/columns already used |
-
-### ImportBatch acceptance counters (result DTO + optional persisted summary)
-
-| Field | Meaning |
-|---|---|
-| source_lines | count of source transaction lines |
-| published | new formal facts |
-| idempotent_hits | lines already present |
-| failed | if partial-fail model used; else batch aborts |
-
-**Invariant (success)**: `source_lines == published + idempotent_hits`.
-
-## Validation rules
-
-- `funding_status=non_funding` ⇒ default balance delta 0.
-- `funding_status=funding` ⇒ existing balance rules.
-- Refund lines keep positive amount semantics as today; set `origin_order_id` when pattern matches.
-- Closed origin keeps negative expense amount for audit but non_funding.
-
-## State / transitions
-
-No new lifecycle beyond publish. Logical delete remains 006.
-
-## Dual-backend
-
-New columns nullable or defaulted identically on PG and SQLite; no dialect-specific business branching.
+## Validation
+- Decimal amounts exact.
+- Alipay order match: FR-013 only.
+- WeChat match: FR-029; no alipay prefix.
+- Dual backend: same counters and relation sets.

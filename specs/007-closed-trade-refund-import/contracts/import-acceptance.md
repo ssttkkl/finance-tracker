@@ -1,43 +1,21 @@
-# Contract: Import Acceptance (No Silent Skip)
+# Contract: Import Acceptance Counts
 
-## Success result (conceptual)
-
-```json
-{
-  "ok": true,
-  "source_lines": 100,
-  "published": 12,
-  "idempotent_hits": 80,
-  "skipped_unpaid_closed": 8,
-  "skipped_failed_repay": 1,
-  "failed": 0,
-  "batch_id": "…"
-}
+## Success
+```
+source_transaction_lines
+  = newly_published_formal_facts
+  + idempotent_hits
+  + skipped_unpaid_closed
+  + skipped_failed_repay
 ```
 
-**MUST**: when `ok=true` and `failed=0`, `source_lines == published + idempotent_hits + skipped_unpaid_closed + skipped_failed_repay`.
+## Fail closed
+- Parse error, illegal amount, mapping miss → batch fails or row-addressable failure; MUST NOT report success with silent drops.
 
-`skipped_unpaid_closed`: FR-008a unpaid-closed.
-`skipped_failed_repay`: FR-008c 还款失败未扣款.
+## Skip reasons (whitelist only)
+| code | when |
+|---|---|
+| unpaid_closed | FR-008a |
+| failed_repay | FR-008c |
 
-## Failure result
-
-```json
-{
-  "ok": false,
-  "error": "mapping unmatched | parse error | …",
-  "source_ref": "file name",
-  "source_line": 42,
-  "detail": "human actionable message"
-}
-```
-
-**MUST NOT**: return `ok=true` if any source transaction line was dropped without publish or idempotent hit.
-
-## Mapping
-
-- Unmatched account mapping → failure (not skip).
-
-## Idempotency
-
-- Duplicate file/line identity → `idempotent_hits += 1`, not error (unless conflicting account target — existing fail).
+WeChat corpus: both counters may be 0.

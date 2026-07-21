@@ -1,34 +1,23 @@
-# Quickstart Validation: 007 Import No-Skip
+# Quickstart: 007 Import No-Skip
 
 ## Prerequisites
-
-- Worktree branch `007-import-no-skip`
-- `uv sync`
+- Branch `007-import-no-skip`
 - Optional: `FT_TEST_POSTGRES_URL` for dual-backend
-- Mapping configured for test accounts (fail-closed if missing)
 
-## Automated
-
+## Tests
 ```bash
-uv run pytest tests/test_import_no_skip_*.py tests/test_closed_trade_import_*.py -q
-# with PG:
-export FT_TEST_POSTGRES_URL='postgresql+psycopg://finance_tracker:finance_tracker_test@127.0.0.1:55432/finance_tracker_test'
-export FT_REQUIRE_TEST_POSTGRES=1
-uv run pytest tests/test_import_no_skip_*.py tests/test_closed_trade_import_*.py -q
+uv run pytest tests/test_import_no_skip*.py tests/test_import_alipay_refund*.py tests/test_import_wechat_refund*.py -q
 ```
 
-## Manual / real bills (copy, never mutate ~/.ft live DB unless intended)
+## Real bills (copy only)
+```bash
+# Alipay: source lines = published + idempotent + skips
+# WeChat: skips 0; dual-row refunds linked
+export FT_DATABASE_URL=sqlite:////tmp/ft-007-$$.db
+# migrate + import from ~/.ft/bills copies per project CLI
+```
 
-1. Copy a known Alipay CSV slice containing 交易关闭 + 退款成功 + later 交易成功 (e.g. 小桌子 pattern).
-2. Import into empty test DB with mapping.
-3. Expect:
-   - 3 source lines → 3 formal facts (closed non_funding, refund, success funding)
-   - closed does not move balance; success does
-   - refund `origin_order_id` equals closed `txn_id`
-4. Re-import same file → idempotent_hits, no duplicate active facts.
-5. Temporarily break mapping → import fails, no partial silent success.
-
-## Regression
-
-- Ordinary success+refund still imports both funding facts.
-- WeChat closed/failed expense lines appear as non_funding facts.
+## Expected
+- Alipay unpaid-closed/failed-repay counted skips; paid closed present.
+- Alipay order refunds have refund_offset at import.
+- WeChat 味多美/京东拆退/对方已退还 linked; amounts not netted.

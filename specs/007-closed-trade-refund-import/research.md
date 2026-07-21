@@ -84,3 +84,9 @@
 ## Decision 15: WeChat no business skip in current corpus
 
 **Decision**: No whitelist skip for current WeChat exports (no unpaid-closed rows). Remove silent continues; unknown futures fail closed or FR-008b with counters.
+
+## Decision 16: Plan freeze for implementation
+
+**Decision**: Implement without `funding_status` column. Whitelist skips only. Alipay order-prefix + WeChat dual-row import refund_offset. Convert must not net refund amounts. Scan skips already-linked pairs.
+
+**Rationale**: Final spec 2026-07-21 product decisions.
