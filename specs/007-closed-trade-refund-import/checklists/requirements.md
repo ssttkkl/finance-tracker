@@ -1,7 +1,8 @@
-# Specification Quality Checklist: Closed-Trade Refund Import
+# Specification Quality Checklist: Import No-Skip & Closed-Trade Anchors
 
 **Purpose**: Validate specification completeness and quality before planning  
 **Created**: 2026-07-21  
+**Updated**: 2026-07-21  
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
@@ -31,6 +32,8 @@
 
 ## Notes
 
-- Root cause validated against ~/.ft/bills Alipay CSV (closed → refund → reorder).
-- Deferred from 006-transaction-relations Non-Goals.
-- Next: `/speckit-plan` when ready to implement (prefer new branch/worktree).
+- Expanded beyond closed-trade-only: **all supported bill types, all transaction lines, no silent skip/fail**.
+- Closed-trade anchors remain P1 stories (validated against ~/.ft/bills).
+- Distinguishes layout noise (headers/footers) from transaction lines.
+- Mapping silent skip forbidden; parse errors fail-closed.
+- Next: `/speckit-plan` → tasks → analyze → implementer.
