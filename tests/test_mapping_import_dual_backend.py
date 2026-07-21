@@ -97,7 +97,10 @@ def _run_multi_account_and_jpy(sessions, unit_of_work_cls, workspace: str, tmp_p
         assert snap["accounts"]["loan"]["工行信用卡(1200)"]["JPY"] == "-200.00"
         uow.commit()
     with sessions() as session:
-        assert len(list(session.scalars(select(CashTransactionModel)))) == 2
+        facts = list(session.scalars(
+            select(CashTransactionModel).where(CashTransactionModel.workspace_id == workspace)
+        ))
+        assert len(facts) == 2
 
 
 def test_sqlite_mapping_multi_account_and_jpy(tmp_path, monkeypatch):
