@@ -76,7 +76,7 @@ def test_payment_mirror_same_account_exact2_rejects_long_lag():
     assert evaluate_payment_mirror(seed, [bank]) is None
 
 
-def test_payment_mirror_same_account_exact2_rejects_platform_after_bank():
+def test_payment_mirror_same_account_platform_after_bank_is_pending_not_auto():
     seed = _fv(
         id="p1", amount=Decimal("-20.00"), account_id="card",
         occurred_at="2023-07-04 12:00:10", counterparty="商户A",
@@ -87,7 +87,9 @@ def test_payment_mirror_same_account_exact2_rejects_platform_after_bank():
         occurred_at="2023-07-04 12:00:00", counterparty="支付宝（中国）网络技术有限公司",
         description="1614", bill_source="icbc_debit",
     )
-    assert evaluate_payment_mirror(seed, [bank]) is None
+    proposal = evaluate_payment_mirror(seed, [bank])
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
 
 
 def test_payment_mirror_rejects_bank_bank():
@@ -239,3 +241,51 @@ def test_payment_mirror_persisted_via_service(relation_runtime):
         all_rel = uow.relations.list_active(kind="payment_mirror")
     assert all_rel
     assert all_rel[0]["status"] in {"accepted", "pending_review"}
+
+
+def test_payment_mirror_pending_same_account_lag_between_60s_and_5min():
+    seed = _fv(
+        id="p1", amount=Decimal("-20.00"), account_id="card",
+        occurred_at="2023-07-04 01:00:00", counterparty="商户A",
+        description="明细", bill_source="alipay",
+    )
+    bank = _fv(
+        id="b1", amount=Decimal("-20.00"), account_id="card",
+        occurred_at="2023-07-04 01:02:00", counterparty="支付宝（中国）网络技术有限公司",
+        description="1614", bill_source="icbc_debit",
+    )
+    proposal = evaluate_payment_mirror(seed, [bank])
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+
+
+def test_payment_mirror_pending_platform_slightly_after_bank_same_account():
+    seed = _fv(
+        id="p1", amount=Decimal("-20.00"), account_id="card",
+        occurred_at="2023-07-04 12:00:10", counterparty="商户A",
+        description="明细", bill_source="alipay",
+    )
+    bank = _fv(
+        id="b1", amount=Decimal("-20.00"), account_id="card",
+        occurred_at="2023-07-04 12:00:00", counterparty="支付宝（中国）网络技术有限公司",
+        description="1614", bill_source="icbc_debit",
+    )
+    proposal = evaluate_payment_mirror(seed, [bank])
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+
+
+def test_payment_mirror_pending_text_outside_60s_within_5min():
+    seed = _fv(
+        id="p1", amount=Decimal("-50.00"), account_id="alipay",
+        occurred_at="2026-06-13 10:00:00", counterparty="星巴克",
+        description="消费", bill_source="alipay",
+    )
+    bank = _fv(
+        id="b1", amount=Decimal("-50.00"), account_id="ccb",
+        occurred_at="2026-06-13 10:03:00", counterparty="星巴克咖啡",
+        description="快捷支付", bill_source="ccb_debit",
+    )
+    proposal = evaluate_payment_mirror(seed, [bank])
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
