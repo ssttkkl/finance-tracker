@@ -37,9 +37,10 @@ Applies to `cash_transactions` (primary) and, where relevant, `investment_events
 | `workspace_id` | Isolation |
 | `kind` | `payment_mirror` \| `transfer_pair` \| `refund_offset` |
 | `subtype` | e.g. `credit_repayment` or empty |
-| `primary_fact_id` | Canonical / expense / out-leg depending on kind |
-| `secondary_fact_id` | Mirror / refund / in-leg |
-| `primary_fact_type` / `secondary_fact_type` | `cash` or `investment` (v1 mostly cash) |
+| `primary_fact_id` | Role-mapped leg (e.g. expense / out / canonical); for open-leg may hold anchor or stay role-consistent per kind |
+| `secondary_fact_id` | Other leg; **NULL allowed only** for open-leg `pending_review` on `refund_offset` / `transfer_pair` |
+| `primary_fact_type` / `secondary_fact_type` | `cash` or `investment` (v1 mostly cash); secondary type null when secondary id null |
+| `anchor_fact_id` (logical; may equal primary or explicit column) | Non-null anchor for open-leg and evidence; refund=refund leg; transfer=stronger signal leg |
 | `status` | `pending_review` \| `accepted` \| `rejected` \| `superseded` |
 | `rule_id` | Deterministic rule identifier |
 | `confidence` | e.g. strong/weak or numeric 0–1 stored as decimal/string policy in impl |
@@ -52,11 +53,16 @@ Applies to `cash_transactions` (primary) and, where relevant, `investment_events
 
 ### Constraints
 
-- Active uniqueness: unique among non-`superseded` rows on  
+- **Bilateral** active uniqueness: unique among non-`superseded` rows on  
   `(workspace_id, kind, ordered_fact_pair, subtype)`  
-  where ordered_fact_pair is a canonical ordering of the two fact ids.
-- Rejected rows occupy the key to suppress re-recommendation until explicit supersede reopen.
+  where ordered_fact_pair is a canonical ordering of the two fact ids (both non-null).
+- **Open-leg** active uniqueness: unique among non-`superseded` open rows on  
+  `(workspace_id, kind, subtype, anchor_fact_id, open)`  
+  with `secondary_fact_id IS NULL` and status `pending_review` (rejected open keys also occupy to suppress auto re-open).
+- `accepted` rows MUST have both fact ids non-null.
+- `payment_mirror` rows MUST always have both fact ids non-null.
 - Cross-kind compatibility enforced in application service (not only DB).
+- Open-leg rows MUST be ignored by report projections.
 
 ### State transitions
 
@@ -83,9 +89,14 @@ Typical keys (not exhaustive):
   "counterparty_similarity": "麦当劳",
   "source_pair": ["alipay", "ccb_debit"],
   "rule_id": "payment_mirror.same_amount.card_tail.time_window.v1",
-  "candidate_count": 1
+  "candidate_count": 1,
+  "open_leg": true,
+  "anchor_role": "refund",
+  "candidate_fact_ids": ["uuid-1", "uuid-2"]
 }
 ```
+
+Open-leg evidence SHOULD set `open_leg=true`, `anchor_role`, `candidate_count`, and sorted `candidate_fact_ids` (top-K, default 20; empty list allowed).
 
 ## RelationCheckRun
 
@@ -155,3 +166,16 @@ Pending/rejected/superseded relations do not affect current views.
 | account aliases | yes | yes |
 | exact decimal in evidence/projections | NUMERIC / exact adapter | exact adapter |
 | auto fallback / dual-write | forbidden | forbidden |
+
+
+## Open-leg pending (logical shape)
+
+| Field | Notes |
+|---|---|
+| kind | `refund_offset` or `transfer_pair` only |
+| status | `pending_review` only while other leg empty |
+| anchor | Non-null formal fact |
+| other | Null until user bind+accept |
+| suggestions | evidence only, not separate relation rows |
+
+Accept path: provide `other_fact_id` → validate → bilateral `accepted` (or fail closed).

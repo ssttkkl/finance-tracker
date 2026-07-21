@@ -1,6 +1,6 @@
-# Specification Quality Checklist: Transaction Relations
+# Specification Quality Checklist: Transaction Relations (open-leg pending)
 
-**Purpose**: Validate specification completeness and quality before proceeding to planning  
+**Purpose**: Validate specification completeness after open-leg pending extension  
 **Created**: 2026-07-21  
 **Feature**: [spec.md](../spec.md)
 
@@ -31,14 +31,7 @@
 
 ## Notes
 
-- Spec intentionally references main-branch pairing *business signals* and fixed time windows as rule inputs, while forbidding CSV-era physical delete/rewrite persistence and float `0.01` tolerances.
-- Review Inbox requires a reviewable decision surface; full Web UI is not a correctness blocker. `ignore/later` stays `pending_review`.
-- Dual-database equivalence is required for relation state, report nets, logical deletion, and post-delete re-import.
-- Legacy inline `offset_*` / `transfer_account` fields are non-authoritative; independent relation objects own pairing/refund semantics.
-- Validation iteration 1 (2026-07-21): all checklist items pass.
-- Clarify session 2026-07-21: decisions integrated (single-leg requires counterparty; refund only via post-import relations; credit repayment as transfer_pair subtype; investments only as transfer counterparty; relation check after import commit; no `duplicate_of`; no amount tolerance; cross-kind matrix; logical deletion).
-- Completion pass 2026-07-21: concrete time windows, n-way mirrors, ignore/later, legacy offset non-authority, SC-013/014, FR-006b.
-- Correction 2026-07-21: logical delete does **not** permanently ban source identity. Re-import same identity after delete publishes a **new active** formal fact (no silent undelete). Row-level idempotency applies only to active facts (FR-006c, SC-015).
-- Finalization 2026-07-21: added Active Formal Fact definition, post-delete re-import/raw contract, relation business key, active-only matching, concurrent check equivalence, cross-batch story 9, FR-001a/006d/041, SC-016/017. Status set to Ready for Planning. Checklist 16/16 still passing.
-- Mirror calibration 2026-07-21: after real `~/.ft` ledger run, revised `payment_mirror` to main precision — platform×bank only, main-style substring text, global 1:1, bare same-day exact silent (FR-016/016a, SC-003a/003b, US1 scenarios). Implementation must follow updated artifacts (not the reverse).
-- Ready for `/speckit-plan` delta or continue implementation against updated FR-016.
+- 2026-07-21: Extended 006 with **开放单腿 pending** for `refund_offset` + `transfer_pair` only; `payment_mirror` excluded.
+- Distinguishes open-leg **pending** from FR-019 ban on single-leg **accepted**.
+- Decisions locked: multi/zero candidate → one open-leg; unique weak may stay bilateral; accept requires other_fact_id; evidence candidate_fact_ids top-K=20.
+- Next: update plan/data-model/contracts via `/speckit-plan`, then tasks; implement only via `speckit_implementer`.

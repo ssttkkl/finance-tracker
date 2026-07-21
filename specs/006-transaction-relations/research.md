@@ -60,9 +60,19 @@
 - `transfer_pair` auto-accept: opposite signs, different accounts, same currency, abs amount exact, Δt ≤10s + transfer signals unique; same-day unionpay/no-card-pay pair allowed when unique.
 - `credit_repayment`: cash→loan same currency exact abs, Δt ≤600s; FX repayment Δt ≤10s without amount equality, record both amounts.
 - `refund_offset`: candidate ≤30d; auto-accept default ≤14d; order/txn lock may auto-accept 15–30d; one refund → one expense; multi refunds per expense; no amount tolerance; remaining balance exact Decimal.
+- **Refund seeds MUST have explicit refund text** (退款/退货/消费退货/…); bare income is not a seed.
+- **P2P/transfer family is asymmetric for `refund_offset`** (user correction 2026-07-21):
+  - **Income without 退款词** (微信红包 / 转账备注:微信转账 / 群收款入账 / 银联入账 …): never a refund seed; leave to `transfer_pair`.
+  - **「微信红包-退款」等 P2P 退款**: valid refund seed; **strong-match** original spends of the **same fine subtype** (红包↔红包, 转账↔转账, 收款↔收款, 提现↔提现) when amount/window/unique allow — do **not** exclude those expenses from this refund family. Cross-subtype (红包-退款↔转账支出) is not strong auto.
+  - **商品退款** (退款-商品…): still MUST NOT pair with P2P/transfer/receipt/withdraw **expense** legs (prevents pending flood).
+  - Counterparty-only match (both “微信”) is **not** enough to strong-link a p2p expense; subtype or order lock required.
+- **Weak pending is exact-only**: same account + refund signal + amount equals expense full or exact remaining; MUST NOT use `refund_abs <= remaining` as a weak link (that matched every larger same-account spend and produced thousands of pending rows from ~200 refunds).
+- **Expense seeds only strong_link**: weak same-account pending is emitted only when the seed is the refund leg, so each refund yields at most one pending proposal per check (not N copies from every expense seed).
+- **Bank-only refunds** (e.g. 建行「消费退货」+ merchant) remain first-class refund seeds even when no platform bill exists.
+- Platform dual-view refunds prefer `payment_mirror` (platform 退款 ↔ bank credit) + `refund_offset` on the platform/logical event; bare bank-channel ± self-pairs without refund text are not refund auto.
 - Main code’s float `0.01` is **not** a tolerance here.
 
-**Rationale**: Spec clarifications + main rule families without delete/rewrite persistence. Real `~/.ft` ledger showed v1 “same-day exact → pending” flooded Review Inbox and bank×bank false mirrors; main never did that.
+**Rationale**: Spec clarifications + main rule families without delete/rewrite persistence. Real `~/.ft` ledger showed v1 “same-day exact → pending” flooded Review Inbox and bank×bank false mirrors; main never did that. Symmetric “exclude all 红包/转账 on both legs” incorrectly blocked 微信红包-退款 ↔ 微信红包（单发） which is a true refund of a p2p spend. Correct gate: bare p2p **income** out; p2p **expense** only pairs with p2p-style refunds; merchant refunds never use p2p expenses. Weak `refund_abs <= remaining` + expense-seed fan-out had inflated pending to ~3200; exact-only + refund-seed-only cut pending to ~200 while keeping accepted ~162.
 
 **Alternatives rejected**:
 - Bare same-day exact pending (original v1 wording) — inbox explosion.
@@ -139,3 +149,16 @@ No O(n²) full double scan. Semantics of FR-016/017/020 unchanged.
 **Alternatives rejected**:
 - Keep nested full scans + monthly chunking only — total work still Θ(n²).
 - Shrink business windows for speed — would change acceptance semantics.
+
+
+## Decision 17: Open-leg pending for multi/zero-candidate refund & transfer
+
+**Decision**: When `refund_offset` or `transfer_pair` (incl. `credit_repayment`) has an established anchor shape but the other leg is not unique (≥2 legal candidates) or has zero candidates, persist **exactly one** open-leg `pending_review` relation: anchor fact set, other fact null, suggestions only in `evidence.candidate_fact_ids` (sorted top-K, default 20) + `candidate_count`. Unique near-strong other leg may remain bilateral pending. Unique strong match remains bilateral auto-accepted. `payment_mirror` never uses open-leg. Accept of open-leg requires `other_fact_id` in one step; open-leg never affects projections. Open-leg active key: `(workspace, kind, subtype?, anchor_fact_id, open)`. Bilateral key unchanged. Expense/other seeds must not fan out N bilateral pendings for the same multi-candidate anchor.
+
+**Rationale**: Real ledgers showed refund pending fan-out (1 refund × N same-merchant expenses). High-recall pending remains, but inbox rows scale with anchors not Cartesian pairs. Distinguishes open-leg pending from FR-019 ban on single-leg **accepted** transfers.
+
+**Alternatives rejected**:
+- Keep N bilateral pendings — inbox unusable.
+- Separate open_relation table — dual inbox/state machines.
+- Placeholder facts as other leg — pollutes formal facts.
+- Open-leg for payment_mirror — mirror is 1:1 greedy bilateral by design.

@@ -1,10 +1,10 @@
 # Feature Specification: Transaction Relations
 
-**Feature Branch**: `006-transaction-relations`
+**Feature Branch**: `006-open-leg-pending` (extends `006-transaction-relations`)
 
 **Created**: 2026-07-21
 
-**Status**: Ready for Planning
+**Status**: Spec updated — open-leg pending; re-plan/tasks required before implement
 
 **Input**: User description: "重新设计账单导入后的去重、退款核销、转账配对、跨平台消费合并逻辑。核心原则：所有导入产生的原始事实都保留，不因配对/去重/退款核销而物理删除或改写原始记录；系统只追加记录事实之间的关系与判断证据/状态，再由报表和派生投影读取这些关系来避免重复统计或计算净额。配对规则可参考 main 分支当前实现。"
 
@@ -12,7 +12,7 @@
 
 ### Session 2026-07-21
 
-- Q: 单腿内部调拨如何建模？ → A: 强制用户补录对侧事实后才可建立关系；v1 不创建无对侧的单侧关系，也不改写该侧事实 category。
+- Q: 单腿内部调拨如何建模？ → A: 不得建立无对侧 **accepted** 关系，也不改写该侧 category；用户补录/选择对侧后才可 accepted。v1 允许高信号进入 **开放单腿 pending**（见开放单腿澄清），与“禁止单腿 accepted”不矛盾。
 - Q: 退款核销发生在哪一层？ → A: 导入只发布原始消费/退款事实；核销仅在导入后关系层通过 `refund_offset` 完成，convert/import 不得净额化改写消费金额。
 - Q: 信用还款关系 kind 如何建模？ → A: 复用 `transfer_pair`，用 subtype/证据区分还款（如 subtype=`credit_repayment`）；用户可见语义与报表影响仍须可区分还款与普通转账。
 - Q: 投资事件是否参与 v1 关系？ → A: 现金事实为主；投资事件仅可作为银证等 `transfer_pair` 的对侧正式事实参与，不把投资买卖/持仓事件做成 payment_mirror/refund/duplicate 主体。
@@ -44,6 +44,12 @@
 - Q: 关系候选的业务幂等键是什么？ → A: 至少 `(workspace, kind, ordered_fact_pair, subtype_if_any)` 对活跃（非 superseded）关系唯一；同一键不得并存多个活跃 pending/accepted/rejected。rejected 占用该键以阻止自动重推荐；supersede 后新版本可持有新 revision 但仍可追溯旧键。
 - Q: 已逻辑删除事实能否继续参与关系匹配？ → A: 否。自动关系检查与人工审查候选的主体 MUST 仅为活跃事实；已删除事实上的旧关系保持 superseded/历史，不得为已删除事实新建 accepted 关系。
 - Q: 并发关系检查如何处理？ → A: 同一 workspace 内关系检查 MUST 可串行化到等价结果；并发重跑不得产生重复活跃关系或互相覆盖人工决策。实现可用锁/任务队列，但用户可见结果必须幂等且双后端等价。
+
+- Q: 多候选/无唯一对侧时如何避免 pending 扇出？ → A: 对 `refund_offset` 与 `transfer_pair`（含 credit_repayment），当规则判定应对侧不唯一（≥2 合法候选）或锚点形态成立但 0 候选时，MUST 落 **开放单腿 pending**：只锚定一侧事实，对侧为空；建议对侧（若有）写入 evidence.candidate_fact_ids（排序 top-K，默认 20）与 candidate_count。唯一对侧的近强未达仍可双边 pending；唯一强匹配仍双边 auto accepted。`payment_mirror` 不采用单腿 pending。
+- Q: 开放单腿 pending 与「单腿内部调拨」如何区分？ → A: **开放单腿 pending** 是关系对象的 `pending_review` 形态（对侧 fact 可空），供用户后选对侧并一步 accept 为双边；**永不**以单腿 accepted 影响报表。**单腿内部调拨**（FR-019）仍禁止无对侧 accepted，也禁止伪造对侧；可与开放单腿 pending 结合——高信号转账/退款锚点可进开放 pending 等人补对侧正式事实后绑定。
+- Q: 单腿锚点如何确定？ → A: 由规则决定，不是任意 seed。`refund_offset` 锚 **退款腿**（正金额 + 退款信号）。`transfer_pair` 锚带更强转账/还款信号的一侧，evidence 记录 `anchor_role`；两侧信号相当时用确定性约定（计划阶段固化，须可测）。
+- Q: 开放单腿如何审查与幂等？ → A: Review 展示锚点摘要、kind、evidence（含候选 id 列表）。用户 accept 时 **必须指定 other_fact_id**（一步绑定并 accepted，须通过合法性校验）。reject 占用 **开放锚点键** `(workspace, kind, subtype?, anchor_fact_id, open)`，自动重跑不得再扇出同锚点第二条开放 pending。双边业务键仍为 ordered_fact_pair。accepted 对侧 MUST NOT 为空。单腿 pending MUST NOT 参与投影。
+- Q: 哪些 seed 不得再写多边扇出？ → A: 多候选时每个锚点最多 1 条开放单腿 pending。`refund_offset` 的 **消费 seed** MUST NOT 再为同一退款写入多条多候选双边 pending；退款侧统一收敛为单腿或唯一双边。
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -165,6 +171,29 @@
 4. **Given** 用户已 accept/reject 的关系，**When** 后续自动规则重跑，**Then** 不得静默覆盖人工决策；若确需替换，必须 supersede 旧关系并保留审计链。
 5. **Given** pending 候选，**When** 用户选择 ignore/later，**Then** 候选状态仍为 `pending_review`（可记录稍后处理意图），继续出现在审查入口，且继续不影响报表，直至 accept、reject 或被 supersede。
 6. **Given** 审查入口仅提供 CLI/查询契约而无完整 Web UI，**When** 用户对 pending 执行 accept/reject，**Then** 状态、审计与报表影响与具备 Web UI 时等价。
+7. **Given** 一笔退款存在多笔同商户可核销消费候选，**When** 关系检查完成，**Then** 仅存在 **1** 条 `refund_offset` 开放单腿 `pending_review`（锚点=退款腿，对侧为空），evidence 含 `candidate_fact_ids`/`candidate_count`，**不得**为每个消费候选各写一条双边 pending。
+8. **Given** 开放单腿 `refund_offset` pending，**When** 用户 accept 并指定合法消费 fact id，**Then** 关系变为双边 accepted，对侧非空，净消费投影开始使用该关系；未指定对侧 MUST 拒绝 accept。
+9. **Given** 开放单腿 `transfer_pair` pending（多候选或无唯一对侧），**When** 用户指定合法对侧 accept，**Then** 成为双边 accepted 转账/还款；单腿阶段外部收支/余额投影不得按已配对排除。
+10. **Given** 用户 reject 某锚点的开放单腿 pending，**When** 自动关系检查重跑，**Then** 不得再自动创建同一开放锚点键的 pending。
+
+---
+
+### User Story 6b - 开放单腿 pending 收敛扇出 (Priority: P1)
+
+作为用户，当系统识别到退款或转账意图但无法唯一确定对侧时，我在审查入口看到的是 **一条** 挂在锚点事实上的待办（对侧为空，可带建议候选列表），而不是笛卡尔积式的多条双边候选；我随后选择对侧并确认后，关系才生效。
+
+**Why this priority**: 多候选双边 pending 使 Review Inbox 不可用；单腿收敛是可审查性的前提，且不牺牲“后补对侧”能力。
+
+**Independent Test**: 构造 1 退款 × N 同商户消费 → 仅 1 条开放 pending；accept 指定对侧后投影正确；0 候选锚点可进开放 pending；唯一弱对侧仍可双边 pending；mirror 不产生单腿；双后端等价。
+
+**Acceptance Scenarios**:
+
+1. **Given** 退款锚点形态成立且合法消费候选 ≥2，**When** 检查完成，**Then** 1 条开放单腿 pending，candidate_count≥2，对侧 fact 为空。
+2. **Given** 退款锚点形态成立且 0 消费候选，**When** 检查完成，**Then** 1 条开放单腿 pending，candidate 列表可空，供用户后选任意合法消费。
+3. **Given** 转账/还款信号锚点且对侧不唯一，**When** 检查完成，**Then** 1 条 `transfer_pair`（或 subtype credit_repayment）开放单腿 pending。
+4. **Given** 唯一近强对侧（未达 auto），**When** 检查完成，**Then** MAY 双边 pending（对侧已填），不必强制单腿。
+5. **Given** 开放单腿 pending，**When** 报表运行，**Then** 与无该关系时净额/排除结果相同（单腿不生效）。
+6. **Given** 开放单腿 pending，**When** 用户 accept 时指定的对侧不合法（符号/币种/时间序/超额/跨 kind 冲突等），**Then** accept 失败关闭，关系仍 pending 或保持未绑定，不得部分写入 accepted。
 
 ---
 
@@ -240,6 +269,13 @@
 - 不存在金额“可接受误差”：对预期等额的同币种关系，任意非零 Decimal 差额都禁止自动 accepted，可作为含精确 `amount_delta` 的 pending 候选；候选搜索范围不得被解释为账务容差。main 分支代码中的 `0.01` 浮点比较不得作为本 feature 的账务容差依据。
 - 退款以精确剩余可核销余额判断：退款额等于剩余余额才是全额，低于剩余余额是部分退款，高于剩余余额是超额；不得用容差把差额归零。跨币种关系不使用金额等额条件。
 - 退款候选窗口与 auto-accept 边界：默认候选 ≤30 天；auto-accept 默认 ≤14 天；仅当订单号/交易号等锁定信号存在时，15–30 天仍可 auto-accept；超过 30 天不得 auto-accept。
+- 红包/转账/收款/提现类事实对 `refund_offset` 采用**非对称**规则（不得整类双边封禁）：
+  1. **正金额（收入）侧**：裸「微信红包 / 转账备注:微信转账 / 群收款入账 / 银联入账」等 **无退款词** 的收入 MUST NOT 作为退款腿/退款种子；应留给 `transfer_pair` 或人工。
+  2. **负金额（支出）侧**：红包/转账/群收款/二维码收款等支出 **可以** 作为退款关系的消费腿，当且仅当退款腿是**同族 P2P 退款**（文本同时含退款信号与红包/转账族标记，如「微信红包-退款」），并满足金额/窗口/唯一等匹配条件；此类配对 MAY auto-accept（强规则），不得因消费腿属于红包/转账族而静默丢弃。
+  3. **商品退款**（「退款-商品名」等非 P2P 退款）MUST NOT 以红包/转账/收款/提现支出为消费腿；此类支出对商品退款保持排除，避免 pending 洪水。
+  4. 「消费退货」等银行独有退款信号仍为合法退款种子（见下条）。
+- 银行侧独有退款（如建行描述「消费退货」+ 商户名）即使无支付宝/微信对应行，仍可作为退款种子参与 `refund_offset`；不得因缺少 platform 侧而拒绝。
+- 裸银行通道名入账（如仅「支付宝（中国）网络技术有限公司」无退款词）优先走 `payment_mirror` 到平台退款，不得单独作为无退款词的 refund 种子。
 - 跨币种转账/还款：禁止隐式换算改写事实金额。
 - `payment_mirror` 不是“重复事实可删”：镜像两侧都是真实流水视角，必须保留；真正的错误重复正式事实通过用户可审计手动逻辑删除处理，不建 `duplicate_of`。
 - `payment_mirror` MUST 为 platform×bank；bank×bank（如转账支取 vs 银转证）不得建 mirror。
@@ -249,7 +285,12 @@
 - 同一事实可同时参与兼容的不同 kind accepted 关系：`payment_mirror + refund_offset` 兼容；`transfer_pair + payment_mirror`、`transfer_pair + refund_offset` 在同一事实上不兼容。不得仅因事实已有 `payment_mirror` 就拒绝 `refund_offset`；自动规则遇到不兼容 accepted 关系时不得覆盖或并存，必须保留冲突证据并进入 pending，人工接受前必须先 supersede 冲突关系。
 - 收支投影顺序固定为：先将 accepted `payment_mirror` 连通事实归一为逻辑事件组，再排除 accepted `transfer_pair`（含 credit repayment）两侧，最后以逻辑事件组身份应用 accepted `refund_offset`。同一退款镜像组只能贡献一次核销；余额投影始终读取全部未逻辑删除的原始正式事实，不按上述关系删腿。
 - `transfer_pair` 承载普通内部转账与信用还款：还款通过 subtype/证据区分；用户可见语义与报表影响仍必须可区分。
-- 单腿内部调拨（仅一侧在账本内，如货基申赎、银证一侧缺失）：不得建立无对侧的 accepted 双边关系，不得伪造对侧事实，不得改写该侧 category；可提示用户补录对侧后再配对。main `transfer_rules` 文本信号仅可作为补录提示/候选搜索线索。
+- 单腿内部调拨（仅一侧在账本内，如货基申赎、银证一侧缺失）：不得建立无对侧的 **accepted** 双边关系，不得伪造对侧事实，不得改写该侧 category；高信号锚点 MAY 进入 **开放单腿 pending** 供用户补录/选择对侧正式事实后绑定。main `transfer_rules` 文本信号仅可作为补录提示/候选搜索线索，不得单独 accepted。
+- **开放单腿 pending**（`refund_offset` / `transfer_pair`）：对侧 fact 可空仅当 status=`pending_review`；accepted/rejected 业务结果中对侧为空非法。单腿 MUST NOT 参与投影。
+- 多候选扇出：同一退款/转账锚点 MUST NOT 因 N 个候选消费/对侧而写入 N 条双边 pending；MUST 收敛为 1 条开放单腿（或 1 条唯一双边）。
+- 开放单腿 accept 必须一步提供合法 other_fact_id；系统 MUST 校验对侧与 kind 规则（退款：消费负金额、不超额、时间序等；转账：对向账户与信号/金额规则）及跨 kind 兼容后再 accepted。
+- `payment_mirror` MUST NOT 使用开放单腿 pending；多候选 mirror 仍按 FR-016 处理（greedy/pending 双边或静默）。
+- 不得创建占位/虚假正式事实充当对侧。
 - locked/人工锁定事实：不得被自动关系检查改写事实字段；关系仍可建立，但人工决策优先。
 - rejected 后再出现更强新证据：仅允许通过 supersede 明确重新提出，不得无审计复活。
 - ignore/later 不是独立状态：候选保持 `pending_review`，继续不影响报表，仍可被审查，直到 accept/reject/supersede。
@@ -277,13 +318,13 @@
 
 #### 关系模型与状态
 
-- **FR-007**: System MUST 以数据库原生对象持久化事实间关系（或候选与关系的等价模型），至少包含：workspace、kind、primary/secondary fact、status、rule_id、confidence、evidence、创建者/来源、时间、版本/revision。
+- **FR-007**: System MUST 以数据库原生对象持久化事实间关系（或候选与关系的等价模型），至少包含：workspace、kind、锚点/对侧事实引用、status、rule_id、confidence、evidence、创建者/来源、时间、版本/revision。对 `refund_offset` 与 `transfer_pair`，**开放单腿** `pending_review` 允许对侧事实引用为空；`accepted` 的对侧 MUST 非空。`payment_mirror` 的两侧 MUST 始终非空。
 - **FR-008**: 关系 kind 至少支持：`payment_mirror`（跨平台消费镜像）、`transfer_pair`、`refund_offset`。信用还款不使用独立顶层 kind，而以 `transfer_pair` + subtype/证据（如 `credit_repayment`）表达；用户可见语义与报表影响 MUST 仍可区分普通内部转账与信用还款。MUST NOT 引入 `duplicate_of` 或等价 duplicated/canonical 关系 kind 来表达“重复事实只统计一条”。
 - **FR-009**: 关系状态 MUST 支持：`pending_review`、`accepted`、`rejected`、`superseded`。
-- **FR-010**: `pending_review` 与 `rejected` MUST NOT 影响报表与当前派生投影；仅 `accepted` 影响当前报表；`superseded` 不参与当前报表但保留审计。
+- **FR-010**: `pending_review`（含开放单腿）与 `rejected` MUST NOT 影响报表与当前派生投影；仅 **双边** `accepted` 影响当前报表；`superseded` 不参与当前报表但保留审计。开放单腿 MUST NOT 因“有锚点”而提前排除转账或核销退款。
 - **FR-011**: 自动 accepted MUST 保存 rule_id、confidence 与 evidence；人工 accept/reject MUST 保存操作者、时间与原因。
 - **FR-012**: 人工决策 MUST NOT 被后续自动规则静默覆盖；替换 MUST 通过新版本 + `superseded` 审计链完成。
-- **FR-013**: 同一 workspace 内，同一关系业务键上的活跃（非 superseded）表达 MUST 唯一。业务键至少包含 `(workspace, kind, ordered_fact_pair, subtype_if_any)`；不得并存多个活跃 pending/accepted/rejected。
+- **FR-013**: 同一 workspace 内，同一关系业务键上的活跃（非 superseded）表达 MUST 唯一。**双边**业务键至少包含 `(workspace, kind, ordered_fact_pair, subtype_if_any)`。**开放单腿**业务键至少包含 `(workspace, kind, subtype_if_any, anchor_fact_id, open)`，同一锚点不得并存多条活跃开放 pending。两类键均不得并存多个活跃 pending/accepted/rejected。
 - **FR-013a**: 同一正式事实 MAY 同时参与多个不同 kind 的 accepted 关系。`payment_mirror + refund_offset` MUST 兼容；`transfer_pair + payment_mirror` 与 `transfer_pair + refund_offset` MUST NOT 在同一事实上同时 accepted。自动规则发现不兼容的既有 accepted 关系时 MUST 保留冲突证据并产生 `pending_review`，不得自动覆盖或并存；人工接受新关系前 MUST 先 supersede 冲突关系。
 - **FR-013b**: 同一事实最多参与一个活跃 accepted `transfer_pair`；同一退款事实最多作为一个活跃 accepted `refund_offset` 的退款端，同一消费事实 MAY 作为多条 accepted `refund_offset` 的消费端；accepted `payment_mirror` MAY 以多条边形成一个逻辑事件连通组，但该组 MUST 只有一个确定性 canonical，冲突 canonical 候选 MUST `pending_review`。
 - **FR-014**: rejected 决策 MUST 持久化，使同一候选业务键在后续自动检查中不再重复推荐为 pending（除非显式 supersede 重开）。
@@ -313,11 +354,19 @@
   12. **main 汲取纪律**：冲突项永不汲取；「银行仅通道名」不是假阳性。
 - **FR-016a**: 多账户模型下 MUST NOT 以「同 account_name」为必要条件；**同 account_id 短窗 exact-2** 与卡尾/别名/文本交叉一并作为账户关联手段。
 - **FR-016b**: Review Inbox 对 mirror 以高召回为目标；精确过滤交给人工 accept/reject。
-- **FR-017**: 内部转账匹配信号 MUST 参考 main 分支 reconcile 转账语义：一正一负、不同账户、同币种绝对金额严格相等、有效时间接近、转账强信号词（如转账支取/存入、银联入账、手机银行、提现等）；并支持同日银联现金类已验证规则族。同币种强匹配 auto-accept 时间窗为有效时间差 ≤10 秒且候选唯一；同日宽窗口 auto-accept 仅允许“银联入账/电子汇入 ↔ 无卡付/转账支取”强信号组合且候选唯一。同币种两侧任意非零金额差额 MUST NOT auto-accept，但 MAY 以精确 `amount_delta` 证据进入 pending；不得把差额舍入、吸收或隐式解释为手续费。
+- **FR-017**: 内部转账匹配信号 MUST 参考 main 分支 reconcile 转账语义：一正一负、不同账户、同币种绝对金额严格相等、有效时间接近、转账强信号词（如转账支取/存入、银联入账、手机银行、提现等）；并支持同日银联现金类已验证规则族。同币种强匹配 auto-accept 时间窗为有效时间差 ≤10 秒且候选唯一；同日宽窗口 auto-accept 仅允许“银联入账/电子汇入 ↔ 无卡付/转账支取”强信号组合且候选唯一。同币种两侧任意非零金额差额 MUST NOT auto-accept，但 MAY 以精确 `amount_delta` 证据进入 pending；不得把差额舍入、吸收或隐式解释为手续费。当转账/还款合法对侧 ≥2 或不唯一时，MUST 落 1 条开放单腿 pending（锚点由信号规则决定），而非 N 条双边 pending；唯一近强对侧 MAY 双边 pending。
 - **FR-018**: 信用还款匹配 MUST 覆盖 cash→loan 同币种与跨币种形态。同币种 auto-accept 要求绝对金额严格相等、有效时间差 ≤600 秒、还款相关文本信号、候选唯一。跨币种可不要求金额相等，但 auto-accept 时间窗 ≤10 秒且候选唯一，并 MUST 记录双方金额/币种证据。信用还款以 `transfer_pair` subtype（如 `credit_repayment`）表达；用户可见语义与报表影响 MUST 可区分普通内部转账与信用还款。
 - **FR-018a**: v1 关系主体以现金类正式事实为主。`InvestmentEvent` MUST 仅在银证转账等已有对侧正式事实的 `transfer_pair` 场景作为对侧参与；MUST NOT 将投资买卖/持仓类事件作为 `payment_mirror`、`refund_offset` 或 `duplicate_of` 的主体。
-- **FR-019**: 对仅一侧出现在账本内的“单腿内部调拨”信号，System MUST NOT 自动建立双边关系，也 MUST NOT 伪造缺失对侧事实或改写该侧事实分类；可将高信号单腿行提示用户补录对侧事实。仅当对侧正式事实存在后，才允许建立 `transfer_pair` / `credit_repayment` 等双边关系。main `transfer_rules` 文本信号族（基金申赎、货基搬家、购汇、银证、钱包提现、消费贷单腿等）仅可作为补录提示/候选搜索线索，不得单独成为 accepted 关系。
-- **FR-020**: 退款匹配 MUST 支持全额与部分、多退款对一消费；每笔退款事实最多关联一笔消费，MUST NOT 在 v1 中把一笔退款分摊给多笔消费。**退款腿 MUST 有明确退款文本信号**（不得把任意 income 当退款种子）。强 auto 需商户/订单锁+窗口+唯一；同账户+退款信号+可核销但无商户锁 → **pending 高召回**（不 silent）。强信号可含 order/txn id、商户一致、退款不早于消费、同账户/同币种、剩余可核销金额；多候选 MUST `pending_review`。退款候选时间窗 MUST ≤30 天；auto-accept 默认要求退款不晚于消费后 14 天，仅当订单号/交易号等锁定信号存在时，15–30 天内仍可 auto-accept；超过 30 天 MUST NOT auto-accept。退款额与剩余可核销余额 MUST 以 Decimal 精确比较：相等才是全额，较小是部分退款，较大是超额且不得 auto-accept；不得使用金额容差改变判断或净额。
+- **FR-019**: 对仅一侧出现在账本内的“单腿内部调拨”信号，System MUST NOT 自动建立 **accepted** 双边关系，也 MUST NOT 伪造缺失对侧事实或改写该侧事实分类。高信号锚点 MAY 创建 **开放单腿** `transfer_pair` `pending_review`（对侧空），待用户补录/选择对侧正式事实后绑定 accept。main `transfer_rules` 文本信号族仅可作为补录提示/候选搜索/开放 pending 线索，不得单独成为 accepted 关系。
+- **FR-020**: 退款匹配 MUST 支持全额与部分、多退款对一消费；每笔退款事实最多关联一笔消费，MUST NOT 在 v1 中把一笔退款分摊给多笔消费。**退款腿 MUST 有明确退款文本信号**（不得把任意 income 当退款种子）。
+  - **P2P/转账族非对称规则**（红包、转账、群收款、二维码收款、提现、银联入账等）：
+    - **收入侧（正金额）**：无退款词的红包/转账/收款/提现入账 MUST NOT 作为退款腿；留给 `transfer_pair` 或人工。
+    - **退款种子例外**：文本同时含退款信号与 P2P 族标记时 **是** 合法退款种子（如「微信红包-退款」）。
+    - **支出侧（负金额）**：P2P/转账族支出 MAY 作为消费腿，**仅当**退款腿为同族 P2P 退款（上条），且 **细分子类一致**（红包↔红包、转账↔转账、群收款/二维码收款↔收款、提现/银联入账↔提现；跨子类不得强 auto）；满足金额/窗口/唯一等条件时 MUST 允许 **强 auto**（例如「微信红包（单发）」−50 ↔「微信红包-退款」+50），不得因支出属于红包/转账族而拒绝。
+    - **商品退款**（非 P2P 退款文案，如「退款-商品名」）的消费腿 MUST NOT 为 P2P/转账/收款/提现支出；此类组合 MUST 静默不配对，防止 pending 洪水。
+  - 强 auto 需商户/订单锁 **或**（P2P 同族退款 + 同账户/同对方/可核销金额）+ 窗口 + 唯一。
+  - **弱 pending 高召回**仅当：以**退款事实为种子**、同账户、退款信号、且金额与消费全额或精确剩余余额**严格相等**、无商户/订单锁；MUST NOT 把「同账户且消费额 ≥ 退款额」的任意更大支出纳入 pending。以**消费事实为种子**时 MUST 仅在商户/订单/P2P 同族强链接下提出关系，不得再写同账户弱 pending（避免一笔退款被每个历史消费种子复制成 N 条 pending）。
+  - 强信号可含 order/txn id、商户一致、P2P 同族、退款不早于消费、同账户/同币种、剩余可核销金额；多候选 MUST 收敛为 **1 条开放单腿** `pending_review`（锚点=退款腿，对侧空；evidence 记 `candidate_count` 与排序后的 `candidate_fact_ids` top-K，默认 K=20），MUST NOT 为每个消费候选写双边 pending。退款候选时间窗 MUST ≤30 天；auto-accept 默认要求退款不晚于消费后 14 天，仅当订单号/交易号等锁定信号存在时，15–30 天内仍可 auto-accept；超过 30 天 MUST NOT auto-accept。退款额与剩余可核销余额 MUST 以 Decimal 精确比较：相等才是全额，较小是部分退款，较大是超额且不得 auto-accept；不得使用金额容差改变判断或净额。
 - **FR-020a**: 导入/convert 路径 MUST 发布原始消费金额与原始退款金额事实；MUST NOT 在入库前把消费改写为净额或删除退款行来完成核销。净消费仅由 accepted `refund_offset` 在报表/投影层计算。
 - **FR-021**: `payment_mirror` MUST 声明 primary/canonical 或提供确定性选择规则（例如支付平台详情优先于银行通道摘要；同源时信息量更高者优先），仅用于报表“外部消费只计一次”，双方/多方事实仍保留。accepted `payment_mirror` MAY 形成连通组；组内 MUST 只有一个确定性 canonical，外部消费 MUST 只计一次；冲突 canonical 候选 MUST `pending_review`。MUST NOT 用 `duplicate_of` 处理错误重复事实。
 - **FR-022**: 规则版本升级时，System MUST 能 supersede 旧关系并保留旧证据，而不是覆盖写历史。
@@ -332,9 +381,12 @@
 
 #### Review Inbox
 
-- **FR-027**: System MUST 提供审查入口列出 pending 候选，展示 kind、双方关键字段、evidence、confidence。
+- **FR-027**: System MUST 提供审查入口列出 pending 候选，展示 kind、锚点事实关键字段、对侧字段（开放单腿可空）、evidence（含 candidate_fact_ids/candidate_count/anchor_role 若有）、confidence。
 - **FR-028**: 用户 MUST 能 accept、reject、ignore/later；accept/reject MUST 写审计。ignore/later MUST NOT 创建独立终态，候选保持 `pending_review`，可记录稍后处理意图，继续不影响报表，并仍出现在审查入口。
-- **FR-029**: 状态迁移至少支持：`pending_review→accepted`、`pending_review→rejected`、`accepted→superseded`；`rejected→superseded` 仅在新规则/新证据明确重开时允许。ignore/later 不改变 `pending_review` 状态。
+- **FR-028a**: 对 **开放单腿** pending，用户 accept MUST 同时指定 `other_fact_id`（一步绑定并 accepted）。未指定或对侧校验失败 MUST 拒绝 accept，不得产生对侧为空的 accepted。对 **双边** pending，accept 行为保持既有（确认已绑定的对侧）。
+- **FR-028b**: reject 开放单腿 MUST 持久化并占用开放锚点业务键，使后续自动检查不得再推荐同一锚点的开放 pending（除非显式 supersede 重开）。
+- **FR-029**: 状态迁移至少支持：`pending_review→accepted`、`pending_review→rejected`、`accepted→superseded`；`rejected→superseded` 仅在新规则/新证据明确重开时允许。ignore/later 不改变 `pending_review` 状态。开放单腿仅存在于 `pending_review`；进入 accepted 时 MUST 已是双边。
+- **FR-029a**: 自动关系检查 MUST NOT 将开放单腿 pending 升级为 accepted；MUST NOT 在已存在同锚点活跃开放 pending 或 reject 占用时再插入第二条开放 pending；MUST NOT 用消费/对侧 seed 把同一多候选问题展开为多条双边 pending。
 
 #### 账户别名
 
@@ -344,7 +396,7 @@
 
 #### 投影与报表
 
-- **FR-033**: 收支类报表/投影 MUST 基于「活跃正式事实 + accepted 关系」计算，而不是修改事实后的净额字段，也不是读取行内 `offset_*`/`transfer_account` 权威字段。
+- **FR-033**: 收支类报表/投影 MUST 基于「活跃正式事实 + **双边** accepted 关系」计算，而不是修改事实后的净额字段，也不是读取行内 `offset_*`/`transfer_account` 权威字段；对侧为空的 pending MUST 忽略。
 - **FR-034**: 收支投影 MUST 按以下顺序解释 accepted 关系：先将 accepted `payment_mirror` 连通事实归一为逻辑事件组并确定一次外部计次，再排除 accepted `transfer_pair`（含 credit repayment subtype）两侧，最后以逻辑事件组身份应用 accepted `refund_offset`，得到原始消费、退款与净消费。同一退款镜像组 MUST 只贡献一次核销；组合关系 MUST NOT 重复计次、重复排除或重复核销。错误重复事实通过用户手动逻辑删除后不再进入统计，而不是通过 duplicated 关系排重。
 - **FR-035**: 余额类投影 MUST 保留真实账户流水影响，不得因镜像/去重关系丢弃任一侧真实扣款或入账；逻辑删除事实 MUST 被排除。
 - **FR-036**: 投影 MUST 可从活跃事实与 accepted 关系确定性重建。
@@ -357,14 +409,25 @@
 - **FR-040**: 文档与操作说明 MUST 说明：自动流程不得删改事实、用户手动逻辑删除及其审计语义、逻辑删除后再导入发布新活跃事实、关系状态机、审查入口、报表如何读取 accepted 关系、与旧 CSV reconcile 及行内 offset 字段的差异。
 - **FR-041**: 逻辑删除后再导入同 identity 时，文件级 digest 幂等 MUST 继续阻止同一已成功文件整文件重放；行级 MUST 在无活跃同 identity 事实时允许发布新活跃正式事实，且新旧实例可审计区分。
 
+
+#### 开放单腿 pending（扇出收敛）
+
+- **FR-042**: System MUST 支持 `refund_offset` 与 `transfer_pair`（含 `credit_repayment`）的 **开放单腿** `pending_review`：锚点事实非空，对侧事实为空，建议对侧（若有）仅存在于 evidence，不落多条关系行。
+- **FR-043**: 开放单腿触发条件 MUST 为：在既有匹配规则下，锚点形态成立，且（合法对侧候选 ≥2，或候选为 0 但仍需人工处理的高信号锚点）。唯一对侧的近强未达 MAY 仍建双边 pending；唯一强匹配 MUST 仍双边 auto-accepted（若达标）。
+- **FR-044**: `payment_mirror` MUST NOT 使用开放单腿模型。
+- **FR-045**: 开放单腿 evidence MUST 可含：`open_leg=true`、`anchor_role`、`candidate_count`、`candidate_fact_ids`（按规则排序的 top-K，默认 K=20；0 候选时列表可空）。
+- **FR-046**: 用户为开放单腿指定对侧并 accept 后，结果 MUST 与「系统一开始就唯一匹配到该对侧并 accepted」在投影语义上等价（在通过同一合法性校验的前提下）。
+- **FR-047**: System MUST NOT 创建占位/虚假正式事实充当对侧以回避可空对侧。
+
 ### Key Entities
 
 - **Formal Fact**: 已发布的账务事实（现金交易或投资事件），含账户、时间、金额、币种、对手方、描述、来源等；实例可被逻辑删除。
 - **Active Formal Fact**: 未被用户逻辑删除的正式事实实例；唯一进入当前投影、关系匹配主体与行级活跃幂等占用。
-- **Transaction Relation**: 两条（或一组）正式事实之间的账务关系声明；含 kind、primary/secondary、status、rule、confidence、evidence、审计与版本；信用还款用 subtype 表达。
+- **Transaction Relation**: 正式事实之间的账务关系声明；含 kind、锚点/对侧（对侧在开放单腿 pending 时可空）、status、rule、confidence、evidence、审计与版本；信用还款用 subtype 表达。
 - **Relation Evidence**: 解释为何推荐/确认/拒绝的结构化证据快照（含 amount_delta、time_delta、信号、alias 命中、rule_id 等）。
 - **Relation Check Run**: 针对某次导入批次或指定范围的关系检查执行记录（可登记为可重试任务）。
-- **Review Decision**: 人工对 pending 候选的 accept/reject/later 决策及原因；later 不改变 pending 状态。
+- **Review Decision**: 人工对 pending 候选的 accept/reject/later 决策及原因；later 不改变 pending 状态。对开放单腿，accept 决策 MUST 包含所选对侧 fact id。
+- **Open-Leg Pending**: `refund_offset`/`transfer_pair` 的 pending 形态：仅锚点事实绑定，对侧待用户选择；不参与投影。
 - **Fact Deletion Event**: 用户对错误/多余正式事实**实例**追加的逻辑删除墓碑，含 workspace、事实身份、操作者、时间、原因/引用；保留来源链并驱动当前投影排除及相关关系 supersede。删除不永久封禁 source identity。
 - **Account Alias**: 将卡尾号、支付方式文本等映射到规范账户的可审计别名，用于关系层增强。
 - **Report Projection**: 由活跃正式事实 + accepted 关系确定性派生的余额/收支/净消费视图。
@@ -393,6 +456,12 @@
 - **SC-015**: 对“活跃同 identity 再导入”样本 100% 不重复发布；对“仅存在已逻辑删除同 identity 后再导入”样本 100% 成功发布新活跃事实且不静默复活旧实例。
 - **SC-016**: 先导入银行、后导入对应支付平台的跨批样本中，后批检查后 100% 能建立跨批 `payment_mirror`（accepted 或 pending），且不改写旧批事实。
 - **SC-018**: 在含 ≥10_000 条活跃现金事实（约 3 年个人账本量级）的库上，单次全量关系检查 wall clock ≤ 60 秒；且实现路径不依赖对全部事实的无界双重全表扫描。
+- **SC-019**: 在「1 个退款锚点 × N 个同商户合法消费候选」（N≥2）样本上，关系检查后活跃 `refund_offset` pending 条数 MUST 为 1（开放单腿），且 evidence.candidate_count≥N 或 candidate_fact_ids 长度反映截断前的意图；MUST NOT 产生 N 条双边 pending。
+- **SC-020**: 用户对开放单腿指定合法对侧 accept 后，净消费/转账排除结果与手工验算一致；accept 前投影与无该关系一致。
+- **SC-021**: 0 候选高信号退款/转账锚点 MUST 可进入开放单腿 pending；用户后续选定合法对侧后可完成 accepted。
+- **SC-022**: reject 开放单腿后，同锚点开放键在自动重跑中 100% 不再出现新的开放 pending（除非 supersede 重开）。
+- **SC-023**: `payment_mirror` 全量检查不得产生对侧为空的关系行。
+
 
 ## Assumptions
 
@@ -402,7 +471,8 @@
 - 规格级时间窗：`payment_mirror` 强 10s、短窗 exact-2 **60s**；`transfer_pair` 10s；还款 600s/10s；退款 30d/14d。
 - canonical 选择默认倾向仅适用于 `payment_mirror` 报表计次：支付平台（支付宝/微信）详情记录优先于银行通道摘要；同源时信息量更高者优先；具体确定性规则在 plan 中固化。错误重复事实不走 canonical 关系，走用户手动逻辑删除。
 - Review Inbox 的最小可行交付是可查询 + 可决策的契约（CLI 或 API）；精美 Web UI 不阻塞关系层与报表正确性。ignore/later 保持 pending，不引入第四个活跃业务态。
-- 单腿调拨 v1 不建立无对侧关系；用户补录对侧正式事实后才可配对。main 单腿文本信号仅用于提示/检索，不单独 accepted。
+- 单腿调拨不得 **accepted** 无对侧；高信号可走 **开放单腿 pending**，用户补录/选择对侧后绑定。main 单腿文本信号仅用于提示/检索/开放 pending 线索，不单独 accepted。
+- 开放单腿仅适用于 `refund_offset` 与 `transfer_pair`；建议对侧 top-K 默认 20；accept 一步绑定；不造占位事实。
 - 关系检查在导入提交后执行；同步或可重试任务均可，但导入成功与检查失败必须解耦，检查失败不得回滚事实。
 - 不设金额“可接受误差”：预期等额的同币种关系必须严格相等才可自动 accepted；非零差额只能 pending。退款按精确剩余余额计算；跨币种不自动换算后强行等额匹配。
 - 本 feature 不要求第一次导入即发现全部关系；后到账单通过后续检查补齐。
@@ -424,7 +494,11 @@
 - 不在本 feature 重做账单解析、mapping 语言或投资交易产品语义。
 - 不把投资买卖/持仓事件纳入 payment_mirror/refund/duplicate 主体匹配。
 - 不引入隐式 FX 定价产品；跨币种仅保留两侧事实并记录证据。
-- 不把仅有一侧事实的单腿文本信号单独记为 accepted 双边关系，也不通过改写 category 表达单腿转账。
+- 不把仅有一侧事实的单腿文本信号单独记为 **accepted** 双边关系，也不通过改写 category 表达单腿转账；允许其进入开放单腿 pending。
+- 不以 N 条双边 pending 表达 N 个候选对侧；多候选 MUST 收敛为开放单腿。
+- 不对 `payment_mirror` 使用开放单腿 pending。
+- 不创建占位正式事实充当对侧。
+- 不自动 accept 开放单腿。
 - 不以行内 `offset_*` / `proposed_action` / `transfer_account` 作为新的权威关系或净额模型。
 - 不在 v1 提供对已逻辑删除事实实例的用户自助 undelete。
 - 不因逻辑删除而永久封禁 source identity 或拒绝后续正常导入。
