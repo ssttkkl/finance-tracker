@@ -58,8 +58,9 @@ REFUND_CANDIDATE_DAYS = 30
 REFUND_AUTO_ACCEPT_DAYS = 14
 REFUND_ORDER_LOCK_AUTO_ACCEPT_DAYS = 30
 
-RULE_PAYMENT_MIRROR_STRONG_V1 = "payment_mirror.same_amount.card_tail.time_window.v1"
-RULE_PAYMENT_MIRROR_WEAK_V1 = "payment_mirror.same_day.weak.v1"
+RULE_PAYMENT_MIRROR_STRONG_V1 = "payment_mirror.platform_bank.exact.time10.cross.v2"
+RULE_PAYMENT_MIRROR_SAME_DAY_UNIQUE_V1 = "payment_mirror.platform_bank.same_day.unique.v2"
+RULE_PAYMENT_MIRROR_WEAK_V1 = "payment_mirror.platform_bank.near.weak.v2"
 RULE_TRANSFER_PAIR_STRONG_V1 = "transfer_pair.same_amount.transfer_signal.time_window.v1"
 RULE_TRANSFER_PAIR_UNIONPAY_V1 = "transfer_pair.unionpay.same_day.v1"
 RULE_CREDIT_REPAYMENT_V1 = "transfer_pair.credit_repayment.v1"
@@ -163,12 +164,55 @@ def extract_card_tails(text: str) -> set[str]:
 
 
 def texts_cross_match(left: str, right: str) -> bool:
+    """Loose token overlap (legacy helper; mirror prefers main_style_cross_verify)."""
     def tokens(text: str) -> set[str]:
         parts = re.findall(r"[\w一-鿿]{2,}", str(text or "").lower())
         stop = {"转账", "消费", "支付", "支付宝", "微信", "银行", "收入", "支出", "交易"}
         return {p for p in parts if p not in stop and not p.isdigit()}
 
     return bool(tokens(left) & tokens(right))
+
+
+def main_style_cross_verify(left: FactView | Mapping[str, Any] | str, right: FactView | Mapping[str, Any] | str) -> bool:
+    """Main-branch dedup text gate: non-empty counterparty/description bidirectional substring."""
+    def parts(value) -> tuple[str, str]:
+        if isinstance(value, FactView):
+            return str(value.counterparty or ""), str(value.description or "")
+        if isinstance(value, Mapping):
+            return str(value.get("counterparty") or ""), str(value.get("description") or "")
+        text = str(value or "")
+        return text, ""
+
+    ca, da = parts(left)
+    cb, db = parts(right)
+    ca = ca.rstrip("…").rstrip("...")
+    cb = cb.rstrip("…").rstrip("...")
+    if ca and cb and (ca in cb or cb in ca):
+        return True
+    if da and db and (da in db or db in da):
+        return True
+    return False
+
+
+def source_group(fact: FactView) -> str:
+    """Map bill_source/source to platform|bank|other (mirror only pairs platform×bank)."""
+    blob = _text_blob(fact.bill_source, fact.source)
+    if any(token in blob for token in ("alipay", "支付宝", "wechat", "weixin", "微信")):
+        return "platform"
+    if any(
+        token in blob
+        for token in (
+            "icbc", "ccb", "bank", "debit", "credit", "工行", "建行", "工商", "建设",
+            "储蓄", "信用卡", "unionpay", "银联",
+        )
+    ):
+        return "bank"
+    # Fall back on known enum sets used elsewhere.
+    if any(token in blob for token in PAYMENT_PLATFORM_SOURCES):
+        return "platform"
+    if any(token in blob for token in BANK_CHANNEL_SOURCES):
+        return "bank"
+    return "other"
 
 
 def has_transfer_signal(text: str) -> bool:
@@ -364,38 +408,59 @@ def evaluate_payment_mirror(
     *,
     aliases_by_tail: Mapping[str, Sequence[str]] | None = None,
 ) -> RelationProposal | None:
+    """Propose one platform×bank payment_mirror for *seed*.
+
+    Aligned with main-branch dedup precision:
+    - only platform×bank (never bank×bank / platform×platform)
+    - strong: exact amount, Δt≤10s, main-style text cross OR card-tail/alias
+    - same-day unique platform×bank exact may auto-accept (main cross_source 2-way)
+    - no bare same-day exact weak flood; weak only when near-miss unique
+    - multi-candidate → pending only if near-strong signals, not naked same-day
+    """
     if seed.deleted or seed.fact_type != FactType.CASH.value:
         return None
     seed_amount = seed.signed_amount
     if seed_amount == 0:
         return None
-    matches: list[tuple[FactView, RelationEvidence, str, str]] = []
+    seed_group = source_group(seed)
+    if seed_group not in {"platform", "bank"}:
+        return None
+
     aliases_by_tail = aliases_by_tail or {}
-    seed_text = seed.text
-    seed_tails = extract_card_tails(seed_text)
+    seed_tails = extract_card_tails(seed.text)
+    matches: list[tuple[FactView, RelationEvidence, str, str, int]] = []
+
     for cand in candidates:
         if cand.id == seed.id or cand.deleted:
             continue
         if cand.fact_type != FactType.CASH.value:
             continue
-        if cand.account_id == seed.account_id:
+        # Same physical card may be one multi-currency account; do not require different account_id.
+        # Distinctness is enforced by platform×bank source families + fact ids.
+        cand_group = source_group(cand)
+        if cand_group not in {"platform", "bank"}:
+            continue
+        # Must be opposite source families (platform × bank).
+        if {seed_group, cand_group} != {"platform", "bank"}:
             continue
         if str(cand.currency).upper() != str(seed.currency).upper():
             continue
         cand_amount = cand.signed_amount
+        # External payment legs are same-sign expenses (or same-sign refunds).
         if (seed_amount > 0) != (cand_amount > 0):
             continue
         amount_delta = seed_amount - cand_amount
         exact = amount_delta == 0
         dt = _time_delta_seconds(seed.occurred_at, cand.occurred_at)
         same_day = _same_calendar_day(seed.occurred_at, cand.occurred_at)
-        cand_text = cand.text
-        cand_tails = extract_card_tails(cand_text)
+        cand_tails = extract_card_tails(cand.text)
         shared_tails = seed_tails & cand_tails
         alias_hit = False
         alias_tail = ""
         for tail in seed_tails | cand_tails:
             accounts = list(aliases_by_tail.get(tail, ()))
+            if not accounts:
+                continue
             if (
                 seed.account_id in accounts
                 or cand.account_id in accounts
@@ -405,28 +470,43 @@ def evaluate_payment_mirror(
                 alias_hit = True
                 alias_tail = tail
                 break
-            if len(set(accounts)) > 1:
-                alias_hit = True
-                alias_tail = tail
-        cross = texts_cross_match(seed_text, cand_text)
+        cross = main_style_cross_verify(seed, cand)
         card_ok = bool(shared_tails) or alias_hit
-        strong = exact and dt <= PAYMENT_MIRROR_STRONG_SECONDS and (cross or card_ok)
-        weak = exact and same_day and not strong
-        pending_delta = (not exact) and same_day and (cross or card_ok)
-        if not strong and not weak and not pending_delta:
-            continue
-        if strong:
-            status, conf, rule = (
-                RelationStatus.ACCEPTED.value,
-                CONFIDENCE_STRONG,
-                RULE_PAYMENT_MIRROR_STRONG_V1,
-            )
+        text_or_card = cross or card_ok
+
+        # Ranking score for uniqueness: higher is better.
+        score = 0
+        status = ""
+        conf = CONFIDENCE_WEAK
+        rule = RULE_PAYMENT_MIRROR_WEAK_V1
+
+        if exact and dt <= PAYMENT_MIRROR_STRONG_SECONDS and text_or_card:
+            status = RelationStatus.ACCEPTED.value
+            conf = CONFIDENCE_STRONG
+            rule = RULE_PAYMENT_MIRROR_STRONG_V1
+            score = 3000 - dt
+        elif exact and same_day and text_or_card and dt <= 24 * 3600:
+            # Same-day unique platform×bank with text/card — main cross_source spirit.
+            status = RelationStatus.ACCEPTED.value
+            conf = CONFIDENCE_STRONG
+            rule = RULE_PAYMENT_MIRROR_SAME_DAY_UNIQUE_V1
+            score = 2000 - min(dt, 1999)
+        elif exact and dt <= PAYMENT_MIRROR_STRONG_SECONDS and not text_or_card:
+            # Near-strong unique only: exact+10s but weak text → pending, not silent.
+            status = RelationStatus.PENDING_REVIEW.value
+            conf = CONFIDENCE_WEAK
+            rule = RULE_PAYMENT_MIRROR_WEAK_V1
+            score = 1000 - dt
+        elif (not exact) and same_day and text_or_card and dt <= PAYMENT_MIRROR_STRONG_SECONDS:
+            # Tiny amount mismatch with strong time/text — review only.
+            status = RelationStatus.PENDING_REVIEW.value
+            conf = CONFIDENCE_WEAK
+            rule = RULE_PAYMENT_MIRROR_WEAK_V1
+            score = 500 - dt
         else:
-            status, conf, rule = (
-                RelationStatus.PENDING_REVIEW.value,
-                CONFIDENCE_WEAK,
-                RULE_PAYMENT_MIRROR_WEAK_V1,
-            )
+            # Bare same-day exact without text/card: drop (main silent).
+            continue
+
         evidence = RelationEvidence(
             amount_delta=format(_abs_decimal(amount_delta), "f"),
             time_delta_seconds=dt,
@@ -437,40 +517,50 @@ def evaluate_payment_mirror(
             source_pair=(seed.bill_source or seed.source, cand.bill_source or cand.source),
             rule_id=rule,
             signals=tuple(filter(None, (
+                "platform_bank",
                 "exact_amount" if exact else "amount_delta",
                 "time_window" if dt <= PAYMENT_MIRROR_STRONG_SECONDS else "same_day",
                 "card_tail" if shared_tails else "",
                 "alias" if alias_hit else "",
                 "text_cross" if cross else "",
+                "same_account" if cand.account_id == seed.account_id else "cross_account",
             ))),
         )
-        matches.append((cand, evidence, status, conf))
+        matches.append((cand, evidence, status, conf, score))
 
     if not matches:
         return None
-    strong_matches = [m for m in matches if m[2] == RelationStatus.ACCEPTED.value]
-    if len(strong_matches) == 1 and _as_decimal(strong_matches[0][1].amount_delta) == 0:
-        cand, evidence, status, conf = strong_matches[0]
-        evidence = RelationEvidence(**{**evidence.__dict__, "candidate_count": 1})
-        primary, secondary = seed, cand
-        if _platform_score(cand) > _platform_score(seed):
-            primary, secondary = cand, seed
-        return RelationProposal(
-            kind=RelationKind.PAYMENT_MIRROR.value,
-            primary_fact_id=primary.id,
-            secondary_fact_id=secondary.id,
-            status=status,
-            rule_id=evidence.rule_id,
-            confidence=conf,
-            evidence=evidence,
-        )
-    matches.sort(key=lambda m: (m[1].time_delta_seconds, m[0].id))
-    cand, evidence, _, conf = matches[0]
+
+    # Prefer highest score; require uniqueness among auto-accept tier for accept.
+    matches.sort(key=lambda m: (-m[4], m[1].time_delta_seconds, m[0].id))
+    best = matches[0]
+    cand, evidence, status, conf, _score = best
+    rule_id = evidence.rule_id
+
+    strong_accepts = [
+        m for m in matches
+        if m[2] == RelationStatus.ACCEPTED.value and _as_decimal(m[1].amount_delta) == 0
+    ]
+    if status == RelationStatus.ACCEPTED.value and len(strong_accepts) != 1:
+        # Multiple near-strong candidates → pending (do not pick silently).
+        status = RelationStatus.PENDING_REVIEW.value
+        conf = CONFIDENCE_WEAK
+        rule_id = RULE_PAYMENT_MIRROR_WEAK_V1
+    elif status == RelationStatus.ACCEPTED.value and rule_id == RULE_PAYMENT_MIRROR_SAME_DAY_UNIQUE_V1:
+        exact_same_day = [
+            m for m in matches
+            if _as_decimal(m[1].amount_delta) == 0 and m[1].time_delta_seconds <= 24 * 3600
+        ]
+        if len(exact_same_day) != 1:
+            status = RelationStatus.PENDING_REVIEW.value
+            conf = CONFIDENCE_WEAK
+            rule_id = RULE_PAYMENT_MIRROR_WEAK_V1
+
     evidence = RelationEvidence(
         **{
             **evidence.__dict__,
             "candidate_count": len(matches),
-            "rule_id": RULE_PAYMENT_MIRROR_WEAK_V1,
+            "rule_id": rule_id,
         }
     )
     primary, secondary = seed, cand
@@ -480,11 +570,47 @@ def evaluate_payment_mirror(
         kind=RelationKind.PAYMENT_MIRROR.value,
         primary_fact_id=primary.id,
         secondary_fact_id=secondary.id,
-        status=RelationStatus.PENDING_REVIEW.value,
-        rule_id=RULE_PAYMENT_MIRROR_WEAK_V1,
-        confidence=CONFIDENCE_WEAK,
+        status=status,
+        rule_id=rule_id,
+        confidence=conf,
         evidence=evidence,
     )
+
+
+def match_payment_mirrors_greedy(
+    facts: Sequence[FactView],
+    *,
+    aliases_by_tail: Mapping[str, Sequence[str]] | None = None,
+    seed_ids: Sequence[str] | None = None,
+) -> list[RelationProposal]:
+    """Global 1:1 greedy payment_mirror matching (main dedup spirit).
+
+    Only facts in ``seed_ids`` (if provided) may initiate a pair, but candidates
+    may be any active fact. Each fact participates in at most one accepted or
+    pending mirror returned here.
+    """
+    active = [f for f in facts if not f.deleted and f.fact_type == FactType.CASH.value]
+    by_id = {f.id: f for f in active}
+    if seed_ids is None:
+        seeds = [f for f in active if source_group(f) == "platform"]
+    else:
+        seeds = [by_id[sid] for sid in seed_ids if sid in by_id and source_group(by_id[sid]) in {"platform", "bank"}]
+    # Prefer platform seeds first for canonical primary selection.
+    seeds.sort(key=lambda f: (0 if source_group(f) == "platform" else 1, str(f.occurred_at), f.id))
+
+    used: set[str] = set()
+    proposals: list[RelationProposal] = []
+    for seed in seeds:
+        if seed.id in used:
+            continue
+        others = [f for f in active if f.id != seed.id and f.id not in used]
+        proposal = evaluate_payment_mirror(seed, others, aliases_by_tail=aliases_by_tail)
+        if proposal is None:
+            continue
+        used.add(proposal.primary_fact_id)
+        used.add(proposal.secondary_fact_id)
+        proposals.append(proposal)
+    return proposals
 
 
 def evaluate_transfer_pair(

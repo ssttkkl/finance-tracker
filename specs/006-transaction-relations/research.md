@@ -50,14 +50,23 @@
 
 ## Decision 7: Matching windows & strict Decimal (from main signals, hardened)
 
-**Decision** (spec-fixed, not re-litigated):
-- `payment_mirror` auto-accept: same currency, amount exact, Δt ≤10s, cross-text or card-tail, unique candidate; same-day weak → pending.
+**Decision** (spec-fixed; refined 2026-07-21 after real-ledger calibration):
+- `payment_mirror` **only** platform×bank (never bank×bank / platform×platform).
+- Strong auto-accept: same currency, amount exact, Δt ≤10s, main-style counterparty/description **substring** cross **or** card-tail/alias, unique; **global 1:1 greedy**.
+- Same-day auto-accept only when exact + text/card + platform×bank **globally unique** (main `dedup_cross_source` 2-way spirit).
+- **Bare same-day exact without text/card: silent** (no pending) — matches main “unmatched = do nothing”, avoids inbox flood.
+- Weak/pending only near-miss: e.g. ≤10s exact without text, or ≤10s with text but exact amount delta, or near-strong multi-candidate conflict.
+- Multi-account model: do **not** require same `account_name` (main CSV key); use platform×bank + text/card/alias instead.
 - `transfer_pair` auto-accept: opposite signs, different accounts, same currency, abs amount exact, Δt ≤10s + transfer signals unique; same-day unionpay/no-card-pay pair allowed when unique.
 - `credit_repayment`: cash→loan same currency exact abs, Δt ≤600s; FX repayment Δt ≤10s without amount equality, record both amounts.
 - `refund_offset`: candidate ≤30d; auto-accept default ≤14d; order/txn lock may auto-accept 15–30d; one refund → one expense; multi refunds per expense; no amount tolerance; remaining balance exact Decimal.
 - Main code’s float `0.01` is **not** a tolerance here.
 
-**Rationale**: Spec clarifications + main rule families without delete/rewrite persistence.
+**Rationale**: Spec clarifications + main rule families without delete/rewrite persistence. Real `~/.ft` ledger showed v1 “same-day exact → pending” flooded Review Inbox and bank×bank false mirrors; main never did that.
+
+**Alternatives rejected**:
+- Bare same-day exact pending (original v1 wording) — inbox explosion.
+- Same `account_name` required like main CSV — breaks multi-account formal facts.
 
 ## Decision 8: Projection order
 

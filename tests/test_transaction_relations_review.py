@@ -9,15 +9,15 @@ def test_review_accept_reject_later(relation_runtime):
     services = relation_runtime.services
     assert services.accounts.create_account("支付宝", "cash", "CNY").ok
     assert services.accounts.create_account("建行储蓄", "cash", "CNY").ok
-    # weak same-day pair
+    # Near-strong pending: exact + ≤10s platform×bank without text/card cross.
     services.cashflow.add_manual_transaction(
-        amount=Decimal("-40.00"), counterparty="咖啡", account_name="支付宝",
-        currency="CNY", date="2026-06-01 09:00:00", description="消费",
+        amount=Decimal("-40.00"), counterparty="商户甲", account_name="支付宝",
+        currency="CNY", date="2026-06-01 09:00:00", description="订单AAA",
         category="expense", bill_source="alipay",
     )
     services.cashflow.add_manual_transaction(
-        amount=Decimal("-40.00"), counterparty="咖啡", account_name="建行储蓄",
-        currency="CNY", date="2026-06-01 20:00:00", description="消费",
+        amount=Decimal("-40.00"), counterparty="商户乙", account_name="建行储蓄",
+        currency="CNY", date="2026-06-01 09:00:05", description="订单BBB",
         category="expense", bill_source="ccb_debit",
     )
     with services.uow as uow:
@@ -37,13 +37,13 @@ def test_review_accept_reject_later(relation_runtime):
     assert accepted.details["status"] == "accepted"
     # new pending for reject path
     services.cashflow.add_manual_transaction(
-        amount=Decimal("-12.00"), counterparty="弱匹配", account_name="支付宝",
-        currency="CNY", date="2026-06-02 09:00:00", description="消费",
+        amount=Decimal("-12.00"), counterparty="弱A", account_name="支付宝",
+        currency="CNY", date="2026-06-02 09:00:00", description="描述一",
         category="expense", bill_source="alipay",
     )
     services.cashflow.add_manual_transaction(
-        amount=Decimal("-12.00"), counterparty="弱匹配", account_name="建行储蓄",
-        currency="CNY", date="2026-06-02 21:00:00", description="消费",
+        amount=Decimal("-12.00"), counterparty="弱B", account_name="建行储蓄",
+        currency="CNY", date="2026-06-02 09:00:08", description="描述二",
         category="expense", bill_source="ccb_debit",
     )
     with services.uow as uow:

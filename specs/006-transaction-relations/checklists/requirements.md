@@ -40,4 +40,5 @@
 - Completion pass 2026-07-21: concrete time windows, n-way mirrors, ignore/later, legacy offset non-authority, SC-013/014, FR-006b.
 - Correction 2026-07-21: logical delete does **not** permanently ban source identity. Re-import same identity after delete publishes a **new active** formal fact (no silent undelete). Row-level idempotency applies only to active facts (FR-006c, SC-015).
 - Finalization 2026-07-21: added Active Formal Fact definition, post-delete re-import/raw contract, relation business key, active-only matching, concurrent check equivalence, cross-batch story 9, FR-001a/006d/041, SC-016/017. Status set to Ready for Planning. Checklist 16/16 still passing.
-- Ready for `/speckit-plan`.
+- Mirror calibration 2026-07-21: after real `~/.ft` ledger run, revised `payment_mirror` to main precision — platform×bank only, main-style substring text, global 1:1, bare same-day exact silent (FR-016/016a, SC-003a/003b, US1 scenarios). Implementation must follow updated artifacts (not the reverse).
+- Ready for `/speckit-plan` delta or continue implementation against updated FR-016.

@@ -7,7 +7,9 @@ from ft.domain.relations import (
     FactView,
     RelationStatus,
     evaluate_payment_mirror,
+    match_payment_mirrors_greedy,
     project_balances_and_pnl,
+    source_group,
 )
 
 
@@ -20,6 +22,11 @@ def _fv(**kwargs):
     )
     base.update(kwargs)
     return FactView(**base)
+
+
+def test_source_group_platform_bank():
+    assert source_group(_fv(id="1", amount=Decimal("-1"), account_id="a", bill_source="alipay")) == "platform"
+    assert source_group(_fv(id="2", amount=Decimal("-1"), account_id="b", bill_source="ccb_debit")) == "bank"
 
 
 def test_payment_mirror_auto_accept_strong_unique():
@@ -38,6 +45,21 @@ def test_payment_mirror_auto_accept_strong_unique():
     assert proposal.status == RelationStatus.ACCEPTED.value
     assert proposal.kind == "payment_mirror"
     assert proposal.evidence.amount_delta in {"0", "0.00", "0.0"}
+    assert "platform_bank" in proposal.evidence.signals
+
+
+def test_payment_mirror_rejects_bank_bank():
+    a = _fv(
+        id="b1", amount=Decimal("-100.00"), account_id="ccb1", account_name="建行A",
+        occurred_at="2026-06-13 12:00:00", counterparty="微信", description="转账支取",
+        bill_source="ccb_debit",
+    )
+    b = _fv(
+        id="b2", amount=Decimal("-100.00"), account_id="ccb2", account_name="建行B",
+        occurred_at="2026-06-13 12:00:00", counterparty="银行转证券", description="银转证",
+        bill_source="ccb_debit",
+    )
+    assert evaluate_payment_mirror(a, [b]) is None
 
 
 def test_payment_mirror_amount_delta_not_auto_accepted():
@@ -57,7 +79,22 @@ def test_payment_mirror_amount_delta_not_auto_accepted():
     assert Decimal(proposal.evidence.amount_delta) == Decimal("0.01")
 
 
-def test_payment_mirror_weak_same_day_pending():
+def test_payment_mirror_bare_same_day_exact_without_text_is_silent():
+    """Main silent: same-day exact alone must NOT create pending flood."""
+    seed = _fv(
+        id="p1", amount=Decimal("-50.00"), account_id="alipay", account_name="支付宝",
+        occurred_at="2026-06-13 10:00:00", counterparty="甲",
+        description="订单A", bill_source="alipay",
+    )
+    bank = _fv(
+        id="b1", amount=Decimal("-50.00"), account_id="ccb", account_name="建行储蓄",
+        occurred_at="2026-06-13 18:00:00", counterparty="乙",
+        description="订单B", bill_source="ccb_debit",
+    )
+    assert evaluate_payment_mirror(seed, [bank]) is None
+
+
+def test_payment_mirror_same_day_unique_with_text_auto_accept():
     seed = _fv(
         id="p1", amount=Decimal("-50.00"), account_id="alipay", account_name="支付宝",
         occurred_at="2026-06-13 10:00:00", counterparty="星巴克",
@@ -65,12 +102,12 @@ def test_payment_mirror_weak_same_day_pending():
     )
     bank = _fv(
         id="b1", amount=Decimal("-50.00"), account_id="ccb", account_name="建行储蓄",
-        occurred_at="2026-06-13 18:00:00", counterparty="星巴克",
-        description="消费", bill_source="ccb_debit",
+        occurred_at="2026-06-13 18:00:00", counterparty="星巴克咖啡",
+        description="快捷支付", bill_source="ccb_debit",
     )
     proposal = evaluate_payment_mirror(seed, [bank])
     assert proposal is not None
-    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.status == RelationStatus.ACCEPTED.value
 
 
 def test_payment_mirror_multi_candidate_pending():
@@ -95,6 +132,29 @@ def test_payment_mirror_multi_candidate_pending():
     assert proposal is not None
     assert proposal.status == RelationStatus.PENDING_REVIEW.value
     assert proposal.evidence.candidate_count == 2
+
+
+def test_match_payment_mirrors_greedy_one_to_one():
+    p1 = _fv(
+        id="p1", amount=Decimal("-10.00"), account_id="alipay", account_name="支付宝",
+        occurred_at="2026-06-13 12:00:00", counterparty="店A", description="x",
+        bill_source="alipay",
+    )
+    p2 = _fv(
+        id="p2", amount=Decimal("-10.00"), account_id="wechat", account_name="微信",
+        occurred_at="2026-06-13 12:00:01", counterparty="店A", description="x",
+        bill_source="wechat",
+    )
+    b1 = _fv(
+        id="b1", amount=Decimal("-10.00"), account_id="ccb", account_name="建行",
+        occurred_at="2026-06-13 12:00:02", counterparty="店A", description="x",
+        bill_source="ccb_debit",
+    )
+    props = match_payment_mirrors_greedy([p1, p2, b1])
+    assert len(props) == 1
+    used = {props[0].primary_fact_id, props[0].secondary_fact_id}
+    assert "b1" in used
+    assert len(used & {"p1", "p2"}) == 1
 
 
 def test_projection_mirror_counts_once_balances_both():
@@ -134,7 +194,6 @@ def test_payment_mirror_persisted_via_service(relation_runtime):
         ids = [r["id"] for r in uow.cashflows.list_detailed()]
     result = services.relations.check(seed_fact_ids=ids, trigger="manual_range", seed_ref="test")
     assert result.ok, result.message
-    pending_or_accepted = services.relations.list_pending()
     with services.uow as uow:
         all_rel = uow.relations.list_active(kind="payment_mirror")
     assert all_rel, "expected payment_mirror relation"

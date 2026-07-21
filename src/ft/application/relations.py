@@ -18,9 +18,9 @@ from ft.domain.relations import (
     RelationStatus,
     SUBTYPE_NONE,
     cross_kind_compatible,
-    evaluate_payment_mirror,
     evaluate_refund_offset,
     evaluate_transfer_pair,
+    match_payment_mirrors_greedy,
     ordered_fact_pair,
     project_balances_and_pnl,
 )
@@ -76,12 +76,27 @@ class RelationService:
                 remaining = self._refund_remaining(uow, active_facts)
                 created = []
                 stats = {"pending": 0, "accepted": 0, "skipped": 0, "supersessions": 0}
+
+                # payment_mirror: global 1:1 greedy (main dedup spirit), not per-seed flood.
+                mirror_proposals = match_payment_mirrors_greedy(
+                    active_facts,
+                    aliases_by_tail=aliases,
+                    seed_ids=seeds,
+                )
+                for proposal in mirror_proposals:
+                    outcome = self._persist_proposal(uow, proposal, remaining)
+                    if outcome is None:
+                        stats["skipped"] += 1
+                        continue
+                    created.append(outcome)
+                    if outcome["status"] == RelationStatus.ACCEPTED.value:
+                        stats["accepted"] += 1
+                    elif outcome["status"] == RelationStatus.PENDING_REVIEW.value:
+                        stats["pending"] += 1
+
                 for seed in seed_views:
                     proposals = []
                     others = [f for f in active_facts if f.id != seed.id]
-                    pm = evaluate_payment_mirror(seed, others, aliases_by_tail=aliases)
-                    if pm is not None:
-                        proposals.append(pm)
                     tp = evaluate_transfer_pair(seed, others)
                     if tp is not None:
                         proposals.append(tp)
@@ -102,7 +117,6 @@ class RelationService:
                                     or outcome.get("evidence", {}).get("refund_amount")
                                     or 0
                                 ))
-                                # evidence extras may be flattened
                                 extras = outcome.get("evidence") or {}
                                 if "refund_amount" in extras:
                                     refund_amt = Decimal(str(extras["refund_amount"]))
