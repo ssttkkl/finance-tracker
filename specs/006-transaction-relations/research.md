@@ -162,3 +162,15 @@ No O(n²) full double scan. Semantics of FR-016/017/020 unchanged.
 - Separate open_relation table — dual inbox/state machines.
 - Placeholder facts as other leg — pollutes formal facts.
 - Open-leg for payment_mirror — mirror is 1:1 greedy bilateral by design.
+
+
+## Decision 18: Schema for open-leg (nullable secondary + anchor + dual uniqueness)
+
+**Decision**: Alter `transaction_relations` so `secondary_fact_id` may be NULL only for open-leg pending/reject occupancy of `refund_offset`/`transfer_pair`. Add durable `anchor_fact_id`. Keep bilateral unique on ordered pair when both legs present. Add partial unique on `(workspace_id, kind, subtype, anchor_fact_id)` for active open rows (`secondary_fact_id IS NULL`). Rejected open rows leave the partial unique via `active_slot` mutation (same pattern as bilateral rejected). `payment_mirror` and `accepted` always require both legs. No placeholder facts.
+
+**Rationale**: One table, one inbox; SQLite+PG both support partial uniques; matches FR-013 dual keys.
+
+**Alternatives rejected**:
+- Separate open_relation table — dual state machines.
+- Empty-string only without partial unique — weaker integrity.
+- Multiple NULL secondaries without unique — reintroduces fan-out.

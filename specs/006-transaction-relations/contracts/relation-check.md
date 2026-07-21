@@ -52,3 +52,19 @@ See [spec.md](../spec.md) FR-016…FR-020. Strict Decimal equality for same-curr
 
 - Fail closed for unsafe auto-accept (multi-candidate, amount delta, window miss) → `pending_review` or no relation.
 - Infrastructure failure → check_run `failed`, facts untouched, retryable.
+
+
+## Open-leg emission rules
+
+For `refund_offset` and `transfer_pair` only:
+
+| Match outcome | Persist |
+|---|---|
+| Unique strong auto | bilateral `accepted` |
+| Unique near-strong | bilateral `pending_review` |
+| ≥2 legal candidates | **one** open-leg `pending_review` (anchor set, other null, evidence.candidate_fact_ids) |
+| 0 candidates, anchor shape holds | **one** open-leg `pending_review` (empty candidates) |
+| No anchor shape | skip |
+
+MUST NOT: expense/other seeds fan out N bilateral pendings for the same multi-candidate anchor.  
+MUST NOT: emit open-leg for `payment_mirror`.
