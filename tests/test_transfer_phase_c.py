@@ -190,3 +190,26 @@ def test_phase_c_matcher_includes_withdraw_and_skips_p2p():
     for p in props:
         ids = {p.primary_fact_id, p.secondary_fact_id}
         assert not ({"p1", "p2"} <= ids)
+
+
+def test_credit_repayment_requires_exact_same_currency():
+    out = _fv(
+        "o1",
+        "-500.00",
+        account="wechat",
+        text="工商银行信用卡还款 信用卡还款",
+        bill_source="wechat",
+        account_type="cash",
+        occurred="2025-10-04 08:52:41",
+    )
+    # wrong in-leg: not exact
+    inc = _fv(
+        "i1",
+        "100.00",
+        account="credit",
+        text="富丽华大酒店",
+        bill_source="wechat",
+        account_type="loan",
+        occurred="2025-10-05 05:12:35",
+    )
+    assert evaluate_transfer_pair(out, [inc]) is None

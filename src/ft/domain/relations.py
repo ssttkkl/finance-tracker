@@ -1224,12 +1224,17 @@ def evaluate_transfer_pair(
             if same_currency and exact and dt <= CREDIT_REPAYMENT_SAME_CURRENCY_SECONDS:
                 status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_CREDIT_REPAYMENT_V1
             elif (not same_currency) and dt <= CREDIT_REPAYMENT_FX_SECONDS:
+                # Cross-currency: allow when strong repay out already validated.
                 status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_CREDIT_REPAYMENT_FX_V1
             elif same_currency and exact and dt <= TRANSFER_PENDING_OUTER:
-                # Near repayment window but not unique-ready yet; keep high-recall pending.
                 status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_CREDIT_REPAYMENT_V1
+            elif same_currency and not exact:
+                # Same-currency unequal amounts are never credit_repayment candidates
+                # (prevents 信用卡还款 -500 ↔ hotel +100).
+                continue
             else:
-                status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_CREDIT_REPAYMENT_V1
+                # FX without 购汇 / far window: skip rather than noisy pending
+                continue
         elif (
             same_currency and exact
             and is_withdraw_platform_out(seed)
