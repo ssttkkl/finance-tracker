@@ -43,3 +43,5 @@
 - Next: align plan/research, then `/speckit-tasks` → analyze → implementer.
 
 - [x] 附录 19 组合映射表与双跳过白名单已冻结（2026-07-21 重整理）
+
+- [x] 微信双行退款、假单腿根因与 FR-027–032 / 附录已写入（2026-07-21）

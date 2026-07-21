@@ -6,7 +6,7 @@
 
 ## Summary
 
-Deliver **import no-skip** for all wired bill sources, **publish **paid** closed Alipay rows** as normal formal facts; **skip unpaid-closed** (documented); no `funding_status` field, and **create alipay `refund_offset` at import** when order keys uniquely match (`==` / `prefix_` / `prefix*`). Relation scan does **not** backfill alipay same-platform order refunds; it keeps cross-source mirror and transfers. Balance net-zero for closed+full refund comes from **amount cancel** (-A +A), not a funding enum.
+Deliver **import no-skip** for all wired bill sources, **publish **paid** closed Alipay rows** as normal formal facts; **skip unpaid-closed** (documented); no `funding_status` field, and **create alipay + wechat `refund_offset` at import** when order keys uniquely match (`==` / `prefix_` / `prefix*`). Relation scan does **not** backfill alipay same-platform order refunds; it keeps cross-source mirror and transfers. Balance net-zero for closed+full refund comes from **amount cancel** (-A +A), not a funding enum.
 
 ## Technical Context
 
@@ -91,17 +91,35 @@ No constitution violations requiring justification.
 - Mapping: remove silent `default: skip` path → error.
 - Parse errors: raise with file+line; no continue-success.
 
+### Phase C0 — WeChat dual-row refund_offset
+
+- Import all WeChat lines (no silent status continue).
+- Pair refunds per FR-027–032 (full/partial/residual/transfer-return); no amount rewrite.
+- Tests: 味多美 30d, JD split, 对方已退还.
+
 ### Phase C — Closed-trade + order prefix
 
 - Persist platform status + `origin_order_id` / order base for refunds.
 - Balance snapshot updates **only** for funding-occupying facts.
 - Minimal 006 hook: refund matching may use origin_order_id exact before title.
 
+### Phase C0 — WeChat dual-row refund_offset
+
+- Import all WeChat lines (no silent status continue).
+- Pair refunds per FR-027–032 (full/partial/residual/transfer-return); no amount rewrite.
+- Tests: 味多美 30d, JD split, 对方已退还.
+
 ### Phase C2 — Import emits refund_offset; scan does not 补漏 alipay orders
 
 - Order-key alipay refunds → refund_offset at import.
 - **Auth unfreeze**: 芝麻免押下单成功 → 解冻成功 as refund_offset (`import.alipay.auth_unfreeze`).
 - Relation check skips already-linked pairs.
+
+### Phase C0 — WeChat dual-row refund_offset
+
+- Import all WeChat lines (no silent status continue).
+- Pair refunds per FR-027–032 (full/partial/residual/transfer-return); no amount rewrite.
+- Tests: 味多美 30d, JD split, 对方已退还.
 
 ### Phase C2b — Import emits refund_offset; scan does not 补漏 alipay orders
 

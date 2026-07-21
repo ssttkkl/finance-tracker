@@ -74,3 +74,13 @@
 **Decision**: Freeze Alipay 19-bucket map in spec appendix. Only two business skips: unpaid-closed (42) and failed-repay-no-debit (2). Import 3060/3104. Auth-hold/unfreeze import as refund_offset. No third skip without new evidence.
 
 **Rationale**: Real-bill inventory; pay-empty alone is not a skip (transfer-out/income).
+
+## Decision 14: WeChat dual-row refund at import
+
+**Decision**: Import both WeChat expense rows whose status became refunded and income refund rows; write `refund_offset` at import using pay+embedded amount+time+residual+transfer-return rules. Do not use Alipay txn-prefix. Do not net amounts in convert. Real 3y sample: 0 true orphans; prior ~6% "none" were rule false negatives.
+
+**Rationale**: WeChat export rewrites original payment status and adds income refund row; txn prefixes differ (4200 vs 5030).
+
+## Decision 15: WeChat no business skip in current corpus
+
+**Decision**: No whitelist skip for current WeChat exports (no unpaid-closed rows). Remove silent continues; unknown futures fail closed or FR-008b with counters.
