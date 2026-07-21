@@ -38,10 +38,9 @@ def ownership_runtime(request, tmp_path):
     config.set_main_option("script_location", str(root / "migrations"))
     config.set_main_option("sqlalchemy.url", url)
     if request.param == "postgresql":
-        reset = create_relational_engine(url)
-        Base.metadata.drop_all(reset)
-        reset.dispose()
-        command.stamp(config, "base")
+        from conftest import reset_postgres_schema
+
+        reset_postgres_schema(url)
     command.upgrade(config, "head")
     engine = create_relational_engine(url)
     sessions = create_session_factory(engine)
@@ -51,7 +50,9 @@ def ownership_runtime(request, tmp_path):
     finally:
         engine.dispose()
         if request.param == "postgresql":
-            command.downgrade(config, "base")
+            from conftest import reset_postgres_schema
+
+            reset_postgres_schema(url)
 
 
 def test_coverage_fingerprint_is_date_independent_for_same_universe() -> None:

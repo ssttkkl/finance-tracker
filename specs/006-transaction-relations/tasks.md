@@ -241,6 +241,17 @@
 
 **Checkpoint**: Feature ready for converge/review
 
+### Calibration follow-ups (post T057, real-ledger)
+
+- [x] T058 [US3] Exclude transfer/receipt/redpacket/withdraw legs from `refund_offset` (both sides) unless explicit refund signal; tokens + `is_refund_excluded_leg` in `src/ft/domain/relations.py`; prune in `FactCandidateIndex` refund buckets; FR-020 + edge cases + research Decision 7 updated; tests in `tests/test_transaction_relations_refund.py`
+- [x] T059 [US3] Real-ledger verification on `~/.ft` copy: refund accepted 162 / pending 3218 (vs prior 165 / 3305); transferish pollution 0; 消费退货 still accepted; 0 true-refund positives lost all candidates in simulation
+- [x] T060 [US3] Tighten weak refund pending: exact amount only (not ≤ remaining); expense seeds strong_link only; FR-020 + research; real-ledger pending 3218 → 226, accepted stays 162
+- [x] T061 [US3] Spec first: asymmetric P2P refund rule in FR-020 + edge cases + research (bare p2p income ≠ refund; p2p expense MAY pair with 微信红包-退款 as strong; merchant refunds still exclude p2p expenses)
+- [x] T062 [US3] Implement T061: asymmetric P2P + fine subtype (红包/转账/收款/提现); p2p expense strong only via same subtype or order_lock; tests; real-ledger 微信红包-退款 pairs 微信红包（单发） without merchant×p2p flood
+- [x] T063 Converge + dual-backend verification: all `tasks.md` items `[x]` (T001–T062); domain/application surface check 19/19; `pytest tests/test_transaction_relations_*.py tests/test_alembic_migration.py` **69 passed** with `FT_TEST_POSTGRES_URL=postgresql+psycopg://finance_tracker:finance_tracker_test@127.0.0.1:55432/finance_tracker_test` + `FT_REQUIRE_TEST_POSTGRES=1` (foundation/delete parametrize sqlite+postgresql green); real-ledger `~/.ft` copy check ~5s → mirror acc 2213 / pend 160, transfer acc 8 / pend 104, refund acc **163** / pend **226**, 微信红包-退款→微信红包（单发） accepted. Full-repo `pytest tests/` on same PG: 629 passed + unrelated wealth/multi-currency PG teardown errors (`NotImplementedError: multi-currency account merge is one-shot and not irreversible`) and 1 wealth perf budget miss — **out of 006 scope**, not regressions of this feature. No project ruff/mypy config. No push/PR (no user auth).
+
+**Checkpoint**: Feature 006 implementation + calibration + dual-backend evidence complete; ready for optional gstack `review` / user-authorized ship.
+
 ---
 
 ## Dependencies

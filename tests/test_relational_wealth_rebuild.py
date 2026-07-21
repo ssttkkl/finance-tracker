@@ -41,11 +41,10 @@ def rebuilt_runtime(request, tmp_path):
     if request.param == "postgresql":
         # Other parity tests intentionally exercise create_schema directly.  Reset only
         # the dedicated _test database so this migration contract never inherits tables
-        # without an alembic_version row.
-        reset_engine = create_relational_engine(url)
-        Base.metadata.drop_all(reset_engine)
-        reset_engine.dispose()
-        command.stamp(config, "base")
+        # without an alembic_version row. Never alembic-downgrade through one-shot 20260720_04.
+        from conftest import reset_postgres_schema
+
+        reset_postgres_schema(url)
     command.upgrade(config, "head")
     engine = create_relational_engine(url)
     sessions = create_session_factory(engine)
@@ -55,7 +54,9 @@ def rebuilt_runtime(request, tmp_path):
     finally:
         engine.dispose()
         if request.param == "postgresql":
-            command.downgrade(config, "base")
+            from conftest import reset_postgres_schema
+
+            reset_postgres_schema(url)
 
 
 def _insert_three_day_formal_fixture(sessions) -> None:
