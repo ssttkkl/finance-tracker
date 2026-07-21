@@ -107,7 +107,22 @@ Auto path emits pending with conflict evidence; human must supersede before acce
 
 **Decision**: v1 does not create accepted one-sided relations. Text signals may surface as user hints to add missing counterparty; pairing only after both legs exist.
 
-## Decision 15: Relation-check performance budget (3y / 10k / 60s)
+## Decision 16: Main-rule adoption gate (counterexample-driven)
+
+**Decision**: For main-branch pairing rules that do **not** already conflict with the constitution or this feature's immutability model:
+- If no systematic counterexample is found on the real ledger, treat the main rule as business-correct and adopt it (adapted to relation persistence).
+- If systematic counterexamples exist, do **not** adopt verbatim; tighten.
+
+**Applied findings (2026-07-21, ~/.ft formal facts ~11k)**:
+
+| Main rule | Verdict | Evidence |
+|---|---|---|
+| 10s + text + 1:1 platform×bank | **Adopt** | High overlap with current accepted (~1281/1335); no systematic false-positive pattern found |
+| Same-day exact-2 cross-source auto (no text required) | **Reject verbatim** | ~1020/2343 plat×bank exact-2 groups lack text; stable FP shape: platform merchant detail vs bank counterparty `支付宝（中国）网络技术有限公司` + internal id — same day/amount does **not** prove same external purchase |
+| Same-day exact + text + unique | **Adopt** | Already `same_day.unique`; missed-with-text residuals (~25) are mostly refunds/income-sign mirrors, not failure of the rule |
+| Physical delete / category rewrite / 0.01 float | **Never** | Constitution + FR conflicts (not counterexample-gated) |
+
+**Rationale**: User gate: "no counterexample ⇒ main is correct"; counterexamples found for bare exact-2, so keep text requirement for same-day auto.
 
 **Decision**: Full relation check on a personal ledger of ~3 years / ≥10_000 active cash facts must finish within **60 seconds** wall clock on a local single-process run. Default implementation uses `FactCandidateIndex` buckets:
 

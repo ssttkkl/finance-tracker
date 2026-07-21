@@ -34,8 +34,9 @@
 - Q: `payment_mirror` 的 source 与账户约束？ → A: MUST 一侧为支付平台源（alipay/wechat 等）、一侧为银行通道源（icbc/ccb 等）。MUST NOT 将 bank×bank 或 platform×platform 建为 `payment_mirror`（后者若为调拨应走 `transfer_pair`）。多账户/多币种模型下**不以 account_id 或 account_name 不同为必要条件**（同一实体账户可同时承接平台账单与信用卡账单）；账户关联以 platform×bank + 文本/卡尾/别名 + 时间/金额 为准，对齐 main 在「同账户名」下的跨源语义。
 - Q: 镜像 weak/pending 的目标量级？ → A: 不确定时优先静默不推荐；pending 仅保留近强未达（如 10 秒内等额但文本不足、或强时间窗内唯一但金额有精确差额、或多近强候选冲突）。全量真实账本上 `payment_mirror` pending 应保持可审查量级（目标数十～低百条量级，而非「同日同额全进 inbox」）。
 - Q: 多条支付平台/银行事实 mirror 时如何计次？ → A: accepted `payment_mirror` 可形成连通组；组内只计一次外部消费，且必须有确定性 canonical；若无法确定唯一 canonical 则 pending。自动匹配采用全局 1:1 greedy，任一事实最多参与一条新建 mirror 边（连通组可经后续边扩展，但单次检查不双配同一事实）。
-- Q: 关系检查性能门限？ → A: 以个人账本规模为基准：约 **3 年交易、≥1 万条活跃现金事实** 时，单次 **全量关系检查**（seeds=全部活跃事实或等价全量重算）在本地开发机、单进程、SQLite 或等价 PG 上 MUST 在 **60 秒内**完成（wall clock，不含人工审查）。导入一批后仅以本批为种子的增量检查 MUST 显著更快，且不得依赖 O(n²) 全表双重扫描作为正确路径；候选 MUST 经金额/币种/时间窗等可索引条件剪枝（FR-025）。
-- Q: 逻辑删除后能否恢复？ → A: v1 不要求对已删除事实实例做用户自助“取消删除”。正确再入账路径是再次导入并发布**新**活跃正式事实；不得静默复活旧实例或其已 supersede 关系。若未来提供对旧实例的 undelete，必须另开 feature 且可审计。
+- Q: main 规则何时视为正确？ → A: **除已与 constitution/本 spec 冲突者外**（物理删行、改 category/amount、浮点 0.01 容差、单腿改分类、无审计覆盖），若某条 main 规则在现网数据中**找不到可复核反例**，则应视为业务正确并汲取（可改造成关系落盘）。若找到系统性质反例，则**不得**原样汲取，必须收紧或改写。
+- Q: main「同日同账户同额恰好 2 条跨源自动」能否原样汲取？ → A: **否**。在 `~/.ft` 全量正式事实上，该规则 platform×bank 组约 2343，其中 **无文本交叉约 1020**；抽检反例形态稳定：支付宝侧为真实商户（美团/Steam/水费/超市等），银行侧仅为「支付宝（中国）网络技术有限公司」+ 内部编号，**同日同额并不能证明是同一外部消费的镜像**（一天内多笔支付宝扣款共用银行摘要）。故裸「恰好 2」auto **有反例**，不得原样采用。**可汲取改造**：同日 + 等额 + platform×bank + **main 式文本子串或卡尾/别名** + 候选唯一 → auto-accept（与已有 same_day.unique 一致）；无文本则静默或仅近强 pending，不得因「恰好 2」自动 accepted。
+- Q: main 镜像 10s+文本+1:1？ → A: **应汲取**。与当前 accepted 集合高度重合（约 1281/1335），真实数据未发现系统性质反例；落盘改为 relation 而非删行。- Q: 逻辑删除后能否恢复？ → A: v1 不要求对已删除事实实例做用户自助“取消删除”。正确再入账路径是再次导入并发布**新**活跃正式事实；不得静默复活旧实例或其已 supersede 关系。若未来提供对旧实例的 undelete，必须另开 feature 且可审计。
 - Q: “活跃正式事实”如何定义？ → A: 已发布且**未**被用户逻辑删除的正式事实实例。仅活跃事实进入余额/收支投影，并作为关系检查候选主体；已逻辑删除实例保留审计但不参与当前投影与自动匹配。
 - Q: 逻辑删除后再导入同 identity 时，RawRecord / digest 如何处理？ → A: 文件级 digest 幂等不变——同一文件 digest 已成功导入则不再整文件重放。行级：若该 identity 无活跃正式事实，再导入（通常来自新文件或未消化重复路径）MUST 允许发布新活跃正式事实；可为新事实建立新的 raw→formal 关联或复用既有 RawRecord 身份，但 MUST 产生可区分的新正式事实实例，且旧删除实例保持删除。不得通过“改写旧实例为活跃”完成再入账。
 - Q: 关系候选的业务幂等键是什么？ → A: 至少 `(workspace, kind, ordered_fact_pair, subtype_if_any)` 对活跃（非 superseded）关系唯一；同一键不得并存多个活跃 pending/accepted/rejected。rejected 占用该键以阻止自动重推荐；supersede 后新版本可持有新 revision 但仍可追溯旧键。
@@ -290,12 +291,12 @@
   1. **Source 约束**：仅 platform×bank（支付平台源如 alipay/wechat × 银行通道源如 icbc/ccb）；MUST NOT 对 bank×bank 或 platform×platform 建立 `payment_mirror`。
   2. **金额**：同币种两侧 Decimal 严格相等才可 auto-accept；任意非零差额 MUST NOT auto-accept；近强场景 MAY 以精确 `amount_delta` 进入 pending。
   3. **强 auto-accept**：等额 + 有效时间差 ≤10 秒 +（main 式 counterparty/description 双向子串交叉 **或** 卡尾号/账户别名）+ 候选唯一。
-  4. **同日 auto-accept（受限）**：等额 + 同日 + 文本子串或卡尾/别名 + platform×bank 候选全局唯一时 MAY auto-accept（对应 main `dedup_cross_source` 恰好 2 条跨源精神）。
-  5. **静默不推荐**：裸同日同额且无文本子串、无卡尾/别名时 MUST NOT 创建 pending（与 main「配不上就不处理」一致）。
+  4. **同日 auto-accept（受限，对齐 main cross_source 精神但需文本）**：等额 + 同日 + platform×bank +（main 式文本子串 **或** 卡尾/别名）+ 候选全局唯一时 MAY auto-accept。**禁止**仅因「同账户同日同额恰好 2 条」且无文本/卡尾而 auto-accept——真实数据中银行侧常为「支付宝（中国）网络…」摘要，与任意支付宝商户同额同日可形成假恰好-2。
+  5. **静默不推荐**：裸同日同额且无文本子串、无卡尾/别名时 MUST NOT 创建 pending（与 main「配不上就不处理」一致）；亦 MUST NOT auto-accept。
   6. **Pending 仅近强**：例如 ≤10 秒等额但缺文本/卡尾、或 ≤10 秒有文本但金额有精确差额、或近强多候选冲突。
   7. **基数**：自动匹配 MUST 全局 1:1 greedy；同一事实在一次检查中不得被配入多条新建 mirror。
   8. **Canonical**：支付平台详情优先于银行通道摘要，用于报表「外部消费只计一次」。
-- **FR-016a**: 多账户模型下 MUST NOT 以「同 account_name」作为 `payment_mirror` 必要条件（main CSV 时代同名键不再适用）；账户关联通过卡尾/支付方式别名与文本交叉完成。
+  9. **main 汲取纪律**：与 constitution 冲突的 main 行为（删行/改写/浮点容差/单腿改分类）不得汲取；其余 main 规则若在现网数据找不到反例则应汲取（可改造成关系）；找到系统反例则必须收紧（上款同日恰好-2 即属此类）。- **FR-016a**: 多账户模型下 MUST NOT 以「同 account_name」作为 `payment_mirror` 必要条件（main CSV 时代同名键不再适用）；账户关联通过卡尾/支付方式别名与文本交叉完成。
 - **FR-017**: 内部转账匹配信号 MUST 参考 main 分支 reconcile 转账语义：一正一负、不同账户、同币种绝对金额严格相等、有效时间接近、转账强信号词（如转账支取/存入、银联入账、手机银行、提现等）；并支持同日银联现金类已验证规则族。同币种强匹配 auto-accept 时间窗为有效时间差 ≤10 秒且候选唯一；同日宽窗口 auto-accept 仅允许“银联入账/电子汇入 ↔ 无卡付/转账支取”强信号组合且候选唯一。同币种两侧任意非零金额差额 MUST NOT auto-accept，但 MAY 以精确 `amount_delta` 证据进入 pending；不得把差额舍入、吸收或隐式解释为手续费。
 - **FR-018**: 信用还款匹配 MUST 覆盖 cash→loan 同币种与跨币种形态。同币种 auto-accept 要求绝对金额严格相等、有效时间差 ≤600 秒、还款相关文本信号、候选唯一。跨币种可不要求金额相等，但 auto-accept 时间窗 ≤10 秒且候选唯一，并 MUST 记录双方金额/币种证据。信用还款以 `transfer_pair` subtype（如 `credit_repayment`）表达；用户可见语义与报表影响 MUST 可区分普通内部转账与信用还款。
 - **FR-018a**: v1 关系主体以现金类正式事实为主。`InvestmentEvent` MUST 仅在银证转账等已有对侧正式事实的 `transfer_pair` 场景作为对侧参与；MUST NOT 将投资买卖/持仓类事件作为 `payment_mirror`、`refund_offset` 或 `duplicate_of` 的主体。
