@@ -29,12 +29,14 @@ def _seed_legacy_same_name_accounts(engine, *, conflict: bool = False) -> None:
             "INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'W', :at)"
         ), {"at": at_early})
         # Survivor should be earliest created_at then lowest id: a-cny
+        # active is INTEGER on SQLite historical schema and BOOLEAN on PostgreSQL.
+        active_true = "TRUE" if engine.dialect.name == "postgresql" else "1"
         connection.execute(text(
             "INSERT INTO accounts "
             "(id, workspace_id, name, type, currency, active, metadata_json, created_at, updated_at) "
-            "VALUES "
-            "('a-cny', 'w', '工行', 'cash', 'CNY', 1, '{}', :early, :early),"
-            "('a-jpy', 'w', '工行', :type_jpy, 'JPY', 1, '{}', :late, :late)"
+            f"VALUES "
+            f"('a-cny', 'w', '工行', 'cash', 'CNY', {active_true}, '{{}}', :early, :early),"
+            f"('a-jpy', 'w', '工行', :type_jpy, 'JPY', {active_true}, '{{}}', :late, :late)"
         ), {
             "early": at_early,
             "late": at_late,
@@ -135,7 +137,10 @@ def test_merge_same_name_same_type_rewrites_cash_valuation_identities(tmp_path, 
 
     config = _alembic_config(url)
     if backend == "postgresql":
-        command.downgrade(config, "base")
+        from conftest import reset_postgres_schema
+
+        # One-shot multi-currency merge cannot alembic-downgrade; wipe *_test schema.
+        reset_postgres_schema(url)
     command.upgrade(config, "20260720_03")
     engine = create_engine(url)
     _seed_legacy_same_name_accounts(engine, conflict=False)
@@ -202,7 +207,9 @@ def test_merge_same_name_same_type_rewrites_cash_valuation_identities(tmp_path, 
         assert snapshot_payload["accounts"]["cash"]["工行"] == {"CNY": "10", "JPY": "20"}
     engine.dispose()
     if backend == "postgresql":
-        command.downgrade(config, "base")
+        from conftest import reset_postgres_schema
+
+        reset_postgres_schema(url)
 
 
 @pytest.mark.parametrize("backend", ["sqlite", "postgresql"])
@@ -219,7 +226,9 @@ def test_merge_type_conflict_fails_closed(tmp_path, backend):
 
     config = _alembic_config(url)
     if backend == "postgresql":
-        command.downgrade(config, "base")
+        from conftest import reset_postgres_schema
+
+        reset_postgres_schema(url)
     command.upgrade(config, "20260720_03")
     engine = create_engine(url)
     _seed_legacy_same_name_accounts(engine, conflict=True)
@@ -229,8 +238,6 @@ def test_merge_type_conflict_fails_closed(tmp_path, backend):
     assert "工行" in message or "type conflict" in message.lower() or "conflict" in message.lower()
     engine.dispose()
     if backend == "postgresql":
-        # Leave DB clean for other tests if upgrade partially failed.
-        try:
-            command.downgrade(config, "base")
-        except Exception:
-            pass
+        from conftest import reset_postgres_schema
+
+        reset_postgres_schema(url)

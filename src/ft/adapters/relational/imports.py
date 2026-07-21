@@ -244,6 +244,7 @@ class RelationalImportRepository:
                 ) & (AccountModel.id == CashTransactionModel.account_id)).where(
                     CashTransactionModel.workspace_id == self._workspace_id,
                     CashTransactionModel.raw_record_id.in_(chunk),
+                    CashTransactionModel.deleted_at.is_(None),
                 )
             )
             investment_rows = self._session.execute(

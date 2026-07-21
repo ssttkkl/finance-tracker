@@ -11,9 +11,13 @@ from .models import Base, WorkspaceModel
 from .imports import RelationalImportRepository
 from .wealth_facts import RelationalWealthFactWriter
 from .repositories import (
+    RelationalAccountAliasRepository,
     RelationalAccountRepository,
     RelationalCashflowRepository,
+    RelationalFactDeletionRepository,
     RelationalInvestmentRepository,
+    RelationalRelationCheckRunRepository,
+    RelationalRelationRepository,
     RelationalSnapshotRepository,
 )
 
@@ -57,6 +61,10 @@ class RelationalUnitOfWork:
         snapshot: object | None = None
         imports: object | None = None
         wealth_facts: object | None = None
+        relations: object | None = None
+        relation_checks: object | None = None
+        account_aliases: object | None = None
+        fact_deletions: object | None = None
 
     def _state(self) -> "RelationalUnitOfWork._State":
         state = self._state_var.get()
@@ -88,6 +96,22 @@ class RelationalUnitOfWork:
     def wealth_facts(self):
         return self._state().wealth_facts
 
+    @property
+    def relations(self):
+        return self._state().relations
+
+    @property
+    def relation_checks(self):
+        return self._state().relation_checks
+
+    @property
+    def account_aliases(self):
+        return self._state().account_aliases
+
+    @property
+    def fact_deletions(self):
+        return self._state().fact_deletions
+
     def __enter__(self) -> "RelationalUnitOfWork":
         session = self._session_factory()
         try:
@@ -110,6 +134,10 @@ class RelationalUnitOfWork:
             snapshot=RelationalSnapshotRepository(session, self.workspace_id),
             imports=RelationalImportRepository(session, self.workspace_id),
             wealth_facts=RelationalWealthFactWriter(session, self.workspace_id),
+            relations=RelationalRelationRepository(session, self.workspace_id),
+            relation_checks=RelationalRelationCheckRunRepository(session, self.workspace_id),
+            account_aliases=RelationalAccountAliasRepository(session, self.workspace_id),
+            fact_deletions=RelationalFactDeletionRepository(session, self.workspace_id),
         )
         state.token = self._state_var.set(state)
         return self

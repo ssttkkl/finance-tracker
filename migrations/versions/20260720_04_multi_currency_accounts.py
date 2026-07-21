@@ -308,11 +308,12 @@ def _drop_currency_sqlite(connection, id_map: dict[str, str]) -> None:
 
 def _drop_currency_postgres(connection) -> None:
     # Drop old unique, add name unique, drop currency column.
+    # CHECK constraint was already dropped at the start of upgrade() so cash
+    # identity rewrites could run; recreate the multi-currency form here.
     op.drop_constraint("uq_accounts_workspace_name_currency", "accounts", type_="unique")
     op.create_unique_constraint("uq_accounts_workspace_name", "accounts", ["workspace_id", "name"])
     op.drop_column("accounts", "currency")
 
-    op.drop_constraint("ck_valuation_cash_owner_identity", "valuation_observations", type_="check")
     op.create_check_constraint(
         "ck_valuation_cash_owner_identity",
         "valuation_observations",
@@ -329,6 +330,9 @@ def upgrade() -> None:
         _rebuild_snapshots(connection)
         _drop_currency_sqlite(connection, id_map)
         return
+    # PostgreSQL enforces CHECK on UPDATE: drop old equality constraint before
+    # rewriting cash identities to account:currency, then recreate after merge.
+    op.drop_constraint("ck_valuation_cash_owner_identity", "valuation_observations", type_="check")
     # PostgreSQL can update referenced rows and alter the constraints in place.
     valuations = connection.execute(text(
         "SELECT v.observation_id, v.identity, v.owner_account_id, v.currency, a.currency AS account_currency "

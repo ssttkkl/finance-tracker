@@ -22,11 +22,12 @@ def _decimal(value) -> Decimal:
 
 
 class FinanceQueryService:
-    def __init__(self, *, accounts, transactions, snapshots, market_data):
+    def __init__(self, *, accounts, transactions, snapshots, market_data, relation_projector=None):
         self._accounts = accounts
         self._transactions = transactions
         self._snapshots = snapshots
         self._market_data = market_data
+        self._relation_projector = relation_projector
 
     def list_accounts(self) -> AccountListDTO:
         snapshot = self._snapshots.load_snapshot()
@@ -46,32 +47,44 @@ class FinanceQueryService:
             if account.active
         }
 
-        by_account: dict[tuple[str, str], list[dict]] = defaultdict(list)
-        for row in month_rows:
-            key = (
-                row.get("account_name", "").strip(),
-                row.get("currency", "").strip() or "CNY",
-            )
-            if key[0]:
-                by_account[key].append(row)
+        # Relation-aware P&L when projector available (ignores legacy offset_* fields).
+        if self._relation_projector is not None and month is None:
+            projected = self._relation_projector()
+            expenses = {
+                currency: _decimal(amount)
+                for currency, amount in (projected.get("expenses") or {}).items()
+            }
+            income = {
+                currency: _decimal(amount)
+                for currency, amount in (projected.get("income") or {}).items()
+            }
+        else:
+            by_account: dict[tuple[str, str], list[dict]] = defaultdict(list)
+            for row in month_rows:
+                key = (
+                    row.get("account_name", "").strip(),
+                    row.get("currency", "").strip() or "CNY",
+                )
+                if key[0]:
+                    by_account[key].append(row)
 
-        expenses: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
-        for key, rows in by_account.items():
-            if key[0] not in active_accounts:
-                continue
-            rows.sort(key=lambda row: row.get("date", ""))
-            last_checkin = max(
-                (index for index, row in enumerate(rows) if row.get("category") == "checkin"),
-                default=-1,
-            )
-            for row in rows[last_checkin + 1:]:
-                if row.get("category") == "expense":
-                    expenses[key[1]] += abs(_decimal(row.get("amount")))
+            expenses = defaultdict(lambda: Decimal("0"))
+            for key, rows in by_account.items():
+                if key[0] not in active_accounts:
+                    continue
+                rows.sort(key=lambda row: row.get("date", ""))
+                last_checkin = max(
+                    (index for index, row in enumerate(rows) if row.get("category") == "checkin"),
+                    default=-1,
+                )
+                for row in rows[last_checkin + 1:]:
+                    if row.get("category") == "expense":
+                        expenses[key[1]] += abs(_decimal(row.get("amount")))
 
-        income: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
-        for row in month_rows:
-            if row.get("category") == "income":
-                income[row.get("currency", "CNY") or "CNY"] += _decimal(row.get("amount"))
+            income = defaultdict(lambda: Decimal("0"))
+            for row in month_rows:
+                if row.get("category") == "income":
+                    income[row.get("currency", "CNY") or "CNY"] += _decimal(row.get("amount"))
 
         grouped_flows: dict[tuple[str, str], Decimal] = defaultdict(lambda: Decimal("0"))
         for row in all_rows:

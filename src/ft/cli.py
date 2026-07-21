@@ -215,6 +215,34 @@ def _main(argv=None):
     stk_sub.add_parser("list", help="持仓总览")
 
     # convert — account routing from bill + mapping (no CLI account override)
+
+    rel = sub.add_parser("relations", help="账务关系检查与审查")
+    rel_sub = rel.add_subparsers(dest="relations_cmd")
+    rel_pending = rel_sub.add_parser("pending", help="列出 pending_review 关系")
+    rel_pending.add_argument("--kind", default=None)
+    rel_check = rel_sub.add_parser("check", help="对种子事实重跑关系检查")
+    rel_check.add_argument("--fact-id", action="append", default=[])
+    rel_check.add_argument("--batch-id", default=None)
+    rel_accept = rel_sub.add_parser("accept", help="接受 pending 关系")
+    rel_accept.add_argument("relation_id")
+    rel_accept.add_argument("--actor", default="cli-user")
+    rel_accept.add_argument("--reason", default="")
+    rel_reject = rel_sub.add_parser("reject", help="拒绝 pending 关系")
+    rel_reject.add_argument("relation_id")
+    rel_reject.add_argument("--actor", default="cli-user")
+    rel_reject.add_argument("--reason", default="rejected")
+    rel_later = rel_sub.add_parser("later", help="稍后处理（仍 pending）")
+    rel_later.add_argument("relation_id")
+    rel_later.add_argument("--actor", default="cli-user")
+    rel_alias = rel_sub.add_parser("alias-add", help="添加账户别名（仅增强匹配）")
+    rel_alias.add_argument("--type", dest="alias_type", default="card_tail")
+    rel_alias.add_argument("--value", required=True)
+    rel_alias.add_argument("--account", required=True)
+    fact_del = sub.add_parser("fact-delete", help="可审计逻辑删除正式现金事实")
+    fact_del.add_argument("fact_id")
+    fact_del.add_argument("--actor", default="cli-user")
+    fact_del.add_argument("--reason", required=True)
+
     cv = sub.add_parser("convert", help="步骤① 账单→统一CSV", allow_abbrev=False)
     cv.add_argument("file", help="账单文件路径")
     cv.add_argument("-s", "--source", required=True,
@@ -247,6 +275,82 @@ def _main(argv=None):
 
     if not args.cmd:
         parser.print_help()
+        return
+
+
+    if args.cmd == "relations":
+        services = _runtime_services()
+        if not args.relations_cmd:
+            print("usage: ft relations {pending|check|accept|reject|later|alias-add}")
+            raise SystemExit(2)
+        if args.relations_cmd == "pending":
+            rows = services.relations.list_pending(kind=args.kind)
+            for row in rows:
+                print(
+                    f"{row['id']}\t{row['kind']}\t{row['status']}\t"
+                    f"{row['primary_fact_id']}\t{row['secondary_fact_id']}\t"
+                    f"{row.get('confidence','')}\t{row.get('rule_id','')}"
+                )
+            return
+        if args.relations_cmd == "check":
+            result = services.relations.check(
+                seed_fact_ids=args.fact_id or None,
+                seed_batch_id=args.batch_id,
+                trigger="manual_range" if (args.fact_id or args.batch_id) else "full_recompute",
+            )
+            print(result.message)
+            if not result.ok:
+                raise SystemExit(1)
+            return
+        if args.relations_cmd == "accept":
+            result = services.relations.accept(args.relation_id, actor=args.actor, reason=args.reason)
+            print(result.message)
+            if not result.ok:
+                raise SystemExit(1)
+            return
+        if args.relations_cmd == "reject":
+            result = services.relations.reject(args.relation_id, actor=args.actor, reason=args.reason)
+            print(result.message)
+            if not result.ok:
+                raise SystemExit(1)
+            return
+        if args.relations_cmd == "later":
+            result = services.relations.later(args.relation_id, actor=args.actor)
+            print(result.message)
+            if not result.ok:
+                raise SystemExit(1)
+            return
+        if args.relations_cmd == "alias-add":
+            from sqlalchemy import select
+            from ft.adapters.relational.models import AccountModel
+            with services.uow as uow:
+                session = uow._state().session
+                acc = session.scalar(select(AccountModel).where(
+                    AccountModel.workspace_id == uow.workspace_id,
+                    AccountModel.name == args.account,
+                ))
+                if acc is None:
+                    print(f"account not found: {args.account}")
+                    raise SystemExit(1)
+                alias_id = uow.account_aliases.add(
+                    alias_type=args.alias_type,
+                    alias_value=args.value,
+                    account_id=acc.id,
+                )
+                uow.commit()
+            print(alias_id)
+            return
+        print("unknown relations command")
+        raise SystemExit(2)
+
+    if args.cmd == "fact-delete":
+        services = _runtime_services()
+        result = services.relations.logical_delete_cash(
+            args.fact_id, actor=args.actor, reason=args.reason,
+        )
+        print(result.message)
+        if not result.ok:
+            raise SystemExit(1)
         return
 
     if args.cmd == "import":

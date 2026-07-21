@@ -1,8 +1,10 @@
 """Shared relational test policy."""
 from __future__ import annotations
 
-import os
+from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urlparse
+import os
 
 import pytest
 
@@ -18,3 +20,73 @@ def require_test_postgres_url() -> str | None:
     if not name.endswith("_test"):
         pytest.fail("FT_TEST_POSTGRES_URL must target a dedicated _test database")
     return url
+
+
+def reset_postgres_schema(url: str) -> None:
+    """Wipe a dedicated *_test PostgreSQL database without Alembic downgrade.
+
+    Multi-currency migration (20260720_04) is intentionally one-shot and not
+    reversible; dual-backend fixtures must not call ``downgrade('base')``.
+    """
+    from sqlalchemy import create_engine, text
+
+    if not urlparse(url).path.rsplit("/", 1)[-1].endswith("_test"):
+        raise RuntimeError("refusing to reset non-_test PostgreSQL database")
+    engine = create_engine(url, isolation_level="AUTOCOMMIT")
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+            connection.execute(text("CREATE SCHEMA public"))
+            connection.execute(text("GRANT ALL ON SCHEMA public TO CURRENT_USER"))
+            connection.execute(text("GRANT ALL ON SCHEMA public TO public"))
+    finally:
+        engine.dispose()
+
+
+def _relation_backend_names() -> list[str]:
+    postgres_url = os.environ.get("FT_TEST_POSTGRES_URL")
+    if postgres_url:
+        return ["sqlite", "postgresql"]
+    if os.environ.get("FT_REQUIRE_TEST_POSTGRES") == "1":
+        pytest.fail("FT_REQUIRE_TEST_POSTGRES=1 requires FT_TEST_POSTGRES_URL")
+    return ["sqlite"]
+
+
+@dataclass
+class RelationRuntime:
+    name: str
+    services: object
+    sessions: object
+    workspace_id: str = "relations-workspace"
+
+
+@pytest.fixture(params=_relation_backend_names())
+def relation_runtime(request, tmp_path):
+    from alembic import command
+    from alembic.config import Config
+    from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace
+    from ft.config import StorageSettings
+    from ft.runtime import build_services
+
+    root = Path(__file__).parents[1]
+    if request.param == "sqlite":
+        url = f"sqlite+pysqlite:///{tmp_path / 'relations.db'}"
+    else:
+        url = os.environ["FT_TEST_POSTGRES_URL"]
+        assert url.rsplit("/", 1)[-1].endswith("_test")
+        reset_postgres_schema(url)
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "migrations"))
+    config.set_main_option("sqlalchemy.url", url)
+    command.upgrade(config, "head")
+    engine = create_relational_engine(url)
+    sessions = create_session_factory(engine)
+    ensure_workspace(sessions, "relations-workspace")
+    services = build_services(StorageSettings(url, "relations-workspace"))
+    runtime = RelationRuntime(request.param, services, sessions)
+    try:
+        yield runtime
+    finally:
+        engine.dispose()
+        if request.param == "postgresql":
+            reset_postgres_schema(url)

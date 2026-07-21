@@ -73,3 +73,15 @@ ft convert FILE --source alipay -o preview.csv
 
 `ft convert ... --output FILE` 与 `ft stock convert ... --output FILE` 只用于人工检查解析结果。导出的
 CSV 不被应用读取为当前账本、快照或事务日志；正式写入仍使用原始文件的 `ft import`。
+
+<!-- 006-transaction-relations -->
+## Transaction relations (006)
+
+After `ft import` commits formal facts, a relation check may create `payment_mirror`,
+`transfer_pair` (optional `credit_repayment` subtype), and `refund_offset` relations.
+Reports use **active facts + accepted relations** only. Pairing never physically deletes
+facts or rewrites amounts. Historical duplicates are handled by audited logical delete
+(`ft fact-delete`); re-import of the same source identity publishes a **new** active fact.
+Legacy `offset_*` / `transfer_account` / `proposed_action` fields are non-authoritative.
+Review: `ft relations pending|accept|reject|later`. Manual re-check: `ft relations check`.
+

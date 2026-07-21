@@ -20,6 +20,8 @@ def postgres_sessions():
     from alembic.config import Config
     from sqlalchemy import create_engine
 
+    from conftest import reset_postgres_schema
+
     database_name = urlparse(DATABASE_URL).path.removeprefix("/")
     if not database_name.endswith("_test"):
         pytest.fail("FT_TEST_POSTGRES_URL must target a database ending in _test")
@@ -28,7 +30,8 @@ def postgres_sessions():
     config = Config(str(root / "alembic.ini"))
     config.set_main_option("script_location", str(root / "migrations"))
     config.set_main_option("sqlalchemy.url", DATABASE_URL)
-    command.downgrade(config, "base")
+    # 20260720_04 is one-shot; never alembic downgrade through it on PG.
+    reset_postgres_schema(DATABASE_URL)
     command.upgrade(config, "head")
 
     from ft.adapters.relational import create_session_factory
@@ -38,7 +41,7 @@ def postgres_sessions():
         yield create_session_factory(engine)
     finally:
         engine.dispose()
-        command.downgrade(config, "base")
+        reset_postgres_schema(DATABASE_URL)
 
 
 def test_live_postgres_runtime_cross_entrypoint_and_empty_home(
@@ -77,7 +80,7 @@ def test_live_postgres_workspace_isolation_and_transaction_rollback(postgres_ses
     AccountService(workspace_a).create_account("Cash", "cash", "CNY")
     assert CashflowService(workspace_a).add_manual_transaction(
         amount=Decimal("1.230000000000000001"), counterparty="Exact",
-        account_name="Cash", date="2026-07-17 09:00:00",
+        account_name="Cash", currency="CNY", date="2026-07-17 09:00:00",
     ).ok
     assert AccountService(workspace_b).list_accounts() == []
 
