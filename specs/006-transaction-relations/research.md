@@ -107,9 +107,20 @@ Auto path emits pending with conflict evidence; human must supersede before acce
 
 **Decision**: v1 does not create accepted one-sided relations. Text signals may surface as user hints to add missing counterparty; pairing only after both legs exist.
 
-## Open implementation details deferred to tasks (not product ambiguity)
+## Decision 15: Relation-check performance budget (3y / 10k / 60s)
 
-- Exact table names/indexes
-- Whether check-run is sync-only or optional background worker
-- CLI flag names
-- Precise JSON evidence schema versioning (`rule_id` string taxonomy)
+**Decision**: Full relation check on a personal ledger of ~3 years / ≥10_000 active cash facts must finish within **60 seconds** wall clock on a local single-process run. Default implementation uses `FactCandidateIndex` buckets:
+
+| Kind | Index keys (prune only) | Business window unchanged |
+|---|---|---|
+| payment_mirror | (source_group, currency, abs_amount, day±1) | 10s / same-day unique+text |
+| transfer_pair | (currency, abs_amount, day±1) + FX day lists | 10s / 600s repayment / same-day unionpay |
+| refund_offset | (currency, day) expense/refund lists over ≤31d | 30d candidate / 14d auto |
+
+No O(n²) full double scan. Semantics of FR-016/017/020 unchanged.
+
+**Rationale**: User-set performance gate; real `~/.ft` ~11k facts measured ~54s after indexing (under 60s).
+
+**Alternatives rejected**:
+- Keep nested full scans + monthly chunking only — total work still Θ(n²).
+- Shrink business windows for speed — would change acceptance semantics.

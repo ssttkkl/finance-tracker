@@ -10,6 +10,7 @@ from ft.domain.application import OperationResult
 from ft.domain.relations import (
     CONFIDENCE_STRONG,
     CONFIDENCE_WEAK,
+    FactCandidateIndex,
     FactType,
     FactView,
     RelationCheckStatus,
@@ -76,12 +77,15 @@ class RelationService:
                 remaining = self._refund_remaining(uow, active_facts)
                 created = []
                 stats = {"pending": 0, "accepted": 0, "skipped": 0, "supersessions": 0}
+                # Indexed candidates: amount/currency/day buckets (FR-025, ≤60s full check).
+                index = FactCandidateIndex(active_facts)
 
                 # payment_mirror: global 1:1 greedy (main dedup spirit), not per-seed flood.
                 mirror_proposals = match_payment_mirrors_greedy(
                     active_facts,
                     aliases_by_tail=aliases,
                     seed_ids=seeds,
+                    index=index,
                 )
                 for proposal in mirror_proposals:
                     outcome = self._persist_proposal(uow, proposal, remaining)
@@ -96,11 +100,14 @@ class RelationService:
 
                 for seed in seed_views:
                     proposals = []
-                    others = [f for f in active_facts if f.id != seed.id]
-                    tp = evaluate_transfer_pair(seed, others)
+                    tp = evaluate_transfer_pair(seed, index.transfer_candidates(seed))
                     if tp is not None:
                         proposals.append(tp)
-                    rf = evaluate_refund_offset(seed, others, remaining_by_expense=remaining)
+                    rf = evaluate_refund_offset(
+                        seed,
+                        index.refund_candidates(seed),
+                        remaining_by_expense=remaining,
+                    )
                     if rf is not None:
                         proposals.append(rf)
                     for proposal in proposals:

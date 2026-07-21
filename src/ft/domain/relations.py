@@ -3,10 +3,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from enum import Enum
 from typing import Any, Iterable, Mapping, Sequence
+import bisect
 import re
 
 
@@ -92,6 +93,190 @@ REPAYMENT_SIGNAL_TOKENS = (
 REFUND_SIGNAL_TOKENS = (
     "退款", "退货", "退回", "冲正", "refund", "return",
 )
+
+# Performance: candidate index day padding beyond business windows (safety for TZ).
+CANDIDATE_DAY_PAD = 1
+
+
+@dataclass
+class _IndexedFact:
+    fact: FactView
+    ts: float
+    day: str
+    abs_amount: Decimal
+    currency: str
+    sign: int
+    group: str
+
+
+class FactCandidateIndex:
+    """In-memory indexes for O(bucket) candidate lookup instead of O(n) scans.
+
+    Business windows stay as specified; this only prunes impossible pairs.
+    """
+
+    def __init__(self, facts: Sequence[FactView]):
+        self.by_id: dict[str, FactView] = {}
+        self._mirror_buckets: dict[tuple[str, str, Decimal, str], list[_IndexedFact]] = defaultdict(list)
+        # currency, abs_amount, day -> signed lists for transfers
+        self._xfer_out: dict[tuple[str, Decimal, str], list[_IndexedFact]] = defaultdict(list)
+        self._xfer_in: dict[tuple[str, Decimal, str], list[_IndexedFact]] = defaultdict(list)
+        # FX repayment: day -> cash outs / loan ins
+        self._fx_cash_out_by_day: dict[str, list[_IndexedFact]] = defaultdict(list)
+        self._fx_loan_in_by_day: dict[str, list[_IndexedFact]] = defaultdict(list)
+        # refund: currency, day -> expenses / refunds
+        self._expenses_by_day: dict[tuple[str, str], list[_IndexedFact]] = defaultdict(list)
+        self._refunds_by_day: dict[tuple[str, str], list[_IndexedFact]] = defaultdict(list)
+        # sorted day keys per currency for refund window walk
+        self._expense_days_by_currency: dict[str, list[str]] = defaultdict(list)
+        self._refund_days_by_currency: dict[str, list[str]] = defaultdict(list)
+
+        for fact in facts:
+            if fact.deleted or fact.fact_type != FactType.CASH.value:
+                continue
+            try:
+                dt = _parse_dt(fact.occurred_at)
+            except ValueError:
+                continue
+            amount = fact.signed_amount
+            if amount == 0:
+                continue
+            idx = _IndexedFact(
+                fact=fact,
+                ts=dt.timestamp(),
+                day=dt.date().isoformat(),
+                abs_amount=_abs_decimal(amount),
+                currency=str(fact.currency or "CNY").upper(),
+                sign=1 if amount > 0 else -1,
+                group=source_group(fact),
+            )
+            self.by_id[fact.id] = fact
+            # mirror: platform vs bank buckets by (group, currency, abs, day)
+            if idx.group in {"platform", "bank"}:
+                self._mirror_buckets[(idx.group, idx.currency, idx.abs_amount, idx.day)].append(idx)
+            # transfer same-currency opposite sign
+            if idx.sign < 0:
+                self._xfer_out[(idx.currency, idx.abs_amount, idx.day)].append(idx)
+                if fact.account_type == "cash":
+                    self._fx_cash_out_by_day[idx.day].append(idx)
+            else:
+                self._xfer_in[(idx.currency, idx.abs_amount, idx.day)].append(idx)
+                if fact.account_type == "loan":
+                    self._fx_loan_in_by_day[idx.day].append(idx)
+            # refunds / expenses
+            if idx.sign < 0:
+                self._expenses_by_day[(idx.currency, idx.day)].append(idx)
+            else:
+                self._refunds_by_day[(idx.currency, idx.day)].append(idx)
+
+        for cur in {k[0] for k in self._expenses_by_day}:
+            days = sorted({d for c, d in self._expenses_by_day if c == cur})
+            self._expense_days_by_currency[cur] = days
+        for cur in {k[0] for k in self._refunds_by_day}:
+            days = sorted({d for c, d in self._refunds_by_day if c == cur})
+            self._refund_days_by_currency[cur] = days
+
+    @staticmethod
+    def _neighbor_days(day: str, pad: int = CANDIDATE_DAY_PAD) -> list[str]:
+        base = datetime.fromisoformat(day).date()
+        return [(base + timedelta(days=offset)).isoformat() for offset in range(-pad, pad + 1)]
+
+    def mirror_candidates(self, seed: FactView) -> list[FactView]:
+        group = source_group(seed)
+        if group not in {"platform", "bank"}:
+            return []
+        other = "bank" if group == "platform" else "platform"
+        try:
+            day = _parse_dt(seed.occurred_at).date().isoformat()
+        except ValueError:
+            return []
+        currency = str(seed.currency or "CNY").upper()
+        abs_amount = _abs_decimal(seed.signed_amount)
+        out: list[FactView] = []
+        for d in self._neighbor_days(day):
+            for item in self._mirror_buckets.get((other, currency, abs_amount, d), ()):
+                if item.fact.id != seed.id:
+                    out.append(item.fact)
+        return out
+
+    def transfer_candidates(self, seed: FactView) -> list[FactView]:
+        try:
+            day = _parse_dt(seed.occurred_at).date().isoformat()
+        except ValueError:
+            return []
+        currency = str(seed.currency or "CNY").upper()
+        amount = seed.signed_amount
+        abs_amount = _abs_decimal(amount)
+        out: list[FactView] = []
+        days = self._neighbor_days(day)
+        if amount < 0:
+            # look for in-legs same currency abs
+            for d in days:
+                for item in self._xfer_in.get((currency, abs_amount, d), ()):
+                    if item.fact.id != seed.id and item.fact.account_id != seed.account_id:
+                        out.append(item.fact)
+            # FX repayment: cash out may match loan in any currency same day window
+            if seed.account_type == "cash":
+                for d in days:
+                    for item in self._fx_loan_in_by_day.get(d, ()):
+                        if item.fact.id != seed.id and item.fact.account_id != seed.account_id:
+                            out.append(item.fact)
+        else:
+            for d in days:
+                for item in self._xfer_out.get((currency, abs_amount, d), ()):
+                    if item.fact.id != seed.id and item.fact.account_id != seed.account_id:
+                        out.append(item.fact)
+            if seed.account_type == "loan":
+                for d in days:
+                    for item in self._fx_cash_out_by_day.get(d, ()):
+                        if item.fact.id != seed.id and item.fact.account_id != seed.account_id:
+                            out.append(item.fact)
+        # de-dupe preserve order
+        seen: set[str] = set()
+        unique: list[FactView] = []
+        for fact in out:
+            if fact.id not in seen:
+                seen.add(fact.id)
+                unique.append(fact)
+        return unique
+
+    def refund_candidates(self, seed: FactView) -> list[FactView]:
+        try:
+            seed_dt = _parse_dt(seed.occurred_at)
+        except ValueError:
+            return []
+        currency = str(seed.currency or "CNY").upper()
+        amount = seed.signed_amount
+        out: list[FactView] = []
+        # window pad: refund may be up to REFUND_CANDIDATE_DAYS after expense
+        pad_days = REFUND_CANDIDATE_DAYS + CANDIDATE_DAY_PAD
+        if amount > 0:
+            # seed is refund-like: look for earlier expenses
+            days = self._expense_days_by_currency.get(currency, [])
+            if not days:
+                return []
+            start = (seed_dt.date() - timedelta(days=pad_days)).isoformat()
+            end = seed_dt.date().isoformat()
+            lo = bisect.bisect_left(days, start)
+            hi = bisect.bisect_right(days, end)
+            for d in days[lo:hi]:
+                for item in self._expenses_by_day.get((currency, d), ()):
+                    if item.fact.id != seed.id:
+                        out.append(item.fact)
+        elif amount < 0:
+            # seed is expense: look for later refunds
+            days = self._refund_days_by_currency.get(currency, [])
+            if not days:
+                return []
+            start = seed_dt.date().isoformat()
+            end = (seed_dt.date() + timedelta(days=pad_days)).isoformat()
+            lo = bisect.bisect_left(days, start)
+            hi = bisect.bisect_right(days, end)
+            for d in days[lo:hi]:
+                for item in self._refunds_by_day.get((currency, d), ()):
+                    if item.fact.id != seed.id:
+                        out.append(item.fact)
+        return out
 
 
 def ordered_fact_pair(fact_a: str, fact_b: str) -> tuple[str, str]:
@@ -582,12 +767,16 @@ def match_payment_mirrors_greedy(
     *,
     aliases_by_tail: Mapping[str, Sequence[str]] | None = None,
     seed_ids: Sequence[str] | None = None,
+    index: FactCandidateIndex | None = None,
 ) -> list[RelationProposal]:
     """Global 1:1 greedy payment_mirror matching (main dedup spirit).
 
     Only facts in ``seed_ids`` (if provided) may initiate a pair, but candidates
     may be any active fact. Each fact participates in at most one accepted or
     pending mirror returned here.
+
+    When ``index`` is provided, candidates are pruned by amount/currency/day
+    buckets (FR-025) instead of scanning all active facts.
     """
     active = [f for f in facts if not f.deleted and f.fact_type == FactType.CASH.value]
     by_id = {f.id: f for f in active}
@@ -603,7 +792,10 @@ def match_payment_mirrors_greedy(
     for seed in seeds:
         if seed.id in used:
             continue
-        others = [f for f in active if f.id != seed.id and f.id not in used]
+        if index is not None:
+            others = [f for f in index.mirror_candidates(seed) if f.id not in used]
+        else:
+            others = [f for f in active if f.id != seed.id and f.id not in used]
         proposal = evaluate_payment_mirror(seed, others, aliases_by_tail=aliases_by_tail)
         if proposal is None:
             continue
