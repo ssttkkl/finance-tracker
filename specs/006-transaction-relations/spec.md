@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-21
 
-**Status**: Spec updated — open-leg pending; re-plan/tasks required before implement
+**Status**: Open-leg pending implemented on branch 006-open-leg-pending; deferred items listed under Non-Goals
 
 **Input**: User description: "重新设计账单导入后的去重、退款核销、转账配对、跨平台消费合并逻辑。核心原则：所有导入产生的原始事实都保留，不因配对/去重/退款核销而物理删除或改写原始记录；系统只追加记录事实之间的关系与判断证据/状态，再由报表和派生投影读取这些关系来避免重复统计或计算净额。配对规则可参考 main 分支当前实现。"
 
@@ -484,6 +484,8 @@
 - v1 不对已删除事实实例提供用户自助 undelete；再入账靠重新导入。
 
 ## Non-Goals
+
+- **不在本 feature 修正账单导入对「交易关闭 / 交易关闭→退款成功→重下单」的语义**（见后续独立 feature）：当前支付宝 convert 跳过「交易关闭」行并保留「退款成功」，会导致库中出现「退款早于另一笔成功支出、订单号不同」的假 orphan；正确导入/关系语义另开规格，不在 006 关系层用时间放宽误配新单。
 
 - 不恢复 CSV 时代物理删除式 dedup/reconcile，不把 pending CSV 当审查机制。
 - 不通过修改原始事实金额表达退款净额。
