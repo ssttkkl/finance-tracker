@@ -31,3 +31,10 @@ Closed A (non_funding) + full refund of A:
 
 - net default balance impact 0 before any reorder success B
 - B funding success applies normal expense impact
+
+## Import-time refund_offset
+
+When alipay refund uniquely matches an origin by order key:
+
+- MUST create `refund_offset` at import (`rule_id` e.g. `import.alipay.order_prefix.v1`)
+- Later relation scan MUST NOT create a competing auto edge for the same refund leg

@@ -52,3 +52,11 @@
 **Decision**: One Alembic revision for any new columns; SQLite+PG tests for acceptance counters and non-funding balance exclusion.
 
 **Rationale**: Constitution IV.
+
+## Decision 9: No alipay refund_offset 补漏 in relation scan
+
+**Decision**: Alipay same-platform order-key refunds are finalized at **import** as `refund_offset`. Relation `check` does **not** re-hunt alipay refunds already linked; it focuses on cross-source mirror, transfers, and non-alipay/no-key refunds.
+
+**Rationale**: Real 3y bills: 151/151 nonzero alipay refunds uniquely match origin with `==` / `startswith(origin+'_')` / `startswith(origin+'*')`. Residual 补漏 count ≈ 0.
+
+**Alternatives considered**: Keep dual-path import+scan soft match — rejected (duplicate risk, weaker than order key).

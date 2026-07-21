@@ -91,6 +91,12 @@ No constitution violations requiring justification.
 - Balance snapshot updates **only** for funding-occupying facts.
 - Minimal 006 hook: refund matching may use origin_order_id exact before title.
 
+### Phase C2 — Import emits refund_offset; scan does not 补漏 alipay orders
+
+- On unique order-key match, insert `transaction_relations` refund_offset at import.
+- Relation check skips facts that already have active refund_offset for that pair/refund.
+- **No alipay refund 补漏** path in check for order-key cases.
+
 ### Phase D — Verification
 
 - Dual-backend tests.

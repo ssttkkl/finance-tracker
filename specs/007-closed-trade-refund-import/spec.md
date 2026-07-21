@@ -34,6 +34,8 @@
 - Q: 投资/证券行？ → A: 属于条目则必须进入导入管道，不得因「不好归类」静默丢弃。
 - Q: 与历史已跳过数据？ → A: 本 feature 以**新导入正确性**为主；全量回填可另任务，但验收必须能用真实 `~/.ft/bills` 样本证明关单等不再被跳过。
 
+- Q: 支付宝订单可唯一对齐的退款，是否仍由 006 关系扫描补漏？ → A: **否**。同平台订单键（`txn` 全等 / `startswith(origin+'_')` / `startswith(origin+'*')`）唯一命中时，MUST 在**导入阶段**落 `refund_offset`（通常 accepted）。后续 `relations check` **MUST NOT** 再以「支付宝退款补漏」为职责去弱扫支付宝消费；扫描仅处理跨源、转账、他源退款、以及导入未能唯一落边的例外（本库模拟为 0）。
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - 任何账单条目不得被静默跳过 (Priority: P1)
@@ -189,6 +191,10 @@
 - **FR-021**: 正式事实不可变、逻辑删除、raw→formal 审计链、workspace 隔离 MUST 继续适用。
 - **FR-022**: PostgreSQL 与 SQLite 上，是否接纳每条明细、关闭态、余额排除、订单前缀、对账计数与错误合同 MUST 用户可见等价。
 
+- **FR-023**: 支付宝导入在订单键可**唯一**对齐退款与原单时，MUST 直接发布 `refund_offset`（rule 可审计，如 `import.alipay.order_prefix`），不得等待全库关系扫描。
+- **FR-024**: 006/`relations check` MUST NOT 再承担「支付宝同平台订单退款主路径补漏」；已有活跃 `refund_offset` 的退款/原单 MUST 跳过重复推荐。扫描保留：跨源 `payment_mirror`、`transfer_pair`、非支付宝/无订单键退款、导入多候选/未命中的例外。
+
+
 ### Key Entities
 
 - **Source Transaction Line**: 账单中的一条交易明细（非版式噪声）。
@@ -211,6 +217,8 @@
 - **SC-007**: 成功单+退款主路径回归：行为不劣于基线。
 - **SC-008**: 同一矩阵在 PostgreSQL 与 SQLite 等价。
 - **SC-009**: 真实 `~/.ft/bills` 已核实案例（小桌子/垃圾桶/装米桶/健腹轮/荣事达等）导入后，关单行不再丢失，退款订单前缀可对齐关单，且不与重拍成功单混淆。
+- **SC-011**: 在真实三年支付宝账单上，非 0「退款成功」在导入订单前缀规则下 100% 唯一对齐原单并可落 `refund_offset`；关系扫描对这类退款的「补漏」命中期望为 0（回归：导入后 check 不得再为同一退款新建竞争边）。
+
 - **SC-010**: 导入结果计数使「成功批次」可机械验证：新发布 + 幂等命中 = 源交易行数。
 
 ## Assumptions
