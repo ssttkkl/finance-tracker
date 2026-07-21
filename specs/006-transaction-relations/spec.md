@@ -30,7 +30,8 @@
 - Q: 可审计手动删除采用什么语义？ → A: 采用逻辑删除：保留 Formal Fact、RawRecord 与 revisions，追加删除墓碑/事件；投影排除该事实并原子 supersede 相关活跃关系。删除只让该事实实例退出当前投影，不永久封禁其 source identity。
 - Q: 逻辑删除后同一 source identity 再导入如何处理？ → A: **正常导入发布新的活跃正式事实**。不得把旧的已删除事实静默“复活/取消删除”；旧墓碑与审计保留。行级幂等仅阻止“已存在活跃正式事实”的同 identity 重复发布。
 - Q: 金额“可接受误差”如何处理？ → A: 不设金额容差；预期等额的同币种关系必须以 Decimal 严格相等才可自动 accepted，任意非零差额只能 pending。退款按精确剩余余额区分全额、部分与超额；跨币种关系不使用等额条件。
-- Q: main 分支配对时间窗与规则族如何落到 v1？ → A: `payment_mirror` 仅 platform×bank、全局 1:1。**(A) 强**：等额 + |Δt|≤10s + 文本子串或卡尾/别名 + 唯一 → auto。**(B) 同账户短窗 exact-2（无文本）**：同一 account_id、等额、同号、恰好 1 平台+1 银行、**平台时间 ≤ 银行时间**、Δt=银行−平台 ∈ **[0, 60s]** → auto（银行通道摘要无商户属预期，不是假阳性）。**(C)** 有文本/卡尾时，跨账户也可在 ≤60s 且唯一时 auto。**不以自然日为 auto 窗**。平台晚于银行默认不 auto（银行缺时分/日切另议）。裸同日同额无上述条件 MUST NOT pending 洪水。**近强未达 MUST pending**（见 FR-016）：如同账户 exact 但 lag∈(60s,5min]、有文本但 |Δt|∈(60s,5min]、≤10s 等额无文本且不同账户、有文本/卡尾但金额有精确差额且 |Δt|≤60s、平台略晚于银行但 |Δt|≤60s 且等额同账户或有文本、auto 条件满足但候选不唯一。`transfer_pair` 同币种 ≤10s+信号唯一；同日银联组合另册；`credit_repayment` 600s/10s；`refund_offset` 30d/14d。
+- Q: pending 与静默的召回原则？ → A: **pending 高召回优先于高精确**：不得漏掉任何「仍有合理配对机会」的 platform×bank 候选。分层为 auto（高置信）/ pending（近强或 main 会处理但我们不愿 auto）/ silent（连候选形态都不成立）。**凡 main 会自动处理、但本 spec 因过强而不 auto 的规则，MUST 降级为 pending，不得 skip。** 例：同账户同日 exact-2 超出 60s 短窗 → pending 而非静默；平台略晚于银行的近窗 → pending 而非静默。裸「不同账户、无文本、仅同日同额」仍可 silent（main 亦无此键）。
+- Q: main 分支配对时间窗与规则族如何落到 v1？ → A: `payment_mirror` 仅 platform×bank、全局 1:1。**(A) 强 auto**：等额 + |Δt|≤10s + 文本子串或卡尾/别名 + 唯一。**(B) 同账户短窗 exact-2 auto**：同一 account_id、等额、同号、恰好 1+1、平台≤银行、lag∈[0,**60s**]，可无文本。**(C) 短窗+文本 auto**：≤60s+文本/卡尾+唯一。**(P) pending 高召回**：同账户同日 exact 但 lag>60s 或平台更晚；有文本同日/短窗外未达 auto；≤10s 无文本不同账户；金额精确差额近窗；多候选不唯一。`transfer_pair`/`refund_offset` 同理：main 会命中但我们不 auto 的 → pending。
 - Q: `payment_mirror` 的 source 与账户约束？ → A: MUST 一侧为支付平台源（alipay/wechat 等）、一侧为银行通道源（icbc/ccb 等）。MUST NOT 将 bank×bank 或 platform×platform 建为 `payment_mirror`（后者若为调拨应走 `transfer_pair`）。多账户/多币种模型下**不以 account_id 或 account_name 不同为必要条件**（同一实体账户可同时承接平台账单与信用卡账单）；账户关联以 platform×bank + 文本/卡尾/别名 + 时间/金额 为准，对齐 main 在「同账户名」下的跨源语义。
 - Q: 镜像 weak/pending 的目标量级？ → A: 不确定时优先静默不推荐；pending 仅保留近强未达（如 10 秒内等额但文本不足、或强时间窗内唯一但金额有精确差额、或多近强候选冲突）。全量真实账本上 `payment_mirror` pending 应保持可审查量级（目标数十～低百条量级，而非「同日同额全进 inbox」）。
 - Q: 多条支付平台/银行事实 mirror 时如何计次？ → A: accepted `payment_mirror` 可形成连通组；组内只计一次外部消费，且必须有确定性 canonical；若无法确定唯一 canonical 则 pending。自动匹配采用全局 1:1 greedy，任一事实最多参与一条新建 mirror 边（连通组可经后续边扩展，但单次检查不双配同一事实）。
@@ -296,19 +297,22 @@
   3. **强 auto-accept**：等额 + 有效时间差 ≤10 秒 +（main 式 counterparty/description 双向子串交叉 **或** 卡尾号/账户别名）+ 候选唯一。
   4. **同账户短窗 exact-2 auto-accept（对齐 main cross_source，收窄窗）**：platform×bank、**同一 account_id**、等额、同号、该键恰好 1 平台+1 银行、**平台时间 ≤ 银行时间**、Δt=银行−平台 ∈ **[0, 60]** 秒 → MUST 可 auto-accept，**不要求**商户文本（银行通道摘要信息少于平台属预期）。**禁止以自然日整天为 auto 窗**。
   5. **有文本/卡尾的短窗 auto-accept**：等额 + platform×bank + 文本子串或卡尾/别名 + 候选唯一 + |Δt|≤60s（含跨账户）→ MAY auto-accept。
-  6. **静默（不建 relation）**：仅当连近强也不满足时——例如裸同日同额、|Δt|>5min 且无强文本锁、完全无 platform×bank 结构等。静默 ≠「所有非 auto 都丢掉」。
-  7. **Pending（近强未达，MUST 进 Review Inbox）** 至少包括：
-     - **P1** 同账户、等额、平台≤银行，但 lag∈(**60s, 5min**]；
-     - **P2** 有文本/卡尾、等额、|Δt|∈(**60s, 5min**]；
+  6. **静默（不建 relation）**：仅当**候选形态都不成立**时——非 platform×bank、符号/金额结构不可能、无同账户且无文本且仅远日等。**禁止**把「main 会处理但我们不 auto」的案例静默跳过。
+  7. **Pending 高召回（MUST）**：宁可多召回，不可漏可能配对。至少包括：
+     - **P1** 同账户、等额、platform×bank、**同日**，未达 B auto（含 lag>60s 或平台更晚）；
+     - **P2** 有文本/卡尾、等额、platform×bank、同日或近窗，未达 A/C auto；
      - **P3** 等额、|Δt|≤10s、无文本、**不同账户**；
-     - **P4** 有文本/卡尾、|Δt|≤60s，但金额有**精确非零差额**；
-     - **P5** 等额、同账户或有文本、|Δt|≤60s，但**平台略晚于银行**；
-     - **P6** 本可 auto 但**候选不唯一** → 不得静默丢弃，必须 pending。
-  8. **基数**：全局 1:1 greedy；不唯一时走 P6 pending，不得静默任选。
+     - **P4** 有文本/卡尾、近窗，金额有**精确非零差额**；
+     - **P5** 等额、同账户或有文本、近窗/同日，但**平台晚于银行**；
+     - **P6** 本可 auto 但**候选不唯一**；
+     - **P7** 其它 main 会命中、本 spec 故意不 auto 的镜像形态 → **pending 而非 skip**。
+  8. **基数**：全局 1:1 greedy；不唯一时 P6 pending，不得静默任选。
   9. **Canonical**：支付平台详情优先于银行通道摘要。
-  10. **时间序**：auto 默认平台≤银行；平台更晚仅可 **pending（P5）** 或未来日切例外，不得 auto。
-  11. **main 汲取纪律**：冲突项永不汲取；其余无真反例则汲取。「银行仅通道名」不是假阳性。
-- **FR-016a**: 多账户模型下 MUST NOT 以「同 account_name」为必要条件；**同 account_id 的短窗 exact-2** 与卡尾/别名/文本交叉一并作为账户关联手段。
+  10. **时间序**：auto 要求平台≤银行（B/C）；平台更晚 → pending，不 auto。
+  11. **召回原则**：pending 高召回；auto 保持严；main 过强规则降级 pending 不丢弃。
+  12. **main 汲取纪律**：冲突项永不汲取；「银行仅通道名」不是假阳性。
+- **FR-016a**: 多账户模型下 MUST NOT 以「同 account_name」为必要条件；**同 account_id 短窗 exact-2** 与卡尾/别名/文本交叉一并作为账户关联手段。
+- **FR-016b**: Review Inbox 对 mirror 以高召回为目标；精确过滤交给人工 accept/reject。
 - **FR-017**: 内部转账匹配信号 MUST 参考 main 分支 reconcile 转账语义：一正一负、不同账户、同币种绝对金额严格相等、有效时间接近、转账强信号词（如转账支取/存入、银联入账、手机银行、提现等）；并支持同日银联现金类已验证规则族。同币种强匹配 auto-accept 时间窗为有效时间差 ≤10 秒且候选唯一；同日宽窗口 auto-accept 仅允许“银联入账/电子汇入 ↔ 无卡付/转账支取”强信号组合且候选唯一。同币种两侧任意非零金额差额 MUST NOT auto-accept，但 MAY 以精确 `amount_delta` 证据进入 pending；不得把差额舍入、吸收或隐式解释为手续费。
 - **FR-018**: 信用还款匹配 MUST 覆盖 cash→loan 同币种与跨币种形态。同币种 auto-accept 要求绝对金额严格相等、有效时间差 ≤600 秒、还款相关文本信号、候选唯一。跨币种可不要求金额相等，但 auto-accept 时间窗 ≤10 秒且候选唯一，并 MUST 记录双方金额/币种证据。信用还款以 `transfer_pair` subtype（如 `credit_repayment`）表达；用户可见语义与报表影响 MUST 可区分普通内部转账与信用还款。
 - **FR-018a**: v1 关系主体以现金类正式事实为主。`InvestmentEvent` MUST 仅在银证转账等已有对侧正式事实的 `transfer_pair` 场景作为对侧参与；MUST NOT 将投资买卖/持仓类事件作为 `payment_mirror`、`refund_offset` 或 `duplicate_of` 的主体。

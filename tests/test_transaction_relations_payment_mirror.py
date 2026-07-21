@@ -62,7 +62,7 @@ def test_payment_mirror_same_account_exact2_no_text_within_60s():
     assert proposal.evidence.extras.get("lag_bank_minus_platform") == 12
 
 
-def test_payment_mirror_same_account_exact2_rejects_long_lag():
+def test_payment_mirror_same_account_long_lag_same_day_is_pending_high_recall():
     seed = _fv(
         id="p1", amount=Decimal("-20.00"), account_id="card",
         occurred_at="2023-07-04 01:00:00", counterparty="商户A",
@@ -73,7 +73,9 @@ def test_payment_mirror_same_account_exact2_rejects_long_lag():
         occurred_at="2023-07-04 03:00:00", counterparty="支付宝（中国）网络技术有限公司",
         description="1614", bill_source="icbc_debit",
     )
-    assert evaluate_payment_mirror(seed, [bank]) is None
+    proposal = evaluate_payment_mirror(seed, [bank])
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
 
 
 def test_payment_mirror_same_account_platform_after_bank_is_pending_not_auto():
@@ -284,6 +286,39 @@ def test_payment_mirror_pending_text_outside_60s_within_5min():
     bank = _fv(
         id="b1", amount=Decimal("-50.00"), account_id="ccb",
         occurred_at="2026-06-13 10:03:00", counterparty="星巴克咖啡",
+        description="快捷支付", bill_source="ccb_debit",
+    )
+    proposal = evaluate_payment_mirror(seed, [bank])
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+
+
+def test_payment_mirror_pending_same_account_same_day_long_lag_high_recall():
+    """Main exact-2 day key beyond 5min → pending, not silent."""
+    seed = _fv(
+        id="p1", amount=Decimal("-40.00"), account_id="card",
+        occurred_at="2023-07-27 01:00:00", counterparty="北京市自来水集团有限责任公司",
+        description="水费", bill_source="alipay",
+    )
+    bank = _fv(
+        id="b1", amount=Decimal("-40.00"), account_id="card",
+        occurred_at="2023-07-27 12:00:00", counterparty="支付宝（中国）网络技术有限公司",
+        description="1614", bill_source="icbc_debit",
+    )
+    proposal = evaluate_payment_mirror(seed, [bank])
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+
+
+def test_payment_mirror_pending_text_same_day_beyond_5min_high_recall():
+    seed = _fv(
+        id="p1", amount=Decimal("-50.00"), account_id="alipay",
+        occurred_at="2026-06-13 10:00:00", counterparty="星巴克",
+        description="消费", bill_source="alipay",
+    )
+    bank = _fv(
+        id="b1", amount=Decimal("-50.00"), account_id="ccb",
+        occurred_at="2026-06-13 18:00:00", counterparty="星巴克咖啡",
         description="快捷支付", bill_source="ccb_debit",
     )
     proposal = evaluate_payment_mirror(seed, [bank])

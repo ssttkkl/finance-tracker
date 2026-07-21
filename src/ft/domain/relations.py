@@ -724,21 +724,39 @@ def evaluate_payment_mirror(
             and platform_not_after_bank
             and PAYMENT_MIRROR_SHORT_WINDOW_SECONDS < lag_bank_minus_platform <= PENDING_OUTER_SECONDS
         ):
-            # P1: same-account exact, lag 60s–5min → pending (not silent).
+            # P1a: same-account exact, lag 60s–5min → pending.
             status = RelationStatus.PENDING_REVIEW.value
             conf = CONFIDENCE_WEAK
             rule = RULE_PAYMENT_MIRROR_WEAK_V1
             score = 1500 - min(lag_bank_minus_platform, 1499)
         elif (
             exact
+            and same_account
+            and same_day
+            and lag_bank_minus_platform > PENDING_OUTER_SECONDS
+        ):
+            # P1b / P7: same-account same-day exact beyond 5min (main exact-2 day key)
+            # → pending high-recall, not silent.
+            status = RelationStatus.PENDING_REVIEW.value
+            conf = CONFIDENCE_WEAK
+            rule = RULE_PAYMENT_MIRROR_WEAK_V1
+            score = 1300
+        elif (
+            exact
             and text_or_card
             and PAYMENT_MIRROR_SHORT_WINDOW_SECONDS < dt <= PENDING_OUTER_SECONDS
         ):
-            # P2: text match but outside 60s auto window (up to 5min) → pending.
+            # P2a: text match outside 60s auto window up to 5min → pending.
             status = RelationStatus.PENDING_REVIEW.value
             conf = CONFIDENCE_WEAK
             rule = RULE_PAYMENT_MIRROR_WEAK_V1
             score = 1400 - min(dt, 1399)
+        elif exact and text_or_card and same_day and dt > PENDING_OUTER_SECONDS:
+            # P2b: text + same day beyond 5min → still pending (high recall).
+            status = RelationStatus.PENDING_REVIEW.value
+            conf = CONFIDENCE_WEAK
+            rule = RULE_PAYMENT_MIRROR_WEAK_V1
+            score = 1200
         elif exact and dt <= PAYMENT_MIRROR_STRONG_SECONDS and not text_or_card and not same_account:
             # P3: 10s exact, no text, different accounts → pending.
             status = RelationStatus.PENDING_REVIEW.value
@@ -754,16 +772,16 @@ def evaluate_payment_mirror(
         elif (
             exact
             and not platform_not_after_bank
-            and dt <= PAYMENT_MIRROR_SHORT_WINDOW_SECONDS
+            and same_day
             and (same_account or text_or_card)
         ):
-            # P5: platform slightly after bank (clock/day-boundary noise) → pending, not auto.
+            # P5: platform after bank same day with same account or text → pending (high recall).
             status = RelationStatus.PENDING_REVIEW.value
             conf = CONFIDENCE_WEAK
             rule = RULE_PAYMENT_MIRROR_WEAK_V1
-            score = 400 - dt
+            score = 400 - min(dt, 399)
         else:
-            # Bare same-day / long lag without near-strong signals: silent.
+            # No viable near-match shape: silent.
             continue
 
         evidence = RelationEvidence(
