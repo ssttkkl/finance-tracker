@@ -44,3 +44,8 @@ Must **not** use for nets/pairing authority:
 ## Rebuildability
 
 Given active facts + accepted relations, projections must be deterministic and re-computable without hidden state.
+
+
+## Open-leg
+
+Relations with null other leg / open-leg pending MUST be ignored for P&L and transfer exclusion. Only bilateral `accepted` relations apply.

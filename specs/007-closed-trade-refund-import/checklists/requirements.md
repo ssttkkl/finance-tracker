@@ -1,6 +1,6 @@
-# Specification Quality Checklist: Transaction Relations (open-leg pending)
+# Specification Quality Checklist: Closed-Trade Refund Import
 
-**Purpose**: Validate specification completeness after open-leg pending extension  
+**Purpose**: Validate specification completeness and quality before planning  
 **Created**: 2026-07-21  
 **Feature**: [spec.md](../spec.md)
 
@@ -31,7 +31,6 @@
 
 ## Notes
 
-- 2026-07-21: Extended 006 with **开放单腿 pending** for `refund_offset` + `transfer_pair` only; `payment_mirror` excluded.
-- Distinguishes open-leg **pending** from FR-019 ban on single-leg **accepted**.
-- Decisions locked: multi/zero candidate → one open-leg; unique weak may stay bilateral; accept requires other_fact_id; evidence candidate_fact_ids top-K=20.
-- Next: update plan/data-model/contracts via `/speckit-plan`, then tasks; implement only via `speckit_implementer`.
+- Root cause validated against ~/.ft/bills Alipay CSV (closed → refund → reorder).
+- Deferred from 006-transaction-relations Non-Goals.
+- Next: `/speckit-plan` when ready to implement (prefer new branch/worktree).

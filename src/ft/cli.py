@@ -223,8 +223,9 @@ def _main(argv=None):
     rel_check = rel_sub.add_parser("check", help="对种子事实重跑关系检查")
     rel_check.add_argument("--fact-id", action="append", default=[])
     rel_check.add_argument("--batch-id", default=None)
-    rel_accept = rel_sub.add_parser("accept", help="接受 pending 关系")
+    rel_accept = rel_sub.add_parser("accept", help="接受 pending 关系（开放单腿须 --other）")
     rel_accept.add_argument("relation_id")
+    rel_accept.add_argument("--other", dest="other_fact_id", default=None, help="开放单腿对侧 fact id")
     rel_accept.add_argument("--actor", default="cli-user")
     rel_accept.add_argument("--reason", default="")
     rel_reject = rel_sub.add_parser("reject", help="拒绝 pending 关系")
@@ -303,7 +304,12 @@ def _main(argv=None):
                 raise SystemExit(1)
             return
         if args.relations_cmd == "accept":
-            result = services.relations.accept(args.relation_id, actor=args.actor, reason=args.reason)
+            result = services.relations.accept(
+                args.relation_id,
+                actor=args.actor,
+                reason=args.reason,
+                other_fact_id=getattr(args, "other_fact_id", None),
+            )
             print(result.message)
             if not result.ok:
                 raise SystemExit(1)

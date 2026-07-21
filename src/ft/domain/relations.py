@@ -77,6 +77,15 @@ RULE_CREDIT_REPAYMENT_V1 = "transfer_pair.credit_repayment.v1"
 RULE_CREDIT_REPAYMENT_FX_V1 = "transfer_pair.credit_repayment.fx.v1"
 RULE_REFUND_OFFSET_V1 = "refund_offset.merchant_or_order.v1"
 
+# Open-leg pending (FR-042–047): null other leg; suggestions only in evidence.
+OPEN_LEG_KINDS = frozenset({
+    RelationKind.REFUND_OFFSET.value,
+    RelationKind.TRANSFER_PAIR.value,
+})
+OPEN_LEG_CANDIDATE_TOP_K = 20
+# Sentinel for ordered_fact_b / bilateral unique when secondary is null.
+OPEN_LEG_ORDERED_B_SENTINEL = ""
+
 ACTIVE_RELATION_STATUSES = frozenset({
     RelationStatus.PENDING_REVIEW.value,
     RelationStatus.ACCEPTED.value,
@@ -320,8 +329,12 @@ class FactCandidateIndex:
         return out
 
 
-def ordered_fact_pair(fact_a: str, fact_b: str) -> tuple[str, str]:
-    a, b = str(fact_a), str(fact_b)
+def ordered_fact_pair(fact_a: str, fact_b: str | None) -> tuple[str, str]:
+    """Bilateral ordered pair. Open-leg uses empty secondary → (anchor, '')."""
+    a = str(fact_a or "")
+    if fact_b is None or fact_b == "":
+        return (a, OPEN_LEG_ORDERED_B_SENTINEL)
+    b = str(fact_b)
     return (a, b) if a <= b else (b, a)
 
 
@@ -329,11 +342,42 @@ def relation_business_key(
     workspace_id: str,
     kind: str,
     fact_a: str,
-    fact_b: str,
+    fact_b: str | None,
     subtype: str = SUBTYPE_NONE,
 ) -> tuple[str, str, str, str, str]:
     left, right = ordered_fact_pair(fact_a, fact_b)
     return (workspace_id, kind, left, right, subtype or SUBTYPE_NONE)
+
+
+def open_leg_business_key(
+    workspace_id: str,
+    kind: str,
+    anchor_fact_id: str,
+    subtype: str = SUBTYPE_NONE,
+) -> tuple[str, str, str, str]:
+    """Open-leg active key (workspace, kind, subtype, anchor)."""
+    return (workspace_id, kind, subtype or SUBTYPE_NONE, str(anchor_fact_id))
+
+
+def is_open_leg_relation(row: Mapping[str, Any] | None) -> bool:
+    if not row:
+        return False
+    if row.get("secondary_fact_id") in (None, ""):
+        return True
+    evidence = row.get("evidence") or {}
+    if isinstance(evidence, Mapping) and evidence.get("open_leg"):
+        return True
+    return False
+
+
+def top_k_candidate_ids(
+    candidate_ids: Sequence[str],
+    *,
+    k: int = OPEN_LEG_CANDIDATE_TOP_K,
+) -> tuple[str, ...]:
+    """Stable sorted top-K candidate fact ids for open-leg evidence."""
+    ordered = sorted({str(cid) for cid in candidate_ids if cid})
+    return tuple(ordered[: max(0, int(k))])
 
 
 def _as_decimal(value) -> Decimal:
@@ -514,6 +558,9 @@ class RelationEvidence:
     rule_id: str = ""
     candidate_count: int = 1
     signals: tuple[str, ...] = ()
+    open_leg: bool = False
+    anchor_role: str = ""
+    candidate_fact_ids: tuple[str, ...] = ()
     extras: Mapping[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
@@ -529,6 +576,11 @@ class RelationEvidence:
             "candidate_count": self.candidate_count,
             "signals": list(self.signals),
         }
+        if self.open_leg or self.anchor_role or self.candidate_fact_ids:
+            payload["open_leg"] = bool(self.open_leg)
+            if self.anchor_role:
+                payload["anchor_role"] = self.anchor_role
+            payload["candidate_fact_ids"] = list(self.candidate_fact_ids)
         payload.update(dict(self.extras))
         return payload
 
@@ -538,7 +590,7 @@ class RelationEvidence:
         known = {
             "amount_delta", "time_delta_seconds", "same_currency", "card_tail_match",
             "account_alias_match", "counterparty_similarity", "source_pair", "rule_id",
-            "candidate_count", "signals",
+            "candidate_count", "signals", "open_leg", "anchor_role", "candidate_fact_ids",
         }
         source_pair = data.get("source_pair") or ("", "")
         if isinstance(source_pair, list):
@@ -546,6 +598,9 @@ class RelationEvidence:
         signals = data.get("signals") or ()
         if isinstance(signals, list):
             signals = tuple(signals)
+        cand_ids = data.get("candidate_fact_ids") or ()
+        if isinstance(cand_ids, list):
+            cand_ids = tuple(str(x) for x in cand_ids)
         extras = {k: v for k, v in data.items() if k not in known}
         return cls(
             amount_delta=str(data.get("amount_delta", "0")),
@@ -558,6 +613,9 @@ class RelationEvidence:
             rule_id=str(data.get("rule_id") or ""),
             candidate_count=int(data.get("candidate_count") or 1),
             signals=tuple(signals),
+            open_leg=bool(data.get("open_leg", False)),
+            anchor_role=str(data.get("anchor_role") or ""),
+            candidate_fact_ids=tuple(cand_ids),
             extras=extras,
         )
 
@@ -566,15 +624,24 @@ class RelationEvidence:
 class RelationProposal:
     kind: str
     primary_fact_id: str
-    secondary_fact_id: str
+    secondary_fact_id: str | None
     primary_fact_type: str = FactType.CASH.value
-    secondary_fact_type: str = FactType.CASH.value
+    secondary_fact_type: str | None = FactType.CASH.value
     subtype: str = SUBTYPE_NONE
     status: str = RelationStatus.PENDING_REVIEW.value
     rule_id: str = ""
     confidence: str = CONFIDENCE_WEAK
     evidence: RelationEvidence = field(default_factory=RelationEvidence)
     created_by: str = "system"
+    anchor_fact_id: str = ""
+    open_leg: bool = False
+
+    def __post_init__(self) -> None:
+        # Derived convenience: open_leg true when secondary is null.
+        if self.secondary_fact_id in (None, "") and not self.open_leg:
+            object.__setattr__(self, "open_leg", True)
+        if self.open_leg and not self.anchor_fact_id:
+            object.__setattr__(self, "anchor_fact_id", self.primary_fact_id)
 
 
 @dataclass(frozen=True)
@@ -994,6 +1061,10 @@ def evaluate_transfer_pair(
     seed_amount = seed.signed_amount
     if seed_amount == 0:
         return None
+    # Only out-leg seeds propose transfer relations (prevents dual-side auto-accept
+    # of multiple in-legs against the same out-leg when each in-leg is unique).
+    if seed_amount > 0:
+        return None
     matches: list[tuple[FactView, RelationEvidence, str, str, str]] = []
     seed_text = seed.text
     TRANSFER_PENDING_OUTER = 5 * 60
@@ -1104,24 +1175,112 @@ def evaluate_transfer_pair(
             rule_id=evidence.rule_id,
             confidence=conf,
             evidence=evidence,
+            anchor_fact_id=primary_id,
+            open_leg=False,
         )
-    # Multiple autos or only pending candidates → high-recall pending (never silent if matched).
-    matches.sort(key=lambda m: (0 if m[2] == RelationStatus.ACCEPTED.value else 1, m[1].time_delta_seconds, m[0].id))
-    cand, evidence, _, conf, subtype = matches[0]
-    evidence = RelationEvidence(**{**evidence.__dict__, "candidate_count": len(matches)})
-    primary_id, secondary_id = seed.id, cand.id
-    if seed.signed_amount >= 0 and cand.signed_amount < 0:
-        primary_id, secondary_id = cand.id, seed.id
+    # Unique near-strong (only one match, not auto) → bilateral pending.
+    # Unique near-strong → bilateral pending only from out-leg seed (avoid dual-side fan-out).
+    if len(matches) == 1:
+        if seed.signed_amount >= 0:
+            return None
+        cand, evidence, _, conf, subtype = matches[0]
+        evidence = RelationEvidence(**{**evidence.__dict__, "candidate_count": 1})
+        return RelationProposal(
+            kind=RelationKind.TRANSFER_PAIR.value,
+            primary_fact_id=seed.id,
+            secondary_fact_id=cand.id,
+            subtype=subtype,
+            status=RelationStatus.PENDING_REVIEW.value,
+            rule_id=evidence.rule_id,
+            confidence=CONFIDENCE_WEAK,
+            evidence=evidence,
+            anchor_fact_id=seed.id,
+            open_leg=False,
+        )
+    # Multi candidates → one open-leg pending from out-leg seed only.
+    if seed.signed_amount >= 0:
+        return None
+    # Multi candidates → one open-leg pending (anchor = stronger signal / out leg / seed).
+    matches.sort(
+        key=lambda m: (
+            0 if m[2] == RelationStatus.ACCEPTED.value else 1,
+            m[1].time_delta_seconds,
+            m[0].id,
+        )
+    )
+    cand_ids = top_k_candidate_ids([m[0].id for m in matches])
+    subtype = matches[0][4]
+    rule = matches[0][1].rule_id
+    # Anchor: out-leg if seed is out; else seed (stronger signal ownership).
+    if seed.signed_amount < 0:
+        anchor_id = seed.id
+        anchor_role = "out"
+    else:
+        anchor_id = seed.id
+        anchor_role = "in"
+    evidence = RelationEvidence(
+        amount_delta="0",
+        time_delta_seconds=matches[0][1].time_delta_seconds,
+        same_currency=matches[0][1].same_currency,
+        rule_id=rule,
+        candidate_count=len(matches),
+        signals=tuple(dict.fromkeys(
+            s for m in matches for s in m[1].signals if s
+        )),
+        open_leg=True,
+        anchor_role=anchor_role,
+        candidate_fact_ids=cand_ids,
+        extras={"seed_amount": format(seed.signed_amount, "f")},
+    )
     return RelationProposal(
         kind=RelationKind.TRANSFER_PAIR.value,
-        primary_fact_id=primary_id,
-        secondary_fact_id=secondary_id,
+        primary_fact_id=anchor_id,
+        secondary_fact_id=None,
+        primary_fact_type=seed.fact_type,
+        secondary_fact_type=None,
         subtype=subtype,
         status=RelationStatus.PENDING_REVIEW.value,
-        rule_id=evidence.rule_id,
+        rule_id=rule,
         confidence=CONFIDENCE_WEAK,
         evidence=evidence,
+        anchor_fact_id=anchor_id,
+        open_leg=True,
     )
+
+
+
+def strip_refund_description_prefix(description: str) -> str:
+    """Remove leading refund markers from a description for title comparison."""
+    text = str(description or "").strip()
+    for _ in range(3):
+        if text.startswith("退款-"):
+            text = text[len("退款-"):].strip()
+            continue
+        if text.startswith("退款："):
+            text = text[len("退款："):].strip()
+            continue
+        if text.startswith("退款:"):
+            text = text[len("退款:"):].strip()
+            continue
+        if text.startswith("退款 ") :
+            text = text[len("退款 "):].strip()
+            continue
+        if text.startswith("退款") and len(text) > 2:
+            rest = text[2:].lstrip("-：: ")
+            if rest:
+                text = rest
+                continue
+        break
+    return text.strip()
+
+
+def refund_title_exact_match(refund: FactView, expense: FactView) -> bool:
+    """True when strip(退款-) of refund.description equals expense.description exactly."""
+    refund_title = strip_refund_description_prefix(refund.description)
+    expense_title = str(expense.description or "").strip()
+    if not refund_title or not expense_title:
+        return False
+    return refund_title == expense_title
 
 
 def evaluate_refund_offset(
@@ -1149,10 +1308,13 @@ def evaluate_refund_offset(
     if seed_amount > 0 and is_refund_excluded_leg(seed.text):
         return None
     is_refund_seed = seed_amount > 0 and has_refund_signal(seed.text)
-    # Expense seeds include p2p spends so 微信红包（单发） can strong-match 微信红包-退款.
-    is_expense_seed = seed_amount < 0
-    if not is_refund_seed and not is_expense_seed:
+    # Open-leg fan-out control: only refund seeds propose refund_offset.
+    # Expense seeds previously each wrote a bilateral edge to the same refund
+    # (unique from their POV), colliding with open-leg bind ordered-pair keys.
+    # P2P 红包-退款 is still matched when the refund fact is the seed.
+    if not is_refund_seed:
         return None
+    is_expense_seed = False
 
     matches: list[tuple[FactView, RelationEvidence, str, str]] = []
     for cand in candidates:
@@ -1216,6 +1378,7 @@ def evaluate_refund_offset(
         ) or (
             bool(refund.counterparty) and refund.counterparty == expense.counterparty
         )
+        title_exact = refund_title_exact_match(refund, expense)
         same_account = refund.account_id == expense.account_id
         # Exact full or exact remaining — not "any expense larger than refund".
         exact = refund_abs == expense_abs or refund_abs == remaining
@@ -1234,9 +1397,9 @@ def evaluate_refund_offset(
         # Generic counterparty equality (e.g. both "微信") must not strong-link
         # arbitrary p2p spends; those require same fine-grained p2p subtype.
         if expense_is_p2p:
-            strong_link = order_lock or p2p_family_match
+            strong_link = order_lock or p2p_family_match or title_exact
         else:
-            strong_link = merchant_match or order_lock
+            strong_link = merchant_match or order_lock or title_exact
         # Weak high-recall: same account + exact amount only (partial same-account flood removed).
         # Do not weak-link across p2p/merchant mismatch (already filtered) or pure p2p
         # (those should go through p2p_family_match strong path when same_account).
@@ -1271,6 +1434,7 @@ def evaluate_refund_offset(
                 "refund",
                 "merchant" if merchant_match else "",
                 "order_lock" if order_lock else "",
+                "title_exact" if title_exact else "",
                 "p2p_family" if p2p_family_match else "",
                 "same_account" if same_account else "",
                 "weak_link" if weak_link and not strong_link else "",
@@ -1283,13 +1447,62 @@ def evaluate_refund_offset(
                 "days": str(int(days)),
             },
         )
-        matches.append((expense if is_refund_seed else refund, evidence, status, conf))
+        matches.append((expense if is_refund_seed else refund, evidence, status, conf, title_exact))
 
     if not matches:
+        # Zero *legal* matches: only open-leg when there were no candidates at all
+        # (true orphan). If candidates existed but all filtered (P2P exclusion, window,
+        # etc.), stay silent — do not create empty open-leg noise.
+        if is_refund_seed and not candidates:
+            evidence = RelationEvidence(
+                amount_delta="0",
+                time_delta_seconds=0,
+                same_currency=True,
+                rule_id=RULE_REFUND_OFFSET_V1,
+                candidate_count=0,
+                signals=("refund", "open_leg_zero_candidate"),
+                open_leg=True,
+                anchor_role="refund",
+                candidate_fact_ids=(),
+                extras={
+                    "refund_amount": format(_abs_decimal(seed.signed_amount), "f"),
+                },
+            )
+            return RelationProposal(
+                kind=RelationKind.REFUND_OFFSET.value,
+                primary_fact_id=seed.id,
+                secondary_fact_id=None,
+                secondary_fact_type=None,
+                status=RelationStatus.PENDING_REVIEW.value,
+                rule_id=RULE_REFUND_OFFSET_V1,
+                confidence=CONFIDENCE_WEAK,
+                evidence=evidence,
+                anchor_fact_id=seed.id,
+                open_leg=True,
+            )
         return None
     strong = [m for m in matches if m[2] == RelationStatus.ACCEPTED.value]
+    # If multiple soft strong autos but exactly one title_exact among them, take it.
+    strong_title = [m for m in strong if m[4]]
+    if is_refund_seed and len(strong_title) == 1:
+        expense_fact, evidence, status, conf, _te = strong_title[0]
+        evidence = RelationEvidence(
+            **{**evidence.__dict__, "candidate_count": 1,
+               "signals": tuple(dict.fromkeys(list(evidence.signals) + ["title_exact_unique"]))}
+        )
+        return RelationProposal(
+            kind=RelationKind.REFUND_OFFSET.value,
+            primary_fact_id=expense_fact.id,
+            secondary_fact_id=seed.id,
+            status=RelationStatus.ACCEPTED.value,
+            rule_id=RULE_REFUND_OFFSET_V1,
+            confidence=CONFIDENCE_STRONG,
+            evidence=evidence,
+            anchor_fact_id=seed.id,
+            open_leg=False,
+        )
     if is_refund_seed and len(strong) == 1:
-        expense_or_refund, evidence, status, conf = strong[0]
+        expense_or_refund, evidence, status, conf, _te = strong[0]
         evidence = RelationEvidence(**{**evidence.__dict__, "candidate_count": 1})
         return RelationProposal(
             kind=RelationKind.REFUND_OFFSET.value,
@@ -1299,35 +1512,67 @@ def evaluate_refund_offset(
             rule_id=RULE_REFUND_OFFSET_V1,
             confidence=conf,
             evidence=evidence,
+            anchor_fact_id=seed.id,
+            open_leg=False,
         )
-    if (not is_refund_seed) and len(strong) == 1:
-        refund_fact, evidence, status, conf = strong[0]
+    if not is_refund_seed:
+        return None
+    # Unique near-strong (exactly one non-auto match) → bilateral pending (refund seed only).
+    if len(matches) == 1:
+        other, evidence, _, conf, _te = matches[0]
         evidence = RelationEvidence(**{**evidence.__dict__, "candidate_count": 1})
+        primary_id, secondary_id = other.id, seed.id
+        anchor_id = seed.id
         return RelationProposal(
             kind=RelationKind.REFUND_OFFSET.value,
-            primary_fact_id=seed.id,
-            secondary_fact_id=refund_fact.id,
-            status=status,
+            primary_fact_id=primary_id,
+            secondary_fact_id=secondary_id,
+            status=RelationStatus.PENDING_REVIEW.value,
             rule_id=RULE_REFUND_OFFSET_V1,
-            confidence=conf,
+            confidence=CONFIDENCE_WEAK,
             evidence=evidence,
+            anchor_fact_id=anchor_id,
+            open_leg=False,
         )
-    # Multi or only pending → one high-recall pending (never N fan-out rows per seed).
-    matches.sort(key=lambda m: (0 if m[2] == RelationStatus.ACCEPTED.value else 1, m[1].time_delta_seconds, m[0].id))
-    other, evidence, _, conf = matches[0]
-    evidence = RelationEvidence(**{**evidence.__dict__, "candidate_count": len(matches)})
-    if is_refund_seed:
-        primary_id, secondary_id = other.id, seed.id
-    else:
-        primary_id, secondary_id = seed.id, other.id
+    # Multi candidates:
+    # - refund seed → one open-leg pending (expense seeds must not fan out)
+    # - expense seed → skip (refund owns open-leg)
+    matches.sort(
+        key=lambda m: (
+            0 if m[2] == RelationStatus.ACCEPTED.value else 1,
+            m[1].time_delta_seconds,
+            m[0].id,
+        )
+    )
+    cand_ids = top_k_candidate_ids([m[0].id for m in matches])
+    base_ev = matches[0][1]
+    evidence = RelationEvidence(
+        amount_delta=base_ev.amount_delta,
+        time_delta_seconds=base_ev.time_delta_seconds,
+        same_currency=True,
+        counterparty_similarity=base_ev.counterparty_similarity,
+        source_pair=base_ev.source_pair,
+        rule_id=RULE_REFUND_OFFSET_V1,
+        candidate_count=len(matches),
+        signals=tuple(dict.fromkeys(
+            s for m in matches for s in m[1].signals if s
+        )),
+        open_leg=True,
+        anchor_role="refund",
+        candidate_fact_ids=cand_ids,
+        extras=dict(base_ev.extras or {}),
+    )
     return RelationProposal(
         kind=RelationKind.REFUND_OFFSET.value,
-        primary_fact_id=primary_id,
-        secondary_fact_id=secondary_id,
+        primary_fact_id=seed.id,
+        secondary_fact_id=None,
+        secondary_fact_type=None,
         status=RelationStatus.PENDING_REVIEW.value,
         rule_id=RULE_REFUND_OFFSET_V1,
         confidence=CONFIDENCE_WEAK,
         evidence=evidence,
+        anchor_fact_id=seed.id,
+        open_leg=True,
     )
 
 
@@ -1354,14 +1599,28 @@ def project_balances_and_pnl(
     facts: Sequence[FactView],
     accepted_relations: Sequence[Mapping[str, Any]],
 ) -> ProjectionResult:
-    """Balance = all active facts; P&L: mirror → exclude transfer → refund_offset."""
+    """Balance = all active facts; P&L: mirror → exclude transfer → refund_offset.
+
+    Open-leg rows (null other / open_leg evidence) never affect nets even if
+    status is incorrectly accepted — FR-042/033.
+    """
     active = [f for f in facts if not f.deleted]
     balances: dict[tuple[str, str], Decimal] = defaultdict(lambda: Decimal("0"))
     for fact in active:
         key = (fact.account_name or fact.account_id, str(fact.currency).upper())
         balances[key] += fact.signed_amount
 
-    accepted = [r for r in accepted_relations if r.get("status") == RelationStatus.ACCEPTED.value]
+    def _bilateral(rel: Mapping[str, Any]) -> bool:
+        if is_open_leg_relation(rel):
+            return False
+        secondary = rel.get("secondary_fact_id")
+        primary = rel.get("primary_fact_id")
+        return bool(primary) and bool(secondary)
+
+    accepted = [
+        r for r in accepted_relations
+        if r.get("status") == RelationStatus.ACCEPTED.value and _bilateral(r)
+    ]
     mirror_pairs = [
         (r["primary_fact_id"], r["secondary_fact_id"])
         for r in accepted

@@ -1,0 +1,452 @@
+"""Open-leg pending (FR-042–047 / US6b): multi/zero candidate → one pending; accept needs --other."""
+from __future__ import annotations
+
+from decimal import Decimal
+
+import pytest
+
+from ft.domain.relations import (
+    FactView,
+    RelationKind,
+    RelationStatus,
+    evaluate_refund_offset,
+    evaluate_transfer_pair,
+    match_payment_mirrors_greedy,
+    project_balances_and_pnl,
+)
+
+
+def _fv(**kwargs):
+    base = dict(currency="CNY", account_type="cash", fact_type="cash", deleted=False)
+    base.update(kwargs)
+    return FactView(**base)
+
+
+def test_multi_candidate_refund_is_single_open_leg_pending():
+    expenses = [
+        _fv(
+            id=f"e{i}",
+            amount=Decimal("-100"),
+            account_id="1",
+            occurred_at=f"2026-01-0{i+1} 10:00:00",
+            counterparty="京东",
+            description="消费",
+            category="expense",
+        )
+        for i in range(3)
+    ]
+    refund = _fv(
+        id="r",
+        amount=Decimal("100"),
+        account_id="1",
+        occurred_at="2026-01-10 10:00:00",
+        counterparty="京东",
+        description="退货退款",
+        category="income",
+    )
+    proposal = evaluate_refund_offset(refund, expenses)
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.open_leg is True
+    assert proposal.secondary_fact_id is None
+    assert proposal.anchor_fact_id == "r"
+    assert proposal.evidence.open_leg is True
+    assert proposal.evidence.anchor_role == "refund"
+    assert proposal.evidence.candidate_count == 3
+    assert list(proposal.evidence.candidate_fact_ids) == sorted(
+        proposal.evidence.candidate_fact_ids
+    )
+    assert set(proposal.evidence.candidate_fact_ids) == {"e0", "e1", "e2"}
+    assert len(proposal.evidence.candidate_fact_ids) <= 20
+
+
+def test_expense_seed_does_not_fan_out_multi_candidate_bilateral():
+    """Refund seed owns open-leg; expense seed must not emit N bilateral pendings."""
+    expenses = [
+        _fv(
+            id=f"e{i}",
+            amount=Decimal("-50"),
+            account_id="1",
+            occurred_at=f"2026-01-0{i+1} 10:00:00",
+            counterparty="京东",
+            category="expense",
+        )
+        for i in range(2)
+    ]
+    refund = _fv(
+        id="r",
+        amount=Decimal("50"),
+        account_id="1",
+        occurred_at="2026-01-08 10:00:00",
+        counterparty="京东",
+        description="退款",
+        category="income",
+    )
+    # Each expense seed with both refund + sibling expenses would previously fan out.
+    for expense in expenses:
+        others = [refund] + [e for e in expenses if e.id != expense.id]
+        proposal = evaluate_refund_offset(expense, others)
+        assert proposal is None or (
+            proposal.open_leg is False
+            and proposal.secondary_fact_id is not None
+            and proposal.status == RelationStatus.ACCEPTED.value
+        )
+
+
+def test_zero_candidate_refund_signal_open_leg():
+    refund = _fv(
+        id="r",
+        amount=Decimal("88"),
+        account_id="1",
+        occurred_at="2026-01-10 10:00:00",
+        counterparty="京东",
+        description="退货退款",
+        category="income",
+    )
+    proposal = evaluate_refund_offset(refund, [])
+    assert proposal is not None
+    assert proposal.open_leg is True
+    assert proposal.secondary_fact_id is None
+    assert proposal.anchor_fact_id == "r"
+    assert proposal.evidence.candidate_count == 0
+    assert list(proposal.evidence.candidate_fact_ids) == []
+
+
+def test_unique_near_strong_refund_remains_bilateral_pending():
+    expense = _fv(
+        id="e",
+        amount=Decimal("-100"),
+        account_id="1",
+        occurred_at="2026-01-01 10:00:00",
+        counterparty="商家A",
+        category="expense",
+    )
+    refund = _fv(
+        id="r",
+        amount=Decimal("100"),
+        account_id="1",
+        occurred_at="2026-01-05 10:00:00",
+        counterparty="其他",
+        description="退款到账",
+        category="income",
+    )
+    proposal = evaluate_refund_offset(refund, [expense])
+    assert proposal is not None
+    assert proposal.open_leg is False
+    assert proposal.secondary_fact_id == "r"
+    assert proposal.primary_fact_id == "e"
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+
+
+def test_unique_strong_refund_still_bilateral_accepted():
+    expense = _fv(
+        id="e",
+        amount=Decimal("-100"),
+        account_id="1",
+        occurred_at="2026-01-01 10:00:00",
+        counterparty="商家A",
+        category="expense",
+    )
+    refund = _fv(
+        id="r",
+        amount=Decimal("30"),
+        account_id="1",
+        occurred_at="2026-01-05 10:00:00",
+        counterparty="商家A",
+        description="退款",
+        category="income",
+    )
+    proposal = evaluate_refund_offset(refund, [expense])
+    assert proposal is not None
+    assert proposal.open_leg is False
+    assert proposal.status == RelationStatus.ACCEPTED.value
+    assert proposal.secondary_fact_id == "r"
+
+
+def test_transfer_multi_candidate_open_leg():
+    out_leg = _fv(
+        id="a",
+        amount=Decimal("-1000"),
+        account_id="1",
+        account_name="A",
+        occurred_at="2026-01-01 10:00:00",
+        description="转账支取",
+    )
+    ins = [
+        _fv(
+            id=f"b{i}",
+            amount=Decimal("1000"),
+            account_id=str(i + 2),
+            account_name=f"B{i}",
+            occurred_at=f"2026-01-01 10:00:0{i + 1}",
+            description="转账存入",
+        )
+        for i in range(2)
+    ]
+    proposal = evaluate_transfer_pair(out_leg, ins)
+    assert proposal is not None
+    assert proposal.open_leg is True
+    assert proposal.secondary_fact_id is None
+    assert proposal.anchor_fact_id == "a"
+    assert proposal.evidence.anchor_role in {"out", "seed", "transfer_out", "anchor"}
+    assert proposal.evidence.candidate_count == 2
+    assert set(proposal.evidence.candidate_fact_ids) == {"b0", "b1"}
+
+
+def test_payment_mirror_never_open_leg():
+    platform = _fv(
+        id="p",
+        amount=Decimal("-40"),
+        account_id="1",
+        account_name="支付宝",
+        occurred_at="2026-01-01 09:00:00",
+        counterparty="商户",
+        description="订单X",
+        bill_source="alipay",
+    )
+    bank = _fv(
+        id="b",
+        amount=Decimal("-40"),
+        account_id="2",
+        account_name="建行",
+        occurred_at="2026-01-01 09:00:05",
+        counterparty="商户",
+        description="订单X",
+        bill_source="ccb_debit",
+    )
+    proposals = match_payment_mirrors_greedy([platform, bank])
+    assert proposals
+    for p in proposals:
+        assert p.open_leg is False
+        assert p.secondary_fact_id is not None
+
+
+def test_projection_ignores_open_leg_pending():
+    expense = _fv(
+        id="e",
+        amount=Decimal("-100"),
+        account_id="1",
+        account_name="支付宝",
+        occurred_at="2026-01-01 10:00:00",
+        counterparty="京东",
+    )
+    refund = _fv(
+        id="r",
+        amount=Decimal("100"),
+        account_id="1",
+        account_name="支付宝",
+        occurred_at="2026-01-05 10:00:00",
+        counterparty="京东",
+        description="退款",
+        category="income",
+    )
+    open_rel = {
+        "kind": RelationKind.REFUND_OFFSET.value,
+        "status": RelationStatus.PENDING_REVIEW.value,
+        "primary_fact_id": "r",
+        "secondary_fact_id": None,
+        "anchor_fact_id": "r",
+        "evidence": {"open_leg": True},
+    }
+    # Even if mistakenly marked accepted with null other, projection must ignore.
+    accepted_open = {
+        **open_rel,
+        "status": RelationStatus.ACCEPTED.value,
+    }
+    result = project_balances_and_pnl([expense, refund], [accepted_open])
+    assert result.expenses["CNY"] == Decimal("100")
+
+
+def test_open_leg_accept_requires_other_and_binds(relation_runtime):
+    services = relation_runtime.services
+    assert services.accounts.create_account("支付宝", "cash", "CNY").ok
+    # Three same-merchant expenses + one refund → one open-leg pending.
+    for i, day in enumerate(("01", "02", "03"), start=1):
+        services.cashflow.add_manual_transaction(
+            amount=Decimal("-100.00"),
+            counterparty="京东",
+            account_name="支付宝",
+            currency="CNY",
+            date=f"2026-01-{day} 10:00:00",
+            description=f"消费{i}",
+            category="expense",
+            bill_source="alipay",
+        )
+    services.cashflow.add_manual_transaction(
+        amount=Decimal("100.00"),
+        counterparty="京东",
+        account_name="支付宝",
+        currency="CNY",
+        date="2026-01-10 10:00:00",
+        description="退货退款",
+        category="income",
+        bill_source="alipay",
+    )
+    with services.uow as uow:
+        rows = uow.cashflows.list_detailed()
+    ids = [r["id"] for r in rows]
+    services.relations.check(seed_fact_ids=ids, trigger="manual_range")
+    pending = [
+        p
+        for p in services.relations.list_pending(kind=RelationKind.REFUND_OFFSET.value)
+        if p.get("secondary_fact_id") in (None, "")
+        or (p.get("evidence") or {}).get("open_leg")
+    ]
+    assert len(pending) == 1, pending
+    open_row = pending[0]
+    assert open_row["secondary_fact_id"] in (None, "")
+    assert open_row.get("anchor_fact_id") or (open_row.get("evidence") or {}).get("open_leg")
+    evidence = open_row.get("evidence") or {}
+    assert evidence.get("open_leg") is True
+    assert int(evidence.get("candidate_count") or 0) >= 2
+    cand_ids = list(evidence.get("candidate_fact_ids") or [])
+    assert len(cand_ids) >= 2
+
+    # Accept without other fails closed.
+    with pytest.raises(ValueError, match="other_fact_id"):
+        services.relations.accept(open_row["id"], actor="user", reason="bind")
+
+    # Illegal other fails closed.
+    with services.uow as uow:
+        all_rows = uow.cashflows.list_detailed()
+    refund_id = next(
+        r["id"] for r in all_rows if Decimal(str(r["amount"])) > 0
+    )
+    expense_ids = [r["id"] for r in all_rows if Decimal(str(r["amount"])) < 0]
+    # Use a non-candidate/wrong shape if possible: refund as other is illegal.
+    with pytest.raises(ValueError):
+        services.relations.accept(
+            open_row["id"], actor="user", reason="bad", other_fact_id=refund_id
+        )
+
+    # Legal other → accepted bilateral; projection nets.
+    other = expense_ids[0]
+    accepted = services.relations.accept(
+        open_row["id"], actor="user", reason="this one", other_fact_id=other
+    )
+    assert accepted.ok
+    assert accepted.details["status"] == RelationStatus.ACCEPTED.value
+    assert accepted.details["secondary_fact_id"] not in (None, "")
+    assert accepted.details["primary_fact_id"] not in (None, "")
+    assert accepted.details["secondary_fact_id"] != accepted.details["primary_fact_id"]
+
+    projection = services.relations.project()
+    # One expense netted by full refund → remaining expenses 200 (2×100).
+    assert Decimal(str(projection["expenses"]["CNY"])) == Decimal("200")
+
+
+def test_open_leg_reject_suppresses_reopen(relation_runtime):
+    services = relation_runtime.services
+    assert services.accounts.create_account("支付宝", "cash", "CNY").ok
+    for day in ("01", "02"):
+        services.cashflow.add_manual_transaction(
+            amount=Decimal("-80.00"),
+            counterparty="京东",
+            account_name="支付宝",
+            currency="CNY",
+            date=f"2026-02-{day} 10:00:00",
+            description="消费",
+            category="expense",
+            bill_source="alipay",
+        )
+    services.cashflow.add_manual_transaction(
+        amount=Decimal("80.00"),
+        counterparty="京东",
+        account_name="支付宝",
+        currency="CNY",
+        date="2026-02-10 10:00:00",
+        description="退货退款",
+        category="income",
+        bill_source="alipay",
+    )
+    with services.uow as uow:
+        ids = [r["id"] for r in uow.cashflows.list_detailed()]
+    services.relations.check(seed_fact_ids=ids, trigger="manual_range")
+    pending = [
+        p
+        for p in services.relations.list_pending(kind=RelationKind.REFUND_OFFSET.value)
+        if (p.get("evidence") or {}).get("open_leg") or p.get("secondary_fact_id") in (None, "")
+    ]
+    assert len(pending) == 1
+    rid = pending[0]["id"]
+    anchor = pending[0].get("anchor_fact_id") or pending[0]["primary_fact_id"]
+    rejected = services.relations.reject(rid, actor="user", reason="not sure")
+    assert rejected.ok
+    services.relations.check(seed_fact_ids=ids, trigger="manual_range")
+    pending_after = [
+        p
+        for p in services.relations.list_pending(kind=RelationKind.REFUND_OFFSET.value)
+        if (p.get("evidence") or {}).get("open_leg")
+        or p.get("secondary_fact_id") in (None, "")
+    ]
+    # Reject occupies open anchor key — no second open-leg pending.
+    assert pending_after == []
+    with services.uow as uow:
+        if hasattr(uow.relations, "find_open_by_anchor"):
+            occupied = uow.relations.find_open_by_anchor(
+                kind=RelationKind.REFUND_OFFSET.value,
+                anchor_fact_id=anchor,
+                subtype="",
+            )
+            assert occupied is not None
+            assert occupied["status"] == RelationStatus.REJECTED.value
+
+
+def test_transfer_open_leg_persisted_and_accept(relation_runtime):
+    services = relation_runtime.services
+    assert services.accounts.create_account("A", "cash", "CNY").ok
+    assert services.accounts.create_account("B1", "cash", "CNY").ok
+    assert services.accounts.create_account("B2", "cash", "CNY").ok
+    services.cashflow.add_manual_transaction(
+        amount=Decimal("-500.00"),
+        counterparty="",
+        account_name="A",
+        currency="CNY",
+        date="2026-03-01 10:00:00",
+        description="转账支取",
+        category="expense",
+    )
+    services.cashflow.add_manual_transaction(
+        amount=Decimal("500.00"),
+        counterparty="",
+        account_name="B1",
+        currency="CNY",
+        date="2026-03-01 10:00:03",
+        description="转账存入",
+        category="income",
+    )
+    services.cashflow.add_manual_transaction(
+        amount=Decimal("500.00"),
+        counterparty="",
+        account_name="B2",
+        currency="CNY",
+        date="2026-03-01 10:00:04",
+        description="转账存入",
+        category="income",
+    )
+    with services.uow as uow:
+        rows = uow.cashflows.list_detailed()
+    ids = [r["id"] for r in rows]
+    out_id = next(r["id"] for r in rows if Decimal(str(r["amount"])) < 0)
+    in_ids = [r["id"] for r in rows if Decimal(str(r["amount"])) > 0]
+    services.relations.check(seed_fact_ids=ids, trigger="manual_range")
+    pending = [
+        p
+        for p in services.relations.list_pending(kind=RelationKind.TRANSFER_PAIR.value)
+        if (p.get("evidence") or {}).get("open_leg") or p.get("secondary_fact_id") in (None, "")
+    ]
+    assert len(pending) == 1
+    open_row = pending[0]
+    assert open_row["secondary_fact_id"] in (None, "")
+    accepted = services.relations.accept(
+        open_row["id"], actor="user", reason="B1", other_fact_id=in_ids[0]
+    )
+    assert accepted.ok
+    assert accepted.details["status"] == RelationStatus.ACCEPTED.value
+    assert {accepted.details["primary_fact_id"], accepted.details["secondary_fact_id"]} == {
+        out_id,
+        in_ids[0],
+    }
+    projection = services.relations.project()
+    # Transfer excluded from P&L; remaining B2 income still counts as income.
+    assert Decimal(str(projection["expenses"].get("CNY", "0"))) == Decimal("0")
