@@ -14,6 +14,7 @@ def test_repository_has_clean_linear_revisions():
         "20260720_03_import_batch_multi_account.py",
         "20260720_04_multi_currency_accounts.py",
         "20260721_05_transaction_relations.py",
+        "20260722_06_open_leg_pending.py",
     ]
 
 
@@ -199,7 +200,10 @@ def test_initial_revision_upgrades_dedicated_postgresql():
             amount = next(column for column in columns if column["name"] == "amount")
             assert str(amount["type"]) == "NUMERIC(38, 18)"
             assert any(column["name"] == "deleted_at" for column in columns)
-            # Reversible tip: relations revision can step back to multi-currency head.
+            rel_cols = {c["name"] for c in inspect(engine).get_columns("transaction_relations")}
+            assert "anchor_fact_id" in rel_cols
+            # Step back through open-leg (no open rows) to multi-currency head.
+            command.downgrade(config, "20260721_05")
             command.downgrade(config, "20260720_04")
             tables_mid = set(inspect(engine).get_table_names())
             assert "transaction_relations" not in tables_mid
