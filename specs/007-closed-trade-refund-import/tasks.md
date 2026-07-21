@@ -1,54 +1,38 @@
-# Tasks: 007 Import No-Skip & Platform Refund at Import
+# Tasks: 007 Unified Scan Orchestration
 
-**Branch**: `007-import-no-skip`  
-**Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md)
+**Branch**: `007-import-no-skip`
 
-## Phase A — Setup & acceptance contract
+## Phase 1 — Spec (done this session)
 
-- [x] T001 Write failing tests for import acceptance counters (source = published + idempotent + skipped_unpaid_closed + skipped_failed_repay)
-- [x] T002 Implement acceptance counter fields on import result DTO / statement_import response
-- [x] T003 Fail-closed mapping miss test + remove silent mapping skip path
+- [x] T100 Living-spec: import raw only; scan A/B/C
+- [x] T101 Sync plan/research/data-model/contracts/quickstart
 
-## Phase B — Alipay no-skip + whitelist skips
+## Phase 2 — Tests first
 
-- [x] T004 Failing tests: paid `交易关闭|支出` imports; unpaid-closed skipped with counter; failed-repay skipped with counter; 还款成功 imports
-- [x] T005 Implement Alipay `_read_alipay_raw` FR-008 / FR-008a / FR-008c with **code comments** at skip sites
-- [x] T006 Import 0-yuan non-unpaid-closed rows (stop amount==0 continue for valid lines)
-- [x] T007 Auth-hold + unfreeze both import (not unpaid-closed)
+- [x] T110 Test: import success creates **zero** new refund_offset from import path
+- [x] T111 Test: raw payload required keys present for alipay/wechat after import
+- [x] T112 Test: after relations check, alipay order-key pair exists (closed+refund)
+- [x] T113 Test: wechat dual-row / residual / transfer-return via check not import
+- [x] T114 Test: phase order hook or rule_id prefix A before mirror (if observable)
+- [x] T115 Test: convert amounts not netted
+- [x] T116 Test: whitelist skips still counted
+- [x] T117 Dual-backend smoke when FT_TEST_POSTGRES_URL set
 
-## Phase C — Alipay import-time refund_offset
+## Phase 3 — Implementation
 
-- [x] T008 Failing tests: order prefix `_` / `*` unique → refund_offset; multi-segment `_advance`; Steam `*`; reorder B not linked
-- [x] T009 Implement origin match FR-013 helper (pure function + tests)
-- [x] T010 Wire import path to create refund_offset (accepted, rule_id auditable) without amount rewrite
-- [x] T011 Auth-hold→unfreeze refund_offset FR-014a test + implement
-- [x] T012 Relation check skips already-linked alipay order refunds (no 补漏 main path)
+- [x] T120 Populate/fix payload fields in convert → import adapter
+- [x] T121 Remove statement_import → create_import_refund_offsets (or no-op)
+- [x] T122 RelationService.check: Phase A platform refunds using platform_refund matchers
+- [x] T123 Ensure Phase A runs before mirror/transfer evaluation
+- [x] T124 Skip active relations; compat import.* rule_ids
+- [x] T125 Bank path: no import pairs; rely on Phase C / existing evaluate_refund
 
-## Phase D — WeChat dual-row
+## Phase 4 — Verify & ship
 
-- [x] T013 Failing tests: no silent skip for unknown; neutral `/` types import; amounts not netted by convert
-- [x] T014 Remove WeChat silent continues (expense fail states, income not INCOME_OK) per FR-027
-- [x] T015 Failing tests: full dual-row refund_offset; partial embedded 30d (味多美); residual JD split; 对方已退还; redpacket mer==txn
-- [x] T016 Implement WeChat FR-029 matcher + import-time refund_offset; disable amount-mutating _pair_refunds authority
-- [x] T017 Scan skip already-linked wechat refund pairs
-
-## Phase E — Integration & real bills
-
-- [x] T018 Integration tests dual-backend when FT_TEST_POSTGRES_URL set
-- [x] T019 Real `~/.ft/bills` alipay copy: counters + paid closed + skip counts
-- [x] T020 Real wechat copy: 0 business skips; refund pairs; no amount netting
-- [x] T021 Update tasks checkboxes; run full related pytest suite
+- [x] T130 Full pytest subset green
+- [x] T131 Optional real ~/.ft/bills import+check smoke
+- [x] T132 Commit + push PR branch
 
 ## Dependencies
 
-A → B → C and D (C/D parallel after B) → E
-
-## Parallel examples
-
-- T008–T011 after T005
-- T013–T016 after T014 base import
-
-## Phase F — Scan/import refund boundary (gap fix)
-
-- [x] T022 Scan skips platform (alipay/wechat) refund seeds and facts already on refund_offset (FR-018/019/032)
-- [x] T023 Tests: no merchant_or_order.v1 when import edge exists; no scan 补漏 for bare platform refund seed
+T110–T117 before T120–T125; T130 after implementation.

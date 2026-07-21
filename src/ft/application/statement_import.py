@@ -195,16 +195,8 @@ class StatementImportService:
             saved_by_account = dict(by_account)
             saved_new_cash_fact_ids = list(new_cash_fact_ids)
         # Import-time platform refund_offset from convert tracking pairs (007)
+        # 007: import MUST NOT write refund_offset; relations check Phase A does.
         import_refund_relations = []
-        if self._relations is not None and import_meta.get("refund_tracking_pairs"):
-            try:
-                import_refund_relations = self._relations.create_import_refund_offsets(
-                    batch_id=saved_batch_id,
-                    tracking_pairs=import_meta["refund_tracking_pairs"],
-                    new_cash_fact_ids=saved_new_cash_fact_ids,
-                )
-            except Exception as exc:  # noqa: BLE001
-                import_refund_relations = [{"error": str(exc)}]
 
         relation_details = None
         if saved_new_cash_fact_ids and self._relations is not None:

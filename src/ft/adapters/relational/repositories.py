@@ -200,7 +200,35 @@ class RelationalCashflowRepository:
         rows = self._session.execute(statement.order_by(
             CashTransactionModel.occurred_at, CashTransactionModel.id
         ))
-        return [self._to_row(row, account) for row, account in rows]
+        detailed = [self._to_row(row, account) for row, account in rows]
+        # 007: attach raw_records.payload for scan Phase A hard-key matching
+        raw_ids = [r["raw_record_id"] for r in detailed if r.get("raw_record_id")]
+        payload_by_raw: dict = {}
+        if raw_ids:
+            from ft.adapters.relational.models import RawRecordModel
+            raw_rows = self._session.scalars(
+                select(RawRecordModel).where(
+                    RawRecordModel.workspace_id == self._workspace_id,
+                    RawRecordModel.id.in_(raw_ids),
+                )
+            ).all()
+            payload_by_raw = {row.id: (row.payload or {}) for row in raw_rows}
+        for item in detailed:
+            payload = payload_by_raw.get(item.get("raw_record_id") or "", {}) or {}
+            item["raw_payload"] = payload
+            # Promote common hard-key fields when missing on formal row
+            for key in (
+                "platform_status", "status", "txn_id", "merchant_order_id",
+                "txn_type", "payment_method", "direction", "type",
+            ):
+                if not item.get(key) and payload.get(key) not in (None, ""):
+                    item[key] = payload.get(key)
+            # Alipay: txn often stored as record_id
+            if not item.get("txn_id") and item.get("record_id"):
+                item["txn_id"] = item["record_id"]
+            if not item.get("platform_status") and payload.get("txn_status"):
+                item["platform_status"] = payload.get("txn_status")
+        return detailed
 
     def list_with_ids(self, *, include_deleted: bool = False) -> list[dict]:
         return self.list_detailed(include_deleted=include_deleted)

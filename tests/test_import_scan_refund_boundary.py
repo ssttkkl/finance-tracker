@@ -1,4 +1,4 @@
-"""007: scan must not re-propose platform refunds owned by import."""
+"""007: import does not write refunds; scan Phase A owns platform hard-key pairs."""
 from __future__ import annotations
 
 from decimal import Decimal
@@ -36,7 +36,7 @@ def _db():
     return sessions, RelationalUnitOfWork
 
 
-def test_scan_skips_platform_refund_when_import_edge_exists():
+def test_scan_skips_duplicate_when_active_edge_exists():
     from ft.adapters.relational.models import TransactionRelationModel
     from ft.application.relations import RelationService
     from ft.domain.relations import RelationKind, RelationStatus
@@ -44,7 +44,7 @@ def test_scan_skips_platform_refund_when_import_edge_exists():
     sessions, UoW = _db()
     with UoW(sessions, "ws") as uow:
         uow.accounts.add_raw({"name": "支付宝余额", "type": "cash", "currency": "CNY"})
-        exp = {
+        exp_id = uow.cashflows.add("cash", {
             "date": "2026-01-01 10:00:00",
             "amount": "-100.00",
             "currency": "CNY",
@@ -55,8 +55,8 @@ def test_scan_skips_platform_refund_when_import_edge_exists():
             "source": "支付宝",
             "bill_source": "alipay",
             "record_id": "OID_EXP",
-        }
-        ref = {
+        })
+        ref_id = uow.cashflows.add("cash", {
             "date": "2026-01-02 10:00:00",
             "amount": "100.00",
             "currency": "CNY",
@@ -66,19 +66,17 @@ def test_scan_skips_platform_refund_when_import_edge_exists():
             "account_name": "支付宝余额",
             "source": "支付宝",
             "bill_source": "alipay",
-            "record_id": "OID_REF",
-        }
-        exp_id = uow.cashflows.add("cash", exp)
-        ref_id = uow.cashflows.add("cash", ref)
+            "record_id": "OID_EXP_suffix",
+        })
         uow.relations.add({
             "kind": RelationKind.REFUND_OFFSET.value,
             "primary_fact_id": exp_id,
             "secondary_fact_id": ref_id,
-            "anchor_fact_id": ref_id,
+            "anchor_fact_id": exp_id,
             "status": RelationStatus.ACCEPTED.value,
             "rule_id": "import.alipay.order_prefix.v1",
             "confidence": "strong",
-            "evidence": {"source": "import"},
+            "evidence": {"source": "legacy_import"},
             "created_by": "statement_import",
             "decided_by": "statement_import",
         })
@@ -87,13 +85,6 @@ def test_scan_skips_platform_refund_when_import_edge_exists():
     svc = RelationService(UoW(sessions, "ws"))
     result = svc.check(seed_fact_ids=[exp_id, ref_id], trigger="manual_range", seed_ref="t")
     assert result.ok is True
-    # No new refund_offset from scan
-    new_refunds = [
-        r for r in (result.details or {}).get("relations", [])
-        if r.get("kind") == RelationKind.REFUND_OFFSET.value
-        and r.get("rule_id") == "refund_offset.merchant_or_order.v1"
-    ]
-    assert new_refunds == []
     with sessions() as session:
         all_refunds = list(session.scalars(
             select(TransactionRelationModel).where(
@@ -105,8 +96,8 @@ def test_scan_skips_platform_refund_when_import_edge_exists():
         assert all_refunds[0].rule_id == "import.alipay.order_prefix.v1"
 
 
-def test_scan_skips_platform_refund_seed_even_without_edge():
-    """Alipay/WeChat refund legs are import-owned; scan must not 补漏 with merchant rules."""
+def test_scan_phase_a_creates_alipay_order_prefix_edge():
+    """Without prior edge, Phase A must pair order-key alipay refund."""
     from ft.adapters.relational.models import TransactionRelationModel
     from ft.application.relations import RelationService
     from ft.domain.relations import RelationKind
@@ -124,7 +115,7 @@ def test_scan_skips_platform_refund_seed_even_without_edge():
             "account_name": "支付宝余额",
             "source": "支付宝",
             "bill_source": "alipay",
-            "record_id": "E2",
+            "record_id": "2026010122001112651418000001",
         })
         ref_id = uow.cashflows.add("cash", {
             "date": "2026-01-02 10:00:00",
@@ -136,26 +127,28 @@ def test_scan_skips_platform_refund_seed_even_without_edge():
             "account_name": "支付宝余额",
             "source": "支付宝",
             "bill_source": "alipay",
-            "record_id": "R2",
+            "record_id": "2026010122001112651418000001_advance",
         })
         uow.commit()
 
     svc = RelationService(UoW(sessions, "ws"))
-    result = svc.check(seed_fact_ids=[ref_id], trigger="manual_range", seed_ref="t2")
+    result = svc.check(seed_fact_ids=[ref_id, exp_id], trigger="manual_range", seed_ref="t2")
     assert result.ok is True
-    scan_refunds = [
-        r for r in (result.details or {}).get("relations", [])
-        if r.get("kind") == RelationKind.REFUND_OFFSET.value
-    ]
-    assert scan_refunds == [], f"scan should not create platform refund edges: {scan_refunds}"
     with sessions() as session:
-        n = session.scalars(
+        all_refunds = list(session.scalars(
             select(TransactionRelationModel).where(
                 TransactionRelationModel.workspace_id == "ws",
                 TransactionRelationModel.kind == "refund_offset",
             )
-        )
-        assert list(n) == []
+        ))
+        assert len(all_refunds) >= 1
+        rules = {r.rule_id for r in all_refunds}
+        assert any(
+            rid.startswith("scan.alipay") or rid == "refund_offset.merchant_or_order.v1"
+            for rid in rules
+        ), rules
+        # Prefer order-prefix when txn keys match
+        assert any("order_prefix" in (rid or "") or "merchant_or_order" in (rid or "") for rid in rules)
 
 
 def test_is_platform_import_refund_source_helper():

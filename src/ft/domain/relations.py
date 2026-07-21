@@ -496,10 +496,10 @@ def has_repayment_signal(text: str) -> bool:
 
 
 def is_platform_import_refund_source(fact: "FactView") -> bool:
-    """True when refund matching for this fact is owned by import-time 007 rules.
+    """True when fact is from alipay/wechat (platform hard-key Phase A sources).
 
-    Alipay/WeChat platform refunds are paired at import (order-key / dual-row).
-    Relation scan must not re-run the merchant weak path as 补漏 for these.
+    Hard-key pairing runs in relations check Phase A; merchant weak path still
+    skips facts already linked by an active refund_offset.
     """
     blob = _text_blob(getattr(fact, "bill_source", ""), getattr(fact, "source", "")).lower()
     return any(k in blob for k in ("alipay", "wechat", "支付宝", "微信"))

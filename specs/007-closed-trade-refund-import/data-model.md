@@ -1,38 +1,27 @@
-# Data Model: 007 Import No-Skip & Platform Refund
+# Data Model: 007
 
-## Entities (no new funding_status)
+## Existing
 
-### CashTransaction (formal fact)
-Existing fields remain authority for amount/currency/account.
-**Optional metadata** (if not already present; prefer evidence/JSON over required columns when possible):
-- `platform_status` (text, optional): e.g. 交易关闭, 已全额退款
-- `origin_order_id` / txn linkage for alipay refunds (may live in evidence or existing record_id/txn fields)
+- `raw_records.payload` JSON — **authority for source fields**
+- `cash_transactions` formal facts
+- `transaction_relations` for all relation kinds
 
-**Rules**:
-- Paid closed expense: normal negative amount.
-- Refund: positive amount; never rewrite original expense amount.
-- Unpaid-closed / failed-repay: **not persisted** as formal facts (skipped).
+## Changes
 
-### TransactionRelation
-Existing 006 model:
-- `kind=refund_offset`
-- `status=accepted|pending_review|...`
-- `rule_id` e.g. `import.alipay.order_prefix.v1`, `import.wechat.partial_embedded.v1`
-- open-leg allowed for multi-candidate per 006
+### Required writes (no new table required for MVP)
 
-### ImportBatch / acceptance counters
-Logical result fields (API/DTO, not necessarily new tables):
-- `source_lines`
-- `published`
-- `idempotent_hits`
-- `skipped_unpaid_closed`
-- `skipped_failed_repay`
-- `failed` (if fail-closed)
+Import MUST store in `payload` (and may denormalize onto fact columns if already present):
 
-Constraint: `source_lines = published + idempotent_hits + skipped_unpaid_closed + skipped_failed_repay` on success.
+**Alipay**: platform_status, txn_id, merchant_order_id, direction, payment_method, description, amount, occurred_at  
+**WeChat**: status, txn_type, direction, pay_method, amount, occurred_at, txn_id, merchant_order_id, counterparty/description  
+**Bank**: amount, time, counterparty/raw, description/summary/location, refund signal if any
 
-## Validation
-- Decimal amounts exact.
-- Alipay order match: FR-013 only.
-- WeChat match: FR-029; no alipay prefix.
-- Dual backend: same counters and relation sets.
+### Explicit non-changes
+
+- No `funding_status` column
+- No import-time mandatory relation rows
+- Optional: `origin_order_id` derived field for convenience (scan may compute on the fly)
+
+## Dual backend
+
+JSON payload supported on SQLite + PostgreSQL; equivalence on required keys and relation outcomes.

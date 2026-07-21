@@ -1,21 +1,5 @@
-# Contract: Import Acceptance Counts
+# Contract: Import Acceptance
 
-## Success
-```
-source_transaction_lines
-  = newly_published_formal_facts
-  + idempotent_hits
-  + skipped_unpaid_closed
-  + skipped_failed_repay
-```
-
-## Fail closed
-- Parse error, illegal amount, mapping miss → batch fails or row-addressable failure; MUST NOT report success with silent drops.
-
-## Skip reasons (whitelist only)
-| code | when |
-|---|---|
-| unpaid_closed | FR-008a |
-| failed_repay | FR-008c |
-
-WeChat corpus: both counters may be 0.
+- source_lines = published + idempotent + skipped_unpaid_closed + skipped_failed_repay
+- mapping miss / parse error → fail closed
+- import does **not** create transaction_relations

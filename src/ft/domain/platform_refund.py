@@ -1,6 +1,6 @@
-"""Pure matchers for platform (Alipay/WeChat) refund pairing at import time.
+"""Pure matchers for platform (Alipay/WeChat) refund pairing.
 
-Side-effect free helpers for convert + import-time relation creation (spec 007).
+Side-effect free helpers used by relations check Phase A (spec 007).
 """
 from __future__ import annotations
 
