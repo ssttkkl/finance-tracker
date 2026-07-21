@@ -38,3 +38,14 @@ When alipay refund uniquely matches an origin by order key:
 
 - MUST create `refund_offset` at import (`rule_id` e.g. `import.alipay.order_prefix.v1`)
 - Later relation scan MUST NOT create a competing auto edge for the same refund leg
+
+## Auth hold / unfreeze (refund_offset)
+
+| Leg | Alipay status (examples) | Role |
+|---|---|---|
+| Origin | 芝麻免押下单成功 | authorization / deposit hold |
+| Release | 解冻成功 | release (refund_offset counterparty) |
+
+- Both rows MUST import (amount may be 0).
+- Import MUST create `refund_offset` when uniquely paired (order key or same-day unique status pair).
+- rule_id example: `import.alipay.auth_unfreeze.v1`

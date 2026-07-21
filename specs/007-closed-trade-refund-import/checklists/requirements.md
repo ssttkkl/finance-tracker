@@ -32,6 +32,7 @@
 
 ## Notes
 
+- 预授权(芝麻免押)→解冻 = import-time `refund_offset` (user decision).
 - User decision: **unpaid-closed rows are skipped** (not imported), with code comments; not silent no-skip violation.
 - Paid `交易关闭|支出` still imported + order-key refund_offset.
 - Converged decisions written into spec:

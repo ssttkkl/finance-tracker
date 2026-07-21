@@ -49,3 +49,14 @@
 **Decision**: Skip when `status ∈ {交易关闭, 已关闭}` AND `direction ≠ 支出` AND payment method empty. Comment required at skip site.
 
 **Rationale**: Matches ~42 real rows with no order-key refund; opposite of paid closed expenses (direction=支出, payment method present, always refunded).
+
+## Decision 11: Auth-hold / unfreeze as refund_offset
+
+**Decision**: Treat 芝麻免押下单成功 → 解冻成功 as `refund_offset` at import (hold = origin leg, unfreeze = release leg). Import both rows even when amount is 0.
+
+**Rationale**: User-specified deposit/authorization lifecycle; same "offset" semantics as refund. Real bills: 2 pairs, same calendar day, distinct txn/mer — match by ordered unique same-day status pair when keys differ.
+
+**Alternatives considered**:
+- leave as unrelated 0-amount lines → rejected by user
+- transfer_pair → rejected (not account transfer; it's hold release)
+- relation-scan only → rejected (import-owned, like alipay order refunds)
