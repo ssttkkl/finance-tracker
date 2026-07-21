@@ -110,20 +110,20 @@ Auto path emits pending with conflict evidence; human must supersede before acce
 ## Decision 16: Main-rule adoption gate (counterexample-driven)
 
 **Decision**: For main-branch pairing rules that do **not** already conflict with the constitution or this feature's immutability model:
-- If no systematic counterexample is found on the real ledger, treat the main rule as business-correct and adopt it (adapted to relation persistence).
+- If no systematic **true** counterexample is found on the real ledger, treat the main rule as business-correct and adopt it (adapted to relation persistence).
 - If systematic counterexamples exist, do **not** adopt verbatim; tighten.
+- **Important correction**: Platform merchant detail vs bank counterparty `支付宝（中国）网络技术有限公司` / 银联通道 + internal id is the **expected** dual view of one Alipay/WeChat card payment — **not** a false positive.
 
 **Applied findings (2026-07-21, ~/.ft formal facts ~11k)**:
 
 | Main rule | Verdict | Evidence |
 |---|---|---|
-| 10s + text + 1:1 platform×bank | **Adopt** | High overlap with current accepted (~1281/1335); no systematic false-positive pattern found |
-| Same-day exact-2 cross-source auto (no text required) | **Reject verbatim** | ~1020/2343 plat×bank exact-2 groups lack text; stable FP shape: platform merchant detail vs bank counterparty `支付宝（中国）网络技术有限公司` + internal id — same day/amount does **not** prove same external purchase |
-| Same-day exact + text + unique | **Adopt** | Already `same_day.unique`; missed-with-text residuals (~25) are mostly refunds/income-sign mirrors, not failure of the rule |
-| Physical delete / category rewrite / 0.01 float | **Never** | Constitution + FR conflicts (not counterexample-gated) |
+| 10s + text + 1:1 platform×bank | **Adopt** | High overlap with accepted (~1281/1335) |
+| Same-account exact-2 short window (no text required) | **Adopt as payment_mirror** | Bank channel-only text is normal dual view. **Not whole calendar day**: platform_ts ≤ bank_ts and lag∈[0,**60s**], same account_id, exact amount, exactly 1+1. |
+| ≤60s + text/card unique | **Adopt** | Cross-account allowed; replaces day-long same_day.unique |
+| Physical delete / category rewrite / 0.01 float | **Never** | Constitution + FR conflicts |
 
-**Rationale**: User gate: "no counterexample ⇒ main is correct"; counterexamples found for bare exact-2, so keep text requirement for same-day auto.
-
+**Rationale**: User gate + user correction on dual-recording epistemology.
 **Decision**: Full relation check on a personal ledger of ~3 years / ≥10_000 active cash facts must finish within **60 seconds** wall clock on a local single-process run. Default implementation uses `FactCandidateIndex` buckets:
 
 | Kind | Index keys (prune only) | Business window unchanged |

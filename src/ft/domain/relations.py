@@ -52,6 +52,8 @@ SUBTYPE_CREDIT_REPAYMENT = "credit_repayment"
 SUBTYPE_NONE = ""
 
 PAYMENT_MIRROR_STRONG_SECONDS = 10
+# Short window for same-account exact-2 without text, and text-unique cross-account.
+PAYMENT_MIRROR_SHORT_WINDOW_SECONDS = 60
 TRANSFER_PAIR_STRONG_SECONDS = 10
 CREDIT_REPAYMENT_SAME_CURRENCY_SECONDS = 600
 CREDIT_REPAYMENT_FX_SECONDS = 10
@@ -60,8 +62,15 @@ REFUND_AUTO_ACCEPT_DAYS = 14
 REFUND_ORDER_LOCK_AUTO_ACCEPT_DAYS = 30
 
 RULE_PAYMENT_MIRROR_STRONG_V1 = "payment_mirror.platform_bank.exact.time10.cross.v2"
-RULE_PAYMENT_MIRROR_SAME_DAY_UNIQUE_V1 = "payment_mirror.platform_bank.same_day.unique.v2"
+RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1 = (
+    "payment_mirror.platform_bank.same_account.exact2.lag60.v3"
+)
+RULE_PAYMENT_MIRROR_SHORT_WINDOW_TEXT_V1 = (
+    "payment_mirror.platform_bank.short_window.text.unique.v3"
+)
 RULE_PAYMENT_MIRROR_WEAK_V1 = "payment_mirror.platform_bank.near.weak.v2"
+# Back-compat alias for older tests/docs.
+RULE_PAYMENT_MIRROR_SAME_DAY_UNIQUE_V1 = RULE_PAYMENT_MIRROR_SHORT_WINDOW_TEXT_V1
 RULE_TRANSFER_PAIR_STRONG_V1 = "transfer_pair.same_amount.transfer_signal.time_window.v1"
 RULE_TRANSFER_PAIR_UNIONPAY_V1 = "transfer_pair.unionpay.same_day.v1"
 RULE_CREDIT_REPAYMENT_V1 = "transfer_pair.credit_repayment.v1"
@@ -659,6 +668,20 @@ def evaluate_payment_mirror(
         card_ok = bool(shared_tails) or alias_hit
         text_or_card = cross or card_ok
 
+        # Signed lag: bank_ts - platform_ts. Platform must not be later for no-text exact-2.
+        if seed_group == "platform":
+            platform_fact, bank_fact = seed, cand
+        else:
+            platform_fact, bank_fact = cand, seed
+        try:
+            lag_bank_minus_platform = int(
+                (_parse_dt(bank_fact.occurred_at) - _parse_dt(platform_fact.occurred_at)).total_seconds()
+            )
+        except ValueError:
+            continue
+        platform_not_after_bank = lag_bank_minus_platform >= 0
+        same_account = cand.account_id == seed.account_id
+
         # Ranking score for uniqueness: higher is better.
         score = 0
         status = ""
@@ -669,27 +692,42 @@ def evaluate_payment_mirror(
             status = RelationStatus.ACCEPTED.value
             conf = CONFIDENCE_STRONG
             rule = RULE_PAYMENT_MIRROR_STRONG_V1
-            score = 3000 - dt
-        elif exact and same_day and text_or_card and dt <= 24 * 3600:
-            # Same-day unique platform×bank with text/card — main cross_source spirit.
+            score = 4000 - dt
+        elif (
+            exact
+            and same_account
+            and platform_not_after_bank
+            and lag_bank_minus_platform <= PAYMENT_MIRROR_SHORT_WINDOW_SECONDS
+        ):
+            # Same-account exact-2 short window; text optional (bank channel summary).
             status = RelationStatus.ACCEPTED.value
             conf = CONFIDENCE_STRONG
-            rule = RULE_PAYMENT_MIRROR_SAME_DAY_UNIQUE_V1
-            score = 2000 - min(dt, 1999)
-        elif exact and dt <= PAYMENT_MIRROR_STRONG_SECONDS and not text_or_card:
-            # Near-strong unique only: exact+10s but weak text → pending, not silent.
+            rule = RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1
+            score = 3000 - lag_bank_minus_platform
+        elif (
+            exact
+            and text_or_card
+            and dt <= PAYMENT_MIRROR_SHORT_WINDOW_SECONDS
+        ):
+            # Text/card within 60s (may cross accounts).
+            status = RelationStatus.ACCEPTED.value
+            conf = CONFIDENCE_STRONG
+            rule = RULE_PAYMENT_MIRROR_SHORT_WINDOW_TEXT_V1
+            score = 2000 - dt
+        elif exact and dt <= PAYMENT_MIRROR_STRONG_SECONDS and not text_or_card and not same_account:
+            # Near-strong: 10s exact, no text, different accounts → pending.
             status = RelationStatus.PENDING_REVIEW.value
             conf = CONFIDENCE_WEAK
             rule = RULE_PAYMENT_MIRROR_WEAK_V1
             score = 1000 - dt
-        elif (not exact) and same_day and text_or_card and dt <= PAYMENT_MIRROR_STRONG_SECONDS:
+        elif (not exact) and text_or_card and dt <= PAYMENT_MIRROR_STRONG_SECONDS:
             # Tiny amount mismatch with strong time/text — review only.
             status = RelationStatus.PENDING_REVIEW.value
             conf = CONFIDENCE_WEAK
             rule = RULE_PAYMENT_MIRROR_WEAK_V1
             score = 500 - dt
         else:
-            # Bare same-day exact without text/card: drop (main silent).
+            # Bare same-day / long lag without conditions: silent.
             continue
 
         evidence = RelationEvidence(
@@ -704,12 +742,16 @@ def evaluate_payment_mirror(
             signals=tuple(filter(None, (
                 "platform_bank",
                 "exact_amount" if exact else "amount_delta",
-                "time_window" if dt <= PAYMENT_MIRROR_STRONG_SECONDS else "same_day",
+                "time_window" if dt <= PAYMENT_MIRROR_STRONG_SECONDS else "short_window",
+                "platform_not_after_bank" if platform_not_after_bank else "platform_after_bank",
                 "card_tail" if shared_tails else "",
                 "alias" if alias_hit else "",
                 "text_cross" if cross else "",
-                "same_account" if cand.account_id == seed.account_id else "cross_account",
+                "same_account" if same_account else "cross_account",
             ))),
+            extras={
+                "lag_bank_minus_platform": lag_bank_minus_platform,
+            },
         )
         matches.append((cand, evidence, status, conf, score))
 
@@ -731,12 +773,25 @@ def evaluate_payment_mirror(
         status = RelationStatus.PENDING_REVIEW.value
         conf = CONFIDENCE_WEAK
         rule_id = RULE_PAYMENT_MIRROR_WEAK_V1
-    elif status == RelationStatus.ACCEPTED.value and rule_id == RULE_PAYMENT_MIRROR_SAME_DAY_UNIQUE_V1:
-        exact_same_day = [
+    elif status == RelationStatus.ACCEPTED.value and rule_id == RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1:
+        # exact-2: only one other leg allowed in short window same account.
+        same_acct_short = [
             m for m in matches
-            if _as_decimal(m[1].amount_delta) == 0 and m[1].time_delta_seconds <= 24 * 3600
+            if _as_decimal(m[1].amount_delta) == 0
+            and m[1].rule_id == RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1
         ]
-        if len(exact_same_day) != 1:
+        if len(same_acct_short) != 1:
+            status = RelationStatus.PENDING_REVIEW.value
+            conf = CONFIDENCE_WEAK
+            rule_id = RULE_PAYMENT_MIRROR_WEAK_V1
+    elif status == RelationStatus.ACCEPTED.value and rule_id == RULE_PAYMENT_MIRROR_SHORT_WINDOW_TEXT_V1:
+        short_text = [
+            m for m in matches
+            if _as_decimal(m[1].amount_delta) == 0
+            and m[1].time_delta_seconds <= PAYMENT_MIRROR_SHORT_WINDOW_SECONDS
+            and m[2] == RelationStatus.ACCEPTED.value
+        ]
+        if len(short_text) != 1:
             status = RelationStatus.PENDING_REVIEW.value
             conf = CONFIDENCE_WEAK
             rule_id = RULE_PAYMENT_MIRROR_WEAK_V1
