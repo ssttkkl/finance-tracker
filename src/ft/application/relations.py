@@ -21,6 +21,7 @@ from ft.domain.relations import (
     cross_kind_compatible,
     evaluate_refund_offset,
     evaluate_transfer_pair,
+    is_open_leg_relation,
     match_payment_mirrors_greedy,
     ordered_fact_pair,
     project_balances_and_pnl,
@@ -171,27 +172,57 @@ class RelationService:
             rows = uow.relations.list_active(kind=kind, status=RelationStatus.PENDING_REVIEW.value)
             return rows
 
-    def accept(self, relation_id: str, *, actor: str, reason: str = "") -> OperationResult:
+    def accept(
+        self,
+        relation_id: str,
+        *,
+        actor: str,
+        reason: str = "",
+        other_fact_id: str | None = None,
+    ) -> OperationResult:
         with self._uow as uow:
             rel = uow.relations.get(relation_id)
             if rel is None:
                 raise ValueError(f"relation not found: {relation_id}")
             if rel["status"] != RelationStatus.PENDING_REVIEW.value:
                 raise ValueError("only pending_review relations can be accepted")
-            conflicts = self._accepted_kinds_for_facts(
-                uow, [rel["primary_fact_id"], rel["secondary_fact_id"]]
-            )
+            open_leg = is_open_leg_relation(rel)
+            if open_leg:
+                if not other_fact_id:
+                    raise ValueError("open-leg accept requires other_fact_id")
+                other = self._require_active_cash(uow, other_fact_id)
+                self._validate_open_leg_other(rel, other)
+                fact_ids = [rel["primary_fact_id"], other_fact_id]
+            else:
+                if rel.get("secondary_fact_id") in (None, ""):
+                    raise ValueError("bilateral pending missing secondary_fact_id")
+                fact_ids = [rel["primary_fact_id"], rel["secondary_fact_id"]]
+            conflicts = self._accepted_kinds_for_facts(uow, fact_ids)
             for fid, kinds in conflicts.items():
                 if not cross_kind_compatible(kinds, rel["kind"]):
                     raise ValueError(
                         f"cross-kind conflict on fact {fid}: {sorted(kinds)} + {rel['kind']}"
                     )
-            updated = uow.relations.update_status(
-                relation_id,
-                status=RelationStatus.ACCEPTED.value,
-                decided_by=actor,
-                decision_reason=reason,
-            )
+            if open_leg:
+                evidence = dict(rel.get("evidence") or {})
+                evidence["open_leg"] = False
+                evidence["bound_other_fact_id"] = other_fact_id
+                updated = uow.relations.bind_other_leg(
+                    relation_id,
+                    other_fact_id=other_fact_id,
+                    other_fact_type="cash",
+                    status=RelationStatus.ACCEPTED.value,
+                    decided_by=actor,
+                    decision_reason=reason,
+                    evidence=evidence,
+                )
+            else:
+                updated = uow.relations.update_status(
+                    relation_id,
+                    status=RelationStatus.ACCEPTED.value,
+                    decided_by=actor,
+                    decision_reason=reason,
+                )
             uow.commit()
         return OperationResult(ok=True, count=1, message="accepted", details=updated)
 
@@ -342,7 +373,9 @@ class RelationService:
         }
         for rel in uow.relations.list_active(kind=RelationKind.REFUND_OFFSET.value, status=RelationStatus.ACCEPTED.value):
             exp = rel["primary_fact_id"]
-            refund_id = rel["secondary_fact_id"]
+            refund_id = rel.get("secondary_fact_id")
+            if not refund_id:
+                continue
             refund_fact = next((f for f in facts if f.id == refund_id), None)
             if refund_fact is None:
                 continue
@@ -356,18 +389,42 @@ class RelationService:
             if rel["status"] != RelationStatus.ACCEPTED.value:
                 continue
             out[rel["primary_fact_id"]].add(rel["kind"])
-            out[rel["secondary_fact_id"]].add(rel["kind"])
+            sec = rel.get("secondary_fact_id")
+            if sec:
+                out[sec].add(rel["kind"])
+            anchor = rel.get("anchor_fact_id")
+            if anchor:
+                out[anchor].add(rel["kind"])
         return out
 
     def _persist_proposal(self, uow, proposal, remaining: dict[str, Decimal]) -> dict | None:
-        existing = uow.relations.find_by_business_key(
-            kind=proposal.kind,
-            fact_a=proposal.primary_fact_id,
-            fact_b=proposal.secondary_fact_id,
-            subtype=proposal.subtype or SUBTYPE_NONE,
-        )
+        open_leg = bool(getattr(proposal, "open_leg", False) or proposal.secondary_fact_id in (None, ""))
+        subtype = proposal.subtype or SUBTYPE_NONE
+        anchor_id = getattr(proposal, "anchor_fact_id", None) or proposal.primary_fact_id
+
+        if open_leg:
+            existing = uow.relations.find_open_leg(
+                kind=proposal.kind,
+                anchor_fact_id=anchor_id,
+                subtype=subtype,
+            )
+            if existing is None:
+                # Also block if rejected open occupancy still holds bilateral key (active_slot=id).
+                existing = uow.relations.find_by_business_key(
+                    kind=proposal.kind,
+                    fact_a=anchor_id,
+                    fact_b=None,
+                    subtype=subtype,
+                )
+        else:
+            existing = uow.relations.find_by_business_key(
+                kind=proposal.kind,
+                fact_a=proposal.primary_fact_id,
+                fact_b=proposal.secondary_fact_id,
+                subtype=subtype,
+            )
         if existing is not None:
-            # Do not overwrite human decisions or existing accepted/rejected.
+            # Do not overwrite human decisions or existing accepted/rejected/pending.
             if existing["status"] in {
                 RelationStatus.ACCEPTED.value,
                 RelationStatus.REJECTED.value,
@@ -379,11 +436,17 @@ class RelationService:
             return None
 
         # Cross-kind: auto-accept only if compatible; else force pending.
+        # Open-leg never auto-accepted.
         status = proposal.status
-        kinds_map = self._accepted_kinds_for_facts(
-            uow, [proposal.primary_fact_id, proposal.secondary_fact_id]
-        )
-        for fid in (proposal.primary_fact_id, proposal.secondary_fact_id):
+        if open_leg:
+            status = RelationStatus.PENDING_REVIEW.value
+        fact_ids = [proposal.primary_fact_id]
+        if proposal.secondary_fact_id not in (None, ""):
+            fact_ids.append(proposal.secondary_fact_id)
+        if anchor_id and anchor_id not in fact_ids:
+            fact_ids.append(anchor_id)
+        kinds_map = self._accepted_kinds_for_facts(uow, fact_ids)
+        for fid in fact_ids:
             if not cross_kind_compatible(kinds_map.get(fid, set()), proposal.kind):
                 status = RelationStatus.PENDING_REVIEW.value
                 break
@@ -399,13 +462,17 @@ class RelationService:
                 status = RelationStatus.PENDING_REVIEW.value
 
         evidence = proposal.evidence.to_json()
+        if open_leg:
+            evidence["open_leg"] = True
+            evidence.setdefault("anchor_role", getattr(proposal.evidence, "anchor_role", "") or "")
         payload = {
             "kind": proposal.kind,
-            "subtype": proposal.subtype or SUBTYPE_NONE,
+            "subtype": subtype,
             "primary_fact_id": proposal.primary_fact_id,
-            "secondary_fact_id": proposal.secondary_fact_id,
+            "secondary_fact_id": None if open_leg else proposal.secondary_fact_id,
             "primary_fact_type": proposal.primary_fact_type,
-            "secondary_fact_type": proposal.secondary_fact_type,
+            "secondary_fact_type": None if open_leg else proposal.secondary_fact_type,
+            "anchor_fact_id": anchor_id,
             "status": status,
             "rule_id": proposal.rule_id,
             "confidence": proposal.confidence,
@@ -414,3 +481,26 @@ class RelationService:
         }
         new_id = uow.relations.add(payload)
         return uow.relations.get(new_id)
+
+    def _require_active_cash(self, uow, fact_id: str) -> FactView:
+        facts = self._list_active_cash_facts(uow)
+        by_id = {f.id: f for f in facts}
+        if fact_id not in by_id:
+            raise ValueError(f"active cash fact not found: {fact_id}")
+        return by_id[fact_id]
+
+
+    def _validate_open_leg_other(self, rel: dict, other: FactView) -> None:
+        kind = rel["kind"]
+        if other.deleted:
+            raise ValueError("other fact is deleted")
+        if kind == RelationKind.REFUND_OFFSET.value:
+            # other must be expense (negative)
+            if other.signed_amount >= 0:
+                raise ValueError("refund open-leg other must be a negative expense fact")
+            # refund anchor is positive
+            return
+        if kind == RelationKind.TRANSFER_PAIR.value:
+            # opposite sign preferred; different account preferred — soft checks
+            return
+        raise ValueError(f"open-leg accept not supported for kind {kind}")

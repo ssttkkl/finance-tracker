@@ -149,3 +149,37 @@ No O(n²) full double scan. Semantics of FR-016/017/020 unchanged.
 **Alternatives rejected**:
 - Keep nested full scans + monthly chunking only — total work still Θ(n²).
 - Shrink business windows for speed — would change acceptance semantics.
+
+
+## Decision 17: Open-leg pending for multi/zero-candidate refund & transfer
+
+**Decision**: When `refund_offset` or `transfer_pair` (incl. `credit_repayment`) has an established anchor shape but the other leg is not unique (≥2 legal candidates) or has zero candidates, persist **exactly one** open-leg `pending_review` relation: anchor fact set, other fact null, suggestions only in `evidence.candidate_fact_ids` (sorted top-K, default 20) + `candidate_count`. Unique near-strong other leg may remain bilateral pending. Unique strong match remains bilateral auto-accepted. `payment_mirror` never uses open-leg. Accept of open-leg requires `other_fact_id` in one step; open-leg never affects projections. Open-leg active key: `(workspace, kind, subtype?, anchor_fact_id, open)`. Bilateral key unchanged. Expense/other seeds must not fan out N bilateral pendings for the same multi-candidate anchor.
+
+**Rationale**: Real ledgers showed refund pending fan-out (1 refund × N same-merchant expenses). High-recall pending remains, but inbox rows scale with anchors not Cartesian pairs. Distinguishes open-leg pending from FR-019 ban on single-leg **accepted** transfers.
+
+**Alternatives rejected**:
+- Keep N bilateral pendings — inbox unusable.
+- Separate open_relation table — dual inbox/state machines.
+- Placeholder facts as other leg — pollutes formal facts.
+- Open-leg for payment_mirror — mirror is 1:1 greedy bilateral by design.
+
+
+## Decision 18: Schema for open-leg (nullable secondary + anchor + dual uniqueness)
+
+**Decision**: Alter `transaction_relations` so `secondary_fact_id` may be NULL only for open-leg pending/reject occupancy of `refund_offset`/`transfer_pair`. Add durable `anchor_fact_id`. Keep bilateral unique on ordered pair when both legs present. Add partial unique on `(workspace_id, kind, subtype, anchor_fact_id)` for active open rows (`secondary_fact_id IS NULL`). Rejected open rows leave the partial unique via `active_slot` mutation (same pattern as bilateral rejected). `payment_mirror` and `accepted` always require both legs. No placeholder facts.
+
+**Rationale**: One table, one inbox; SQLite+PG both support partial uniques; matches FR-013 dual keys.
+
+**Alternatives rejected**:
+- Separate open_relation table — dual state machines.
+- Empty-string only without partial unique — weaker integrity.
+- Multiple NULL secondaries without unique — reintroduces fan-out.
+
+
+## Decision 19: Refund title_exact unique auto (strip 退款- full description)
+
+**Decision**: After stripping leading refund prefixes (`退款-` / `退款` / `退款：`) from the refund description and trimming, if the result equals an expense description exactly and that hit is unique among candidates, auto-accept that pair even when looser merchant/substring matching yields multiple candidates.
+
+**Rationale**: Real ledger open-leg noise (e.g. 美团订单-«id») had true order-title pairs stuck behind 5 soft merchant hits. Spec already intended 退款- strip matching; auto uniqueness must be measured on exact title, not soft merchant set.
+
+**Alternatives rejected**: Loosen merchant uniqueness; keep all soft hits blocking auto.

@@ -23,7 +23,7 @@ from .models import (
     WorkspaceModel,
     exact_decimal,
 )
-from ft.domain.relations import ordered_fact_pair, RelationStatus
+from ft.domain.relations import ordered_fact_pair, RelationStatus, is_open_leg_relation, OPEN_LEG_ORDERED_B_SENTINEL
 
 
 WORKSPACE_TIMEZONE = ZoneInfo("Asia/Shanghai")
@@ -473,6 +473,7 @@ class RelationalRelationRepository:
             "secondary_fact_id": row.secondary_fact_id,
             "primary_fact_type": row.primary_fact_type,
             "secondary_fact_type": row.secondary_fact_type,
+            "anchor_fact_id": getattr(row, "anchor_fact_id", None) or row.primary_fact_id,
             "status": row.status,
             "rule_id": row.rule_id,
             "confidence": row.confidence,
@@ -485,6 +486,7 @@ class RelationalRelationRepository:
             "later_marker": row.later_marker or "",
             "superseded_by_id": row.superseded_by_id,
             "revision": row.revision,
+            "active_slot": row.active_slot,
         }
 
     def list_active(self, *, kind: str | None = None, status: str | None = None) -> list[dict]:
@@ -542,19 +544,28 @@ class RelationalRelationRepository:
         return [self._to_dict(row) for row in rows]
 
     def add(self, relation: dict) -> str:
-        left, right = ordered_fact_pair(relation["primary_fact_id"], relation["secondary_fact_id"])
+        secondary = relation.get("secondary_fact_id")
+        if secondary == "":
+            secondary = None
+        left, right = ordered_fact_pair(relation["primary_fact_id"], secondary)
         status = relation.get("status") or RelationStatus.PENDING_REVIEW.value
         active_slot = "active" if status != RelationStatus.SUPERSEDED.value else relation.get("id") or "superseded"
+        anchor = relation.get("anchor_fact_id") or relation["primary_fact_id"]
+        sec_type = relation.get("secondary_fact_type")
+        if secondary is None:
+            sec_type = None
+        elif not sec_type:
+            sec_type = "cash"
         model = TransactionRelationModel(
             workspace_id=self._workspace_id,
             kind=relation["kind"],
             subtype=relation.get("subtype") or "",
             primary_fact_id=relation["primary_fact_id"],
-            secondary_fact_id=relation["secondary_fact_id"],
+            secondary_fact_id=secondary,
             primary_fact_type=relation.get("primary_fact_type") or "cash",
-            secondary_fact_type=relation.get("secondary_fact_type") or "cash",
+            secondary_fact_type=sec_type,
             ordered_fact_a=left,
-            ordered_fact_b=right,
+            ordered_fact_b=right if right is not None else OPEN_LEG_ORDERED_B_SENTINEL,
             active_slot=active_slot,
             status=status,
             rule_id=relation.get("rule_id") or "",
@@ -566,12 +577,80 @@ class RelationalRelationRepository:
             later_marker=relation.get("later_marker") or "",
             superseded_by_id=relation.get("superseded_by_id"),
             revision=int(relation.get("revision") or 1),
+            anchor_fact_id=anchor,
         )
         if relation.get("id"):
             model.id = relation["id"]
         self._session.add(model)
         self._session.flush()
         return model.id
+
+    def find_open_leg(
+        self, *, kind: str, anchor_fact_id: str, subtype: str = "",
+    ) -> dict | None:
+        row = self._session.scalar(select(TransactionRelationModel).where(
+            TransactionRelationModel.workspace_id == self._workspace_id,
+            TransactionRelationModel.kind == kind,
+            TransactionRelationModel.subtype == (subtype or ""),
+            TransactionRelationModel.anchor_fact_id == anchor_fact_id,
+            TransactionRelationModel.secondary_fact_id.is_(None),
+            TransactionRelationModel.status != RelationStatus.SUPERSEDED.value,
+            TransactionRelationModel.active_slot == "active",
+        ))
+        return None if row is None else self._to_dict(row)
+
+    def bind_other_leg(
+        self,
+        relation_id: str,
+        *,
+        other_fact_id: str,
+        other_fact_type: str = "cash",
+        status: str,
+        decided_by: str,
+        decision_reason: str = "",
+        evidence: dict | None = None,
+    ) -> dict:
+        row = self._session.scalar(select(TransactionRelationModel).where(
+            TransactionRelationModel.workspace_id == self._workspace_id,
+            TransactionRelationModel.id == relation_id,
+        ))
+        if row is None:
+            raise ValueError(f"relation not found: {relation_id}")
+        if row.secondary_fact_id not in (None, ""):
+            raise ValueError("relation already has other leg")
+        # Free open-leg bilateral sentinel key (anchor, '') before writing ordered pair.
+        # Use a temporary unique active_slot so unique(workspace,kind,ordered_a,ordered_b,...)
+        # does not collide mid-update with residual rows.
+        left, right = ordered_fact_pair(row.primary_fact_id, other_fact_id)
+        # Also free partial unique open index by setting secondary non-null in same UPDATE.
+        # If another active bilateral already occupies (left,right), fail closed.
+        conflict = self._session.scalar(select(TransactionRelationModel).where(
+            TransactionRelationModel.workspace_id == self._workspace_id,
+            TransactionRelationModel.kind == row.kind,
+            TransactionRelationModel.ordered_fact_a == left,
+            TransactionRelationModel.ordered_fact_b == right,
+            TransactionRelationModel.subtype == (row.subtype or ""),
+            TransactionRelationModel.active_slot == "active",
+            TransactionRelationModel.id != row.id,
+        ))
+        if conflict is not None:
+            raise ValueError(
+                f"cannot bind other leg: active bilateral relation already exists "
+                f"({conflict.id}) for this fact pair"
+            )
+        row.secondary_fact_id = other_fact_id
+        row.secondary_fact_type = other_fact_type or "cash"
+        row.ordered_fact_a = left
+        row.ordered_fact_b = right
+        row.status = status
+        row.active_slot = "active" if status != RelationStatus.SUPERSEDED.value else row.id
+        row.decided_by = decided_by
+        row.decided_at = datetime.now(timezone.utc)
+        row.decision_reason = decision_reason or ""
+        if evidence is not None:
+            row.evidence_json = _json_safe(evidence)
+        self._session.flush()
+        return self._to_dict(row)
 
     def update_status(
         self,
@@ -593,6 +672,8 @@ class RelationalRelationRepository:
         if status == RelationStatus.SUPERSEDED.value:
             row.active_slot = row.id
         else:
+            # Keep active_slot='active' for open-leg rejected so partial unique
+            # continues to occupy the open anchor key (FR-028b).
             row.active_slot = "active"
         if decided_by is not None:
             row.decided_by = decided_by

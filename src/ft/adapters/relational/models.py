@@ -18,6 +18,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator
@@ -619,6 +620,18 @@ class TransactionRelationModel(Base):
         Index("ix_transaction_relations_workspace_kind", "workspace_id", "kind"),
         Index("ix_transaction_relations_primary", "workspace_id", "primary_fact_id"),
         Index("ix_transaction_relations_secondary", "workspace_id", "secondary_fact_id"),
+        Index("ix_transaction_relations_anchor", "workspace_id", "anchor_fact_id"),
+        # Partial unique for open-leg active occupancy (PG + SQLite 3.8+).
+        Index(
+            "uq_transaction_relations_open_leg_active",
+            "workspace_id",
+            "kind",
+            "subtype",
+            "anchor_fact_id",
+            unique=True,
+            sqlite_where=text("secondary_fact_id IS NULL AND active_slot = 'active'"),
+            postgresql_where=text("secondary_fact_id IS NULL AND active_slot = 'active'"),
+        ),
         CheckConstraint(
             "kind IN ('payment_mirror','transfer_pair','refund_offset')",
             name="ck_transaction_relations_kind",
@@ -626,6 +639,21 @@ class TransactionRelationModel(Base):
         CheckConstraint(
             "status IN ('pending_review','accepted','rejected','superseded')",
             name="ck_transaction_relations_status",
+        ),
+        CheckConstraint(
+            "status != 'accepted' OR secondary_fact_id IS NOT NULL",
+            name="ck_transaction_relations_accepted_bilateral",
+        ),
+        CheckConstraint(
+            "kind != 'payment_mirror' OR secondary_fact_id IS NOT NULL",
+            name="ck_transaction_relations_mirror_bilateral",
+        ),
+        CheckConstraint(
+            "(secondary_fact_id IS NOT NULL) OR ("
+            "status IN ('pending_review','rejected','superseded') "
+            "AND kind IN ('refund_offset','transfer_pair')"
+            ")",
+            name="ck_transaction_relations_open_leg_shape",
         ),
     )
 
@@ -636,12 +664,14 @@ class TransactionRelationModel(Base):
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     subtype: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     primary_fact_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    secondary_fact_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    # Null only for open-leg refund_offset / transfer_pair pending/reject occupancy.
+    secondary_fact_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     primary_fact_type: Mapped[str] = mapped_column(String(32), default="cash", nullable=False)
-    secondary_fact_type: Mapped[str] = mapped_column(String(32), default="cash", nullable=False)
+    secondary_fact_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     ordered_fact_a: Mapped[str] = mapped_column(String(36), nullable=False)
+    # Open-leg uses empty-string sentinel for ordered_fact_b.
     ordered_fact_b: Mapped[str] = mapped_column(String(36), nullable=False)
-    # active_slot is 1 for non-superseded rows; superseded rows use id hash slot to free the key.
+    # active_slot is 'active' for non-superseded rows; superseded rows use id slot to free the key.
     active_slot: Mapped[str] = mapped_column(String(36), default="active", nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     rule_id: Mapped[str] = mapped_column(String(128), default="", nullable=False)
@@ -655,6 +685,8 @@ class TransactionRelationModel(Base):
     later_marker: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     superseded_by_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    # Durable open-leg / role anchor (refund leg, transfer out, etc.).
+    anchor_fact_id: Mapped[str] = mapped_column(String(36), nullable=False)
 
 
 class RelationCheckRunModel(Base):

@@ -40,6 +40,17 @@ Apply migrations before tests/commands (project standard Alembic path).
 
 ## 4. Review inbox
 
+### 4a. Open-leg pending (multi-candidate refund/transfer)
+
+1. Create one refund and **N≥2** same-merchant expenses in window (or multi transfer candidates).
+2. Run relation check.
+3. Expect **exactly one** `refund_offset`/`transfer_pair` pending with empty other leg; evidence lists candidate ids (≤20) and `candidate_count`.
+4. `ft relations accept <id>` **without** `--other` must fail.
+5. `ft relations accept <id> --other <expense_id>` succeeds → bilateral accepted; net/transfer projection updates.
+6. Reject path: open-leg reject → re-check does not create another open pending for same anchor.
+
+## 4b. Review inbox (bilateral)
+
 1. Force a weak match (same day only / multi-candidate) → pending.
 2. `accept` → report updates; audit has actor/time.
 3. Another pending → `reject` → re-check does not recreate same pending key.
@@ -70,6 +81,11 @@ uv run pytest tests/test_transaction_relations*.py -q
 If PostgreSQL URL is unset, record missing evidence explicitly; do not claim dual-backend complete.
 
 ## Expected invariants
+
+- Multi-candidate refund/transfer → one open-leg pending, not N bilateral rows
+- Open-leg never changes reports until accept+other
+- payment_mirror never open-leg
+
 
 - No fact amount rewrites for pairing/refunds
 - No physical deletes for pairing

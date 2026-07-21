@@ -1,24 +1,34 @@
-# Implementation Plan: Transaction Relations
+# Implementation Plan: Transaction Relations (+ Open-Leg Pending)
 
-**Branch**: `006-transaction-relations` | **Date**: 2026-07-21 | **Spec**: [spec.md](./spec.md)
+**Branch**: `006-open-leg-pending` (extends `006-transaction-relations`) | **Date**: 2026-07-21 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `/specs/006-transaction-relations/spec.md`
+**Input**: Feature specification from `/specs/006-transaction-relations/spec.md` including open-leg pending clarifications (FR-042–047, SC-019–023).
 
 ## Summary
 
-在既有 `ft import` 正式事实链路之后，增加**追加式账务关系层**：识别并持久化 `payment_mirror`、`transfer_pair`（含 `credit_repayment` subtype）、`refund_offset`；弱匹配进入 Review Inbox；报表/投影只读取 **活跃正式事实 + accepted 关系**。禁止因配对/退款/镜像而物理删除或改写原始事实金额。历史错误重复事实走**用户可审计逻辑删除**；删除后再导入同 `source_identity` 发布**新活跃正式事实**（不静默 undelete）。匹配信号复用 main 的 dedup/reconcile/transfer_rules/convert 退款语义，但落盘改为关系 + 投影。PostgreSQL 与 SQLite 用户可见行为等价。
+在既有关系层（`payment_mirror` / `transfer_pair` / `refund_offset`、Review Inbox、投影、逻辑删除）之上，增加 **开放单腿 pending**：
+
+- 仅 `refund_offset` 与 `transfer_pair`（含 `credit_repayment`）
+- 当对侧不唯一（≥2 合法候选）或 0 候选但锚点形态成立时，落 **1 条** `pending_review`，锚点非空、**对侧可空**
+- 建议对侧仅存 `evidence.candidate_fact_ids`（top-K=20）+ `candidate_count`
+- 用户 accept 时 **必须** 提供 `other_fact_id`，一步绑定为双边 `accepted`
+- 单腿 **永不** 参与报表投影
+- `payment_mirror` 保持双边 + 1:1 greedy，不使用开放单腿
+- 消除「1 退款 × N 消费」双边 pending 扇出
+
+既有 006 合同不变：事实不可变、Decimal 严格、导入后检查、双后端等价。
 
 ## Technical Context
 
 **Language/Version**: Python 3.11+  
 **Primary Dependencies**: SQLAlchemy, Alembic, psycopg, uv, pytest  
-**Storage**: PostgreSQL and file SQLite via explicit `FT_DATABASE_URL` (no fallback/dual-write)  
-**Testing**: pytest; SQLite automation + real PostgreSQL matrix for persistence/relations/projections  
+**Storage**: PostgreSQL and file SQLite via explicit `FT_DATABASE_URL`  
+**Testing**: pytest; SQLite + real PostgreSQL for schema/relation/review/projection  
 **Target Platform**: macOS/Linux CLI  
 **Project Type**: CLI + Application Service + relational adapters  
-**Performance Goals**: Personal finance scale; post-import relation check over bounded candidate windows (not full-table scans)  
-**Constraints**: Exact Decimal; immutable formal facts; relation-only pairing; active-only row idempotency; no amount tolerance; dual-backend parity  
-**Scale/Scope**: Relation model, post-import check, review decisions, logical delete + re-import, report projections, account aliases, CLI contracts, docs
+**Performance Goals**: Full check ≤60s on ≥10k facts (index candidates); open-leg reduces pending row volume  
+**Constraints**: Exact Decimal; open-leg only pending; accepted bilateral only; no placeholder facts; dual-backend parity  
+**Scale/Scope**: Schema nullability + dual business keys; domain proposal shapes; RelationService fan-out control; review accept-with-other; CLI; tests; docs
 
 ## Constitution Check
 
@@ -26,88 +36,152 @@
 
 | Principle | Status |
 |---|---|
-| I 财务正确性与可审计性 | PASS — facts immutable; relations append-only with evidence; refund nets only via accepted relations; exact Decimal; no float `0.01` tolerance; logical delete audited |
-| II Spec Kit 规格驱动 | PASS — 006 artifacts drive change; main session does not implement product code until tasks/analyze gate |
-| III 测试先行与验证证据 | PASS — failing tests before impl for each relation kind, review, delete/re-import, dual backend |
-| IV 显式数据库选择与行为等价 | PASS — parity matrix below; no fallback/dual-write/implicit cross-backend migration |
-| V 清晰边界与最小复杂度 | PASS — relation layer beside import; no CSV reconcile revival; no FX product; no full Web UI required |
+| I 财务正确性与可审计性 | PASS — open-leg never affects nets; accept binds real facts only; audit on accept/reject; no placeholder facts |
+| II Spec Kit 规格驱动 | PASS — spec FR-042–047 first; plan/tasks before implementer |
+| III 测试先行与验证证据 | PASS — red tests for multi-candidate → 1 open-leg, accept+other, reject key, projection ignore |
+| IV 显式数据库选择与行为等价 | PASS — migration + uniqueness must work on PG and SQLite; parity matrix extended |
+| V 清晰边界与最小复杂度 | PASS — same relation table; no second inbox product; mirror unchanged |
 
-### Parity Matrix (PostgreSQL / SQLite)
+### Parity Matrix (PostgreSQL / SQLite) — open-leg deltas
 
 | Dimension | PostgreSQL | SQLite | Notes |
 |---|---|---|---|
-| Schema: `transaction_relations` (+ optional check runs / aliases / deletion events) | yes | yes | same logical columns/constraints |
-| Relation status machine | same states | same states | pending/accepted/rejected/superseded |
-| Active formal fact definition | `deleted_at IS NULL` (or equivalent) | same | projection + matching + row idempotency |
-| Post-import relation check after commit | yes | yes | failure never rolls back import facts |
-| Report nets from facts+accepted relations | exact Decimal | exact Decimal adapter | same Application Service |
-| Logical delete + re-import new active fact | yes | yes | no silent undelete; digest idempotency unchanged |
-| Review accept/reject audit | yes | yes | same CLI/query contract |
-| Auto fallback / dual-write / implicit cross-backend migrate | forbidden | forbidden | constitution |
+| `secondary_fact_id` NULL for open-leg pending | yes | yes | accepted/mirror always non-null |
+| Open-leg active uniqueness on anchor key | partial unique index | partial unique index (SQLite 3.8+) | `(workspace, kind, subtype, anchor_fact_id)` where open & active |
+| Bilateral uniqueness ordered pair | existing | existing | both facts non-null |
+| Accept open-leg requires other_fact_id | app service | app service | fail closed |
+| Projection ignores open-leg | same pure function | same | FR-010/033 |
+| Auto no second open-leg per anchor | app + unique | app + unique | |
 
-**Permitted operational differences**: lock implementation, concurrency throughput, driver error text, optional async task scheduling latency — must not fork relation state, report nets, or review outcomes.
+**Permitted operational differences**: unchanged (locks, throughput, driver text).
 
 ## Project Structure
 
-### Documentation (this feature)
+### Documentation
 
 ```text
 specs/006-transaction-relations/
-├── plan.md
-├── research.md
-├── data-model.md
-├── quickstart.md
+├── plan.md              # this file
+├── research.md          # Decision 17 open-leg
+├── data-model.md        # nullable secondary + open key
+├── quickstart.md        # § open-leg scenarios
 ├── contracts/
+│   ├── review-inbox.md  # accept + other_fact_id
 │   ├── relation-check.md
-│   ├── review-inbox.md
 │   ├── logical-delete.md
 │   └── report-projection.md
 ├── checklists/requirements.md
-└── tasks.md            # via /speckit-tasks
+└── tasks.md
 ```
 
-### Source Code (impact surface)
+### Source Code (delta surface)
 
 ```text
-src/ft/domain/relations.py                 # planned: kinds, statuses, evidence DTOs, projection pure functions
-src/ft/domain/imports.py                   # keep raw fields; stop treating offset_* as authority
-src/ft/application/statement_import.py     # after commit: schedule/run relation check; active-only formal publish
-src/ft/application/relations.py            # planned: RelationService (check, review, supersede)
-src/ft/application/cashflow.py             # logical delete entry; balance projection excludes deleted
-src/ft/application/queries.py              # report/list use projection rules
-src/ft/adapters/relational/models.py       # relations, aliases, deletion marker/events, active indexes
+migrations/versions/20260722_06_open_leg_pending.py   # NEW
+src/ft/domain/relations.py                            # OpenLeg proposal; multi→one; no expense fan-out
+src/ft/application/relations.py                       # persist open; accept(other_id); keys
+src/ft/adapters/relational/models.py                  # nullable secondary; anchor; constraints
 src/ft/adapters/relational/repositories.py
-src/ft/adapters/relational/imports.py      # formal_fact_targets / active idempotency
-src/ft/adapters/relational/queries.py
-src/ft/adapters/relational/uow.py
-src/ft/adapters/relational/runtime.py
-src/ft/repositories/protocols.py
-src/ft/cli.py                              # review / relation check / delete commands
-src/ft/convert.py                          # ensure import path does not net refunds; convert may keep preview-only tracking
-src/ft/report.py                           # consume relation-aware projections
-migrations/versions/20260721_05_transaction_relations.py   # planned
-tests/test_transaction_relations_*.py                      # planned matrix
-tests/test_statement_import_mapping.py                     # update active idempotency
-tests/test_relational_contract.py                          # update
-README.md / docs/import-reconcile-flow.md                  # document relation layer
+src/ft/cli.py                                         # relations accept --other
+tests/test_transaction_relations_open_leg.py          # NEW
+tests/test_transaction_relations_refund.py            # multi-candidate asserts 1 open-leg
+tests/test_transaction_relations_transfer.py
+tests/test_alembic_migration.py                       # tip includes 06
 ```
-
-**Structure Decision**: Single-project CLI layout. Add a dedicated Application Service for relations; keep parsers/mapping unchanged; put rule matching in domain-pure modules with main-signal windows from spec; persist only via relational adapters.
 
 ## Implementation Approach
 
-1. **Red tests (dual backend where persistence)**: payment_mirror/transfer/refund windows; pending vs accepted; review accept/reject; projection order; logical delete + re-import new active; no `duplicate_of`; legacy offset non-authority; concurrent check idempotency.
-2. **Schema**: `transaction_relations`, relation check runs (optional but recommended), account aliases, formal-fact logical delete marker/event; partial/active uniqueness for source identity / raw linkage as decided in research.
-3. **Domain rules**: port main signals with Decimal strict equality and fixed time windows; evidence JSON; confidence tiers.
-4. **Import hook**: commit facts first; then relation check with seed = new active facts; never roll back import on check failure.
-5. **Review CLI/query contract**: list pending; accept/reject/later; audit fields.
-6. **Projection**: balance = all active facts; P&L order: mirror groups → exclude transfer_pair → apply refund_offset.
-7. **Docs + green suite**; report missing PostgreSQL evidence if `FT_TEST_POSTGRES_URL` unset.
+### 1. Schema migration `20260722_06`
+
+Goals:
+
+1. Allow **open-leg pending** rows for `refund_offset` / `transfer_pair` only.
+2. Keep **bilateral** uniqueness for two-fact rows.
+3. Enforce **one active open pending (or reject occupancy) per anchor**.
+4. `payment_mirror` and all `accepted` rows remain two-fact.
+
+**Recommended shape** (both backends):
+
+| Column | Change |
+|---|---|
+| `secondary_fact_id` | `nullable=True` |
+| `secondary_fact_type` | `nullable=True` or empty string when open |
+| `ordered_fact_b` | allow empty string `''` for open-leg sentinel **or** keep non-null via sentinel `__open__` — pick one and test both backends |
+| `anchor_fact_id` | **add** `String(36) NOT NULL` (backfill: refund→secondary/refund leg mapping; transfer→primary/out or evidence; bilateral→deterministic from pair) |
+| optional `open_leg` | boolean/generated: `secondary_fact_id IS NULL` |
+
+**Constraints**:
+
+```text
+CHECK: status != 'accepted' OR (secondary_fact_id IS NOT NULL)
+CHECK: kind != 'payment_mirror' OR (secondary_fact_id IS NOT NULL)
+CHECK: secondary_fact_id IS NULL → status IN ('pending_review','rejected','superseded')
+       AND kind IN ('refund_offset','transfer_pair')
+
+Bilateral unique (existing spirit):
+  (workspace_id, kind, ordered_fact_a, ordered_fact_b, subtype, active_slot)
+  for rows with secondary_fact_id IS NOT NULL
+
+Open-leg unique (partial):
+  (workspace_id, kind, subtype, anchor_fact_id)
+  WHERE secondary_fact_id IS NULL AND active_slot = 'active'
+  (rejected open rows: set active_slot to relation id or 'rejected:<id>' so key frees only on supersede reopen — mirror existing bilateral rejected occupancy pattern)
+```
+
+**Backfill**: all existing rows get `anchor_fact_id` from kind role mapping (refund_offset secondary=refund → anchor=secondary; transfer primary=out → anchor=primary; mirror either).
+
+**Downgrade**: refuse or only if no open-leg rows remain (document).
+
+### 2. Domain
+
+- `RelationProposal` allows `secondary_fact_id: str | None`, `open_leg: bool`, `anchor_fact_id: str`.
+- `evaluate_refund_offset`:
+  - Collect matches as today (rules unchanged).
+  - If unique strong auto → bilateral accepted proposal.
+  - If unique match not auto → bilateral pending.
+  - If `len(matches) >= 2` OR (`len==0` and refund seed signal) → **one** open-leg pending; `candidate_fact_ids` sorted (time/amount proximity), top-20; `candidate_count=len(matches)`.
+  - Expense seeds: MUST NOT emit multi-candidate bilateral fan-out; prefer only strong unique or skip (refund seed owns open-leg).
+- `evaluate_transfer_pair`: same multi/zero → open-leg; anchor = stronger signal leg; `anchor_role` in evidence.
+- `match_payment_mirrors_greedy`: unchanged; never open-leg.
+- Projection: skip relations with null other / `open_leg`.
+
+### 3. Application / Review
+
+- `_persist_proposal`: open-leg key path; no second open for same anchor.
+- `accept(relation_id, *, other_fact_id=None, actor, reason)`:
+  - bilateral: other_fact_id optional (already set).
+  - open-leg: **required** other_fact_id; validate legality; write both legs; status accepted; clear open.
+- `reject`: occupies open anchor key.
+- Check loop: do not let expense seeds recreate open anchors.
+
+### 4. CLI
+
+```text
+ft relations pending
+ft relations accept <id> --other <fact_id>   # required for open-leg
+ft relations reject <id>
+```
+
+### 5. Tests (red first)
+
+- Multi merchant candidates → 1 open-leg, N not written
+- Zero candidate refund signal → 1 open-leg empty candidates
+- Accept without other fails; with legal other → accepted + projection
+- Illegal other fail closed
+- Reject suppresses re-open
+- Unique weak remains bilateral pending (optional assert)
+- Mirror never null secondary
+- Migration upgrade on SQLite + PG
+- Real-ledger style: 1 京东退货 × 14 京东消费 → 1 pending row
+
+### 6. Docs
+
+- quickstart open-leg section; README pointer if needed.
 
 ## Complexity Tracking
 
-None. No constitution violations requiring justification.
+None beyond justified schema dual-key (required by FR-013 open vs bilateral).
 
 ## Post-Design Constitution Check
 
-Re-evaluated after research/data-model/contracts/quickstart: **PASS**. Relation-only pairing preserves auditability; dual-backend parity specified; logical delete re-import defined without permanent identity ban; no CSV reconcile revival; no FX product creep.
+**PASS**. Open-leg is review-only; financial effects only after bilateral accept; dual-backend uniqueness specified; no fact fabrication; Spec Kit artifacts updated before implement.

@@ -5,7 +5,9 @@
 
 **Tests**: MANDATORY failing tests before implementation. Persistence/relation/projection changes require SQLite + real PostgreSQL matrix; neither backend may be mocks-only. If `FT_TEST_POSTGRES_URL` is unset, leave SQLite evidence and report missing PG matrix explicitly.
 
-**Organization**: Setup → Foundational → User Stories US1–US9 (spec priority) → Polish.
+**Organization**: Setup → Foundational → User Stories US1–US9 (base 006, done) → **Open-Leg phase (remaining)** → Polish.
+
+**Open-leg extension**: FR-042–047 / User Story 6b. Branch `006-open-leg-pending`.
 
 ## Format: `[ID] [P?] [Story?] Description`
 
@@ -297,3 +299,62 @@ Recommended first shippable correctness slice after MVP: US2 + US3 + US6.
 - No `duplicate_of`; no amount tolerance; no import rollback on check failure
 - Dual-backend: same Application Service assertions on SQLite and real PostgreSQL
 - Do not expand into FX product, full Web UI, or CSV reconcile revival
+
+## Phase Open-Leg: 开放单腿 pending（006 extension）
+
+**Purpose**: Implement FR-042–047 / US6b — multi/zero candidate → one open-leg pending; accept with `--other`; no fan-out.
+
+**Prerequisites**: Base 006 relation layer green (T001–T057). Branch `006-open-leg-pending`.
+
+**Independent test**: 1 refund × N expenses → 1 open-leg pending; accept requires other; projection ignores open-leg; mirror never open-leg; SQLite+PG migration.
+
+### OL Setup / inventory
+
+- [x] T100 Confirm open-leg updates in `specs/006-transaction-relations/{spec,plan,research,data-model}.md` and contracts `contracts/review-inbox.md`, `contracts/relation-check.md`
+- [x] T101 [P] Inventory current `secondary_fact_id` NOT NULL, business key, accept API in `migrations/versions/20260721_05_transaction_relations.py`, `src/ft/adapters/relational/models.py`, `src/ft/application/relations.py`, `src/ft/cli.py`
+
+### OL Foundational (schema + red tests)
+
+- [x] T102 [P] Write failing tests for open-leg multi-candidate refund → single pending in `tests/test_transaction_relations_open_leg.py`
+- [x] T103 [P] Write failing tests: open-leg accept requires other_fact_id; illegal other fails; projection ignores open-leg in `tests/test_transaction_relations_open_leg.py`
+- [x] T104 [P] Write failing tests: transfer multi-candidate open-leg; reject suppresses re-open; payment_mirror never null secondary in `tests/test_transaction_relations_open_leg.py`
+- [x] T105 Create Alembic revision `migrations/versions/20260722_06_open_leg_pending.py`: nullable secondary, `anchor_fact_id`, checks, partial unique for open-leg; dual-backend; update `tests/test_alembic_migration.py`
+- [x] T106 Update ORM/repositories for nullable secondary + anchor + open key in `src/ft/adapters/relational/models.py`, `src/ft/adapters/relational/repositories.py`, `src/ft/repositories/protocols.py`
+
+**Checkpoint**: Migration applies SQLite (+PG if available); open-leg tests red for missing behavior
+
+### OL Domain + application (US6b / US6)
+
+- [x] T107 [US6b] Extend domain proposals for open-leg (`secondary_fact_id` optional, evidence candidate_fact_ids top-K=20) in `src/ft/domain/relations.py`
+- [x] T108 [US6b] Change `evaluate_refund_offset` multi/zero-candidate path to one open-leg; stop expense-seed fan-out of multi bilateral pendings in `src/ft/domain/relations.py`
+- [x] T109 [US6b] Change `evaluate_transfer_pair` multi/zero-candidate path to one open-leg with anchor_role in `src/ft/domain/relations.py`
+- [x] T110 [US6b] Persist open-leg keys; accept(other_fact_id); reject open anchor occupancy; projection skip open-leg in `src/ft/application/relations.py`
+- [x] T111 [US6] CLI list shows open-leg; `accept` requires `--other` for open-leg in `src/ft/cli.py`
+- [x] T112 Green `tests/test_transaction_relations_open_leg.py` and adjust `tests/test_transaction_relations_refund.py` / `tests/test_transaction_relations_transfer.py` for multi-candidate → open-leg
+
+**Checkpoint**: US6b acceptance scenarios pass on SQLite
+
+### OL Polish
+
+- [x] T113 [P] Dual-backend matrix for open-leg migration + core open-leg tests when `FT_TEST_POSTGRES_URL` set
+- [x] T114 [P] Real-ledger smoke optional: multi 京东退货 candidates → 1 open pending (document path under `/tmp`)
+- [x] T115 Update `specs/006-transaction-relations/tasks.md` checkboxes; `$speckit-converge` if available
+- [x] T116 Commit on `006-open-leg-pending` with message covering schema+behavior (no push unless authorized)
+
+---
+
+## Dependencies (open-leg)
+
+```text
+T100–T101 → T102–T104 (red) → T105–T106 (schema) → T107–T111 (impl) → T112 green → T113–T116 polish
+```
+
+## MVP (open-leg only)
+
+T100–T112: schema + refund open-leg + accept/reject + tests. Transfer open-leg included in T109. Mirror out of scope for open-leg.
+
+## Notes
+
+- Base tasks T001–T057 remain completed for original 006.
+- Open-leg tasks are the **only** remaining implementation work on this branch.
+- Main session must use `speckit_implementer` for T102–T112 product code per constitution.
