@@ -151,3 +151,35 @@ Phase order: A refund → B mirror → **C transfer** → D bank refund / weak
 | WeChat | status, type/txn_type, direction, pay method, amount, time |
 | CCB | summary, location, amount, date, card |
 | ICBC | payment_method, counterparty, description, amount, time |
+
+
+## Audit tightening (2026-07-22 full import)
+
+### WeChat withdraw (fixed gap)
+- Out/receipt: status `提现已到账`, type `零钱提现` (amount often **positive**).
+- In: CCB/ICBC `银联入账` or `支付机构提现` or description contains `微信零钱提现`.
+- Match: **exact amount + same calendar day** (bank may lack time).
+- Rule: `transfer_pair.withdraw_to_bank.v1`.
+
+### Credit repayment gate (noise reduction)
+**Out-leg ALLOW text** (any): `信用卡还款`, `购汇还款`, `自动还款`, `花呗`+`还款`, `月付】主动还款`, `主动还款`+credit product.
+**Out-leg DENY**: CCB `summary=还款` alone with merchant-like counterparty (京东, 消费); pure `消费`.
+**In-leg ALLOW**: `account_type in {loan, credit}` OR (bank credit bill + (`还款` or `转帐收入`/`转账收入`) and not refund).
+**In-leg DENY**: `退款`, `退货`, `消费退货`, `刷卡金`, merchant refund incomes.
+
+### Stop criteria
+Do not further broaden transfer signals into P2P/QR/consume; do not auto credit_repayment without loan/credit in-leg.
+
+
+## WeChat withdraw: same-account dual-source (audit)
+
+When mapping routes 零钱提现 → 建行储蓄卡, the WeChat row is a **bank credit fact** with `bill_source=wechat`.
+CCB XLS may add a second credit `银联入账`/`支付机构提现` on the **same account_id**.
+
+| Case | Relation |
+|---|---|
+| Same account_id, both +amount | **payment_mirror** (platform×bank views), NOT transfer_pair |
+| Different account_id (零钱 vs 建行) | **transfer_pair.withdraw_to_bank** |
+| Only one fact | no pair |
+
+Date-only bank rows may sit at 16:00 UTC previous calendar day — mirror window must allow adjacent day / 36h for this family only.

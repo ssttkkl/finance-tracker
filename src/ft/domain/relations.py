@@ -1194,12 +1194,32 @@ def evaluate_transfer_pair(
             or (cand.account_type == "cash" and cand_amount < 0 and seed.account_type == "loan" and seed_amount > 0)
         )
         repayment_text = has_repayment_signal(combined)
+        # 007 FR-049: strong repayment out-leg text (not bare 还款 + merchant)
+        seed_blob = _text_blob(seed_text)
+        cand_blob = _text_blob(cand_text)
+        strong_repay_out = any(
+            tok in seed_blob
+            for tok in (
+                "信用卡还款", "购汇还款", "自动还款", "主动还款",
+                "月付】主动还款", "花呗自动还款", "花呗主动还款", "花呗还款",
+            )
+        ) or ("花呗" in seed_blob and "还款" in seed_blob)
+        # Deny CCB-like 还款 summary used as merchant installments
+        deny_repay_out = (
+            (seed_blob.strip() in ("还款", "消费 还款", "还款 消费") or seed_blob.endswith(" 还款") or seed_blob.startswith("还款 "))
+            and not strong_repay_out
+        ) or any(m in seed_blob for m in ("京东", "美团支付", "拼多多")) and "信用卡" not in seed_blob and "花呗" not in seed_blob and "月付" not in seed_blob and "购汇" not in seed_blob
+        deny_repay_in = any(
+            tok in cand_blob for tok in ("退款", "退货", "消费退货", "刷卡金", "返现", "返利")
+        )
         subtype = SUBTYPE_NONE
         status = RelationStatus.PENDING_REVIEW.value
         conf = CONFIDENCE_WEAK
         rule = RULE_TRANSFER_PAIR_STRONG_V1
 
-        if is_cash_to_loan and repayment_text:
+        if is_cash_to_loan and repayment_text and (not strong_repay_out or deny_repay_out or deny_repay_in):
+            continue
+        if is_cash_to_loan and repayment_text and strong_repay_out and not deny_repay_out and not deny_repay_in:
             subtype = SUBTYPE_CREDIT_REPAYMENT
             if same_currency and exact and dt <= CREDIT_REPAYMENT_SAME_CURRENCY_SECONDS:
                 status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_CREDIT_REPAYMENT_V1
@@ -1401,9 +1421,11 @@ def match_withdraw_receipt_to_bank(
     *,
     used: set[str] | None = None,
 ) -> list[RelationProposal]:
-    """Phase C special: WeChat 提现已到账 (+amount) ↔ bank +amount same day.
+    """WeChat 零钱提现 dual-source / cross-account pairing.
 
-    Classic evaluate_transfer_pair requires opposite signs; withdraw receipts are positive.
+    - **Different accounts**: transfer_pair.withdraw_to_bank (platform零钱 → bank).
+    - **Same account** (mapping landed 提现 on bank booklet + CCB 银联入账): payment_mirror
+      with adjacent-day tolerance (date-only bank rows).
     """
     used = used if used is not None else set()
     receipts = [
@@ -1412,50 +1434,104 @@ def match_withdraw_receipt_to_bank(
     ]
     banks = [
         f for f in facts
-        if not f.deleted and f.id not in used and f.signed_amount > 0 and is_bank_transfer_in(f)
+        if not f.deleted and f.id not in used and f.signed_amount > 0
+        and (
+            is_bank_transfer_in(f)
+            or any(x in _text_blob(f.text) for x in ("银联入账", "支付机构提现", "微信零钱提现"))
+        )
+        and source_group(f) == "bank"
     ]
     proposals: list[RelationProposal] = []
+
+    def _near_day(a, b) -> bool:
+        if _same_calendar_day(a, b):
+            return True
+        dt = _time_delta_seconds(a, b)
+        if dt <= 36 * 3600:
+            return True
+        # adjacent calendar days (date-only UTC skew)
+        da, db = str(a)[:10], str(b)[:10]
+        if len(da) == 10 and len(db) == 10:
+            try:
+                from datetime import date as _date
+                d1 = _date.fromisoformat(da)
+                d2 = _date.fromisoformat(db)
+                return abs((d1 - d2).days) <= 1
+            except ValueError:
+                return False
+        return False
+
     for rec in receipts:
         if rec.id in used:
             continue
-        hits: list[FactView] = []
+        hits_same: list[FactView] = []
+        hits_cross: list[FactView] = []
         for b in banks:
-            if b.id in used or b.account_id == rec.account_id:
+            if b.id in used or b.id == rec.id:
                 continue
             if str(rec.currency).upper() != str(b.currency).upper():
                 continue
             if _abs_decimal(rec.signed_amount) != _abs_decimal(b.signed_amount):
                 continue
-            if not _same_calendar_day(rec.occurred_at, b.occurred_at):
-                # also allow 60s if timestamps exist
-                if _time_delta_seconds(rec.occurred_at, b.occurred_at) > 60:
+            if not _near_day(rec.occurred_at, b.occurred_at):
+                continue
+            # require bank-side withdraw/unionpay signal
+            if not any(x in _text_blob(b.text) for x in ("银联入账", "支付机构提现", "微信零钱提现", "零钱提现")):
+                if not is_bank_transfer_in(b):
                     continue
-            hits.append(b)
-        if len(hits) != 1:
+            if b.account_id == rec.account_id:
+                hits_same.append(b)
+            else:
+                hits_cross.append(b)
+        # Prefer same-account mirror (dual source)
+        if len(hits_same) == 1:
+            bank = hits_same[0]
+            # platform primary = wechat receipt
+            evidence = RelationEvidence(
+                amount_delta="0",
+                time_delta_seconds=_time_delta_seconds(rec.occurred_at, bank.occurred_at),
+                same_currency=True,
+                source_pair=(rec.bill_source or rec.source, bank.bill_source or bank.source),
+                rule_id=RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1,
+                candidate_count=1,
+                signals=("withdraw_dual_source", "exact_amount", "same_account", "platform_bank"),
+            )
+            proposals.append(RelationProposal(
+                kind=RelationKind.PAYMENT_MIRROR.value,
+                primary_fact_id=rec.id,
+                secondary_fact_id=bank.id,
+                status=RelationStatus.ACCEPTED.value,
+                rule_id="payment_mirror.withdraw_dual_source.v1",
+                confidence=CONFIDENCE_STRONG,
+                evidence=evidence,
+            ))
+            used.add(rec.id)
+            used.add(bank.id)
             continue
-        bank = hits[0]
-        evidence = RelationEvidence(
-            amount_delta="0",
-            time_delta_seconds=_time_delta_seconds(rec.occurred_at, bank.occurred_at),
-            same_currency=True,
-            source_pair=(rec.bill_source or rec.source, bank.bill_source or bank.source),
-            rule_id=RULE_TRANSFER_WITHDRAW_V1,
-            candidate_count=1,
-            signals=("withdraw_receipt", "exact_amount", "same_day"),
-        )
-        proposals.append(RelationProposal(
-            kind=RelationKind.TRANSFER_PAIR.value,
-            primary_fact_id=rec.id,
-            secondary_fact_id=bank.id,
-            status=RelationStatus.ACCEPTED.value,
-            rule_id=RULE_TRANSFER_WITHDRAW_V1,
-            confidence=CONFIDENCE_STRONG,
-            evidence=evidence,
-            anchor_fact_id=rec.id,
-            open_leg=False,
-        ))
-        used.add(rec.id)
-        used.add(bank.id)
+        if len(hits_cross) == 1:
+            bank = hits_cross[0]
+            evidence = RelationEvidence(
+                amount_delta="0",
+                time_delta_seconds=_time_delta_seconds(rec.occurred_at, bank.occurred_at),
+                same_currency=True,
+                source_pair=(rec.bill_source or rec.source, bank.bill_source or bank.source),
+                rule_id=RULE_TRANSFER_WITHDRAW_V1,
+                candidate_count=1,
+                signals=("withdraw_receipt", "exact_amount", "cross_account"),
+            )
+            proposals.append(RelationProposal(
+                kind=RelationKind.TRANSFER_PAIR.value,
+                primary_fact_id=rec.id,
+                secondary_fact_id=bank.id,
+                status=RelationStatus.ACCEPTED.value,
+                rule_id=RULE_TRANSFER_WITHDRAW_V1,
+                confidence=CONFIDENCE_STRONG,
+                evidence=evidence,
+                anchor_fact_id=rec.id,
+                open_leg=False,
+            ))
+            used.add(rec.id)
+            used.add(bank.id)
     return proposals
 
 

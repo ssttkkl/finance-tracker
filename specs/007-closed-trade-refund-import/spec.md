@@ -22,7 +22,7 @@
    - **Phase D** — 银行消费退货 `refund_offset`、弱匹配、open-leg 及其余  
 6. **支付宝订单键规则**（真实账单验证）：`refund.txn == origin.txn` 或 `startswith(origin + "_")` 或 `startswith(origin + "*")`；禁止仅 `rsplit("_",1)`；标题不得优先于订单键；不得把关单退款 auto 配到不同订单号的重拍成功单。  
 7. **微信退款双行**：支出原单行与收入退款行 MUST 都导入；扫描 Phase A 按微信规则写 `refund_offset`；**禁止** convert 净额改写原单金额。  
-8. **银行退款不在导入期做**：银行无订单硬键；消费退货在 **Phase C** 处理；导入仅保证事实 + 信号字段可恢复。  
+8. **银行退款不在导入期做**：银行无订单硬键；消费退货在 **Phase D** 处理；导入仅保证事实 + 信号字段可恢复。  
 9. **微信无支付宝式未支付关闭白名单（本库）**：默认全导入；禁止无注释 silent continue。
 
 ## Clarifications
@@ -55,12 +55,21 @@
 - Q: 是否在导入期落 `refund_offset`？ → A: **否（修订）**。导入 **只** 发布正式事实并持久化原始账单字段；关系一律在 **relations check / sync** 建立。  
 - Q: 为何修订？ → A: 与银行路径对齐，形成「先全量导入、再一次性扫描」；平台硬键规则仍用，但触发时机后置到扫描 Phase A。跨批（先银行后支付宝）一次 check 即可完成退款+镜像。  
 - Q: 原始字段存在哪？ → A: **`raw_records.payload`（JSON）** 为权威载体；MUST 满足本 spec **Raw Payload 契约**。可另将硬键投影到 formal 可读字段，但不得只存展示用 description 而丢掉 status/txn/type/pay。  
-- Q: 扫描顺序？ → A: **固定** Phase A（支付宝/微信硬键退款 + 免押解冻）→ Phase B（`payment_mirror`）→ Phase C（银行退货 / transfer / 弱匹配 / open-leg）。A 必须在 B 前，避免银行通道入账先被错误 mirror。  
+- Q: 扫描顺序？ → A: **固定** Phase A（支付宝/微信硬键退款 + 免押解冻）→ Phase B（`payment_mirror`）→ Phase C transfer → Phase D 银行退货/弱匹配。A 必须在 B 前，避免银行通道入账先被错误 mirror。  
 - Q: 银行退款？ → A: **不在导入期做**；Phase C 处理。导入 MUST 保留足够信号（如 summary「消费退货」、工行 raw「退货」）供扫描。  
 - Q: 匹配规则是否改变？ → A: 支付宝订单键、微信双行/residual/对方已退还、免押解冻等 **语义不变**；仅 **落点从 import 改为 scan Phase A**。rule_id 建议 `scan.alipay.order_prefix.v1` / `scan.wechat.*.v1`（实现可兼容旧 `import.*` 已落边为已存在关系）。  
 - Q: 已有 import 期写入的关系？ → A: 扫描 MUST 跳过已有活跃同业务键边；不强制历史回填。  
 - Q: convert `_pair_refunds`？ → A: MUST NOT 改金额；tracking 不得作为权威核销；权威只在 `transaction_relations`。
 
+
+
+### Session 2026-07-22 — 转账 Phase C 审计后收紧（真实全量导入）
+
+- Q: 审计发现？ → A: 支付宝提现→工行 **6/6** accepted；建行跨卡/借记还信用卡多组正确；**微信零钱提现 4/4 未挂上**；**credit_repayment pending 噪声**（京东「还款」摘要、月付出腿配到无关小额入账/退款）。  
+- Q: 微信提现如何修？ → A: **先分账户语义**。若 mapping 把微信「零钱提现/提现已到账」落到**银行账户**（本库建行），与 CCB「银联入账/支付机构提现」为**同账户双源入账** → MUST 走 **payment_mirror（同号）** 或幂等去重，**不是** transfer_pair（transfer 要求不同 account_id）。若微信事实在微信零钱、银行在建行（异账户）→ Phase C `withdraw_to_bank` 等额+同日。审计：4 笔微信提现均 mapping 到建行，其中 2100 与 CCB 银联入账同账户差约 1 日；其余 3 笔库内无第二条银行第二事实。  
+- Q: 同账户双源 +2100 为何未 mirror？ → A: 银行 date-only 常落在 UTC 前一日 16:00，日历日与微信不一致；Phase B MUST 对「微信提现类 + 银行银联入账/支付机构提现」允许 **相邻自然日** 或 **|Δt|≤36h** 的同号 mirror（仍 platform×bank、等额、唯一）。  
+- Q: 信用还款如何收紧？ → A: 出腿 MUST 含明确还款信号（信用卡还款/购汇还款/自动还款/花呗*还款/月付】主动还款等）；入腿 MUST 为 **loan/credit 账户** 或信用卡侧「还款/转帐收入」且 **禁止** 以退款/消费退货/营销刷卡金/小额商户入账为对侧；建行 summary 仅「还款」+ 商户 counterparty（如京东）MUST NOT 当作 credit_repayment 出腿。多候选或金额显著不等（非 FX 规则）→ pending/open-leg 或 skip，不得乱配。  
+- Q: 优化停止条件？ → A: 当继续放宽会把 P2P/消费/退款吸入 transfer，或 credit_repayment 假配率上升时停止；本轮只修审计已证实缺口。
 
 ### Session 2026-07-22 — 转账单独 Phase C（分类闸门 + 精细配对）
 
@@ -117,9 +126,9 @@
 
 **Independent Test**: 京东一单多退、味多美 30 天、对方已退还；Phase A 后多边/正确边；amount 未改。
 
-### User Story 8 - 银行退货在 Phase C (Priority: P2)
+### User Story 8 - 银行退货在 Phase D (Priority: P2)
 
-**Independent Test**: 建行「消费退货」导入后无 import 关系；check Phase C 后出现 `refund_offset` 或 pending/open-leg；fallback 级不得 auto。
+**Independent Test**: 建行「消费退货」导入后无 import 关系；check Phase D 后出现 `refund_offset` 或 pending/open-leg；fallback 级不得 auto。
 
 ### User Story 9 - 免与转账仍由扫描 (Priority: P2)
 
@@ -198,6 +207,28 @@
 - **FR-031**: 多原单 → open-leg/pending；禁止假单腿。  
 - **FR-032**: Phase B/C 不得破坏已 accepted 的 Phase A 边；跨源 mirror/transfer 仍可进行。
 
+
+#### G. 转账 Phase C（分类闸门 + 精细配对）
+
+- **FR-040**: Phase C MUST 在 Phase B 之后、Phase D 之前执行；MUST NOT 与银行退货混为同一无序阶段。  
+- **FR-041**: Phase C MUST 两阶段：**(1) 源生分类闸门**；（2）池内精细配对。MUST NOT 仅因含「转账」二字进候选。详见 `attachments/transfer-source-taxonomy.md`。  
+- **FR-042**: 闸门至少覆盖：支付宝提现/转账到银行卡/余利宝转出到卡/花呗还款/月付还款；微信提现已到账×零钱提现、支付成功×信用卡还款；建行 summary∈{转账支取,无卡自助,银联入账,支付机构提现,转账存入,电子汇入,银转证,证转银}（**不含** 仅「还款」+商户名）；工行提现入账与真·信用卡还款入账。  
+- **FR-043**: MUST 排除：二维码收付款、微信 P2P（对方已收钱×转账、已存入零钱×转账）、红包、商户消费、退款/消费退货、通道消费（走 mirror）。  
+- **FR-044**: 精细优先级（唯一 auto）：  
+  1. 平台提现→银行：支付宝负向提现 Δt≤60s/同日；**微信提现已到账/零钱提现（常为正）与银行银联入账/支付机构提现等额同自然日（date-only）** → `transfer_pair.withdraw_to_bank.v1`；  
+  2. 卡间银联：不同 account_id，等额同日/≤10s；  
+  3. **信用还款（收紧）**：出腿明确还款信号；入腿 loan/credit 或信用卡还款/转帐收入；禁止京东等商户「还款」摘要当出腿；禁止退款/退货/刷卡金当入腿；  
+  4. 银证：无对侧 open-leg；  
+  5. 通用弱 transfer 仅闸门内+含提现等信号。  
+- **FR-045**: 「提现」MUST 为强信号。  
+- **FR-046**: Import MUST NOT 写 `transfer_pair`。  
+- **FR-047**: 多候选 → pending/open-leg，不静默。  
+- **FR-048**: 微信提现类事实：  
+  (a) 与银行提现入账 **不同 account_id** → Phase C `withdraw_to_bank`（等额+同日/≤60s）；  
+  (b) **同一 account_id**（mapping 到银行卡）且存在 CCB/ICBC 银联入账/支付机构提现同额 → Phase B **payment_mirror** 同号配对，允许相邻日/≤36h；  
+  (c) 仅单侧事实 → 不强制建边。  
+- **FR-049**: 建行 summary 仅为「还款」且 counterparty 呈商户消费态 MUST NOT 进入 credit_repayment auto；微信信用卡还款 MUST NOT 配非还款入账。
+
 #### F. 精度与双后端
 
 - **FR-033**: Decimal 金额。  
@@ -238,12 +269,16 @@
 - **SC-019**: 建行跨卡「转账支取↔银联入账」等额同日样本 Phase C 可 accepted。  
 - **SC-020**: 微信 `扫二维码付款` / `对方已收钱×转账` / `已存入零钱×转账` MUST NOT 仅因「转账」字样成为 transfer auto 边。  
 - **SC-021**: 银行「消费退货」关系若产生，MUST 不早于 Phase C 完成（属 Phase D）。  
+- **SC-022**: 微信提现 mapping 到银行账户且存在第二源同额银联入账时，MUST 以 **payment_mirror**（或显式同账户双源规则）关联，而非错误要求异账户 transfer。  
+- **SC-022b**: 微信提现在微信零钱、银行在借记卡（异账户）且等额同日时，Phase C MUST `withdraw_to_bank` accepted。  
+- **SC-023**: 建行 summary「还款」+ 商户名（如京东）MUST NOT 产生 accepted `credit_repayment` 到无关小额入账；微信「信用卡还款」MUST NOT 配到非还款入账（如酒店退款/消费退回）。  
+  
 
 ## Assumptions
 
 - `raw_records.payload` 已存在；本 feature 强化契约与写入完整性。  
 - 平台硬键在 scan 上与 import 上等价可对齐（字段在 payload/fact 可还原）。  
-- 银行退货继续偏模糊，适合 Phase C。  
+- 银行退货继续偏模糊，适合 Phase D；transfer 为 Phase C。  
 - 006 open-leg / mirror / transfer 引擎复用，本 feature 定编排与 payload/no-skip。
 
 ## Non-Goals
@@ -323,12 +358,12 @@
 | 红包退款 | 红包支出 | mer==txn |
 | 转账-退款 | 对方已退还 | 等额+同 pay |
 
-## 附录：银行（扫描 Phase C；导入不落退款关系）
+## 附录：银行（退货 Phase D；transfer 入账 Phase C；导入不落关系）
 
 | 源 | 导入 | 退款/关系 |
 |---|---|---|
-| 工行信用卡「退货」 | 事实+信号 | Phase C `refund_offset` |
-| 建行「消费退货」 | 事实+summary | Phase C；fallback 不 auto |
+| 工行信用卡「退货」 | 事实+信号 | Phase D `refund_offset` |
+| 建行「消费退货」 | 事实+summary | Phase D；fallback 不 auto |
 | 工行借记通道入账 | 事实 | Phase B mirror（非 bank refund 主路径） |
 | 银联入账/证转银/利息 | 事实 | Phase C transfer / 非 refund |
 

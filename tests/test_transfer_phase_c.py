@@ -1,17 +1,18 @@
-"""007 Phase C: transfer taxonomy + withdraw rules."""
+"""007 Phase C: transfer taxonomy + withdraw dual-source + credit repay gate."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from decimal import Decimal
 
 from ft.domain.relations import (
     FactView,
     FactType,
+    RelationKind,
     RelationStatus,
     evaluate_transfer_pair,
     has_transfer_exclude_signal,
     has_transfer_signal,
     match_transfer_pairs_phase_c,
+    match_withdraw_receipt_to_bank,
     RULE_TRANSFER_WITHDRAW_V1,
 )
 
@@ -88,6 +89,77 @@ def test_qr_pay_not_auto_transfer():
     assert prop is None
 
 
+def test_wechat_withdraw_same_account_dual_source_is_mirror():
+    """Mapping 提现到建行 + CCB 银联入账 same account → mirror not transfer."""
+    wx = _fv(
+        "w1",
+        "2100.00",
+        account="ccb2820",
+        text="零钱提现 建设银行(2820)",
+        bill_source="wechat",
+        occurred="2025-08-17 15:54:28",
+    )
+    bank = _fv(
+        "c1",
+        "2100.00",
+        account="ccb2820",
+        text="微信零钱提现 银联入账",
+        bill_source="ccb_debit",
+        occurred="2025-08-16 16:00:00",  # date-only skew
+    )
+    props = match_withdraw_receipt_to_bank([wx, bank])
+    assert len(props) == 1
+    assert props[0].kind == RelationKind.PAYMENT_MIRROR.value
+    assert "withdraw_dual_source" in props[0].rule_id or props[0].rule_id.endswith("withdraw_dual_source.v1")
+
+
+def test_credit_repayment_rejects_merchant_repay_to_refund_income():
+    out = _fv(
+        "o1",
+        "-994.86",
+        account="ccb",
+        text="京东 还款",
+        bill_source="ccb_debit",
+        account_type="cash",
+    )
+    inc = _fv(
+        "i1",
+        "5.00",
+        account="credit",
+        text="退款-火车票",
+        bill_source="alipay",
+        account_type="loan",
+        occurred="2025-01-03 00:15:40",
+    )
+    prop = evaluate_transfer_pair(out, [inc])
+    assert prop is None
+
+
+def test_credit_repayment_accepts_explicit_card_repay():
+    out = _fv(
+        "o1",
+        "-9563.53",
+        account="debit",
+        text="黄文龙 自动还款",
+        bill_source="icbc_debit",
+        account_type="cash",
+        occurred="2025-12-18 23:05:40",
+    )
+    inc = _fv(
+        "i1",
+        "9563.53",
+        account="credit",
+        text="转帐北京分行银行卡中心",
+        bill_source="icbc_credit",
+        account_type="loan",
+        occurred="2025-12-18 23:08:37",
+    )
+    prop = evaluate_transfer_pair(out, [inc])
+    assert prop is not None
+    assert prop.status == RelationStatus.ACCEPTED.value
+    assert prop.subtype == "credit_repayment"
+
+
 def test_phase_c_matcher_includes_withdraw_and_skips_p2p():
     out = _fv("a1", "-200.00", account="alipay", text="提现-实时提现", bill_source="alipay")
     bank = _fv(
@@ -115,7 +187,6 @@ def test_phase_c_matcher_includes_withdraw_and_skips_p2p():
     )
     props = match_transfer_pairs_phase_c([out, bank, p2p, p2p_in])
     assert any(p.rule_id == RULE_TRANSFER_WITHDRAW_V1 for p in props)
-    # no p2p pair accepted
     for p in props:
         ids = {p.primary_fact_id, p.secondary_fact_id}
         assert not ({"p1", "p2"} <= ids)
