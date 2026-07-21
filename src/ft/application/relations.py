@@ -20,6 +20,8 @@ from ft.domain.relations import (
     SUBTYPE_NONE,
     cross_kind_compatible,
     evaluate_refund_offset,
+    is_platform_import_refund_source,
+    has_refund_signal,
     evaluate_transfer_pair,
     is_open_leg_relation,
     match_payment_mirrors_greedy,
@@ -99,16 +101,47 @@ class RelationService:
                     elif outcome["status"] == RelationStatus.PENDING_REVIEW.value:
                         stats["pending"] += 1
 
+                # Preload active refund_offset membership so import-owned edges
+                # are not re-proposed by scan (007 FR-018/019/032).
+                refund_linked: set[str] = set()
+                for rel in uow.relations.list_active(kind=RelationKind.REFUND_OFFSET.value):
+                    if rel.get("status") == RelationStatus.SUPERSEDED.value:
+                        continue
+                    refund_linked.add(rel["primary_fact_id"])
+                    sec = rel.get("secondary_fact_id")
+                    if sec:
+                        refund_linked.add(sec)
+                    anchor = rel.get("anchor_fact_id")
+                    if anchor:
+                        refund_linked.add(anchor)
+
                 for seed in seed_views:
                     proposals = []
                     tp = evaluate_transfer_pair(seed, index.transfer_candidates(seed))
                     if tp is not None:
                         proposals.append(tp)
-                    rf = evaluate_refund_offset(
-                        seed,
-                        index.refund_candidates(seed),
-                        remaining_by_expense=remaining,
-                    )
+                    # 007: platform (alipay/wechat) refund main path is import-owned.
+                    # Skip scan evaluate when:
+                    # 1) seed already on an active refund_offset, or
+                    # 2) seed is a platform refund leg (positive + refund signal + alipay/wechat)
+                    #    — import should have paired it; scan must not 补漏 with merchant rules.
+                    skip_refund_scan = seed.id in refund_linked
+                    if (
+                        not skip_refund_scan
+                        and seed.signed_amount > 0
+                        and has_refund_signal(seed.text)
+                        and is_platform_import_refund_source(seed)
+                    ):
+                        skip_refund_scan = True
+                    rf = None
+                    if not skip_refund_scan:
+                        rf = evaluate_refund_offset(
+                            seed,
+                            index.refund_candidates(seed),
+                            remaining_by_expense=remaining,
+                        )
+                    else:
+                        stats["skipped"] += 1
                     if rf is not None:
                         proposals.append(rf)
                     for proposal in proposals:
@@ -117,6 +150,12 @@ class RelationService:
                             stats["skipped"] += 1
                             continue
                         created.append(outcome)
+                        if outcome.get("kind") == RelationKind.REFUND_OFFSET.value:
+                            refund_linked.add(outcome["primary_fact_id"])
+                            if outcome.get("secondary_fact_id"):
+                                refund_linked.add(outcome["secondary_fact_id"])
+                            if outcome.get("anchor_fact_id"):
+                                refund_linked.add(outcome["anchor_fact_id"])
                         if outcome["status"] == RelationStatus.ACCEPTED.value:
                             stats["accepted"] += 1
                             if outcome["kind"] == RelationKind.REFUND_OFFSET.value:

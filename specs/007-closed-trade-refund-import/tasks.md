@@ -47,3 +47,8 @@ A → B → C and D (C/D parallel after B) → E
 
 - T008–T011 after T005
 - T013–T016 after T014 base import
+
+## Phase F — Scan/import refund boundary (gap fix)
+
+- [x] T022 Scan skips platform (alipay/wechat) refund seeds and facts already on refund_offset (FR-018/019/032)
+- [x] T023 Tests: no merchant_or_order.v1 when import edge exists; no scan 补漏 for bare platform refund seed

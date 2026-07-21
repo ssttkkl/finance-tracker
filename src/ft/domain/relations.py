@@ -495,6 +495,26 @@ def has_repayment_signal(text: str) -> bool:
     return any(token.lower() in blob for token in REPAYMENT_SIGNAL_TOKENS)
 
 
+def is_platform_import_refund_source(fact: "FactView") -> bool:
+    """True when refund matching for this fact is owned by import-time 007 rules.
+
+    Alipay/WeChat platform refunds are paired at import (order-key / dual-row).
+    Relation scan must not re-run the merchant weak path as 补漏 for these.
+    """
+    blob = _text_blob(getattr(fact, "bill_source", ""), getattr(fact, "source", "")).lower()
+    return any(k in blob for k in ("alipay", "wechat", "支付宝", "微信"))
+
+
+def fact_has_active_refund_offset(
+    fact_id: str,
+    linked_kinds: Mapping[str, set[str]] | None = None,
+) -> bool:
+    """Whether fact already participates in an active refund_offset (any status via caller)."""
+    if not linked_kinds:
+        return False
+    return RelationKind.REFUND_OFFSET.value in linked_kinds.get(fact_id, set())
+
+
 def has_refund_signal(text: str) -> bool:
     blob = _text_blob(text)
     return any(token.lower() in blob for token in REFUND_SIGNAL_TOKENS)
