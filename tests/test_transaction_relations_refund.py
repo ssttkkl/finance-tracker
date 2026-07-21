@@ -268,3 +268,81 @@ def test_bank_consumer_return_not_excluded():
     proposal = evaluate_refund_offset(refund, [expense])
     assert proposal is not None
     assert proposal.status == RelationStatus.ACCEPTED.value
+
+
+def test_strip_refund_title_exact_unique_auto_among_soft_merchant_noise():
+    """去「退款-」后整描述相等且唯一 → auto，不被其它美团订单松匹配阻断。"""
+    from ft.domain.relations import strip_refund_description_prefix
+
+    assert strip_refund_description_prefix("退款-美团订单-ABC") == "美团订单-ABC"
+    true_exp = _fv(
+        id="e_true",
+        amount=Decimal("-275.28"),
+        account_id="1",
+        counterparty="美团",
+        description="美团订单-23062011100400000024409750630312",
+        occurred_at="2023-06-20 09:44:17",
+        category="expense",
+    )
+    noise = [
+        _fv(
+            id=f"e{i}",
+            amount=Decimal("-18.80"),
+            account_id="1",
+            counterparty="美团",
+            description=f"美团订单-2306191110040000002425387781531{i}",
+            occurred_at="2023-06-19 12:00:00",
+            category="expense",
+        )
+        for i in range(4)
+    ]
+    refund = _fv(
+        id="r",
+        amount=Decimal("137.64"),
+        account_id="1",
+        counterparty="美团",
+        description="退款-美团订单-23062011100400000024409750630312",
+        occurred_at="2023-06-21 15:59:23",
+        category="income",
+    )
+    proposal = evaluate_refund_offset(refund, [true_exp, *noise])
+    assert proposal is not None
+    assert proposal.open_leg is False
+    assert proposal.status == RelationStatus.ACCEPTED.value
+    assert proposal.primary_fact_id == "e_true"
+    assert proposal.secondary_fact_id == "r"
+    assert "title_exact" in proposal.evidence.signals
+
+
+def test_title_exact_not_auto_when_two_exact_titles():
+    exp1 = _fv(
+        id="e1",
+        amount=Decimal("-100"),
+        account_id="1",
+        description="同款商品标题",
+        occurred_at="2023-06-20 10:00:00",
+        category="expense",
+        counterparty="店A",
+    )
+    exp2 = _fv(
+        id="e2",
+        amount=Decimal("-80"),
+        account_id="1",
+        description="同款商品标题",
+        occurred_at="2023-06-20 11:00:00",
+        category="expense",
+        counterparty="店B",
+    )
+    refund = _fv(
+        id="r",
+        amount=Decimal("50"),
+        account_id="1",
+        description="退款-同款商品标题",
+        occurred_at="2023-06-21 10:00:00",
+        category="income",
+        counterparty="店A",
+    )
+    proposal = evaluate_refund_offset(refund, [exp1, exp2])
+    assert proposal is not None
+    # two exact titles → not unique → open-leg or multi pending, not silent auto of one
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value

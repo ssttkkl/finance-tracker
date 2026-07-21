@@ -174,3 +174,12 @@ No O(n²) full double scan. Semantics of FR-016/017/020 unchanged.
 - Separate open_relation table — dual state machines.
 - Empty-string only without partial unique — weaker integrity.
 - Multiple NULL secondaries without unique — reintroduces fan-out.
+
+
+## Decision 19: Refund title_exact unique auto (strip 退款- full description)
+
+**Decision**: After stripping leading refund prefixes (`退款-` / `退款` / `退款：`) from the refund description and trimming, if the result equals an expense description exactly and that hit is unique among candidates, auto-accept that pair even when looser merchant/substring matching yields multiple candidates.
+
+**Rationale**: Real ledger open-leg noise (e.g. 美团订单-«id») had true order-title pairs stuck behind 5 soft merchant hits. Spec already intended 退款- strip matching; auto uniqueness must be measured on exact title, not soft merchant set.
+
+**Alternatives rejected**: Loosen merchant uniqueness; keep all soft hits blocking auto.
