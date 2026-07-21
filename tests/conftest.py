@@ -22,6 +22,27 @@ def require_test_postgres_url() -> str | None:
     return url
 
 
+def reset_postgres_schema(url: str) -> None:
+    """Wipe a dedicated *_test PostgreSQL database without Alembic downgrade.
+
+    Multi-currency migration (20260720_04) is intentionally one-shot and not
+    reversible; dual-backend fixtures must not call ``downgrade('base')``.
+    """
+    from sqlalchemy import create_engine, text
+
+    if not urlparse(url).path.rsplit("/", 1)[-1].endswith("_test"):
+        raise RuntimeError("refusing to reset non-_test PostgreSQL database")
+    engine = create_engine(url, isolation_level="AUTOCOMMIT")
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+            connection.execute(text("CREATE SCHEMA public"))
+            connection.execute(text("GRANT ALL ON SCHEMA public TO CURRENT_USER"))
+            connection.execute(text("GRANT ALL ON SCHEMA public TO public"))
+    finally:
+        engine.dispose()
+
+
 def _relation_backend_names() -> list[str]:
     postgres_url = os.environ.get("FT_TEST_POSTGRES_URL")
     if postgres_url:
@@ -53,11 +74,10 @@ def relation_runtime(request, tmp_path):
     else:
         url = os.environ["FT_TEST_POSTGRES_URL"]
         assert url.rsplit("/", 1)[-1].endswith("_test")
+        reset_postgres_schema(url)
     config = Config(str(root / "alembic.ini"))
     config.set_main_option("script_location", str(root / "migrations"))
     config.set_main_option("sqlalchemy.url", url)
-    if request.param == "postgresql":
-        command.downgrade(config, "base")
     command.upgrade(config, "head")
     engine = create_relational_engine(url)
     sessions = create_session_factory(engine)
@@ -69,4 +89,4 @@ def relation_runtime(request, tmp_path):
     finally:
         engine.dispose()
         if request.param == "postgresql":
-            command.downgrade(config, "base")
+            reset_postgres_schema(url)

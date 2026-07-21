@@ -163,8 +163,8 @@ def test_migrated_sqlite_amount_columns_use_canonical_text_and_round_trip_exactl
         engine.dispose()
 
 
-def test_initial_revision_upgrades_and_downgrades_dedicated_postgresql():
-    """The same unreleased baseline is executable on the real test server."""
+def test_initial_revision_upgrades_dedicated_postgresql():
+    """Head schema is executable on the real test server (multi-currency is one-shot)."""
     url = os.environ.get("FT_TEST_POSTGRES_URL")
     if not url:
         pytest.skip("set FT_TEST_POSTGRES_URL to run PostgreSQL migration parity")
@@ -173,23 +173,38 @@ def test_initial_revision_upgrades_and_downgrades_dedicated_postgresql():
     from alembic import command
     from alembic.config import Config
     from sqlalchemy import create_engine, inspect
+    import conftest as test_conftest
 
     root = Path(__file__).parents[1]
     config = Config(str(root / "alembic.ini"))
     config.set_main_option("script_location", str(root / "migrations"))
     config.set_main_option("sqlalchemy.url", url)
-    command.downgrade(config, "base")
+    test_conftest.reset_postgres_schema(url)
     try:
         command.upgrade(config, "head")
         engine = create_engine(url)
         try:
             tables = set(inspect(engine).get_table_names())
-            assert {"workspaces", "accounts", "cash_transactions", "record_revisions"} <= tables
+            assert {
+                "workspaces",
+                "accounts",
+                "cash_transactions",
+                "record_revisions",
+                "transaction_relations",
+                "relation_check_runs",
+                "account_aliases",
+                "fact_deletion_events",
+            } <= tables
             columns = inspect(engine).get_columns("cash_transactions")
             amount = next(column for column in columns if column["name"] == "amount")
             assert str(amount["type"]) == "NUMERIC(38, 18)"
+            assert any(column["name"] == "deleted_at" for column in columns)
+            # Reversible tip: relations revision can step back to multi-currency head.
+            command.downgrade(config, "20260720_04")
+            tables_mid = set(inspect(engine).get_table_names())
+            assert "transaction_relations" not in tables_mid
+            command.upgrade(config, "head")
         finally:
             engine.dispose()
-        command.downgrade(config, "base")
     finally:
-        command.upgrade(config, "head")
+        test_conftest.reset_postgres_schema(url)

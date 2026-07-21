@@ -44,7 +44,9 @@ def relational_runtime(request, tmp_path):
     config.set_main_option("script_location", str(root / "migrations"))
     config.set_main_option("sqlalchemy.url", url)
     if request.param == "postgresql":
-        command.downgrade(config, "base")
+        import conftest as test_conftest
+
+        test_conftest.reset_postgres_schema(url)
     command.upgrade(config, "head")
     engine = create_relational_engine(url)
     sessions = create_session_factory(engine)
@@ -59,7 +61,9 @@ def relational_runtime(request, tmp_path):
     finally:
         engine.dispose()
         if request.param == "postgresql":
-            command.downgrade(config, "base")
+            import conftest as test_conftest
+
+            test_conftest.reset_postgres_schema(url)
 
 
 def _upgrade_sqlite(database: Path) -> str:
