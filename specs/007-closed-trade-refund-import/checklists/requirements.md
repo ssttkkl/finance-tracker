@@ -41,3 +41,5 @@
   - alipay order-key refund_offset at import (`_`, `*`); no relation-scan 补漏
   - validated on ~/.ft/bills (151/151 nonzero refunds; 121/121 closed expenses)
 - Next: align plan/research, then `/speckit-tasks` → analyze → implementer.
+
+- [x] 附录 19 组合映射表与双跳过白名单已冻结（2026-07-21 重整理）

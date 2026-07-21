@@ -68,3 +68,9 @@
 **Rationale**: 2 real rows are failed auto-repay attempts (1350.30) with empty pay; later `还款成功` with bank card is the real debit. Importing failure would add misleading amount without offset.
 
 **Alternatives considered**: import as audit non-balance → user prefers skip like unpaid-closed; no funding_status field.
+
+## Decision 13: Mapping table freeze (19 buckets)
+
+**Decision**: Freeze Alipay 19-bucket map in spec appendix. Only two business skips: unpaid-closed (42) and failed-repay-no-debit (2). Import 3060/3104. Auth-hold/unfreeze import as refund_offset. No third skip without new evidence.
+
+**Rationale**: Real-bill inventory; pay-empty alone is not a skip (transfer-out/income).
