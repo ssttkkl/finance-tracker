@@ -28,7 +28,8 @@ class CashflowService:
 
     def add_manual_transaction(self, *, amount: Decimal, counterparty: str, account_name: str,
                                description: str = "", source: str = "", date: str | None = None,
-                               currency: str | None = None) -> CashflowResult:
+                               currency: str | None = None, category: str | None = None,
+                               bill_source: str = "", record_id: str = "", **_extra) -> CashflowResult:
         try:
             operation_currency = normalize_currency(currency or "")
         except ValueError:
@@ -52,12 +53,13 @@ class CashflowService:
                 "currency": operation_currency,
                 "counterparty": counterparty,
                 "description": description,
-                "category": "expense" if amount < 0 else "income",
+                "category": category if category is not None else ("expense" if amount < 0 else "income"),
                 "account_name": account_name,
                 "source": source,
-                "bill_source": "",
+                "bill_source": bill_source or source or "",
                 "transfer_account": "",
                 "locked": "",
+                "record_id": record_id,
             }
             uow.cashflows.add(account.type, row)
             snap = uow.snapshot.load(lock=True)

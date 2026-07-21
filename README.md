@@ -142,3 +142,15 @@ FT_REQUIRE_TEST_POSTGRES=1 uv run pytest
 - [产品化重构顶层路线](docs/productization-refactor-plan.md)
 - [财富解释与趋势对比设计](docs/productization-wealth-report-design.md)
 - [双数据库运行时 feature](specs/002-dual-database-runtime/spec.md)
+
+<!-- 006-transaction-relations -->
+## Transaction relations (006)
+
+After `ft import` commits formal facts, a relation check may create `payment_mirror`,
+`transfer_pair` (optional `credit_repayment` subtype), and `refund_offset` relations.
+Reports use **active facts + accepted relations** only. Pairing never physically deletes
+facts or rewrites amounts. Historical duplicates are handled by audited logical delete
+(`ft fact-delete`); re-import of the same source identity publishes a **new** active fact.
+Legacy `offset_*` / `transfer_account` / `proposed_action` fields are non-authoritative.
+Review: `ft relations pending|accept|reject|later`. Manual re-check: `ft relations check`.
+

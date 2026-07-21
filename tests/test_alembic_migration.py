@@ -13,6 +13,7 @@ def test_repository_has_clean_linear_revisions():
         "20260719_02_wealth_attribution.py",
         "20260720_03_import_batch_multi_account.py",
         "20260720_04_multi_currency_accounts.py",
+        "20260721_05_transaction_relations.py",
     ]
 
 

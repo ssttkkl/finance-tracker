@@ -29,9 +29,10 @@ def _json_safe(value):
 
 
 class StatementImportService:
-    def __init__(self, unit_of_work, parser):
+    def __init__(self, unit_of_work, parser, relation_service=None):
         self._uow = unit_of_work
         self._parser = parser
+        self._relations = relation_service
 
     def import_statement(self, command) -> OperationResult:
         path = Path(command.source_path)
@@ -134,11 +135,13 @@ class StatementImportService:
             snapshot = uow.snapshot.load(lock=True)
             imported_count = 0
             by_account: Counter[str] = Counter()
+            new_cash_fact_ids: list[str] = []
             for row, raw_id in rows_to_import:
                 account = account_cache[row["account_name"]]
                 row["raw_record_id"] = raw_id
                 if account.type in {"cash", "loan", "lend"}:
                     fact_id = uow.cashflows.add(account.type, row)
+                    new_cash_fact_ids.append(fact_id)
                     if row.get("category") not in {"transfer", "transfer_in", "transfer_out"}:
                         uow.snapshot.update_balance(
                             snapshot, account.name, account.type, row["currency"], row["amount"]
@@ -163,11 +166,30 @@ class StatementImportService:
             uow.snapshot.save(snapshot)
             uow.imports.complete_batch(batch_id)
             uow.commit()
+            saved_batch_id = batch_id
+            saved_imported_count = imported_count
+            saved_by_account = dict(by_account)
+            saved_new_cash_fact_ids = list(new_cash_fact_ids)
+        relation_details = None
+        if saved_new_cash_fact_ids and self._relations is not None:
+            # Import already committed; check failure must not roll back facts.
+            try:
+                check_result = self._relations.check(
+                    seed_fact_ids=saved_new_cash_fact_ids,
+                    seed_batch_id=saved_batch_id,
+                    trigger="import_batch",
+                    seed_ref=saved_batch_id,
+                )
+                relation_details = check_result.details
+            except Exception as exc:  # noqa: BLE001
+                relation_details = {"error": str(exc), "status": "failed"}
         return OperationResult(
-            ok=True, count=imported_count, message="imported",
+            ok=True, count=saved_imported_count, message="imported",
             details={
-                "batch_id": batch_id,
+                "batch_id": saved_batch_id,
                 "duplicate": False,
-                "by_account": dict(by_account),
+                "by_account": saved_by_account,
+                "new_cash_fact_ids": saved_new_cash_fact_ids,
+                "relation_check": relation_details,
             },
         )

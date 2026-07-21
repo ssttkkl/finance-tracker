@@ -13,6 +13,7 @@ from ft.application.cashflow import CashflowService, TransferService
 from ft.application.investment import InvestmentService, PortfolioQueryService
 from ft.application.queries import FinanceQueryService
 from ft.application.statement_import import StatementImportService
+from ft.application.relations import RelationService
 from ft.application.wealth import WealthChangeService
 from ft.domain.wealth import ComponentKind, CoverageDisposition
 from ft.runtime import ServiceBundle
@@ -32,11 +33,12 @@ from .investments import RelationalInvestmentCommandRepository
 from ft.adapters.statement_import import StatementParser
 
 
-SCHEMA_REVISION = "20260720_04"
+SCHEMA_REVISION = "20260721_05"
 REQUIRED_TABLES = {
     "workspaces", "accounts", "cash_transactions", "investment_events",
     "ledger_snapshots", "import_batches", "raw_files", "raw_records",
     "record_revisions",
+    "transaction_relations", "relation_check_runs", "account_aliases", "fact_deletion_events",
     "valuation_observations", "account_lifecycle_events", "wealth_source_manifests",
     "wealth_source_manifest_items", "wealth_generations", "wealth_generation_days",
     "wealth_daily_results", "wealth_active_manifests", "wealth_components",
@@ -103,11 +105,13 @@ def build_relational_services(settings) -> ServiceBundle:
     sessions = create_session_factory(engine)
     uow = RelationalUnitOfWork(sessions, settings.workspace_id)
     market_data = MarketDataProvider()
+    relations_preview = RelationService(uow)
     queries = FinanceQueryService(
         accounts=RelationalAccountQueryRepository(sessions, settings.workspace_id),
         transactions=RelationalTransactionQueryRepository(sessions, settings.workspace_id),
         snapshots=RelationalSnapshotQueryRepository(sessions, settings.workspace_id),
         market_data=market_data,
+        relation_projector=relations_preview.project,
     )
     wealth_facts = RelationalWealthFactRepository(sessions, settings.workspace_id)
     wealth_read_model = RelationalWealthReadModel(sessions, settings.workspace_id)
@@ -732,6 +736,7 @@ def build_relational_services(settings) -> ServiceBundle:
                 source_revision=source_revision,
             ) for kind, amount in zip(ComponentKind, amounts, strict=True))
 
+    relations = relations_preview
     return ServiceBundle(
         queries=queries,
         portfolio=PortfolioQueryService(
@@ -740,7 +745,8 @@ def build_relational_services(settings) -> ServiceBundle:
         investments=InvestmentService(
             repository=RelationalInvestmentCommandRepository(uow)
         ),
-        statement_import=StatementImportService(uow, StatementParser()),
+        statement_import=StatementImportService(uow, StatementParser(), relation_service=relations),
+        relations=relations,
         wealth=WealthChangeService(WealthRuntime()),
         accounts=AccountService(uow),
         cashflow=CashflowService(uow),

@@ -271,6 +271,9 @@ class CashTransactionModel(Base):
     proposed_action: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    deleted_by: Mapped[str] = mapped_column(String(128), default="", nullable=False)
+    delete_reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
 
 class InvestmentEventModel(Base):
@@ -596,3 +599,129 @@ class WealthCoverageDispositionModel(Base):
     identity_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     identity: Mapped[str] = mapped_column(String(255), nullable=False)
     disposition: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+
+class TransactionRelationModel(Base):
+    __tablename__ = "transaction_relations"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_transaction_relations_workspace_id"),
+        UniqueConstraint(
+            "workspace_id",
+            "kind",
+            "ordered_fact_a",
+            "ordered_fact_b",
+            "subtype",
+            "active_slot",
+            name="uq_transaction_relations_active_business_key",
+        ),
+        Index("ix_transaction_relations_workspace_status", "workspace_id", "status"),
+        Index("ix_transaction_relations_workspace_kind", "workspace_id", "kind"),
+        Index("ix_transaction_relations_primary", "workspace_id", "primary_fact_id"),
+        Index("ix_transaction_relations_secondary", "workspace_id", "secondary_fact_id"),
+        CheckConstraint(
+            "kind IN ('payment_mirror','transfer_pair','refund_offset')",
+            name="ck_transaction_relations_kind",
+        ),
+        CheckConstraint(
+            "status IN ('pending_review','accepted','rejected','superseded')",
+            name="ck_transaction_relations_status",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    subtype: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    primary_fact_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    secondary_fact_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    primary_fact_type: Mapped[str] = mapped_column(String(32), default="cash", nullable=False)
+    secondary_fact_type: Mapped[str] = mapped_column(String(32), default="cash", nullable=False)
+    ordered_fact_a: Mapped[str] = mapped_column(String(36), nullable=False)
+    ordered_fact_b: Mapped[str] = mapped_column(String(36), nullable=False)
+    # active_slot is 1 for non-superseded rows; superseded rows use id hash slot to free the key.
+    active_slot: Mapped[str] = mapped_column(String(36), default="active", nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    rule_id: Mapped[str] = mapped_column(String(128), default="", nullable=False)
+    confidence: Mapped[str] = mapped_column(String(32), default="", nullable=False)
+    evidence_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_by: Mapped[str] = mapped_column(String(128), default="system", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+    decided_by: Mapped[str] = mapped_column(String(128), default="", nullable=False)
+    decided_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    decision_reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    later_marker: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    superseded_by_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+
+class RelationCheckRunModel(Base):
+    __tablename__ = "relation_check_runs"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_relation_check_runs_workspace_id"),
+        Index("ix_relation_check_runs_workspace_status", "workspace_id", "status"),
+        CheckConstraint(
+            "status IN ('pending','running','completed','failed')",
+            name="ck_relation_check_runs_status",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    trigger: Mapped[str] = mapped_column(String(64), nullable=False)
+    seed_ref: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    error: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    stats_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class AccountAliasModel(Base):
+    __tablename__ = "account_aliases"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_account_aliases_workspace_id"),
+        UniqueConstraint(
+            "workspace_id", "alias_type", "alias_value", "account_id",
+            name="uq_account_aliases_value_account",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "account_id"],
+            ["accounts.workspace_id", "accounts.id"],
+            ondelete="CASCADE",
+            name="fk_account_aliases_workspace_account",
+        ),
+        Index("ix_account_aliases_workspace_value", "workspace_id", "alias_type", "alias_value"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    alias_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    alias_value: Mapped[str] = mapped_column(String(255), nullable=False)
+    account_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+
+
+class FactDeletionEventModel(Base):
+    __tablename__ = "fact_deletion_events"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_fact_deletion_events_workspace_id"),
+        Index("ix_fact_deletion_events_fact", "workspace_id", "fact_type", "fact_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    fact_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    fact_type: Mapped[str] = mapped_column(String(32), default="cash", nullable=False)
+    actor: Mapped[str] = mapped_column(String(128), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
