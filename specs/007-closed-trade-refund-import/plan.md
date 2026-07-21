@@ -6,7 +6,7 @@
 
 ## Summary
 
-Remove silent drop paths from statement conversion/import for **all supported bill sources**. Every source transaction line is either accepted (RawRecord + formal fact, including non-funding closed/failed anchors) or the import **fails closed** with a locatable error. Closed/failed Alipay/WeChat rows that today `continue` out of `convert.py` become publishable anchors excluded from default balance occupancy; refunds carry order-prefix metadata so 006 can pair to the closed origin instead of a later reorder success row.
+Deliver **import no-skip** for all wired bill sources, **publish closed/failed Alipay/WeChat rows** as normal formal facts (no `funding_status` field), and **create alipay `refund_offset` at import** when order keys uniquely match (`==` / `prefix_` / `prefix*`). Relation scan does **not** backfill alipay same-platform order refunds; it keeps cross-source mirror and transfers. Balance net-zero for closed+full refund comes from **amount cancel** (-A +A), not a funding enum.
 
 ## Technical Context
 
