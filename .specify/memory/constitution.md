@@ -1,23 +1,21 @@
 <!--
 Sync Impact Report
-- Version change: 2.0.0 -> 3.0.0
-- Modified principles:
-  - IV. 单一事实源与零历史包袱 -> IV. 显式数据库选择与行为等价
+- Version change: 3.0.0 -> 3.1.0
+- Modified principles: none
 - Modified sections:
-  - 工程约束 — PostgreSQL 与 SQLite 均为正式运行时后端，并增加跨后端等价性门禁
-- Added sections: none
+  - 交付与评审流程 — 补充 Spec 演进与 artifact 对齐要求
+- Added sections:
+  - Spec 演进策略 — 默认 Flow-Forward、活跃 Living、实现期 Flow-Back
 - Removed sections: none
 - Templates/commands:
-  - ✅ .specify/templates/plan-template.md — 增加双数据库等价性与差异清单门禁
-  - ✅ .specify/templates/spec-template.md — 增加双数据库场景与边界要求
-  - ✅ .specify/templates/tasks-template.md — 增加 PostgreSQL/SQLite 测试矩阵要求
-  - ✅ .agents/skills/speckit-*/SKILL.md — 均以 constitution 为最高项目约束，无固定单数据库冲突
-  - ✅ AGENTS.md — 工作流增加双数据库规格、方案和验证门禁
-  - ✅ docs/productization-refactor-plan.md — 顶层路线记录双数据库正式支持方向
+  - ✅ AGENTS.md / CLAUDE.md — 增加 Spec 演进操作规则
+  - ✅ docs/README.md — Spec Kit 索引说明演进约定
+  - ✅ .specify/templates/* — 无结构性变更；Constitution Check 与现有门禁仍适用
+  - ✅ .agents/skills/speckit-*/SKILL.md — 无需改名或路径调整
 - Follow-up TODOs:
-  - ⚠ README.md — 保持描述当前已交付的 PostgreSQL-only 行为；双数据库 feature 完成后同步
-  - ⚠ docs/productization-wealth-report-design.md — 双数据库 feature 完成后同步后续财富功能基线
-  - ⚠ specs/001-postgres-only-storage — 作为已完成历史 feature 保留，不回写新需求
+  - ⚠ README.md — 保持描述当前已交付运行时行为；与 feature 交付同步
+  - ⚠ docs/productization-wealth-report-design.md — 后续财富 feature 完成后同步基线
+  - ⚠ specs/001-postgres-only-storage — 继续作为已完成历史 feature 保留，不回写新需求
 -->
 
 # Finance Tracker Constitution
@@ -81,14 +79,48 @@ MUST 在 feature artifacts 与操作文档中明确列出，但不得成为账�
   猜测或隐式默认值。
 - 凭据、Token、账户隐私和原始账单 MUST 保持在受控存储中；测试夹具与日志 MUST 去标识化。
 - 文档、示例、迁移说明和 CLI help MUST 与已交付行为同步。
+- Feature 目录采用 sequential 编号（`specs/00N-short-name/`）；`.specify/feature.json` 指向当前活跃
+  feature。Complete feature 的目录 MUST 保留为历史记录，除非用户明确批准归档删除。
+
+## Spec 演进策略
+
+本仓库采用 Spec Kit 的三种 artifact 演进模型；选择规则如下，且 MUST 保持 artifacts 与代码一致。
+
+### 默认：Flow-Forward
+
+新能力、新边界、目标已变或既有 feature 已 Complete 时，MUST 新建 `specs/00N-...` 目录并走完整
+specify → clarify → plan → tasks → analyze → implement → converge 流程。已完成 feature（例如
+`001-postgres-only-storage`）MUST 只读保留，不得回写新需求。新 feature 若扩展或取代先前工作，
+SHOULD 在 Context 中 cross-link 相关目录（Supersedes / Extends）。
+
+### 活跃 feature：Living Spec
+
+同一目标、同一活跃 feature 内的范围、验收或财务语义变化时，MUST 先修订当前 `spec.md`，再同步
+`plan.md` / `tasks.md` 及适用设计产物，并在恢复实施前运行 `$speckit-analyze`。大改 artifacts 前
+SHOULD 使用干净工作树或独立分支，使生成物 diff 可审查。替换派生产物前 MUST 保留仍有效的关键
+技术决策与理由。
+
+### 实现期：Flow-Back 纪律
+
+实施或评审中的发现可先落在最近正确的 artifact 或代码，但 MUST 立刻判断它改变的是行为、策略、
+任务还是仅实现细节，并回写所有与之冲突的 artifacts。不得让 code 或仅 `tasks.md` 成为唯一事实源
+而 `spec.md` 过期。主 session 负责回写；implementer 发现缺口 MUST 停下来返回主 session，不得静默
+扩大范围。
+
+### 项目文件刷新
+
+升级 Spec Kit 共享项目文件时，MUST 先备份 `.specify/memory/constitution.md` 与已定制
+templates/skills，再执行约定的 `specify init --here --force ...`，随后恢复并复核定制。`specs/`
+不属于模板包，不得用升级覆盖 feature artifacts。
 
 ## 交付与评审流程
 
-每个受约束变更 MUST 依次完成 specify、clarify、plan、tasks、analyze、implement 和 converge。
-用户可见产品方向使用 gstack 产品挑战，跨模块或高风险技术方案使用 gstack 架构挑战；采纳结论
-MUST 回写 Spec Kit artifacts。所有代码变更 MUST 通过 gstack code review；Web 行为变更 MUST
-通过浏览器 QA。发布、合并、部署和线上验证只在获得用户明确授权后执行。任何 CRITICAL/HIGH
-规格分析问题、阻断性 review finding、失败测试或未解释的 constitution 违例都会阻断下一阶段。
+每个受约束变更 MUST 依次完成 specify、clarify、plan、tasks、analyze、implement 和 converge，并
+按上节选择 Flow-Forward 或 Living Spec。用户可见产品方向使用 gstack 产品挑战，跨模块或高风险
+技术方案使用 gstack 架构挑战；采纳结论 MUST 回写 Spec Kit artifacts。所有代码变更 MUST 通过
+gstack code review；Web 行为变更 MUST 通过浏览器 QA。发布、合并、部署和线上验证只在获得用户明确
+授权后执行。任何 CRITICAL/HIGH 规格分析问题、阻断性 review finding、失败测试或未解释的
+constitution 违例都会阻断下一阶段。
 
 ## Governance
 
@@ -98,4 +130,4 @@ MAJOR，新增原则或实质扩展升 MINOR，澄清文字升 PATCH。每个 pl
 Constitution Check；`$speckit-analyze` 和代码评审 MUST 把违反 MUST 的问题视为阻断项。例外必须
 由用户明确批准、写入 plan 的 Complexity Tracking，并包含到期或消除路径。
 
-**Version**: 3.0.0 | **Ratified**: 2026-07-17 | **Last Amended**: 2026-07-18
+**Version**: 3.1.0 | **Ratified**: 2026-07-17 | **Last Amended**: 2026-07-21

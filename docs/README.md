@@ -23,8 +23,16 @@ dual-write、no implicit migration。SQLite 的 `storage.busy`、permission 和 
 
 ## Spec Kit
 
-- [001-postgres-only-storage](../specs/001-postgres-only-storage/spec.md)
+`specs/` 使用 sequential Flow-Forward：`specs/00N-short-name/`。默认新能力开新目录；已
+Complete 的 feature 只读保留。当前活跃 feature 的同一目标变更用 Living Spec 改该目录内
+artifacts；实现发现冲突时 Flow-Back 回写并重新 analyze。约定见
+[constitution](../.specify/memory/constitution.md) 与仓库根 `AGENTS.md`。
+
+- [001-postgres-only-storage](../specs/001-postgres-only-storage/spec.md)（Complete，历史）
 - [002-dual-database-runtime](../specs/002-dual-database-runtime/spec.md)
-- 后续财富归因和财富报告 Web 各自创建独立 feature；本目录不维护平行任务清单。
+- [003-wealth-attribution-core](../specs/003-wealth-attribution-core/spec.md)
+- [004-mapping-import-open-currency](../specs/004-mapping-import-open-currency/spec.md)
+- [005-multi-currency-accounts](../specs/005-multi-currency-accounts/spec.md)
+- 后续能力继续新建独立 feature；本目录不维护平行任务清单。
 
 解析器格式与行情适配细节见 [references 索引](../references/README.md)。
