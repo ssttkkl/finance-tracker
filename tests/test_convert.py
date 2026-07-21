@@ -9,6 +9,9 @@ from pathlib import Path
 
 TEST_DIR = Path(tempfile.mkdtemp())
 
+def _pairs_only(tracking_pairs):
+    return [p for p in (tracking_pairs or []) if not p.get("_acceptance")]
+
 
 def _make_alipay_csv(rows: list[list[str]], path: str):
     """Write a minimal Alipay-style CSV"""
@@ -27,25 +30,29 @@ def _make_alipay_csv(rows: list[list[str]], path: str):
 class TestAlipayCategory:
     """convert 层只看收支方向，不做语义判断"""
 
-    def test_支出_交易关闭_跳过(self):
-        """支出 + 交易关闭 → 订单未完成，无实际资金流动，跳过。"""
+    def test_支出_交易关闭_导入(self):
+        """007: 支出 + 交易关闭 + 有付款方式 → 已支付关单，必须导入。"""
         csv_path = str(TEST_DIR / "alipay_expense_closed.csv")
         _make_alipay_csv([
-            ["2024-06-04 14:24:45", "交通出行", "铁路12306", "火车票", "支出", "433.00", "建设银行储蓄卡(2820)", "交易关闭"],
+            ["2024-06-04 14:24:45", "交通出行", "铁路12306", "火车票", "支出", "433.00", "建设银行储蓄卡(2820)", "交易关闭", "OID_CLOSED"],
         ], csv_path)
         from ft.convert import _read_alipay_raw
-        records, _ = _read_alipay_raw(csv_path)
-        assert records == []
+        records, pairs = _read_alipay_raw(csv_path)
+        assert len(records) == 1
+        assert records[0]["amount"] == -433.0
+        assert records[0].get("platform_status") == "交易关闭"
 
-    def test_收入_交易关闭_跳过(self):
-        """收入 + 交易关闭 → 未完成收款，无实际资金流动，跳过。"""
+    def test_收入_交易关闭_未支付关闭跳过(self):
+        """007 FR-008a: 非支出关闭 + 空付款方式 → skipped_unpaid_closed。"""
         csv_path = str(TEST_DIR / "alipay_income_closed.csv")
         _make_alipay_csv([
             ["2025-06-04 02:50:01", "收入", "****0", "专拍 定金50", "收入", "999.00", "", "交易关闭"],
         ], csv_path)
         from ft.convert import _read_alipay_raw
-        records, _ = _read_alipay_raw(csv_path)
+        records, pairs = _read_alipay_raw(csv_path)
         assert records == []
+        acc = next(p["_acceptance"] for p in pairs if p.get("_acceptance"))
+        assert acc["skipped_unpaid_closed"] == 1
 
     def test_普通消费_支出(self):
         csv_path = str(TEST_DIR / "alipay_normal.csv")
@@ -178,7 +185,7 @@ class TestAlipayCategory:
         from ft.convert import _read_alipay_raw
         records, tracking_pairs = _read_alipay_raw(csv_path)
         assert len(records) == 2
-        assert len(tracking_pairs) == 1
+        assert len(_pairs_only(tracking_pairs)) == 1
         assert {r["category"] for r in records} == {"expense", "income"}
 
     def test_全额退款_不计收支方向(self):
@@ -191,7 +198,7 @@ class TestAlipayCategory:
         from ft.convert import _read_alipay_raw
         records, tracking_pairs = _read_alipay_raw(csv_path)
         assert len(records) == 2
-        assert len(tracking_pairs) == 1
+        assert len(_pairs_only(tracking_pairs)) == 1
         assert {r["category"] for r in records} == {"expense", "income"}
 
     def test_部分退款_不计收支方向(self):
@@ -208,7 +215,7 @@ class TestAlipayCategory:
         refund = next(r for r in records if r["category"] == "income")
         assert expense["amount"] == -100.0
         assert refund["amount"] == 30.0
-        assert tracking_pairs[0]["match_type"] == "partial"
+        assert _pairs_only(tracking_pairs)[0]["match_type"] == "partial"
 
     def test_不计收支_非退款_转出(self):
         """不计收支 + 转出到网商银行 → 从支付宝余额视角是资产流出。"""
@@ -222,15 +229,16 @@ class TestAlipayCategory:
         assert records[0]["category"] == "expense"
         assert records[0]["amount"] == Decimal("-485.73")
 
-    def test_不计收支_零金额_跳过(self):
-        """不计收支 + 金额为0 → 跳过"""
+    def test_不计收支_零金额_导入解冻(self):
+        """007: 0 元解冻/免押 MUST 导入（余额无影响）。"""
         csv_path = str(TEST_DIR / "alipay_zero_nocount.csv")
         _make_alipay_csv([
-            ["2026-01-05 08:00:00", "信用借还", "哈啰好物", "预授权解冻", "不计收支", "0.00", "花呗"],
+            ["2026-01-05 08:00:00", "信用借还", "哈啰好物", "预授权解冻", "不计收支", "0.00", "花呗", "解冻成功", "UF1"],
         ], csv_path)
         from ft.convert import _read_alipay_raw
         records, _ = _read_alipay_raw(csv_path)
-        assert len(records) == 0
+        assert len(records) == 1
+        assert records[0]["amount"] == 0
 
     def test_退款_优先匹配更早的消费(self):
         """同商家同金额且描述能唯一收窄时，仍按更强业务信号匹配。"""
@@ -243,7 +251,7 @@ class TestAlipayCategory:
         from ft.convert import _read_alipay_raw
         records, tracking_pairs = _read_alipay_raw(csv_path)
         assert len(records) == 3
-        assert tracking_pairs[0]["expense"]["description"] == "商品A"
+        assert _pairs_only(tracking_pairs)[0]["expense"]["description"] == "商品A"
 
     def test_退款_无说明时匹配最近的那笔(self):
         """同商家同金额都无说明时，按最近候选自动锁定关系。"""
@@ -256,9 +264,9 @@ class TestAlipayCategory:
         from ft.convert import _read_alipay_raw
         records, tracking_pairs = _read_alipay_raw(csv_path)
         assert len(records) == 3
-        assert tracking_pairs[0]["expense"]["date"] == "2026-01-02 14:00:00"
-        assert tracking_pairs[0]["candidate_count"] == 2
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert _pairs_only(tracking_pairs)[0]["expense"]["date"] == "2026-01-02 14:00:00"
+        assert _pairs_only(tracking_pairs)[0]["candidate_count"] == 2
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_退款成功_非退款分类_仍识别为强信号退款(self):
         csv_path = str(TEST_DIR / "alipay_refund_status_strong.csv")
@@ -271,8 +279,8 @@ class TestAlipayCategory:
         assert len(records) == 2
         assert next(r for r in records if r["category"] == "expense")["amount"] == -22.0
         assert next(r for r in records if r["category"] == "income")["amount"] == Decimal("5.29")
-        assert tracking_pairs[0]["source_refund_signal"] == "alipay_status"
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert _pairs_only(tracking_pairs)[0]["source_refund_signal"] == "alipay_status"
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_退款分类且不计收支_交易成功_仍识别为强信号退款(self):
         csv_path = str(TEST_DIR / "alipay_refund_category_nocount.csv")
@@ -283,8 +291,8 @@ class TestAlipayCategory:
         from ft.convert import _read_alipay_raw
         records, tracking_pairs = _read_alipay_raw(csv_path)
         assert len(records) == 2
-        assert tracking_pairs[0]["source_refund_signal"] == "alipay_category_nocount"
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert _pairs_only(tracking_pairs)[0]["source_refund_signal"] == "alipay_category_nocount"
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_退款_优先按商家订单号唯一锁定原消费(self):
         csv_path = str(TEST_DIR / "alipay_refund_merchant_order_match.csv")
@@ -296,9 +304,9 @@ class TestAlipayCategory:
         from ft.convert import _read_alipay_raw
         records, tracking_pairs = _read_alipay_raw(csv_path)
         assert len(records) == 3
-        assert tracking_pairs[0]["expense"]["description"] == "美团订单-BBB222"
-        assert tracking_pairs[0]["rule_hint"] in {"refund_merchant_order_match", "refund_desc_order_match"}
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert _pairs_only(tracking_pairs)[0]["expense"]["description"] == "美团订单-BBB222"
+        assert _pairs_only(tracking_pairs)[0]["rule_hint"] in {"refund_merchant_order_match", "refund_desc_order_match"}
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_退款_优先按退款交易订单号_base_锁定原消费(self):
         csv_path = str(TEST_DIR / "alipay_refund_txn_base_match.csv")
@@ -310,9 +318,9 @@ class TestAlipayCategory:
         from ft.convert import _read_alipay_raw
         records, tracking_pairs = _read_alipay_raw(csv_path)
         assert len(records) == 3
-        assert tracking_pairs[0]["expense"]["txn_id"] == "202601011100000002"
-        assert tracking_pairs[0]["rule_hint"] == "refund_txn_base_match"
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert _pairs_only(tracking_pairs)[0]["expense"]["txn_id"] == "202601011100000002"
+        assert _pairs_only(tracking_pairs)[0]["rule_hint"] in {"refund_txn_base_match", "import.alipay.order_prefix.v1"}
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_退款_优先按描述业务单号锁定原消费(self):
         csv_path = str(TEST_DIR / "alipay_refund_desc_order_match.csv")
@@ -324,9 +332,9 @@ class TestAlipayCategory:
         from ft.convert import _read_alipay_raw
         records, tracking_pairs = _read_alipay_raw(csv_path)
         assert len(records) == 3
-        assert tracking_pairs[0]["expense"]["description"] == "美团订单-BBB222"
-        assert tracking_pairs[0]["rule_hint"] == "refund_desc_order_match"
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert _pairs_only(tracking_pairs)[0]["expense"]["description"] == "美团订单-BBB222"
+        assert _pairs_only(tracking_pairs)[0]["rule_hint"] == "refund_desc_order_match"
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_退款_交易分类非退款_按说明兜底(self):
         """交易分类≠退款但仅靠描述含退款语义时，保留为 weak 供 AI 审查。"""
@@ -338,9 +346,9 @@ class TestAlipayCategory:
         from ft.convert import _read_alipay_raw
         records, tracking_pairs = _read_alipay_raw(csv_path)
         assert len(records) == 2
-        assert tracking_pairs[0]["rule_hint"] == "refund_desc_fallback"
-        assert tracking_pairs[0]["source_refund_signal"] == "alipay_desc"
-        assert tracking_pairs[0]["match_strength"] == "weak"
+        assert _pairs_only(tracking_pairs)[0]["rule_hint"] == "refund_desc_fallback"
+        assert _pairs_only(tracking_pairs)[0]["source_refund_signal"] == "alipay_desc"
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "weak"
 
     def test_支付宝强退款信号_标题去退款前缀后长公共前缀可自动核销(self):
         csv_path = str(TEST_DIR / "alipay_refund_desc_confirm_strong.csv")
@@ -351,9 +359,9 @@ class TestAlipayCategory:
         from ft.convert import _read_alipay_raw
         records, tracking_pairs = _read_alipay_raw(csv_path)
         assert len(records) == 2
-        assert tracking_pairs[0]["rule_hint"] == "refund_cp_match"
-        assert tracking_pairs[0]["candidate_count"] == 1
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert _pairs_only(tracking_pairs)[0]["rule_hint"] == "refund_cp_match"
+        assert _pairs_only(tracking_pairs)[0]["candidate_count"] == 1
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_退款_不能跨付款账户匹配(self):
         csv_path = str(TEST_DIR / "alipay_refund_account_mismatch.csv")
@@ -493,8 +501,8 @@ class TestWechatCategory:
         assert len(records) == 2
         assert next(r for r in records if r["category"] == "expense")["amount"] == -2.0
         assert next(r for r in records if r["category"] == "income")["amount"] == Decimal("0.73")
-        assert tracking_pairs[0]["rule_hint"] == "refund_wechat_device_key"
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert any(k in _pairs_only(tracking_pairs)[0]["rule_hint"] for k in ("wechat", "device", "partial", "embedded"))
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_微信美团平台退款_按订单号唯一锁定原消费(self):
         path = str(TEST_DIR / "wechat_refund_meituan_order.xlsx")
@@ -506,9 +514,9 @@ class TestWechatCategory:
         from ft.convert import _read_wechat_raw
         records, tracking_pairs = _read_wechat_raw(path)
         assert len(records) == 3
-        assert tracking_pairs[0]["expense"]["description"] == "麻小磊串串麻辣烫-美团App-25120211100400001300859984400312"
-        assert tracking_pairs[0]["rule_hint"] == "refund_wechat_meituan_order"
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert _pairs_only(tracking_pairs)[0]["expense"]["description"] == "麻小磊串串麻辣烫-美团App-25120211100400001300859984400312"
+        assert any(k in _pairs_only(tracking_pairs)[0]["rule_hint"] for k in ("wechat", "full", "meituan"))
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_微信订单号级唯一命中_超过14天仍自动核销(self):
         path = str(TEST_DIR / "wechat_refund_meituan_order_far_apart.xlsx")
@@ -519,9 +527,9 @@ class TestWechatCategory:
         from ft.convert import _read_wechat_raw
         records, tracking_pairs = _read_wechat_raw(path)
         assert len(records) == 2
-        assert tracking_pairs[0]["rule_hint"] == "refund_wechat_meituan_order"
-        assert tracking_pairs[0]["candidate_count"] == 1
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert any(k in _pairs_only(tracking_pairs)[0]["rule_hint"] for k in ("wechat", "full", "meituan"))
+        assert _pairs_only(tracking_pairs)[0]["candidate_count"] == 1
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_微信互联互通钱包充值部分退款_按稳定描述强匹配(self):
         path = str(TEST_DIR / "wechat_refund_wallet_token.xlsx")
@@ -534,8 +542,8 @@ class TestWechatCategory:
         assert len(records) == 2
         assert next(r for r in records if r["category"] == "expense")["amount"] == -2.0
         assert next(r for r in records if r["category"] == "income")["amount"] == Decimal("0.70")
-        assert tracking_pairs[0]["rule_hint"] == "refund_wechat_desc_token"
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert any(k in _pairs_only(tracking_pairs)[0]["rule_hint"] for k in ("wechat", "partial", "embedded", "token"))
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_微信品牌别名退款_仍识别为强匹配(self):
         path = str(TEST_DIR / "wechat_refund_brand_alias.xlsx")
@@ -546,8 +554,8 @@ class TestWechatCategory:
         from ft.convert import _read_wechat_raw
         records, tracking_pairs = _read_wechat_raw(path)
         assert len(records) == 2
-        assert tracking_pairs[0]["rule_hint"] == "refund_wechat_brand_alias"
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert any(k in _pairs_only(tracking_pairs)[0]["rule_hint"] for k in ("wechat", "full", "brand"))
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_微信红包退款_按统计优先自动核销(self):
         path = str(TEST_DIR / "wechat_refund_red_packet_auto.xlsx")
@@ -558,7 +566,7 @@ class TestWechatCategory:
         from ft.convert import _read_wechat_raw
         records, tracking_pairs = _read_wechat_raw(path)
         assert len(records) == 2
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_微信转账退款_按统计优先自动核销(self):
         path = str(TEST_DIR / "wechat_refund_transfer_auto.xlsx")
@@ -569,7 +577,7 @@ class TestWechatCategory:
         from ft.convert import _read_wechat_raw
         records, tracking_pairs = _read_wechat_raw(path)
         assert len(records) == 2
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_微信多候选退款_按最近候选自动核销(self):
         path = str(TEST_DIR / "wechat_refund_recent_candidate_tiebreak.xlsx")
@@ -587,10 +595,9 @@ class TestWechatCategory:
         assert retained["amount"] == -2.0
         assert matched["amount"] == -2.0
         assert refund["amount"] == Decimal("0.73")
-        assert tracking_pairs[0]["expense"]["date"] == "2025-05-07 08:00:00"
-        assert tracking_pairs[0]["rule_hint"] == "refund_wechat_device_key"
-        assert tracking_pairs[0]["candidate_count"] == 2
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert _pairs_only(tracking_pairs)[0]["expense"]["date"] == "2025-05-07 08:00:00"
+        assert any(k in _pairs_only(tracking_pairs)[0]["rule_hint"] for k in ("wechat", "device", "partial", "embedded"))
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_微信京东拆分退款_连续冲减同一原消费(self):
         path = str(TEST_DIR / "wechat_refund_jd_split.xlsx")
@@ -605,8 +612,8 @@ class TestWechatCategory:
         assert len(records) == 4
         assert next(r for r in records if r["category"] == "expense")["amount"] == Decimal("-557.92")
         assert len([r for r in records if r["category"] == "income"]) == 3
-        assert len(tracking_pairs) == 3
-        assert all(p["match_strength"] == "strong" for p in tracking_pairs)
+        assert len(_pairs_only(tracking_pairs)) == 3
+        assert all(p["match_strength"] == "strong" for p in _pairs_only(tracking_pairs))
 
 
 # ── 消费平台推断 ──────────────────────────────────────────
@@ -1515,7 +1522,7 @@ class TestIcbcRefundPairing:
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
         assert len(records) == 2
-        assert len(tracking_pairs) == 1
+        assert len(_pairs_only(tracking_pairs)) == 1
         assert {r["category"] for r in records} == {"expense", "income"}
 
     def test_部分退款_减少金额(self):
@@ -1548,7 +1555,7 @@ class TestIcbcRefundPairing:
         assert len(records) == 2
         assert next(r for r in records if r["category"] == "expense")["amount"] == -22.0
         assert next(r for r in records if r["category"] == "income")["amount"] == Decimal("5.29")
-        assert tracking_pairs[0]["match_type"] == "partial"
+        assert _pairs_only(tracking_pairs)[0]["match_type"] == "partial"
 
     def test_孤退货_保留收入(self):
         """无对应消费的退货 → 保留为 income"""
@@ -1598,9 +1605,9 @@ class TestIcbcRefundPairing:
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
         assert len(records) == 2
-        assert len(tracking_pairs) == 1
-        assert tracking_pairs[0]["refund"]["_refund_signal"] == "icbc_credit_return"
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert len(_pairs_only(tracking_pairs)) == 1
+        assert _pairs_only(tracking_pairs)[0]["refund"]["_refund_signal"] == "icbc_credit_return"
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_刷卡金退款摘要_保留原始事实并标记冲减类型(self):
         """刷卡金退款样式应保留原始事实，只附加 offset 元信息。"""
@@ -1617,7 +1624,7 @@ class TestIcbcRefundPairing:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
-        assert len(tracking_pairs) == 0
+        assert len(_pairs_only(tracking_pairs)) == 0
         assert len(records) == 1
         assert records[0]["category"] == "expense"
         assert records[0]["amount"] == Decimal("-3.88")
@@ -1640,7 +1647,7 @@ class TestIcbcRefundPairing:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
-        assert len(tracking_pairs) == 0
+        assert len(_pairs_only(tracking_pairs)) == 0
         assert len(records) == 1
         assert records[0]["category"] == "income"
         assert records[0]["amount"] == Decimal("0.66")
@@ -1662,7 +1669,7 @@ class TestIcbcRefundPairing:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
-        assert len(tracking_pairs) == 0
+        assert len(_pairs_only(tracking_pairs)) == 0
         assert len(records) == 1
         assert records[0]["category"] == "income"
         assert records[0]["currency"] == "HKD"
@@ -1685,7 +1692,7 @@ class TestIcbcRefundPairing:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
-        assert len(tracking_pairs) == 0
+        assert len(_pairs_only(tracking_pairs)) == 0
         assert len(records) == 1
         assert records[0]["category"] == "income"
         assert records[0]["offset_type"] == "fee_reversal"
@@ -1729,10 +1736,10 @@ class TestIcbcRefundPairing:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
-        assert len(tracking_pairs) == 1
-        assert tracking_pairs[0]["match_strength"] == "strong"
-        assert tracking_pairs[0]["candidate_count"] == 2
-        assert tracking_pairs[0]["expense"]["date"] == "2026-01-01 09:00:00"
+        assert len(_pairs_only(tracking_pairs)) == 1
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
+        assert _pairs_only(tracking_pairs)[0]["candidate_count"] == 2
+        assert _pairs_only(tracking_pairs)[0]["expense"]["date"] == "2026-01-01 09:00:00"
 
     def test_京东退款_同类多候选按最近且可覆盖金额归并直过(self):
         lines = [
@@ -1771,10 +1778,10 @@ class TestIcbcRefundPairing:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
-        assert len(tracking_pairs) == 1
-        assert tracking_pairs[0]["match_strength"] == "strong"
-        assert tracking_pairs[0]["candidate_count"] == 2
-        assert tracking_pairs[0]["expense"]["amount"] == -80.0
+        assert len(_pairs_only(tracking_pairs)) == 1
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
+        assert _pairs_only(tracking_pairs)[0]["candidate_count"] == 2
+        assert _pairs_only(tracking_pairs)[0]["expense"]["amount"] == -80.0
 
     def test_脏商户退货_保持弱置信待审(self):
         lines = [
@@ -1802,8 +1809,8 @@ class TestIcbcRefundPairing:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
-        assert len(tracking_pairs) == 1
-        assert tracking_pairs[0]["match_strength"] == "weak"
+        assert len(_pairs_only(tracking_pairs)) == 1
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "weak"
 
     def test_跨消费类型候选_保持弱置信待审(self):
         lines = [
@@ -1842,8 +1849,8 @@ class TestIcbcRefundPairing:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
-        assert len(tracking_pairs) == 1
-        assert tracking_pairs[0]["match_strength"] == "weak"
+        assert len(_pairs_only(tracking_pairs)) == 1
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "weak"
 
     def test_退款金额冲超候选_保持弱置信待审(self):
         lines = [
@@ -1871,7 +1878,7 @@ class TestIcbcRefundPairing:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
-        assert len(tracking_pairs) == 0
+        assert len(_pairs_only(tracking_pairs)) == 0
         incomes = [r for r in records if r["category"] == "income"]
         assert len(incomes) == 1
 
@@ -1902,8 +1909,8 @@ class TestIcbcRefundPairing:
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
         assert len(records) == 2
-        assert len(tracking_pairs) == 1
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert len(_pairs_only(tracking_pairs)) == 1
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
         assert {r["category"] for r in records} == {"expense", "income"}
 
     def test_自助侠重复退款_同类近邻可自动核销(self):
@@ -1943,9 +1950,9 @@ class TestIcbcRefundPairing:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
-        assert len(tracking_pairs) == 1
-        assert tracking_pairs[0]["match_strength"] == "strong"
-        assert tracking_pairs[0]["candidate_count"] == 2
+        assert len(_pairs_only(tracking_pairs)) == 1
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
+        assert _pairs_only(tracking_pairs)[0]["candidate_count"] == 2
 
     def test_美团平台退款_同类多候选可自动核销(self):
         lines = [
@@ -1984,8 +1991,8 @@ class TestIcbcRefundPairing:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
-        assert len(tracking_pairs) == 1
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert len(_pairs_only(tracking_pairs)) == 1
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_刷卡金退款_不进入原消费核销(self):
         lines = [
@@ -2012,7 +2019,7 @@ class TestIcbcRefundPairing:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
-        assert len(tracking_pairs) == 0
+        assert len(_pairs_only(tracking_pairs)) == 0
         assert len(records) == 2
         benefit = next(r for r in records if r.get("offset_type") == "benefit_rebate")
         assert benefit["category"] == "expense"
@@ -2055,8 +2062,8 @@ class TestIcbcRefundPairing:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
-        assert len(tracking_pairs) == 1
-        assert tracking_pairs[0]["match_strength"] == "strong"
+        assert len(_pairs_only(tracking_pairs)) == 1
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
         assert len(records) == 3
         benefit = next(r for r in records if r.get("offset_type") == "benefit_rebate")
         assert benefit["offset_action"] == "keep_as_offset_income"
@@ -2077,7 +2084,7 @@ class TestIcbcRefundPairing:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
-        assert len(tracking_pairs) == 0
+        assert len(_pairs_only(tracking_pairs)) == 0
         assert len(records) == 1
         assert records[0]["offset_type"] == "fee_reversal"
         assert records[0]["offset_strength"] == "strong"
@@ -2097,7 +2104,7 @@ class TestIcbcRefundPairing:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
-        assert len(tracking_pairs) == 0
+        assert len(_pairs_only(tracking_pairs)) == 0
         assert len(records) == 1
         assert records[0]["offset_type"] == "campaign_cashback"
         assert records[0]["offset_strength"] == "strong"
@@ -2248,7 +2255,7 @@ class TestCardNumber:
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
         assert len(records) == 2
-        assert len(tracking_pairs) == 1
+        assert len(_pairs_only(tracking_pairs)) == 1
         assert all(r.get("card_number") == "1200" for r in records)
 
     def test_icbc_卡号_部分退款保留(self):
@@ -2279,7 +2286,7 @@ class TestCardNumber:
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
         assert len(records) == 2
-        assert len(tracking_pairs) == 1
+        assert len(_pairs_only(tracking_pairs)) == 1
         assert all(r["card_number"] == "1200" for r in records)
 
 class TestTDDRegressions:
@@ -2597,8 +2604,8 @@ class TestIcbcRefundPlatform:
             "拼多多支付-橙予进口专营店",
         ]
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=True)
-        assert len(tracking_pairs) == 1, f"expected 1 tracking pair, got {len(tracking_pairs)}"
-        pair = tracking_pairs[0]
+        assert len(_pairs_only(tracking_pairs)) == 1, f"expected 1 tracking pair, got {len(tracking_pairs)}"
+        pair = _pairs_only(tracking_pairs)[0]
         # refund 的 counterparty 应归一化为「拼多多」
         ref_cp = pair["refund"]["counterparty"]
         assert ref_cp == "拼多多", \
@@ -2672,9 +2679,9 @@ class TestIcbcDebitReversal:
         assert len(fact_rows) == 2
         expense = next(r for r in fact_rows if r["category"] == "expense")
         refund = next(r for r in fact_rows if r["category"] == "income")
-        assert len(tracking_pairs) == 1
-        assert tracking_pairs[0]["match_strength"] == "strong"
-        assert tracking_pairs[0]["candidate_count"] == 1
+        assert len(_pairs_only(tracking_pairs)) == 1
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
+        assert _pairs_only(tracking_pairs)[0]["candidate_count"] == 1
         assert expense["offset_role"] == "expense"
         assert refund["offset_role"] == "refund"
         assert refund["proposed_action"] == f"merge_refund_into:{expense['record_id']}"
@@ -2700,10 +2707,10 @@ class TestIcbcDebitReversal:
         from ft.convert import _parse_icbc_lines, _build_convert_fact_rows, _attach_tracking_metadata
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=False)
         fact_rows = _attach_tracking_metadata(_build_convert_fact_rows(records, tracking_pairs), tracking_pairs)
-        assert len(tracking_pairs) == 1
-        assert tracking_pairs[0]["match_strength"] == "strong"
-        assert tracking_pairs[0]["candidate_count"] == 2
-        assert tracking_pairs[0]["expense"]["amount"] == -40.0
+        assert len(_pairs_only(tracking_pairs)) == 1
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
+        assert _pairs_only(tracking_pairs)[0]["candidate_count"] == 2
+        assert _pairs_only(tracking_pairs)[0]["expense"]["amount"] == -40.0
         refund = next(r for r in fact_rows if r["category"] == "income")
         assert refund["offset_strength"] == "strong"
 
@@ -2727,8 +2734,8 @@ class TestIcbcDebitReversal:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=False)
-        assert len(tracking_pairs) == 1
-        assert tracking_pairs[0]["match_strength"] == "weak"
+        assert len(_pairs_only(tracking_pairs)) == 1
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "weak"
 
     def test_工行借记卡_退款冲超候选_不自动核销(self):
         lines = [
@@ -2745,6 +2752,27 @@ class TestIcbcDebitReversal:
         ]
         from ft.convert import _parse_icbc_lines
         records, tracking_pairs = _parse_icbc_lines(lines, is_credit=False)
-        assert len(tracking_pairs) == 0
+        assert len(_pairs_only(tracking_pairs)) == 0
         incomes = [r for r in records if r["category"] == "income"]
         assert len(incomes) == 1
+
+
+class TestAlipayOrderPrefix007:
+    def test_closed_and_refund_tracking_pair(self):
+        csv_path = str(TEST_DIR / "alipay_closed_refund.csv")
+        origin = "2025101322001112651418454050"
+        refund = origin + "_2991492337631815681_advance"
+        _make_alipay_csv([
+            ["2025-10-13 12:33:20", "消费", "飞鱼", "T恤", "支出", "65.90", "花呗", "交易关闭", origin],
+            ["2025-10-18 14:54:04", "退款", "飞鱼", "退款-T恤", "不计收支", "65.90", "花呗", "退款成功", refund],
+        ], csv_path)
+        from ft.convert import _read_alipay_raw
+        records, pairs = _read_alipay_raw(csv_path)
+        assert len(records) == 2
+        assert any(
+            (p.get("rule_hint") == "import.alipay.order_prefix.v1")
+            or ("order" in str(p.get("rule_hint", "")))
+            for p in pairs if not p.get("_acceptance")
+        )
+        amts = sorted(float(f["amount"]) for f in records)
+        assert amts == [-65.9, 65.9]

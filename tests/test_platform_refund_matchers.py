@@ -1,0 +1,153 @@
+"""Unit tests for 007 platform refund pure matchers."""
+from decimal import Decimal
+
+from ft.domain.platform_refund import (
+    alipay_find_origin_index,
+    alipay_is_failed_repay,
+    alipay_is_paid_closed_expense,
+    alipay_is_unpaid_closed,
+    alipay_order_match,
+    pair_wechat_refunds,
+    wechat_embedded_refund_amount,
+    wechat_find_expense_for_refund,
+    wechat_is_refund_income_leg,
+    wechat_is_refund_origin_expense,
+)
+
+
+class TestAlipayOrderKey:
+    def test_exact_equal(self):
+        assert alipay_order_match("ABC", "ABC")
+
+    def test_underscore_prefix_multi_segment(self):
+        origin = "2025101322001112651418454050"
+        refund = origin + "_2991492337631815681_advance"
+        assert alipay_order_match(refund, origin)
+        # bare rsplit would fail uniqueness vs longer origin — ensure separator required
+        assert not alipay_order_match(origin + "9", origin)
+
+    def test_steam_star_prefix(self):
+        origin = "2023102222001312651442164096"
+        refund = origin + "*355627977"
+        assert alipay_order_match(refund, origin)
+
+    def test_unique_origin_index(self):
+        origins = ["A", "B", "C"]
+        assert alipay_find_origin_index("B_x", origins) == 1
+        assert alipay_find_origin_index("Z", origins) is None
+        assert alipay_find_origin_index("A", ["A", "A"]) is None  # ambiguous
+
+
+class TestAlipaySkipPredicates:
+    def test_unpaid_closed(self):
+        assert alipay_is_unpaid_closed("交易关闭", "不计收支", "")
+        assert alipay_is_unpaid_closed("已关闭", "收入", "")
+        assert not alipay_is_unpaid_closed("交易关闭", "支出", "花呗")
+        assert not alipay_is_unpaid_closed("交易关闭", "支出", "")
+
+    def test_failed_repay(self):
+        assert alipay_is_failed_repay("还款失败", "不计收支", "")
+        assert not alipay_is_failed_repay("还款成功", "不计收支", "工行")
+
+    def test_paid_closed(self):
+        assert alipay_is_paid_closed_expense("交易关闭", "支出")
+
+
+class TestWeChatDualRow:
+    def test_embedded_amount(self):
+        assert wechat_embedded_refund_amount("已退款(¥18.00)") == Decimal("18.00")
+        assert wechat_embedded_refund_amount("已退款¥0.73") == Decimal("0.73")
+        assert wechat_embedded_refund_amount("已全额退款") is None
+
+    def test_origin_and_income_detection(self):
+        assert wechat_is_refund_origin_expense("支出", "已全额退款")
+        assert wechat_is_refund_origin_expense("支出", "已退款(¥1.00)")
+        assert wechat_is_refund_origin_expense("支出", "对方已退还")
+        assert wechat_is_refund_income_leg("收入", "已退款¥1.00", "自助侠-退款")
+        assert not wechat_is_refund_income_leg("收入", "已存入零钱", "转账")
+
+    def test_full_match_same_pay(self):
+        expenses = [{
+            "direction": "支出", "status": "已全额退款", "amount": Decimal("-50"),
+            "pay": "零钱", "cp": "北中医三院", "date": "2024-03-11 07:36:21",
+            "txn": "4200a", "mer": "m1", "type": "商户消费",
+        }]
+        income = {
+            "direction": "收入", "status": "已全额退款", "amount": Decimal("50"),
+            "pay": "零钱", "cp": "北中医三院", "date": "2024-03-11 09:17:05",
+            "txn": "5030b", "mer": "", "type": "北中医三院-退款",
+        }
+        m = wechat_find_expense_for_refund(income, expenses)
+        assert m is not None
+        assert m.expense_index == 0
+
+    def test_partial_30_day_window(self):
+        expenses = [{
+            "direction": "支出", "status": "已退款(¥18.00)", "amount": Decimal("-45"),
+            "pay": "零钱", "cp": "味多美", "date": "2024-06-27 19:51:18",
+            "txn": "e1", "mer": "xc", "type": "商户消费",
+        }]
+        income = {
+            "direction": "收入", "status": "已退款¥18.00", "amount": Decimal("18"),
+            "pay": "零钱", "cp": "味多美", "date": "2024-07-28 01:04:54",
+            "txn": "r1", "mer": "", "type": "味多美-退款",
+        }
+        m = wechat_find_expense_for_refund(income, expenses)
+        assert m is not None
+
+    def test_redpacket_mer_equals_income_txn(self):
+        expenses = [{
+            "direction": "支出", "status": "已全额退款", "amount": Decimal("-50"),
+            "pay": "零钱", "cp": "发给某人", "date": "2025-05-15 17:09:34",
+            "txn": "exp1", "mer": "1000039801202505157184950651034", "type": "微信红包（单发）",
+        }]
+        income = {
+            "direction": "收入", "status": "已全额退款", "amount": Decimal("50"),
+            "pay": "零钱", "cp": "/", "date": "2025-05-16 17:09:37",
+            "txn": "1000039801202505157184950651034", "mer": "", "type": "微信红包-退款",
+        }
+        m = wechat_find_expense_for_refund(income, expenses)
+        assert m is not None
+        assert "mer" in m.rule_id or m.rule_id.endswith("v1")
+
+    def test_transfer_return(self):
+        expenses = [{
+            "direction": "支出", "status": "对方已退还", "amount": Decimal("-200"),
+            "pay": "零钱", "cp": "是我小转转啊", "date": "2025-05-10 16:35:30",
+            "txn": "e", "mer": "m", "type": "转账",
+        }]
+        income = {
+            "direction": "收入", "status": "已全额退款", "amount": Decimal("200"),
+            "pay": "零钱", "cp": "/", "date": "2025-05-10 18:06:58",
+            "txn": "r", "mer": "", "type": "转账-退款",
+        }
+        m = wechat_find_expense_for_refund(income, expenses)
+        assert m is not None
+
+    def test_residual_jd_style(self):
+        expenses = [{
+            "direction": "支出", "status": "已退款(¥470.72)", "amount": Decimal("-557.92"),
+            "pay": "零钱", "cp": "京东", "date": "2024-11-11 01:15:51",
+            "txn": "e", "mer": "m", "type": "商户消费",
+        }]
+        rows = [
+            expenses[0],
+            {
+                "direction": "收入", "status": "已退款¥470.72", "amount": Decimal("341.3"),
+                "pay": "零钱", "cp": "京东商城平台商户", "date": "2024-11-11 01:16:12",
+                "txn": "r1", "mer": "", "type": "京东商城平台商户-退款",
+            },
+            {
+                "direction": "收入", "status": "已退款¥470.72", "amount": Decimal("32.56"),
+                "pay": "零钱", "cp": "京东商城平台商户", "date": "2024-11-11 01:16:17",
+                "txn": "r2", "mer": "", "type": "京东商城平台商户-退款",
+            },
+            {
+                "direction": "收入", "status": "已退款¥470.72", "amount": Decimal("96.86"),
+                "pay": "零钱", "cp": "京东商城平台商户", "date": "2024-11-11 01:16:25",
+                "txn": "r3", "mer": "", "type": "京东商城平台商户-退款",
+            },
+        ]
+        pairs = pair_wechat_refunds(rows)
+        assert len(pairs) == 3
+        assert all(p[0] == 0 for p in pairs)

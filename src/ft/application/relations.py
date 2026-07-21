@@ -295,7 +295,95 @@ class RelationService:
             details={"old_id": relation_id, "new_id": new_id},
         )
 
+    def create_import_refund_offsets(
+        self,
+        *,
+        batch_id: str | None,
+        tracking_pairs: list,
+        new_cash_fact_ids: list[str] | None = None,
+    ) -> list[dict]:
+        """Persist import-time refund_offset from convert tracking (007). Amounts unchanged."""
+        from ft.domain.relations import RelationKind, RelationStatus
+
+        created: list[dict] = []
+        if not tracking_pairs:
+            return created
+        with self._uow as uow:
+            if hasattr(uow.cashflows, "list_detailed"):
+                rows = uow.cashflows.list_detailed(include_deleted=False)
+            else:
+                rows = []
+            id_by_record = {
+                str(row.get("record_id") or ""): str(row.get("id") or "")
+                for row in rows
+                if row.get("record_id") and row.get("id")
+            }
+            for pair in tracking_pairs:
+                if not isinstance(pair, dict) or pair.get("_acceptance"):
+                    continue
+                exp = pair.get("expense") or {}
+                ref = pair.get("refund") or {}
+                exp_rec = str(exp.get("record_id") or exp.get("_fact_id") or "")
+                ref_rec = str(ref.get("record_id") or ref.get("_fact_id") or "")
+                exp_id = id_by_record.get(exp_rec)
+                ref_id = id_by_record.get(ref_rec)
+                if not exp_id or not ref_id:
+                    continue
+                existing = uow.relations.list_for_facts([exp_id, ref_id], active_only=True)
+                already = False
+                for rel in existing:
+                    if rel.get("kind") != RelationKind.REFUND_OFFSET.value:
+                        continue
+                    ids = {rel.get("primary_fact_id"), rel.get("secondary_fact_id")}
+                    if exp_id in ids and ref_id in ids:
+                        already = True
+                        break
+                if already:
+                    continue
+                rule_id = (
+                    pair.get("import_rule_id")
+                    or pair.get("rule_hint")
+                    or "import.platform.refund.v1"
+                )
+                strength = pair.get("match_strength") or "strong"
+                status = (
+                    RelationStatus.ACCEPTED.value
+                    if strength == "strong"
+                    else RelationStatus.PENDING_REVIEW.value
+                )
+                rel_id = uow.relations.add({
+                    "kind": RelationKind.REFUND_OFFSET.value,
+                    "primary_fact_id": exp_id,
+                    "secondary_fact_id": ref_id,
+                    "anchor_fact_id": ref_id,
+                    "status": status,
+                    "rule_id": rule_id,
+                    "confidence": strength,
+                    "evidence": {
+                        "source": "import",
+                        "batch_id": batch_id,
+                        "match_type": pair.get("match_type"),
+                        "rule_hint": pair.get("rule_hint"),
+                        "candidate_count": pair.get("candidate_count"),
+                    },
+                    "created_by": "statement_import",
+                    "decided_by": "statement_import" if status == RelationStatus.ACCEPTED.value else "",
+                    "decision_reason": "import-time platform refund match"
+                    if status == RelationStatus.ACCEPTED.value
+                    else "",
+                })
+                created.append({
+                    "id": rel_id,
+                    "primary_fact_id": exp_id,
+                    "secondary_fact_id": ref_id,
+                    "rule_id": rule_id,
+                    "status": status,
+                })
+            uow.commit()
+        return created
+
     def logical_delete_cash(self, fact_id: str, *, actor: str, reason: str) -> OperationResult:
+
         with self._uow as uow:
             result = uow.fact_deletions.logical_delete_cash(fact_id, actor=actor, reason=reason)
             related = uow.relations.list_for_facts([fact_id], active_only=True)

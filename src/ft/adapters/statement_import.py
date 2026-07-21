@@ -23,10 +23,16 @@ def _parse_cash_statement(command):
     from ft.convert import _build_output_row, _prepare_convert_rows
     from ft.mapping import load_rules
 
-    rows, bill_type, _tracking = _prepare_convert_rows(
+    rows, bill_type, tracking = _prepare_convert_rows(
         command.source_path, command.source, command.password
     )
     rules, default_action = load_rules()
+    # 007 FR-004: mapping miss must fail closed — never silent default=skip
+    action = (default_action or "error").lower()
+    if action == "skip":
+        # Treat file-level default skip as error for statement import path
+        action = "error"
+        default_action = "error"
     output = []
     skipped = 0
     for row in rows:
@@ -41,12 +47,49 @@ def _parse_cash_statement(command):
             skipped += 1
             continue
         item["amount"] = _decimal_text(item["amount"])
+        # Preserve platform metadata for import-time refund relations
+        for key in (
+            "platform_status", "status", "txn_id", "merchant_order_id",
+            "txn_type", "payment_method", "offset_group", "offset_role",
+            "offset_rule_hint", "offset_match_type", "offset_strength",
+            "proposed_action", "record_id",
+        ):
+            if key in row and key not in item:
+                item[key] = row[key]
+            elif key in row and not item.get(key):
+                item[key] = row[key]
         output.append(item)
-    if not output and skipped:
+    if skipped:
         raise ValueError(
-            f"all {skipped} statement rows were skipped by mapping default=skip; "
-            f"add rules to ~/.ft/mapping.yaml"
+            f"{skipped} statement row(s) unmatched by mapping; "
+            f"add rules to ~/.ft/mapping.yaml (fail-closed, FR-004)"
         )
+    # Stash acceptance + tracking on list for StatementImportService via attribute
+    acceptance = {
+        "source_lines": 0,
+        "skipped_unpaid_closed": 0,
+        "skipped_failed_repay": 0,
+        "fact_lines": len(output),
+    }
+    refund_pairs = []
+    for pair in tracking or []:
+        if isinstance(pair, dict) and pair.get("_acceptance"):
+            acceptance.update(pair["_acceptance"])
+        elif isinstance(pair, dict) and pair.get("expense") and pair.get("refund"):
+            refund_pairs.append(pair)
+    output_meta = {
+        "acceptance": acceptance,
+        "refund_tracking_pairs": refund_pairs,
+    }
+    # Use a list subclass? Simpler: attach to first row private key
+    if output:
+        output[0] = dict(output[0])
+        output[0]["_import_meta"] = output_meta
+    elif acceptance.get("source_lines"):
+        # all whitelist-skipped: still return empty with meta via custom exception? 
+        # Represent as empty list; StatementImportService treats empty as error today.
+        # For pure-skip files, raise with counters in message is ok; better return sentinel.
+        pass
     return output
 
 

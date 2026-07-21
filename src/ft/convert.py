@@ -767,8 +767,9 @@ def _wechat_refund_brand_aliases(value: str) -> set[str]:
 def _collect_order_based_refund_candidates(expenses: list, ref: dict, consumed: list[bool], remaining: list[float], ref_amt: float):
     matches: dict[int, str] = {}
     merchant_order_id = (ref.get("merchant_order_id", "") or "").strip()
-    refund_txn_base_id = _refund_txn_base_id(ref.get("txn_id", ""))
+    refund_txn_id = (ref.get("txn_id", "") or "").strip()
     desc_order_key = _alipay_desc_order_key(ref.get("description", ""))
+    from ft.domain.platform_refund import alipay_order_match
 
     def try_add(expense_index: int, rule_hint: str):
         if consumed[expense_index]:
@@ -782,10 +783,12 @@ def _collect_order_based_refund_candidates(expenses: list, ref: dict, consumed: 
         for i, exp in enumerate(expenses):
             if (exp.get("merchant_order_id", "") or "").strip() == merchant_order_id:
                 try_add(i, "refund_merchant_order_match")
-    if refund_txn_base_id:
+    # FR-013: full order-key match (== / origin_ / origin*) — not rsplit-only
+    if refund_txn_id:
         for i, exp in enumerate(expenses):
-            if (exp.get("txn_id", "") or "").strip() == refund_txn_base_id:
-                try_add(i, "refund_txn_base_match")
+            origin = (exp.get("txn_id", "") or "").strip()
+            if origin and alipay_order_match(refund_txn_id, origin):
+                try_add(i, "import.alipay.order_prefix.v1")
     if desc_order_key:
         for i, exp in enumerate(expenses):
             exp_desc_order_key = _alipay_desc_order_key(exp.get("description", ""))
@@ -1117,13 +1120,22 @@ def _read_alipay_raw(path: str):
         # 交易状态：用于识别"下单未付款"的假交易
         txn_status = row[h.get("交易状态", 8)].strip() if "交易状态" in h else ""
 
-        # 交易关闭/已关闭/还款失败 → 没有实际资金流动，跳过（不管收/支方向）
-        if txn_status in ("交易关闭", "已关闭", "还款失败"):
+        # --- 007 whitelist skips (must comment + count; not silent) ---
+        from ft.domain.platform_refund import (
+            alipay_is_unpaid_closed,
+            alipay_is_failed_repay,
+        )
+        # FR-008a: 未支付关闭 — 交易关闭/已关闭 + 非支出 + 付款方式空。
+        # 下单未支付/未占用资金即关闭，导出通常无退款行；导入会造成假支出。
+        if alipay_is_unpaid_closed(txn_status, direction, payment_method):
+            raw.append({"_skip_reason": "unpaid_closed", "_skipped": True})
             continue
-
-        # 方向=不计收支 + 金额=0 → 预授权解冻/冻结解冻等，无实际资金流动，跳过
-        if direction == "不计收支" and amount == 0:
+        # FR-008c: 还款失败 + 不计收支 + 付款方式空 — 自动还款未扣成；真还款见还款成功。
+        if alipay_is_failed_repay(txn_status, direction, payment_method):
+            raw.append({"_skip_reason": "failed_repay", "_skipped": True})
             continue
+        # Paid closed expense (交易关闭|支出) and other statuses: MUST import (FR-008).
+        # 0-yuan auth-hold / unfreeze / refunds: MUST import (FR-011 / FR-014a).
 
         if amount != 0:
             category = "expense" if amount < 0 else "income"
@@ -1148,15 +1160,39 @@ def _read_alipay_raw(path: str):
             "txn_type": txn_type,
             "txn_id": txn_id,
             "merchant_order_id": merchant_order_id,
+            "platform_status": txn_status,
             "_alipay_direction": direction,
             "_refund_signal": refund_signal,
             "_fact_id": fact_id,
         })
 
-    # 退款配对核销
-    expenses = [r for r in raw if r["category"] == "expense"]
-    refunds = [r for r in raw if r["amount"] > 0 and r.get("_refund_signal")]
-    records, tracking_pairs = _pair_refunds(expenses, refunds, raw)
+    # Split whitelist skips from facts (007 acceptance counters).
+    skips = [r for r in raw if r.get("_skipped")]
+    facts = [r for r in raw if not r.get("_skipped")]
+    for rec in facts:
+        rec["platform_status"] = rec.get("platform_status") or ""
+        # platform_status already set below when appending — ensure field
+    # 退款配对核销（不改金额；tracking only）
+    expenses = [r for r in facts if r["category"] == "expense"]
+    refunds = [r for r in facts if r["amount"] > 0 and r.get("_refund_signal")]
+    records, tracking_pairs = _pair_refunds(expenses, refunds, facts)
+    # Stash skip stats for import acceptance (FR-002/FR-006)
+    skip_counts = {"unpaid_closed": 0, "failed_repay": 0}
+    for s in skips:
+        reason = s.get("_skip_reason") or ""
+        if reason in skip_counts:
+            skip_counts[reason] += 1
+    for pair in tracking_pairs:
+        pair.setdefault("import_rule_id", pair.get("rule_hint") or "")
+    tracking_pairs = list(tracking_pairs)
+    tracking_pairs.append({
+        "_acceptance": {
+            "source_lines": len(raw),
+            "skipped_unpaid_closed": skip_counts["unpaid_closed"],
+            "skipped_failed_repay": skip_counts["failed_repay"],
+            "fact_lines": len(facts),
+        }
+    })
     return records, tracking_pairs
 
 
@@ -1193,14 +1229,10 @@ def _read_wechat_raw(path: str):
         direction = vals[h["收/支"]] if "收/支" in h else ""
         status = vals[h["当前状态"]] if "当前状态" in h else ""
 
-        if direction == "支出":
-            # 保留所有实际发生的消费（包括已退款的），只排除明确失败状态
-            if status in ("交易失败", "已关闭", "已撤销"):
-                continue
-        if direction == "收入":
-            is_refund = "退款" in status
-            if not is_refund and status not in INCOME_OK:
-                continue
+        # 007 FR-027: do not silently drop expense fail/closed/revoked or non-INCOME_OK income.
+        # Current real-bill corpus has none of those statuses; if they appear, import them
+        # (or apply FR-008b with counters when unpaid-failure can be proven). Unknown
+        # neutral types still fail closed below.
 
         try:
             amount = Decimal(vals[h["金额(元)"]])
@@ -1252,17 +1284,18 @@ def _read_wechat_raw(path: str):
                 "description": enriched_desc[:80],
                 "category": category,
                 "status": status,
+                "platform_status": status,
                 "txn_type": txn_type,
                 "txn_id": txn_id,
                 "merchant_order_id": merchant_order_id,
+                "_wechat_direction": direction or "/",
                 "_refund_signal": "wechat_status" if "退款" in status else "",
                 "_fact_id": fact_id,
             })
             continue
         else:
             continue
-        if amount == 0:
-            continue
+        # 007: 0-yuan rows import when present (balance unaffected)
         # 描述为空或无意义时，用交易类型代替
         if not desc or desc in ("/", "-"):
             desc = txn_type
@@ -1280,17 +1313,38 @@ def _read_wechat_raw(path: str):
             "description": enriched_desc[:80],
             "category": category,
             "status": status,
+            "platform_status": status,
             "txn_type": txn_type,
             "txn_id": txn_id,
             "merchant_order_id": merchant_order_id,
+            "_wechat_direction": (direction or ("支出" if category == "expense" else "收入")),
             "_refund_signal": "wechat_status" if "退款" in status else "",
             "_fact_id": fact_id,
         })
 
-    # 退款配对核销
-    expenses = [r for r in raw if r["category"] == "expense"]
-    refunds = [r for r in raw if r["amount"] > 0 and "退款" in r["status"]]
-    records, tracking_pairs = _pair_refunds(expenses, refunds, raw)
+    # Dual-row refund tracking via FR-029 pure matcher; never rewrite amounts.
+    from ft.domain.platform_refund import pair_wechat_refunds
+    pairs = pair_wechat_refunds(raw)
+    tracking_pairs = []
+    for exp_i, inc_i, rule_id in pairs:
+        tracking_pairs.append(_build_refund_tracking_pair(
+            expense=raw[exp_i],
+            refund=raw[inc_i],
+            match_type="full",
+            rule_hint=rule_id,
+            match_strength="strong",
+            candidate_count=1,
+        ))
+    records = list(raw)
+    tracking_pairs = list(tracking_pairs)
+    tracking_pairs.append({
+        "_acceptance": {
+            "source_lines": len(raw),
+            "skipped_unpaid_closed": 0,
+            "skipped_failed_repay": 0,
+            "fact_lines": len(raw),
+        }
+    })
     return records, tracking_pairs
 
 
@@ -1889,6 +1943,9 @@ def _prepare_convert_rows(path: str, source: str, password: str = None):
         print(f"❌ 未知账单类型: {source}")
         return [], "", []
 
-    rows = _build_convert_fact_rows(rows, tracking_pairs)
-    rows = _attach_tracking_metadata(rows, tracking_pairs)
+    # Pull 007 acceptance meta rows out before fact building
+    # Acceptance already appended onto tracking_pairs by readers when available.
+    tracking_pairs = list(tracking_pairs or [])
+    rows = _build_convert_fact_rows(rows, [p for p in tracking_pairs if not p.get("_acceptance")])
+    rows = _attach_tracking_metadata(rows, [p for p in tracking_pairs if not p.get("_acceptance")])
     return rows, bill_type, tracking_pairs
