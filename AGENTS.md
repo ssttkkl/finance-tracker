@@ -45,6 +45,28 @@ gstack 只承担产品与架构挑战、代码评审、Web QA 和发布验证。
 - gstack 的评审结论必须回写到 `spec.md`、`plan.md` 或 `tasks.md`；不得另建一套可独立演进的
   需求、方案或任务事实源。
 - 一个 feature 必须目标单一、可独立测试、可回滚；范围过大时先拆成多个 feature。
+- `.specify/feature.json` 的 `feature_directory` 指向当前活跃 feature；sequential 编号目录
+  `specs/00N-short-name/` 为默认布局。
+
+## Spec 演进策略
+
+对应 Spec Kit evolving-specs 的三种模型，本仓库按以下规则选择（细节以 constitution 为准）：
+
+1. **Flow-Forward（默认）**  
+   新能力、新边界，或既有 feature 已 Complete：用 `$speckit-specify` 新建 `specs/00N-...`，
+   走完整主流程。Complete 历史目录只读保留，不回写新需求；新目录在 Context 中 cross-link
+   Supersedes / Extends 关系。
+
+2. **Living Spec（当前活跃 feature）**  
+   同一目标内改范围或验收：先改当前 `spec.md`（`$speckit-clarify` 或显式编辑），再同步
+   `plan.md` / `tasks.md`，运行 `$speckit-analyze` 后再实施。大改前优先干净工作树或独立分支。
+
+3. **Flow-Back（实现/评审发现）**  
+   先落最近正确的 artifact，再对齐整套 `spec` / `plan` / `tasks`。implementer 发现缺口必须返回
+   主 session 回写；不得只改代码或只改 tasks 而让 spec 过期。
+
+升级 Spec Kit 项目文件仍按「工具与项目产物」中的备份 → `specify init --force` → 恢复复核流程；
+不得用升级覆盖 `specs/`。
 
 ## 执行流程
 
