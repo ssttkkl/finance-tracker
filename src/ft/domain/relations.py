@@ -78,7 +78,6 @@ RULE_PAYMENT_MIRROR_REFUND_DUAL_SOURCE_V1 = "payment_mirror.refund_dual_source.v
 RULE_REFUND_DIAMOND_V1 = "refund_offset.diamond_via_platform.v1"
 WORKSPACE_TZ = ZoneInfo("Asia/Shanghai")
 # Back-compat alias for older tests/docs.
-RULE_PAYMENT_MIRROR_SAME_DAY_UNIQUE_V1 = RULE_PAYMENT_MIRROR_SHORT_WINDOW_TEXT_V1
 RULE_TRANSFER_PAIR_STRONG_V1 = "transfer_pair.same_amount.transfer_signal.time_window.v1"
 RULE_TRANSFER_PAIR_UNIONPAY_V1 = "transfer_pair.unionpay.same_day.v1"
 RULE_CREDIT_REPAYMENT_V1 = "transfer_pair.credit_repayment.v1"
@@ -567,14 +566,6 @@ def extract_card_tails(text: str) -> set[str]:
     return tails
 
 
-def texts_cross_match(left: str, right: str) -> bool:
-    """Loose token overlap (legacy helper; mirror prefers main_style_cross_verify)."""
-    def tokens(text: str) -> set[str]:
-        parts = re.findall(r"[\w一-鿿]{2,}", str(text or "").lower())
-        stop = {"转账", "消费", "支付", "支付宝", "微信", "银行", "收入", "支出", "交易"}
-        return {p for p in parts if p not in stop and not p.isdigit()}
-
-    return bool(tokens(left) & tokens(right))
 
 
 def main_style_cross_verify(left: FactView | Mapping[str, Any] | str, right: FactView | Mapping[str, Any] | str) -> bool:
@@ -704,14 +695,6 @@ def is_platform_import_refund_source(fact: "FactView") -> bool:
     return any(k in blob for k in ("alipay", "wechat", "支付宝", "微信"))
 
 
-def fact_has_active_refund_offset(
-    fact_id: str,
-    linked_kinds: Mapping[str, set[str]] | None = None,
-) -> bool:
-    """Whether fact already participates in an active refund_offset (any status via caller)."""
-    if not linked_kinds:
-        return False
-    return RelationKind.REFUND_OFFSET.value in linked_kinds.get(fact_id, set())
 
 
 def has_refund_signal(text: str) -> bool:
@@ -1112,29 +1095,8 @@ def evaluate_payment_mirror(
             conf = CONFIDENCE_STRONG
             rule = RULE_PAYMENT_MIRROR_SHORT_WINDOW_TEXT_V1
             score = 2000 - dt
-        elif (
-            exact
-            and same_account
-            and platform_not_after_bank
-            and PAYMENT_MIRROR_SHORT_WINDOW_SECONDS < lag_bank_minus_platform <= PENDING_OUTER_SECONDS
-        ):
-            # P1a: same-account exact, lag 60s–5min → pending.
-            status = RelationStatus.PENDING_REVIEW.value
-            conf = CONFIDENCE_WEAK
-            rule = RULE_PAYMENT_MIRROR_WEAK_V1
-            score = 1500 - min(lag_bank_minus_platform, 1499)
-        elif (
-            exact
-            and same_account
-            and same_day
-            and lag_bank_minus_platform > PENDING_OUTER_SECONDS
-        ):
-            # P1b / P7: same-account same-day exact beyond 5min (main exact-2 day key)
-            # → pending high-recall, not silent.
-            status = RelationStatus.PENDING_REVIEW.value
-            conf = CONFIDENCE_WEAK
-            rule = RULE_PAYMENT_MIRROR_WEAK_V1
-            score = 1300
+        # same-account + same business day already accepted above (FR-056).
+        # Remaining weak paths: cross-account or incomplete day match.
         elif (
             exact
             and text_or_card
@@ -1167,9 +1129,11 @@ def evaluate_payment_mirror(
             exact
             and not platform_not_after_bank
             and same_day
-            and (same_account or text_or_card)
+            and not same_account
+            and text_or_card
         ):
-            # P5: platform after bank same day with same account or text → pending (high recall).
+            # P5: platform after bank same calendar day, cross-account with text → pending.
+            # same-account same business day already accepted (FR-056).
             status = RelationStatus.PENDING_REVIEW.value
             conf = CONFIDENCE_WEAK
             rule = RULE_PAYMENT_MIRROR_WEAK_V1

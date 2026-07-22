@@ -20,9 +20,7 @@ from ft.domain.relations import (
     SUBTYPE_NONE,
     cross_kind_compatible,
     evaluate_refund_offset,
-    is_platform_import_refund_source,
     has_refund_signal,
-    evaluate_transfer_pair,
     is_open_leg_relation,
     match_payment_mirrors_greedy,
     match_diamond_bank_refunds,
@@ -640,117 +638,6 @@ class RelationService:
                     created.append(out)
         return created
 
-
-    def create_import_refund_offsets(
-        self,
-        *,
-        batch_id: str | None,
-        tracking_pairs: list,
-        new_cash_fact_ids: list[str] | None = None,
-    ) -> list[dict]:
-        """Persist import-time refund_offset from convert tracking (007). Amounts unchanged.
-
-        Matching keys (in order):
-        - expense/refund ``record_id`` as stored on cash facts (provider txn id)
-        - convert ``_fact_id`` (e.g. ``alipay_<txn>``) stripped to txn suffix
-        """
-        from ft.domain.relations import RelationKind, RelationStatus
-
-        created: list[dict] = []
-        if not tracking_pairs:
-            return created
-
-        def keys_for(side: dict) -> set[str]:
-            out: set[str] = set()
-            for k in ("record_id", "_fact_id", "txn_id"):
-                v = str(side.get(k) or "").strip()
-                if v:
-                    out.add(v)
-                    if v.startswith("alipay_"):
-                        out.add(v[len("alipay_"):])
-                    if v.startswith("wechat_"):
-                        out.add(v[len("wechat_"):])
-            return out
-
-        with self._uow as uow:
-            if hasattr(uow.cashflows, "list_detailed"):
-                rows = uow.cashflows.list_detailed(include_deleted=False)
-            else:
-                rows = []
-            # map many possible keys -> fact id
-            id_by_key: dict[str, str] = {}
-            for row in rows:
-                fid = str(row.get("id") or "")
-                if not fid:
-                    continue
-                rec = str(row.get("record_id") or "").strip()
-                if rec:
-                    id_by_key[rec] = fid
-                    id_by_key[f"alipay_{rec}"] = fid
-                    id_by_key[f"wechat_{rec}"] = fid
-
-            for pair in tracking_pairs:
-                if not isinstance(pair, dict) or pair.get("_acceptance"):
-                    continue
-                exp = pair.get("expense") or {}
-                ref = pair.get("refund") or {}
-                exp_id = next((id_by_key[k] for k in keys_for(exp) if k in id_by_key), None)
-                ref_id = next((id_by_key[k] for k in keys_for(ref) if k in id_by_key), None)
-                if not exp_id or not ref_id:
-                    continue
-                existing = uow.relations.list_for_facts([exp_id, ref_id], active_only=True)
-                already = False
-                for rel in existing:
-                    if rel.get("kind") != RelationKind.REFUND_OFFSET.value:
-                        continue
-                    ids = {rel.get("primary_fact_id"), rel.get("secondary_fact_id")}
-                    if exp_id in ids and ref_id in ids:
-                        already = True
-                        break
-                if already:
-                    continue
-                rule_id = (
-                    pair.get("import_rule_id")
-                    or pair.get("rule_hint")
-                    or "import.platform.refund.v1"
-                )
-                # Prefer import.* rule ids from 007 matchers
-                strength = pair.get("match_strength") or "strong"
-                status = (
-                    RelationStatus.ACCEPTED.value
-                    if strength == "strong"
-                    else RelationStatus.PENDING_REVIEW.value
-                )
-                rel_id = uow.relations.add({
-                    "kind": RelationKind.REFUND_OFFSET.value,
-                    "primary_fact_id": exp_id,
-                    "secondary_fact_id": ref_id,
-                    "anchor_fact_id": ref_id,
-                    "status": status,
-                    "rule_id": rule_id,
-                    "confidence": strength,
-                    "evidence": {
-                        "source": "import",
-                        "batch_id": batch_id,
-                        "match_type": pair.get("match_type"),
-                        "rule_hint": pair.get("rule_hint"),
-                        "candidate_count": pair.get("candidate_count"),
-                    },
-                    "created_by": "statement_import",
-                    "decided_by": "statement_import" if status == RelationStatus.ACCEPTED.value else "",
-                    "decision_reason": "import-time platform refund match"
-                    if status == RelationStatus.ACCEPTED.value
-                    else "",
-                })
-                created.append({
-                    "id": rel_id,
-                    "primary_fact_id": exp_id,
-                    "secondary_fact_id": ref_id,
-                    "rule_id": rule_id,
-                    "status": status,
-                })
-            uow.commit()
-        return created
 
     def logical_delete_cash(self, fact_id: str, *, actor: str, reason: str) -> OperationResult:
 

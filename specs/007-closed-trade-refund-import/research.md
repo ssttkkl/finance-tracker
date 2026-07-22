@@ -70,3 +70,24 @@
 **Decision**: Pairing uses raw payload business time in Asia/Shanghai. Bank date-only same-day same-account exact mirrors auto-accept. Platform refund credits × bank 消费退货 auto-mirror. Phase D diamond closes bank refund open-legs via accepted platform refund + mirrors.
 
 **Rationale**: CCB raw date is correct YYYY-MM-DD; occurred_at UTC midnight becomes previous-day 16:00 and falsely weakens mirrors. Diamond uniquely resolves ~half of bank refund open-legs on real bills.
+
+## Decision 20: Scan rule architecture (post dead-code cleanup)
+
+**Active production rules (v6 real-bill hit profile):**
+
+Phase B payment_mirror (priority):
+1. refund_dual_source (+/+)
+2. bank_date_only (raw YYYY-MM-DD)
+3. same_account.exact.business_day (FR-056; nearest multi-cand FR-057)
+4. exact.time10 + text/card (cross-account short)
+5. same_account exact ≤60s
+6. short_window text unique
+7. near.weak residual cross-account / multi-ambiguous only
+
+Phase C transfer: withdraw_to_bank, time_window, credit_repayment(.fx), unionpay day
+Phase A: scan.alipay.*/scan.wechat.* via platform_refund matchers
+Phase D: diamond_via_platform then merchant_or_order open-leg
+
+**Removed dead code:** texts_cross_match, fact_has_active_refund_offset,
+RULE_PAYMENT_MIRROR_SAME_DAY_UNIQUE alias, create_import_refund_offsets,
+unreachable same-account lag pending branches (subsumed by FR-056).
