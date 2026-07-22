@@ -151,21 +151,24 @@
 
 ## Phase 8: User Story 4 — 信用还款 subtype (P2)
 
-**Goal**: cash→loan as `transfer_pair` + `credit_repayment`; distinguishable; FX evidence without amount equality
+**Goal**: cash→loan as `transfer_pair` + `credit_repayment`; distinguishable; FX 购汇还款用市场汇率打分
 
-**Independent Test**: Same-currency ≤600s exact; FX ≤10s with dual amounts in evidence
+**Independent Test**: Same-currency ≤600s exact; FX multi-candidate: unique high rate_error confidence auto; no rate / ties → pending
 
 ### Tests
 
 - [x] T035 [P] [US4] Failing credit_repayment tests in `tests/test_transaction_relations_transfer.py` (or dedicated file)
+- [x] T035b [P] [US4] FX rate-scoring tests: unique high-confidence auto; multi-candidate rate separates HKD vs JPY; no-rate → pending
 
 ### Implementation
 
 - [x] T036 [US4] Implement repayment detection/subtype/evidence in `src/ft/domain/relations.py` / `src/ft/application/relations.py`
+- [x] T036b [US4] Market-rate FX scoring for 购汇还款 (adapter + domain thresholds + evidence fields)
 - [x] T037 [US4] Ensure user-visible listing distinguishes repayment vs ordinary transfer in CLI/query output
 - [x] T038 [US4] Green US4 tests SQLite + PG if available
+- [x] T038b [US4] Green FX rate-scoring tests
 
-**Checkpoint**: Repayments not counted as spend/income
+**Checkpoint**: Repayments not counted as spend/income; 购汇 multi-FX not open-leg spam when rate unique
 
 ---
 

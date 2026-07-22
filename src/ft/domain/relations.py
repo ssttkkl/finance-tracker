@@ -3,10 +3,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
+from zoneinfo import ZoneInfo
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 import bisect
 import re
 
@@ -56,21 +57,29 @@ PAYMENT_MIRROR_STRONG_SECONDS = 10
 PAYMENT_MIRROR_SHORT_WINDOW_SECONDS = 60
 TRANSFER_PAIR_STRONG_SECONDS = 10
 CREDIT_REPAYMENT_SAME_CURRENCY_SECONDS = 600
-CREDIT_REPAYMENT_FX_SECONDS = 10
+# FX / 购汇: candidate window (was 10s auto-without-rate; now rate-scored).
+CREDIT_REPAYMENT_FX_SECONDS = 60
+# High confidence if |implied/market - 1| <= this; must beat runner-up by margin.
+CREDIT_REPAYMENT_FX_RATE_ERROR_MAX = Decimal("0.015")
+CREDIT_REPAYMENT_FX_RATE_ERROR_MARGIN = Decimal("0.005")
 REFUND_CANDIDATE_DAYS = 30
 REFUND_AUTO_ACCEPT_DAYS = 14
 REFUND_ORDER_LOCK_AUTO_ACCEPT_DAYS = 30
 
 RULE_PAYMENT_MIRROR_STRONG_V1 = "payment_mirror.platform_bank.exact.time10.cross.v2"
-RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1 = (
-    "payment_mirror.platform_bank.same_account.exact2.lag60.v3"
-)
+# lag60 same-account short-window accept branch removed (subsumed by business_day).
 RULE_PAYMENT_MIRROR_SHORT_WINDOW_TEXT_V1 = (
     "payment_mirror.platform_bank.short_window.text.unique.v3"
 )
 RULE_PAYMENT_MIRROR_WEAK_V1 = "payment_mirror.platform_bank.near.weak.v2"
+RULE_PAYMENT_MIRROR_BANK_DATE_ONLY_V1 = "payment_mirror.bank_date_only.v1"
+RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1 = (
+    "payment_mirror.same_account.exact.business_day.v1"
+)
+RULE_PAYMENT_MIRROR_REFUND_DUAL_SOURCE_V1 = "payment_mirror.refund_dual_source.v1"
+RULE_REFUND_DIAMOND_V1 = "refund_offset.diamond_via_platform.v1"
+WORKSPACE_TZ = ZoneInfo("Asia/Shanghai")
 # Back-compat alias for older tests/docs.
-RULE_PAYMENT_MIRROR_SAME_DAY_UNIQUE_V1 = RULE_PAYMENT_MIRROR_SHORT_WINDOW_TEXT_V1
 RULE_TRANSFER_PAIR_STRONG_V1 = "transfer_pair.same_amount.transfer_signal.time_window.v1"
 RULE_TRANSFER_PAIR_UNIONPAY_V1 = "transfer_pair.unionpay.same_day.v1"
 RULE_CREDIT_REPAYMENT_V1 = "transfer_pair.credit_repayment.v1"
@@ -103,8 +112,32 @@ BANK_CHANNEL_SOURCES = frozenset({
 })
 TRANSFER_SIGNAL_TOKENS = (
     "转账", "转出", "转入", "调拨", "内部转", "汇款", "汇入", "汇出",
-    "transfer", "银联", "无卡付", "电子汇入", "转账支取", "转账存入",
+    "transfer", "无卡付", "无卡支付", "电子汇入", "转账支取", "转账存入",
+    # UnionPay compounds only — bare「银联」matches refund rails like「中国银联无卡…退货」.
+    "银联入账", "银联转账", "云闪付",
+    # 007 Phase C: withdraw / brokerage (real-bill strong paths)
+    "提现", "实时提现", "零钱提现", "提现已到账", "支付机构提现",
+    "银转证", "证转银", "银行转证券", "证券转银行",
+    "转出到银行卡", "转账到银行卡",
 )
+# Stage-1 **strong** exclusions: never enter transfer_pair auto pool (007 FR-043 tiers).
+# Exact phrases only — never bare「闲鱼」/「转账」(latter is a signal token).
+TRANSFER_STRONG_EXCLUDE_TOKENS = (
+    "二维码收款", "扫二维码付款", "收款方备注",
+    "群收款",
+    "微信红包", "红包（单发）", "红包(单发)", "微信红包（群红包）",
+    "闲鱼转账",  # P2P income; never self-account transfer
+)
+# Soft platform-transfer appearance: may be person-to-person OR self balance→own card.
+# Must NOT hard-exclude; must NOT auto-accept without withdraw/bank evidence.
+TRANSFER_SOFT_P2P_TOKENS = (
+    "转账备注",
+    "微信转账",
+    "支付宝转账",
+)
+# Back-compat alias: historical call sites mean *strong* exclude.
+TRANSFER_EXCLUDE_TOKENS = TRANSFER_STRONG_EXCLUDE_TOKENS
+RULE_TRANSFER_WITHDRAW_V1 = "transfer_pair.withdraw_to_bank.v1"
 REPAYMENT_SIGNAL_TOKENS = (
     "还款", "还信用卡", "信用卡还款", "偿清", "repayment", "repay",
 )
@@ -414,6 +447,120 @@ def _same_calendar_day(a, b) -> bool:
     return _parse_dt(a).date() == _parse_dt(b).date()
 
 
+def _business_raw_date_string(fact: "FactView") -> str:
+    """Prefer raw_payload date (source export), then formal date/occurred_at."""
+    payload = fact.raw_payload if isinstance(getattr(fact, "raw_payload", None), dict) else {}
+    for key in ("date", "occurred_at", "交易时间", "交易日期", "记账日期"):
+        val = payload.get(key) if payload else None
+        if val not in (None, ""):
+            return str(val).strip()
+    # formal fields
+    if getattr(fact, "occurred_at", None) not in (None, ""):
+        return str(fact.occurred_at).strip()
+    return ""
+
+
+def is_date_only_business_string(text: str) -> bool:
+    """True for export dates with no real clock time.
+
+    FR-052/053: raw ``YYYY-MM-DD`` (len 10) or ``YYYYMMDD`` is date-only.
+    Full datetimes (len > 10 with time) are not date-only.
+    """
+    s = str(text or "").strip()
+    if not s:
+        return False
+    # Explicit: length-10 ISO date always date-only
+    if len(s) == 10 and re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
+        return True
+    if re.fullmatch(r"\d{8}", s):
+        return True
+    # Date prefix + midnight-only time (no meaningful clock) still date-only
+    m = re.fullmatch(
+        r"(\d{4}-\d{2}-\d{2})[ T](00:00:00|00:00)(?:\.0+)?(?:Z|[+-]\d{2}:?\d{2})?",
+        s,
+    )
+    if m:
+        return True
+    return False
+
+
+def business_day_shanghai(fact: "FactView") -> date | None:
+    """Calendar day in Asia/Shanghai for pairing (FR-052)."""
+    raw = _business_raw_date_string(fact)
+    if not raw:
+        return None
+    # date only
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", raw)
+    if m:
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    m = re.match(r"^(\d{4})(\d{2})(\d{2})$", raw)
+    if m:
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    # full datetime string — interpret naive as Shanghai
+    text = raw.replace("/", "-")
+    if "T" not in text and " " in text:
+        text = text.replace(" ", "T", 1)
+    # strip fractional
+    text = text.split(".")[0]
+    try:
+        if len(text) == 10:
+            return date.fromisoformat(text)
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        try:
+            dt = _parse_dt(raw)
+            return dt.astimezone(WORKSPACE_TZ).date()
+        except Exception:
+            return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=WORKSPACE_TZ)
+    return dt.astimezone(WORKSPACE_TZ).date()
+
+
+def fact_is_bank_date_only(fact: "FactView") -> bool:
+    """True when the bank export business date has no clock time (FR-053).
+
+    Priority:
+    1. raw_payload ``date`` (or 交易日期/记账日期) — if YYYY-MM-DD (len 10) → True
+    2. raw_payload without time → True
+    3. Do **not** require occurred_at 16:00 fallback when raw date-only is present
+    4. Fallback only when raw missing: bank source + formal sentinel 16:00/00:00
+    """
+    payload = fact.raw_payload if isinstance(getattr(fact, "raw_payload", None), dict) else {}
+    raw = ""
+    if payload:
+        # Prefer pure business date keys first (not formalized occurred_at)
+        for key in ("date", "交易日期", "记账日期", "occurred_at"):
+            if payload.get(key) not in (None, ""):
+                raw = str(payload.get(key)).strip()
+                break
+    if raw:
+        # len-10 YYYY-MM-DD is always date-only (user requirement)
+        if len(raw) == 10 and re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+            return True
+        if is_date_only_business_string(raw):
+            return True
+        # raw has real clock time → not date-only
+        return False
+    # Fallback: no raw date — bank formal UTC-midnight / 16:00 Shanghai sentinel
+    if source_group(fact) != "bank":
+        return False
+    s = str(fact.occurred_at or "")
+    return "16:00:00" in s or s.endswith("00:00:00") or "T16:00:00" in s
+
+
+def same_business_day_shanghai(a: "FactView", b: "FactView") -> bool:
+    da, db = business_day_shanghai(a), business_day_shanghai(b)
+    return da is not None and db is not None and da == db
+
+
+def _refundish_text(fact: "FactView") -> bool:
+    blob = _text_blob(fact.counterparty, fact.description, fact.category)
+    return any(tok in blob for tok in ("退款", "退货", "消费退货", "refund", "return"))
+
+
+
+
 def _text_blob(*parts: str) -> str:
     return " ".join(str(p or "") for p in parts).lower()
 
@@ -433,14 +580,6 @@ def extract_card_tails(text: str) -> set[str]:
     return tails
 
 
-def texts_cross_match(left: str, right: str) -> bool:
-    """Loose token overlap (legacy helper; mirror prefers main_style_cross_verify)."""
-    def tokens(text: str) -> set[str]:
-        parts = re.findall(r"[\w一-鿿]{2,}", str(text or "").lower())
-        stop = {"转账", "消费", "支付", "支付宝", "微信", "银行", "收入", "支出", "交易"}
-        return {p for p in parts if p not in stop and not p.isdigit()}
-
-    return bool(tokens(left) & tokens(right))
 
 
 def main_style_cross_verify(left: FactView | Mapping[str, Any] | str, right: FactView | Mapping[str, Any] | str) -> bool:
@@ -489,10 +628,121 @@ def has_transfer_signal(text: str) -> bool:
     blob = _text_blob(text)
     return any(token.lower() in blob for token in TRANSFER_SIGNAL_TOKENS)
 
+def has_transfer_exclude_signal(text: str) -> bool:
+    """Strong P2P/QR/redpacket/闲鱼 — must not enter transfer auto pool (007 FR-043)."""
+    blob = _text_blob(text).lower()
+    return any(token.lower() in blob for token in TRANSFER_STRONG_EXCLUDE_TOKENS)
+
+
+def has_transfer_soft_p2p_signal(text: str) -> bool:
+    """WeChat/Alipay「转账」family — soft tier; not a hard exclude."""
+    blob = _text_blob(text).lower()
+    return any(token.lower() in blob for token in TRANSFER_SOFT_P2P_TOKENS)
+
+
+def has_self_account_transfer_evidence(fact: "FactView") -> bool:
+    """True when leg looks like self wallet/card move (withdraw / bank in / to-card)."""
+    if is_withdraw_platform_out(fact) or is_withdraw_platform_receipt(fact):
+        return True
+    if is_bank_transfer_in(fact):
+        return True
+    blob = _text_blob(fact.text, fact.bill_source, fact.source)
+    if any(
+        x in blob
+        for x in (
+            "转出到银行卡",
+            "转账到银行卡",
+            "支付机构提现",
+            "银联入账",
+            "提现已到账",
+            "零钱提现",
+            "实时提现",
+            "余额宝-转出到银行卡",
+            "余利宝-转出到银行卡",
+        )
+    ):
+        return True
+    # Bank-source in/out without pure soft-only text is self-ledger side.
+    if source_group(fact) == "bank" and not has_transfer_soft_p2p_signal(fact.text):
+        return True
+    return False
+
+
+def is_withdraw_platform_out(fact: "FactView") -> bool:
+    """Alipay-style withdraw out-leg (negative + 提现)."""
+    if fact.signed_amount >= 0:
+        return False
+    blob = _text_blob(fact.text, fact.bill_source, fact.source)
+    if any(x in blob for x in ("二维码", "转账备注", "群收款")):
+        return False
+    return any(x in blob for x in ("提现", "转账到银行卡", "转出到银行卡"))
+
+
+def is_withdraw_platform_receipt(fact: "FactView") -> bool:
+    """Legacy: positive wechat withdraw rows (wrong mapping era). Prefer is_withdraw_platform_out."""
+    if fact.signed_amount <= 0:
+        return False
+    blob = _text_blob(fact.text, fact.bill_source, fact.source)
+    return "提现已到账" in blob or ("零钱提现" in blob and "退款" not in blob)
+
+
+def is_bank_transfer_in(fact: "FactView") -> bool:
+    if fact.signed_amount <= 0:
+        return False
+    blob = _text_blob(fact.text, fact.bill_source, fact.source)
+    if source_group(fact) != "bank" and not any(
+        k in (fact.bill_source or "").lower() + (fact.source or "").lower()
+        for k in ("icbc", "ccb", "bank", "工行", "建行", "debit", "credit")
+    ):
+        # still allow if text screams bank channel
+        if not any(x in blob for x in ("银联入账", "支付机构提现", "电子汇入", "转账存入")):
+            return False
+    return any(
+        x in blob
+        for x in (
+            "银联入账", "支付机构提现", "电子汇入", "转账存入",
+            "快捷支付",  # icbc debit self-name credits often only this
+        )
+    ) or source_group(fact) == "bank"
+
+
+def is_transfer_taxonomy_out(fact: "FactView") -> bool:
+    """Stage-1: may initiate transfer (out-leg or withdraw receipt treated specially)."""
+    if fact.deleted:
+        return False
+    if has_transfer_exclude_signal(fact.text) and not is_withdraw_platform_out(fact) and not is_withdraw_platform_receipt(fact):
+        # QR/P2P excluded unless withdraw
+        if any(x in _text_blob(fact.text) for x in ("二维码", "转账备注", "群收款", "对方已收钱")):
+            return False
+    if is_withdraw_platform_out(fact) or is_withdraw_platform_receipt(fact):
+        return True
+    if fact.signed_amount >= 0:
+        return False
+    blob = _text_blob(fact.text)
+    if has_transfer_exclude_signal(blob) and "转账支取" not in blob and "无卡" not in blob:
+        return False
+    if any(x in blob for x in ("转账支取", "无卡自助", "银转证", "银行转证券", "信用卡还款", "还款")):
+        return True
+    return has_transfer_signal(blob) and not has_transfer_exclude_signal(blob)
+
+
+
 
 def has_repayment_signal(text: str) -> bool:
     blob = _text_blob(text)
     return any(token.lower() in blob for token in REPAYMENT_SIGNAL_TOKENS)
+
+
+def is_platform_import_refund_source(fact: "FactView") -> bool:
+    """True when fact is from alipay/wechat (platform hard-key Phase A sources).
+
+    Hard-key pairing runs in relations check Phase A; merchant weak path still
+    skips facts already linked by an active refund_offset.
+    """
+    blob = _text_blob(getattr(fact, "bill_source", ""), getattr(fact, "source", "")).lower()
+    return any(k in blob for k in ("alipay", "wechat", "支付宝", "微信"))
+
+
 
 
 def has_refund_signal(text: str) -> bool:
@@ -540,10 +790,46 @@ def is_refund_excluded_leg(text: str) -> bool:
 
 
 def has_unionpay_pair_signals(text_a: str, text_b: str) -> bool:
+    """Strong bank↔bank unionpay bridge (云闪付/无卡 + 银联入账).
+
+    Bare「银联」is allowed here only as part of a *pair* gate (both legs must also
+    show nocard/云闪付-class tokens). Generic transfer_signal must not use bare 银联.
+    """
     combo = _text_blob(text_a) + " " + _text_blob(text_b)
-    has_union = "银联" in combo or "电子汇入" in combo
-    has_nocard = "无卡付" in combo or "转账支取" in combo
+    has_union = any(
+        tok in combo
+        for tok in ("银联入账", "银联转账", "电子汇入", "银联")
+    )
+    has_nocard = any(
+        tok in combo
+        for tok in ("无卡付", "无卡支付", "无卡自助", "云闪付", "转账支取")
+    )
     return has_union and has_nocard
+
+
+def transfer_same_business_day(seed: "FactView", cand: "FactView") -> bool:
+    """Day equality for transfer: prefer raw export business day when date-only bank legs exist.
+
+    Mirrors payment_mirror FR-052/053: CCB date-only rows formalize to 16:00 UTC, which
+    inflates clock Δt vs ICBC full timestamps. Raw ``date`` (YYYY-MM-DD) is authoritative.
+    """
+    if fact_is_bank_date_only(seed) or fact_is_bank_date_only(cand):
+        return same_business_day_shanghai(seed, cand)
+    # Both have clocks: formal calendar day OR raw business day (timezone-safe)
+    if _same_calendar_day(seed.occurred_at, cand.occurred_at):
+        return True
+    return same_business_day_shanghai(seed, cand)
+
+
+def transfer_clock_delta_seconds(seed: "FactView", cand: "FactView") -> int:
+    """Clock Δt; when either leg is bank date-only, return 0 if same business day else formal Δt.
+
+    Date-only exports have no trustworthy clock — do not use formal 16:00 sentinel as time.
+    """
+    if fact_is_bank_date_only(seed) or fact_is_bank_date_only(cand):
+        if same_business_day_shanghai(seed, cand):
+            return 0
+    return _time_delta_seconds(seed.occurred_at, cand.occurred_at)
 
 
 @dataclass(frozen=True)
@@ -663,6 +949,7 @@ class FactView:
     raw_record_id: str | None = None
     source_identity: str = ""
     record_id: str = ""
+    raw_payload: dict | None = None
 
     @property
     def text(self) -> str:
@@ -742,8 +1029,10 @@ def evaluate_payment_mirror(
 ) -> RelationProposal | None:
     """Propose one platform×bank payment_mirror for *seed*.
 
-    Aligned with main-branch dedup precision:
+    Aligned with main-branch dedup precision, with a hard same-account gate:
     - only platform×bank (never bank×bank / platform×platform)
+    - **same account_id only** — cross-account pairs are never payment_mirror
+      (use transfer_pair when funds actually move between accounts)
     - strong: exact amount, Δt≤10s, main-style text cross OR card-tail/alias
     - same-day unique platform×bank exact may auto-accept (main cross_source 2-way)
     - no bare same-day exact weak flood; weak only when near-miss unique
@@ -767,8 +1056,10 @@ def evaluate_payment_mirror(
             continue
         if cand.fact_type != FactType.CASH.value:
             continue
-        # Same physical card may be one multi-currency account; do not require different account_id.
-        # Distinctness is enforced by platform×bank source families + fact ids.
+        # Distinctness is platform×bank source families + fact ids on the **same** account.
+        # Cross-account is never a payment_mirror (mapping should land both legs on the card).
+        if cand.account_id != seed.account_id:
+            continue
         cand_group = source_group(cand)
         if cand_group not in {"platform", "bank"}:
             continue
@@ -818,8 +1109,13 @@ def evaluate_payment_mirror(
         except ValueError:
             continue
         platform_not_after_bank = lag_bank_minus_platform >= 0
-        same_account = cand.account_id == seed.account_id
-
+        same_account = True  # gated above
+        biz_same_day = same_business_day_shanghai(seed, cand)
+        bank_date_only = (
+            (seed_group == "bank" and fact_is_bank_date_only(seed))
+            or (cand_group == "bank" and fact_is_bank_date_only(cand))
+        )
+        both_refundish = _refundish_text(seed) and _refundish_text(cand)
         # Ranking score for uniqueness: higher is better.
         score = 0
         status = ""
@@ -829,56 +1125,50 @@ def evaluate_payment_mirror(
         # Near-strong pending outer window (beyond auto 60s, still reviewable).
         PENDING_OUTER_SECONDS = 5 * 60
 
-        if exact and dt <= PAYMENT_MIRROR_STRONG_SECONDS and text_or_card:
+        # FR-054: refund dual-source (+/+) platform×bank (prefer explicit rule_id)
+        if (
+            exact
+            and seed_amount > 0
+            and cand_amount > 0
+            and both_refundish
+            and (same_account or biz_same_day)
+            and (bank_date_only or dt <= PAYMENT_MIRROR_SHORT_WINDOW_SECONDS or biz_same_day)
+        ):
+            status = RelationStatus.ACCEPTED.value
+            conf = CONFIDENCE_STRONG
+            rule = RULE_PAYMENT_MIRROR_REFUND_DUAL_SOURCE_V1
+            score = 4550
+        # FR-053/056: same-account exact same Shanghai business day → accepted.
+        # bank_date_only is a label for audit when bank export has no clock time;
+        # it is fully subsumed by the business-day condition (no separate match logic).
+        elif exact and same_account and biz_same_day:
+            status = RelationStatus.ACCEPTED.value
+            conf = CONFIDENCE_STRONG
+            if bank_date_only:
+                rule = RULE_PAYMENT_MIRROR_BANK_DATE_ONLY_V1
+                score = 4500
+            else:
+                rule = RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1
+                score = 4480
+        # Same-account short-window autos (cross-account already filtered out):
+        elif exact and dt <= PAYMENT_MIRROR_STRONG_SECONDS and text_or_card:
             status = RelationStatus.ACCEPTED.value
             conf = CONFIDENCE_STRONG
             rule = RULE_PAYMENT_MIRROR_STRONG_V1
             score = 4000 - dt
         elif (
             exact
-            and same_account
-            and platform_not_after_bank
-            and lag_bank_minus_platform <= PAYMENT_MIRROR_SHORT_WINDOW_SECONDS
-        ):
-            # Same-account exact-2 short window; text optional (bank channel summary).
-            status = RelationStatus.ACCEPTED.value
-            conf = CONFIDENCE_STRONG
-            rule = RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1
-            score = 3000 - lag_bank_minus_platform
-        elif (
-            exact
             and text_or_card
             and dt <= PAYMENT_MIRROR_SHORT_WINDOW_SECONDS
             and platform_not_after_bank
         ):
-            # Text/card within 60s (may cross accounts); platform not after bank for auto.
+            # Text/card within 60s; platform not after bank for auto.
             status = RelationStatus.ACCEPTED.value
             conf = CONFIDENCE_STRONG
             rule = RULE_PAYMENT_MIRROR_SHORT_WINDOW_TEXT_V1
             score = 2000 - dt
-        elif (
-            exact
-            and same_account
-            and platform_not_after_bank
-            and PAYMENT_MIRROR_SHORT_WINDOW_SECONDS < lag_bank_minus_platform <= PENDING_OUTER_SECONDS
-        ):
-            # P1a: same-account exact, lag 60s–5min → pending.
-            status = RelationStatus.PENDING_REVIEW.value
-            conf = CONFIDENCE_WEAK
-            rule = RULE_PAYMENT_MIRROR_WEAK_V1
-            score = 1500 - min(lag_bank_minus_platform, 1499)
-        elif (
-            exact
-            and same_account
-            and same_day
-            and lag_bank_minus_platform > PENDING_OUTER_SECONDS
-        ):
-            # P1b / P7: same-account same-day exact beyond 5min (main exact-2 day key)
-            # → pending high-recall, not silent.
-            status = RelationStatus.PENDING_REVIEW.value
-            conf = CONFIDENCE_WEAK
-            rule = RULE_PAYMENT_MIRROR_WEAK_V1
-            score = 1300
+        # same-account + same business day already accepted above (FR-056).
+        # Remaining weak paths: incomplete day/time match on same account only.
         elif (
             exact
             and text_or_card
@@ -895,31 +1185,15 @@ def evaluate_payment_mirror(
             conf = CONFIDENCE_WEAK
             rule = RULE_PAYMENT_MIRROR_WEAK_V1
             score = 1200
-        elif exact and dt <= PAYMENT_MIRROR_STRONG_SECONDS and not text_or_card and not same_account:
-            # P3: 10s exact, no text, different accounts → pending.
-            status = RelationStatus.PENDING_REVIEW.value
-            conf = CONFIDENCE_WEAK
-            rule = RULE_PAYMENT_MIRROR_WEAK_V1
-            score = 1000 - dt
         elif (not exact) and text_or_card and dt <= PAYMENT_MIRROR_SHORT_WINDOW_SECONDS:
             # P4: amount delta with text within 60s → pending.
             status = RelationStatus.PENDING_REVIEW.value
             conf = CONFIDENCE_WEAK
             rule = RULE_PAYMENT_MIRROR_WEAK_V1
             score = 500 - dt
-        elif (
-            exact
-            and not platform_not_after_bank
-            and same_day
-            and (same_account or text_or_card)
-        ):
-            # P5: platform after bank same day with same account or text → pending (high recall).
-            status = RelationStatus.PENDING_REVIEW.value
-            conf = CONFIDENCE_WEAK
-            rule = RULE_PAYMENT_MIRROR_WEAK_V1
-            score = 400 - min(dt, 399)
         else:
             # No viable near-match shape: silent.
+            # (Former P3/P5 cross-account weak paths removed: never mirror across accounts.)
             continue
 
         evidence = RelationEvidence(
@@ -939,7 +1213,7 @@ def evaluate_payment_mirror(
                 "card_tail" if shared_tails else "",
                 "alias" if alias_hit else "",
                 "text_cross" if cross else "",
-                "same_account" if same_account else "cross_account",
+                "same_account",
             ))),
             extras={
                 "lag_bank_minus_platform": lag_bank_minus_platform,
@@ -950,7 +1224,7 @@ def evaluate_payment_mirror(
     if not matches:
         return None
 
-    # Prefer highest score; require uniqueness among auto-accept tier for accept.
+    # Prefer highest score, then nearest time (FR-057).
     matches.sort(key=lambda m: (-m[4], m[1].time_delta_seconds, m[0].id))
     best = matches[0]
     cand, evidence, status, conf, _score = best
@@ -960,19 +1234,20 @@ def evaluate_payment_mirror(
         m for m in matches
         if m[2] == RelationStatus.ACCEPTED.value and _as_decimal(m[1].amount_delta) == 0
     ]
+    # Same-account / date-only / refund-dual tiers: multi-candidate → pick nearest (best
+    # already sorted). Bank date-only rows are often identical "消费" legs; pairing any
+    # 1-1 is fine. Global greedy still ensures each fact is used once.
+    _NEAREST_OK = frozenset({
+        RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1,
+        RULE_PAYMENT_MIRROR_BANK_DATE_ONLY_V1,
+        RULE_PAYMENT_MIRROR_REFUND_DUAL_SOURCE_V1,
+    })
     if status == RelationStatus.ACCEPTED.value and len(strong_accepts) != 1:
-        # Multiple near-strong candidates → pending (do not pick silently).
-        status = RelationStatus.PENDING_REVIEW.value
-        conf = CONFIDENCE_WEAK
-        rule_id = RULE_PAYMENT_MIRROR_WEAK_V1
-    elif status == RelationStatus.ACCEPTED.value and rule_id == RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1:
-        # exact-2: only one other leg allowed in short window same account.
-        same_acct_short = [
-            m for m in matches
-            if _as_decimal(m[1].amount_delta) == 0
-            and m[1].rule_id == RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1
-        ]
-        if len(same_acct_short) != 1:
+        if rule_id in _NEAREST_OK:
+            # Keep accepted best (nearest by score/time).
+            pass
+        else:
+            # Text/time10 style: still require unique auto when multiple strong hits.
             status = RelationStatus.PENDING_REVIEW.value
             conf = CONFIDENCE_WEAK
             rule_id = RULE_PAYMENT_MIRROR_WEAK_V1
@@ -988,10 +1263,12 @@ def evaluate_payment_mirror(
             conf = CONFIDENCE_WEAK
             rule_id = RULE_PAYMENT_MIRROR_WEAK_V1
 
+    cand_ids = tuple(m[0].id for m in matches[:OPEN_LEG_CANDIDATE_TOP_K])
     evidence = RelationEvidence(
         **{
             **evidence.__dict__,
             "candidate_count": len(matches),
+            "candidate_fact_ids": cand_ids,
             "rule_id": rule_id,
         }
     )
@@ -1055,6 +1332,8 @@ def match_payment_mirrors_greedy(
 def evaluate_transfer_pair(
     seed: FactView,
     candidates: Sequence[FactView],
+    *,
+    fx_rate_provider: Callable[..., Decimal | None] | None = None,
 ) -> RelationProposal | None:
     if seed.deleted:
         return None
@@ -1073,6 +1352,13 @@ def evaluate_transfer_pair(
             continue
         if cand.account_id == seed.account_id:
             continue
+        # 007 FR-043: strong exclude pure P2P/QR/红包/闲鱼 from transfer matching
+        if has_transfer_exclude_signal(seed.text) and not (
+            is_withdraw_platform_out(seed) or is_withdraw_platform_receipt(seed)
+        ):
+            return None
+        if has_transfer_exclude_signal(cand.text) and not is_bank_transfer_in(cand):
+            continue
         cand_amount = cand.signed_amount
         if (seed_amount > 0) == (cand_amount > 0):
             continue
@@ -1080,8 +1366,9 @@ def evaluate_transfer_pair(
         abs_seed, abs_cand = _abs_decimal(seed_amount), _abs_decimal(cand_amount)
         amount_delta = abs_seed - abs_cand if same_currency else Decimal("0")
         exact = same_currency and amount_delta == 0
-        dt = _time_delta_seconds(seed.occurred_at, cand.occurred_at)
-        same_day = _same_calendar_day(seed.occurred_at, cand.occurred_at)
+        # Prefer raw business day + ignore fake 16:00 clock when bank date-only (CCB etc.)
+        dt = transfer_clock_delta_seconds(seed, cand)
+        same_day = transfer_same_business_day(seed, cand)
         cand_text = cand.text
         combined = seed_text + " " + cand_text
         transfer_signal = has_transfer_signal(combined) or has_unionpay_pair_signals(seed_text, cand_text)
@@ -1090,25 +1377,70 @@ def evaluate_transfer_pair(
             or (cand.account_type == "cash" and cand_amount < 0 and seed.account_type == "loan" and seed_amount > 0)
         )
         repayment_text = has_repayment_signal(combined)
+        # 007 FR-049: strong repayment out-leg text (not bare 还款 + merchant)
+        seed_blob = _text_blob(seed_text)
+        cand_blob = _text_blob(cand_text)
+        strong_repay_out = any(
+            tok in seed_blob
+            for tok in (
+                "信用卡还款", "购汇还款", "自动还款", "主动还款",
+                "月付】主动还款", "花呗自动还款", "花呗主动还款", "花呗还款",
+            )
+        ) or ("花呗" in seed_blob and "还款" in seed_blob)
+        # Deny CCB-like 还款 summary used as merchant installments
+        deny_repay_out = (
+            (seed_blob.strip() in ("还款", "消费 还款", "还款 消费") or seed_blob.endswith(" 还款") or seed_blob.startswith("还款 "))
+            and not strong_repay_out
+        ) or any(m in seed_blob for m in ("京东", "美团支付", "拼多多")) and "信用卡" not in seed_blob and "花呗" not in seed_blob and "月付" not in seed_blob and "购汇" not in seed_blob
+        deny_repay_in = any(
+            tok in cand_blob for tok in ("退款", "退货", "消费退货", "刷卡金", "返现", "返利")
+        )
         subtype = SUBTYPE_NONE
         status = RelationStatus.PENDING_REVIEW.value
         conf = CONFIDENCE_WEAK
         rule = RULE_TRANSFER_PAIR_STRONG_V1
 
-        if is_cash_to_loan and repayment_text:
+        if is_cash_to_loan and repayment_text and (not strong_repay_out or deny_repay_out or deny_repay_in):
+            continue
+        if is_cash_to_loan and repayment_text and strong_repay_out and not deny_repay_out and not deny_repay_in:
             subtype = SUBTYPE_CREDIT_REPAYMENT
             if same_currency and exact and dt <= CREDIT_REPAYMENT_SAME_CURRENCY_SECONDS:
                 status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_CREDIT_REPAYMENT_V1
-            elif (not same_currency) and dt <= CREDIT_REPAYMENT_FX_SECONDS:
-                status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_CREDIT_REPAYMENT_FX_V1
             elif same_currency and exact and dt <= TRANSFER_PENDING_OUTER:
-                # Near repayment window but not unique-ready yet; keep high-recall pending.
                 status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_CREDIT_REPAYMENT_V1
+            elif same_currency and not exact:
+                # Same-currency unequal amounts are never credit_repayment candidates
+                # (prevents 信用卡还款 -500 ↔ hotel +100).
+                continue
+            elif not same_currency and dt <= CREDIT_REPAYMENT_FX_SECONDS:
+                # FX / 购汇: provisional pending; rate scoring after the loop may upgrade
+                # a unique high-confidence candidate to accepted.
+                status, conf, rule = (
+                    RelationStatus.PENDING_REVIEW.value,
+                    CONFIDENCE_WEAK,
+                    RULE_CREDIT_REPAYMENT_FX_V1,
+                )
             else:
-                status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_CREDIT_REPAYMENT_V1
+                # FX beyond window / missing shape: skip rather than noisy pending
+                continue
+        elif (
+            same_currency and exact
+            and is_withdraw_platform_out(seed)
+            and cand_amount > 0
+            and (
+                dt <= 60
+                or same_day
+                or dt <= 36 * 3600  # date-only bank / timezone skew
+            )
+        ):
+            # 007: platform 提现/零钱提现 → bank credit
+            status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_TRANSFER_WITHDRAW_V1
+            transfer_signal = True
         elif same_currency and exact and dt <= TRANSFER_PAIR_STRONG_SECONDS and transfer_signal:
             status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_TRANSFER_PAIR_STRONG_V1
         elif same_currency and exact and same_day and has_unionpay_pair_signals(seed_text, cand_text):
+            # Same business day (raw day when date-only) + unionpay/云闪付 bridge → auto.
+            # date-only bank legs use transfer_clock_delta_seconds → 0, not formal 16:00 Δt.
             status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_TRANSFER_PAIR_UNIONPAY_V1
         elif same_currency and exact and transfer_signal and TRANSFER_PAIR_STRONG_SECONDS < dt <= TRANSFER_PENDING_OUTER:
             # Signal+exact beyond 10s up to 5min → pending (not silent).
@@ -1123,6 +1455,22 @@ def evaluate_transfer_pair(
             status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_TRANSFER_PAIR_STRONG_V1
         else:
             continue
+
+        # Soft tier (微信/支付宝转账): never auto-accept without self-account evidence
+        # on at least one leg (withdraw / bank-in / 转出到银行卡, etc.).
+        if status == RelationStatus.ACCEPTED.value and rule not in (
+            RULE_TRANSFER_WITHDRAW_V1,
+            RULE_CREDIT_REPAYMENT_V1,
+            RULE_CREDIT_REPAYMENT_FX_V1,
+        ):
+            seed_self = has_self_account_transfer_evidence(seed)
+            cand_self = has_self_account_transfer_evidence(cand)
+            soft_touch = has_transfer_soft_p2p_signal(seed.text) or has_transfer_soft_p2p_signal(
+                cand.text
+            )
+            if soft_touch and not seed_self and not cand_self:
+                status = RelationStatus.PENDING_REVIEW.value
+                conf = CONFIDENCE_WEAK
 
         evidence = RelationEvidence(
             amount_delta=format(_abs_decimal(amount_delta), "f") if same_currency else "0",
@@ -1148,6 +1496,19 @@ def evaluate_transfer_pair(
 
     if not matches:
         return None
+
+    # --- FX 购汇 rate scoring (FR-018): rank multi FX candidates; unique high-confidence auto ---
+    fx_matches = [
+        m for m in matches
+        if m[4] == SUBTYPE_CREDIT_REPAYMENT and m[1].rule_id == RULE_CREDIT_REPAYMENT_FX_V1
+    ]
+    if fx_matches:
+        scored = _score_fx_repayment_matches(
+            seed, fx_matches, fx_rate_provider=fx_rate_provider,
+        )
+        if scored is not None:
+            return scored
+
     strong = [m for m in matches if m[2] == RelationStatus.ACCEPTED.value]
     if len(strong) == 1 and (
         _as_decimal(strong[0][1].amount_delta) == 0
@@ -1281,6 +1642,487 @@ def refund_title_exact_match(refund: FactView, expense: FactView) -> bool:
     if not refund_title or not expense_title:
         return False
     return refund_title == expense_title
+
+
+def match_withdraw_receipt_to_bank(
+    facts: Sequence[FactView],
+    *,
+    used: set[str] | None = None,
+) -> list[RelationProposal]:
+    """WeChat 零钱提现 dual-source / cross-account pairing.
+
+    - **Different accounts**: transfer_pair.withdraw_to_bank (platform零钱 → bank).
+    - **Same account** (mapping landed 提现 on bank booklet + CCB 银联入账): payment_mirror
+      with adjacent-day tolerance (date-only bank rows).
+    """
+    used = used if used is not None else set()
+    receipts = [
+        f for f in facts
+        if not f.deleted and f.id not in used and is_withdraw_platform_receipt(f) and f.signed_amount > 0
+    ]
+    banks = [
+        f for f in facts
+        if not f.deleted and f.id not in used and f.signed_amount > 0
+        and (
+            is_bank_transfer_in(f)
+            or any(x in _text_blob(f.text) for x in ("银联入账", "支付机构提现", "微信零钱提现"))
+        )
+        and source_group(f) == "bank"
+    ]
+    proposals: list[RelationProposal] = []
+
+    def _near_day(a, b) -> bool:
+        if _same_calendar_day(a, b):
+            return True
+        dt = _time_delta_seconds(a, b)
+        if dt <= 36 * 3600:
+            return True
+        # adjacent calendar days (date-only UTC skew)
+        da, db = str(a)[:10], str(b)[:10]
+        if len(da) == 10 and len(db) == 10:
+            try:
+                from datetime import date as _date
+                d1 = _date.fromisoformat(da)
+                d2 = _date.fromisoformat(db)
+                return abs((d1 - d2).days) <= 1
+            except ValueError:
+                return False
+        return False
+
+    for rec in receipts:
+        if rec.id in used:
+            continue
+        hits_same: list[FactView] = []
+        hits_cross: list[FactView] = []
+        for b in banks:
+            if b.id in used or b.id == rec.id:
+                continue
+            if str(rec.currency).upper() != str(b.currency).upper():
+                continue
+            if _abs_decimal(rec.signed_amount) != _abs_decimal(b.signed_amount):
+                continue
+            if not _near_day(rec.occurred_at, b.occurred_at):
+                continue
+            # require bank-side withdraw/unionpay signal
+            if not any(x in _text_blob(b.text) for x in ("银联入账", "支付机构提现", "微信零钱提现", "零钱提现")):
+                if not is_bank_transfer_in(b):
+                    continue
+            if b.account_id == rec.account_id:
+                hits_same.append(b)
+            else:
+                hits_cross.append(b)
+        # Prefer same-account mirror (dual source)
+        if len(hits_same) == 1:
+            bank = hits_same[0]
+            # platform primary = wechat receipt
+            evidence = RelationEvidence(
+                amount_delta="0",
+                time_delta_seconds=_time_delta_seconds(rec.occurred_at, bank.occurred_at),
+                same_currency=True,
+                source_pair=(rec.bill_source or rec.source, bank.bill_source or bank.source),
+                rule_id="payment_mirror.withdraw_dual_source.v1",
+                candidate_count=1,
+                signals=("withdraw_dual_source", "exact_amount", "same_account", "platform_bank"),
+            )
+            proposals.append(RelationProposal(
+                kind=RelationKind.PAYMENT_MIRROR.value,
+                primary_fact_id=rec.id,
+                secondary_fact_id=bank.id,
+                status=RelationStatus.ACCEPTED.value,
+                rule_id="payment_mirror.withdraw_dual_source.v1",
+                confidence=CONFIDENCE_STRONG,
+                evidence=evidence,
+            ))
+            used.add(rec.id)
+            used.add(bank.id)
+            continue
+        if len(hits_cross) == 1:
+            bank = hits_cross[0]
+            evidence = RelationEvidence(
+                amount_delta="0",
+                time_delta_seconds=_time_delta_seconds(rec.occurred_at, bank.occurred_at),
+                same_currency=True,
+                source_pair=(rec.bill_source or rec.source, bank.bill_source or bank.source),
+                rule_id=RULE_TRANSFER_WITHDRAW_V1,
+                candidate_count=1,
+                signals=("withdraw_receipt", "exact_amount", "cross_account"),
+            )
+            proposals.append(RelationProposal(
+                kind=RelationKind.TRANSFER_PAIR.value,
+                primary_fact_id=rec.id,
+                secondary_fact_id=bank.id,
+                status=RelationStatus.ACCEPTED.value,
+                rule_id=RULE_TRANSFER_WITHDRAW_V1,
+                confidence=CONFIDENCE_STRONG,
+                evidence=evidence,
+                anchor_fact_id=rec.id,
+                open_leg=False,
+            ))
+            used.add(rec.id)
+            used.add(bank.id)
+    return proposals
+
+
+def _score_fx_repayment_matches(
+    seed: FactView,
+    fx_matches: list[tuple[FactView, RelationEvidence, str, str, str]],
+    *,
+    fx_rate_provider: Callable[..., Decimal | None] | None = None,
+) -> RelationProposal | None:
+    """Score FX credit_repayment candidates by market rate error.
+
+    Returns a proposal when FX path applies (always, for non-empty fx_matches):
+    - unique high-confidence → accepted bilateral
+    - else pending bilateral (1 cand) or open-leg (≥2)
+    """
+    if not fx_matches:
+        return None
+    try:
+        from ft.adapters.fx_rates import business_day_shanghai, get_mid_rate, rate_error
+    except ImportError:  # pragma: no cover
+        business_day_shanghai = None  # type: ignore
+        get_mid_rate = None  # type: ignore
+        rate_error = None  # type: ignore
+
+    cash_abs = _abs_decimal(seed.signed_amount)
+    cash_ccy = str(seed.currency or "CNY").upper()
+    day = ""
+    if business_day_shanghai is not None:
+        day = business_day_shanghai(seed.occurred_at)
+
+    provider = fx_rate_provider
+    if provider is None and get_mid_rate is not None:
+        provider = get_mid_rate
+
+    ranked: list[tuple[Decimal | None, FactView, RelationEvidence, dict]] = []
+    for cand, evidence, _status, _conf, _subtype in fx_matches:
+        loan_abs = _abs_decimal(cand.signed_amount)
+        loan_ccy = str(cand.currency or "").upper()
+        market = None
+        err = None
+        if provider is not None and day and cash_ccy and loan_ccy and cash_ccy != loan_ccy:
+            try:
+                market = provider(day, cash_ccy, loan_ccy)
+            except TypeError:
+                # allow simple lambda (day, base, quote)
+                market = provider(day, cash_ccy, loan_ccy)  # type: ignore[misc]
+            except Exception:
+                market = None
+            if rate_error is not None:
+                err = rate_error(cash_abs, loan_abs, cash_ccy, loan_ccy, market)
+        implied = None
+        if cash_abs > 0 and loan_abs > 0:
+            implied = loan_abs / cash_abs
+        meta = {
+            "seed_amount": format(seed.signed_amount, "f"),
+            "candidate_amount": format(cand.signed_amount, "f"),
+            "seed_currency": cash_ccy,
+            "candidate_currency": loan_ccy,
+            "market_rate": format(market, "f") if market is not None else "",
+            "implied_rate": format(implied, "f") if implied is not None else "",
+            "rate_error": format(err, "f") if err is not None else "",
+            "fx_source": "frankfurter" if market is not None and fx_rate_provider is None else (
+                "injected" if market is not None else ""
+            ),
+            "fx_day": day,
+        }
+        ranked.append((err, cand, evidence, meta))
+
+    # Sort: known errors first (ascending), then unknown, then by time
+    def _sort_key(item):
+        err, cand, evidence, _meta = item
+        known = 0 if err is not None else 1
+        err_key = err if err is not None else Decimal("999")
+        return (known, err_key, evidence.time_delta_seconds, cand.id)
+
+    ranked.sort(key=_sort_key)
+    best_err, best_cand, best_ev, best_meta = ranked[0]
+    runner_err = ranked[1][0] if len(ranked) > 1 else None
+
+    high = (
+        best_err is not None
+        and best_err <= CREDIT_REPAYMENT_FX_RATE_ERROR_MAX
+    )
+    unique_high = high and (
+        runner_err is None
+        or runner_err is None
+        or (runner_err - best_err) >= CREDIT_REPAYMENT_FX_RATE_ERROR_MARGIN
+        or runner_err > CREDIT_REPAYMENT_FX_RATE_ERROR_MAX
+    )
+    # If runner also high-confidence and margin not met → not unique
+    if (
+        high
+        and runner_err is not None
+        and runner_err <= CREDIT_REPAYMENT_FX_RATE_ERROR_MAX
+        and (runner_err - best_err) < CREDIT_REPAYMENT_FX_RATE_ERROR_MARGIN
+    ):
+        unique_high = False
+
+    cand_ids = top_k_candidate_ids([c.id for _, c, _, _ in ranked])
+    extras = {
+        **best_meta,
+        "fx_candidates": [
+            {
+                "fact_id": c.id,
+                "currency": m.get("candidate_currency"),
+                "amount": m.get("candidate_amount"),
+                "rate_error": m.get("rate_error"),
+                "implied_rate": m.get("implied_rate"),
+                "market_rate": m.get("market_rate"),
+                "dt": e.time_delta_seconds,
+            }
+            for _, c, e, m in ranked[:OPEN_LEG_CANDIDATE_TOP_K]
+        ],
+    }
+
+    if unique_high and len(ranked) >= 1:
+        evidence = RelationEvidence(
+            amount_delta="0",
+            time_delta_seconds=best_ev.time_delta_seconds,
+            same_currency=False,
+            source_pair=best_ev.source_pair,
+            rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
+            candidate_count=len(ranked),
+            candidate_fact_ids=cand_ids,
+            signals=("opposite_sign", "amount_delta", "repayment", "fx_rate_score"),
+            extras=extras,
+        )
+        return RelationProposal(
+            kind=RelationKind.TRANSFER_PAIR.value,
+            primary_fact_id=seed.id,
+            secondary_fact_id=best_cand.id,
+            primary_fact_type=seed.fact_type,
+            secondary_fact_type=best_cand.fact_type,
+            subtype=SUBTYPE_CREDIT_REPAYMENT,
+            status=RelationStatus.ACCEPTED.value,
+            rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
+            confidence=CONFIDENCE_STRONG,
+            evidence=evidence,
+            anchor_fact_id=seed.id,
+            open_leg=False,
+        )
+
+    # Pending path
+    if len(ranked) == 1:
+        evidence = RelationEvidence(
+            amount_delta="0",
+            time_delta_seconds=best_ev.time_delta_seconds,
+            same_currency=False,
+            source_pair=best_ev.source_pair,
+            rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
+            candidate_count=1,
+            candidate_fact_ids=cand_ids,
+            signals=("opposite_sign", "amount_delta", "repayment", "fx_rate_score"),
+            extras=extras,
+        )
+        return RelationProposal(
+            kind=RelationKind.TRANSFER_PAIR.value,
+            primary_fact_id=seed.id,
+            secondary_fact_id=best_cand.id,
+            subtype=SUBTYPE_CREDIT_REPAYMENT,
+            status=RelationStatus.PENDING_REVIEW.value,
+            rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
+            confidence=CONFIDENCE_WEAK,
+            evidence=evidence,
+            anchor_fact_id=seed.id,
+            open_leg=False,
+        )
+
+    evidence = RelationEvidence(
+        amount_delta="0",
+        time_delta_seconds=best_ev.time_delta_seconds,
+        same_currency=False,
+        rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
+        candidate_count=len(ranked),
+        signals=("opposite_sign", "amount_delta", "repayment", "fx_rate_score"),
+        open_leg=True,
+        anchor_role="out",
+        candidate_fact_ids=cand_ids,
+        extras=extras,
+    )
+    return RelationProposal(
+        kind=RelationKind.TRANSFER_PAIR.value,
+        primary_fact_id=seed.id,
+        secondary_fact_id=None,
+        primary_fact_type=seed.fact_type,
+        secondary_fact_type=None,
+        subtype=SUBTYPE_CREDIT_REPAYMENT,
+        status=RelationStatus.PENDING_REVIEW.value,
+        rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
+        confidence=CONFIDENCE_WEAK,
+        evidence=evidence,
+        anchor_fact_id=seed.id,
+        open_leg=True,
+    )
+
+
+def match_transfer_pairs_phase_c(
+    facts: Sequence[FactView],
+    *,
+    seed_ids: Sequence[str] | None = None,
+    index: FactCandidateIndex | None = None,
+    fx_rate_provider: Callable[..., Decimal | None] | None = None,
+) -> list[RelationProposal]:
+    """Phase C: taxonomy-aware transfer matching (007)."""
+    active = [f for f in facts if not f.deleted and f.fact_type == FactType.CASH.value]
+    by_id = {f.id: f for f in active}
+    if seed_ids is None:
+        seeds = [f for f in active if is_transfer_taxonomy_out(f) or f.signed_amount < 0]
+    else:
+        seeds = [by_id[s] for s in seed_ids if s in by_id]
+    # Prefer withdraw outs first
+    seeds.sort(
+        key=lambda f: (
+            0 if is_withdraw_platform_out(f) else 1,
+            0 if f.signed_amount < 0 else 1,
+            str(f.occurred_at),
+            f.id,
+        )
+    )
+    used: set[str] = set()
+    proposals: list[RelationProposal] = []
+    # Same-sign withdraw receipts first
+    for prop in match_withdraw_receipt_to_bank(active, used=used):
+        proposals.append(prop)
+    for seed in seeds:
+        if seed.id in used:
+            continue
+        if seed.signed_amount > 0 and not is_withdraw_platform_receipt(seed):
+            continue
+        if has_transfer_exclude_signal(seed.text) and not (
+            is_withdraw_platform_out(seed) or is_withdraw_platform_receipt(seed)
+        ):
+            continue
+        if index is not None:
+            others = [f for f in index.transfer_candidates(seed) if f.id not in used]
+        else:
+            others = [f for f in active if f.id != seed.id and f.id not in used]
+        prop = evaluate_transfer_pair(seed, others, fx_rate_provider=fx_rate_provider)
+        if prop is None:
+            continue
+        if prop.secondary_fact_id:
+            used.add(prop.primary_fact_id)
+            used.add(prop.secondary_fact_id)
+        else:
+            used.add(prop.primary_fact_id)
+        proposals.append(prop)
+    return proposals
+
+
+
+
+def match_diamond_bank_refunds(
+    facts: Sequence[FactView],
+    *,
+    accepted_mirrors: Sequence[tuple[str, str]] | None = None,
+    accepted_platform_refunds: Sequence[tuple[str, str]] | None = None,
+    open_or_pending_bank_refund_ids: Sequence[str] | None = None,
+) -> list[RelationProposal]:
+    """Phase D FR-055: bank_ref via platform refund chain → bank_pay.
+
+    bank_ref --mirror-- plat_ref --refund-- plat_pay --mirror-- bank_pay
+    """
+    by_id = {f.id: f for f in facts if not f.deleted}
+    mirror_adj: dict[str, set[str]] = defaultdict(set)
+    for a, b in (accepted_mirrors or ()):
+        if a and b:
+            mirror_adj[a].add(b)
+            mirror_adj[b].add(a)
+    # expense -> refund list; refund -> expense
+    exp_to_ref: dict[str, list[str]] = defaultdict(list)
+    ref_to_exp: dict[str, str] = {}
+    for a, b in (accepted_platform_refunds or ()):
+        fa, fb = by_id.get(a), by_id.get(b)
+        if not fa or not fb:
+            continue
+        if fa.signed_amount < 0 and fb.signed_amount > 0:
+            exp_to_ref[a].append(b)
+            ref_to_exp[b] = a
+        elif fb.signed_amount < 0 and fa.signed_amount > 0:
+            exp_to_ref[b].append(a)
+            ref_to_exp[a] = b
+        else:
+            # zero-amount auth etc: keep a as primary
+            exp_to_ref[a].append(b)
+            ref_to_exp[b] = a
+
+    seeds: list[FactView] = []
+    if open_or_pending_bank_refund_ids:
+        for fid in open_or_pending_bank_refund_ids:
+            f = by_id.get(fid)
+            if f is not None:
+                seeds.append(f)
+    else:
+        for f in by_id.values():
+            if source_group(f) != "bank":
+                continue
+            if f.signed_amount <= 0:
+                continue
+            if not (_refundish_text(f) or has_refund_signal(f.text)):
+                continue
+            seeds.append(f)
+
+    used: set[str] = set()
+    out: list[RelationProposal] = []
+    for bank_ref in seeds:
+        if bank_ref.id in used:
+            continue
+        plat_refs = [
+            pid for pid in mirror_adj.get(bank_ref.id, ())
+            if pid in by_id and source_group(by_id[pid]) == "platform"
+        ]
+        bank_pays: list[str] = []
+        for pref in plat_refs:
+            # pref should be refund credit
+            exp_id = ref_to_exp.get(pref)
+            if not exp_id:
+                continue
+            for bpay in mirror_adj.get(exp_id, ()):
+                bf = by_id.get(bpay)
+                if not bf or source_group(bf) != "bank":
+                    continue
+                if bf.signed_amount >= 0:
+                    continue
+                # same account preferred but not required if amount residual-compatible
+                if abs(bf.signed_amount) + Decimal("0.0001") < abs(bank_ref.signed_amount):
+                    continue
+                bank_pays.append(bpay)
+        bank_pays = list(dict.fromkeys(bank_pays))
+        if len(bank_pays) != 1:
+            continue
+        bank_pay_id = bank_pays[0]
+        if bank_pay_id in used or bank_ref.id in used:
+            continue
+        evidence = RelationEvidence(
+            amount_delta="0",
+            time_delta_seconds=_time_delta_seconds(
+                by_id[bank_pay_id].occurred_at, bank_ref.occurred_at
+            ),
+            same_currency=True,
+            source_pair=(
+                by_id[bank_pay_id].bill_source or by_id[bank_pay_id].source,
+                bank_ref.bill_source or bank_ref.source,
+            ),
+            rule_id=RULE_REFUND_DIAMOND_V1,
+            candidate_count=1,
+            signals=("diamond", "platform_chain", "exact_or_residual"),
+            extras={"via": "platform_refund_mirror"},
+        )
+        out.append(RelationProposal(
+            kind=RelationKind.REFUND_OFFSET.value,
+            primary_fact_id=bank_pay_id,
+            secondary_fact_id=bank_ref.id,
+            status=RelationStatus.ACCEPTED.value,
+            rule_id=RULE_REFUND_DIAMOND_V1,
+            confidence=CONFIDENCE_STRONG,
+            evidence=evidence,
+            anchor_fact_id=bank_pay_id,
+            open_leg=False,
+        ))
+        used.add(bank_pay_id)
+        used.add(bank_ref.id)
+    return out
+
 
 
 def evaluate_refund_offset(

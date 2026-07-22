@@ -45,8 +45,32 @@ class StatementImportService:
             captured_path = Path(temp_dir) / f"source{path.suffix}"
             captured_path.write_bytes(content)
             captured_command = replace(command, source_path=str(captured_path))
-            rows = [dict(row) for row in self._parser.parse(captured_command)]
+            parsed = [dict(row) for row in self._parser.parse(captured_command)]
+        import_meta = {}
+        rows = []
+        for row in parsed:
+            if "_import_meta" in row:
+                import_meta = dict(row.pop("_import_meta") or {})
+            rows.append(row)
         if not rows:
+            # Allow pure whitelist-skip batches only if meta says so
+            acc = import_meta.get("acceptance") or {}
+            if acc.get("source_lines") and (
+                acc.get("skipped_unpaid_closed", 0) + acc.get("skipped_failed_repay", 0)
+            ) >= acc.get("source_lines", 0):
+                return OperationResult(
+                    ok=True,
+                    count=0,
+                    message="imported",
+                    details={
+                        "batch_id": None,
+                        "duplicate": False,
+                        "by_account": {},
+                        "new_cash_fact_ids": [],
+                        "acceptance": acc,
+                        "import_refund_relations": [],
+                    },
+                )
             raise ValueError("statement contains no supported records")
 
         # Normalize currencies; account_name must already be set by parser/mapping.
@@ -170,6 +194,10 @@ class StatementImportService:
             saved_imported_count = imported_count
             saved_by_account = dict(by_account)
             saved_new_cash_fact_ids = list(new_cash_fact_ids)
+        # Import-time platform refund_offset from convert tracking pairs (007)
+        # 007: import MUST NOT write refund_offset; relations check Phase A does.
+        import_refund_relations = []
+
         relation_details = None
         if saved_new_cash_fact_ids and self._relations is not None:
             # Import already committed; check failure must not roll back facts.
@@ -183,6 +211,20 @@ class StatementImportService:
                 relation_details = check_result.details
             except Exception as exc:  # noqa: BLE001
                 relation_details = {"error": str(exc), "status": "failed"}
+        acceptance = import_meta.get("acceptance") or {}
+        if not acceptance.get("source_lines"):
+            acceptance = {
+                "source_lines": saved_imported_count,
+                "skipped_unpaid_closed": 0,
+                "skipped_failed_repay": 0,
+                "fact_lines": saved_imported_count,
+                "published": saved_imported_count,
+            }
+        else:
+            acceptance = {
+                **acceptance,
+                "published": saved_imported_count,
+            }
         return OperationResult(
             ok=True, count=saved_imported_count, message="imported",
             details={
@@ -190,6 +232,8 @@ class StatementImportService:
                 "duplicate": False,
                 "by_account": saved_by_account,
                 "new_cash_fact_ids": saved_new_cash_fact_ids,
+                "acceptance": acceptance,
+                "import_refund_relations": import_refund_relations,
                 "relation_check": relation_details,
             },
         )

@@ -194,11 +194,12 @@ def test_transfer_multi_candidate_open_leg():
 
 
 def test_payment_mirror_never_open_leg():
+    # Same account required for mirror; still must be bilateral (never open-leg).
     platform = _fv(
         id="p",
         amount=Decimal("-40"),
-        account_id="1",
-        account_name="支付宝",
+        account_id="card",
+        account_name="建行",
         occurred_at="2026-01-01 09:00:00",
         counterparty="商户",
         description="订单X",
@@ -207,7 +208,7 @@ def test_payment_mirror_never_open_leg():
     bank = _fv(
         id="b",
         amount=Decimal("-40"),
-        account_id="2",
+        account_id="card",
         account_name="建行",
         occurred_at="2026-01-01 09:00:05",
         counterparty="商户",

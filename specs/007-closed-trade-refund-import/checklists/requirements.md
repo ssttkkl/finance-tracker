@@ -1,36 +1,12 @@
-# Specification Quality Checklist: Closed-Trade Refund Import
+# Spec Quality Checklist: 007 Unified Scan
 
-**Purpose**: Validate specification completeness and quality before planning  
-**Created**: 2026-07-21  
-**Feature**: [spec.md](../spec.md)
-
-## Content Quality
-
-- [x] No implementation details (languages, frameworks, APIs)
-- [x] Focused on user value and business needs
-- [x] Written for non-technical stakeholders
-- [x] All mandatory sections completed
-
-## Requirement Completeness
-
-- [x] No [NEEDS CLARIFICATION] markers remain
-- [x] Requirements are testable and unambiguous
-- [x] Success criteria are measurable
-- [x] Success criteria are technology-agnostic (no implementation details)
-- [x] All acceptance scenarios are defined
-- [x] Edge cases are identified
-- [x] Scope is clearly bounded
-- [x] Dependencies and assumptions identified
-
-## Feature Readiness
-
-- [x] All functional requirements have clear acceptance criteria
-- [x] User scenarios cover primary flows
-- [x] Feature meets measurable outcomes defined in Success Criteria
-- [x] No implementation details leak into specification
-
-## Notes
-
-- Root cause validated against ~/.ft/bills Alipay CSV (closed → refund → reorder).
-- Deferred from 006-transaction-relations Non-Goals.
-- Next: `/speckit-plan` when ready to implement (prefer new branch/worktree).
+- [x] No-skip + whitelist skips clear
+- [x] Import vs scan orchestration explicit
+- [x] Raw payload contract
+- [x] Phase A/B/C order
+- [x] Alipay/wechat rules preserved at scan
+- [x] Bank refund at Phase C
+- [x] Success criteria measurable
+- [x] Non-goals updated (no import-time relations)
+- [x] Dual-backend mentioned
+- [x] No NEEDS CLARIFICATION markers

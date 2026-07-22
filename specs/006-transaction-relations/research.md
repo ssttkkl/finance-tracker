@@ -58,7 +58,8 @@
 - Weak/pending only near-miss: e.g. ≤10s exact without text, or ≤10s with text but exact amount delta, or near-strong multi-candidate conflict.
 - Multi-account model: do **not** require same `account_name` (main CSV key); use platform×bank + text/card/alias instead.
 - `transfer_pair` auto-accept: opposite signs, different accounts, same currency, abs amount exact, Δt ≤10s + transfer signals unique; same-day unionpay/no-card-pay pair allowed when unique.
-- `credit_repayment`: cash→loan same currency exact abs, Δt ≤600s; FX repayment Δt ≤10s without amount equality, record both amounts.
+- `credit_repayment`: cash→loan same currency exact abs, Δt ≤600s.
+- `credit_repayment` FX / 购汇还款: different currencies (or 购汇还款 text); candidate window Δt ≤60s; fetch **business-day market mid rate**; score by `|implied_rate/market_rate - 1|`; auto-accept only when **exactly one** high-confidence candidate (default rate_error ≤1.5% and ≥0.5pp better than runner-up); else pending. No market rate → no auto-accept. Rates are evidence only — never rewrite fact amounts. Old “≤10s FX auto without rate” is superseded.
 - `refund_offset`: candidate ≤30d; auto-accept default ≤14d; order/txn lock may auto-accept 15–30d; one refund → one expense; multi refunds per expense; no amount tolerance; remaining balance exact Decimal.
 - **Refund seeds MUST have explicit refund text** (退款/退货/消费退货/…); bare income is not a seed.
 - **P2P/transfer family is asymmetric for `refund_offset`** (user correction 2026-07-21):

@@ -63,6 +63,7 @@ def test_payment_mirror_same_account_exact2_no_text_within_60s():
 
 
 def test_payment_mirror_same_account_long_lag_same_day_is_pending_high_recall():
+    """FR-056: same-account exact same business day auto-accepts (no text required)."""
     seed = _fv(
         id="p1", amount=Decimal("-20.00"), account_id="card",
         occurred_at="2023-07-04 01:00:00", counterparty="商户A",
@@ -75,10 +76,12 @@ def test_payment_mirror_same_account_long_lag_same_day_is_pending_high_recall():
     )
     proposal = evaluate_payment_mirror(seed, [bank])
     assert proposal is not None
-    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.status == RelationStatus.ACCEPTED.value
+    assert "same_account" in proposal.rule_id or "business_day" in proposal.rule_id
 
 
 def test_payment_mirror_same_account_platform_after_bank_is_pending_not_auto():
+    """FR-056: 10s bank-before-platform skew on same account is accepted."""
     seed = _fv(
         id="p1", amount=Decimal("-20.00"), account_id="card",
         occurred_at="2023-07-04 12:00:10", counterparty="商户A",
@@ -91,7 +94,7 @@ def test_payment_mirror_same_account_platform_after_bank_is_pending_not_auto():
     )
     proposal = evaluate_payment_mirror(seed, [bank])
     assert proposal is not None
-    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.status == RelationStatus.ACCEPTED.value
 
 
 def test_payment_mirror_rejects_bank_bank():
@@ -110,12 +113,12 @@ def test_payment_mirror_rejects_bank_bank():
 
 def test_payment_mirror_amount_delta_not_auto_accepted():
     seed = _fv(
-        id="p1", amount=Decimal("-30.00"), account_id="alipay",
+        id="p1", amount=Decimal("-30.00"), account_id="card",
         occurred_at="2026-06-13 23:15:00", counterparty="麦当劳",
         description="尾号1234", bill_source="alipay",
     )
     bank = _fv(
-        id="b1", amount=Decimal("-30.01"), account_id="ccb",
+        id="b1", amount=Decimal("-30.01"), account_id="card",
         occurred_at="2026-06-13 23:15:05", counterparty="麦当劳",
         description="尾号1234", bill_source="ccb_debit",
     )
@@ -139,14 +142,29 @@ def test_payment_mirror_bare_same_day_without_short_window_is_silent():
     assert evaluate_payment_mirror(seed, [bank]) is None
 
 
+def test_payment_mirror_cross_account_never_mirrors():
+    """Cross-account platform×bank is never a payment_mirror (even strong signals)."""
+    seed = _fv(
+        id="p1", amount=Decimal("-50.00"), account_id="wechat_wallet",
+        occurred_at="2026-06-13 10:00:00", counterparty="星巴克",
+        description="消费", bill_source="wechat",
+    )
+    bank = _fv(
+        id="b1", amount=Decimal("-50.00"), account_id="ccb",
+        occurred_at="2026-06-13 10:00:03", counterparty="星巴克咖啡",
+        description="快捷支付", bill_source="ccb_debit",
+    )
+    assert evaluate_payment_mirror(seed, [bank]) is None
+
+
 def test_payment_mirror_short_window_text_unique_auto_accept():
     seed = _fv(
-        id="p1", amount=Decimal("-50.00"), account_id="alipay",
+        id="p1", amount=Decimal("-50.00"), account_id="card",
         occurred_at="2026-06-13 10:00:00", counterparty="星巴克",
         description="消费", bill_source="alipay",
     )
     bank = _fv(
-        id="b1", amount=Decimal("-50.00"), account_id="ccb",
+        id="b1", amount=Decimal("-50.00"), account_id="card",
         occurred_at="2026-06-13 10:00:30", counterparty="星巴克咖啡",
         description="快捷支付", bill_source="ccb_debit",
     )
@@ -155,43 +173,45 @@ def test_payment_mirror_short_window_text_unique_auto_accept():
     assert proposal.status == RelationStatus.ACCEPTED.value
 
 
-def test_payment_mirror_multi_candidate_pending():
+def test_payment_mirror_multi_candidate_same_account_picks_nearest():
+    """Same-account multi bank candidates: nearest accepted (not cross-account pending)."""
     seed = _fv(
-        id="p1", amount=Decimal("-20.00"), account_id="alipay",
+        id="p1", amount=Decimal("-20.00"), account_id="card",
         occurred_at="2026-06-13 12:00:00", counterparty="商家",
         description="尾号1234", bill_source="alipay",
     )
     cands = [
         _fv(
-            id="b1", amount=Decimal("-20.00"), account_id="ccb",
+            id="b1", amount=Decimal("-20.00"), account_id="card",
             occurred_at="2026-06-13 12:00:03", counterparty="商家",
             description="尾号1234", bill_source="ccb_debit",
         ),
         _fv(
-            id="b2", amount=Decimal("-20.00"), account_id="icbc",
+            id="b2", amount=Decimal("-20.00"), account_id="card",
             occurred_at="2026-06-13 12:00:04", counterparty="商家",
             description="尾号1234", bill_source="icbc_debit",
         ),
     ]
     proposal = evaluate_payment_mirror(seed, cands)
     assert proposal is not None
-    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.status == RelationStatus.ACCEPTED.value
     assert proposal.evidence.candidate_count == 2
+    assert proposal.secondary_fact_id == "b1" or proposal.primary_fact_id == "b1"
 
 
 def test_match_payment_mirrors_greedy_one_to_one():
     p1 = _fv(
-        id="p1", amount=Decimal("-10.00"), account_id="alipay",
+        id="p1", amount=Decimal("-10.00"), account_id="card",
         occurred_at="2026-06-13 12:00:00", counterparty="店A", description="x",
         bill_source="alipay",
     )
     p2 = _fv(
-        id="p2", amount=Decimal("-10.00"), account_id="wechat",
+        id="p2", amount=Decimal("-10.00"), account_id="card",
         occurred_at="2026-06-13 12:00:01", counterparty="店A", description="x",
         bill_source="wechat",
     )
     b1 = _fv(
-        id="b1", amount=Decimal("-10.00"), account_id="ccb",
+        id="b1", amount=Decimal("-10.00"), account_id="card",
         occurred_at="2026-06-13 12:00:02", counterparty="店A", description="x",
         bill_source="ccb_debit",
     )
@@ -223,10 +243,10 @@ def test_projection_mirror_counts_once_balances_both():
 
 def test_payment_mirror_persisted_via_service(relation_runtime):
     services = relation_runtime.services
-    assert services.accounts.create_account("支付宝", "cash", "CNY").ok
+    # Both legs land on the same account (card booklet) — required for payment_mirror.
     assert services.accounts.create_account("建行储蓄", "cash", "CNY").ok
     services.cashflow.add_manual_transaction(
-        amount=Decimal("-30.00"), counterparty="麦当劳", account_name="支付宝",
+        amount=Decimal("-30.00"), counterparty="麦当劳", account_name="建行储蓄",
         currency="CNY", date="2026-06-13 23:15:00", description="付款方式 尾号1234",
         category="expense", bill_source="alipay", source="alipay",
     )
@@ -246,6 +266,7 @@ def test_payment_mirror_persisted_via_service(relation_runtime):
 
 
 def test_payment_mirror_pending_same_account_lag_between_60s_and_5min():
+    """FR-056: same-account exact same day accepts even beyond 60s lag."""
     seed = _fv(
         id="p1", amount=Decimal("-20.00"), account_id="card",
         occurred_at="2023-07-04 01:00:00", counterparty="商户A",
@@ -258,7 +279,7 @@ def test_payment_mirror_pending_same_account_lag_between_60s_and_5min():
     )
     proposal = evaluate_payment_mirror(seed, [bank])
     assert proposal is not None
-    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.status == RelationStatus.ACCEPTED.value
 
 
 def test_payment_mirror_pending_platform_slightly_after_bank_same_account():
@@ -274,27 +295,28 @@ def test_payment_mirror_pending_platform_slightly_after_bank_same_account():
     )
     proposal = evaluate_payment_mirror(seed, [bank])
     assert proposal is not None
-    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.status == RelationStatus.ACCEPTED.value
 
 
-def test_payment_mirror_pending_text_outside_60s_within_5min():
+def test_payment_mirror_same_account_text_outside_60s_accepts_business_day():
+    """Same-account exact same business day accepts even when lag is 3min with text."""
     seed = _fv(
-        id="p1", amount=Decimal("-50.00"), account_id="alipay",
+        id="p1", amount=Decimal("-50.00"), account_id="card",
         occurred_at="2026-06-13 10:00:00", counterparty="星巴克",
         description="消费", bill_source="alipay",
     )
     bank = _fv(
-        id="b1", amount=Decimal("-50.00"), account_id="ccb",
+        id="b1", amount=Decimal("-50.00"), account_id="card",
         occurred_at="2026-06-13 10:03:00", counterparty="星巴克咖啡",
         description="快捷支付", bill_source="ccb_debit",
     )
     proposal = evaluate_payment_mirror(seed, [bank])
     assert proposal is not None
-    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.status == RelationStatus.ACCEPTED.value
 
 
 def test_payment_mirror_pending_same_account_same_day_long_lag_high_recall():
-    """Main exact-2 day key beyond 5min → pending, not silent."""
+    """FR-056: same-account exact same business day accepts long lag (no text)."""
     seed = _fv(
         id="p1", amount=Decimal("-40.00"), account_id="card",
         occurred_at="2023-07-27 01:00:00", counterparty="北京市自来水集团有限责任公司",
@@ -307,20 +329,20 @@ def test_payment_mirror_pending_same_account_same_day_long_lag_high_recall():
     )
     proposal = evaluate_payment_mirror(seed, [bank])
     assert proposal is not None
-    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.status == RelationStatus.ACCEPTED.value
 
 
-def test_payment_mirror_pending_text_same_day_beyond_5min_high_recall():
+def test_payment_mirror_same_account_text_same_day_long_lag_accepts():
     seed = _fv(
-        id="p1", amount=Decimal("-50.00"), account_id="alipay",
+        id="p1", amount=Decimal("-50.00"), account_id="card",
         occurred_at="2026-06-13 10:00:00", counterparty="星巴克",
         description="消费", bill_source="alipay",
     )
     bank = _fv(
-        id="b1", amount=Decimal("-50.00"), account_id="ccb",
+        id="b1", amount=Decimal("-50.00"), account_id="card",
         occurred_at="2026-06-13 18:00:00", counterparty="星巴克咖啡",
         description="快捷支付", bill_source="ccb_debit",
     )
     proposal = evaluate_payment_mirror(seed, [bank])
     assert proposal is not None
-    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.status == RelationStatus.ACCEPTED.value

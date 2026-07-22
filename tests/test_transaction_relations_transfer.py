@@ -62,6 +62,54 @@ def test_unionpay_same_day_auto_accept():
     assert proposal.status == RelationStatus.ACCEPTED.value
 
 
+def test_unionpay_ccb_date_only_uses_raw_business_day_auto():
+    """CCB date-only raw date aligns with ICBC local business day despite formal 16:00 UTC."""
+    from ft.domain.relations import (
+        RULE_TRANSFER_PAIR_UNIONPAY_V1,
+        RULE_TRANSFER_PAIR_STRONG_V1,
+        FactType,
+        FactView,
+    )
+
+    out_leg = FactView(
+        id="icbc_out",
+        amount=Decimal("-5000"),
+        currency="CNY",
+        account_id="icbc",
+        account_name="工行借记卡",
+        account_type="cash",
+        occurred_at="2024-05-05 17:48:03",
+        counterparty="银联转账（云闪付）",
+        description="无卡支付",
+        bill_source="icbc_debit",
+        fact_type=FactType.CASH.value,
+        raw_payload={"date": "2024-05-06 01:48:03"},
+    )
+    in_leg = FactView(
+        id="ccb_in",
+        amount=Decimal("5000"),
+        currency="CNY",
+        account_id="ccb",
+        account_name="建行储蓄卡(2820)",
+        account_type="cash",
+        occurred_at="2024-05-05 16:00:00",
+        counterparty="微信",
+        description="银联入账",
+        bill_source="ccb_debit",
+        fact_type=FactType.CASH.value,
+        raw_payload={"date": "2024-05-06"},
+    )
+    proposal = evaluate_transfer_pair(out_leg, [in_leg])
+    assert proposal is not None
+    assert proposal.status == RelationStatus.ACCEPTED.value
+    assert proposal.rule_id in {
+        RULE_TRANSFER_PAIR_UNIONPAY_V1,
+        RULE_TRANSFER_PAIR_STRONG_V1,
+    }
+    # Fake multi-hour formal Δt must not apply when date-only raw day matches
+    assert proposal.evidence.time_delta_seconds == 0
+
+
 def test_credit_repayment_subtype():
     cash = _fv(
         id="c", amount=Decimal("-5000"), account_id="1", account_name="储蓄",
@@ -77,22 +125,146 @@ def test_credit_repayment_subtype():
     assert proposal.subtype == SUBTYPE_CREDIT_REPAYMENT
 
 
-def test_credit_repayment_fx_without_amount_equality():
+def test_credit_repayment_fx_unique_high_confidence_auto():
+    """Exactly one FX candidate within rate_error threshold → accepted."""
     cash = _fv(
-        id="c", amount=Decimal("-7000"), account_id="1", account_name="储蓄",
+        id="c", amount=Decimal("-144.61"), account_id="1", account_name="储蓄",
         account_type="cash", currency="CNY",
-        occurred_at="2026-01-01 10:00:00", description="信用卡还款",
+        occurred_at="2025-12-19 06:30:57", description="购汇还款",
     )
     loan = _fv(
-        id="l", amount=Decimal("1000"), account_id="2", account_name="信用卡",
-        account_type="loan", currency="USD",
-        occurred_at="2026-01-01 10:00:05", description="还款入账",
+        id="l", amount=Decimal("159.40"), account_id="2", account_name="信用卡",
+        account_type="loan", currency="HKD",
+        occurred_at="2025-12-19 06:30:58", description="手机银行",
     )
-    proposal = evaluate_transfer_pair(cash, [loan])
+    # market: HKD per 1 CNY ≈ 159.40/144.61 ≈ 1.1023
+    proposal = evaluate_transfer_pair(
+        cash, [loan],
+        fx_rate_provider=lambda day, base, quote: Decimal("1.1051"),
+    )
     assert proposal is not None
     assert proposal.subtype == SUBTYPE_CREDIT_REPAYMENT
     assert proposal.status == RelationStatus.ACCEPTED.value
-    assert proposal.evidence.extras.get("seed_currency") in {"CNY", "USD"} or True
+    assert proposal.secondary_fact_id == "l"
+    assert proposal.evidence.extras.get("market_rate")
+    assert proposal.evidence.extras.get("rate_error")
+
+
+def test_credit_repayment_fx_multi_candidate_rate_separates():
+    """Two FX ins (HKD vs JPY): each out-leg picks the unique high-confidence match."""
+    cash_hkd = _fv(
+        id="c1", amount=Decimal("-144.61"), account_id="cash", account_name="工行借记卡",
+        account_type="cash", currency="CNY",
+        occurred_at="2025-12-19 06:30:57", description="购汇还款",
+    )
+    cash_jpy = _fv(
+        id="c2", amount=Decimal("-101.58"), account_id="cash", account_name="工行借记卡",
+        account_type="cash", currency="CNY",
+        occurred_at="2025-12-19 06:31:00", description="购汇还款",
+    )
+    loan_hkd = _fv(
+        id="l_hkd", amount=Decimal("159.40"), account_id="loan", account_name="工行信用卡(0851)",
+        account_type="loan", currency="HKD",
+        occurred_at="2025-12-19 06:30:58", description="手机银行",
+    )
+    loan_jpy = _fv(
+        id="l_jpy", amount=Decimal("2240.00"), account_id="loan", account_name="工行信用卡(0851)",
+        account_type="loan", currency="JPY",
+        occurred_at="2025-12-19 06:31:01", description="手机银行",
+    )
+
+    def rates(day, base, quote):
+        # frankfurter-like CNY base → quote
+        table = {"HKD": Decimal("1.1051"), "JPY": Decimal("22.331"), "USD": Decimal("0.14202")}
+        if base == "CNY":
+            return table.get(quote)
+        return None
+
+    p1 = evaluate_transfer_pair(cash_hkd, [loan_hkd, loan_jpy], fx_rate_provider=rates)
+    assert p1 is not None
+    assert p1.status == RelationStatus.ACCEPTED.value
+    assert p1.secondary_fact_id == "l_hkd"
+
+    p2 = evaluate_transfer_pair(cash_jpy, [loan_hkd, loan_jpy], fx_rate_provider=rates)
+    assert p2 is not None
+    assert p2.status == RelationStatus.ACCEPTED.value
+    assert p2.secondary_fact_id == "l_jpy"
+
+
+def test_credit_repayment_fx_no_rate_pending():
+    cash = _fv(
+        id="c", amount=Decimal("-100"), account_id="1", account_name="储蓄",
+        account_type="cash", currency="CNY",
+        occurred_at="2026-01-01 10:00:00", description="购汇还款",
+    )
+    loan = _fv(
+        id="l", amount=Decimal("14"), account_id="2", account_name="信用卡",
+        account_type="loan", currency="USD",
+        occurred_at="2026-01-01 10:00:05", description="手机银行",
+    )
+    proposal = evaluate_transfer_pair(
+        cash, [loan],
+        fx_rate_provider=lambda *a, **k: None,
+    )
+    assert proposal is not None
+    assert proposal.subtype == SUBTYPE_CREDIT_REPAYMENT
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.open_leg is False  # unique candidate → bilateral pending
+
+
+def test_credit_repayment_fx_two_high_confidence_open_leg_pending():
+    """Two candidates both within threshold and too close → open-leg pending."""
+    cash = _fv(
+        id="c", amount=Decimal("-100"), account_id="1", account_name="储蓄",
+        account_type="cash", currency="CNY",
+        occurred_at="2026-01-01 10:00:00", description="购汇还款",
+    )
+    a = _fv(
+        id="la", amount=Decimal("110"), account_id="2", account_name="卡A",
+        account_type="loan", currency="HKD",
+        occurred_at="2026-01-01 10:00:01", description="手机银行",
+    )
+    b = _fv(
+        id="lb", amount=Decimal("110.3"), account_id="3", account_name="卡B",
+        account_type="loan", currency="HKD",
+        occurred_at="2026-01-01 10:00:02", description="手机银行",
+    )
+    # market 1.10 → errors ~0 and ~0.0027 both under 1.5% and margin < 0.5pp
+    proposal = evaluate_transfer_pair(
+        cash, [a, b],
+        fx_rate_provider=lambda day, base, quote: Decimal("1.10"),
+    )
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.open_leg is True
+    assert proposal.secondary_fact_id is None
+    assert proposal.evidence.candidate_count == 2
+
+
+def test_bare_unionpay_merchant_refund_not_transfer_signal():
+    """「中国银联无卡…退货」must not pair with merchant spend via bare 银联 token."""
+    out_leg = _fv(
+        id="a", amount=Decimal("-100"), account_id="1", account_name="微信零钱",
+        occurred_at="2023-06-19 08:54:52", counterparty="美团",
+        description="美团订单-23061911100400000024247213555312", bill_source="wechat",
+    )
+    in_leg = _fv(
+        id="b", amount=Decimal("100"), account_id="2", account_name="工行借记卡",
+        occurred_at="2023-06-19 10:06:50", counterparty="中国银联无卡快捷支付业务专户",
+        description="退货", bill_source="icbc_debit",
+    )
+    assert evaluate_transfer_pair(out_leg, [in_leg]) is None
+
+
+def test_unionpay_compound_signals_still_match():
+    from ft.domain.relations import has_transfer_signal
+    assert has_transfer_signal("银联入账") is True
+    assert has_transfer_signal("银联转账（云闪付）") is True
+    assert has_transfer_signal("无卡支付") is True
+    assert has_transfer_signal("云闪付") is True
+    # bare rail name alone is not enough
+    assert has_transfer_signal("中国银联无卡快捷支付业务专户 退货") is False
+    assert has_transfer_signal("银联") is False
 
 
 def test_transfer_exact_no_signal_within_10s_is_pending_high_recall():
