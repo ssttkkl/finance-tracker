@@ -169,3 +169,34 @@ def test_same_account_accepts_when_bank_one_second_before_platform():
     prop = evaluate_payment_mirror(plat, [bank])
     assert prop is not None
     assert prop.status == RelationStatus.ACCEPTED.value
+
+
+def test_multi_bank_candidates_pick_nearest_accepted():
+    """Two identical bank -8 same day: pick nearest platform pairing, still accepted."""
+    from ft.domain.relations import RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1, RULE_PAYMENT_MIRROR_BANK_DATE_ONLY_V1
+    plat = _fv(
+        "p1", -8, account="ccb", bill_source="wechat",
+        description="寄件", counterparty="丰巢",
+        occurred=datetime(2024, 9, 7, 12, 25, 44, tzinfo=timezone.utc),
+        raw_date="2024-09-07 20:25:44",
+    )
+    bank_a = _fv(
+        "b1", -8, account="ccb", bill_source="ccb_debit",
+        description="消费", counterparty="丰巢",
+        occurred=datetime(2024, 9, 6, 16, 0, 0, tzinfo=timezone.utc),
+        raw_date="2024-09-07",
+    )
+    bank_b = _fv(
+        "b2", -8, account="ccb", bill_source="ccb_debit",
+        description="消费", counterparty="丰巢",
+        occurred=datetime(2024, 9, 6, 16, 0, 0, tzinfo=timezone.utc),
+        raw_date="2024-09-07",
+    )
+    prop = evaluate_payment_mirror(plat, [bank_a, bank_b])
+    assert prop is not None
+    assert prop.status == RelationStatus.ACCEPTED.value
+    assert prop.rule_id in (
+        RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1,
+        RULE_PAYMENT_MIRROR_BANK_DATE_ONLY_V1,
+    )
+    assert prop.evidence.candidate_count == 2

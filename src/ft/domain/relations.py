@@ -1206,7 +1206,7 @@ def evaluate_payment_mirror(
     if not matches:
         return None
 
-    # Prefer highest score; require uniqueness among auto-accept tier for accept.
+    # Prefer highest score, then nearest time (FR-057).
     matches.sort(key=lambda m: (-m[4], m[1].time_delta_seconds, m[0].id))
     best = matches[0]
     cand, evidence, status, conf, _score = best
@@ -1216,19 +1216,21 @@ def evaluate_payment_mirror(
         m for m in matches
         if m[2] == RelationStatus.ACCEPTED.value and _as_decimal(m[1].amount_delta) == 0
     ]
+    # Same-account / date-only / refund-dual tiers: multi-candidate → pick nearest (best
+    # already sorted). Bank date-only rows are often identical "消费" legs; pairing any
+    # 1-1 is fine. Global greedy still ensures each fact is used once.
+    _NEAREST_OK = frozenset({
+        RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1,
+        RULE_PAYMENT_MIRROR_BANK_DATE_ONLY_V1,
+        RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1,
+        RULE_PAYMENT_MIRROR_REFUND_DUAL_SOURCE_V1,
+    })
     if status == RelationStatus.ACCEPTED.value and len(strong_accepts) != 1:
-        # Multiple near-strong candidates → pending (do not pick silently).
-        status = RelationStatus.PENDING_REVIEW.value
-        conf = CONFIDENCE_WEAK
-        rule_id = RULE_PAYMENT_MIRROR_WEAK_V1
-    elif status == RelationStatus.ACCEPTED.value and rule_id == RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1:
-        # exact-2: only one other leg allowed in short window same account.
-        same_acct_short = [
-            m for m in matches
-            if _as_decimal(m[1].amount_delta) == 0
-            and m[1].rule_id == RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1
-        ]
-        if len(same_acct_short) != 1:
+        if rule_id in _NEAREST_OK:
+            # Keep accepted best (nearest by score/time).
+            pass
+        else:
+            # Text/time10 style: still require unique auto when multiple strong hits.
             status = RelationStatus.PENDING_REVIEW.value
             conf = CONFIDENCE_WEAK
             rule_id = RULE_PAYMENT_MIRROR_WEAK_V1
@@ -1244,10 +1246,12 @@ def evaluate_payment_mirror(
             conf = CONFIDENCE_WEAK
             rule_id = RULE_PAYMENT_MIRROR_WEAK_V1
 
+    cand_ids = tuple(m[0].id for m in matches[:OPEN_LEG_CANDIDATE_TOP_K])
     evidence = RelationEvidence(
         **{
             **evidence.__dict__,
             "candidate_count": len(matches),
+            "candidate_fact_ids": cand_ids,
             "rule_id": rule_id,
         }
     )
