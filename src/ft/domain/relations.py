@@ -63,9 +63,7 @@ REFUND_AUTO_ACCEPT_DAYS = 14
 REFUND_ORDER_LOCK_AUTO_ACCEPT_DAYS = 30
 
 RULE_PAYMENT_MIRROR_STRONG_V1 = "payment_mirror.platform_bank.exact.time10.cross.v2"
-RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1 = (
-    "payment_mirror.platform_bank.same_account.exact2.lag60.v3"
-)
+# lag60 same-account short-window accept branch removed (subsumed by business_day).
 RULE_PAYMENT_MIRROR_SHORT_WINDOW_TEXT_V1 = (
     "payment_mirror.platform_bank.short_window.text.unique.v3"
 )
@@ -1050,40 +1048,24 @@ def evaluate_payment_mirror(
             conf = CONFIDENCE_STRONG
             rule = RULE_PAYMENT_MIRROR_REFUND_DUAL_SOURCE_V1
             score = 4550
-        # FR-053: bank date-only + same Shanghai business day + same account exact → accepted
-        elif (
-            exact
-            and same_account
-            and bank_date_only
-            and biz_same_day
-        ):
-            status = RelationStatus.ACCEPTED.value
-            conf = CONFIDENCE_STRONG
-            rule = RULE_PAYMENT_MIRROR_BANK_DATE_ONLY_V1
-            score = 4500
-        # FR-056: same-account exact same business day (raw Asia/Shanghai) → accepted
-        # Covers second-level bank×platform mirrors without text cross (bank "消费").
+        # FR-053/056: same-account exact same Shanghai business day → accepted.
+        # bank_date_only is a label for audit when bank export has no clock time;
+        # it is fully subsumed by the business-day condition (no separate match logic).
         elif exact and same_account and biz_same_day:
             status = RelationStatus.ACCEPTED.value
             conf = CONFIDENCE_STRONG
-            rule = RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1
-            score = 4480
+            if bank_date_only:
+                rule = RULE_PAYMENT_MIRROR_BANK_DATE_ONLY_V1
+                score = 4500
+            else:
+                rule = RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1
+                score = 4480
+        # Cross-account (or rare non-same-biz-day) short-window autos:
         elif exact and dt <= PAYMENT_MIRROR_STRONG_SECONDS and text_or_card:
             status = RelationStatus.ACCEPTED.value
             conf = CONFIDENCE_STRONG
             rule = RULE_PAYMENT_MIRROR_STRONG_V1
             score = 4000 - dt
-        elif (
-            exact
-            and same_account
-            and dt <= PAYMENT_MIRROR_SHORT_WINDOW_SECONDS
-        ):
-            # Same-account exact within 60s; text optional. Do not require lag direction —
-            # 1s clock skew (bank 1s before platform) was falsely demoting true mirrors.
-            status = RelationStatus.ACCEPTED.value
-            conf = CONFIDENCE_STRONG
-            rule = RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1
-            score = 3000 - dt
         elif (
             exact
             and text_or_card
@@ -1186,7 +1168,6 @@ def evaluate_payment_mirror(
     _NEAREST_OK = frozenset({
         RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1,
         RULE_PAYMENT_MIRROR_BANK_DATE_ONLY_V1,
-        RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1,
         RULE_PAYMENT_MIRROR_REFUND_DUAL_SOURCE_V1,
     })
     if status == RelationStatus.ACCEPTED.value and len(strong_accepts) != 1:
@@ -1630,7 +1611,7 @@ def match_withdraw_receipt_to_bank(
                 time_delta_seconds=_time_delta_seconds(rec.occurred_at, bank.occurred_at),
                 same_currency=True,
                 source_pair=(rec.bill_source or rec.source, bank.bill_source or bank.source),
-                rule_id=RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1,
+                rule_id="payment_mirror.withdraw_dual_source.v1",
                 candidate_count=1,
                 signals=("withdraw_dual_source", "exact_amount", "same_account", "platform_bank"),
             )

@@ -91,3 +91,16 @@ Phase D: diamond_via_platform then merchant_or_order open-leg
 **Removed dead code:** texts_cross_match, fact_has_active_refund_offset,
 RULE_PAYMENT_MIRROR_SAME_DAY_UNIQUE alias, create_import_refund_offsets,
 unreachable same-account lag pending branches (subsumed by FR-056).
+
+## Decision 21: Rule subsumption convergence
+
+**Mirror**:
+- `bank_date_only` ⊂ `same_account.exact.business_day` (same match; date-only only chooses rule_id label).
+- `same_account.exact2.lag60` ⊂ `same_account.exact.business_day` when same calendar/business day (normal for personal bills); removed as separate accept branch.
+- Keep: time10+text, short_window+text (cross-account), weak residual.
+
+**Transfer**:
+- `unionpay.same_day` not fully ⊂ `time_window` (covers same-day beyond 10s with unionpay tokens only).
+- `withdraw_to_bank` not ⊂ general transfer (platform withdraw semantics).
+
+**Refund**: diamond vs merchant_or_order are complementary, not nested.

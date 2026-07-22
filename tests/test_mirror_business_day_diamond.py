@@ -146,10 +146,7 @@ def test_same_account_exact_business_day_without_text():
     prop = evaluate_payment_mirror(plat, [bank])
     assert prop is not None
     assert prop.status == RelationStatus.ACCEPTED.value
-    assert prop.rule_id in (
-        RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1,
-        "payment_mirror.platform_bank.same_account.exact2.lag60.v3",
-    )
+    assert prop.rule_id == RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1
 
 
 def test_same_account_accepts_when_bank_one_second_before_platform():
