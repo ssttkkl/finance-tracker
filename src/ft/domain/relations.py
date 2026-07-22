@@ -112,7 +112,9 @@ BANK_CHANNEL_SOURCES = frozenset({
 })
 TRANSFER_SIGNAL_TOKENS = (
     "转账", "转出", "转入", "调拨", "内部转", "汇款", "汇入", "汇出",
-    "transfer", "银联", "无卡付", "电子汇入", "转账支取", "转账存入",
+    "transfer", "无卡付", "无卡支付", "电子汇入", "转账支取", "转账存入",
+    # UnionPay compounds only — bare「银联」matches refund rails like「中国银联无卡…退货」.
+    "银联入账", "银联转账", "云闪付",
     # 007 Phase C: withdraw / brokerage (real-bill strong paths)
     "提现", "实时提现", "零钱提现", "提现已到账", "支付机构提现",
     "银转证", "证转银", "银行转证券", "证券转银行",
@@ -744,10 +746,46 @@ def is_refund_excluded_leg(text: str) -> bool:
 
 
 def has_unionpay_pair_signals(text_a: str, text_b: str) -> bool:
+    """Strong bank↔bank unionpay bridge (云闪付/无卡 + 银联入账).
+
+    Bare「银联」is allowed here only as part of a *pair* gate (both legs must also
+    show nocard/云闪付-class tokens). Generic transfer_signal must not use bare 银联.
+    """
     combo = _text_blob(text_a) + " " + _text_blob(text_b)
-    has_union = "银联" in combo or "电子汇入" in combo
-    has_nocard = "无卡付" in combo or "转账支取" in combo
+    has_union = any(
+        tok in combo
+        for tok in ("银联入账", "银联转账", "电子汇入", "银联")
+    )
+    has_nocard = any(
+        tok in combo
+        for tok in ("无卡付", "无卡支付", "无卡自助", "云闪付", "转账支取")
+    )
     return has_union and has_nocard
+
+
+def transfer_same_business_day(seed: "FactView", cand: "FactView") -> bool:
+    """Day equality for transfer: prefer raw export business day when date-only bank legs exist.
+
+    Mirrors payment_mirror FR-052/053: CCB date-only rows formalize to 16:00 UTC, which
+    inflates clock Δt vs ICBC full timestamps. Raw ``date`` (YYYY-MM-DD) is authoritative.
+    """
+    if fact_is_bank_date_only(seed) or fact_is_bank_date_only(cand):
+        return same_business_day_shanghai(seed, cand)
+    # Both have clocks: formal calendar day OR raw business day (timezone-safe)
+    if _same_calendar_day(seed.occurred_at, cand.occurred_at):
+        return True
+    return same_business_day_shanghai(seed, cand)
+
+
+def transfer_clock_delta_seconds(seed: "FactView", cand: "FactView") -> int:
+    """Clock Δt; when either leg is bank date-only, return 0 if same business day else formal Δt.
+
+    Date-only exports have no trustworthy clock — do not use formal 16:00 sentinel as time.
+    """
+    if fact_is_bank_date_only(seed) or fact_is_bank_date_only(cand):
+        if same_business_day_shanghai(seed, cand):
+            return 0
+    return _time_delta_seconds(seed.occurred_at, cand.occurred_at)
 
 
 @dataclass(frozen=True)
@@ -1286,8 +1324,9 @@ def evaluate_transfer_pair(
         abs_seed, abs_cand = _abs_decimal(seed_amount), _abs_decimal(cand_amount)
         amount_delta = abs_seed - abs_cand if same_currency else Decimal("0")
         exact = same_currency and amount_delta == 0
-        dt = _time_delta_seconds(seed.occurred_at, cand.occurred_at)
-        same_day = _same_calendar_day(seed.occurred_at, cand.occurred_at)
+        # Prefer raw business day + ignore fake 16:00 clock when bank date-only (CCB etc.)
+        dt = transfer_clock_delta_seconds(seed, cand)
+        same_day = transfer_same_business_day(seed, cand)
         cand_text = cand.text
         combined = seed_text + " " + cand_text
         transfer_signal = has_transfer_signal(combined) or has_unionpay_pair_signals(seed_text, cand_text)
@@ -1358,6 +1397,8 @@ def evaluate_transfer_pair(
         elif same_currency and exact and dt <= TRANSFER_PAIR_STRONG_SECONDS and transfer_signal:
             status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_TRANSFER_PAIR_STRONG_V1
         elif same_currency and exact and same_day and has_unionpay_pair_signals(seed_text, cand_text):
+            # Same business day (raw day when date-only) + unionpay/云闪付 bridge → auto.
+            # date-only bank legs use transfer_clock_delta_seconds → 0, not formal 16:00 Δt.
             status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_TRANSFER_PAIR_UNIONPAY_V1
         elif same_currency and exact and transfer_signal and TRANSFER_PAIR_STRONG_SECONDS < dt <= TRANSFER_PENDING_OUTER:
             # Signal+exact beyond 10s up to 5min → pending (not silent).

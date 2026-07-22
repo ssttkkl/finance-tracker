@@ -356,7 +356,7 @@
   13. **main 汲取纪律**：冲突项永不汲取；「银行仅通道名」不是假阳性；跨账户假镜像永不汲取。
 - **FR-016a**: 多账户模型下镜像腿 MUST 映射到同一 `account_id`（通常为扣款卡账户）；卡尾/别名/文本交叉用于**同账户**候选排序与证据，不得用于跨账户 mirror。
 - **FR-016b**: Review Inbox 对 **同账户** mirror 以高召回为目标；精确过滤交给人工 accept/reject。跨账户镜像不得进入 inbox。
-- **FR-017**: 内部转账匹配信号 MUST 参考 main 分支 reconcile 转账语义：一正一负、不同账户、同币种绝对金额严格相等、有效时间接近、转账强信号词（如转账支取/存入、银联入账、手机银行、提现等）；并支持同日银联现金类已验证规则族。同币种强匹配 auto-accept 时间窗为有效时间差 ≤10 秒且候选唯一；同日宽窗口 auto-accept 仅允许“银联入账/电子汇入 ↔ 无卡付/转账支取”强信号组合且候选唯一。同币种两侧任意非零金额差额 MUST NOT auto-accept，但 MAY 以精确 `amount_delta` 证据进入 pending；不得把差额舍入、吸收或隐式解释为手续费。当转账/还款合法对侧 ≥2 或不唯一时，MUST 落 1 条开放单腿 pending（锚点由信号规则决定），而非 N 条双边 pending；唯一近强对侧 MAY 双边 pending。
+- **FR-017**: 内部转账匹配信号 MUST 参考 main 分支 reconcile 转账语义：一正一负、不同账户、同币种绝对金额严格相等、有效时间接近、转账强信号词（如转账支取/存入、银联入账、手机银行、提现等）；并支持同日银联现金类已验证规则族。同币种强匹配 auto-accept 时间窗为有效时间差 ≤10 秒且候选唯一；同日宽窗口 auto-accept 仅允许“银联入账/电子汇入 ↔ 无卡付/**无卡支付**/云闪付/转账支取”强信号组合且候选唯一。**当任一侧为银行 date-only 导出**（raw_payload `date` 为 `YYYY-MM-DD`，无真实钟点；formal 常落 16:00 UTC）时，MUST 回退用 **raw 业务日**（与 payment_mirror FR-052/053 同一 `business_day_shanghai` / `fact_is_bank_date_only`）判定同日，且 MUST NOT 用 formal 16:00 哨兵时刻计算 Δt 来否决同日银联桥；同业务日 + 等额 + 银联/转账强信号 + 唯一候选 → MAY auto-accept。同币种两侧任意非零金额差额 MUST NOT auto-accept，但 MAY 以精确 `amount_delta` 证据进入 pending；不得把差额舍入、吸收或隐式解释为手续费。当转账/还款合法对侧 ≥2 或不唯一时，MUST 落 1 条开放单腿 pending（锚点由信号规则决定），而非 N 条双边 pending；唯一近强对侧 MAY 双边 pending。
 - **FR-018**: 信用还款匹配 MUST 覆盖 cash→loan 同币种与跨币种（含购汇还款）形态。信用还款以 `transfer_pair` subtype（如 `credit_repayment`）表达；用户可见语义与报表影响 MUST 可区分普通内部转账与信用还款。
   1. **同币种**：auto-accept 要求绝对金额严格相等、有效时间差 ≤600 秒、还款相关文本信号、候选唯一。
   2. **跨币种 / 购汇还款**：

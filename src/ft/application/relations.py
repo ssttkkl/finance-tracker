@@ -831,6 +831,25 @@ class RelationService:
                 RelationStatus.REJECTED.value,
                 RelationStatus.PENDING_REVIEW.value,
             }:
+                # System bilateral pending may be upgraded when rules now auto-accept
+                # (e.g. bank date-only day bridge after raw business-day fix).
+                if (
+                    existing["status"] == RelationStatus.PENDING_REVIEW.value
+                    and existing.get("created_by") == "system"
+                    and not existing.get("decided_by")
+                    and not is_open_leg_relation(existing)
+                    and proposal.status == RelationStatus.ACCEPTED.value
+                    and not open_leg
+                    and proposal.secondary_fact_id not in (None, "")
+                ):
+                    evidence = proposal.evidence.to_json()
+                    evidence["open_leg"] = False
+                    return uow.relations.update_status(
+                        existing["id"],
+                        status=RelationStatus.ACCEPTED.value,
+                        decided_by="system",
+                        decision_reason=f"auto_upgrade:{proposal.rule_id}",
+                    )
                 return existing
             return None
 

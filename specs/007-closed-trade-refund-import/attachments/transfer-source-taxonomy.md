@@ -185,6 +185,23 @@ Real ICBC pattern: debit `购汇还款` −CNY (cash) then within ~1–3s credit
 ### Stop criteria
 Do not further broaden transfer signals into P2P/QR/consume; do not auto credit_repayment without loan/credit in-leg; do not auto FX multi-candidate without market-rate uniqueness.
 
+### Transfer signal tokens (Stage-2 generic)
+
+**ALLOW (substring)**: 转账/转出/转入/调拨/汇款/汇入/汇出, 无卡付/**无卡支付**, 电子汇入, 转账支取/转账存入, **银联入账/银联转账/云闪付**, 提现族, 银转证/证转银, 转出到银行卡/转账到银行卡.
+
+**MUST NOT use bare「银联」** as a generic transfer_signal — it matches refund rails like「中国银联无卡快捷支付业务专户」+「退货」and floods false transfer_pair pending. UnionPay bridge auto still uses `has_unionpay_pair_signals` (银联*compound* or 银联 **and** 无卡/云闪付 on the *combined* pair).
+
+### Bank date-only day (CCB) for transfer_pair
+CCB (and similar) exports often have **date only** in raw `date` (`YYYY-MM-DD`); formal `occurred_at` may be `16:00:00` UTC. ICBC has full local datetime in raw.
+
+| Step | Rule |
+|---|---|
+| Detect | `fact_is_bank_date_only` when raw `date` is len-10 `YYYY-MM-DD` (same as payment_mirror FR-053). |
+| Same day | Use `business_day_shanghai` from raw (not formal UTC calendar alone). |
+| Clock Δt | If either leg date-only and same business day → treat Δt as **0** for auto thresholds (do not use 16:00 sentinel). |
+| Auto | Same business day + exact amount + (`银联`/`银联入账` + `无卡支付`/`无卡付`/`云闪付`/`转账支取`) unique → `transfer_pair.unionpay.same_day.v1` accepted. |
+| Example | ICBC −5000 云闪付 `raw date=2024-05-06 01:48:03` ↔ CCB +5000 银联入账 `raw date=2024-05-06` → auto despite formal clocks 17:48 vs 16:00 previous UTC day. |
+
 
 ## WeChat withdraw: correct account model
 
