@@ -445,15 +445,26 @@ def _business_raw_date_string(fact: "FactView") -> str:
 
 
 def is_date_only_business_string(text: str) -> bool:
+    """True for export dates with no real clock time.
+
+    FR-052/053: raw ``YYYY-MM-DD`` (len 10) or ``YYYYMMDD`` is date-only.
+    Full datetimes (len > 10 with time) are not date-only.
+    """
     s = str(text or "").strip()
     if not s:
         return False
-    # YYYY-MM-DD or YYYYMMDD only
-    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
+    # Explicit: length-10 ISO date always date-only
+    if len(s) == 10 and re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
         return True
     if re.fullmatch(r"\d{8}", s):
         return True
-    # datetime with midnight sentinel in Shanghai display often 16:00:00 UTC
+    # Date prefix + midnight-only time (no meaningful clock) still date-only
+    m = re.fullmatch(
+        r"(\d{4}-\d{2}-\d{2})[ T](00:00:00|00:00)(?:\.0+)?(?:Z|[+-]\d{2}:?\d{2})?",
+        s,
+    )
+    if m:
+        return True
     return False
 
 
@@ -491,17 +502,31 @@ def business_day_shanghai(fact: "FactView") -> date | None:
 
 
 def fact_is_bank_date_only(fact: "FactView") -> bool:
-    """True when source export has date-only business day (CCB etc.)."""
+    """True when the bank export business date has no clock time (FR-053).
+
+    Priority:
+    1. raw_payload ``date`` (or 交易日期/记账日期) — if YYYY-MM-DD (len 10) → True
+    2. raw_payload without time → True
+    3. Do **not** require occurred_at 16:00 fallback when raw date-only is present
+    4. Fallback only when raw missing: bank source + formal sentinel 16:00/00:00
+    """
     payload = fact.raw_payload if isinstance(getattr(fact, "raw_payload", None), dict) else {}
     raw = ""
     if payload:
-        for key in ("date", "occurred_at"):
+        # Prefer pure business date keys first (not formalized occurred_at)
+        for key in ("date", "交易日期", "记账日期", "occurred_at"):
             if payload.get(key) not in (None, ""):
                 raw = str(payload.get(key)).strip()
                 break
-    if raw and is_date_only_business_string(raw):
-        return True
-    # Fallback: formal occurred_at is UTC midnight / 16:00 Shanghai sentinel AND bank source
+    if raw:
+        # len-10 YYYY-MM-DD is always date-only (user requirement)
+        if len(raw) == 10 and re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+            return True
+        if is_date_only_business_string(raw):
+            return True
+        # raw has real clock time → not date-only
+        return False
+    # Fallback: no raw date — bank formal UTC-midnight / 16:00 Shanghai sentinel
     if source_group(fact) != "bank":
         return False
     s = str(fact.occurred_at or "")

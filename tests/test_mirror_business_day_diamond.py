@@ -100,3 +100,29 @@ def test_diamond_refund():
     assert props[0].status == RelationStatus.ACCEPTED.value
     assert props[0].primary_fact_id == bank_pay.id
     assert props[0].secondary_fact_id == bank_ref.id
+
+
+def test_fact_is_bank_date_only_yyyy_mm_dd_len10():
+    """raw date length 10 YYYY-MM-DD is always date-only (no 16:00 fallback needed)."""
+    from ft.domain.relations import fact_is_bank_date_only, is_date_only_business_string
+    assert is_date_only_business_string("2024-09-07") is True
+    assert len("2024-09-07") == 10
+    bank = _fv(
+        "b", -8, account="ccb", bill_source="ccb_debit",
+        description="消费",
+        # formal occurred_at deliberately wrong day (UTC skew) — raw wins
+        occurred=datetime(2024, 9, 6, 16, 0, 0, tzinfo=timezone.utc),
+        raw_date="2024-09-07",
+    )
+    assert fact_is_bank_date_only(bank) is True
+
+
+def test_fact_is_bank_date_only_false_for_full_datetime_raw():
+    from ft.domain.relations import fact_is_bank_date_only
+    bank = _fv(
+        "b", -8, account="icbc", bill_source="icbc_debit",
+        description="消费",
+        occurred=datetime(2024, 9, 7, 4, 25, 44, tzinfo=timezone.utc),
+        raw_date="2024-09-07 12:25:44",
+    )
+    assert fact_is_bank_date_only(bank) is False
