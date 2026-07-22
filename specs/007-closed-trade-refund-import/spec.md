@@ -290,6 +290,7 @@
 - **SC-022b**: 微信提现在微信零钱、银行在借记卡（异账户）且等额同日时，Phase C MUST `withdraw_to_bank` accepted。  
 - **SC-027**: 建行 date-only 与平台同账户等额同业务日消费镜像，check 后 accepted（`bank_date_only`），不依赖 occurred_at 秒差。  
 - **SC-028**: 平台退款入账与银行消费退货等额同业务日 → accepted `refund_dual_source` mirror。  
+- **SC-030**: 同账户等额同业务日 platform×bank（含银行仅「消费」、Δt≈1s、无文本交叉）check 后 accepted，不得仅因此落 `near.weak`。  
 - **SC-029**: 完整菱形链唯一时，银行退货 open-leg 可升格为 accepted `diamond_via_platform`。  
 - **SC-026**: `余额宝-转出到银行卡` / `余利宝-转出到银行卡` 导入后账户为余额宝/余利宝且 amount<0；不得 mapping 到网商储蓄卡并记正数。  
 - **SC-025**: 微信零钱提现导入后账户为微信零钱且 amount<0；同笔建行银联入账在建行账户 amount>0；Phase C 后存在 connecting `transfer_pair`（当银行侧存在时）。  
@@ -308,6 +309,7 @@
 - **FR-052**: 关系匹配 MUST 从 `raw_payload.date`（或等价）解析 **业务时间**；时区 **Asia/Shanghai**。date-only（`YYYY-MM-DD` 或无时分）MUST 仅比较业务日，MUST NOT 依赖 UTC 哨兵 `16:00:00` 的秒差。  
 - **FR-053**: **Bank date-only mirror**（`payment_mirror.bank_date_only.v1`）：platform×bank、等额、同 `account_id`、同号、银行业务日 date-only、与平台 **同一上海业务日**、全局 1–1 → **accepted**。不得仅因 `platform_after_bank`/大 Δt 降 pending。  
 - **FR-054**: **Refund dual-source mirror**（`payment_mirror.refund_dual_source.v1`）：双方金额同号为正、一侧平台退款文案、一侧银行消费退货/退款、等额、同账户或同业务日、1–1 → **accepted**。  
+- **FR-056**: **Same-account business-day mirror**（`payment_mirror.same_account.exact.business_day.v1`）：platform×bank、等额、同号、同 `account_id`、同一上海业务日（raw）、全局 1–1 → **accepted**。**不要求** 文本交叉/卡尾；**不要求** bank lag ≥ 0。覆盖银行摘要仅「消费」、与平台秒级对齐却无文本的真镜像。  
 - **FR-055**: **Diamond refund**（`refund_offset.diamond_via_platform.v1`，Phase D）：对银行退款腿，若存在唯一链 bank_ref↔plat_ref（mirror）+ plat_ref↔plat_pay（accepted refund_offset）+ plat_pay↔bank_pay（mirror）→ 写 bank_pay–bank_ref `refund_offset` accepted；仅用 accepted 平台退款边；弱 mirror 不得单独支撑菱形角；多 bank_pay → 仍 open-leg。
 
 

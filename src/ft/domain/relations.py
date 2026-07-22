@@ -71,6 +71,9 @@ RULE_PAYMENT_MIRROR_SHORT_WINDOW_TEXT_V1 = (
 )
 RULE_PAYMENT_MIRROR_WEAK_V1 = "payment_mirror.platform_bank.near.weak.v2"
 RULE_PAYMENT_MIRROR_BANK_DATE_ONLY_V1 = "payment_mirror.bank_date_only.v1"
+RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1 = (
+    "payment_mirror.same_account.exact.business_day.v1"
+)
 RULE_PAYMENT_MIRROR_REFUND_DUAL_SOURCE_V1 = "payment_mirror.refund_dual_source.v1"
 RULE_REFUND_DIAMOND_V1 = "refund_offset.diamond_via_platform.v1"
 WORKSPACE_TZ = ZoneInfo("Asia/Shanghai")
@@ -1075,6 +1078,13 @@ def evaluate_payment_mirror(
             conf = CONFIDENCE_STRONG
             rule = RULE_PAYMENT_MIRROR_BANK_DATE_ONLY_V1
             score = 4500
+        # FR-056: same-account exact same business day (raw Asia/Shanghai) → accepted
+        # Covers second-level bank×platform mirrors without text cross (bank "消费").
+        elif exact and same_account and biz_same_day:
+            status = RelationStatus.ACCEPTED.value
+            conf = CONFIDENCE_STRONG
+            rule = RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1
+            score = 4480
         elif exact and dt <= PAYMENT_MIRROR_STRONG_SECONDS and text_or_card:
             status = RelationStatus.ACCEPTED.value
             conf = CONFIDENCE_STRONG
@@ -1083,14 +1093,14 @@ def evaluate_payment_mirror(
         elif (
             exact
             and same_account
-            and platform_not_after_bank
-            and lag_bank_minus_platform <= PAYMENT_MIRROR_SHORT_WINDOW_SECONDS
+            and dt <= PAYMENT_MIRROR_SHORT_WINDOW_SECONDS
         ):
-            # Same-account exact-2 short window; text optional (bank channel summary).
+            # Same-account exact within 60s; text optional. Do not require lag direction —
+            # 1s clock skew (bank 1s before platform) was falsely demoting true mirrors.
             status = RelationStatus.ACCEPTED.value
             conf = CONFIDENCE_STRONG
             rule = RULE_PAYMENT_MIRROR_SAME_ACCOUNT_EXACT2_V1
-            score = 3000 - lag_bank_minus_platform
+            score = 3000 - dt
         elif (
             exact
             and text_or_card

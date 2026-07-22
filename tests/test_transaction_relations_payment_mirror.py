@@ -63,6 +63,7 @@ def test_payment_mirror_same_account_exact2_no_text_within_60s():
 
 
 def test_payment_mirror_same_account_long_lag_same_day_is_pending_high_recall():
+    """FR-056: same-account exact same business day auto-accepts (no text required)."""
     seed = _fv(
         id="p1", amount=Decimal("-20.00"), account_id="card",
         occurred_at="2023-07-04 01:00:00", counterparty="商户A",
@@ -75,10 +76,12 @@ def test_payment_mirror_same_account_long_lag_same_day_is_pending_high_recall():
     )
     proposal = evaluate_payment_mirror(seed, [bank])
     assert proposal is not None
-    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.status == RelationStatus.ACCEPTED.value
+    assert "same_account" in proposal.rule_id or "business_day" in proposal.rule_id
 
 
 def test_payment_mirror_same_account_platform_after_bank_is_pending_not_auto():
+    """FR-056: 10s bank-before-platform skew on same account is accepted."""
     seed = _fv(
         id="p1", amount=Decimal("-20.00"), account_id="card",
         occurred_at="2023-07-04 12:00:10", counterparty="商户A",
@@ -91,7 +94,7 @@ def test_payment_mirror_same_account_platform_after_bank_is_pending_not_auto():
     )
     proposal = evaluate_payment_mirror(seed, [bank])
     assert proposal is not None
-    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.status == RelationStatus.ACCEPTED.value
 
 
 def test_payment_mirror_rejects_bank_bank():
@@ -246,6 +249,7 @@ def test_payment_mirror_persisted_via_service(relation_runtime):
 
 
 def test_payment_mirror_pending_same_account_lag_between_60s_and_5min():
+    """FR-056: same-account exact same day accepts even beyond 60s lag."""
     seed = _fv(
         id="p1", amount=Decimal("-20.00"), account_id="card",
         occurred_at="2023-07-04 01:00:00", counterparty="商户A",
@@ -258,7 +262,7 @@ def test_payment_mirror_pending_same_account_lag_between_60s_and_5min():
     )
     proposal = evaluate_payment_mirror(seed, [bank])
     assert proposal is not None
-    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.status == RelationStatus.ACCEPTED.value
 
 
 def test_payment_mirror_pending_platform_slightly_after_bank_same_account():
@@ -274,7 +278,7 @@ def test_payment_mirror_pending_platform_slightly_after_bank_same_account():
     )
     proposal = evaluate_payment_mirror(seed, [bank])
     assert proposal is not None
-    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.status == RelationStatus.ACCEPTED.value
 
 
 def test_payment_mirror_pending_text_outside_60s_within_5min():
@@ -294,7 +298,7 @@ def test_payment_mirror_pending_text_outside_60s_within_5min():
 
 
 def test_payment_mirror_pending_same_account_same_day_long_lag_high_recall():
-    """Main exact-2 day key beyond 5min → pending, not silent."""
+    """FR-056: same-account exact same business day accepts long lag (no text)."""
     seed = _fv(
         id="p1", amount=Decimal("-40.00"), account_id="card",
         occurred_at="2023-07-27 01:00:00", counterparty="北京市自来水集团有限责任公司",
@@ -307,7 +311,7 @@ def test_payment_mirror_pending_same_account_same_day_long_lag_high_recall():
     )
     proposal = evaluate_payment_mirror(seed, [bank])
     assert proposal is not None
-    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.status == RelationStatus.ACCEPTED.value
 
 
 def test_payment_mirror_pending_text_same_day_beyond_5min_high_recall():

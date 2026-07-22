@@ -126,3 +126,46 @@ def test_fact_is_bank_date_only_false_for_full_datetime_raw():
         raw_date="2024-09-07 12:25:44",
     )
     assert fact_is_bank_date_only(bank) is False
+
+
+def test_same_account_exact_business_day_without_text():
+    """Bank '消费' vs wechat QR — 1s apart, same account, no text cross → accepted."""
+    from ft.domain.relations import RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1
+    bank = _fv(
+        "b", -17, account="icbc", bill_source="icbc_debit",
+        description="消费", counterparty="财付通",
+        occurred=datetime(2023, 6, 13, 9, 25, 13, tzinfo=timezone.utc),
+        raw_date="2023-06-13 17:25:13",
+    )
+    plat = _fv(
+        "p", -17, account="icbc", bill_source="wechat",
+        description="收款方备注:二维码收款", counterparty="店",
+        occurred=datetime(2023, 6, 13, 9, 25, 14, tzinfo=timezone.utc),
+        raw_date="2023-06-13 17:25:14",
+    )
+    prop = evaluate_payment_mirror(plat, [bank])
+    assert prop is not None
+    assert prop.status == RelationStatus.ACCEPTED.value
+    assert prop.rule_id in (
+        RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1,
+        "payment_mirror.platform_bank.same_account.exact2.lag60.v3",
+    )
+
+
+def test_same_account_accepts_when_bank_one_second_before_platform():
+    """platform_not_after_bank must not block 1s bank-before-platform skew."""
+    bank = _fv(
+        "b", -32, account="icbc", bill_source="icbc_debit",
+        description="消费",
+        occurred=datetime(2023, 6, 13, 13, 46, 2, tzinfo=timezone.utc),
+        raw_date="2023-06-13 21:46:02",
+    )
+    plat = _fv(
+        "p", -32, account="icbc", bill_source="wechat",
+        description="微信红包（单发）",
+        occurred=datetime(2023, 6, 13, 13, 46, 3, tzinfo=timezone.utc),
+        raw_date="2023-06-13 21:46:03",
+    )
+    prop = evaluate_payment_mirror(plat, [bank])
+    assert prop is not None
+    assert prop.status == RelationStatus.ACCEPTED.value
