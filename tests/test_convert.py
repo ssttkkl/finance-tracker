@@ -443,6 +443,7 @@ class TestWechatCategory:
         assert records[0]["amount"] == 30.0
 
     def test_零钱提现_中性_银行卡入账(self):
+        """零钱提现 = 微信零钱出账；到账卡仅作证据，mapping 用「零钱」。"""
         path = str(TEST_DIR / "wechat_wallet_withdrawal.xlsx")
         _make_wechat_xlsx([
             ["2025-08-17 23:54:28", "建设银行(2820)", "/", "/", "2100.00", "建设银行储蓄卡(2820)", "提现已到账", "零钱提现"],
@@ -450,9 +451,11 @@ class TestWechatCategory:
         from ft.convert import _read_wechat_raw
         records, _ = _read_wechat_raw(path)
         assert len(records) == 1
-        assert records[0]["category"] == "income"
-        assert records[0]["amount"] == 2100.0
-        assert records[0]["payment_method"] == "建设银行储蓄卡(2820)"
+        assert records[0]["category"] == "expense"
+        assert records[0]["amount"] == -2100.0
+        assert records[0]["payment_method"] == "零钱"
+        # destination card retained for evidence
+        assert "建设银行" in str(records[0].get("counterparty") or "")
 
     def test_零钱充值_中性_付款账户流出(self):
         path = str(TEST_DIR / "wechat_wallet_recharge.xlsx")

@@ -171,7 +171,19 @@ Phase order: A refund → B mirror → **C transfer** → D bank refund / weak
 Do not further broaden transfer signals into P2P/QR/consume; do not auto credit_repayment without loan/credit in-leg.
 
 
-## WeChat withdraw: same-account dual-source (audit)
+## WeChat withdraw: correct account model
+
+**Product**: 零钱提现 = **微信零钱 → 银行卡** transfer.
+
+| Leg | Account | Sign | Source |
+|---|---|---|---|
+| Out | 微信零钱 | − | wechat `零钱提现` / `提现已到账` |
+| In | 建行/工行… | + | bank `银联入账` / `支付机构提现` |
+
+Convert MUST set amount negative and mapping key `零钱` (not destination card payment_method).
+
+~~## WeChat withdraw: same-account dual-source (audit)~~ (obsolete wrong mapping)
+
 
 When mapping routes 零钱提现 → 建行储蓄卡, the WeChat row is a **bank credit fact** with `bill_source=wechat`.
 CCB XLS may add a second credit `银联入账`/`支付机构提现` on the **same account_id**.

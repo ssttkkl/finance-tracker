@@ -63,7 +63,14 @@
 
 
 
+### Session 2026-07-22 — 微信零钱提现账户语义（产品更正）
+
+- Q: 微信「零钱提现」应记到哪个账户？ → A: **微信零钱（出账）**，金额为**负**（asset leave 零钱）。到账卡写在 counterparty/证据中；**MUST NOT** 因支付方式=建设银行储蓄卡而 mapping 到建行并记 +income（那是错误的「银行双记」）。  
+- Q: 与银行「银联入账」如何配对？ → A: **异账户** `transfer_pair.withdraw_to_bank`：微信零钱 −A ↔ 建行 +A（等额+同日/短窗）。  
+- Q: 旧 dual-source same-account mirror？ → A: 在错误 mapping 下的补丁；正确 mapping 后主路径为 transfer，不再依赖同账户双源 mirror 作为正确模型（实现可保留作兼容，但新导入不应产生同账户双 +A）。
+
 ### Session 2026-07-22 — 转账 Phase C 审计后收紧（真实全量导入）
+
 
 - Q: 审计发现？ → A: 支付宝提现→工行 **6/6** accepted；建行跨卡/借记还信用卡多组正确；**微信零钱提现 4/4 未挂上**；**credit_repayment pending 噪声**（京东「还款」摘要、月付出腿配到无关小额入账/退款）。  
 - Q: 微信提现如何修？ → A: **先分账户语义**。若 mapping 把微信「零钱提现/提现已到账」落到**银行账户**（本库建行），与 CCB「银联入账/支付机构提现」为**同账户双源入账** → MUST 走 **payment_mirror（同号）** 或幂等去重，**不是** transfer_pair（transfer 要求不同 account_id）。若微信事实在微信零钱、银行在建行（异账户）→ Phase C `withdraw_to_bank` 等额+同日。审计：4 笔微信提现均 mapping 到建行，其中 2100 与 CCB 银联入账同账户差约 1 日；其余 3 笔库内无第二条银行第二事实。  
@@ -227,6 +234,10 @@
   (a) 与银行提现入账 **不同 account_id** → Phase C `withdraw_to_bank`（等额+同日/≤60s）；  
   (b) **同一 account_id**（mapping 到银行卡）且存在 CCB/ICBC 银联入账/支付机构提现同额 → Phase B **payment_mirror** 同号配对，允许相邻日/≤36h；  
   (c) 仅单侧事实 → 不强制建边。  
+- **FR-050**: 微信 `txn_type=零钱提现`（及状态提现已到账）MUST：  
+  1. 正式事实金额为**负**（expense），账户为**微信零钱**（或 mapping `零钱`）；  
+  2. 到账银行卡信息保留在 counterparty/payload，**不得**用支付方式列覆盖为银行账户入账；  
+  3. 与银行侧等额入账（银联入账/支付机构提现等）在 Phase C 建 `transfer_pair`（不同 account_id）。  
 - **FR-049**: 建行 summary 仅为「还款」且 counterparty 呈商户消费态 MUST NOT 进入 credit_repayment auto；微信信用卡还款 MUST NOT 配非还款入账。
 
 #### F. 精度与双后端
@@ -271,6 +282,7 @@
 - **SC-021**: 银行「消费退货」关系若产生，MUST 不早于 Phase C 完成（属 Phase D）。  
 - **SC-022**: 微信提现 mapping 到银行账户且存在第二源同额银联入账时，MUST 以 **payment_mirror**（或显式同账户双源规则）关联，而非错误要求异账户 transfer。  
 - **SC-022b**: 微信提现在微信零钱、银行在借记卡（异账户）且等额同日时，Phase C MUST `withdraw_to_bank` accepted。  
+- **SC-025**: 微信零钱提现导入后账户为微信零钱且 amount<0；同笔建行银联入账在建行账户 amount>0；Phase C 后存在 connecting `transfer_pair`（当银行侧存在时）。  
 - **SC-023**: 建行 summary「还款」+ 商户名（如京东）MUST NOT 产生 accepted `credit_repayment` 到无关小额入账；微信「信用卡还款」MUST NOT 配到非还款入账（如酒店退款/消费退回）。  
   
 

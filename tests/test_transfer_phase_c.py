@@ -213,3 +213,27 @@ def test_credit_repayment_requires_exact_same_currency():
         occurred="2025-10-05 05:12:35",
     )
     assert evaluate_transfer_pair(out, [inc]) is None
+
+
+def test_wechat_withdraw_expense_to_bank_transfer():
+    """Correct model: 微信零钱 -A ↔ 建行 +A."""
+    out = _fv(
+        "w1",
+        "-2100.00",
+        account="wechat_change",
+        text="零钱提现 建设银行储蓄卡(2820)",
+        bill_source="wechat",
+        occurred="2025-08-17 15:54:28",
+    )
+    bank = _fv(
+        "c1",
+        "2100.00",
+        account="ccb2820",
+        text="微信零钱提现 银联入账",
+        bill_source="ccb_debit",
+        occurred="2025-08-16 16:00:00",
+    )
+    prop = evaluate_transfer_pair(out, [bank])
+    assert prop is not None
+    assert prop.status == RelationStatus.ACCEPTED.value
+    assert prop.rule_id == RULE_TRANSFER_WITHDRAW_V1

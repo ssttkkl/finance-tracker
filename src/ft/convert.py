@@ -1256,8 +1256,15 @@ def _read_wechat_raw(path: str):
         elif txn_type in ("零钱提现", "充值", "零钱充值", "零钱通存取", "理财通", "购买理财通", "信用卡还款"):
             # 微信中性交易（收/支="/"）金额列始终为正，不能按金额正负判断方向，必须按交易类型语义判断。
             if txn_type == "零钱提现":
-                # 从微信零钱提现到银行卡：当前记录落在到账银行卡/支付方式账户，记入账。
-                category = "income"
+                # 零钱 → 银行卡：本行是微信零钱出账（expense）。
+                # 支付方式列是到账卡，仅作证据；mapping 用「零钱」落到微信零钱。
+                # 银行卡入账由银行账单表达，再以 transfer_pair 配对。
+                amount = -amount
+                category = "expense"
+                # Preserve destination card in counterparty if empty; force routing key.
+                if payment_method and (not counterparty or counterparty in ("/", "-")):
+                    counterparty = payment_method
+                payment_method = "零钱"
             elif txn_type in ("充值", "零钱充值", "购买理财通", "信用卡还款"):
                 # 银行卡/零钱流出到微信零钱、理财通或信用卡还款。
                 amount = -amount

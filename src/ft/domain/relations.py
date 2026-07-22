@@ -518,7 +518,9 @@ def is_withdraw_platform_out(fact: "FactView") -> bool:
 
 
 def is_withdraw_platform_receipt(fact: "FactView") -> bool:
-    """WeChat 提现已到账 / 零钱提现 receipt (often positive amount)."""
+    """Legacy: positive wechat withdraw rows (wrong mapping era). Prefer is_withdraw_platform_out."""
+    if fact.signed_amount <= 0:
+        return False
     blob = _text_blob(fact.text, fact.bill_source, fact.source)
     return "提现已到账" in blob or ("零钱提现" in blob and "退款" not in blob)
 
@@ -1239,9 +1241,13 @@ def evaluate_transfer_pair(
             same_currency and exact
             and is_withdraw_platform_out(seed)
             and cand_amount > 0
-            and (dt <= 60 or same_day)
+            and (
+                dt <= 60
+                or same_day
+                or dt <= 36 * 3600  # date-only bank / timezone skew
+            )
         ):
-            # 007: alipay 提现 → bank credit (real bills 6/6 within 1s)
+            # 007: platform 提现/零钱提现 → bank credit
             status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_TRANSFER_WITHDRAW_V1
             transfer_signal = True
         elif same_currency and exact and dt <= TRANSFER_PAIR_STRONG_SECONDS and transfer_signal:
