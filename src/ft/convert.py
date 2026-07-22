@@ -1037,6 +1037,74 @@ def _pair_refunds(expenses: list, refunds: list, others: list):
     return fact_rows, tracking_pairs
 
 
+
+def _alipay_route_wealth_product(rec: dict) -> dict:
+    """Route 余额宝/余利宝 as their own accounts (not destination bank / 支付宝余额).
+
+    Product: 余额宝 and 余利宝 are book account names. Outflows from them must
+    debit that account; inflows credit it. Destination bank is evidence only.
+    """
+    desc = str(rec.get("description") or "")
+    pm = str(rec.get("payment_method") or "").strip()
+    amt = rec.get("amount")
+    try:
+        from decimal import Decimal
+        damt = Decimal(str(amt))
+    except Exception:
+        return rec
+
+    # --- Out to bank: must be expense on wealth account ---
+    if "转出到银行卡" in desc and "余额宝" in desc:
+        rec["amount"] = -abs(damt)
+        rec["category"] = "expense"
+        rec["payment_method"] = "余额宝"
+        # keep bank in counterparty if useful
+        return rec
+    if "转出到银行卡" in desc and "余利宝" in desc:
+        rec["amount"] = -abs(damt)
+        rec["category"] = "expense"
+        rec["payment_method"] = "余利宝"
+        return rec
+    if "余额宝-转出到余额" in desc:
+        rec["amount"] = -abs(damt)
+        rec["category"] = "expense"
+        rec["payment_method"] = "余额宝"
+        return rec
+
+    # --- Into 余利宝 from 支付宝余额 (source already 账户余额 expense) ---
+    if "支付宝转入到余利宝" in desc:
+        # keep source payment_method (账户余额) → 支付宝余额 debit; destination not on this row
+        return rec
+
+    # --- Into 余额宝 (单次转入): funding source is payment_method; destination 余额宝 needs + ---
+    # Single alipay row only books source. If source is 账户余额/银行卡, leave source debit.
+    # If we only have destination semantics with empty bank, force 余额宝 for 单次转入 when
+    # payment already spent on source — no change to dual-entry here.
+    if "余额宝-单次转入" in desc:
+        # Source of funds is payment_method; do not rewrite to bank as "余额宝 account"
+        # except when payment_method is already 余额宝 (reinvest).
+        return rec
+
+    # --- Income onto 余额宝 ---
+    if "收益发放" in desc and "余额宝" in desc:
+        rec["payment_method"] = "余额宝"
+        rec["amount"] = abs(damt)
+        rec["category"] = "income"
+        return rec
+    if "卖出至余额宝" in desc:
+        rec["payment_method"] = "余额宝"
+        rec["amount"] = abs(damt)
+        rec["category"] = "income"
+        return rec
+
+    # Spend paid with 余额宝: payment_method already 余额宝* — mapping to 余额宝 account
+    if pm.startswith("余额宝"):
+        rec["payment_method"] = "余额宝"
+    if pm.startswith("余利宝"):
+        rec["payment_method"] = "余利宝"
+    return rec
+
+
 def _read_alipay_raw(path: str):
     """解析支付宝CSV，不落库，返回 list[dict]"""
     from .importers.alipay import _detect_encoding
@@ -1094,16 +1162,23 @@ def _read_alipay_raw(path: str):
                 is_investment_outflow = (
                     txn_type == "投资理财"
                     and "收益发放" not in desc_for_direction
-                    and "转出到银行卡" not in desc_for_direction
-                    and any(k in desc_for_direction for k in ("转入", "买入", "单次转入"))
+                    and any(k in desc_for_direction for k in ("转入", "买入", "单次转入", "支付宝转入到余利宝"))
                 )
+                # 余额宝/余利宝转出到银行卡：平台侧出账（负），不得记成银行卡 +income
+                is_wealth_to_bank = (
+                    "转出到银行卡" in desc_for_direction
+                    and any(k in desc_for_direction for k in ("余额宝", "余利宝"))
+                )
+                is_wealth_to_balance = "余额宝-转出到余额" in desc_for_direction
                 if (
                     txn_type == "账户提现"
                     or "提现-实时提现" in desc_for_direction
                     or "转出到网商银行" in desc_for_direction
                     or is_investment_outflow
+                    or is_wealth_to_bank
+                    or is_wealth_to_balance
                 ):
-                    amount = -amount
+                    amount = -abs(amount)
                     category = "expense"
             else:
                 raise ValueError(
@@ -1150,7 +1225,7 @@ def _read_alipay_raw(path: str):
         txn_id = row[h.get("交易订单号", 9)].strip() if "交易订单号" in h else ""
         merchant_order_id = row[h.get("商家订单号", 10)].strip() if "商家订单号" in h else ""
         fact_id = f"alipay_{txn_id}" if txn_id else f"alipay_{len(raw)+1:06d}"
-        raw.append({
+        _alipay_rec = {
             "date": date_str,
             "amount": amount,
             "payment_method": payment_method,
@@ -1164,7 +1239,8 @@ def _read_alipay_raw(path: str):
             "_alipay_direction": direction,
             "_refund_signal": refund_signal,
             "_fact_id": fact_id,
-        })
+        }
+        raw.append(_alipay_route_wealth_product(_alipay_rec))
 
     # Split whitelist skips from facts (007 acceptance counters).
     skips = [r for r in raw if r.get("_skipped")]

@@ -234,6 +234,12 @@
   (a) 与银行提现入账 **不同 account_id** → Phase C `withdraw_to_bank`（等额+同日/≤60s）；  
   (b) **同一 account_id**（mapping 到银行卡）且存在 CCB/ICBC 银联入账/支付机构提现同额 → Phase B **payment_mirror** 同号配对，允许相邻日/≤36h；  
   (c) 仅单侧事实 → 不强制建边。  
+- **FR-051**: 支付宝 **余额宝**、**余利宝** MUST 作为独立账户名（mapping/accounts）。  
+  - `余额宝-转出到银行卡` / `余利宝-转出到银行卡`：正式事实 **expense 负金额**，`payment_method` 为 `余额宝`/`余利宝`（**禁止**用到账银行卡作 mapping 账户记 +income）。  
+  - `余额宝-转出到余额`：expense 自 `余额宝`。  
+  - `支付宝转入到余利宝`：expense 自资金来源（账户余额等）。  
+  - `余额宝` 收益发放 / `卖出至余额宝`：income 至 `余额宝`。  
+  - 消费以 `收/付款方式=余额宝` 支付：debit `余额宝` 账户。  
 - **FR-050**: 微信 `txn_type=零钱提现`（及状态提现已到账）MUST：  
   1. 正式事实金额为**负**（expense），账户为**微信零钱**（或 mapping `零钱`）；  
   2. 到账银行卡信息保留在 counterparty/payload，**不得**用支付方式列覆盖为银行账户入账；  
@@ -282,6 +288,7 @@
 - **SC-021**: 银行「消费退货」关系若产生，MUST 不早于 Phase C 完成（属 Phase D）。  
 - **SC-022**: 微信提现 mapping 到银行账户且存在第二源同额银联入账时，MUST 以 **payment_mirror**（或显式同账户双源规则）关联，而非错误要求异账户 transfer。  
 - **SC-022b**: 微信提现在微信零钱、银行在借记卡（异账户）且等额同日时，Phase C MUST `withdraw_to_bank` accepted。  
+- **SC-026**: `余额宝-转出到银行卡` / `余利宝-转出到银行卡` 导入后账户为余额宝/余利宝且 amount<0；不得 mapping 到网商储蓄卡并记正数。  
 - **SC-025**: 微信零钱提现导入后账户为微信零钱且 amount<0；同笔建行银联入账在建行账户 amount>0；Phase C 后存在 connecting `transfer_pair`（当银行侧存在时）。  
 - **SC-023**: 建行 summary「还款」+ 商户名（如京东）MUST NOT 产生 accepted `credit_repayment` 到无关小额入账；微信「信用卡还款」MUST NOT 配到非还款入账（如酒店退款/消费退回）。  
   
