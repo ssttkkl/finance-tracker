@@ -46,3 +46,13 @@ T110–T117 before T120–T125; T130 after implementation.
 - [x] T144 Implement taxonomy tags + withdraw/card-bridge rules in evaluate or phase_c helper
 - [x] T145 Wire check: A → B → C transfer → D refund weak
 - [x] T146 Push
+
+## Phase 5b — Transfer exclude tiers (strong P2P vs soft platform transfer)
+
+- [x] T147 Test: `闲鱼转账` is strong exclude; never transfer_pair with near equal expense
+- [x] T148 Test: 红包/二维码/群收款 remain strong exclude
+- [x] T149 Test: bare `微信转账`/`转账备注` alone is NOT strong exclude; bilateral wechat-transfer P2P MUST NOT auto-accept
+- [x] T150 Test: withdraw/提现→bank still accepts (regression)
+- [x] T151 Implement `TRANSFER_STRONG_EXCLUDE_TOKENS` (+ keep soft tokens separate); demote 微信转账/转账备注 from hard exclude; add 闲鱼转账
+- [x] T152 Wire evaluate_transfer_pair / phase_c to use strong exclude; soft path no auto without withdraw/bank evidence
+- [x] T153 Re-run unit tests for transfer phase C + refund p2p (no regression on 微信红包-退款)

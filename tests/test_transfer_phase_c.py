@@ -1,4 +1,4 @@
-"""007 Phase C: transfer taxonomy + withdraw dual-source + credit repay gate."""
+"""007 Phase C: transfer taxonomy + withdraw dual-source + credit repay gate + exclude tiers."""
 from __future__ import annotations
 
 from decimal import Decimal
@@ -10,6 +10,7 @@ from ft.domain.relations import (
     RelationStatus,
     evaluate_transfer_pair,
     has_transfer_exclude_signal,
+    has_transfer_soft_p2p_signal,
     has_transfer_signal,
     match_transfer_pairs_phase_c,
     match_withdraw_receipt_to_bank,
@@ -48,25 +49,82 @@ def test_withdraw_token_is_transfer_signal():
     assert has_transfer_signal("提现-实时提现 中国工商银行")
 
 
-def test_p2p_wechat_excluded():
-    assert has_transfer_exclude_signal("转账备注:微信转账")
+def test_strong_exclude_tokens():
+    """红包/二维码/群收款/闲鱼转账 = strong; 微信转账 alone = soft not strong."""
     assert has_transfer_exclude_signal("收款方备注:二维码收款 扫二维码付款")
+    assert has_transfer_exclude_signal("微信红包（单发）")
+    assert has_transfer_exclude_signal("群收款")
+    assert has_transfer_exclude_signal("闲鱼转账")
+    assert has_transfer_exclude_signal("微信 闲鱼转账 收入")
+    # Soft tier — not strong exclude
+    assert not has_transfer_exclude_signal("转账备注:微信转账")
+    assert not has_transfer_exclude_signal("微信转账")
+    assert not has_transfer_exclude_signal("支付宝转账")
+    assert has_transfer_soft_p2p_signal("转账备注:微信转账")
+    assert has_transfer_soft_p2p_signal("支付宝转账到朋友")
+    # Must not strong-exclude bare 闲鱼 (shipping fee etc.)
+    assert not has_transfer_exclude_signal("闲鱼寄件-寄件费_886818156")
 
 
-def test_alipay_withdraw_to_bank_accepts():
-    out = _fv("a1", "-200.00", account="alipay", text="中国工商银行 提现-实时提现", bill_source="alipay")
-    bank = _fv(
-        "b1",
-        "200.00",
-        account="icbc",
-        text="黄文龙 快捷支付",
-        bill_source="icbc_debit",
+def test_xianyu_transfer_never_pairs_as_transfer():
+    """闲鱼转账 income must not transfer_pair with near equal expense (寄件/商户)."""
+    ship = _fv(
+        "ship1",
+        "-17.80",
+        account="yuebao",
+        text="淘天物流 闲鱼寄件-寄件费_886818156_LP00738984207382",
+        bill_source="alipay",
+        occurred="2025-06-05 13:11:14",
+    )
+    xianyu_in = _fv(
+        "xy1",
+        "17.80",
+        account="alipay_bal",
+        text="微信 闲鱼转账",
+        bill_source="alipay",
+        occurred="2025-06-05 15:22:11",
+    )
+    assert evaluate_transfer_pair(ship, [xianyu_in]) is None
+
+    bsite = _fv(
+        "bs1",
+        "-0.90",
+        account="mybank",
+        text="B站 【秒出租发货】大会员",
+        bill_source="alipay",
+        occurred="2025-11-04 14:02:59",
+    )
+    xianyu2 = _fv(
+        "xy2",
+        "0.90",
+        account="alipay_bal",
+        text="闲鱼转账",
+        bill_source="alipay",
+        occurred="2025-11-04 14:10:24",
+    )
+    assert evaluate_transfer_pair(bsite, [xianyu2]) is None
+
+
+def test_bilateral_wechat_transfer_p2p_not_auto_accept():
+    """Soft 微信转账 both legs: may candidate but MUST NOT auto-accept."""
+    out = _fv(
+        "p1",
+        "-50.00",
+        account="wechat",
+        text="转账备注:微信转账 对方已收钱",
+        bill_source="wechat",
+    )
+    inn = _fv(
+        "p2",
+        "50.00",
+        account="wechat2",
+        text="转账备注:微信转账 已存入零钱",
+        bill_source="wechat",
         occurred="2023-06-15 12:26:00",
     )
-    prop = evaluate_transfer_pair(out, [bank])
-    assert prop is not None
-    assert prop.status == RelationStatus.ACCEPTED.value
-    assert prop.rule_id == RULE_TRANSFER_WITHDRAW_V1
+    prop = evaluate_transfer_pair(out, [inn])
+    if prop is not None:
+        assert prop.status != RelationStatus.ACCEPTED.value
 
 
 def test_qr_pay_not_auto_transfer():
@@ -87,6 +145,22 @@ def test_qr_pay_not_auto_transfer():
     )
     prop = evaluate_transfer_pair(out, [bank])
     assert prop is None
+
+
+def test_alipay_withdraw_to_bank_accepts():
+    out = _fv("a1", "-200.00", account="alipay", text="中国工商银行 提现-实时提现", bill_source="alipay")
+    bank = _fv(
+        "b1",
+        "200.00",
+        account="icbc",
+        text="黄文龙 快捷支付",
+        bill_source="icbc_debit",
+        occurred="2023-06-15 12:26:00",
+    )
+    prop = evaluate_transfer_pair(out, [bank])
+    assert prop is not None
+    assert prop.status == RelationStatus.ACCEPTED.value
+    assert prop.rule_id == RULE_TRANSFER_WITHDRAW_V1
 
 
 def test_wechat_withdraw_same_account_dual_source_is_mirror():
@@ -160,7 +234,7 @@ def test_credit_repayment_accepts_explicit_card_repay():
     assert prop.subtype == "credit_repayment"
 
 
-def test_phase_c_matcher_includes_withdraw_and_skips_p2p():
+def test_phase_c_matcher_includes_withdraw_and_skips_strong_p2p():
     out = _fv("a1", "-200.00", account="alipay", text="提现-实时提现", bill_source="alipay")
     bank = _fv(
         "b1",
@@ -170,26 +244,46 @@ def test_phase_c_matcher_includes_withdraw_and_skips_p2p():
         bill_source="icbc_debit",
         occurred="2023-06-15 12:26:00",
     )
-    p2p = _fv(
-        "p1",
+    # strong exclude pair (红包) must never appear
+    red_out = _fv(
+        "r1",
         "-50.00",
         account="wechat",
-        text="转账备注:微信转账 对方已收钱",
+        text="微信红包（单发）",
         bill_source="wechat",
     )
-    p2p_in = _fv(
-        "p2",
+    red_in = _fv(
+        "r2",
         "50.00",
         account="wechat2",
-        text="转账备注:微信转账 已存入零钱",
+        text="微信红包-退款",
         bill_source="wechat",
         occurred="2023-06-15 12:26:00",
     )
-    props = match_transfer_pairs_phase_c([out, bank, p2p, p2p_in])
+    xianyu_exp = _fv(
+        "x1",
+        "-17.80",
+        account="yuebao",
+        text="闲鱼寄件-寄件费",
+        bill_source="alipay",
+    )
+    xianyu_in = _fv(
+        "x2",
+        "17.80",
+        account="alipay_bal",
+        text="闲鱼转账",
+        bill_source="alipay",
+        occurred="2023-06-15 12:26:00",
+    )
+    props = match_transfer_pairs_phase_c(
+        [out, bank, red_out, red_in, xianyu_exp, xianyu_in]
+    )
     assert any(p.rule_id == RULE_TRANSFER_WITHDRAW_V1 for p in props)
     for p in props:
         ids = {p.primary_fact_id, p.secondary_fact_id}
-        assert not ({"p1", "p2"} <= ids)
+        assert not ({"r1", "r2"} <= ids)
+        assert not ({"x1", "x2"} <= ids)
+        assert "x2" not in ids  # 闲鱼转账 never a transfer leg
 
 
 def test_credit_repayment_requires_exact_same_currency():

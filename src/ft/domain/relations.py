@@ -120,13 +120,23 @@ TRANSFER_SIGNAL_TOKENS = (
     "银转证", "证转银", "银行转证券", "证券转银行",
     "转出到银行卡", "转账到银行卡",
 )
-# Stage-1 exclusions: never auto transfer_pair (P2P / QR / pure redpacket)
-TRANSFER_EXCLUDE_TOKENS = (
+# Stage-1 **strong** exclusions: never enter transfer_pair auto pool (007 FR-043 tiers).
+# Exact phrases only — never bare「闲鱼」/「转账」(latter is a signal token).
+TRANSFER_STRONG_EXCLUDE_TOKENS = (
     "二维码收款", "扫二维码付款", "收款方备注",
-    "转账备注", "微信转账",  # P2P wechat transfer notes
     "群收款",
     "微信红包", "红包（单发）", "红包(单发)", "微信红包（群红包）",
+    "闲鱼转账",  # P2P income; never self-account transfer
 )
+# Soft platform-transfer appearance: may be person-to-person OR self balance→own card.
+# Must NOT hard-exclude; must NOT auto-accept without withdraw/bank evidence.
+TRANSFER_SOFT_P2P_TOKENS = (
+    "转账备注",
+    "微信转账",
+    "支付宝转账",
+)
+# Back-compat alias: historical call sites mean *strong* exclude.
+TRANSFER_EXCLUDE_TOKENS = TRANSFER_STRONG_EXCLUDE_TOKENS
 RULE_TRANSFER_WITHDRAW_V1 = "transfer_pair.withdraw_to_bank.v1"
 REPAYMENT_SIGNAL_TOKENS = (
     "还款", "还信用卡", "信用卡还款", "偿清", "repayment", "repay",
@@ -619,9 +629,43 @@ def has_transfer_signal(text: str) -> bool:
     return any(token.lower() in blob for token in TRANSFER_SIGNAL_TOKENS)
 
 def has_transfer_exclude_signal(text: str) -> bool:
-    """P2P/QR/redpacket legs must not enter transfer auto pool (007 FR-043)."""
+    """Strong P2P/QR/redpacket/闲鱼 — must not enter transfer auto pool (007 FR-043)."""
     blob = _text_blob(text).lower()
-    return any(token.lower() in blob for token in TRANSFER_EXCLUDE_TOKENS)
+    return any(token.lower() in blob for token in TRANSFER_STRONG_EXCLUDE_TOKENS)
+
+
+def has_transfer_soft_p2p_signal(text: str) -> bool:
+    """WeChat/Alipay「转账」family — soft tier; not a hard exclude."""
+    blob = _text_blob(text).lower()
+    return any(token.lower() in blob for token in TRANSFER_SOFT_P2P_TOKENS)
+
+
+def has_self_account_transfer_evidence(fact: "FactView") -> bool:
+    """True when leg looks like self wallet/card move (withdraw / bank in / to-card)."""
+    if is_withdraw_platform_out(fact) or is_withdraw_platform_receipt(fact):
+        return True
+    if is_bank_transfer_in(fact):
+        return True
+    blob = _text_blob(fact.text, fact.bill_source, fact.source)
+    if any(
+        x in blob
+        for x in (
+            "转出到银行卡",
+            "转账到银行卡",
+            "支付机构提现",
+            "银联入账",
+            "提现已到账",
+            "零钱提现",
+            "实时提现",
+            "余额宝-转出到银行卡",
+            "余利宝-转出到银行卡",
+        )
+    ):
+        return True
+    # Bank-source in/out without pure soft-only text is self-ledger side.
+    if source_group(fact) == "bank" and not has_transfer_soft_p2p_signal(fact.text):
+        return True
+    return False
 
 
 def is_withdraw_platform_out(fact: "FactView") -> bool:
@@ -1308,15 +1352,13 @@ def evaluate_transfer_pair(
             continue
         if cand.account_id == seed.account_id:
             continue
-        # 007 FR-043: exclude pure P2P/QR legs from transfer matching
+        # 007 FR-043: strong exclude pure P2P/QR/红包/闲鱼 from transfer matching
         if has_transfer_exclude_signal(seed.text) and not (
             is_withdraw_platform_out(seed) or is_withdraw_platform_receipt(seed)
         ):
             return None
         if has_transfer_exclude_signal(cand.text) and not is_bank_transfer_in(cand):
-            # allow bank in-leg even if text weak; skip QR/P2P cand
-            if any(x in _text_blob(cand.text) for x in ("二维码", "转账备注", "群收款", "对方已收钱", "已存入零钱")):
-                continue
+            continue
         cand_amount = cand.signed_amount
         if (seed_amount > 0) == (cand_amount > 0):
             continue
@@ -1413,6 +1455,22 @@ def evaluate_transfer_pair(
             status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_TRANSFER_PAIR_STRONG_V1
         else:
             continue
+
+        # Soft tier (微信/支付宝转账): never auto-accept without self-account evidence
+        # on at least one leg (withdraw / bank-in / 转出到银行卡, etc.).
+        if status == RelationStatus.ACCEPTED.value and rule not in (
+            RULE_TRANSFER_WITHDRAW_V1,
+            RULE_CREDIT_REPAYMENT_V1,
+            RULE_CREDIT_REPAYMENT_FX_V1,
+        ):
+            seed_self = has_self_account_transfer_evidence(seed)
+            cand_self = has_self_account_transfer_evidence(cand)
+            soft_touch = has_transfer_soft_p2p_signal(seed.text) or has_transfer_soft_p2p_signal(
+                cand.text
+            )
+            if soft_touch and not seed_self and not cand_self:
+                status = RelationStatus.PENDING_REVIEW.value
+                conf = CONFIDENCE_WEAK
 
         evidence = RelationEvidence(
             amount_delta=format(_abs_decimal(amount_delta), "f") if same_currency else "0",
@@ -1931,9 +1989,10 @@ def match_transfer_pairs_phase_c(
             continue
         if seed.signed_amount > 0 and not is_withdraw_platform_receipt(seed):
             continue
-        if has_transfer_exclude_signal(seed.text) and not is_withdraw_platform_out(seed):
-            if any(x in _text_blob(seed.text) for x in ("二维码", "转账备注", "群收款", "对方已收钱")):
-                continue
+        if has_transfer_exclude_signal(seed.text) and not (
+            is_withdraw_platform_out(seed) or is_withdraw_platform_receipt(seed)
+        ):
+            continue
         if index is not None:
             others = [f for f in index.transfer_candidates(seed) if f.id not in used]
         else:

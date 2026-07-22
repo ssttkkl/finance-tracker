@@ -59,7 +59,16 @@
 
 **Decision**: After mirror (B), run **transfer_pair / credit_repayment** as **Phase C** using source-native taxonomy gates then fine matching. Bank merchant refunds and weak/open-leg run in **Phase D** after C.
 
-**Rationale**: Real bills — withdraw and card-bridge pairs are reliable; P2P/QR must not enter transfer pool; bank refund is a different problem and must not interleave before transfer settles self-account moves.
+**Rationale**: Real bills — withdraw and card-bridge pairs are reliable; **strong** P2P/QR (红包/二维码/闲鱼转账/群收款) must not enter transfer pool; bank refund is a different problem and must not interleave before transfer settles self-account moves.
+
+## Decision 21: Transfer exclude tiers (strong vs soft)
+
+**Decision**: Split transfer exclusion into two tiers (007 FR-043 living update 2026-07-22):
+
+1. **Strong exclude** — never enter `transfer_pair` auto pool: 红包*, 二维码收付款*, **闲鱼转账**, 群收款, merchant spend, refunds, channel spend (mirror). Exact phrases only (e.g. `闲鱼转账`, not bare `闲鱼`).
+2. **Soft** — 微信转账 / 支付宝转账 / 转账备注: may be person-to-person **or** self balance→own bank card. Must **not** hard-exclude like 红包. Must **not** auto-accept bilateral platform-only P2P; may pending or accept only with withdraw/bank-in evidence (existing withdraw_to_bank / 银联入账 paths).
+
+**Rationale**: User clarification on real usage — 闲鱼转账 is always P2P income; 微信/支付宝「转账」can fund own debit card. Prior `TRANSFER_EXCLUDE` treated 微信转账 as hard exclude (over-strict) and omitted 闲鱼转账 (under-strict, caused false pending with 寄件费/B站).
 
 ## Decision 18: Transfer taxonomy attachment
 
