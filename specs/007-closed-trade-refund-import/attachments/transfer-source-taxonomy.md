@@ -164,11 +164,26 @@ Phase order: A refund → B mirror → **C transfer** → D bank refund / weak
 ### Credit repayment gate (noise reduction)
 **Out-leg ALLOW text** (any): `信用卡还款`, `购汇还款`, `自动还款`, `花呗`+`还款`, `月付】主动还款`, `主动还款`+credit product.
 **Out-leg DENY**: CCB `summary=还款` alone with merchant-like counterparty (京东, 消费); pure `消费`.
-**In-leg ALLOW**: `account_type in {loan, credit}` OR (bank credit bill + (`还款` or `转帐收入`/`转账收入`) and not refund).
+**In-leg ALLOW**: `account_type in {loan, credit}` OR (bank credit bill + (`还款` or `转帐收入`/`转账收入`/`转帐`+手机银行) and not refund).
 **In-leg DENY**: `退款`, `退货`, `消费退货`, `刷卡金`, merchant refund incomes.
 
+### FX / 购汇还款 (rate-scored multi-candidate)
+Real ICBC pattern: debit `购汇还款` −CNY (cash) then within ~1–3s credit-card multi-currency **in** legs (e.g. +HKD / +JPY / +USD on 工行信用卡(0851)), often **two** FX ins for two outs — Stage-2 must not open-leg-skip merely because `candidate_count≥2`.
+
+| Step | Rule |
+|---|---|
+| Gate | Out: cash + (`购汇还款` OR (`购汇`∧`还款`) OR (strong repay ∧ currency≠in)). In: loan + positive amount + not DENY. |
+| Window | \|Δt\| ≤ **60s** (search); prefer nearest first. |
+| Rate | Fetch **Asia/Shanghai business day** market mid for out→in currency (e.g. free historical FX API or provider adapter). Cache per (day, pair) within one check run. |
+| Score | `implied = abs(out)/abs(in)`; `rate_error = abs(implied/market - 1)`. Sort by rate_error ASC, then Δt ASC. |
+| Auto | **Exactly one** candidate with `rate_error ≤ 0.015` **and** (no runner-up, or runner-up.rate_error − best ≥ 0.005) → `accepted` `transfer_pair.credit_repayment.fx.v1`. |
+| Pending | No market rate / no high-confidence / ties → `pending_review` (bilateral if unique near; open-leg if multi) with evidence: market_rate, implied_rate, rate_error, fx_source, candidates. |
+| Forbidden | Rewrite fact amounts; auto-accept FX without rate when multi-candidate; same-currency unequal amounts as FX. |
+
+**Example (2025-12-19)**: −144.61 CNY 购汇还款 ↔ +159.40 HKD (~1s); −101.58 CNY ↔ +2240 JPY (~1s). Rate scoring should separate HKD vs JPY candidates per out-leg.
+
 ### Stop criteria
-Do not further broaden transfer signals into P2P/QR/consume; do not auto credit_repayment without loan/credit in-leg.
+Do not further broaden transfer signals into P2P/QR/consume; do not auto credit_repayment without loan/credit in-leg; do not auto FX multi-candidate without market-rate uniqueness.
 
 
 ## WeChat withdraw: correct account model

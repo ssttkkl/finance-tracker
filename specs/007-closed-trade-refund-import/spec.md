@@ -76,6 +76,7 @@
 - Q: 微信提现如何修？ → A: **先分账户语义**。若 mapping 把微信「零钱提现/提现已到账」落到**银行账户**（本库建行），与 CCB「银联入账/支付机构提现」为**同账户双源入账** → MUST 走 **payment_mirror（同号）** 或幂等去重，**不是** transfer_pair（transfer 要求不同 account_id）。若微信事实在微信零钱、银行在建行（异账户）→ Phase C `withdraw_to_bank` 等额+同日。审计：4 笔微信提现均 mapping 到建行，其中 2100 与 CCB 银联入账同账户差约 1 日；其余 3 笔库内无第二条银行第二事实。  
 - Q: 同账户双源 +2100 为何未 mirror？ → A: 银行 date-only 常落在 UTC 前一日 16:00，日历日与微信不一致；Phase B MUST 对「微信提现类 + 银行银联入账/支付机构提现」允许 **相邻自然日** 或 **|Δt|≤36h** 的同号 mirror（仍 platform×bank、等额、唯一）。  
 - Q: 信用还款如何收紧？ → A: 出腿 MUST 含明确还款信号（信用卡还款/购汇还款/自动还款/花呗*还款/月付】主动还款等）；入腿 MUST 为 **loan/credit 账户** 或信用卡侧「还款/转帐收入」且 **禁止** 以退款/消费退货/营销刷卡金/小额商户入账为对侧；建行 summary 仅「还款」+ 商户 counterparty（如京东）MUST NOT 当作 credit_repayment 出腿。多候选或金额显著不等（非 FX 规则）→ pending/open-leg 或 skip，不得乱配。  
+- Q: 购汇还款多候选如何配？ → A: 拉取出腿业务日（Asia/Shanghai）市场中间价；对每个 loan 入账候选算隐含汇率偏差 `rate_error`；**仅当恰好 1 个**高置信候选（默认 rate_error≤1.5% 且显著优于次优）auto-accept；汇率不可得或置信不足/并列 → pending（见 `attachments/transfer-source-taxonomy.md` FX 表与 006 FR-018）。禁止无汇率时把任意 ≤10s loan 入账 auto-accept。  
 - Q: 优化停止条件？ → A: 当继续放宽会把 P2P/消费/退款吸入 transfer，或 credit_repayment 假配率上升时停止；本轮只修审计已证实缺口。
 
 ### Session 2026-07-22 — 转账单独 Phase C（分类闸门 + 精细配对）

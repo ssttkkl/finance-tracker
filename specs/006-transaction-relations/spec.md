@@ -31,8 +31,8 @@
 - Q: 逻辑删除后同一 source identity 再导入如何处理？ → A: **正常导入发布新的活跃正式事实**。不得把旧的已删除事实静默“复活/取消删除”；旧墓碑与审计保留。行级幂等仅阻止“已存在活跃正式事实”的同 identity 重复发布。
 - Q: 金额“可接受误差”如何处理？ → A: 不设金额容差；预期等额的同币种关系必须以 Decimal 严格相等才可自动 accepted，任意非零差额只能 pending。退款按精确剩余余额区分全额、部分与超额；跨币种关系不使用等额条件。
 - Q: pending 与静默的召回原则？ → A: **pending 高召回优先于高精确**：不得漏掉任何「仍有合理配对机会」的 platform×bank 候选。分层为 auto（高置信）/ pending（近强或 main 会处理但我们不愿 auto）/ silent（连候选形态都不成立）。**凡 main 会自动处理、但本 spec 因过强而不 auto 的规则，MUST 降级为 pending，不得 skip。** 例：同账户同日 exact-2 超出 60s 短窗 → pending 而非静默；平台略晚于银行的近窗 → pending 而非静默。裸「不同账户、无文本、仅同日同额」仍可 silent（main 亦无此键）。
-- Q: main 分支配对时间窗与规则族如何落到 v1？ → A: `payment_mirror` 仅 platform×bank、全局 1:1。**(A) 强 auto**：等额 + |Δt|≤10s + 文本子串或卡尾/别名 + 唯一。**(B) 同账户短窗 exact-2 auto**：同一 account_id、等额、同号、恰好 1+1、平台≤银行、lag∈[0,**60s**]，可无文本。**(C) 短窗+文本 auto**：≤60s+文本/卡尾+唯一。**(P) pending 高召回**：同账户同日 exact 但 lag>60s 或平台更晚；有文本同日/短窗外未达 auto；≤10s 无文本不同账户；金额精确差额近窗；多候选不唯一。`transfer_pair`/`refund_offset` 同理：main 会命中但我们不 auto 的 → pending。
-- Q: `payment_mirror` 的 source 与账户约束？ → A: MUST 一侧为支付平台源（alipay/wechat 等）、一侧为银行通道源（icbc/ccb 等）。MUST NOT 将 bank×bank 或 platform×platform 建为 `payment_mirror`（后者若为调拨应走 `transfer_pair`）。多账户/多币种模型下**不以 account_id 或 account_name 不同为必要条件**（同一实体账户可同时承接平台账单与信用卡账单）；账户关联以 platform×bank + 文本/卡尾/别名 + 时间/金额 为准，对齐 main 在「同账户名」下的跨源语义。
+- Q: main 分支配对时间窗与规则族如何落到 v1？ → A: `payment_mirror` 仅 platform×bank、**同一 account_id**、全局 1:1。**(A) 强 auto**：等额 + |Δt|≤10s + 文本子串或卡尾/别名 + 唯一。**(B) 同账户短窗 exact-2 auto**：同一 account_id、等额、同号、恰好 1+1、平台≤银行、lag∈[0,**60s**]，可无文本。**(C) 短窗+文本 auto**：同账户 + ≤60s+文本/卡尾+唯一。**(P) pending 高召回（仅同账户）**：同日 exact 但 lag>60s 或平台更晚；有文本同日/短窗外未达 auto；金额精确差额近窗；多候选不唯一。**跨账户一律不 mirror**。`transfer_pair`/`refund_offset` 同理：main 会命中但我们不 auto 的 → pending。
+- Q: `payment_mirror` 的 source 与账户约束？ → A: MUST 一侧为支付平台源（alipay/wechat 等）、一侧为银行通道源（icbc/ccb 等）。MUST NOT 将 bank×bank 或 platform×platform 建为 `payment_mirror`（后者若为调拨应走 `transfer_pair`）。**两侧 MUST 同一 account_id**（通常 mapping 把平台账单落到扣款卡账户）；跨账户（如微信零钱 vs 建行）MUST NOT 建 mirror，应静默或走 `transfer_pair`。
 - Q: 镜像 weak/pending 的目标量级？ → A: 不确定时优先静默不推荐；pending 仅保留近强未达（如 10 秒内等额但文本不足、或强时间窗内唯一但金额有精确差额、或多近强候选冲突）。全量真实账本上 `payment_mirror` pending 应保持可审查量级（目标数十～低百条量级，而非「同日同额全进 inbox」）。
 - Q: 多条支付平台/银行事实 mirror 时如何计次？ → A: accepted `payment_mirror` 可形成连通组；组内只计一次外部消费，且必须有确定性 canonical；若无法确定唯一 canonical 则 pending。自动匹配采用全局 1:1 greedy，任一事实最多参与一条新建 mirror 边（连通组可经后续边扩展，但单次检查不双配同一事实）。
 - Q: main 规则何时视为正确？ → A: **除已与 constitution/本 spec 冲突者外**（物理删行、改 category/amount、浮点 0.01 容差、单腿改分类、无审计覆盖），若某条 main 规则在现网数据中**找不到可复核反例**，则应视为业务正确并汲取（可改造成关系落盘）。若找到系统性质反例，则**不得**原样汲取，必须收紧或改写。
@@ -129,9 +129,11 @@
 
 1. **Given** 储蓄卡 -5000.00 CNY「信用卡还款」与信用卡 +5000.00 CNY「还款入账」，高置信且唯一，**When** 关系检查，**Then** 建立 accepted `transfer_pair`（subtype/证据=`credit_repayment`），两条事实保留。
 2. **Given** accepted 还款关系，**When** 计算外部消费/收入，**Then** 不把该还款计为普通消费或收入。
-3. **Given** 跨币种还款（如 CNY 还 USD 卡），**When** 建立关系，**Then** 双方金额/币种保留；证据记录时间差、账户类型关系与可能汇率，不改写事实。
+3. **Given** 跨币种还款（如 CNY 还 USD 卡），**When** 建立关系，**Then** 双方金额/币种保留；证据记录时间差、账户类型关系与（若可得）市场汇率及隐含汇率偏差，不改写事实。
 4. **Given** cash→loan 同币种、绝对金额严格相等、有效时间差 ≤600 秒、文本含还款信号且候选唯一，**When** 关系检查，**Then** 可自动 accepted 为 `transfer_pair` + `credit_repayment`。
-5. **Given** cash→loan 跨币种、有效时间差 ≤10 秒且候选唯一，**When** 关系检查，**Then** 可不要求金额相等而建立 accepted 或 pending 还款关系，但 evidence 必须含双方金额与币种；超过窗口或候选不唯一时不得 auto-accept。
+5. **Given** cash→loan **购汇/跨币种还款**（出腿含「购汇还款」等 FX 信号，或两侧币种不同）、有效时间差 ≤60 秒、多个 loan 入账候选，且当日市场汇率可获取，**When** 关系检查对每个候选计算隐含汇率相对市场汇率的偏差并得到置信度，**Then**：
+   - 若**恰好 1 个**候选达到高置信阈值且显著优于其余候选 → auto-accept 双边 `transfer_pair` + `credit_repayment`；
+   - 若汇率不可获取、无候选达高置信、或多个候选同属高置信难分胜负 → 降级为 `pending_review`（优先双边近邻；多候选不唯一时可开放单腿），evidence MUST 含双方金额/币种、时间差、（若有）市场汇率、隐含汇率、偏差与候选列表。
 6. **Given** 用户查看关系列表/审查入口，**When** 存在普通 `transfer_pair` 与 subtype=`credit_repayment` 的关系，**Then** 用户可见语义可区分（标签/证据/subtype），不得混同为不可区分的“转账”。
 
 ---
@@ -337,25 +339,34 @@
   2. **金额**：同币种两侧 Decimal 严格相等才可 auto-accept；任意非零差额 MUST NOT auto-accept；近强场景 MAY 以精确 `amount_delta` 进入 pending。
   3. **强 auto-accept**：等额 + 有效时间差 ≤10 秒 +（main 式 counterparty/description 双向子串交叉 **或** 卡尾号/账户别名）+ 候选唯一。
   4. **同账户短窗 exact-2 auto-accept（对齐 main cross_source，收窄窗）**：platform×bank、**同一 account_id**、等额、同号、该键恰好 1 平台+1 银行、**平台时间 ≤ 银行时间**、Δt=银行−平台 ∈ **[0, 60]** 秒 → MUST 可 auto-accept，**不要求**商户文本（银行通道摘要信息少于平台属预期）。**禁止以自然日整天为 auto 窗**。
-  5. **有文本/卡尾的短窗 auto-accept**：等额 + platform×bank + 文本子串或卡尾/别名 + 候选唯一 + |Δt|≤60s（含跨账户）→ MAY auto-accept。
-  6. **静默（不建 relation）**：仅当**候选形态都不成立**时——非 platform×bank、符号/金额结构不可能、无同账户且无文本且仅远日等。**禁止**把「main 会处理但我们不 auto」的案例静默跳过。
-  7. **Pending 高召回（MUST）**：宁可多召回，不可漏可能配对。至少包括：
+  5. **有文本/卡尾的短窗 auto-accept**：等额 + platform×bank + **同一 account_id** + 文本子串或卡尾/别名 + 候选唯一 + |Δt|≤60s → MAY auto-accept。
+  6. **账户硬约束（同账户）**：`payment_mirror` MUST 要求两侧 `account_id` 相同。跨账户（例如微信零钱 vs 建行储蓄、支付宝余额 vs 工行借记）MUST NOT 建立 accepted 或 pending `payment_mirror`，应静默；若资金在账户间真实移动，走 `transfer_pair`。
+  7. **静默（不建 relation）**：候选形态不成立时——非 platform×bank、**跨账户**、符号/金额结构不可能、无文本且仅远日等同账户弱形态不足等。**禁止**把「main 会处理但我们不 auto」的**同账户**案例静默跳过。
+  8. **Pending 高召回（MUST，仅同账户）**：宁可多召回，不可漏可能配对。至少包括：
      - **P1** 同账户、等额、platform×bank、**同日**，未达 B auto（含 lag>60s 或平台更晚）；
-     - **P2** 有文本/卡尾、等额、platform×bank、同日或近窗，未达 A/C auto；
-     - **P3** 等额、|Δt|≤10s、无文本、**不同账户**；
-     - **P4** 有文本/卡尾、近窗，金额有**精确非零差额**；
-     - **P5** 等额、同账户或有文本、近窗/同日，但**平台晚于银行**；
+     - **P2** 有文本/卡尾、等额、platform×bank、同账户、同日或近窗，未达 A/C auto；
+     - **P4** 有文本/卡尾、同账户、近窗，金额有**精确非零差额**；
+     - **P5** 等额、同账户、近窗/同日，但**平台晚于银行**（未由业务日规则覆盖时）；
      - **P6** 本可 auto 但**候选不唯一**；
-     - **P7** 其它 main 会命中、本 spec 故意不 auto 的镜像形态 → **pending 而非 skip**。
-  8. **基数**：全局 1:1 greedy；不唯一时 P6 pending，不得静默任选。
-  9. **Canonical**：支付平台详情优先于银行通道摘要。
-  10. **时间序**：auto 要求平台≤银行（B/C）；平台更晚 → pending，不 auto。
-  11. **召回原则**：pending 高召回；auto 保持严；main 过强规则降级 pending 不丢弃。
-  12. **main 汲取纪律**：冲突项永不汲取；「银行仅通道名」不是假阳性。
-- **FR-016a**: 多账户模型下 MUST NOT 以「同 account_name」为必要条件；**同 account_id 短窗 exact-2** 与卡尾/别名/文本交叉一并作为账户关联手段。
-- **FR-016b**: Review Inbox 对 mirror 以高召回为目标；精确过滤交给人工 accept/reject。
+     - **P7** 其它 main 会命中、本 spec 故意不 auto 的**同账户**镜像形态 → **pending 而非 skip**。
+  9. **基数**：全局 1:1 greedy；不唯一时 P6 pending，不得静默任选。
+  10. **Canonical**：支付平台详情优先于银行通道摘要。
+  11. **时间序**：auto 要求平台≤银行（B/C）；平台更晚 → pending，不 auto（同账户业务日 exact 规则除外）。
+  12. **召回原则**：pending 高召回（同账户）；auto 保持严；main 过强规则降级 pending 不丢弃。
+  13. **main 汲取纪律**：冲突项永不汲取；「银行仅通道名」不是假阳性；跨账户假镜像永不汲取。
+- **FR-016a**: 多账户模型下镜像腿 MUST 映射到同一 `account_id`（通常为扣款卡账户）；卡尾/别名/文本交叉用于**同账户**候选排序与证据，不得用于跨账户 mirror。
+- **FR-016b**: Review Inbox 对 **同账户** mirror 以高召回为目标；精确过滤交给人工 accept/reject。跨账户镜像不得进入 inbox。
 - **FR-017**: 内部转账匹配信号 MUST 参考 main 分支 reconcile 转账语义：一正一负、不同账户、同币种绝对金额严格相等、有效时间接近、转账强信号词（如转账支取/存入、银联入账、手机银行、提现等）；并支持同日银联现金类已验证规则族。同币种强匹配 auto-accept 时间窗为有效时间差 ≤10 秒且候选唯一；同日宽窗口 auto-accept 仅允许“银联入账/电子汇入 ↔ 无卡付/转账支取”强信号组合且候选唯一。同币种两侧任意非零金额差额 MUST NOT auto-accept，但 MAY 以精确 `amount_delta` 证据进入 pending；不得把差额舍入、吸收或隐式解释为手续费。当转账/还款合法对侧 ≥2 或不唯一时，MUST 落 1 条开放单腿 pending（锚点由信号规则决定），而非 N 条双边 pending；唯一近强对侧 MAY 双边 pending。
-- **FR-018**: 信用还款匹配 MUST 覆盖 cash→loan 同币种与跨币种形态。同币种 auto-accept 要求绝对金额严格相等、有效时间差 ≤600 秒、还款相关文本信号、候选唯一。跨币种可不要求金额相等，但 auto-accept 时间窗 ≤10 秒且候选唯一，并 MUST 记录双方金额/币种证据。信用还款以 `transfer_pair` subtype（如 `credit_repayment`）表达；用户可见语义与报表影响 MUST 可区分普通内部转账与信用还款。
+- **FR-018**: 信用还款匹配 MUST 覆盖 cash→loan 同币种与跨币种（含购汇还款）形态。信用还款以 `transfer_pair` subtype（如 `credit_repayment`）表达；用户可见语义与报表影响 MUST 可区分普通内部转账与信用还款。
+  1. **同币种**：auto-accept 要求绝对金额严格相等、有效时间差 ≤600 秒、还款相关文本信号、候选唯一。
+  2. **跨币种 / 购汇还款**：
+     - 出腿 MUST 含明确 FX/还款信号（至少包含 `购汇还款`，或 `购汇`+`还款`，或既有强还款信号且两侧币种不同）；入腿 MUST 为 loan/credit 账户正金额入账，且非退款/营销入账。
+     - 时间窗：候选搜索有效时间差 ≤**60** 秒（覆盖手机银行购汇连续入账）；不得仅因“多币种候选同时存在”而静默跳过。
+     - **市场汇率**：系统 MUST 尝试获取**出腿业务日（Asia/Shanghai）**的出币种→入币种市场中间价（或等价交叉盘）。汇率仅作匹配证据，MUST NOT 改写任一正式事实金额。
+     - **隐含汇率与置信度**：对每个合法候选，`implied_rate = abs(cash_out_amount) / abs(loan_in_amount)`（以 cash 币种 per 1 loan 币种，或对称记录双方）。`rate_error = |implied_rate / market_rate - 1|`（market 不可得时不得 auto-accept）。
+     - **高置信 auto-accept**：当且仅当 (a) 市场汇率可得，(b) 恰好 1 个候选 `rate_error ≤ 1.5%`（默认阈值，可配置但须写入 evidence），(c) 该候选 `rate_error` 比次优候选至少好 **0.5 个百分点**（或次优不存在/不可比），(d) 时间差在窗内 → auto-accept 双边关系；evidence MUST 含 `market_rate`、`implied_rate`、`rate_error`、`fx_source`、双方金额/币种。
+     - **降级 pending**：汇率不可得、零候选、无一达阈值、或多个候选同达高置信且无法显著区分 → MUST `pending_review`（唯一近邻可双边 pending；≥2 合法候选可开放单腿 + `candidate_fact_ids` 按 `rate_error` 升序、再按时间差）。
+     - **禁止**：用浮点容差把不等额同币种硬配成还款；用汇率改写事实；在无汇率时把“≤10s 任意 loan 入账”一律 auto-accept（旧 v1 无汇率 auto 路径 MUST 废止或降级为仅在唯一候选+强文本时仍 pending，直到汇率路径可用）。
 - **FR-018a**: v1 关系主体以现金类正式事实为主。`InvestmentEvent` MUST 仅在银证转账等已有对侧正式事实的 `transfer_pair` 场景作为对侧参与；MUST NOT 将投资买卖/持仓类事件作为 `payment_mirror`、`refund_offset` 或 `duplicate_of` 的主体。
 - **FR-019**: 对仅一侧出现在账本内的“单腿内部调拨”信号，System MUST NOT 自动建立 **accepted** 双边关系，也 MUST NOT 伪造缺失对侧事实或改写该侧事实分类。高信号锚点 MAY 创建 **开放单腿** `transfer_pair` `pending_review`（对侧空），待用户补录/选择对侧正式事实后绑定 accept。main `transfer_rules` 文本信号族仅可作为补录提示/候选搜索/开放 pending 线索，不得单独成为 accepted 关系。
 - **FR-020**: 退款匹配 MUST 支持全额与部分、多退款对一消费；每笔退款事实最多关联一笔消费，MUST NOT 在 v1 中把一笔退款分摊给多笔消费。**退款腿 MUST 有明确退款文本信号**（不得把任意 income 当退款种子）。
@@ -496,7 +507,7 @@
 - 不要求关系检查全库扫描。
 - 不在本 feature 重做账单解析、mapping 语言或投资交易产品语义。
 - 不把投资买卖/持仓事件纳入 payment_mirror/refund/duplicate 主体匹配。
-- 不引入隐式 FX 定价产品；跨币种仅保留两侧事实并记录证据。
+- 不引入完整 FX 交易/汇兑损益产品；购汇还款匹配 MAY 拉取**当日市场中间价**仅作候选置信度证据，MUST NOT 改写正式事实金额、MUST NOT 写入独立 FX 事实表作为账本权威。
 - 不把仅有一侧事实的单腿文本信号单独记为 **accepted** 双边关系，也不通过改写 category 表达单腿转账；允许其进入开放单腿 pending。
 - 不以 N 条双边 pending 表达 N 个候选对侧；多候选 MUST 收敛为开放单腿。
 - 不对 `payment_mirror` 使用开放单腿 pending。

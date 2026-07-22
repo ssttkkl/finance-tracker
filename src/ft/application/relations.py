@@ -130,7 +130,9 @@ class RelationService:
                 # Phase C: transfer_pair (taxonomy + withdraw) before bank refund weak path
                 transfer_linked: set[str] = set()
                 for rel in uow.relations.list_active(kind=RelationKind.TRANSFER_PAIR.value):
-                    if rel.get("status") == RelationStatus.SUPERSEDED.value:
+                    if rel.get("status") != RelationStatus.ACCEPTED.value:
+                        # pending/rejected open occupancy handled in _persist; allow
+                        # re-proposal to upgrade system open-leg FX via rate scoring.
                         continue
                     transfer_linked.add(rel["primary_fact_id"])
                     if rel.get("secondary_fact_id"):
@@ -768,15 +770,67 @@ class RelationService:
                 fact_b=proposal.secondary_fact_id,
                 subtype=subtype,
             )
+            # If a system open-leg pending occupies this anchor, upgrade/bind it
+            # instead of creating a second row (FX rate score after rates available).
+            if existing is None and proposal.secondary_fact_id not in (None, ""):
+                open_existing = uow.relations.find_open_leg(
+                    kind=proposal.kind,
+                    anchor_fact_id=anchor_id,
+                    subtype=subtype,
+                )
+                if (
+                    open_existing is not None
+                    and open_existing.get("status") == RelationStatus.PENDING_REVIEW.value
+                    and open_existing.get("created_by") == "system"
+                    and not open_existing.get("decided_by")
+                    and proposal.status == RelationStatus.ACCEPTED.value
+                ):
+                    evidence = proposal.evidence.to_json()
+                    evidence["open_leg"] = False
+                    return uow.relations.bind_other_leg(
+                        open_existing["id"],
+                        other_fact_id=proposal.secondary_fact_id,
+                        status=RelationStatus.ACCEPTED.value,
+                        decided_by="system",
+                        decision_reason="fx_rate_score_auto",
+                        evidence=evidence,
+                    )
         if existing is not None:
-            # Do not overwrite human decisions or existing accepted/rejected/pending.
+            # Do not overwrite human decisions.
+            if existing.get("created_by") != "system" or existing.get("decided_by"):
+                if existing["status"] in {
+                    RelationStatus.ACCEPTED.value,
+                    RelationStatus.REJECTED.value,
+                    RelationStatus.PENDING_REVIEW.value,
+                }:
+                    return None
+            # System open-leg pending may be upgraded when a new proposal has a unique
+            # high-confidence secondary (e.g. FX rate scoring after rates available).
+            if (
+                existing["status"] == RelationStatus.PENDING_REVIEW.value
+                and existing.get("created_by") == "system"
+                and not existing.get("decided_by")
+                and is_open_leg_relation(existing)
+                and proposal.secondary_fact_id not in (None, "")
+                and proposal.status == RelationStatus.ACCEPTED.value
+                and not open_leg
+            ):
+                evidence = proposal.evidence.to_json()
+                evidence["open_leg"] = False
+                updated = uow.relations.bind_other_leg(
+                    existing["id"],
+                    other_fact_id=proposal.secondary_fact_id,
+                    status=RelationStatus.ACCEPTED.value,
+                    decided_by="system",
+                    decision_reason="fx_rate_score_auto",
+                    evidence=evidence,
+                )
+                return updated
             if existing["status"] in {
                 RelationStatus.ACCEPTED.value,
                 RelationStatus.REJECTED.value,
                 RelationStatus.PENDING_REVIEW.value,
             }:
-                if existing.get("created_by") != "system" or existing.get("decided_by"):
-                    return None
                 return existing
             return None
 

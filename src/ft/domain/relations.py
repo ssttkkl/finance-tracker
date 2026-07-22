@@ -7,7 +7,7 @@ from datetime import datetime, timezone, timedelta, date
 from zoneinfo import ZoneInfo
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 import bisect
 import re
 
@@ -57,7 +57,11 @@ PAYMENT_MIRROR_STRONG_SECONDS = 10
 PAYMENT_MIRROR_SHORT_WINDOW_SECONDS = 60
 TRANSFER_PAIR_STRONG_SECONDS = 10
 CREDIT_REPAYMENT_SAME_CURRENCY_SECONDS = 600
-CREDIT_REPAYMENT_FX_SECONDS = 10
+# FX / 购汇: candidate window (was 10s auto-without-rate; now rate-scored).
+CREDIT_REPAYMENT_FX_SECONDS = 60
+# High confidence if |implied/market - 1| <= this; must beat runner-up by margin.
+CREDIT_REPAYMENT_FX_RATE_ERROR_MAX = Decimal("0.015")
+CREDIT_REPAYMENT_FX_RATE_ERROR_MARGIN = Decimal("0.005")
 REFUND_CANDIDATE_DAYS = 30
 REFUND_AUTO_ACCEPT_DAYS = 14
 REFUND_ORDER_LOCK_AUTO_ACCEPT_DAYS = 30
@@ -943,8 +947,10 @@ def evaluate_payment_mirror(
 ) -> RelationProposal | None:
     """Propose one platform×bank payment_mirror for *seed*.
 
-    Aligned with main-branch dedup precision:
+    Aligned with main-branch dedup precision, with a hard same-account gate:
     - only platform×bank (never bank×bank / platform×platform)
+    - **same account_id only** — cross-account pairs are never payment_mirror
+      (use transfer_pair when funds actually move between accounts)
     - strong: exact amount, Δt≤10s, main-style text cross OR card-tail/alias
     - same-day unique platform×bank exact may auto-accept (main cross_source 2-way)
     - no bare same-day exact weak flood; weak only when near-miss unique
@@ -968,8 +974,10 @@ def evaluate_payment_mirror(
             continue
         if cand.fact_type != FactType.CASH.value:
             continue
-        # Same physical card may be one multi-currency account; do not require different account_id.
-        # Distinctness is enforced by platform×bank source families + fact ids.
+        # Distinctness is platform×bank source families + fact ids on the **same** account.
+        # Cross-account is never a payment_mirror (mapping should land both legs on the card).
+        if cand.account_id != seed.account_id:
+            continue
         cand_group = source_group(cand)
         if cand_group not in {"platform", "bank"}:
             continue
@@ -1019,7 +1027,7 @@ def evaluate_payment_mirror(
         except ValueError:
             continue
         platform_not_after_bank = lag_bank_minus_platform >= 0
-        same_account = cand.account_id == seed.account_id
+        same_account = True  # gated above
         biz_same_day = same_business_day_shanghai(seed, cand)
         bank_date_only = (
             (seed_group == "bank" and fact_is_bank_date_only(seed))
@@ -1060,7 +1068,7 @@ def evaluate_payment_mirror(
             else:
                 rule = RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1
                 score = 4480
-        # Cross-account (or rare non-same-biz-day) short-window autos:
+        # Same-account short-window autos (cross-account already filtered out):
         elif exact and dt <= PAYMENT_MIRROR_STRONG_SECONDS and text_or_card:
             status = RelationStatus.ACCEPTED.value
             conf = CONFIDENCE_STRONG
@@ -1072,13 +1080,13 @@ def evaluate_payment_mirror(
             and dt <= PAYMENT_MIRROR_SHORT_WINDOW_SECONDS
             and platform_not_after_bank
         ):
-            # Text/card within 60s (may cross accounts); platform not after bank for auto.
+            # Text/card within 60s; platform not after bank for auto.
             status = RelationStatus.ACCEPTED.value
             conf = CONFIDENCE_STRONG
             rule = RULE_PAYMENT_MIRROR_SHORT_WINDOW_TEXT_V1
             score = 2000 - dt
         # same-account + same business day already accepted above (FR-056).
-        # Remaining weak paths: cross-account or incomplete day match.
+        # Remaining weak paths: incomplete day/time match on same account only.
         elif (
             exact
             and text_or_card
@@ -1095,33 +1103,15 @@ def evaluate_payment_mirror(
             conf = CONFIDENCE_WEAK
             rule = RULE_PAYMENT_MIRROR_WEAK_V1
             score = 1200
-        elif exact and dt <= PAYMENT_MIRROR_STRONG_SECONDS and not text_or_card and not same_account:
-            # P3: 10s exact, no text, different accounts → pending.
-            status = RelationStatus.PENDING_REVIEW.value
-            conf = CONFIDENCE_WEAK
-            rule = RULE_PAYMENT_MIRROR_WEAK_V1
-            score = 1000 - dt
         elif (not exact) and text_or_card and dt <= PAYMENT_MIRROR_SHORT_WINDOW_SECONDS:
             # P4: amount delta with text within 60s → pending.
             status = RelationStatus.PENDING_REVIEW.value
             conf = CONFIDENCE_WEAK
             rule = RULE_PAYMENT_MIRROR_WEAK_V1
             score = 500 - dt
-        elif (
-            exact
-            and not platform_not_after_bank
-            and same_day
-            and not same_account
-            and text_or_card
-        ):
-            # P5: platform after bank same calendar day, cross-account with text → pending.
-            # same-account same business day already accepted (FR-056).
-            status = RelationStatus.PENDING_REVIEW.value
-            conf = CONFIDENCE_WEAK
-            rule = RULE_PAYMENT_MIRROR_WEAK_V1
-            score = 400 - min(dt, 399)
         else:
             # No viable near-match shape: silent.
+            # (Former P3/P5 cross-account weak paths removed: never mirror across accounts.)
             continue
 
         evidence = RelationEvidence(
@@ -1141,7 +1131,7 @@ def evaluate_payment_mirror(
                 "card_tail" if shared_tails else "",
                 "alias" if alias_hit else "",
                 "text_cross" if cross else "",
-                "same_account" if same_account else "cross_account",
+                "same_account",
             ))),
             extras={
                 "lag_bank_minus_platform": lag_bank_minus_platform,
@@ -1260,6 +1250,8 @@ def match_payment_mirrors_greedy(
 def evaluate_transfer_pair(
     seed: FactView,
     candidates: Sequence[FactView],
+    *,
+    fx_rate_provider: Callable[..., Decimal | None] | None = None,
 ) -> RelationProposal | None:
     if seed.deleted:
         return None
@@ -1333,17 +1325,22 @@ def evaluate_transfer_pair(
             subtype = SUBTYPE_CREDIT_REPAYMENT
             if same_currency and exact and dt <= CREDIT_REPAYMENT_SAME_CURRENCY_SECONDS:
                 status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_CREDIT_REPAYMENT_V1
-            elif (not same_currency) and dt <= CREDIT_REPAYMENT_FX_SECONDS:
-                # Cross-currency: allow when strong repay out already validated.
-                status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_CREDIT_REPAYMENT_FX_V1
             elif same_currency and exact and dt <= TRANSFER_PENDING_OUTER:
                 status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_CREDIT_REPAYMENT_V1
             elif same_currency and not exact:
                 # Same-currency unequal amounts are never credit_repayment candidates
                 # (prevents 信用卡还款 -500 ↔ hotel +100).
                 continue
+            elif not same_currency and dt <= CREDIT_REPAYMENT_FX_SECONDS:
+                # FX / 购汇: provisional pending; rate scoring after the loop may upgrade
+                # a unique high-confidence candidate to accepted.
+                status, conf, rule = (
+                    RelationStatus.PENDING_REVIEW.value,
+                    CONFIDENCE_WEAK,
+                    RULE_CREDIT_REPAYMENT_FX_V1,
+                )
             else:
-                # FX without 购汇 / far window: skip rather than noisy pending
+                # FX beyond window / missing shape: skip rather than noisy pending
                 continue
         elif (
             same_currency and exact
@@ -1400,6 +1397,19 @@ def evaluate_transfer_pair(
 
     if not matches:
         return None
+
+    # --- FX 购汇 rate scoring (FR-018): rank multi FX candidates; unique high-confidence auto ---
+    fx_matches = [
+        m for m in matches
+        if m[4] == SUBTYPE_CREDIT_REPAYMENT and m[1].rule_id == RULE_CREDIT_REPAYMENT_FX_V1
+    ]
+    if fx_matches:
+        scored = _score_fx_repayment_matches(
+            seed, fx_matches, fx_rate_provider=fx_rate_provider,
+        )
+        if scored is not None:
+            return scored
+
     strong = [m for m in matches if m[2] == RelationStatus.ACCEPTED.value]
     if len(strong) == 1 and (
         _as_decimal(strong[0][1].amount_delta) == 0
@@ -1654,11 +1664,205 @@ def match_withdraw_receipt_to_bank(
     return proposals
 
 
+def _score_fx_repayment_matches(
+    seed: FactView,
+    fx_matches: list[tuple[FactView, RelationEvidence, str, str, str]],
+    *,
+    fx_rate_provider: Callable[..., Decimal | None] | None = None,
+) -> RelationProposal | None:
+    """Score FX credit_repayment candidates by market rate error.
+
+    Returns a proposal when FX path applies (always, for non-empty fx_matches):
+    - unique high-confidence → accepted bilateral
+    - else pending bilateral (1 cand) or open-leg (≥2)
+    """
+    if not fx_matches:
+        return None
+    try:
+        from ft.adapters.fx_rates import business_day_shanghai, get_mid_rate, rate_error
+    except ImportError:  # pragma: no cover
+        business_day_shanghai = None  # type: ignore
+        get_mid_rate = None  # type: ignore
+        rate_error = None  # type: ignore
+
+    cash_abs = _abs_decimal(seed.signed_amount)
+    cash_ccy = str(seed.currency or "CNY").upper()
+    day = ""
+    if business_day_shanghai is not None:
+        day = business_day_shanghai(seed.occurred_at)
+
+    provider = fx_rate_provider
+    if provider is None and get_mid_rate is not None:
+        provider = get_mid_rate
+
+    ranked: list[tuple[Decimal | None, FactView, RelationEvidence, dict]] = []
+    for cand, evidence, _status, _conf, _subtype in fx_matches:
+        loan_abs = _abs_decimal(cand.signed_amount)
+        loan_ccy = str(cand.currency or "").upper()
+        market = None
+        err = None
+        if provider is not None and day and cash_ccy and loan_ccy and cash_ccy != loan_ccy:
+            try:
+                market = provider(day, cash_ccy, loan_ccy)
+            except TypeError:
+                # allow simple lambda (day, base, quote)
+                market = provider(day, cash_ccy, loan_ccy)  # type: ignore[misc]
+            except Exception:
+                market = None
+            if rate_error is not None:
+                err = rate_error(cash_abs, loan_abs, cash_ccy, loan_ccy, market)
+        implied = None
+        if cash_abs > 0 and loan_abs > 0:
+            implied = loan_abs / cash_abs
+        meta = {
+            "seed_amount": format(seed.signed_amount, "f"),
+            "candidate_amount": format(cand.signed_amount, "f"),
+            "seed_currency": cash_ccy,
+            "candidate_currency": loan_ccy,
+            "market_rate": format(market, "f") if market is not None else "",
+            "implied_rate": format(implied, "f") if implied is not None else "",
+            "rate_error": format(err, "f") if err is not None else "",
+            "fx_source": "frankfurter" if market is not None and fx_rate_provider is None else (
+                "injected" if market is not None else ""
+            ),
+            "fx_day": day,
+        }
+        ranked.append((err, cand, evidence, meta))
+
+    # Sort: known errors first (ascending), then unknown, then by time
+    def _sort_key(item):
+        err, cand, evidence, _meta = item
+        known = 0 if err is not None else 1
+        err_key = err if err is not None else Decimal("999")
+        return (known, err_key, evidence.time_delta_seconds, cand.id)
+
+    ranked.sort(key=_sort_key)
+    best_err, best_cand, best_ev, best_meta = ranked[0]
+    runner_err = ranked[1][0] if len(ranked) > 1 else None
+
+    high = (
+        best_err is not None
+        and best_err <= CREDIT_REPAYMENT_FX_RATE_ERROR_MAX
+    )
+    unique_high = high and (
+        runner_err is None
+        or runner_err is None
+        or (runner_err - best_err) >= CREDIT_REPAYMENT_FX_RATE_ERROR_MARGIN
+        or runner_err > CREDIT_REPAYMENT_FX_RATE_ERROR_MAX
+    )
+    # If runner also high-confidence and margin not met → not unique
+    if (
+        high
+        and runner_err is not None
+        and runner_err <= CREDIT_REPAYMENT_FX_RATE_ERROR_MAX
+        and (runner_err - best_err) < CREDIT_REPAYMENT_FX_RATE_ERROR_MARGIN
+    ):
+        unique_high = False
+
+    cand_ids = top_k_candidate_ids([c.id for _, c, _, _ in ranked])
+    extras = {
+        **best_meta,
+        "fx_candidates": [
+            {
+                "fact_id": c.id,
+                "currency": m.get("candidate_currency"),
+                "amount": m.get("candidate_amount"),
+                "rate_error": m.get("rate_error"),
+                "implied_rate": m.get("implied_rate"),
+                "market_rate": m.get("market_rate"),
+                "dt": e.time_delta_seconds,
+            }
+            for _, c, e, m in ranked[:OPEN_LEG_CANDIDATE_TOP_K]
+        ],
+    }
+
+    if unique_high and len(ranked) >= 1:
+        evidence = RelationEvidence(
+            amount_delta="0",
+            time_delta_seconds=best_ev.time_delta_seconds,
+            same_currency=False,
+            source_pair=best_ev.source_pair,
+            rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
+            candidate_count=len(ranked),
+            candidate_fact_ids=cand_ids,
+            signals=("opposite_sign", "amount_delta", "repayment", "fx_rate_score"),
+            extras=extras,
+        )
+        return RelationProposal(
+            kind=RelationKind.TRANSFER_PAIR.value,
+            primary_fact_id=seed.id,
+            secondary_fact_id=best_cand.id,
+            primary_fact_type=seed.fact_type,
+            secondary_fact_type=best_cand.fact_type,
+            subtype=SUBTYPE_CREDIT_REPAYMENT,
+            status=RelationStatus.ACCEPTED.value,
+            rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
+            confidence=CONFIDENCE_STRONG,
+            evidence=evidence,
+            anchor_fact_id=seed.id,
+            open_leg=False,
+        )
+
+    # Pending path
+    if len(ranked) == 1:
+        evidence = RelationEvidence(
+            amount_delta="0",
+            time_delta_seconds=best_ev.time_delta_seconds,
+            same_currency=False,
+            source_pair=best_ev.source_pair,
+            rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
+            candidate_count=1,
+            candidate_fact_ids=cand_ids,
+            signals=("opposite_sign", "amount_delta", "repayment", "fx_rate_score"),
+            extras=extras,
+        )
+        return RelationProposal(
+            kind=RelationKind.TRANSFER_PAIR.value,
+            primary_fact_id=seed.id,
+            secondary_fact_id=best_cand.id,
+            subtype=SUBTYPE_CREDIT_REPAYMENT,
+            status=RelationStatus.PENDING_REVIEW.value,
+            rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
+            confidence=CONFIDENCE_WEAK,
+            evidence=evidence,
+            anchor_fact_id=seed.id,
+            open_leg=False,
+        )
+
+    evidence = RelationEvidence(
+        amount_delta="0",
+        time_delta_seconds=best_ev.time_delta_seconds,
+        same_currency=False,
+        rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
+        candidate_count=len(ranked),
+        signals=("opposite_sign", "amount_delta", "repayment", "fx_rate_score"),
+        open_leg=True,
+        anchor_role="out",
+        candidate_fact_ids=cand_ids,
+        extras=extras,
+    )
+    return RelationProposal(
+        kind=RelationKind.TRANSFER_PAIR.value,
+        primary_fact_id=seed.id,
+        secondary_fact_id=None,
+        primary_fact_type=seed.fact_type,
+        secondary_fact_type=None,
+        subtype=SUBTYPE_CREDIT_REPAYMENT,
+        status=RelationStatus.PENDING_REVIEW.value,
+        rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
+        confidence=CONFIDENCE_WEAK,
+        evidence=evidence,
+        anchor_fact_id=seed.id,
+        open_leg=True,
+    )
+
+
 def match_transfer_pairs_phase_c(
     facts: Sequence[FactView],
     *,
     seed_ids: Sequence[str] | None = None,
     index: FactCandidateIndex | None = None,
+    fx_rate_provider: Callable[..., Decimal | None] | None = None,
 ) -> list[RelationProposal]:
     """Phase C: taxonomy-aware transfer matching (007)."""
     active = [f for f in facts if not f.deleted and f.fact_type == FactType.CASH.value]
@@ -1693,7 +1897,7 @@ def match_transfer_pairs_phase_c(
             others = [f for f in index.transfer_candidates(seed) if f.id not in used]
         else:
             others = [f for f in active if f.id != seed.id and f.id not in used]
-        prop = evaluate_transfer_pair(seed, others)
+        prop = evaluate_transfer_pair(seed, others, fx_rate_provider=fx_rate_provider)
         if prop is None:
             continue
         if prop.secondary_fact_id:
@@ -1703,6 +1907,7 @@ def match_transfer_pairs_phase_c(
             used.add(prop.primary_fact_id)
         proposals.append(prop)
     return proposals
+
 
 
 
