@@ -4,6 +4,8 @@ description: >
   Add or upgrade a statement/bill source for import + relation scanning in finance-tracker.
   Use when onboarding a new bank/platform export, fixing source mapping/account semantics,
   or extending payment_mirror / refund_offset / transfer_pair for a new bill type.
+  Core method: real bills → native taxonomy buckets (e.g. Alipay status×direction) →
+  per-bucket feature inventory → bucket-scoped scan rules (not global keyword soup).
   Encodes the 007 real-bill workflow, pitfalls, and rule architecture (Spec Kit + dual DB).
 ---
 
@@ -21,6 +23,7 @@ real `~/.ft/bills` calibration loops (mirror, refund, transfer).
 - Existing source mis-routes accounts (提现记到卡、理财记到余额等)
 - Scan misses/false pairs for a source (mirror weak flood, wrong transfer, orphan refunds)
 - Extending `source_group` / signal tokens / Phase A hard-key matchers
+- Building or revising a source **taxonomy bucket table** (status×direction, summary×sign, …)
 
 ## Non-goals of this skill
 
@@ -59,23 +62,90 @@ Dual backend (SQLite + PostgreSQL), Decimal money, formal facts immutable, works
    product explicitly revisits that decision)
 3. Plan + tasks + analyze before implement
 
-### 1. Inventory real bills (taxonomy first)
+### 1. Real bills → taxonomy buckets → per-bucket features → bucket-scoped rules
 
-For **every** new source, build a **native classification table** before writing matchers.
+**This is the house method.** Do not start from global keywords (“凡含转账/退款就怎样”).
+Start from **source-native axes**, fill **buckets**, then write **rules that only fire inside buckets**.
 
-| Source style | Taxonomy axes (examples) |
+```text
+真实账单全集
+    ↓
+选划分键（导出原生字段，可组合）
+    ↓
+桶表：每个 (键₁ × 键₂ × …) 一格 + 条数
+    ↓
+逐桶：样本特征 / 账户语义 / 是否 import / 扫描角色 / 有无硬键
+    ↓
+按桶制定 import 变换 + 扫描规则（Phase A/B/C/D 归属）
+    ↓
+全量 import + check 校准；只在目标桶上收紧/放宽
+```
+
+#### 1.1 Choose bucket keys (partition fields)
+
+Prefer fields **exported by the source**, stable across files:
+
+| Source style | Primary axes (worked examples) |
 |---|---|
-| Platform (Alipay-like) | `status × direction × amount bucket` |
-| Wallet (WeChat-like) | `direction × status × type` |
-| Bank XLS/PDF | `summary/location × sign` (+ card) |
-| Card credit | counterparty / raw description × sign |
+| Alipay | **`交易状态 × 收/支`**（再加金额=0/≠0 若需要） |
+| WeChat | **`收/支 × 当前状态 × 交易类型`** |
+| CCB debit XLS | **`摘要 summary × 正负号`**（+ 卡号） |
+| ICBC debit/credit PDF | 支付方式/摘要 × 正负；退货标记 |
+| New source | Ask: which columns make **mutually exclusive, high-coverage cells**? |
 
-For each cell answer:
+Good keys: few values, high coverage, product-meaningful.  
+Bad keys alone: free-text title, noisy merchant (use later as **features inside a bucket**).
 
-1. **Import?** yes / whitelist-skip (comment+counter) / fail-closed
-2. **Account role?** which book account (never confuse destination evidence with book account)
-3. **Scan seed role?** expense / refund / transfer-out / transfer-in / mirror-leg / ignore
-4. **Hard key?** order id, merchant order, none
+#### 1.2 Build the bucket table (mandatory artifact)
+
+For each cell count rows on real multi-year samples. Put the table in `spec.md` or
+`attachments/*-taxonomy.md` (see 007 Alipay 19-bucket map, WeChat status×type, transfer attachment).
+
+Per cell fill:
+
+| Field | Question |
+|---|---|
+| **n** | How many rows? |
+| **Import** | must import / whitelist skip+counter / fail-closed |
+| **Book account** | which account; mapping key vs evidence-only fields |
+| **Sign/category** | expense/income/neutral transform |
+| **Scan role** | refund origin / refund leg / mirror platform / mirror bank / transfer out/in / credit repay / none |
+| **Hard key?** | txn equality/prefix, mer=txn, dual-row, **none → fuzzy phase** |
+| **In-bucket features** | e.g. 提现-实时提现, 余额宝-转出到银行卡, 消费退货, pay method empty |
+
+#### 1.3 Features inside the bucket (second pass)
+
+Only after the table exists, open each **non-empty important bucket** and list subtypes:
+
+- Alipay `交易成功×支出`: 成功消费 vs 提现 vs 转账到银行卡 — **same cell, different features**
+- WeChat `收入×提现已到账×零钱提现`: withdraw receipt (book wallet − after fix)
+- CCB `银联入账×+`: channel in; pair as transfer/mirror not generic income
+
+Features become **predicates** (`description contains …`, status set, pay method set),
+not a second global soup.
+
+#### 1.4 Rules are bucket-scoped
+
+| Hard key in bucket | Scan placement |
+|---|---|
+| Order/dual-row unique | **Phase A** source adapter |
+| Same physical payment, dual export | **Phase B** mirror (often same mapped account) |
+| Self-account move / repay | **Phase C** transfer (taxonomy gate = bucket labels) |
+| Bank return, no hard key | **Phase D** (+ diamond if chain exists) |
+
+**Gate then fine-match:** Phase C taxonomy gate **is** the bucket label set; fine match
+only runs on gated seeds/candidates.
+
+**Pitfall (lived):** Global “转账/退款” tokens without buckets → P2P flood, false credit_repay,
+weak mirror noise.  
+**Pitfall (lived):** Writing scan rules before account semantics → optimized the wrong fact.
+
+#### 1.5 Worked references in-repo
+
+- Alipay status×direction map: `specs/007-closed-trade-refund-import/spec.md` appendix  
+- WeChat dual-row / status×type: same spec appendix  
+- Transfer buckets: `specs/007-closed-trade-refund-import/attachments/transfer-source-taxonomy.md`  
+- Calibration: fresh DB, full import, `relations check`, pending by rule_id  
 
 **Pitfall (lived):** Do not invent “import-time pairing” because the source is “simple”.
 Hard keys → Phase A; fuzzy → Phase B/C/D.
@@ -215,15 +285,17 @@ After rule changes:
 ```markdown
 ### Source: <name>
 - Export format / sample path:
-- Taxonomy table: (status×dir / summary×sign / …)
-- Whitelist skips: (reason codes)
-- Book account rules: (withdraw, repay, product, purchase)
-- Raw payload keys:
+- **Bucket keys:** (e.g. 状态×收/支 / status×type / summary×sign)
+- **Bucket table:** path to full map; n per cell; import + scan role per cell
+- **In-bucket features:** (subtype predicates used for rules)
+- Whitelist skips: (reason codes, which cells)
+- Book account rules: (withdraw, repay, product, purchase) per cell
+- Raw payload keys: (must include every bucket key + pairing fields)
 - source_group: platform | bank | other (tokens to add)
-- Phase A hard keys: (none | order | dual-row | …)
-- Phase B expectations: same-account mapping? refund dual?
-- Phase C cells: withdraw / card bridge / credit repay / exclude
-- Phase D: bank refund wording; diamond feasibility
+- Phase A: which **cells** + hard keys (none | order | dual-row | …)
+- Phase B: which **cells** are mirror legs; same-account mapping?
+- Phase C: which **cells** are transfer/repay seeds; exclude cells
+- Phase D: which **cells** are bank refund; diamond feasibility
 - Calibration DB path + pending baseline → target
 - Non-goals:
 ```
@@ -244,6 +316,8 @@ After rule changes:
 | Credit repay on merchant「还款」 | Nonsense pairs | Strong repay text + cash/loan |
 | Silent skip rows | Missing facts | no-skip + documented counters |
 | Tuning without full reimport | Stale semantics | Fresh DB after convert/mapping change |
+| Global keyword rules without buckets | P2P/false repay flood | Taxonomy table first; bucket-scoped predicates |
+| Features before partition | Missing rare cells | Full bucket census with counts first |
 
 ---
 
