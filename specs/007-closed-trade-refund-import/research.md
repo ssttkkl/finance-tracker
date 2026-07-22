@@ -64,3 +64,9 @@
 ## Decision 18: Transfer taxonomy attachment
 
 **Decision**: Canonical Stage-1 tables live in `attachments/transfer-source-taxonomy.md` (alipay status×direction+family, wechat status×type, ccb summary, icbc pm/cp).
+
+## Decision 19: Business-day mirror + diamond refund
+
+**Decision**: Pairing uses raw payload business time in Asia/Shanghai. Bank date-only same-day same-account exact mirrors auto-accept. Platform refund credits × bank 消费退货 auto-mirror. Phase D diamond closes bank refund open-legs via accepted platform refund + mirrors.
+
+**Rationale**: CCB raw date is correct YYYY-MM-DD; occurred_at UTC midnight becomes previous-day 16:00 and falsely weakens mirrors. Diamond uniquely resolves ~half of bank refund open-legs on real bills.

@@ -288,10 +288,28 @@
 - **SC-021**: 银行「消费退货」关系若产生，MUST 不早于 Phase C 完成（属 Phase D）。  
 - **SC-022**: 微信提现 mapping 到银行账户且存在第二源同额银联入账时，MUST 以 **payment_mirror**（或显式同账户双源规则）关联，而非错误要求异账户 transfer。  
 - **SC-022b**: 微信提现在微信零钱、银行在借记卡（异账户）且等额同日时，Phase C MUST `withdraw_to_bank` accepted。  
+- **SC-027**: 建行 date-only 与平台同账户等额同业务日消费镜像，check 后 accepted（`bank_date_only`），不依赖 occurred_at 秒差。  
+- **SC-028**: 平台退款入账与银行消费退货等额同业务日 → accepted `refund_dual_source` mirror。  
+- **SC-029**: 完整菱形链唯一时，银行退货 open-leg 可升格为 accepted `diamond_via_platform`。  
 - **SC-026**: `余额宝-转出到银行卡` / `余利宝-转出到银行卡` 导入后账户为余额宝/余利宝且 amount<0；不得 mapping 到网商储蓄卡并记正数。  
 - **SC-025**: 微信零钱提现导入后账户为微信零钱且 amount<0；同笔建行银联入账在建行账户 amount>0；Phase C 后存在 connecting `transfer_pair`（当银行侧存在时）。  
 - **SC-023**: 建行 summary「还款」+ 商户名（如京东）MUST NOT 产生 accepted `credit_repayment` 到无关小额入账；微信「信用卡还款」MUST NOT 配到非还款入账（如酒店退款/消费退回）。  
   
+
+
+### Session 2026-07-22 — Phase B date-only 业务日 / 退款双视角 / Phase D 菱形
+
+- Q: 弱镜像因银行 `occurred_at=…16:00:00` 假时刻卡住？ → A: 配对 MUST 用 **raw payload 业务时间** + **Asia/Shanghai 日历日**；date-only 银行只比同业务日，不伪造秒差。  
+- Q: 平台退款+ ↔ 银行消费退货+ 是否 mirror？ → A: **是**（退款双视角），应 auto 为 `payment_mirror.refund_dual_source`，不是噪声。  
+- Q: refund open-leg 能否菱形消歧？ → A: **是**。链 `bank_ref–mirror–plat_ref–refund–plat_pay–mirror–bank_pay` 唯一时升格银行 `refund_offset`。
+
+#### H. Phase B 业务日镜像 + Phase D 菱形（FR-052+）
+
+- **FR-052**: 关系匹配 MUST 从 `raw_payload.date`（或等价）解析 **业务时间**；时区 **Asia/Shanghai**。date-only（`YYYY-MM-DD` 或无时分）MUST 仅比较业务日，MUST NOT 依赖 UTC 哨兵 `16:00:00` 的秒差。  
+- **FR-053**: **Bank date-only mirror**（`payment_mirror.bank_date_only.v1`）：platform×bank、等额、同 `account_id`、同号、银行业务日 date-only、与平台 **同一上海业务日**、全局 1–1 → **accepted**。不得仅因 `platform_after_bank`/大 Δt 降 pending。  
+- **FR-054**: **Refund dual-source mirror**（`payment_mirror.refund_dual_source.v1`）：双方金额同号为正、一侧平台退款文案、一侧银行消费退货/退款、等额、同账户或同业务日、1–1 → **accepted**。  
+- **FR-055**: **Diamond refund**（`refund_offset.diamond_via_platform.v1`，Phase D）：对银行退款腿，若存在唯一链 bank_ref↔plat_ref（mirror）+ plat_ref↔plat_pay（accepted refund_offset）+ plat_pay↔bank_pay（mirror）→ 写 bank_pay–bank_ref `refund_offset` accepted；仅用 accepted 平台退款边；弱 mirror 不得单独支撑菱形角；多 bank_pay → 仍 open-leg。
+
 
 ## Assumptions
 

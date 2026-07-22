@@ -9,3 +9,10 @@
 - Skip if active relation business key exists
 - No amount rewrite
 - Phase C MUST NOT auto-pair P2P/QR/refund/consume-only legs
+
+## Phase B additions (007)
+- `payment_mirror.bank_date_only.v1` — raw business day (Asia/Shanghai), bank date-only
+- `payment_mirror.refund_dual_source.v1` — platform refund credit × bank 消费退货/退款
+
+## Phase D additions
+- `refund_offset.diamond_via_platform.v1` — disambiguate bank refund via platform chain

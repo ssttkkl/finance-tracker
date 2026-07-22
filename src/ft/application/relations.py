@@ -25,6 +25,7 @@ from ft.domain.relations import (
     evaluate_transfer_pair,
     is_open_leg_relation,
     match_payment_mirrors_greedy,
+    match_diamond_bank_refunds,
     match_transfer_pairs_phase_c,
     ordered_fact_pair,
     project_balances_and_pnl,
@@ -32,6 +33,9 @@ from ft.domain.relations import (
 
 
 def _fact_view_from_row(row: dict) -> FactView:
+    payload = row.get("raw_payload")
+    if not isinstance(payload, dict):
+        payload = None
     return FactView(
         id=str(row["id"]),
         amount=Decimal(str(row["amount"])),
@@ -50,6 +54,7 @@ def _fact_view_from_row(row: dict) -> FactView:
         raw_record_id=row.get("raw_record_id"),
         source_identity=str(row.get("source_identity") or ""),
         record_id=str(row.get("record_id") or ""),
+        raw_payload=payload,
     )
 
 
@@ -153,6 +158,69 @@ class RelationService:
                     if outcome.get("secondary_fact_id"):
                         transfer_linked.add(outcome["secondary_fact_id"])
                     stats["phase_c_transfers"] = stats.get("phase_c_transfers", 0) + 1
+                    if outcome["status"] == RelationStatus.ACCEPTED.value:
+                        stats["accepted"] += 1
+                    elif outcome["status"] == RelationStatus.PENDING_REVIEW.value:
+                        stats["pending"] += 1
+
+                # Phase D0: diamond bank refund via platform chain (FR-055)
+                accepted_mirrors: list[tuple[str, str]] = []
+                for rel in uow.relations.list_active(kind=RelationKind.PAYMENT_MIRROR.value):
+                    if rel.get("status") != RelationStatus.ACCEPTED.value:
+                        continue
+                    a, b = rel.get("primary_fact_id"), rel.get("secondary_fact_id")
+                    if a and b:
+                        accepted_mirrors.append((a, b))
+                for item in created:
+                    if item.get("kind") == RelationKind.PAYMENT_MIRROR.value and item.get("status") == RelationStatus.ACCEPTED.value:
+                        a, b = item.get("primary_fact_id"), item.get("secondary_fact_id")
+                        if a and b:
+                            accepted_mirrors.append((a, b))
+                accepted_platform_refunds: list[tuple[str, str]] = []
+                for rel in uow.relations.list_active(kind=RelationKind.REFUND_OFFSET.value):
+                    if rel.get("status") != RelationStatus.ACCEPTED.value:
+                        continue
+                    a, b = rel.get("primary_fact_id"), rel.get("secondary_fact_id")
+                    if not a or not b:
+                        continue
+                    # platform refund edges (Phase A) — allow any accepted; diamond filters by chain
+                    accepted_platform_refunds.append((a, b))
+                for item in created:
+                    if item.get("kind") == RelationKind.REFUND_OFFSET.value and item.get("status") == RelationStatus.ACCEPTED.value:
+                        a, b = item.get("primary_fact_id"), item.get("secondary_fact_id")
+                        if a and b:
+                            accepted_platform_refunds.append((a, b))
+                # open-leg / positive bank refund seeds
+                bank_refund_seeds = []
+                for f in active_facts:
+                    if f.id in refund_linked:
+                        continue
+                    from ft.domain.relations import source_group, has_refund_signal
+                    if source_group(f) != "bank":
+                        continue
+                    if f.signed_amount <= 0:
+                        continue
+                    if has_refund_signal(f.text) or any(
+                        tok in f.text for tok in ("退货", "退款", "消费退货")
+                    ):
+                        bank_refund_seeds.append(f.id)
+                diamond = match_diamond_bank_refunds(
+                    active_facts,
+                    accepted_mirrors=accepted_mirrors,
+                    accepted_platform_refunds=accepted_platform_refunds,
+                    open_or_pending_bank_refund_ids=bank_refund_seeds,
+                )
+                stats["phase_d_diamond"] = 0
+                for proposal in diamond:
+                    outcome = self._persist_proposal(uow, proposal, remaining)
+                    if outcome is None:
+                        stats["skipped"] += 1
+                        continue
+                    created.append(outcome)
+                    refund_linked.add(outcome["primary_fact_id"])
+                    if outcome.get("secondary_fact_id"):
+                        refund_linked.add(outcome["secondary_fact_id"])
+                    stats["phase_d_diamond"] = stats.get("phase_d_diamond", 0) + 1
                     if outcome["status"] == RelationStatus.ACCEPTED.value:
                         stats["accepted"] += 1
                     elif outcome["status"] == RelationStatus.PENDING_REVIEW.value:
