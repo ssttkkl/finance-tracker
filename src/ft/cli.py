@@ -137,7 +137,10 @@ def _main(argv=None):
     stk = sub.add_parser("stock", help="股票交易")
     stk_sub = stk.add_subparsers(dest="stock_cmd")
 
-    buy_p = stk_sub.add_parser("buy", help="买入")
+    buy_p = stk_sub.add_parser(
+        "buy",
+        help="买入（legacy 便捷写法；落库为单行 SWAP: cash→ticker + commission）",
+    )
     buy_p.add_argument("--ticker", required=True)
     buy_p.add_argument("--shares", required=True)
     buy_p.add_argument("--price", required=True)
@@ -147,7 +150,10 @@ def _main(argv=None):
     buy_p.add_argument("--note", default="")
     buy_p.add_argument("--date")
 
-    sell_p = stk_sub.add_parser("sell", help="卖出")
+    sell_p = stk_sub.add_parser(
+        "sell",
+        help="卖出（legacy 便捷写法；落库为单行 SWAP: ticker→cash + commission）",
+    )
     sell_p.add_argument("--ticker", required=True)
     sell_p.add_argument("--shares", required=True)
     sell_p.add_argument("--price", required=True)
@@ -157,13 +163,25 @@ def _main(argv=None):
     sell_p.add_argument("--note", default="")
     sell_p.add_argument("--date")
 
-    swap_p = stk_sub.add_parser("swap", help="币币兑换（持仓换持仓，成本结转）")
+    swap_p = stk_sub.add_parser(
+        "swap",
+        help=(
+            "通用 SWAP 单行模型（持仓换持仓/币币兑换，成本结转）。"
+            " buy/sell 是 SWAP 的便捷包装；加密三方手续费用 --commission + --commission-asset"
+        ),
+    )
     swap_p.add_argument("--from-ticker", required=True)
     swap_p.add_argument("--from-shares", required=True)
     swap_p.add_argument("--to-ticker", required=True)
     swap_p.add_argument("--to-shares", required=True)
     swap_p.add_argument("--account", required=True)
     swap_p.add_argument("--currency")
+    swap_p.add_argument("--commission", default="0", help="手续费数量（可选）")
+    swap_p.add_argument(
+        "--commission-asset",
+        default="",
+        help="手续费资产 ticker；缺省且 commission>0 时默认为 --from-ticker",
+    )
     swap_p.add_argument("--note", default="")
     swap_p.add_argument("--date")
 
@@ -264,7 +282,7 @@ def _main(argv=None):
     statement_import.add_argument("file", help="原始账单文件路径")
     statement_import.add_argument(
         "--source", required=True,
-        choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "dfzq", "binance", "okx", "polymarket"],
+        choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "dfzq", "ibkr", "schwab", "binance", "okx", "polymarket"],
     )
     statement_import.add_argument(
         "--account", default=None,
@@ -365,7 +383,7 @@ def _main(argv=None):
 
     if args.cmd == "import":
         # T041-T046: Route to investment import for investment sources
-        investment_sources = {"dfzq", "binance", "okx", "polymarket"}
+        investment_sources = {"dfzq", "ibkr", "schwab", "binance", "okx", "polymarket"}
 
         if args.source in investment_sources:
             # Investment statement import
@@ -417,6 +435,16 @@ def _main(argv=None):
             from .application.investment_import import InvestmentImportService
             service = InvestmentImportService(uow)
 
+            # Currency: CLI --currency if set; for ibkr leave None so service
+            # can use 总结.基础货币 (no silent USD/CNY default).
+            # For schwab: CLI or USD when unset (Transaction History is US$).
+            if args.source == "ibkr":
+                currency = args.currency  # may be None
+            elif args.source == "schwab":
+                currency = args.currency or "USD"
+            else:
+                currency = args.currency or "CNY"
+
             # T045: Progress reporting
             print(f"Importing {args.source} statement from {Path(args.file).name}...")
 
@@ -425,7 +453,7 @@ def _main(argv=None):
                     source=args.source,
                     source_path=args.file,
                     account_name=args.account,
-                    currency=args.currency or "CNY",
+                    currency=currency,
                     password=_read_password_file(args.password_file),
                 )
             except Exception as e:
@@ -615,6 +643,8 @@ def _main(argv=None):
                     args.account, args.from_ticker, args.from_shares,
                     args.to_ticker, args.to_shares, args.currency,
                     args.note, args.date,
+                    commission=getattr(args, "commission", "0"),
+                    commission_asset=getattr(args, "commission_asset", ""),
                 )
             elif args.stock_cmd == "deposit":
                 result = service.deposit(

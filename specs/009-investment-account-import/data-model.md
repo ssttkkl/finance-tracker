@@ -191,6 +191,8 @@ Raw records preserve the original parsed data before normalization. They enable 
 | Source Type | source_identity Format | Example | Idempotency Basis |
 |-------------|------------------------|---------|-------------------|
 | `dfzq_pdf` | `dfzq:{date}:{ticker}:{action}:{amount}:{balance}` | `dfzq:20260612:600000.sh:BUY:1251.00:8749.00` | Composite business key (date+ticker+action+amounts unique within statement) |
+| `ibkr_csv` | `ibkr:{date}:{type}:{code}:{qty}:{net}:{commission}` | `ibkr:20260717:buy:SNDK:4:-5479.280012:1.000012` (use `format(Decimal,"f")` for amounts; type = buy/sell/deposit/dividend/wht/interest/fx/checkin) | Composite business key within Activity CSV; CHECKIN: `ibkr:{date}:checkin:cash:{amount}:0` |
+| `schwab_csv` | `schwab:{参照号码}:{类型}` | `schwab:1007269524312:TRD` | Broker 参照号码 + type |
 | `ccxt_binance` | `ccxt:binance:trade:{trade_id}` | `ccxt:binance:trade:123456789` | Exchange trade ID (authoritative) |
 | `ccxt_okx` | `ccxt:okx:trade:{trade_id}` | `ccxt:okx:trade:987654321` | Exchange trade ID |
 | `polymarket` | `polymarket:tx:{tx_hash}` | `polymarket:tx:0xabc123...` | Blockchain transaction hash (finality) |
@@ -214,6 +216,27 @@ Raw records preserve the original parsed data before normalization. They enable 
   "note": "印花税0.50 过户费0.50"
 }
 ```
+
+**IBKR Activity CSV (raw payload shape after parse)**:
+```json
+{
+  "date": "2026-07-17 00:00:00",
+  "action": "BUY",
+  "type_raw": "买",
+  "ticker": "SNDK",
+  "name": "SANDISK CORP",
+  "shares": "4",
+  "price": "1369.57",
+  "price_currency": "USD",
+  "gross": "-5478.28",
+  "commission": "-1.000012",
+  "net": "-5479.280012",
+  "balance": "0",
+  "note": ""
+}
+```
+Fee map (equity): cash leg = abs(gross), event commission = abs(commission), commission_asset = base.  
+Fee map (FX when net==gross): commission=0, fee in note. See research.md § Investment source: ibkr.
 
 **ccxt (Binance)**:
 ```json
@@ -255,7 +278,7 @@ Import batches track the lifecycle of a statement import operation. They enable 
 | id | UUID | PK | Unique batch identifier |
 | workspace_id | UUID | FK workspaces.id, NOT NULL | Workspace isolation |
 | target_account_id | UUID | FK accounts.id, NULL | Target account (NULL for multi-account imports) |
-| source_kind | TEXT | NOT NULL | Source system (e.g., 'dfzq', 'binance', 'polymarket') |
+| source_kind | TEXT | NOT NULL | Source system (e.g., 'dfzq', 'ibkr', 'binance', 'polymarket') |
 | source_digest | TEXT | NOT NULL | SHA256 hash of source file/query (idempotency key) |
 | source_ref | TEXT | NOT NULL | Human-readable reference (filename, date range) |
 | status | TEXT | NOT NULL | 'pending' or 'completed' |

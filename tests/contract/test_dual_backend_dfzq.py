@@ -1,180 +1,82 @@
-"""Dual-backend contract tests for DFZQ import.
-
-Constitution IV: Verify PostgreSQL and SQLite produce identical results.
-"""
-import pytest
+"""Dual-backend contract tests for DFZQ import."""
+import os
 from decimal import Decimal
+from pathlib import Path
+
+import pytest
+
+from ft.adapters.relational import create_relational_engine
+from ft.adapters.relational.uow import (
+    RelationalUnitOfWork,
+    create_schema,
+    create_session_factory,
+    ensure_workspace,
+)
+from ft.application.investment_import import InvestmentImportService
+from ft.domain.accounts import AccountDTO
 
 
-@pytest.mark.skip(reason="T028: Implementation not yet complete")
-@pytest.mark.parametrize("backend", ["postgresql", "sqlite"])
-def test_dfzq_import_dual_backend(backend, backend_uow_factory):
-    """Same DFZQ statement should produce identical results on both backends."""
-    # Setup backend-specific UoW
-    uow = backend_uow_factory(backend)
-
-    from ft.adapters.relational.uow import ensure_workspace
-    from ft.domain.accounts import AccountDTO
-
-    workspace_id = "test_workspace"
-    ensure_workspace(uow._session_factory, workspace_id, name="Test")
-
-    with uow as session:
-        session.accounts.add(AccountDTO("东方证券", "security", active=True))
-        session.commit()
-
-    from ft.application.investment_import import InvestmentImportService
-    service = InvestmentImportService(uow)
-
-    # Import statement
-    result = service.import_statement(
-        source="dfzq",
-        source_path="tests/fixtures/dfzq/sample_statement.txt",
-        account_name="东方证券",
-    )
-
-    assert result.ok is True
-    assert result.count == 6
-
-    # Query events
-    with uow as session:
-        events = session.investments.list()
-        snapshot = session.snapshot.load()
-
-    # Return for cross-backend comparison
-    return {
-        "backend": backend,
-        "event_count": len(events),
-        "total_deposit": sum(
-            Decimal(e.get("to_amount", 0))
-            for e in events
-            if e.get("action") == "deposit"
-        ),
-        "positions": snapshot["accounts"]["security"]["东方证券"]["positions"],
-        "batch_id": result.batch_id,
-    }
+FIXTURE = Path("tests/fixtures/dfzq/sample_statement.txt")
 
 
-@pytest.mark.skip(reason="T028: Implementation not yet complete")
-def test_dfzq_backend_equivalence(postgresql_result, sqlite_result):
-    """Assert PostgreSQL and SQLite produce identical results."""
-    assert postgresql_result["event_count"] == sqlite_result["event_count"]
-    assert postgresql_result["total_deposit"] == sqlite_result["total_deposit"]
+def _backend_uow(tmp_path, backend):
+    if backend == "sqlite":
+        url = f"sqlite+pysqlite:///{tmp_path / 'dfzq-parity.db'}"
+    else:
+        url = os.environ.get("FT_TEST_POSTGRES_URL")
+        if not url:
+            pytest.skip(
+                "FT_TEST_POSTGRES_URL is unset; PostgreSQL DFZQ parity is not evidenced "
+                "(risk: backend-specific persistence divergence remains unverified)"
+            )
+        if not url.rsplit("/", 1)[-1].endswith("_test"):
+            pytest.fail("FT_TEST_POSTGRES_URL must target a dedicated _test database")
+        from conftest import reset_postgres_schema
 
-    # Verify position equivalence
-    pg_positions = postgresql_result["positions"]
-    sqlite_positions = sqlite_result["positions"]
-
-    assert set(pg_positions.keys()) == set(sqlite_positions.keys())
-
-    for ticker in pg_positions.keys():
-        pg_pos = pg_positions[ticker]
-        sqlite_pos = sqlite_positions[ticker]
-
-        assert Decimal(pg_pos["shares"]) == Decimal(sqlite_pos["shares"])
-        assert Decimal(pg_pos["total_cost"]) == Decimal(sqlite_pos["total_cost"])
-        assert pg_pos["cost_currency"] == sqlite_pos["cost_currency"]
-
-
-@pytest.mark.skip(reason="T028: Implementation not yet complete")
-@pytest.mark.parametrize("backend", ["postgresql", "sqlite"])
-def test_dfzq_idempotency_dual_backend(backend, backend_uow_factory):
-    """Idempotency should work identically on both backends."""
-    uow = backend_uow_factory(backend)
-
-    from ft.adapters.relational.uow import ensure_workspace
-    from ft.domain.accounts import AccountDTO
-
-    workspace_id = "test_workspace"
-    ensure_workspace(uow._session_factory, workspace_id, name="Test")
-
-    with uow as session:
-        session.accounts.add(AccountDTO("东方证券", "security", active=True))
-        session.commit()
-
-    from ft.application.investment_import import InvestmentImportService
-    service = InvestmentImportService(uow)
-
-    # First import
-    result1 = service.import_statement(
-        source="dfzq",
-        source_path="tests/fixtures/dfzq/sample_statement.txt",
-        account_name="东方证券",
-    )
-
-    # Second import (duplicate)
-    result2 = service.import_statement(
-        source="dfzq",
-        source_path="tests/fixtures/dfzq/sample_statement.txt",
-        account_name="东方证券",
-    )
-
-    # Both backends should detect duplicate
-    assert result2.ok is True
-    assert result2.count == 0
-    assert result2.duplicate is True
-    assert result2.batch_id == result1.batch_id
+        reset_postgres_schema(url)
+    engine = create_relational_engine(url)
+    create_schema(engine)
+    sessions = create_session_factory(engine)
+    ensure_workspace(sessions, "dfzq-parity")
+    return engine, RelationalUnitOfWork(sessions, "dfzq-parity")
 
 
-@pytest.mark.skip(reason="T028: Implementation not yet complete")
-@pytest.mark.parametrize("backend", ["postgresql", "sqlite"])
-def test_dfzq_snapshot_validation_dual_backend(backend, backend_uow_factory):
-    """Snapshot validation should work identically on both backends."""
-    uow = backend_uow_factory(backend)
-
-    from ft.adapters.relational.uow import ensure_workspace
-    from ft.domain.accounts import AccountDTO
-
-    workspace_id = "test_workspace"
-    ensure_workspace(uow._session_factory, workspace_id, name="Test")
-
-    with uow as session:
-        session.accounts.add(AccountDTO("东方证券", "security", active=True))
-        session.commit()
-
-    from ft.application.investment_import import InvestmentImportService
-    service = InvestmentImportService(uow)
-
-    # Normal import should succeed on both
-    result = service.import_statement(
-        source="dfzq",
-        source_path="tests/fixtures/dfzq/sample_statement.txt",
-        account_name="东方证券",
-    )
-
-    assert result.ok is True
-
-    # TODO: Test with NaN-producing fixture
-    # Both backends should reject with ValueError
+@pytest.mark.parametrize("backend", ["sqlite", "postgresql"])
+def test_dfzq_import_backend_contract(tmp_path, backend):
+    engine, uow = _backend_uow(tmp_path, backend)
+    try:
+        with uow as session:
+            session.accounts.add(AccountDTO("东方证券", "security", active=True))
+            session.commit()
+        result = InvestmentImportService(uow).import_statement("dfzq", FIXTURE, "东方证券")
+        assert result.ok
+        assert result.count == 6
+        with uow as session:
+            events = session.investments.list()
+            snapshot = session.snapshot.load()
+            session.rollback()
+        assert len(events) == 6
+        positions = snapshot["accounts"]["security"]["东方证券"]["positions"]
+        assert Decimal(positions["cny"]["shares"]) == Decimal("9447.30")
+        assert Decimal(positions["600000.sh"]["shares"]) == Decimal("60")
+    finally:
+        engine.dispose()
 
 
-# Pytest fixtures for parametrized backends
-@pytest.fixture
-def backend_uow_factory():
-    """Factory to create UoW for specified backend."""
-
-    def factory(backend: str):
-        if backend == "postgresql":
-            # TODO: Setup PostgreSQL test database
-            pass
-        elif backend == "sqlite":
-            # TODO: Setup SQLite test database
-            pass
-        else:
-            raise ValueError(f"Unknown backend: {backend}")
-
-    return factory
-
-
-@pytest.fixture
-def postgresql_result(backend_uow_factory):
-    """Run test on PostgreSQL and return results."""
-    # TODO: Implementation
-    pass
-
-
-@pytest.fixture
-def sqlite_result(backend_uow_factory):
-    """Run test on SQLite and return results."""
-    # TODO: Implementation
-    pass
+@pytest.mark.parametrize("backend", ["sqlite", "postgresql"])
+def test_dfzq_idempotency_dual_backend(tmp_path, backend):
+    engine, uow = _backend_uow(tmp_path, backend)
+    try:
+        with uow as session:
+            session.accounts.add(AccountDTO("东方证券", "security", active=True))
+            session.commit()
+        service = InvestmentImportService(uow)
+        first = service.import_statement("dfzq", FIXTURE, "东方证券")
+        second = service.import_statement("dfzq", FIXTURE, "东方证券")
+        assert first.ok
+        assert second.ok
+        assert second.count == 0
+        assert second.details["duplicate"] is True
+        assert second.details["batch_id"] == first.details["batch_id"]
+    finally:
+        engine.dispose()

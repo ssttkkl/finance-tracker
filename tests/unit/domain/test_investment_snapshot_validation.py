@@ -217,3 +217,24 @@ def test_validate_includes_account_and_ticker_in_error():
     error_msg = str(exc_info.value)
     assert "600000.sh" in error_msg
     assert "东方证券" in error_msg
+
+
+def test_validate_rejects_infinity_total_cost_with_field_name():
+    snapshot = {
+        "accounts": {
+            "security": {
+                "broker": {
+                    "currency": "USD",
+                    "positions": {
+                        "tsla": {
+                            "shares": "10",
+                            "total_cost": str(Decimal("Infinity")),
+                            "cost_currency": "USD",
+                        },
+                    },
+                }
+            }
+        }
+    }
+    with pytest.raises(ValueError, match="non-finite total_cost|total_cost"):
+        validate_investment_snapshot(snapshot)

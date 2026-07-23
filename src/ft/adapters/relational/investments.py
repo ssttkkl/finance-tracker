@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from ft.domain.application import OperationResult
 from ft.domain.investment_projection import apply_investment_command
+from ft.domain.investment_validation import validate_investment_snapshot
 
 
 class RelationalInvestmentCommandRepository:
@@ -18,11 +19,16 @@ class RelationalInvestmentCommandRepository:
             if account.type not in {"security", "crypto"}:
                 uow.rollback()
                 return OperationResult(ok=False, message="investment command requires an investment account")
-            snapshot = uow.snapshot.load(lock=True)
-            row = apply_investment_command(
-                snapshot, command, account_type=account.type, default_currency=command.currency
-            )
-            uow.investments.add(account.type, row)
-            uow.snapshot.save(snapshot)
-            uow.commit()
+            try:
+                snapshot = uow.snapshot.load(lock=True)
+                row = apply_investment_command(
+                    snapshot, command, account_type=account.type, default_currency=command.currency
+                )
+                validate_investment_snapshot(snapshot)
+                uow.investments.add(account.type, row)
+                uow.snapshot.save(snapshot)
+                uow.commit()
+            except ValueError as exc:
+                uow.rollback()
+                return OperationResult(ok=False, message=str(exc))
         return OperationResult(ok=True, message=command.action, details={"row": row})

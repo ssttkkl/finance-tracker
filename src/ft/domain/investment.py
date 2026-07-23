@@ -12,6 +12,7 @@ class InvestmentCommandDTO:
     quantity: Decimal | None = None
     price: Decimal | None = None
     commission: Decimal = Decimal("0")
+    commission_asset: str = ""
     from_ticker: str = ""
     to_ticker: str = ""
     to_quantity: Decimal | None = None

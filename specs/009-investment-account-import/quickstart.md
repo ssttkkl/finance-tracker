@@ -31,19 +31,28 @@ mutool -v         # Should print version
 
 **PostgreSQL** (production/development):
 ```bash
-export FT_DATABASE_URL="postgresql://user:pass@localhost/finance_tracker"
+export FT_DATABASE_URL="postgresql+psycopg://user:pass@localhost/finance_tracker"
 ```
 
 **SQLite** (local/testing):
 ```bash
-export FT_DATABASE_URL="sqlite:///~/.ft/data.db"
+export FT_DATABASE_URL="sqlite+pysqlite:////tmp/ft-invest.db"
 ```
 
-**Run Migrations**:
+**Dual-backend pytest (Docker test Postgres on this machine)**:
+```bash
+docker start finance-tracker-postgres-test 2>/dev/null || true
+export FT_TEST_POSTGRES_URL='postgresql+psycopg://finance_tracker:finance_tracker_test@127.0.0.1:55432/finance_tracker_test'
+export FT_REQUIRE_TEST_POSTGRES=1
+# then: uv run pytest tests/contract/test_dual_backend_ibkr.py tests/contract/test_dual_backend_dfzq.py -q
+```
+Container: `finance-tracker-postgres-test` / `postgres:16-alpine` / publish `127.0.0.1:55432`.
+DB name must end with `_test` (tests may DROP SCHEMA public). Do not use other stacks on `:5432`.
+
+**Run Migrations** (for app DB, not required before pytest which migrates itself):
 ```bash
 alembic upgrade head
 ```
-
 ### 3. Create Workspace and Account
 
 ```bash
@@ -400,6 +409,39 @@ ft query portfolio --account 东方证券
 - SQLite faster for single-writer workload
 - Both well within <30s target for typical statements (100-500 transactions)
 
+
+## Scenario C — Schwab Transaction History CSV (US6)
+
+No PDF tools required. Currency: CLI `--currency` if set, else **USD** for schwab when unset
+(Transaction History amounts are US$).
+
+```bash
+ft acct add 嘉信 --type security --currency USD
+ft import tests/fixtures/schwab/transaction_history_sample.csv --source schwab --account 嘉信
+# optional: --currency USD (default when unset for schwab)
+# re-run → already imported, count 0
+```
+
+### Fee contract (TRD)
+
+| Field | Role |
+|---|---|
+| 金额 | cash leg magnitude `abs(金额)` |
+| 杂费 | commission (abs); empty/`-` → 0 |
+| 佣金 | added to commission if non-zero (`fee_total = abs(杂费)+abs(佣金)`) |
+| Net cash | 金额 + 杂费 (matches balance walk) |
+
+**One-place rule**: never set cash leg = `abs(金额+杂费)` **and** non-zero commission.
+
+### CHECKIN & pass table (fixture)
+
+- One cash CHECKIN from newest-row 余额 after flows (file is newest-first; replay sorts ascending).
+- Flow rows 36 + cash CHECKIN → **37** events; end USD cash = `2865.36`.
+- Open shares: AVGO 7, MSFT 5; closed QLD/MU/SMH/SNDK; equity double-fee count 0; re-import count 0.
+- Type census: TRD 27, DOI 4, JRN 4, WIN 1.
+
+
+
 ## Troubleshooting
 
 ### Error: "Tool not found: mutool"
@@ -410,8 +452,41 @@ ft query portfolio --account 东方证券
 
 **Solution**: Ensure account type matches source:
 - DFZQ → type='security'
+- IBKR → type='security' (base currency usually USD)
 - Binance/OKX → type='crypto'
 - Polymarket → type='security'
+
+## Scenario B — IBKR Activity CSV (US5)
+
+No PDF tools required. Sample fixture (redacted account):
+
+```bash
+ft acct add 盈透 --type security --currency USD
+ft import tests/fixtures/ibkr/transactions_1y_sample.csv --source ibkr --account 盈透 --currency USD
+# re-run → already imported, count 0
+```
+
+### Fee contract (equity)
+
+| Side | Cash leg | commission | Expected cash delta |
+|---|---|---|---|
+| 买 | abs(总额) | abs(佣金) on usd | equals abs(净额) outflow |
+| 卖 | abs(总额) | abs(佣金) on usd | equals abs(净额) inflow |
+
+**One-place fee rule (both brokers)**: never put the same fee in cash leg **and** commission.
+
+| Source | Statement cash field | Cash leg | commission |
+|---|---|---|---|
+| IBKR equity | 总额 = gross; 净额 = 总额+佣金 | abs(总额) | abs(佣金) |
+| DFZQ | 总发生金额 = **net** | peel: BUY \|net\|−手续费 / SELL \|net\|+手续费 | 手续费 (else 0 if cannot peel) |
+
+See research.md § Investment source: ibkr and DFZQ peel note; implementer: `dfzq._split_commission`.
+
+### CHECKIN & pass table (fixture)
+
+- One cash CHECKIN from 总结 `期末现金` after flows; no holdings cost CHECKIN on this export.
+- Flow rows 38 + cash CHECKIN → 39 events; end USD cash = `5044.938780328453`.
+- Open shares: AVGO 5, KO 30, NVDA 25, SNDK 4, TSM 20; equity double-fee count 0; re-import count 0.
 
 ### Error: "Credentials not found"
 

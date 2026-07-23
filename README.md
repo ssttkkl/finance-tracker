@@ -169,13 +169,20 @@ uv build
 git diff --check
 ```
 
-完整持久化验证要求真实 PostgreSQL `_test` 数据库：
+完整持久化验证要求真实 PostgreSQL `_test` 数据库。本机推荐 Docker 容器
+`finance-tracker-postgres-test`（`127.0.0.1:55432` → 5432，库名须以 `_test` 结尾）：
 
 ```bash
-FT_TEST_POSTGRES_URL='postgresql+psycopg://localhost/finance_tracker_test' \
-FT_REQUIRE_TEST_POSTGRES=1 uv run pytest
+# 确保容器在跑
+docker start finance-tracker-postgres-test 2>/dev/null || true
+
+export FT_TEST_POSTGRES_URL='postgresql+psycopg://finance_tracker:finance_tracker_test@127.0.0.1:55432/finance_tracker_test'
+export FT_REQUIRE_TEST_POSTGRES=1
+uv run pytest
 ```
 
+不要用其它业务容器的 `5432` 端口。`FT_TEST_POSTGRES_URL` 指向的库会被测试重置 schema，
+仅允许专用 `*_test` 库（见 `tests/conftest.py`）。
 ### Constitution 合规性
 
 本项目遵循 5 项工程原则（详见 `.specify/memory/constitution.md`）：

@@ -33,6 +33,46 @@ def test_cli_direct_statement_import_dispatches_without_intermediate_csv(monkeyp
     assert not hasattr(calls[0], "account") or getattr(calls[0], "account", None) is None
 
 
+def test_cli_ibkr_leaves_currency_unset_for_statement_base_currency(monkeypatch, tmp_path):
+    from ft.domain.accounts import AccountDTO
+    from ft.domain.application import OperationResult
+
+    source = tmp_path / "statement.csv"
+    source.write_text("raw", encoding="utf-8")
+    calls = []
+
+    class Accounts:
+        def find(self, name):
+            assert name == "IBKR"
+            return AccountDTO("IBKR", "security", active=True)
+
+    class Uow:
+        def __enter__(self):
+            self.accounts = Accounts()
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def rollback(self):
+            pass
+
+    class Service:
+        def __init__(self, _uow):
+            pass
+
+        def import_statement(self, **kwargs):
+            calls.append(kwargs)
+            return OperationResult(ok=True, count=1, details={"duplicate": False, "batch_id": "batch"})
+
+    monkeypatch.setattr("ft.cli._runtime_services", lambda: type("Bundle", (), {"uow": Uow()})())
+    monkeypatch.setattr("ft.application.investment_import.InvestmentImportService", Service)
+
+    cli.main(["import", str(source), "--source", "ibkr", "--account", "IBKR"])
+
+    assert calls[0]["currency"] is None
+
+
 def test_cli_reads_encrypted_statement_password_from_file(monkeypatch, tmp_path):
     from ft.domain.application import OperationResult
 

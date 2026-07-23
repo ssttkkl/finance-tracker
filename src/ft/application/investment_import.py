@@ -30,16 +30,18 @@ class InvestmentImportService:
         source: str,
         source_path: str | Path,
         account_name: str,
-        currency: str = "CNY",
+        currency: str | None = None,
         password: str = None,
     ) -> OperationResult:
         """Import investment statement from file.
 
         Args:
-            source: Parser identifier ('dfzq', 'binance', 'okx', 'polymarket')
+            source: Parser identifier ('dfzq', 'ibkr', 'schwab', 'binance', 'okx', 'polymarket')
             source_path: Path to statement file
             account_name: Target account name
-            currency: Default currency (default: CNY)
+            currency: Default currency. For dfzq defaults to CNY when unset;
+                for ibkr uses CLI value or 总结.基础货币 (no silent USD/CNY);
+                for schwab uses CLI value or USD when unset.
             password: PDF password for encrypted statements (optional)
 
         Returns:
@@ -101,7 +103,9 @@ class InvestmentImportService:
 
             # Parse statement
             try:
-                transactions = self._parse_statement(source, source_path, password)
+                transactions = self._parse_statement(
+                    source, source_path, password, currency=currency
+                )
             except Exception as e:
                 uow.rollback()
                 return OperationResult(
@@ -115,6 +119,31 @@ class InvestmentImportService:
                     ok=False,
                     message="No transactions found in statement",
                 )
+
+            # Resolve currency: CLI override, else source-specific default.
+            # IBKR: no silent USD/CNY — use 总结.基础货币 or require --currency.
+            # Schwab: CLI or USD (statement is US$).
+            # DFZQ / others: CLI or CNY.
+            resolved_currency = currency
+            if source == "ibkr":
+                base = (transactions[0].get("_ibkr_base_currency") or "").strip()
+                if resolved_currency:
+                    resolved_currency = resolved_currency.upper()
+                elif base:
+                    resolved_currency = base.upper()
+                else:
+                    uow.rollback()
+                    return OperationResult(
+                        ok=False,
+                        message=(
+                            "Currency required for IBKR import: pass --currency "
+                            "or ensure 总结.基础货币 is present in the CSV"
+                        ),
+                    )
+            elif source == "schwab":
+                resolved_currency = (resolved_currency or "USD").upper()
+            else:
+                resolved_currency = (resolved_currency or "CNY").upper()
 
             # Create import batch
             batch_id = self._create_batch(
@@ -133,9 +162,10 @@ class InvestmentImportService:
                     transactions,
                     account_name,
                     account.type,
-                    currency,
+                    resolved_currency,
                     source_path,
                     file_content,
+                    source=source,
                 )
             except Exception as e:
                 uow.rollback()
@@ -190,13 +220,30 @@ class InvestmentImportService:
                 return batch
         return None
 
-    def _parse_statement(self, source: str, source_path: Path, password: str = None) -> list[dict[str, Any]]:
-        """Parse statement file based on source type."""
+    def _parse_statement(
+        self,
+        source: str,
+        source_path: Path,
+        password: str = None,
+        currency: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Parse statement file based on source type.
+
+        Returns a list of transaction dicts. For ibkr, each dict may carry
+        ``_ibkr_base_currency`` on the list via a side-channel attribute is
+        not used; currency resolution for ibkr happens in import_statement.
+        """
         if source == "dfzq":
             import subprocess
             import tempfile
             import os
             from ft.importers.dfzq import parse_dfzq_text
+
+            # Plain-text fixtures / pre-extracted mutool output (no PDF tools needed).
+            suffix = source_path.suffix.lower()
+            if suffix in {".txt", ".text"}:
+                text = source_path.read_text(encoding="utf-8", errors="replace")
+                return parse_dfzq_text(text.splitlines())
 
             # 1. Decrypt PDF if password provided
             tmp_pdf = None
@@ -241,8 +288,28 @@ class InvestmentImportService:
 
             # 3. Parse DFZQ text
             return parse_dfzq_text(lines)
-        else:
-            raise ValueError(f"Unsupported source: {source}")
+
+        if source == "ibkr":
+            from ft.importers.ibkr import parse_ibkr_csv
+
+            statement = parse_ibkr_csv(source_path)
+            # Stash summary on first row metadata for currency resolution upstream
+            rows = list(statement.transactions)
+            for row in rows:
+                row["_ibkr_base_currency"] = statement.base_currency
+                row["_ibkr_ending_cash"] = str(statement.ending_cash)
+            return rows
+
+        if source == "schwab":
+            from ft.importers.schwab import parse_schwab_csv
+
+            statement = parse_schwab_csv(source_path)
+            rows = list(statement.transactions)
+            for row in rows:
+                row["_schwab_ending_cash"] = str(statement.ending_cash)
+            return rows
+
+        raise ValueError(f"Unsupported source: {source}")
 
     def _create_batch(
         self,
@@ -270,13 +337,34 @@ class InvestmentImportService:
         currency: str,
         file_path: Path,
         file_content: bytes,
+        source: str = "dfzq",
     ) -> int:
         """Import transactions: create raw_records and events."""
-        from ft.importers.dfzq import (
-            construct_source_identity,
-            map_dfzq_to_investment_event,
-        )
         import hashlib
+
+        if source == "ibkr":
+            from ft.importers.ibkr import (
+                construct_source_identity,
+                map_ibkr_to_investment_event as map_to_event,
+            )
+            source_type = "ibkr_csv"
+            media_type = "text/csv"
+        elif source == "schwab":
+            from ft.importers.schwab import (
+                construct_source_identity,
+                map_schwab_to_investment_event as map_to_event,
+            )
+            source_type = "schwab_csv"
+            media_type = "text/csv"
+        elif source == "dfzq":
+            from ft.importers.dfzq import (
+                construct_source_identity,
+                map_dfzq_to_investment_event as map_to_event,
+            )
+            source_type = "dfzq_pdf"
+            media_type = "text/plain"
+        else:
+            raise ValueError(f"Unsupported investment source for import: {source}")
 
         # Create raw_file record
         content_digest = f"sha256:{hashlib.sha256(file_content).hexdigest()}"
@@ -285,23 +373,32 @@ class InvestmentImportService:
             source_path=str(file_path),
             content_digest=content_digest,
             size_bytes=len(file_content),
-            media_type="text/plain",  # DFZQ text after mutool extraction
+            media_type=media_type,
         )
 
-        # Prepare raw_records
+        from decimal import Decimal as _Dec
+
+        # Prepare raw_records (strip private parse-side keys from payload)
         raw_records = []
         for txn in transactions:
             source_identity = construct_source_identity(txn)
+            payload = {
+                k: (format(v, "f") if isinstance(v, _Dec) else v)
+                for k, v in txn.items()
+                if not (
+                    str(k).startswith("_ibkr_") or str(k).startswith("_schwab_")
+                )
+            }
             raw_records.append({
                 "source_identity": source_identity,
-                "payload": txn,
+                "payload": payload,
             })
 
         # Create raw_records in database (handles idempotency)
         raw_record_ids = uow.imports.add_raw_records(
             batch_id=batch_id,
             raw_file_id=raw_file_id,
-            source_type="dfzq_pdf",
+            source_type=source_type,
             records=raw_records,
         )
 
@@ -311,13 +408,10 @@ class InvestmentImportService:
         # Create events linked to raw_records
         count = 0
         for txn, raw_record_id in zip(transactions, raw_record_ids):
-            # Map to investment event
-            event = map_dfzq_to_investment_event(txn, account_name, currency)
+            event = map_to_event(txn, account_name, currency)
 
-            # Apply event to snapshot
             apply_investment_event(snapshot, event, default_currency=currency)
 
-            # Store event with raw_record_id linkage
             event["raw_record_id"] = raw_record_id
             uow.investments.add(account_type, event)
 

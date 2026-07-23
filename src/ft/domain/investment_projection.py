@@ -145,22 +145,45 @@ def apply_investment_command(snapshot: dict, command, *, account_type: str, defa
     elif action == "swap":
         from_quantity = _decimal(command.quantity, "from_quantity")
         to_quantity = _decimal(command.to_quantity, "to_quantity")
-        if min(from_quantity, to_quantity) < 0:
+        commission = _decimal(getattr(command, "commission", 0), "commission", default="0")
+        if min(from_quantity, to_quantity, commission) < 0:
             raise ValueError("swap values must be non-negative")
         from_ticker = command.from_ticker.strip().lower()
         to_ticker = command.to_ticker.strip().lower()
+        commission_asset = str(getattr(command, "commission_asset", "") or "").strip().lower()
+        if commission and not commission_asset:
+            commission_asset = from_ticker
         source = _position(positions, from_ticker, currency)
         target = _position(positions, to_ticker, currency)
         source_shares = _decimal(source["shares"], "source shares")
-        if source_shares < from_quantity:
-            raise ValueError(f"insufficient {from_ticker} position")
         source_cost = _decimal(source["total_cost"], "source cost")
-        released = _div(source_cost * from_quantity, source_shares) if source_shares else Decimal("0")
-        _set(source, source_shares - from_quantity, source_cost - released)
-        _set(target, _decimal(target["shares"], "target shares") + to_quantity,
-             _decimal(target["total_cost"], "target cost") + released)
-        row = _event(command, date, currency, action="swap", from_ticker=from_ticker,
-                     to_ticker=to_ticker, from_amount=from_quantity, to_amount=to_quantity)
+        # Match apply_investment_event: allow soft-start oversell for partial history
+        released = _div(source_cost * from_quantity, source_shares) if source_shares > 0 else from_quantity
+        fee_from_source = commission if commission_asset == from_ticker else Decimal("0")
+        _set(source, source_shares - from_quantity - fee_from_source, source_cost - released - fee_from_source)
+        fee_to_target = commission if commission_asset == to_ticker else Decimal("0")
+        target_amount = to_quantity - fee_to_target
+        target_cost = (
+            target_amount if to_ticker == currency.lower()
+            else released + (commission if commission_asset == from_ticker else Decimal("0"))
+        )
+        _set(
+            target,
+            _decimal(target["shares"], "target shares") + target_amount,
+            _decimal(target["total_cost"], "target cost") + target_cost,
+        )
+        if commission and commission_asset and commission_asset not in {from_ticker, to_ticker}:
+            fee = _position(positions, commission_asset, currency)
+            _set(
+                fee,
+                _decimal(fee["shares"], "fee shares") - commission,
+                _decimal(fee["total_cost"], "fee cost") - commission,
+            )
+        row = _event(
+            command, date, currency, action="swap", from_ticker=from_ticker,
+            to_ticker=to_ticker, from_amount=from_quantity, to_amount=to_quantity,
+            commission=commission, commission_asset=commission_asset,
+        )
     elif action in {"deposit", "withdraw", "dividend", "checkin_cash"}:
         amount = _decimal(command.amount, "amount")
         if action != "checkin_cash" and amount < 0:

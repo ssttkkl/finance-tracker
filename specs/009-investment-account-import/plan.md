@@ -200,8 +200,10 @@ src/ft/
 │   │
 │   ├── importers/
 │   │   ├── dfzq.py                    # [EXISTS] DFZQ PDF parser (parse_dfzq_text)
-│   │   ├── exchange.py                # [NEW] ccxt exchange parser (Phase 2)
-│   │   └── polymarket.py              # [NEW] Polymarket Activity API parser (Phase 3)
+│   │   ├── ibkr.py                    # [NEW] IBKR Activity CSV (US5 / FR-014–017)
+│   │   ├── schwab.py                  # [NEW] Schwab Transaction History CSV (US6 / FR-018–021)
+│   │   ├── exchange.py                # [DEFERRED → 011] ccxt — not 009
+│   │   └── polymarket.py              # [DEFERRED → 011] activity API; quotes → 010
 │   │
 │   └── portfolio_cli.py               # [EXISTS] Portfolio query CLI output
 │
@@ -218,18 +220,22 @@ tests/
 │   │
 │   └── importers/
 │       ├── test_dfzq_parser.py        # [NEW] parse_dfzq_text edge cases
-│       ├── test_exchange_parser.py    # [NEW] ccxt trade mapping (Phase 2)
-│       └── test_polymarket_parser.py  # [NEW] Activity API mapping (Phase 3)
+│       ├── test_ibkr_parser.py        # [NEW] IBKR CSV parse + map (US5)
+│       ├── test_ibkr_map.py           # [NEW] fee contract + FX map (US5)
+│       ├── test_exchange_parser.py    # [DEFERRED → 011]
+│       └── test_polymarket_parser.py  # [DEFERRED → 011]
 │
 ├── integration/
 │   ├── test_dfzq_import.py            # [NEW] Full DFZQ import flow
 │   ├── test_dfzq_import_idempotency.py # [NEW] Duplicate detection
-│   ├── test_exchange_import.py        # [NEW] Exchange sync (Phase 2)
-│   └── test_polymarket_import.py      # [NEW] Polymarket sync (Phase 3)
+│   ├── test_ibkr_import.py            # [NEW] Full IBKR CSV import (US5)
+│   ├── test_exchange_import.py        # [DEFERRED → 011]
+│   └── test_polymarket_import.py      # [DEFERRED → 011]
 │
 ├── contract/
 │   ├── test_dual_backend_dfzq.py      # [NEW] PostgreSQL vs SQLite parity
-│   ├── test_dual_backend_exchange.py  # [NEW] Exchange sync parity (Phase 2)
+│   ├── test_dual_backend_ibkr.py      # [NEW] IBKR dual-backend parity (US5)
+│   ├── test_dual_backend_exchange.py  # [DEFERRED → 011]
 │   └── test_cli_errors.py             # [NEW] Error message validation
 │
 └── fixtures/
@@ -328,10 +334,16 @@ No constitution violations requiring justification. All MUST constraints satisfi
 3. **Commission Asset Handles Edge Cases**: BNB-paid fees via commission_asset="bnb"
 4. **MVP Scope**: Independent fees (withdrawal fees, account management) can be added in future feature
 
-**Out of Scope**:
+**Out of Scope** (as independent FEE action):
 - Withdrawal fees (crypto network fees when moving assets out)
 - Account management fees (monthly/annual broker fees)
-- Margin interest
+- Margin interest as standalone FEE action
+
+**Note (fee contracts, one-place rule)**:
+- **Universal**: each fen of fee appears in **either** cash leg **or** `commission`, never both.
+- **DFZQ**: 总发生金额 is **net** cash. Peel 手续费 into `commission` and adjust cash leg so total cash impact still equals |net| (`_split_commission` in `importers/dfzq.py`). 印花税/过户费 stay in cash leg when not peeled. Fallback commission=0 only when peel impossible.
+- **IBKR US5**: statement 总额 is **gross**; cash leg = |总额|, `commission` = |佣金| (equity). FX may embed commission when net==gross.
+- Do not copy DFZQ peel formulas onto IBKR gross rows or vice versa.
 
 **Future Extension** (if needed):
 - Add FEE action in 013 or later
@@ -359,6 +371,9 @@ if existing_batch and existing_batch.status == 'completed':
 ```python
 # DFZQ: Composite business key
 source_identity = f"dfzq:{date}:{ticker}:{action}:{amount}:{balance}"
+
+# IBKR Activity CSV (amounts via format(Decimal, "f"); type = buy|sell|deposit|dividend|wht|interest|fx|checkin)
+source_identity = f"ibkr:{date}:{type}:{code}:{qty}:{net}:{commission}"
 
 # Exchange: Trade ID (authoritative)
 source_identity = f"ccxt:{provider}:trade:{trade_id}"
@@ -580,33 +595,40 @@ jobs:
 - Idempotent duplicate detection (count=0 on repeat)
 - Snapshot validation rejects NaN/Infinity
 
-### Phase 2: Exchange Sync (P2) - Optional for 009
+### Phase 1b: IBKR Activity CSV Import (P1) - Living extension 2026-07-23
 
-**Scope**: FR-008, FR-010, FR-011 (dual-backend for exchange)
-
-**Deliverables**:
-- `src/ft/importers/exchange.py`: ExchangeStatementParser (ccxt wrapper)
-- `src/ft/cli/import_cmd.py`: Add `--source binance/okx` support
-- Credentials: Load from env vars or `~/.ft/credentials.json`
-- Tests: Unit (ccxt trade mapping), integration (mock ccxt client), contract (dual-backend)
-
-**Success Criteria** (from spec SC-003):
-- Support at least 1 exchange (Binance)
-- Incremental sync via `--since` parameter
-- Idempotent by trade ID
-
-### Phase 3: Polymarket Sync (P3) - Optional for 009
-
-**Scope**: FR-009, FR-010, FR-011 (dual-backend for Polymarket)
+**Scope**: FR-014, FR-015, FR-016, FR-017, FR-002, FR-011, FR-013; SC-008
 
 **Deliverables**:
-- `src/ft/importers/polymarket.py`: PolymarketStatementParser
-- `src/ft/cli/import_cmd.py`: Add `--source polymarket` support
-- Tests: Unit (activity mapping), integration (mock Activity API), contract (dual-backend)
+- `src/ft/importers/ibkr.py`: parse_ibkr_csv / map / source_identity / cash CHECKIN
+- Wire `InvestmentImportService` for multi-source (not dfzq-only map)
+- CLI `--source ibkr`; fixtures under `tests/fixtures/ibkr/`
+- research.md IBKR census + fee contract (authoritative)
 
-**Success Criteria** (from spec SC-003):
-- Sync prediction market activities
-- Idempotent by transaction hash
+**Success Criteria**:
+- Equity: no double fee; projection cash = |净额|
+- End cash CHECKIN = 总结.期末现金
+- Unknown 交易类型 fail-closed
+- Dual-backend parity on fixture
+- Idempotent re-import
+
+### Phase 1c: Schwab Transaction History CSV (P1) - Living 2026-07-23
+
+**Scope**: FR-018–021, FR-002, FR-011, FR-013; SC-009
+
+**Deliverables**: `src/ft/importers/schwab.py`; multi-source wire; CLI `--source schwab`; fixtures `tests/fixtures/schwab/`.
+
+**Fee contract**: cash leg = abs(金额); commission = abs(杂费)+abs(佣金); CHECKIN = newest 余额.
+
+### Phase 2: Exchange Sync — **NOT IN 009** (→ `011-investment-connector-sync`)
+
+**Living 2026-07-23**: Removed from 009 delivery per `docs/productization-refactor-plan.md`.
+Former FR-008/FR-010 and draft tasks T072–T095 are **deferred**; do not implement under 009.
+CLI source names `binance`/`okx` may remain reserved and must fail closed until 011.
+### Phase 3: Polymarket Sync — **NOT IN 009** (→ `011`; quotes → `010`)
+
+**Living 2026-07-23**: Activity/API trade sync deferred to **011**. Live market quotes for
+Polymarket → **010**. Former FR-009/FR-010 and draft tasks T096–T112 are **not** 009 work.
 
 ## Risks and Mitigation
 
@@ -628,25 +650,13 @@ jobs:
 - CI runs both backends, asserts Decimal-exact equality
 - Manual verification: Import real statement to both, diff results
 
-### Medium Risk: Third-Party API Changes
+### Medium Risk: Scope creep back into 009
 
-**Risk**: Exchange/Polymarket API schema evolution breaks parser
-
-**Mitigation**:
-- ccxt library abstracts exchange differences (Phase 2)
-- Version lock ccxt in `pyproject.toml`
-- Integration tests against mock responses (not live API)
-- Document API version in parser comments
-
-### Medium Risk: Credential Security
-
-**Risk**: Plaintext credentials.json leaked to git
+**Risk**: Implementer re-opens US3/US4 under 009 despite productization plan.
 
 **Mitigation**:
-- `.gitignore` enforcement (CLI checks on startup, warns if missing)
-- File permission check (warn if not 0600)
-- Test credentials prefixed with `TEST_` (clear visual distinction)
-- Long-term: Encrypted vault in 011
+- Spec FR-008/009/010 marked DEFERRED → 011; SC-003 redefined as DFZQ+IBKR only
+- tasks.md Phase 5/6 cancelled; do not implement under 009
 
 ### Low Risk: Performance Degradation
 

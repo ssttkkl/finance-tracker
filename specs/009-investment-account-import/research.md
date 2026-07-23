@@ -375,9 +375,327 @@ CREATE TABLE investment_events (
 4. **Test Data**: Where should test PDFs/fixtures live? (Likely `tests/fixtures/dfzq/`)
 5. **Commission Asset Null Handling**: When commission_asset is NULL vs empty string, does projection default to from_ticker?
 
+---
+
+## Investment source: ibkr (Interactive Brokers / 盈透证券)
+
+**Status**: Living-spec extension of 009 (2026-07-23). Calibrated on real Activity Statement
+CSV (Transaction History, Chinese column labels), sample path local-only:
+`exports/ibkr/U19367228.TRANSACTIONS.1Y.csv` (gitignored); redacted fixture:
+`tests/fixtures/ibkr/transactions_1y_sample.csv`.
+
+### Export format
+
+- **Format**: IBKR Activity Statement style multi-section CSV (`Section,Header|Data,...`)
+- **Sections used**:
+  - `Statement` — Title / Period / WhenGenerated
+  - `总结` — 基础货币, 期初现金, 变更, 期末现金
+  - `Transaction History` — row-level cash/trades
+- **Decrypt/extract tools**: none (plain UTF-8 CSV)
+- **Account type**: `security`
+- **Default currency**: base currency from 总结 (`USD` in sample); CLI `--currency` override allowed
+- **source CLI**: `ft import <file.csv> --source ibkr --account <name>`
+
+### Native columns (Transaction History)
+
+| # | Header (sample) | Meaning | Sign / unit |
+|---|---|---|---|
+| 0–1 | section + `Data` | row kind | — |
+| 2 | 日期 | trade/settle calendar date | `YYYY-MM-DD` (no time) |
+| 3 | 账户 | account id | redacted `U***…` in fixtures |
+| 4 | 说明 | free-text description | — |
+| 5 | 交易类型 | action label | see map below |
+| 6 | 代码 | symbol or pair (`GOOG`, `USD.HKD`) | `-` when N/A |
+| 7 | 数量 | shares or FX base qty | buy `+`, sell `-`; `-` when N/A |
+| 8 | 价格 | trade / FX rate | `-` when N/A |
+| 9 | Price Currency | quote ccy of price | e.g. `USD`, `HKD` |
+| 10 | 总额 | **gross** cash of equity trade | buy `-`, sell `+` (equity) |
+| 11 | 佣金 | commission | **always ≤ 0** when present; `-` empty |
+| 12 | 净额 | **net cash impact in base** | signed; cash recon key |
+
+### Transaction type census (sample, 38 flow rows)
+
+| 交易类型 | Count | Cash direction | Notes |
+|---|---:|---|---|
+| 买 | 17 | net ≤ 0 | equity buy |
+| 卖 | 10 | net ≥ 0 | equity sell |
+| 存款 | 6 | net > 0 | 电子资金转账 |
+| 股息 | 1 | net > 0 | cash dividend |
+| 外国预扣税 | 1 | net < 0 | tax on dividend |
+| 借方利息 | 1 | net < 0 | debit interest |
+| 外汇交易组成部分 | 2 | residual base cash | pair in 代码 `USD.HKD` |
+
+### Fee / cash-leg contract (equity) — **chosen model: gross + commission**
+
+Empirically on **all 27** sample equity trades:
+
+```text
+净额 = 总额 + 佣金     (佣金 ≤ 0)
+|总额| ≈ |数量| × 价格   (sign: buy 总额 negative, sell positive)
+```
+
+| Field | Example buy SNDK | In cash leg? | In commission field? | Note only? |
+|---|---|---|---|---|
+| 总额 (gross) | `-5478.28` | **Yes** — SWAP cash amount = `abs(总额)` | No | — |
+| 佣金 | `-1.000012` | No (not embedded in 总额) | **Yes** — `commission = abs(佣金)`, `commission_asset = base` (usd) | Yes (audit) |
+| 净额 | `-5479.280012` | Derived: gross − commission after projection | — | Sanity: must match 总额+佣金 |
+| 数量 × 价格 | notional | Not the cash leg | — | Sanity vs 总额 |
+
+**Projection effect (009 single-row SWAP + commission):**
+
+- **BUY** → `swap` cash→ticker: `from_amount = abs(总额)`, `to_amount = abs(数量)`,
+  `commission = abs(佣金)`, `commission_asset = usd` → cash decreases by gross+commission = |净额|
+- **SELL** → `swap` ticker→cash: `from_amount = abs(数量)`, `to_amount = abs(总额)`,
+  `commission = abs(佣金)`, `commission_asset = usd` → cash increases by gross−commission = |净额|
+  (projection deducts commission from cash target when `commission_asset == to_ticker`)
+
+**Contrast with DFZQ (peel model, not “always commission=0”)**:
+
+DFZQ `总发生金额` is **net** cash (after 手续费/印花税/过户费). Code peels **手续费** when separable:
+
+| Side | Cash leg | commission | Projection cash |
+|---|---|---|---|
+| BUY | `\|net\| - 手续费` | `手续费` | from + commission = \|net\| out |
+| SELL | `\|net\| + 手续费` | `手续费` | to − commission = \|net\| in |
+| Peel fail / fee=0 | `\|net\|` | `0` | cash = \|net\| |
+
+印花税/过户费 stay inside the cash leg (not always cleanly invertible).  
+**Forbidden (both brokers)**: same fee fen in cash leg **and** commission.
+
+IBKR equities already expose **gross** 总额 + 佣金 → cash leg = \|gross\|, commission = \|佣金\| (no peel needed).  
+Do **not** apply DFZQ peel formulas to IBKR net rows or set IBKR cash_leg=\|净额\| with non-zero commission.
+
+### Cash reconciliation (sample)
+
+- 总结: 期初现金 `0`, 变更 `5044.938780328453`, 期末现金 `5044.938780328453`, 基础货币 `USD`
+- Σ(全部行 净额) ≈ `5044.938781…` (sub-µUSD float noise from scientific notation in CSV)
+- Pass rule: after import + cash CHECKIN, snapshot USD cash = 总结.期末现金 within ≤ `0.01` (or exact Decimal when rows re-parsed without binary float)
+
+### Non-equity action map (Phase-1 decisions)
+
+| 交易类型 | Event action | Mapping rules |
+|---|---|---|
+| 买 | `swap` | cash→symbol; gross + commission (above) |
+| 卖 | `swap` | symbol→cash; gross + commission |
+| 存款 | `deposit` | `to_amount = abs(净额)`, cash ticker = base |
+| 股息 | `dividend` | cash dividend: `to_ticker=base`, `to_amount=abs(净额)`; `from_ticker=代码` for audit |
+| 外国预扣税 | `withdraw` | `from_amount = abs(净额)` cash (tax outflow) |
+| 借方利息 | `withdraw` | `from_amount = abs(净额)` cash |
+| 外汇交易组成部分 | `swap` | multi-currency swap (below) |
+
+**Clarification on freeform wording**: user message grouped “存款股息…withdraw”; **cash direction
+overrides wording** — 存款 is **deposit**, 股息 is **dividend**, only 预扣税/借方利息 are **withdraw**.
+
+### FX (`外汇交易组成部分`) contract
+
+Sample rows:
+
+1. Tiny: `USD.HKD` qty=`0.0095` px=`7.84045` 总额≈净额≈`2.75e-7`, 佣金 empty  
+2. Large: `USD.HKD` qty=`1275.46` px=`7.84025` 总额=`-2.030…` 佣金=`-2.0` **净额=`-2.030…`**  
+   Note: for this row **净额 = 总额 ≠ 总额+佣金**. Equity identity does **not** hold.
+
+Interpretation for Phase-1 (fail-closed if pair unparseable) — **locked for implementer**:
+
+1. Pair `BASE.QUOTE` in 代码 (e.g. `USD.HKD`); tickers = lower-case `usd`, `hkd`.
+2. Left amount = `abs(数量)`; right amount = `abs(数量) × abs(价格)` (Price Currency column).
+3. Direction (which side is `from` vs `to`):
+   - Prefer sign of 数量: positive qty → buy left / sell right (`from`=quote, `to`=base with
+     amounts right→left); negative qty → sell left / buy right. Lock with unit tests on both
+     sample FX rows.
+   - Cross-check description `外汇交易基础货币净额: <n> USD.HKD` when present (n may be base notional).
+4. Commission: if 佣金 present and **净额 == 总额** (large sample FX row), commission is
+   **embedded** → `commission=0`, note `佣金{abs}`; **never** equity-style double apply on FX
+   when net==gross. If a future sample shows 净额=总额+佣金 for FX, document switch to
+   equity-style for that variant only.
+5. Calibration gate: after flows + cash CHECKIN, **base** cash == 总结.期末现金. Non-base
+   positions (e.g. hkd) MAY remain non-zero; do not invent CHECKIN or skip FX rows to force zero.
+6. Unparseable pair / missing qty or price → abort entire import (fail-closed).
+
+### CHECKIN policy (this export)
+
+- Emit **one cash CHECKIN** after flows: `to_ticker=base`, `to_amount=总结.期末现金`,
+  `date = max(flow date) or WhenGenerated date`
+- **No per-ticker holdings CHECKIN** — sample has no 成本价/持仓表; do not invent cost
+- Flow-replay shares for open names (sample end): AVGO 5, KO 30, NVDA 25, SNDK 4, TSM 20;
+  closed: MU/GOOG/QCOM/MRVL → 0. Avg cost is flow-only, not broker-official
+
+### source_identity recipe
+
+```text
+ibkr:{date}:{type}:{code}:{qty}:{net}:{commission}
+```
+
+- `date` = `YYYYMMDD`
+- `type` = raw 交易类型 (or stable English token: buy/sell/deposit/dividend/wht/interest/fx)
+- `code` = 代码 or `cash`
+- `qty` / `net` / `commission` = full Decimal string via `format(x, "f")` (no sci notation)
+- CHECKIN: `ibkr:{date}:checkin:cash:{amount}:0`
+
+### Parser checklist (ibkr)
+
+- [ ] UTF-8 CSV via `csv` module (quoted fields, scientific notation → Decimal)
+- [ ] Require sections Statement + Transaction History; fail if 交易类型 unknown
+- [ ] No silent `continue` without incrementing skip counter; unknown type → abort batch
+- [ ] Map + construct_source_identity + optional summary cash CHECKIN
+- [ ] Unit tests on redacted fixture; offline replay cash ≈ 期末现金
+- [ ] Wire `InvestmentImportService._parse_statement` + CLI `--source ibkr`
+- [ ] `source_type` for raw_records: `ibkr_csv`
+
+### Calibration targets (sample)
+
+| Metric | Expected |
+|---|---|
+| Flow rows | 38 |
+| + cash CHECKIN | 39 events (if one checkin) |
+| End USD cash | 5044.938780328453 (after checkin) |
+| Open share counts | AVGO5 KO30 NVDA25 SNDK4 TSM20 |
+| Equity fee double-count | 0 |
+| Re-import | duplicate batch, count 0 |
+
+### Non-goals (ibkr Phase-1)
+
+- Flex Query / API / Client Portal auto-sync (→ 011)
+- Other IBKR sections (Trades, Open Positions, MTM, Corporate Actions beyond types above)
+- English-only statement variants (may share structure; not certified until sample)
+- Official cost-basis alignment without Positions export
+- Valuation / FX rates beyond statement price field
+- Lot accounting / realized P&L relations
+
+### Decision log
+
+| # | Decision | Rationale |
+|---|---|---|
+| 1 | Living extend 009 (not new feature dir) | Same investment import service + event model; user chose Living |
+| 2 | Equity fee = gross + commission field (IBKR) | 净额=总额+佣金; preserves commission audit; projection cash = net |
+| 2b | DFZQ fee = peel 手续费 from net into commission | Product preference: commission field when separable; cash impact still \|净额\|; fallback commission=0 if cannot peel |
+| 3 | FX = swap multi-ccy; FX commission embed if 净额==总额 | Sample identity differs from equity |
+| 4 | 存款→deposit, 股息→dividend, tax/interest→withdraw | Cash sign / domain; freeform “withdraw” for 存款/股息 rejected |
+| 5 | Cash CHECKIN only | No holdings cost table in this CSV |
+| 6 | Remove “IBKR out of scope” from 009 spec | Superseded by this extension |
+| 7 | One-place fee rule (all sources) | Same fen never in cash leg and commission |
+| 8 | US3 exchange + US4 Polymarket **out of 009** | Align `docs/productization-refactor-plan.md`: file import = 009; valuation = 010; connector API sync = 011 |
+
 ## References
 
 - Constitution Principle IV: Dual-backend equivalence, explicit DB selection
 - Feature 007: Import contract (batch → raw_records → formal facts)
 - Feature 005: Multi-currency accounts (base_currencies in metadata)
 - Feature 002: Dual-database runtime (explicit FT_DATABASE_URL)
+- Skill: `.claude/skills/investment-statement-importer-onboarding`
+
+---
+
+## Investment source: schwab (Charles Schwab / 嘉信理财)
+
+**Status**: Living-spec extension of 009 (2026-07-23). Calibrated on real
+Transaction History CSV (Chinese headers), sample:
+`exports/schwab/TransactionHistory.csv` (gitignored);
+fixture: `tests/fixtures/schwab/transaction_history_sample.csv`.
+
+### Export format
+
+- Single-table CSV (UTF-8, possible BOM), header:
+  `日期, 类型, 说明, 参照号码, 杂费, 佣金, 金额, 余额`
+- Header cells may have leading spaces (` 类型`); strip on parse.
+- Row order: **newest first**; import/replay MUST sort ascending by 日期 then 参照号码.
+- No PDF tools. Account type: `security`. Currency: USD (statement amounts are US$).
+- CLI: `ft import <file.csv> --source schwab --account <name>`
+
+### Type census (sample, 36 rows)
+
+| 类型 | Count | Meaning (sample) | Event |
+|---|---:|---|---|
+| TRD | 27 | BOT/SOLD equity | swap |
+| DOI | 4 | Qualified Dividend / INTEREST | dividend if amount>0; withdraw if amount<0 (interest charge) |
+| JRN | 4 | tax withhold / REFUND | withdraw if amount<0; deposit if REFUND / amount>0 |
+| WIN | 1 | WIRED FUNDS RECEIVED | deposit |
+
+### Native columns
+
+| Header | Meaning |
+|---|---|
+| 日期 | local datetime `YYYY/M/D HH:MM` |
+| 类型 | TRD / DOI / JRN / WIN / … |
+| 说明 | free text; TRD: `BOT +N SYM @price` or `SOLD -N SYM @price` |
+| 参照号码 | broker ref (unique in sample) — primary idempotency atom |
+| 杂费 | fee (often empty/`-` on buys; **negative** on sells, e.g. `-0.03`) |
+| 佣金 | commission (always `0.00` in sample) |
+| 金额 | signed cash of the line (`$1,550.00` / `($5,992.00)`) |
+| 余额 | post-transaction cash balance |
+
+### Fee / cash-leg contract (chosen)
+
+Empirically:
+
+1. Balance walk: `余额_new = 余额_old + 金额 + 杂费` (杂费 empty → 0). **金额 alone fails** on sells with 杂费.
+2. 佣金 is 0 in sample; treat as additional cash fee if non-zero later:  
+   `fee_total = abs(杂费) + abs(佣金)` when both are cash fees in base currency.
+3. 金额 is **principal / quoted cash** (not net of 杂费).
+
+| Side | Cash leg (SWAP) | commission | Projection cash |
+|---|---|---|---|
+| BOT (buy) | `abs(金额)` | `fee_total` | from + commission (if fee on buy ever appears) |
+| SOLD (sell) | `abs(金额)` | `fee_total` (=abs(杂费) typically) | to − commission = 金额+杂费 net |
+
+**One-place rule**: do not set cash leg = `abs(金额+杂费)` **and** non-zero commission.
+
+**Contrast**:
+- IBKR equity: gross 总额 + 佣金 (佣金 signed ≤0).
+- DFZQ: net 总发生金额 + peel 手续费.
+- Schwab: 金额 + 杂费 (杂费 separate; 佣金 column usually 0).
+
+### Action map
+
+| 类型 + 说明 pattern | action | Notes |
+|---|---|---|
+| TRD + `BOT +qty SYM @px` | swap usd→sym | qty, price from description; verify abs(金额)≈qty×price |
+| TRD + `SOLD -qty SYM @px` | swap sym→usd | qty = abs |
+| WIN + wire received | deposit | to_amount=abs(金额) |
+| DOI + dividend / amount>0 | dividend | to_amount=abs(金额); from_ticker=underlying if parseable |
+| DOI + INTEREST / amount<0 | withdraw | abs(金额) |
+| JRN + REFUND / amount>0 | deposit | e.g. tax refund |
+| JRN + amount<0 (withhold) | withdraw | e.g. US$ tax |
+| unknown 类型 | fail-closed | |
+
+### CHECKIN
+
+- No holdings table in this export.
+- Emit **one cash CHECKIN** after flows: `to_amount = newest-row 余额` (first data row in file order / max datetime 余额), `to_ticker=usd`.
+- Flow-only shares (sample open): AVGO 7, MSFT 5; closed QLD/MU/SMH/SNDK.
+
+### source_identity
+
+```text
+schwab:{参照号码}:{类型}
+```
+
+CHECKIN: `schwab:{YYYYMMDD}:checkin:cash:{amount}`
+
+Prefer 参照号码 (unique in sample). If missing, fall back to date+type+amount+balance.
+
+### Calibration targets (sample)
+
+| Metric | Expected |
+|---|---|
+| Flow rows | 36 |
+| + cash CHECKIN | 37 |
+| End USD cash | 2865.36 (newest 余额) |
+| Open shares | AVGO 7, MSFT 5 |
+| Equity double fee | 0 |
+| Re-import | count 0 |
+
+### Non-goals (schwab Phase-1)
+
+- Positions/cost CSV, tax lots, margin detail statements
+- English-only header variants until sampled
+- Schwab API / thinkorswim auto-sync (→ 011)
+- Multi-currency non-USD (sample is US$ only)
+
+### Decision log (schwab)
+
+| # | Decision | Rationale |
+|---|---|---|
+| S1 | Living extend 009 as US6 (file import) | Same InvestmentImportService; productization 009 = file importers |
+| S2 | Cash impact = 金额 + 杂费; commission = abs(杂费)+abs(佣金) | Balance walk identity |
+| S3 | Cash CHECKIN from newest 余额 | No summary section |
+| S4 | source_identity = 参照号码 + type | Stable broker ref |

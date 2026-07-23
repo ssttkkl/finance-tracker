@@ -382,3 +382,40 @@ def test_swap_allows_sell_without_prior_position():
     apply_investment_event(snapshot, event, default_currency="CNY")
     pos = snapshot["accounts"]["security"]["broker"]["positions"]["600000.sh"]
     assert Decimal(str(pos["shares"])) == Decimal("-50")
+
+
+def test_swap_zero_shares_and_zero_cost_edge():
+    """Zero-quantity swap is a no-op that still creates structure."""
+    snapshot = {"accounts": {}}
+    event = {
+        "date": "2026-01-01 00:00:00",
+        "action": "swap",
+        "account_name": "broker",
+        "from_ticker": "cny",
+        "from_amount": "0",
+        "to_ticker": "600000.sh",
+        "to_amount": "0",
+        "commission": "0",
+        "currency": "CNY",
+    }
+    apply_investment_event(snapshot, event, default_currency="CNY")
+    pos = snapshot["accounts"]["security"]["broker"]["positions"]
+    assert Decimal(pos["600000.sh"]["shares"]) == Decimal("0")
+    assert Decimal(pos["cny"]["shares"]) == Decimal("0")
+
+
+def test_deposit_creates_missing_cash_position():
+    snapshot = {"accounts": {}}
+    apply_investment_event(
+        snapshot,
+        {
+            "date": "2026-01-01 00:00:00",
+            "action": "deposit",
+            "account_name": "broker",
+            "to_ticker": "usd",
+            "to_amount": "100",
+            "currency": "USD",
+        },
+        default_currency="USD",
+    )
+    assert Decimal(snapshot["accounts"]["security"]["broker"]["positions"]["usd"]["shares"]) == Decimal("100")
