@@ -90,13 +90,8 @@ class StatementImportService:
                 target_account_name=None,
                 target_account_currency=None,
             )
-            existing = uow.imports.get_batch(batch_id)
-            if existing["status"] == "completed":
-                uow.commit()
-                return OperationResult(
-                    ok=True, count=0, message="already imported",
-                    details={"batch_id": batch_id, "duplicate": True, "by_account": {}},
-                )
+            # 010: do not short-circuit on completed batch/digest — formalization
+            # is gated solely by business identity via formal_fact_targets below.
 
             # Account identity is name-only; a statement row owns its currency.
             account_cache: dict[str, object] = {}
@@ -225,11 +220,15 @@ class StatementImportService:
                 **acceptance,
                 "published": saved_imported_count,
             }
+        no_new = saved_imported_count == 0
         return OperationResult(
-            ok=True, count=saved_imported_count, message="imported",
+            ok=True,
+            count=saved_imported_count,
+            message="no new rows" if no_new else "imported",
             details={
                 "batch_id": saved_batch_id,
-                "duplicate": False,
+                "duplicate": no_new,
+                "new_rows": saved_imported_count,
                 "by_account": saved_by_account,
                 "new_cash_fact_ids": saved_new_cash_fact_ids,
                 "acceptance": acceptance,

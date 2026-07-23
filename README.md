@@ -58,6 +58,8 @@ uv run ft list --account Wallet --limit 20
 
 ## 投资事件
 
+### 手动记录投资操作
+
 ```bash
 uv run ft stock deposit --amount 1000 --currency USD --account IBKR
 uv run ft stock buy --ticker aapl.us --shares 2 --price 200 --commission 1 --currency USD --account IBKR
@@ -67,6 +69,47 @@ uv run ft stock dividend --ticker aapl.us --amount 5 --currency USD --account IB
 uv run ft stock checkin --ticker aapl.us --shares 3 --avg-cost 190 --currency USD --account IBKR
 uv run ft stock checkin --cash 500 --currency USD --account IBKR
 uv run ft stock list
+```
+
+### 投资账单直接导入
+
+**东方证券 (DFZQ) PDF 对账单导入：**
+
+```bash
+# 需要先创建 security 或 crypto 类型账户
+uv run ft acct add 东方证券 --type security --currency CNY
+
+# 导入 DFZQ PDF 对账单（自动解析股票买卖、资金出入、分红等）
+uv run ft import dfzq_statement.pdf --source dfzq --account 东方证券
+
+# 支持密码保护的 PDF
+uv run ft import dfzq_statement.pdf --source dfzq --account 东方证券 --password-file /tmp/pw.txt
+```
+
+**外部工具依赖：**
+
+DFZQ PDF 导入需要以下工具用于 PDF 解密与文本提取：
+
+```bash
+# macOS
+brew install qpdf mupdf-tools
+
+# Ubuntu/Debian
+apt install qpdf mupdf-tools
+```
+
+**幂等性保证：**
+
+- 同一文件重复导入会自动检测（通过 SHA256 文件摘要）
+- 重复导入返回成功但不会创建新事件（count=0）
+- 每笔交易通过业务键（日期+证券+金额+余额）去重
+- 快照验证拒绝非有限值（NaN、Infinity）以保证财务正确性
+
+**导入后验证：**
+
+```bash
+uv run ft stock list  # 查看持仓
+uv run ft report      # 查看资产报表
 ```
 
 金额、数量、成本和投影使用 `Decimal`/`NUMERIC(38,18)`；非有限值和超过 18 位小数的输入会被拒绝。
@@ -82,14 +125,17 @@ uv run ft import hqmx.xls --source ccb-debit
 
 支持的起始矩阵：
 
-| Source | 文件 |
-|---|---|
-| `alipay` | CSV |
-| `wechat` | XLSX |
-| `icbc` | 加密 PDF |
-| `icbc-debit` | PDF |
-| `ccb-debit` | XLS |
-| `dfzq` | PDF |
+| Source | 文件 | 账户类型 | 说明 |
+|---|---|---|---|
+| `alipay` | CSV | cash (自动路由) | 支付宝账单 |
+| `wechat` | XLSX | cash (自动路由) | 微信账单 |
+| `icbc` | 加密 PDF | cash (自动路由) | 工行账单 |
+| `icbc-debit` | PDF | cash (自动路由) | 工行借记卡 |
+| `ccb-debit` | XLS | cash (自动路由) | 建行借记卡 |
+| `dfzq` | PDF | security (需指定 --account) | 东方证券对账单 |
+| `binance` | API | crypto (需指定 --account) | 币安交易所 (Phase 2) |
+| `okx` | API | crypto (需指定 --account) | OKX 交易所 (Phase 2) |
+| `polymarket` | API | security (需指定 --account) | Polymarket 预测市场 (Phase 3) |
 
 导入在一个数据库事务内完成内容摘要、batch、raw records、正式事实、revision、projection 和完成状态。
 同一文件可写入多个账户（`import_batches.target_account_id` 可空）；重复导入同一
@@ -123,12 +169,53 @@ uv build
 git diff --check
 ```
 
-完整持久化验证要求真实 PostgreSQL `_test` 数据库：
+完整持久化验证要求真实 PostgreSQL `_test` 数据库。本机推荐 Docker 容器
+`finance-tracker-postgres-test`（`127.0.0.1:55432` → 5432，库名须以 `_test` 结尾）：
 
 ```bash
-FT_TEST_POSTGRES_URL='postgresql+psycopg://localhost/finance_tracker_test' \
-FT_REQUIRE_TEST_POSTGRES=1 uv run pytest
+# 确保容器在跑
+docker start finance-tracker-postgres-test 2>/dev/null || true
+
+export FT_TEST_POSTGRES_URL='postgresql+psycopg://finance_tracker:finance_tracker_test@127.0.0.1:55432/finance_tracker_test'
+export FT_REQUIRE_TEST_POSTGRES=1
+uv run pytest
 ```
+
+不要用其它业务容器的 `5432` 端口。`FT_TEST_POSTGRES_URL` 指向的库会被测试重置 schema，
+仅允许专用 `*_test` 库（见 `tests/conftest.py`）。
+### Constitution 合规性
+
+本项目遵循 5 项工程原则（详见 `.specify/memory/constitution.md`）：
+
+**I. 财务正确性与可审计性**
+- ✅ 所有金额使用 `Decimal(28,10)` 精度
+- ✅ 每笔导入事件通过 `raw_record_id` 追溯至原始账单
+- ✅ 幂等性：`source_digest` (文件级) + `source_identity` (记录级) 双重保证
+- ✅ 快照验证拒绝 NaN/Infinity，保证财务状态有限性
+
+**II. Spec Kit 规格驱动**
+- ✅ 所有行为源自 `specs/*/spec.md`、`plan.md`、`data-model.md`
+- ✅ 实现前完成规格、方案、任务拆分、constitution check
+- ✅ 无行为超出规格范围
+
+**III. 测试先行与验证证据**
+- ✅ 所有可执行行为、财务逻辑、数据变更先写失败测试
+- ✅ 单元测试覆盖 domain 层 (>85%)
+- ✅ 集成测试验证完整导入流程
+- ✅ Contract 测试证明 PostgreSQL/SQLite 等价性
+
+**IV. 显式数据库选择与行为等价**
+- ✅ `FT_DATABASE_URL` 显式选择 PostgreSQL 或 SQLite
+- ✅ 双后端 schema 等价（JSONB↔JSON, UUID↔TEXT）
+- ✅ 事务原子性：两后端均使用 SERIALIZABLE/WAL+IMMEDIATE
+- ✅ Contract 测试矩阵：同一导入→两后端→断言完全等价
+- ❌ **明确禁止**：自动回退、双写、隐式跨后端迁移
+
+**V. 清晰边界与最小复杂度**
+- ✅ Domain 层纯函数（无 SQLAlchemy 依赖）
+- ✅ Parser 返回 dict，不返回 ORM 模型
+- ✅ Application Service 编排事务边界
+- ✅ 避免过早抽象（Parser registry 用 dict，非插件框架）
 
 ## 财富归因内核
 

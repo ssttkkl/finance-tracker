@@ -137,7 +137,10 @@ def _main(argv=None):
     stk = sub.add_parser("stock", help="股票交易")
     stk_sub = stk.add_subparsers(dest="stock_cmd")
 
-    buy_p = stk_sub.add_parser("buy", help="买入")
+    buy_p = stk_sub.add_parser(
+        "buy",
+        help="买入（legacy 便捷写法；落库为单行 SWAP: cash→ticker + commission）",
+    )
     buy_p.add_argument("--ticker", required=True)
     buy_p.add_argument("--shares", required=True)
     buy_p.add_argument("--price", required=True)
@@ -147,7 +150,10 @@ def _main(argv=None):
     buy_p.add_argument("--note", default="")
     buy_p.add_argument("--date")
 
-    sell_p = stk_sub.add_parser("sell", help="卖出")
+    sell_p = stk_sub.add_parser(
+        "sell",
+        help="卖出（legacy 便捷写法；落库为单行 SWAP: ticker→cash + commission）",
+    )
     sell_p.add_argument("--ticker", required=True)
     sell_p.add_argument("--shares", required=True)
     sell_p.add_argument("--price", required=True)
@@ -157,13 +163,25 @@ def _main(argv=None):
     sell_p.add_argument("--note", default="")
     sell_p.add_argument("--date")
 
-    swap_p = stk_sub.add_parser("swap", help="币币兑换（持仓换持仓，成本结转）")
+    swap_p = stk_sub.add_parser(
+        "swap",
+        help=(
+            "通用 SWAP 单行模型（持仓换持仓/币币兑换，成本结转）。"
+            " buy/sell 是 SWAP 的便捷包装；加密三方手续费用 --commission + --commission-asset"
+        ),
+    )
     swap_p.add_argument("--from-ticker", required=True)
     swap_p.add_argument("--from-shares", required=True)
     swap_p.add_argument("--to-ticker", required=True)
     swap_p.add_argument("--to-shares", required=True)
     swap_p.add_argument("--account", required=True)
     swap_p.add_argument("--currency")
+    swap_p.add_argument("--commission", default="0", help="手续费数量（可选）")
+    swap_p.add_argument(
+        "--commission-asset",
+        default="",
+        help="手续费资产 ticker；缺省且 commission>0 时默认为 --from-ticker",
+    )
     swap_p.add_argument("--note", default="")
     swap_p.add_argument("--date")
 
@@ -258,13 +276,17 @@ def _main(argv=None):
 
     statement_import = sub.add_parser(
         "import",
-        help="原始账单导入（按账户名路由、按行币种入账；禁止 --account）",
+        help="原始账单导入（按账户名路由、按行币种入账；投资账单需指定 --account）",
         allow_abbrev=False,
     )
     statement_import.add_argument("file", help="原始账单文件路径")
     statement_import.add_argument(
         "--source", required=True,
-        choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "dfzq"],
+        choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "dfzq", "ibkr", "schwab", "binance", "okx", "polymarket"],
+    )
+    statement_import.add_argument(
+        "--account", default=None,
+        help="目标账户（投资账单必需，现金账单禁用）",
     )
     statement_import.add_argument(
         "--currency", default=None,
@@ -360,6 +382,103 @@ def _main(argv=None):
         return
 
     if args.cmd == "import":
+        # T041-T046: Route to investment import for investment sources
+        investment_sources = {"dfzq", "ibkr", "schwab", "binance", "okx", "polymarket"}
+
+        if args.source in investment_sources:
+            # Investment statement import
+            if not args.account:
+                print(f"❌ --account is required for {args.source} imports")
+                raise SystemExit(1)
+
+            # T043: Check external tools for DFZQ
+            if args.source == "dfzq":
+                from .importers.dfzq import check_external_tools
+                tools = check_external_tools()
+
+                if tools.get("qpdf") is None:
+                    print("❌ qpdf not found")
+                    print("\nqpdf is required for PDF decryption.")
+                    print("Install with: brew install qpdf")
+                    raise SystemExit(1)
+
+                if tools.get("mutool") is None:
+                    print("❌ mutool not found")
+                    print("\nmutool is required for PDF text extraction.")
+                    print("Install with: brew install mupdf-tools")
+                    raise SystemExit(1)
+
+                print(f"Using qpdf {tools['qpdf']}, mutool {tools['mutool']}")
+
+            # T042: Verify account exists and is correct type
+            bundle = _runtime_services()
+            uow = bundle.uow
+
+            with uow as session:
+                account_dto = session.accounts.find(args.account)
+
+                if account_dto is None:
+                    print(f"❌ Account not found: {args.account}")
+                    print("\nAvailable accounts:")
+                    for acc in session.accounts.list():
+                        print(f"  - {acc.name} ({acc.type})")
+                    raise SystemExit(1)
+
+                if account_dto.type not in {"security", "crypto"}:
+                    print(f"❌ Account '{args.account}' is type '{account_dto.type}'")
+                    print("\nInvestment imports require 'security' or 'crypto' account types.")
+                    raise SystemExit(1)
+
+                session.rollback()
+
+            # T044: Call investment import service
+            from .application.investment_import import InvestmentImportService
+            service = InvestmentImportService(uow)
+
+            # Currency: CLI --currency if set; for ibkr leave None so service
+            # can use 总结.基础货币 (no silent USD/CNY default).
+            # For schwab: CLI or USD when unset (Transaction History is US$).
+            if args.source == "ibkr":
+                currency = args.currency  # may be None
+            elif args.source == "schwab":
+                currency = args.currency or "USD"
+            else:
+                currency = args.currency or "CNY"
+
+            # T045: Progress reporting
+            print(f"Importing {args.source} statement from {Path(args.file).name}...")
+
+            try:
+                result = service.import_statement(
+                    source=args.source,
+                    source_path=args.file,
+                    account_name=args.account,
+                    currency=currency,
+                    password=_read_password_file(args.password_file),
+                )
+            except Exception as e:
+                # T046: Error enrichment
+                print(f"❌ Import failed: {e}")
+                raise SystemExit(1)
+
+            if not result.ok:
+                print(f"❌ {result.message}")
+                raise SystemExit(1)
+
+            # T045: Success message
+            details = result.details or {}
+            batch_id = details.get("batch_id")
+            if details.get("duplicate"):
+                print(f"📭 Statement already imported (batch: {batch_id})")
+                print("No new transactions added.")
+            else:
+                print(f"✅ Successfully imported {result.count} transactions")
+                print(f"Batch ID: {batch_id}")
+                print(f"Account: {args.account}")
+
+            return
+
+        # Original cash statement import
         result = _runtime_services().statement_import.import_statement(StatementImportCommand(
             source_path=args.file,
             source=args.source,
@@ -524,6 +643,8 @@ def _main(argv=None):
                     args.account, args.from_ticker, args.from_shares,
                     args.to_ticker, args.to_shares, args.currency,
                     args.note, args.date,
+                    commission=getattr(args, "commission", "0"),
+                    commission_asset=getattr(args, "commission_asset", ""),
                 )
             elif args.stock_cmd == "deposit":
                 result = service.deposit(

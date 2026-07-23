@@ -37,13 +37,19 @@ class InvestmentService:
         ))
 
     def swap(self, account, from_ticker, from_quantity, to_ticker, to_quantity,
-             currency=None, note="", date=None):
+             currency=None, note="", date=None, commission="0", commission_asset=""):
+        commission_dec = _finite_decimal(commission or "0", "commission")
+        asset = (commission_asset or "").strip().lower()
+        if commission_dec != 0 and not asset:
+            asset = str(from_ticker or "").strip().lower()
         return self._execute(InvestmentCommandDTO(
             "swap", account, currency,
             from_ticker=from_ticker,
             quantity=_finite_decimal(from_quantity, "from_quantity"),
             to_ticker=to_ticker,
             to_quantity=_finite_decimal(to_quantity, "to_quantity"),
+            commission=commission_dec,
+            commission_asset=asset,
             note=note, date=date,
         ))
 

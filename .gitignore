@@ -7,3 +7,14 @@ outputs/
 .worktrees/
 .gstack/
 .DS_Store
+
+# Test fixtures - exclude real data
+tests/fixtures/**/*.pdf
+tests/fixtures/**/credentials.json
+!tests/fixtures/**/test_credentials.json
+tests/fixtures/**/*_real_*
+*.db
+*.db-journal
+
+# Local export dumps (may contain personal financial data)
+exports/
