@@ -1,5 +1,3 @@
 {
-  "feature_directory": "specs/008-relations-kind-decouple",
-  "feature_branch": "008-relations-kind-decouple",
-  "short_name": "relations-kind-decouple"
+  "feature_directory": "specs/009-investment-account-import"
 }

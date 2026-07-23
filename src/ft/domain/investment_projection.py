@@ -6,7 +6,19 @@ from decimal import Decimal, localcontext
 from functools import wraps
 from zoneinfo import ZoneInfo
 
+from decimal import ROUND_HALF_UP
+
 from ft.domain.decimal import exact_decimal
+
+_SCALE18 = Decimal("1E-18")
+
+
+def _div(numerator: Decimal, denominator: Decimal) -> Decimal:
+    """Division rounded to 18 decimal places, safe for NUMERIC(38,18)."""
+    with localcontext() as ctx:
+        ctx.prec = 40
+        result = numerator / denominator
+    return result.quantize(_SCALE18, rounding=ROUND_HALF_UP)
 
 
 WORKSPACE_TIMEZONE = ZoneInfo("Asia/Shanghai")
@@ -121,10 +133,9 @@ def apply_investment_command(snapshot: dict, command, *, account_type: str, defa
         ticker = command.ticker.strip().lower()
         position = _position(positions, ticker, currency)
         old_shares = _decimal(position["shares"], "shares")
-        if quantity > old_shares:
-            raise ValueError(f"insufficient {ticker} position")
         old_cost = _decimal(position["total_cost"], "total_cost")
-        released = old_cost * quantity / old_shares if old_shares > 0 else quantity * price
+        # Allow selling from partial/zero history (e.g. monthly statement import)
+        released = _div(old_cost * quantity, old_shares) if old_shares > 0 else quantity * price
         proceeds = quantity * price - commission
         _set(position, old_shares - quantity, old_cost - released)
         _set(cash, cash_shares + proceeds, cash_cost + proceeds)
@@ -144,7 +155,7 @@ def apply_investment_command(snapshot: dict, command, *, account_type: str, defa
         if source_shares < from_quantity:
             raise ValueError(f"insufficient {from_ticker} position")
         source_cost = _decimal(source["total_cost"], "source cost")
-        released = source_cost * from_quantity / source_shares if source_shares else Decimal("0")
+        released = _div(source_cost * from_quantity, source_shares) if source_shares else Decimal("0")
         _set(source, source_shares - from_quantity, source_cost - released)
         _set(target, _decimal(target["shares"], "target shares") + to_quantity,
              _decimal(target["total_cost"], "target cost") + released)
@@ -213,10 +224,8 @@ def apply_investment_event(snapshot: dict, row: dict, *, default_currency: str) 
         source = _position(positions, from_ticker, currency)
         target = _position(positions, to_ticker, currency)
         source_shares = _decimal(source["shares"], "source shares")
-        if from_ticker != currency.lower() and from_amount > source_shares:
-            raise ValueError(f"insufficient {from_ticker} position")
         source_cost = _decimal(source["total_cost"], "source cost")
-        released = source_cost * from_amount / source_shares if source_shares > 0 else from_amount
+        released = _div(source_cost * from_amount, source_shares) if source_shares > 0 else from_amount
         fee_from_source = commission if commission_asset == from_ticker else Decimal("0")
         _set(source, source_shares - from_amount - fee_from_source, source_cost - released - fee_from_source)
         fee_to_target = commission if commission_asset == to_ticker else Decimal("0")
