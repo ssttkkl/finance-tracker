@@ -87,10 +87,10 @@ def test_dfzq_import_modified_file_creates_new_batch(tmp_path):
         modified.write_text(FIXTURE.read_text(encoding="utf-8") + "\n\n", encoding="utf-8")
         result2 = service.import_statement("dfzq", modified, "东方证券")
 
-        # Different digest → not treated as same batch; may fail on source_identity collision
-        if result2.ok:
-            assert result2.details["batch_id"] != result1.details["batch_id"]
-        else:
-            assert "already" in result2.message.lower() or "unique" in result2.message.lower() or "fail" in result2.message.lower() or result2.message
+        # 010: different digest → new job batch; overlapping identities skip formalization
+        assert result2.ok is True
+        assert result2.details["batch_id"] != result1.details["batch_id"]
+        # Same business rows (+ trailing whitespace does not add rows) → novel count 0
+        assert result2.count == 0
     finally:
         engine.dispose()

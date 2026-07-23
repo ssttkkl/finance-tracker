@@ -148,7 +148,7 @@ ft query portfolio --account 东方证券
 # 
 # Summary:
 #   Total Cost: CNY 20,087.55
-#   Market Value: (pending 010-asset-valuation-quote)
+#   Market Value: (pending 011-asset-valuation-quote)
 ```
 
 ### Step 5: Verify Idempotency
@@ -520,4 +520,4 @@ After validating this feature:
 1. **Feature 010**: Add asset valuation (yfinance, CoinGecko) to populate market_value in portfolio
 2. **Feature 011**: Add connector auto-sync (scheduled incremental sync for exchanges)
 3. **Feature 012**: Add Web transaction browser (view/search investment events in UI)
-4. **Feature 013**: Add investment relationships (FIFO/LIFO lot tracking, realized gains)
+4. **Feature 014**: Add investment relationships (FIFO/LIFO lot tracking, realized gains)

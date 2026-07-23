@@ -118,35 +118,40 @@ PostgreSQL-only；旧文件账本、迁移、shadow comparison、Connector sync 
   `main` 已有完整投资体系（BUY/SELL/DEPOSIT/WITHDRAW/DIVIDEND/SWAP/FEE、多券商解析），
   但产品化迁移过程中仅保留了 DFZQ 单一 PoC；本 feature 将其恢复到
   PostgreSQL-only + 双 DB + 关系架构中，覆盖多券商 PDF/CSV 解析与投资事件领域模型。
-  非目标：CSV/snapshot/Git 文件账本（已被 `001` 删除，不恢复）；Connector 自动同步（归 `011`）；
-  行情/估值（归 `010`）。
+  非目标：CSV/snapshot/Git 文件账本（已被 `001` 删除，不恢复）；Connector 自动同步（归 `012`）；
+  行情/估值（归 `011`）。
 
-- **`010-asset-valuation-quote`**：简单实时估值接口。
+- **`010-row-idempotent-import`**：消费与投资导入统一为 **业务行幂等 + 重叠文件可增量**。
+  不以文件 `source_digest` 整批短路为账本幂等主键；`import_batches` / `raw_files` 仅作业与审计。
+  非目标：改各源解析/费用合同、Connector 游标、估值。
+
+- **`011-asset-valuation-quote`**：简单实时估值接口。
   输入资产标识与类型（股票/加密/预测市场/现金），输出当前实时估值（单价及可选市值）。
   恢复 `main` 的 yfinance（含 HK/US ticker 规范化）、Polymarket gamma-api、crypto 三类取价，
   统一到一个 port + adapter，含 coverage/stale/unsupported 状态。
   非目标：历史时间序列估值、期初/期末边界估值、投资收益率归因（归 Phase 3 财富内核）。
 
-- **`011-investment-connector-sync`**（独立，可延后）：从 `main` 恢复 exchange/polymarket 等
-  Connector 自动同步。与 `009`/`010` 独立；可与 Phase 2 并行或按证据推迟（呼应 C3 触发条件）。
+- **`012-investment-connector-sync`**（独立，可延后）：从 `main` 恢复 exchange/polymarket 等
+  Connector 自动同步。与 `009`/`010`/`011` 独立；可与 Phase 2 并行或按证据推迟（呼应 C3 触发条件）。
 
 #### Phase 1 完成门槛
 
 - `002`–`008` 全部收敛；
 - `009` 落地（投资事件可导入，多券商解析可用）；
-- `010` 落地（各资产类型可取当前估值，coverage 状态明确）；
-- `011` 可延后，不阻塞 Phase 2。
+- `010` 落地（现金/投资导入行级幂等与重叠增量）；
+- `011` 落地（各资产类型可取当前估值，coverage 状态明确）；
+- `012` 可延后，不阻塞 Phase 2。
 
 ### 5.3 Phase 2：账单浏览 Web（只读）
 
-依赖：`009` + `010` 完成。
+依赖：`009` + `010` + `011` 完成（导入事实、行幂等、估值基线就绪；Connector 不阻塞）。
 
-**`012-transaction-browser-web`**：独立只读 Web，连接本机 workspace，展示已导入账单条目。
+**`013-transaction-browser-web`**：独立只读 Web，连接本机 workspace，展示已导入账单条目。
 
 范围：
 
 - 按 `account.type` 分投资（investment）与消费（cash）两视图；
-- 可选展示当前市值（来自 `010` 估值接口）；
+- 可选展示当前市值（来自 `011` 估值接口）；
 - 关系状态（accepted/pending）、来源（raw_records）与修订下钻；
 - loading/empty/partial/stale/unsupported 状态；
 - 本地打包、API schema、浏览器 QA 和无障碍基线。
@@ -168,7 +173,7 @@ PostgreSQL-only；旧文件账本、迁移、shadow comparison、Connector sync 
   可重建输入/读模型边界。
 
 - **`wealth-report-web`**：本地只读财富报告。
-  依赖财富归因内核完成；可复用 `012` 的 Web 应用与 API 骨架。
+  依赖财富归因内核完成；可复用 `013` 的 Web 应用与 API 骨架。
   区间解释和趋势对比；日/周/月净资产折线、组成项柱和独立投资收益率线；
   component/evidence 下钻；loading/empty/partial/stale/unsupported 和 coverage 断线；
   本地打包、API schema、浏览器 QA 和无障碍基线。第一版不增加登录、组织成员或云端上传。

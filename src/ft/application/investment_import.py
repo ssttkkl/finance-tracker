@@ -65,26 +65,10 @@ class InvestmentImportService:
                 message=f"Failed to read file: {e}",
             )
 
-        # Calculate source_digest for idempotency
+        # Digest is job/audit metadata only (010); not a formalization gate.
         source_digest = f"sha256:{hashlib.sha256(file_content).hexdigest()}"
 
         with self._uow as uow:
-            # Check for duplicate batch
-            existing_batch = self._find_existing_batch(
-                uow, source, source_digest
-            )
-            if existing_batch:
-                uow.rollback()
-                return OperationResult(
-                    ok=True,
-                    count=0,
-                    message="Statement already imported",
-                    details={
-                        "duplicate": True,
-                        "batch_id": existing_batch["id"],
-                    },
-                )
-
             # Verify account exists and is correct type
             account = uow.accounts.find(account_name)
             if account is None:
@@ -200,25 +184,21 @@ class InvestmentImportService:
 
             uow.commit()
 
+        no_new = event_count == 0
         return OperationResult(
             ok=True,
             count=event_count,
-            message=f"Imported {event_count} transactions",
+            message=(
+                "No new rows to import"
+                if no_new
+                else f"Imported {event_count} transactions"
+            ),
             details={
-                "duplicate": False,
+                "duplicate": no_new,
+                "new_rows": event_count,
                 "batch_id": batch_id,
             },
         )
-
-    def _find_existing_batch(self, uow, source_kind: str, source_digest: str) -> dict | None:
-        """Find existing completed batch by source_digest."""
-        batches = uow.imports.list_batches()
-        for batch in batches:
-            if (batch["source_kind"] == source_kind
-                and batch["source_digest"] == source_digest
-                and batch["status"] == "completed"):
-                return batch
-        return None
 
     def _parse_statement(
         self,
@@ -394,7 +374,7 @@ class InvestmentImportService:
                 "payload": payload,
             })
 
-        # Create raw_records in database (handles idempotency)
+        # Create/reuse raw_records by business identity
         raw_record_ids = uow.imports.add_raw_records(
             batch_id=batch_id,
             raw_file_id=raw_file_id,
@@ -402,23 +382,25 @@ class InvestmentImportService:
             records=raw_records,
         )
 
-        # Load snapshot for replay
+        # 010: skip raw_ids that already have formal facts (cash or investment)
+        existing_targets = uow.imports.formal_fact_targets(raw_record_ids)
+
+        # Load snapshot for projection updates of novel events only
         snapshot = uow.snapshot.load(lock=True)
 
-        # Create events linked to raw_records
         count = 0
         for txn, raw_record_id in zip(transactions, raw_record_ids):
+            if raw_record_id in existing_targets:
+                continue
             event = map_to_event(txn, account_name, currency)
-
             apply_investment_event(snapshot, event, default_currency=currency)
-
             event["raw_record_id"] = raw_record_id
             uow.investments.add(account_type, event)
-
             count += 1
 
-        # Save updated snapshot
-        uow.snapshot.save(snapshot)
+        # Save snapshot only when novel events changed projection
+        if count:
+            uow.snapshot.save(snapshot)
 
         return count
 

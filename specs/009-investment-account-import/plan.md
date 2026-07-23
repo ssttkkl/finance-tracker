@@ -202,8 +202,8 @@ src/ft/
 │   │   ├── dfzq.py                    # [EXISTS] DFZQ PDF parser (parse_dfzq_text)
 │   │   ├── ibkr.py                    # [NEW] IBKR Activity CSV (US5 / FR-014–017)
 │   │   ├── schwab.py                  # [NEW] Schwab Transaction History CSV (US6 / FR-018–021)
-│   │   ├── exchange.py                # [DEFERRED → 011] ccxt — not 009
-│   │   └── polymarket.py              # [DEFERRED → 011] activity API; quotes → 010
+│   │   ├── exchange.py                # [DEFERRED → 012] ccxt — not 009
+│   │   └── polymarket.py              # [DEFERRED → 012] activity API; quotes → 010
 │   │
 │   └── portfolio_cli.py               # [EXISTS] Portfolio query CLI output
 │
@@ -222,20 +222,20 @@ tests/
 │       ├── test_dfzq_parser.py        # [NEW] parse_dfzq_text edge cases
 │       ├── test_ibkr_parser.py        # [NEW] IBKR CSV parse + map (US5)
 │       ├── test_ibkr_map.py           # [NEW] fee contract + FX map (US5)
-│       ├── test_exchange_parser.py    # [DEFERRED → 011]
-│       └── test_polymarket_parser.py  # [DEFERRED → 011]
+│       ├── test_exchange_parser.py    # [DEFERRED → 012]
+│       └── test_polymarket_parser.py  # [DEFERRED → 012]
 │
 ├── integration/
 │   ├── test_dfzq_import.py            # [NEW] Full DFZQ import flow
 │   ├── test_dfzq_import_idempotency.py # [NEW] Duplicate detection
 │   ├── test_ibkr_import.py            # [NEW] Full IBKR CSV import (US5)
-│   ├── test_exchange_import.py        # [DEFERRED → 011]
-│   └── test_polymarket_import.py      # [DEFERRED → 011]
+│   ├── test_exchange_import.py        # [DEFERRED → 012]
+│   └── test_polymarket_import.py      # [DEFERRED → 012]
 │
 ├── contract/
 │   ├── test_dual_backend_dfzq.py      # [NEW] PostgreSQL vs SQLite parity
 │   ├── test_dual_backend_ibkr.py      # [NEW] IBKR dual-backend parity (US5)
-│   ├── test_dual_backend_exchange.py  # [DEFERRED → 011]
+│   ├── test_dual_backend_exchange.py  # [DEFERRED → 012]
 │   └── test_cli_errors.py             # [NEW] Error message validation
 │
 └── fixtures/
@@ -620,7 +620,7 @@ jobs:
 
 **Fee contract**: cash leg = abs(金额); commission = abs(杂费)+abs(佣金); CHECKIN = newest 余额.
 
-### Phase 2: Exchange Sync — **NOT IN 009** (→ `011-investment-connector-sync`)
+### Phase 2: Exchange Sync — **NOT IN 009** (→ `012-investment-connector-sync`)
 
 **Living 2026-07-23**: Removed from 009 delivery per `docs/productization-refactor-plan.md`.
 Former FR-008/FR-010 and draft tasks T072–T095 are **deferred**; do not implement under 009.
@@ -655,7 +655,7 @@ Polymarket → **010**. Former FR-009/FR-010 and draft tasks T096–T112 are **n
 **Risk**: Implementer re-opens US3/US4 under 009 despite productization plan.
 
 **Mitigation**:
-- Spec FR-008/009/010 marked DEFERRED → 011; SC-003 redefined as DFZQ+IBKR only
+- Spec FR-008/009/010 marked DEFERRED → 012; SC-003 redefined as DFZQ+IBKR only
 - tasks.md Phase 5/6 cancelled; do not implement under 009
 
 ### Low Risk: Performance Degradation

@@ -554,7 +554,7 @@ ibkr:{date}:{type}:{code}:{qty}:{net}:{commission}
 
 ### Non-goals (ibkr Phase-1)
 
-- Flex Query / API / Client Portal auto-sync (→ 011)
+- Flex Query / API / Client Portal auto-sync (→ 012)
 - Other IBKR sections (Trades, Open Positions, MTM, Corporate Actions beyond types above)
 - English-only statement variants (may share structure; not certified until sample)
 - Official cost-basis alignment without Positions export
@@ -688,7 +688,7 @@ Prefer 参照号码 (unique in sample). If missing, fall back to date+type+amoun
 
 - Positions/cost CSV, tax lots, margin detail statements
 - English-only header variants until sampled
-- Schwab API / thinkorswim auto-sync (→ 011)
+- Schwab API / thinkorswim auto-sync (→ 012)
 - Multi-currency non-USD (sample is US$ only)
 
 ### Decision log (schwab)

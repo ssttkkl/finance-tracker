@@ -11,9 +11,9 @@
 **Context**: Restores the investment event domain model and **file/manual** import path into the current hexagonal architecture (PostgreSQL + SQLite dual backend). Scope follows `docs/productization-refactor-plan.md` investment chain:
 
 - **In 009**: DFZQ PDF + IBKR Activity CSV file import; unified events (SWAP/DEPOSIT/WITHDRAW/DIVIDEND/CHECKIN); dual-backend parity; snapshot validation.
-- **Not in 009**: live quotes / valuation → **`010-asset-valuation-quote`**; exchange (ccxt) / Polymarket / other **Connector auto-sync** → **`011-investment-connector-sync`** (may be deferred; does not block Phase 2).
+- **Not in 009**: live quotes / valuation → **`011-asset-valuation-quote`**; exchange (ccxt) / Polymarket / other **Connector auto-sync** → **`012-investment-connector-sync`** (may be deferred; does not block Phase 2).
 
-Living updates (2026-07-23): IBKR US5; DFZQ peel (FR-001a); US3/US4 → 011; **Schwab US6** file import added.
+Living updates (2026-07-23): IBKR US5; DFZQ peel (FR-001a); US3/US4 → 012; **Schwab US6** file import added.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -40,7 +40,7 @@ Living updates (2026-07-23): IBKR US5; DFZQ peel (FR-001a); US3/US4 → 011; **S
 
 **Why this priority**: 当前分支的 `investment_projection.py` 已有事件回放骨架，但需要确认事件类型定义完整、SWAP 单行处理逻辑、commission 字段语义、快照验证逻辑与 main 对齐。这是数据模型完整性的基础。
 
-**Independent Test**: 编写单元测试覆盖每种事件类型的回放逻辑（SWAP → 资产交换含买入卖出、DEPOSIT → 增加现金、WITHDRAW → 减少现金、DIVIDEND → 增加现金、CHECKIN → 核对快照）；验证快照中 positions（持仓）、cash（现金）、total_value（总市值，需 010 估值接口）的计算正确性。
+**Independent Test**: 编写单元测试覆盖每种事件类型的回放逻辑（SWAP → 资产交换含买入卖出、DEPOSIT → 增加现金、WITHDRAW → 减少现金、DIVIDEND → 增加现金、CHECKIN → 核对快照）；验证快照中 positions（持仓）、cash（现金）、total_value（总市值，需 011 估值接口）的计算正确性。
 
 **Acceptance Scenarios**:
 
@@ -52,25 +52,25 @@ Living updates (2026-07-23): IBKR US5; DFZQ peel (FR-001a); US3/US4 → 011; **S
 
 ---
 
-### User Story 3 - Import exchange trades via API — **DEFERRED → 011** (was P2)
+### User Story 3 - Import exchange trades via API — **DEFERRED → 012** (was P2)
 
 > **Living Spec 2026-07-23**: Removed from 009 acceptance. Aligns with
 > `docs/productization-refactor-plan.md`: exchange/Polymarket **Connector auto-sync**
-> belongs to **`011-investment-connector-sync`**. Historical draft acceptance text
-> retained below only as handoff notes for 011 — **not required to complete 009**.
+> belongs to **`012-investment-connector-sync`**. Historical draft acceptance text
+> retained below only as handoff notes for 012 — **not required to complete 009**.
 
-作为加密货币投资者，我希望能够通过 API 同步交易所（如 Binance、OKX）的历史交易记录到 Finance Tracker……（完整验收见未来 `specs/011-…`）。
+作为加密货币投资者，我希望能够通过 API 同步交易所（如 Binance、OKX）的历史交易记录到 Finance Tracker……（完整验收见未来 `specs/012-…`）。
 
-**009 status**: Out of scope. CLI may still list `binance`/`okx` as reserved source names; MUST fail clearly if invoked until 011 implements them.
+**009 status**: Out of scope. CLI may still list `binance`/`okx` as reserved source names; MUST fail clearly if invoked until 012 implements them.
 
 ---
 
-### User Story 4 - Import Polymarket activities — **DEFERRED → 011** (was P3)
+### User Story 4 - Import Polymarket activities — **DEFERRED → 012** (was P3)
 
-> **Living Spec 2026-07-23**: Activity/API **trade sync** → **011**. Polymarket **live quotes**
-> (gamma-api) → **010-asset-valuation-quote**, not this feature.
+> **Living Spec 2026-07-23**: Activity/API **trade sync** → **012**. Polymarket **live quotes**
+> (gamma-api) → **011-asset-valuation-quote**, not this feature.
 
-作为预测市场投资者，我希望能够同步 Polymarket 账户的交易活动……（完整验收见未来 `specs/011-…`）。
+作为预测市场投资者，我希望能够同步 Polymarket 账户的交易活动……（完整验收见未来 `specs/012-…`）。
 
 **009 status**: Out of scope. Reserved CLI source `polymarket` must not be claimed complete under 009.
 
@@ -99,7 +99,7 @@ Living updates (2026-07-23): IBKR US5; DFZQ peel (FR-001a); US3/US4 → 011; **S
 
 作为投资账户用户，我希望能够直接导入 Charles Schwab（嘉信理财）Transaction History CSV 到 Finance Tracker，系统按统一投资事件记账（SWAP/DEPOSIT/DIVIDEND/WITHDRAW/CHECKIN），并用最新一行「余额」做现金 CHECKIN，以便美股嘉信账户与 DFZQ/IBKR 共用同一导入链路。
 
-**Why this priority**: 用户提供真实导出；属 **文件导入**（productization 009），非 011 connector。费用列为「金额 + 杂费」与 IBKR/DFZQ 不同，须单独合同。
+**Why this priority**: 用户提供真实导出；属 **文件导入**（productization 009），非 012 connector。费用列为「金额 + 杂费」与 IBKR/DFZQ 不同，须单独合同。
 
 **Independent Test**:  
 `ft import tests/fixtures/schwab/transaction_history_sample.csv --source schwab --account 嘉信`  
@@ -129,7 +129,7 @@ Living updates (2026-07-23): IBKR US5; DFZQ peel (FR-001a); US3/US4 → 011; **S
   - **禁止行为**：不得因某一后端不支持某特性（如 PostgreSQL 的 JSONB 索引）而静默降级导入逻辑或改变事件回放结果。
 - **SWAP 两阶段处理**：当前分支用单行 SWAP（from/to 统一 schema），main 用 SWAP_OUT + SWAP_IN 两行；需决策并文档化：若采用单行 SWAP，如何在审计链中追溯释放成本（released cost）；若采用两行，如何保证 SWAP_OUT 与 SWAP_IN 的原子性与关联（如通过 note 字段的 `swap:<id>` 链接）。
 - **FEE 独立事件 vs commission 字段**：main 有独立 FEE action（如交易所提币费），当前分支用 commission 字段；需决策并确保两种表示在快照计算与审计链中等价。
-- **凭据管理**：交易所 API key、Polymarket wallet 等归 **011**；009 不实现 credentials 平台。
+- **凭据管理**：交易所 API key、Polymarket wallet 等归 **012**；009 不实现 credentials 平台。
 
 ## Requirements *(mandatory)*
 
@@ -156,11 +156,11 @@ Living updates (2026-07-23): IBKR US5; DFZQ peel (FR-001a); US3/US4 → 011; **S
 
 - **FR-007**: 系统 MUST 采用 commission 字段处理手续费，commission 作为所有交易事件（BUY/SELL/SWAP/DEPOSIT/WITHDRAW）的附加属性。系统 MUST 提供 commission_asset 字段标识手续费单位（可能与交易主币种不同，如用 BNB 支付手续费）。本 feature 不引入独立 FEE action；独立费用（如提币费、账户管理费）可在后续 feature 中按需扩展。
 
-- **FR-008** *(DEFERRED → 011)*: ~~交易所 ccxt 交易同步~~ — **not required for 009 completion**. Superseded by productization plan: implement under `011-investment-connector-sync`.
+- **FR-008** *(DEFERRED → 012)*: ~~交易所 ccxt 交易同步~~ — **not required for 009 completion**. Superseded by productization plan: implement under `012-investment-connector-sync`.
 
-- **FR-009** *(DEFERRED → 011)*: ~~Polymarket Activity API 交易同步~~ — **not required for 009**. Quotes/valuation for Polymarket markets → **010**; activity import → **011**.
+- **FR-009** *(DEFERRED → 012)*: ~~Polymarket Activity API 交易同步~~ — **not required for 009**. Quotes/valuation for Polymarket markets → **011**; activity import → **012**.
 
-- **FR-010** *(DEFERRED → 011)*: ~~交易所/Polymarket API 凭据存储~~ — **not required for 009**. Documented long-term under 011.
+- **FR-010** *(DEFERRED → 012)*: ~~交易所/Polymarket API 凭据存储~~ — **not required for 009**. Documented long-term under 012.
 
 - **FR-011**: 双后端（PostgreSQL 与 SQLite）MUST 对相同**文件**导入输入（DFZQ PDF / IBKR CSV / Schwab CSV）产生等价的投资事件（数量、金额精度、ticker、快照持仓一致），满足 Constitution IV 的行为等价要求；schema 迁移、事务原子性、幂等判断、快照验证逻辑 MUST 在两个后端保持一致。
 
@@ -188,9 +188,9 @@ Living updates (2026-07-23): IBKR US5; DFZQ peel (FR-001a); US3/US4 → 011; **S
 
 - **InvestmentEvent**：投资事件，记录一次投资操作（买入、卖出、入金、出金、分红、交换、手续费、核对）。属性包括：occurred_at（发生时间）、kind（'security' | 'crypto'）、action（BUY/SELL/DEPOSIT/WITHDRAW/DIVIDEND/SWAP/FEE/CHECKIN）、ticker（资产标识，如股票代码、加密货币符号）、amount/price/commission（金额/价格/手续费，精确 Decimal）、currency（计价货币）、raw_record_id（来源记录外键，可为 NULL）、payload（JSON，完整事件详情如 from/to ticker、shares、note）。
 
-- **LedgerSnapshot**：账户快照，记录某一时刻账户的持仓与现金。属性包括：account_id、snapshot_date、positions（持仓列表，每个 position 包含 ticker + quantity）、cash（现金余额，按币种分组）、total_value（总市值，需 010 估值接口）。快照由投资事件回放生成，是可重建读模型。
+- **LedgerSnapshot**：账户快照，记录某一时刻账户的持仓与现金。属性包括：account_id、snapshot_date、positions（持仓列表，每个 position 包含 ticker + quantity）、cash（现金余额，按币种分组）、total_value（总市值，需 011 估值接口）。快照由投资事件回放生成，是可重建读模型。
 
-- **RawRecord**：原始导入记录，记录从文件获取的一行原始数据。属性包括：source_identity（幂等键）、source_type（009 交付：`dfzq_pdf` | `ibkr_csv` | `schwab_csv`；`ccxt_*` / `polymarket_*` reserved for **011**）、payload（JSON）、batch_id。
+- **RawRecord**：原始导入记录，记录从文件获取的一行原始数据。属性包括：source_identity（幂等键）、source_type（009 交付：`dfzq_pdf` | `ibkr_csv` | `schwab_csv`；`ccxt_*` / `polymarket_*` reserved for **012**）、payload（JSON）、batch_id。
 
 - **ImportBatch**：导入批次，记录一次导入操作的元数据。属性包括：workspace_id、source_type、started_at、completed_at、status（'pending' | 'completed' | 'failed'）、error_message。
 
@@ -204,7 +204,7 @@ Living updates (2026-07-23): IBKR US5; DFZQ peel (FR-001a); US3/US4 → 011; **S
 
 - **SC-002**: 双后端（PostgreSQL 与 SQLite）对相同 DFZQ 对账单的导入结果 100% 一致（投资事件数量、金额、ticker、快照持仓、幂等判断结果），通过自动化契约测试矩阵验证（参考 002 双数据库运行时的测试策略）。
 
-- **SC-003**: **009 完成定义** = 文件导入源 **DFZQ + IBKR + Schwab** 可用，且 US2 事件回放/校验达标，双后端契约对上述文件源通过。不得以“未做 ccxt/Polymarket”判定 009 未完成。ccxt/Polymarket **同步** 归 **011**；Polymarket **取价** 归 **010**。
+- **SC-003**: **009 完成定义** = 文件导入源 **DFZQ + IBKR + Schwab** 可用，且 US2 事件回放/校验达标，双后端契约对上述文件源通过。不得以“未做 ccxt/Polymarket”判定 009 未完成。ccxt/Polymarket **同步** 归 **012**；Polymarket **取价** 归 **011**。
 
 - **SC-008**: 用 `tests/fixtures/ibkr/transactions_1y_sample.csv` 导入后：权益费双计 = 0；快照 base 现金在 CHECKIN 后等于 总结.期末现金（允许 ≤0.01 仅当样本含科学计数法尾差时文档化）；开放持仓股数与离线回放一致；重复导入 count=0。
 
@@ -225,17 +225,17 @@ Living updates (2026-07-23): IBKR US5; DFZQ peel (FR-001a); US3/US4 → 011; **S
 - **002-dual-database-runtime**：PostgreSQL 与 SQLite 双后端等价测试框架、显式数据库选择（FT_DATABASE_URL）。
 - **Constitution IV**：双后端行为等价要求、显式选择、禁止回退。
 - **External dependencies (009)**: PDF 处理工具（qpdf/mutool，DFZQ）；无交易所/Polymarket API 运行时依赖。
-- **Downstream**: `010-asset-valuation-quote`；`011-investment-connector-sync`（exchange/Polymarket sync）。
-- **Roadmap**: `docs/productization-refactor-plan.md` 投资链 009/010/011。
+- **Downstream**: `011-asset-valuation-quote`；`012-investment-connector-sync`（exchange/Polymarket sync）。
+- **Roadmap**: `docs/productization-refactor-plan.md` 投资链 009–012（010=行幂等导入，011=估值，012=connector）。
 
 ## Out of Scope Notes for Planning
 
 - **投资关系识别**（如同一资产的买卖配对、FIFO/LIFO 成本基础跟踪、realized gain/loss 计算）不在本 feature；当前阶段只建立投资事件事实基线与快照，关系留给后续 feature。
-- **行情与估值接口**（yfinance、CoinGecko、**Polymarket gamma 实时价格**）归 **010-asset-valuation-quote**；本 feature 快照 total_value 可留空。
-- **Connector 自动同步**（ccxt Binance/OKX 交易拉取、Polymarket Activity API、定时任务、增量游标、凭据轮换、错误重试）归 **011-investment-connector-sync**。**009 明确不交付 US3/US4**（对齐 productization plan；原 draft 任务 T072–T112 已 cancel/defer）。
+- **行情与估值接口**（yfinance、CoinGecko、**Polymarket gamma 实时价格**）归 **011-asset-valuation-quote**；本 feature 快照 total_value 可留空。
+- **Connector 自动同步**（ccxt Binance/OKX 交易拉取、Polymarket Activity API、定时任务、增量游标、凭据轮换、错误重试）归 **012-investment-connector-sync**。**009 明确不交付 US3/US4**（对齐 productization plan；原 draft 任务 T072–T112 已 cancel/defer）。
 - **CSV/snapshot/Git 文件账本**已被 001-postgres-only-storage 删除，不恢复。
 - **富途、雪盈等其他券商** PDF/CSV 解析器仍不在本 feature 最小范围；**IBKR Activity CSV（US5）与 Schwab Transaction History CSV（US6）已纳入**。IBKR Flex/API、Schwab API、英文表头未认证变体、持仓成本导出不在本阶段。
-- **多用户与权限**、**Web/MCP 投资导入 UI** 不在本 feature（Web 展示归 012）。
+- **多用户与权限**、**Web/MCP 投资导入 UI** 不在本 feature（Web 展示归 013）。
 
 ## Assumptions
 
@@ -243,5 +243,5 @@ Living updates (2026-07-23): IBKR US5; DFZQ peel (FR-001a); US3/US4 → 011; **S
 - 用户已安装 PDF 处理工具（DFZQ）；IBKR CSV 无外部工具依赖。
 - 投资账户 base_currencies 由用户在账户创建时指定；导入不自动改账户币种。
 - 当前阶段数据可丢弃，schema 可破坏性调整无需长期迁移剧本。
-- 用户通过 CLI 执行文件导入；不实现 credentials vault（011）。
+- 用户通过 CLI 执行文件导入；不实现 credentials vault（012）。
 - PostgreSQL 与 SQLite 隔离级别差异不影响投资事件业务正确性；并发由 002 契约覆盖。
