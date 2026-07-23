@@ -1,5 +1,5 @@
 {
-  "feature_directory": "specs/007-closed-trade-refund-import",
-  "feature_branch": "007-import-no-skip",
-  "short_name": "import-no-skip"
+  "feature_directory": "specs/008-relations-kind-decouple",
+  "feature_branch": "008-relations-kind-decouple",
+  "short_name": "relations-kind-decouple"
 }
