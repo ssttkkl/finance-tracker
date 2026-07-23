@@ -115,29 +115,55 @@ cash only correct via accidental CHECKIN.
 
 ### 2. Fee / cash-leg contract (highest-risk mistakes)
 
-Before writing map code, fill this table on **≥5 sample trades** (buy, sell, repo, dividend):
+Before writing map code, fill this table on **≥5 sample trades** (buy, sell, repo, dividend).
+**Universal constraint**: each fen of fee appears in **either** the cash leg **or**
+`commission`, never both. Projection cash for a trade must still match the statement
+net cash movement.
+
+#### DFZQ (net statement + peel 手续费) — product choice for 009
+
+Statement「总发生金额」is **net** cash (after 手续费/印花税/过户费). Preferred map peels
+**手续费** into `commission` and adjusts the cash leg so total impact stays `|净额|`:
+
+| Side | Cash leg | commission | commission_asset | Projection cash |
+|---|---|---|---|---|
+| BUY | `\|净额\| - 手续费` | `手续费` | cny | from + commission = \|净额\| out |
+| SELL | `\|净额\| + 手续费` | `手续费` | cny | to − commission = \|净额\| in |
+| fee missing / cannot peel (BUY fee ≥ net) | `\|净额\|` | `0` | — | cash = \|净额\| |
 
 | Field (source native) | Example (DFZQ) | In cash leg? | In commission field? | Note only? |
 |---|---|---|---|---|
-| 总发生金额 / net cash | `-1343.01` buy | **Yes (full)** | No | — |
-| 手续费 | `5.00` | Already inside 总发生金额 | **Must be 0** if already inside | Yes |
-| 印花税 | sell | Inside net | No | Yes |
-| 过户费 | buy | Inside net | No | Yes |
+| 总发生金额 / net cash | `-1343.01` buy | **Partial** after peel: net−fee | No | — |
+| 手续费 | `5.00` | No once peeled | **Yes** when peeled | Only if peel fails |
+| 印花税 | sell | Inside cash leg (not peeled by default) | No | Yes |
+| 过户费 | buy | Inside cash leg (not peeled by default) | No | Yes |
 | 成交数量×价格 | notional | Not equal to cash leg | — | Sanity only |
+
+#### IBKR / gross+fee statements
+
+| Field | Example | In cash leg? | In commission field? |
+|---|---|---|---|
+| 总额 / gross | `-5478.28` buy | **Yes** `abs(gross)` | No |
+| 佣金 | `-1.00` | No | **Yes** `abs(comm)` |
+| 净额 | `gross+comm` | Derived only | — |
 
 **Rules:**
 
-1. **One place for each fen of cash.** If source “net amount” already includes fees,
-   set event cash leg = `abs(net)` and **`commission = 0`**.
-2. If source gives gross + separate fee, cash leg = gross **or** net — pick one model
-   and document; then commission carries the remainder **exactly once**.
-3. Never `amount = total_amount + fee` when `total_amount` already embeds fee.
-4. Repo / reverse-repo (e.g. `204001`): cash leg is **principal**, not `shares×price`.
+1. **One place for each fen of fee.** Never `cash_leg = |net|` **and** `commission = fee`
+   when net already includes that fee (double drain).
+2. If source gives **gross + separate fee** (IBKR equity): cash leg = gross, commission = fee.
+3. If source gives **net only** and you want commission audit (DFZQ preferred): peel fee
+   out of net into commission and shrink/grow the cash leg so projection still equals net.
+4. If peel is unsafe: keep cash leg = net and **commission = 0** (fees in note).
+5. Never `amount = total_amount + fee` in the **parser** when `total_amount` is already net,
+   then also set commission=fee (classic DFZQ double-count bug).
+6. Repo / reverse-repo (e.g. `204001`): cash leg is **principal**, not `shares×price`.
 
 **Pitfall (lived):** DFZQ `_make_txn` did `amount = total_amount + fee` then map set
 `commission = fee` → double drain; final cash looked OK only after cash CHECKIN.
 
-### 3. Position & cost contract
+**Pitfall (docs):** Treating “net statement ⇒ always commission=0” as the only legal model
+discards commission audit; peel model is preferred when fee is cleanly separable.
 
 | Checkpoint | Source of truth | Event |
 |---|---|---|

@@ -352,8 +352,8 @@ def test_event_creates_account_if_missing():
     assert Decimal(positions["usd"]["shares"]) == Decimal("1000.00")
 
 
-def test_swap_insufficient_position_raises_error():
-    """SWAP with insufficient source position should raise error."""
+def test_swap_allows_sell_without_prior_position():
+    """Statement imports may sell shares not opened in the same file; allow soft start."""
     snapshot = {
         "accounts": {
             "security": {
@@ -379,5 +379,6 @@ def test_swap_insufficient_position_raises_error():
         "currency": "CNY",
     }
 
-    with pytest.raises(ValueError, match="insufficient.*position"):
-        apply_investment_event(snapshot, event, default_currency="CNY")
+    apply_investment_event(snapshot, event, default_currency="CNY")
+    pos = snapshot["accounts"]["security"]["broker"]["positions"]["600000.sh"]
+    assert Decimal(str(pos["shares"])) == Decimal("-50")

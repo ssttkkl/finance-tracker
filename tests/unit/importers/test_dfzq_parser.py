@@ -37,12 +37,13 @@ def test_parse_dfzq_sample_statement():
     assert Decimal(transactions[0]["amount"]) == Decimal("10000.00")
     assert transactions[0]["ticker"] == ""
 
-    # T2: Buy
+    # T2: Buy — amount is 总发生金额 (net); fee is separate column
     assert transactions[1]["action"] == "BUY"
     assert transactions[1]["ticker"] == "600000.sh"
     assert Decimal(transactions[1]["shares"]) == Decimal("100")
     assert Decimal(transactions[1]["price"]) == Decimal("12.50")
-    assert Decimal(transactions[1]["amount"]) == Decimal("1251.00")  # 1250 + 1 fee
+    assert Decimal(transactions[1]["amount"]) == Decimal("1250.00")  # net 总发生金额
+    assert Decimal(transactions[1]["fee"]) == Decimal("1.00")
 
     # T3: Sell
     assert transactions[2]["action"] == "SELL"
@@ -202,7 +203,7 @@ def test_parse_dfzq_aggregates_fees_in_note():
 
     transactions = parse_dfzq_text(lines)
 
-    assert transactions[0]["note"] == "印花税0.50 过户费0.10"
+    assert transactions[0]["note"] == "手续费1.00 印花税0.50 过户费0.10"
     assert Decimal(transactions[0]["stamp_tax"]) == Decimal("0.50")
     assert Decimal(transactions[0]["transfer_fee"]) == Decimal("0.10")
 
