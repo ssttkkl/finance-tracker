@@ -99,39 +99,83 @@ PostgreSQL-only；旧文件账本、迁移、shadow comparison、Connector sync 
 - 原始输入、正式事实和修订仍可追溯；
 - 文档、CLI help 和测试不再承诺旧运行方式。
 
-### 5.2 `wealth-attribution-core`：财富归因内核
+### 5.2 Phase 1：数据模型与数据导入（基座）
 
-依赖：双数据库运行时 feature 完成。
+本阶段目标：建立可信的现金与投资事实读模型，使账单条目可独立展示与审计。
+
+#### 现金/消费链（按序收敛）
+
+- `002-dual-database-runtime`：PostgreSQL 与 SQLite 双运行时等价。
+- `004-mapping-import-open-currency`：mapping 导入 + 开放币种。
+- `005-multi-currency-accounts`：多币种账户建模。
+- `006-transaction-relations`：关系（去重/退款核销/转账配对/投影）。
+- `007-closed-trade-refund-import`：导入 no-skip + 原始 payload + 统一关系扫描。
+- `008-relations-kind-decouple`：关系识别 kind 竖切解耦。
+
+#### 投资链（新，与现金链并行推进）
+
+- **`009-investment-account-import`**：从 `main` 恢复投资事件领域模型与文件/手动导入。
+  `main` 已有完整投资体系（BUY/SELL/DEPOSIT/WITHDRAW/DIVIDEND/SWAP/FEE、多券商解析），
+  但产品化迁移过程中仅保留了 DFZQ 单一 PoC；本 feature 将其恢复到
+  PostgreSQL-only + 双 DB + 关系架构中，覆盖多券商 PDF/CSV 解析与投资事件领域模型。
+  非目标：CSV/snapshot/Git 文件账本（已被 `001` 删除，不恢复）；Connector 自动同步（归 `011`）；
+  行情/估值（归 `010`）。
+
+- **`010-asset-valuation-quote`**：简单实时估值接口。
+  输入资产标识与类型（股票/加密/预测市场/现金），输出当前实时估值（单价及可选市值）。
+  恢复 `main` 的 yfinance（含 HK/US ticker 规范化）、Polymarket gamma-api、crypto 三类取价，
+  统一到一个 port + adapter，含 coverage/stale/unsupported 状态。
+  非目标：历史时间序列估值、期初/期末边界估值、投资收益率归因（归 Phase 3 财富内核）。
+
+- **`011-investment-connector-sync`**（独立，可延后）：从 `main` 恢复 exchange/polymarket 等
+  Connector 自动同步。与 `009`/`010` 独立；可与 Phase 2 并行或按证据推迟（呼应 C3 触发条件）。
+
+#### Phase 1 完成门槛
+
+- `002`–`008` 全部收敛；
+- `009` 落地（投资事件可导入，多券商解析可用）；
+- `010` 落地（各资产类型可取当前估值，coverage 状态明确）；
+- `011` 可延后，不阻塞 Phase 2。
+
+### 5.3 Phase 2：账单浏览 Web（只读）
+
+依赖：`009` + `010` 完成。
+
+**`012-transaction-browser-web`**：独立只读 Web，连接本机 workspace，展示已导入账单条目。
 
 范围：
 
-- 财富变化恒等式和符号；
-- 期初/期末估值、外部现金流、投资收益、FX、负债重估和差额；
-- 每日原子桶与日/周/月聚合；
-- 投资市场收益率、coverage、partial/stale/unsupported；
-- component、evidence 和 canonical DTO；
-- PostgreSQL/SQLite 等价 contract、性能基线和重建测试。
-
-非目标：Web、认证、Review Inbox、Connector、AI 和 MCP。
-
-实现交接以 [`003-wealth-attribution-core`](../specs/003-wealth-attribution-core/spec.md) 的 Spec Kit artifacts 为唯一事实源。内核保持 transport-neutral：Web/API 适配和展示 URL 不属于该 feature；正式估值、账户生命周期和不可变 generation/evidence 是 PostgreSQL 与 SQLite 共享的可重建输入/读模型边界。
-
-### 5.3 `wealth-report-web`：本地只读财富报告
-
-依赖：财富归因内核完成。
-
-范围：
-
-- `ft web` 连接本机 PostgreSQL workspace；
-- 区间解释和趋势对比；
-- 日/周/月、净资产折线、组成项柱和独立投资收益率线；
-- component/evidence 下钻；
-- loading、empty、partial、stale、unsupported 和 coverage 断线；
+- 按 `account.type` 分投资（investment）与消费（cash）两视图；
+- 可选展示当前市值（来自 `010` 估值接口）；
+- 关系状态（accepted/pending）、来源（raw_records）与修订下钻；
+- loading/empty/partial/stale/unsupported 状态；
 - 本地打包、API schema、浏览器 QA 和无障碍基线。
 
-第一版不增加登录、组织成员或云端上传。
+非目标：写入、财富归因、认证、Review Inbox accept/reject 交互。
 
-### 5.4 A3：外部产品验证
+### 5.4 Phase 3：财富分析
+
+依赖：Phase 1 完成（投资事实与估值基础就绪）。
+
+- **`003-wealth-attribution-core`**：财富归因内核。
+  财富变化恒等式与符号；期初/期末估值、外部现金流、投资收益、FX、负债重估和差额；
+  每日原子桶与日/周/月聚合；投资市场收益率、coverage、partial/stale/unsupported；
+  component、evidence 和 canonical DTO；PostgreSQL/SQLite 等价 contract、性能基线和重建测试。
+  非目标：Web、认证、Review Inbox、Connector、AI 和 MCP。
+  实现交接以 [`003-wealth-attribution-core`](../specs/003-wealth-attribution-core/spec.md) 的
+  Spec Kit artifacts 为唯一事实源。内核保持 transport-neutral：Web/API 适配和展示 URL 不属于该
+  feature；正式估值、账户生命周期和不可变 generation/evidence 是 PostgreSQL 与 SQLite 共享的
+  可重建输入/读模型边界。
+
+- **`wealth-report-web`**：本地只读财富报告。
+  依赖财富归因内核完成；可复用 `012` 的 Web 应用与 API 骨架。
+  区间解释和趋势对比；日/周/月净资产折线、组成项柱和独立投资收益率线；
+  component/evidence 下钻；loading/empty/partial/stale/unsupported 和 coverage 断线；
+  本地打包、API schema、浏览器 QA 和无障碍基线。第一版不增加登录、组织成员或云端上传。
+
+### 5.5 A3：外部产品验证
+
+依赖：Phase 3 完成。
 
 找到 5 位符合首批画像的用户，采用辅助安装和数据准备，不做引导演示。
 
