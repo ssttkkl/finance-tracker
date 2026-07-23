@@ -13,20 +13,21 @@ from ft.domain.relations import (
     FactCandidateIndex,
     FactType,
     FactView,
+    MatchContext,
     RelationCheckStatus,
     RelationCheckTrigger,
+    RelationEdge,
     RelationKind,
     RelationStatus,
     SUBTYPE_NONE,
     cross_kind_compatible,
-    evaluate_refund_offset,
-    has_refund_signal,
     is_open_leg_relation,
-    match_payment_mirrors_greedy,
-    match_diamond_bank_refunds,
-    match_transfer_pairs_phase_c,
     ordered_fact_pair,
     project_balances_and_pnl,
+    run_relation_phases,
+    match_phase_a_platform_refunds,
+    DefaultRefundTextGates,
+    source_group,
 )
 
 
@@ -88,191 +89,105 @@ class RelationService:
                     "phase_a_platform_refunds": 0,
                 }
                 # Indexed candidates: amount/currency/day buckets (FR-025, ≤60s full check).
-                index = FactCandidateIndex(active_facts)
+                index = FactCandidateIndex(
+                    active_facts,
+                    source_group=source_group,
+                    refund_gates=DefaultRefundTextGates(),
+                )
 
-                # --- Phase A: platform hard-key refunds (007) before mirror ---
+                # --- Phase A: platform hard-key refunds (persist; domain proposals later if extracted) ---
                 phase_a = self._phase_a_platform_refunds(
                     uow, active_facts=active_facts, remaining=remaining, stats=stats,
                 )
                 created.extend(phase_a)
 
-                # Preload refund membership after Phase A
-                refund_linked: set[str] = set()
+                # 008 MatchContext: preload persisted accepted edges (seed policy)
+                match_ctx = MatchContext(workspace_id=str(getattr(uow, "workspace_id", "") or ""))
+                match_ctx.remaining_by_expense = dict(remaining)
+                for rel in uow.relations.list_active(kind=RelationKind.PAYMENT_MIRROR.value):
+                    if rel.get("status") == RelationStatus.ACCEPTED.value:
+                        a, b = rel.get("primary_fact_id"), rel.get("secondary_fact_id")
+                        if a and b:
+                            match_ctx.accepted_mirrors.append(
+                                RelationEdge(fact_a_id=a, fact_b_id=b, kind=RelationKind.PAYMENT_MIRROR.value)
+                            )
+                for rel in uow.relations.list_active(kind=RelationKind.REFUND_OFFSET.value):
+                    if rel.get("status") == RelationStatus.ACCEPTED.value:
+                        a, b = rel.get("primary_fact_id"), rel.get("secondary_fact_id")
+                        if a and b:
+                            match_ctx.accepted_platform_refunds.append(
+                                RelationEdge(fact_a_id=a, fact_b_id=b, kind=RelationKind.REFUND_OFFSET.value)
+                            )
+                            match_ctx.used_fact_ids.add(a)
+                            match_ctx.used_fact_ids.add(b)
+
+                # Block sets from DB accepted + Phase A created
+                refund_blocked: set[str] = set(match_ctx.used_fact_ids)
                 for rel in uow.relations.list_active(kind=RelationKind.REFUND_OFFSET.value):
                     if rel.get("status") == RelationStatus.SUPERSEDED.value:
                         continue
-                    refund_linked.add(rel["primary_fact_id"])
-                    sec = rel.get("secondary_fact_id")
-                    if sec:
-                        refund_linked.add(sec)
-                    anchor = rel.get("anchor_fact_id")
-                    if anchor:
-                        refund_linked.add(anchor)
+                    if rel.get("primary_fact_id"):
+                        refund_blocked.add(rel["primary_fact_id"])
+                    if rel.get("secondary_fact_id"):
+                        refund_blocked.add(rel["secondary_fact_id"])
+                    if rel.get("anchor_fact_id"):
+                        refund_blocked.add(rel["anchor_fact_id"])
+                for item in phase_a:
+                    if item.get("primary_fact_id"):
+                        refund_blocked.add(item["primary_fact_id"])
+                    if item.get("secondary_fact_id"):
+                        refund_blocked.add(item["secondary_fact_id"])
 
-                # Phase B: payment_mirror
-                mirror_proposals = match_payment_mirrors_greedy(
-                    active_facts,
-                    aliases_by_tail=aliases,
-                    seed_ids=seeds,
-                    index=index,
-                )
-                for proposal in mirror_proposals:
-                    outcome = self._persist_proposal(uow, proposal, remaining)
-                    if outcome is None:
-                        stats["skipped"] += 1
-                        continue
-                    created.append(outcome)
-                    if outcome["status"] == RelationStatus.ACCEPTED.value:
-                        stats["accepted"] += 1
-                    elif outcome["status"] == RelationStatus.PENDING_REVIEW.value:
-                        stats["pending"] += 1
-
-                # Phase C: transfer_pair (taxonomy + withdraw) before bank refund weak path
-                transfer_linked: set[str] = set()
+                transfer_blocked: set[str] = set()
                 for rel in uow.relations.list_active(kind=RelationKind.TRANSFER_PAIR.value):
                     if rel.get("status") != RelationStatus.ACCEPTED.value:
-                        # pending/rejected open occupancy handled in _persist; allow
-                        # re-proposal to upgrade system open-leg FX via rate scoring.
                         continue
-                    transfer_linked.add(rel["primary_fact_id"])
+                    if rel.get("primary_fact_id"):
+                        transfer_blocked.add(rel["primary_fact_id"])
                     if rel.get("secondary_fact_id"):
-                        transfer_linked.add(rel["secondary_fact_id"])
-                transfer_proposals = match_transfer_pairs_phase_c(
+                        transfer_blocked.add(rel["secondary_fact_id"])
+
+                # --- Phases B–D: sole domain orchestration entry (008 FR-003) ---
+                proposals = run_relation_phases(
                     active_facts,
+                    ctx=match_ctx,
                     seed_ids=seeds,
                     index=index,
+                    aliases_by_tail=aliases,
+                    transfer_blocked_ids=transfer_blocked,
+                    refund_blocked_ids=refund_blocked,
+                    merchant_refund_seed_ids=seeds,
+                    skip_platform_import_refund_seeds=True,
                 )
                 stats["phase_c_transfers"] = 0
-                for proposal in transfer_proposals:
-                    if proposal.primary_fact_id in transfer_linked or (
-                        proposal.secondary_fact_id and proposal.secondary_fact_id in transfer_linked
-                    ):
-                        stats["skipped"] += 1
-                        continue
-                    outcome = self._persist_proposal(uow, proposal, remaining)
-                    if outcome is None:
-                        stats["skipped"] += 1
-                        continue
-                    created.append(outcome)
-                    transfer_linked.add(outcome["primary_fact_id"])
-                    if outcome.get("secondary_fact_id"):
-                        transfer_linked.add(outcome["secondary_fact_id"])
-                    stats["phase_c_transfers"] = stats.get("phase_c_transfers", 0) + 1
-                    if outcome["status"] == RelationStatus.ACCEPTED.value:
-                        stats["accepted"] += 1
-                    elif outcome["status"] == RelationStatus.PENDING_REVIEW.value:
-                        stats["pending"] += 1
-
-                # Phase D0: diamond bank refund via platform chain (FR-055)
-                accepted_mirrors: list[tuple[str, str]] = []
-                for rel in uow.relations.list_active(kind=RelationKind.PAYMENT_MIRROR.value):
-                    if rel.get("status") != RelationStatus.ACCEPTED.value:
-                        continue
-                    a, b = rel.get("primary_fact_id"), rel.get("secondary_fact_id")
-                    if a and b:
-                        accepted_mirrors.append((a, b))
-                for item in created:
-                    if item.get("kind") == RelationKind.PAYMENT_MIRROR.value and item.get("status") == RelationStatus.ACCEPTED.value:
-                        a, b = item.get("primary_fact_id"), item.get("secondary_fact_id")
-                        if a and b:
-                            accepted_mirrors.append((a, b))
-                accepted_platform_refunds: list[tuple[str, str]] = []
-                for rel in uow.relations.list_active(kind=RelationKind.REFUND_OFFSET.value):
-                    if rel.get("status") != RelationStatus.ACCEPTED.value:
-                        continue
-                    a, b = rel.get("primary_fact_id"), rel.get("secondary_fact_id")
-                    if not a or not b:
-                        continue
-                    # platform refund edges (Phase A) — allow any accepted; diamond filters by chain
-                    accepted_platform_refunds.append((a, b))
-                for item in created:
-                    if item.get("kind") == RelationKind.REFUND_OFFSET.value and item.get("status") == RelationStatus.ACCEPTED.value:
-                        a, b = item.get("primary_fact_id"), item.get("secondary_fact_id")
-                        if a and b:
-                            accepted_platform_refunds.append((a, b))
-                # open-leg / positive bank refund seeds
-                bank_refund_seeds = []
-                for f in active_facts:
-                    if f.id in refund_linked:
-                        continue
-                    from ft.domain.relations import source_group, has_refund_signal
-                    if source_group(f) != "bank":
-                        continue
-                    if f.signed_amount <= 0:
-                        continue
-                    if has_refund_signal(f.text) or any(
-                        tok in f.text for tok in ("退货", "退款", "消费退货")
-                    ):
-                        bank_refund_seeds.append(f.id)
-                diamond = match_diamond_bank_refunds(
-                    active_facts,
-                    accepted_mirrors=accepted_mirrors,
-                    accepted_platform_refunds=accepted_platform_refunds,
-                    open_or_pending_bank_refund_ids=bank_refund_seeds,
-                )
                 stats["phase_d_diamond"] = 0
-                for proposal in diamond:
+                for proposal in proposals:
+                    if proposal.kind == RelationKind.TRANSFER_PAIR.value:
+                        stats["phase_c_transfers"] = stats.get("phase_c_transfers", 0) + 1
+                    if proposal.rule_id and "diamond" in (proposal.rule_id or ""):
+                        stats["phase_d_diamond"] = stats.get("phase_d_diamond", 0) + 1
                     outcome = self._persist_proposal(uow, proposal, remaining)
                     if outcome is None:
                         stats["skipped"] += 1
                         continue
                     created.append(outcome)
-                    refund_linked.add(outcome["primary_fact_id"])
-                    if outcome.get("secondary_fact_id"):
-                        refund_linked.add(outcome["secondary_fact_id"])
-                    stats["phase_d_diamond"] = stats.get("phase_d_diamond", 0) + 1
                     if outcome["status"] == RelationStatus.ACCEPTED.value:
                         stats["accepted"] += 1
+                        if outcome.get("kind") == RelationKind.REFUND_OFFSET.value:
+                            exp_id = outcome.get("primary_fact_id")
+                            extras = outcome.get("evidence") or {}
+                            refund_amt = Decimal(str(
+                                extras.get("refund_amount")
+                                or (extras.get("extras") or {}).get("refund_amount")
+                                or 0
+                            ))
+                            if exp_id and exp_id in fact_by_id and refund_amt:
+                                remaining[exp_id] = remaining.get(
+                                    exp_id, abs(fact_by_id[exp_id].signed_amount)
+                                ) - refund_amt
                     elif outcome["status"] == RelationStatus.PENDING_REVIEW.value:
                         stats["pending"] += 1
 
-                # Phase D: bank refund / remaining refund_offset (not already linked)
-                for seed in seed_views:
-                    proposals = []
-                    # Phase A already handled platform hard-key refunds.
-                    # Skip merchant weak path only when already linked.
-                    skip_refund_scan = seed.id in refund_linked
-                    rf = None
-                    if not skip_refund_scan:
-                        rf = evaluate_refund_offset(
-                            seed,
-                            index.refund_candidates(seed),
-                            remaining_by_expense=remaining,
-                        )
-                    else:
-                        stats["skipped"] += 1
-                    if rf is not None:
-                        proposals.append(rf)
-                    for proposal in proposals:
-                        outcome = self._persist_proposal(uow, proposal, remaining)
-                        if outcome is None:
-                            stats["skipped"] += 1
-                            continue
-                        created.append(outcome)
-                        if outcome.get("kind") == RelationKind.REFUND_OFFSET.value:
-                            refund_linked.add(outcome["primary_fact_id"])
-                            if outcome.get("secondary_fact_id"):
-                                refund_linked.add(outcome["secondary_fact_id"])
-                            if outcome.get("anchor_fact_id"):
-                                refund_linked.add(outcome["anchor_fact_id"])
-                        if outcome["status"] == RelationStatus.ACCEPTED.value:
-                            stats["accepted"] += 1
-                            if outcome["kind"] == RelationKind.REFUND_OFFSET.value:
-                                refund_amt = Decimal(str(
-                                    outcome.get("evidence", {}).get("extras", {}).get("refund_amount")
-                                    or outcome.get("evidence", {}).get("refund_amount")
-                                    or 0
-                                ))
-                                extras = outcome.get("evidence") or {}
-                                if "refund_amount" in extras:
-                                    refund_amt = Decimal(str(extras["refund_amount"]))
-                                exp_id = outcome["primary_fact_id"]
-                                remaining[exp_id] = remaining.get(
-                                    exp_id,
-                                    abs(fact_by_id[exp_id].signed_amount) if exp_id in fact_by_id else Decimal("0"),
-                                ) - refund_amt
-                        elif outcome["status"] == RelationStatus.PENDING_REVIEW.value:
-                            stats["pending"] += 1
                 uow.relation_checks.finish(run_id, status=RelationCheckStatus.COMPLETED.value, stats=stats)
                 uow.commit()
             return OperationResult(
@@ -434,6 +349,7 @@ class RelationService:
         )
 
 
+
     def _phase_a_platform_refunds(
         self,
         uow,
@@ -442,202 +358,57 @@ class RelationService:
         remaining: dict,
         stats: dict,
     ) -> list[dict]:
-        """007 Phase A: alipay order-key + wechat dual-row + auth-unfreeze → refund_offset."""
-        from ft.domain.platform_refund import (
-            alipay_is_auth_hold,
-            alipay_is_unfreeze,
-            alipay_order_match,
-            pair_wechat_refunds,
-        )
-
-        # Need detailed rows with raw_payload for status/txn
-        if hasattr(uow.cashflows, "list_detailed"):
-            detailed = uow.cashflows.list_detailed(include_deleted=False)
-        else:
+        """Phase A: domain hard-key match → uniform persist (008)."""
+        if not hasattr(uow.cashflows, "list_detailed"):
             return []
-        by_id = {str(r["id"]): r for r in detailed if r.get("id")}
+        detailed = uow.cashflows.list_detailed(include_deleted=False)
         fact_by_id = {f.id: f for f in active_facts}
 
-        def already_linked(a: str, b: str) -> bool:
-            for rel in uow.relations.list_for_facts([a, b], active_only=True):
-                if rel.get("kind") != RelationKind.REFUND_OFFSET.value:
-                    continue
-                ids = {rel.get("primary_fact_id"), rel.get("secondary_fact_id"), rel.get("anchor_fact_id")}
-                if a in ids and b in ids:
-                    return True
-            return False
+        linked_pairs: set[tuple[str, str]] = set()
+        for rel in uow.relations.list_active(kind=RelationKind.REFUND_OFFSET.value):
+            if rel.get("status") == RelationStatus.SUPERSEDED.value:
+                continue
+            a, b = rel.get("primary_fact_id"), rel.get("secondary_fact_id")
+            if a and b:
+                linked_pairs.add((a, b))
 
-        def persist_pair(exp_id: str, ref_id: str, rule_id: str, extras: dict | None = None) -> dict | None:
-            if exp_id == ref_id or already_linked(exp_id, ref_id):
-                stats["skipped"] += 1
-                return None
-            # map import.* → scan.* for new writes
-            rid = rule_id or "scan.platform.refund.v1"
-            if rid.startswith("import."):
-                rid = "scan." + rid[len("import."):]
-            if not rid.startswith("scan."):
-                rid = f"scan.{rid}"
-            exp = fact_by_id.get(exp_id)
-            ref = fact_by_id.get(ref_id)
-            if exp is None or ref is None:
-                return None
-            refund_amt = abs(ref.signed_amount)
-            remaining_exp = remaining.get(exp_id, abs(exp.signed_amount))
-            # allow zero-amount auth pairs
-            if refund_amt > 0 and remaining_exp + Decimal("0.0000001") < refund_amt:
-                # still allow pair as pending? keep accepted if exact residual path later
-                pass
-            primary, secondary = ordered_fact_pair(exp_id, ref_id)
-            # For refund_offset convention: primary=expense, secondary=refund preferred
-            # Keep expense as primary when amounts signed differently
-            if exp.signed_amount < 0 or (exp.signed_amount <= 0 and ref.signed_amount >= 0):
-                primary, secondary = exp_id, ref_id
-            else:
-                primary, secondary = ref_id, exp_id
-            payload = {
-                "kind": RelationKind.REFUND_OFFSET.value,
-                "subtype": SUBTYPE_NONE,
-                "primary_fact_id": primary,
-                "secondary_fact_id": secondary,
-                "anchor_fact_id": primary,
-                "status": RelationStatus.ACCEPTED.value,
-                "confidence": CONFIDENCE_STRONG,
-                "rule_id": rid,
-                "evidence": {
-                    "phase": "A",
-                    "refund_amount": str(refund_amt),
-                    "extras": extras or {},
-                },
-                "active_slot": 1,
-            }
-            # use internal persist if possible
-            try:
-                new_id = uow.relations.add(payload)
-            except Exception:
-                # fallback without active_slot
-                payload.pop("active_slot", None)
-                new_id = uow.relations.add(payload)
-            remaining[exp_id] = remaining.get(exp_id, abs(exp.signed_amount)) - refund_amt
-            stats["accepted"] += 1
-            stats["phase_a_platform_refunds"] = stats.get("phase_a_platform_refunds", 0) + 1
-            return {
-                "id": new_id,
-                "kind": RelationKind.REFUND_OFFSET.value,
-                "primary_fact_id": primary,
-                "secondary_fact_id": secondary,
-                "anchor_fact_id": primary,
-                "status": RelationStatus.ACCEPTED.value,
-                "rule_id": rid,
-                "evidence": payload["evidence"],
-            }
+        # Prefer txn_id from detailed rows for order-key matching
+        # list_detailed may already expose record_id; map into rows if needed
+        for row in detailed:
+            if not row.get("txn_id") and row.get("record_id"):
+                row["txn_id"] = row.get("record_id")
+            payload = row.get("raw_payload") if isinstance(row.get("raw_payload"), dict) else {}
+            if payload:
+                row.setdefault("platform_status", payload.get("status") or payload.get("platform_status") or "")
+                row.setdefault("status", payload.get("status") or row.get("platform_status") or "")
+                if payload.get("txn_id"):
+                    row["txn_id"] = payload.get("txn_id")
 
+        proposals = match_phase_a_platform_refunds(
+            detailed,
+            facts_by_id=fact_by_id,
+            linked_pairs=linked_pairs,
+        )
         created: list[dict] = []
-
-        # --- Alipay order-key ---
-        alipay_rows = []
-        for r in detailed:
-            src = f"{r.get('bill_source') or ''} {r.get('source') or ''}".lower()
-            if "alipay" not in src and "支付宝" not in src:
+        for proposal in proposals:
+            outcome = self._persist_proposal(uow, proposal, remaining)
+            if outcome is None:
+                stats["skipped"] = stats.get("skipped", 0) + 1
                 continue
-            alipay_rows.append(r)
-        # origins: expenses (negative) with txn
-        origins = []
-        refunds = []
-        for r in alipay_rows:
-            amt = Decimal(str(r.get("amount") or 0))
-            status = str(r.get("platform_status") or r.get("status") or "")
-            txn = str(r.get("txn_id") or r.get("record_id") or "")
-            desc = str(r.get("description") or "")
-            direction = str(r.get("direction") or "")
-            # refund leg: positive + (status 退款成功 or desc 退款)
-            is_ref = amt > 0 and (
-                "退款" in status or "退款" in desc or status == "退款成功"
-            )
-            is_exp = amt < 0 or (
-                direction == "支出" and amt != 0
-            ) or (str(r.get("category") or "") == "expense")
-            # zero amount auth
-            if alipay_is_auth_hold(status):
-                origins.append(r)
-                continue
-            if alipay_is_unfreeze(status):
-                refunds.append(r)
-                continue
-            if is_ref:
-                refunds.append(r)
-            elif is_exp or amt < 0:
-                origins.append(r)
-        origin_txns = [str(o.get("txn_id") or o.get("record_id") or "") for o in origins]
-        used_origin: set[int] = set()
-        for ref in refunds:
-            status = str(ref.get("platform_status") or ref.get("status") or "")
-            if alipay_is_unfreeze(status):
-                continue  # handled below
-            rtxn = str(ref.get("txn_id") or ref.get("record_id") or "")
-            hits = [
-                i for i, otxn in enumerate(origin_txns)
-                if i not in used_origin and alipay_order_match(rtxn, otxn)
-            ]
-            if len(hits) != 1:
-                continue
-            oi = hits[0]
-            used_origin.add(oi)
-            exp_id = str(origins[oi]["id"])
-            ref_id = str(ref["id"])
-            out = persist_pair(exp_id, ref_id, "scan.alipay.order_prefix.v1")
-            if out:
-                created.append(out)
-
-        # Auth hold → unfreeze same calendar day unique
-        holds = [r for r in alipay_rows if alipay_is_auth_hold(str(r.get("platform_status") or r.get("status") or ""))]
-        unfreezes = [r for r in alipay_rows if alipay_is_unfreeze(str(r.get("platform_status") or r.get("status") or ""))]
-        from collections import defaultdict
-        holds_by_day: dict[str, list] = defaultdict(list)
-        unfreezes_by_day: dict[str, list] = defaultdict(list)
-        for r in holds:
-            day = str(r.get("date") or "")[:10]
-            holds_by_day[day].append(r)
-        for r in unfreezes:
-            day = str(r.get("date") or "")[:10]
-            unfreezes_by_day[day].append(r)
-        for day, hs in holds_by_day.items():
-            us = unfreezes_by_day.get(day) or []
-            if len(hs) == 1 and len(us) == 1:
-                out = persist_pair(str(hs[0]["id"]), str(us[0]["id"]), "scan.alipay.auth_unfreeze.v1")
-                if out:
-                    created.append(out)
-
-        # --- WeChat dual-row ---
-        wechat_rows = []
-        for r in detailed:
-            src = f"{r.get('bill_source') or ''} {r.get('source') or ''}".lower()
-            if "wechat" not in src and "微信" not in src:
-                continue
-            row = dict(r)
-            payload = r.get("raw_payload") or {}
-            # normalize keys for pair_wechat_refunds
-            row["status"] = row.get("status") or payload.get("status") or row.get("platform_status") or ""
-            row["txn_type"] = row.get("txn_type") or payload.get("txn_type") or payload.get("type") or ""
-            row["type"] = row.get("type") or row["txn_type"]
-            row["payment_method"] = row.get("payment_method") or payload.get("payment_method") or payload.get("pay") or ""
-            row["pay"] = row["payment_method"]
-            row["txn_id"] = row.get("txn_id") or payload.get("txn_id") or row.get("record_id") or ""
-            row["txn"] = row["txn_id"]
-            row["merchant_order_id"] = row.get("merchant_order_id") or payload.get("merchant_order_id") or ""
-            row["mer"] = row["merchant_order_id"]
-            row["direction"] = row.get("direction") or payload.get("direction") or (
-                "支出" if Decimal(str(row.get("amount") or 0)) < 0 else "收入"
-            )
-            row["date"] = row.get("date") or ""
-            wechat_rows.append(row)
-        if wechat_rows:
-            pairs = pair_wechat_refunds(wechat_rows)
-            for ei, ii, rule_id in pairs:
-                exp_id = str(wechat_rows[ei]["id"])
-                ref_id = str(wechat_rows[ii]["id"])
-                out = persist_pair(exp_id, ref_id, rule_id)
-                if out:
-                    created.append(out)
+            created.append(outcome)
+            if outcome.get("status") == RelationStatus.ACCEPTED.value:
+                stats["accepted"] = stats.get("accepted", 0) + 1
+                stats["phase_a_platform_refunds"] = stats.get("phase_a_platform_refunds", 0) + 1
+                # remaining updated inside _persist_proposal for refunds when evidence carries amount
+                exp_id = outcome.get("primary_fact_id")
+                ref_id = outcome.get("secondary_fact_id")
+                if exp_id and ref_id and exp_id in fact_by_id and ref_id in fact_by_id:
+                    refund_amt = abs(fact_by_id[ref_id].signed_amount)
+                    # prefer expense as remaining key (negative signed)
+                    exp_key = exp_id if fact_by_id[exp_id].signed_amount < 0 else ref_id
+                    remaining[exp_key] = remaining.get(
+                        exp_key, abs(fact_by_id[exp_key].signed_amount)
+                    ) - refund_amt
         return created
 
 
