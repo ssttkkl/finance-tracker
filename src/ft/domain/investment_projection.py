@@ -338,7 +338,7 @@ def apply_investment_event(
             target, new_shares, ticker=target_ticker, bases=bases,
             cost=_decimal(target["total_cost"], "cost") + to_amount,
         )
-    elif action in {"withdraw", "fee"}:
+    elif action == "withdraw":
         source_ticker = from_ticker or currency.lower()
         source = _position(
             positions, source_ticker, _asset_cost_currency(source_ticker, currency, bases), bases=bases,
@@ -348,6 +348,29 @@ def apply_investment_event(
             source, new_shares, ticker=source_ticker, bases=bases,
             cost=_decimal(source["total_cost"], "cost") - from_amount,
         )
+    elif action == "fee":
+        # Charge: from_amount > 0 reduces cash. Refund: to_amount > 0 increases cash
+        # (same fee/tax bucket as the original charge type, via note/flag).
+        if to_amount > 0 and from_amount == 0:
+            target_ticker = to_ticker or currency.lower()
+            target = _position(
+                positions, target_ticker, _asset_cost_currency(target_ticker, currency, bases), bases=bases,
+            )
+            new_shares = _decimal(target["shares"], "shares") + to_amount
+            _set_qty(
+                target, new_shares, ticker=target_ticker, bases=bases,
+                cost=_decimal(target["total_cost"], "cost") + to_amount,
+            )
+        else:
+            source_ticker = from_ticker or currency.lower()
+            source = _position(
+                positions, source_ticker, _asset_cost_currency(source_ticker, currency, bases), bases=bases,
+            )
+            new_shares = _decimal(source["shares"], "shares") - from_amount
+            _set_qty(
+                source, new_shares, ticker=source_ticker, bases=bases,
+                cost=_decimal(source["total_cost"], "cost") - from_amount,
+            )
     elif action == "swap":
         source = _position(
             positions, from_ticker, _asset_cost_currency(from_ticker, currency, bases), bases=bases,

@@ -136,3 +136,20 @@ def test_cash_fee_and_dividend_actions():
     assert map_usmart_hk_to_investment_event(interest, "盈立证券")["action"] == "fee"
     assert map_usmart_hk_to_investment_event(div, "盈立证券")["action"] == "dividend"
     assert map_usmart_hk_to_investment_event(tax, "盈立证券")["action"] == "fee"
+
+
+def test_tax_refund_maps_to_fee_not_deposit():
+    tax_refund = {
+        "kind": "cash", "date": "2026-02-26", "flag": "资金存", "flag_norm": "资金存",
+        "ccy": "USD", "amount": Decimal("0.27"), "note": "Refund tax of TQQQ.US",
+    }
+    ipo = {
+        "kind": "cash", "date": "2026-06-01", "flag": "IPO认购退款", "flag_norm": "IPO认购退款",
+        "ccy": "HKD", "amount": Decimal("5181.74"), "note": "IPO Refund",
+    }
+    ev = map_usmart_hk_to_investment_event(tax_refund, "盈立证券")
+    assert ev["action"] == "fee"
+    assert ev["to_amount"] == "0.27"
+    assert ev["from_amount"] == "0"
+    ev2 = map_usmart_hk_to_investment_event(ipo, "盈立证券")
+    assert ev2["action"] == "deposit"

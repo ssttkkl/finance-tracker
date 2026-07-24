@@ -119,26 +119,51 @@ def map_usmart_hk_to_investment_event(
                 "commission_asset": ""}
     if kind == "cash":
         amount = abs(txn["amount"])
-        flag = str(txn.get("flag_norm") or txn.get("flag") or txn.get("note") or "")
-        # P0 kinds: dividend / fee / funding (deposit|withdraw)
-        fee_flags = {
-            "融资利息", "融券罚息转出", "融券利息", "罚息转出",
-            "美股股息税", "股息代收费", "红利税费", "股息税",
-        }
+        flag = str(txn.get("flag_norm") or txn.get("flag") or "")
+        note = str(txn.get("note") or "")
+        text = f"{flag} {note}"
+        # Dividend income
         if flag == "红利入账" or flag.startswith("红利入账"):
             return {
                 **base, "action": "dividend", "from_ticker": "", "from_amount": "0",
                 "to_ticker": cash, "to_amount": _fmt(amount), "price": "1",
                 "commission": "0", "commission_asset": "",
             }
-        if flag in fee_flags or (
-            any(k in flag for k in ("利息", "罚息", "股息税", "代收费", "税费"))
-            and flag not in {"IPO认购退款"}
-        ):
-            # Fee always cash-out semantically (statement amount may be signed).
+        # Fee / tax / interest family (charges and refunds of the same kind).
+        fee_flags = {
+            "融资利息", "融券罚息转出", "融券利息", "罚息转出",
+            "美股股息税", "股息代收费", "红利税费", "股息税",
+        }
+        is_fee_flag = flag in fee_flags or any(
+            k in flag for k in ("利息", "罚息", "股息税", "代收费", "税费")
+        )
+        # 资金存 + tax refund notes, or note-only tax refund rows
+        is_tax_refund = (
+            ("税" in text or "tax" in text.lower() or "withhold" in text.lower())
+            and ("退" in text or "refund" in text.lower() or flag == "资金存")
+        )
+        is_fee_refund = is_tax_refund or (
+            txn["amount"] > 0 and any(k in text for k in ("利息", "罚息", "代收费", "税费", "fee"))
+        )
+        if is_fee_flag or is_tax_refund or is_fee_refund:
+            if txn["amount"] >= 0 and (is_tax_refund or is_fee_refund or is_fee_flag and txn["amount"] > 0):
+                # Refund of fee/tax → still action=fee, cash in via to_amount
+                return {
+                    **base, "action": "fee", "from_ticker": "", "from_amount": "0",
+                    "to_ticker": cash, "to_amount": _fmt(amount), "price": "1",
+                    "commission": "0", "commission_asset": "",
+                }
+            # Charge
             return {
                 **base, "action": "fee", "from_ticker": cash, "from_amount": _fmt(amount),
                 "to_ticker": "", "to_amount": "0", "price": "1",
+                "commission": "0", "commission_asset": "",
+            }
+        # IPO subscription cash back is funding, not a fee type.
+        if flag in {"IPO认购退款"} or "IPO" in flag:
+            return {
+                **base, "action": "deposit", "from_ticker": "", "from_amount": "0",
+                "to_ticker": cash, "to_amount": _fmt(amount), "price": "1",
                 "commission": "0", "commission_asset": "",
             }
         if txn["amount"] > 0:

@@ -149,3 +149,29 @@ def test_dividend_increases_cash():
     )
     pos = snap["accounts"]["security"]["A"]["positions"]
     assert Decimal(pos["usd"]["shares"]) == Decimal("12.77")
+
+
+def test_fee_refund_increases_cash():
+    snap = _snap("A")
+    bases = normalize_base_tickers(["USD"])
+    apply_investment_event(
+        snap,
+        {
+            "date": "2026-06-01", "action": "deposit", "currency": "USD",
+            "account_name": "A", "to_ticker": "usd", "to_amount": "10",
+            "from_ticker": "", "from_amount": "0", "commission": "0",
+        },
+        default_currency="USD", base_tickers=bases,
+    )
+    apply_investment_event(
+        snap,
+        {
+            "date": "2026-06-02", "action": "fee", "currency": "USD",
+            "account_name": "A", "from_ticker": "", "from_amount": "0",
+            "to_ticker": "usd", "to_amount": "0.27", "commission": "0",
+            "note": "Refund tax of TQQQ.US",
+        },
+        default_currency="USD", base_tickers=bases,
+    )
+    pos = snap["accounts"]["security"]["A"]["positions"]
+    assert Decimal(pos["usd"]["shares"]) == Decimal("10.27")

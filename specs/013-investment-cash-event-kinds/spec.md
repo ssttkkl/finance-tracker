@@ -1,33 +1,21 @@
-# Feature Specification: Investment cash event kinds (fee + dividend mapping)
+# Feature Specification: Investment cash event kinds (fee + dividend)
 
-**Feature Branch**: `013-investment-cash-event-kinds` (delivered with 011 branch)
+**Status**: Complete  
+**Branch**: delivered on `011-usmart-hk-import`
 
-**Created**: 2026-07-24
+## Converged actions
 
-**Status**: Complete
+| Action | Cash effect | uSmart examples |
+|--------|-------------|-----------------|
+| `deposit` / `withdraw` | + / − funding | 入金, EDDA入金, 出金, 户内调拨(P1) |
+| `dividend` | + | 红利入账 |
+| **`fee`** | **− charge or + refund** | 融资利息, 融券罚息, 股息税, 代收费; **税退/费用退回** (same action, opposite legs) |
+| `swap` / `checkin` | as today | trades, FX, alignment |
 
-**Input**: P0 cleanup — fee-class cash movements must not be generic withdraw; dividends must use dividend action.
+## Fee refund rule
 
-## Decision (converged types)
+- Tax/fee **charge**: `action=fee`, `from_amount=|amt|` (cash out)
+- Tax/fee **refund** (e.g. 资金存 + Refund tax, or positive fee-like note): `action=fee`, `to_amount=|amt|` (cash in)
+- **IPO 认购退款**: still `deposit` (subscription funding return, not a tax/fee ledger line)
 
-| Bucket | Action | Includes (uSmart flags / notes) |
-|--------|--------|----------------------------------|
-| Customer funding | `deposit` / `withdraw` | 入金, EDDA入金, 出金, 提取 |
-| Income from holdings | `dividend` | 红利入账 |
-| All cost-of-carry / tax / brokerage charges on cash | **`fee`** | 融资利息, 融券罚息转出, 融券利息, 美股股息税, 股息代收费, 红利税费, 股息税, 罚息转出, 资金存(税退? keep deposit if positive refund — see map) |
-| Broker promo | `deposit` (note) for now | 优惠券 — optional later `rebate`; P0 keeps deposit |
-| IPO / tax refund | `deposit` | IPO认购退款, 资金存/Refund tax positive |
-| FX / equity trades | `swap` | unchanged |
-| Alignment | `checkin` | unchanged |
-| Internal transfers | deposit/withdraw + note | P1, not this feature |
-
-## Projection
-
-- `fee`: same cash effect as `withdraw` (reduce base cash by from_amount). Unsigned amounts.
-- `dividend`: existing path (increase cash; optional from_ticker when known).
-
-## Non-goals
-
-- New transfer action
-- Lot accounting
-- Changing commission-on-trade (still on swap.commission)
+Projection: `fee` with `to_amount>0` and `from_amount=0` increases base cash; otherwise decreases via `from_amount`.
