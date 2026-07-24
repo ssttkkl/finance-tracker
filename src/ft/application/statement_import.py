@@ -1,12 +1,10 @@
-"""Atomic original-statement import orchestration."""
+"""Atomic original-statement import orchestration (inline provenance)."""
 from __future__ import annotations
 
-from datetime import datetime
 from dataclasses import replace
 from decimal import Decimal
 import hashlib
 import json
-import mimetypes
 from pathlib import Path
 import tempfile
 from collections import Counter
@@ -28,6 +26,24 @@ def _json_safe(value):
     return value
 
 
+def _row_record_id(row: dict, occurrences: dict[str, int]) -> str:
+    """Resolve business row key; content-stable when provider id missing."""
+    identity = str(row.get("record_id") or "").strip()
+    if identity:
+        return identity
+    payload = _json_safe(row)
+    identity_payload = {
+        key: value for key, value in payload.items()
+        if key not in {"account_name", "raw_record_id", "source_payload", "source_type"}
+    }
+    canonical = json.dumps(
+        identity_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    )
+    base_identity = hashlib.sha256(canonical.encode()).hexdigest()
+    occurrences[base_identity] = occurrences.get(base_identity, 0) + 1
+    return f"{base_identity}:{occurrences[base_identity]}"
+
+
 class StatementImportService:
     def __init__(self, unit_of_work, parser, relation_service=None):
         self._uow = unit_of_work
@@ -40,7 +56,6 @@ class StatementImportService:
             content = source.read(MAX_STATEMENT_BYTES + 1)
         if len(content) > MAX_STATEMENT_BYTES:
             raise ValueError("statement exceeds 100 MiB input limit")
-        digest = f"sha256:{hashlib.sha256(content).hexdigest()}"
         with tempfile.TemporaryDirectory(prefix="ft-statement-") as temp_dir:
             captured_path = Path(temp_dir) / f"source{path.suffix}"
             captured_path.write_bytes(content)
@@ -53,7 +68,6 @@ class StatementImportService:
                 import_meta = dict(row.pop("_import_meta") or {})
             rows.append(row)
         if not rows:
-            # Allow pure whitelist-skip batches only if meta says so
             acc = import_meta.get("acceptance") or {}
             if acc.get("source_lines") and (
                 acc.get("skipped_unpaid_closed", 0) + acc.get("skipped_failed_repay", 0)
@@ -73,7 +87,7 @@ class StatementImportService:
                 )
             raise ValueError("statement contains no supported records")
 
-        # Normalize currencies; account_name must already be set by parser/mapping.
+        source_type = str(command.source or "").strip()
         for row in rows:
             if not row.get("account_name"):
                 raise ValueError(
@@ -83,17 +97,6 @@ class StatementImportService:
             row["currency"] = str(raw_currency).upper()
 
         with self._uow as uow:
-            batch_id = uow.imports.start_batch(
-                source_kind=command.source,
-                source_digest=digest,
-                source_ref=path.name,
-                target_account_name=None,
-                target_account_currency=None,
-            )
-            # 010: do not short-circuit on completed batch/digest — formalization
-            # is gated solely by business identity via formal_fact_targets below.
-
-            # Account identity is name-only; a statement row owns its currency.
             account_cache: dict[str, object] = {}
             for row in rows:
                 key = row["account_name"]
@@ -104,104 +107,70 @@ class StatementImportService:
                     raise ValueError(f"account not found: {row['account_name']}")
                 account_cache[key] = account
 
-            raw_file_id = uow.imports.add_raw_file(
-                batch_id=batch_id, source_path=path.name, content_digest=digest,
-                size_bytes=len(content), media_type=mimetypes.guess_type(path.name)[0] or "application/octet-stream",
-            )
-            raw_items = []
             occurrences: dict[str, int] = {}
-            for index, row in enumerate(rows, 1):
-                payload = _json_safe(row)
-                identity = str(row.get("record_id") or "")
-                if not identity:
-                    identity_payload = {
-                        key: value for key, value in payload.items()
-                        if key not in {"account_name", "raw_record_id"}
-                    }
-                    canonical = json.dumps(
-                        identity_payload, ensure_ascii=False, sort_keys=True,
-                        separators=(",", ":"),
-                    )
-                    base_identity = hashlib.sha256(canonical.encode()).hexdigest()
-                    occurrences[base_identity] = occurrences.get(base_identity, 0) + 1
-                    identity = f"{base_identity}:{occurrences[base_identity]}"
-                raw_items.append({
-                    "source_identity": f"{command.source}:{identity}",
-                    "source_line": index,
-                    "payload": payload,
-                })
-            raw_ids = uow.imports.add_raw_records(
-                batch_id=batch_id, raw_file_id=raw_file_id,
-                source_type=command.source, records=raw_items,
+            prepared: list[tuple[dict, str]] = []
+            for row in rows:
+                record_id = _row_record_id(row, occurrences)
+                prepared.append((row, record_id))
+
+            existing_targets = uow.imports.existing_fact_targets(
+                source_type=source_type,
+                record_ids=[rid for _, rid in prepared],
             )
-            existing_targets = uow.imports.formal_fact_targets(raw_ids)
-            for row, raw_id in zip(rows, raw_ids, strict=True):
+            for row, record_id in prepared:
                 expected = (row["account_name"], row["currency"])
-                existing_target = existing_targets.get(raw_id)
+                existing_target = existing_targets.get(record_id)
                 if existing_target is not None and existing_target != expected:
                     raise ValueError(
                         "statement record was already imported to a different account"
                     )
 
-            seen_fact_ids = set(existing_targets)
-            rows_to_import = []
-            for row, raw_id in zip(rows, raw_ids, strict=True):
-                if raw_id in seen_fact_ids:
-                    continue
-                seen_fact_ids.add(raw_id)
-                rows_to_import.append((row, raw_id))
-
             snapshot = uow.snapshot.load(lock=True)
             imported_count = 0
             by_account: Counter[str] = Counter()
             new_cash_fact_ids: list[str] = []
-            for row, raw_id in rows_to_import:
+            for row, record_id in prepared:
+                if record_id in existing_targets:
+                    continue
                 account = account_cache[row["account_name"]]
-                row["raw_record_id"] = raw_id
+                payload = _json_safe(row)
+                formal = {
+                    **row,
+                    "source_type": source_type,
+                    "record_id": record_id,
+                    "source_payload": payload,
+                }
                 if account.type in {"cash", "loan", "lend"}:
-                    fact_id = uow.cashflows.add(account.type, row)
+                    fact_id = uow.cashflows.add(account.type, formal)
                     new_cash_fact_ids.append(fact_id)
                     if row.get("category") not in {"transfer", "transfer_in", "transfer_out"}:
                         uow.snapshot.update_balance(
                             snapshot, account.name, account.type, row["currency"], row["amount"]
                         )
-                    uow.imports.append_revision(
-                        cash_transaction_id=fact_id, before={}, after=_json_safe(row),
-                        actor_type="statement_import", reason="initial statement import",
-                    )
                 elif account.type in {"security", "crypto"}:
-                    apply_investment_event(snapshot, row, default_currency=row["currency"])
-                    fact_id = uow.investments.add(account.type, row)
-                    uow.imports.append_revision(
-                        investment_event_id=fact_id, before={}, after=_json_safe(row),
-                        actor_type="statement_import", reason="initial statement import",
-                    )
+                    apply_investment_event(snapshot, formal, default_currency=row["currency"])
+                    uow.investments.add(account.type, formal)
                 else:
                     raise ValueError(f"unsupported account type: {account.type}")
+                existing_targets[record_id] = (row["account_name"], row["currency"])
                 imported_count += 1
                 by_account[account.name] += 1
             if imported_count:
                 snapshot["updated_at"] = max(str(row.get("date", "")) for row in rows)
             uow.snapshot.save(snapshot)
-            uow.imports.complete_batch(batch_id)
             uow.commit()
-            saved_batch_id = batch_id
             saved_imported_count = imported_count
             saved_by_account = dict(by_account)
             saved_new_cash_fact_ids = list(new_cash_fact_ids)
-        # Import-time platform refund_offset from convert tracking pairs (007)
-        # 007: import MUST NOT write refund_offset; relations check Phase A does.
-        import_refund_relations = []
 
+        import_refund_relations = []
         relation_details = None
         if saved_new_cash_fact_ids and self._relations is not None:
-            # Import already committed; check failure must not roll back facts.
             try:
                 check_result = self._relations.check(
                     seed_fact_ids=saved_new_cash_fact_ids,
-                    seed_batch_id=saved_batch_id,
-                    trigger="import_batch",
-                    seed_ref=saved_batch_id,
+                    trigger="import",
+                    seed_ref=",".join(saved_new_cash_fact_ids[:8]),
                 )
                 relation_details = check_result.details
             except Exception as exc:  # noqa: BLE001
@@ -226,7 +195,7 @@ class StatementImportService:
             count=saved_imported_count,
             message="no new rows" if no_new else "imported",
             details={
-                "batch_id": saved_batch_id,
+                "batch_id": None,
                 "duplicate": no_new,
                 "new_rows": saved_imported_count,
                 "by_account": saved_by_account,

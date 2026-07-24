@@ -54,12 +54,7 @@ class CashflowFact:
     occurred_at: datetime
     amount: Decimal
     currency: str
-    revision: int
-    raw_record_id: str | None = None
     category: str = ""
-    transfer_account: str = ""
-    offset_group: str = ""
-    offset_role: str = ""
 
 
 @dataclass(frozen=True)
@@ -71,8 +66,6 @@ class InvestmentFact:
     action: str
     currency: str
     payload: Mapping[str, str]
-    revision: int
-    raw_record_id: str | None = None
     commission: object | None = None
     from_amount: object | None = None
     to_amount: object | None = None

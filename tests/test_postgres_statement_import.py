@@ -56,10 +56,8 @@ def _service(rows):
     )
 
 
-def test_cash_statement_import_persists_lineage_revision_and_projection(tmp_path):
-    from ft.adapters.relational.models import (
-        CashTransactionModel, ImportBatchModel, RawRecordModel, RecordRevisionModel,
-    )
+def test_cash_statement_import_persists_provenance_and_projection(tmp_path):
+    from ft.adapters.relational.models import CashTransactionModel
 
     source = tmp_path / "alipay.csv"
     source.write_bytes(b"statement bytes")
@@ -71,21 +69,17 @@ def test_cash_statement_import_persists_lineage_revision_and_projection(tmp_path
     assert result.count == 1
     with sessions() as session:
         fact = session.scalar(select(CashTransactionModel))
-        raw = session.scalar(select(RawRecordModel))
-        revision = session.scalar(select(RecordRevisionModel))
-        batch = session.scalar(select(ImportBatchModel))
-        assert fact.raw_record_id == raw.id
+        assert fact.source_type == "alipay"
+        assert fact.record_id == "alipay-1"
+        assert fact.source_payload is not None
         assert fact.amount == Decimal("-12.34")
-        assert revision.cash_transaction_id == fact.id
-        assert revision.investment_event_id is None
-        assert batch.status == "completed"
     with unit_of_work(sessions, "workspace-a") as uow:
         assert uow.snapshot.load()["accounts"]["cash"]["Cash"]["CNY"] == "-12.34"
         uow.commit()
 
 
 def test_statement_import_is_idempotent_by_source_digest(tmp_path):
-    from ft.adapters.relational.models import CashTransactionModel, ImportBatchModel
+    from ft.adapters.relational.models import CashTransactionModel
 
     source = tmp_path / "alipay.csv"
     source.write_bytes(b"same bytes")
@@ -98,7 +92,6 @@ def test_statement_import_is_idempotent_by_source_digest(tmp_path):
     assert second.count == 0
     assert second.details["duplicate"] is True
     with sessions() as session:
-        assert session.scalar(select(func.count()).select_from(ImportBatchModel)) == 1
         assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 1
 
 
@@ -140,7 +133,7 @@ def test_overlap_only_batch_preserves_existing_fact_account(tmp_path):
 
 
 def test_same_statement_duplicate_provider_id_projects_once(tmp_path):
-    from ft.adapters.relational.models import CashTransactionModel, RawRecordModel
+    from ft.adapters.relational.models import CashTransactionModel
 
     source = tmp_path / "duplicate-provider-id.csv"
     source.write_bytes(b"duplicate provider id")
@@ -153,10 +146,8 @@ def test_same_statement_duplicate_provider_id_projects_once(tmp_path):
     assert result.count == 1
     with sessions() as session:
         facts = list(session.scalars(select(CashTransactionModel)))
-        raw_records = list(session.scalars(select(RawRecordModel)))
         assert len(facts) == 1
         assert facts[0].amount == Decimal("-12.34")
-        assert len(raw_records) == 1
     with unit_of_work(sessions, "workspace-a") as uow:
         assert uow.snapshot.load()["accounts"]["cash"]["Cash"]["CNY"] == "-12.34"
         uow.commit()
@@ -207,7 +198,7 @@ def test_fallback_identity_is_stable_when_preceding_rows_change(tmp_path):
 
 
 def test_cash_statement_currency_creates_another_pocket_on_selected_account(tmp_path):
-    from ft.adapters.relational.models import ImportBatchModel
+    from ft.adapters.relational.models import CashTransactionModel
 
     source = tmp_path / "statement.csv"
     source.write_bytes(b"currency mismatch")
@@ -219,11 +210,11 @@ def test_cash_statement_currency_creates_another_pocket_on_selected_account(tmp_
     assert result.count == 1
 
     with sessions() as session:
-        assert session.scalar(select(func.count()).select_from(ImportBatchModel)) == 1
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 1
 
 
 def test_overlapping_statement_reuses_provider_record_without_duplicate_fact(tmp_path):
-    from ft.adapters.relational.models import CashTransactionModel, ImportBatchModel, RawRecordModel
+    from ft.adapters.relational.models import CashTransactionModel
 
     first_source = tmp_path / "first.csv"
     second_source = tmp_path / "second.csv"
@@ -237,8 +228,6 @@ def test_overlapping_statement_reuses_provider_record_without_duplicate_fact(tmp
     assert first.count == 1
     assert second.count == 0
     with sessions() as session:
-        assert session.scalar(select(func.count()).select_from(ImportBatchModel)) == 2
-        assert session.scalar(select(func.count()).select_from(RawRecordModel)) == 1
         assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 1
     with unit_of_work(sessions, "workspace-a") as uow:
         assert uow.snapshot.load()["accounts"]["cash"]["Cash"]["CNY"] == "-12.34"
@@ -274,18 +263,12 @@ def test_statement_digest_and_parser_use_same_immutable_capture(tmp_path):
     assert result.count == 1
     assert not seen["captured"].exists()
     with sessions() as session:
-        from ft.adapters.relational.models import ImportBatchModel, RawFileModel
-        batch = session.scalar(select(ImportBatchModel))
-        raw_file = session.scalar(select(RawFileModel))
-        import hashlib
-        expected = f"sha256:{hashlib.sha256(b'captured bytes').hexdigest()}"
-        assert batch.source_digest == expected
-        assert raw_file.content_digest == expected
-        assert raw_file.size_bytes == len(b"captured bytes")
+        from ft.adapters.relational.models import CashTransactionModel
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 1
 
 
 def test_statement_import_rolls_back_raw_and_formal_facts_on_any_invalid_row(tmp_path):
-    from ft.adapters.relational.models import CashTransactionModel, ImportBatchModel, RawRecordModel
+    from ft.adapters.relational.models import CashTransactionModel
 
     source = tmp_path / "alipay.csv"
     source.write_bytes(b"invalid batch")
@@ -297,8 +280,7 @@ def test_statement_import_rolls_back_raw_and_formal_facts_on_any_invalid_row(tmp
         service.import_statement(_command(source))
 
     with sessions() as session:
-        for model in (ImportBatchModel, RawRecordModel, CashTransactionModel):
-            assert session.scalar(select(func.count()).select_from(model)) == 0
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 0
 
 
 def test_statement_import_rejects_decimal_scale_before_any_commit(tmp_path):
@@ -312,8 +294,8 @@ def test_statement_import_rejects_decimal_scale_before_any_commit(tmp_path):
         service.import_statement(_command(source))
 
     with sessions() as session:
-        from ft.adapters.relational.models import ImportBatchModel
-        assert session.scalar(select(func.count()).select_from(ImportBatchModel)) == 0
+        from ft.adapters.relational.models import CashTransactionModel
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 0
 
 
 def test_dfzq_statement_import_writes_investment_event_and_projection(tmp_path):
@@ -339,7 +321,7 @@ def test_dfzq_statement_import_writes_investment_event_and_projection(tmp_path):
     service = StatementImportService(unit_of_work(sessions, "workspace-a"), parser)
 
     assert service.import_statement(_command(
-        source, source="dfzq", account="IBKR", currency="USD"
+        source, account="IBKR", currency="USD"
     )).count == 1
 
     with sessions() as session:

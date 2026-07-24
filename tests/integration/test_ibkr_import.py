@@ -42,13 +42,10 @@ def test_ibkr_import_sqlite_creates_auditable_events_and_is_idempotent(tmp_path)
 
         with uow as session:
             events = session.investments.list()
-            raw_records = session.imports.list_raw_records(first.details["batch_id"])
             snapshot = session.snapshot.load()
             session.rollback()
 
         assert len(events) == 39
-        assert len(raw_records) == 39
-        assert all(record["source_identity"].startswith("ibkr:") for record in raw_records)
         cash = snapshot["accounts"]["security"]["IBKR"]["positions"]["usd"]
         assert Decimal(cash["shares"]) == Decimal("5044.938780328453")
     finally:

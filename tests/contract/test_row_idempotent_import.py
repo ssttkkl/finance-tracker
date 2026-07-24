@@ -59,13 +59,11 @@ def test_sc005_no_digest_only_already_imported_short_circuit():
     cash_src = inspect.getsource(StatementImportService.import_statement)
     inv_src = inspect.getsource(InvestmentImportService.import_statement)
     assert 'status"] == "completed"' not in cash_src
-    assert "already imported" not in cash_src.lower() or "formal_fact_targets" in cash_src
     assert "_find_existing_batch" not in inv_src
     assert "Statement already imported" not in inv_src
-    # Must still classify via formal_fact_targets on investment path
-    assert "formal_fact_targets" in inspect.getsource(
-        InvestmentImportService._import_transactions
-    )
+    inv_tx = inspect.getsource(InvestmentImportService._import_transactions)
+    assert "existing_fact_targets" in inv_tx
+    assert "existing_fact_targets" in cash_src
 
 
 # --- US1: same-file re-import ---
@@ -233,14 +231,11 @@ def test_us3_batch_completed_not_ledger_truth(tmp_path, backend):
         first = service.import_statement("dfzq", DFZQ_FIXTURE, "东方证券")
         second = service.import_statement("dfzq", DFZQ_FIXTURE, "东方证券")
         with uow as session:
-            batches = session.imports.list_batches()
             events = session.investments.list()
             session.rollback()
         assert first.count == 6
         assert second.count == 0
         assert len(events) == 6
-        assert any(b["status"] == "completed" for b in batches)
-        # Same digest reuses one batch job row (research D3); facts still identity-unique
-        assert len(batches) >= 1
+        # 015: no import_batches table; idempotency is formal identity only
     finally:
         engine.dispose()

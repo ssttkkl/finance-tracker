@@ -94,7 +94,7 @@ def test_report_returns_structured_totals_and_ignores_pre_checkin_expense():
         {"occurred_at": "2026-06-02 09:00:00", "account_name": "Cash", "currency": "CNY", "category": "checkin", "amount": "0", "note": "余额校准1000"},
         {"occurred_at": "2026-06-03 09:00:00", "account_name": "Cash", "currency": "CNY", "category": "expense", "amount": "-12.50", "note": "meal"},
         {"occurred_at": "2026-06-04 09:00:00", "account_name": "Cash", "currency": "CNY", "category": "income", "amount": "20", "note": "gift"},
-        {"occurred_at": "2026-05-01 09:00:00", "account_name": "Cash", "currency": "CNY", "category": "transfer_out", "amount": "-5", "transfer_account": "Broker"},
+        {"occurred_at": "2026-05-01 09:00:00", "account_name": "Cash", "currency": "CNY", "category": "transfer_out", "amount": "-5", "note": "Broker"},
     ]
     service, _ = _service(rows)
 

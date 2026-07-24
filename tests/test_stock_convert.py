@@ -36,7 +36,7 @@ def test_dfzq_rows_map_buy_sell_and_cash_with_exact_decimal_text(tmp_path, monke
          "amount": "3.5", "shares": "0", "price": "0", "fee": "0", "note": "cash"},
     ]
     command = StatementImportCommand(
-        source_path="statement.pdf", source="dfzq", currency="CNY",
+        source_path="statement.pdf", currency="CNY",
     )
 
     rows = _dfzq_rows(records, command)
@@ -111,7 +111,7 @@ def test_dfzq_rows_reject_amount_scale_over_18(tmp_path, monkeypatch):
     monkeypatch.setattr(mapping_mod, "MAPPING_PATH", mapping)
 
     command = StatementImportCommand(
-        source_path="statement.pdf", source="dfzq", currency="CNY",
+        source_path="statement.pdf", currency="CNY",
     )
     records = [{
         "date": "2026-07-01", "action": "DEPOSIT", "ticker": "",

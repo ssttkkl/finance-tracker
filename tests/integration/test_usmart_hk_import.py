@@ -31,10 +31,8 @@ def test_usmart_hk_fixture_imports_native_cash_holdings_and_is_idempotent(tmp_pa
         assert first.count == 46
         assert second.ok and second.count == 0
         with uow as session:
-            records = session.imports.list_raw_records(first.details["batch_id"])
             snapshot = session.snapshot.load()
             session.rollback()
-        assert all(row["source_identity"].startswith("usmart_hk:") for row in records)
         positions = snapshot["accounts"]["security"]["盈立证券"]["positions"]
         assert Decimal(positions["usd"]["shares"]) == Decimal("4750.17")
         assert Decimal(positions["hkd"]["shares"]) == Decimal("2021.09")

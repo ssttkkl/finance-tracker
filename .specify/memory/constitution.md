@@ -1,21 +1,16 @@
 <!--
 Sync Impact Report
-- Version change: 3.0.0 -> 3.1.0
+- Version change: 3.1.0 -> 3.1.1
 - Modified principles: none
 - Modified sections:
-  - 交付与评审流程 — 补充 Spec 演进与 artifact 对齐要求
-- Added sections:
-  - Spec 演进策略 — 默认 Flow-Forward、活跃 Living、实现期 Flow-Back
+  - 工程约束 — 新增 Spec Kit 规格语言（中文）约束
+- Added sections: none
 - Removed sections: none
 - Templates/commands:
-  - ✅ AGENTS.md / CLAUDE.md — 增加 Spec 演进操作规则
-  - ✅ docs/README.md — Spec Kit 索引说明演进约定
-  - ✅ .specify/templates/* — 无结构性变更；Constitution Check 与现有门禁仍适用
-  - ✅ .agents/skills/speckit-*/SKILL.md — 无需改名或路径调整
+  - ✅ 无强制改模板；新建 spec 由主 session / specify 遵循本约束
 - Follow-up TODOs:
+  - ⚠ 历史英文 spec 不强制回翻；新 feature 与 Living 大改优先中文
   - ⚠ README.md — 保持描述当前已交付运行时行为；与 feature 交付同步
-  - ⚠ docs/productization-wealth-report-design.md — 后续财富 feature 完成后同步基线
-  - ⚠ specs/001-postgres-only-storage — 继续作为已完成历史 feature 保留，不回写新需求
 -->
 
 # Finance Tracker Constitution
@@ -81,6 +76,11 @@ MUST 在 feature artifacts 与操作文档中明确列出，但不得成为账�
 - 文档、示例、迁移说明和 CLI help MUST 与已交付行为同步。
 - Feature 目录采用 sequential 编号（`specs/00N-short-name/`）；`.specify/feature.json` 指向当前活跃
   feature。Complete feature 的目录 MUST 保留为历史记录，除非用户明确批准归档删除。
+- **Spec 语言**：新建或实质性改写的 `specs/<feature>/spec.md` MUST 使用 **中文** 作为正文语言
+  （章节标题、用户场景、需求、成功标准、非目标与假设）。表名、列名、枚举字面量、命令名与
+  代码标识符 MAY 保留英文。`plan.md` / `tasks.md` / `data-model.md` / `contracts/` 优先中文；
+  若需与外部工具或英文评审对齐，MAY 中英并列，但不得以纯英文 `spec.md` 作为唯一需求正文。
+  已 Complete 的历史英文 spec MUST 只读保留，不要求批量回翻。
 
 ## Spec 演进策略
 
@@ -130,4 +130,4 @@ MAJOR，新增原则或实质扩展升 MINOR，澄清文字升 PATCH。每个 pl
 Constitution Check；`$speckit-analyze` 和代码评审 MUST 把违反 MUST 的问题视为阻断项。例外必须
 由用户明确批准、写入 plan 的 Complexity Tracking，并包含到期或消除路径。
 
-**Version**: 3.1.0 | **Ratified**: 2026-07-17 | **Last Amended**: 2026-07-21
+**Version**: 3.1.1 | **Ratified**: 2026-07-17 | **Last Amended**: 2026-07-24

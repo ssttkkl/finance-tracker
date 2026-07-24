@@ -84,20 +84,20 @@ def _insert_golden_formal_fixture(sessions) -> None:
             ),
             CashTransactionModel(
                 id="cash-salary", workspace_id="wealth-golden", account_id="cash", occurred_at=at(1, 9),
-                amount=Decimal("10"), currency="CNY", record_id="fixture-salary", category="salary", revision=1,
+                amount=Decimal("10"), currency="CNY", record_id="fixture-salary", category="salary",
             ),
             # Direct external funding into the investment account (workspace external + portfolio Fi).
             InvestmentEventModel(
                 id="broker-funding", workspace_id="wealth-golden", account_id="broker", occurred_at=at(2, 10),
-                action="deposit", currency="USD", to_amount="1", payload={}, revision=1,
+                action="deposit", currency="USD", to_amount="1", payload={},
             ),
             InvestmentEventModel(
                 id="broker-dividend", workspace_id="wealth-golden", account_id="broker", occurred_at=at(2, 12),
-                action="dividend", currency="USD", to_amount="1", payload={}, revision=1,
+                action="dividend", currency="USD", to_amount="1", payload={},
             ),
             InvestmentEventModel(
                 id="broker-fee", workspace_id="wealth-golden", account_id="broker", occurred_at=at(3, 11),
-                action="buy", currency="USD", payload={"position": "broker:global-etf", "commission": "0.1"}, revision=1,
+                action="buy", currency="USD", payload={"position": "broker:global-etf", "commission": "0.1"},
             ),
         ))
         for day, cash, position, fx in (

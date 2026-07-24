@@ -104,17 +104,9 @@ def test_cashflow_service_contract_persists_decimal_snapshot():
         "note": "",
         "category": "expense",
         "account_name": "Cash",
+        "source_type": "",
         "source": "",
         "bill_source": "",
-        "transfer_account": "",
-        "locked": "",
-        "offset_group": "",
-        "offset_role": "",
-        "offset_strength": "",
-        "offset_source": "",
-        "offset_rule_hint": "",
-        "offset_match_type": "",
-        "proposed_action": "",
         "_record_type": "cash",
     }]
     assert Decimal(str(snapshot["accounts"]["cash"]["Cash"]["CNY"])) == Decimal("-12.34")

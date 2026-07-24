@@ -65,43 +65,10 @@ class InvestmentRepository(Protocol):
 
 @runtime_checkable
 class ImportRepository(Protocol):
-    def start_batch(
-        self, *, source_kind: str, source_digest: str, source_ref: str,
-        target_account_name: str | None = None,
-        target_account_currency: str | None = None,  # ignored; name-only resolve
-    ) -> str:
-        ...
-
-    def get_batch(self, batch_id: str) -> dict | None:
-        ...
-
-    def add_raw_file(
-        self, *, batch_id: str, source_path: str, content_digest: str,
-        size_bytes: int, media_type: str,
-    ) -> str:
-        ...
-
-    def add_raw_records(
-        self, *, batch_id: str, raw_file_id: str | None,
-        source_type: str, records: list[dict],
-    ) -> list[str]:
-        ...
-
-    def formal_fact_targets(
-        self, raw_record_ids: list[str],
+    def existing_fact_targets(
+        self, *, source_type: str, record_ids: list[str],
     ) -> dict[str, tuple[str, str]]:
         ...
-
-    def batch_target_accounts(self, batch_id: str) -> set[tuple[str, str]]:
-        ...
-
-    def append_revision(self, **kwargs) -> str:
-        ...
-
-    def complete_batch(self, batch_id: str) -> None:
-        ...
-
-
 
 
 @runtime_checkable
@@ -137,22 +104,6 @@ class RelationRepository(Protocol):
 
 
 @runtime_checkable
-class RelationCheckRunRepository(Protocol):
-    def start(
-        self, *, trigger: str, seed_ref: str, status: str = "pending",
-    ) -> str:
-        ...
-
-    def finish(
-        self, run_id: str, *, status: str, stats: dict | None = None, error: str | None = None,
-    ) -> dict:
-        ...
-
-    def get(self, run_id: str) -> dict | None:
-        ...
-
-
-@runtime_checkable
 class AccountAliasRepository(Protocol):
     def list(self) -> list[dict]:
         ...
@@ -177,6 +128,7 @@ class FactDeletionRepository(Protocol):
     def list_events(self, fact_id: str | None = None) -> list[dict]:
         ...
 
+
 @runtime_checkable
 class UnitOfWork(Protocol):
     accounts: AccountRepository
@@ -185,7 +137,6 @@ class UnitOfWork(Protocol):
     snapshot: SnapshotRepository
     imports: ImportRepository
     relations: RelationRepository
-    relation_checks: RelationCheckRunRepository
     account_aliases: AccountAliasRepository
     fact_deletions: FactDeletionRepository
 

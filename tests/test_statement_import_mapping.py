@@ -92,7 +92,7 @@ def test_multi_pay_alipay_import_routes_per_row(tmp_path, mapping_path):
         unit_of_work(sessions, "workspace-a"), StatementParser()
     )
     result = service.import_statement(
-        StatementImportCommand(source_path=str(source), source="alipay")
+        StatementImportCommand(source_path=str(source))
     )
     assert result.ok is True
     assert result.count == 3
@@ -158,10 +158,10 @@ def test_import_idempotent_by_digest(tmp_path, mapping_path):
         unit_of_work(sessions, "workspace-a"), StatementParser()
     )
     first = service.import_statement(
-        StatementImportCommand(source_path=str(source), source="alipay")
+        StatementImportCommand(source_path=str(source))
     )
     second = service.import_statement(
-        StatementImportCommand(source_path=str(source), source="alipay")
+        StatementImportCommand(source_path=str(source))
     )
     assert first.count == 1
     assert second.count == 0
@@ -171,7 +171,7 @@ def test_import_idempotent_by_digest(tmp_path, mapping_path):
 
 
 def test_unmatched_payment_method_rolls_back(tmp_path, mapping_path):
-    from ft.adapters.relational.models import CashTransactionModel, ImportBatchModel
+    from ft.adapters.relational.models import CashTransactionModel
     from ft.adapters.statement_import import StatementParser
     from ft.application.statement_import import StatementImportService
     from ft.domain.imports import StatementImportCommand
@@ -190,11 +190,11 @@ def test_unmatched_payment_method_rolls_back(tmp_path, mapping_path):
     )
     with pytest.raises(ValueError, match="mapping|未匹配|payment_method"):
         service.import_statement(
-            StatementImportCommand(source_path=str(source), source="alipay")
+            StatementImportCommand(source_path=str(source))
         )
     with sessions() as session:
         assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 0
-        assert session.scalar(select(func.count()).select_from(ImportBatchModel)) == 0
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 0
 
 
 def test_ccb_card_number_routes_via_mapping(tmp_path, monkeypatch):
@@ -274,7 +274,7 @@ def test_convert_and_import_account_distribution_match(tmp_path, mapping_path):
         ],
     )
     convert_rows = StatementParser().parse(
-        StatementImportCommand(source_path=str(source), source="alipay")
+        StatementImportCommand(source_path=str(source))
     )
     convert_dist = Counter(row["account_name"] for row in convert_rows)
 
@@ -282,7 +282,7 @@ def test_convert_and_import_account_distribution_match(tmp_path, mapping_path):
         unit_of_work(sessions, "workspace-a"), StatementParser()
     )
     service.import_statement(
-        StatementImportCommand(source_path=str(source), source="alipay")
+        StatementImportCommand(source_path=str(source))
     )
     with sessions() as session:
         facts = list(session.scalars(select(CashTransactionModel)))
@@ -316,7 +316,7 @@ def test_single_account_accepts_cny_and_jpy_rows_without_currency_match(tmp_path
     source = tmp_path / "mixed.csv"
     source.write_bytes(b"mixed statement")
     result = service.import_statement(
-        StatementImportCommand(source_path=str(source), source="icbc-debit")
+        StatementImportCommand(source_path=str(source))
     )
     assert result.ok is True
     assert result.count == 2
@@ -332,7 +332,7 @@ def test_single_account_accepts_cny_and_jpy_rows_without_currency_match(tmp_path
 
 
 def test_import_missing_account_name_rolls_back(tmp_path):
-    from ft.adapters.relational.models import CashTransactionModel, ImportBatchModel
+    from ft.adapters.relational.models import CashTransactionModel
     from ft.application.statement_import import StatementImportService
     from ft.domain.imports import StatementImportCommand
     from test_postgres_adapter import _database
@@ -351,8 +351,8 @@ def test_import_missing_account_name_rolls_back(tmp_path):
     source.write_bytes(b"missing")
     with pytest.raises(ValueError, match="account not found"):
         service.import_statement(
-            StatementImportCommand(source_path=str(source), source="icbc-debit")
+            StatementImportCommand(source_path=str(source))
         )
     with sessions() as session:
         assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 0
-        assert session.scalar(select(func.count()).select_from(ImportBatchModel)) == 0
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 0

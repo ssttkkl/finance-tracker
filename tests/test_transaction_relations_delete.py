@@ -12,12 +12,12 @@ def test_logical_delete_supersedes_relations_and_allows_new_active(relation_runt
     services.cashflow.add_manual_transaction(
         amount=Decimal("-15"), counterparty="店", account_name="支付宝",
         currency="CNY", date="2026-06-01 10:00:00", note="尾号2222",
-        category="expense", bill_source="alipay",
+        category="expense", bill_source="alipay", source="alipay",
     )
     services.cashflow.add_manual_transaction(
         amount=Decimal("-15"), counterparty="店", account_name="支付宝",
-        currency="CNY", date="2026-06-01 10:00:05", note="尾号2222",
-        category="expense", bill_source="ccb_debit",
+        currency="CNY", date="2026-06-01 10:00:05", note="尾号2222 工行",
+        category="expense", bill_source="icbc", source="icbc",
     )
     with services.uow as uow:
         ids = [r["id"] for r in uow.cashflows.list_detailed()]
@@ -38,7 +38,7 @@ def test_logical_delete_supersedes_relations_and_allows_new_active(relation_runt
     services.cashflow.add_manual_transaction(
         amount=Decimal("-15"), counterparty="店", account_name="支付宝",
         currency="CNY", date="2026-06-01 10:00:00", note="尾号2222",
-        category="expense", bill_source="alipay",
+        category="expense",
     )
     with services.uow as uow:
         active = uow.cashflows.list_detailed(include_deleted=False)

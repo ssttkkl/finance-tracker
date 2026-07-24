@@ -17,7 +17,12 @@ from ft.domain.relations import (
 
 
 def _fv(**kwargs):
-    base = dict(currency="CNY", account_type="cash", fact_type="cash", deleted=False)
+    fid = str(kwargs.get("id") or "")
+    default = "icbc" if fid.startswith("b") else "alipay"
+    base = dict(
+        currency="CNY", account_type="cash", fact_type="cash", deleted=False,
+        bill_source=default, source=default,
+    )
     base.update(kwargs)
     return FactView(**base)
 
@@ -203,7 +208,6 @@ def test_payment_mirror_never_open_leg():
         occurred_at="2026-01-01 09:00:00",
         counterparty="商户",
         note="订单X",
-        bill_source="alipay",
     )
     bank = _fv(
         id="b",
@@ -213,7 +217,6 @@ def test_payment_mirror_never_open_leg():
         occurred_at="2026-01-01 09:00:05",
         counterparty="商户",
         note="订单X",
-        bill_source="ccb_debit",
     )
     proposals = match_payment_mirrors_greedy([platform, bank])
     assert proposals
@@ -271,7 +274,6 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
             date=f"2026-01-{day} 10:00:00",
             note=f"消费{i}",
             category="expense",
-            bill_source="alipay",
         )
     services.cashflow.add_manual_transaction(
         amount=Decimal("100.00"),
@@ -281,7 +283,6 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
         date="2026-01-10 10:00:00",
         note="退货退款",
         category="income",
-        bill_source="alipay",
     )
     with services.uow as uow:
         rows = uow.cashflows.list_detailed()
@@ -348,7 +349,6 @@ def test_open_leg_reject_suppresses_reopen(relation_runtime):
             date=f"2026-02-{day} 10:00:00",
             note="消费",
             category="expense",
-            bill_source="alipay",
         )
     services.cashflow.add_manual_transaction(
         amount=Decimal("80.00"),
@@ -358,7 +358,6 @@ def test_open_leg_reject_suppresses_reopen(relation_runtime):
         date="2026-02-10 10:00:00",
         note="退货退款",
         category="income",
-        bill_source="alipay",
     )
     with services.uow as uow:
         ids = [r["id"] for r in uow.cashflows.list_detailed()]

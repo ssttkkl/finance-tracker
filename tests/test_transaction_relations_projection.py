@@ -56,9 +56,9 @@ def test_cross_kind_compatibility_matrix():
 def test_pending_relations_do_not_affect_projection():
     facts = [
         _fv(id="p1", amount=Decimal("-30"), account_id="a", account_name="支付宝",
-            occurred_at="2026-06-13 23:15:00", bill_source="alipay"),
+            occurred_at="2026-06-13 23:15:00"),
         _fv(id="b1", amount=Decimal("-30"), account_id="b", account_name="建行",
-            occurred_at="2026-06-13 23:15:05", bill_source="ccb_debit"),
+            occurred_at="2026-06-13 23:15:05"),
     ]
     rels = [{
         "kind": "payment_mirror", "primary_fact_id": "p1", "secondary_fact_id": "b1",

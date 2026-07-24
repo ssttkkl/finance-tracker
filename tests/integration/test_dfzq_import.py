@@ -25,7 +25,7 @@ def _sqlite_uow(tmp_path):
 
 
 def test_dfzq_import_full_flow(tmp_path):
-    """Full DFZQ import: text fixture → batch → events → snapshot."""
+    """Full DFZQ import: text fixture → events → snapshot."""
     engine, uow = _sqlite_uow(tmp_path)
     try:
         with uow as session:
@@ -37,17 +37,15 @@ def test_dfzq_import_full_flow(tmp_path):
 
         assert result.ok is True
         assert result.count == 6  # 5 transactions + CHECKIN
-        assert result.details["batch_id"] is not None
 
         with uow as session:
             events = session.investments.list()
-            raw_records = session.imports.list_raw_records(result.details["batch_id"])
             snapshot = session.snapshot.load()
             session.rollback()
 
         assert len(events) == 6
-        assert len(raw_records) == 6
-        assert all(r["source_identity"].startswith("dfzq:") for r in raw_records)
+        assert all(e.get("source_type") == "dfzq_pdf" for e in events)
+        assert all(str(e.get("record_id") or "").startswith("dfzq:") for e in events)
 
         actions = [e["action"] for e in events]
         assert actions.count("deposit") == 1
@@ -62,7 +60,7 @@ def test_dfzq_import_full_flow(tmp_path):
         engine.dispose()
 
 
-def test_dfzq_import_creates_raw_records(tmp_path):
+def test_dfzq_import_writes_inline_provenance(tmp_path):
     engine, uow = _sqlite_uow(tmp_path)
     try:
         with uow as session:
@@ -74,10 +72,11 @@ def test_dfzq_import_creates_raw_records(tmp_path):
         )
         assert result.ok is True
         with uow as session:
-            raw_records = session.imports.list_raw_records(result.details["batch_id"])
+            events = session.investments.list()
             session.rollback()
-        assert len(raw_records) == 6
-        assert all(r["source_identity"].startswith("dfzq:") for r in raw_records)
+        assert len(events) == 6
+        assert all(e.get("source_type") == "dfzq_pdf" for e in events)
+        assert all(e.get("source_payload") for e in events)
     finally:
         engine.dispose()
 

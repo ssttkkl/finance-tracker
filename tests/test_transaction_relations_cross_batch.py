@@ -13,7 +13,7 @@ def test_cross_batch_seed_matches_prior_facts(relation_runtime):
     services.cashflow.add_manual_transaction(
         amount=Decimal("-88.00"), counterparty="盒马", account_name="建行储蓄",
         currency="CNY", date="2026-06-10 12:00:00", note="快捷支付 尾号9999",
-        category="expense", bill_source="ccb_debit",
+        category="expense", bill_source="icbc", source="icbc",
     )
     with services.uow as uow:
         bank_ids = [r["id"] for r in uow.cashflows.list_detailed()]
@@ -23,7 +23,7 @@ def test_cross_batch_seed_matches_prior_facts(relation_runtime):
     services.cashflow.add_manual_transaction(
         amount=Decimal("-88.00"), counterparty="盒马", account_name="建行储蓄",
         currency="CNY", date="2026-06-10 12:00:03", note="付款方式 尾号9999",
-        category="expense", bill_source="alipay",
+        category="expense", bill_source="alipay", source="alipay",
     )
     with services.uow as uow:
         all_ids = [r["id"] for r in uow.cashflows.list_detailed()]

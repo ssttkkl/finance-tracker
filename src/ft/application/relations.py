@@ -34,7 +34,8 @@ from ft.domain.relations import (
 def _fact_view_from_row(row: dict) -> FactView:
     payload = row.get("raw_payload")
     if not isinstance(payload, dict):
-        payload = None
+        payload = row.get("source_payload") if isinstance(row.get("source_payload"), dict) else None
+    source_type = str(row.get("source_type") or row.get("bill_source") or row.get("source") or "")
     return FactView(
         id=str(row["id"]),
         amount=Decimal(str(row["amount"])),
@@ -46,11 +47,11 @@ def _fact_view_from_row(row: dict) -> FactView:
         counterparty=str(row.get("counterparty") or ""),
         note=str(row.get("note") or ""),
         category=str(row.get("category") or ""),
-        bill_source=str(row.get("bill_source") or ""),
-        source=str(row.get("source") or ""),
+        bill_source=source_type,
+        source=source_type,
         fact_type=str(row.get("fact_type") or FactType.CASH.value),
         deleted=bool(row.get("deleted") or row.get("deleted_at")),
-        raw_record_id=row.get("raw_record_id"),
+        raw_record_id=None,
         source_identity=str(row.get("source_identity") or ""),
         record_id=str(row.get("record_id") or ""),
         raw_payload=payload,
@@ -72,11 +73,7 @@ class RelationService:
         """Run relation matching for seeds; never raises for rule failures (fail closed)."""
         try:
             with self._uow as uow:
-                run_id = uow.relation_checks.start(
-                    trigger=trigger,
-                    seed_ref=seed_ref or seed_batch_id or ",".join(seed_fact_ids or ()),
-                    status=RelationCheckStatus.RUNNING.value,
-                )
+                run_id = None
                 seeds = self._resolve_seeds(uow, seed_fact_ids=seed_fact_ids, seed_batch_id=seed_batch_id)
                 active_facts = self._list_active_cash_facts(uow)
                 fact_by_id = {f.id: f for f in active_facts}
@@ -188,7 +185,7 @@ class RelationService:
                     elif outcome["status"] == RelationStatus.PENDING_REVIEW.value:
                         stats["pending"] += 1
 
-                uow.relation_checks.finish(run_id, status=RelationCheckStatus.COMPLETED.value, stats=stats)
+                # 015: no relation_check_runs table; still must commit persisted relations.
                 uow.commit()
             return OperationResult(
                 ok=True,
@@ -199,17 +196,8 @@ class RelationService:
         except Exception as exc:  # noqa: BLE001 — check must not break import; surface as failed run when possible
             try:
                 with self._uow as uow:
-                    run_id = uow.relation_checks.start(
-                        trigger=trigger,
-                        seed_ref=seed_ref or "error",
-                        status=RelationCheckStatus.FAILED.value,
-                    )
-                    uow.relation_checks.finish(
-                        run_id,
-                        status=RelationCheckStatus.FAILED.value,
-                        error=str(exc),
-                        stats={},
-                    )
+                    run_id = None
+                    pass  # 015: no relation_check_runs table
                     uow.commit()
             except Exception:
                 pass
@@ -378,6 +366,8 @@ class RelationService:
             if not row.get("txn_id") and row.get("record_id"):
                 row["txn_id"] = row.get("record_id")
             payload = row.get("raw_payload") if isinstance(row.get("raw_payload"), dict) else {}
+            if not payload and isinstance(row.get("source_payload"), dict):
+                payload = row.get("source_payload") or {}
             if payload:
                 row.setdefault("platform_status", payload.get("status") or payload.get("platform_status") or "")
                 row.setdefault("status", payload.get("status") or row.get("platform_status") or "")
@@ -447,11 +437,7 @@ class RelationService:
     def _resolve_seeds(self, uow, *, seed_fact_ids, seed_batch_id) -> list[str]:
         if seed_fact_ids:
             return list(dict.fromkeys(seed_fact_ids))
-        if seed_batch_id:
-            # facts whose raw_record belongs to batch — via cashflows list with filter if available
-            facts = self._list_active_cash_facts(uow)
-            return [f.id for f in facts if getattr(f, "batch_id", None) == seed_batch_id or True and seed_batch_id]
-        # full workspace seeds
+        # 015: seed_batch_id is ignored (no import_batches); full workspace when no seeds.
         return [f.id for f in self._list_active_cash_facts(uow)]
 
     def _list_active_cash_facts(self, uow, include_deleted: bool = False) -> list[FactView]:

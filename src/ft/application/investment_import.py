@@ -1,6 +1,6 @@
 """Investment statement import service.
 
-Orchestrates import flow: batch → raw_records → investment_events → snapshot
+Orchestrates import flow: formal investment_events (+ ephemeral batch ids) → snapshot
 with atomic transaction guarantees.
 """
 from __future__ import annotations
@@ -131,16 +131,6 @@ class InvestmentImportService:
             else:
                 resolved_currency = (resolved_currency or "CNY").upper()
 
-            # Create import batch
-            batch_id = self._create_batch(
-                uow,
-                source,
-                source_digest,
-                str(source_path.name),
-                account_name,
-            )
-
-            # Create raw_records and events
             try:
                 base_tickers = normalize_base_tickers(
                     next(
@@ -154,13 +144,10 @@ class InvestmentImportService:
                 )
                 event_count = self._import_transactions(
                     uow,
-                    batch_id,
                     transactions,
                     account_name,
                     account.type,
                     resolved_currency,
-                    source_path,
-                    file_content,
                     source=source,
                     base_tickers=base_tickers,
                 )
@@ -192,9 +179,6 @@ class InvestmentImportService:
                     message=f"Snapshot update failed: {e}",
                 )
 
-            # Mark batch complete
-            self._complete_batch(uow, batch_id)
-
             uow.commit()
 
         no_new = event_count == 0
@@ -209,7 +193,7 @@ class InvestmentImportService:
             details={
                 "duplicate": no_new,
                 "new_rows": event_count,
-                "batch_id": batch_id,
+                "batch_id": None,
                 **(
                     {"ignored_trade_mirrors": int(transactions[0].get("_usmart_ignored_trade_mirrors", 0))}
                     if transactions and "_usmart_ignored_trade_mirrors" in transactions[0]
@@ -287,37 +271,19 @@ class InvestmentImportService:
 
         raise ValueError(f"Unsupported source: {source}")
 
-    def _create_batch(
-        self,
-        uow,
-        source_kind: str,
-        source_digest: str,
-        source_ref: str,
-        target_account: str,
-    ) -> str:
-        """Create import batch record."""
-        return uow.imports.start_batch(
-            source_kind=source_kind,
-            source_digest=source_digest,
-            source_ref=source_ref,
-            target_account_name=target_account,
-        )
 
     def _import_transactions(
         self,
         uow,
-        batch_id: str,
         transactions: list[dict],
         account_name: str,
         account_type: str,
         currency: str,
-        file_path: Path,
-        file_content: bytes,
         source: str = "dfzq",
         base_tickers=None,
     ) -> int:
-        """Import transactions: create raw_records and events."""
-        import hashlib
+        """Import novel investment events by (source_type, record_id)."""
+        from decimal import Decimal as _Dec
 
         if source == "ibkr":
             from ft.importers.ibkr import (
@@ -325,47 +291,33 @@ class InvestmentImportService:
                 map_ibkr_to_investment_event as map_to_event,
             )
             source_type = "ibkr_csv"
-            media_type = "text/csv"
         elif source == "schwab":
             from ft.importers.schwab import (
                 construct_source_identity,
                 map_schwab_to_investment_event as map_to_event,
             )
             source_type = "schwab_csv"
-            media_type = "text/csv"
         elif source == "dfzq":
             from ft.importers.dfzq import (
                 construct_source_identity,
                 map_dfzq_to_investment_event as map_to_event,
             )
             source_type = "dfzq_pdf"
-            media_type = "text/plain"
         elif source in {"usmart-hk", "usmart_hk"}:
             from ft.importers.usmart_hk import (
                 construct_source_identity,
                 map_usmart_hk_to_investment_event as map_to_event,
             )
             source_type = "usmart_hk_pdf"
-            media_type = "application/pdf" if file_path.suffix.lower() == ".pdf" else "text/plain"
         else:
             raise ValueError(f"Unsupported investment source for import: {source}")
 
-        # Create raw_file record
-        content_digest = f"sha256:{hashlib.sha256(file_content).hexdigest()}"
-        raw_file_id = uow.imports.add_raw_file(
-            batch_id=batch_id,
-            source_path=str(file_path),
-            content_digest=content_digest,
-            size_bytes=len(file_content),
-            media_type=media_type,
-        )
-
-        from decimal import Decimal as _Dec
-
-        # Prepare raw_records (strip private parse-side keys from payload)
-        raw_records = []
+        record_ids = []
+        payloads = []
         for txn in transactions:
-            source_identity = construct_source_identity(txn)
+            record_id = str(construct_source_identity(txn) or "").strip()
+            if record_id.startswith(f"{source_type}:"):
+                record_id = record_id[len(source_type) + 1 :]
             payload = {
                 k: (format(v, "f") if isinstance(v, _Dec) else v)
                 for k, v in txn.items()
@@ -373,43 +325,27 @@ class InvestmentImportService:
                     str(k).startswith("_ibkr_") or str(k).startswith("_schwab_")
                 )
             }
-            raw_records.append({
-                "source_identity": source_identity,
-                "payload": payload,
-            })
+            record_ids.append(record_id)
+            payloads.append(payload)
 
-        # Create/reuse raw_records by business identity
-        raw_record_ids = uow.imports.add_raw_records(
-            batch_id=batch_id,
-            raw_file_id=raw_file_id,
-            source_type=source_type,
-            records=raw_records,
+        existing_targets = uow.imports.existing_fact_targets(
+            source_type=source_type, record_ids=record_ids,
         )
-
-        # 010: skip raw_ids that already have formal facts (cash or investment)
-        existing_targets = uow.imports.formal_fact_targets(raw_record_ids)
-
-        # Load snapshot for projection updates of novel events only
         snapshot = uow.snapshot.load(lock=True)
-
         count = 0
-        for txn, raw_record_id in zip(transactions, raw_record_ids):
-            if raw_record_id in existing_targets:
+        for txn, record_id, payload in zip(transactions, record_ids, payloads):
+            if record_id in existing_targets:
                 continue
             event = map_to_event(txn, account_name, currency)
             apply_investment_event(
                 snapshot, event, default_currency=currency, base_tickers=base_tickers,
             )
-            event["raw_record_id"] = raw_record_id
+            event["source_type"] = source_type
+            event["record_id"] = record_id
+            event["source_payload"] = payload
             uow.investments.add(account_type, event)
+            existing_targets[record_id] = (account_name, currency)
             count += 1
-
-        # Save snapshot only when novel events changed projection
         if count:
             uow.snapshot.save(snapshot)
-
         return count
-
-    def _complete_batch(self, uow, batch_id: str) -> None:
-        """Mark batch as completed."""
-        uow.imports.complete_batch(batch_id)

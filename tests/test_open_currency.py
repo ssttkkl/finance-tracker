@@ -82,7 +82,7 @@ def test_jpy_loan_import_updates_projection(tmp_path):
     source = tmp_path / "jpy.csv"
     source.write_bytes(b"jpy statement")
     result = service.import_statement(
-        StatementImportCommand(source_path=str(source), source="icbc")
+        StatementImportCommand(source_path=str(source))
     )
     assert result.ok is True
     assert result.count == 1

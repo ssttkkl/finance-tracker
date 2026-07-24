@@ -124,126 +124,22 @@ class AccountModel(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, onupdate=_now, nullable=False)
 
 
-class ImportBatchModel(Base):
-    __tablename__ = "import_batches"
-    __table_args__ = (
-        UniqueConstraint("workspace_id", "id", name="uq_import_batches_workspace_id"),
-        ForeignKeyConstraint(
-            ["workspace_id", "target_account_id"],
-            ["accounts.workspace_id", "accounts.id"],
-            ondelete="RESTRICT",
-            name="fk_import_batches_workspace_target_account",
-        ),
-        UniqueConstraint(
-            "workspace_id", "source_kind", "source_digest",
-            name="uq_import_batches_workspace_kind_digest",
-        ),
-        Index("ix_import_batches_workspace", "workspace_id"),
-        Index("ix_import_batches_workspace_target", "workspace_id", "target_account_id"),
-    )
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    workspace_id: Mapped[str] = mapped_column(
-        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
-    )
-    target_account_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    source_kind: Mapped[str] = mapped_column(String(64), nullable=False)
-    source_digest: Mapped[str] = mapped_column(String(128), nullable=False)
-    source_ref: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
-    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
-
-
-class RawFileModel(Base):
-    __tablename__ = "raw_files"
-    __table_args__ = (
-        UniqueConstraint("workspace_id", "id", name="uq_raw_files_workspace_id"),
-        UniqueConstraint(
-            "workspace_id", "batch_id", "id", name="uq_raw_files_workspace_batch_id",
-        ),
-        UniqueConstraint(
-            "workspace_id", "batch_id", "content_digest",
-            name="uq_raw_files_workspace_batch_digest",
-        ),
-        ForeignKeyConstraint(
-            ["workspace_id", "batch_id"],
-            ["import_batches.workspace_id", "import_batches.id"],
-            ondelete="CASCADE",
-            name="fk_raw_files_workspace_batch",
-        ),
-        Index("ix_raw_files_workspace_batch", "workspace_id", "batch_id"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    workspace_id: Mapped[str] = mapped_column(
-        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
-    )
-    batch_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    source_path: Mapped[str] = mapped_column(Text, nullable=False)
-    content_digest: Mapped[str] = mapped_column(String(128), nullable=False)
-    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
-    media_type: Mapped[str] = mapped_column(String(128), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
-
-
-class RawRecordModel(Base):
-    __tablename__ = "raw_records"
-    __table_args__ = (
-        UniqueConstraint("workspace_id", "id", name="uq_raw_records_workspace_id"),
-        UniqueConstraint(
-            "workspace_id", "source_type", "source_identity",
-            name="uq_raw_records_workspace_source_identity",
-        ),
-        ForeignKeyConstraint(
-            ["workspace_id", "batch_id"],
-            ["import_batches.workspace_id", "import_batches.id"],
-            ondelete="CASCADE",
-            name="fk_raw_records_workspace_batch",
-        ),
-        ForeignKeyConstraint(
-            ["workspace_id", "batch_id", "raw_file_id"],
-            ["raw_files.workspace_id", "raw_files.batch_id", "raw_files.id"],
-            ondelete="RESTRICT",
-            name="fk_raw_records_workspace_batch_file",
-        ),
-        Index("ix_raw_records_workspace_batch", "workspace_id", "batch_id"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    workspace_id: Mapped[str] = mapped_column(
-        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
-    )
-    batch_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    raw_file_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    source_identity: Mapped[str] = mapped_column(String(512), nullable=False)
-    source_line: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
 
 
 class CashTransactionModel(Base):
     __tablename__ = "cash_transactions"
     __table_args__ = (
         UniqueConstraint("workspace_id", "id", name="uq_cash_transactions_workspace_id"),
-        UniqueConstraint(
-            "workspace_id", "raw_record_id", name="uq_cash_transactions_workspace_raw_record",
-        ),
         ForeignKeyConstraint(
             ["workspace_id", "account_id"],
             ["accounts.workspace_id", "accounts.id"],
             ondelete="RESTRICT",
             name="fk_cash_transactions_workspace_account",
         ),
-        ForeignKeyConstraint(
-            ["workspace_id", "raw_record_id"],
-            ["raw_records.workspace_id", "raw_records.id"],
-            ondelete="RESTRICT",
-            name="fk_cash_transactions_workspace_raw_record",
-        ),
         Index("ix_cash_transactions_workspace_date", "workspace_id", "occurred_at"),
         Index("ix_cash_transactions_workspace_account", "workspace_id", "account_id"),
+        Index("ix_cash_transactions_workspace_source_record", "workspace_id", "source_type", "record_id"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
@@ -251,26 +147,15 @@ class CashTransactionModel(Base):
         String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
     account_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    raw_record_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    record_id: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    source_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    record_id: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    source_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     amount: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     counterparty: Mapped[str] = mapped_column(String(512), default="", nullable=False)
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     category: Mapped[str] = mapped_column(String(64), default="", nullable=False)
-    source: Mapped[str] = mapped_column(String(255), default="", nullable=False)
-    bill_source: Mapped[str] = mapped_column(String(255), default="", nullable=False)
-    transfer_account: Mapped[str] = mapped_column(String(255), default="", nullable=False)
-    locked: Mapped[str] = mapped_column(String(32), default="", nullable=False)
-    offset_group: Mapped[str] = mapped_column(String(255), default="", nullable=False)
-    offset_role: Mapped[str] = mapped_column(String(64), default="", nullable=False)
-    offset_strength: Mapped[str] = mapped_column(String(64), default="", nullable=False)
-    offset_source: Mapped[str] = mapped_column(String(255), default="", nullable=False)
-    offset_rule_hint: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    offset_match_type: Mapped[str] = mapped_column(String(64), default="", nullable=False)
-    proposed_action: Mapped[str] = mapped_column(String(64), default="", nullable=False)
-    revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     deleted_by: Mapped[str] = mapped_column(String(128), default="", nullable=False)
@@ -281,23 +166,15 @@ class InvestmentEventModel(Base):
     __tablename__ = "investment_events"
     __table_args__ = (
         UniqueConstraint("workspace_id", "id", name="uq_investment_events_workspace_id"),
-        UniqueConstraint(
-            "workspace_id", "raw_record_id", name="uq_investment_events_workspace_raw_record",
-        ),
         ForeignKeyConstraint(
             ["workspace_id", "account_id"],
             ["accounts.workspace_id", "accounts.id"],
             ondelete="RESTRICT",
             name="fk_investment_events_workspace_account",
         ),
-        ForeignKeyConstraint(
-            ["workspace_id", "raw_record_id"],
-            ["raw_records.workspace_id", "raw_records.id"],
-            ondelete="RESTRICT",
-            name="fk_investment_events_workspace_raw_record",
-        ),
         Index("ix_investment_events_workspace_date", "workspace_id", "occurred_at"),
         Index("ix_investment_events_workspace_account", "workspace_id", "account_id"),
+        Index("ix_investment_events_workspace_source_record", "workspace_id", "source_type", "record_id"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
@@ -305,7 +182,9 @@ class InvestmentEventModel(Base):
         String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
     account_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    raw_record_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    source_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    record_id: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    source_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     action: Mapped[str] = mapped_column(String(64), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="", nullable=False)
@@ -314,11 +193,9 @@ class InvestmentEventModel(Base):
     from_amount: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
     to_ticker: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     to_amount: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
-    price: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
     commission: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
     commission_asset: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
-    revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
 
 
@@ -333,45 +210,7 @@ class LedgerSnapshotModel(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, onupdate=_now, nullable=False)
 
 
-class RecordRevisionModel(Base):
-    __tablename__ = "record_revisions"
-    __table_args__ = (
-        CheckConstraint(
-            "(cash_transaction_id IS NOT NULL AND investment_event_id IS NULL) OR "
-            "(cash_transaction_id IS NULL AND investment_event_id IS NOT NULL)",
-            name="ck_record_revisions_exactly_one_target",
-        ),
-        ForeignKeyConstraint(
-            ["workspace_id", "cash_transaction_id"],
-            ["cash_transactions.workspace_id", "cash_transactions.id"],
-            ondelete="CASCADE",
-            name="fk_record_revisions_workspace_cash",
-        ),
-        ForeignKeyConstraint(
-            ["workspace_id", "investment_event_id"],
-            ["investment_events.workspace_id", "investment_events.id"],
-            ondelete="CASCADE",
-            name="fk_record_revisions_workspace_investment",
-        ),
-        Index("ix_record_revisions_workspace_cash", "workspace_id", "cash_transaction_id", "created_at"),
-        Index("ix_record_revisions_workspace_investment", "workspace_id", "investment_event_id", "created_at"),
-    )
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    workspace_id: Mapped[str] = mapped_column(
-        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
-    )
-    cash_transaction_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    investment_event_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    before: Mapped[dict] = mapped_column(JSON, nullable=False)
-    after: Mapped[dict] = mapped_column(JSON, nullable=False)
-    actor_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    reason: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
-
-
-# Wealth read-model rows deliberately use deterministic, caller-supplied identities.  The
-# payload values are canonical text so neither dialect owns financial serialization.
 class ValuationObservationModel(Base):
     __tablename__ = "valuation_observations"
     __table_args__ = (
@@ -408,7 +247,6 @@ class ValuationObservationModel(Base):
     observed_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     source_identity: Mapped[str] = mapped_column(String(255), nullable=False)
     source_revision: Mapped[str] = mapped_column(String(128), nullable=False)
-    raw_record_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     trust: Mapped[str] = mapped_column(String(32), nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
 
@@ -697,29 +535,6 @@ class TransactionRelationModel(Base):
     anchor_fact_id: Mapped[str] = mapped_column(String(36), nullable=False)
 
 
-class RelationCheckRunModel(Base):
-    __tablename__ = "relation_check_runs"
-    __table_args__ = (
-        UniqueConstraint("workspace_id", "id", name="uq_relation_check_runs_workspace_id"),
-        Index("ix_relation_check_runs_workspace_status", "workspace_id", "status"),
-        CheckConstraint(
-            "status IN ('pending','running','completed','failed')",
-            name="ck_relation_check_runs_status",
-        ),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    workspace_id: Mapped[str] = mapped_column(
-        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
-    )
-    trigger: Mapped[str] = mapped_column(String(64), nullable=False)
-    seed_ref: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    status: Mapped[str] = mapped_column(String(32), nullable=False)
-    started_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
-    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
-    error: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    stats_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
-
 
 class AccountAliasModel(Base):
     __tablename__ = "account_aliases"
@@ -749,19 +564,3 @@ class AccountAliasModel(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
 
 
-class FactDeletionEventModel(Base):
-    __tablename__ = "fact_deletion_events"
-    __table_args__ = (
-        UniqueConstraint("workspace_id", "id", name="uq_fact_deletion_events_workspace_id"),
-        Index("ix_fact_deletion_events_fact", "workspace_id", "fact_type", "fact_id"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    workspace_id: Mapped[str] = mapped_column(
-        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
-    )
-    fact_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    fact_type: Mapped[str] = mapped_column(String(32), default="cash", nullable=False)
-    actor: Mapped[str] = mapped_column(String(128), nullable=False)
-    reason: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)

@@ -42,13 +42,10 @@ def test_schwab_import_sqlite_creates_auditable_events_and_is_idempotent(tmp_pat
 
         with uow as session:
             events = session.investments.list()
-            raw_records = session.imports.list_raw_records(first.details["batch_id"])
             snapshot = session.snapshot.load()
             session.rollback()
 
         assert len(events) == 37
-        assert len(raw_records) == 37
-        assert all(record["source_identity"].startswith("schwab:") for record in raw_records)
         cash = snapshot["accounts"]["security"]["嘉信"]["positions"]["usd"]
         assert Decimal(cash["shares"]) == Decimal("2865.36")
         positions = snapshot["accounts"]["security"]["嘉信"]["positions"]

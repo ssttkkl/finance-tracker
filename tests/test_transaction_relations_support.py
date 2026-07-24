@@ -24,6 +24,8 @@ def add_cash_fact(
     source: str = "",
     record_id: str = "",
 ) -> str:
+    note = description or ""
+    source_type = bill_source or source or ""
     result = services.cashflow.add_manual_transaction(
         amount=Decimal(str(amount)),
         counterparty=counterparty,
@@ -32,21 +34,40 @@ def add_cash_fact(
         date=date,
         note=note,
         category=category,
-        bill_source=bill_source or source,
-        source=source or bill_source,
+        source=source_type,
+        bill_source=source_type,
         record_id=record_id,
     )
     assert result.ok, result.message
     with services.uow as uow:
+        # Prefer latest matching detailed row
         rows = uow.cashflows.list_detailed()
-    matches = [
-        r for r in rows
-        if r["account_name"] == account_name
-        and Decimal(str(r["amount"])) == Decimal(str(amount))
-        and counterparty in (r.get("counterparty") or "")
-    ]
+        # If source_type persisted, stamp it when manual path ignored kwargs
+        matches = [
+            r for r in rows
+            if r["account_name"] == account_name
+            and Decimal(str(r["amount"])) == Decimal(str(amount))
+            and counterparty in (r.get("counterparty") or "")
+        ]
     assert matches, "fact not found after insert"
-    return matches[-1]["id"]
+    fact_id = matches[-1]["id"]
+    if source_type:
+        # Ensure identity fields for relations routing via direct repo update if needed
+        with services.uow as uow:
+            from ft.adapters.relational.models import CashTransactionModel
+            from sqlalchemy import select
+            row = uow._state().session.scalar(  # type: ignore[attr-defined]
+                select(CashTransactionModel).where(CashTransactionModel.id == fact_id)
+            ) if hasattr(uow, "_state") else None
+            # fallback: use list_detailed payload already has source_type from add
+            if row is not None and not row.source_type:
+                row.source_type = source_type
+                if not row.record_id and record_id:
+                    row.record_id = record_id
+                uow.commit()
+            else:
+                uow.rollback()
+    return fact_id
 
 
 def utc(dt: str) -> str:
