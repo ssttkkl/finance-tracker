@@ -33,3 +33,18 @@
 ## R8 — ~/.ft
 
 **Decision**: Optional delivery gate: backup and upgrade after tests green (same as 015).
+
+## R9 — 开放单腿关系端点
+
+**Decision**: `ordered_fact_a` 与 `ordered_fact_b` 保持 nullable INTEGER/BIGINT；将 015 的 NULL 或空字符串 sentinel 规范化为 NULL，只对其他非空值要求映射。
+
+**Rationale**: 真实 015 SQLite 数据中 23 条开放 `refund_offset` / `transfer_pair` 关系的
+`ordered_fact_b` 为 NULL。这是既有关系合同，不是损坏 FK；将它定义成 NOT NULL 会阻断安全升级。
+
+**Alternatives considered**: 用 primary 端点填充空 ordered 端点（拒绝：改变关系事实）；删除这些关系（拒绝：丢失审计数据）。
+
+## R10 — PostgreSQL 历史财富 FK
+
+**Decision**: 历史迁移显式声明当时的字符串 UUID FK 类型，不能以当前已 bigint 化的 ORM metadata 创建旧 revision 表。
+
+**Rationale**: PG 严格校验 FK 类型；SQLite 的宽松类型系统掩盖了该缺陷。

@@ -24,10 +24,35 @@ _TABLES = (
 )
 
 
+def _historical_tables() -> dict[str, sa.Table]:
+    """Return the 002 table shape, not the current runtime-account FK shape.
+
+    Revision 002 predates the 016 bigint cutover.  Its owner/account columns
+    must therefore be VARCHAR(36), even though the current ORM models expose
+    them as bigint.  Clone the stable wealth tables into private metadata so
+    the historical type override cannot mutate runtime metadata.
+    """
+    metadata = sa.MetaData()
+    # The cloned account table resolves composite account FK targets; it is not
+    # created here because 001 already created the historical UUID table.
+    Base.metadata.tables["workspaces"].to_metadata(metadata)
+    Base.metadata.tables["accounts"].to_metadata(metadata)
+    for name in _TABLES:
+        Base.metadata.tables[name].to_metadata(metadata)
+    for table_name, column_name in (
+        ("valuation_observations", "owner_account_id"),
+        ("account_lifecycle_events", "account_id"),
+        ("wealth_coverage_dispositions", "owner_account_id"),
+    ):
+        metadata.tables[table_name].c[column_name].type = sa.String(36)
+    return {name: metadata.tables[name] for name in _TABLES}
+
+
 def upgrade() -> None:
     bind = op.get_bind()
+    tables = _historical_tables()
     for name in _TABLES:
-        Base.metadata.tables[name].create(bind, checkfirst=False)
+        tables[name].create(bind, checkfirst=False)
     # This historical revision predates multi-currency cash pockets.  Keep its
     # schema faithful so 20260720_04 can migrate real legacy observations.
     with op.batch_alter_table("valuation_observations") as batch:
@@ -61,5 +86,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     bind = op.get_bind()
+    tables = _historical_tables()
     for name in reversed(_TABLES):
-        Base.metadata.tables[name].drop(bind, checkfirst=False)
+        tables[name].drop(bind, checkfirst=False)

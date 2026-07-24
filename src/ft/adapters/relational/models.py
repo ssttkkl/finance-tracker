@@ -521,9 +521,9 @@ class TransactionRelationModel(Base):
     secondary_fact_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
     primary_fact_type: Mapped[str] = mapped_column(String(32), default="cash", nullable=False)
     secondary_fact_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    ordered_fact_a: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
-    # Open-leg uses empty-string sentinel for ordered_fact_b.
-    ordered_fact_b: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    # Open-leg relations retain a nullable ordered endpoint after the 016 cutover.
+    ordered_fact_a: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
+    ordered_fact_b: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
     # active_slot is 'active' for non-superseded rows; superseded rows use id slot to free the key.
     active_slot: Mapped[str] = mapped_column(String(36), default="active", nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -568,5 +568,4 @@ class AccountAliasModel(Base):
     account_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
-
 

@@ -102,14 +102,14 @@ def _seed_base(sessions, *, with_fee=True) -> None:
             (4, "120", "12", "7.3"),
         ):
             for identity_kind, identity, value, currency in (
-                ("cash_account", "cash:CNY", cash, "CNY"),
+                ("cash_account", "1:CNY", cash, "CNY"),
                 ("position", "broker:global-etf", position, "USD"),
                 ("fx", "USD/CNY", fx, "CNY"),
             ):
                 session.add(ValuationObservationModel(
                     observation_id=f"{identity}:{day}", workspace_id="wealth-runtime-golden",
                     identity_kind=identity_kind, identity=identity,
-                    owner_account_id={"cash_account": "cash", "position": "broker"}.get(identity_kind),
+                    owner_account_id={"cash_account": 1, "position": 2}.get(identity_kind),
                     observation_kind="fx" if identity_kind == "fx" else "boundary_checkin",
                     value=Decimal(value), currency=currency, unit="currency", as_of=at(day), observed_at=at(day),
                     source_identity=f"fixture:{identity}:{day}", source_revision=f"{identity}:{day}",
@@ -285,7 +285,7 @@ def test_runtime_foreign_cash_midday_flow_uses_flow_weighted_fx(runtime_golden, 
         for day, cash, fx in ((1, "100", "7.0"), (2, "120", "7.2"), (3, "120", "7.2")):
             session.add(ValuationObservationModel(
                 observation_id=f"usd-cash:{day}", workspace_id="wealth-runtime-golden",
-                identity_kind="cash_account", identity="usd-cash:USD", owner_account_id=1086658,
+                identity_kind="cash_account", identity="1086658:USD", owner_account_id=1086658,
                 observation_kind="boundary_checkin", value=Decimal(cash), currency="USD",
                 unit="currency", as_of=at(day), observed_at=at(day),
                 source_identity=f"fixture:usd-cash:{day}", source_revision=f"usd-cash:{day}",

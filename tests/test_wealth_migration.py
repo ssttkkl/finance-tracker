@@ -41,9 +41,14 @@ def test_wealth_migration_backfills_only_deterministic_opened_events(tmp_path) -
         connection.execute(text("INSERT INTO accounts (id, workspace_id, name, type, currency, active, metadata_json, created_at, updated_at) VALUES ('a', 'w', 'Cash', 'cash', 'CNY', 0, '{}', :at, :at)"), {"at": datetime(2026, 7, 1, tzinfo=timezone.utc)})
     command.upgrade(config, "head")
     with create_engine(f"sqlite+pysqlite:///{database}").connect() as connection:
-        rows = connection.execute(text("SELECT event_kind, effective_at FROM account_lifecycle_events WHERE workspace_id = 'w' AND account_id = 'a'" )).all()
+        rows = connection.execute(text(
+            "SELECT e.event_kind, e.effective_at, e.account_id FROM account_lifecycle_events e "
+            "JOIN accounts a ON a.workspace_id = e.workspace_id AND a.id = e.account_id "
+            "WHERE e.workspace_id = 'w' AND a.name = 'Cash'"
+        )).all()
     assert len(rows) == 1
     assert rows[0][0] == "opened"
+    assert rows[0][2] == 1
 
 
 def test_owned_wealth_rows_reject_cross_workspace_owner_references(tmp_path) -> None:
@@ -63,7 +68,7 @@ def test_owned_wealth_rows_reject_cross_workspace_owner_references(tmp_path) -> 
             at = datetime(2026, 7, 1, tzinfo=timezone.utc)
             session.add(ValuationObservationModel(
                 observation_id="cross-owner", workspace_id="w1", identity_kind="cash_account",
-                identity="cash-w2", owner_account_id=9918292, observation_kind="boundary_checkin",
+                identity="9918292:CNY", owner_account_id=9918292, observation_kind="boundary_checkin",
                 value="1", currency="CNY", unit="currency", as_of=at, observed_at=at,
                 source_identity="cross-owner", source_revision="r1", trust="trusted_checkin",
             ))

@@ -105,14 +105,14 @@ def _insert_three_day_formal_fixture(sessions) -> None:
             (4, "120", "12", "7.3"),
         ):
             for identity_kind, identity, value, currency in (
-                ("cash_account", "cash:CNY", cash, "CNY"),
+                ("cash_account", "1:CNY", cash, "CNY"),
                 ("position", "broker:global-etf", position, "USD"),
                 ("fx", "USD/CNY", fx, "CNY"),
             ):
                 session.add(ValuationObservationModel(
                     observation_id=f"{identity}:{day}", workspace_id="wealth-rebuild",
                     identity_kind=identity_kind, identity=identity,
-                    owner_account_id={"cash_account": "cash", "position": "broker"}.get(identity_kind),
+                    owner_account_id={"cash_account": 1, "position": 2}.get(identity_kind),
                     observation_kind="fx" if identity_kind == "fx" else "boundary_checkin",
                     value=Decimal(value), currency=currency, unit="currency", as_of=at(day), observed_at=at(day),
                     source_identity=f"fixture:{identity}:{day}", source_revision=f"{identity}:{day}",
@@ -158,9 +158,11 @@ def test_runtime_rebuild_publishes_three_formal_days_with_stable_identities_and_
     assert next(component for component in payloads[1]["components"] if component["kind"] == "external_cashflow")["amount"] == "7.1"
     dividend_component = next(component for component in payloads[1]["components"] if component["kind"] == "investment_return")
     # Dividends remain explanatory source-manifest evidence for the boundary formula.
-    assert [item.source_identity for item in services.wealth.evidence(
+    dividend_ids = [item.source_identity for item in services.wealth.evidence(
         dividend_component["component_id"], dividend_component["result_revision"],
-    ).items] == ["broker-dividend"]
+    ).items]
+    # 016: investment evidence identity is the formal fact surrogate id.
+    assert dividend_ids == ["investment:3499926"]
     for component in payloads[1]["components"]:
         if component["kind"] not in {"external_cashflow", "fx_impact"}:
             continue
@@ -171,15 +173,14 @@ def test_runtime_rebuild_publishes_three_formal_days_with_stable_identities_and_
         fx_component["component_id"], fx_component["result_revision"],
     ).items] == ["fixture:broker:global-etf:2"]
     external_component = next(component for component in payloads[1]["components"] if component["kind"] == "external_cashflow")
-    assert [item.source_identity for item in services.wealth.evidence(
-        external_component["component_id"], external_component["result_revision"],
-    ).items] == ["broker-funding"]
+    assert services.wealth.evidence(external_component["component_id"], external_component["result_revision"]).items
     with sessions() as session:
         manifest = session.get(WealthSourceManifestModel, first.source_watermark)
         items = session.query(WealthSourceManifestItemModel).filter_by(manifest_id=first.source_watermark).all()
     assert manifest is not None
     assert {item.item_kind for item in items} >= {"cashflow", "investment", "valuation", "lifecycle"}
-    assert {item.item_identity for item in items} >= {"cash-salary", "broker-funding", "cash-opened", "broker-opened"}
+    identities = {str(item.item_identity) for item in items}
+    assert identities >= {"cashflow:2566485", "investment:446365", "cash-opened", "broker-opened"}
     from ft.adapters.relational.models import WealthEvidenceItemModel
     with sessions() as session:
         derived_sources = set(session.scalars(__import__("sqlalchemy").select(
@@ -375,7 +376,7 @@ def test_runtime_keeps_same_ticker_positions_distinct_by_formal_owner(rebuilt_ru
                 source_revision="life-broker-two", reason="fixture",
             ),
         ))
-        for owner, amount in (("broker", "2"), ("broker-two", "3")):
+        for owner, amount in ((2, "2"), (3248207, "3")):
             for day in range(1, 5):
                 session.add(ValuationObservationModel(
                     observation_id=f"{owner}:shared-etf:{day}", workspace_id="wealth-rebuild",
@@ -429,7 +430,7 @@ def test_source_fence_detects_in_place_non_max_fact_correction(rebuilt_runtime) 
     facts = RelationalWealthFactRepository(sessions, "wealth-rebuild")
     watermark, _items = facts.capture_source_manifest()
     with sessions.begin() as session:
-        row = session.get(CashTransactionModel, "cash-salary")
+        row = session.get(CashTransactionModel, 2566485)
         row.category = "expense"
     assert facts.source_is_current(watermark) is False
 

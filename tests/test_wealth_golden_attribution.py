@@ -107,14 +107,14 @@ def _insert_golden_formal_fixture(sessions) -> None:
             (4, "120", "12", "7.3"),
         ):
             for identity_kind, identity, value, currency in (
-                ("cash_account", "cash:CNY", cash, "CNY"),
+                ("cash_account", "1:CNY", cash, "CNY"),
                 ("position", "broker:global-etf", position, "USD"),
                 ("fx", "USD/CNY", fx, "CNY"),
             ):
                 session.add(ValuationObservationModel(
                     observation_id=f"{identity}:{day}", workspace_id="wealth-golden",
                     identity_kind=identity_kind, identity=identity,
-                    owner_account_id={"cash_account": "cash", "position": "broker"}.get(identity_kind),
+                    owner_account_id={"cash_account": 1, "position": 2}.get(identity_kind),
                     observation_kind="fx" if identity_kind == "fx" else "boundary_checkin",
                     value=Decimal(value), currency=currency, unit="currency", as_of=at(day), observed_at=at(day),
                     source_identity=f"fixture:{identity}:{day}", source_revision=f"{identity}:{day}",

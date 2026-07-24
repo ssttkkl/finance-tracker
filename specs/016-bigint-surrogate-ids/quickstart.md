@@ -32,7 +32,10 @@ export FT_DATABASE_URL="sqlite+pysqlite:////$HOME/.ft/finance-tracker.db"
 export FT_WORKSPACE_ID=default
 uv run alembic upgrade head
 sqlite3 "$HOME/.ft/finance-tracker.db" "SELECT typeof(id) FROM accounts LIMIT 1;"
+sqlite3 "$HOME/.ft/finance-tracker.db" "PRAGMA foreign_key_check;"
 ```
+
+如升级失败，停止使用该库并从升级前备份原样还原；不得在半迁移 SQLite 文件上重试。
 
 ## SC mapping
 

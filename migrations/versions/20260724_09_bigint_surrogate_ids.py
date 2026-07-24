@@ -142,6 +142,14 @@ def _upgrade_postgresql() -> None:
             FROM investment_events e WHERE r.{old_c} = e.id AND r.{new_c} IS NULL
             """
         ))
+        orphan = conn.execute(text(
+            f"SELECT COUNT(*) FROM transaction_relations "
+            f"WHERE {old_c} IS NOT NULL AND {old_c} <> '' AND {new_c} IS NULL"
+        )).scalar()
+        if orphan:
+            raise RuntimeError(
+                f"016 fail-closed: {orphan} relations missing {old_c} mapping"
+            )
     conn.execute(text(
         """
         UPDATE transaction_relations r SET superseded_by_id_new = s.id_new
@@ -181,7 +189,7 @@ def _pg_swap_tables(conn) -> None:
     conn.execute(text("DROP TABLE accounts CASCADE"))
     conn.execute(text("ALTER TABLE accounts__i RENAME TO accounts"))
     conn.execute(text("CREATE INDEX ix_accounts_workspace ON accounts (workspace_id)"))
-    conn.execute(text("CREATE SEQUENCE accounts_id_seq OWNED BY accounts.id"))
+    conn.execute(text("ALTER SEQUENCE accounts_id_seq OWNED BY accounts.id"))
     conn.execute(text("SELECT setval('accounts_id_seq', (SELECT COALESCE(MAX(id),1) FROM accounts))"))
     conn.execute(text("ALTER TABLE accounts ALTER COLUMN id SET DEFAULT nextval('accounts_id_seq')"))
 
@@ -228,7 +236,7 @@ def _pg_swap_tables(conn) -> None:
           AND record_id IS NOT NULL AND record_id <> '' AND deleted_at IS NULL
         """
     ))
-    conn.execute(text("CREATE SEQUENCE cash_transactions_id_seq OWNED BY cash_transactions.id"))
+    conn.execute(text("ALTER SEQUENCE cash_transactions_id_seq OWNED BY cash_transactions.id"))
     conn.execute(text("SELECT setval('cash_transactions_id_seq', (SELECT COALESCE(MAX(id),1) FROM cash_transactions))"))
     conn.execute(text("ALTER TABLE cash_transactions ALTER COLUMN id SET DEFAULT nextval('cash_transactions_id_seq')"))
 
@@ -277,7 +285,7 @@ def _pg_swap_tables(conn) -> None:
           AND record_id IS NOT NULL AND record_id <> ''
         """
     ))
-    conn.execute(text("CREATE SEQUENCE investment_events_id_seq OWNED BY investment_events.id"))
+    conn.execute(text("ALTER SEQUENCE investment_events_id_seq OWNED BY investment_events.id"))
     conn.execute(text("SELECT setval('investment_events_id_seq', (SELECT COALESCE(MAX(id),1) FROM investment_events))"))
     conn.execute(text("ALTER TABLE investment_events ALTER COLUMN id SET DEFAULT nextval('investment_events_id_seq')"))
 
@@ -301,7 +309,7 @@ def _pg_swap_tables(conn) -> None:
     conn.execute(text("DROP TABLE account_aliases CASCADE"))
     conn.execute(text("ALTER TABLE account_aliases__i RENAME TO account_aliases"))
     conn.execute(text("CREATE INDEX ix_account_aliases_workspace_value ON account_aliases (workspace_id, alias_type, alias_value)"))
-    conn.execute(text("CREATE SEQUENCE account_aliases_id_seq OWNED BY account_aliases.id"))
+    conn.execute(text("ALTER SEQUENCE account_aliases_id_seq OWNED BY account_aliases.id"))
     conn.execute(text("SELECT setval('account_aliases_id_seq', (SELECT COALESCE(MAX(id),1) FROM account_aliases))"))
     conn.execute(text("ALTER TABLE account_aliases ALTER COLUMN id SET DEFAULT nextval('account_aliases_id_seq')"))
 
@@ -316,8 +324,8 @@ def _pg_swap_tables(conn) -> None:
             primary_fact_type VARCHAR(16) NOT NULL,
             secondary_fact_id BIGINT,
             secondary_fact_type VARCHAR(16),
-            ordered_fact_a BIGINT NOT NULL,
-            ordered_fact_b BIGINT NOT NULL,
+            ordered_fact_a BIGINT,
+            ordered_fact_b BIGINT,
             active_slot VARCHAR(36) NOT NULL DEFAULT 'active',
             status VARCHAR(32) NOT NULL,
             rule_id VARCHAR(128) NOT NULL DEFAULT '',
@@ -339,7 +347,9 @@ def _pg_swap_tables(conn) -> None:
         """
         INSERT INTO transaction_relations__i
         SELECT id_new, workspace_id, kind, COALESCE(subtype,''), primary_fact_id_new, primary_fact_type,
-               secondary_fact_id_new, secondary_fact_type, ordered_fact_a_new, ordered_fact_b_new,
+               secondary_fact_id_new, secondary_fact_type,
+               CASE WHEN NULLIF(ordered_fact_a, '') IS NULL THEN NULL ELSE ordered_fact_a_new END,
+               CASE WHEN NULLIF(ordered_fact_b, '') IS NULL THEN NULL ELSE ordered_fact_b_new END,
                active_slot, status, rule_id, confidence, evidence_json, created_by, created_at,
                decided_by, decided_at, decision_reason, later_marker, superseded_by_id_new, anchor_fact_id_new
         FROM transaction_relations
@@ -349,7 +359,7 @@ def _pg_swap_tables(conn) -> None:
     conn.execute(text("ALTER TABLE transaction_relations__i RENAME TO transaction_relations"))
     conn.execute(text("CREATE INDEX ix_transaction_relations_workspace_status ON transaction_relations (workspace_id, status)"))
     conn.execute(text("CREATE INDEX ix_transaction_relations_workspace_kind ON transaction_relations (workspace_id, kind)"))
-    conn.execute(text("CREATE SEQUENCE transaction_relations_id_seq OWNED BY transaction_relations.id"))
+    conn.execute(text("ALTER SEQUENCE transaction_relations_id_seq OWNED BY transaction_relations.id"))
     conn.execute(text("SELECT setval('transaction_relations_id_seq', (SELECT COALESCE(MAX(id),1) FROM transaction_relations))"))
     conn.execute(text("ALTER TABLE transaction_relations ALTER COLUMN id SET DEFAULT nextval('transaction_relations_id_seq')"))
 
@@ -559,8 +569,8 @@ def _upgrade_sqlite() -> None:
             primary_fact_type VARCHAR(16) NOT NULL,
             secondary_fact_id INTEGER,
             secondary_fact_type VARCHAR(16),
-            ordered_fact_a INTEGER NOT NULL,
-            ordered_fact_b INTEGER NOT NULL,
+            ordered_fact_a INTEGER,
+            ordered_fact_b INTEGER,
             active_slot VARCHAR(36) NOT NULL DEFAULT 'active',
             status VARCHAR(32) NOT NULL,
             rule_id VARCHAR(128) NOT NULL DEFAULT '',
@@ -579,7 +589,25 @@ def _upgrade_sqlite() -> None:
             UNIQUE (workspace_id, kind, ordered_fact_a, ordered_fact_b, subtype, active_slot)
         )
     """))
-    # Map fact endpoints
+    # A NULL ordered endpoint is a valid open leg.  A non-NULL legacy endpoint
+    # must map to a cash or investment fact; otherwise fail before copying.
+    for old_col in ("ordered_fact_a", "ordered_fact_b"):
+        orphan = conn.execute(text(
+            f"""
+            SELECT COUNT(*)
+            FROM transaction_relations r
+            LEFT JOIN _map_cash_transactions c ON c.old_id = r.{old_col}
+            LEFT JOIN _map_investment_events i ON i.old_id = r.{old_col}
+            WHERE r.{old_col} IS NOT NULL AND r.{old_col} <> ''
+              AND c.new_id IS NULL AND i.new_id IS NULL
+            """
+        )).scalar()
+        if orphan:
+            raise RuntimeError(
+                f"016 fail-closed: {orphan} relations missing {old_col} mapping"
+            )
+
+    # Map fact endpoints.
     conn.execute(text(
         """
         INSERT INTO transaction_relations__new (
@@ -594,8 +622,10 @@ def _upgrade_sqlite() -> None:
             r.primary_fact_type,
             COALESCE(sc.new_id, si.new_id),
             r.secondary_fact_type,
-            COALESCE(oac.new_id, oai.new_id),
-            COALESCE(obc.new_id, obi.new_id),
+            CASE WHEN NULLIF(r.ordered_fact_a, '') IS NULL THEN NULL
+                 ELSE COALESCE(oac.new_id, oai.new_id) END,
+            CASE WHEN NULLIF(r.ordered_fact_b, '') IS NULL THEN NULL
+                 ELSE COALESCE(obc.new_id, obi.new_id) END,
             r.active_slot, r.status, r.rule_id, r.confidence, r.evidence_json, r.created_by, r.created_at,
             r.decided_by, r.decided_at, r.decision_reason, r.later_marker,
             ms.new_id,

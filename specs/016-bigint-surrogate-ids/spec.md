@@ -19,6 +19,11 @@
 - 问：规格语言？ → 答：**spec 用中文**。
 - 问：015 完成后如何重评 016？ → 答：范围从表清单中**剔除 015 已删对象**；幂等/对外身份以 015 的 `record_id`×`source_type` 为准，**不再**引入平行 `public_id` 列，也**不再**依赖 `raw_records`。
 
+### 会话 2026-07-25
+
+- 问：016 遇到开放单腿关系的空有序端点时如何迁移？ → 答：将 015 的 `NULL` 或空字符串 sentinel 规范化为 `NULL`；只有其他非空值无法映射到对应正式事实时才失败关闭。
+- 问：PostgreSQL 从空库升级到 015 基线时，财富 owner FK 与 UUID 账户键不兼容怎么办？ → 答：修复历史迁移的建表类型，使 015 基线在 PG 与 SQLite 都保持 owner FK 类型与当时 `accounts.id` 一致；016 再统一改为整数。
+
 ## 关系（Context）
 
 | 关系 | Feature | 说明 |
@@ -112,6 +117,7 @@
 1. **给定** 升级前的双边与开放单腿关系，**当** 升级完成，**则** primary/secondary/anchor 仍标识同一逻辑事实（整数 FK）。
 2. **给定** 现金与投资分表分序列，**当** 关系存储端点时，**则** 仍有显式 `primary_fact_type` / `secondary_fact_type`（或今日等价），禁止静默跨表撞号。
 3. **给定** 软删现金事实（行上 `deleted_*`，无独立删除事件表），**当** 升级后，**则** 删除标记与默认列表排除行为正确。
+4. **给定** `refund_offset`、`transfer_pair` 或其他开放单腿关系的 `ordered_fact_a` 或 `ordered_fact_b` 为 `NULL`，**当** 升级完成，**则** 该端点仍为 `NULL`；非空端点仍映射到同一业务事实。
 
 ---
 
@@ -138,6 +144,7 @@
 - PostgreSQL 与 SQLite 自增表示可不同；**账务结果不得分叉**。
 - 财富确定性字符串 PK 默认不改；仅 account 等 UUID FK 改为整数。
 - `workspaces.id` 默认仍为 slug 字符串。
+- 开放单腿关系允许 `ordered_fact_a` 和/或 `ordered_fact_b` 为空；015 历史库可用 `NULL` 或空字符串 sentinel 表示，迁移必须规范化为 `NULL`，并与非空旧 UUID 无法映射的断链区分。
 - **禁止**为配合 bigint 恢复 015 已删的 import/raw/revision 表。
 
 ---
@@ -161,6 +168,8 @@
 - **FR-013**：本 feature 产物 MUST 记录旧 UUID 角色 → 新代理键的映射与非目标；并 cross-link 015 已删表清单。
 - **FR-014**：范围外表若继续使用字符串 PK，MUST 保持完全不动或明确列入后续 feature，禁止半迁。
 - **FR-015**：迁移与实现 MUST 以 **015 目标 schema**（无 import/raw 作业壳）为起点；MUST NOT 假设 `raw_record_id` 或 import 批次表仍存在。
+- **FR-016**：`transaction_relations` 的 `ordered_fact_a` 与 `ordered_fact_b` MUST 保持原有可空合同；015 中的 `NULL` 或空字符串 sentinel MUST 规范化为 `NULL`，仅在其他非空旧值缺少对应 cash/investment 映射时失败关闭。
+- **FR-017**：从空 PostgreSQL 升级至 `20260724_08` 时，财富/生命周期中引用 `accounts.id` 的 FK 列 MUST 使用与该历史 accounts PK 相同的 UUID 字符串类型；不得在 016 切换前提前使用 BIGINT。
 
 ### 范围 — 默认纳入（In-Scope）
 

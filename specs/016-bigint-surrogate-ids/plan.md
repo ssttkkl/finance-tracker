@@ -48,7 +48,7 @@ Rebuild in-scope tables in one Alembic revision when ALTER cannot change PK type
 1. `accounts` (+ rewrite FKs that point at accounts)  
 2. `cash_transactions` / `investment_events`  
 3. `account_aliases`  
-4. `transaction_relations` (endpoints + own PK)  
+4. `transaction_relations` (endpoints + own PK；保留开放单腿关系的空有序端点)
 5. Wealth/lifecycle **account_id / owner_account_id** columns only  
 6. Drop any leftover UUID id columns  
 
@@ -63,6 +63,21 @@ Rebuild in-scope tables in one Alembic revision when ALTER cannot change PK type
 ### `~/.ft` (optional delivery)
 
 Same pattern as 015: backup → upgrade → verify counts/projections.
+
+### 开放单腿关系迁移合同（2026-07-25 Flow-Back）
+
+`ordered_fact_a` 与 `ordered_fact_b` 在 015 数据中可为 `NULL`，例如开放的
+`refund_offset` 与 `transfer_pair`。SQLite 和 PostgreSQL 的新 schema 都必须保持这两列可空：
+
+- 旧端点为 `NULL` 或空字符串：新端点必须为 `NULL`；不查询映射表，也不视为孤儿。
+- 旧端点非 `NULL`：必须映射到 cash 或 investment 的同一业务事实；映射失败时迁移失败关闭。
+- 迁移测试必须从真实 015 schema seed 这两种情况，验证升级成功、端点空值保留，并继续验证非空断链失败关闭。
+
+这不改变 relation kind 规则、事实来源或财富计算，仅恢复既有列可空性合同。
+
+### PostgreSQL 历史基线合同（2026-07-25 Flow-Back）
+
+`20260719_02` 在 PG 上创建财富表时，引用当时 UUID 字符串 `accounts.id` 的 owner/account FK 必须也是字符串；不得用当前 ORM 的 BIGINT 定义回填历史 schema。迁移测试须从空 PG 到 `20260724_08` 再到 016，验证基线可建立并在 016 中统一转为整数。
 
 ## Project Structure
 

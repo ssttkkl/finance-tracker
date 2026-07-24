@@ -227,7 +227,7 @@ class RelationalWealthFactRepository:
                 return "fee", -abs(amount) if (row.from_amount or 0) else abs(amount)
             return None, None
         items = [
-            WealthSourceItem("account", row.account_id, "account", canonical_digest({"type": row.account_type, "metadata": dict(row.metadata)}))
+            WealthSourceItem("account", f"account:{row.account_id}", "account", canonical_digest({"type": row.account_type, "metadata": dict(row.metadata)}))
             for row in accounts
         ]
         items.extend(WealthSourceItem("valuation", row.observation_id, row.source_revision, _digest_parts(
@@ -237,7 +237,7 @@ class RelationalWealthFactRepository:
             row.account_id, row.event_kind, row.effective_at.isoformat(), row.source_revision,
         )) for row in lifecycle)
         items.extend(WealthSourceItem(
-            "cashflow", row.fact_id, "1", _digest_parts(
+            "cashflow", f"cashflow:{row.fact_id}", "1", _digest_parts(
                 row.account_id, row.occurred_at.isoformat(), row.amount, row.category,
             ), row.occurred_at, cash_kind(row), projected_amount(row.amount, row.currency, row.occurred_at),
             f"{row.occurred_at.astimezone(shanghai).date().isoformat()}:{cash_kind(row)}:{row.fact_id}",
@@ -246,7 +246,7 @@ class RelationalWealthFactRepository:
         for row in investments:
             evidence_kind, contribution = investment_projection(row)
             items.append(WealthSourceItem(
-                "investment", row.fact_id, "1", _digest_parts(
+                "investment", f"investment:{row.fact_id}", "1", _digest_parts(
                     row.account_id, row.occurred_at.isoformat(), row.action, canonical_digest(dict(row.payload)),
                 ), row.occurred_at, evidence_kind, contribution,
                 f"{row.occurred_at.astimezone(shanghai).date().isoformat()}:{evidence_kind}:{row.fact_id}",

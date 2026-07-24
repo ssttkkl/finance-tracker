@@ -100,7 +100,7 @@ def test_same_ticker_two_accounts_and_missing_owner_fail_closed(ownership_runtim
                 effective_at=at(1), source_identity="a2", source_revision="a2", reason="fixture",
             ),
         ))
-        for owner, amount in (("a1", "2"), ("a2", "3")):
+        for owner, amount in ((8361574, "2"), (7590578, "3")):
             for day in (1, 2, 3):
                 session.add(ValuationObservationModel(
                     observation_id=f"{owner}:shared:{day}", workspace_id="wealth-ownership",
@@ -224,7 +224,7 @@ def test_rebuild_persists_owned_coverage_dispositions_per_result(ownership_runti
                 value=Decimal(amount), currency="CNY", unit="currency", as_of=at(day), observed_at=at(day),
                 source_identity=f"cash:{day}", source_revision=f"cash:{day}", trust="trusted_checkin",
             ))
-        for owner, amount in (("a1", "2"), ("a2", "3")):
+        for owner, amount in ((8361574, "2"), (7590578, "3")):
             for day in (1, 2, 3):
                 session.add(ValuationObservationModel(
                     observation_id=f"{owner}:shared:{day}", workspace_id="wealth-ownership",
@@ -254,9 +254,9 @@ def test_rebuild_persists_owned_coverage_dispositions_per_result(ownership_runti
             for row in rows
         }
     assert by_key == {
-        ("cash", "cash_account", "cash:CNY"): "supported",
-        ("a1", "position", "shared-etf"): "supported",
-        ("a2", "position", "shared-etf"): "supported",
+        (1, "cash_account", "1:CNY"): "supported",
+        (8361574, "position", "shared-etf"): "supported",
+        (7590578, "position", "shared-etf"): "supported",
     }
 
 
@@ -340,7 +340,7 @@ def test_ownership_conflict_valuation_vs_formal_fact_is_unsupported_with_evidenc
         evidence_kinds = set(session.scalars(select(WealthEvidenceItemModel.evidence_kind).where(
             WealthEvidenceItemModel.workspace_id == "wealth-ownership",
         )))
-    assert dispositions[("a2", "position", "owned-etf")] == "unsupported"
+    assert dispositions[(7590578, "position", "owned-etf")] == "unsupported"
     assert "OWNERSHIP_CONFLICT" in evidence_kinds
 
 

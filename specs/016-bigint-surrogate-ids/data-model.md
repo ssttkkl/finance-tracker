@@ -32,3 +32,4 @@
 - Keep uq_accounts_workspace_name, uq_*_workspace_id composite uniqueness patterns (workspace_id, id) with int id  
 - Keep partial unique on cash (workspace, source_type, record_id) active  
 - Keep investment unique on (workspace, source_type, record_id) non-empty  
+- `transaction_relations.ordered_fact_a` 与 `ordered_fact_b`：可空整数；旧值为 `NULL` 时迁移后仍为 `NULL`。旧值非空但无法映射到对应事实时失败关闭。
