@@ -282,7 +282,7 @@ def _main(argv=None):
     statement_import.add_argument("file", help="原始账单文件路径")
     statement_import.add_argument(
         "--source", required=True,
-        choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "dfzq", "ibkr", "schwab", "binance", "okx", "polymarket"],
+        choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "dfzq", "ibkr", "schwab", "usmart-hk", "usmart_hk", "binance", "okx", "polymarket"],
     )
     statement_import.add_argument(
         "--account", default=None,
@@ -383,7 +383,7 @@ def _main(argv=None):
 
     if args.cmd == "import":
         # T041-T046: Route to investment import for investment sources
-        investment_sources = {"dfzq", "ibkr", "schwab", "binance", "okx", "polymarket"}
+        investment_sources = {"dfzq", "ibkr", "schwab", "usmart-hk", "usmart_hk", "binance", "okx", "polymarket"}
 
         if args.source in investment_sources:
             # Investment statement import
@@ -392,8 +392,11 @@ def _main(argv=None):
                 raise SystemExit(1)
 
             # T043: Check external tools for DFZQ
-            if args.source == "dfzq":
-                from .importers.dfzq import check_external_tools
+            if args.source in {"dfzq", "usmart-hk", "usmart_hk"} and Path(args.file).suffix.lower() == ".pdf":
+                if args.source == "dfzq":
+                    from .importers.dfzq import check_external_tools
+                else:
+                    from .importers.usmart_hk import check_external_tools
                 tools = check_external_tools()
 
                 if tools.get("qpdf") is None:
@@ -442,6 +445,8 @@ def _main(argv=None):
                 currency = args.currency  # may be None
             elif args.source == "schwab":
                 currency = args.currency or "USD"
+            elif args.source in {"usmart-hk", "usmart_hk"}:
+                currency = args.currency
             else:
                 currency = args.currency or "CNY"
 
@@ -479,6 +484,8 @@ def _main(argv=None):
             return
 
         # Original cash statement import
+        if args.account:
+            parser.error("--account is only valid for investment statement imports")
         result = _runtime_services().statement_import.import_statement(StatementImportCommand(
             source_path=args.file,
             source=args.source,

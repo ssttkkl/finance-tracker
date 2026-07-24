@@ -57,7 +57,7 @@ def test_schwab_import_backend_contract(tmp_path, backend):
         assert len(events) == 37
         positions = snapshot["accounts"]["security"]["嘉信"]["positions"]
         assert Decimal(positions["usd"]["shares"]) == Decimal("2865.36")
-        assert Decimal(positions["avgo"]["shares"]) == Decimal("7")
-        assert Decimal(positions["msft"]["shares"]) == Decimal("5")
+        assert Decimal(positions["avgo.us"]["shares"]) == Decimal("7")
+        assert Decimal(positions["msft.us"]["shares"]) == Decimal("5")
     finally:
         engine.dispose()

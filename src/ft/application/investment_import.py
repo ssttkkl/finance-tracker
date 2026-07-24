@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from ft.domain.application import OperationResult
-from ft.domain.investment_projection import apply_investment_event
+from ft.domain.investment_projection import apply_investment_event, normalize_base_tickers
 from ft.domain.investment_validation import validate_investment_snapshot
 
 
@@ -36,7 +36,7 @@ class InvestmentImportService:
         """Import investment statement from file.
 
         Args:
-            source: Parser identifier ('dfzq', 'ibkr', 'schwab', 'binance', 'okx', 'polymarket')
+            source: Parser identifier (including 'usmart-hk' / 'usmart_hk')
             source_path: Path to statement file
             account_name: Target account name
             currency: Default currency. For dfzq defaults to CNY when unset;
@@ -107,7 +107,7 @@ class InvestmentImportService:
             # Resolve currency: CLI override, else source-specific default.
             # IBKR: no silent USD/CNY — use 总结.基础货币 or require --currency.
             # Schwab: CLI or USD (statement is US$).
-            # DFZQ / others: CLI or CNY.
+            # uSmart HK rows carry native currencies; CLI is fallback only.
             resolved_currency = currency
             if source == "ibkr":
                 base = (transactions[0].get("_ibkr_base_currency") or "").strip()
@@ -126,6 +126,8 @@ class InvestmentImportService:
                     )
             elif source == "schwab":
                 resolved_currency = (resolved_currency or "USD").upper()
+            elif source in {"usmart-hk", "usmart_hk"}:
+                resolved_currency = (resolved_currency or "USD").upper()
             else:
                 resolved_currency = (resolved_currency or "CNY").upper()
 
@@ -140,6 +142,16 @@ class InvestmentImportService:
 
             # Create raw_records and events
             try:
+                base_tickers = normalize_base_tickers(
+                    next(
+                        (
+                            row.get("base_currencies")
+                            for row in uow.accounts.list_raw()
+                            if row.get("name") == account_name
+                        ),
+                        None,
+                    )
+                )
                 event_count = self._import_transactions(
                     uow,
                     batch_id,
@@ -150,6 +162,7 @@ class InvestmentImportService:
                     source_path,
                     file_content,
                     source=source,
+                    base_tickers=base_tickers,
                 )
             except Exception as e:
                 uow.rollback()
@@ -197,6 +210,11 @@ class InvestmentImportService:
                 "duplicate": no_new,
                 "new_rows": event_count,
                 "batch_id": batch_id,
+                **(
+                    {"ignored_trade_mirrors": int(transactions[0].get("_usmart_ignored_trade_mirrors", 0))}
+                    if transactions and "_usmart_ignored_trade_mirrors" in transactions[0]
+                    else {}
+                ),
             },
         )
 
@@ -214,10 +232,9 @@ class InvestmentImportService:
         not used; currency resolution for ibkr happens in import_statement.
         """
         if source == "dfzq":
-            import subprocess
             import tempfile
-            import os
             from ft.importers.dfzq import parse_dfzq_text
+            from ft.importers.pdf_tools import decrypt_pdf, extract_pdf_text
 
             # Plain-text fixtures / pre-extracted mutool output (no PDF tools needed).
             suffix = source_path.suffix.lower()
@@ -225,49 +242,16 @@ class InvestmentImportService:
                 text = source_path.read_text(encoding="utf-8", errors="replace")
                 return parse_dfzq_text(text.splitlines())
 
-            # 1. Decrypt PDF if password provided
-            tmp_pdf = None
-            pdf_path = str(source_path)
-            if password:
-                tmp_pdf = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
-                try:
-                    subprocess.run(
-                        ["qpdf", f"--password={password}", "--decrypt", str(source_path), tmp_pdf.name],
-                        check=True, timeout=30, capture_output=True
-                    )
-                    pdf_path = tmp_pdf.name
-                except subprocess.CalledProcessError as e:
-                    if tmp_pdf:
-                        os.unlink(tmp_pdf.name)
-                    raise ValueError(f"PDF decryption failed: {e.stderr.decode('utf-8', errors='replace')}")
-                except Exception as e:
-                    if tmp_pdf:
-                        os.unlink(tmp_pdf.name)
-                    raise ValueError(f"PDF decryption failed: {e}")
-
-            # 2. Extract text with mutool
-            try:
-                result = subprocess.run(
-                    ["mutool", "draw", "-F", "text", pdf_path],
-                    capture_output=True, check=True, timeout=60
-                )
-                text = result.stdout.decode("utf-8", errors="replace")
-                lines = text.split("\n")
-            except subprocess.CalledProcessError as e:
-                if tmp_pdf:
-                    os.unlink(pdf_path)
-                raise ValueError(f"Text extraction failed: {e.stderr.decode('utf-8', errors='replace')}")
-            except Exception as e:
-                if tmp_pdf:
-                    os.unlink(pdf_path)
-                raise ValueError(f"Text extraction failed: {e}")
-            finally:
-                # Clean up temp PDF
-                if tmp_pdf and os.path.exists(pdf_path):
-                    os.unlink(pdf_path)
-
-            # 3. Parse DFZQ text
-            return parse_dfzq_text(lines)
+            # Secure PDF path: password-file via pdf_tools (no subprocess in application).
+            with tempfile.TemporaryDirectory(prefix="ft-dfzq-") as temp_dir:
+                pdf_path = Path(temp_dir) / "statement.pdf"
+                if password:
+                    decrypt_pdf(source_path, pdf_path, password)
+                    extract_path = pdf_path
+                else:
+                    extract_path = source_path
+                text = extract_pdf_text(extract_path)
+            return parse_dfzq_text(text.splitlines())
 
         if source == "ibkr":
             from ft.importers.ibkr import parse_ibkr_csv
@@ -288,6 +272,18 @@ class InvestmentImportService:
             for row in rows:
                 row["_schwab_ending_cash"] = str(statement.ending_cash)
             return rows
+
+        if source in {"usmart-hk", "usmart_hk"}:
+            from ft.importers.usmart_hk import parse_usmart_hk_text
+            from ft.importers.pdf_tools import decrypt_pdf, extract_pdf_text
+            import tempfile
+
+            if source_path.suffix.lower() in {".txt", ".text"}:
+                return parse_usmart_hk_text(source_path.read_text(encoding="utf-8", errors="replace"))
+            with tempfile.TemporaryDirectory(prefix="ft-usmart-hk-") as temp_dir:
+                decrypted = Path(temp_dir) / "statement.pdf"
+                decrypt_pdf(source_path, decrypted, password)
+                return parse_usmart_hk_text(extract_pdf_text(decrypted))
 
         raise ValueError(f"Unsupported source: {source}")
 
@@ -318,6 +314,7 @@ class InvestmentImportService:
         file_path: Path,
         file_content: bytes,
         source: str = "dfzq",
+        base_tickers=None,
     ) -> int:
         """Import transactions: create raw_records and events."""
         import hashlib
@@ -343,6 +340,13 @@ class InvestmentImportService:
             )
             source_type = "dfzq_pdf"
             media_type = "text/plain"
+        elif source in {"usmart-hk", "usmart_hk"}:
+            from ft.importers.usmart_hk import (
+                construct_source_identity,
+                map_usmart_hk_to_investment_event as map_to_event,
+            )
+            source_type = "usmart_hk_pdf"
+            media_type = "application/pdf" if file_path.suffix.lower() == ".pdf" else "text/plain"
         else:
             raise ValueError(f"Unsupported investment source for import: {source}")
 
@@ -393,7 +397,9 @@ class InvestmentImportService:
             if raw_record_id in existing_targets:
                 continue
             event = map_to_event(txn, account_name, currency)
-            apply_investment_event(snapshot, event, default_currency=currency)
+            apply_investment_event(
+                snapshot, event, default_currency=currency, base_tickers=base_tickers,
+            )
             event["raw_record_id"] = raw_record_id
             uow.investments.add(account_type, event)
             count += 1

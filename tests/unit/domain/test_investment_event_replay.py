@@ -8,6 +8,31 @@ from decimal import Decimal
 from ft.domain.investment_projection import apply_investment_event
 
 
+def test_cash_to_cash_swap_keeps_each_fiat_pocket_in_its_native_cost_currency():
+    snapshot = {"accounts": {"security": {"盈立证券": {"currency": "USD", "positions": {}}}}}
+    apply_investment_event(snapshot, {
+        "date": "2026-06-01", "action": "deposit", "account_name": "盈立证券",
+        "currency": "HKD", "to_ticker": "hkd", "to_amount": "5181.74",
+    }, default_currency="USD")
+    apply_investment_event(snapshot, {
+        "date": "2026-06-16", "action": "swap", "account_name": "盈立证券",
+        "currency": "HKD", "from_ticker": "hkd", "from_amount": "3161.18",
+        "to_ticker": "usd", "to_amount": "402.32", "commission": "0",
+    }, default_currency="USD")
+    apply_investment_event(snapshot, {
+        "date": "2026-06-17", "action": "deposit", "account_name": "盈立证券",
+        "currency": "USD", "to_ticker": "usd", "to_amount": "10",
+    }, default_currency="USD")
+
+    positions = snapshot["accounts"]["security"]["盈立证券"]["positions"]
+    assert Decimal(positions["hkd"]["shares"]) == Decimal("2020.56")
+    assert Decimal(positions["hkd"]["total_cost"]) == Decimal("2020.56")
+    assert positions["hkd"]["cost_currency"] == "HKD"
+    assert Decimal(positions["usd"]["shares"]) == Decimal("412.32")
+    assert Decimal(positions["usd"]["total_cost"]) == Decimal("412.32")
+    assert positions["usd"]["cost_currency"] == "USD"
+
+
 def test_swap_buy_cash_to_ticker():
     """SWAP from cash to ticker (buy) should increase position and decrease cash."""
     snapshot = {

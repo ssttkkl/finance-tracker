@@ -87,7 +87,12 @@ def test_investment_projection_deducts_commission_from_cash_settlement_and_rejec
         }, default_currency="USD")
 
 
-def test_investment_projection_rejects_short_positions_and_numeric_overflow():
+def test_investment_projection_soft_start_oversell_and_numeric_overflow():
+    """Soft-start oversell is intentional for partial statement history (009/import).
+
+    Selling more equity than held must not abort; CHECKIN realigns later.
+    NUMERIC(38,18) overflow still fail-closed.
+    """
     from ft.domain.investment_projection import apply_investment_event
 
     snapshot = {"accounts": {"security": {"IBKR": {
@@ -95,12 +100,14 @@ def test_investment_projection_rejects_short_positions_and_numeric_overflow():
             "aapl": {"shares": "1", "total_cost": "10", "cost_currency": "USD"},
         },
     }}}}
-    with pytest.raises(ValueError, match="insufficient aapl position"):
-        apply_investment_event(snapshot, {
-            "date": "2026-07-17", "action": "swap", "currency": "USD", "account_name": "IBKR",
-            "from_ticker": "aapl", "to_ticker": "usd", "from_amount": "2", "to_amount": "40",
-            "commission": "0", "commission_asset": "",
-        }, default_currency="USD")
+    apply_investment_event(snapshot, {
+        "date": "2026-07-17", "action": "swap", "currency": "USD", "account_name": "IBKR",
+        "from_ticker": "aapl", "to_ticker": "usd", "from_amount": "2", "to_amount": "40",
+        "commission": "0", "commission_asset": "",
+    }, default_currency="USD")
+    pos = snapshot["accounts"]["security"]["IBKR"]["positions"]
+    assert Decimal(pos["aapl"]["shares"]) == Decimal("-1")
+    assert Decimal(pos["usd"]["shares"]) == Decimal("40")
 
     with pytest.raises(ValueError, match=r"NUMERIC\(38,18\)"):
         apply_investment_event({"accounts": {}}, {
@@ -277,17 +284,17 @@ def test_postgres_investment_commands_write_events_and_projection_atomically():
         snapshot = uow.snapshot.load()
         positions = snapshot["accounts"]["security"]["IBKR"]["positions"]
         assert positions["usd"]["shares"] == "8.75"
-        assert positions["aapl.us"] == {
-            "shares": "2", "total_cost": "16", "cost_currency": "USD",
-        }
-        assert positions["msft.us"] == {
-            "shares": "2", "total_cost": "8", "cost_currency": "USD",
-        }
+        assert positions["aapl.us"]["shares"] == "2"
+        assert Decimal(positions["aapl.us"]["total_cost"]) == Decimal("16")
+        assert positions["aapl.us"]["cost_currency"] == "USD"
+        assert positions["msft.us"]["shares"] == "2"
+        assert Decimal(positions["msft.us"]["total_cost"]) == Decimal("8")
+        assert positions["msft.us"]["cost_currency"] == "USD"
         uow.commit()
 
 
 @pytest.mark.parametrize("action", ["sell", "swap"])
-def test_computed_investment_projection_scale_over_18_rolls_back_atomically(action):
+def test_computed_investment_projection_released_cost_quantized_to_18dp(action):
     from ft.adapters.relational.investments import RelationalInvestmentCommandRepository
     from ft.application.investment import InvestmentService
     from test_postgres_adapter import _database
@@ -313,16 +320,17 @@ def test_computed_investment_projection_scale_over_18_rolls_back_atomically(acti
     service = InvestmentService(
         repository=RelationalInvestmentCommandRepository(unit_of_work(sessions, "workspace-a"))
     )
-    with pytest.raises(ValueError, match="at most 18 decimal places"):
-        if action == "sell":
-            service.sell("AAPL.US", "1", "1", "0", "USD", "IBKR")
-        else:
-            service.swap("IBKR", "AAPL.US", "1", "MSFT.US", "1", "USD")
+    # Released cost uses _div quantized to 18dp (soft import path); must not raise
+    # and must not leave unquantized scale > 18.
+    if action == "sell":
+        assert service.sell("AAPL.US", "1", "1", "0", "USD", "IBKR").ok
+    else:
+        assert service.swap("IBKR", "AAPL.US", "1", "MSFT.US", "1", "USD").ok
 
     with unit_of_work(sessions, "workspace-a") as uow:
-        assert uow.investments.list() == []
+        assert len(uow.investments.list()) == 1
         positions = uow.snapshot.load()["accounts"]["security"]["IBKR"]["positions"]
-        assert positions == {
-            "aapl.us": {"shares": "3", "total_cost": "1", "cost_currency": "USD"},
-        }
+        remaining = Decimal(positions["aapl.us"]["total_cost"])
+        # 1 - 1/3 = 2/3 → at most 18 fractional digits after quantize
+        assert abs(remaining.as_tuple().exponent) <= 18 or remaining.as_tuple().exponent >= 0
         uow.commit()

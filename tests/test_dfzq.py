@@ -65,7 +65,7 @@ class TestParseDfzqText:
         assert r["name"] == "平安银行"
         assert r["shares"] == 1000.0
         assert r["price"] == 11.50
-        assert r["amount"] == -11500.0
+        assert r["amount"] == Decimal("-11505.00")
         assert r["fee"] == 5.0
         assert r["stamp_tax"] == Decimal("1.15")
         assert r["transfer_fee"] == Decimal("0.50")
@@ -90,7 +90,7 @@ class TestParseDfzqText:
         assert r["name"] == "贵州茅台"
         assert r["shares"] == 100.0
         assert r["price"] == 1500.0
-        assert r["amount"] == 150000.0
+        assert r["amount"] == Decimal("149970.00")
 
     def test_deposit(self):
         """银行转证券 → DEPOSIT"""
@@ -271,7 +271,7 @@ class TestParseDfzqText:
         assert records[-1]["amount"] == 50000.0
 
     def test_amount_formula_buy(self):
-        """买入：amount = total_amount + fee = -shares * price"""
+        """买入：amount = 总发生金额（净额）；手续费仅审计字段，map 阶段 peel。"""
         lines = [
             "资金流水明细(2024/07/01-2026/06/13)",
             *_trade_lines("20240701", "证券买入", "000001", "平安银行",
@@ -280,11 +280,14 @@ class TestParseDfzqText:
         ]
         records = parse_dfzq_text(lines)
         r = records[0]
-        assert r["amount"] == -11500.0
-        assert r["amount"] == -(r["shares"] * r["price"])
+        assert r["amount"] == Decimal("-11505.00")
+        assert r["amount"] == r["total_amount"]
+        assert r["fee"] == Decimal("5.00")
+        # net is not pure shares*price when statement net embeds fees
+        assert abs(r["amount"]) != r["shares"] * r["price"]
 
     def test_amount_formula_sell(self):
-        """卖出：amount = total_amount + fee = shares * price"""
+        """卖出：amount = 总发生金额（净额）；不与 shares*price 强等。"""
         lines = [
             "资金流水明细(2024/07/01-2026/06/13)",
             *_trade_lines("20240702", "证券卖出", "600519", "贵州茅台",
@@ -293,5 +296,6 @@ class TestParseDfzqText:
         ]
         records = parse_dfzq_text(lines)
         r = records[0]
-        assert r["amount"] == 150000.0
-        assert r["amount"] == r["shares"] * r["price"]
+        assert r["amount"] == Decimal("149970.00")
+        assert r["amount"] == r["total_amount"]
+        assert r["fee"] == Decimal("30.00")

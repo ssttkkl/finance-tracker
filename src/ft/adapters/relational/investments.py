@@ -2,8 +2,16 @@
 from __future__ import annotations
 
 from ft.domain.application import OperationResult
-from ft.domain.investment_projection import apply_investment_command
+from ft.domain.investment_projection import apply_investment_command, normalize_base_tickers
 from ft.domain.investment_validation import validate_investment_snapshot
+
+
+def _base_tickers_for_account(uow, account_name: str):
+    """Load account metadata.base_currencies for projection."""
+    for row in uow.accounts.list_raw():
+        if row.get("name") == account_name:
+            return normalize_base_tickers(row.get("base_currencies"))
+    return normalize_base_tickers(None)
 
 
 class RelationalInvestmentCommandRepository:
@@ -21,8 +29,10 @@ class RelationalInvestmentCommandRepository:
                 return OperationResult(ok=False, message="investment command requires an investment account")
             try:
                 snapshot = uow.snapshot.load(lock=True)
+                bases = _base_tickers_for_account(uow, command.account)
                 row = apply_investment_command(
-                    snapshot, command, account_type=account.type, default_currency=command.currency
+                    snapshot, command, account_type=account.type,
+                    default_currency=command.currency, base_tickers=bases,
                 )
                 validate_investment_snapshot(snapshot)
                 uow.investments.add(account.type, row)

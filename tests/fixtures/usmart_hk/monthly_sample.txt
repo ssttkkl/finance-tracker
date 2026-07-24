@@ -1,0 +1,821 @@
+                                                    ⾹港證監會中央編號SFC CE NO.BJA907
+                                                    地址： ***
+                                                    電話：+852 3018 4526 傳真：+852 2501 0355
+盈⽴證券有限公司 uSmart Securities Limited                  郵箱：cs@usmarthk.com 網址：www.usmartsecurities.com
+
+
+
+
+                                                    ⽉结单
+客户姓名： ***                                                             开⼾⽇期： 2025-09-24
+
+地址： ***
+
+结单⽇期： 2026-06
+
+印单⽇期： 2026-07-11 13:30:59
+
+
+市场/币种               港股/HKD           市场/币种                  美股/USD         市场/币种          A股通/CNY
+
+账⼾类型               保证⾦账⼾             账⼾类型                  保证⾦账⼾           账⼾类型                     --
+
+账⼾号码                80000000         账⼾号码                   80000000       账⼾号码                     --
+
+期初净资产               42,720.53        期初净资产                  39,944.48      期初净资产                    --
+
+期初证券市值              42,720.00        期初证券市值                 27,148.43      期初证券市值                   --
+
+期初账⼾结余                    0.53       期初账⼾结余                 12,796.05      期初账⼾结余                   --
+
+期末净资产               45,001.09        期末净资产                   6,498.14      期末净资产                    --
+
+期末证券市值              42,980.00        期末证券市值                  1,747.97      期末证券市值                   --
+
+期末账⼾结余               2,021.09        期末账⼾结余                  4,750.17      期末账⼾结余                   --
+
+待交收⾦额                     0.00       待交收⾦额                         0.00    待交收⾦额                    --
+
+期末抵押市值              30,086.00        期末抵押市值                    662.38      期末抵押市值                   --
+
+期末负债⾦额                        --     期末负债⾦额                          --    期末负债⾦额                   --
+
+
+
+
+     交易明细
+
+证券/编号        市场    买/卖    数量        币种     价格          ⾦额          成交时间            是否强平         交收⽇期
+
+
+MRVL (迈威
+            美股    买⼊     10        USD   199.0400       1,990.40    2026-06-01      否         2026-06-02
+尔科技)
+
+                                                                                          1
+                                                        ⾹港證監會中央編號SFC CE NO.BJA907
+                                                        地址： ***
+                                                        電話：+852 3018 4526 傳真：+852 2501 0355
+盈⽴證券有限公司 uSmart Securities Limited                      郵箱：cs@usmarthk.com 網址：www.usmartsecurities.com
+
+
+
+                 交收费                  0.03                                     交易费⽤合计               0.04
+
+20260601         证监会规费                0.00                                     佣⾦                   1.00
+
+                 交易活动费                0.00                                     平台费                  2.88
+
+                 综合审计追踪费              0.01                                     交易⾦额                 1,990.40
+
+                                                                               变动⾦额合计               -1,994.32
+
+
+DELL (戴尔科
+                美股    卖出    7        USD     462.4350       3,237.04    2026-06-01      否         2026-06-02
+技)
+
+
+                美股    卖出    1        USD     462.3600       462.36      2026-06-01      否         2026-06-02
+
+                 交收费                  0.02                                     交易费⽤合计               0.12
+
+20260601         证监会规费                0.08                                     佣⾦                   1.00
+
+                 交易活动费                0.01                                     平台费                  2.88
+
+                 综合审计追踪费              0.01                                     交易⾦额                 3,699.41
+
+                                                                               变动⾦额合计               3,695.41
+
+
+SATS (回声星
+                美股    买⼊    12       USD     128.3300       1,539.96    2026-06-01      否         2026-06-02
+通信)
+
+
+                美股    买⼊    1        USD     128.3300       128.33      2026-06-01      否         2026-06-02
+
+
+                美股    买⼊    7        USD     128.3300       898.31      2026-06-01      否         2026-06-02
+
+                 交收费                  0.06                                     交易费⽤合计               0.07
+
+20260601         证监会规费                0.00                                     佣⾦                   1.00
+
+                 交易活动费                0.00                                     平台费                  2.88
+
+                 综合审计追踪费              0.01                                     交易⾦额                 2,566.60
+
+                                                                               变动⾦额合计               -2,570.55
+
+
+NVDA (英伟
+                美股    买⼊    7        USD     215.9400       1,511.58    2026-06-01      否         2026-06-02
+达)
+
+
+                美股    买⼊    3        USD     215.9400       647.82      2026-06-01      否         2026-06-02
+
+                 交收费                  0.03                                     交易费⽤合计               0.04
+
+2026060119506    证监会规费                0.00                                     佣⾦                   1.00
+
+                 交易活动费                0.00                                     平台费                  2.88
+
+                 综合审计追踪费              0.01                                     交易⾦额                 2,159.40
+
+                                                                               变动⾦额合计               -2,163.32
+
+
+NOW
+                 美股    买⼊       13    USD      129.2600      1,680.38    2026-06-02     否         2026-06-03
+(ServiceNow)
+
+                 交收费                  0.04                                     交易费⽤合计               0.05
+
+                                                                                              2
+                                                        ⾹港證監會中央編號SFC CE NO.BJA907
+                                                        地址： ***
+                                                        電話：+852 3018 4526 傳真：+852 2501 0355
+盈⽴證券有限公司 uSmart Securities Limited                      郵箱：cs@usmarthk.com 網址：www.usmartsecurities.com
+
+
+
+20260602         证监会规费                0.00                                     佣⾦                   1.00
+
+                 交易活动费                0.00                                     平台费                  2.88
+
+                 综合审计追踪费              0.01                                     交易⾦额                 1,680.38
+
+                                                                               变动⾦额合计               -1,684.31
+
+
+MRVL (迈威
+                美股    卖出    4        USD     297.3700       1,189.48    2026-06-03      否         2026-06-04
+尔科技)
+
+                 交收费                  0.01                                     交易费⽤合计               0.05
+
+20260603         证监会规费                0.02                                     佣⾦                   1.00
+
+                 交易活动费                0.01                                     平台费                  2.88
+
+                 综合审计追踪费              0.01                                     交易⾦额                 1,189.48
+
+                                                                               变动⾦额合计               1,185.55
+
+
+MRVL (迈威尔
+                美股    卖出    3        USD     281.8350       845.50      2026-06-04      否         2026-06-05
+科技)
+
+                 交收费                  0.01                                     交易费⽤合计               0.05
+
+20260604         证监会规费                0.02                                     佣⾦                   1.00
+
+                 交易活动费                0.01                                     平台费                  2.88
+
+                 综合审计追踪费              0.01                                     交易⾦额                 845.51
+
+                                                                               变动⾦额合计               841.58
+
+
+GOOG (⾕歌-
+                美股    卖出    14       USD     362.0400       5,068.56    2026-06-04      否         2026-06-05
+C)
+
+                 交收费                  0.04                                     交易费⽤合计               0.16
+
+2026060453472    证监会规费                0.10                                     佣⾦                   1.00
+
+                 交易活动费                0.01                                     平台费                  2.88
+
+                 综合审计追踪费              0.01                                     交易⾦额                 5,068.56
+
+                                                                               变动⾦额合计               5,064.52
+
+
+SMH (半导体
+指数ETF-          美股    卖出    6        USD     599.1500       3,594.90    2026-06-05      否         2026-06-08
+VanEck)
+
+
+                美股    卖出    2        USD     599.1500       1,198.30    2026-06-05      否         2026-06-08
+
+                 交收费                  0.02                                     交易费⽤合计               0.14
+
+2026060563009    证监会规费                0.10                                     佣⾦                   1.00
+
+                 交易活动费                0.01                                     平台费                  2.88
+
+                 综合审计追踪费              0.01                                     交易⾦额                 4,793.20
+
+                                                                               变动⾦额合计               4,789.18
+
+
+NOW              美股    卖出       13    USD      116.2000      1,510.60    2026-06-05     否         2026-06-08
+                                                                                              3
+                                                      ⾹港證監會中央編號SFC CE NO.BJA907
+                                                      地址： ***
+                                                      電話：+852 3018 4526 傳真：+852 2501 0355
+盈⽴證券有限公司 uSmart Securities Limited                    郵箱：cs@usmarthk.com 網址：www.usmartsecurities.com
+
+
+
+
+(ServiceNow)
+
+                 交收费                0.04                                    交易费⽤合计                0.10
+
+20260605         证监会规费              0.04                                    佣⾦                    1.00
+
+                 交易活动费              0.01                                    平台费                   2.88
+
+                 综合审计追踪费            0.01                                    交易⾦额                  1,510.60
+
+                                                                            变动⾦额合计                1,506.62
+
+
+NVDA (英伟
+                美股   买⼊   15       USD     206.7886       3,101.83    2026-06-08     否          2026-06-09
+达)
+
+                 交收费                0.05                                    交易费⽤合计                0.06
+
+2026060856434    证监会规费              0.00                                    佣⾦                    1.00
+
+                 交易活动费              0.00                                    平台费                   2.88
+
+                 综合审计追踪费            0.01                                    交易⾦额                  3,101.83
+
+                                                                            变动⾦额合计                -3,105.77
+
+
+GLD (⻩⾦
+                美股   卖出   9        USD     398.4900       3,586.41    2026-06-08     否          2026-06-09
+ETF-SPDR)
+
+                 交收费                0.03                                    交易费⽤合计                0.12
+
+202606084938     证监会规费              0.07                                    佣⾦                    1.00
+
+                 交易活动费              0.01                                    平台费                   2.88
+
+                 综合审计追踪费            0.01                                    交易⾦额                  3,586.41
+
+                                                                            变动⾦额合计                3,582.41
+
+
+TQQQ (三倍做
+多纳斯达克指
+                美股   买⼊       50    USD     70.0000        3,500.00   2026-06-09      否         2026-06-10
+数ETF-
+ProShares)
+
+                 交收费                0.15                                    交易费⽤合计                0.16
+
+2026060983278    证监会规费              0.00                                    佣⾦                    1.00
+
+                 交易活动费              0.00                                    平台费                   2.88
+
+                 综合审计追踪费            0.01                                    交易⾦额                  3,500.00
+
+                                                                            变动⾦额合计                -3,504.04
+
+
+SGOV
+(iShares 0-3⽉   美股   买⼊   5        USD     100.4690       502.34      2026-06-09     否          2026-06-10
+美国公债ETF)
+
+
+                美股   买⼊   34       USD     100.4690       3,415.95    2026-06-09     否          2026-06-10
+
+                 交收费                0.12                                    交易费⽤合计                0.13
+
+2026060926805    证监会规费              0.00                                    佣⾦                    1.00
+                                                                                            4
+                                                   ⾹港證監會中央編號SFC CE NO.BJA907
+                                                   地址： ***
+                                                   電話：+852 3018 4526 傳真：+852 2501 0355
+盈⽴證券有限公司 uSmart Securities Limited                 郵箱：cs@usmarthk.com 網址：www.usmartsecurities.com
+
+
+
+                 交易活动费           0.00                                    平台费                   2.88
+
+                 综合审计追踪费         0.01                                    交易⾦额                  3,918.30
+
+                                                                         变动⾦额合计                -3,922.31
+
+
+SATS (回声星
+                美股   卖出   30    USD     115.3700       3,461.10    2026-06-09     否          2026-06-10
+通信)
+
+                 交收费             0.09                                    交易费⽤合计                0.19
+
+20260609         证监会规费           0.08                                    佣⾦                    1.00
+
+                 交易活动费           0.01                                    平台费                   2.88
+
+                 综合审计追踪费         0.01                                    交易⾦额                  3,461.10
+
+                                                                         变动⾦额合计                3,457.03
+
+
+TQQQ (三倍做
+多纳斯达克指
+                美股   卖出    50    USD     70.8900        3,544.50   2026-06-10      否         2026-06-11
+数ETF-
+ProShares)
+
+                 交收费             0.15                                    交易费⽤合计                0.25
+
+2026061012728    证监会规费           0.08                                    佣⾦                    1.00
+
+                 交易活动费           0.01                                    平台费                   2.88
+
+                 综合审计追踪费         0.01                                    交易⾦额                  3,544.50
+
+                                                                         变动⾦额合计                3,540.37
+
+
+SPCX
+                美股   买⼊   30    USD     150.0000       4,500.00    2026-06-12      否         2026-06-15
+(SpaceX)
+
+                 交收费             0.09                                    交易费⽤合计                0.10
+
+20260612         证监会规费           0.00                                    佣⾦                    1.00
+
+                 交易活动费           0.00                                    平台费                   2.88
+
+                 综合审计追踪费         0.01                                    交易⾦额                  4,500.00
+
+                                                                         变动⾦额合计                -4,503.98
+
+
+SGOV
+(iShares 0-3⽉   美股   卖出   39    USD     100.5300       3,920.67    2026-06-15     否          2026-06-16
+美国公债ETF)
+
+                 交收费             0.12                                    交易费⽤合计                0.23
+
+202606158652     证监会规费           0.09                                    佣⾦                    1.00
+
+                 交易活动费           0.01                                    平台费                   2.88
+
+                 综合审计追踪费         0.01                                    交易⾦额                  3,920.67
+
+                                                                         变动⾦额合计                3,916.56
+
+
+NVDA (英伟        美股   卖出   20    USD     211.3300       4,226.60    2026-06-16     否          2026-06-17
+
+                                                                                         5
+                                                 ⾹港證監會中央編號SFC CE NO.BJA907
+                                                 地址： ***
+                                                 電話：+852 3018 4526 傳真：+852 2501 0355
+盈⽴證券有限公司 uSmart Securities Limited               郵箱：cs@usmarthk.com 網址：www.usmartsecurities.com
+
+
+
+
+达)
+
+                交收费            0.06                                   交易费⽤合计                 0.17
+
+202606162658    证监会规费          0.09                                   佣⾦                     1.00
+
+                交易活动费          0.01                                   平台费                    2.88
+
+                综合审计追踪费        0.01                                   交易⾦额                   4,226.60
+
+                                                                      变动⾦额合计                 4,222.55
+
+
+SPCX
+               美股   卖出   7    USD     211.0000       1,477.00   2026-06-16      否          2026-06-17
+(SpaceX)
+
+
+               美股   卖出   3    USD     211.0000       633.00     2026-06-16      否          2026-06-17
+
+                交收费            0.03                                   交易费⽤合计                 0.10
+
+20260616        证监会规费          0.05                                   佣⾦                     1.00
+
+                交易活动费          0.01                                   平台费                    2.88
+
+                综合审计追踪费        0.01                                   交易⾦额                   2,110.00
+
+                                                                      变动⾦额合计                 2,106.02
+
+
+SPCX
+               美股   卖出   15   USD     215.0000       3,225.00   2026-06-16       否         2026-06-17
+(SpaceX)
+
+                交收费            0.05                                   交易费⽤合计                 0.14
+
+20260616        证监会规费          0.07                                   佣⾦                     1.00
+
+                交易活动费          0.01                                   平台费                    2.88
+
+                综合审计追踪费        0.01                                   交易⾦额                   3,225.00
+
+                                                                      变动⾦额合计                 3,220.98
+
+
+SPCX
+               美股   买⼊   10   USD     207.5500       2,075.50   2026-06-16       否         2026-06-17
+(SpaceX)
+
+                交收费            0.03                                   交易费⽤合计                 0.04
+
+20260616        证监会规费          0.00                                   佣⾦                     1.00
+
+                交易活动费          0.00                                   平台费                    2.88
+
+                综合审计追踪费        0.01                                   交易⾦额                   2,075.50
+
+                                                                      变动⾦额合计                 -2,079.42
+
+
+SPCX
+               美股   卖出   10   USD     178.5000       1,785.00   2026-06-22       否         2026-06-23
+(SpaceX)
+
+                交收费            0.03                                   交易费⽤合计                 0.09
+
+20260622        证监会规费          0.04                                   佣⾦                     1.00
+
+                交易活动费          0.01                                   平台费                    2.88
+
+                综合审计追踪费        0.01                                   交易⾦额                   1,785.00
+
+
+                                                                                       6
+                                                          ⾹港證監會中央編號SFC CE NO.BJA907
+                                                          地址： ***
+                                                          電話：+852 3018 4526 傳真：+852 2501 0355
+盈⽴證券有限公司 uSmart Securities Limited                        郵箱：cs@usmarthk.com 網址：www.usmartsecurities.com
+
+
+
+                                                                                    变动⾦额合计                 1,781.03
+
+
+NVDA (英伟
+                美股   卖出     25         USD     190.1700       4,754.25     2026-06-29          否         2026-06-30
+达)
+
+                 交收费                    0.08                                        交易费⽤合计                 0.20
+
+202606293847     证监会规费                  0.10                                        佣⾦                     1.00
+
+                 交易活动费                  0.01                                        平台费                    2.88
+
+                 综合审计追踪费                0.01                                        交易⾦额                   4,754.25
+
+                                                                                    变动⾦额合计                 4,750.17
+
+币种                   HKD                币种                      USD                 币种              CNY
+
+交易费⽤汇总               0.00               交易费⽤汇总                  2.80                交易费⽤汇总          0.00
+
+佣⾦汇总                 0.00               佣⾦汇总                    24.00               佣⾦汇总            0.00
+
+平台费汇总                0.00               平台费汇总                   69.12               平台费汇总           0.00
+
+总买⼊⾦额                0.00               总买⼊⾦额                   25,492.41           总买⼊⾦额           0.00
+
+总卖出⾦额                0.00               总卖出⾦额                   47,720.29           总卖出⾦额           0.00
+
+变动⾦额总计               0.00               变动⾦额总计                  22,131.96           变动⾦额总计          0.00
+
+
+
+
+      持仓明细
+
+证券                     币种        持有数量          未交收数量          收市价          市值              抵押⽐率            抵押市值
+
+
+00700 (腾讯控股)           HKD       100           0              429.800      42,980.00       70.0%    30,086.00
+
+
+MRVL (迈威尔科技)           USD       3             0              297.890      893.67          55.00%   491.52
+
+
+SPCX (SpaceX)          USD       5             0              170.860      854.30          20.0%    170.86
+
+币种                   HKD                币种                      USD                 币种              CNY
+
+市值汇总                 42,980.00          市值汇总                    1,747.97            市值汇总            0.00
+
+抵押市值汇总               30,086.00          抵押市值汇总                  662.38              抵押市值汇总          0.00
+
+
+
+
+                                                                                                     7
+                                              ⾹港證監會中央編號SFC CE NO.BJA907
+                                              地址： ***
+                                              電話：+852 3018 4526 傳真：+852 2501 0355
+盈⽴證券有限公司 uSmart Securities Limited            郵箱：cs@usmarthk.com 網址：www.usmartsecurities.com
+
+
+
+
+      资⾦出⼊
+
+业务标志               币种                ⾦额                     交易时间               备注
+
+
+IPO认购退款            HKD               5,181.74               2026-06-01         IPO Refund
+
+
+换汇                 HKD               -3,161.18              2026-06-16         Currency Exchange
+
+
+卖股票                USD               3,699.41               2026-06-01
+
+
+卖股票⼿續費             USD               -4.00                  2026-06-01
+
+
+买股票⼿续费             USD               -3.95                  2026-06-01
+
+
+买股票                USD               -1,990.40              2026-06-01
+
+
+买股票                USD               -2,566.60              2026-06-01
+
+
+买股票⼿续费             USD               -3.92                  2026-06-01
+
+
+买⼊股票               USD               -2,163.32              2026-06-01
+
+
+出⾦                 USD               -8,000.00              2026-06-01
+
+
+买股票⼿续费             USD               -3.93                  2026-06-02
+
+
+买股票                USD               -1,680.38              2026-06-02
+
+
+卖股票⼿續費             USD               -3.93                  2026-06-03
+
+
+卖股票                USD               1,189.48               2026-06-03
+
+
+卖股票                USD               845.51                 2026-06-04
+
+
+卖股票⼿續費             USD               -3.93                  2026-06-04
+
+
+卖出股票               USD               5,064.52               2026-06-04
+
+
+卖股票                USD               1,510.60               2026-06-05
+
+
+卖股票⼿續費             USD               -3.98                  2026-06-05
+
+
+卖出股票               USD               4,789.18               2026-06-05
+
+                                                                                      8
+                                              ⾹港證監會中央編號SFC CE NO.BJA907
+                                              地址： ***
+                                              電話：+852 3018 4526 傳真：+852 2501 0355
+盈⽴證券有限公司 uSmart Securities Limited            郵箱：cs@usmarthk.com 網址：www.usmartsecurities.com
+
+
+
+
+出⾦                 USD               -6,329.00              2026-06-05
+
+
+卖出股票               USD               3,582.41               2026-06-08
+
+
+买⼊股票               USD               -3,105.77              2026-06-08
+
+
+卖股票                USD               3,461.10               2026-06-09
+
+
+卖股票⼿續費             USD               -4.07                  2026-06-09
+
+
+买⼊股票               USD               -3,922.31              2026-06-09
+
+
+买⼊股票               USD               -3,504.04              2026-06-09
+
+
+卖出股票               USD               3,540.37               2026-06-10
+
+
+出⾦                 USD               -7,000.00              2026-06-11
+
+
+买股票                USD               -4,500.00              2026-06-12
+
+
+买股票⼿续费             USD               -3.98                  2026-06-12
+
+
+卖出股票               USD               3,916.56               2026-06-15
+
+
+换汇                 USD               402.32                 2026-06-15
+
+卖股票                USD               2,110.00               2026-06-16
+
+
+卖股票⼿續費             USD               -3.98                  2026-06-16
+
+买股票                USD               -2,075.50              2026-06-16
+
+
+买股票⼿续费             USD               -3.92                  2026-06-16
+
+
+卖股票                USD               3,225.00               2026-06-16
+
+
+卖股票⼿續費             USD               -4.02                  2026-06-16
+
+
+卖出股票               USD               4,222.55               2026-06-16
+
+
+出⾦                 USD               -7,469.35              2026-06-19
+
+
+卖股票                USD               1,785.00               2026-06-22
+
+
+卖股票⼿續費             USD               -3.97                  2026-06-22
+
+                                                                                    9
+                                                             ⾹港證監會中央編號SFC CE NO.BJA907
+                                                             地址： ***
+                                                             電話：+852 3018 4526 傳真：+852 2501 0355
+ 盈⽴證券有限公司 uSmart Securities Limited                          郵箱：cs@usmarthk.com 網址：www.usmartsecurities.com
+
+
+
+
+  转⼊到⽇内融账⼾                 USD                       -1,781.03                  2026-06-25
+
+
+  卖出股票                     USD                       4,750.17                   2026-06-29
+
+
+  融资利息                     USD                       -0.78                      2026-06-29
+
+  币种                      HKD              币种                       USD               币种                       CNY
+
+  变动⾦额汇总                  2,020.56         变动⾦额汇总                   -8,045.88         变动⾦额汇总                   0.00
+
+
+
+         证券提存
+
+  业务类型                     证券                       数量                        时间                       备注
+
+
+                                                             暂⽆数据
+
+
+
+
+         融资利息
+
+  币种                                              利率/年化                                      本⽉累计利息
+
+
+  HKD                                             7.63%                                      0.00
+
+
+  USD                                             6.63%                                      0.78
+
+
+
+
+         重要提⽰
+1.The client acknowledges that the price of securities can and does fluctuate, and that any individual security may
+experience downward movements, and may under some circumstances even become valueless. The Client appreciates
+therefore that there is an inherent risk that losses may be incurred rather than profit made, as a result of buying and selling
+securities. That is a risk the client is prepared to accept.
+
+客戶知悉證券價格可能及肯定會波動，⽽任何個別證券的價格皆可能下跌，在某些情況下更可能變成毫無價值。客戶瞭解在證券
+買賣中固有之⾵險，即除可能獲利外，亦可能有損失。客戶願意承擔此⾵險。
+
+2.In the event that the broker commits a default as defined in the Securities and Futures Ordinance and the client thereby
+suffer a pecuniary loss, the client understands that the client’s right to claim under the compensation Fund established
+under the Securities and Futures Ordinance will be restricted to the extend provided for therein.
+
+若經紀未能履⾏「證券及期貨條例」所規定之責任，以致客戶蒙受⾦錢上之損失，客戶明⽩根據「證券及期貨條例」⽽成⽴之賠
+償基⾦，客戶之索償權利僅限於該條例所規定之範圍。
+
+
+                                                                                                               10
+                                                          ⾹港證監會中央編號SFC CE NO.BJA907
+                                                          地址： ***
+                                                          電話：+852 3018 4526 傳真：+852 2501 0355
+ 盈⽴證券有限公司 uSmart Securities Limited                       郵箱：cs@usmarthk.com 網址：www.usmartsecurities.com
+
+
+
+
+3.Every transaction concluded through and recognized by The Stock Exchange of HK Ltd. is subject to transaction levy
+imposed by The Stock Exchange of HK Ltd. The broker is authorized to collect the appropriate transaction levy in
+accordance with the rule prescribed by The Stock Exchange of HK Ltd. from time to time. A copy of the latest rule on this
+aspect is available from The Stock Exchange of HK Ltd. on payment of the prescribed charges.
+
+投資者必須清楚所有經由⾹港聯合交易所有限公司成交及被承認之證券買賣均須按⾹港聯合交易所有限公司之規定繳納交易徵收
+費，⾹港聯合交易所有限公司已授權其所有會員代為收取是項費⽤，有關之徵費規則可向⾹港聯合交易所有限公司購閱。
+
+4.All transactions made for or on behalf of a client in Hong Kong shall be subject to the relevant provisions of the
+constitution, rules, regulations, by-laws, customs and usages of The Stock Exchange of HK Ltd., the CCASS Rules and of the
+laws of Hong Kong as amended from time to time, and shall be binding on both the member or Dealing Partnership and the
+client.
+
+所有替或代表⾹港客戶進⾏的交易須受到不時修訂之憲法、規定、附則、⾹港聯合交易所有限公司的慣例和⽤法、中央結算系統
+規則及⾹港法例有關條⽂的限制，且對會員或證券合夥商號及客戶均有約束⼒。
+
+5.uSmart Securities Limited (“The Company”) reserve the right to sell and/or liquidate all/or part of the client’s
+securities holdings with The Company without any notice, if the negative cash balance of the client’s account is greater
+than the margin value of the client’s account.
+
+當客戶所⽋款項⾼於客戶在公司戶⼝內之可按值(Margin Value)，本公司有權在無須通知客戶之情況下出售全部或部分客戶所持有
+的股票以作清還所有⽋款或債項。
+
+6.Client assets received or held by uSmart Securities Limited or its nominee(s) outside Hong Kong are subject to the
+applicable laws and regulations of the relevant overseas jurisdiction which may be different from the Securities and
+Futures Ordinance (Cap.571) and the rules made thereunder. Consequently, such client assets may not enjoy the same
+protection as that conferred on client assets received or held in Hong Kong.
+
+在⾹港以外地⽅收取或持有的資產，是受到有關海外司法轄區的法律及規例所監管的。這些法律及規例與《證券及期貨條例》(第
+571章)及根據該條例制訂的規則可能有所不同。因此，有關你的之資產將可能不會享有賦予在⾹港收取或持有你的資產的相同保
+障。
+
+7.Please notify our Customer Service Department at Telephone: 3018-4526 or by email: cs@usmarthk.com within 48 hours
+if this statement is incorrect. Otherwise this statement will be considered as correct.
+
+如客戶發現本結單內容有所不對，請於48⼩時內致電：3018-4526或電郵: cs@usmarthk.com 通知本公司。否則，本結單內容可
+被視為正確。
+
+8.This statement also serves as a receipt of client assets shown herein received by this Company.
+
+本結單亦可作為本公司接受客戶資產之收據。
+
+9.The Stamp Duty imprinted herein has been / will be paid through the Stock Exchange of Hong Kong Ltd. Where the
+consideration is in a foreign currency, the stamp duty paid/ to be paid will be based on the Hong Kong dollar equivalent of
+the consideration at the rate of the exchange prescribed by the Stamp Duty Ordinance (Cap 117).
+
+在此單據印上的印花稅款項，已經或將會透過⾹港聯合交易所有限公司繳付。如交易⾦額為外幣，印花稅將按交易⾦額以《印花
+稅條例》（第117章）訂明的匯率折算為港幣的⾦額計算。
+
+10.Settlement cycle of China Connect trades: Securities of the Settlement on T day and Cash of the Settlement on T+1 day.
+                                                                                                            11
+                                                            ⾹港證監會中央編號SFC CE NO.BJA907
+                                                            地址： ***
+                                                            電話：+852 3018 4526 傳真：+852 2501 0355
+ 盈⽴證券有限公司 uSmart Securities Limited                         郵箱：cs@usmarthk.com 網址：www.usmartsecurities.com
+
+
+
+
+結算及交收週期：北向交易將按照A股市場的交收週期。股票交收⽅⾯，股票將於交易⽇（T+0）記賬或扣賬，交易的款項交收將
+於交易⽇翌⽇（T+1）完成。
+
+11.No signature is required for this computer printout.
+
+此乃電腦編印，無需公司簽署。
+
+12.USL will act as the client's agent in effecting transactions unless otherwise specified.
+
+除⾮公司特別指明，否則本公司將以代理⼈名義進⾏交易。
+
+13.Please inform us immediately of any changes in your personal information.
+
+如閣下之個⼈資料如有任何變更，敬請⽴即通知本公司。
+
+
+
+
+                                                                                                  12
+

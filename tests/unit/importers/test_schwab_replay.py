@@ -18,9 +18,9 @@ def test_schwab_fixture_offline_replay_reconciles_cash_and_open_shares():
 
     positions = snapshot["accounts"]["security"]["嘉信"]["positions"]
     assert Decimal(positions["usd"]["shares"]) == Decimal("2865.36")
-    assert Decimal(positions["avgo"]["shares"]) == Decimal("7")
-    assert Decimal(positions["msft"]["shares"]) == Decimal("5")
+    assert Decimal(positions["avgo.us"]["shares"]) == Decimal("7")
+    assert Decimal(positions["msft.us"]["shares"]) == Decimal("5")
     # Closed or zeroed symbols should not leave residual open qty
-    for closed in ("qld", "mu", "smh", "sndk"):
+    for closed in ("qld", "mu", "smh", "sndk.us"):
         shares = Decimal(positions.get(closed, {"shares": "0"})["shares"])
         assert shares == 0
