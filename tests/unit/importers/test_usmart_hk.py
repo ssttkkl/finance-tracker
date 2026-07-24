@@ -87,7 +87,7 @@ def test_cash_flags_ignore_trade_mirrors_and_map_non_trade_rows():
     assert not any(row.get("flag") == "卖股票" for row in rows)
     refund = next(row for row in rows if row.get("flag") == "IPO认购退款")
     interest = next(row for row in rows if row.get("flag") == "融资利息")
-    assert map_usmart_hk_to_investment_event(refund, "盈立证券")["action"] == "deposit"
+    assert map_usmart_hk_to_investment_event(refund, "盈立证券")["action"] == "ipo"
     assert map_usmart_hk_to_investment_event(interest, "盈立证券")["action"] == "fee"
 
 
@@ -152,4 +152,18 @@ def test_tax_refund_maps_to_fee_not_deposit():
     assert ev["to_amount"] == "0.27"
     assert ev["from_amount"] == "0"
     ev2 = map_usmart_hk_to_investment_event(ipo, "盈立证券")
-    assert ev2["action"] == "deposit"
+    assert ev2["action"] == "ipo"
+    assert ev2["to_amount"] == "5181.74"
+    assert ev2["from_amount"] == "0"
+    debit = {
+        "kind": "cash", "date": "2026-05-29", "flag": "IPO认购扣款", "flag_norm": "IPO认购扣款",
+        "ccy": "HKD", "amount": Decimal("-5181.74"), "note": "IPO Debit",
+    }
+    fee = {
+        "kind": "cash", "date": "2026-05-29", "flag": "IPO认购手续费", "flag_norm": "IPO认购手续费",
+        "ccy": "HKD", "amount": Decimal("-100"), "note": "IPO Handling Fee",
+    }
+    ev3 = map_usmart_hk_to_investment_event(debit, "盈立证券")
+    assert ev3["action"] == "ipo"
+    assert ev3["from_amount"] == "5181.74"
+    assert map_usmart_hk_to_investment_event(fee, "盈立证券")["action"] == "fee"

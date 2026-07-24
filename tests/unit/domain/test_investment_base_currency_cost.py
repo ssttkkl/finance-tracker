@@ -175,3 +175,28 @@ def test_fee_refund_increases_cash():
     )
     pos = snap["accounts"]["security"]["A"]["positions"]
     assert Decimal(pos["usd"]["shares"]) == Decimal("10.27")
+
+
+def test_ipo_debit_and_refund_are_signed_cash_like_fee():
+    from ft.domain.investment_projection import apply_investment_event
+
+    snap = {"accounts": {"security": {"A": {"currency": "HKD", "positions": {
+        "hkd": {"shares": "10000", "total_cost": "10000", "cost_currency": "HKD"},
+    }}}}}
+    apply_investment_event(
+        snap,
+        {"action": "ipo", "account_name": "A", "currency": "HKD", "date": "2026-05-29",
+         "from_ticker": "hkd", "from_amount": "5181.74", "to_ticker": "", "to_amount": "0"},
+        default_currency="HKD",
+        base_tickers={"hkd", "usd"},
+    )
+    from decimal import Decimal
+    assert Decimal(snap["accounts"]["security"]["A"]["positions"]["hkd"]["shares"]) == Decimal("4818.26")
+    apply_investment_event(
+        snap,
+        {"action": "ipo", "account_name": "A", "currency": "HKD", "date": "2026-06-01",
+         "from_ticker": "", "from_amount": "0", "to_ticker": "hkd", "to_amount": "5181.74"},
+        default_currency="HKD",
+        base_tickers={"hkd", "usd"},
+    )
+    assert Decimal(snap["accounts"]["security"]["A"]["positions"]["hkd"]["shares"]) == Decimal("10000")

@@ -42,6 +42,20 @@ def _statement_profile(rendered: str) -> str:
     return "margin"
 
 
+
+def _infer_ipo_codes(rendered: str) -> list[str]:
+    """Collect HK stock codes mentioned near IPO wording in the statement text."""
+    codes: list[str] = []
+    for m in re.finditer(
+        r"(?:IPO|认购|中签|新股)[^\n]{0,40}(?<!\d)(0\d{4}|\d{5})(?!\d)"
+        r"|(?<!\d)(0\d{4}|\d{5})(?!\d)[^\n]{0,40}(?:IPO|认购|中签|新股)",
+        rendered,
+    ):
+        code = m.group(1) or m.group(2)
+        if code and code not in codes:
+            codes.append(code.zfill(5) if code.isdigit() else code)
+    return codes
+
 def parse_usmart_hk_text(text: str | list[str]) -> list[dict[str, Any]]:
     """Parse extracted statement text into normalized, mappable source rows.
 
@@ -70,6 +84,12 @@ def parse_usmart_hk_text(text: str | list[str]) -> list[dict[str, Any]]:
     trades = _parse_trades(rendered, profile=profile)
     rows.extend(trades)
     cash_rows, ignored_mirrors = _parse_cash_movements(rendered, profile=profile)
+    ipo_codes = _infer_ipo_codes(rendered)
+    if len(ipo_codes) == 1:
+        for row in cash_rows:
+            fl = str(row.get("flag_norm") or row.get("flag") or "")
+            if "IPO" in fl or "认购" in fl:
+                row.setdefault("ipo_code", ipo_codes[0])
     rows.extend(cash_rows)
     rows.extend(_parse_cash_checkins(rendered, period, month_end, profile=profile))
     holdings = _parse_holdings(rendered, period, month_end)
@@ -143,7 +163,9 @@ def map_usmart_hk_to_investment_event(
             and ("退" in text or "refund" in text.lower() or flag == "资金存")
         )
         is_fee_refund = is_tax_refund or (
-            txn["amount"] > 0 and any(k in text for k in ("利息", "罚息", "代收费", "税费", "fee"))
+            txn["amount"] > 0 and any(
+                k in text for k in ("利息", "罚息", "代收费", "税费", "fee", "返还", "退还")
+            ) and any(k in text for k in ("费", "税", "息", "佣金", "fee", "tax", "interest"))
         )
         if is_fee_flag or is_tax_refund or is_fee_refund:
             if txn["amount"] >= 0 and (is_tax_refund or is_fee_refund or is_fee_flag and txn["amount"] > 0):
@@ -159,10 +181,29 @@ def map_usmart_hk_to_investment_event(
                 "to_ticker": "", "to_amount": "0", "price": "1",
                 "commission": "0", "commission_asset": "",
             }
-        # IPO subscription cash back is funding, not a fee type.
-        if flag in {"IPO认购退款"} or "IPO" in flag:
+        # IPO subscription lifecycle as dedicated action=ipo (not swap):
+        #   认购扣款: cash out (from_amount)
+        #   认购退款: cash in  (to_amount)
+        #   认购手续费: fee (not ipo)
+        # Optional stock code may live in note/App only; not required for cash legs.
+        # Future allotment (中签) can stay a separate equity swap when it appears.
+        if "IPO认购手续费" in flag or (flag.startswith("IPO") and "手续费" in flag) or (
+            "IPO" in flag and "Handling" in note
+        ):
             return {
-                **base, "action": "deposit", "from_ticker": "", "from_amount": "0",
+                **base, "action": "fee", "from_ticker": cash, "from_amount": _fmt(amount),
+                "to_ticker": "", "to_amount": "0", "price": "1",
+                "commission": "0", "commission_asset": "",
+            }
+        if flag in {"IPO认购扣款"} or ("IPO" in flag and "扣款" in flag) or "IPO Debit" in note:
+            return {
+                **base, "action": "ipo", "from_ticker": cash, "from_amount": _fmt(amount),
+                "to_ticker": "", "to_amount": "0", "price": "1",
+                "commission": "0", "commission_asset": "",
+            }
+        if flag in {"IPO认购退款"} or ("IPO" in flag and "退款" in flag) or "IPO Refund" in note:
+            return {
+                **base, "action": "ipo", "from_ticker": "", "from_amount": "0",
                 "to_ticker": cash, "to_amount": _fmt(amount), "price": "1",
                 "commission": "0", "commission_asset": "",
             }
@@ -575,10 +616,12 @@ def _parse_cash_movements(rendered: str, *, profile: str = "margin") -> tuple[li
         elif _is_trade_mirror_flag(normalized):
             ignored_mirrors += 1
         elif normalized in {
-            "IPO认购退款", "出金", "融资利息", "转入到日内融账户", "入金", "提取", "转出", "转入",
+            "IPO认购退款", "IPO认购扣款", "IPO认购手续费", "出金", "出金退款", "融资利息",
+            "转入到日内融账户", "入金", "提取", "转出", "转入",
             "从保证金账户转入", "转入到保证金账户", "从日内融账户转出", "从日内融账户转入",
             "优惠券", "红利入账", "美股股息税", "股息代收费", "红利税费", "股息税", "资金存",
             "融券罚息转出", "融券利息", "罚息转出", "EDDA入金", "EDDA出金",
+            "平台费返还", "佣金返还", "手续费返还",
         } or normalized.endswith("入金") or normalized.endswith("出金"):
             cash_rows.append(row)
         elif (
@@ -623,13 +666,32 @@ def _parse_cash_movements(rendered: str, *, profile: str = "margin") -> tuple[li
             and abs(
                 (__import__("datetime").date.fromisoformat(other["date"])
                  - __import__("datetime").date.fromisoformat(leg["date"])).days
-            ) <= 1
+            ) <= 3
         ]
-        if len(candidates) != 1:
+        if not candidates:
             raise ValueError(
                 f"unpaired FX leg: {leg['date']} {leg['ccy']} {_fmt(leg['amount'])}"
             )
-        other = candidates[0]
+
+        def _fx_rate_score(other: dict[str, Any]) -> Decimal:
+            """Lower is better; prefer HKD/USD ~7.8 and closer dates."""
+            from datetime import date as _date
+            a, b = abs(leg["amount"]), abs(other["amount"])
+            if a == 0 or b == 0:
+                return Decimal("999")
+            # Express as HKD per USD when possible.
+            if leg["ccy"] == "HKD" and other["ccy"] == "USD":
+                rate = a / b
+            elif leg["ccy"] == "USD" and other["ccy"] == "HKD":
+                rate = b / a
+            else:
+                rate = max(a, b) / min(a, b)
+            day_pen = abs(
+                _date.fromisoformat(other["date"]) - _date.fromisoformat(leg["date"])
+            ).days
+            return abs(rate - Decimal("7.8")) + Decimal(day_pen) * Decimal("0.05")
+
+        other = min(candidates, key=_fx_rate_score)
         fx_legs.remove(other)
         out, incoming = (leg, other) if leg["amount"] < 0 else (other, leg)
         cash_rows.append({

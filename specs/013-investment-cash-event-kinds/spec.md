@@ -1,21 +1,37 @@
-# Feature Specification: Investment cash event kinds (fee + dividend)
+# Feature Specification: Investment cash event kinds
 
-**Status**: Complete  
-**Branch**: delivered on `011-usmart-hk-import`
+**Status**: Complete (living with 011 branch)
 
-## Converged actions
+## Actions
 
-| Action | Cash effect | uSmart examples |
-|--------|-------------|-----------------|
-| `deposit` / `withdraw` | + / − funding | 入金, EDDA入金, 出金, 户内调拨(P1) |
-| `dividend` | + | 红利入账 |
-| **`fee`** | **− charge or + refund** | 融资利息, 融券罚息, 股息税, 代收费; **税退/费用退回** (same action, opposite legs) |
-| `swap` / `checkin` | as today | trades, FX, alignment |
+| Action | Use |
+|--------|-----|
+| `deposit` / `withdraw` | True customer funding; internal transfers (P1) |
+| `dividend` | 红利入账 |
+| `fee` | Charges **and refunds** of tax/interest/handling (signed legs) |
+| `ipo` | IPO **认购扣款** (cash out) and **认购退款** (cash in); not equity swap |
+| `swap` | Equity trades, FX only (not IPO claim lifecycle) |
+| `checkin` | Alignment |
 
-## Fee refund rule
+## IPO (`action=ipo`)
 
-- Tax/fee **charge**: `action=fee`, `from_amount=|amt|` (cash out)
-- Tax/fee **refund** (e.g. 资金存 + Refund tax, or positive fee-like note): `action=fee`, `to_amount=|amt|` (cash in)
-- **IPO 认购退款**: still `deposit` (subscription funding return, not a tax/fee ledger line)
+Cash-only lifecycle. No synthetic IPO asset / claim ticker required.
 
-Projection: `fee` with `to_amount>0` and `from_amount=0` increases base cash; otherwise decreases via `from_amount`.
+| Step | Event |
+|------|--------|
+| 认购扣款 | `ipo` cash out: `from_ticker=hkd|usd`, `from_amount=…` |
+| 认购手续费 | `fee` cash out |
+| 认购退款 | `ipo` cash in: `to_ticker=…`, `to_amount=…` |
+| 中签 (future) | separate equity `swap` when allotment appears on statement |
+
+Stock code (e.g. 02553) may appear in App notes but is often **absent** from PDF 资金出入; keep in `note` when present, do not invent claim positions.
+
+## Fee refunds
+
+Same `fee` action: charge uses `from_amount`, refund uses `to_amount`.
+
+## Projection
+
+`fee` and `ipo` share signed cash semantics:
+- `from_amount > 0` → reduce cash
+- `to_amount > 0` and `from_amount == 0` → increase cash

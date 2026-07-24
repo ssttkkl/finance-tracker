@@ -348,9 +348,10 @@ def apply_investment_event(
             source, new_shares, ticker=source_ticker, bases=bases,
             cost=_decimal(source["total_cost"], "cost") - from_amount,
         )
-    elif action == "fee":
-        # Charge: from_amount > 0 reduces cash. Refund: to_amount > 0 increases cash
-        # (same fee/tax bucket as the original charge type, via note/flag).
+    elif action in {"fee", "ipo"}:
+        # fee: tax/interest/handling charge or refund.
+        # ipo: subscription debit (cash out) or subscription refund (cash in).
+        # Charge: from_amount > 0 reduces cash. Refund/in: to_amount > 0 increases cash.
         if to_amount > 0 and from_amount == 0:
             target_ticker = to_ticker or currency.lower()
             target = _position(
