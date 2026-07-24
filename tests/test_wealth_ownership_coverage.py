@@ -86,21 +86,21 @@ def test_same_ticker_two_accounts_and_missing_owner_fail_closed(ownership_runtim
     at = lambda day: datetime(2026, 7, day, tzinfo=tz)
     with sessions.begin() as session:
         session.add_all((
-            AccountModel(id="a1", workspace_id="wealth-ownership", name="A1", type="security"),
-            AccountModel(id="a2", workspace_id="wealth-ownership", name="A2", type="security"),
+            AccountModel(id=8361574, workspace_id="wealth-ownership", name="A1", type="security"),
+            AccountModel(id=7590578, workspace_id="wealth-ownership", name="A2", type="security"),
         ))
         session.flush()
         session.add_all((
             AccountLifecycleEventModel(
-                event_id="a1-open", workspace_id="wealth-ownership", account_id="a1", event_kind="opened",
+                event_id="a1-open", workspace_id="wealth-ownership", account_id=8361574, event_kind="opened",
                 effective_at=at(1), source_identity="a1", source_revision="a1", reason="fixture",
             ),
             AccountLifecycleEventModel(
-                event_id="a2-open", workspace_id="wealth-ownership", account_id="a2", event_kind="opened",
+                event_id="a2-open", workspace_id="wealth-ownership", account_id=7590578, event_kind="opened",
                 effective_at=at(1), source_identity="a2", source_revision="a2", reason="fixture",
             ),
         ))
-        for owner, amount in (("a1", "2"), ("a2", "3")):
+        for owner, amount in ((8361574, "2"), (7590578, "3")):
             for day in (1, 2, 3):
                 session.add(ValuationObservationModel(
                     observation_id=f"{owner}:shared:{day}", workspace_id="wealth-ownership",
@@ -111,7 +111,7 @@ def test_same_ticker_two_accounts_and_missing_owner_fail_closed(ownership_runtim
                 ))
         # Formal owning buy without valuation must create expected coverage and fail closed.
         session.add(InvestmentEventModel(
-            id="unvalued", workspace_id="wealth-ownership", account_id="a1", occurred_at=at(1),
+            id=8986631, workspace_id="wealth-ownership", account_id=8361574, occurred_at=at(1),
             action="buy", currency="CNY", payload={"position": "ghost", "quantity": "1"},
         ))
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
@@ -138,26 +138,26 @@ def test_account_close_and_reactivation_change_applicability_not_by_name(ownersh
     tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
     at = lambda day: datetime(2026, 7, day, tzinfo=tz)
     with sessions.begin() as session:
-        session.add(AccountModel(id="cash", workspace_id="wealth-ownership", name="Cash", type="cash"))
+        session.add(AccountModel(id=1, workspace_id="wealth-ownership", name="Cash", type="cash"))
         session.flush()
         session.add_all((
             AccountLifecycleEventModel(
-                event_id="open", workspace_id="wealth-ownership", account_id="cash", event_kind="opened",
+                event_id="open", workspace_id="wealth-ownership", account_id=1, event_kind="opened",
                 effective_at=at(1), source_identity="open", source_revision="open", reason="fixture",
             ),
             AccountLifecycleEventModel(
-                event_id="close", workspace_id="wealth-ownership", account_id="cash", event_kind="closed",
+                event_id="close", workspace_id="wealth-ownership", account_id=1, event_kind="closed",
                 effective_at=at(2), source_identity="close", source_revision="close", reason="fixture",
             ),
             AccountLifecycleEventModel(
-                event_id="reopen", workspace_id="wealth-ownership", account_id="cash", event_kind="reactivated",
+                event_id="reopen", workspace_id="wealth-ownership", account_id=1, event_kind="reactivated",
                 effective_at=at(3), source_identity="reopen", source_revision="reopen", reason="fixture",
             ),
         ))
         for day, amount in ((1, "10"), (2, "20"), (3, "30"), (4, "40")):
             session.add(ValuationObservationModel(
                 observation_id=f"cash:{day}", workspace_id="wealth-ownership", identity_kind="cash_account",
-                identity="cash:CNY", owner_account_id="cash", observation_kind="boundary_checkin",
+                identity="1:CNY", owner_account_id=1, observation_kind="boundary_checkin",
                 value=Decimal(amount), currency="CNY", unit="currency", as_of=at(day), observed_at=at(day),
                 source_identity=f"cash:{day}", source_revision=f"cash:{day}", trust="trusted_checkin",
             ))
@@ -198,33 +198,33 @@ def test_rebuild_persists_owned_coverage_dispositions_per_result(ownership_runti
     at = lambda day: datetime(2026, 7, day, tzinfo=tz)
     with sessions.begin() as session:
         session.add_all((
-            AccountModel(id="cash", workspace_id="wealth-ownership", name="Cash", type="cash"),
-            AccountModel(id="a1", workspace_id="wealth-ownership", name="A1", type="security"),
-            AccountModel(id="a2", workspace_id="wealth-ownership", name="A2", type="security"),
+            AccountModel(id=1, workspace_id="wealth-ownership", name="Cash", type="cash"),
+            AccountModel(id=8361574, workspace_id="wealth-ownership", name="A1", type="security"),
+            AccountModel(id=7590578, workspace_id="wealth-ownership", name="A2", type="security"),
         ))
         session.flush()
         session.add_all((
             AccountLifecycleEventModel(
-                event_id="cash-open", workspace_id="wealth-ownership", account_id="cash", event_kind="opened",
-                effective_at=at(1), source_identity="cash:CNY", source_revision="cash", reason="fixture",
+                event_id="cash-open", workspace_id="wealth-ownership", account_id=1, event_kind="opened",
+                effective_at=at(1), source_identity="1:CNY", source_revision="cash", reason="fixture",
             ),
             AccountLifecycleEventModel(
-                event_id="a1-open", workspace_id="wealth-ownership", account_id="a1", event_kind="opened",
+                event_id="a1-open", workspace_id="wealth-ownership", account_id=8361574, event_kind="opened",
                 effective_at=at(1), source_identity="a1", source_revision="a1", reason="fixture",
             ),
             AccountLifecycleEventModel(
-                event_id="a2-open", workspace_id="wealth-ownership", account_id="a2", event_kind="opened",
+                event_id="a2-open", workspace_id="wealth-ownership", account_id=7590578, event_kind="opened",
                 effective_at=at(1), source_identity="a2", source_revision="a2", reason="fixture",
             ),
         ))
         for day, amount in ((1, "10"), (2, "11"), (3, "12")):
             session.add(ValuationObservationModel(
                 observation_id=f"cash:{day}", workspace_id="wealth-ownership", identity_kind="cash_account",
-                identity="cash:CNY", owner_account_id="cash", observation_kind="boundary_checkin",
+                identity="1:CNY", owner_account_id=1, observation_kind="boundary_checkin",
                 value=Decimal(amount), currency="CNY", unit="currency", as_of=at(day), observed_at=at(day),
                 source_identity=f"cash:{day}", source_revision=f"cash:{day}", trust="trusted_checkin",
             ))
-        for owner, amount in (("a1", "2"), ("a2", "3")):
+        for owner, amount in ((8361574, "2"), (7590578, "3")):
             for day in (1, 2, 3):
                 session.add(ValuationObservationModel(
                     observation_id=f"{owner}:shared:{day}", workspace_id="wealth-ownership",
@@ -254,9 +254,9 @@ def test_rebuild_persists_owned_coverage_dispositions_per_result(ownership_runti
             for row in rows
         }
     assert by_key == {
-        ("cash", "cash_account", "cash:CNY"): "supported",
-        ("a1", "position", "shared-etf"): "supported",
-        ("a2", "position", "shared-etf"): "supported",
+        (1, "cash_account", "1:CNY"): "supported",
+        (8361574, "position", "shared-etf"): "supported",
+        (7590578, "position", "shared-etf"): "supported",
     }
 
 
@@ -289,22 +289,22 @@ def test_ownership_conflict_valuation_vs_formal_fact_is_unsupported_with_evidenc
     at = lambda day: datetime(2026, 7, day, tzinfo=tz)
     with sessions.begin() as session:
         session.add_all((
-            AccountModel(id="a1", workspace_id="wealth-ownership", name="A1", type="security"),
-            AccountModel(id="a2", workspace_id="wealth-ownership", name="A2", type="security"),
+            AccountModel(id=8361574, workspace_id="wealth-ownership", name="A1", type="security"),
+            AccountModel(id=7590578, workspace_id="wealth-ownership", name="A2", type="security"),
         ))
         session.flush()
         session.add_all((
             AccountLifecycleEventModel(
-                event_id="a1-open", workspace_id="wealth-ownership", account_id="a1", event_kind="opened",
+                event_id="a1-open", workspace_id="wealth-ownership", account_id=8361574, event_kind="opened",
                 effective_at=at(1), source_identity="a1", source_revision="a1", reason="fixture",
             ),
             AccountLifecycleEventModel(
-                event_id="a2-open", workspace_id="wealth-ownership", account_id="a2", event_kind="opened",
+                event_id="a2-open", workspace_id="wealth-ownership", account_id=7590578, event_kind="opened",
                 effective_at=at(1), source_identity="a2", source_revision="a2", reason="fixture",
             ),
             # Formal ownership for owned-etf is a1 only.
             InvestmentEventModel(
-                id="formal-buy", workspace_id="wealth-ownership", account_id="a1", occurred_at=at(1),
+                id=2901621, workspace_id="wealth-ownership", account_id=8361574, occurred_at=at(1),
                 action="buy", currency="CNY", payload={"position": "owned-etf", "quantity": "1"},
             ),
         ))
@@ -312,7 +312,7 @@ def test_ownership_conflict_valuation_vs_formal_fact_is_unsupported_with_evidenc
             # Valuation claims a2 while formal investment ownership is a1.
             session.add(ValuationObservationModel(
                 observation_id=f"conflict:{day}", workspace_id="wealth-ownership",
-                identity_kind="position", identity="owned-etf", owner_account_id="a2",
+                identity_kind="position", identity="owned-etf", owner_account_id=7590578,
                 observation_kind="boundary_checkin", value=Decimal(amount), currency="CNY", unit="currency",
                 as_of=at(day), observed_at=at(day), source_identity=f"conflict:{day}",
                 source_revision=f"conflict:{day}", trust="trusted_checkin",
@@ -340,7 +340,7 @@ def test_ownership_conflict_valuation_vs_formal_fact_is_unsupported_with_evidenc
         evidence_kinds = set(session.scalars(select(WealthEvidenceItemModel.evidence_kind).where(
             WealthEvidenceItemModel.workspace_id == "wealth-ownership",
         )))
-    assert dispositions[("a2", "position", "owned-etf")] == "unsupported"
+    assert dispositions[(7590578, "position", "owned-etf")] == "unsupported"
     assert "OWNERSHIP_CONFLICT" in evidence_kinds
 
 
@@ -368,16 +368,16 @@ def test_ownership_missing_owner_is_unsupported_with_evidence(ownership_runtime,
     tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
     at = lambda day: datetime(2026, 7, day, tzinfo=tz)
     with sessions.begin() as session:
-        session.add(AccountModel(id="a1", workspace_id="wealth-ownership", name="A1", type="security"))
+        session.add(AccountModel(id=8361574, workspace_id="wealth-ownership", name="A1", type="security"))
         session.flush()
         session.add(AccountLifecycleEventModel(
-            event_id="a1-open", workspace_id="wealth-ownership", account_id="a1", event_kind="opened",
+            event_id="a1-open", workspace_id="wealth-ownership", account_id=8361574, event_kind="opened",
             effective_at=at(1), source_identity="a1", source_revision="a1", reason="fixture",
         ))
         for day, amount in ((1, "2"), (2, "3"), (3, "4")):
             session.add(ValuationObservationModel(
                 observation_id=f"a1:pos:{day}", workspace_id="wealth-ownership",
-                identity_kind="position", identity="solo-etf", owner_account_id="a1",
+                identity_kind="position", identity="solo-etf", owner_account_id=8361574,
                 observation_kind="boundary_checkin", value=Decimal(amount), currency="CNY", unit="currency",
                 as_of=at(day), observed_at=at(day), source_identity=f"a1:{day}",
                 source_revision=f"a1:{day}", trust="trusted_checkin",

@@ -64,35 +64,35 @@ def _seed_base(sessions, *, with_fee=True) -> None:
     at = lambda day, hour=0: datetime(2026, 7, day, hour, tzinfo=tz)
     with sessions.begin() as session:
         session.add_all((
-            AccountModel(id="cash", workspace_id="wealth-runtime-golden", name="Cash", type="cash"),
-            AccountModel(id="broker", workspace_id="wealth-runtime-golden", name="Broker", type="security"),
+            AccountModel(id=1, workspace_id="wealth-runtime-golden", name="Cash", type="cash"),
+            AccountModel(id=2, workspace_id="wealth-runtime-golden", name="Broker", type="security"),
         ))
         session.flush()
         session.add_all((
             AccountLifecycleEventModel(
-                event_id="cash-opened", workspace_id="wealth-runtime-golden", account_id="cash", event_kind="opened",
+                event_id="cash-opened", workspace_id="wealth-runtime-golden", account_id=1, event_kind="opened",
                 effective_at=at(1), source_identity="life:cash", source_revision="life-cash", reason="fixture",
             ),
             AccountLifecycleEventModel(
-                event_id="broker-opened", workspace_id="wealth-runtime-golden", account_id="broker", event_kind="opened",
+                event_id="broker-opened", workspace_id="wealth-runtime-golden", account_id=2, event_kind="opened",
                 effective_at=at(1), source_identity="life:broker", source_revision="life-broker", reason="fixture",
             ),
             CashTransactionModel(
-                id="salary", workspace_id="wealth-runtime-golden", account_id="cash", occurred_at=at(1, 9),
+                id=1636615, workspace_id="wealth-runtime-golden", account_id=1, occurred_at=at(1, 9),
                 amount=Decimal("10"), currency="CNY", record_id="salary", category="salary",
             ),
             InvestmentEventModel(
-                id="funding", workspace_id="wealth-runtime-golden", account_id="broker", occurred_at=at(2, 10),
+                id=5003488, workspace_id="wealth-runtime-golden", account_id=2, occurred_at=at(2, 10),
                 action="deposit", currency="USD", to_amount="1", payload={},
             ),
             InvestmentEventModel(
-                id="dividend", workspace_id="wealth-runtime-golden", account_id="broker", occurred_at=at(2, 12),
+                id=364094, workspace_id="wealth-runtime-golden", account_id=2, occurred_at=at(2, 12),
                 action="dividend", currency="USD", to_amount="1", payload={},
             ),
         ))
         if with_fee:
             session.add(InvestmentEventModel(
-                id="fee", workspace_id="wealth-runtime-golden", account_id="broker", occurred_at=at(3, 11),
+                id=9084465, workspace_id="wealth-runtime-golden", account_id=2, occurred_at=at(3, 11),
                 action="buy", currency="USD", payload={"position": "broker:global-etf", "commission": "0.1"},
             ))
         for day, cash, position, fx in (
@@ -102,14 +102,14 @@ def _seed_base(sessions, *, with_fee=True) -> None:
             (4, "120", "12", "7.3"),
         ):
             for identity_kind, identity, value, currency in (
-                ("cash_account", "cash:CNY", cash, "CNY"),
+                ("cash_account", "1:CNY", cash, "CNY"),
                 ("position", "broker:global-etf", position, "USD"),
                 ("fx", "USD/CNY", fx, "CNY"),
             ):
                 session.add(ValuationObservationModel(
                     observation_id=f"{identity}:{day}", workspace_id="wealth-runtime-golden",
                     identity_kind=identity_kind, identity=identity,
-                    owner_account_id={"cash_account": "cash", "position": "broker"}.get(identity_kind),
+                    owner_account_id={"cash_account": 1, "position": 2}.get(identity_kind),
                     observation_kind="fx" if identity_kind == "fx" else "boundary_checkin",
                     value=Decimal(value), currency=currency, unit="currency", as_of=at(day), observed_at=at(day),
                     source_identity=f"fixture:{identity}:{day}", source_revision=f"{identity}:{day}",
@@ -209,11 +209,11 @@ def test_runtime_crypto_freshness_uses_crypto_age_bands(runtime_golden, monkeypa
     at = lambda day, hour=0: datetime(2026, 7, day, hour, tzinfo=tz)
     with sessions.begin() as session:
         session.add(AccountModel(
-            id="crypto", workspace_id="wealth-runtime-golden", name="Crypto", type="crypto",
+            id=5, workspace_id="wealth-runtime-golden", name="Crypto", type="crypto",
         ))
         session.flush()
         session.add(AccountLifecycleEventModel(
-            event_id="crypto-opened", workspace_id="wealth-runtime-golden", account_id="crypto",
+            event_id="crypto-opened", workspace_id="wealth-runtime-golden", account_id=5,
             event_kind="opened", effective_at=at(1), source_identity="life:crypto",
             source_revision="life-crypto", reason="fixture",
         ))
@@ -227,7 +227,7 @@ def test_runtime_crypto_freshness_uses_crypto_age_bands(runtime_golden, monkeypa
         ):
             session.add(ValuationObservationModel(
                 observation_id=f"crypto:btc:{day}", workspace_id="wealth-runtime-golden",
-                identity_kind="position", identity="crypto:btc", owner_account_id="crypto",
+                identity_kind="position", identity="crypto:btc", owner_account_id=5,
                 observation_kind="boundary_checkin", value=Decimal(value), currency="USD",
                 unit="currency", as_of=at(day), observed_at=at(observed_day, 12 if day == 3 else 0),
                 source_identity=f"fixture:crypto:btc:{day}", source_revision=f"crypto:btc:{day}",
@@ -267,25 +267,25 @@ def test_runtime_foreign_cash_midday_flow_uses_flow_weighted_fx(runtime_golden, 
     at = lambda day, hour=0: datetime(2026, 7, day, hour, tzinfo=tz)
     with sessions.begin() as session:
         session.add(AccountModel(
-            id="usd-cash", workspace_id="wealth-runtime-golden", name="USD Cash", type="cash",
+            id=1086658, workspace_id="wealth-runtime-golden", name="USD Cash", type="cash",
         ))
         session.flush()
         session.add(AccountLifecycleEventModel(
-            event_id="usd-opened", workspace_id="wealth-runtime-golden", account_id="usd-cash",
+            event_id="usd-opened", workspace_id="wealth-runtime-golden", account_id=1086658,
             event_kind="opened", effective_at=at(1), source_identity="life:usd",
             source_revision="life-usd", reason="fixture",
         ))
         # Opening 100 USD @7.0, mid-day +20 USD converted at day-1 FX 7.0, closing 120 USD @7.2.
         # Opening-only FX = 100*(7.2-7.0)=20; flow-weighted = 20 + 20*(7.2-7.0)=24.
         session.add(CashTransactionModel(
-            id="usd-inflow", workspace_id="wealth-runtime-golden", account_id="usd-cash",
+            id=5123899, workspace_id="wealth-runtime-golden", account_id=1086658,
             occurred_at=at(1, 12), amount=Decimal("20"), currency="USD", record_id="usd-inflow",
             category="salary",
         ))
         for day, cash, fx in ((1, "100", "7.0"), (2, "120", "7.2"), (3, "120", "7.2")):
             session.add(ValuationObservationModel(
                 observation_id=f"usd-cash:{day}", workspace_id="wealth-runtime-golden",
-                identity_kind="cash_account", identity="usd-cash:USD", owner_account_id="usd-cash",
+                identity_kind="cash_account", identity="1086658:USD", owner_account_id=1086658,
                 observation_kind="boundary_checkin", value=Decimal(cash), currency="USD",
                 unit="currency", as_of=at(day), observed_at=at(day),
                 source_identity=f"fixture:usd-cash:{day}", source_revision=f"usd-cash:{day}",
@@ -353,7 +353,7 @@ def test_runtime_missing_fx_stale_and_unsupported_fail_closed(runtime_golden, mo
             2026, 5, 1, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")
         )
         session.add(InvestmentEventModel(
-            id="option", workspace_id="wealth-runtime-golden", account_id="broker",
+            id=1073575, workspace_id="wealth-runtime-golden", account_id=2,
             occurred_at=datetime(2026, 7, 2, 15, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
             action="option_exercise", currency="USD", payload={"amount": "1"},
         ))

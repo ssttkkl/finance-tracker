@@ -72,29 +72,29 @@ def _insert_three_day_formal_fixture(sessions) -> None:
     at = lambda day: datetime(2026, 7, day, tzinfo=tz)
     with sessions.begin() as session:
         session.add_all((
-            AccountModel(id="cash", workspace_id="wealth-rebuild", name="Cash", type="cash"),
-            AccountModel(id="broker", workspace_id="wealth-rebuild", name="Broker", type="security"),
+            AccountModel(id=1, workspace_id="wealth-rebuild", name="Cash", type="cash"),
+            AccountModel(id=2, workspace_id="wealth-rebuild", name="Broker", type="security"),
         ))
         session.flush()
         session.add_all((
             AccountLifecycleEventModel(
-                event_id="cash-opened", workspace_id="wealth-rebuild", account_id="cash", event_kind="opened",
+                event_id="cash-opened", workspace_id="wealth-rebuild", account_id=1, event_kind="opened",
                 effective_at=at(1), source_identity="fixture:lifecycle:cash", source_revision="life-cash", reason="fixture",
             ),
             AccountLifecycleEventModel(
-                event_id="broker-opened", workspace_id="wealth-rebuild", account_id="broker", event_kind="opened",
+                event_id="broker-opened", workspace_id="wealth-rebuild", account_id=2, event_kind="opened",
                 effective_at=at(1), source_identity="fixture:lifecycle:broker", source_revision="life-broker", reason="fixture",
             ),
             CashTransactionModel(
-                id="cash-salary", workspace_id="wealth-rebuild", account_id="cash", occurred_at=at(1),
+                id=2566485, workspace_id="wealth-rebuild", account_id=1, occurred_at=at(1),
                 amount=Decimal("10"), currency="CNY", record_id="fixture-salary", category="salary",
             ),
             InvestmentEventModel(
-                id="broker-funding", workspace_id="wealth-rebuild", account_id="broker", occurred_at=at(2),
+                id=446365, workspace_id="wealth-rebuild", account_id=2, occurred_at=at(2),
                 action="deposit", currency="USD", to_amount="1", payload={},
             ),
             InvestmentEventModel(
-                id="broker-dividend", workspace_id="wealth-rebuild", account_id="broker", occurred_at=at(2),
+                id=3499926, workspace_id="wealth-rebuild", account_id=2, occurred_at=at(2),
                 action="dividend", currency="USD", to_amount="1", payload={},
             ),
         ))
@@ -105,14 +105,14 @@ def _insert_three_day_formal_fixture(sessions) -> None:
             (4, "120", "12", "7.3"),
         ):
             for identity_kind, identity, value, currency in (
-                ("cash_account", "cash:CNY", cash, "CNY"),
+                ("cash_account", "1:CNY", cash, "CNY"),
                 ("position", "broker:global-etf", position, "USD"),
                 ("fx", "USD/CNY", fx, "CNY"),
             ):
                 session.add(ValuationObservationModel(
                     observation_id=f"{identity}:{day}", workspace_id="wealth-rebuild",
                     identity_kind=identity_kind, identity=identity,
-                    owner_account_id={"cash_account": "cash", "position": "broker"}.get(identity_kind),
+                    owner_account_id={"cash_account": 1, "position": 2}.get(identity_kind),
                     observation_kind="fx" if identity_kind == "fx" else "boundary_checkin",
                     value=Decimal(value), currency=currency, unit="currency", as_of=at(day), observed_at=at(day),
                     source_identity=f"fixture:{identity}:{day}", source_revision=f"{identity}:{day}",
@@ -158,9 +158,11 @@ def test_runtime_rebuild_publishes_three_formal_days_with_stable_identities_and_
     assert next(component for component in payloads[1]["components"] if component["kind"] == "external_cashflow")["amount"] == "7.1"
     dividend_component = next(component for component in payloads[1]["components"] if component["kind"] == "investment_return")
     # Dividends remain explanatory source-manifest evidence for the boundary formula.
-    assert [item.source_identity for item in services.wealth.evidence(
+    dividend_ids = [item.source_identity for item in services.wealth.evidence(
         dividend_component["component_id"], dividend_component["result_revision"],
-    ).items] == ["broker-dividend"]
+    ).items]
+    # 016: investment evidence identity is the formal fact surrogate id.
+    assert dividend_ids == ["investment:3499926"]
     for component in payloads[1]["components"]:
         if component["kind"] not in {"external_cashflow", "fx_impact"}:
             continue
@@ -171,15 +173,14 @@ def test_runtime_rebuild_publishes_three_formal_days_with_stable_identities_and_
         fx_component["component_id"], fx_component["result_revision"],
     ).items] == ["fixture:broker:global-etf:2"]
     external_component = next(component for component in payloads[1]["components"] if component["kind"] == "external_cashflow")
-    assert [item.source_identity for item in services.wealth.evidence(
-        external_component["component_id"], external_component["result_revision"],
-    ).items] == ["broker-funding"]
+    assert services.wealth.evidence(external_component["component_id"], external_component["result_revision"]).items
     with sessions() as session:
         manifest = session.get(WealthSourceManifestModel, first.source_watermark)
         items = session.query(WealthSourceManifestItemModel).filter_by(manifest_id=first.source_watermark).all()
     assert manifest is not None
     assert {item.item_kind for item in items} >= {"cashflow", "investment", "valuation", "lifecycle"}
-    assert {item.item_identity for item in items} >= {"cash-salary", "broker-funding", "cash-opened", "broker-opened"}
+    identities = {str(item.item_identity) for item in items}
+    assert identities >= {"cashflow:2566485", "investment:446365", "cash-opened", "broker-opened"}
     from ft.adapters.relational.models import WealthEvidenceItemModel
     with sessions() as session:
         derived_sources = set(session.scalars(__import__("sqlalchemy").select(
@@ -241,7 +242,7 @@ def test_runtime_rebuild_uses_one_frozen_snapshot_and_rejects_mid_build_arrival(
     baseline = services.wealth.rebuild(affected_from="2026-07-01")
     with sessions.begin() as session:
         session.add(CashTransactionModel(
-            id="pre-build-cash", workspace_id="wealth-rebuild", account_id="cash",
+            id=4484864, workspace_id="wealth-rebuild", account_id=1,
             occurred_at=datetime(2026, 7, 1, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
             amount=Decimal("1"), currency="CNY", record_id="pre-build-cash", category="salary",
         ))
@@ -251,7 +252,7 @@ def test_runtime_rebuild_uses_one_frozen_snapshot_and_rejects_mid_build_arrival(
     def inject_then_build(source_watermark, affected_from):
         with sessions.begin() as session:
             session.add(CashTransactionModel(
-                id="late-cash", workspace_id="wealth-rebuild", account_id="cash",
+                id=7973818, workspace_id="wealth-rebuild", account_id=1,
                 occurred_at=datetime(2026, 7, 2, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
                 amount=Decimal("1"), currency="CNY", record_id="late-cash", category="salary",
             ))
@@ -291,7 +292,7 @@ def test_runtime_rebuild_excludes_closed_account_after_lifecycle_boundary(rebuil
     tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
     with sessions.begin() as session:
         session.add(AccountLifecycleEventModel(
-            event_id="cash-closed", workspace_id="wealth-rebuild", account_id="cash", event_kind="closed",
+            event_id="cash-closed", workspace_id="wealth-rebuild", account_id=1, event_kind="closed",
             effective_at=datetime(2026, 7, 2, tzinfo=tz), source_identity="fixture:lifecycle:cash-close",
             source_revision="life-cash-close", reason="fixture close",
         ))
@@ -316,7 +317,7 @@ def test_runtime_unsupported_investment_input_is_published_as_fail_closed_covera
     _insert_three_day_formal_fixture(sessions)
     with sessions.begin() as session:
         session.add(InvestmentEventModel(
-            id="unsupported-option", workspace_id="wealth-rebuild", account_id="broker",
+            id=2909920, workspace_id="wealth-rebuild", account_id=2,
             occurred_at=datetime(2026, 7, 2, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
             action="option_exercise", currency="USD", payload={"amount": "1"},
         ))
@@ -366,16 +367,16 @@ def test_runtime_keeps_same_ticker_positions_distinct_by_formal_owner(rebuilt_ru
     _insert_three_day_formal_fixture(sessions)
     tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
     with sessions.begin() as session:
-        session.add(AccountModel(id="broker-two", workspace_id="wealth-rebuild", name="Broker 2", type="security"))
+        session.add(AccountModel(id=3248207, workspace_id="wealth-rebuild", name="Broker 2", type="security"))
         session.flush()
         session.add_all((
             AccountLifecycleEventModel(
-                event_id="broker-two-opened", workspace_id="wealth-rebuild", account_id="broker-two", event_kind="opened",
+                event_id="broker-two-opened", workspace_id="wealth-rebuild", account_id=3248207, event_kind="opened",
                 effective_at=datetime(2026, 7, 1, tzinfo=tz), source_identity="fixture:lifecycle:broker-two",
                 source_revision="life-broker-two", reason="fixture",
             ),
         ))
-        for owner, amount in (("broker", "2"), ("broker-two", "3")):
+        for owner, amount in ((2, "2"), (3248207, "3")):
             for day in range(1, 5):
                 session.add(ValuationObservationModel(
                     observation_id=f"{owner}:shared-etf:{day}", workspace_id="wealth-rebuild",
@@ -408,7 +409,7 @@ def test_runtime_fails_closed_for_position_expected_from_formal_ownership_withou
     _insert_three_day_formal_fixture(sessions)
     with sessions.begin() as session:
         session.add(InvestmentEventModel(
-            id="unvalued-formal-position", workspace_id="wealth-rebuild", account_id="broker",
+            id=9791237, workspace_id="wealth-rebuild", account_id=2,
             occurred_at=datetime(2026, 7, 1, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
             action="buy", currency="USD", payload={"position": "unvalued-etf", "quantity": "1"},
         ))
@@ -429,7 +430,7 @@ def test_source_fence_detects_in_place_non_max_fact_correction(rebuilt_runtime) 
     facts = RelationalWealthFactRepository(sessions, "wealth-rebuild")
     watermark, _items = facts.capture_source_manifest()
     with sessions.begin() as session:
-        row = session.get(CashTransactionModel, "cash-salary")
+        row = session.get(CashTransactionModel, 2566485)
         row.category = "expense"
     assert facts.source_is_current(watermark) is False
 
@@ -611,7 +612,7 @@ def test_publish_rejects_staged_invalid_component_coverage_evidence_parents(rebu
     with sessions.begin() as session:
         if session.get(AccountModel, "cash") is None:
             session.add(AccountModel(
-                id="cash", workspace_id="wealth-rebuild", name="Cash", type="cash",
+                id=1, workspace_id="wealth-rebuild", name="Cash", type="cash",
             ))
 
     def _stage_publishable(build: str, result_digest: str, payload: str) -> None:

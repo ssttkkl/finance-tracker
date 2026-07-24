@@ -17,10 +17,10 @@ from .models import (
 )
 
 
-def _manifest_item_id(*parts: str) -> str:
+def _manifest_item_id(*parts) -> str:
     digest = hashlib.sha256()
     for part in parts:
-        encoded = part.encode("utf-8")
+        encoded = str(part).encode("utf-8")
         digest.update(len(encoded).to_bytes(8, "big"))
         digest.update(encoded)
     return digest.hexdigest()

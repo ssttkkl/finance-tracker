@@ -221,7 +221,7 @@ class RelationalCashflowRepository:
     def list_with_ids(self, *, include_deleted: bool = False) -> list[dict]:
         return self.list_detailed(include_deleted=include_deleted)
 
-    def get(self, fact_id: str) -> dict | None:
+    def get(self, fact_id) -> dict | None:
         row = self._session.execute(
             select(CashTransactionModel, AccountModel)
             .join(AccountModel, (
@@ -451,13 +451,20 @@ class RelationalSnapshotRepository:
 
     def _to_names(self, payload: dict) -> dict:
         result = deepcopy(payload)
-        by_id = {row.id: row for row in self._account_models()}
+        models = self._account_models()
+        by_id = {row.id: row for row in models}
+        # 016: stored keys are ints; JSON may rehydrate as str digits.
+        by_id_str = {str(row.id): row for row in models}
         for account_type, bucket in list(result.get("accounts", {}).items()):
             if not isinstance(bucket, dict):
                 continue
             named = {}
             for key, value in bucket.items():
                 account = by_id.get(key)
+                if account is None and isinstance(key, str):
+                    account = by_id_str.get(key)
+                    if account is None and key.isdigit():
+                        account = by_id.get(int(key))
                 name = account.name if account is not None else key
                 if name in named and isinstance(named[name], dict) and isinstance(value, dict):
                     named[name].update(value)
@@ -524,6 +531,14 @@ class RelationalSnapshotRepository:
 
 
 
+def _as_int_id(value):
+    if value is None or value == "":
+        return None
+    if isinstance(value, int):
+        return value
+    return int(value)
+
+
 class RelationalRelationRepository:
     def __init__(self, session, workspace_id: str):
         self._session = session
@@ -569,7 +584,7 @@ class RelationalRelationRepository:
         )
         return [self._to_dict(row) for row in rows]
 
-    def get(self, relation_id: str) -> dict | None:
+    def get(self, relation_id) -> dict | None:
         row = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
             TransactionRelationModel.id == relation_id,
@@ -577,46 +592,53 @@ class RelationalRelationRepository:
         return None if row is None else self._to_dict(row)
 
     def find_by_business_key(
-        self, *, kind: str, fact_a: str, fact_b: str, subtype: str = "",
+        self, *, kind: str, fact_a, fact_b, subtype: str = "",
     ) -> dict | None:
         left, right = ordered_fact_pair(fact_a, fact_b)
         row = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
             TransactionRelationModel.kind == kind,
-            TransactionRelationModel.ordered_fact_a == left,
-            TransactionRelationModel.ordered_fact_b == right,
+            TransactionRelationModel.ordered_fact_a == _as_int_id(left),
+            TransactionRelationModel.ordered_fact_b == _as_int_id(right),
             TransactionRelationModel.subtype == (subtype or ""),
             TransactionRelationModel.active_slot == "active",
         ))
         return None if row is None else self._to_dict(row)
 
-    def list_for_facts(self, fact_ids: list[str], *, active_only: bool = True) -> list[dict]:
+    def list_for_facts(self, fact_ids: list, *, active_only: bool = True) -> list[dict]:
         if not fact_ids:
             return []
+        ids = [_as_int_id(x) for x in fact_ids]
         statement = select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
             (
-                TransactionRelationModel.primary_fact_id.in_(fact_ids)
-                | TransactionRelationModel.secondary_fact_id.in_(fact_ids)
+                TransactionRelationModel.primary_fact_id.in_(ids)
+                | TransactionRelationModel.secondary_fact_id.in_(ids)
             ),
         )
         if active_only:
             statement = statement.where(
                 TransactionRelationModel.status != RelationStatus.SUPERSEDED.value
             )
-        rows = self._session.scalars(statement.order_by(
-            TransactionRelationModel.created_at, TransactionRelationModel.id
-        ))
+        rows = self._session.scalars(
+            statement.order_by(TransactionRelationModel.created_at, TransactionRelationModel.id)
+        )
         return [self._to_dict(row) for row in rows]
 
-    def add(self, relation: dict) -> str:
+    def add(self, relation: dict):
         secondary = relation.get("secondary_fact_id")
         if secondary == "":
             secondary = None
         left, right = ordered_fact_pair(relation["primary_fact_id"], secondary)
+        from ft.domain.relations.core.types import OPEN_LEG_ORDERED_B_SENTINEL
+        if right in ("", None):
+            right = OPEN_LEG_ORDERED_B_SENTINEL
         status = relation.get("status") or RelationStatus.PENDING_REVIEW.value
-        active_slot = "active" if status != RelationStatus.SUPERSEDED.value else relation.get("id") or "superseded"
+        active_slot = "active" if status != RelationStatus.SUPERSEDED.value else str(relation.get("id") or "superseded")
         anchor = relation.get("anchor_fact_id") or relation["primary_fact_id"]
+        if anchor in ("", None):
+            anchor = relation["primary_fact_id"]
+        subtype = relation.get("subtype") or ""
         sec_type = relation.get("secondary_fact_type")
         if secondary is None:
             sec_type = None
@@ -625,40 +647,37 @@ class RelationalRelationRepository:
         model = TransactionRelationModel(
             workspace_id=self._workspace_id,
             kind=relation["kind"],
-            subtype=relation.get("subtype") or "",
-            primary_fact_id=relation["primary_fact_id"],
-            secondary_fact_id=secondary,
+            subtype=subtype,
+            primary_fact_id=_as_int_id(relation["primary_fact_id"]),
+            secondary_fact_id=_as_int_id(secondary),
             primary_fact_type=relation.get("primary_fact_type") or "cash",
             secondary_fact_type=sec_type,
-            ordered_fact_a=left,
-            ordered_fact_b=right if right is not None else OPEN_LEG_ORDERED_B_SENTINEL,
-            active_slot=active_slot,
+            ordered_fact_a=_as_int_id(left),
+            ordered_fact_b=_as_int_id(right),
+            active_slot=str(active_slot),
             status=status,
-            rule_id=relation.get("rule_id") or "",
-            confidence=relation.get("confidence") or "",
+            rule_id=str(relation.get("rule_id") or ""),
+            confidence=str(relation.get("confidence") or ""),
             evidence_json=_json_safe(relation.get("evidence") or {}),
-            created_by=relation.get("created_by") or "system",
-            decided_by=relation.get("decided_by") or "",
-            decision_reason=relation.get("decision_reason") or "",
-            later_marker=relation.get("later_marker") or "",
-            superseded_by_id=relation.get("superseded_by_id"),
-            revision=int(relation.get("revision") or 1),
-            anchor_fact_id=anchor,
+            created_by=str(relation.get("created_by") or "system"),
+            decided_by=str(relation.get("decided_by") or ""),
+            decision_reason=str(relation.get("decision_reason") or ""),
+            later_marker=str(relation.get("later_marker") or ""),
+            superseded_by_id=_as_int_id(relation.get("superseded_by_id")),
+            anchor_fact_id=_as_int_id(anchor),
         )
-        if relation.get("id"):
-            model.id = relation["id"]
         self._session.add(model)
         self._session.flush()
         return model.id
 
     def find_open_leg(
-        self, *, kind: str, anchor_fact_id: str, subtype: str = "",
+        self, *, kind: str, anchor_fact_id, subtype: str = "",
     ) -> dict | None:
         row = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
             TransactionRelationModel.kind == kind,
             TransactionRelationModel.subtype == (subtype or ""),
-            TransactionRelationModel.anchor_fact_id == anchor_fact_id,
+            TransactionRelationModel.anchor_fact_id == _as_int_id(anchor_fact_id),
             TransactionRelationModel.secondary_fact_id.is_(None),
             TransactionRelationModel.status != RelationStatus.SUPERSEDED.value,
             TransactionRelationModel.active_slot == "active",
@@ -667,9 +686,9 @@ class RelationalRelationRepository:
 
     def bind_other_leg(
         self,
-        relation_id: str,
+        relation_id,
         *,
-        other_fact_id: str,
+        other_fact_id,
         other_fact_type: str = "cash",
         status: str,
         decided_by: str,
@@ -682,19 +701,15 @@ class RelationalRelationRepository:
         ))
         if row is None:
             raise ValueError(f"relation not found: {relation_id}")
-        if row.secondary_fact_id not in (None, ""):
+        if row.secondary_fact_id is not None:
             raise ValueError("relation already has other leg")
-        # Free open-leg bilateral sentinel key (anchor, '') before writing ordered pair.
-        # Use a temporary unique active_slot so unique(workspace,kind,ordered_a,ordered_b,...)
-        # does not collide mid-update with residual rows.
-        left, right = ordered_fact_pair(row.primary_fact_id, other_fact_id)
-        # Also free partial unique open index by setting secondary non-null in same UPDATE.
-        # If another active bilateral already occupies (left,right), fail closed.
+        other = _as_int_id(other_fact_id)
+        left, right = ordered_fact_pair(row.primary_fact_id, other)
         conflict = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
             TransactionRelationModel.kind == row.kind,
-            TransactionRelationModel.ordered_fact_a == left,
-            TransactionRelationModel.ordered_fact_b == right,
+            TransactionRelationModel.ordered_fact_a == _as_int_id(left),
+            TransactionRelationModel.ordered_fact_b == _as_int_id(right),
             TransactionRelationModel.subtype == (row.subtype or ""),
             TransactionRelationModel.active_slot == "active",
             TransactionRelationModel.id != row.id,
@@ -704,12 +719,12 @@ class RelationalRelationRepository:
                 f"cannot bind other leg: active bilateral relation already exists "
                 f"({conflict.id}) for this fact pair"
             )
-        row.secondary_fact_id = other_fact_id
+        row.secondary_fact_id = other
         row.secondary_fact_type = other_fact_type or "cash"
-        row.ordered_fact_a = left
-        row.ordered_fact_b = right
+        row.ordered_fact_a = _as_int_id(left)
+        row.ordered_fact_b = _as_int_id(right)
         row.status = status
-        row.active_slot = "active" if status != RelationStatus.SUPERSEDED.value else row.id
+        row.active_slot = "active" if status != RelationStatus.SUPERSEDED.value else str(row.id)
         row.decided_by = decided_by
         row.decided_at = datetime.now(timezone.utc)
         row.decision_reason = decision_reason or ""
@@ -718,15 +733,10 @@ class RelationalRelationRepository:
         self._session.flush()
         return self._to_dict(row)
 
+
     def update_status(
-        self,
-        relation_id: str,
-        *,
-        status: str,
-        decided_by: str | None = None,
-        decision_reason: str | None = None,
-        later_marker: str | None = None,
-        superseded_by_id: str | None = None,
+        self, relation_id, *, status: str, decided_by: str = "", decision_reason: str = "",
+        later_marker: str | None = None, superseded_by_id=None,
     ) -> dict:
         row = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
@@ -736,20 +746,18 @@ class RelationalRelationRepository:
             raise ValueError(f"relation not found: {relation_id}")
         row.status = status
         if status == RelationStatus.SUPERSEDED.value:
-            row.active_slot = row.id
+            row.active_slot = str(row.id)
         else:
-            # Keep active_slot='active' for open-leg rejected so partial unique
-            # continues to occupy the open anchor key (FR-028b).
             row.active_slot = "active"
-        if decided_by is not None:
+        if decided_by:
             row.decided_by = decided_by
             row.decided_at = datetime.now(timezone.utc)
-        if decision_reason is not None:
+        if decision_reason:
             row.decision_reason = decision_reason
         if later_marker is not None:
             row.later_marker = later_marker
         if superseded_by_id is not None:
-            row.superseded_by_id = superseded_by_id
+            row.superseded_by_id = _as_int_id(superseded_by_id)
         self._session.flush()
         return self._to_dict(row)
 
@@ -777,33 +785,16 @@ class RelationalAccountAliasRepository:
         ).order_by(AccountAliasModel.created_at, AccountAliasModel.id))
         return [self._to_dict(row) for row in rows]
 
-    def add(self, *, alias_type: str, alias_value: str, account_id: str) -> str:
+    def add(self, *, alias_type: str, alias_value: str, account_id) -> int:
         model = AccountAliasModel(
             workspace_id=self._workspace_id,
             alias_type=alias_type,
             alias_value=str(alias_value).strip(),
-            account_id=account_id,
+            account_id=_as_int_id(account_id) if not isinstance(account_id, int) else account_id,
         )
         self._session.add(model)
         self._session.flush()
         return model.id
-
-    def delete(self, alias_id: str) -> None:
-        row = self._session.scalar(select(AccountAliasModel).where(
-            AccountAliasModel.workspace_id == self._workspace_id,
-            AccountAliasModel.id == alias_id,
-        ))
-        if row is None:
-            raise ValueError(f"alias not found: {alias_id}")
-        self._session.delete(row)
-
-    def find_by_value(self, alias_type: str, alias_value: str) -> list[dict]:
-        rows = self._session.scalars(select(AccountAliasModel).where(
-            AccountAliasModel.workspace_id == self._workspace_id,
-            AccountAliasModel.alias_type == alias_type,
-            AccountAliasModel.alias_value == str(alias_value).strip(),
-        ))
-        return [self._to_dict(row) for row in rows]
 
 
 class RelationalFactDeletionRepository:
@@ -811,7 +802,7 @@ class RelationalFactDeletionRepository:
         self._session = session
         self._workspace_id = workspace_id
 
-    def logical_delete_cash(self, fact_id: str, *, actor: str, reason: str) -> dict:
+    def logical_delete_cash(self, fact_id, *, actor: str, reason: str) -> dict:
         if not reason or not str(reason).strip():
             raise ValueError("delete reason is required")
         row = self._session.scalar(select(CashTransactionModel).where(
