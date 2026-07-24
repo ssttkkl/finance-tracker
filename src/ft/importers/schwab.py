@@ -14,6 +14,8 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
+from ft.importers.ticker_normalize import normalize_equity_ticker
+
 KNOWN_TYPES = frozenset({"TRD", "DOI", "JRN", "WIN"})
 
 # BOT +4 SNDK @1498.00  |  SOLD -1 SNDK @1550.00
@@ -184,7 +186,7 @@ def parse_schwab_csv(path: str | Path) -> SchwabStatement:
                 "fee": fee_total,
                 "side": side,
                 "symbol": symbol,
-                "ticker": symbol.lower() if symbol else "",
+                "ticker": (normalize_equity_ticker(symbol, default_market="us") if symbol else ""),
                 "qty": qty,
                 "price": price,
                 "note": description,
@@ -363,9 +365,11 @@ def _map_trd(txn: dict[str, Any], base: dict[str, Any], cash: str) -> dict[str, 
     price = abs(Decimal(str(txn.get("price") or 0)))
     amount_abs = abs(Decimal(str(txn.get("amount") or 0)))
     fee_abs = abs(Decimal(str(txn.get("fee") or 0)))
-    code = (txn.get("ticker") or txn.get("symbol") or "").lower()
-    if not code:
+    raw = (txn.get("ticker") or txn.get("symbol") or "").strip()
+    if not raw:
         raise ValueError(f"Schwab TRD missing symbol: {txn.get('description')!r}")
+    # ticker may already be normalized from parse; ensure .us
+    code = normalize_equity_ticker(raw, default_market="us")
 
     if side == "BOT":
         return {

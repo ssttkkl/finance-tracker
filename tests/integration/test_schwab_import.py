@@ -52,7 +52,7 @@ def test_schwab_import_sqlite_creates_auditable_events_and_is_idempotent(tmp_pat
         cash = snapshot["accounts"]["security"]["嘉信"]["positions"]["usd"]
         assert Decimal(cash["shares"]) == Decimal("2865.36")
         positions = snapshot["accounts"]["security"]["嘉信"]["positions"]
-        assert Decimal(positions["avgo"]["shares"]) == Decimal("7")
-        assert Decimal(positions["msft"]["shares"]) == Decimal("5")
+        assert Decimal(positions["avgo.us"]["shares"]) == Decimal("7")
+        assert Decimal(positions["msft.us"]["shares"]) == Decimal("5")
     finally:
         engine.dispose()

@@ -15,11 +15,11 @@ def test_ibkr_fixture_offline_replay_reconciles_base_cash_and_open_shares():
 
     positions = snapshot["accounts"]["security"]["IBKR"]["positions"]
     assert Decimal(positions["usd"]["shares"]) == statement.ending_cash
-    assert {ticker: Decimal(positions[ticker]["shares"]) for ticker in ("avgo", "ko", "nvda", "sndk", "tsm")} == {
-        "avgo": Decimal("5"),
-        "ko": Decimal("30"),
-        "nvda": Decimal("25"),
-        "sndk": Decimal("4"),
-        "tsm": Decimal("20"),
+    assert {ticker: Decimal(positions[ticker]["shares"]) for ticker in ("avgo.us", "ko.us", "nvda.us", "sndk.us", "tsm.us")} == {
+        "avgo.us": Decimal("5"),
+        "ko.us": Decimal("30"),
+        "nvda.us": Decimal("25"),
+        "sndk.us": Decimal("4"),
+        "tsm.us": Decimal("20"),
     }
     assert Decimal(positions["hkd"]["shares"]) != 0

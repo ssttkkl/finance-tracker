@@ -13,6 +13,21 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
+from ft.importers.ticker_normalize import normalize_equity_ticker
+
+
+def _normalize_parse_ticker(code: str) -> str:
+    if not code or code == "-":
+        return ""
+    if "." in code and code.split(".", 1)[1].upper() in {
+        "USD", "HKD", "CNY", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD", "SGD",
+    }:
+        return code.lower()
+    try:
+        return normalize_equity_ticker(code, default_market="us")
+    except ValueError:
+        return code.lower()
+
 KNOWN_ACTIONS = frozenset({
     "买",
     "卖",
@@ -149,7 +164,7 @@ def parse_ibkr_csv(path: str | Path) -> IbkrStatement:
                     "amount": net if net is not None else Decimal("0"),
                     "shares": abs(qty) if qty is not None else Decimal("0"),
                     "fee": abs(commission) if commission is not None else Decimal("0"),
-                    "ticker": (code if code != "-" else "").lower(),
+                    "ticker": _normalize_parse_ticker(code),
                     "note": description,
                 })
 
@@ -223,6 +238,19 @@ def construct_source_identity(txn: dict[str, Any]) -> str:
     return f"ibkr:{date}:{action}:{code}:{qty_s}:{net_s}:{comm_s}"
 
 
+def _equity_code(txn: dict[str, Any]) -> str:
+    """Normalize equity symbol; empty for cash-only rows."""
+    code = (txn.get("code") or "").strip()
+    if not code or code == "-":
+        return ""
+    # FX pairs handled separately
+    if "." in code and code.split(".", 1)[1].upper() in {
+        "USD", "HKD", "CNY", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD", "SGD",
+    }:
+        return code.lower()
+    return normalize_equity_ticker(code, ccy=str(txn.get("price_currency") or txn.get("currency") or "USD"), default_market="us")
+
+
 def map_ibkr_to_investment_event(
     txn: dict[str, Any],
     account_name: str,
@@ -245,7 +273,7 @@ def map_ibkr_to_investment_event(
         gross_abs = abs(Decimal(str(txn.get("gross") or 0)))
         qty_abs = abs(Decimal(str(txn.get("qty") or 0)))
         fee_abs = abs(Decimal(str(txn.get("commission") or 0)))
-        code = (txn.get("code") or "").lower()
+        code = _equity_code(txn)
         price = abs(Decimal(str(txn.get("price") or 0)))
         return {
             **base,
@@ -263,7 +291,7 @@ def map_ibkr_to_investment_event(
         gross_abs = abs(Decimal(str(txn.get("gross") or 0)))
         qty_abs = abs(Decimal(str(txn.get("qty") or 0)))
         fee_abs = abs(Decimal(str(txn.get("commission") or 0)))
-        code = (txn.get("code") or "").lower()
+        code = _equity_code(txn)
         price = abs(Decimal(str(txn.get("price") or 0)))
         return {
             **base,
@@ -293,7 +321,7 @@ def map_ibkr_to_investment_event(
 
     if action == "股息":
         net_abs = abs(Decimal(str(txn.get("net") or 0)))
-        code = (txn.get("code") or "").lower()
+        code = _equity_code(txn)
         return {
             **base,
             "action": "dividend",

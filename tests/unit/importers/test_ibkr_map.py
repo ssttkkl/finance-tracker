@@ -23,11 +23,11 @@ def test_equity_buy_and_sell_use_gross_cash_leg_plus_commission_once():
 
     assert buy_event["from_ticker"] == "usd"
     assert buy_event["from_amount"] == "5478.28"
-    assert buy_event["to_ticker"] == "sndk"
+    assert buy_event["to_ticker"] == "sndk.us"
     assert buy_event["to_amount"] == "4"
     assert buy_event["commission"] == "1.000012"
     assert buy_event["commission_asset"] == "usd"
-    assert sell_event["from_ticker"] == "goog"
+    assert sell_event["from_ticker"] == "goog.us"
     assert sell_event["from_amount"] == "6"
     assert sell_event["to_ticker"] == "usd"
     assert sell_event["to_amount"] == "2092.77"

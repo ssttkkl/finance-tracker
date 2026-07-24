@@ -73,6 +73,41 @@ def test_cli_ibkr_leaves_currency_unset_for_statement_base_currency(monkeypatch,
     assert calls[0]["currency"] is None
 
 
+def test_cli_usmart_hk_requires_security_account_and_keeps_currency_optional(monkeypatch, tmp_path):
+    from ft.domain.accounts import AccountDTO
+
+    source = tmp_path / "statement.txt"
+    source.write_text("fixture", encoding="utf-8")
+
+    class Accounts:
+        def find(self, _name):
+            return AccountDTO("现金", "cash", active=True)
+
+    class Uow:
+        def __enter__(self):
+            self.accounts = Accounts()
+            return self
+        def __exit__(self, *_args): return False
+        def rollback(self): pass
+
+    monkeypatch.setattr("ft.cli._runtime_services", lambda: type("Bundle", (), {"uow": Uow()})())
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["import", str(source), "--source", "usmart-hk", "--account", "现金"])
+    assert exc.value.code == 1
+
+
+def test_cli_usmart_hk_pdf_reports_missing_pdf_tool(monkeypatch, tmp_path):
+    source = tmp_path / "statement.pdf"
+    source.write_bytes(b"not-a-real-pdf")
+    monkeypatch.setattr(
+        "ft.importers.usmart_hk.check_external_tools",
+        lambda: {"qpdf": None, "mutool": "1.27"},
+    )
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["import", str(source), "--source", "usmart-hk", "--account", "盈立证券"])
+    assert exc.value.code == 1
+
+
 def test_cli_reads_encrypted_statement_password_from_file(monkeypatch, tmp_path):
     from ft.domain.application import OperationResult
 

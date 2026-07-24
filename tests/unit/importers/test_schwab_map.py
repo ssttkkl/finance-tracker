@@ -33,7 +33,7 @@ def test_trd_bot_and_sold_use_amount_plus_misc_fee_once():
     bot_event = map_schwab_to_investment_event(bot, "嘉信", "USD")
 
     assert sold_event["action"] == "swap"
-    assert sold_event["from_ticker"] == "sndk"
+    assert sold_event["from_ticker"] == "sndk.us"
     assert sold_event["from_amount"] == "1"
     assert sold_event["to_ticker"] == "usd"
     assert sold_event["to_amount"] == "1550"
@@ -44,7 +44,7 @@ def test_trd_bot_and_sold_use_amount_plus_misc_fee_once():
     assert bot_event["action"] == "swap"
     assert bot_event["from_ticker"] == "usd"
     assert bot_event["from_amount"] == "5992"
-    assert bot_event["to_ticker"] == "sndk"
+    assert bot_event["to_ticker"] == "sndk.us"
     assert bot_event["to_amount"] == "4"
     assert bot_event["commission"] == "0"
     assert bot_event["commission_asset"] == ""
