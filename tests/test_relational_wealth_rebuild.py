@@ -87,15 +87,15 @@ def _insert_three_day_formal_fixture(sessions) -> None:
             ),
             CashTransactionModel(
                 id="cash-salary", workspace_id="wealth-rebuild", account_id="cash", occurred_at=at(1),
-                amount=Decimal("10"), currency="CNY", record_id="fixture-salary", category="salary", revision=1,
+                amount=Decimal("10"), currency="CNY", record_id="fixture-salary", category="salary",
             ),
             InvestmentEventModel(
                 id="broker-funding", workspace_id="wealth-rebuild", account_id="broker", occurred_at=at(2),
-                action="deposit", currency="USD", to_amount="1", payload={}, revision=1,
+                action="deposit", currency="USD", to_amount="1", payload={},
             ),
             InvestmentEventModel(
                 id="broker-dividend", workspace_id="wealth-rebuild", account_id="broker", occurred_at=at(2),
-                action="dividend", currency="USD", to_amount="1", payload={}, revision=1,
+                action="dividend", currency="USD", to_amount="1", payload={},
             ),
         ))
         for day, cash, position, fx in (
@@ -243,7 +243,7 @@ def test_runtime_rebuild_uses_one_frozen_snapshot_and_rejects_mid_build_arrival(
         session.add(CashTransactionModel(
             id="pre-build-cash", workspace_id="wealth-rebuild", account_id="cash",
             occurred_at=datetime(2026, 7, 1, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
-            amount=Decimal("1"), currency="CNY", record_id="pre-build-cash", category="salary", revision=1,
+            amount=Decimal("1"), currency="CNY", record_id="pre-build-cash", category="salary",
         ))
     runtime_facts = services.wealth._facts
     original_build = runtime_facts.build_daily_results
@@ -253,7 +253,7 @@ def test_runtime_rebuild_uses_one_frozen_snapshot_and_rejects_mid_build_arrival(
             session.add(CashTransactionModel(
                 id="late-cash", workspace_id="wealth-rebuild", account_id="cash",
                 occurred_at=datetime(2026, 7, 2, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
-                amount=Decimal("1"), currency="CNY", record_id="late-cash", category="salary", revision=1,
+                amount=Decimal("1"), currency="CNY", record_id="late-cash", category="salary",
             ))
         return original_build(source_watermark, affected_from)
 
@@ -318,7 +318,7 @@ def test_runtime_unsupported_investment_input_is_published_as_fail_closed_covera
         session.add(InvestmentEventModel(
             id="unsupported-option", workspace_id="wealth-rebuild", account_id="broker",
             occurred_at=datetime(2026, 7, 2, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
-            action="option_exercise", currency="USD", payload={"amount": "1"}, revision=1,
+            action="option_exercise", currency="USD", payload={"amount": "1"},
         ))
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
     services.wealth.rebuild(affected_from="2026-07-01")
@@ -410,7 +410,7 @@ def test_runtime_fails_closed_for_position_expected_from_formal_ownership_withou
         session.add(InvestmentEventModel(
             id="unvalued-formal-position", workspace_id="wealth-rebuild", account_id="broker",
             occurred_at=datetime(2026, 7, 1, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
-            action="buy", currency="USD", payload={"position": "unvalued-etf", "quantity": "1"}, revision=1,
+            action="buy", currency="USD", payload={"position": "unvalued-etf", "quantity": "1"},
         ))
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
     services.wealth.rebuild(affected_from="2026-07-01")

@@ -39,8 +39,6 @@ def _fv(
         counterparty=text.split()[0] if text else "",
         note=text,
         category="expense" if Decimal(amount) < 0 else "income",
-        bill_source=bill_source,
-        source=bill_source,
         fact_type=FactType.CASH.value,
     )
 
@@ -73,7 +71,6 @@ def test_xianyu_transfer_never_pairs_as_transfer():
         "-17.80",
         account="yuebao",
         text="淘天物流 闲鱼寄件-寄件费_886818156_LP00738984207382",
-        bill_source="alipay",
         occurred="2025-06-05 13:11:14",
     )
     xianyu_in = _fv(
@@ -81,7 +78,6 @@ def test_xianyu_transfer_never_pairs_as_transfer():
         "17.80",
         account="alipay_bal",
         text="微信 闲鱼转账",
-        bill_source="alipay",
         occurred="2025-06-05 15:22:11",
     )
     assert evaluate_transfer_pair(ship, [xianyu_in]) is None
@@ -91,7 +87,6 @@ def test_xianyu_transfer_never_pairs_as_transfer():
         "-0.90",
         account="mybank",
         text="B站 【秒出租发货】大会员",
-        bill_source="alipay",
         occurred="2025-11-04 14:02:59",
     )
     xianyu2 = _fv(
@@ -99,7 +94,6 @@ def test_xianyu_transfer_never_pairs_as_transfer():
         "0.90",
         account="alipay_bal",
         text="闲鱼转账",
-        bill_source="alipay",
         occurred="2025-11-04 14:10:24",
     )
     assert evaluate_transfer_pair(bsite, [xianyu2]) is None
@@ -112,14 +106,12 @@ def test_bilateral_wechat_transfer_p2p_not_auto_accept():
         "-50.00",
         account="wechat",
         text="转账备注:微信转账 对方已收钱",
-        bill_source="wechat",
     )
     inn = _fv(
         "p2",
         "50.00",
         account="wechat2",
         text="转账备注:微信转账 已存入零钱",
-        bill_source="wechat",
         occurred="2023-06-15 12:26:00",
     )
     prop = evaluate_transfer_pair(out, [inn])
@@ -133,14 +125,12 @@ def test_qr_pay_not_auto_transfer():
         "-10.00",
         account="wechat",
         text="收款方备注:二维码收款 扫二维码付款 已转账",
-        bill_source="wechat",
     )
     bank = _fv(
         "q2",
         "10.00",
         account="icbc",
         text="银联入账",
-        bill_source="icbc_debit",
         occurred="2023-06-15 12:26:00",
     )
     prop = evaluate_transfer_pair(out, [bank])
@@ -148,13 +138,12 @@ def test_qr_pay_not_auto_transfer():
 
 
 def test_alipay_withdraw_to_bank_accepts():
-    out = _fv("a1", "-200.00", account="alipay", text="中国工商银行 提现-实时提现", bill_source="alipay")
+    out = _fv("a1", "-200.00", account="alipay", text="中国工商银行 提现-实时提现")
     bank = _fv(
         "b1",
         "200.00",
         account="icbc",
         text="黄文龙 快捷支付",
-        bill_source="icbc_debit",
         occurred="2023-06-15 12:26:00",
     )
     prop = evaluate_transfer_pair(out, [bank])
@@ -170,7 +159,6 @@ def test_wechat_withdraw_same_account_dual_source_is_mirror():
         "2100.00",
         account="ccb2820",
         text="零钱提现 建设银行(2820)",
-        bill_source="wechat",
         occurred="2025-08-17 15:54:28",
     )
     bank = _fv(
@@ -178,7 +166,6 @@ def test_wechat_withdraw_same_account_dual_source_is_mirror():
         "2100.00",
         account="ccb2820",
         text="微信零钱提现 银联入账",
-        bill_source="ccb_debit",
         occurred="2025-08-16 16:00:00",  # date-only skew
     )
     props = match_withdraw_receipt_to_bank([wx, bank])
@@ -193,7 +180,6 @@ def test_credit_repayment_rejects_merchant_repay_to_refund_income():
         "-994.86",
         account="ccb",
         text="京东 还款",
-        bill_source="ccb_debit",
         account_type="cash",
     )
     inc = _fv(
@@ -201,7 +187,6 @@ def test_credit_repayment_rejects_merchant_repay_to_refund_income():
         "5.00",
         account="credit",
         text="退款-火车票",
-        bill_source="alipay",
         account_type="loan",
         occurred="2025-01-03 00:15:40",
     )
@@ -215,7 +200,6 @@ def test_credit_repayment_accepts_explicit_card_repay():
         "-9563.53",
         account="debit",
         text="黄文龙 自动还款",
-        bill_source="icbc_debit",
         account_type="cash",
         occurred="2025-12-18 23:05:40",
     )
@@ -224,7 +208,6 @@ def test_credit_repayment_accepts_explicit_card_repay():
         "9563.53",
         account="credit",
         text="转帐北京分行银行卡中心",
-        bill_source="icbc_credit",
         account_type="loan",
         occurred="2025-12-18 23:08:37",
     )
@@ -235,13 +218,12 @@ def test_credit_repayment_accepts_explicit_card_repay():
 
 
 def test_phase_c_matcher_includes_withdraw_and_skips_strong_p2p():
-    out = _fv("a1", "-200.00", account="alipay", text="提现-实时提现", bill_source="alipay")
+    out = _fv("a1", "-200.00", account="alipay", text="提现-实时提现")
     bank = _fv(
         "b1",
         "200.00",
         account="icbc",
         text="黄文龙",
-        bill_source="icbc_debit",
         occurred="2023-06-15 12:26:00",
     )
     # strong exclude pair (红包) must never appear
@@ -250,14 +232,12 @@ def test_phase_c_matcher_includes_withdraw_and_skips_strong_p2p():
         "-50.00",
         account="wechat",
         text="微信红包（单发）",
-        bill_source="wechat",
     )
     red_in = _fv(
         "r2",
         "50.00",
         account="wechat2",
         text="微信红包-退款",
-        bill_source="wechat",
         occurred="2023-06-15 12:26:00",
     )
     xianyu_exp = _fv(
@@ -265,14 +245,12 @@ def test_phase_c_matcher_includes_withdraw_and_skips_strong_p2p():
         "-17.80",
         account="yuebao",
         text="闲鱼寄件-寄件费",
-        bill_source="alipay",
     )
     xianyu_in = _fv(
         "x2",
         "17.80",
         account="alipay_bal",
         text="闲鱼转账",
-        bill_source="alipay",
         occurred="2023-06-15 12:26:00",
     )
     props = match_transfer_pairs_phase_c(
@@ -292,7 +270,6 @@ def test_credit_repayment_requires_exact_same_currency():
         "-500.00",
         account="wechat",
         text="工商银行信用卡还款 信用卡还款",
-        bill_source="wechat",
         account_type="cash",
         occurred="2025-10-04 08:52:41",
     )
@@ -302,7 +279,6 @@ def test_credit_repayment_requires_exact_same_currency():
         "100.00",
         account="credit",
         text="富丽华大酒店",
-        bill_source="wechat",
         account_type="loan",
         occurred="2025-10-05 05:12:35",
     )
@@ -316,7 +292,6 @@ def test_wechat_withdraw_expense_to_bank_transfer():
         "-2100.00",
         account="wechat_change",
         text="零钱提现 建设银行储蓄卡(2820)",
-        bill_source="wechat",
         occurred="2025-08-17 15:54:28",
     )
     bank = _fv(
@@ -324,7 +299,6 @@ def test_wechat_withdraw_expense_to_bank_transfer():
         "2100.00",
         account="ccb2820",
         text="微信零钱提现 银联入账",
-        bill_source="ccb_debit",
         occurred="2025-08-16 16:00:00",
     )
     prop = evaluate_transfer_pair(out, [bank])

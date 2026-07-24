@@ -112,7 +112,7 @@ def test_same_ticker_two_accounts_and_missing_owner_fail_closed(ownership_runtim
         # Formal owning buy without valuation must create expected coverage and fail closed.
         session.add(InvestmentEventModel(
             id="unvalued", workspace_id="wealth-ownership", account_id="a1", occurred_at=at(1),
-            action="buy", currency="CNY", payload={"position": "ghost", "quantity": "1"}, revision=1,
+            action="buy", currency="CNY", payload={"position": "ghost", "quantity": "1"},
         ))
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
     services.wealth.rebuild(affected_from="2026-07-01")
@@ -305,7 +305,7 @@ def test_ownership_conflict_valuation_vs_formal_fact_is_unsupported_with_evidenc
             # Formal ownership for owned-etf is a1 only.
             InvestmentEventModel(
                 id="formal-buy", workspace_id="wealth-ownership", account_id="a1", occurred_at=at(1),
-                action="buy", currency="CNY", payload={"position": "owned-etf", "quantity": "1"}, revision=1,
+                action="buy", currency="CNY", payload={"position": "owned-etf", "quantity": "1"},
             ),
         ))
         for day, amount in ((1, "4"), (2, "5"), (3, "6")):

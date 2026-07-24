@@ -92,7 +92,7 @@ class FinanceQueryService:
                 continue
             if row.get("category") == "transfer_in":
                 continue
-            note = row.get("transfer_account") or row.get("note", "")
+            note = row.get("note", "")
             currency = row.get("currency", "CNY") or "CNY"
             grouped_flows[(note, currency)] += abs(_decimal(row.get("amount")))
         flows = tuple(
@@ -165,5 +165,5 @@ class FinanceQueryService:
             amount=_decimal(row.get("amount")),
             note=row.get("note", ""),
             counterparty=row.get("counterparty", ""),
-            transfer_account=row.get("transfer_account", ""),
+            transfer_account="",
         )

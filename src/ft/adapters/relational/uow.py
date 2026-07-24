@@ -16,7 +16,6 @@ from .repositories import (
     RelationalCashflowRepository,
     RelationalFactDeletionRepository,
     RelationalInvestmentRepository,
-    RelationalRelationCheckRunRepository,
     RelationalRelationRepository,
     RelationalSnapshotRepository,
 )
@@ -62,7 +61,6 @@ class RelationalUnitOfWork:
         imports: object | None = None
         wealth_facts: object | None = None
         relations: object | None = None
-        relation_checks: object | None = None
         account_aliases: object | None = None
         fact_deletions: object | None = None
 
@@ -100,9 +98,6 @@ class RelationalUnitOfWork:
     def relations(self):
         return self._state().relations
 
-    @property
-    def relation_checks(self):
-        return self._state().relation_checks
 
     @property
     def account_aliases(self):
@@ -135,7 +130,6 @@ class RelationalUnitOfWork:
             imports=RelationalImportRepository(session, self.workspace_id),
             wealth_facts=RelationalWealthFactWriter(session, self.workspace_id),
             relations=RelationalRelationRepository(session, self.workspace_id),
-            relation_checks=RelationalRelationCheckRunRepository(session, self.workspace_id),
             account_aliases=RelationalAccountAliasRepository(session, self.workspace_id),
             fact_deletions=RelationalFactDeletionRepository(session, self.workspace_id),
         )

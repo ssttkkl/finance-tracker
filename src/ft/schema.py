@@ -50,15 +50,12 @@ FOREIGN_EXCHANGE_KEYWORDS = ("购汇", "跨境", "外汇", "换汇")
 
 CASH_CSV_FIELDS = [
     "record_id", "occurred_at", "amount", "currency", "counterparty",
-    "note", "category", "account_name", "source", "bill_source",
-    "transfer_account", "locked", "offset_group", "offset_role",
-    "offset_strength", "offset_source", "offset_rule_hint",
-    "offset_match_type", "proposed_action",
+    "note", "category", "account_name", "source_type",
 ]
 
 CSV_FIELDS = [
     "date", "action", "from_ticker", "to_ticker",
-    "from_amount", "to_amount", "price", "commission",
+    "from_amount", "to_amount", "commission",
     "commission_asset", "currency", "account_name", "note",
 ]
 

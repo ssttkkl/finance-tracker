@@ -88,7 +88,7 @@ def _run_multi_account_and_jpy(sessions, unit_of_work_cls, workspace: str, tmp_p
     source = tmp_path / "stmt.bin"
     source.write_bytes(b"dual-backend-mapping")
     result = service.import_statement(
-        StatementImportCommand(source_path=str(source), source="alipay")
+        StatementImportCommand(source_path=str(source))
     )
     assert result.count == 2
     with unit_of_work_cls(sessions, workspace) as uow:

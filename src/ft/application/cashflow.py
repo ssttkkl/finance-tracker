@@ -56,9 +56,7 @@ class CashflowService:
                 "category": category if category is not None else ("expense" if amount < 0 else "income"),
                 "account_name": account_name,
                 "source": source,
-                "bill_source": bill_source or source or "",
-                "transfer_account": "",
-                "locked": "",
+                "source_type": bill_source or source or "",
                 "record_id": record_id,
             }
             uow.cashflows.add(account.type, row)
@@ -103,9 +101,8 @@ class CashflowService:
                 "category": "checkin",
                 "account_name": account_name,
                 "source": "手动",
-                "bill_source": "",
-                "transfer_account": "",
-                "locked": "",
+                "source_type": "",
+                                "locked": "",
             }
             uow.cashflows.add(account.type, row)
             if hasattr(uow, "wealth_facts"):
@@ -208,18 +205,17 @@ class TransferService:
 
 def _transfer_row(date_str: str, amount: Decimal, currency: str, note: str,
                   account_name: str, category: str, transfer_account: str) -> dict:
+    # 015: transfer counterpart lives in note (transfer_account column removed).
+    text = note or transfer_account or ""
     return {
         "occurred_at": date_str,
         "amount": amount,
         "currency": currency,
         "counterparty": "",
-        "note": note,
+        "note": text,
         "category": category,
         "account_name": account_name,
-        "source": "手动",
-        "bill_source": "",
-        "transfer_account": transfer_account,
-        "locked": "1",
+        "source_type": "",
     }
 
 

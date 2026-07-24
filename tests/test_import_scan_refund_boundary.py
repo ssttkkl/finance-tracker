@@ -165,7 +165,7 @@ def test_is_platform_import_refund_source_helper():
         currency="CNY",
         occurred_at=datetime.now(timezone.utc),
         bill_source="alipay",
-        source="支付宝",
+        source="alipay",
     )
     assert is_platform_import_refund_source(f) is True
     f2 = FactView(
@@ -177,7 +177,7 @@ def test_is_platform_import_refund_source_helper():
         amount=Decimal("1"),
         currency="CNY",
         occurred_at=datetime.now(timezone.utc),
-        bill_source="icbc_debit",
-        source="工行",
+        bill_source="icbc",
+        source="icbc",
     )
     assert is_platform_import_refund_source(f2) is False

@@ -208,36 +208,26 @@ def test_shared_runtime_rolls_back_injected_fact_and_projection_failure(relation
         uow.commit()
 
 
-def test_shared_runtime_import_idempotency_and_audit_relationships(relational_runtime):
+def test_shared_runtime_import_identity_lookup(relational_runtime):
     services = relational_runtime.services
     with services.uow as uow:
         uow.accounts.add_raw({"name": "Cash", "type": "cash", "currency": "CNY"})
-        batch = uow.imports.start_batch(
-            source_kind="alipay", source_digest="sha256:contract", source_ref="statement.csv",
-            target_account_name="Cash", target_account_currency="CNY",
-        )
-        same_batch = uow.imports.start_batch(
-            source_kind="alipay", source_digest="sha256:contract", source_ref="other.csv",
-            target_account_name="Cash", target_account_currency="CNY",
-        )
-        raw_id = uow.imports.add_raw_records(
-            batch_id=batch, raw_file_id=None, source_type="cash",
-            records=[{"source_identity": "provider:1", "source_line": 1, "payload": {"amount": "1"}}],
-        )[0]
         fact_id = uow.cashflows.add("cash", {
             "occurred_at": "2026-07-17 09:00:00", "amount": "1", "currency": "CNY",
-            "account_name": "Cash", "raw_record_id": raw_id,
+            "account_name": "Cash",
+            "source_type": "alipay",
+            "record_id": "provider:1",
+            "source_payload": {"amount": "1"},
+            "category": "income",
         })
-        revision = uow.imports.append_revision(
-            cash_transaction_id=fact_id, before={"category": ""}, after={"category": "income"},
-            actor_type="statement_import", reason="contract",
-        )
-        uow.imports.complete_batch(batch)
         uow.commit()
 
-    assert batch == same_batch
     with services.uow as uow:
-        assert uow.imports.get_batch(batch)["status"] == "completed"
-        assert uow.imports.list_raw_records(batch)[0]["id"] == raw_id
-        assert uow.imports.list_revisions(cash_transaction_id=fact_id)[0]["id"] == revision
+        found = uow.imports.existing_fact_targets(
+            source_type="alipay", record_ids=["provider:1"],
+        )
+        assert found["provider:1"] == ("Cash", "CNY")
+        rows = uow.cashflows.list_detailed()
+        assert rows[0]["id"] == fact_id
+        assert rows[0]["source_type"] == "alipay"
         uow.commit()

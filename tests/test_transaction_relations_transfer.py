@@ -81,7 +81,6 @@ def test_unionpay_ccb_date_only_uses_raw_business_day_auto():
         occurred_at="2024-05-05 17:48:03",
         counterparty="银联转账（云闪付）",
         note="无卡支付",
-        bill_source="icbc_debit",
         fact_type=FactType.CASH.value,
         raw_payload={"occurred_at": "2024-05-06 01:48:03"},
     )
@@ -95,7 +94,6 @@ def test_unionpay_ccb_date_only_uses_raw_business_day_auto():
         occurred_at="2024-05-05 16:00:00",
         counterparty="微信",
         note="银联入账",
-        bill_source="ccb_debit",
         fact_type=FactType.CASH.value,
         raw_payload={"occurred_at": "2024-05-06"},
     )
@@ -246,12 +244,12 @@ def test_bare_unionpay_merchant_refund_not_transfer_signal():
     out_leg = _fv(
         id="a", amount=Decimal("-100"), account_id="1", account_name="微信零钱",
         occurred_at="2023-06-19 08:54:52", counterparty="美团",
-        note="美团订单-23061911100400000024247213555312", bill_source="wechat",
+        note="美团订单-23061911100400000024247213555312",
     )
     in_leg = _fv(
         id="b", amount=Decimal("100"), account_id="2", account_name="工行借记卡",
         occurred_at="2023-06-19 10:06:50", counterparty="中国银联无卡快捷支付业务专户",
-        note="退货", bill_source="icbc_debit",
+        note="退货",
     )
     assert evaluate_transfer_pair(out_leg, [in_leg]) is None
 

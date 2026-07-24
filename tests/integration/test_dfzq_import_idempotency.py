@@ -40,7 +40,7 @@ def test_dfzq_import_duplicate_file_returns_success(tmp_path):
         assert result2.ok is True
         assert result2.count == 0
         assert result2.details["duplicate"] is True
-        assert result2.details["batch_id"] == result1.details["batch_id"]
+        assert result2.details.get("batch_id") is None
 
         with uow as session:
             events = session.investments.list()
@@ -67,7 +67,7 @@ def test_dfzq_import_duplicate_via_source_digest(tmp_path):
         assert result2.ok is True
         assert result2.count == 0
         assert result2.details["duplicate"] is True
-        assert result2.details["batch_id"] == result1.details["batch_id"]
+        assert result2.details.get("batch_id") is None
     finally:
         engine.dispose()
 
@@ -87,10 +87,9 @@ def test_dfzq_import_modified_file_creates_new_batch(tmp_path):
         modified.write_text(FIXTURE.read_text(encoding="utf-8") + "\n\n", encoding="utf-8")
         result2 = service.import_statement("dfzq", modified, "东方证券")
 
-        # 010: different digest → new job batch; overlapping identities skip formalization
+        # 015: file digest is not a gate; same identities skip formalization
         assert result2.ok is True
-        assert result2.details["batch_id"] != result1.details["batch_id"]
-        # Same business rows (+ trailing whitespace does not add rows) → novel count 0
         assert result2.count == 0
+        assert result2.details["duplicate"] is True
     finally:
         engine.dispose()

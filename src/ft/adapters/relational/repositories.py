@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
+from uuid import uuid4
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -15,10 +16,8 @@ from .models import (
     AccountAliasModel,
     AccountModel,
     CashTransactionModel,
-    FactDeletionEventModel,
     InvestmentEventModel,
     LedgerSnapshotModel,
-    RelationCheckRunModel,
     TransactionRelationModel,
     WorkspaceModel,
     exact_decimal,
@@ -201,33 +200,22 @@ class RelationalCashflowRepository:
             CashTransactionModel.occurred_at, CashTransactionModel.id
         ))
         detailed = [self._to_row(row, account) for row, account in rows]
-        # 007: attach raw_records.payload for scan Phase A hard-key matching
-        raw_ids = [r["raw_record_id"] for r in detailed if r.get("raw_record_id")]
-        payload_by_raw: dict = {}
-        if raw_ids:
-            from ft.adapters.relational.models import RawRecordModel
-            raw_rows = self._session.scalars(
-                select(RawRecordModel).where(
-                    RawRecordModel.workspace_id == self._workspace_id,
-                    RawRecordModel.id.in_(raw_ids),
-                )
-            ).all()
-            payload_by_raw = {row.id: (row.payload or {}) for row in raw_rows}
         for item in detailed:
-            payload = payload_by_raw.get(item.get("raw_record_id") or "", {}) or {}
-            item["raw_payload"] = payload
-            # Promote common hard-key fields when missing on formal row
+            payload = item.get("source_payload") if isinstance(item.get("source_payload"), dict) else {}
+            item["raw_payload"] = payload or {}
             for key in (
                 "platform_status", "status", "txn_id", "merchant_order_id",
                 "txn_type", "payment_method", "direction", "type",
             ):
                 if not item.get(key) and payload.get(key) not in (None, ""):
                     item[key] = payload.get(key)
-            # Alipay: txn often stored as record_id
             if not item.get("txn_id") and item.get("record_id"):
                 item["txn_id"] = item["record_id"]
             if not item.get("platform_status") and payload.get("txn_status"):
                 item["platform_status"] = payload.get("txn_status")
+            st = item.get("source_type") or ""
+            item.setdefault("source", st)
+            item.setdefault("bill_source", st)
         return detailed
 
     def list_with_ids(self, *, include_deleted: bool = False) -> list[dict]:
@@ -261,17 +249,9 @@ class RelationalCashflowRepository:
             "note": row.get("note", ""),
             "category": row.get("category", ""),
             "account_name": row.get("account_name", ""),
-            "source": row.get("source", ""),
-            "bill_source": row.get("bill_source", ""),
-            "transfer_account": row.get("transfer_account", ""),
-            "locked": row.get("locked", ""),
-            "offset_group": row.get("offset_group", ""),
-            "offset_role": row.get("offset_role", ""),
-            "offset_strength": row.get("offset_strength", ""),
-            "offset_source": row.get("offset_source", ""),
-            "offset_rule_hint": row.get("offset_rule_hint", ""),
-            "offset_match_type": row.get("offset_match_type", ""),
-            "proposed_action": row.get("proposed_action", ""),
+            "source_type": row.get("source_type", "") or "",
+            "source": row.get("source_type", "") or "",
+            "bill_source": row.get("source_type", "") or "",
             "_record_type": row.get("_record_type") or row.get("account_type") or "cash",
         }
 
@@ -292,28 +272,21 @@ class RelationalCashflowRepository:
         ))
         if account is None:
             raise ValueError(f"account not found in workspace: {normalized['account_name']}")
+        payload = row.get("source_payload")
+        if payload is not None and not isinstance(payload, dict):
+            payload = dict(payload) if payload else None
         model = CashTransactionModel(
             workspace_id=self._workspace_id,
             account_id=account.id,
-            raw_record_id=row.get("raw_record_id"),
-            record_id=str(normalized["record_id"] or ""),
+            source_type=(str(row.get("source_type") or normalized.get("source_type") or row.get("bill_source") or row.get("source") or "").strip() or None),
+            record_id=str(normalized["record_id"] or row.get("record_id") or ""),
+            source_payload=payload,
             occurred_at=_parse_timestamp(normalized["occurred_at"]),
             amount=exact_decimal(normalized["amount"]),
             currency=currency,
             counterparty=str(normalized["counterparty"] or ""),
             note=str(normalized["note"] or ""),
             category=str(normalized["category"] or ""),
-            source=str(normalized["source"] or ""),
-            bill_source=str(normalized["bill_source"] or ""),
-            transfer_account=str(normalized["transfer_account"] or ""),
-            locked=str(normalized["locked"] or ""),
-            offset_group=str(normalized["offset_group"] or ""),
-            offset_role=str(normalized["offset_role"] or ""),
-            offset_strength=str(normalized["offset_strength"] or ""),
-            offset_source=str(normalized["offset_source"] or ""),
-            offset_rule_hint=str(normalized["offset_rule_hint"] or ""),
-            offset_match_type=str(normalized["offset_match_type"] or ""),
-            proposed_action=str(normalized["proposed_action"] or ""),
         )
         self._session.add(model)
         self._session.flush()
@@ -324,6 +297,10 @@ class RelationalCashflowRepository:
         return {
             "id": row.id,
             "record_id": row.record_id,
+            "source_type": row.source_type or "",
+            "source_payload": row.source_payload,
+            "source": row.source_type or "",
+            "bill_source": row.source_type or "",
             "occurred_at": _format_timestamp(row.occurred_at),
             "amount": row.amount,
             "currency": row.currency,
@@ -333,18 +310,6 @@ class RelationalCashflowRepository:
             "account_name": account.name,
             "account_id": account.id,
             "account_type": account.type,
-            "source": row.source,
-            "bill_source": row.bill_source,
-            "transfer_account": row.transfer_account,
-            "locked": row.locked,
-            "offset_group": row.offset_group,
-            "offset_role": row.offset_role,
-            "offset_strength": row.offset_strength,
-            "offset_source": row.offset_source,
-            "offset_rule_hint": row.offset_rule_hint,
-            "offset_match_type": row.offset_match_type,
-            "proposed_action": row.proposed_action,
-            "raw_record_id": row.raw_record_id,
             "deleted_at": row.deleted_at,
             "deleted_by": getattr(row, "deleted_by", "") or "",
             "delete_reason": getattr(row, "delete_reason", "") or "",
@@ -363,8 +328,8 @@ class RelationalInvestmentRepository:
         "action", "kind", "date", "occurred_at", "currency", "note",
         "from_ticker", "from_amount", "to_ticker", "to_amount",
         "price", "commission", "commission_asset", "amount", "ticker",
-        "shares", "quantity", "account_name", "revision", "raw_record_id",
-        "id", "workspace_id", "account_id", "_record_type",
+        "shares", "quantity", "account_name", "source_type", "record_id",
+        "source_payload", "id", "workspace_id", "account_id", "_record_type",
     })
 
     def list(self) -> list[dict]:
@@ -390,11 +355,11 @@ class RelationalInvestmentRepository:
                 "from_amount": None if row.from_amount is None else format(row.from_amount, "f"),
                 "to_ticker": row.to_ticker or "",
                 "to_amount": None if row.to_amount is None else format(row.to_amount, "f"),
-                "price": None if row.price is None else format(row.price, "f"),
                 "commission": None if row.commission is None else format(row.commission, "f"),
                 "commission_asset": row.commission_asset or "",
-                "revision": row.revision,
-                "raw_record_id": row.raw_record_id,
+                "source_type": row.source_type or "",
+                "record_id": row.record_id or "",
+                "source_payload": row.source_payload,
                 "_record_type": account.type,
             }
             # residual non-core only
@@ -439,19 +404,31 @@ class RelationalInvestmentRepository:
             key: value for key, value in _json_safe(data).items()
             if key not in self._INVESTMENT_CORE_KEYS
         }
+        sp = data.get("source_payload")
+        if sp is not None and not isinstance(sp, dict):
+            sp = dict(sp) if sp else None
+        from_amount = _amt("from_amount")
+        to_amount = _amt("to_amount")
+        price = _amt("price")
+        if price is not None:
+            if from_amount is None and to_amount is not None:
+                from_amount = exact_decimal(price * to_amount)
+            elif to_amount is None and from_amount is not None:
+                to_amount = exact_decimal(price * from_amount)
         model = InvestmentEventModel(
             workspace_id=self._workspace_id,
             account_id=account.id,
-            raw_record_id=row.get("raw_record_id"),
+            source_type=(str(data.get("source_type") or "").strip() or None),
+            record_id=str(data.get("record_id") or ""),
+            source_payload=sp,
             occurred_at=_parse_timestamp(str(time_raw)),
             action=action,
             currency=str(currency or ""),
             note=note,
             from_ticker=str(data.get("from_ticker") or "").lower(),
-            from_amount=_amt("from_amount"),
+            from_amount=from_amount,
             to_ticker=str(data.get("to_ticker") or "").lower(),
-            to_amount=_amt("to_amount"),
-            price=_amt("price"),
+            to_amount=to_amount,
             commission=_amt("commission"),
             commission_asset=str(data.get("commission_asset") or "").lower(),
             payload=residual,
@@ -575,7 +552,6 @@ class RelationalRelationRepository:
             "decision_reason": row.decision_reason,
             "later_marker": row.later_marker or "",
             "superseded_by_id": row.superseded_by_id,
-            "revision": row.revision,
             "active_slot": row.active_slot,
         }
 
@@ -778,63 +754,6 @@ class RelationalRelationRepository:
         return self._to_dict(row)
 
 
-class RelationalRelationCheckRunRepository:
-    def __init__(self, session, workspace_id: str):
-        self._session = session
-        self._workspace_id = workspace_id
-
-    @staticmethod
-    def _to_dict(row: RelationCheckRunModel) -> dict:
-        return {
-            "id": row.id,
-            "workspace_id": row.workspace_id,
-            "trigger": row.trigger,
-            "seed_ref": row.seed_ref,
-            "status": row.status,
-            "started_at": row.started_at,
-            "finished_at": row.finished_at,
-            "error": row.error,
-            "stats": dict(row.stats_json or {}),
-        }
-
-    def start(self, *, trigger: str, seed_ref: str, status: str = "pending") -> str:
-        model = RelationCheckRunModel(
-            workspace_id=self._workspace_id,
-            trigger=trigger,
-            seed_ref=seed_ref,
-            status=status,
-            stats_json={},
-            error="",
-        )
-        self._session.add(model)
-        self._session.flush()
-        return model.id
-
-    def finish(
-        self, run_id: str, *, status: str, stats: dict | None = None, error: str | None = None,
-    ) -> dict:
-        row = self._session.scalar(select(RelationCheckRunModel).where(
-            RelationCheckRunModel.workspace_id == self._workspace_id,
-            RelationCheckRunModel.id == run_id,
-        ))
-        if row is None:
-            raise ValueError(f"check run not found: {run_id}")
-        row.status = status
-        row.finished_at = datetime.now(timezone.utc)
-        if stats is not None:
-            row.stats_json = _json_safe(stats)
-        if error is not None:
-            row.error = error
-        self._session.flush()
-        return self._to_dict(row)
-
-    def get(self, run_id: str) -> dict | None:
-        row = self._session.scalar(select(RelationCheckRunModel).where(
-            RelationCheckRunModel.workspace_id == self._workspace_id,
-            RelationCheckRunModel.id == run_id,
-        ))
-        return None if row is None else self._to_dict(row)
-
 
 class RelationalAccountAliasRepository:
     def __init__(self, session, workspace_id: str):
@@ -907,38 +826,86 @@ class RelationalFactDeletionRepository:
         row.deleted_at = now
         row.deleted_by = actor
         row.delete_reason = str(reason).strip()
-        event = FactDeletionEventModel(
-            workspace_id=self._workspace_id,
-            fact_id=fact_id,
-            fact_type="cash",
-            actor=actor,
-            reason=str(reason).strip(),
-            created_at=now,
-        )
-        self._session.add(event)
         self._session.flush()
         return {
             "fact_id": fact_id,
             "deleted_at": row.deleted_at,
             "deleted_by": row.deleted_by,
             "delete_reason": row.delete_reason,
-            "event_id": event.id,
+            "event_id": None,
         }
 
     def list_events(self, fact_id: str | None = None) -> list[dict]:
-        statement = select(FactDeletionEventModel).where(
-            FactDeletionEventModel.workspace_id == self._workspace_id
+        statement = select(CashTransactionModel).where(
+            CashTransactionModel.workspace_id == self._workspace_id,
+            CashTransactionModel.deleted_at.is_not(None),
         )
         if fact_id is not None:
-            statement = statement.where(FactDeletionEventModel.fact_id == fact_id)
+            statement = statement.where(CashTransactionModel.id == fact_id)
         rows = self._session.scalars(statement.order_by(
-            FactDeletionEventModel.created_at, FactDeletionEventModel.id
+            CashTransactionModel.deleted_at, CashTransactionModel.id
         ))
         return [{
             "id": row.id,
-            "fact_id": row.fact_id,
-            "fact_type": row.fact_type,
-            "actor": row.actor,
-            "reason": row.reason,
-            "created_at": row.created_at,
+            "fact_id": row.id,
+            "fact_type": "cash",
+            "actor": row.deleted_by,
+            "reason": row.delete_reason,
+            "created_at": row.deleted_at,
         } for row in rows]
+
+
+class RelationalRelationCheckRunRepository:
+    """In-memory check-run placeholders (015: no relation_check_runs table)."""
+
+    def __init__(self, session, workspace_id: str):
+        self._session = session
+        self._workspace_id = workspace_id
+        self._runs: dict[str, dict] = {}
+
+    def start(self, *, trigger: str, seed_ref: str, status: str = "pending") -> str:
+        from uuid import uuid4
+        run_id = str(uuid4())
+        now = datetime.now(timezone.utc)
+        self._runs[run_id] = {
+            "id": run_id,
+            "workspace_id": self._workspace_id,
+            "trigger": trigger,
+            "seed_ref": seed_ref,
+            "status": status,
+            "started_at": now,
+            "finished_at": None,
+            "error": "",
+            "stats": {},
+        }
+        return run_id
+
+    def finish(
+        self, run_id: str, *, status: str, stats: dict | None = None, error: str | None = None,
+    ) -> dict:
+        row = self._runs.get(run_id)
+        if row is None:
+            row = {
+                "id": run_id,
+                "workspace_id": self._workspace_id,
+                "trigger": "",
+                "seed_ref": "",
+                "status": status,
+                "started_at": None,
+                "finished_at": datetime.now(timezone.utc),
+                "error": error or "",
+                "stats": dict(stats or {}),
+            }
+            self._runs[run_id] = row
+            return row
+        row["status"] = status
+        row["finished_at"] = datetime.now(timezone.utc)
+        if stats is not None:
+            row["stats"] = _json_safe(stats)
+        if error is not None:
+            row["error"] = error
+        return dict(row)
+
+    def get(self, run_id: str) -> dict | None:
+        row = self._runs.get(run_id)
+        return None if row is None else dict(row)

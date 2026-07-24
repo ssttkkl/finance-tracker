@@ -112,6 +112,26 @@ def _set_qty(
         _set(position, shares, cost)
 
 
+def _unit_price_from_row(row: dict, *, from_amount, to_amount) -> "Decimal":
+    """Ephemeral unit price for replay; not a formal stored field (015)."""
+    raw = row.get("price")
+    if raw not in (None, ""):
+        try:
+            return _decimal(raw, "price", default="0")
+        except Exception:
+            pass
+    try:
+        fa = abs(_decimal(from_amount, "from_amount", default="0"))
+        ta = abs(_decimal(to_amount, "to_amount", default="0"))
+        if ta != 0:
+            return fa / ta
+        if fa != 0:
+            return ta / fa
+    except Exception:
+        pass
+    return Decimal("0")
+
+
 def _event(command, date: str, currency: str, **values) -> dict:
     row = {
         "date": date,
@@ -445,7 +465,12 @@ def apply_investment_event(
         if _is_base(ticker, bases):
             _set_qty(target, to_amount, ticker=ticker, bases=bases)
         else:
-            cost = to_amount * _decimal(row.get("price", 0), "price", default="0")
+            if row.get("total_cost") not in (None, ""):
+                cost = _decimal(row.get("total_cost"), "total_cost")
+            elif row.get("price") not in (None, ""):
+                cost = to_amount * _decimal(row.get("price"), "price", default="0")
+            else:
+                cost = Decimal("0")
             _set_qty(target, to_amount, ticker=ticker, bases=bases, cost=cost)
     else:
         raise ValueError(f"unsupported investment event action: {action}")

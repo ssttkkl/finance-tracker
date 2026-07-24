@@ -195,10 +195,19 @@ def test_merge_same_name_same_type_rewrites_cash_valuation_identities(tmp_path, 
             "SELECT account_id FROM account_lifecycle_events WHERE workspace_id = 'w'"
         )).scalars().all()
         assert lifecycle_owners == ["a-cny"]
-        import_targets = connection.execute(text(
-            "SELECT target_account_id FROM import_batches WHERE workspace_id = 'w'"
-        )).scalars().all()
-        assert import_targets == ["a-cny"]
+        # 015 drops import_batches after head; account rewrite already covered by
+        # cash/investment/lifecycle/valuation assertions above.
+        tables = set(connection.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+            if backend == "sqlite" else
+            "SELECT tablename FROM pg_tables WHERE schemaname='public'"
+        )).scalars().all()) if backend == "sqlite" else {
+            row[0] for row in connection.execute(text(
+                "SELECT tablename FROM pg_tables WHERE schemaname = current_schema()"
+            )).all()
+        }
+        # After 015 head, import job tables are gone.
+        assert "import_batches" not in tables
         snapshot_payload = connection.execute(text(
             "SELECT payload FROM ledger_snapshots WHERE workspace_id = 'w'"
         )).scalar_one()

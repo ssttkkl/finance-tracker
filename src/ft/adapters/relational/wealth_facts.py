@@ -60,7 +60,7 @@ class RelationalWealthFactRepository:
                 ValuationObservationModel.currency, ValuationObservationModel.unit,
                 ValuationObservationModel.as_of, ValuationObservationModel.observed_at,
                 ValuationObservationModel.source_identity, ValuationObservationModel.source_revision,
-                ValuationObservationModel.trust, ValuationObservationModel.raw_record_id,
+                ValuationObservationModel.trust,
             ).where(
                 ValuationObservationModel.workspace_id == self._workspace_id,
                 ValuationObservationModel.as_of >= starts_at,
@@ -71,7 +71,7 @@ class RelationalWealthFactRepository:
             ).order_by(ValuationObservationModel.as_of, ValuationObservationModel.observation_id)).all()
         return tuple(ValuationFact(
             row[0], row[1], row[2], row[3], row[5], row[6], row[7], row[8], row[9], row[10],
-            row[11], row[12], row[13], row[14], row[4],
+            row[11], row[12], row[13], None, row[4],
         ) for row in rows)
 
     def lifecycle_events(self) -> tuple[LifecycleFact, ...]:
@@ -90,11 +90,10 @@ class RelationalWealthFactRepository:
                 CashTransactionModel.workspace_id, CashTransactionModel.id,
                 CashTransactionModel.account_id, CashTransactionModel.occurred_at,
                 CashTransactionModel.amount, CashTransactionModel.currency,
-                CashTransactionModel.revision, CashTransactionModel.raw_record_id,
-                CashTransactionModel.category, CashTransactionModel.transfer_account,
-                CashTransactionModel.offset_group, CashTransactionModel.offset_role,
+                CashTransactionModel.category,
             ).where(
-                CashTransactionModel.workspace_id == self._workspace_id
+                CashTransactionModel.workspace_id == self._workspace_id,
+                CashTransactionModel.deleted_at.is_(None),
             ).order_by(CashTransactionModel.occurred_at, CashTransactionModel.id)).all()
         return tuple(CashflowFact(*row) for row in rows)
 
@@ -104,8 +103,7 @@ class RelationalWealthFactRepository:
                 InvestmentEventModel.workspace_id, InvestmentEventModel.id,
                 InvestmentEventModel.account_id, InvestmentEventModel.occurred_at,
                 InvestmentEventModel.action, InvestmentEventModel.currency,
-                InvestmentEventModel.payload, InvestmentEventModel.revision,
-                InvestmentEventModel.raw_record_id,
+                InvestmentEventModel.payload,
                 InvestmentEventModel.commission, InvestmentEventModel.from_amount,
                 InvestmentEventModel.to_amount,
                 InvestmentEventModel.from_ticker, InvestmentEventModel.to_ticker,
@@ -136,7 +134,7 @@ class RelationalWealthFactRepository:
                 ValuationObservationModel.currency, ValuationObservationModel.unit,
                 ValuationObservationModel.as_of, ValuationObservationModel.observed_at,
                 ValuationObservationModel.source_identity, ValuationObservationModel.source_revision,
-                ValuationObservationModel.trust, ValuationObservationModel.raw_record_id,
+                ValuationObservationModel.trust,
             ).where(
                 ValuationObservationModel.workspace_id == self._workspace_id
             ).order_by(ValuationObservationModel.observation_id, ValuationObservationModel.source_revision)).all()
@@ -152,18 +150,18 @@ class RelationalWealthFactRepository:
                 CashTransactionModel.workspace_id, CashTransactionModel.id,
                 CashTransactionModel.account_id, CashTransactionModel.occurred_at,
                 CashTransactionModel.amount, CashTransactionModel.currency,
-                CashTransactionModel.revision, CashTransactionModel.raw_record_id,
-                CashTransactionModel.category, CashTransactionModel.transfer_account,
-                CashTransactionModel.offset_group, CashTransactionModel.offset_role,
-            ).where(CashTransactionModel.workspace_id == self._workspace_id).order_by(
+                CashTransactionModel.category,
+            ).where(
+                CashTransactionModel.workspace_id == self._workspace_id,
+                CashTransactionModel.deleted_at.is_(None),
+            ).order_by(
                 CashTransactionModel.occurred_at, CashTransactionModel.id,
             )).all()
             investment_rows = session.execute(select(
                 InvestmentEventModel.workspace_id, InvestmentEventModel.id,
                 InvestmentEventModel.account_id, InvestmentEventModel.occurred_at,
                 InvestmentEventModel.action, InvestmentEventModel.currency,
-                InvestmentEventModel.payload, InvestmentEventModel.revision,
-                InvestmentEventModel.raw_record_id,
+                InvestmentEventModel.payload,
                 InvestmentEventModel.commission, InvestmentEventModel.from_amount,
                 InvestmentEventModel.to_amount,
                 InvestmentEventModel.from_ticker, InvestmentEventModel.to_ticker,
@@ -179,7 +177,7 @@ class RelationalWealthFactRepository:
         accounts = tuple(AccountFact(*row) for row in account_rows)
         valuations = tuple(ValuationFact(
             row[0], row[1], row[2], row[3], row[5], row[6], row[7], row[8], row[9], row[10],
-            row[11], row[12], row[13], row[14], row[4],
+            row[11], row[12], row[13], None, row[4],
         ) for row in valuation_rows)
         lifecycle = tuple(LifecycleFact(*row) for row in lifecycle_rows)
         cashflows = tuple(CashflowFact(*row) for row in cash_rows)
@@ -198,9 +196,10 @@ class RelationalWealthFactRepository:
             ) in fx_by_day else None
 
         def cash_kind(row: CashflowFact) -> str:
-            if row.transfer_account or row.offset_group or row.offset_role:
+            cat = (row.category or "").lower()
+            if cat in {"transfer", "transfer_in", "transfer_out"}:
                 return "transfer"
-            return row.category.lower() if row.category.lower() in {
+            return cat if cat in {
                 "salary", "expense", "refund", "interest", "liability_interest",
             } else "external_cashflow"
 
@@ -238,9 +237,8 @@ class RelationalWealthFactRepository:
             row.account_id, row.event_kind, row.effective_at.isoformat(), row.source_revision,
         )) for row in lifecycle)
         items.extend(WealthSourceItem(
-            "cashflow", row.fact_id, str(row.revision), _digest_parts(
+            "cashflow", row.fact_id, "1", _digest_parts(
                 row.account_id, row.occurred_at.isoformat(), row.amount, row.category,
-                row.transfer_account, row.offset_group, row.offset_role, row.revision,
             ), row.occurred_at, cash_kind(row), projected_amount(row.amount, row.currency, row.occurred_at),
             f"{row.occurred_at.astimezone(shanghai).date().isoformat()}:{cash_kind(row)}:{row.fact_id}",
             None,
@@ -248,8 +246,8 @@ class RelationalWealthFactRepository:
         for row in investments:
             evidence_kind, contribution = investment_projection(row)
             items.append(WealthSourceItem(
-                "investment", row.fact_id, str(row.revision), _digest_parts(
-                    row.account_id, row.occurred_at.isoformat(), row.action, canonical_digest(dict(row.payload)), row.revision,
+                "investment", row.fact_id, "1", _digest_parts(
+                    row.account_id, row.occurred_at.isoformat(), row.action, canonical_digest(dict(row.payload)),
                 ), row.occurred_at, evidence_kind, contribution,
                 f"{row.occurred_at.astimezone(shanghai).date().isoformat()}:{evidence_kind}:{row.fact_id}",
                 None,
@@ -309,12 +307,13 @@ class RelationalWealthFactRepository:
         # the fence orders by primary identity/revision so in-place corrections
         # that preserve maxima still invalidate.  Sort the already-fetched rows.
         self._absorb_source_state_rows(digest, (
-            (row[1], row[6], row[2], row[3], row[4], row[8], row[9], row[10], row[11])
-            for row in sorted(cash_rows, key=lambda item: (item[1], item[6]))
+            (row[1], row[2], row[3], row[4], row[6])
+            for row in sorted(cash_rows, key=lambda item: (item[1],))
         ))
+        # investment capture: 0ws 1id 2account 3occurred 4action 5currency 6payload ...
         self._absorb_source_state_rows(digest, (
-            (row[1], row[7], row[2], row[3], row[4], row[6])
-            for row in sorted(investment_rows, key=lambda item: (item[1], item[7]))
+            (row[1], row[2], row[3], row[4], row[6])
+            for row in sorted(investment_rows, key=lambda item: (item[1],))
         ))
         return (digest.hexdigest(),)
 
@@ -342,17 +341,19 @@ class RelationalWealthFactRepository:
                 AccountLifecycleEventModel.event_id, AccountLifecycleEventModel.source_revision,
             )).yield_per(2_000))
             self._absorb_source_state_rows(digest, active_session.execute(select(
-                CashTransactionModel.id, CashTransactionModel.revision, CashTransactionModel.account_id,
+                CashTransactionModel.id, CashTransactionModel.account_id,
                 CashTransactionModel.occurred_at, CashTransactionModel.amount, CashTransactionModel.category,
-                CashTransactionModel.transfer_account, CashTransactionModel.offset_group, CashTransactionModel.offset_role,
-            ).where(CashTransactionModel.workspace_id == self._workspace_id).order_by(
-                CashTransactionModel.id, CashTransactionModel.revision,
+            ).where(
+                CashTransactionModel.workspace_id == self._workspace_id,
+                CashTransactionModel.deleted_at.is_(None),
+            ).order_by(
+                CashTransactionModel.id,
             )).yield_per(2_000))
             self._absorb_source_state_rows(digest, active_session.execute(select(
-                InvestmentEventModel.id, InvestmentEventModel.revision, InvestmentEventModel.account_id,
+                InvestmentEventModel.id, InvestmentEventModel.account_id,
                 InvestmentEventModel.occurred_at, InvestmentEventModel.action, InvestmentEventModel.payload,
             ).where(InvestmentEventModel.workspace_id == self._workspace_id).order_by(
-                InvestmentEventModel.id, InvestmentEventModel.revision,
+                InvestmentEventModel.id,
             )).yield_per(2_000))
             return (digest.hexdigest(),)
         if session is not None:

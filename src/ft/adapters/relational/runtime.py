@@ -33,12 +33,11 @@ from .investments import RelationalInvestmentCommandRepository
 from ft.adapters.statement_import import StatementParser
 
 
-SCHEMA_REVISION = "20260724_07"
+SCHEMA_REVISION = "20260724_08"
 REQUIRED_TABLES = {
     "workspaces", "accounts", "cash_transactions", "investment_events",
-    "ledger_snapshots", "import_batches", "raw_files", "raw_records",
-    "record_revisions",
-    "transaction_relations", "relation_check_runs", "account_aliases", "fact_deletion_events",
+    "ledger_snapshots",
+    "transaction_relations", "account_aliases",
     "valuation_observations", "account_lifecycle_events", "wealth_source_manifests",
     "wealth_source_manifest_items", "wealth_generations", "wealth_generation_days",
     "wealth_daily_results", "wealth_active_manifests", "wealth_components",
@@ -267,10 +266,11 @@ def build_relational_services(settings) -> ServiceBundle:
                     amount = decimal_value((local_amount * rate).normalize())
                     flow_rate = decimal_value(rate)
                 flows_by_day.setdefault(occurred, []).append(amount)
-                if value.transfer_account or value.offset_group or value.offset_role:
+                cat = (value.category or "").lower()
+                if cat in {"transfer", "transfer_in", "transfer_out"}:
                     event_kind = "transfer"
-                elif value.category.lower() in {"salary", "expense", "refund", "interest", "liability_interest"}:
-                    event_kind = value.category.lower()
+                elif cat in {"salary", "expense", "refund", "interest", "liability_interest"}:
+                    event_kind = cat
                 else:
                     event_kind = "external_cashflow"
                 cash_events_by_day.setdefault(occurred, []).append(WealthEvent(event_kind, amount))

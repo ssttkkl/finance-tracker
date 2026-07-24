@@ -1983,6 +1983,7 @@ def _build_output_row(
         "account_name": acct_name,
         "source": payment_src,
         "bill_source": bill_type,
+        "source_type": bill_type,
         "transfer_account": rec.get("transfer_account", ""),
         "locked": rec.get("locked", ""),
         "offset_group": rec.get("offset_group", ""),

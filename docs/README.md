@@ -10,6 +10,7 @@ dual-write、no implicit migration。SQLite 的 `storage.busy`、permission 和 
 ## 当前基线
 
 - [项目说明](../README.md)：PostgreSQL 与文件 SQLite 配置、命令与验证。
+- [数据库表结构](database-schema.md)：当前 ORM + Alembic 表结构速查（26 张表；非平行需求源）。
 - [账单直接导入流程](import-reconcile-flow.md)：原始文件到正式 relational facts 的事务链路。
 - [显式 CSV 导出格式](unified-csv-format.md)：只读检查/交换用途，不是运行时账本。
 - [Phase 1 历史记录](phase1-application-services.md)：已被当前 application 边界吸收。

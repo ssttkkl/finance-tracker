@@ -35,9 +35,10 @@ def test_schema_end_state_has_note_and_action_not_legacy_names():
     assert "action" in inv_cols and "kind" not in inv_cols
     for col in (
         "from_ticker", "from_amount", "to_ticker", "to_amount",
-        "price", "commission", "commission_asset", "note",
+        "commission", "commission_asset", "note", "source_type", "record_id",
     ):
         assert col in inv_cols
+    assert "price" not in inv_cols
 
 
 def test_cash_and_investment_public_rows_use_catalog_names(tmp_path):

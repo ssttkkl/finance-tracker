@@ -79,21 +79,21 @@ def _seed_base(sessions, *, with_fee=True) -> None:
             ),
             CashTransactionModel(
                 id="salary", workspace_id="wealth-runtime-golden", account_id="cash", occurred_at=at(1, 9),
-                amount=Decimal("10"), currency="CNY", record_id="salary", category="salary", revision=1,
+                amount=Decimal("10"), currency="CNY", record_id="salary", category="salary",
             ),
             InvestmentEventModel(
                 id="funding", workspace_id="wealth-runtime-golden", account_id="broker", occurred_at=at(2, 10),
-                action="deposit", currency="USD", to_amount="1", payload={}, revision=1,
+                action="deposit", currency="USD", to_amount="1", payload={},
             ),
             InvestmentEventModel(
                 id="dividend", workspace_id="wealth-runtime-golden", account_id="broker", occurred_at=at(2, 12),
-                action="dividend", currency="USD", to_amount="1", payload={}, revision=1,
+                action="dividend", currency="USD", to_amount="1", payload={},
             ),
         ))
         if with_fee:
             session.add(InvestmentEventModel(
                 id="fee", workspace_id="wealth-runtime-golden", account_id="broker", occurred_at=at(3, 11),
-                action="buy", currency="USD", payload={"position": "broker:global-etf", "commission": "0.1"}, revision=1,
+                action="buy", currency="USD", payload={"position": "broker:global-etf", "commission": "0.1"},
             ))
         for day, cash, position, fx in (
             (1, "100", "10", "7.0"),
@@ -280,7 +280,7 @@ def test_runtime_foreign_cash_midday_flow_uses_flow_weighted_fx(runtime_golden, 
         session.add(CashTransactionModel(
             id="usd-inflow", workspace_id="wealth-runtime-golden", account_id="usd-cash",
             occurred_at=at(1, 12), amount=Decimal("20"), currency="USD", record_id="usd-inflow",
-            category="salary", revision=1,
+            category="salary",
         ))
         for day, cash, fx in ((1, "100", "7.0"), (2, "120", "7.2"), (3, "120", "7.2")):
             session.add(ValuationObservationModel(
@@ -355,7 +355,7 @@ def test_runtime_missing_fx_stale_and_unsupported_fail_closed(runtime_golden, mo
         session.add(InvestmentEventModel(
             id="option", workspace_id="wealth-runtime-golden", account_id="broker",
             occurred_at=datetime(2026, 7, 2, 15, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
-            action="option_exercise", currency="USD", payload={"amount": "1"}, revision=1,
+            action="option_exercise", currency="USD", payload={"amount": "1"},
         ))
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
     services.wealth.rebuild(affected_from="2026-07-01")

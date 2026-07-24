@@ -16,8 +16,6 @@ def _fv(id: str, amount: str, *, src: str, desc: str = "", day: str = "2026-01-0
         account_id="a",
         counterparty="商户",
         note=desc,
-        bill_source=src,
-        source=src,
         occurred_at=f"{day}T10:00:00+00:00",
         fact_type="cash",
     )
