@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-24
 
-**Status**: Draft
+**Status**: Complete
 
 **Input**: User: main-branch investment model — account configures base currencies (USD/HKD/CNY/JPY, USDT/USDC, …); those base tickers do not carry cost basis. Current branch still treats positions uniformly with total_cost/cost_currency and only hardcodes fiat for multi-ccy labels.
 
