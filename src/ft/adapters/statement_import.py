@@ -117,7 +117,7 @@ def _dfzq_rows(records, command):
     for record in records:
         action = record["action"]
         common = {
-            "date": record["date"], "currency": currency,
+            "occurred_at": record["date"], "currency": currency,
             "account_name": account_name, "note": record.get("note", ""),
             "commission_asset": "", "commission": "0",
         }

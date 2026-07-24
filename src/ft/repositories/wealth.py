@@ -68,11 +68,16 @@ class InvestmentFact:
     fact_id: str
     account_id: str
     occurred_at: datetime
-    kind: str
+    action: str
     currency: str
     payload: Mapping[str, str]
     revision: int
     raw_record_id: str | None = None
+    commission: object | None = None
+    from_amount: object | None = None
+    to_amount: object | None = None
+    from_ticker: str = ""
+    to_ticker: str = ""
 
 
 @dataclass(frozen=True)

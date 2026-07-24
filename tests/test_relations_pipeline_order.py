@@ -18,7 +18,7 @@ def _fv(**kwargs):
         currency="CNY",
         account_id="a1",
         counterparty="cp",
-        description="desc",
+        note="desc",
         bill_source="icbc_debit",
         source="icbc_debit",
         occurred_at="2024-01-02T12:00:00+00:00",
@@ -32,7 +32,7 @@ def _fv(**kwargs):
 
 
 def test_diamond_without_mirror_edges_yields_empty():
-    bank_ref = _fv(id="br1", amount=Decimal("10.00"), description="消费退货")
+    bank_ref = _fv(id="br1", amount=Decimal("10.00"), note="消费退货")
     props = match_diamond_bank_refunds(
         [bank_ref],
         accepted_mirrors=[],
@@ -46,7 +46,7 @@ def test_run_relation_phases_returns_list():
         _fv(
             id="e1",
             amount=Decimal("-10.00"),
-            description="消费",
+            note="消费",
             bill_source="alipay",
             source="alipay",
             account_id="same",
@@ -54,7 +54,7 @@ def test_run_relation_phases_returns_list():
         _fv(
             id="b1",
             amount=Decimal("-10.00"),
-            description="支付宝",
+            note="支付宝",
             bill_source="icbc_debit",
             source="icbc_debit",
             account_id="same",

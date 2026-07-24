@@ -295,7 +295,15 @@ def _decimal(value: str) -> Decimal:
 
 
 def _fmt(value: Decimal) -> str:
-    return format(value, "f")
+    """Format for event legs; cap long division tails at 18 dp without forcing scale."""
+    from decimal import ROUND_HALF_UP
+    quantized = Decimal(value)
+    exp = quantized.as_tuple().exponent
+    if isinstance(exp, int) and exp < -18:
+        quantized = quantized.quantize(Decimal("1e-18"), rounding=ROUND_HALF_UP)
+        text = format(quantized, "f").rstrip("0").rstrip(".")
+        return text or "0"
+    return format(quantized, "f")
 
 
 # Order-group symbol at line start: US 1–5 letters, or HK 5-digit code.

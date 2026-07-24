@@ -30,7 +30,7 @@ def test_multi_candidate_refund_is_single_open_leg_pending():
             account_id="1",
             occurred_at=f"2026-01-0{i+1} 10:00:00",
             counterparty="京东",
-            description="消费",
+            note="消费",
             category="expense",
         )
         for i in range(3)
@@ -41,7 +41,7 @@ def test_multi_candidate_refund_is_single_open_leg_pending():
         account_id="1",
         occurred_at="2026-01-10 10:00:00",
         counterparty="京东",
-        description="退货退款",
+        note="退货退款",
         category="income",
     )
     proposal = evaluate_refund_offset(refund, expenses)
@@ -79,7 +79,7 @@ def test_expense_seed_does_not_fan_out_multi_candidate_bilateral():
         account_id="1",
         occurred_at="2026-01-08 10:00:00",
         counterparty="京东",
-        description="退款",
+        note="退款",
         category="income",
     )
     # Each expense seed with both refund + sibling expenses would previously fan out.
@@ -100,7 +100,7 @@ def test_zero_candidate_refund_signal_open_leg():
         account_id="1",
         occurred_at="2026-01-10 10:00:00",
         counterparty="京东",
-        description="退货退款",
+        note="退货退款",
         category="income",
     )
     proposal = evaluate_refund_offset(refund, [])
@@ -127,7 +127,7 @@ def test_unique_near_strong_refund_remains_bilateral_pending():
         account_id="1",
         occurred_at="2026-01-05 10:00:00",
         counterparty="其他",
-        description="退款到账",
+        note="退款到账",
         category="income",
     )
     proposal = evaluate_refund_offset(refund, [expense])
@@ -153,7 +153,7 @@ def test_unique_strong_refund_still_bilateral_accepted():
         account_id="1",
         occurred_at="2026-01-05 10:00:00",
         counterparty="商家A",
-        description="退款",
+        note="退款",
         category="income",
     )
     proposal = evaluate_refund_offset(refund, [expense])
@@ -170,7 +170,7 @@ def test_transfer_multi_candidate_open_leg():
         account_id="1",
         account_name="A",
         occurred_at="2026-01-01 10:00:00",
-        description="转账支取",
+        note="转账支取",
     )
     ins = [
         _fv(
@@ -179,7 +179,7 @@ def test_transfer_multi_candidate_open_leg():
             account_id=str(i + 2),
             account_name=f"B{i}",
             occurred_at=f"2026-01-01 10:00:0{i + 1}",
-            description="转账存入",
+            note="转账存入",
         )
         for i in range(2)
     ]
@@ -202,7 +202,7 @@ def test_payment_mirror_never_open_leg():
         account_name="建行",
         occurred_at="2026-01-01 09:00:00",
         counterparty="商户",
-        description="订单X",
+        note="订单X",
         bill_source="alipay",
     )
     bank = _fv(
@@ -212,7 +212,7 @@ def test_payment_mirror_never_open_leg():
         account_name="建行",
         occurred_at="2026-01-01 09:00:05",
         counterparty="商户",
-        description="订单X",
+        note="订单X",
         bill_source="ccb_debit",
     )
     proposals = match_payment_mirrors_greedy([platform, bank])
@@ -238,7 +238,7 @@ def test_projection_ignores_open_leg_pending():
         account_name="支付宝",
         occurred_at="2026-01-05 10:00:00",
         counterparty="京东",
-        description="退款",
+        note="退款",
         category="income",
     )
     open_rel = {
@@ -269,7 +269,7 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
             account_name="支付宝",
             currency="CNY",
             date=f"2026-01-{day} 10:00:00",
-            description=f"消费{i}",
+            note=f"消费{i}",
             category="expense",
             bill_source="alipay",
         )
@@ -279,7 +279,7 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
         account_name="支付宝",
         currency="CNY",
         date="2026-01-10 10:00:00",
-        description="退货退款",
+        note="退货退款",
         category="income",
         bill_source="alipay",
     )
@@ -346,7 +346,7 @@ def test_open_leg_reject_suppresses_reopen(relation_runtime):
             account_name="支付宝",
             currency="CNY",
             date=f"2026-02-{day} 10:00:00",
-            description="消费",
+            note="消费",
             category="expense",
             bill_source="alipay",
         )
@@ -356,7 +356,7 @@ def test_open_leg_reject_suppresses_reopen(relation_runtime):
         account_name="支付宝",
         currency="CNY",
         date="2026-02-10 10:00:00",
-        description="退货退款",
+        note="退货退款",
         category="income",
         bill_source="alipay",
     )
@@ -404,7 +404,7 @@ def test_transfer_open_leg_persisted_and_accept(relation_runtime):
         account_name="A",
         currency="CNY",
         date="2026-03-01 10:00:00",
-        description="转账支取",
+        note="转账支取",
         category="expense",
     )
     services.cashflow.add_manual_transaction(
@@ -413,7 +413,7 @@ def test_transfer_open_leg_persisted_and_accept(relation_runtime):
         account_name="B1",
         currency="CNY",
         date="2026-03-01 10:00:03",
-        description="转账存入",
+        note="转账存入",
         category="income",
     )
     services.cashflow.add_manual_transaction(
@@ -422,7 +422,7 @@ def test_transfer_open_leg_persisted_and_accept(relation_runtime):
         account_name="B2",
         currency="CNY",
         date="2026-03-01 10:00:04",
-        description="转账存入",
+        note="转账存入",
         category="income",
     )
     with services.uow as uow:

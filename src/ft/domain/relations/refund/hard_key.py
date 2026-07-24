@@ -132,7 +132,7 @@ def match_phase_a_platform_refunds(
             or payload.get("platform_status")
             or ""
         )
-        desc = str(r.get("description") or "")
+        desc = str(r.get("note") or "")
         direction = str(r.get("direction") or payload.get("direction") or "")
         is_ref = amt > 0 and ("退款" in status or "退款" in desc or status == "退款成功")
         is_exp = (

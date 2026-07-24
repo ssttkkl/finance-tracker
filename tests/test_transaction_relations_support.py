@@ -30,7 +30,7 @@ def add_cash_fact(
         account_name=account_name,
         currency=currency,
         date=date,
-        description=description,
+        note=note,
         category=category,
         bill_source=bill_source or source,
         source=source or bill_source,

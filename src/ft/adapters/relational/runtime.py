@@ -33,7 +33,7 @@ from .investments import RelationalInvestmentCommandRepository
 from ft.adapters.statement_import import StatementParser
 
 
-SCHEMA_REVISION = "20260722_06"
+SCHEMA_REVISION = "20260724_07"
 REQUIRED_TABLES = {
     "workspaces", "accounts", "cash_transactions", "investment_events",
     "ledger_snapshots", "import_batches", "raw_files", "raw_records",
@@ -152,15 +152,36 @@ def build_relational_services(settings) -> ServiceBundle:
             ownership_missing_identities: set[tuple[str | None, str, str]] = set()
             ownership_conflict_identities: set[tuple[str | None, str, str]] = set()
             formal_position_owners: dict[str, set[str]] = {}
-            for value in investments:
-                kind = value.kind.lower()
-                if kind not in {"buy", "sell"}:
-                    continue
+            def _investment_position(value):
+                payload = value.payload if isinstance(value.payload, dict) else {}
                 position = (
-                    value.payload.get("position") or value.payload.get("from_ticker")
-                    or value.payload.get("to_ticker")
+                    payload.get("position")
+                    or getattr(value, "from_ticker", None)
+                    or getattr(value, "to_ticker", None)
+                    or payload.get("from_ticker")
+                    or payload.get("to_ticker")
                 )
-                if not isinstance(position, str) or not position:
+                return position if isinstance(position, str) and position else None
+
+            def _investment_amount(value, kind: str):
+                if kind in {"buy", "sell", "swap", "fee"}:
+                    raw = value.commission
+                elif kind in {"dividend", "deposit"}:
+                    raw = value.to_amount
+                elif kind in {"withdraw"}:
+                    raw = value.from_amount
+                else:
+                    raw = None
+                if raw is None and isinstance(value.payload, dict):
+                    raw = value.payload.get("commission") if kind in {"buy", "sell", "swap"} else value.payload.get("amount")
+                return raw
+
+            for value in investments:
+                kind = value.action.lower()
+                if kind not in {"buy", "sell", "swap"}:
+                    continue
+                position = _investment_position(value)
+                if not position:
                     continue
                 formal_position_owners.setdefault(position, set()).add(value.account_id)
             for value in valuations:
@@ -264,23 +285,20 @@ def build_relational_services(settings) -> ServiceBundle:
             dietz_funding_by_day_currency: dict[tuple[date, str], list[tuple[Decimal, Decimal]]] = {}
             for value in investments:
                 occurred = local_day(value.occurred_at)
-                kind = value.kind.lower()
-                if kind not in {"dividend", "deposit", "withdraw", "buy", "sell"}:
+                kind = value.action.lower()
+                if kind not in {"dividend", "deposit", "withdraw", "buy", "sell", "swap", "fee"}:
                     unsupported_by_day.add(occurred)
                     continue
-                if kind in {"buy", "sell"}:
-                    position = (
-                        value.payload.get("position") or value.payload.get("from_ticker")
-                        or value.payload.get("to_ticker")
-                    )
-                    if not isinstance(position, str) or not position:
+                if kind in {"buy", "sell", "swap"}:
+                    position = _investment_position(value)
+                    if not position:
                         unsupported_by_day.add(occurred)
                         continue
                     owned_identity = (value.account_id, "position", position)
                     identity_started_at[owned_identity] = min(
                         identity_started_at.get(owned_identity, occurred), occurred,
                     )
-                raw_amount = value.payload.get("commission") if kind in {"buy", "sell"} else value.payload.get("amount")
+                raw_amount = _investment_amount(value, kind)
                 if raw_amount is None:
                     # A buy/sell without a fee still establishes formal position
                     # ownership, but has no standalone wealth contribution.

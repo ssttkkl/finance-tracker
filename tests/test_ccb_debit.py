@@ -202,7 +202,7 @@ class TestBasicParsing:
         assert r["currency"] == "CNY"
         assert r["category"] == "expense"
         assert r["counterparty"] == "瑞幸咖啡"
-        assert r["description"] == "消费"
+        assert r["note"] == "消费"
         assert r["card_number"] == "2820"
 
     def test_income(self):
@@ -216,7 +216,7 @@ class TestBasicParsing:
         r = recs[0]
         assert r["amount"] == 100.00
         assert r["category"] == "income"
-        assert r["description"] == "银联入账"
+        assert r["note"] == "银联入账"
         assert r.get("_ccb_refund_signal", "") == ""
 
     def test_transfer_out(self):
@@ -228,7 +228,7 @@ class TestBasicParsing:
         os.unlink(path)
         assert len(recs) == 1
         assert recs[0]["amount"] == Decimal("-27572.03")
-        assert recs[0]["description"] == "转账支取"
+        assert recs[0]["note"] == "转账支取"
         assert recs[0]["card_number"] == "0523"
 
     def test_securities_transfer_in(self):
@@ -239,7 +239,7 @@ class TestBasicParsing:
         recs, _ = read_ccb_debit(path)
         os.unlink(path)
         assert recs[0]["amount"] == Decimal("26070.51")
-        assert recs[0]["description"] == "证转银"
+        assert recs[0]["note"] == "证转银"
         assert recs[0]["category"] == "income"
 
     def test_securities_transfer_out(self):
@@ -250,7 +250,7 @@ class TestBasicParsing:
         recs, _ = read_ccb_debit(path)
         os.unlink(path)
         assert recs[0]["amount"] == -10000.00
-        assert recs[0]["description"] == "银转证"
+        assert recs[0]["note"] == "银转证"
         assert recs[0]["category"] == "expense"
 
     def test_interest(self):
@@ -261,7 +261,7 @@ class TestBasicParsing:
         recs, _ = read_ccb_debit(path)
         os.unlink(path)
         assert recs[0]["amount"] == Decimal("0.51")
-        assert recs[0]["description"] == "利息存入"
+        assert recs[0]["note"] == "利息存入"
 
     def test_topup(self):
         path = _make_xls("6217000000000002820", [
@@ -271,7 +271,7 @@ class TestBasicParsing:
         recs, _ = read_ccb_debit(path)
         os.unlink(path)
         assert recs[0]["amount"] == Decimal("-4.90")
-        assert recs[0]["description"] == "充值"
+        assert recs[0]["note"] == "充值"
         assert recs[0]["category"] == "expense"
         assert recs[0]["counterparty"] == "苹果电脑贸易（上海）有限公司"
 
@@ -283,7 +283,7 @@ class TestBasicParsing:
         recs, _ = read_ccb_debit(path)
         os.unlink(path)
         assert recs[0]["counterparty"] == "pixiv"
-        assert recs[0]["description"] == "无卡自助交易"
+        assert recs[0]["note"] == "无卡自助交易"
         assert recs[0]["payment_method"] == "PayPal"
 
     def test_card_present_transaction(self):
@@ -414,7 +414,7 @@ class TestRefundPairingWithPairRefunds:
         assert len(result) == 1
         assert result[0]["category"] == "income"
         assert result[0]["amount"] == Decimal("22.23")
-        assert result[0]["description"] == "消费退货"
+        assert result[0]["note"] == "消费退货"
 
     def test_partial_refund_kept_as_orphan(self):
         """部分退款 — _pair_refunds 不配对（金额不精确），保留"""

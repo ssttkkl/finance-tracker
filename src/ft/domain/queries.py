@@ -20,19 +20,19 @@ class AccountListDTO:
 
 @dataclass(frozen=True)
 class FlowDTO:
-    description: str
+    note: str
     currency: str
     amount: Decimal
 
 
 @dataclass(frozen=True)
 class TransactionDTO:
-    date: str
+    occurred_at: str
     account_name: str
     currency: str
     category: str
     amount: Decimal
-    description: str = ""
+    note: str = ""
     counterparty: str = ""
     transfer_account: str = ""
 

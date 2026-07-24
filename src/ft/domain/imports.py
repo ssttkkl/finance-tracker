@@ -3,8 +3,8 @@ from dataclasses import dataclass
 
 
 CASHFLOW_EXPORT_FIELDS = (
-    "record_id", "date", "amount", "currency", "counterparty",
-    "description", "category", "account_name", "source", "bill_source",
+    "record_id", "occurred_at", "amount", "currency", "counterparty",
+    "note", "category", "account_name", "source", "bill_source",
     "offset_group", "offset_role", "offset_strength", "offset_source",
     "offset_rule_hint", "offset_match_type", "proposed_action",
 )

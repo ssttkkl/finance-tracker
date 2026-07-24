@@ -15,9 +15,9 @@ def _fv(**kwargs):
 def test_transfer_excluded_from_pnl_balances_kept():
     facts = [
         _fv(id="a", amount=Decimal("-1000"), account_id="1", account_name="A",
-            occurred_at="2026-01-01 10:00:00", description="转账支取"),
+            occurred_at="2026-01-01 10:00:00", note="转账支取"),
         _fv(id="b", amount=Decimal("1000"), account_id="2", account_name="B",
-            occurred_at="2026-01-01 10:00:05", description="转账存入", category="income"),
+            occurred_at="2026-01-01 10:00:05", note="转账存入", category="income"),
     ]
     rels = [{
         "kind": "transfer_pair", "primary_fact_id": "a", "secondary_fact_id": "b", "status": "accepted",
@@ -34,7 +34,7 @@ def test_refund_offset_nets_without_rewriting():
         _fv(id="e", amount=Decimal("-100"), account_id="1", account_name="支付宝",
             occurred_at="2026-01-01 10:00:00", counterparty="商家A"),
         _fv(id="r", amount=Decimal("30"), account_id="1", account_name="支付宝",
-            occurred_at="2026-01-05 10:00:00", counterparty="商家A", description="退款",
+            occurred_at="2026-01-05 10:00:00", counterparty="商家A", note="退款",
             category="income"),
     ]
     rels = [{

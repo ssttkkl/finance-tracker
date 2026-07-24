@@ -12,7 +12,7 @@ def test_cross_batch_seed_matches_prior_facts(relation_runtime):
     # batch A: bank only
     services.cashflow.add_manual_transaction(
         amount=Decimal("-88.00"), counterparty="盒马", account_name="建行储蓄",
-        currency="CNY", date="2026-06-10 12:00:00", description="快捷支付 尾号9999",
+        currency="CNY", date="2026-06-10 12:00:00", note="快捷支付 尾号9999",
         category="expense", bill_source="ccb_debit",
     )
     with services.uow as uow:
@@ -22,7 +22,7 @@ def test_cross_batch_seed_matches_prior_facts(relation_runtime):
     # batch B: platform view of same card payment
     services.cashflow.add_manual_transaction(
         amount=Decimal("-88.00"), counterparty="盒马", account_name="建行储蓄",
-        currency="CNY", date="2026-06-10 12:00:03", description="付款方式 尾号9999",
+        currency="CNY", date="2026-06-10 12:00:03", note="付款方式 尾号9999",
         category="expense", bill_source="alipay",
     )
     with services.uow as uow:

@@ -15,6 +15,7 @@ def test_repository_has_clean_linear_revisions():
         "20260720_04_multi_currency_accounts.py",
         "20260721_05_transaction_relations.py",
         "20260722_06_open_leg_pending.py",
+        "20260724_07_fact_field_unify.py",
     ]
 
 
@@ -158,7 +159,7 @@ def test_migrated_sqlite_amount_columns_use_canonical_text_and_round_trip_exactl
         with engine.begin() as connection:
             connection.execute(text("INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', CURRENT_TIMESTAMP)"))
             connection.execute(text("INSERT INTO accounts (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) VALUES ('a', 'w', 'Cash', 'cash', 1, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
-            connection.execute(text("INSERT INTO cash_transactions (id, workspace_id, account_id, record_id, occurred_at, amount, currency, counterparty, description, category, source, bill_source, transfer_account, locked, offset_group, offset_role, offset_strength, offset_source, offset_rule_hint, offset_match_type, proposed_action, revision, created_at) VALUES ('c', 'w', 'a', '', CURRENT_TIMESTAMP, '1.230000000000000001', 'CNY', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 1, CURRENT_TIMESTAMP)"))
+            connection.execute(text("INSERT INTO cash_transactions (id, workspace_id, account_id, record_id, occurred_at, amount, currency, counterparty, note, category, source, bill_source, transfer_account, locked, offset_group, offset_role, offset_strength, offset_source, offset_rule_hint, offset_match_type, proposed_action, revision, created_at) VALUES ('c', 'w', 'a', '', CURRENT_TIMESTAMP, '1.230000000000000001', 'CNY', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 1, CURRENT_TIMESTAMP)"))
             assert connection.scalar(text("SELECT amount FROM cash_transactions WHERE id = 'c'")) == "1.230000000000000001"
     finally:
         engine.dispose()
@@ -200,14 +201,24 @@ def test_initial_revision_upgrades_dedicated_postgresql():
             amount = next(column for column in columns if column["name"] == "amount")
             assert str(amount["type"]) == "NUMERIC(38, 18)"
             assert any(column["name"] == "deleted_at" for column in columns)
+            assert any(column["name"] == "note" for column in columns)
+            assert not any(column["name"] == "description" for column in columns)
+            inv_cols = {c["name"] for c in inspect(engine).get_columns("investment_events")}
+            assert "action" in inv_cols and "kind" not in inv_cols
+            assert {"from_ticker", "to_ticker", "from_amount", "to_amount", "price", "commission", "commission_asset", "note"} <= inv_cols
             rel_cols = {c["name"] for c in inspect(engine).get_columns("transaction_relations")}
             assert "anchor_fact_id" in rel_cols
-            # Step back through open-leg (no open rows) to multi-currency head.
-            command.downgrade(config, "20260721_05")
-            command.downgrade(config, "20260720_04")
-            tables_mid = set(inspect(engine).get_table_names())
-            assert "transaction_relations" not in tables_mid
+            # Multi-currency (20260720_04) and fact-field unify (20260724_07) are one-shot.
+            # Only walk back through open-leg → relations removal for reversible history.
+            with pytest.raises(NotImplementedError, match="one-shot"):
+                command.downgrade(config, "20260722_06")
+            # Reset and re-upgrade proves head is re-applicable on a clean schema.
+            test_conftest.reset_postgres_schema(url)
             command.upgrade(config, "head")
+            tables_again = set(inspect(engine).get_table_names())
+            assert "cash_transactions" in tables_again and "investment_events" in tables_again
+            inv_cols_again = {c["name"] for c in inspect(engine).get_columns("investment_events")}
+            assert "action" in inv_cols_again and "kind" not in inv_cols_again
         finally:
             engine.dispose()
     finally:

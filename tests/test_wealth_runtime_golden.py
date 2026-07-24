@@ -83,17 +83,17 @@ def _seed_base(sessions, *, with_fee=True) -> None:
             ),
             InvestmentEventModel(
                 id="funding", workspace_id="wealth-runtime-golden", account_id="broker", occurred_at=at(2, 10),
-                kind="deposit", currency="USD", payload={"amount": "1"}, revision=1,
+                action="deposit", currency="USD", to_amount="1", payload={}, revision=1,
             ),
             InvestmentEventModel(
                 id="dividend", workspace_id="wealth-runtime-golden", account_id="broker", occurred_at=at(2, 12),
-                kind="dividend", currency="USD", payload={"amount": "1"}, revision=1,
+                action="dividend", currency="USD", to_amount="1", payload={}, revision=1,
             ),
         ))
         if with_fee:
             session.add(InvestmentEventModel(
                 id="fee", workspace_id="wealth-runtime-golden", account_id="broker", occurred_at=at(3, 11),
-                kind="buy", currency="USD", payload={"position": "broker:global-etf", "commission": "0.1"}, revision=1,
+                action="buy", currency="USD", payload={"position": "broker:global-etf", "commission": "0.1"}, revision=1,
             ))
         for day, cash, position, fx in (
             (1, "100", "10", "7.0"),
@@ -355,7 +355,7 @@ def test_runtime_missing_fx_stale_and_unsupported_fail_closed(runtime_golden, mo
         session.add(InvestmentEventModel(
             id="option", workspace_id="wealth-runtime-golden", account_id="broker",
             occurred_at=datetime(2026, 7, 2, 15, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
-            kind="option_exercise", currency="USD", payload={"amount": "1"}, revision=1,
+            action="option_exercise", currency="USD", payload={"amount": "1"}, revision=1,
         ))
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
     services.wealth.rebuild(affected_from="2026-07-01")

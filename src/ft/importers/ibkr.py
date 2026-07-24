@@ -148,7 +148,7 @@ def parse_ibkr_csv(path: str | Path) -> IbkrStatement:
                 flow_rows.append({
                     "date": date,
                     "account": account,
-                    "description": description,
+                    "note": description,
                     "action": action,
                     "code": code if code != "-" else "",
                     "qty": qty if qty is not None else Decimal("0"),
@@ -180,7 +180,7 @@ def parse_ibkr_csv(path: str | Path) -> IbkrStatement:
     checkin = {
         "date": checkin_date,
         "account": "",
-        "description": "总结.期末现金",
+        "note": "总结.期末现金",
         "action": "CHECKIN",
         "code": "",
         "qty": Decimal("0"),

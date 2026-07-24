@@ -36,7 +36,7 @@ def canonical_mirror_fact(facts: Sequence[FactView]) -> FactView | None:
         facts,
         key=lambda f: (
             platform_score(f),
-            len(_text_blob(f.counterparty, f.description)),
+            len(_text_blob(f.counterparty, f.note)),
             f.id,
         ),
         reverse=True,
@@ -46,8 +46,8 @@ def canonical_mirror_fact(facts: Sequence[FactView]) -> FactView | None:
         second = ranked[1]
         if (
             platform_score(top) == platform_score(second) == 2
-            and len(_text_blob(top.counterparty, top.description))
-            == len(_text_blob(second.counterparty, second.description))
+            and len(_text_blob(top.counterparty, top.note))
+            == len(_text_blob(second.counterparty, second.note))
         ):
             return None
     return top

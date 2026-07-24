@@ -18,11 +18,11 @@ class FakeStatementParser:
 def _cash_row(**overrides):
     row = {
         "record_id": "alipay-1",
-        "date": "2026-07-17 09:00:00",
+        "occurred_at": "2026-07-17 09:00:00",
         "amount": "-12.34",
         "currency": "CNY",
         "counterparty": "Coffee",
-        "description": "Coffee",
+        "note": "Coffee",
         "category": "expense",
         "account_name": "Cash",
         "source": "Alipay",
@@ -192,8 +192,8 @@ def test_fallback_identity_is_stable_when_preceding_rows_change(tmp_path):
     second_source = tmp_path / "second.csv"
     first_source.write_bytes(b"first")
     second_source.write_bytes(b"broader")
-    existing = _cash_row(record_id="", description="existing")
-    preceding = _cash_row(record_id="", description="preceding", amount="-1")
+    existing = _cash_row(record_id="", note="existing")
+    preceding = _cash_row(record_id="", note="preceding", amount="-1")
     sessions, unit_of_work, first_service = _service([existing])
     second_service = StatementImportService(
         unit_of_work(sessions, "workspace-a"), FakeStatementParser([preceding, existing])
@@ -330,7 +330,7 @@ def test_dfzq_statement_import_writes_investment_event_and_projection(tmp_path):
         })
         uow.commit()
     parser = FakeStatementParser([{
-        "date": "2026-07-17 09:00:00", "action": "deposit",
+        "occurred_at": "2026-07-17 09:00:00", "action": "deposit",
         "from_ticker": "", "to_ticker": "usd", "from_amount": "0",
         "to_amount": "100", "price": "1", "commission": "0",
         "commission_asset": "", "currency": "USD", "account_name": "IBKR",

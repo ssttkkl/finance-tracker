@@ -36,7 +36,7 @@ def has_refund_signal(text: str) -> bool:
     return any(tok in blob for tok in ("退款", "退货", "退回", "冲正", "消费退货", "refund", "return"))
 
 def _refundish_text(fact) -> bool:
-    blob = _text_blob(fact.counterparty, fact.description, fact.category)
+    blob = _text_blob(fact.counterparty, fact.note, fact.category)
     return any(tok in blob for tok in ("退款", "退货", "消费退货", "refund", "return"))
 
 

@@ -45,11 +45,11 @@ def test_scan_skips_duplicate_when_active_edge_exists():
     with UoW(sessions, "ws") as uow:
         uow.accounts.add_raw({"name": "支付宝余额", "type": "cash", "currency": "CNY"})
         exp_id = uow.cashflows.add("cash", {
-            "date": "2026-01-01 10:00:00",
+            "occurred_at": "2026-01-01 10:00:00",
             "amount": "-100.00",
             "currency": "CNY",
             "counterparty": "商家A",
-            "description": "商品A",
+            "note": "商品A",
             "category": "expense",
             "account_name": "支付宝余额",
             "source": "支付宝",
@@ -57,11 +57,11 @@ def test_scan_skips_duplicate_when_active_edge_exists():
             "record_id": "OID_EXP",
         })
         ref_id = uow.cashflows.add("cash", {
-            "date": "2026-01-02 10:00:00",
+            "occurred_at": "2026-01-02 10:00:00",
             "amount": "100.00",
             "currency": "CNY",
             "counterparty": "商家A",
-            "description": "退款-商品A",
+            "note": "退款-商品A",
             "category": "income",
             "account_name": "支付宝余额",
             "source": "支付宝",
@@ -106,11 +106,11 @@ def test_scan_phase_a_creates_alipay_order_prefix_edge():
     with UoW(sessions, "ws") as uow:
         uow.accounts.add_raw({"name": "支付宝余额", "type": "cash", "currency": "CNY"})
         exp_id = uow.cashflows.add("cash", {
-            "date": "2026-01-01 10:00:00",
+            "occurred_at": "2026-01-01 10:00:00",
             "amount": "-50.00",
             "currency": "CNY",
             "counterparty": "商家B",
-            "description": "商品B",
+            "note": "商品B",
             "category": "expense",
             "account_name": "支付宝余额",
             "source": "支付宝",
@@ -118,11 +118,11 @@ def test_scan_phase_a_creates_alipay_order_prefix_edge():
             "record_id": "2026010122001112651418000001",
         })
         ref_id = uow.cashflows.add("cash", {
-            "date": "2026-01-02 10:00:00",
+            "occurred_at": "2026-01-02 10:00:00",
             "amount": "50.00",
             "currency": "CNY",
             "counterparty": "商家B",
-            "description": "退款-商品B",
+            "note": "退款-商品B",
             "category": "income",
             "account_name": "支付宝余额",
             "source": "支付宝",

@@ -169,7 +169,7 @@ def read_ccb_debit(path: str):
             "currency": currency,
             "card_number": card_last4,
             "counterparty": normalized_cp,
-            "description": enriched_desc,
+            "note": enriched_desc,
             "category": category,
             "payment_method": pm,
             "summary": summary,

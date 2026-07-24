@@ -62,7 +62,7 @@ def test_raw_files_records_and_revisions_are_append_only_and_scoped():
             ],
         )
         transaction_id = uow.cashflows.add("cash", {
-            "date": "2026-07-17 09:00:00", "amount": "-1.20", "currency": "CNY",
+            "occurred_at": "2026-07-17 09:00:00", "amount": "-1.20", "currency": "CNY",
             "account_name": "Cash", "raw_record_id": record_ids[0],
         })
         revision_id = uow.imports.append_revision(
