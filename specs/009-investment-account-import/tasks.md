@@ -185,42 +185,42 @@
 
 ### Tests for User Story 3 (MANDATORY) ⚠️
 
-- [ ] ~~T072~~ **CANCELLED → 012** [P] [US3] Create tests/unit/importers/test_exchange_parser.py with ccxt trade mapping (buy, sell, crypto swap, commission)
-- [ ] ~~T073~~ **CANCELLED → 012** [P] [US3] Create tests/integration/test_exchange_import.py with mock ccxt client (avoid live API in tests)
-- [ ] ~~T074~~ **CANCELLED → 012** [P] [US3] Create tests/integration/test_exchange_import_idempotency.py to verify trade ID deduplication
-- [ ] ~~T075~~ **CANCELLED → 012** [P] [US3] Create tests/contract/test_dual_backend_exchange.py parametrized for PostgreSQL and SQLite
+- [X] ~~T072~~ **CANCELLED → 012** [P] [US3] Create tests/unit/importers/test_exchange_parser.py with ccxt trade mapping (buy, sell, crypto swap, commission)
+- [X] ~~T073~~ **CANCELLED → 012** [P] [US3] Create tests/integration/test_exchange_import.py with mock ccxt client (avoid live API in tests)
+- [X] ~~T074~~ **CANCELLED → 012** [P] [US3] Create tests/integration/test_exchange_import_idempotency.py to verify trade ID deduplication
+- [X] ~~T075~~ **CANCELLED → 012** [P] [US3] Create tests/contract/test_dual_backend_exchange.py parametrized for PostgreSQL and SQLite
 
 ### Parser - Exchange Trade Mapping
 
-- [ ] ~~T076~~ **CANCELLED → 012** [US3] Create src/ft/importers/exchange.py with ExchangeStatementParser class
-- [ ] ~~T077~~ **CANCELLED → 012** [US3] Implement ccxt client initialization: load credentials from env vars or ~/.ft/credentials.json
-- [ ] ~~T078~~ **CANCELLED → 012** [US3] Implement fetch_trades() wrapper: pagination, rate limiting, since parameter support
-- [ ] ~~T079~~ **CANCELLED → 012** [US3] Implement trade_to_investment_event() mapping: side=buy → SWAP(quote→base), side=sell → SWAP(base→quote)
-- [ ] ~~T080~~ **CANCELLED → 012** [US3] Implement commission mapping: fee.cost → commission, fee.currency → commission_asset
-- [ ] ~~T081~~ **CANCELLED → 012** [US3] Implement source_identity: f"ccxt:{provider}:trade:{trade.id}"
+- [X] ~~T076~~ **CANCELLED → 012** [US3] Create src/ft/importers/exchange.py with ExchangeStatementParser class
+- [X] ~~T077~~ **CANCELLED → 012** [US3] Implement ccxt client initialization: load credentials from env vars or ~/.ft/credentials.json
+- [X] ~~T078~~ **CANCELLED → 012** [US3] Implement fetch_trades() wrapper: pagination, rate limiting, since parameter support
+- [X] ~~T079~~ **CANCELLED → 012** [US3] Implement trade_to_investment_event() mapping: side=buy → SWAP(quote→base), side=sell → SWAP(base→quote)
+- [X] ~~T080~~ **CANCELLED → 012** [US3] Implement commission mapping: fee.cost → commission, fee.currency → commission_asset
+- [X] ~~T081~~ **CANCELLED → 012** [US3] Implement source_identity: f"ccxt:{provider}:trade:{trade.id}"
 
 ### Credentials Management
 
-- [ ] ~~T082~~ **CANCELLED → 012** [US3] Create src/ft/config/credentials.py with load_credentials(provider) function
-- [ ] ~~T083~~ **CANCELLED → 012** [US3] Implement environment variable loading: FT_EXCHANGE_{PROVIDER}_API_KEY, FT_EXCHANGE_{PROVIDER}_API_SECRET
-- [ ] ~~T084~~ **CANCELLED → 012** [US3] Implement config file loading: ~/.ft/credentials.json with provider → {api_key, api_secret, password?} mapping
-- [ ] ~~T085~~ **CANCELLED → 012** [US3] Add security checks: warn if credentials.json not 0600, verify .gitignore includes credentials.json
-- [ ] ~~T086~~ **CANCELLED → 012** [US3] Add test credentials: TEST_ prefix, separate fixture for integration tests
+- [X] ~~T082~~ **CANCELLED → 012** [US3] Create src/ft/config/credentials.py with load_credentials(provider) function
+- [X] ~~T083~~ **CANCELLED → 012** [US3] Implement environment variable loading: FT_EXCHANGE_{PROVIDER}_API_KEY, FT_EXCHANGE_{PROVIDER}_API_SECRET
+- [X] ~~T084~~ **CANCELLED → 012** [US3] Implement config file loading: ~/.ft/credentials.json with provider → {api_key, api_secret, password?} mapping
+- [X] ~~T085~~ **CANCELLED → 012** [US3] Add security checks: warn if credentials.json not 0600, verify .gitignore includes credentials.json
+- [X] ~~T086~~ **CANCELLED → 012** [US3] Add test credentials: TEST_ prefix, separate fixture for integration tests
 
 ### Application Service - Exchange Import Flow
 
-- [ ] ~~T087~~ **CANCELLED → 012** [US3] Add import_exchange() method to src/ft/application/investment_import.py
-- [ ] ~~T088~~ **CANCELLED → 012** [US3] Implement exchange-specific batch creation: source_kind='ccxt_{provider}', source_digest=hash(query_params), source_ref=date_range
-- [ ] ~~T089~~ **CANCELLED → 012** [US3] Implement incremental sync: --since parameter filters trades by timestamp, existing trade IDs skipped
-- [ ] ~~T090~~ **CANCELLED → 012** [US3] Implement error handling: API timeout, rate limit, invalid credentials, network failure (all fail-closed, no partial facts)
+- [X] ~~T087~~ **CANCELLED → 012** [US3] Add import_exchange() method to src/ft/application/investment_import.py
+- [X] ~~T088~~ **CANCELLED → 012** [US3] Implement exchange-specific batch creation: source_kind='ccxt_{provider}', source_digest=hash(query_params), source_ref=date_range
+- [X] ~~T089~~ **CANCELLED → 012** [US3] Implement incremental sync: --since parameter filters trades by timestamp, existing trade IDs skipped
+- [X] ~~T090~~ **CANCELLED → 012** [US3] Implement error handling: API timeout, rate limit, invalid credentials, network failure (all fail-closed, no partial facts)
 
 ### CLI - Exchange Import Command
 
-- [ ] ~~T091~~ **CANCELLED → 012** [US3] Add --source binance support to src/ft/cli/import_cmd.py
-- [ ] ~~T092~~ **CANCELLED → 012** [US3] Add --source okx support to src/ft/cli/import_cmd.py
-- [ ] ~~T093~~ **CANCELLED → 012** [US3] Add --since parameter: ISO date (e.g., 2026-01-01) for incremental sync
-- [ ] ~~T094~~ **CANCELLED → 012** [US3] Add account validation: must be type='crypto', clear error if type='security'
-- [ ] ~~T095~~ **CANCELLED → 012** [US3] Add credential validation: check provider credentials exist before API call, provide setup instructions on error
+- [X] ~~T091~~ **CANCELLED → 012** [US3] Add --source binance support to src/ft/cli/import_cmd.py
+- [X] ~~T092~~ **CANCELLED → 012** [US3] Add --source okx support to src/ft/cli/import_cmd.py
+- [X] ~~T093~~ **CANCELLED → 012** [US3] Add --since parameter: ISO date (e.g., 2026-01-01) for incremental sync
+- [X] ~~T094~~ **CANCELLED → 012** [US3] Add account validation: must be type='crypto', clear error if type='security'
+- [X] ~~T095~~ **CANCELLED → 012** [US3] Add credential validation: check provider credentials exist before API call, provide setup instructions on error
 
 **Checkpoint**: Exchange sync functional - can import Binance/OKX trades with incremental sync
 
@@ -239,32 +239,32 @@
 
 ### Tests for User Story 4 (MANDATORY) ⚠️
 
-- [ ] ~~T096~~ **CANCELLED → 012** [P] [US4] Create tests/unit/importers/test_polymarket_parser.py with Activity API response mapping
-- [ ] ~~T097~~ **CANCELLED → 012** [P] [US4] Create tests/integration/test_polymarket_import.py with mock Activity API client
-- [ ] ~~T098~~ **CANCELLED → 012** [P] [US4] Create tests/integration/test_polymarket_import_idempotency.py to verify tx_hash deduplication
-- [ ] ~~T099~~ **CANCELLED → 012** [P] [US4] Create tests/contract/test_dual_backend_polymarket.py parametrized for PostgreSQL and SQLite
+- [X] ~~T096~~ **CANCELLED → 012** [P] [US4] Create tests/unit/importers/test_polymarket_parser.py with Activity API response mapping
+- [X] ~~T097~~ **CANCELLED → 012** [P] [US4] Create tests/integration/test_polymarket_import.py with mock Activity API client
+- [X] ~~T098~~ **CANCELLED → 012** [P] [US4] Create tests/integration/test_polymarket_import_idempotency.py to verify tx_hash deduplication
+- [X] ~~T099~~ **CANCELLED → 012** [P] [US4] Create tests/contract/test_dual_backend_polymarket.py parametrized for PostgreSQL and SQLite
 
 ### Parser - Polymarket Activity Mapping
 
-- [ ] ~~T100~~ **CANCELLED → 012** [US4] Create src/ft/importers/polymarket.py with PolymarketStatementParser class
-- [ ] ~~T101~~ **CANCELLED → 012** [US4] Implement fetch_activities() wrapper: pagination, proxy wallet resolution, timestamp filtering
-- [ ] ~~T102~~ **CANCELLED → 012** [US4] Implement activity_to_investment_event() mapping: TRADE.BUY → SWAP(usdc→ticker), TRADE.SELL → SWAP(ticker→usdc)
-- [ ] ~~T103~~ **CANCELLED → 012** [US4] Implement ticker construction: f"polymarket:{slug}:{outcome}" (e.g., "polymarket:election-2024:yes")
-- [ ] ~~T104~~ **CANCELLED → 012** [US4] Implement CHECKIN mapping: market resolution → CHECKIN event with final position/payout
-- [ ] ~~T105~~ **CANCELLED → 012** [US4] Implement source_identity: f"polymarket:tx:{transaction_hash}" (blockchain finality)
+- [X] ~~T100~~ **CANCELLED → 012** [US4] Create src/ft/importers/polymarket.py with PolymarketStatementParser class
+- [X] ~~T101~~ **CANCELLED → 012** [US4] Implement fetch_activities() wrapper: pagination, proxy wallet resolution, timestamp filtering
+- [X] ~~T102~~ **CANCELLED → 012** [US4] Implement activity_to_investment_event() mapping: TRADE.BUY → SWAP(usdc→ticker), TRADE.SELL → SWAP(ticker→usdc)
+- [X] ~~T103~~ **CANCELLED → 012** [US4] Implement ticker construction: f"polymarket:{slug}:{outcome}" (e.g., "polymarket:election-2024:yes")
+- [X] ~~T104~~ **CANCELLED → 012** [US4] Implement CHECKIN mapping: market resolution → CHECKIN event with final position/payout
+- [X] ~~T105~~ **CANCELLED → 012** [US4] Implement source_identity: f"polymarket:tx:{transaction_hash}" (blockchain finality)
 
 ### Application Service - Polymarket Import Flow
 
-- [ ] ~~T106~~ **CANCELLED → 012** [US4] Add import_polymarket() method to src/ft/application/investment_import.py
-- [ ] ~~T107~~ **CANCELLED → 012** [US4] Implement Polymarket-specific batch creation: source_kind='polymarket', source_digest=hash(wallet+date_range)
-- [ ] ~~T108~~ **CANCELLED → 012** [US4] Implement error handling: API timeout, invalid wallet, network failure (fail-closed, no partial facts)
+- [X] ~~T106~~ **CANCELLED → 012** [US4] Add import_polymarket() method to src/ft/application/investment_import.py
+- [X] ~~T107~~ **CANCELLED → 012** [US4] Implement Polymarket-specific batch creation: source_kind='polymarket', source_digest=hash(wallet+date_range)
+- [X] ~~T108~~ **CANCELLED → 012** [US4] Implement error handling: API timeout, invalid wallet, network failure (fail-closed, no partial facts)
 
 ### CLI - Polymarket Import Command
 
-- [ ] ~~T109~~ **CANCELLED → 012** [US4] Add --source polymarket support to src/ft/cli/import_cmd.py
-- [ ] ~~T110~~ **CANCELLED → 012** [US4] Add wallet parameter: read from credentials or --wallet CLI argument
-- [ ] ~~T111~~ **CANCELLED → 012** [US4] Add account validation: must be type='security' (Polymarket treated as securities, not crypto)
-- [ ] ~~T112~~ **CANCELLED → 012** [US4] Add credential validation: check proxy wallet exists before API call
+- [X] ~~T109~~ **CANCELLED → 012** [US4] Add --source polymarket support to src/ft/cli/import_cmd.py
+- [X] ~~T110~~ **CANCELLED → 012** [US4] Add wallet parameter: read from credentials or --wallet CLI argument
+- [X] ~~T111~~ **CANCELLED → 012** [US4] Add account validation: must be type='security' (Polymarket treated as securities, not crypto)
+- [X] ~~T112~~ **CANCELLED → 012** [US4] Add credential validation: check proxy wallet exists before API call
 
 **Checkpoint**: Polymarket sync functional - all four user stories complete
 
@@ -285,7 +285,7 @@
 
 - [X] T117 Run quickstart Scenario 1: DFZQ text fixture path verified via integration + dual-backend tests; redacted real PDF optional/gitignored under `exports/`
 - [X] T118 Run quickstart Scenario 2: dual-backend contract tests dfzq+ibkr+schwab green with `FT_TEST_POSTGRES_URL`
-- [ ] ~~T119~~ **CANCELLED → 012** Exchange sync scenario
+- [X] ~~T119~~ **CANCELLED → 012** Exchange sync scenario
 - [X] T120 Run quickstart Scenario 4: NaN/Inf rejection covered by unit tests + validate on import/repo paths
 
 ### Integration & Verification

@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-19
 
-**Status**: Draft
+**Status**: Complete
 
 **Input**: User description: "实现 wealth-attribution-core spec"
 

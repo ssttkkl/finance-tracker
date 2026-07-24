@@ -10,21 +10,21 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Confirm `.specify/feature.json` → `specs/016-bigint-surrogate-ids` and branch `016-bigint-surrogate-ids`
-- [ ] T002 [P] Inventory all UUID PK/FK usages under `src/ft/adapters/relational/models.py` and repositories (accounts, facts, relations, aliases, wealth account FKs)
+- [X] T001 Confirm `.specify/feature.json` → `specs/016-bigint-surrogate-ids` and branch `016-bigint-surrogate-ids`
+- [X] T002 [P] Inventory all UUID PK/FK usages under `src/ft/adapters/relational/models.py` and repositories (accounts, facts, relations, aliases, wealth account FKs)
 
 ---
 
 ## Phase 2: Foundational
 
-- [ ] T003 Add failing tests `tests/test_016_schema_bigint.py`: after head, in-scope PK/FK integer; no UUID default on those models; 015 dead tables still absent
-- [ ] T004 [P] Add failing tests `tests/test_016_migration_parity.py`: seed UUID-era fixture at 015 head → upgrade → balances/positions equal; relation endpoints remap; dual-backend when PG URL set
-- [ ] T005 [P] Add failing tests `tests/test_016_idempotency.py`: double import still new=0 via source_type×record_id
-- [ ] T006 Implement Alembic `migrations/versions/20260724_09_bigint_surrogate_ids.py` (revises `20260724_08`): map UUID→int; rebuild SQLite; PG alter/rebuild; fail-closed; no downgrade
-- [ ] T007 Update `src/ft/adapters/relational/models.py` integer PKs/FKs; remove `_uuid` defaults for in-scope tables
-- [ ] T008 Update `src/ft/adapters/relational/runtime.py` SCHEMA_REVISION and any id-type assumptions
-- [ ] T009 Update repositories/uow/relations/wealth writers to use int ids (`src/ft/adapters/relational/repositories.py`, `wealth_facts.py`, `application/relations.py`, etc.)
-- [ ] T010 Update `tests/test_alembic_migration.py` head list and metadata assertions
+- [X] T003 Add failing tests `tests/test_016_schema_bigint.py`: after head, in-scope PK/FK integer; no UUID default on those models; 015 dead tables still absent
+- [X] T004 [P] Add failing tests `tests/test_016_migration_parity.py`: seed UUID-era fixture at 015 head → upgrade → balances/positions equal; relation endpoints remap; dual-backend when PG URL set
+- [X] T005 [P] Add failing tests `tests/test_016_idempotency.py`: double import still new=0 via source_type×record_id
+- [X] T006 Implement Alembic `migrations/versions/20260724_09_bigint_surrogate_ids.py` (revises `20260724_08`): map UUID→int; rebuild SQLite; PG alter/rebuild; fail-closed; no downgrade
+- [X] T007 Update `src/ft/adapters/relational/models.py` integer PKs/FKs; remove `_uuid` defaults for in-scope tables
+- [X] T008 Update `src/ft/adapters/relational/runtime.py` SCHEMA_REVISION and any id-type assumptions
+- [X] T009 Update repositories/uow/relations/wealth writers to use int ids (`src/ft/adapters/relational/repositories.py`, `wealth_facts.py`, `application/relations.py`, etc.)
+- [X] T010 Update `tests/test_alembic_migration.py` head list and metadata assertions
 
 **Checkpoint**: empty DB upgrades; T003 schema green
 
@@ -32,39 +32,39 @@
 
 ## Phase 3: US1 — Integer PK/FK
 
-- [ ] T011 [US1] Green schema tests on SQLite
-- [ ] T012 [US1] Green schema tests on PostgreSQL when available
-- [ ] T013 [US1] Grep gate: no `default=_uuid` on in-scope model PKs
+- [X] T011 [US1] Green schema tests on SQLite
+- [X] T012 [US1] Green schema tests on PostgreSQL when available
+- [X] T013 [US1] Grep gate: no `default=_uuid` on in-scope model PKs
 
 ---
 
 ## Phase 4: US2 — Business keys unchanged
 
-- [ ] T014 [US2] Green idempotency tests (cash + investment import paths)
-- [ ] T015 [US2] Public list/CSV still expose source_type/record_id; int id not required in cash CSV
+- [X] T014 [US2] Green idempotency tests (cash + investment import paths)
+- [X] T015 [US2] Public list/CSV still expose source_type/record_id; int id not required in cash CSV
 
 ---
 
 ## Phase 5: US3 — Relations
 
-- [ ] T016 [US3] Green relation fixtures after migration (mirror/transfer/refund sample)
-- [ ] T017 [US3] Confirm fact_type discrimination still present on relation rows
+- [X] T016 [US3] Green relation fixtures after migration (mirror/transfer/refund sample)
+- [X] T017 [US3] Confirm fact_type discrimination still present on relation rows
 
 ---
 
 ## Phase 6: US4 — Ops cutover
 
-- [ ] T018 [US4] Migration fail-closed unit/integration for broken FK (if practical)
-- [ ] T019 [US4] Optional: backup + upgrade `~/.ft/finance-tracker.db`; record evidence in quickstart
-- [ ] T020 [US4] SCHEMA_REVISION rejects pre-016 schema
+- [X] T018 [US4] Migration fail-closed unit/integration for broken FK (if practical)
+- [X] T019 [US4] Optional: backup + upgrade `~/.ft/finance-tracker.db`; record evidence in quickstart
+- [X] T020 [US4] SCHEMA_REVISION rejects pre-016 schema
 
 ---
 
 ## Phase 7: Polish
 
-- [ ] T021 [P] Sync `docs/database-schema.md` PK types for in-scope tables
-- [ ] T022 Run full `env -u FT_DATABASE_URL uv run pytest tests/ -q`
-- [ ] T023 Mark tasks complete; ready for PR to `refactor/web` if requested
+- [X] T021 [P] Sync `docs/database-schema.md` PK types for in-scope tables
+- [X] T022 Run full `env -u FT_DATABASE_URL uv run pytest tests/ -q`
+- [X] T023 Mark tasks complete; ready for PR to `refactor/web` if requested
 
 ## Phase 8: 真实 015 数据发现的开放单腿关系兼容性
 

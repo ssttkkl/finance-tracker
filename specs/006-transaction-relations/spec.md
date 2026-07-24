@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-21
 
-**Status**: Open-leg pending implemented on branch 006-open-leg-pending; deferred items listed under Non-Goals
+**Status**: Complete
 
 **Input**: User description: "重新设计账单导入后的去重、退款核销、转账配对、跨平台消费合并逻辑。核心原则：所有导入产生的原始事实都保留，不因配对/去重/退款核销而物理删除或改写原始记录；系统只追加记录事实之间的关系与判断证据/状态，再由报表和派生投影读取这些关系来避免重复统计或计算净额。配对规则可参考 main 分支当前实现。"
 

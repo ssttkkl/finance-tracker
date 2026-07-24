@@ -1,1 +1,5 @@
-{"feature_directory": "specs/016-bigint-surrogate-ids"}
+{
+  "feature_directory": "specs/017-asset-valuation-quote",
+  "feature_branch": "017-asset-valuation-quote",
+  "short_name": "asset-valuation-quote"
+}

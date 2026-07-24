@@ -4,7 +4,7 @@
 **Spec Directory**: `specs/007-closed-trade-refund-import`  
 **Created**: 2026-07-21  
 **Updated**: 2026-07-22  
-**Status**: Ready for Implementation  
+**Status**: Complete  
 
 **Input**（当前阶段已收敛的需求）:
 

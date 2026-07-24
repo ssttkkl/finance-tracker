@@ -4,7 +4,7 @@
 
 **创建日期**：2026-07-24
 
-**状态**：草稿
+**状态**：Complete
 
 **输入**：015 扩成 **「事实表 + 作业壳全清理」**。去掉导入作业/文件表；账单行溯源内联到正式事实；删除现金 legacy 非权威列与其它作业壳/过度设计表列；**不考虑长期兼容**。幂等权威为 **`record_id` × `source_type`**：`record_id` = 平台流水/展示号或确定性业务行键，`source_type` = **导入渠道名**（如 alipay / wechat / 券商解析 kind）；二者复合，不是只按 `record_id` 全局唯一，也不是另造平行身份列。`ledger_snapshots` **保留**为派生缓存。spec 用中文。目标 schema 见本目录 `database-schema.md`。
 

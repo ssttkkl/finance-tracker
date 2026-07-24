@@ -21,7 +21,9 @@
 - [Phase 1 Application Services](phase1-application-services.md)：已完成的应用边界基线。
 - [Phase 2 PostgreSQL Storage](phase2-postgresql-storage.md)：已完成的双 backend 历史基线。
 - [001-postgres-only-storage](../specs/001-postgres-only-storage/spec.md)：已完成的 PostgreSQL-only 存储收口。
-- [002-dual-database-runtime](../specs/002-dual-database-runtime/spec.md)：当前双数据库运行时 feature；完成状态以其 `tasks.md` 为准。
+- [002-dual-database-runtime](../specs/002-dual-database-runtime/spec.md)：已完成的双数据库运行时（Phase 1 现金链起点）。
+- [016-bigint-surrogate-ids](../specs/016-bigint-surrogate-ids/spec.md)：当前 `refactor/web` 已合入的最新账本 schema feature（整数代理主键；Alembic `20260724_09`）。
+- [database-schema.md](database-schema.md)：015+016 落地态结构速查。
 - [财富解释与趋势对比设计](productization-wealth-report-design.md)：已批准、但非实施权威的产品决策输入。
 
 ## 2. 产品定位
@@ -66,12 +68,23 @@ Finance Tracker 面向同时使用银行、支付平台、券商和交易所的�
 具体范围和验证证据见 `specs/001-postgres-only-storage/`。README、CLI help 和当前操作文档已经同步为
 PostgreSQL-only；旧文件账本、迁移、shadow comparison、Connector sync 和文件 reconcile 已从产品表面删除。
 
-### 当前：PostgreSQL 与 SQLite 双数据库运行时
+### 已完成：PostgreSQL 与 SQLite 双数据库运行时（`002`）
 
-当前 feature 将 PostgreSQL 与文件型 SQLite 都设为正式运行时后端，由 `FT_DATABASE_URL` 显式选择。
+PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_URL` 显式选择。
 两个后端共享 Application Service、CLI 契约、财务语义、审计关系和 schema 迁移入口；不提供自动回退、
 双写或隐式跨后端迁移。SQLite 使用 WAL、外键和有界写锁等待；既有权限过宽的文件只给出修复建议，
 不会自动 chmod。`001-postgres-only-storage` 保留为已完成的历史收口记录，不回写新需求。
+
+### 当前基线（`refactor/web` @ 016 后）
+
+- **现金链** `002`–`008`：双 DB、mapping/开放币种、多币种账户、关系、导入与 kind 解耦 — **Complete**。
+- **投资文件导入与账本收口** `009`–`016`：多券商文件导入（DFZQ/IBKR/Schwab/uSmart 等）、行级幂等、成本币种与 cash-like actions、事实字段统一、内联溯源、**整数代理主键** — **已合入**；对应 `spec.md` Status=Complete。
+- **Alembic / `SCHEMA_REVISION` head**：`20260724_09`。
+- **Phase 1 产品门槛仍开放**：实时估值 + coverage 已开 Spec Kit 目录 `017-asset-valuation-quote`（规格/方案/任务），**实现与验收未完成**；遗留 `market_data` adapter 不等于该门槛。
+- **编号漂移（重要）**：仓库后续已用 `011`–`016` 承载 uSmart/成本/字段/provenance/bigint 等。路线图原文中的  
+  `011-asset-valuation-quote` / `012-investment-connector-sync` / `013-transaction-browser-web`  
+  应理解为**能力名**；开新 feature 时用 **Flow-Forward 新序号**（建议估值从 `017-…` 起），并在 Context 中 cross-link，勿再占用已 Complete 的 `011`–`016` 目录名。
+- 活跃指针：`.specify/feature.json` → `specs/017-asset-valuation-quote`（Phase 1 剩余估值门槛；016 已 Complete）。
 
 ## 4. 产品与架构原则
 
@@ -112,46 +125,46 @@ PostgreSQL-only；旧文件账本、迁移、shadow comparison、Connector sync 
 - `007-closed-trade-refund-import`：导入 no-skip + 原始 payload + 统一关系扫描。
 - `008-relations-kind-decouple`：关系识别 kind 竖切解耦。
 
-#### 投资链（新，与现金链并行推进）
+#### 投资链与账本收口
 
-- **`009-investment-account-import`**：从 `main` 恢复投资事件领域模型与文件/手动导入。
-  `main` 已有完整投资体系（BUY/SELL/DEPOSIT/WITHDRAW/DIVIDEND/SWAP/FEE、多券商解析），
-  但产品化迁移过程中仅保留了 DFZQ 单一 PoC；本 feature 将其恢复到
-  PostgreSQL-only + 双 DB + 关系架构中，覆盖多券商 PDF/CSV 解析与投资事件领域模型。
-  非目标：CSV/snapshot/Git 文件账本（已被 `001` 删除，不恢复）；Connector 自动同步（归 `012`）；
-  行情/估值（归 `011`）。
+- **`009-investment-account-import`**（**Complete**）：投资事件领域模型与文件/手动导入（DFZQ/IBKR/Schwab 等）。
+  非目标：Connector 自动同步（历史路线图编号 `012` / 能力名 connector-sync）；行情/估值（能力名 asset-valuation-quote）。
 
-- **`010-row-idempotent-import`**：消费与投资导入统一为 **业务行幂等 + 重叠文件可增量**。
-  不以文件 `source_digest` 整批短路为账本幂等主键；`import_batches` / `raw_files` 仅作业与审计。
-  非目标：改各源解析/费用合同、Connector 游标、估值。
+- **`010-row-idempotent-import`**（**Complete**）：消费与投资导入 **业务行幂等 + 重叠文件可增量**
+  （`record_id` × `source_type`；015 后无独立 import/raw 作业表）。
 
-- **`011-asset-valuation-quote`**：简单实时估值接口。
+- **后续已合入（强化导入/schema，不替代估值门槛）**：
+  `011-usmart-hk-import`、`012-investment-base-currency-cost`、`013-investment-cash-event-kinds`、
+  `014-fact-field-unify`、`015-inline-row-provenance`、`016-bigint-surrogate-ids` — 均为 **Complete**。
+
+- **`asset-valuation-quote`（Phase 1 仍开放；历史路线图编号 `011`）**：简单实时估值接口。
   输入资产标识与类型（股票/加密/预测市场/现金），输出当前实时估值（单价及可选市值）。
-  恢复 `main` 的 yfinance（含 HK/US ticker 规范化）、Polymarket gamma-api、crypto 三类取价，
-  统一到一个 port + adapter，含 coverage/stale/unsupported 状态。
-  非目标：历史时间序列估值、期初/期末边界估值、投资收益率归因（归 Phase 3 财富内核）。
+  恢复 yfinance（含 HK/US 规范化）、Polymarket gamma-api、crypto 三类取价，
+  统一 port + adapter，含 **coverage / stale / unsupported**。
+  **落地时新建序号目录**（建议 `017-asset-valuation-quote`），勿与已占用的 `011-usmart-hk-import` 混淆。
+  非目标：历史时间序列、期初/期末边界估值、收益率归因（归 Phase 3）。
 
-- **`012-investment-connector-sync`**（独立，可延后）：从 `main` 恢复 exchange/polymarket 等
-  Connector 自动同步。与 `009`/`010`/`011` 独立；可与 Phase 2 并行或按证据推迟（呼应 C3 触发条件）。
+- **`investment-connector-sync`（可延后；历史路线图编号 `012`）**：exchange/polymarket 等 Connector 自动同步。
+  不阻塞 Phase 2；新建时用新序号。
 
 #### Phase 1 完成门槛
 
-- `002`–`008` 全部收敛；
-- `009` 落地（投资事件可导入，多券商解析可用）；
-- `010` 落地（现金/投资导入行级幂等与重叠增量）；
-- `011` 落地（各资产类型可取当前估值，coverage 状态明确）；
-- `012` 可延后，不阻塞 Phase 2。
+- `002`–`008` 全部收敛；✅
+- `009` 落地（投资事件可导入，多券商解析可用）；✅
+- `010` 落地（现金/投资导入行级幂等与重叠增量）；✅
+- **实时估值接口**落地（各资产类型可取当前估值，coverage 状态明确）；❌ **仍开放**
+- Connector 可延后，不阻塞 Phase 2。
 
 ### 5.3 Phase 2：账单浏览 Web（只读）
 
-依赖：`009` + `010` + `011` 完成（导入事实、行幂等、估值基线就绪；Connector 不阻塞）。
+依赖：投资/现金事实导入与行幂等已就绪（`009`+`010` 及后续 schema 收口），且 **估值能力**（`asset-valuation-quote`）完成；Connector 不阻塞。
 
-**`013-transaction-browser-web`**：独立只读 Web，连接本机 workspace，展示已导入账单条目。
+**`transaction-browser-web`（历史路线图编号 `013`；落地时用新序号）**：独立只读 Web，连接本机 workspace，展示已导入账单条目。
 
 范围：
 
 - 按 `account.type` 分投资（investment）与消费（cash）两视图；
-- 可选展示当前市值（来自 `011` 估值接口）；
+- 可选展示当前市值（来自估值 port）；
 - 关系状态（accepted/pending）、来源（raw_records）与修订下钻；
 - loading/empty/partial/stale/unsupported 状态；
 - 本地打包、API schema、浏览器 QA 和无障碍基线。

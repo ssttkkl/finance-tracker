@@ -1,11 +1,12 @@
-# Finance Tracker 数据库表结构文档（015 目标态）
+# Finance Tracker 数据库表结构文档（016 落地态）
 
-> **文档性质**：本文件是 feature `015-inline-row-provenance` 的**目标 schema**（正式事实结构清理），由基线 `docs/database-schema.md`（head `20260724_07_fact_field_unify`）修订而来。  
-> **实现落地前**：运行时权威仍是 `src/ft/adapters/relational/models.py` + 已应用的 Alembic 迁移。  
+> **文档性质**：本文件是 **`015-inline-row-provenance` + `016-bigint-surrogate-ids` 落地后** 的 schema 速查。  
+> **运行时权威**：`src/ft/adapters/relational/models.py` + Alembic head **`20260724_09`**（`SCHEMA_REVISION` 同值）。  
 > **双后端**：PostgreSQL（生产）与文件型 SQLite（契约/本地）；逻辑 schema 共享。  
-> **主键**：本文仍按 **UUID 字符串 PK** 描述（与基线一致）。`016-bigint-surrogate-ids` 若先/同波落地，仅 PK/FK 类型变为整数，**不**恢复已删作业表。
+> **主键**：账本代理主键/外键为 **整数**（PG `BIGINT` / SQLite `INTEGER`，ORM `SurrogatePK`）。`workspaces.id` 与多数 wealth 读模型身份键仍为字符串业务/确定性键。  
+> **不恢复**：015 已删的导入作业/raw/修订/检查 run 等表。
 
-可执行行为与持久化合同以 constitution 与本 feature 的 `spec.md` 为准；本文是 015 完成后的**结构速查**。
+可执行行为与持久化合同以 constitution 与各 feature `spec.md` 为准；本文是结构速查，不替代 Spec Kit artifacts。
 
 ### 相对基线的变更摘要（015）
 
@@ -72,12 +73,14 @@ workspaces  (租户隔离根)
 | `ExactDecimal` | `NUMERIC(38,18)` | `String(96)` 十进制文本 | 有限 Decimal；PG 读后 strip 尾零 padding |
 | `UTCDateTime` | `timestamptz` | aware `DateTime` | bind 必须带 tz；统一存 UTC |
 
-### 2.2 主键形态（当前）
+### 2.2 主键形态（当前，016）
 
-- 多数业务表：`String(36)` UUID
+- **账本代理键**（`accounts` / `cash_transactions` / `investment_events` / `transaction_relations` / `account_aliases` 等）：`SurrogatePK` = PG `BIGINT` / SQLite `INTEGER`，`autoincrement`
+- **事实/关系上的账户与事实引用 FK**：同为整数代理键（复合 FK 仍带 `workspace_id`）
 - 部分 wealth 读模型：调用方提供的确定性字符串 ID（`String(128/160)`）
 - `workspaces.id`：`String(64)` 业务键（由配置 `FT_WORKSPACE_ID` 绑定）
 - `ledger_snapshots` / `wealth_active_manifests`：以 `workspace_id` 为 PK（每 workspace 一行）
+- **对外/导入幂等**仍用事实行 **`record_id` × `source_type`**，不把整数代理 id 当作导入身份
 
 ### 2.3 领域枚举（应用层约束，部分有 DB Check）
 
@@ -113,7 +116,7 @@ workspaces  (租户隔离根)
 
 | 列 | 类型 | 空 | 说明 |
 |---|---|---|---|
-| `id` | String(36) **PK** | N | UUID，默认生成 |
+| `id` | **SurrogatePK**（BIGINT/INTEGER）**PK** | N | 自增代理主键（016） |
 | `workspace_id` | String(64) FK→workspaces | N | `ON DELETE CASCADE` |
 | `name` | String(255) | N | 显示名 |
 | `type` | String(32) | N | 账户类型 |
@@ -136,11 +139,11 @@ workspaces  (租户隔离根)
 
 | 列 | 类型 | 空 | 说明 |
 |---|---|---|---|
-| `id` | String(36) **PK** | N | |
+| `id` | **SurrogatePK** **PK** | N | 自增代理主键（016） |
 | `workspace_id` | String(64) FK→workspaces | N | CASCADE |
 | `alias_type` | String(32) | N | 别名类型 |
 | `alias_value` | String(255) | N | 别名值 |
-| `account_id` | String(36) | N | 复合 FK→accounts |
+| `account_id` | SurrogatePK | N | 复合 FK→accounts |
 | `created_at` / `updated_at` | UTCDateTime | N | |
 
 **约束 / 索引**
@@ -158,7 +161,7 @@ workspaces  (租户隔离根)
 |---|---|---|---|
 | `event_id` | String(128) **PK** | N | 确定性事件身份 |
 | `workspace_id` | String(64) FK→workspaces | N | CASCADE |
-| `account_id` | String(36) | N | 复合 FK→accounts，`RESTRICT` |
+| `account_id` | SurrogatePK | N | 复合 FK→accounts，`RESTRICT` |
 | `event_kind` | String(16) | N | 事件种类 |
 | `effective_at` | UTCDateTime | N | 生效时刻 |
 | `source_identity` | String(255) | N | 来源身份 |
@@ -210,9 +213,9 @@ workspaces  (租户隔离根)
 
 | 列 | 类型 | 空 | 说明 |
 |---|---|---|---|
-| `id` | String(36) **PK** | N | |
+| `id` | **SurrogatePK** **PK** | N | 自增代理主键（016） |
 | `workspace_id` | String(64) FK→workspaces | N | CASCADE |
-| `account_id` | String(36) | N | 复合 FK→accounts `RESTRICT` |
+| `account_id` | SurrogatePK | N | 复合 FK→accounts `RESTRICT` |
 | `source_type` | String(64) | Y | **导入渠道名**（幂等复合键的一半；如 alipay/wechat/券商 kind）；手工可空 |
 | `record_id` | String(512) | Y* | **业务行键**（平台流水/展示号或确定性内容键）；与 `source_type` 组成幂等；账单派生应非空；手工可空。空串视为「无身份」（见约束） |
 | `source_payload` | JSON | Y | 行级原始快照（匹配/排障；可含原 payment 文案等）；手工可空 |
@@ -254,9 +257,9 @@ workspaces  (租户隔离根)
 
 | 列 | 类型 | 空 | 说明 |
 |---|---|---|---|
-| `id` | String(36) **PK** | N | |
+| `id` | **SurrogatePK** **PK** | N | 自增代理主键（016） |
 | `workspace_id` | String(64) FK→workspaces | N | CASCADE |
-| `account_id` | String(36) | N | → accounts `RESTRICT` |
+| `account_id` | SurrogatePK | N | → accounts `RESTRICT` |
 | `source_type` | String(64) | Y | **导入渠道名**（幂等复合键一半；券商/解析 kind）；手工可空 |
 | `record_id` | String(512) | Y | **业务行键**（与 `source_type` 组成幂等；与现金目录同名；不用平行 source_identity） |
 | `source_payload` | JSON | Y | 导入解析行快照（可瘦身）；与 residual `payload` 分工见下 |
@@ -319,17 +322,17 @@ workspaces  (租户隔离根)
 
 | 列 | 类型 | 空 | 说明 |
 |---|---|---|---|
-| `id` | String(36) **PK** | N | |
+| `id` | **SurrogatePK** **PK** | N | 自增代理主键（016） |
 | `workspace_id` | String(64) FK→workspaces | N | CASCADE |
 | `kind` | String(32) | N | `payment_mirror` / `transfer_pair` / `refund_offset` |
 | `subtype` | String(64) | N | 如 credit_repayment；可空串 |
-| `primary_fact_id` | String(36) | N | 角色化主键腿 |
-| `secondary_fact_id` | String(36) | Y | 对侧腿；open-leg 可空 |
+| `primary_fact_id` | SurrogatePK | N | 角色化主键腿 |
+| `secondary_fact_id` | SurrogatePK | Y | 对侧腿；open-leg 可空 |
 | `primary_fact_type` | String(32) | N | 默认 `cash` |
 | `secondary_fact_type` | String(32) | Y | |
-| `ordered_fact_a` | String(36) | N | 排序后业务键 A |
-| `ordered_fact_b` | String(36) | N | B；open-leg 用空串哨兵 |
-| `active_slot` | String(36) | N | 活跃占位；默认 `active`；superseded 用 id 释放键 |
+| `ordered_fact_a` | SurrogatePK | Y | 排序端点 A；open-leg 可为 NULL（016） |
+| `ordered_fact_b` | SurrogatePK | Y | 排序端点 B；open-leg 可为 NULL（016 规范化空串→NULL） |
+| `active_slot` | String(36) | N | 活跃占位；默认 `active`；superseded 用 id 字符串释放键 |
 | `status` | String(32) | N | pending_review / accepted / rejected / superseded |
 | `rule_id` | String(128) | N | 匹配规则 |
 | `confidence` | String(32) | N | |
@@ -340,9 +343,9 @@ workspaces  (租户隔离根)
 | `decided_at` | UTCDateTime | Y | |
 | `decision_reason` | Text | N | |
 | `later_marker` | String(64) | N | |
-| `superseded_by_id` | String(36) | Y | 被谁替代 |
+| `superseded_by_id` | SurrogatePK | Y | 被谁替代 |
 | `revision` | Integer | N | 默认 1 |
-| `anchor_fact_id` | String(36) | N | open-leg / 角色锚点 |
+| `anchor_fact_id` | SurrogatePK | N | open-leg / 角色锚点 |
 
 **关键约束**
 
@@ -379,7 +382,7 @@ workspaces  (租户隔离根)
 | `workspace_id` | String(64) FK→workspaces | N | CASCADE |
 | `identity_kind` | String(32) | N | cash_account / position / instrument_quote / currency_pair / fx |
 | `identity` | String(255) | N | 稳定身份；现金为 `{account_id}:{currency}` |
-| `owner_account_id` | String(36) | Y | 账户持有类必填；报价/FX 为空。复合 FK→accounts `RESTRICT` |
+| `owner_account_id` | SurrogatePK | Y | 账户持有类必填；报价/FX 为空。复合 FK→accounts `RESTRICT` |
 | `observation_kind` | String(32) | N | boundary_checkin / quantity_checkin / quote / fx 等 |
 | `value` | ExactDecimal | N | |
 | `currency` | String(3) | N | |
@@ -563,7 +566,7 @@ workspaces  (租户隔离根)
 | `result_digest` | String(128) | N | → daily_results `CASCADE` |
 | `local_date` | String(10) | N | |
 | `source_revision` | String(128) | N | |
-| `owner_account_id` | String(36) | N | → accounts `RESTRICT` |
+| `owner_account_id` | SurrogatePK | N | → accounts `RESTRICT` |
 | `identity_kind` | String(32) | N | |
 | `identity` | String(255) | N | |
 | `disposition` | String(32) | N | supported/missing/unsupported/unvalued/not_applicable |
@@ -679,17 +682,18 @@ uv run alembic upgrade head
 
 ## 12. 相关在途 feature
 
-### 016 bigint surrogate ids
+### 016 bigint surrogate ids（**Complete**，PR #13）
 
-- 范围内表 PK/FK 改为整数代理键（PG `BIGINT` / SQLite `INTEGER`）
-- **对外/幂等**仍用稳定复合业务键：事实行上的 **`record_id` × `source_type`（导入渠道名）**（**不再**依赖 raw 表或文件 digest）
-- 与 016（bigint）正交；合并迁移时可一次完成 PK 改写 + 溯源内联
+- 范围内账本表 PK/FK 已改为整数代理键（PG `BIGINT` / SQLite `INTEGER`，`SurrogatePK`）
+- Alembic head / `SCHEMA_REVISION`：`20260724_09`
+- **对外/幂等**仍用稳定复合业务键：事实行上的 **`record_id` × `source_type`（导入渠道名）**
+- 关系 `ordered_fact_*`：open-leg 允许 NULL；迁移将 015 空串哨兵规范化为 NULL；非空未映射端点 fail-closed
 
-### 015 inline row provenance（本文）
+### 015 inline row provenance（**Complete**）
 
 - 删除导入作业/文件/独立 raw 表；删除 fact_deletion_events / record_revisions / relation_check_runs；现金列清理；幂等键为 **record_id × source_type（导入渠道名）**
 - 行级溯源内联到正式事实；删除投资 `price`
-- **交付任务**：代码就绪后**一次性**升级本机 **`~/.ft`** 下 SQLite 账本（默认 `~/.ft/finance-tracker.db`）：先备份 → 设置 `FT_DATABASE_URL` 指向该文件 → `alembic upgrade head`（或项目封装入口）→ 按 `spec.md` SC-012 验证；失败则从备份恢复。不迁移 `~/.ft` 内 mapping/bills 等非 db 文件。
+- 本机升级证据见 `specs/016-bigint-surrogate-ids/tasks.md` T027（015→016 连续升级路径）
 
 ---
 

@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-23
 
-**Status**: Draft
+**Status**: Complete
 
 **Input**: User description: "从 main 恢复投资事件领域模型与文件/手动导入。main 已有完整投资体系（SWAP/DEPOSIT/WITHDRAW/DIVIDEND/CHECKIN、多券商解析），但产品化迁移过程中仅保留了 DFZQ 单一 PoC；本 feature 将其恢复到 PostgreSQL-only + 双 DB + 关系架构中，覆盖多券商 PDF/CSV 解析与投资事件领域模型。买入卖出统一用 SWAP 表示（现金↔资产交换），手续费通过 commission 字段记录。"
 

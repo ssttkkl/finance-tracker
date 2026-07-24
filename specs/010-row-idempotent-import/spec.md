@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-23
 
-**Status**: Draft
+**Status**: Complete
 
 **Input**: User description: "009 就改成「仅业务行幂等 + 重叠文件可增量」。这个开个新spec做吧，把消费账本和投资账本都改掉" — change cash and investment statement import idempotency from file-level source_digest short-circuit to **row-level source_identity only**, so overlapping files apply only new business rows (incremental). Supersedes digest-as-primary-idempotency in 007 and 009. Keep import batches / raw files as job/audit metadata, not ledger truth. Dual-backend required.
 

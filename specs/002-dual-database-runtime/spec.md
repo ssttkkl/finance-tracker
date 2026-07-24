@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-18
 
-**Status**: Draft
+**Status**: Complete
 
 **Input**: User description: "SQLite 与 PostgreSQL 都作为正式运行时后端，由 FT_DATABASE_URL 显式选择且功能基本等价。"
 

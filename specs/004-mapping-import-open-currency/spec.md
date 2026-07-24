@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-20
 
-**Status**: Draft
+**Status**: Complete
 
 **Input**: User description: "恢复 master 兼容的账单导入：按 ~/.ft/mapping.yaml 从账单内支付方式/卡号推断每行账户；ft import 不允许 --account。同时移除 CLI/领域层币种白名单，支持任意币种（含 JPY）。"
 

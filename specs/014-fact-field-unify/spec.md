@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-24
 
-**Status**: Draft
+**Status**: Complete
 
 **Input**: User description: "统一消费账户记录（cash_transactions）与投资账户记录（investment_events）的建模风格与字段名；业务含义相同的字段使用相同名称。对齐表结构（正式列 + 可选 payload），保留两张事实表，不合并为单 ledger 表。背景：消费侧为宽表；投资侧为窄表 + JSON payload，且 `kind` 列实际存 action，与历史文档漂移。"
 
