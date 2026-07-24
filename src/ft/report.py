@@ -46,7 +46,7 @@ def render_finance_report(result, month=None):
             print(f"    总支出: {symbol}{total:.2f}")
     for flow in result.flows:
         symbol = _currency_symbol(flow.currency)
-        print(f"  🔄 {flow.description[:20]:<20s} {symbol}{flow.amount:>10.2f}")
+        print(f"  🔄 {flow.note[:20]:<20s} {symbol}{flow.amount:>10.2f}")
     for currency in sorted(result.income):
         symbol = _currency_symbol(currency)
         print(f"\n  📥 收入来源 [{currency}]")
@@ -67,8 +67,8 @@ def render_transactions(result):
         symbol = _currency_symbol(item.currency)
         label = labels.get(item.category, "")
         amount = "" if item.amount == 0 else f"{symbol}{item.amount:>+8.2f}"
-        description = (item.description or item.counterparty)[:30]
+        note = (item.note or item.counterparty)[:30]
         print(
-            f"  {item.date[:19]:<21} {item.account_name[:16]:<16} "
-            f"{item.currency:<5} {label:<6} {amount:>12} {description}"
+            f"  {item.occurred_at[:19]:<21} {item.account_name[:16]:<16} "
+            f"{item.currency:<5} {label:<6} {amount:>12} {note}"
         )

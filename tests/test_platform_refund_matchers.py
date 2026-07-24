@@ -69,12 +69,12 @@ class TestWeChatDualRow:
     def test_full_match_same_pay(self):
         expenses = [{
             "direction": "支出", "status": "已全额退款", "amount": Decimal("-50"),
-            "pay": "零钱", "cp": "北中医三院", "date": "2024-03-11 07:36:21",
+            "pay": "零钱", "cp": "北中医三院", "occurred_at": "2024-03-11 07:36:21",
             "txn": "4200a", "mer": "m1", "type": "商户消费",
         }]
         income = {
             "direction": "收入", "status": "已全额退款", "amount": Decimal("50"),
-            "pay": "零钱", "cp": "北中医三院", "date": "2024-03-11 09:17:05",
+            "pay": "零钱", "cp": "北中医三院", "occurred_at": "2024-03-11 09:17:05",
             "txn": "5030b", "mer": "", "type": "北中医三院-退款",
         }
         m = wechat_find_expense_for_refund(income, expenses)
@@ -84,12 +84,12 @@ class TestWeChatDualRow:
     def test_partial_30_day_window(self):
         expenses = [{
             "direction": "支出", "status": "已退款(¥18.00)", "amount": Decimal("-45"),
-            "pay": "零钱", "cp": "味多美", "date": "2024-06-27 19:51:18",
+            "pay": "零钱", "cp": "味多美", "occurred_at": "2024-06-27 19:51:18",
             "txn": "e1", "mer": "xc", "type": "商户消费",
         }]
         income = {
             "direction": "收入", "status": "已退款¥18.00", "amount": Decimal("18"),
-            "pay": "零钱", "cp": "味多美", "date": "2024-07-28 01:04:54",
+            "pay": "零钱", "cp": "味多美", "occurred_at": "2024-07-28 01:04:54",
             "txn": "r1", "mer": "", "type": "味多美-退款",
         }
         m = wechat_find_expense_for_refund(income, expenses)
@@ -98,12 +98,12 @@ class TestWeChatDualRow:
     def test_redpacket_mer_equals_income_txn(self):
         expenses = [{
             "direction": "支出", "status": "已全额退款", "amount": Decimal("-50"),
-            "pay": "零钱", "cp": "发给某人", "date": "2025-05-15 17:09:34",
+            "pay": "零钱", "cp": "发给某人", "occurred_at": "2025-05-15 17:09:34",
             "txn": "exp1", "mer": "1000039801202505157184950651034", "type": "微信红包（单发）",
         }]
         income = {
             "direction": "收入", "status": "已全额退款", "amount": Decimal("50"),
-            "pay": "零钱", "cp": "/", "date": "2025-05-16 17:09:37",
+            "pay": "零钱", "cp": "/", "occurred_at": "2025-05-16 17:09:37",
             "txn": "1000039801202505157184950651034", "mer": "", "type": "微信红包-退款",
         }
         m = wechat_find_expense_for_refund(income, expenses)
@@ -113,12 +113,12 @@ class TestWeChatDualRow:
     def test_transfer_return(self):
         expenses = [{
             "direction": "支出", "status": "对方已退还", "amount": Decimal("-200"),
-            "pay": "零钱", "cp": "是我小转转啊", "date": "2025-05-10 16:35:30",
+            "pay": "零钱", "cp": "是我小转转啊", "occurred_at": "2025-05-10 16:35:30",
             "txn": "e", "mer": "m", "type": "转账",
         }]
         income = {
             "direction": "收入", "status": "已全额退款", "amount": Decimal("200"),
-            "pay": "零钱", "cp": "/", "date": "2025-05-10 18:06:58",
+            "pay": "零钱", "cp": "/", "occurred_at": "2025-05-10 18:06:58",
             "txn": "r", "mer": "", "type": "转账-退款",
         }
         m = wechat_find_expense_for_refund(income, expenses)
@@ -127,24 +127,24 @@ class TestWeChatDualRow:
     def test_residual_jd_style(self):
         expenses = [{
             "direction": "支出", "status": "已退款(¥470.72)", "amount": Decimal("-557.92"),
-            "pay": "零钱", "cp": "京东", "date": "2024-11-11 01:15:51",
+            "pay": "零钱", "cp": "京东", "occurred_at": "2024-11-11 01:15:51",
             "txn": "e", "mer": "m", "type": "商户消费",
         }]
         rows = [
             expenses[0],
             {
                 "direction": "收入", "status": "已退款¥470.72", "amount": Decimal("341.3"),
-                "pay": "零钱", "cp": "京东商城平台商户", "date": "2024-11-11 01:16:12",
+                "pay": "零钱", "cp": "京东商城平台商户", "occurred_at": "2024-11-11 01:16:12",
                 "txn": "r1", "mer": "", "type": "京东商城平台商户-退款",
             },
             {
                 "direction": "收入", "status": "已退款¥470.72", "amount": Decimal("32.56"),
-                "pay": "零钱", "cp": "京东商城平台商户", "date": "2024-11-11 01:16:17",
+                "pay": "零钱", "cp": "京东商城平台商户", "occurred_at": "2024-11-11 01:16:17",
                 "txn": "r2", "mer": "", "type": "京东商城平台商户-退款",
             },
             {
                 "direction": "收入", "status": "已退款¥470.72", "amount": Decimal("96.86"),
-                "pay": "零钱", "cp": "京东商城平台商户", "date": "2024-11-11 01:16:25",
+                "pay": "零钱", "cp": "京东商城平台商户", "occurred_at": "2024-11-11 01:16:25",
                 "txn": "r3", "mer": "", "type": "京东商城平台商户-退款",
             },
         ]

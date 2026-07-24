@@ -19,7 +19,7 @@ def test_partial_refund_auto_accept():
     )
     refund = _fv(
         id="r", amount=Decimal("30"), account_id="1", account_name="支付宝",
-        occurred_at="2026-01-05 10:00:00", counterparty="商家A", description="退款",
+        occurred_at="2026-01-05 10:00:00", counterparty="商家A", note="退款",
         category="income",
     )
     proposal = evaluate_refund_offset(refund, [expense])
@@ -36,7 +36,7 @@ def test_over_refund_not_auto_accepted():
     )
     refund = _fv(
         id="r", amount=Decimal("150"), account_id="1", account_name="支付宝",
-        occurred_at="2026-01-05 10:00:00", counterparty="商家A", description="退款",
+        occurred_at="2026-01-05 10:00:00", counterparty="商家A", note="退款",
         category="income",
     )
     proposal = evaluate_refund_offset(refund, [expense], remaining_by_expense={"e": Decimal("100")})
@@ -51,7 +51,7 @@ def test_refund_beyond_30_days_not_candidate_auto():
     )
     refund = _fv(
         id="r", amount=Decimal("100"), account_id="1", account_name="支付宝",
-        occurred_at="2026-03-01 10:00:00", counterparty="商家A", description="退款",
+        occurred_at="2026-03-01 10:00:00", counterparty="商家A", note="退款",
         category="income",
     )
     proposal = evaluate_refund_offset(refund, [expense])
@@ -63,7 +63,7 @@ def test_legacy_offset_fields_not_used_in_projection():
         _fv(id="e", amount=Decimal("-100"), account_id="1", account_name="支付宝",
             occurred_at="2026-01-01 10:00:00", counterparty="商家A"),
         _fv(id="r", amount=Decimal("30"), account_id="1", account_name="支付宝",
-            occurred_at="2026-01-05 10:00:00", counterparty="商家A", description="退款",
+            occurred_at="2026-01-05 10:00:00", counterparty="商家A", note="退款",
             category="income"),
     ]
     # no accepted relations despite legacy-looking data — projection double-counts expense unless refund signal alone
@@ -79,7 +79,7 @@ def test_income_without_refund_word_not_refund_seed():
     )
     income = _fv(
         id="i", amount=Decimal("100"), account_id="1",
-        occurred_at="2026-01-05 10:00:00", counterparty="工资", description="工资发放",
+        occurred_at="2026-01-05 10:00:00", counterparty="工资", note="工资发放",
         category="income",
     )
     assert evaluate_refund_offset(income, [expense]) is None
@@ -92,7 +92,7 @@ def test_refund_same_account_exact_without_merchant_is_pending_not_silent():
     )
     refund = _fv(
         id="r", amount=Decimal("100"), account_id="1",
-        occurred_at="2026-01-05 10:00:00", counterparty="其他", description="退款到账",
+        occurred_at="2026-01-05 10:00:00", counterparty="其他", note="退款到账",
         category="income",
     )
     proposal = evaluate_refund_offset(refund, [expense])
@@ -108,7 +108,7 @@ def test_same_account_partial_amount_without_merchant_is_silent():
     )
     refund = _fv(
         id="r", amount=Decimal("30"), account_id="1",
-        occurred_at="2026-01-05 10:00:00", counterparty="其他", description="退款到账",
+        occurred_at="2026-01-05 10:00:00", counterparty="其他", note="退款到账",
         category="income",
     )
     assert evaluate_refund_offset(refund, [expense]) is None
@@ -122,7 +122,7 @@ def test_expense_seed_does_not_emit_weak_same_account_pending():
     )
     refund = _fv(
         id="r", amount=Decimal("100"), account_id="1",
-        occurred_at="2026-01-05 10:00:00", counterparty="其他", description="退款到账",
+        occurred_at="2026-01-05 10:00:00", counterparty="其他", note="退款到账",
         category="income",
     )
     assert evaluate_refund_offset(expense, [refund]) is None
@@ -131,12 +131,12 @@ def test_expense_seed_does_not_emit_weak_same_account_pending():
 def test_transfer_remark_not_refund_expense_candidate():
     transfer_out = _fv(
         id="t", amount=Decimal("-100"), account_id="1",
-        occurred_at="2026-01-01 10:00:00", counterparty="微信", description="转账备注:微信转账",
+        occurred_at="2026-01-01 10:00:00", counterparty="微信", note="转账备注:微信转账",
         category="expense",
     )
     refund = _fv(
         id="r", amount=Decimal("30"), account_id="1",
-        occurred_at="2026-01-05 10:00:00", counterparty="商家A", description="退款-商品",
+        occurred_at="2026-01-05 10:00:00", counterparty="商家A", note="退款-商品",
         category="income",
     )
     assert evaluate_refund_offset(refund, [transfer_out]) is None
@@ -145,15 +145,15 @@ def test_transfer_remark_not_refund_expense_candidate():
 def test_qr_receipt_and_redpacket_excluded_from_refund():
     qr = _fv(
         id="q", amount=Decimal("-20"), account_id="1",
-        occurred_at="2026-01-01 10:00:00", description="收款方备注:二维码收款",
+        occurred_at="2026-01-01 10:00:00", note="收款方备注:二维码收款",
     )
     red = _fv(
         id="h", amount=Decimal("-32"), account_id="1",
-        occurred_at="2026-01-01 11:00:00", description="微信红包（单发）",
+        occurred_at="2026-01-01 11:00:00", note="微信红包（单发）",
     )
     refund = _fv(
         id="r", amount=Decimal("19.90"), account_id="1",
-        occurred_at="2026-01-02 10:00:00", description="退款-饭盒",
+        occurred_at="2026-01-02 10:00:00", note="退款-饭盒",
         counterparty="商家",
     )
     assert evaluate_refund_offset(refund, [qr, red]) is None
@@ -162,11 +162,11 @@ def test_qr_receipt_and_redpacket_excluded_from_refund():
 def test_withdraw_excluded_from_refund_expense_leg():
     withdraw = _fv(
         id="w", amount=Decimal("-500"), account_id="1",
-        occurred_at="2026-01-01 10:00:00", description="提现-实时提现",
+        occurred_at="2026-01-01 10:00:00", note="提现-实时提现",
     )
     refund = _fv(
         id="r", amount=Decimal("14.80"), account_id="1",
-        occurred_at="2026-01-02 10:00:00", description="退款-鞋架",
+        occurred_at="2026-01-02 10:00:00", note="退款-鞋架",
         counterparty="商家",
     )
     assert evaluate_refund_offset(refund, [withdraw]) is None
@@ -176,11 +176,11 @@ def test_redpacket_refund_strong_matches_original_redpacket_spend():
     """P2P asymmetric: 微信红包-退款 may strong-auto original 红包/转账 spends."""
     redpacket_out = _fv(
         id="e", amount=Decimal("-50"), account_id="1",
-        occurred_at="2026-01-01 10:00:00", counterparty="微信", description="微信红包（单发）",
+        occurred_at="2026-01-01 10:00:00", counterparty="微信", note="微信红包（单发）",
     )
     refund = _fv(
         id="r", amount=Decimal("50"), account_id="1",
-        occurred_at="2026-01-02 10:00:00", counterparty="微信", description="微信红包-退款",
+        occurred_at="2026-01-02 10:00:00", counterparty="微信", note="微信红包-退款",
     )
     proposal = evaluate_refund_offset(refund, [redpacket_out])
     assert proposal is not None
@@ -196,11 +196,11 @@ def test_redpacket_refund_strong_matches_original_redpacket_spend():
 def test_p2p_refund_can_still_match_merchant_expense_by_counterparty():
     refund = _fv(
         id="r", amount=Decimal("50"), account_id="1",
-        occurred_at="2026-01-02 10:00:00", counterparty="微信", description="微信红包-退款",
+        occurred_at="2026-01-02 10:00:00", counterparty="微信", note="微信红包-退款",
     )
     real_expense = _fv(
         id="e2", amount=Decimal("-50"), account_id="1",
-        occurred_at="2026-01-01 10:00:00", counterparty="微信", description="商户消费",
+        occurred_at="2026-01-01 10:00:00", counterparty="微信", note="商户消费",
     )
     proposal = evaluate_refund_offset(refund, [real_expense])
     assert proposal is not None
@@ -210,11 +210,11 @@ def test_p2p_refund_can_still_match_merchant_expense_by_counterparty():
 def test_bare_redpacket_income_is_not_refund_seed():
     expense = _fv(
         id="e", amount=Decimal("-50"), account_id="1",
-        occurred_at="2026-01-01 10:00:00", counterparty="微信", description="商户消费",
+        occurred_at="2026-01-01 10:00:00", counterparty="微信", note="商户消费",
     )
     bare_in = _fv(
         id="i", amount=Decimal("50"), account_id="1",
-        occurred_at="2026-01-02 10:00:00", counterparty="微信", description="微信红包",
+        occurred_at="2026-01-02 10:00:00", counterparty="微信", note="微信红包",
     )
     assert evaluate_refund_offset(bare_in, [expense]) is None
 
@@ -222,16 +222,16 @@ def test_bare_redpacket_income_is_not_refund_seed():
 def test_transfer_out_pairs_with_transfer_refund_not_cross_redpacket():
     transfer_out = _fv(
         id="t", amount=Decimal("-100"), account_id="1",
-        occurred_at="2026-01-01 10:00:00", counterparty="微信", description="转账备注:微信转账",
+        occurred_at="2026-01-01 10:00:00", counterparty="微信", note="转账备注:微信转账",
     )
     # Cross-class: 红包-退款 must not strong-auto a 转账支出 (avoids multi-candidate noise).
     redpacket_refund = _fv(
         id="r1", amount=Decimal("100"), account_id="1",
-        occurred_at="2026-01-02 10:00:00", counterparty="微信", description="微信红包-退款",
+        occurred_at="2026-01-02 10:00:00", counterparty="微信", note="微信红包-退款",
     )
     merchant_refund = _fv(
         id="r2", amount=Decimal("100"), account_id="1",
-        occurred_at="2026-01-02 11:00:00", counterparty="商家A", description="退款-商品",
+        occurred_at="2026-01-02 11:00:00", counterparty="商家A", note="退款-商品",
     )
     assert evaluate_refund_offset(redpacket_refund, [transfer_out]) is None
     assert evaluate_refund_offset(merchant_refund, [transfer_out]) is None
@@ -240,15 +240,15 @@ def test_transfer_out_pairs_with_transfer_refund_not_cross_redpacket():
 def test_redpacket_refund_prefers_redpacket_spend_over_transfer_same_amount():
     redpacket_out = _fv(
         id="e1", amount=Decimal("-50"), account_id="1",
-        occurred_at="2026-01-01 10:00:00", counterparty="微信", description="微信红包（单发）",
+        occurred_at="2026-01-01 10:00:00", counterparty="微信", note="微信红包（单发）",
     )
     transfer_out = _fv(
         id="e2", amount=Decimal("-50"), account_id="1",
-        occurred_at="2026-01-01 11:00:00", counterparty="微信", description="转账备注:微信转账",
+        occurred_at="2026-01-01 11:00:00", counterparty="微信", note="转账备注:微信转账",
     )
     refund = _fv(
         id="r", amount=Decimal("50"), account_id="1",
-        occurred_at="2026-01-02 10:00:00", counterparty="微信", description="微信红包-退款",
+        occurred_at="2026-01-02 10:00:00", counterparty="微信", note="微信红包-退款",
     )
     proposal = evaluate_refund_offset(refund, [transfer_out, redpacket_out])
     assert proposal is not None
@@ -259,11 +259,11 @@ def test_redpacket_refund_prefers_redpacket_spend_over_transfer_same_amount():
 def test_bank_consumer_return_not_excluded():
     expense = _fv(
         id="e", amount=Decimal("-260"), account_id="1",
-        occurred_at="2026-01-01 10:00:00", counterparty="北京易行", description="消费",
+        occurred_at="2026-01-01 10:00:00", counterparty="北京易行", note="消费",
     )
     refund = _fv(
         id="r", amount=Decimal("260"), account_id="1",
-        occurred_at="2026-01-02 10:00:00", counterparty="北京易行", description="消费退货",
+        occurred_at="2026-01-02 10:00:00", counterparty="北京易行", note="消费退货",
     )
     proposal = evaluate_refund_offset(refund, [expense])
     assert proposal is not None
@@ -280,7 +280,7 @@ def test_strip_refund_title_exact_unique_auto_among_soft_merchant_noise():
         amount=Decimal("-275.28"),
         account_id="1",
         counterparty="美团",
-        description="美团订单-23062011100400000024409750630312",
+        note="美团订单-23062011100400000024409750630312",
         occurred_at="2023-06-20 09:44:17",
         category="expense",
     )
@@ -290,7 +290,7 @@ def test_strip_refund_title_exact_unique_auto_among_soft_merchant_noise():
             amount=Decimal("-18.80"),
             account_id="1",
             counterparty="美团",
-            description=f"美团订单-2306191110040000002425387781531{i}",
+            note=f"美团订单-2306191110040000002425387781531{i}",
             occurred_at="2023-06-19 12:00:00",
             category="expense",
         )
@@ -301,7 +301,7 @@ def test_strip_refund_title_exact_unique_auto_among_soft_merchant_noise():
         amount=Decimal("137.64"),
         account_id="1",
         counterparty="美团",
-        description="退款-美团订单-23062011100400000024409750630312",
+        note="退款-美团订单-23062011100400000024409750630312",
         occurred_at="2023-06-21 15:59:23",
         category="income",
     )
@@ -319,7 +319,7 @@ def test_title_exact_not_auto_when_two_exact_titles():
         id="e1",
         amount=Decimal("-100"),
         account_id="1",
-        description="同款商品标题",
+        note="同款商品标题",
         occurred_at="2023-06-20 10:00:00",
         category="expense",
         counterparty="店A",
@@ -328,7 +328,7 @@ def test_title_exact_not_auto_when_two_exact_titles():
         id="e2",
         amount=Decimal("-80"),
         account_id="1",
-        description="同款商品标题",
+        note="同款商品标题",
         occurred_at="2023-06-20 11:00:00",
         category="expense",
         counterparty="店B",
@@ -337,7 +337,7 @@ def test_title_exact_not_auto_when_two_exact_titles():
         id="r",
         amount=Decimal("50"),
         account_id="1",
-        description="退款-同款商品标题",
+        note="退款-同款商品标题",
         occurred_at="2023-06-21 10:00:00",
         category="income",
         counterparty="店A",

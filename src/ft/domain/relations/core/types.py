@@ -450,7 +450,7 @@ class FactView:
     account_type: str = "cash"
     occurred_at: datetime | str = ""
     counterparty: str = ""
-    description: str = ""
+    note: str = ""
     category: str = ""
     bill_source: str = ""
     source: str = ""
@@ -463,7 +463,7 @@ class FactView:
 
     @property
     def text(self) -> str:
-        return _text_blob(self.counterparty, self.description, self.bill_source, self.source)
+        return _text_blob(self.counterparty, self.note, self.bill_source, self.source)
 
     @property
     def signed_amount(self) -> Decimal:

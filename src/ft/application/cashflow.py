@@ -27,7 +27,7 @@ class CashflowService:
         self._uow = uow
 
     def add_manual_transaction(self, *, amount: Decimal, counterparty: str, account_name: str,
-                               description: str = "", source: str = "", date: str | None = None,
+                               note: str = "", source: str = "", date: str | None = None,
                                currency: str | None = None, category: str | None = None,
                                bill_source: str = "", record_id: str = "", **_extra) -> CashflowResult:
         try:
@@ -48,11 +48,11 @@ class CashflowService:
                     account_type=account.type,
                 )
             row = {
-                "date": date_str,
+                "occurred_at": date_str,
                 "amount": amount,
                 "currency": operation_currency,
                 "counterparty": counterparty,
-                "description": description,
+                "note": note,
                 "category": category if category is not None else ("expense" if amount < 0 else "income"),
                 "account_name": account_name,
                 "source": source,
@@ -95,11 +95,11 @@ class CashflowService:
                 )
             sym = CURRENCY_SYMBOLS.get(operation_currency, "")
             row = {
-                "date": date_str,
+                "occurred_at": date_str,
                 "amount": Decimal("0"),
                 "currency": operation_currency,
                 "counterparty": "",
-                "description": f"余额校准{sym}{balance:.2f}",
+                "note": f"余额校准{sym}{balance:.2f}",
                 "category": "checkin",
                 "account_name": account_name,
                 "source": "手动",
@@ -128,7 +128,7 @@ class TransferService:
 
     def transfer(self, *, from_name: str, to_name: str, amount: Decimal,
                  to_amount: Decimal | None = None, date: str | None = None,
-                 time_str: str | None = None, description: str = "",
+                 time_str: str | None = None, note: str = "",
                  from_currency: str | None = None, to_currency: str | None = None) -> CashflowResult:
         amount = _exact_decimal(amount, "amount")
         if to_amount is not None:
@@ -177,10 +177,10 @@ class TransferService:
 
             real_to = amount if effective_to_amount is None else effective_to_amount
             from_row = _transfer_event(
-                date_str, amount, from_acct, to_acct, from_currency, to_currency, "out", description
+                date_str, amount, from_acct, to_acct, from_currency, to_currency, "out", note
             )
             to_row = _transfer_event(
-                date_str, real_to, to_acct, from_acct, to_currency, from_currency, "in", description
+                date_str, real_to, to_acct, from_acct, to_currency, from_currency, "in", note
             )
             _stage_transfer_event(uow, from_acct, from_row)
             _stage_transfer_event(uow, to_acct, to_row)
@@ -206,14 +206,14 @@ class TransferService:
             return CashflowResult.success(rows=[from_row, to_row], **details)
 
 
-def _transfer_row(date_str: str, amount: Decimal, currency: str, description: str,
+def _transfer_row(date_str: str, amount: Decimal, currency: str, note: str,
                   account_name: str, category: str, transfer_account: str) -> dict:
     return {
-        "date": date_str,
+        "occurred_at": date_str,
         "amount": amount,
         "currency": currency,
         "counterparty": "",
-        "description": description,
+        "note": note,
         "category": category,
         "account_name": account_name,
         "source": "手动",
@@ -224,10 +224,10 @@ def _transfer_row(date_str: str, amount: Decimal, currency: str, description: st
 
 
 def _transfer_event(date_str: str, amount: Decimal, account, counterpart, currency: str, counterpart_currency: str, direction: str,
-                    description: str) -> dict:
+                    note: str) -> dict:
     if account.type not in {"security", "crypto"}:
         category = "transfer_out" if direction == "out" else "transfer_in"
-        default_description = (
+        default_note = (
             f"购汇至{counterpart_currency}" if direction == "out" and currency != counterpart_currency
             else f"购汇自{counterpart_currency}" if direction == "in" and currency != counterpart_currency
             else f"转账至{counterpart.name}" if direction == "out" else f"来自{counterpart.name}"
@@ -236,7 +236,7 @@ def _transfer_event(date_str: str, amount: Decimal, account, counterpart, curren
             date_str,
             -amount if direction == "out" else amount,
             currency,
-            description or default_description,
+            note or default_note,
             account.name,
             category,
             counterpart.name,
@@ -244,7 +244,7 @@ def _transfer_event(date_str: str, amount: Decimal, account, counterpart, curren
 
     ticker = currency.lower()
     return {
-        "date": date_str,
+        "occurred_at": date_str,
         "action": "withdraw" if direction == "out" else "deposit",
         "from_ticker": ticker if direction == "out" else "",
         "to_ticker": ticker if direction == "in" else "",
@@ -255,7 +255,7 @@ def _transfer_event(date_str: str, amount: Decimal, account, counterpart, curren
         "commission_asset": "",
         "currency": currency,
         "account_name": account.name,
-        "note": description or f"transfer {'to' if direction == 'out' else 'from'}:{counterpart.name}",
+        "note": note or f"transfer {'to' if direction == 'out' else 'from'}:{counterpart.name}",
     }
 
 

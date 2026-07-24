@@ -91,11 +91,11 @@ def _insert_three_day_formal_fixture(sessions) -> None:
             ),
             InvestmentEventModel(
                 id="broker-funding", workspace_id="wealth-rebuild", account_id="broker", occurred_at=at(2),
-                kind="deposit", currency="USD", payload={"amount": "1"}, revision=1,
+                action="deposit", currency="USD", to_amount="1", payload={}, revision=1,
             ),
             InvestmentEventModel(
                 id="broker-dividend", workspace_id="wealth-rebuild", account_id="broker", occurred_at=at(2),
-                kind="dividend", currency="USD", payload={"amount": "1"}, revision=1,
+                action="dividend", currency="USD", to_amount="1", payload={}, revision=1,
             ),
         ))
         for day, cash, position, fx in (
@@ -318,7 +318,7 @@ def test_runtime_unsupported_investment_input_is_published_as_fail_closed_covera
         session.add(InvestmentEventModel(
             id="unsupported-option", workspace_id="wealth-rebuild", account_id="broker",
             occurred_at=datetime(2026, 7, 2, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
-            kind="option_exercise", currency="USD", payload={"amount": "1"}, revision=1,
+            action="option_exercise", currency="USD", payload={"amount": "1"}, revision=1,
         ))
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
     services.wealth.rebuild(affected_from="2026-07-01")
@@ -410,7 +410,7 @@ def test_runtime_fails_closed_for_position_expected_from_formal_ownership_withou
         session.add(InvestmentEventModel(
             id="unvalued-formal-position", workspace_id="wealth-rebuild", account_id="broker",
             occurred_at=datetime(2026, 7, 1, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
-            kind="buy", currency="USD", payload={"position": "unvalued-etf", "quantity": "1"}, revision=1,
+            action="buy", currency="USD", payload={"position": "unvalued-etf", "quantity": "1"}, revision=1,
         ))
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
     services.wealth.rebuild(affected_from="2026-07-01")
@@ -545,7 +545,7 @@ def test_publish_rejects_invalid_parent_generation_content(rebuilt_runtime) -> N
     _backend, _services, sessions = rebuilt_runtime
     repo = RelationalWealthReadModel(sessions, "wealth-rebuild")
     repo.store_source_manifest("valid-source", ())
-    day_id = canonical_digest({"build": "orphan-parent", "date": "2026-07-01"})
+    day_id = canonical_digest({"build": "orphan-parent", "occurred_at": "2026-07-01"})
     with sessions.begin() as session:
         session.add(WealthGenerationModel(
             build_revision="orphan-parent",

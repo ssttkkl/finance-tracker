@@ -254,11 +254,11 @@ class RelationalCashflowRepository:
         """Stable public cashflow list contract used by existing tests/CLI."""
         return {
             "record_id": row.get("record_id", ""),
-            "date": row.get("date", ""),
+            "occurred_at": row.get("occurred_at", ""),
             "amount": row.get("amount"),
             "currency": row.get("currency"),
             "counterparty": row.get("counterparty", ""),
-            "description": row.get("description", ""),
+            "note": row.get("note", ""),
             "category": row.get("category", ""),
             "account_name": row.get("account_name", ""),
             "source": row.get("source", ""),
@@ -279,6 +279,11 @@ class RelationalCashflowRepository:
         if account_type not in {"cash", "loan", "lend"}:
             raise ValueError("cashflow repository only supports cash, loan, and lend records")
         normalized = {field: row.get(field, "") for field in CASH_CSV_FIELDS}
+        # Import/convert rows may still use legacy key "date" for occurrence time.
+        if not normalized.get("occurred_at"):
+            normalized["occurred_at"] = row.get("date") or row.get("occurred_at") or ""
+        if not normalized.get("note"):
+            normalized["note"] = row.get("note") or row.get("description") or ""
         currency = _validate_currency(normalized["currency"])
         account = self._session.scalar(select(AccountModel).where(
             AccountModel.workspace_id == self._workspace_id,
@@ -292,11 +297,11 @@ class RelationalCashflowRepository:
             account_id=account.id,
             raw_record_id=row.get("raw_record_id"),
             record_id=str(normalized["record_id"] or ""),
-            occurred_at=_parse_timestamp(normalized["date"]),
+            occurred_at=_parse_timestamp(normalized["occurred_at"]),
             amount=exact_decimal(normalized["amount"]),
             currency=currency,
             counterparty=str(normalized["counterparty"] or ""),
-            description=str(normalized["description"] or ""),
+            note=str(normalized["note"] or ""),
             category=str(normalized["category"] or ""),
             source=str(normalized["source"] or ""),
             bill_source=str(normalized["bill_source"] or ""),
@@ -319,12 +324,11 @@ class RelationalCashflowRepository:
         return {
             "id": row.id,
             "record_id": row.record_id,
-            "date": _format_timestamp(row.occurred_at),
-            "occurred_at": row.occurred_at,
+            "occurred_at": _format_timestamp(row.occurred_at),
             "amount": row.amount,
             "currency": row.currency,
             "counterparty": row.counterparty,
-            "description": row.description,
+            "note": row.note,
             "category": row.category,
             "account_name": account.name,
             "account_id": account.id,
@@ -355,6 +359,14 @@ class RelationalInvestmentRepository:
         self._session = session
         self._workspace_id = workspace_id
 
+    _INVESTMENT_CORE_KEYS = frozenset({
+        "action", "kind", "date", "occurred_at", "currency", "note",
+        "from_ticker", "from_amount", "to_ticker", "to_amount",
+        "price", "commission", "commission_asset", "amount", "ticker",
+        "shares", "quantity", "account_name", "revision", "raw_record_id",
+        "id", "workspace_id", "account_id", "_record_type",
+    })
+
     def list(self) -> list[dict]:
         rows = self._session.execute(
             select(InvestmentEventModel, AccountModel)
@@ -364,35 +376,85 @@ class RelationalInvestmentRepository:
             .where(InvestmentEventModel.workspace_id == self._workspace_id)
             .order_by(InvestmentEventModel.occurred_at, InvestmentEventModel.id)
         )
-        return [{
-            **row.payload,
-            "date": _format_timestamp(row.occurred_at),
-            "account_name": account.name,
-            "_record_type": account.type,
-        } for row, account in rows]
+        result = []
+        for row, account in rows:
+            item = {
+                "id": row.id,
+                "occurred_at": _format_timestamp(row.occurred_at),
+                "date": _format_timestamp(row.occurred_at),  # projection still keys on date
+                "account_name": account.name,
+                "action": row.action,
+                "currency": row.currency,
+                "note": row.note or "",
+                "from_ticker": row.from_ticker or "",
+                "from_amount": None if row.from_amount is None else format(row.from_amount, "f"),
+                "to_ticker": row.to_ticker or "",
+                "to_amount": None if row.to_amount is None else format(row.to_amount, "f"),
+                "price": None if row.price is None else format(row.price, "f"),
+                "commission": None if row.commission is None else format(row.commission, "f"),
+                "commission_asset": row.commission_asset or "",
+                "revision": row.revision,
+                "raw_record_id": row.raw_record_id,
+                "_record_type": account.type,
+            }
+            # residual non-core only
+            residual = row.payload if isinstance(row.payload, dict) else {}
+            for key, value in residual.items():
+                if key not in self._INVESTMENT_CORE_KEYS and key not in item:
+                    item[key] = value
+            result.append(item)
+        return result
 
     def add(self, account_type: str, row: dict) -> str:
         if account_type not in {"security", "crypto"}:
             raise ValueError("investment events require security or crypto account")
-        payload = _json_safe(dict(row))
+        data = dict(row)
+        account_name = str(data.get("account_name", ""))
         account = self._session.scalar(select(AccountModel).where(
             AccountModel.workspace_id == self._workspace_id,
-            AccountModel.name == str(payload.get("account_name", "")),
+            AccountModel.name == account_name,
             AccountModel.type == account_type,
         ))
         if account is None:
-            raise ValueError(f"account not found in workspace: {payload.get('account_name', '')}")
-        payload["account_name"] = account.name
-        if payload.get("currency"):
-            payload["currency"] = _validate_currency(payload["currency"])
+            raise ValueError(f"account not found in workspace: {account_name}")
+        currency = data.get("currency") or ""
+        if currency:
+            currency = _validate_currency(currency)
+        action = str(data.get("action") or "").strip()
+        if not action:
+            raise ValueError("investment event action is required")
+        time_raw = data.get("occurred_at") or data.get("date") or ""
+        note = str(data.get("note") or "")
+        def _amt(key):
+            raw = data.get(key)
+            if raw in (None, ""):
+                return None
+            from decimal import Decimal, ROUND_HALF_UP
+            d = Decimal(str(raw))
+            exp = d.as_tuple().exponent
+            if isinstance(exp, int) and exp < -18:
+                d = d.quantize(Decimal("1e-18"), rounding=ROUND_HALF_UP)
+            return exact_decimal(d)
+        residual = {
+            key: value for key, value in _json_safe(data).items()
+            if key not in self._INVESTMENT_CORE_KEYS
+        }
         model = InvestmentEventModel(
             workspace_id=self._workspace_id,
             account_id=account.id,
             raw_record_id=row.get("raw_record_id"),
-            occurred_at=_parse_timestamp(payload.get("date", "")),
-            kind=str(payload.get("action", "")),
-            currency=str(payload.get("currency", "") or ""),
-            payload=payload,
+            occurred_at=_parse_timestamp(str(time_raw)),
+            action=action,
+            currency=str(currency or ""),
+            note=note,
+            from_ticker=str(data.get("from_ticker") or "").lower(),
+            from_amount=_amt("from_amount"),
+            to_ticker=str(data.get("to_ticker") or "").lower(),
+            to_amount=_amt("to_amount"),
+            price=_amt("price"),
+            commission=_amt("commission"),
+            commission_asset=str(data.get("commission_asset") or "").lower(),
+            payload=residual,
         )
         self._session.add(model)
         self._session.flush()

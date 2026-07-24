@@ -99,7 +99,7 @@ def evaluate_refund_offset(
         ) or (
             main_style_cross_verify(refund, expense)
             and any(
-                tok in _text_blob(refund.description, expense.description)
+                tok in _text_blob(refund.note, expense.note)
                 for tok in ("订单", "order", "交易号", "txn", "商户单号")
             )
         )
@@ -107,12 +107,12 @@ def evaluate_refund_offset(
             FactView(
                 id=refund.id, amount=refund.amount, currency=refund.currency,
                 account_id=refund.account_id, counterparty=refund.counterparty,
-                description="", bill_source=refund.bill_source,
+                note="", bill_source=refund.bill_source,
             ),
             FactView(
                 id=expense.id, amount=expense.amount, currency=expense.currency,
                 account_id=expense.account_id, counterparty=expense.counterparty,
-                description="", bill_source=expense.bill_source,
+                note="", bill_source=expense.bill_source,
             ),
         ) or (
             bool(refund.counterparty) and refund.counterparty == expense.counterparty

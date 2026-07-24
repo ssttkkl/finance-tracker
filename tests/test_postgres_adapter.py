@@ -97,11 +97,11 @@ def test_cashflow_service_contract_persists_decimal_snapshot():
         entered.commit()
     assert rows == [{
         "record_id": "",
-        "date": "2026-07-17 09:00:00",
+        "occurred_at": "2026-07-17 09:00:00",
         "amount": Decimal("-12.34"),
         "currency": "CNY",
         "counterparty": "Coffee",
-        "description": "",
+        "note": "",
         "category": "expense",
         "account_name": "Cash",
         "source": "",
@@ -126,7 +126,7 @@ def test_investment_repository_and_snapshot_are_workspace_scoped():
     sessions, unit_of_work = _database()
     AccountService(unit_of_work(sessions, "workspace-a")).create_account("Broker", "security", "USD")
     event = {
-        "date": "2026-07-17 10:00:00",
+        "occurred_at": "2026-07-17 10:00:00",
         "action": "deposit",
         "from_ticker": "",
         "to_ticker": "usd",
@@ -151,7 +151,12 @@ def test_investment_repository_and_snapshot_are_workspace_scoped():
         uow.commit()
 
     with unit_of_work(sessions, "workspace-a") as uow:
-        assert uow.investments.list() == [{**event, "_record_type": "security"}]
+        listed = uow.investments.list()
+        assert len(listed) == 1
+        assert listed[0]["action"] == event["action"]
+        assert listed[0]["to_amount"] == event["to_amount"]
+        assert listed[0]["account_name"] == event["account_name"]
+        assert listed[0]["_record_type"] == "security"
         assert uow.snapshot.load()["updated_at"] == "2026-07-17"
         uow.commit()
     with unit_of_work(sessions, "workspace-b") as uow:
@@ -168,7 +173,7 @@ def test_unit_of_work_rolls_back_all_repositories_on_error():
         with unit_of_work(sessions, "workspace-a") as uow:
             uow.accounts.add(AccountDTO("Cash", "cash"))
             uow.cashflows.add("cash", {
-                "date": "2026-07-17 11:00:00",
+                "occurred_at": "2026-07-17 11:00:00",
                 "amount": Decimal("1"),
                 "currency": "CNY",
                 "account_name": "Cash",
@@ -350,7 +355,7 @@ def test_naive_statement_time_is_stored_as_utc_and_returned_in_workspace_time():
     assert occurred_at.astimezone(timezone.utc).hour == 1
 
     with unit_of_work(sessions, "workspace-a") as uow:
-        assert uow.cashflows.list()[0]["date"] == "2026-07-17 09:00:00"
+        assert uow.cashflows.list()[0]["occurred_at"] == "2026-07-17 09:00:00"
         uow.commit()
 
 

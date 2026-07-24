@@ -120,7 +120,7 @@ def _main(argv=None):
     trf.add_argument("--to-amount", dest="to_amount",
                      help="跨币种目标金额")
     trf.add_argument("--date")
-    trf.add_argument("--description", default="")
+    trf.add_argument("--note", default="")
 
     # add (single transaction)
     add_p = sub.add_parser("add", help="单笔录入")
@@ -128,7 +128,7 @@ def _main(argv=None):
     add_p.add_argument("-c", "--counterparty", required=True)
     add_p.add_argument("--account", required=True)
     add_p.add_argument("--currency", required=True)
-    add_p.add_argument("-d", "--description", default="")
+    add_p.add_argument("-d", "--note", default="")
     add_p.add_argument("--source", default="")
     add_p.add_argument("--platform", default="")
     add_p.add_argument("--date")
@@ -533,7 +533,7 @@ def _main(argv=None):
             counterparty=args.counterparty,
             account_name=args.account,
             currency=args.currency,
-            description=args.description,
+            note=args.note,
             source=args.source,
             date=args.date,
         )
@@ -595,7 +595,7 @@ def _main(argv=None):
             from_name=args.from_acct, to_name=args.to_acct,
             amount=Decimal(args.amount),
             to_amount=Decimal(args.to_amount) if args.to_amount is not None else None,
-            date=args.date, description=args.description,
+            date=args.date, note=args.note,
             from_currency=args.from_currency, to_currency=args.to_currency,
         )
         if not result.ok:

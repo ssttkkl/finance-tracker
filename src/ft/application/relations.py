@@ -44,7 +44,7 @@ def _fact_view_from_row(row: dict) -> FactView:
         account_type=str(row.get("account_type") or row.get("_record_type") or "cash"),
         occurred_at=row.get("occurred_at") or row.get("date") or "",
         counterparty=str(row.get("counterparty") or ""),
-        description=str(row.get("description") or ""),
+        note=str(row.get("note") or ""),
         category=str(row.get("category") or ""),
         bill_source=str(row.get("bill_source") or ""),
         source=str(row.get("source") or ""),

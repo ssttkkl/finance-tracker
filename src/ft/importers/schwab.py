@@ -177,7 +177,7 @@ def parse_schwab_csv(path: str | Path) -> SchwabStatement:
             flow_rows.append({
                 "date": date,
                 "type": type_code,
-                "description": description,
+                "note": description,
                 "ref": ref,
                 "misc_fee": misc_fee,
                 "commission_col": commission_col,
@@ -207,7 +207,7 @@ def parse_schwab_csv(path: str | Path) -> SchwabStatement:
     checkin = {
         "date": checkin_date,
         "type": "CHECKIN",
-        "description": "newest 余额",
+        "note": "newest 余额",
         "ref": "",
         "misc_fee": Decimal("0"),
         "commission_col": Decimal("0"),

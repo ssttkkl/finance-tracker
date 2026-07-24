@@ -179,7 +179,7 @@ def main_style_cross_verify(left: Mapping[str, Any] | str | object, right: Mappi
     """Main-branch dedup text gate: non-empty counterparty/description bidirectional substring."""
     def parts(value) -> tuple[str, str]:
         if isinstance(value, Mapping):
-            return str(value.get("counterparty") or ""), str(value.get("description") or "")
+            return str(value.get("counterparty") or ""), str(value.get("note") or "")
         # FactView-like duck type
         if hasattr(value, "counterparty") and hasattr(value, "description") and not isinstance(value, str):
             return str(getattr(value, "counterparty") or ""), str(getattr(value, "description") or "")

@@ -20,11 +20,11 @@ def _fv(**kwargs):
 def test_transfer_pair_auto_accept_exact():
     out_leg = _fv(
         id="a", amount=Decimal("-1000"), account_id="1", account_name="A",
-        occurred_at="2026-01-01 10:00:00", description="转账支取",
+        occurred_at="2026-01-01 10:00:00", note="转账支取",
     )
     in_leg = _fv(
         id="b", amount=Decimal("1000"), account_id="2", account_name="B",
-        occurred_at="2026-01-01 10:00:05", description="转账存入",
+        occurred_at="2026-01-01 10:00:05", note="转账存入",
     )
     proposal = evaluate_transfer_pair(out_leg, [in_leg])
     assert proposal is not None
@@ -36,11 +36,11 @@ def test_transfer_pair_auto_accept_exact():
 def test_transfer_amount_delta_pending():
     out_leg = _fv(
         id="a", amount=Decimal("-100"), account_id="1", account_name="A",
-        occurred_at="2026-01-01 10:00:00", description="转账支取",
+        occurred_at="2026-01-01 10:00:00", note="转账支取",
     )
     in_leg = _fv(
         id="b", amount=Decimal("99.99"), account_id="2", account_name="B",
-        occurred_at="2026-01-01 10:00:05", description="转账存入",
+        occurred_at="2026-01-01 10:00:05", note="转账存入",
     )
     proposal = evaluate_transfer_pair(out_leg, [in_leg])
     assert proposal is not None
@@ -51,11 +51,11 @@ def test_transfer_amount_delta_pending():
 def test_unionpay_same_day_auto_accept():
     out_leg = _fv(
         id="a", amount=Decimal("-200"), account_id="1", account_name="A",
-        occurred_at="2026-01-01 12:00:00", description="无卡付转账支取",
+        occurred_at="2026-01-01 12:00:00", note="无卡付转账支取",
     )
     in_leg = _fv(
         id="b", amount=Decimal("200"), account_id="2", account_name="B",
-        occurred_at="2026-01-01 00:00:00", description="银联入账电子汇入",
+        occurred_at="2026-01-01 00:00:00", note="银联入账电子汇入",
     )
     proposal = evaluate_transfer_pair(out_leg, [in_leg])
     assert proposal is not None
@@ -80,10 +80,10 @@ def test_unionpay_ccb_date_only_uses_raw_business_day_auto():
         account_type="cash",
         occurred_at="2024-05-05 17:48:03",
         counterparty="银联转账（云闪付）",
-        description="无卡支付",
+        note="无卡支付",
         bill_source="icbc_debit",
         fact_type=FactType.CASH.value,
-        raw_payload={"date": "2024-05-06 01:48:03"},
+        raw_payload={"occurred_at": "2024-05-06 01:48:03"},
     )
     in_leg = FactView(
         id="ccb_in",
@@ -94,10 +94,10 @@ def test_unionpay_ccb_date_only_uses_raw_business_day_auto():
         account_type="cash",
         occurred_at="2024-05-05 16:00:00",
         counterparty="微信",
-        description="银联入账",
+        note="银联入账",
         bill_source="ccb_debit",
         fact_type=FactType.CASH.value,
-        raw_payload={"date": "2024-05-06"},
+        raw_payload={"occurred_at": "2024-05-06"},
     )
     proposal = evaluate_transfer_pair(out_leg, [in_leg])
     assert proposal is not None
@@ -113,11 +113,11 @@ def test_unionpay_ccb_date_only_uses_raw_business_day_auto():
 def test_credit_repayment_subtype():
     cash = _fv(
         id="c", amount=Decimal("-5000"), account_id="1", account_name="储蓄",
-        account_type="cash", occurred_at="2026-01-01 10:00:00", description="信用卡还款",
+        account_type="cash", occurred_at="2026-01-01 10:00:00", note="信用卡还款",
     )
     loan = _fv(
         id="l", amount=Decimal("5000"), account_id="2", account_name="信用卡",
-        account_type="loan", occurred_at="2026-01-01 10:05:00", description="还款入账",
+        account_type="loan", occurred_at="2026-01-01 10:05:00", note="还款入账",
     )
     proposal = evaluate_transfer_pair(cash, [loan])
     assert proposal is not None
@@ -130,12 +130,12 @@ def test_credit_repayment_fx_unique_high_confidence_auto():
     cash = _fv(
         id="c", amount=Decimal("-144.61"), account_id="1", account_name="储蓄",
         account_type="cash", currency="CNY",
-        occurred_at="2025-12-19 06:30:57", description="购汇还款",
+        occurred_at="2025-12-19 06:30:57", note="购汇还款",
     )
     loan = _fv(
         id="l", amount=Decimal("159.40"), account_id="2", account_name="信用卡",
         account_type="loan", currency="HKD",
-        occurred_at="2025-12-19 06:30:58", description="手机银行",
+        occurred_at="2025-12-19 06:30:58", note="手机银行",
     )
     # market: HKD per 1 CNY ≈ 159.40/144.61 ≈ 1.1023
     proposal = evaluate_transfer_pair(
@@ -155,22 +155,22 @@ def test_credit_repayment_fx_multi_candidate_rate_separates():
     cash_hkd = _fv(
         id="c1", amount=Decimal("-144.61"), account_id="cash", account_name="工行借记卡",
         account_type="cash", currency="CNY",
-        occurred_at="2025-12-19 06:30:57", description="购汇还款",
+        occurred_at="2025-12-19 06:30:57", note="购汇还款",
     )
     cash_jpy = _fv(
         id="c2", amount=Decimal("-101.58"), account_id="cash", account_name="工行借记卡",
         account_type="cash", currency="CNY",
-        occurred_at="2025-12-19 06:31:00", description="购汇还款",
+        occurred_at="2025-12-19 06:31:00", note="购汇还款",
     )
     loan_hkd = _fv(
         id="l_hkd", amount=Decimal("159.40"), account_id="loan", account_name="工行信用卡(0851)",
         account_type="loan", currency="HKD",
-        occurred_at="2025-12-19 06:30:58", description="手机银行",
+        occurred_at="2025-12-19 06:30:58", note="手机银行",
     )
     loan_jpy = _fv(
         id="l_jpy", amount=Decimal("2240.00"), account_id="loan", account_name="工行信用卡(0851)",
         account_type="loan", currency="JPY",
-        occurred_at="2025-12-19 06:31:01", description="手机银行",
+        occurred_at="2025-12-19 06:31:01", note="手机银行",
     )
 
     def rates(day, base, quote):
@@ -195,12 +195,12 @@ def test_credit_repayment_fx_no_rate_pending():
     cash = _fv(
         id="c", amount=Decimal("-100"), account_id="1", account_name="储蓄",
         account_type="cash", currency="CNY",
-        occurred_at="2026-01-01 10:00:00", description="购汇还款",
+        occurred_at="2026-01-01 10:00:00", note="购汇还款",
     )
     loan = _fv(
         id="l", amount=Decimal("14"), account_id="2", account_name="信用卡",
         account_type="loan", currency="USD",
-        occurred_at="2026-01-01 10:00:05", description="手机银行",
+        occurred_at="2026-01-01 10:00:05", note="手机银行",
     )
     proposal = evaluate_transfer_pair(
         cash, [loan],
@@ -217,17 +217,17 @@ def test_credit_repayment_fx_two_high_confidence_open_leg_pending():
     cash = _fv(
         id="c", amount=Decimal("-100"), account_id="1", account_name="储蓄",
         account_type="cash", currency="CNY",
-        occurred_at="2026-01-01 10:00:00", description="购汇还款",
+        occurred_at="2026-01-01 10:00:00", note="购汇还款",
     )
     a = _fv(
         id="la", amount=Decimal("110"), account_id="2", account_name="卡A",
         account_type="loan", currency="HKD",
-        occurred_at="2026-01-01 10:00:01", description="手机银行",
+        occurred_at="2026-01-01 10:00:01", note="手机银行",
     )
     b = _fv(
         id="lb", amount=Decimal("110.3"), account_id="3", account_name="卡B",
         account_type="loan", currency="HKD",
-        occurred_at="2026-01-01 10:00:02", description="手机银行",
+        occurred_at="2026-01-01 10:00:02", note="手机银行",
     )
     # market 1.10 → errors ~0 and ~0.0027 both under 1.5% and margin < 0.5pp
     proposal = evaluate_transfer_pair(
@@ -246,12 +246,12 @@ def test_bare_unionpay_merchant_refund_not_transfer_signal():
     out_leg = _fv(
         id="a", amount=Decimal("-100"), account_id="1", account_name="微信零钱",
         occurred_at="2023-06-19 08:54:52", counterparty="美团",
-        description="美团订单-23061911100400000024247213555312", bill_source="wechat",
+        note="美团订单-23061911100400000024247213555312", bill_source="wechat",
     )
     in_leg = _fv(
         id="b", amount=Decimal("100"), account_id="2", account_name="工行借记卡",
         occurred_at="2023-06-19 10:06:50", counterparty="中国银联无卡快捷支付业务专户",
-        description="退货", bill_source="icbc_debit",
+        note="退货", bill_source="icbc_debit",
     )
     assert evaluate_transfer_pair(out_leg, [in_leg]) is None
 
@@ -270,11 +270,11 @@ def test_unionpay_compound_signals_still_match():
 def test_transfer_exact_no_signal_within_10s_is_pending_high_recall():
     out_leg = _fv(
         id="a", amount=Decimal("-100"), account_id="1", account_name="A",
-        occurred_at="2026-01-01 10:00:00", description="支出",
+        occurred_at="2026-01-01 10:00:00", note="支出",
     )
     in_leg = _fv(
         id="b", amount=Decimal("100"), account_id="2", account_name="B",
-        occurred_at="2026-01-01 10:00:05", description="收入",
+        occurred_at="2026-01-01 10:00:05", note="收入",
     )
     proposal = evaluate_transfer_pair(out_leg, [in_leg])
     assert proposal is not None
@@ -284,11 +284,11 @@ def test_transfer_exact_no_signal_within_10s_is_pending_high_recall():
 def test_transfer_signal_exact_beyond_10s_within_5min_pending():
     out_leg = _fv(
         id="a", amount=Decimal("-100"), account_id="1", account_name="A",
-        occurred_at="2026-01-01 10:00:00", description="转账支取",
+        occurred_at="2026-01-01 10:00:00", note="转账支取",
     )
     in_leg = _fv(
         id="b", amount=Decimal("100"), account_id="2", account_name="B",
-        occurred_at="2026-01-01 10:02:00", description="转账存入",
+        occurred_at="2026-01-01 10:02:00", note="转账存入",
     )
     proposal = evaluate_transfer_pair(out_leg, [in_leg])
     assert proposal is not None

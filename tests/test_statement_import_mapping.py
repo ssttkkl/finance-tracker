@@ -223,11 +223,11 @@ def test_ccb_card_number_routes_via_mapping(tmp_path, monkeypatch):
     rules, default = mapping_mod.load_rules(path)
     row_2820 = _build_output_row(
         {
-            "date": "2026-01-01 10:00:00",
+            "occurred_at": "2026-01-01 10:00:00",
             "amount": -10,
             "currency": "CNY",
             "counterparty": "Shop",
-            "description": "x",
+            "note": "x",
             "category": "expense",
             "card_number": "2820",
             "payment_method": "建行储蓄卡(2820)",
@@ -238,11 +238,11 @@ def test_ccb_card_number_routes_via_mapping(tmp_path, monkeypatch):
     )
     row_0523 = _build_output_row(
         {
-            "date": "2026-01-01 11:00:00",
+            "occurred_at": "2026-01-01 11:00:00",
             "amount": -20,
             "currency": "CNY",
             "counterparty": "Shop",
-            "description": "y",
+            "note": "y",
             "category": "expense",
             "card_number": "0523",
             "payment_method": "建行储蓄卡(0523)",

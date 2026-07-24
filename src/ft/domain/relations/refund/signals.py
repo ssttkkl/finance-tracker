@@ -40,7 +40,7 @@ REFUND_EXCLUDED_LEG_TOKENS = REFUND_P2P_FAMILY_TOKENS
 
 # Performance: candidate index day padding beyond business windows (safety for TZ).
 def _refundish_text(fact: "FactView") -> bool:
-    blob = _text_blob(fact.counterparty, fact.description, fact.category)
+    blob = _text_blob(fact.counterparty, fact.note, fact.category)
     return any(tok in blob for tok in ("退款", "退货", "消费退货", "refund", "return"))
 
 
@@ -128,9 +128,9 @@ def strip_refund_description_prefix(description: str) -> str:
 
 
 def refund_title_exact_match(refund: FactView, expense: FactView) -> bool:
-    """True when strip(退款-) of refund.description equals expense.description exactly."""
-    refund_title = strip_refund_description_prefix(refund.description)
-    expense_title = str(expense.description or "").strip()
+    """True when strip(退款-) of refund.note equals expense.note exactly."""
+    refund_title = strip_refund_description_prefix(refund.note)
+    expense_title = str(expense.note or "").strip()
     if not refund_title or not expense_title:
         return False
     return refund_title == expense_title

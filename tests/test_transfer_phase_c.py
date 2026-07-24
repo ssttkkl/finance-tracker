@@ -37,7 +37,7 @@ def _fv(
         account_type=account_type,
         occurred_at=occurred,
         counterparty=text.split()[0] if text else "",
-        description=text,
+        note=text,
         category="expense" if Decimal(amount) < 0 else "income",
         bill_source=bill_source,
         source=bill_source,

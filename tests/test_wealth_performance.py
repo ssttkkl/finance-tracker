@@ -84,9 +84,9 @@ def _seed_formal_workload(sessions) -> None:
             rows = []
             for number in range(chunk_start, min(chunk_start + 2_000, FACT_COUNT)):
                 occurred = START + timedelta(days=number % DAYS)
-                rows.append({"id": f"fact-{number:06d}", "workspace_id": WORKSPACE, "account_id": f"account-{number % 5:02d}", "record_id": f"seed-{number:06d}", "occurred_at": at(occurred) + timedelta(hours=number % 23), "amount": Decimal("0.01") if number % 2 else Decimal("-0.01"), "currency": "CNY", "counterparty": "seed", "description": "fixed formal cash fact", "category": "expense", "source": "performance", "bill_source": "seed", "transfer_account": "", "locked": "", "offset_group": "", "offset_role": "", "offset_strength": "", "offset_source": "", "offset_rule_hint": "", "offset_match_type": "", "proposed_action": "", "revision": 1})
+                rows.append({"id": f"fact-{number:06d}", "workspace_id": WORKSPACE, "account_id": f"account-{number % 5:02d}", "record_id": f"seed-{number:06d}", "occurred_at": at(occurred) + timedelta(hours=number % 23), "amount": Decimal("0.01") if number % 2 else Decimal("-0.01"), "currency": "CNY", "counterparty": "seed", "note": "fixed formal cash fact", "category": "expense", "source": "performance", "bill_source": "seed", "transfer_account": "", "locked": "", "offset_group": "", "offset_role": "", "offset_strength": "", "offset_source": "", "offset_rule_hint": "", "offset_match_type": "", "proposed_action": "", "revision": 1})
             session.execute(insert(CashTransactionModel), rows)
-        session.execute(insert(InvestmentEventModel), [{"id": f"investment-{i:02d}", "workspace_id": WORKSPACE, "account_id": f"account-{5 + i % 5:02d}", "occurred_at": at(START + timedelta(days=i)), "kind": "buy", "currency": "CNY", "payload": {"position": f"position:{i:02d}", "quantity": "1"}, "revision": 1} for i in range(POSITION_COUNT)])
+        session.execute(insert(InvestmentEventModel), [{"id": f"investment-{i:02d}", "workspace_id": WORKSPACE, "account_id": f"account-{5 + i % 5:02d}", "occurred_at": at(START + timedelta(days=i)), "action": "buy", "currency": "CNY", "payload": {"position": f"position:{i:02d}", "quantity": "1"}, "revision": 1} for i in range(POSITION_COUNT)])
 
 
 def _reset_read_model(sessions) -> None:

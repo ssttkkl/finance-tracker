@@ -91,7 +91,7 @@ def test_non_trd_cash_actions_map_to_locked_event_types():
     assert jrn_w["from_ticker"] == "usd"
 
     jrn_refund = next(
-        row for row in rows if row["type"] == "JRN" and "REFUND" in row["description"]
+        row for row in rows if row["type"] == "JRN" and "REFUND" in row["note"]
     )
     jrn_d = map_schwab_to_investment_event(jrn_refund, "嘉信", "USD")
     assert jrn_d["action"] == "deposit"

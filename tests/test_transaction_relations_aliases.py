@@ -11,12 +11,12 @@ def test_alias_boosts_evidence_without_import_hijack():
     seed = FactView(
         id="p1", amount=Decimal("-22"), currency="CNY", account_id="ccb",
         account_name="建行储蓄", occurred_at="2026-06-01 10:00:00",
-        counterparty="商家", description="付款方式 尾号7777", bill_source="alipay",
+        counterparty="商家", note="付款方式 尾号7777", bill_source="alipay",
     )
     bank = FactView(
         id="b1", amount=Decimal("-22"), currency="CNY", account_id="ccb",
         account_name="建行储蓄", occurred_at="2026-06-01 10:00:03",
-        counterparty="商家", description="消费", bill_source="ccb_debit",
+        counterparty="商家", note="消费", bill_source="ccb_debit",
     )
     proposal = evaluate_payment_mirror(
         seed, [bank], aliases_by_tail={"7777": ["ccb", "建行储蓄"]},

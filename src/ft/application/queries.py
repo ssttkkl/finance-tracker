@@ -72,7 +72,7 @@ class FinanceQueryService:
             for key, rows in by_account.items():
                 if key[0] not in active_accounts:
                     continue
-                rows.sort(key=lambda row: row.get("date", ""))
+                rows.sort(key=lambda row: row.get("occurred_at") or row.get("date") or "")
                 last_checkin = max(
                     (index for index, row in enumerate(rows) if row.get("category") == "checkin"),
                     default=-1,
@@ -92,12 +92,12 @@ class FinanceQueryService:
                 continue
             if row.get("category") == "transfer_in":
                 continue
-            description = row.get("transfer_account") or row.get("description", "")
+            note = row.get("transfer_account") or row.get("note", "")
             currency = row.get("currency", "CNY") or "CNY"
-            grouped_flows[(description, currency)] += abs(_decimal(row.get("amount")))
+            grouped_flows[(note, currency)] += abs(_decimal(row.get("amount")))
         flows = tuple(
-            FlowDTO(description, currency, amount)
-            for (description, currency), amount in sorted(
+            FlowDTO(note, currency, amount)
+            for (note, currency), amount in sorted(
                 grouped_flows.items(), key=lambda item: item[1], reverse=True
             )[:10]
         )
@@ -158,12 +158,12 @@ class FinanceQueryService:
     @staticmethod
     def _transaction_dto(row: dict) -> TransactionDTO:
         return TransactionDTO(
-            date=row.get("date", ""),
+            occurred_at=row.get("occurred_at", ""),
             account_name=row.get("account_name", ""),
             currency=row.get("currency", "CNY") or "CNY",
             category=row.get("category", ""),
             amount=_decimal(row.get("amount")),
-            description=row.get("description", ""),
+            note=row.get("note", ""),
             counterparty=row.get("counterparty", ""),
             transfer_account=row.get("transfer_account", ""),
         )

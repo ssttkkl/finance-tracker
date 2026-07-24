@@ -87,7 +87,7 @@ def test_live_postgres_workspace_isolation_and_transaction_rollback(postgres_ses
     with pytest.raises(RuntimeError, match="boom"):
         with workspace_a as uow:
             uow.cashflows.add("cash", {
-                "date": "2026-07-17 10:00:00", "amount": "2", "currency": "CNY",
+                "occurred_at": "2026-07-17 10:00:00", "amount": "2", "currency": "CNY",
                 "account_name": "Cash",
             })
             raise RuntimeError("boom")

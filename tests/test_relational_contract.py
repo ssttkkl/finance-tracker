@@ -180,7 +180,7 @@ def test_shared_runtime_preserves_exact_decimal_utc_and_shanghai_month(relationa
     rows = services.queries.list_transactions(month="2026-07", limit=10).items
     assert len(rows) == 1
     assert rows[0].amount == Decimal("1.230000000000000001")
-    assert rows[0].date == "2026-07-01 00:30:00"
+    assert rows[0].occurred_at == "2026-07-01 00:30:00"
 
     with pytest.raises(ValueError, match="18 decimal places"):
         services.cashflow.add_manual_transaction(
@@ -225,7 +225,7 @@ def test_shared_runtime_import_idempotency_and_audit_relationships(relational_ru
             records=[{"source_identity": "provider:1", "source_line": 1, "payload": {"amount": "1"}}],
         )[0]
         fact_id = uow.cashflows.add("cash", {
-            "date": "2026-07-17 09:00:00", "amount": "1", "currency": "CNY",
+            "occurred_at": "2026-07-17 09:00:00", "amount": "1", "currency": "CNY",
             "account_name": "Cash", "raw_record_id": raw_id,
         })
         revision = uow.imports.append_revision(

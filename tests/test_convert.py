@@ -111,7 +111,7 @@ class TestAlipayCategory:
         assert records[0]["category"] == "expense"
         assert records[0]["amount"] == -200.0
         assert records[0]["counterparty"] == "中国工商银行"
-        assert records[0]["description"] == "提现-实时提现"
+        assert records[0]["note"] == "提现-实时提现"
 
     def test_不计收支_已关闭订单跳过(self):
         csv_path = str(TEST_DIR / "alipay_closed_status.csv")
@@ -251,7 +251,7 @@ class TestAlipayCategory:
         from ft.convert import _read_alipay_raw
         records, tracking_pairs = _read_alipay_raw(csv_path)
         assert len(records) == 3
-        assert _pairs_only(tracking_pairs)[0]["expense"]["description"] == "商品A"
+        assert _pairs_only(tracking_pairs)[0]["expense"]["note"] == "商品A"
 
     def test_退款_无说明时匹配最近的那笔(self):
         """同商家同金额都无说明时，按最近候选自动锁定关系。"""
@@ -304,7 +304,7 @@ class TestAlipayCategory:
         from ft.convert import _read_alipay_raw
         records, tracking_pairs = _read_alipay_raw(csv_path)
         assert len(records) == 3
-        assert _pairs_only(tracking_pairs)[0]["expense"]["description"] == "美团订单-BBB222"
+        assert _pairs_only(tracking_pairs)[0]["expense"]["note"] == "美团订单-BBB222"
         assert _pairs_only(tracking_pairs)[0]["rule_hint"] in {"refund_merchant_order_match", "refund_desc_order_match"}
         assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
@@ -332,7 +332,7 @@ class TestAlipayCategory:
         from ft.convert import _read_alipay_raw
         records, tracking_pairs = _read_alipay_raw(csv_path)
         assert len(records) == 3
-        assert _pairs_only(tracking_pairs)[0]["expense"]["description"] == "美团订单-BBB222"
+        assert _pairs_only(tracking_pairs)[0]["expense"]["note"] == "美团订单-BBB222"
         assert _pairs_only(tracking_pairs)[0]["rule_hint"] == "refund_desc_order_match"
         assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
@@ -479,7 +479,7 @@ class TestWechatCategory:
         assert len(records) == 1
         assert records[0]["category"] == "expense"
         assert records[0]["amount"] == -6000.0
-        assert records[0]["description"] == "国泰利泽90天债券C(013066)"
+        assert records[0]["note"] == "国泰利泽90天债券C(013066)"
 
     def test_信用卡还款_中性_付款账户流出(self):
         path = str(TEST_DIR / "wechat_credit_card_repayment.xlsx")
@@ -491,7 +491,7 @@ class TestWechatCategory:
         assert len(records) == 1
         assert records[0]["category"] == "expense"
         assert records[0]["amount"] == -500.0
-        assert records[0]["description"] == "信用卡还款"
+        assert records[0]["note"] == "信用卡还款"
 
     def test_微信自助侠设备号部分退款_识别为强匹配(self):
         path = str(TEST_DIR / "wechat_refund_zizhuxia_device.xlsx")
@@ -517,7 +517,7 @@ class TestWechatCategory:
         from ft.convert import _read_wechat_raw
         records, tracking_pairs = _read_wechat_raw(path)
         assert len(records) == 3
-        assert _pairs_only(tracking_pairs)[0]["expense"]["description"] == "麻小磊串串麻辣烫-美团App-25120211100400001300859984400312"
+        assert _pairs_only(tracking_pairs)[0]["expense"]["note"] == "麻小磊串串麻辣烫-美团App-25120211100400001300859984400312"
         assert any(k in _pairs_only(tracking_pairs)[0]["rule_hint"] for k in ("wechat", "full", "meituan"))
         assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
@@ -984,22 +984,22 @@ class TestCcbRefundClassification:
     def test_ccb_refund_signal_single_candidate_can_be_strong(self):
         from ft.convert import _classify_refund_match
         strength = _classify_refund_match(
-            ref={"_refund_signal": "ccb_debit_refund", "_ccb_refund_same_cluster": True, "date": "2026-03-15"},
+            ref={"_refund_signal": "ccb_debit_refund", "_ccb_refund_same_cluster": True, "occurred_at": "2026-03-15"},
             rule_hint="refund_cp_match",
             exact_amt=True,
             candidate_count=1,
-            expense={"date": "2026-03-14"},
+            expense={"occurred_at": "2026-03-14"},
         )
         assert strength == "strong"
 
     def test_ccb_refund_signal_multi_candidate_same_cluster_stays_weak(self):
         from ft.convert import _classify_refund_match
         strength = _classify_refund_match(
-            ref={"_refund_signal": "ccb_debit_refund", "_ccb_refund_same_cluster": True, "date": "2026-03-15"},
+            ref={"_refund_signal": "ccb_debit_refund", "_ccb_refund_same_cluster": True, "occurred_at": "2026-03-15"},
             rule_hint="refund_cp_match",
             exact_amt=True,
             candidate_count=2,
-            expense={"date": "2026-03-14"},
+            expense={"occurred_at": "2026-03-14"},
         )
         assert strength == "weak"
 
@@ -1086,7 +1086,7 @@ class TestIcbcParseLines:
         assert records[0]["currency"] == "CNY"
 
     def test_交易对方_描述分离(self):
-        """手机银行转账：counterparty=对方户名, description=手机银行"""
+        """手机银行转账：counterparty=对方户名, note=手机银行"""
         lines = [
             "2026-01-15",
             "21:23:58",
@@ -1105,7 +1105,7 @@ class TestIcbcParseLines:
         records, _ = _parse_icbc_lines(lines, is_credit=True)
         assert len(records) == 1
         assert records[0]["counterparty"] == "测试用户"
-        assert records[0]["description"] == "手机银行"
+        assert records[0]["note"] == "手机银行"
 
     def test_工行信用卡_record_id_使用短hash(self):
         lines = [
@@ -1148,7 +1148,7 @@ class TestIcbcParseLines:
         records, _ = _parse_icbc_lines(lines, is_credit=True)
         assert len(records) == 1
         assert records[0]["counterparty"] == "测试用户"
-        assert records[0]["description"] == "手机银行"
+        assert records[0]["note"] == "手机银行"
 
     def test_平台从交易对方推断(self):
         """滴滴消费 → platform=滴滴"""
@@ -1274,8 +1274,8 @@ class TestIcbcParseLines:
         assert len(records) == 1, f"应解析出1条记录，实际={len(records)}"
         assert records[0]["date"] == "2023-06-13 17:25:13", \
             f"date 应包含时间，实际={records[0]['date']!r}"
-        assert records[0]["description"] != "17:25:13", \
-            f"时间不应跑到 description，实际={records[0]['description']!r}"
+        assert records[0]["note"] != "17:25:13", \
+            f"时间不应跑到 description，实际={records[0]['note']!r}"
 
 
 # ── ICBC 边界修复 ──────────────────────────────────────
@@ -1304,8 +1304,8 @@ class TestIcbcEdgeCases:
         from ft.convert import _parse_icbc_lines
         records, _ = _parse_icbc_lines(lines, is_credit=True)
         assert len(records) == 1
-        assert records[0]["description"] != "2026-01-09", \
-            f"description 不应是日期，实际={records[0]['description']!r}"
+        assert records[0]["note"] != "2026-01-09", \
+            f"description 不应是日期，实际={records[0]['note']!r}"
 
     def test_前向扫描跳过_本页合计行(self):
         """'本页支出算术合计' 不应混入 description"""
@@ -1325,7 +1325,7 @@ class TestIcbcEdgeCases:
         from ft.convert import _parse_icbc_lines
         records, _ = _parse_icbc_lines(lines, is_credit=True)
         assert len(records) == 1
-        desc = records[0]["description"]
+        desc = records[0]["note"]
         assert "本页支出" not in desc, f"description 不应含合计行: {desc!r}"
 
     def test_前向扫描跳过_下单时间(self):
@@ -1348,7 +1348,7 @@ class TestIcbcEdgeCases:
         from ft.convert import _parse_icbc_lines
         records, _ = _parse_icbc_lines(lines, is_credit=True)
         assert len(records) == 1
-        desc = records[0]["description"]
+        desc = records[0]["note"]
         assert "本页支出" not in desc, f"description 不应含合计行: {desc!r}"
         assert "下单时间" not in desc, f"description 不应含页脚元数据: {desc!r}"
 
@@ -2363,7 +2363,7 @@ class TestIcbcDebit:
         assert rec["amount"] == 3500.0
         assert rec["currency"] == "CNY"
         assert rec["counterparty"] == "金哲玄"
-        assert rec["description"] == "支付宝转账"
+        assert rec["note"] == "支付宝转账"
         assert rec["category"] == "income"
         assert rec["payment_method"] == "快捷支付"
 
@@ -2380,7 +2380,7 @@ class TestIcbcDebit:
         assert rec["amount"] == -2000.0
         assert rec["category"] == "expense"
         assert rec["counterparty"] == "梁碧玲"
-        assert rec["description"] == "无卡支付"
+        assert rec["note"] == "无卡支付"
         assert rec["currency"] == "CNY"
 
     def test_工行借记卡_pdf_record_id_使用短hash(self):
@@ -2407,7 +2407,7 @@ class TestIcbcDebit:
         assert rec is not None
         assert rec["amount"] == 2000.0
         assert rec["currency"] == "USD"
-        assert rec["description"] == "个人购汇"
+        assert rec["note"] == "个人购汇"
 
     def test_摘要水印噪声_支付宝转账(self):
         """摘要含残余水印文字时匹配已知关键词（金哲玄支付 宝转账→支付宝转账）"""
@@ -2419,7 +2419,7 @@ class TestIcbcDebit:
         from ft.convert import _parse_icbc_debit_row
         rec = _parse_icbc_debit_row(row)
         assert rec is not None
-        assert rec["description"] == "支付宝转账", f"desc={rec['description']!r}"
+        assert rec["note"] == "支付宝转账", f"desc={rec['note']!r}"
 
     def test_工行借记卡_退款标记为_refund_candidate(self):
         row = [
@@ -2623,11 +2623,11 @@ class TestIcbcDebitReversal:
         from ft.convert import _pair_reversals
 
         records = [
-            {"date": "2026-01-16 21:25:22", "amount": -761.08, "currency": "CNY",
-             "counterparty": "测试用户", "description": "购汇还款", "category": "expense",
+            {"occurred_at": "2026-01-16 21:25:22", "amount": -761.08, "currency": "CNY",
+             "counterparty": "测试用户", "note": "购汇还款", "category": "expense",
              "payment_method": "手机银行", "platform": ""},
-            {"date": "2026-01-16 21:25:22", "amount": 761.08, "currency": "CNY",
-             "counterparty": "测试用户", "description": "撤销交易", "category": "income",
+            {"occurred_at": "2026-01-16 21:25:22", "amount": 761.08, "currency": "CNY",
+             "counterparty": "测试用户", "note": "撤销交易", "category": "income",
              "payment_method": "手机银行", "platform": ""},
         ]
         result, pairs = _pair_reversals(records)
@@ -2640,10 +2640,10 @@ class TestIcbcDebitReversal:
         from ft.convert import _pair_reversals
 
         records = [
-            {"date": "2026-01-16 21:25:22", "amount": -761.08, "currency": "CNY",
-             "counterparty": "测试用户", "description": "购汇还款", "category": "expense"},
-            {"date": "2026-01-16 21:25:22", "amount": 761.08, "currency": "CNY",
-             "counterparty": "其他人", "description": "撤销交易", "category": "income"},
+            {"occurred_at": "2026-01-16 21:25:22", "amount": -761.08, "currency": "CNY",
+             "counterparty": "测试用户", "note": "购汇还款", "category": "expense"},
+            {"occurred_at": "2026-01-16 21:25:22", "amount": 761.08, "currency": "CNY",
+             "counterparty": "其他人", "note": "撤销交易", "category": "income"},
         ]
         result, pairs = _pair_reversals(records)
         assert len(result) == 2  # both kept
@@ -2654,10 +2654,10 @@ class TestIcbcDebitReversal:
         from ft.convert import _pair_reversals
 
         records = [
-            {"date": "2026-01-16 21:25:22", "amount": -100.00, "currency": "CNY",
-             "counterparty": "某商户", "description": "消费", "category": "expense"},
-            {"date": "2026-01-16 21:25:22", "amount": 100.00, "currency": "CNY",
-             "counterparty": "某商户", "description": "退款", "category": "income"},
+            {"occurred_at": "2026-01-16 21:25:22", "amount": -100.00, "currency": "CNY",
+             "counterparty": "某商户", "note": "消费", "category": "expense"},
+            {"occurred_at": "2026-01-16 21:25:22", "amount": 100.00, "currency": "CNY",
+             "counterparty": "某商户", "note": "退款", "category": "income"},
         ]
         result, pairs = _pair_reversals(records)
         assert len(result) == 2  # "退款"不含"撤销"，不配对
