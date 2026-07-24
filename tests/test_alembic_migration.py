@@ -17,6 +17,7 @@ def test_repository_has_clean_linear_revisions():
         "20260722_06_open_leg_pending.py",
         "20260724_07_fact_field_unify.py",
         "20260724_08_inline_provenance_cleanup.py",
+        "20260724_09_bigint_surrogate_ids.py",
     ]
 
 
@@ -143,9 +144,9 @@ def test_migrated_sqlite_amount_columns_use_canonical_text_and_round_trip_exactl
         assert amount["type"].__class__.__name__.upper() == "VARCHAR"
         with engine.begin() as connection:
             connection.execute(text("INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', CURRENT_TIMESTAMP)"))
-            connection.execute(text("INSERT INTO accounts (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) VALUES ('a', 'w', 'Cash', 'cash', 1, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
-            connection.execute(text("INSERT INTO cash_transactions (id, workspace_id, account_id, record_id, occurred_at, amount, currency, counterparty, note, category, created_at) VALUES ('c', 'w', 'a', '', CURRENT_TIMESTAMP, '1.230000000000000001', 'CNY', '', '', '', CURRENT_TIMESTAMP)"))
-            assert connection.scalar(text("SELECT amount FROM cash_transactions WHERE id = 'c'")) == "1.230000000000000001"
+            connection.execute(text("INSERT INTO accounts (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) VALUES (1, 'w', 'Cash', 'cash', 1, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
+            connection.execute(text("INSERT INTO cash_transactions (id, workspace_id, account_id, record_id, occurred_at, amount, currency, counterparty, note, category, created_at) VALUES (1, 'w', 1, '', CURRENT_TIMESTAMP, '1.230000000000000001', 'CNY', '', '', '', CURRENT_TIMESTAMP)"))
+            assert connection.scalar(text("SELECT amount FROM cash_transactions WHERE id = 1")) == "1.230000000000000001"
     finally:
         engine.dispose()
 

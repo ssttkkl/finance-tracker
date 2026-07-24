@@ -67,15 +67,15 @@ def _seed_formal_workload(sessions) -> None:
     from ft.adapters.relational.models import AccountLifecycleEventModel, AccountModel, CashTransactionModel, InvestmentEventModel, ValuationObservationModel
     tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
     def at(day: date) -> datetime: return datetime(day.year, day.month, day.day, tzinfo=tz)
-    accounts = [{"id": f"account-{i:02d}", "workspace_id": WORKSPACE, "name": f"Account {i:02d}", "type": "cash" if i < 5 else "security", "currency": "CNY", "active": True, "metadata_json": {}} for i in range(ACCOUNT_COUNT)]
-    lifecycle = [{"event_id": f"opened-{i:02d}", "workspace_id": WORKSPACE, "account_id": f"account-{i:02d}", "event_kind": "opened", "effective_at": at(START), "source_identity": f"seed:opened:{i}", "source_revision": f"opened-{i:02d}", "reason": "performance fixture"} for i in range(ACCOUNT_COUNT)]
+    accounts = [{"id": i + 1, "workspace_id": WORKSPACE, "name": f"Account {i:02d}", "type": "cash" if i < 5 else "security", "active": True, "metadata_json": {}} for i in range(ACCOUNT_COUNT)]
+    lifecycle = [{"event_id": f"opened-{i:02d}", "workspace_id": WORKSPACE, "account_id": i + 1, "event_kind": "opened", "effective_at": at(START), "source_identity": f"seed:opened:{i}", "source_revision": f"opened-{i:02d}", "reason": "performance fixture"} for i in range(ACCOUNT_COUNT)]
     valuations = []
     for offset in range(DAYS + 1):
         boundary = START + timedelta(days=offset)
         for index in range(5):
-            valuations.append({"observation_id": f"cash-{index:02d}-{boundary.isoformat()}", "workspace_id": WORKSPACE, "identity_kind": "cash_account", "identity": f"account-{index:02d}:CNY", "owner_account_id": f"account-{index:02d}", "observation_kind": "boundary_checkin", "value": Decimal("10000") + Decimal(index), "currency": "CNY", "unit": "currency", "as_of": at(boundary), "observed_at": at(boundary), "source_identity": f"seed:cash:{index}:{boundary.isoformat()}", "source_revision": f"cash-{index:02d}-{boundary.isoformat()}", "trust": "trusted_checkin"})
+            valuations.append({"observation_id": f"cash-{index:02d}-{boundary.isoformat()}", "workspace_id": WORKSPACE, "identity_kind": "cash_account", "identity": f"{index+1}:CNY", "owner_account_id": index + 1, "observation_kind": "boundary_checkin", "value": Decimal("10000") + Decimal(index), "currency": "CNY", "unit": "currency", "as_of": at(boundary), "observed_at": at(boundary), "source_identity": f"seed:cash:{index}:{boundary.isoformat()}", "source_revision": f"cash-{index:02d}-{boundary.isoformat()}", "trust": "trusted_checkin"})
         for index in range(POSITION_COUNT):
-            valuations.append({"observation_id": f"position-{index:02d}-{boundary.isoformat()}", "workspace_id": WORKSPACE, "identity_kind": "position", "identity": f"position:{index:02d}", "owner_account_id": f"account-{5 + index % 5:02d}", "observation_kind": "boundary_checkin", "value": Decimal("100") + Decimal(index), "currency": "CNY", "unit": "currency", "as_of": at(boundary), "observed_at": at(boundary), "source_identity": f"seed:position:{index}:{boundary.isoformat()}", "source_revision": f"position-{index:02d}-{boundary.isoformat()}", "trust": "trusted_checkin"})
+            valuations.append({"observation_id": f"position-{index:02d}-{boundary.isoformat()}", "workspace_id": WORKSPACE, "identity_kind": "position", "identity": f"position:{index:02d}", "owner_account_id": 6 + index % 5, "observation_kind": "boundary_checkin", "value": Decimal("100") + Decimal(index), "currency": "CNY", "unit": "currency", "as_of": at(boundary), "observed_at": at(boundary), "source_identity": f"seed:position:{index}:{boundary.isoformat()}", "source_revision": f"position-{index:02d}-{boundary.isoformat()}", "trust": "trusted_checkin"})
     with sessions.begin() as session:
         session.execute(insert(AccountModel), accounts)
         session.execute(insert(AccountLifecycleEventModel), lifecycle)
@@ -84,9 +84,9 @@ def _seed_formal_workload(sessions) -> None:
             rows = []
             for number in range(chunk_start, min(chunk_start + 2_000, FACT_COUNT)):
                 occurred = START + timedelta(days=number % DAYS)
-                rows.append({"id": f"fact-{number:06d}", "workspace_id": WORKSPACE, "account_id": f"account-{number % 5:02d}", "record_id": f"seed-{number:06d}", "occurred_at": at(occurred) + timedelta(hours=number % 23), "amount": Decimal("0.01") if number % 2 else Decimal("-0.01"), "currency": "CNY", "counterparty": "seed", "note": "fixed formal cash fact", "category": "expense", "source": "performance", "bill_source": "seed", "transfer_account": "", "locked": "", "offset_group": "", "offset_role": "", "offset_strength": "", "offset_source": "", "offset_rule_hint": "", "offset_match_type": "", "proposed_action": "", "revision": 1})
+                rows.append({"id": number + 1, "workspace_id": WORKSPACE, "account_id": (number % 5) + 1, "record_id": f"seed-{number:06d}", "source_type": "perf", "occurred_at": at(occurred) + timedelta(hours=number % 23), "amount": Decimal("0.01") if number % 2 else Decimal("-0.01"), "currency": "CNY", "counterparty": "seed", "note": "fixed formal cash fact", "category": "expense"})
             session.execute(insert(CashTransactionModel), rows)
-        session.execute(insert(InvestmentEventModel), [{"id": f"investment-{i:02d}", "workspace_id": WORKSPACE, "account_id": f"account-{5 + i % 5:02d}", "occurred_at": at(START + timedelta(days=i)), "action": "buy", "currency": "CNY", "payload": {"position": f"position:{i:02d}", "quantity": "1"}, "revision": 1} for i in range(POSITION_COUNT)])
+        session.execute(insert(InvestmentEventModel), [{"id": i + 1, "workspace_id": WORKSPACE, "account_id": 6 + i % 5, "record_id": f"inv-{i:02d}", "source_type": "perf", "occurred_at": at(START + timedelta(days=i)), "action": "buy", "currency": "CNY", "payload": {"position": f"position:{i:02d}", "quantity": "1"}, "note": "", "from_ticker": "", "to_ticker": "", "commission_asset": ""} for i in range(POSITION_COUNT)])
 
 
 def _reset_read_model(sessions) -> None:

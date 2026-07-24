@@ -57,13 +57,13 @@ def test_owned_wealth_rows_reject_cross_workspace_owner_references(tmp_path) -> 
     ensure_workspace(sessions, "w1")
     ensure_workspace(sessions, "w2")
     with sessions.begin() as session:
-        session.add(AccountModel(id="cash-w2", workspace_id="w2", name="Cash", type="cash"))
+        session.add(AccountModel(id=9918292, workspace_id="w2", name="Cash", type="cash"))
     with pytest.raises(IntegrityError):
         with sessions.begin() as session:
             at = datetime(2026, 7, 1, tzinfo=timezone.utc)
             session.add(ValuationObservationModel(
                 observation_id="cross-owner", workspace_id="w1", identity_kind="cash_account",
-                identity="cash-w2", owner_account_id="cash-w2", observation_kind="boundary_checkin",
+                identity="cash-w2", owner_account_id=9918292, observation_kind="boundary_checkin",
                 value="1", currency="CNY", unit="currency", as_of=at, observed_at=at,
                 source_identity="cross-owner", source_revision="r1", trust="trusted_checkin",
             ))

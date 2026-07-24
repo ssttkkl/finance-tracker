@@ -72,29 +72,29 @@ def _insert_three_day_formal_fixture(sessions) -> None:
     at = lambda day: datetime(2026, 7, day, tzinfo=tz)
     with sessions.begin() as session:
         session.add_all((
-            AccountModel(id="cash", workspace_id="wealth-rebuild", name="Cash", type="cash"),
-            AccountModel(id="broker", workspace_id="wealth-rebuild", name="Broker", type="security"),
+            AccountModel(id=1, workspace_id="wealth-rebuild", name="Cash", type="cash"),
+            AccountModel(id=2, workspace_id="wealth-rebuild", name="Broker", type="security"),
         ))
         session.flush()
         session.add_all((
             AccountLifecycleEventModel(
-                event_id="cash-opened", workspace_id="wealth-rebuild", account_id="cash", event_kind="opened",
+                event_id="cash-opened", workspace_id="wealth-rebuild", account_id=1, event_kind="opened",
                 effective_at=at(1), source_identity="fixture:lifecycle:cash", source_revision="life-cash", reason="fixture",
             ),
             AccountLifecycleEventModel(
-                event_id="broker-opened", workspace_id="wealth-rebuild", account_id="broker", event_kind="opened",
+                event_id="broker-opened", workspace_id="wealth-rebuild", account_id=2, event_kind="opened",
                 effective_at=at(1), source_identity="fixture:lifecycle:broker", source_revision="life-broker", reason="fixture",
             ),
             CashTransactionModel(
-                id="cash-salary", workspace_id="wealth-rebuild", account_id="cash", occurred_at=at(1),
+                id=2566485, workspace_id="wealth-rebuild", account_id=1, occurred_at=at(1),
                 amount=Decimal("10"), currency="CNY", record_id="fixture-salary", category="salary",
             ),
             InvestmentEventModel(
-                id="broker-funding", workspace_id="wealth-rebuild", account_id="broker", occurred_at=at(2),
+                id=446365, workspace_id="wealth-rebuild", account_id=2, occurred_at=at(2),
                 action="deposit", currency="USD", to_amount="1", payload={},
             ),
             InvestmentEventModel(
-                id="broker-dividend", workspace_id="wealth-rebuild", account_id="broker", occurred_at=at(2),
+                id=3499926, workspace_id="wealth-rebuild", account_id=2, occurred_at=at(2),
                 action="dividend", currency="USD", to_amount="1", payload={},
             ),
         ))
@@ -241,7 +241,7 @@ def test_runtime_rebuild_uses_one_frozen_snapshot_and_rejects_mid_build_arrival(
     baseline = services.wealth.rebuild(affected_from="2026-07-01")
     with sessions.begin() as session:
         session.add(CashTransactionModel(
-            id="pre-build-cash", workspace_id="wealth-rebuild", account_id="cash",
+            id=4484864, workspace_id="wealth-rebuild", account_id=1,
             occurred_at=datetime(2026, 7, 1, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
             amount=Decimal("1"), currency="CNY", record_id="pre-build-cash", category="salary",
         ))
@@ -251,7 +251,7 @@ def test_runtime_rebuild_uses_one_frozen_snapshot_and_rejects_mid_build_arrival(
     def inject_then_build(source_watermark, affected_from):
         with sessions.begin() as session:
             session.add(CashTransactionModel(
-                id="late-cash", workspace_id="wealth-rebuild", account_id="cash",
+                id=7973818, workspace_id="wealth-rebuild", account_id=1,
                 occurred_at=datetime(2026, 7, 2, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
                 amount=Decimal("1"), currency="CNY", record_id="late-cash", category="salary",
             ))
@@ -291,7 +291,7 @@ def test_runtime_rebuild_excludes_closed_account_after_lifecycle_boundary(rebuil
     tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
     with sessions.begin() as session:
         session.add(AccountLifecycleEventModel(
-            event_id="cash-closed", workspace_id="wealth-rebuild", account_id="cash", event_kind="closed",
+            event_id="cash-closed", workspace_id="wealth-rebuild", account_id=1, event_kind="closed",
             effective_at=datetime(2026, 7, 2, tzinfo=tz), source_identity="fixture:lifecycle:cash-close",
             source_revision="life-cash-close", reason="fixture close",
         ))
@@ -316,7 +316,7 @@ def test_runtime_unsupported_investment_input_is_published_as_fail_closed_covera
     _insert_three_day_formal_fixture(sessions)
     with sessions.begin() as session:
         session.add(InvestmentEventModel(
-            id="unsupported-option", workspace_id="wealth-rebuild", account_id="broker",
+            id=2909920, workspace_id="wealth-rebuild", account_id=2,
             occurred_at=datetime(2026, 7, 2, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
             action="option_exercise", currency="USD", payload={"amount": "1"},
         ))
@@ -366,11 +366,11 @@ def test_runtime_keeps_same_ticker_positions_distinct_by_formal_owner(rebuilt_ru
     _insert_three_day_formal_fixture(sessions)
     tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
     with sessions.begin() as session:
-        session.add(AccountModel(id="broker-two", workspace_id="wealth-rebuild", name="Broker 2", type="security"))
+        session.add(AccountModel(id=3248207, workspace_id="wealth-rebuild", name="Broker 2", type="security"))
         session.flush()
         session.add_all((
             AccountLifecycleEventModel(
-                event_id="broker-two-opened", workspace_id="wealth-rebuild", account_id="broker-two", event_kind="opened",
+                event_id="broker-two-opened", workspace_id="wealth-rebuild", account_id=3248207, event_kind="opened",
                 effective_at=datetime(2026, 7, 1, tzinfo=tz), source_identity="fixture:lifecycle:broker-two",
                 source_revision="life-broker-two", reason="fixture",
             ),
@@ -408,7 +408,7 @@ def test_runtime_fails_closed_for_position_expected_from_formal_ownership_withou
     _insert_three_day_formal_fixture(sessions)
     with sessions.begin() as session:
         session.add(InvestmentEventModel(
-            id="unvalued-formal-position", workspace_id="wealth-rebuild", account_id="broker",
+            id=9791237, workspace_id="wealth-rebuild", account_id=2,
             occurred_at=datetime(2026, 7, 1, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
             action="buy", currency="USD", payload={"position": "unvalued-etf", "quantity": "1"},
         ))
@@ -611,7 +611,7 @@ def test_publish_rejects_staged_invalid_component_coverage_evidence_parents(rebu
     with sessions.begin() as session:
         if session.get(AccountModel, "cash") is None:
             session.add(AccountModel(
-                id="cash", workspace_id="wealth-rebuild", name="Cash", type="cash",
+                id=1, workspace_id="wealth-rebuild", name="Cash", type="cash",
             ))
 
     def _stage_publishable(build: str, result_digest: str, payload: str) -> None:

@@ -37,10 +37,10 @@ def _fact_view_from_row(row: dict) -> FactView:
         payload = row.get("source_payload") if isinstance(row.get("source_payload"), dict) else None
     source_type = str(row.get("source_type") or row.get("bill_source") or row.get("source") or "")
     return FactView(
-        id=str(row["id"]),
+        id=row["id"],
         amount=Decimal(str(row["amount"])),
         currency=str(row.get("currency") or "CNY"),
-        account_id=str(row.get("account_id") or row.get("account_name") or ""),
+        account_id=row.get("account_id") if row.get("account_id") is not None else str(row.get("account_name") or ""),
         account_name=str(row.get("account_name") or ""),
         account_type=str(row.get("account_type") or row.get("_record_type") or "cash"),
         occurred_at=row.get("occurred_at") or row.get("date") or "",

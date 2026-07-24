@@ -213,7 +213,7 @@ def test_account_rename_preserves_fact_identity_and_projection():
         projection = session.get(LedgerSnapshotModel, "workspace-a")
         assert account.id == before_id
         assert fact.account_id == before_id
-        assert before_id in projection.payload["accounts"]["cash"]
+        assert str(before_id) in projection.payload["accounts"]["cash"] or before_id in projection.payload["accounts"]["cash"]
 
 
 def test_referenced_account_cannot_be_deleted():

@@ -54,7 +54,7 @@ def test_formal_valuation_range_includes_the_closing_boundary(wealth_runtime):
     end = datetime(2026, 8, 1, tzinfo=timezone.utc)
     with wealth_runtime.begin() as session:
         session.add(AccountModel(
-            id="boundary-cash", workspace_id="wealth-contract", name="Boundary Cash",
+            id=4852201, workspace_id="wealth-contract", name="Boundary Cash",
             type="cash",
         ))
         for observation_id, as_of, value in (
@@ -63,7 +63,7 @@ def test_formal_valuation_range_includes_the_closing_boundary(wealth_runtime):
         ):
             session.add(ValuationObservationModel(
                 observation_id=observation_id, workspace_id="wealth-contract",
-                identity_kind="cash_account", identity="boundary-cash:CNY", owner_account_id="boundary-cash",
+                identity_kind="cash_account", identity="boundary-cash:CNY", owner_account_id=4852201,
                 observation_kind="boundary_checkin", value=value, currency="CNY", unit="currency",
                 as_of=as_of, observed_at=as_of, source_identity=observation_id,
                 source_revision="r1", trust="trusted_checkin",

@@ -6,6 +6,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -40,6 +41,12 @@ def exact_decimal(value) -> Decimal:
 
 class Base(DeclarativeBase):
     pass
+
+
+# PG BIGINT + SQLite INTEGER AUTOINCREMENT affinity for surrogate PKs/FKs (016).
+SurrogatePK = BigInteger().with_variant(Integer, "sqlite")
+
+
 
 
 class ExactDecimal(TypeDecorator):
@@ -112,7 +119,7 @@ class AccountModel(Base):
         Index("ix_accounts_workspace", "workspace_id"),
     )
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
     workspace_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
@@ -142,11 +149,11 @@ class CashTransactionModel(Base):
         Index("ix_cash_transactions_workspace_source_record", "workspace_id", "source_type", "record_id"),
     )
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
     workspace_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
-    account_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    account_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     source_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     record_id: Mapped[str] = mapped_column(String(512), default="", nullable=False)
     source_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
@@ -177,11 +184,11 @@ class InvestmentEventModel(Base):
         Index("ix_investment_events_workspace_source_record", "workspace_id", "source_type", "record_id"),
     )
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
     workspace_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
-    account_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    account_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     source_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     record_id: Mapped[str] = mapped_column(String(512), default="", nullable=False)
     source_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
@@ -238,7 +245,7 @@ class ValuationObservationModel(Base):
     workspace_id: Mapped[str] = mapped_column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
     identity_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     identity: Mapped[str] = mapped_column(String(255), nullable=False)
-    owner_account_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    owner_account_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
     observation_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     value: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
@@ -260,7 +267,7 @@ class AccountLifecycleEventModel(Base):
     )
     event_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     workspace_id: Mapped[str] = mapped_column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
-    account_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    account_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     event_kind: Mapped[str] = mapped_column(String(16), nullable=False)
     effective_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     source_identity: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -442,7 +449,7 @@ class WealthCoverageDispositionModel(Base):
     result_digest: Mapped[str] = mapped_column(String(128), ForeignKey("wealth_daily_results.result_digest", ondelete="CASCADE"), nullable=False)
     local_date: Mapped[str] = mapped_column(String(10), nullable=False)
     source_revision: Mapped[str] = mapped_column(String(128), nullable=False)
-    owner_account_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    owner_account_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     identity_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     identity: Mapped[str] = mapped_column(String(255), nullable=False)
     disposition: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -503,20 +510,20 @@ class TransactionRelationModel(Base):
         ),
     )
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
     workspace_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     subtype: Mapped[str] = mapped_column(String(64), default="", nullable=False)
-    primary_fact_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    primary_fact_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     # Null only for open-leg refund_offset / transfer_pair pending/reject occupancy.
-    secondary_fact_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    secondary_fact_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
     primary_fact_type: Mapped[str] = mapped_column(String(32), default="cash", nullable=False)
     secondary_fact_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    ordered_fact_a: Mapped[str] = mapped_column(String(36), nullable=False)
+    ordered_fact_a: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     # Open-leg uses empty-string sentinel for ordered_fact_b.
-    ordered_fact_b: Mapped[str] = mapped_column(String(36), nullable=False)
+    ordered_fact_b: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     # active_slot is 'active' for non-superseded rows; superseded rows use id slot to free the key.
     active_slot: Mapped[str] = mapped_column(String(36), default="active", nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -529,10 +536,9 @@ class TransactionRelationModel(Base):
     decided_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     decision_reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
     later_marker: Mapped[str] = mapped_column(String(64), default="", nullable=False)
-    superseded_by_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    superseded_by_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
     # Durable open-leg / role anchor (refund leg, transfer out, etc.).
-    anchor_fact_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    anchor_fact_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
 
 
 
@@ -553,13 +559,13 @@ class AccountAliasModel(Base):
         Index("ix_account_aliases_workspace_value", "workspace_id", "alias_type", "alias_value"),
     )
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
     workspace_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
     alias_type: Mapped[str] = mapped_column(String(32), nullable=False)
     alias_value: Mapped[str] = mapped_column(String(255), nullable=False)
-    account_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    account_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
 

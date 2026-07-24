@@ -51,13 +51,11 @@ def test_backfill_source_fields_from_raw_sqlite(tmp_path):
     command.upgrade(_cfg(url), "head")
     engine = create_engine(url)
     try:
-        row = engine.execute(text(
-            "SELECT source_type, record_id, source_payload FROM cash_transactions WHERE id='c1'"
-        )).mappings().first() if hasattr(engine, 'execute') else None
         with engine.connect() as conn:
             row = conn.execute(text(
-                "SELECT source_type, record_id, source_payload FROM cash_transactions WHERE id='c1'"
+                "SELECT source_type, record_id, source_payload FROM cash_transactions WHERE record_id='TXN-1'"
             )).mappings().first()
+            assert row is not None
             assert row["source_type"] == "alipay"
             assert row["record_id"] == "TXN-1"
             payload = row["source_payload"]

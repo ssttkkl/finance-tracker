@@ -110,7 +110,7 @@ OPEN_LEG_KINDS = frozenset({
 })
 OPEN_LEG_CANDIDATE_TOP_K = 20
 # Sentinel for ordered_fact_b / bilateral unique when secondary is null.
-OPEN_LEG_ORDERED_B_SENTINEL = ""
+OPEN_LEG_ORDERED_B_SENTINEL = 0  # 016: int PK; 0 never a real fact id
 
 ACTIVE_RELATION_STATUSES = frozenset({
     RelationStatus.PENDING_REVIEW.value,

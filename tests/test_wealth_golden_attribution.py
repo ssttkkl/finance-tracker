@@ -69,34 +69,34 @@ def _insert_golden_formal_fixture(sessions) -> None:
     at = lambda day, hour=0: datetime(2026, 7, day, hour, tzinfo=tz)
     with sessions.begin() as session:
         session.add_all((
-            AccountModel(id="cash", workspace_id="wealth-golden", name="Cash", type="cash"),
-            AccountModel(id="broker", workspace_id="wealth-golden", name="Broker", type="security"),
+            AccountModel(id=1, workspace_id="wealth-golden", name="Cash", type="cash"),
+            AccountModel(id=2, workspace_id="wealth-golden", name="Broker", type="security"),
         ))
         session.flush()
         session.add_all((
             AccountLifecycleEventModel(
-                event_id="cash-opened", workspace_id="wealth-golden", account_id="cash", event_kind="opened",
+                event_id="cash-opened", workspace_id="wealth-golden", account_id=1, event_kind="opened",
                 effective_at=at(1), source_identity="fixture:lifecycle:cash", source_revision="life-cash", reason="fixture",
             ),
             AccountLifecycleEventModel(
-                event_id="broker-opened", workspace_id="wealth-golden", account_id="broker", event_kind="opened",
+                event_id="broker-opened", workspace_id="wealth-golden", account_id=2, event_kind="opened",
                 effective_at=at(1), source_identity="fixture:lifecycle:broker", source_revision="life-broker", reason="fixture",
             ),
             CashTransactionModel(
-                id="cash-salary", workspace_id="wealth-golden", account_id="cash", occurred_at=at(1, 9),
+                id=2566485, workspace_id="wealth-golden", account_id=1, occurred_at=at(1, 9),
                 amount=Decimal("10"), currency="CNY", record_id="fixture-salary", category="salary",
             ),
             # Direct external funding into the investment account (workspace external + portfolio Fi).
             InvestmentEventModel(
-                id="broker-funding", workspace_id="wealth-golden", account_id="broker", occurred_at=at(2, 10),
+                id=446365, workspace_id="wealth-golden", account_id=2, occurred_at=at(2, 10),
                 action="deposit", currency="USD", to_amount="1", payload={},
             ),
             InvestmentEventModel(
-                id="broker-dividend", workspace_id="wealth-golden", account_id="broker", occurred_at=at(2, 12),
+                id=3499926, workspace_id="wealth-golden", account_id=2, occurred_at=at(2, 12),
                 action="dividend", currency="USD", to_amount="1", payload={},
             ),
             InvestmentEventModel(
-                id="broker-fee", workspace_id="wealth-golden", account_id="broker", occurred_at=at(3, 11),
+                id=1933020, workspace_id="wealth-golden", account_id=2, occurred_at=at(3, 11),
                 action="buy", currency="USD", payload={"position": "broker:global-etf", "commission": "0.1"},
             ),
         ))

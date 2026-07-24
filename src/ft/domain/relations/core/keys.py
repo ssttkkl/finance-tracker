@@ -1,13 +1,22 @@
 from __future__ import annotations
 from typing import Any, Mapping
 from ft.domain.relations.core.types import OPEN_LEG_CANDIDATE_TOP_K, OPEN_LEG_ORDERED_B_SENTINEL, RelationKind, SUBTYPE_NONE
-def ordered_fact_pair(fact_a: str, fact_b: str | None) -> tuple[str, str]:
-    """Bilateral ordered pair. Open-leg uses empty secondary → (anchor, '')."""
-    a = str(fact_a or "")
+def ordered_fact_pair(fact_a, fact_b=None) -> tuple:
+    """Bilateral ordered pair. Open-leg uses empty secondary → (anchor, sentinel).
+
+    Accepts int or str ids (016 bigint PKs); orders by (type-normalized string) for
+    stable business keys across dialects.
+    """
+    a = "" if fact_a is None else str(fact_a)
     if fact_b is None or fact_b == "":
         return (a, OPEN_LEG_ORDERED_B_SENTINEL)
     b = str(fact_b)
-    return (a, b) if a <= b else (b, a)
+    # Prefer numeric order when both are integers
+    try:
+        ai, bi = int(a), int(b)
+        return (str(ai), str(bi)) if ai <= bi else (str(bi), str(ai))
+    except ValueError:
+        return (a, b) if a <= b else (b, a)
 
 
 def relation_business_key(
