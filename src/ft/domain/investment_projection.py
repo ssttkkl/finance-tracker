@@ -263,23 +263,27 @@ def apply_investment_command(
             to_ticker=to_ticker, from_amount=from_quantity, to_amount=to_quantity,
             commission=commission, commission_asset=commission_asset,
         )
-    elif action in {"deposit", "withdraw", "dividend", "checkin_cash"}:
+    elif action in {"deposit", "withdraw", "dividend", "fee", "checkin_cash"}:
         amount = _decimal(command.amount, "amount")
         if action != "checkin_cash" and amount < 0:
             raise ValueError(f"{action} amount must be non-negative")
         if action in {"deposit", "dividend"}:
             _set_qty(cash, cash_shares + amount, ticker=cash_ticker, bases=bases, cost=cash_cost + amount)
-        elif action == "withdraw":
+        elif action in {"withdraw", "fee"}:
             _set_qty(cash, cash_shares - amount, ticker=cash_ticker, bases=bases, cost=cash_cost - amount)
         else:
             _set_qty(cash, amount, ticker=cash_ticker, bases=bases, cost=amount)
         event_action = "checkin" if action == "checkin_cash" else action
         row = _event(
             command, date, currency, action=event_action,
-            from_ticker=(command.ticker.lower() if action == "dividend" else cash_ticker if action in {"withdraw", "checkin_cash"} else ""),
+            from_ticker=(
+                command.ticker.lower() if action == "dividend"
+                else cash_ticker if action in {"withdraw", "fee", "checkin_cash"}
+                else ""
+            ),
             to_ticker=cash_ticker if action in {"deposit", "dividend"} else "",
-            from_amount=amount if action == "withdraw" else Decimal("0"),
-            to_amount=amount if action != "withdraw" else Decimal("0"),
+            from_amount=amount if action in {"withdraw", "fee"} else Decimal("0"),
+            to_amount=amount if action not in {"withdraw", "fee"} else Decimal("0"),
             price=Decimal("1"),
         )
     elif action == "checkin_ticker":
@@ -334,7 +338,7 @@ def apply_investment_event(
             target, new_shares, ticker=target_ticker, bases=bases,
             cost=_decimal(target["total_cost"], "cost") + to_amount,
         )
-    elif action == "withdraw":
+    elif action in {"withdraw", "fee"}:
         source_ticker = from_ticker or currency.lower()
         source = _position(
             positions, source_ticker, _asset_cost_currency(source_ticker, currency, bases), bases=bases,

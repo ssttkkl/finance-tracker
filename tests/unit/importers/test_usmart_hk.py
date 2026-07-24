@@ -88,7 +88,7 @@ def test_cash_flags_ignore_trade_mirrors_and_map_non_trade_rows():
     refund = next(row for row in rows if row.get("flag") == "IPO认购退款")
     interest = next(row for row in rows if row.get("flag") == "融资利息")
     assert map_usmart_hk_to_investment_event(refund, "盈立证券")["action"] == "deposit"
-    assert map_usmart_hk_to_investment_event(interest, "盈立证券")["action"] == "withdraw"
+    assert map_usmart_hk_to_investment_event(interest, "盈立证券")["action"] == "fee"
 
 
 def test_fx_rows_pair_to_one_swap_and_unpaired_fails_closed():
@@ -115,3 +115,24 @@ def test_transfer_by_sign_is_not_a_transfer_action_and_unknown_flag_fails_closed
     text = FIXTURE.read_text(encoding="utf-8").replace("IPO认购退款", "未知业务", 1)
     with pytest.raises(ValueError, match="unknown cash flag.*未知业务"):
         parse_usmart_hk_text(text)
+
+
+def test_cash_fee_and_dividend_actions():
+    rows = _rows()
+    # interest / tax mapped as fee when present in fixture months may vary;
+    # use synthetic rows through map only.
+    interest = {
+        "kind": "cash", "date": "2026-06-29", "flag": "融资利息", "flag_norm": "融资利息",
+        "ccy": "USD", "amount": Decimal("-0.78"), "note": "融资利息",
+    }
+    div = {
+        "kind": "cash", "date": "2026-04-01", "flag": "红利入账", "flag_norm": "红利入账",
+        "ccy": "USD", "amount": Decimal("12.77"), "note": "红利入账",
+    }
+    tax = {
+        "kind": "cash", "date": "2026-04-01", "flag": "美股股息税", "flag_norm": "美股股息税",
+        "ccy": "USD", "amount": Decimal("-1.28"), "note": "美股股息税",
+    }
+    assert map_usmart_hk_to_investment_event(interest, "盈立证券")["action"] == "fee"
+    assert map_usmart_hk_to_investment_event(div, "盈立证券")["action"] == "dividend"
+    assert map_usmart_hk_to_investment_event(tax, "盈立证券")["action"] == "fee"

@@ -106,3 +106,46 @@ def test_usdt_base_crypto_buy():
     assert Decimal(pos["btc"]["shares"]) == Decimal("0.1")
     assert Decimal(pos["btc"]["total_cost"]) == Decimal("5000")
     assert pos["btc"]["cost_currency"] == "USDT"
+
+
+def test_fee_reduces_base_cash_like_withdraw():
+    snap = _snap("A")
+    bases = normalize_base_tickers(["USD"])
+    apply_investment_event(
+        snap,
+        {
+            "date": "2026-06-01", "action": "deposit", "currency": "USD",
+            "account_name": "A", "to_ticker": "usd", "to_amount": "100",
+            "from_ticker": "", "from_amount": "0", "commission": "0",
+        },
+        default_currency="USD", base_tickers=bases,
+    )
+    apply_investment_event(
+        snap,
+        {
+            "date": "2026-06-02", "action": "fee", "currency": "USD",
+            "account_name": "A", "from_ticker": "usd", "from_amount": "0.12",
+            "to_ticker": "", "to_amount": "0", "commission": "0",
+            "note": "融资利息",
+        },
+        default_currency="USD", base_tickers=bases,
+    )
+    pos = snap["accounts"]["security"]["A"]["positions"]
+    assert Decimal(pos["usd"]["shares"]) == Decimal("99.88")
+
+
+def test_dividend_increases_cash():
+    snap = _snap("A")
+    bases = normalize_base_tickers(["USD"])
+    apply_investment_event(
+        snap,
+        {
+            "date": "2026-06-01", "action": "dividend", "currency": "USD",
+            "account_name": "A", "to_ticker": "usd", "to_amount": "12.77",
+            "from_ticker": "", "from_amount": "0", "commission": "0",
+            "note": "红利入账",
+        },
+        default_currency="USD", base_tickers=bases,
+    )
+    pos = snap["accounts"]["security"]["A"]["positions"]
+    assert Decimal(pos["usd"]["shares"]) == Decimal("12.77")

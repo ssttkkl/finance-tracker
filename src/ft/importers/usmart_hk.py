@@ -119,6 +119,28 @@ def map_usmart_hk_to_investment_event(
                 "commission_asset": ""}
     if kind == "cash":
         amount = abs(txn["amount"])
+        flag = str(txn.get("flag_norm") or txn.get("flag") or txn.get("note") or "")
+        # P0 kinds: dividend / fee / funding (deposit|withdraw)
+        fee_flags = {
+            "融资利息", "融券罚息转出", "融券利息", "罚息转出",
+            "美股股息税", "股息代收费", "红利税费", "股息税",
+        }
+        if flag == "红利入账" or flag.startswith("红利入账"):
+            return {
+                **base, "action": "dividend", "from_ticker": "", "from_amount": "0",
+                "to_ticker": cash, "to_amount": _fmt(amount), "price": "1",
+                "commission": "0", "commission_asset": "",
+            }
+        if flag in fee_flags or (
+            any(k in flag for k in ("利息", "罚息", "股息税", "代收费", "税费"))
+            and flag not in {"IPO认购退款"}
+        ):
+            # Fee always cash-out semantically (statement amount may be signed).
+            return {
+                **base, "action": "fee", "from_ticker": cash, "from_amount": _fmt(amount),
+                "to_ticker": "", "to_amount": "0", "price": "1",
+                "commission": "0", "commission_asset": "",
+            }
         if txn["amount"] > 0:
             return {**base, "action": "deposit", "from_ticker": "", "from_amount": "0",
                     "to_ticker": cash, "to_amount": _fmt(amount), "price": "1", "commission": "0", "commission_asset": ""}
@@ -321,20 +343,75 @@ def _parse_trades(rendered: str, *, profile: str = "margin") -> list[dict[str, A
 
 
 def _parse_holdings(rendered: str, period: str, month_end: str) -> list[dict[str, Any]]:
+    """Parse 持仓明细: layout (one-line) or mutool text (stacked fields)."""
     start = rendered.find("持仓明细")
+    if start < 0:
+        return []
     end = rendered.find("资金出入", start)
-    section = rendered[start:end if end >= 0 else None]
-    pattern = re.compile(r"(?m)^\s*(?P<ticker>[A-Z][A-Z0-9.\-]{0,11}|0\d{4})\s*(?:\([^\n]*\))?\s+(?P<ccy>USD|HKD|CNY)\s+(?P<shares>[\d,]+(?:\.\d+)?)")
-    rows = []
+    if end < 0:
+        end = rendered.find("市值汇总", start)
+    if end < 0:
+        end = len(rendered)
+    section = rendered[start:end]
+    if "暂无数据" in section and not re.search(r"\b(?:USD|HKD|CNY)\b", section):
+        return []
+
+    rows: list[dict[str, Any]] = []
+    # Layout / fixture: CODE (name)  CCY  shares ...
+    # Horizontal only: do not let \s match newlines (mutool stacks fields vertically).
+    pattern = re.compile(
+        r"(?m)^\s*(?P<code>[A-Z]{1,5}|0\d{4})(?:[^\S\n]*\([^\n]*\))?[^\S\n]+"
+        r"(?P<ccy>USD|HKD|CNY)[^\S\n]+(?P<shares>[\d,]+(?:\.\d+)?)"
+    )
     for m in pattern.finditer(section):
         shares = _decimal(m.group("shares"))
-        ticker = _normalize_equity_ticker(m.group("ticker"), ccy=m.group("ccy"))
-        # Include zero rows if the table lists them; non-zero open lots always.
+        ticker = _normalize_equity_ticker(m.group("code"), ccy=m.group("ccy"))
         rows.append({
             "kind": "checkin_position", "date": month_end, "period": period,
             "ticker": ticker, "ccy": m.group("ccy"), "shares": shares,
             "note": "period-end holdings checkin",
         })
+    if rows:
+        return rows
+
+    # Vertical mutool: CODE [name lines...] \n CCY \n shares \n unsettled \n price ...
+    lines = [ln.strip() for ln in section.splitlines() if ln.strip()]
+    i = 0
+    header_noise = {
+        "持仓明细", "证券", "币种", "持有数量", "未交收数量", "收市价", "市值",
+        "抵押比率", "抵押市值", "市值汇总", "抵押市值汇总",
+    }
+    code_re = re.compile(r"^(?P<code>[A-Z]{1,5}|0\d{4})\b")
+    while i < len(lines):
+        line = lines[i]
+        if line in header_noise or line in {"HKD", "USD", "CNY"}:
+            i += 1
+            continue
+        m = code_re.match(line)
+        if not m:
+            i += 1
+            continue
+        code = m.group("code")
+        ccy = None
+        shares_s = None
+        j = i + 1
+        while j < len(lines) and j < i + 12:
+            if lines[j] in {"USD", "HKD", "CNY"}:
+                ccy = lines[j]
+                if j + 1 < len(lines) and re.match(r"^[\d,]+(?:\.\d+)?$", lines[j + 1]):
+                    shares_s = lines[j + 1]
+                break
+            j += 1
+        if ccy and shares_s is not None:
+            ticker = _normalize_equity_ticker(code, ccy=ccy)
+            rows.append({
+                "kind": "checkin_position", "date": month_end, "period": period,
+                "ticker": ticker, "ccy": ccy, "shares": _decimal(shares_s),
+                "note": "period-end holdings checkin",
+            })
+            i = j + 2
+        else:
+            i += 1
     return rows
 
 
