@@ -1,6 +1,7 @@
 """Portfolio valuation P0: native + display currency."""
 from datetime import datetime, timezone
 from decimal import Decimal
+import time
 
 import pytest
 
@@ -88,3 +89,40 @@ def test_display_currency_fx_and_fail_closed():
 
     with pytest.raises(ValuationError):
         service.get_portfolio(display_currency="US")
+
+
+def test_portfolio_quote_deadline_keeps_every_nonzero_position_and_marks_partial():
+    class ManyPositions:
+        def load_portfolio(self):
+            return {
+                "accounts": {"Polymarket": {"currency": "USD", "positions": {
+                    f"pm:market-{index}:yes": {"shares": "1", "total_cost": "1", "cost_currency": "USD"}
+                    for index in range(16)
+                }}},
+                "base_currencies": {"Polymarket": ("USD",)},
+                "configured_currencies": ("USD",),
+            }
+
+    class BlockingProvider:
+        def raw_quote(self, identity, kind):
+            print("third-party diagnostic")
+            time.sleep(1)
+            raise RuntimeError("network timeout")
+
+    started = time.monotonic()
+    portfolio = PortfolioQueryService(
+        ManyPositions(), ValuationService(BlockingProvider()), query_deadline_seconds=0.05,
+    ).get_portfolio()
+    elapsed = time.monotonic() - started
+    positions = portfolio.accounts[0].positions
+    assert elapsed < 0.25
+    assert len(positions) == 16
+    assert all(position.market_value is None for position in positions)
+    assert all(position.quote_status == QuoteStatus.PARTIAL.value for position in positions)
+
+
+def test_portfolio_default_quote_budget_reserves_time_for_cli_rendering():
+    service = PortfolioQueryService(
+        FakePortfolioRepo(), ValuationService(FakeProvider()),
+    )
+    assert service._query_deadline_seconds == 4.0

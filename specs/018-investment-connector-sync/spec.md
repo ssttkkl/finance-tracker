@@ -101,12 +101,46 @@ Phase 1 文件导入链已完成（DFZQ/IBKR/Schwab/uSmart），行级幂等（`
 
 ---
 
+### User Story 5 - 及时查看已导入持仓 (Priority: P1)
+
+作为用户，我希望运行 `ft stock list` 后能在可预期的时间内看到已导入的全部非零持仓，即使某个行情供应商超时、返回空数据或打印诊断信息，也不能让终端长期空白或隐藏账本持仓。
+
+**Why this priority**: 连接器已将真实交易导入账本；持仓查询是验证导入结果的直接入口。逐项同步行情请求会让拥有多个预测市场合约的账户在渲染前等待很久，破坏 CLI 的核心可用性。
+
+**Independent Test**: 使用含多个持仓的 repository 和会阻塞/抛错的 quote provider 执行 `ft stock list`，验证在全局查询预算内输出每个非零持仓；未取得行情的项目显示 `partial`/`N/A`，且 stdout/stderr 不包含供应商的原始诊断文本。
+
+**Acceptance Scenarios**:
+
+1. **Given** 账本快照含多个证券、加密资产或 Polymarket 合约，**When** 用户运行 `ft stock list`，**Then** 命令输出所有非零持仓及其账户，不因行情请求数量而省略或等待全部单项请求完成。
+2. **Given** 任一行情供应商超时、失败或返回空结果，**When** 组合查询继续执行，**Then** 对应持仓显示 `N/A` 与明确的 partial 状态，其余持仓仍照常输出，且进程成功退出。
+3. **Given** 行情供应商产生第三方诊断输出，**When** 用户运行持仓命令，**Then** CLI 只输出 Finance Tracker 定义的表格和错误合同，不透传未结构化供应商日志。
+4. **Given** 同一快照分别存于 PostgreSQL 与 SQLite，**When** 使用受控 provider 查询持仓，**Then** 非零持仓集合及每项状态在两个后端一致。
+
+---
+
+### User Story 6 - 校准 Polymarket 当前现金 (Priority: P1)
+
+作为 Polymarket 用户，我希望同步导入成交和派息后读取 funder 地址当前的 pUSD 余额并校准 USD 现金，这样账本不会因 Activity API 未包含入金而显示错误的负现金。
+
+**Independent Test**: 用 mock Polygon RPC 返回 funder 当前 pUSD `balanceOf`，执行同步；验证生成 USD `checkin`，该事件替换现金但不改变市场仓位，SQLite 与 PostgreSQL 快照一致。
+
+**Acceptance Scenarios**:
+
+1. **Given** 用户已配置 Polymarket `proxy_wallet`，**When** 执行 `ft sync --source polymarket --account Polymarket`，**Then** 系统对 Polygon pUSD 合约 `0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB` 调用 `balanceOf(funder)`，按 6 decimals 精确生成 USD `checkin`。
+2. **Given** 活动导入后账本 USD 与当前链上余额不一致，**When** 应用该 checkin，**Then** USD 现金被替换为 pUSD 当前余额；既有 `pm:<slug>:<outcome>` 仓位和其成本不变。
+3. **Given** 同一 pUSD 余额读取 block 的同步重跑，**When** 检查幂等键，**Then** `checkin:<block_number>` 只导入一次；后续确认 block 的 checkin 可替换此前现金。
+4. **Given** Activity API、当前 block、block timestamp 或 `balanceOf` 无法读取或安全解析，**When** 同步，**Then** 整批 fail-closed：不得写入任何活动、checkin、快照或游标。
+5. **Given** 同一 mock Activity API 与 Polygon RPC 数据分别同步到 SQLite 和真实 PostgreSQL，**When** 比较，**Then** checkin 金额、payload、幂等键和快照完全等价。
+
+---
+
 ### Edge Cases
 
 - **API 限流/网络错误**：同步过程中遇到 429 或网络超时时，系统 MUST 重试（指数退避，最多 3 次）；超过重试次数后 MUST fail-closed：本次同步的事件、快照和游标均不得写入，并报告失败点与已拉取但未提交的条目数。
 - **交易所返回异常数据**：trade 或 ledger entry 缺少 ID、无法映射的类型、金额/时间戳/手续费无效、非零手续费缺少币种时，整批 MUST fail-closed 并报告异常条目原始数据，不静默跳过、归零或推进游标。
 - **交易与 ledger 重叠**：交易本身以 `fetch_my_trades` 的 trade ID 为唯一规范来源；对应的 ledger `trade` 分录仅用于确认覆盖，不另建第二套单边事件，避免一笔成交被双重记账。所有非 trade ledger entry 必须逐条导入或失败。
 - **Polymarket 未支持活动**：仅 `TRADE`、`REDEEM` 与 `YIELD` 具有本 feature 定义的账务映射；其他类型在保留 API 可重拉性的前提下静默跳过。
+- **Polymarket 链上范围**：本 feature 不扫描 `Transfer` 历史、不导入或推断入金/出金；仅对当前 funder 读取 pUSD `balanceOf` 并生成现金 checkin。
 - **账户类型不匹配**：用户尝试将 exchange sync 导入非 `crypto` 账户或将 Polymarket sync 导入非 `security`/`crypto` 账户时，MUST 拒绝并明确提示。
 - **凭据轮换**：用户更新 API 密钥后重新同步，系统 MUST 正常工作——幂等键与凭据无关。
 - **并发同步**：同一账户同时运行两次 sync 时，数据库事务级别保证写入原子性；第二次在提交阶段检测到冲突时 MUST 失败并提示重试。
@@ -139,11 +173,16 @@ Phase 1 文件导入链已完成（DFZQ/IBKR/Schwab/uSmart），行级幂等（`
 - **FR-016**: CLI MUST 支持 `--full` 参数强制全量重新拉取，忽略已有游标。
 - **FR-017**: 本 feature MUST NOT 引入定时调度、Worker、Web UI、加密凭据存储或通用 Connector 平台层。
 - **FR-018**: Ticker 规范化 MUST 复用现有 `schema.py` 的 `CRYPTO_IDS` 映射和 `importers/ticker_normalize.py` 的逻辑，确保同一资产在文件导入和 API 同步中使用相同 ticker。
+- **FR-019**: `ft stock list` MUST 在固定的、可测试的总行情读取预算内渲染所有账本中的非零持仓；预算耗尽、单项超时、空行情或 provider 异常只使该项报价为 partial/N/A，MUST NOT 阻塞、隐藏其他持仓或让命令以未结构化第三方输出结束。该读取策略不得写入账本或改变 SQLite/PostgreSQL 的持仓集合。
+- **FR-020**: `PolymarketConnector` MUST 在 Activity API 之外读取 funder/proxy 地址当前 Polygon pUSD ERC-20 `balanceOf`；pUSD 固定为 CLOB V2 合约 `0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB`、6 decimals。它 MUST 映射为 USD `checkin`（`to_ticker=usd`、`to_amount=balance`），不得扫描 `Transfer` 历史、导入或推断入金/出金。
+- **FR-021**: 当前 pUSD checkin MUST 在读取到的确认 block 上完成，以 `checkin:<block_number>` 作稳定 record ID，并在 `source_payload` 保留 token、wallet、balance_base_units、block_number、block_timestamp。相同 block 重跑幂等，后续 block 的 checkin 使用既有替换语义更新 USD 现金。
+- **FR-022**: Activity API、当前 block、block timestamp 或 `balanceOf` 读取失败 MUST fail-closed；Activity、checkin、快照和游标均不得部分写入。现有 Polymarket 时间游标保持纯 Activity timestamp 格式，无需链上复合游标。
 
 ### Key Entities
 
 - **ConnectorPort**: 领域层接口，定义 connector 的 `fetch_trades` 能力和返回的标准化交易事件格式。
 - **SyncCursor**: 增量同步游标，持久化于专用 `sync_cursors` 表，复合键 `(workspace_id, account_id, source_type)`，记录上次同步的最后交易时间戳或 ID。
+- **Polymarket pUSD Checkin**: funder 在确认 Polygon block 的 pUSD `balanceOf` 观察值；映射为 USD `checkin` 并替换现金，不代表一笔入金或出金。
 - **CredentialProvider**: 凭据加载能力，从本地配置文件读取并验证 provider 凭据。
 - **InvestmentEvent (existing)**: 复用 009 定义的统一投资事件 dict，并扩展既有投影以支持 `transfer` 审计 action；含 `action`/`from_ticker`/`to_ticker`/`from_amount`/`to_amount`/`commission`/`commission_asset`/`source_type`/`record_id`/`source_payload`。
 
@@ -158,6 +197,8 @@ Phase 1 文件导入链已完成（DFZQ/IBKR/Schwab/uSmart），行级幂等（`
 - **SC-005**: 凭据错误或 API 异常时，错误信息足够用户自行诊断和修复，无需查看源码。
 - **SC-006**: PostgreSQL 与 SQLite 上同一 mock 数据的同步结果完全等价（事件数、金额、ticker、快照）。
 - **SC-007**: 不引入定时调度、Web UI、加密存储或 Connector 平台层；范围审查 0 越界。
+- **SC-008**: 对含至少 16 个预测市场合约的组合，`ft stock list` 在 5 秒内产生包含全部非零持仓的首个且完整的 CLI 表格；行情未取得的项目明确显示为 N/A/partial，且无第三方诊断泄漏。
+- **SC-009**: SQLite 和真实 PostgreSQL 的同一 mock 数据中，pUSD checkin 的 6-decimal 金额、source payload、record ID 和同步后 USD 快照 100% 一致；同一 block 重跑不新增事件。
 
 ## Clarifications
 
@@ -169,6 +210,7 @@ Phase 1 文件导入链已完成（DFZQ/IBKR/Schwab/uSmart），行级幂等（`
 - Q: API 分页中途失败时是否保留此前批次？ → A: 不保留。先完整拉取并校验，再在同一事务内处理所有分块；任一分页、映射或校验失败均回滚本次全部事件、快照和游标。
 - Q: Polymarket 的 `REDEEM` 与 `YIELD` 如何入账？ → A: `REDEEM` 作为 `pm:<slug>:<outcome> → usd` 的 `swap`，`YIELD` 作为 USD `dividend`；二者均用 `transactionHash` 幂等，其他未定义活动类型跳过。
 - Q: 加密交易所的非成交活动与异常手续费如何处理？ → A: 导入所有可识别 ledger 活动；交易、入金、出金、奖励/利息、内部转账和独立手续费均需保留。未知类型、缺字段或异常费用必须整次 fail-closed，禁止静默跳过或将费用归零。
+- Q: Polymarket 是否导入历史出入金？ → A: 不导入。每次同步仅读取 funder 当前 pUSD `balanceOf`，写 USD `checkin` 校准现金；该观察值不是入金/出金记录。
 
 ## Dependencies
 

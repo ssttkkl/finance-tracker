@@ -1,5 +1,8 @@
 """Finance Tracker CLI — ft 统一入口"""
 import argparse
+import contextlib
+import io
+import logging
 from decimal import Decimal
 from pathlib import Path
 from .report import render_finance_report, render_transactions
@@ -757,10 +760,19 @@ def _main(argv=None):
                     return
             elif args.stock_cmd == "list":
                 try:
-                    render_portfolio(
-                        bundle.portfolio.get_portfolio(
+                    # A timed-out daemon quote worker may emit a yfinance
+                    # diagnostic after get_portfolio returns.  Disable this
+                    # third-party logger for the CLI process rather than using
+                    # process-global stream redirection in that worker.
+                    logging.getLogger("yfinance").disabled = True
+                    # Provider diagnostics must never precede or corrupt the
+                    # Finance Tracker-owned portfolio table.
+                    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                        portfolio = bundle.portfolio.get_portfolio(
                             display_currency=getattr(args, "display_currency", None),
                         )
+                    render_portfolio(
+                        portfolio
                     )
                 except ValueError as exc:
                     # ValuationError subclasses ValueError (invalid display currency, etc.)

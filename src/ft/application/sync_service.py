@@ -164,6 +164,24 @@ class SyncService:
 
         events = result.events
         if not events:
+            # A connector can complete a legitimate empty scan (notably a
+            # pUSD window with no external transfers).  Its checkpoint still
+            # belongs to the same atomic cursor contract as a non-empty batch.
+            try:
+                self._import_all_batches(
+                    batches=[],
+                    account_name=account_name,
+                    account_id=account_id,
+                    account_type=account_type,
+                    source_type=source_type,
+                    next_cursor=result.next_cursor,
+                )
+            except Exception as exc:
+                return OperationResult(
+                    ok=False,
+                    message=f"Sync failed: {exc}. No events, snapshot, or cursor were written.",
+                    details={"raw_count": result.raw_count, "new_count": 0, "skipped_count": 0},
+                )
             return OperationResult(
                 ok=True,
                 count=0,

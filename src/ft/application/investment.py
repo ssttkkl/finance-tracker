@@ -1,4 +1,7 @@
 """Investment write and portfolio query application services."""
+from queue import Empty, Queue
+from threading import Thread
+import time
 from decimal import Decimal
 
 from ft.application.valuation import ValuationService
@@ -102,15 +105,21 @@ class InvestmentService:
 class PortfolioQueryService:
     """Portfolio mark-to-market using ValuationService (+ optional FX display)."""
 
-    def __init__(self, repository, valuation: ValuationService, *, fx_rates=None):
+    def __init__(
+        self, repository, valuation: ValuationService, *, fx_rates=None,
+        query_deadline_seconds: float = 4.0, monotonic=None,
+    ):
         self._repository = repository
         self._valuation = valuation
         self._fx_rates = fx_rates
+        self._query_deadline_seconds = query_deadline_seconds
+        self._monotonic = monotonic or time.monotonic
 
     def get_portfolio(self, *, display_currency: str | None = None) -> PortfolioDTO:
         display = validate_display_currency(display_currency)
         raw = self._repository.load_portfolio()
         configured = {item.upper() for item in raw.get("configured_currencies", ())}
+        deadline = self._monotonic() + self._query_deadline_seconds
         accounts = []
         for name, account in raw.get("accounts", {}).items():
             currency = (account.get("currency") or "").upper()
@@ -149,9 +158,8 @@ class PortfolioQueryService:
                     quote_status = QuoteStatus.UNSUPPORTED.value
                     quote_reason = "unsupported_identity"
                 else:
-                    result = self._valuation.quote(
-                        AssetRef(identity=str(ticker), kind=kind, quantity=shares)
-                    )
+                    ref = AssetRef(identity=str(ticker), kind=kind, quantity=shares)
+                    result = self._quote_with_deadline(ref, deadline)
                     quote_status = result.status.value
                     quote_reason = result.reason
                     quote_currency = result.quote_currency
@@ -208,6 +216,44 @@ class PortfolioQueryService:
                 ))
             accounts.append(PortfolioAccountDTO(name, currency, tuple(items)))
         return PortfolioDTO(tuple(accounts))
+
+    def _quote_with_deadline(self, ref: AssetRef, deadline: float):
+        """Read one quote without letting an external provider exceed the portfolio budget."""
+        remaining = deadline - self._monotonic()
+        if remaining <= 0:
+            return self._deadline_result(ref)
+        results: Queue = Queue(maxsize=1)
+
+        def read_quote() -> None:
+            try:
+                results.put((True, self._valuation.quote(ref)))
+            except Exception as exc:  # defensive: ValuationService is normally total
+                results.put((False, exc))
+
+        Thread(target=read_quote, daemon=True).start()
+        try:
+            ok, value = results.get(timeout=remaining)
+        except Empty:
+            return self._deadline_result(ref)
+        if not ok:
+            return self._provider_error_result(ref)
+        return value
+
+    @staticmethod
+    def _deadline_result(ref: AssetRef):
+        from ft.domain.valuation import QuoteResult
+        return QuoteResult(
+            identity=ref.identity, kind=ref.kind, status=QuoteStatus.PARTIAL,
+            quantity=ref.quantity, reason="query_deadline_exceeded",
+        )
+
+    @staticmethod
+    def _provider_error_result(ref: AssetRef):
+        from ft.domain.valuation import QuoteResult
+        return QuoteResult(
+            identity=ref.identity, kind=ref.kind, status=QuoteStatus.PARTIAL,
+            quantity=ref.quantity, reason="provider_error",
+        )
 
     def _convert_display(self, market_value, quote_currency, display: str):
         if market_value is None or not quote_currency:

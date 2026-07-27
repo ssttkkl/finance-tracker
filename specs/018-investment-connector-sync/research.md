@@ -119,6 +119,12 @@ Ticker 格式：`pm:<slug>:<yes|no>`（小写），与 `PredictionMarketQuotePro
 - USD（而非 USDC）作为现金对手方——Polymarket 用户心理模型是 USD，USDC 是实现细节。
 - `commission` 固定为 `0`（Polymarket 不对 CLOB 交易收取显式费用）。
 
+## 4a. Polymarket pUSD 当前现金校准
+
+Activity API 不包含账户入金。用户明确不需要重建历史入金/出金；CLOB V2 使用 Polygon pUSD `0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB`（6 decimals）作为 collateral，因此读取同一 proxy/funder 当前 `balanceOf` 能校准当前现金。
+
+结论：读取确认 block、其时间戳和 `balanceOf(funder)`，以 `checkin:<block>` 写 USD `checkin`，从而校准当前现金而不伪造任何历史。RPC、区块时间或余额读取失败必须 fail-closed；不请求 `eth_getLogs`，也不涉及 USDC.e、跨链源链或 Bridge 历史。
+
 ## 5. 凭据管理方案
 
 ### Decision

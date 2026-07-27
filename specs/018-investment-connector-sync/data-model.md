@@ -100,10 +100,12 @@ class ConnectorDataError(ConnectorError):
 - 交易所 ledger fee：`<ledger_id>:fee`
 - Polymarket `TRADE`：Activity API 返回的 `id` 字段（或 `transactionHash` 作为 fallback）
 - Polymarket `REDEEM` / `YIELD`：`transactionHash`；当前 API 数据中每条此类活动对应唯一哈希，缺失时 fail-closed
+- Polymarket pUSD 现金校准：`checkin:<block_number>`；同一确认 block 重跑幂等，后续 block 的 checkin 使用替换语义更新 USD 现金
 
 `source_payload` 语义：
 - 交易所：完整 ccxt trade 或 ledger dict 的 JSON
 - Polymarket：完整 activity dict 的 JSON
+- Polymarket pUSD checkin：`token`、`wallet`、`balance_base_units`、`block_number` 与 `block_timestamp`；以该 block 的 `balanceOf` 为唯一现金校准来源
 
 ### Account（已有表 `accounts`）
 
