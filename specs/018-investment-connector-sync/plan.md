@@ -6,11 +6,13 @@
 
 ## Summary
 
-通过 ccxt 库与 Polymarket Activity API，将交易所交易、交易所资金账本活动和预测市场活动自动拉取并映射为统一投资事件，复用现有 `InvestmentImportService`、UnitOfWork 事务和 `source_type × record_id` 幂等机制。新增 `ConnectorPort` 领域接口、`CcxtExchangeConnector`/`PolymarketConnector` adapter、`sync_cursors` 表和 `ft sync` CLI 命令。
+通过 ccxt 库与 Polymarket Activity API/当前 Polygon pUSD 余额，将交易所交易、交易所资金账本活动和预测市场活动自动拉取并映射为统一投资事件，复用现有 `InvestmentImportService`、UnitOfWork 事务和 `source_type × record_id` 幂等机制。新增 `ConnectorPort` 领域接口、`CcxtExchangeConnector`/`PolymarketConnector` adapter、`sync_cursors` 表和 `ft sync` CLI 命令。
 
 Polymarket adapter 除 `TRADE` 外还映射 `REDEEM` 为结果仓位到 USD 的 `swap`，并映射 `YIELD` 为 USD `dividend`；三类活动均保留原始 payload，`REDEEM` / `YIELD` 使用唯一 `transactionHash` 幂等。
 
 Ccxt adapter 同时分页 `fetch_my_trades` 与 `fetch_ledger`：交易是 `swap` 的唯一规范来源；非 trade ledger entry 映射为 deposit/withdraw/dividend/transfer/fee。ledger 分页必须显式检测重复页和无法安全推进的 provider 响应并失败关闭，不能误把单页当作全历史。未知 ledger 类型、字段或费用不完整必须让整个同步回滚；内部 transfer 作为审计事实保留但不改变快照。
+
+持仓 CLI 是同步结果的读取验证路径。`PortfolioQueryService` 将为一次查询设置总行情读取预算；从关系快照读取到的所有非零持仓始终进入 DTO。超过预算、超时、空响应或 provider 异常的项目保留为 `partial`/`N/A`，不能阻塞表格渲染，也不得让第三方 provider 的 stderr 直接泄漏到 CLI。该机制只影响只读估值状态，不写入快照或引入后台任务。
 
 ## Technical Context
 
@@ -27,6 +29,8 @@ Ccxt adapter 同时分页 `fetch_my_trades` 与 `fetch_ledger`：交易是 `swap
 **Project Type**: CLI 工具
 
 **Performance Goals**: 1000 笔交易端到端 ≤ 30 秒（不含网络延迟）
+
+**CLI Read Performance Goal**: 含 16 个以上预测市场合约的 `ft stock list` ≤ 5 秒完整输出；行情失败降级为每项 `partial`/`N/A`
 
 **Constraints**: 整批 fail-closed（单条异常回滚整批事务）；单用户本地运行
 
@@ -70,6 +74,16 @@ Ccxt adapter 同时分页 `fetch_my_trades` 与 `fetch_ledger`：交易是 `swap
 - 理由：保证事件、快照和游标的可审计原子性；失败重试不会暴露部分同步结果或推进游标。
 - 验证：SQLite 与真实 PostgreSQL 均须覆盖分页/API 错误、映射错误和校验错误时的零写入，以及成功时的事件/快照/游标同提交。
 - Ledger 扩展：交易与 ledger 使用同一 `since` 时间游标并全部成功后才进入 UnitOfWork；已由 trade endpoint 表达的 ledger `trade` 分录不重复建账，其余 ledger ID 必须生成主事件，非零 fee 生成 `<ledger_id>:fee` 事件。
+- 持仓 CLI 修复（2026-07-27）：以 `PortfolioQueryService` 的单调时钟查询级 deadline 为边界；内部报价预算固定为 4 秒，为 CLI 启动与表格渲染保留余量以满足端到端 5 秒目标。每项只读报价在有界 daemon worker 中等待至剩余预算，预算耗尽后转 `partial`，账本持仓 DTO 仍完整返回。worker 不得写入账本；provider 的 HTTP/yfinance timeout 不得超过该预算，并以 logger guard 收束第三方诊断。验证包括实际阻塞 provider 的时间预算单测，以及 SQLite/真实 PostgreSQL 的持仓集合等价集成测试。
+
+### Polymarket pUSD 当前现金校准设计（2026-07-27）
+
+- 资金地址：复用 `PolymarketConnector._resolve_wallet()` 的 proxy/funder 地址；当前 `~/.ft/credentials.yaml` 配置与 `polymarket-vibe-arb` 的 funder 一致。绝不读取或记录私钥。
+- 来源与范围：每次同步调用 Polygon RPC 读取当前 block、其 timestamp，以及 pUSD (`0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB`, 6 decimals) 的 `balanceOf(funder)`。不调用 `eth_getLogs`，不扫描区块，不重建或导入历史出入金。
+- 映射：金额为整数 base units / `10^6` 的 `Decimal`；以该 block timestamp 生成 `checkin(to=usd)`、`record_id=checkin:<block>`。投影 checkin 替换 USD 现金、绝不改变市场合约仓位。
+- RPC 合同：当前 block、timestamp 或余额任一读取失败均抛 `ConnectorError`/`ConnectorDataError`，不返回部分 `ConnectorResult`。这是一次 `eth_call` 加少量元数据读取，无需注册 RPC 或历史扫描。
+- 游标：保留既有纯 Activity timestamp 游标；不创建链上复合游标或数据库迁移。
+- 存储：不新增 schema 或迁移；`source_payload` 保存余额观察字段。SQLite / PostgreSQL 映射和事务行为相同。
 
 ## Project Structure
 
@@ -101,7 +115,8 @@ src/ft/
 │   └── relational/
 │       └── models.py              # SyncCursorModel (新增)
 ├── application/
-│   └── sync_service.py            # SyncService（编排 connector → import 事务）
+│   ├── sync_service.py            # SyncService（编排 connector → import 事务）
+│   └── investment.py              # PortfolioQueryService（有界只读估值）
 ├── credentials.py                 # CredentialProvider（凭据加载/验证）
 └── cli.py                         # ft sync 子命令
 
@@ -126,3 +141,12 @@ tests/
 ## Complexity Tracking
 
 > 无 Constitution 违例。此节不适用。
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| Eng Review | `plan-eng-review` | 有界行情读取、CLI 错误合同、Polygon pUSD 当前余额 checkin 与双后端测试 | 2 | CLEAR | 已纳入总 deadline/daemon worker 风险，以及一次只读余额观察、checkin 替换语义、完整失败回滚与 SQLite/PG 契约矩阵。 |
+
+**VERDICT:** ENG CLEARED — 最小方案只扩展既有 `PolymarketConnector`；Activity 与链上日志先完整读取，再由既有单一 UoW 原子导入和推进游标。
+NO UNRESOLVED DECISIONS

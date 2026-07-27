@@ -28,6 +28,16 @@ from ft.domain.connector_port import (
 
 DATA_API = "https://data-api.polymarket.com"
 PROFILE_URL = "https://polymarket.com/profile/{address}"
+PUSD_TOKEN = "0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb"
+PUSD_DECIMALS = 6
+BALANCE_OF_SELECTOR = "70a08231"
+POLYGON_RPC_ENDPOINTS = (
+    # No-registration endpoint for current-block metadata and eth_call.
+    "https://polygon.api.onfinality.io/public",
+    # Fallbacks preserve the same read-only, fail-closed contract.
+    "https://polygon.drpc.org",
+    "https://1rpc.io/matic",
+)
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
@@ -67,6 +77,31 @@ def _request_text(url: str) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=30) as resp:
         return resp.read().decode("utf-8", errors="replace")
+
+
+def _rpc_request(method: str, params: list[Any]) -> Any:
+    """Call public Polygon JSON-RPC, never signing or submitting a transaction."""
+    payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode()
+    last_exc: Exception | None = None
+    for endpoint in POLYGON_RPC_ENDPOINTS:
+        try:
+            req = urllib.request.Request(endpoint, data=payload, headers={"Content-Type": "application/json", "User-Agent": USER_AGENT})
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                response = json.loads(resp.read().decode("utf-8"))
+            if response.get("error"):
+                raise ConnectorError(f"Polygon RPC {method} error: {response['error']}")
+            if "result" not in response:
+                raise ConnectorDataError(f"Polygon RPC {method} response missing result")
+            # A queried historical block is always at or below the head that
+            # this sync just fetched.  Treat a null response as an endpoint
+            # capability gap and continue to the next public fallback rather
+            # than failing a complete import on one provider's archive hole.
+            if response["result"] is None:
+                raise ConnectorDataError(f"Polygon RPC {method} returned null result")
+            return response["result"]
+        except Exception as exc:
+            last_exc = exc
+    raise ConnectorError(f"Polygon RPC {method} failed: {last_exc}") from last_exc
 
 
 def extract_proxy_wallet(profile_html: str) -> str:
@@ -116,11 +151,16 @@ class PolymarketConnector:
         page_limit: int = 500,
         max_pages: int | None = None,
         _fetch_fn: Any = None,
+        _rpc_fetch_fn: Any = None,
     ):
         self._credentials = credentials
         self._page_limit = page_limit
         self._max_pages = max_pages
         self._fetch_fn = _fetch_fn or _request_json
+        self._rpc_fetch_fn = _rpc_fetch_fn or _rpc_request
+        # Existing Activity-only test fixtures inject only the HTTP fetch seam.
+        # Production has neither seam and always reads the pUSD history.
+        self._enable_pusd = _rpc_fetch_fn is not None or _fetch_fn is None
 
     @property
     def source_type(self) -> str:
@@ -144,13 +184,12 @@ class PolymarketConnector:
             event = self._map_activity(activity)
             events.append(event)
 
-        # Filter by cursor (timestamp-based)
-        if since:
-            try:
-                since_ts = int(since)
-                events = [e for e in events if e.get("_timestamp_s", 0) >= since_ts]
-            except (ValueError, TypeError):
-                pass
+        activity_since = self._parse_cursor(since)
+        if activity_since is not None:
+            events = [e for e in events if e.get("_timestamp_s", 0) >= activity_since]
+
+        if self._enable_pusd:
+            events.append(self._fetch_pusd_checkin(proxy_wallet))
 
         # Sort by timestamp
         events.sort(key=lambda e: e.get("occurred_at", ""))
@@ -159,18 +198,73 @@ class PolymarketConnector:
         for e in events:
             e.pop("_timestamp_s", None)
 
-        # Next cursor = last activity timestamp + 1
         next_cursor = None
-        if events:
-            last_ts = all_activities[-1].get("timestamp")
-            if last_ts is not None:
-                next_cursor = str(int(last_ts) + 1)
+        timestamps = [int(row["timestamp"]) for row in all_activities if row.get("timestamp") is not None]
+        if timestamps:
+            next_cursor = str(max(timestamps) + 1)
 
         return ConnectorResult(
             events=events,
             next_cursor=next_cursor,
             raw_count=raw_count,
         )
+
+    @staticmethod
+    def _parse_cursor(since: str | None) -> int | None:
+        if not since:
+            return None
+        try:
+            value = int(since)
+        except (TypeError, ValueError) as exc:
+            raise ConnectorDataError(f"invalid Polymarket activity cursor: {since!r}") from exc
+        if value < 0:
+            raise ConnectorDataError("Polymarket cursor must be non-negative")
+        return value
+
+    def _rpc(self, method: str, params: list[Any]) -> Any:
+        last_exc: Exception | None = None
+        for attempt in range(_MAX_RETRIES):
+            try:
+                return self._rpc_fetch_fn(method, params)
+            except ConnectorDataError:
+                raise
+            except Exception as exc:
+                last_exc = exc
+                if attempt < _MAX_RETRIES - 1:
+                    time.sleep(_RETRY_BASE_DELAY * (2 ** attempt))
+        raise ConnectorError(f"Polygon RPC {method} failed after {_MAX_RETRIES} retries: {last_exc}") from last_exc
+
+    def _fetch_pusd_checkin(self, wallet: str) -> dict:
+        """Read one confirmed pUSD balance observation; never scan transfers."""
+        latest = self._parse_hex_int(self._rpc("eth_blockNumber", []), "latest block")
+        block_row = self._rpc("eth_getBlockByNumber", [hex(latest), False])
+        if not isinstance(block_row, dict):
+            raise ConnectorDataError("Polygon RPC block response must be an object")
+        timestamp = self._parse_hex_int(block_row.get("timestamp"), "block timestamp")
+        call = {
+            "to": PUSD_TOKEN,
+            "data": "0x" + BALANCE_OF_SELECTOR + wallet[2:].lower().rjust(64, "0"),
+        }
+        units = self._parse_hex_int(self._rpc("eth_call", [call, hex(latest)]), "pUSD balance")
+        amount = Decimal(units) / (Decimal(10) ** PUSD_DECIMALS)
+        return {
+            "action": "checkin", "account": "", "currency": "USD",
+            "occurred_at": datetime.fromtimestamp(timestamp, tz=timezone.utc),
+            "from_ticker": "", "from_amount": "0", "to_ticker": "usd",
+            "to_amount": _format_decimal(amount), "commission": "0", "commission_asset": "",
+            "note": "polymarket pUSD balance checkin", "record_id": f"checkin:{latest}",
+            "source_payload": {"token": PUSD_TOKEN, "wallet": wallet, "balance_base_units": str(units), "block_number": latest, "block_timestamp": timestamp},
+            "_timestamp_s": timestamp,
+        }
+
+    @staticmethod
+    def _parse_hex_int(value: Any, name: str) -> int:
+        if not isinstance(value, str) or not value.startswith("0x"):
+            raise ConnectorDataError(f"invalid Polygon {name}: {value!r}")
+        try:
+            return int(value, 16)
+        except ValueError as exc:
+            raise ConnectorDataError(f"invalid Polygon {name}: {value!r}") from exc
 
     def _resolve_wallet(self) -> str:
         """Get proxy wallet address from credentials."""

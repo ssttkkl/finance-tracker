@@ -48,6 +48,38 @@ def _make_activity_connector(activities):
     )
 
 
+_FUNDER = "0x" + "a" * 40
+_EXTERNAL = "0x" + "b" * 40
+_TX = "0x" + "c" * 64
+
+
+def _topic(address):
+    return "0x" + "0" * 24 + address[2:]
+
+
+def _load_activity_trade():
+    with open(FIXTURES / "polymarket_activities.json") as f:
+        return json.load(f)[0]
+
+
+def _chain_connector(*, malformed=False):
+    from ft.adapters.connectors.polymarket import PolymarketConnector
+    log = {
+        "address": "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB",
+        "topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", _topic(_EXTERNAL), _topic(_FUNDER)],
+        "data": hex(1_234_567), "blockNumber": hex(10), "logIndex": hex(7), "transactionHash": _TX,
+    }
+    def rpc(method, params):
+        if method == "eth_blockNumber": return hex(12)
+        if method == "eth_getBlockByNumber": return {"timestamp": hex(1_777_667_210)}
+        if method == "eth_call":
+            if malformed: return "not-hex"
+            return hex(1_234_567)
+        raise AssertionError(method)
+
+    return PolymarketConnector(credentials={"proxy_wallet": _FUNDER}, _fetch_fn=lambda _url: [_load_activity_trade()], _rpc_fetch_fn=rpc)
+
+
 @pytest.fixture
 def pg_pm_sync():
     from conftest import reset_postgres_schema
@@ -96,3 +128,46 @@ class TestPolymarketSyncPostgres:
             actions = sorted(e["action"] for e in u.investments.list())
             u.rollback()
         assert actions == ["dividend", "swap"]
+
+    def test_activity_and_pusd_checkin_are_atomic_idempotent_and_preserve_market_position(self, pg_pm_sync):
+        service, uow = pg_pm_sync
+        first = service.sync(provider="polymarket", account_name="Polymarket", connector=_chain_connector())
+        assert first.ok and first.count == 2
+        with uow as u:
+            account_id = service._resolve_account_id(u, "Polymarket")
+            events = u.investments.list()
+            cursor = u.imports.get_sync_cursor(account_id=account_id, source_type="polymarket_api")
+            snapshot = u.snapshot.load()
+            u.rollback()
+        assert len(events) == 2
+        assert "checkin:12" in {event["record_id"] for event in events}
+        assert cursor == str(_load_activity_trade()["timestamp"] + 1)
+        positions = snapshot["accounts"]["security"]["Polymarket"]["positions"]
+        assert positions["usd"]["shares"] == "1.234567"
+        assert positions["pm:will-trump-win-2024:yes"]["shares"] == "100"
+        assert service.sync(provider="polymarket", account_name="Polymarket", connector=_chain_connector()).count == 0
+
+    def test_pusd_balance_failure_keeps_activity_and_cursor_unwritten(self, pg_pm_sync):
+        service, uow = pg_pm_sync
+        result = service.sync(provider="polymarket", account_name="Polymarket", connector=_chain_connector(malformed=True))
+        assert not result.ok
+        with uow as u:
+            account_id = service._resolve_account_id(u, "Polymarket")
+            assert u.investments.list() == []
+            assert u.imports.get_sync_cursor(account_id=account_id, source_type="polymarket_api") is None
+            u.rollback()
+
+    def test_successful_empty_chain_scan_persists_compound_cursor(self, pg_pm_sync):
+        service, uow = pg_pm_sync
+
+        class EmptyConnector:
+            source_type = "polymarket_api"
+
+            def fetch_trades(self, *, since=None):
+                return ConnectorResult([], '{"activity_since":1782226943,"pusd_block":90000000}', 0)
+
+        assert service.sync(provider="polymarket", account_name="Polymarket", connector=EmptyConnector()).ok
+        with uow as u:
+            account_id = service._resolve_account_id(u, "Polymarket")
+            assert u.imports.get_sync_cursor(account_id=account_id, source_type="polymarket_api") == '{"activity_since":1782226943,"pusd_block":90000000}'
+            u.rollback()

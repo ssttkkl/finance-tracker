@@ -1,5 +1,8 @@
 from decimal import Decimal
+import logging
 from pathlib import Path
+from threading import Thread
+import time
 
 import pytest
 
@@ -207,6 +210,73 @@ def test_cli_stock_leaves_enter_investment_services(monkeypatch, capsys):
 
     assert [call[0] for call in calls] == ["buy", "list"]
     assert "bought" in capsys.readouterr().out
+
+
+def test_cli_stock_list_contains_provider_diagnostics(monkeypatch, capsys):
+    from ft import cli
+    from ft.domain.investment import PortfolioAccountDTO, PortfolioDTO, PortfolioPositionDTO
+
+    class Portfolio:
+        def get_portfolio(self, *, display_currency=None):
+            print("third-party diagnostic")
+            return PortfolioDTO((PortfolioAccountDTO("Broker", "USD", (
+                PortfolioPositionDTO(
+                    ticker="pm:slow:yes", shares=Decimal("1"), total_cost=Decimal("1"),
+                    cost_currency="USD", is_cash=False, current_price=None, market_value=None,
+                    profit=None, quote_status="partial", quote_reason="query_deadline_exceeded",
+                    quote_currency=None,
+                ),
+            )),))
+
+    bundle = type("Bundle", (), {"portfolio": Portfolio(), "investments": object()})()
+    monkeypatch.setattr("ft.config.StorageSettings.load", lambda: object())
+    monkeypatch.setattr("ft.cli.build_services", lambda _settings: bundle)
+    cli.main(["stock", "list"])
+    output = capsys.readouterr()
+    assert "pm:slow:yes" in output.out
+    assert "N/A" in output.out
+    assert "third-party diagnostic" not in output.out + output.err
+
+
+def test_cli_stock_list_contains_late_yfinance_diagnostics_after_quote_deadline(
+    monkeypatch, capsys, caplog,
+):
+    from ft import cli
+    from ft.application.investment import PortfolioQueryService
+    from ft.application.valuation import ValuationService
+
+    class Repository:
+        def load_portfolio(self):
+            return {
+                "accounts": {"Broker": {"currency": "USD", "positions": {
+                    "aapl.us": {"shares": "1", "total_cost": "1", "cost_currency": "USD"},
+                }}},
+                "base_currencies": {"Broker": ("USD",)},
+                "configured_currencies": ("USD",),
+            }
+
+    class DelayedYfinanceProvider:
+        def raw_quote(self, identity, kind):
+            def emit_late_diagnostic():
+                time.sleep(0.05)
+                logging.getLogger("yfinance").warning("late yfinance diagnostic")
+            Thread(target=emit_late_diagnostic, daemon=True).start()
+            time.sleep(1)
+
+    portfolio = PortfolioQueryService(
+        Repository(), ValuationService(DelayedYfinanceProvider()), query_deadline_seconds=0.01,
+    )
+    bundle = type("Bundle", (), {"portfolio": portfolio, "investments": object()})()
+    monkeypatch.setattr("ft.config.StorageSettings.load", lambda: object())
+    monkeypatch.setattr("ft.cli.build_services", lambda _settings: bundle)
+    logger = logging.getLogger("yfinance")
+    monkeypatch.setattr(logger, "disabled", False)
+    caplog.set_level(logging.WARNING, logger="yfinance")
+
+    cli.main(["stock", "list"])
+    time.sleep(0.1)
+    assert "aapl.us" in capsys.readouterr().out
+    assert "late yfinance diagnostic" not in caplog.messages
 
 
 def test_cli_stock_service_rejection_exits_nonzero(monkeypatch, capsys):

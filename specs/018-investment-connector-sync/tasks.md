@@ -199,6 +199,29 @@ against SQLite and real PostgreSQL; neither backend may be represented only by m
 
 ---
 
+## Phase 10: User Story 5 - 有界持仓 CLI 渲染 (Priority: P1)
+
+**Purpose**: 账本已有持仓时，行情供应商的慢响应、失败或诊断输出不得让 `ft stock list` 长时间空白或遗漏持仓。
+
+- [x] T061 [P] [US5] Add a failing unit test for a multi-position portfolio with an actually blocking/raising quote provider: a monotonic query deadline returns every nonzero position within budget and failed/expired quotes are partial/N/A in `tests/unit/application/test_portfolio_valuation.py`.
+- [x] T062 [P] [US5] Add a failing CLI rendering test that asserts `ft stock list` emits its own table without provider diagnostic leakage in `tests/test_application_investment.py`.
+- [x] T063 [P] [US5] Add SQLite and real PostgreSQL integration coverage for an identical nonzero holding set and partial quote statuses in `tests/integration/test_portfolio_query_sqlite.py` and `tests/integration/test_portfolio_query_postgres.py`.
+- [x] T064 [US5] Implement the smallest monotonic query deadline with a daemon bounded quote worker/failure downgrade in `src/ft/application/investment.py`, plus provider timeout and yfinance logger containment in `src/ft/adapters/market_data.py`; preserve all nonzero DTO positions and avoid ledger writes.
+- [x] T065 [US5] Run the unit, CLI, SQLite and real PostgreSQL portfolio matrix; manually verify `FT_DATABASE_URL=sqlite+pysqlite:////Users/huangwenlong/.ft/finance-tracker.db FT_WORKSPACE_ID=default uv run ft stock list` outputs the imported Kraken and Polymarket holdings within five seconds (2026-07-27: 5-test matrix passed; real SQLite CLI completed in 4.67s with all Kraken and 16 Polymarket positions rendered, and no provider diagnostics).
+
+---
+
+## Phase 11: User Story 6 - 校准 Polymarket 当前现金 (Priority: P1)
+
+**Purpose**: 在 Activity API 同步后读取 funder 当前 pUSD `balanceOf` 并写 USD checkin；不扫描区块，也不导入历史出入金。
+
+- [x] T066 [P] [US6] Add failing unit tests for current pUSD `balanceOf`: exact six-decimal USD `checkin`, `checkin:<block>` identity/payload, no `eth_getLogs` call, and RPC failure atomicity in `tests/unit/test_polymarket_connector.py`.
+- [x] T067 [P] [US6] Add SQLite and real PostgreSQL end-to-end tests proving Activity + pUSD checkin commit atomically, replace USD only, preserve pm positions, and same-block re-run idempotency in `tests/integration/test_sync_polymarket_sqlite.py` and `tests/integration/test_sync_polymarket_postgres.py`.
+- [x] T068 [US6] Implement one current-block/timestamp RPC read plus pUSD `balanceOf` → USD `checkin` in `src/ft/adapters/connectors/polymarket.py`; remove all `eth_getLogs`, Transfer mapper, history window and compound-cursor behavior.
+- [x] T069 [US6] Run the focused unit and SQLite/real-PostgreSQL matrix, then synchronize the user-authorized `.ft/finance-tracker.db`; verify final USD equals pUSD checkin and no market position changed in `specs/018-investment-connector-sync/tasks.md` (2026-07-27: `29 passed`; real SQLite sync added `checkin:90960575` at USD `260.398415`, retained all 16 pm positions, and advanced the Activity cursor to `1785121333`).
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -210,6 +233,7 @@ against SQLite and real PostgreSQL; neither backend may be represented only by m
 - **US3 Credential Security (Phase 5)**: Depends on Phase 2 (credential module exists)
 - **US4 Incremental Cursor (Phase 6)**: Depends on Phase 2 + at least one of US1/US2 (cursor needs a working connector to test)
 - **Polish (Phase 7)**: Depends on all desired user stories being complete
+- **US6 pUSD Checkin (Phase 11)**: Depends on completed US2; reuses the Polymarket connector and atomic SyncService.
 
 ### User Story Dependencies
 
@@ -217,6 +241,7 @@ against SQLite and real PostgreSQL; neither backend may be represented only by m
 - **US2 (P1)**: Can start after Phase 2 — No dependencies on other stories (can parallel with US1)
 - **US3 (P2)**: Can start after Phase 2 — Independent edge case hardening
 - **US4 (P3)**: Depends on Phase 2 + at least US1 or US2 for end-to-end cursor testing
+- **US6 (P1)**: Depends on US2 — Activity and one current pUSD observation must share a fail-closed connector result and UoW.
 
 ### Within Each User Story
 

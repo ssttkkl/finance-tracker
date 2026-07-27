@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 import json
+import logging
 import os
 from urllib.parse import quote
 import urllib.request
@@ -17,6 +18,8 @@ from ft.domain.valuation import (
     parse_prediction_market_identity,
 )
 from ft.schema import CRYPTO_IDS
+
+_QUOTE_TIMEOUT_SECONDS = 4.0
 
 
 def _decimal(value) -> Decimal | None:
@@ -31,7 +34,7 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _json_get(url: str, *, timeout: float = 15):
+def _json_get(url: str, *, timeout: float = _QUOTE_TIMEOUT_SECONDS):
     headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
     proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
     opener = urllib.request.build_opener(
@@ -97,10 +100,18 @@ class SecurityQuoteProvider:
             import yfinance as yf  # type: ignore[import-untyped]
         except ImportError:
             return None
+        logger = logging.getLogger("yfinance")
+        previous_disabled = logger.disabled
+        logger.disabled = True
         try:
-            data = yf.download(symbol, period="1d", progress=False, auto_adjust=False)
+            data = yf.download(
+                symbol, period="1d", progress=False, auto_adjust=False,
+                timeout=_QUOTE_TIMEOUT_SECONDS,
+            )
         except Exception:
             return None
+        finally:
+            logger.disabled = previous_disabled
         if data is None or getattr(data, "empty", False):
             return None
         try:
