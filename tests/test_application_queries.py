@@ -34,18 +34,22 @@ class FakeSnapshot:
         return self.snapshot
 
 
-class FakeMarketData:
-    def __init__(self, prices):
-        self.prices = prices
-        self.calls = []
+class FakeValuationProvider:
+    def raw_quote(self, identity, kind):
+        from datetime import datetime, timezone
+        from ft.application.valuation import UnsupportedQuote
+        from ft.domain.valuation import ProviderTick
 
-    def get_prices(self, tickers, *, quote_currency):
-        self.calls.append((tuple(tickers), quote_currency))
-        return {ticker: self.prices[ticker] for ticker in tickers if ticker in self.prices}
+        if identity == "aapl.us":
+            return ProviderTick(
+                Decimal("5"), "USD", datetime(2026, 7, 25, tzinfo=timezone.utc), "fake"
+            )
+        raise UnsupportedQuote(identity)
 
 
 def _service(rows=()):
     from ft.application.queries import FinanceQueryService
+    from ft.application.valuation import ValuationService
     from ft.domain.accounts import AccountDTO
 
     accounts = [
@@ -67,17 +71,17 @@ def _service(rows=()):
             },
         }
     }
-    market = FakeMarketData({"aapl.us": Decimal("5")})
+    valuation = ValuationService(FakeValuationProvider())
     return FinanceQueryService(
         accounts=FakeAccounts(accounts),
         transactions=FakeTransactions(rows),
         snapshots=FakeSnapshot(snapshot),
-        market_data=market,
-    ), market
+        valuation=valuation,
+    ), valuation
 
 
 def test_list_accounts_values_cash_and_investment_with_cost_fallback():
-    service, market = _service()
+    service, _valuation = _service()
 
     result = service.list_accounts()
 
@@ -85,7 +89,6 @@ def test_list_accounts_values_cash_and_investment_with_cost_fallback():
         ("Cash", Decimal("12.34")),
         ("Broker", Decimal("29")),
     ]
-    assert market.calls == [(('aapl.us', 'missing.us'), 'USD')]
 
 
 def test_report_returns_structured_totals_and_ignores_pre_checkin_expense():

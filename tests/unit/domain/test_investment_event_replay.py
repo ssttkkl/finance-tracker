@@ -444,3 +444,14 @@ def test_deposit_creates_missing_cash_position():
         default_currency="USD",
     )
     assert Decimal(snapshot["accounts"]["security"]["broker"]["positions"]["usd"]["shares"]) == Decimal("100")
+
+
+def test_transfer_is_auditable_noop_for_positions():
+    snapshot = {"accounts": {"security": {"exchange": {"currency": "USD", "positions": {
+        "usd": {"shares": "100", "total_cost": "100", "cost_currency": "USD"},
+    }}}}}
+    apply_investment_event(snapshot, {
+        "date": "2026-07-26", "action": "transfer", "account_name": "exchange",
+        "from_ticker": "usd", "from_amount": "20", "currency": "USD",
+    }, default_currency="USD")
+    assert snapshot["accounts"]["security"]["exchange"]["positions"]["usd"]["shares"] == "100"

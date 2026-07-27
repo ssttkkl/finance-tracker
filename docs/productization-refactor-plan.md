@@ -80,11 +80,9 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
 - **现金链** `002`–`008`：双 DB、mapping/开放币种、多币种账户、关系、导入与 kind 解耦 — **Complete**。
 - **投资文件导入与账本收口** `009`–`016`：多券商文件导入（DFZQ/IBKR/Schwab/uSmart 等）、行级幂等、成本币种与 cash-like actions、事实字段统一、内联溯源、**整数代理主键** — **已合入**；对应 `spec.md` Status=Complete。
 - **Alembic / `SCHEMA_REVISION` head**：`20260724_09`。
-- **Phase 1 产品门槛仍开放**：实时估值 + coverage 已开 Spec Kit 目录 `017-asset-valuation-quote`（规格/方案/任务），**实现与验收未完成**；遗留 `market_data` adapter 不等于该门槛。
-- **编号漂移（重要）**：仓库后续已用 `011`–`016` 承载 uSmart/成本/字段/provenance/bigint 等。路线图原文中的  
-  `011-asset-valuation-quote` / `012-investment-connector-sync` / `013-transaction-browser-web`  
-  应理解为**能力名**；开新 feature 时用 **Flow-Forward 新序号**（建议估值从 `017-…` 起），并在 Context 中 cross-link，勿再占用已 Complete 的 `011`–`016` 目录名。
-- 活跃指针：`.specify/feature.json` → `specs/017-asset-valuation-quote`（Phase 1 剩余估值门槛；016 已 Complete）。
+- **Phase 1 估值门槛**：`017-asset-valuation-quote` — 统一 `ValuationService` + 组合本币/展示币市值与 `quote_status`（实现已在 feature 分支；验收以 tasks/quickstart 为准）。
+- **编号漂移（重要）**：仓库 `011`–`016` 已用于 uSmart/成本/字段/provenance/bigint。路线图旧名 `011-asset-valuation-quote` 对应实施目录 **`017-asset-valuation-quote`**；Connector / 账单 Web 落地时用新序号。
+- 活跃指针：`.specify/feature.json` → `specs/017-asset-valuation-quote`。
 
 ## 4. 产品与架构原则
 
@@ -137,12 +135,9 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
   `011-usmart-hk-import`、`012-investment-base-currency-cost`、`013-investment-cash-event-kinds`、
   `014-fact-field-unify`、`015-inline-row-provenance`、`016-bigint-surrogate-ids` — 均为 **Complete**。
 
-- **`asset-valuation-quote`（Phase 1 仍开放；历史路线图编号 `011`）**：简单实时估值接口。
-  输入资产标识与类型（股票/加密/预测市场/现金），输出当前实时估值（单价及可选市值）。
-  恢复 yfinance（含 HK/US 规范化）、Polymarket gamma-api、crypto 三类取价，
-  统一 port + adapter，含 **coverage / stale / unsupported**。
-  **落地时新建序号目录**（建议 `017-asset-valuation-quote`），勿与已占用的 `011-usmart-hk-import` 混淆。
-  非目标：历史时间序列、期初/期末边界估值、收益率归因（归 Phase 3）。
+- **`017-asset-valuation-quote`（P0 组合市值 + P1 原子 quote；历史路线图名 asset-valuation-quote / 旧编号 011）**：
+  组合持仓 **本币估值**（分币种不折算）与可选 **`display_currency` 只读 FX 折算**；统一 `ValuationService`（security/crypto/pm/cash）与 **complete/stale/partial/unsupported**。
+  非目标：历史时间序列、期初/期末边界估值、收益率归因（归 Phase 3）、Connector。
 
 - **`investment-connector-sync`（可延后；历史路线图编号 `012`）**：exchange/polymarket 等 Connector 自动同步。
   不阻塞 Phase 2；新建时用新序号。
@@ -152,7 +147,7 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
 - `002`–`008` 全部收敛；✅
 - `009` 落地（投资事件可导入，多券商解析可用）；✅
 - `010` 落地（现金/投资导入行级幂等与重叠增量）；✅
-- **实时估值接口**落地（各资产类型可取当前估值，coverage 状态明确）；❌ **仍开放**
+- **实时估值 + 组合市值**落地（`017`：本币/展示币 + coverage 状态）；✅（以 feature 分支验收为准）
 - Connector 可延后，不阻塞 Phase 2。
 
 ### 5.3 Phase 2：账单浏览 Web（只读）

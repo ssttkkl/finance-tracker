@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from .models import AccountModel, CashTransactionModel, InvestmentEventModel
+from .models import AccountModel, CashTransactionModel, InvestmentEventModel, SyncCursorModel
 
 
 class RelationalImportRepository:
@@ -66,6 +66,55 @@ class RelationalImportRepository:
             found.update({rid: (name, ccy) for rid, name, ccy in cash_rows if rid})
             found.update({rid: (name, ccy) for rid, name, ccy in inv_rows if rid})
         return found
+
+
+    def get_sync_cursor(
+        self, *, account_id: int, source_type: str,
+    ) -> str | None:
+        """Read the last-synced cursor value for (workspace, account, source)."""
+        row = self._session.execute(
+            select(SyncCursorModel.cursor_value).where(
+                SyncCursorModel.workspace_id == self._workspace_id,
+                SyncCursorModel.account_id == account_id,
+                SyncCursorModel.source_type == source_type,
+            )
+        ).scalar_one_or_none()
+        return row
+
+    def upsert_sync_cursor(
+        self, *, account_id: int, source_type: str, cursor_value: str,
+    ) -> None:
+        """Insert or update the sync cursor for (workspace, account, source)."""
+        from datetime import datetime, timezone
+        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        now = datetime.now(timezone.utc)
+        dialect = self._session.bind.dialect.name
+
+        if dialect == "postgresql":
+            stmt = pg_insert(SyncCursorModel).values(
+                workspace_id=self._workspace_id,
+                account_id=account_id,
+                source_type=source_type,
+                cursor_value=cursor_value,
+                updated_at=now,
+            ).on_conflict_do_update(
+                constraint="uq_sync_cursors_workspace_account_source",
+                set_={"cursor_value": cursor_value, "updated_at": now},
+            )
+        else:
+            stmt = sqlite_insert(SyncCursorModel).values(
+                workspace_id=self._workspace_id,
+                account_id=account_id,
+                source_type=source_type,
+                cursor_value=cursor_value,
+                updated_at=now,
+            ).on_conflict_do_update(
+                index_elements=["workspace_id", "account_id", "source_type"],
+                set_={"cursor_value": cursor_value, "updated_at": now},
+            )
+        self._session.execute(stmt)
 
     # --- legacy no-ops kept only so older tests/fakes fail loudly if misused ---
     def start_batch(self, **_kwargs) -> str:

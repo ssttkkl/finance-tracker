@@ -31,6 +31,14 @@ class PortfolioPositionDTO:
     current_price: Decimal | None = None
     market_value: Decimal | None = None
     profit: Decimal | None = None
+    quote_status: str | None = None
+    quote_reason: str | None = None
+    quote_currency: str | None = None
+    display_currency: str | None = None
+    display_market_value: Decimal | None = None
+    fx_rate: Decimal | None = None
+    fx_status: str | None = None
+    fx_reason: str | None = None
 
 
 @dataclass(frozen=True)

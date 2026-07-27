@@ -1,0 +1,113 @@
+"""Integration test: Polymarket sync end-to-end on SQLite (T029)."""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+from alembic import command
+from alembic.config import Config
+
+from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace
+from ft.adapters.relational.uow import RelationalUnitOfWork
+from ft.application.sync_service import SyncService
+from ft.domain.accounts import AccountDTO
+from ft.domain.connector_port import ConnectorResult
+
+
+FIXTURES = Path(__file__).parents[1] / "fixtures"
+
+
+def _make_pm_connector():
+    with open(FIXTURES / "polymarket_activities.json") as f:
+        activities = json.load(f)
+    # Only use valid activities (first 4, skip edge cases 4 and 5)
+    valid = [a for a in activities[:4]]
+
+    from ft.adapters.connectors.polymarket import PolymarketConnector
+
+    def mock_fetch(url):
+        return valid
+
+    return PolymarketConnector(
+        credentials={"proxy_wallet": "0x" + "a" * 40},
+        _fetch_fn=mock_fetch,
+    )
+
+
+def _make_activity_connector(activities):
+    from ft.adapters.connectors.polymarket import PolymarketConnector
+
+    return PolymarketConnector(
+        credentials={"proxy_wallet": "0x" + "a" * 40},
+        _fetch_fn=lambda url: activities,
+    )
+
+
+@pytest.fixture
+def sqlite_pm_sync(tmp_path):
+    root = Path(__file__).parents[2]
+    url = f"sqlite+pysqlite:///{tmp_path / 'pm_sync.db'}"
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "migrations"))
+    config.set_main_option("sqlalchemy.url", url)
+    command.upgrade(config, "head")
+    engine = create_relational_engine(url)
+    sessions = create_session_factory(engine)
+    ensure_workspace(sessions, "ws")
+    uow = RelationalUnitOfWork(sessions, "ws")
+    with uow as u:
+        u.accounts.add(AccountDTO(name="Polymarket", type="security"))
+        u.commit()
+    service = SyncService(uow)
+    yield service, uow
+    engine.dispose()
+
+
+class TestPolymarketSyncSQLite:
+    def test_sync_trades(self, sqlite_pm_sync):
+        service, uow = sqlite_pm_sync
+        connector = _make_pm_connector()
+        result = service.sync(
+            provider="polymarket",
+            account_name="Polymarket",
+            connector=connector,
+        )
+        assert result.ok
+        # 3 TRADEs from 4 activities (1 DEPOSIT skipped)
+        assert result.count == 3
+
+    def test_idempotent(self, sqlite_pm_sync):
+        service, uow = sqlite_pm_sync
+        c1 = _make_pm_connector()
+        r1 = service.sync(provider="polymarket", account_name="Polymarket", connector=c1)
+        assert r1.count == 3
+        c2 = _make_pm_connector()
+        r2 = service.sync(provider="polymarket", account_name="Polymarket", connector=c2)
+        assert r2.count == 0
+
+    def test_events_have_correct_source_type(self, sqlite_pm_sync):
+        service, uow = sqlite_pm_sync
+        c = _make_pm_connector()
+        service.sync(provider="polymarket", account_name="Polymarket", connector=c)
+        with uow as u:
+            events = u.investments.list()
+            u.rollback()
+        for e in events:
+            assert e["source_type"] == "polymarket_api"
+
+    def test_redeem_and_yield_are_imported_idempotently(self, sqlite_pm_sync):
+        service, uow = sqlite_pm_sync
+        activities = [
+            {"type": "REDEEM", "slug": "market", "outcome": "Yes", "size": "2", "usdcSize": "2", "timestamp": 1_700_000_000, "transactionHash": "redeem-1"},
+            {"type": "YIELD", "usdcSize": "0.5", "timestamp": 1_700_000_001, "transactionHash": "yield-1"},
+            {"type": "DEPOSIT", "timestamp": 1_700_000_002},
+        ]
+        first = service.sync(provider="polymarket", account_name="Polymarket", connector=_make_activity_connector(activities))
+        second = service.sync(provider="polymarket", account_name="Polymarket", connector=_make_activity_connector(activities))
+        assert first.ok and first.count == 2
+        assert second.ok and second.count == 0
+        with uow as u:
+            actions = sorted(e["action"] for e in u.investments.list())
+            u.rollback()
+        assert actions == ["dividend", "swap"]

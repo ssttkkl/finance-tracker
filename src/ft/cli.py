@@ -230,7 +230,13 @@ def _main(argv=None):
         help="3-letter currency code default for stock convert",
     )
 
-    stk_sub.add_parser("list", help="持仓总览")
+    list_p = stk_sub.add_parser("list", help="持仓总览（本币市值；可选统一折算展示币）")
+    list_p.add_argument(
+        "--display-currency",
+        default=None,
+        metavar="CCY",
+        help="可选：将各持仓本币市值折算为该 ISO 货币（如 CNY）；省略则仅本币",
+    )
 
     # convert — account routing from bill + mapping (no CLI account override)
 
@@ -293,6 +299,31 @@ def _main(argv=None):
         help="Optional default currency when a row has none (3-letter code)",
     )
     statement_import.add_argument("--password-file", help="从文件首行读取 PDF 密码")
+
+
+    # sync — connector API sync
+    sync_p = sub.add_parser(
+        "sync",
+        help="同步交易所/Polymarket 交易历史（API 拉取）",
+        allow_abbrev=False,
+    )
+    sync_p.add_argument(
+        "--source", required=True,
+        choices=["binance", "kraken", "okx", "polymarket"],
+        help="数据源 provider",
+    )
+    sync_p.add_argument(
+        "--account", required=True,
+        help="目标账户名称",
+    )
+    sync_p.add_argument(
+        "--full", action="store_true", default=False,
+        help="忽略游标，强制全量同步",
+    )
+    sync_p.add_argument(
+        "--batch-size", type=int, default=500,
+        help="每批次事务大小（默认 500）",
+    )
 
     args = parser.parse_args(argv)
 
@@ -614,6 +645,47 @@ def _main(argv=None):
             print(f"   汇率: 1 {to_currency} = {result.details['rate']:.4f} {from_currency}")
         return
 
+
+    if args.cmd == "sync":
+        from .application.sync_service import SyncService, EXCHANGE_PROVIDERS
+        bundle = _runtime_services()
+        service = SyncService(bundle.uow)
+
+        # Build connector from credentials (CLI layer responsibility)
+        try:
+            if args.source in EXCHANGE_PROVIDERS:
+                from .credentials import load_exchange_credentials
+                from .adapters.connectors.ccxt_exchange import CcxtExchangeConnector
+                creds = load_exchange_credentials(args.source)
+                connector = CcxtExchangeConnector(provider=args.source, credentials=creds)
+            elif args.source == "polymarket":
+                from .credentials import load_polymarket_credentials
+                from .adapters.connectors.polymarket import PolymarketConnector
+                creds = load_polymarket_credentials()
+                connector = PolymarketConnector(credentials=creds)
+            else:
+                print(f"❌ Unknown sync source: {args.source}")
+                raise SystemExit(1)
+        except ValueError as exc:
+            print(f"❌ {exc}")
+            raise SystemExit(1)
+
+        result = service.sync(
+            provider=args.source,
+            account_name=args.account,
+            full=args.full,
+            batch_size=args.batch_size,
+            connector=connector,
+        )
+        if not result.ok:
+            print(f"❌ {result.message}")
+            raise SystemExit(1)
+        details = result.details or {}
+        print(f"✅ {result.message}")
+        if details.get("raw_count"):
+            print(f"   API records: {details['raw_count']}")
+        return
+
     if args.cmd == "stock":
         if args.stock_cmd == "convert":
             payload = _statement_export(StatementImportCommand(
@@ -629,7 +701,11 @@ def _main(argv=None):
             return
         bundle = _runtime_services()
         if not args.stock_cmd:
-            render_portfolio(bundle.portfolio.get_portfolio())
+            render_portfolio(
+                bundle.portfolio.get_portfolio(
+                    display_currency=getattr(args, "display_currency", None),
+                )
+            )
             return
 
         service = bundle.investments
@@ -680,7 +756,17 @@ def _main(argv=None):
                     print("❌ 请指定 --ticker+--shares+--avg-cost 或 --cash")
                     return
             elif args.stock_cmd == "list":
-                render_portfolio(bundle.portfolio.get_portfolio())
+                try:
+                    render_portfolio(
+                        bundle.portfolio.get_portfolio(
+                            display_currency=getattr(args, "display_currency", None),
+                        )
+                    )
+                except ValueError as exc:
+                    # ValuationError subclasses ValueError (invalid display currency, etc.)
+                    code = getattr(exc, "code", None)
+                    print(f"❌ {code or exc}")
+                    raise SystemExit(1) from exc
                 return
             if result is not None and not result.ok:
                 print(f"❌ {result.message}")

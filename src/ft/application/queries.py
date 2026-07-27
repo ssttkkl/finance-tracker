@@ -22,11 +22,21 @@ def _decimal(value) -> Decimal:
 
 
 class FinanceQueryService:
-    def __init__(self, *, accounts, transactions, snapshots, market_data, relation_projector=None):
+    def __init__(
+        self,
+        *,
+        accounts,
+        transactions,
+        snapshots,
+        market_data=None,
+        valuation=None,
+        relation_projector=None,
+    ):
         self._accounts = accounts
         self._transactions = transactions
         self._snapshots = snapshots
         self._market_data = market_data
+        self._valuation = valuation
         self._relation_projector = relation_projector
 
     def list_accounts(self) -> AccountListDTO:
@@ -136,16 +146,60 @@ class FinanceQueryService:
             security.get("currency") or next(iter(getattr(account, "metadata", {}).get("base_currencies", ())), "CNY")
         ).upper()
         currency_ticker = quote_currency.lower()
+        base_currencies = {
+            str(item).upper()
+            for item in getattr(account, "metadata", {}).get("base_currencies", ()) or ()
+        }
+        if quote_currency:
+            base_currencies.add(quote_currency)
         total = Decimal("0")
+        if self._valuation is not None:
+            from ft.domain.valuation import AssetRef, QuoteStatus, infer_asset_kind
+
+            for ticker, position in positions.items():
+                shares = _decimal(position.get("shares"))
+                if shares == 0:
+                    continue
+                if ticker.lower() == currency_ticker or ticker.upper() in base_currencies:
+                    total += shares
+                    continue
+                kind = infer_asset_kind(
+                    ticker,
+                    cash_tickers=base_currencies,
+                    configured_currencies=base_currencies,
+                )
+                if kind is None:
+                    total += _decimal(position.get("total_cost"))
+                    continue
+                result = self._valuation.quote(AssetRef(str(ticker), kind, quantity=shares))
+                if (
+                    result.status in {QuoteStatus.COMPLETE, QuoteStatus.STALE}
+                    and result.market_value is not None
+                    and (result.quote_currency or "").upper() == quote_currency
+                ):
+                    total += result.market_value
+                elif (
+                    result.status in {QuoteStatus.COMPLETE, QuoteStatus.STALE}
+                    and result.unit_price is not None
+                    and (result.quote_currency or "").upper() == quote_currency
+                ):
+                    total += shares * result.unit_price
+                else:
+                    # No mark in account currency — fall back to cost (not mark-to-market).
+                    total += _decimal(position.get("total_cost"))
+            return ((quote_currency, total),)
+
         market_tickers = []
         for ticker, position in positions.items():
             if ticker.lower() == currency_ticker:
                 total += _decimal(position.get("shares"))
             elif _decimal(position.get("shares")) != 0:
                 market_tickers.append(ticker)
-        prices = self._market_data.get_prices(
-            market_tickers, quote_currency=quote_currency
-        ) if market_tickers else {}
+        prices = {}
+        if market_tickers and self._market_data is not None:
+            prices = self._market_data.get_prices(
+                market_tickers, quote_currency=quote_currency
+            )
         for ticker in market_tickers:
             position = positions[ticker]
             shares = _decimal(position.get("shares"))

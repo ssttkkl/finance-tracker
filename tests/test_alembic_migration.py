@@ -18,6 +18,7 @@ def test_repository_has_clean_linear_revisions():
         "20260724_07_fact_field_unify.py",
         "20260724_08_inline_provenance_cleanup.py",
         "20260724_09_bigint_surrogate_ids.py",
+        "20260726_10_sync_cursors.py",
     ]
 
 

@@ -87,18 +87,48 @@ class RelationalPortfolioRepository:
                 AccountModel.type.in_(("security", "crypto")),
             )))
             payload = RelationalSnapshotRepository(session, self._workspace_id).load()
-        base_currencies = {
+        # Snapshot may key investment books by name or legacy UUID; collect bases from DB.
+        bases_by_name = {
             account.name: tuple(sorted({
-                *(str(item).upper() for item in account.metadata_json.get("base_currencies", ())),
-                *(str(position.get("cost_currency", "")).upper()
-                  for position in payload.get("accounts", {}).get("security", {}).get(account.name, {}).get("positions", {}).values()
-                  if position.get("cost_currency")),
+                str(item).upper()
+                for item in (account.metadata_json or {}).get("base_currencies", ())
             }))
             for account in accounts
         }
-        configured = sorted({item for values in base_currencies.values() for item in values})
+        security_payload = payload.get("accounts", {}).get("security", {})
+        crypto_payload = payload.get("accounts", {}).get("crypto", {})
+        # Merge security + crypto books for portfolio (crypto under same structure if present)
+        books = {**security_payload, **crypto_payload}
+        # Map snapshot keys → display name when possible (name match or single-account heuristics)
+        name_by_key = {}
+        for key in books:
+            if key in bases_by_name:
+                name_by_key[key] = key
+            else:
+                name_by_key[key] = key  # keep raw key; bases filled via union below
+        base_currencies = {}
+        for key in books:
+            if key in bases_by_name:
+                base_currencies[key] = bases_by_name[key]
+            else:
+                # Legacy UUID key: attach union of all known bases so cash legs resolve
+                base_currencies[key] = tuple(sorted({
+                    item for values in bases_by_name.values() for item in values
+                }))
+        # Prefer human names as account labels when snapshot key equals name
+        labeled = {}
+        for key, book in books.items():
+            label = key if key in bases_by_name else key
+            entry = dict(book) if isinstance(book, dict) else {"positions": {}}
+            entry.setdefault("currency", (entry.get("currency") or "USD"))
+            labeled[label] = entry
+            if label != key and key in base_currencies:
+                base_currencies[label] = base_currencies.get(label) or base_currencies[key]
+        configured = sorted({item for values in bases_by_name.values() for item in values})
+        if not configured:
+            configured = sorted({item for values in base_currencies.values() for item in values})
         return {
-            "accounts": payload.get("accounts", {}).get("security", {}),
+            "accounts": labeled if labeled else books,
             "base_currencies": base_currencies,
             "configured_currencies": tuple(configured),
         }

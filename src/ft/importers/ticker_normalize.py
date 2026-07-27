@@ -11,6 +11,8 @@ Idempotent: if the code already ends with a known market suffix, keep it.
 """
 from __future__ import annotations
 
+from ft.schema import CRYPTO_IDS
+
 _KNOWN_SUFFIXES = frozenset({
     "us", "hk", "sh", "sz", "cn", "otc",
 })
@@ -19,6 +21,19 @@ _KNOWN_SUFFIXES = frozenset({
 _FIAT = frozenset({
     "usd", "hkd", "cny", "eur", "gbp", "jpy", "aud", "cad", "chf", "nzd", "sgd",
 })
+
+_CRYPTO_ALIASES = {
+    "xbt": "btc",  # Kraken's BTC symbol
+    "xbtc": "btc",
+    "xdg": "doge",
+}
+
+
+def normalize_crypto_ticker(ticker: str) -> str:
+    """Return a canonical lowercase crypto ticker without rejecting unknowns."""
+    token = (ticker or "").strip().lower()
+    canonical = _CRYPTO_ALIASES.get(token, token)
+    return canonical if canonical in CRYPTO_IDS else token
 
 
 def normalize_equity_ticker(

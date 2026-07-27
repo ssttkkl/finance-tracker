@@ -1,28 +1,49 @@
-# Contract: Portfolio / 持仓估值字段
+# Contract: 组合持仓市值（P0）
 
-## PortfolioPositionDTO（扩展）
+## PortfolioQueryService.get_portfolio
 
-既有字段保留。新增：
+```text
+get_portfolio(*, display_currency: str | None = None) -> PortfolioDTO
+```
 
-| Field | Type | When set |
-|-------|------|----------|
-| `quote_status` | `str \| None` | 尝试估值后：`complete`/`stale`/`partial`/`unsupported` |
-| `quote_reason` | `str \| None` | 可选稳定码 |
+| 参数 | 行为 |
+|------|------|
+| `display_currency=None` | **本币模式**：只填本币价/市值/status |
+| `display_currency="CNY"` 等 | **展示模式**：本币字段 + 展示市值/汇率/fx_* |
 
-语义：
+非法 display_currency → 抛 `valuation.invalid_display_currency`（或 `portfolio.invalid_display_currency`）。
 
-1. **现金持仓**（`is_cash=True`）：`current_price=1`，`market_value=shares*1`，`quote_status=complete`，`quote_reason=ok`。
-2. **非零非现金**：调用估值；complete/stale 填 `current_price` 与 `market_value`；partial/unsupported 则价格字段 `None`，status/reason 仍填。
-3. **零股**：可不请求估值；价格字段 `None`，status 可为 `None`。
+## PortfolioPositionDTO 字段
 
-## FinanceQueryService 账户余额中的证券市值
+| 字段 | 本币模式 | 展示模式 |
+|------|----------|----------|
+| current_price | 本币单价 | 同左 |
+| market_value | 本币市值 | 同左 |
+| quote_currency | 计价 ISO | 同左 |
+| quote_status / quote_reason | 估值状态 | 同左 |
+| display_currency | null | 回显大写 ISO |
+| display_market_value | null | 折算市值或 null |
+| fx_rate | null | display per 1 quote_currency 或 null |
+| fx_status / fx_reason | null 或 not_applicable | complete/partial |
 
-`_account_balances` 对 security 账户：
+## 规则
 
-- 有 complete/stale 价：用市值累加。
-- 否则：**不得**用 `0` 冒充；可回退 `total_cost`（保持旧降级）但不得假装为市价——实现应优先与「无价则成本」旧行为兼容并在 quickstart 注明；更优是在后续 Web 展示 status（本 feature 最低要求：portfolio DTO 带 status）。
+1. 估值统一走 `ValuationService`（推断 kind 见表 research R5）。
+2. 无本币市值 → 不折算。
+3. FX 失败 → 禁止异币 rate=1。
+4. `FinanceQueryService` 证券账户合计：优先本币；跨币账户不得用单一数字假装全市场合计，除非调用方指定 display 且各项均可折算；不可折算项排除在合计外并保持可观测（实现选：返回分币种余额元组保持旧形，或文档化 partial 合计——**选定**：账户 balances 在展示模式下尝试 display 合计，缺 FX 的持仓不计入该合计数字，且不得用成本冒充已折算市价；本币模式保持按账户主币或分币种既有行为，无价回退成本时不得称为 mark-to-market）。
+
+## FxRateProvider
+
+```text
+get_mid(base: str, quote: str, *, day: str | None = None) -> Decimal | None
+```
+
+- base=持仓 quote_currency，quote=display_currency
+- 返回 **quote 单位 per 1 base**
+- 可注入；生产 Frankfurter 类
 
 ## 测试合同
 
-- Fake `ValuationService` / Fake providers 覆盖：全成功、混合、全失败。
-- 断言不再存在「唯一路径」直接 `MarketDataProvider.fetch_prices` 而无 status 的 portfolio 组装（允许内部委托）。
+- Fake Valuation + Fake FX 覆盖：本币多币种、展示折算、FX 失败、非法 display、unsupported ticker。
+- 双后端假源一致（可选 wiring 测试）。

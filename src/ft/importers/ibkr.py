@@ -9,11 +9,14 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any
 
 from ft.importers.ticker_normalize import normalize_equity_ticker
+
+# Max storable scale for NUMERIC(38,18); FX net noise is clamped to this.
+_FX_NET_QUANTUM = Decimal("1e-18")
 
 
 def _normalize_parse_ticker(code: str) -> str:
@@ -77,11 +80,6 @@ def _fmt(value: Decimal | int | str) -> str:
         s = s.rstrip("0").rstrip(".")
     return s or "0"
 
-
-def _fmt_exact(value: Decimal | int | str) -> str:
-    """format(x, 'f') preserving trailing zeros from Decimal arithmetic."""
-    d = value if isinstance(value, Decimal) else Decimal(str(value))
-    return format(d, "f")
 
 
 def parse_ibkr_csv(path: str | Path) -> IbkrStatement:
@@ -369,67 +367,73 @@ def map_ibkr_to_investment_event(
 
 
 def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
-    """Map 外汇交易组成部分 using BASE.QUOTE pair full notional legs.
+    """Map 外汇交易组成部分 to a net cash adjustment.
 
-    Positive qty → buy left / sell right: from=quote, to=base.
-    Commission: if 净额 == 总额, embed commission in note (commission=0).
+    IBKR FX rows report the **net cash impact** in 净额/总额 (usually a tiny
+    spread / P&L amount), NOT the full notional legs. The full notional is only
+    informational via qty × price. Recording qty×price as a swap would double-
+    count the currency movement that is already captured elsewhere (e.g. the
+    deposit that funded the conversion).
+
+    Correct mapping: treat 净额 as a deposit (positive) or withdraw (negative)
+    on the account's base cash ticker. Commission goes to note when 净额==总额.
     """
     code = (txn.get("code") or "").strip()
-    if "." not in code:
-        raise ValueError(f"unparseable IBKR FX pair: {code!r}")
-    left, right = code.split(".", 1)
-    if not left or not right:
-        raise ValueError(f"unparseable IBKR FX pair: {code!r}")
-    base_ccy = left.lower()
-    quote_ccy = right.lower()
-
-    qty_raw = txn.get("qty_raw")
-    price_raw = txn.get("price_raw")
-    if qty_raw is None or price_raw is None:
-        raise ValueError(f"IBKR FX row missing qty/price for pair {code}")
-
-    qty = Decimal(str(qty_raw))
-    price = abs(Decimal(str(price_raw)))
-    left_amt = abs(qty)
-    right_amt = abs(qty) * price
-
-    if qty >= 0:
-        from_ticker, from_amount = quote_ccy, right_amt
-        to_ticker, to_amount = base_ccy, left_amt
-    else:
-        from_ticker, from_amount = base_ccy, left_amt
-        to_ticker, to_amount = quote_ccy, right_amt
-
-    gross = Decimal(str(txn.get("gross") or 0))
     net = Decimal(str(txn.get("net") or 0))
-    commission_raw = txn.get("commission_raw")
+    # FX net is a spread/P&L adjustment; clamp precision to the storable
+    # NUMERIC(38,18) scale (IBKR emits >18 dp noise like 2.75e-7).
+    net = net.quantize(_FX_NET_QUANTUM, rounding=ROUND_HALF_UP)
+    net_abs = abs(net)
     note = base.get("note") or ""
 
-    if commission_raw is not None and net == gross:
+    commission_raw = txn.get("commission_raw")
+    if commission_raw is not None:
         fee_abs = abs(Decimal(str(commission_raw)))
         if fee_abs:
-            fee_note = _fmt(fee_abs)
-            note = f"{note} 佣金{fee_note}".strip()
-        commission = Decimal("0")
-        commission_asset = ""
-    elif commission_raw is not None and net != gross:
-        commission = abs(Decimal(str(commission_raw)))
-        commission_asset = base_ccy if commission else ""
-    else:
-        commission = Decimal("0")
-        commission_asset = ""
+            note = f"{note} 佣金{_fmt(fee_abs)}".strip()
 
-    # Pair notionals use exact product string so unit tests can compare to
-    # str(qty * price); left qty still via _fmt for compact "0.0095".
-    return {
-        **base,
-        "note": note,
-        "action": "swap",
-        "from_ticker": from_ticker,
-        "from_amount": _fmt_exact(from_amount) if from_ticker == quote_ccy else _fmt(from_amount),
-        "to_ticker": to_ticker,
-        "to_amount": _fmt(to_amount) if to_ticker == base_ccy else _fmt_exact(to_amount),
-        "price": _fmt(price),
-        "commission": _fmt(commission),
-        "commission_asset": commission_asset,
-    }
+    # Determine which currency the net amount is in.
+    # For USD.HKD pair, IBKR net is denominated in the account base currency (USD).
+    cash = (base.get("currency") or "USD").lower()
+
+    if net_abs == 0:
+        # Zero net impact — skip as deposit 0 (harmless but clean).
+        return {
+            **base,
+            "note": note or f"FX {code} zero net",
+            "action": "deposit",
+            "to_ticker": cash,
+            "to_amount": "0",
+            "from_ticker": "",
+            "from_amount": "0",
+            "price": "1",
+            "commission": "0",
+            "commission_asset": "",
+        }
+
+    if net > 0:
+        return {
+            **base,
+            "note": note or f"FX {code}",
+            "action": "deposit",
+            "to_ticker": cash,
+            "to_amount": _fmt(net_abs),
+            "from_ticker": "",
+            "from_amount": "0",
+            "price": "1",
+            "commission": "0",
+            "commission_asset": "",
+        }
+    else:
+        return {
+            **base,
+            "note": note or f"FX {code}",
+            "action": "withdraw",
+            "from_ticker": cash,
+            "from_amount": _fmt(net_abs),
+            "to_ticker": "",
+            "to_amount": "0",
+            "price": "1",
+            "commission": "0",
+            "commission_asset": "",
+        }
