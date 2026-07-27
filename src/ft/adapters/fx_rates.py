@@ -123,6 +123,17 @@ def clear_rate_cache() -> None:
     _RATE_CACHE.clear()
 
 
+class FxRateProvider:
+    """Injectable read-only FX mid: *quote* units per 1 *base* unit."""
+
+    def __init__(self, fetcher: Callable[[str, str, str], Decimal | None] | None = None):
+        self._fetcher = fetcher
+
+    def get_mid(self, base: str, quote: str, *, day: str | None = None) -> Decimal | None:
+        day_s = day or date.today().isoformat()
+        return get_mid_rate(day_s, base, quote, fetcher=self._fetcher)
+
+
 def rate_error(
     cash_abs: Decimal,
     loan_abs: Decimal,

@@ -141,6 +141,27 @@ uv run ft import hqmx.xls --source ccb-debit
 同一文件可写入多个账户（`import_batches.target_account_id` 可空）；重复导入同一
 workspace/source/digest 不会重复发布事实；任一行失败会回滚整批。
 
+## Connector 同步
+
+交易所与 Polymarket 可通过 API 手动同步；先创建匹配的账户，并在
+`~/.ft/credentials.yaml` 配置只读凭据（文件会被限制为 `0600`）：
+
+```yaml
+binance:
+  api_key: "your-read-only-api-key"
+  api_secret: "your-api-secret"
+polymarket:
+  proxy_wallet: "0x..."
+```
+
+```bash
+uv run ft sync --source binance --account 币安
+uv run ft sync --source polymarket --account Polymarket
+uv run ft sync --source binance --account 币安 --full  # 忽略游标，重拉并依靠幂等去重
+```
+
+同步先完整拉取外部记录；事件、快照和同步游标只在同一个事务中一起提交。API、映射或校验失败时，本次不会留下部分写入。
+
 如只想检查解析结果，可显式导出 CSV（账户路由与 import 相同）：
 
 ```bash
@@ -240,4 +261,3 @@ facts or rewrites amounts. Historical duplicates are handled by audited logical 
 (`ft fact-delete`); re-import of the same source identity publishes a **new** active fact.
 Legacy `offset_*` / `transfer_account` / `proposed_action` fields are non-authoritative.
 Review: `ft relations pending|accept|reject|later`. Manual re-check: `ft relations check`.
-

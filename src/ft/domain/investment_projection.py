@@ -457,6 +457,10 @@ def apply_investment_event(
                 target, new_shares, ticker=target_ticker, bases=bases,
                 cost=_decimal(target["total_cost"], "cost") + added_cost,
             )
+    elif action == "transfer":
+        # Internal exchange movements are auditable but do not alter this
+        # aggregate account's positions.
+        pass
     elif action == "checkin":
         ticker = to_ticker or from_ticker or currency.lower()
         target = _position(

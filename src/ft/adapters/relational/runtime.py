@@ -7,13 +7,15 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from ft.adapters.market_data import MarketDataProvider
+from ft.adapters.fx_rates import FxRateProvider
+from ft.adapters.market_data import CompositeQuoteProvider, MarketDataProvider
 from ft.application.accounts import AccountService
 from ft.application.cashflow import CashflowService, TransferService
 from ft.application.investment import InvestmentService, PortfolioQueryService
 from ft.application.queries import FinanceQueryService
 from ft.application.statement_import import StatementImportService
 from ft.application.relations import RelationService
+from ft.application.valuation import ValuationService
 from ft.application.wealth import WealthChangeService
 from ft.domain.wealth import ComponentKind, CoverageDisposition
 from ft.runtime import ServiceBundle
@@ -33,7 +35,7 @@ from .investments import RelationalInvestmentCommandRepository
 from ft.adapters.statement_import import StatementParser
 
 
-SCHEMA_REVISION = "20260724_09"
+SCHEMA_REVISION = "20260726_10"
 REQUIRED_TABLES = {
     "workspaces", "accounts", "cash_transactions", "investment_events",
     "ledger_snapshots",
@@ -43,6 +45,7 @@ REQUIRED_TABLES = {
     "wealth_daily_results", "wealth_active_manifests", "wealth_components",
     "wealth_evidence_manifests", "wealth_evidence_items", "wealth_evidence_manifest_items",
     "wealth_coverage_dispositions",
+    "sync_cursors",
 }
 
 
@@ -103,13 +106,17 @@ def build_relational_services(settings) -> ServiceBundle:
     validate_runtime(engine, settings.workspace_id, settings.database_url)
     sessions = create_session_factory(engine)
     uow = RelationalUnitOfWork(sessions, settings.workspace_id)
-    market_data = MarketDataProvider()
+    quote_provider = CompositeQuoteProvider()
+    market_data = MarketDataProvider(quote_provider)
+    valuation = ValuationService(quote_provider)
+    fx_rates = FxRateProvider()
     relations_preview = RelationService(uow)
     queries = FinanceQueryService(
         accounts=RelationalAccountQueryRepository(sessions, settings.workspace_id),
         transactions=RelationalTransactionQueryRepository(sessions, settings.workspace_id),
         snapshots=RelationalSnapshotQueryRepository(sessions, settings.workspace_id),
         market_data=market_data,
+        valuation=valuation,
         relation_projector=relations_preview.project,
     )
     wealth_facts = RelationalWealthFactRepository(sessions, settings.workspace_id)
@@ -758,7 +765,9 @@ def build_relational_services(settings) -> ServiceBundle:
     return ServiceBundle(
         queries=queries,
         portfolio=PortfolioQueryService(
-            RelationalPortfolioRepository(sessions, settings.workspace_id), market_data
+            RelationalPortfolioRepository(sessions, settings.workspace_id),
+            valuation,
+            fx_rates=fx_rates,
         ),
         investments=InvestmentService(
             repository=RelationalInvestmentCommandRepository(uow)

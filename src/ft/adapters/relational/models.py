@@ -569,3 +569,29 @@ class AccountAliasModel(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
 
+
+class SyncCursorModel(Base):
+    __tablename__ = "sync_cursors"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "account_id", "source_type",
+            name="uq_sync_cursors_workspace_account_source",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "account_id"],
+            ["accounts.workspace_id", "accounts.id"],
+            ondelete="CASCADE",
+            name="fk_sync_cursors_workspace_account",
+        ),
+        Index("ix_sync_cursors_workspace", "workspace_id"),
+    )
+
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    account_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    cursor_value: Mapped[str] = mapped_column(String(256), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, onupdate=_now, nullable=False)
+

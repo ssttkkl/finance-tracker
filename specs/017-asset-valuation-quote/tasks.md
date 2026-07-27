@@ -1,167 +1,119 @@
-# Tasks: 实时资产估值接口
+# Tasks: 实时资产估值与持仓市值
 
-**Input**: Design documents from `/specs/017-asset-valuation-quote/`  
-**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
+**Input**: `/specs/017-asset-valuation-quote/`（Living Spec：组合 P0 + 原子 P1）  
+**Tests**: 强制 TDD；假源 + 假 FX。
 
-**Tests**: 强制 TDD。可执行行为、财务语义、接口变更先写失败测试再最小实现。无 schema 迁移；双后端等价以假源输出一致 + 可选 wiring 冒烟证明。
-
-**Organization**: 按用户故事分阶段；Setup/Foundational 无故事标签。
-
-## Format: `- [ ] T### [P?] [US#?] Description with file path`
+## Format: `- [X] T### [P?] [US#?] Description with file path`
 
 ---
 
 ## Phase 1: Setup
 
-**Purpose**: 确认 feature 指针与测试目录
-
-- [ ] T001 Confirm `.specify/feature.json` points to `specs/017-asset-valuation-quote` and branch `017-asset-valuation-quote`
-- [ ] T002 [P] Create test directories `tests/unit/domain/`, `tests/unit/application/`, `tests/unit/adapters/`, `tests/contract/` if missing placeholders for valuation tests
+- [X] T001 Confirm `.specify/feature.json` → `specs/017-asset-valuation-quote` and branch `017-asset-valuation-quote`
+- [X] T002 [P] Ensure test dirs exist for `tests/unit/domain/`, `tests/unit/application/`, `tests/unit/adapters/`, `tests/contract/`
 
 ---
 
-## Phase 2: Foundational (Blocking)
+## Phase 2: Foundational — 原子估值支撑（P1 能力，阻塞组合）
 
-**Purpose**: 领域模型 + Application 骨架 + 假源可注入；所有用户故事依赖此阶段
+**Purpose**: `ValuationService` + providers 可注入，供 US1/US2 调用
 
-**⚠️ CRITICAL**: 未完成前不得接真源或改组合查询
+- [X] T003 [P] Write failing domain tests in `tests/unit/domain/test_valuation_quote.py` (cash=1, freshness table, market_value, non-finite rejection)
+- [X] T004 Implement `src/ft/domain/valuation.py` until T003 passes
+- [X] T005 [P] Write failing `tests/unit/application/test_valuation_service.py` (quote/quote_many, partial/unsupported, batch order, invalid quantity)
+- [X] T006 Implement `src/ft/application/valuation.py` `ValuationService` until T005 passes
+- [X] T007 [P] Add QuoteProvider protocol in `src/ft/repositories/protocols.py` (or valuation-local) per `contracts/valuation-api.md`
+- [X] T008 [P] Write failing `tests/unit/adapters/test_quote_symbol_map.py` (ledger→yfinance/crypto/pm)
+- [X] T009 Implement symbol map + CompositeQuoteProvider (cash/security/crypto/pm, injectable IO) in `src/ft/adapters/market_data.py` until T008 passes; wire into ValuationService for integration tests
+- [X] T010 Apply freshness and non-finite→partial in service/domain per research R4
 
-- [ ] T003 [P] Write failing domain tests in `tests/unit/domain/test_valuation_quote.py` covering cash unit price 1, freshness complete/stale/partial thresholds per `research.md` R2, market_value = price × quantity, reject non-finite prices for complete/stale
-- [ ] T004 Implement domain types and pure helpers in `src/ft/domain/valuation.py` (`AssetKind`, `QuoteStatus`, `AssetRef`, `QuoteResult`, `QuoteBatchResult`, freshness, `compute_market_value`, validation helpers) until T003 passes
-- [ ] T005 [P] Write failing application tests in `tests/unit/application/test_valuation_service.py` for `quote`/`quote_many` with Fake providers: success, unsupported, provider_error→partial, batch order, empty batch, invalid quantity whole-batch fail-closed
-- [ ] T006 Implement `ValuationService` in `src/ft/application/valuation.py` (prevalidate batch, route by kind, map provider outcomes to statuses, attach market_value) until T005 passes
-- [ ] T007 [P] Add `QuoteProvider` / tick protocol surface in `src/ft/repositories/protocols.py` (or valuation-local Protocol module imported by application) matching `contracts/valuation-api.md`
-- [ ] T008 Wire a `CompositeQuoteProvider` stub (cash local + injectable security/crypto/pm) in `src/ft/adapters/market_data.py` or `src/ft/adapters/quotes/composite.py` used by tests; no live network required
-
-**Checkpoint**: Fake 端到端 `ValuationService` 绿
+**Checkpoint**: 原子估值假源绿（支撑，非产品终点）
 
 ---
 
-## Phase 3: User Story 1 — 按标识查询当前单价与状态 (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 — 组合本币市值与状态 (Priority: P0) 🎯
 
-**Goal**: 四类资产单笔估值 + 状态语义  
-**Independent Test**: mock/fake 源下 security/crypto/pm/cash 各至少一条 complete（或 cash complete）；unsupported/partial 无虚构价
+**Goal**: `get_portfolio()` 本币模式消费统一估值  
+**Independent Test**: 多币种假估值持仓均有 quote_status；失败项无虚构市价
 
 ### Tests
 
-- [ ] T009 [P] [US1] Extend `tests/unit/application/test_valuation_service.py` for per-kind success paths and identity_kind_mismatch → unsupported
-- [ ] T010 [P] [US1] Write failing symbol-map tests in `tests/unit/adapters/test_quote_symbol_map.py` for ledger→provider symbols (`aapl.us`→`AAPL`, HK padding, `.sh`→`.SS`, `.sz`→`.SZ`, crypto map, pm parse)
+- [X] T011 [P] [US1] Write failing `tests/unit/application/test_portfolio_valuation.py` for native-currency portfolio (USD/HKD/CNY legs, cash=1, unsupported ticker, quote_status)
+- [X] T012 [P] [US1] Update/fail `tests/test_application_investment.py` portfolio expectations for new DTO fields
 
 ### Implementation
 
-- [ ] T011 [US1] Implement cash provider path (unit price `1`, currency = identity ISO upper, complete) in adapter/service routing
-- [ ] T012 [US1] Implement security symbol mapping + SecurityQuoteProvider adapter (injectable downloader; default yfinance) in `src/ft/adapters/market_data.py` (or `src/ft/adapters/quotes/security.py`)
-- [ ] T013 [US1] Implement crypto provider using `CRYPTO_IDS` from `src/ft/schema.py` with injectable HTTP; unmapped → unsupported
-- [ ] T014 [US1] Implement prediction_market provider for `pm:{slug}:{yes|no}` with injectable HTTP; missing market → unsupported/partial per research
-- [ ] T015 [US1] Apply freshness windows from research R2 after provider tick; beyond maximum → partial and clear price
-- [ ] T016 [US1] Ensure non-finite provider prices map to partial + `non_finite_price` in `src/ft/application/valuation.py`
+- [X] T013 [US1] Extend `PortfolioPositionDTO` in `src/ft/domain/investment.py` with quote_status, quote_reason, quote_currency, display_* and fx_* fields (defaults null)
+- [X] T014 [US1] Implement kind inference helper (research R5) used by portfolio path in `src/ft/application/investment.py` or `src/ft/domain/valuation.py`
+- [X] T015 [US1] Refactor `PortfolioQueryService` to depend on `ValuationService`, fill native price/MV/status for non-zero positions in `src/ft/application/investment.py`
+- [X] T016 [US1] Wire ValuationService in `src/ft/adapters/relational/runtime.py`; remove sole silent get_prices-only path
+- [X] T017 [US1] Update `tests/fakes.py` and all PortfolioPositionDTO constructors
 
-**Checkpoint**: US1 假源矩阵绿；真源可手动可选
+**Checkpoint**: 本币组合 P0 可演示
 
 ---
 
-## Phase 4: User Story 2 — 批量估值与部分成功 (Priority: P1)
+## Phase 4: User Story 2 — 指定展示货币折算 (Priority: P0)
 
-**Goal**: `quote_many` 逐项结果、部分成功  
-**Independent Test**: 10 项混合夹具成功/失败隔离 100%
+**Goal**: `get_portfolio(display_currency=...)` 可审计 FX 折算  
+**Independent Test**: Fake FX 折算精确；FX 失败无 1:1；非法 currency fail-closed
 
 ### Tests
 
-- [ ] T017 [P] [US2] Add batch isolation tests in `tests/unit/application/test_valuation_service.py` (mixed complete/unsupported/partial; all-fail still returns list; empty list)
+- [X] T018 [P] [US2] Extend `tests/unit/application/test_portfolio_valuation.py` for display_currency success, same-currency rate=1, fx_unavailable, invalid display currency
+- [X] T019 [P] [US2] Write failing FX provider unit tests with injectable fetcher in `tests/unit/adapters/test_fx_rate_provider.py` (or extend existing fx tests)
 
 ### Implementation
 
-- [ ] T018 [US2] Harden `quote_many` ordering, summary counts if any, and whole-batch prevalidation only for input errors in `src/ft/application/valuation.py`
-- [ ] T019 [US2] Confirm composite provider does not short-circuit entire batch on single provider exception (catch per item) in adapter layer
+- [X] T020 [US2] Add injectable `FxRateProvider` / today-mid helper in `src/ft/adapters/fx_rates.py` (rate = display per 1 base)
+- [X] T021 [US2] Implement display_currency path on `PortfolioQueryService.get_portfolio` in `src/ft/application/investment.py` per `contracts/portfolio-quote-fields.md`
+- [X] T022 [US2] Align `FinanceQueryService` security valuation with ValuationService + optional display rules in `src/ft/application/queries.py` without claiming cost is mark-to-market
+- [X] T023 [US2] Runtime wire FxRateProvider in `src/ft/adapters/relational/runtime.py`
 
-**Checkpoint**: US2 独立验收绿
+**Checkpoint**: 本币 + 展示币双模式 P0 齐
 
 ---
 
-## Phase 5: User Story 3 — 可选数量得到市值 (Priority: P2)
+## Phase 5: User Story 3 — 原子 API 加固与批量 (Priority: P1)
 
-**Goal**: quantity → market_value  
-**Independent Test**: 有价时市值精确相等；无价时无市值；非法 quantity fail-closed
+**Goal**: 对外原子能力完整可复用  
+**Independent Test**: 四类资产 + 批量混合合同
 
 ### Tests
 
-- [ ] T020 [P] [US3] Add quantity/market_value cases in `tests/unit/domain/test_valuation_quote.py` and `tests/unit/application/test_valuation_service.py`
+- [X] T024 [P] [US3] Extend `tests/unit/application/test_valuation_service.py` for per-kind success and 10-item mixed batch isolation
 
 ### Implementation
 
-- [ ] T021 [US3] Ensure `AssetRef.quantity` validation and `QuoteResult.market_value` population only when price present in `src/ft/domain/valuation.py` and `src/ft/application/valuation.py`
+- [X] T025 [US3] Harden quote_many per-item exception isolation in composite provider / service
+- [X] T026 [US3] Optional CLI `ft quote` and/or portfolio display flag in `src/ft/cli.py` + `tests/test_cli.py` if in scope
 
-**Checkpoint**: US3 绿
-
----
-
-## Phase 6: User Story 4 — 既有组合查询消费统一估值 (Priority: P2)
-
-**Goal**: Portfolio / balances 使用 ValuationService，暴露 quote_status  
-**Independent Test**: Fake 估值下持仓 status 可区分；unsupported 无虚构价
-
-### Tests
-
-- [ ] T022 [P] [US4] Update/fail tests in `tests/test_application_investment.py` for `PortfolioPositionDTO.quote_status` and Fake valuation injection
-- [ ] T023 [P] [US4] Update `tests/test_application_queries.py` and `tests/fakes.py` to Fake ValuationService / compatible port instead of bare `get_prices` only
-
-### Implementation
-
-- [ ] T024 [US4] Extend `PortfolioPositionDTO` in `src/ft/domain/investment.py` with `quote_status` and optional `quote_reason`
-- [ ] T025 [US4] Refactor `PortfolioQueryService` in `src/ft/application/investment.py` to call `ValuationService.quote_many` (infer kind: cash vs security vs crypto vs pm heuristics documented in code comments + research)
-- [ ] T026 [US4] Refactor `FinanceQueryService._account_balances` in `src/ft/application/queries.py` to use valuation results; keep cost fallback only when no price without claiming it is mark-to-market
-- [ ] T027 [US4] Wire `ValuationService` in `src/ft/adapters/relational/runtime.py`; retire sole silent `MarketDataProvider.get_prices` path (thin delegate allowed)
-- [ ] T028 [US4] Fix all PortfolioPositionDTO constructors across tests to include new fields
-
-**Checkpoint**: 组合路径只走统一估值
+**Checkpoint**: 原子能力可交给其他系统
 
 ---
 
-## Phase 7: Polish & Cross-Cutting
+## Phase 6: Polish
 
-- [ ] T029 [P] Optional CLI `ft quote` in `src/ft/cli.py` per `contracts/valuation-api.md` + smoke test in `tests/test_cli.py` if added
-- [ ] T030 [P] Optional dual-backend wiring smoke `tests/contract/test_valuation_wiring_dual_backend.py` with Fake provider
-- [ ] T031 Update `docs/productization-refactor-plan.md` to point Phase 1 live valuation at `017-asset-valuation-quote` (cross-link old 011 name)
-- [ ] T032 Run quickstart commands from `specs/017-asset-valuation-quote/quickstart.md` and record evidence in tasks completion notes
-- [ ] T033 Mark feature checklist/spec status ready for converge; ensure no Alembic head change
-
----
-
-## Dependencies & Execution Order
-
-### Phase dependencies
-
-- Phase 1 → Phase 2 → US1 (Phase 3) → US2 (Phase 4) → US3 (Phase 5) → US4 (Phase 6) → Polish
-- US2 依赖 US1 的 provider 路由但可与 US1 测试并行补强
-- US3 依赖 domain/service 基础（Phase 2/3）
-- US4 依赖 ValuationService 稳定（Phase 2–5 建议完成后再改组合）
-
-### Story completion order
-
-1. **US1 MVP** — 单笔四类资产  
-2. **US2** — 批量部分成功  
-3. **US3** — 市值  
-4. **US4** — 组合接入  
-
-### Parallel opportunities
-
-- T003/T005/T007 在约定接口后可并行起草测试
-- T010 与 T009 并行
-- T022/T023 并行
-- T029/T030/T031 并行
-
-### MVP scope
-
-**T001–T016（Setup + Foundational + US1）** 即可演示正式估值合同；随后 US2–US4 关 Phase 1 组合消费门槛。
+- [X] T027 [P] Optional `tests/contract/test_valuation_wiring_dual_backend.py` Fake valuation+FX on sqlite/pg
+- [X] T028 Update `docs/productization-refactor-plan.md` live valuation → `017` (cross-link old 011)
+- [X] T029 Run `specs/017-asset-valuation-quote/quickstart.md` commands; note evidence
+- [X] T030 Confirm no Alembic head change; mark tasks/spec ready for converge
 
 ---
 
-## Implementation Strategy
+## Dependencies
 
-1. 红绿 domain → service（假源）  
-2. 符号映射与四分 provider  
-3. 批量与市值加固  
-4. 切换 portfolio/queries wiring  
-5. 文档与可选 CLI  
+- Phase 2 → Phase 3 (US1) → Phase 4 (US2) → Phase 5 (US3) → Polish  
+- US1/US2 为 P0 主交付；US3 加固原子面  
+- T003–T010 可与文档并行但必须先于 T015  
 
-**Format validation**: 所有任务均为 `- [ ] T### …` 且含路径；故事阶段含 `[USn]`。
+## MVP
+
+**T001–T017（Foundational + US1 本币组合）** 为最小用户可见切片；**T018–T023** 完成 P0 双模式。
+
+## Parallel
+
+- T003/T005/T008 测试并行  
+- T011/T012 并行  
+- T018/T019 并行  
+- T027/T028 并行  

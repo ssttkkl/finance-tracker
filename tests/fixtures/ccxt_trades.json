@@ -1,0 +1,6 @@
+[
+  {"id": "t1", "symbol": "ETH/USDT", "side": "buy", "price": 3000.5, "amount": 1.5, "cost": 4500.75, "fee": {"cost": 0.001, "currency": "ETH"}, "timestamp": 1690000000000},
+  {"id": "t2", "symbol": "BTC/USDT", "side": "sell", "price": 60000.0, "amount": 0.1, "cost": 6000.0, "fee": {"cost": 6.0, "currency": "USDT"}, "timestamp": 1690000001000},
+  {"id": "t3", "symbol": "ETH/BTC", "side": "buy", "price": 0.05, "amount": 10.0, "cost": 0.5, "fee": {"cost": 0.0, "currency": "BTC"}, "timestamp": 1690000002000},
+  {"id": "t4", "symbol": "SOL/USDT", "side": "buy", "price": 100.0, "amount": 5.0, "cost": 500.0, "fee": null, "timestamp": 1690000003000}
+]

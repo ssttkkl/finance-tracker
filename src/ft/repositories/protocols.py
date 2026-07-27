@@ -70,6 +70,16 @@ class ImportRepository(Protocol):
     ) -> dict[str, tuple[str, str]]:
         ...
 
+    def get_sync_cursor(
+        self, *, account_id: int, source_type: str,
+    ) -> str | None:
+        ...
+
+    def upsert_sync_cursor(
+        self, *, account_id: int, source_type: str, cursor_value: str,
+    ) -> None:
+        ...
+
 
 @runtime_checkable
 class RelationRepository(Protocol):

@@ -135,27 +135,40 @@ class FakePortfolioRepository:
         }
 
 
-class FakeMarketData:
+class FakeQuoteProvider:
     def __init__(self):
         self.calls = []
 
-    def get_prices(self, tickers, *, quote_currency):
-        self.calls.append((tuple(tickers), quote_currency))
-        return {"aapl.us": Decimal("5")}
+    def raw_quote(self, identity, kind):
+        from datetime import datetime, timezone
+        from ft.application.valuation import UnsupportedQuote
+        from ft.domain.valuation import ProviderTick
+
+        self.calls.append((identity, kind))
+        if identity == "aapl.us":
+            return ProviderTick(
+                Decimal("5"), "USD", datetime(2026, 7, 25, tzinfo=timezone.utc), "fake"
+            )
+        raise UnsupportedQuote(identity)
 
 
-def test_portfolio_query_uses_market_port_and_never_prices_configured_currency():
+def test_portfolio_query_uses_valuation_and_never_prices_configured_currency():
     from ft.application.investment import PortfolioQueryService
+    from ft.application.valuation import ValuationService
 
-    market = FakeMarketData()
-    result = PortfolioQueryService(FakePortfolioRepository(), market).get_portfolio()
+    provider = FakeQuoteProvider()
+    result = PortfolioQueryService(
+        FakePortfolioRepository(), ValuationService(provider)
+    ).get_portfolio()
 
     account = result.accounts[0]
     by_ticker = {position.ticker: position for position in account.positions}
-    assert market.calls == [(('aapl.us',), 'USD')]
+    assert ("aapl.us", __import__("ft.domain.valuation", fromlist=["AssetKind"]).AssetKind.SECURITY) in provider.calls
     assert by_ticker["usd"].is_cash is True
     assert by_ticker["aapl.us"].market_value == Decimal("10")
+    assert by_ticker["aapl.us"].quote_status == "complete"
     assert by_ticker["usdt"].market_value is None
+    assert by_ticker["usdt"].quote_status == "unsupported"
 
 
 def test_investment_application_imports_do_not_touch_home(monkeypatch):
@@ -182,7 +195,7 @@ def test_cli_stock_leaves_enter_investment_services(monkeypatch, capsys):
             return OperationResult(ok=True, message="bought")
 
     class Portfolio:
-        def get_portfolio(self):
+        def get_portfolio(self, *, display_currency=None):
             calls.append(("list",))
             return PortfolioDTO(())
 
@@ -234,24 +247,23 @@ def test_created_investment_account_currency_is_valued_as_cash():
     ))
     assert service.deposit("100", "USD", "Broker").ok
 
-    class MarketData:
-        def __init__(self):
-            self.calls = []
+    class EmptyProvider:
+        def raw_quote(self, identity, kind):
+            from ft.application.valuation import UnsupportedQuote
+            raise UnsupportedQuote(identity)
 
-        def get_prices(self, tickers, *, quote_currency):
-            self.calls.append((tuple(tickers), quote_currency))
-            return {}
+    from ft.application.valuation import ValuationService
 
-    market = MarketData()
     result = PortfolioQueryService(
-        RelationalPortfolioRepository(sessions, "workspace-a"), market
+        RelationalPortfolioRepository(sessions, "workspace-a"),
+        ValuationService(EmptyProvider()),
     ).get_portfolio()
 
     position = result.accounts[0].positions[0]
     assert position.ticker == "usd"
     assert position.is_cash is True
     assert position.market_value == Decimal("100")
-    assert market.calls == []
+    assert position.quote_status == "complete"
 
 
 def test_postgres_investment_commands_write_events_and_projection_atomically():
