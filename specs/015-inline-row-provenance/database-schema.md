@@ -156,12 +156,12 @@ workspaces  (租户隔离根)
 
 | 列 | 类型 | 空 | 说明 |
 |---|---|---|---|
-| `event_id` | String(128) **PK** | N | 确定性事件身份 |
+| `event_id` | String(128) **PK** | N | 确定性事件标识 |
 | `workspace_id` | String(64) FK→workspaces | N | CASCADE |
 | `account_id` | String(36) | N | 复合 FK→accounts，`RESTRICT` |
 | `event_kind` | String(16) | N | 事件种类 |
 | `effective_at` | UTCDateTime | N | 生效时刻 |
-| `source_identity` | String(255) | N | 来源身份 |
+| `source_identity` | String(255) | N | 来源标识 |
 | `source_revision` | String(128) | N | 来源修订 |
 | `reason` | Text | N | 默认 `""` |
 | `created_at` | UTCDateTime | N | |
@@ -214,7 +214,7 @@ workspaces  (租户隔离根)
 | `workspace_id` | String(64) FK→workspaces | N | CASCADE |
 | `account_id` | String(36) | N | 复合 FK→accounts `RESTRICT` |
 | `source_type` | String(64) | Y | **导入渠道名**（幂等复合键的一半；如 alipay/wechat/券商 kind）；手工可空 |
-| `record_id` | String(512) | Y* | **业务行键**（平台流水/展示号或确定性内容键）；与 `source_type` 组成幂等；账单派生应非空；手工可空。空串视为「无身份」（见约束） |
+| `record_id` | String(512) | Y* | **业务行键**（平台流水/展示号或确定性内容键）；与 `source_type` 组成幂等；账单派生应非空；手工可空。空串视为「无标识」（见约束） |
 | `source_payload` | JSON | Y | 行级原始快照（匹配/排障；可含原 payment 文案等）；手工可空 |
 | `occurred_at` | UTCDateTime | N | 发生时刻（UTC） |
 | `amount` | ExactDecimal | N | 有符号金额 |
@@ -227,7 +227,7 @@ workspaces  (租户隔离根)
 | `deleted_by` | String(128) | N | 删除操作者（行内审计；无独立删除事件表） |
 | `delete_reason` | Text | N | 删除原因 |
 
-\* 应用层：空 `record_id` 或空 `source_type` 表示无完整业务身份（手工）；**二者皆非空**才参与幂等。
+\* 应用层：空 `record_id` 或空 `source_type` 表示无完整业务标识（手工）；**二者皆非空**才参与幂等。
 
 **约束 / 索引**
 
@@ -235,7 +235,7 @@ workspaces  (租户隔离根)
 - **部分唯一** `uq_cash_transactions_active_source_record`（PG/SQLite partial）：  
   `(workspace_id, source_type, record_id)`  
   **WHERE** `source_type IS NOT NULL AND source_type <> '' AND record_id IS NOT NULL AND record_id <> '' AND deleted_at IS NULL`  
-  → 活跃账单行按 **`record_id` × `source_type`** 不双记；逻辑删除后同一复合身份可再入账为新行；跨渠道相同 `record_id` 字面不冲突
+  → 活跃账单行按 **`record_id` × `source_type`** 不双记；逻辑删除后同一复合标识可再入账为新行；跨渠道相同 `record_id` 字面不冲突
 - `ix_cash_transactions_workspace_date`：`(workspace_id, occurred_at)`
 - `ix_cash_transactions_workspace_account`：`(workspace_id, account_id)`
 - `ix_cash_transactions_workspace_source_record`：`(workspace_id, source_type, record_id)`（查询/幂等查找）
@@ -243,7 +243,7 @@ workspaces  (租户隔离根)
 **规则**
 
 - 账单派生：`source_type`（导入渠道名）、`record_id`、`source_payload` 均应非空（应用层强制）。
-- 手工事实：身份相关字段可空；不占用 partial unique。
+- 手工事实：标识相关字段可空；不占用 partial unique。
 - 幂等比较单位永远是 **`(source_type, record_id)`**，不是裸 `record_id`。
 - `source_payload` 至少覆盖 relations hard-key / 日期几何所需键；允许瘦身，不得丢匹配字段。
 - **015 删除**列：`raw_record_id`、`offset_*`、`proposed_action`、`locked`、`transfer_account`、`source`、`bill_source`、以及无改账语义时的 `revision`。核销/转账权威在 `transaction_relations` + 正式 `category`。
@@ -264,9 +264,9 @@ workspaces  (租户隔离根)
 | `action` | String(64) | N | 原 `kind`；如 swap/deposit/withdraw/dividend/fee/ipo 等 |
 | `currency` | String(3) | N | 默认 `""` |
 | `note` | Text | N | |
-| `from_ticker` | String(64) | N | 支出腿标的 |
+| `from_ticker` | String(64) | N | 付出资产标的 |
 | `from_amount` | ExactDecimal | Y | 支出数量/金额 |
-| `to_ticker` | String(64) | N | 收入腿标的 |
+| `to_ticker` | String(64) | N | 换入资产标的 |
 | `to_amount` | ExactDecimal | Y | 收入数量/金额 |
 | `commission` | ExactDecimal | Y | 佣金/费用 |
 | `commission_asset` | String(64) | N | 费用币种/资产 |
@@ -323,8 +323,8 @@ workspaces  (租户隔离根)
 | `workspace_id` | String(64) FK→workspaces | N | CASCADE |
 | `kind` | String(32) | N | `payment_mirror` / `transfer_pair` / `refund_offset` |
 | `subtype` | String(64) | N | 如 credit_repayment；可空串 |
-| `primary_fact_id` | String(36) | N | 角色化主键腿 |
-| `secondary_fact_id` | String(36) | Y | 对侧腿；open-leg 可空 |
+| `primary_fact_id` | String(36) | N | 按关系角色记录的流水主键 |
+| `secondary_fact_id` | String(36) | Y | 对侧流水；open-leg 可空 |
 | `primary_fact_type` | String(32) | N | 默认 `cash` |
 | `secondary_fact_type` | String(32) | Y | |
 | `ordered_fact_a` | String(36) | N | 排序后业务键 A |
@@ -367,7 +367,7 @@ workspaces  (租户隔离根)
 
 ## 7. Wealth 归因读模型
 
-> 身份多为**确定性内容键**（非随机 UUID），便于幂等重建。金额用 `ExactDecimal` 或 canonical 文本。
+> 标识多为**确定性内容键**（非随机 UUID），便于幂等重建。金额用 `ExactDecimal` 或 canonical 文本。
 
 ### 7.1 `valuation_observations`
 
@@ -378,7 +378,7 @@ workspaces  (租户隔离根)
 | `observation_id` | String(128) **PK** | N | |
 | `workspace_id` | String(64) FK→workspaces | N | CASCADE |
 | `identity_kind` | String(32) | N | cash_account / position / instrument_quote / currency_pair / fx |
-| `identity` | String(255) | N | 稳定身份；现金为 `{account_id}:{currency}` |
+| `identity` | String(255) | N | 稳定标识；现金为 `{account_id}:{currency}` |
 | `owner_account_id` | String(36) | Y | 账户持有类必填；报价/FX 为空。复合 FK→accounts `RESTRICT` |
 | `observation_kind` | String(32) | N | boundary_checkin / quantity_checkin / quote / fx 等 |
 | `value` | ExactDecimal | N | |
@@ -386,10 +386,10 @@ workspaces  (租户隔离根)
 | `unit` | String(32) | N | |
 | `as_of` | UTCDateTime | N | 适用时刻 |
 | `observed_at` | UTCDateTime | N | 观测/发布时间 |
-| `source_identity` | String(255) | N | 观测来源身份（非导入文件表） |
+| `source_identity` | String(255) | N | 观测来源标识（非导入文件表） |
 | `source_revision` | String(128) | N | 修正追加新 revision，不原地改 |
 | `trust` | String(32) | N | trusted_checkin / trusted_provider 等 |
-| `created_at` | UTCDateTime | N | 不参与财务身份 |
+| `created_at` | UTCDateTime | N | 不参与财务标识 |
 
 **约束**
 

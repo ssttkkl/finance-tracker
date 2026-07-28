@@ -2,7 +2,8 @@
 
 可执行行为的唯一事实源是 [`.specify/memory/constitution.md`](../.specify/memory/constitution.md) 与 `specs/<feature>/{spec,plan,tasks}.md`。本目录只保存使用说明、顶层路线和冻结的产品决策记录。
 
-运行时：`FT_DATABASE_URL` 选择 **PostgreSQL 或文件型 SQLite** 之一——无 fallback、无 dual-write、无隐式跨后端迁移。
+运行时：`FT_DATABASE_URL` 选择 **PostgreSQL 或文件型 SQLite** 之一——不得自动回退（no fallback）、不得双写（dual-write）、不得隐式迁移（implicit migration）。
+SQLite 遇到繁忙、读写权限或 schema 错误时会直接报告，不会静默改用其他存储后端。
 
 ## 当前基线（Phase 1 关账后）
 

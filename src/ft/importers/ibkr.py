@@ -1,7 +1,7 @@
 """Interactive Brokers (IBKR) Activity Statement CSV importer.
 
 Parses multi-section Chinese-label Activity CSV (Transaction History + 总结).
-Fee contract (equity): cash leg = abs(总额), commission = abs(佣金) once — never
+Fee contract (equity): cash component = abs(总额), commission = abs(佣金) once — never
 cash_leg=abs(净额) with non-zero commission (see research.md / FR-015).
 """
 
@@ -370,7 +370,7 @@ def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
     """Map 外汇交易组成部分 to a net cash adjustment.
 
     IBKR FX rows report the **net cash impact** in 净额/总额 (usually a tiny
-    spread / P&L amount), NOT the full notional legs. The full notional is only
+    spread / P&L amount), NOT the full notional sides. The full notional is only
     informational via qty × price. Recording qty×price as a swap would double-
     count the currency movement that is already captured elsewhere (e.g. the
     deposit that funded the conversion).

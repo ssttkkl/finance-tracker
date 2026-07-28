@@ -33,7 +33,7 @@ def project_balances_and_pnl(
 ) -> ProjectionResult:
     """Balance = all active facts; P&L: mirror → exclude transfer → refund_offset.
 
-    Open-leg rows (null other / open_leg evidence) never affect nets even if
+    `open_leg` rows (null secondary / open_leg evidence) never affect nets even if
     status is incorrectly accepted — FR-042/033.
     """
     active = [f for f in facts if not f.deleted]

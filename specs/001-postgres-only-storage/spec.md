@@ -68,7 +68,7 @@
 
 **Why this priority**: 删除文件存储不能误伤真实的数据获取方式，但中间文件不能重新演化成第二账本。
 
-**Independent Test**: 导入每种当前受支持的原始账单格式，验证原始文件身份和解析结果进入统一导入
+**Independent Test**: 导入每种当前受支持的原始账单格式，验证原始文件标识和解析结果进入统一导入
 流程，正式提交只产生数据库事实，不生成可运行的文件账本。
 
 **Acceptance Scenarios**:
@@ -102,14 +102,14 @@
 - **FR-006**: 依赖 Git 文件账本语义且没有独立产品价值的命令 MUST 被删除，不保留兼容别名。
 - **FR-007**: CSV、JSON、YAML、XLS/XLSX 和 PDF MAY 作为原始导入输入，但 MUST NOT 成为运行时账本、
   中间事实源、当前快照或回退存储；本 feature 的 required matrix 只包含开始时已有 parser 的格式。
-- **FR-008**: 原始输入的内容摘要、来源身份、解析结果、正式提交和后续修订 MUST 在 PostgreSQL 中可追溯。
+- **FR-008**: 原始输入的内容摘要、来源标识、解析结果、正式提交和后续修订 MUST 在 PostgreSQL 中可追溯。
 - **FR-009**: 缺少数据库、schema 或 workspace 配置时，系统 MUST 失败关闭并提供直接错误，不得创建本地存储。
 - **FR-010**: 所有写入 MUST 使用数据库事务保证原子性；失败事务不得发布部分正式事实。
 - **FR-011**: workspace 隔离 MUST 保持；调用方不得在 repository 操作中覆盖已绑定 workspace。
 - **FR-012**: 未发布的 PostgreSQL schema 和 migration history MAY 重建为一个干净基线，不要求兼容旧开发数据库。
 - **FR-013**: 旧 backend 配置、命令、代码、测试、依赖和文档 MUST 在同一 feature 中删除，不得留下不可达兼容层。
 - **FR-014**: 本 feature MUST NOT 引入本地数据迁移、运行时回滚或双写阶段。
-- **FR-015**: 本 feature MUST NOT 同时引入财富报告、Web 认证、Review Inbox、Connector、AI 或 MCP 新能力。
+- **FR-015**: 本 feature MUST NOT 同时引入财富报告、Web 认证、关系审查列表、Connector、AI 或 MCP 新能力。
 - **FR-016**: 依赖本地凭据、mapping 或事件 CSV 的 Connector sync 和文件型 reconcile MUST 从当前
   产品入口移除；它们只能在后续具备 PostgreSQL-native 状态与审计模型的独立 feature 中重新引入。
 - **FR-017**: 系统 MUST 保留账户、现金、转账、投资手工写入、查询和当前 statement parser 矩阵的
@@ -126,7 +126,7 @@
   按 workspace `Asia/Shanghai` 解释，正式事实统一保存为 UTC `timestamptz`，查询再按 workspace 时区分桶。
 - **FR-022**: 导入的内容摘要、大小和解析结果 MUST 来自同一次不可变源文件捕获；PDF
   解密与文本提取只能在权限受限的临时目录中进行，不得在原账单旁生成明文 sidecar；密码
-  MUST NOT 通过 CLI 参数值或子进程参数暴露。同一 provider 记录身份在重叠账单或同一文件中只能
+  MUST NOT 通过 CLI 参数值或子进程参数暴露。同一 provider 记录标识在重叠账单或同一文件中只能
   投影一次；每个 import batch MUST 独立保留其显式目标账户，即使该批次全部记录都与旧批次重叠。
 - **FR-023**: 并发请求 MUST 使用隔离的 database session/UoW；投影读改写 MUST 串行化，不得
   因后写覆盖丢失已提交的事实增量。

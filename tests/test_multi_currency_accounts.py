@@ -1,4 +1,4 @@
-"""Multi-currency name-unique accounts: pockets, cash writes, transfers."""
+"""Name-unique multi-currency accounts: balances, cash writes, and transfers."""
 from __future__ import annotations
 
 from decimal import Decimal
@@ -51,7 +51,7 @@ def test_create_optional_seed_currency_only_seeds_zero_pocket():
         snapshots=RelationalSnapshotQueryRepository(sessions, "workspace-a"),
         market_data=FakeMarketDataProvider(),
     )
-    # Optional seed is for display pocket only; without writes balance may be 0 pocket or empty.
+    # The optional seed only initializes a displayed zero balance; without writes it may be zero or absent.
     # After seed path, cash write still requires explicit operation currency.
     from ft.application.cashflow import CashflowService
 

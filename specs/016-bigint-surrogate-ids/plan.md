@@ -48,7 +48,7 @@ Rebuild in-scope tables in one Alembic revision when ALTER cannot change PK type
 1. `accounts` (+ rewrite FKs that point at accounts)  
 2. `cash_transactions` / `investment_events`  
 3. `account_aliases`  
-4. `transaction_relations` (endpoints + own PK；保留开放单腿关系的空有序端点)
+4. `transaction_relations` (endpoints + own PK；保留待配对关系的空有序端点)
 5. Wealth/lifecycle **account_id / owner_account_id** columns only  
 6. Drop any leftover UUID id columns  
 
@@ -64,7 +64,7 @@ Rebuild in-scope tables in one Alembic revision when ALTER cannot change PK type
 
 Same pattern as 015: backup → upgrade → verify counts/projections.
 
-### 开放单腿关系迁移合同（2026-07-25 Flow-Back）
+### 待配对关系迁移合同（2026-07-25 Flow-Back）
 
 `ordered_fact_a` 与 `ordered_fact_b` 在 015 数据中可为 `NULL`，例如开放的
 `refund_offset` 与 `transfer_pair`。SQLite 和 PostgreSQL 的新 schema 都必须保持这两列可空：

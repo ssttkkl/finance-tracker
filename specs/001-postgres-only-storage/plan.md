@@ -55,7 +55,7 @@ naive 中国账单时间按 Asia/Shanghai 解释后存 UTC；不创建 `~/.ft`
 - 账户使用稳定 ID，正式事实和投影不再把账户名当引用；重命名不会改写历史归属，有事实的账户禁止硬删除。
 - statement import 的 artifact、raw record、formal fact link 和 batch 状态同事务提交。
 - database snapshot 仅是可重建投影，不是第二事实源；不从 CSV/YAML 重建。
-- 旧 reconcile 依赖文件型 review session，当前 feature 删除产品入口和实现；数据库 Review Inbox
+- 旧 reconcile 依赖文件型 review session，当前 feature 删除产品入口和实现；数据库关系审查列表
   属于后续独立 feature，未夹带进本 feature。
 - 无 constitution 违例，无需 Complexity Tracking 例外。
 
@@ -89,7 +89,7 @@ CLI / future Web / Worker / MCP
   当前已支持 provider/format 的 statement import。
 - `convert --output` 可保留为显式导出工具；输出文件不是 runtime fact，也不触发文件账本注册。
 - 删除：`commit`、`status`、`reset`、`migrate *`、CSV snapshot `verify --fix`、converted CSV `append`。
-- 删除当前文件型 `reconcile` 和 local-backed Connector sync 入口；它们分别等待数据库 Review Inbox
+- 删除当前文件型 `reconcile` 和 local-backed Connector sync 入口；它们分别等待数据库关系审查列表
   和 PostgreSQL-native Connector feature 再恢复。
 
 ### Transaction and provenance flow
@@ -239,7 +239,7 @@ financial invariant.
 
 - 旧 `~/.ft` 数据迁移、自动清理或导出：开发数据可丢弃，应用完全忽略。
 - schema 兼容链与 runtime rollback：未上线数据库直接重建 initial baseline。
-- Review Inbox/reconcile UI 与人工审批：需要独立 PostgreSQL 状态模型，后续 feature 恢复。
+- 关系审查列表、`reconcile` UI 与人工审批：需要独立 PostgreSQL 状态模型，后续 feature 恢复。
 - Connector sync：需要 secret、mapping、provider 失败与 DB 幂等合同，后续独立 feature 恢复。
 - 财富变化报告、Web、认证、Worker、AI 和 MCP：保持当前 feature 单一目标。
 - JSON/YAML statement provider：当前 CLI 没有这类 parser，本 feature 只覆盖开始时已支持的 provider/format。

@@ -77,7 +77,7 @@ def evaluate_payment_mirror(
         if cand.fact_type != FactType.CASH.value:
             continue
         # Distinctness is platform×bank source families + fact ids on the **same** account.
-        # Cross-account is never a payment_mirror (mapping should land both legs on the card).
+        # Cross-account is never a payment_mirror (mapping should land both sides on the card).
         if cand.account_id != seed.account_id:
             continue
         cand_group = source_group(cand)
@@ -89,7 +89,7 @@ def evaluate_payment_mirror(
         if str(cand.currency).upper() != str(seed.currency).upper():
             continue
         cand_amount = cand.signed_amount
-        # External payment legs are same-sign expenses (or same-sign refunds).
+        # External payment rows are same-sign expenses (or same-sign refunds).
         if (seed_amount > 0) != (cand_amount > 0):
             continue
         amount_delta = seed_amount - cand_amount
@@ -255,7 +255,7 @@ def evaluate_payment_mirror(
         if m[2] == RelationStatus.ACCEPTED.value and _as_decimal(m[1].amount_delta) == 0
     ]
     # Same-account / date-only / refund-dual tiers: multi-candidate → pick nearest (best
-    # already sorted). Bank date-only rows are often identical "消费" legs; pairing any
+    # already sorted). Bank date-only rows are often identical "消费" sides; pairing any
     # 1-1 is fine. Global greedy still ensures each fact is used once.
     _NEAREST_OK = frozenset({
         RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1,

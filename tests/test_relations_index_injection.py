@@ -25,7 +25,7 @@ def test_without_refund_gates_no_refund_bucket_hits():
     exp = _fv("e", "-10.00", src="alipay", desc="消费", day="2026-01-01")
     ref = _fv("r", "10.00", src="alipay", desc="退款成功", day="2026-01-02")
     idx = FactCandidateIndex([exp, ref], source_group=source_group, refund_gates=None)
-    # refund leg not indexed without gates
+    # Do not index the refund side unless its gates pass.
     assert idx.refund_candidates(ref) == []
 
 

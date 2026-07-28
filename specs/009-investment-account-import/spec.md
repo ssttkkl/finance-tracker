@@ -88,7 +88,7 @@ Living updates (2026-07-23): IBKR US5; DFZQ peel (FR-001a); US3/US4 → 012; **S
 **Acceptance Scenarios**:
 
 1. **Given** 用户有一份 IBKR Activity CSV（含买/卖/存款/股息/预扣税/借方利息/外汇交易组成部分与 总结 期末现金），**When** 执行 `ft import statement.csv --source ibkr --account 盈透`，**Then** 系统解析 CSV、创建 import batch、raw_records（source_type=`ibkr_csv`）、投资事件并在同一事务中更新快照；末尾追加 base 货币现金 CHECKIN = 总结.期末现金。
-2. **Given** 权益买卖行满足 `净额 = 总额 + 佣金`（佣金≤0），**When** 映射为 SWAP，**Then** 现金腿金额 = `abs(总额)`，`commission = abs(佣金)` 且 `commission_asset = base`，投影后现金变动等于 `abs(净额)`，**不得**再对净额与佣金同时全额扣减（双计费）。
+2. **Given** 权益买卖行满足 `净额 = 总额 + 佣金`（佣金≤0），**When** 映射为 SWAP，**Then** 现金部分金额 = `abs(总额)`，`commission = abs(佣金)` 且 `commission_asset = base`，投影后现金变动等于 `abs(净额)`，**不得**再对净额与佣金同时全额扣减（双计费）。
 3. **Given** 行类型为 存款 / 股息 / 外国预扣税 / 借方利息 / 外汇交易组成部分，**When** 导入，**Then** 分别映射为 deposit / dividend / withdraw / withdraw / multi-ccy swap（规则见 research.md）；未知 交易类型 MUST 整批失败并报告行内容。
 4. **Given** 用户重复导入同一 CSV，**When** 检查 source_digest 与 source_identity，**Then** 返回幂等结果，不重复事件、不改快照。
 5. **Given** 在 PostgreSQL 与 SQLite 上用同一 fixture 与账户配置导入，**When** 比较结果，**Then** 事件数量、金额（Decimal）、ticker、期末现金 CHECKIN 一致。
@@ -108,7 +108,7 @@ Living updates (2026-07-23): IBKR US5; DFZQ peel (FR-001a); US3/US4 → 012; **S
 **Acceptance Scenarios**:
 
 1. **Given** Schwab CSV（列：日期/类型/说明/参照号码/杂费/佣金/金额/余额；含 TRD/DOI/JRN/WIN），**When** `ft import … --source schwab --account 嘉信`，**Then** 解析、batch、raw_records（`source_type=schwab_csv`）、investment_events、快照在同一事务完成；末尾 cash CHECKIN = **按时间最新一行的余额**。
-2. **Given** TRD 行满足余额恒等式 `Δ余额 = 金额 + 杂费`（佣金样本常为 0），**When** 映射 SWAP，**Then** 现金腿 = `abs(金额)`，`commission = abs(杂费)+abs(佣金)`，`commission_asset=usd`；投影现金 = 金额+杂费；**禁止** 现金腿用 `abs(金额+杂费)` 再写非零 commission。
+2. **Given** TRD 行满足余额恒等式 `Δ余额 = 金额 + 杂费`（佣金样本常为 0），**When** 映射 SWAP，**Then** 现金部分 = `abs(金额)`，`commission = abs(杂费)+abs(佣金)`，`commission_asset=usd`；投影现金 = 金额+杂费；**禁止** 现金部分用 `abs(金额+杂费)` 再写非零 commission。
 3. **Given** 类型映射：TRD BOT/SOLD→swap；WIN 入金→deposit；DOI 正额股息→dividend、负额利息→withdraw；JRN 负额预扣→withdraw、REFUND/正额→deposit，**When** 导入，**Then** 符合 research.md；未知 类型 fail-closed。
 4. **Given** 重复导入同一文件，**When** source_digest / source_identity（参照号码），**Then** 幂等、无重复事件。
 5. **Given** SQLite 与真实 PostgreSQL 同一 fixture，**When** 比较，**Then** 事件与期末现金 CHECKIN 一致。
@@ -140,9 +140,9 @@ Living updates (2026-07-23): IBKR US5; DFZQ peel (FR-001a); US3/US4 → 012; **S
 - **FR-001a**: 对 DFZQ 证券买卖，系统 MUST 采用 **peel 费用合同**（与 IBKR 的「总额+commission」不同，但共享「同一分钱只记一次」约束）：
   - 源字段「总发生金额」为 **净额**（已含手续费/印花税/过户费后的资金变动）。
   - 当「手续费」可拆分时：买入 `from_amount = |净额| - 手续费`、`commission = 手续费`、`commission_asset = cny`（投影现金流出 = from + commission = |净额|）；卖出 `to_amount = |净额| + 手续费`、`commission = 手续费`（投影现金流入 = to − commission = |净额|）。
-  - 当手续费缺失或买入侧无法干净拆分（手续费 ≥ |净额|）时：现金腿 = |净额| 且 `commission = 0`。
-  - 印花税/过户费默认留在现金腿（不强制 peel）。
-  - MUST NOT 在现金腿已含某笔手续费的同时再把同一笔手续费写入非零 `commission`（双计禁止）。
+  - 当手续费缺失或买入侧无法干净拆分（手续费 ≥ |净额|）时：现金部分 = |净额| 且 `commission = 0`。
+  - 印花税/过户费默认留在现金部分（不强制 peel）。
+  - MUST NOT 在现金部分已含某笔手续费的同时再把同一笔手续费写入非零 `commission`（双计禁止）。
 
 - **FR-002**: 系统 MUST 使用 `raw_records.source_identity`（基于文件哈希与记录业务键如日期+ticker+金额组合）进行幂等去重；重复导入同一对账单时，系统 MUST 拒绝重复记录并返回幂等结果，不创建重复的 `investment_events` 或修改快照。
 
@@ -170,15 +170,15 @@ Living updates (2026-07-23): IBKR US5; DFZQ peel (FR-001a); US3/US4 → 012; **S
 
 - **FR-014**: 系统 MUST 支持通过 `ft import <file> --source ibkr --account <account_name>` 导入 Interactive Brokers Activity Statement 风格的 Transaction History CSV，解析为投资事件并写入 `investment_events`，batch → raw_records → events → snapshot 在同一事务中完成；`raw_records.source_type` MUST 为 `ibkr_csv`。
 
-- **FR-015**: 对 IBKR 权益「买/卖」，系统 MUST 采用 **总额 + commission** 费用合同：SWAP 现金腿 = `abs(总额)`，`commission = abs(佣金)`（空佣金视为 0），`commission_asset` = 账户/总结基础货币小写 ticker；MUST NOT 在现金腿已使用 `abs(净额)` 时再写入非零 commission（双计费禁止）。投影后单笔现金影响 MUST 等于该行 `净额` 的绝对值方向一致结果。
+- **FR-015**: 对 IBKR 权益「买/卖」，系统 MUST 采用 **总额 + commission** 费用合同：SWAP 现金部分 = `abs(总额)`，`commission = abs(佣金)`（空佣金视为 0），`commission_asset` = 账户/总结基础货币小写 ticker；MUST NOT 在现金部分已使用 `abs(净额)` 时再写入非零 commission（双计费禁止）。投影后单笔现金影响 MUST 等于该行 `净额` 的绝对值方向一致结果。
 
-- **FR-016**: IBKR 非权益类型映射 MUST 为：`存款`→`deposit`，`股息`→`dividend`（现金分红），`外国预扣税`→`withdraw`，`借方利息`→`withdraw`，`外汇交易组成部分`→`swap`。FX 规则：代码 `BASE.QUOTE`（如 `USD.HKD`）；左腿数量 = abs(数量)，右腿数量 = abs(数量)×价格（Price Currency）；买卖方向由数量/净额符号决定（买左/卖右或相反须与样本一致并单测锁定）；若该行 `净额 == 总额`（佣金已嵌在总额内），MUST `commission=0` 且佣金写入 note——**不得**再对 commission 字段扣减。无法解析 pair 或缺少数量/价格 MUST fail-closed。未知 `交易类型` MUST fail-closed。验收以 base 货币现金 CHECKIN 为准；非 base 货币仓位（如 hkd）允许非零残差，不得为对齐而发明金额。
+- **FR-016**: IBKR 非权益类型映射 MUST 为：`存款`→`deposit`，`股息`→`dividend`（现金分红），`外国预扣税`→`withdraw`，`借方利息`→`withdraw`，`外汇交易组成部分`→`swap`。FX 规则：代码 `BASE.QUOTE`（如 `USD.HKD`）；左侧资产数量 = abs(数量)，右侧资产数量 = abs(数量)×价格（Price Currency）；买卖方向由数量/净额符号决定（买左/卖右或相反须与样本一致并单测锁定）；若该行 `净额 == 总额`（佣金已嵌在总额内），MUST `commission=0` 且佣金写入 note——**不得**再对 commission 字段扣减。无法解析 pair 或缺少数量/价格 MUST fail-closed。未知 `交易类型` MUST fail-closed。验收以 base 货币现金 CHECKIN 为准；非 base 货币仓位（如 hkd）允许非零残差，不得为对齐而发明金额。
 
 - **FR-017**: IBKR 导入 MUST 在流水事件之后追加 **一条** base 货币现金 CHECKIN，金额取自 CSV「总结」`期末现金`；本 CSV 无持仓成本表时 MUST NOT 发明持仓 CHECKIN。`source_identity` MUST 使用稳定业务键（见 research.md `ibkr:…` 配方）。
 
 - **FR-018**: 系统 MUST 支持通过 `ft import <file> --source schwab --account <account_name>` 导入 Charles Schwab Transaction History 风格 CSV，解析为投资事件并写入 `investment_events`，batch → raw_records → events → snapshot 在同一事务中完成；`raw_records.source_type` MUST 为 `schwab_csv`。
 
-- **FR-019**: 对 Schwab TRD，系统 MUST 采用 **金额 + 杂费** 费用合同：SWAP 现金腿 = `abs(金额)`；`commission = abs(杂费) + abs(佣金)`（空/`-` 视为 0），`commission_asset = usd`（或账户 base）；MUST NOT 以 `abs(金额+杂费)` 为现金腿同时写入非零 commission。投影后单笔现金影响 MUST 等于该行 `金额 + 杂费`（与余额差分一致）。
+- **FR-019**: 对 Schwab TRD，系统 MUST 采用 **金额 + 杂费** 费用合同：SWAP 现金部分 = `abs(金额)`；`commission = abs(杂费) + abs(佣金)`（空/`-` 视为 0），`commission_asset = usd`（或账户 base）；MUST NOT 以 `abs(金额+杂费)` 为现金部分同时写入非零 commission。投影后单笔现金影响 MUST 等于该行 `金额 + 杂费`（与余额差分一致）。
 
 - **FR-020**: Schwab 非 TRD 映射 MUST 为：`WIN` 入金→`deposit`；`DOI` 金额>0（股息）→`dividend`，金额<0（利息等）→`withdraw`；`JRN` 金额<0→`withdraw`，金额>0 或说明含 REFUND→`deposit`。未知 `类型` 或 TRD 说明无法解析 BOT/SOLD MUST fail-closed。
 

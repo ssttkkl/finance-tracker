@@ -73,7 +73,7 @@ def _position(positions: dict, ticker: str, cost_currency: str, *, bases: Abstra
     position["shares"] = _text(_decimal(position.get("shares", 0), "shares"))
     position["total_cost"] = _text(_decimal(position.get("total_cost", 0), "total_cost"))
     if _is_base(ticker, bases):
-        # Base pockets never conflict: always native face unit.
+        # Base-currency balances never conflict: always native face unit.
         position["cost_currency"] = ticker.upper()
         return position
     existing_currency = position.get("cost_currency") or cost_currency

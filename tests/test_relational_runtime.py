@@ -94,7 +94,7 @@ def test_cli_renders_each_runtime_notice_once(monkeypatch, capsys):
     monkeypatch.setattr("ft.cli.build_services", lambda _settings: bundle)
 
     assert cli._runtime_services() is bundle
-    assert capsys.readouterr().err == "WARNING: safe notice\n"
+    assert capsys.readouterr().err == "警告：safe notice\n"
 
 
 def test_cli_storage_configuration_error_is_controlled_and_nonzero(monkeypatch, capsys):
@@ -110,7 +110,7 @@ def test_cli_storage_configuration_error_is_controlled_and_nonzero(monkeypatch, 
         cli._runtime_services()
 
     assert exit_status.value.code == 1
-    assert capsys.readouterr().err == "ERROR: FT_DATABASE_URL is required\n"
+    assert capsys.readouterr().err == "错误：FT_DATABASE_URL is required\n"
 
 
 def test_uow_maps_independent_sqlite_writer_lock_to_busy(tmp_path):

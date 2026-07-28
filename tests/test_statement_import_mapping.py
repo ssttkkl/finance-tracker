@@ -349,7 +349,7 @@ def test_import_missing_account_name_rolls_back(tmp_path):
     )
     source = tmp_path / "missing.csv"
     source.write_bytes(b"missing")
-    with pytest.raises(ValueError, match="account not found"):
+    with pytest.raises(ValueError, match="找不到账户"):
         service.import_statement(
             StatementImportCommand(source_path=str(source))
         )

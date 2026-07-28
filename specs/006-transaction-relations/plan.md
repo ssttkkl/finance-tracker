@@ -6,14 +6,14 @@
 
 ## Summary
 
-在既有关系层（`payment_mirror` / `transfer_pair` / `refund_offset`、Review Inbox、投影、逻辑删除）之上，增加 **开放单腿 pending**：
+在既有关系层（`payment_mirror` / `transfer_pair` / `refund_offset`、关系审查列表、投影、逻辑删除）之上，增加 **待配对关系**：
 
 - 仅 `refund_offset` 与 `transfer_pair`（含 `credit_repayment`）
 - 当对侧不唯一（≥2 合法候选）或 0 候选但锚点形态成立时，落 **1 条** `pending_review`，锚点非空、**对侧可空**
 - 建议对侧仅存 `evidence.candidate_fact_ids`（top-K=20）+ `candidate_count`
 - 用户 accept 时 **必须** 提供 `other_fact_id`，一步绑定为双边 `accepted`
-- 单腿 **永不** 参与报表投影
-- `payment_mirror` 保持双边 + 1:1 greedy，不使用开放单腿
+- 待配对关系 **永不** 参与报表投影
+- `payment_mirror` 保持双边 + 1:1 greedy，不使用待配对关系
 - 消除「1 退款 × N 消费」双边 pending 扇出
 
 既有 006 合同不变：事实不可变、Decimal 严格、导入后检查、双后端等价。

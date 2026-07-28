@@ -34,7 +34,7 @@
 
 **Decision**: Optional delivery gate: backup and upgrade after tests green (same as 015).
 
-## R9 — 开放单腿关系端点
+## R9 — 待配对关系端点
 
 **Decision**: `ordered_fact_a` 与 `ordered_fact_b` 保持 nullable INTEGER/BIGINT；将 015 的 NULL 或空字符串 sentinel 规范化为 NULL，只对其他非空值要求映射。
 

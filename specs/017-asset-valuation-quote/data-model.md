@@ -12,11 +12,11 @@
 
 `complete` | `stale` | `partial` | `unsupported`
 
-### FxStatus（展示折算腿）
+### FxStatus（展示币种折算结果）
 
 `complete` | `partial` | `not_applicable`
 
-- `not_applicable`：本币模式或本币无市值无需 FX
+- `not_applicable`：计价币种模式或计价币种无市值无需 FX
 - `complete`：得到有限正汇率并完成折算
 - `partial`：需要 FX 但不可用/非有限
 
@@ -34,7 +34,7 @@
 
 | Field | Type | Rules |
 |-------|------|--------|
-| display_currency | str \| null | null=本币模式；非 null 则必须为 3 字母 ISO（大小写不敏感，存大写） |
+| display_currency | str \| null | null=计价币种模式；非 null 则必须为 3 字母 ISO（大小写不敏感，存大写） |
 
 ## PositionValuation（映射到 PortfolioPositionDTO）
 
@@ -45,12 +45,12 @@
 | total_cost | Decimal | 账本成本，非市价 |
 | cost_currency | str | |
 | is_cash | bool | |
-| current_price | Decimal \| null | **本币**单价 |
-| market_value | Decimal \| null | **本币**市值 |
-| quote_currency | str \| null | 本币计价 |
+| current_price | Decimal \| null | **计价币种**单价 |
+| market_value | Decimal \| null | **计价币种**市值 |
+| quote_currency | str \| null | 行情计价币种 |
 | quote_status | str \| null | |
 | quote_reason | str \| null | |
-| profit | Decimal \| null | 仅当本币市值与成本币种一致时可算；否则 null 或仅文档化限制 |
+| profit | Decimal \| null | 仅当计价币种市值与成本币种一致时可算；否则 null 或仅文档化限制 |
 | display_currency | str \| null | |
 | display_market_value | Decimal \| null | |
 | fx_rate | Decimal \| null | display per 1 quote_currency |

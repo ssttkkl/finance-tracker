@@ -111,7 +111,7 @@ class RelationalPortfolioRepository:
             if key in bases_by_name:
                 base_currencies[key] = bases_by_name[key]
             else:
-                # Legacy UUID key: attach union of all known bases so cash legs resolve
+                # Legacy UUID key: attach the union of known bases so cash positions resolve.
                 base_currencies[key] = tuple(sorted({
                     item for values in bases_by_name.values() for item in values
                 }))

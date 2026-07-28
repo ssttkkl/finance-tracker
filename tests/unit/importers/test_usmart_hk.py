@@ -100,7 +100,7 @@ def test_fx_rows_pair_to_one_swap_and_unpaired_fails_closed():
     assert event["commission"] == "0"
 
     text = FIXTURE.read_text(encoding="utf-8").replace("换汇                 USD               402.32", "出金                 USD               402.32")
-    with pytest.raises(ValueError, match="unpaired FX"):
+    with pytest.raises(ValueError, match="无法配对换汇流水"):
         parse_usmart_hk_text(text)
 
 

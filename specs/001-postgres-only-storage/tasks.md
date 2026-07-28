@@ -130,7 +130,7 @@ still-valid financial tests pass without local adapters.
 
 - [X] T051 [P] Rewrite current setup/command/storage guidance in `README.md`, `docs/README.md`, `docs/import-reconcile-flow.md`, and `docs/unified-csv-format.md`
 - [X] T052 [P] Mark superseded implementation docs historical in `docs/phase1-application-services.md` and `docs/phase2-postgresql-storage.md`
-- [X] T053 [P] Synchronize completed status and deferred Connector/Review Inbox scope in `docs/productization-refactor-plan.md` and `docs/productization-wealth-report-design.md`
+- [X] T053 [P] Synchronize completed status and deferred Connector/关系审查列表 scope in `docs/productization-refactor-plan.md` and `docs/productization-wealth-report-design.md`
 - [X] T054 [P] Rewrite or delete obsolete local-ledger instructions in `SKILL.md` and `references/`
 - [X] T055 Validate Markdown links, CLI examples, forbidden references, and `git diff --check` across repository documentation
 - [X] T056 Run `$speckit-converge` against `specs/001-postgres-only-storage/` and append any required tasks

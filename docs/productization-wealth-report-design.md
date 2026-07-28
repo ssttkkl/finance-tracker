@@ -28,7 +28,7 @@ comparison 过渡层已经删除。原产品化计划试图一次性建设多用
 
 本设计先交付一个单用户、只读的“财富变化解释”产品楔子：用户查看一个完整自然月的解释，或查看最长 366 天的日/周/月趋势；系统以固定 CNY 口径展示期初净资产、外部现金流、投资收益、汇率影响、其他调整和期末净资产，并允许逐项下钻到组成交易、持仓、行情、汇率和审计证据。
 
-长期目标仍是顶层路线中的完整平台；后续阶段扩展身份、任务和分发边缘，不再替换存储 backend，也不重写财富计算内核。
+长期目标仍是顶层路线中的完整平台；后续阶段扩展身份认证、任务和分发能力，不再替换存储 backend，也不重写财富计算内核。
 
 ## Demand Evidence
 
@@ -73,7 +73,7 @@ repository/query、workspace 隔离、稳定 account ID、UTC `timestamptz` 和�
 
 - 注册、组织成员和家庭协作；
 - 云端账单上传和对象存储；
-- Web 写入、Review Inbox 和批量审批；
+- Web 写入、关系审查列表和批量审批；
 - 新 Connector 管理界面；
 - AI 对话、AI 写入和 Remote MCP；
 - XIRR、基准指数比较、税务、预算和自动理财；
@@ -123,7 +123,7 @@ repository/query、workspace 隔离、稳定 account ID、UTC `timestamptz` 和�
 
 ### Approach C: 完整多租户平台
 
-按照原产品化计划建设账户体系、云端导入、Review Inbox、资产同步、财富分析、AI 和 MCP。
+按照原产品化计划建设账户体系、云端导入、关系审查列表、资产同步、财富分析、AI 和 MCP。
 
 - Effort: XL
 - Risk: High
@@ -166,7 +166,7 @@ API 和页面在 A3 验证完成前标记为 `experimental`。A3 达标后才冻
 - 同步计算 → Worker 与投影表；
 - 原始 artifact locator → 对象存储和签名 URL；
 - `ft web` 本地分发 → 云 SaaS 或自托管容器；
-- 手工导入 → Web Upload、Connector 和 Review Inbox。
+- 手工导入 → Web Upload、Connector 和关系审查列表。
 
 ### 核心查询契约
 
@@ -244,7 +244,7 @@ closing_net_worth - opening_net_worth
 | 已知历史修正 | 0 | 0 | 进入 explained_other_adjustment |
 | 无法归因的残差 | 0 | 0 | 只进入 unexplained_adjustment |
 
-投资收益与 FX 采用固定顺序分解。对每个非 CNY 投资桶，令 `V0`、`V1` 为期初/期末本币市值，`Fi` 为区间内第 i 笔跨越 portfolio 边界的净入金本币金额，`R0`、`R1`、`Ri` 为对应时间每单位外币的 CNY 汇率：
+投资收益与 FX 采用固定顺序分解。对每个非 CNY 投资桶，令 `V0`、`V1` 为期初/期末计价币种市值，`Fi` 为区间内第 i 笔跨越 portfolio 边界的净入金计价币种金额，`R0`、`R1`、`Ri` 为对应时间每单位外币的 CNY 汇率：
 
 ```text
 investment_return = (V1 - V0 - ΣFi) × R1
@@ -258,7 +258,7 @@ V1 × R1 - V0 × R0 - Σ(Fi × Ri)
 = investment_return + fx_impact
 ```
 
-示例：期初持有 USD 100，汇率 7.0；期间入金 USD 20，入金汇率 7.1；期末本币价值 USD 130，汇率 7.2。
+示例：期初持有 USD 100，汇率 7.0；期间入金 USD 20，入金汇率 7.1；期末计价币种市值 USD 130，汇率 7.2。
 
 ```text
 investment_return = (130 - 100 - 20) × 7.2 = CNY 72
@@ -503,7 +503,7 @@ bucket.status = worst(daily.status)
 
 投资收益率命名为 `daily Modified Dietz linked return`：每日用 Modified Dietz 估算，周/月再链式连接每日子区间。它是近似时间加权收益，不是 XIRR，也不是“总财富收益率”。
 
-为真正排除 FX，不能把期末汇率折算后的 CNY 收益直接除以期初 CNY 资本。系统先按币种 bucket 在该币种本币中计算 Modified Dietz，再用日初 FX 固定换算的加权资本汇总：
+为真正排除 FX，不能把期末汇率折算后的 CNY 收益直接除以期初 CNY 资本。系统先按各币种计算 Modified Dietz，再用日初 FX 固定换算的加权资本汇总：
 
 计算公式：
 
@@ -524,7 +524,7 @@ daily_investment_return_rate
 wi = (day_end - flow_time_i) / day_length
 ```
 
-`opening_local_portfolio_value_c` 包含该币种下所有受支持投资持仓和投资账户现金。workspace investment universe 的 `external flow` 只包含从 universe 外部流入或流出的现金；买卖、股息再投资和投资账户内部调拨不属于 external flow。跨币种换汇对 workspace 的净 external flow 为零，但必须作为两个 currency bucket 的配对 Dietz flow：卖出币种按成交本币金额记录 outflow，买入币种按成交本币金额记录 inflow，并使用同一成交时间权重进入各自 `capital_c`。费用减少本币 `local_investment_return_c`。所有 weight 使用同一个日初 FX，日内 FX 变化不会进入收益率。若某个有资本的币种缺少日初 FX，该日收益率为 null。页面标签写“投资市场收益率（不含 FX）”，FX 对净资产的影响只通过独立组成柱展示。
+`opening_local_portfolio_value_c` 包含该币种下所有受支持投资持仓和投资账户现金。workspace investment universe 的 `external flow` 只包含从 universe 外部流入或流出的现金；买卖、股息再投资和投资账户内部调拨不属于 external flow。跨币种换汇对 workspace 的净 external flow 为零，但必须作为两个 currency bucket 的配对 Dietz flow：卖出和买入分别按各自币种的成交金额记录 outflow 与 inflow，并使用同一成交时间权重进入各自 `capital_c`。费用减少以对应币种表示的 `local_investment_return_c`。所有 weight 使用同一个日初 FX，日内 FX 变化不会进入收益率。若某个有资本的币种缺少日初 FX，该日收益率为 null。页面标签写“投资市场收益率（不含 FX）”，FX 对净资产的影响只通过独立组成柱展示。
 
 当任一有实质敞口的币种 `capital_c <= 0`、总固定 FX 加权资本小于等于零、边界估值缺失或 portfolio 为 partial/unsupported 时，该日收益率返回 `null`。周/月投资收益率通过每日有效收益率链式计算：
 
@@ -532,7 +532,7 @@ wi = (day_end - flow_time_i) / day_length
 period_investment_return_rate = Π(1 + daily_rate) - 1
 ```
 
-若区间内任一天收益率为 null，区间收益率也为 null，不以剩余天数冒充完整收益率。多投资账户不分别计算后再平均，而是先按币种合并为上述 workspace 投资 universe；golden fixture 必须覆盖两个账户、日内多次流入流出、外币证券，“资产本币上涨 10% 同时 FX 大幅变化”仍只返回约 10% 市场收益率，以及“日内 USD→EUR 换汇、市场价格不变”返回约 0% 的数值案例。A 不提供“总财富收益率”，因为工资和消费是现金流，不是资产回报。
+若区间内任一天收益率为 null，区间收益率也为 null，不以剩余天数冒充完整收益率。多投资账户不分别计算后再平均，而是先按币种合并为上述 workspace 投资 universe；golden fixture 必须覆盖两个账户、日内多次流入流出、外币证券，“资产价格按计价币种上涨 10% 同时 FX 大幅变化”仍只返回约 10% 市场收益率，以及“日内 USD→EUR 换汇、市场价格不变”返回约 0% 的数值案例。A 不提供“总财富收益率”，因为工资和消费是现金流，不是资产回报。
 
 #### 序列覆盖范围
 
@@ -556,7 +556,7 @@ A 支持现金、银行存款、普通借贷、现货多头股票/ETF、现货�
 
 1. 期初和期末使用同一基础币种及明确的时间边界。
 2. 外部收支按交易发生日 FX 折算；内部转账和投资入出金从收支结余中排除。
-3. 投资收益按“期末投资价值 - 期初投资价值 - 净入金”计算，并保留本币收益来源。
+3. 投资收益按“期末投资价值 - 期初投资价值 - 净入金”计算，并保留计价币种收益来源。
 4. 汇率影响严格使用 A v0.1 公式，后续改变算法必须发布新的 calculation version 并保留历史重算能力。
 5. 已知原因的修正进入 `explained_other_adjustment`；公式剩余差额只进入 `unexplained_adjustment`，并根据缺失行情、FX、未配对转账或历史数据缺口生成原因候选。
 6. 任何边界估值缺失时，返回 `partial`，同时列出需要补齐的数据；不使用当前价格或当前汇率冒充历史值。
@@ -576,11 +576,11 @@ A 支持现金、银行存款、普通借贷、现货多头股票/ETF、现货�
 - 已完成 [001-postgres-only-storage](../specs/001-postgres-only-storage/spec.md)，删除 local backend、迁移兼容层和双存储配置。
 - 财富报告读取的账户、现金事实和投资事件直接使用稳定 `account_id`，不增加 account name 兼容解析层。
 - 报告读取层已有 UTC `timestamptz` 与 Asia/Shanghai 分桶合同；后续财富 feature 直接复用。
-- statement import 已建立 digest、raw record、formal fact 和 revision 的稳定 source identity。
+- statement import 以 `source_type + record_id` 提供行级幂等，并以行内 `source_payload` 保存来源快照。
 - 固定 Money、FX、Valuation 和 Evidence DTO。
 - 不继续扩展 users、membership、OAuth、object storage 等 schema。
 
-退出条件已满足：不存在可执行 local runtime；PostgreSQL fixture 覆盖稳定账户身份、跨时区和来源关系；
+退出条件已满足：不存在可执行 local runtime；PostgreSQL fixture 覆盖稳定账户标识、跨时区和来源关系；
 数据库模型与 DTO 不依赖旧文件账本结构。
 
 #### A1：财富计算内核
@@ -720,7 +720,7 @@ Canonical serialization 规定：金额为无指数 Decimal 字符串；时间�
 - 将本地 PostgreSQL workspace 复制或重新建立到托管环境；具体数据搬运只在出现真实托管需求后单独设计；
 - 同一 API 和报告页保持不变。
 
-#### C2：自助导入与 Review Inbox
+#### C2：自助导入与关系审查列表
 
 触发条件：新用户增长受到人工导入限制，且用户愿意把数据交给产品处理。
 

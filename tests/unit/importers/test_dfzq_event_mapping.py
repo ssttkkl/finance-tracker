@@ -40,7 +40,7 @@ def test_construct_source_identity_deposit():
 
 
 def test_map_dfzq_buy_to_swap():
-    """BUY maps to SWAP; separable 手续费 goes to commission, cash leg is net - fee."""
+    """BUY maps to SWAP; separable 手续费 becomes commission, and cash amount is net minus fee."""
     txn = {
         "date": "2026-06-12 00:00:00",
         "action": "BUY",

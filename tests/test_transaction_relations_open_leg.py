@@ -1,4 +1,4 @@
-"""Open-leg pending (FR-042–047 / US6b): multi/zero candidate → one pending; accept needs --other."""
+"""Unpaired pending relations (FR-042–047 / US6b): one pending item; acceptance needs --other."""
 from __future__ import annotations
 
 from decimal import Decimal
@@ -66,7 +66,7 @@ def test_multi_candidate_refund_is_single_open_leg_pending():
 
 
 def test_expense_seed_does_not_fan_out_multi_candidate_bilateral():
-    """Refund seed owns open-leg; expense seed must not emit N bilateral pendings."""
+    """The refund anchors the unpaired relation; the expense must not emit N bilateral candidates."""
     expenses = [
         _fv(
             id=f"e{i}",
@@ -199,7 +199,7 @@ def test_transfer_multi_candidate_open_leg():
 
 
 def test_payment_mirror_never_open_leg():
-    # Same account required for mirror; still must be bilateral (never open-leg).
+    # A mirror requires the same account and must remain bilateral, never unpaired.
     platform = _fv(
         id="p",
         amount=Decimal("-40"),
@@ -264,7 +264,7 @@ def test_projection_ignores_open_leg_pending():
 def test_open_leg_accept_requires_other_and_binds(relation_runtime):
     services = relation_runtime.services
     assert services.accounts.create_account("支付宝", "cash", "CNY").ok
-    # Three same-merchant expenses + one refund → one open-leg pending.
+    # Three same-merchant expenses and one refund produce one unpaired pending relation.
     for i, day in enumerate(("01", "02", "03"), start=1):
         services.cashflow.add_manual_transaction(
             amount=Decimal("-100.00"),
@@ -305,7 +305,7 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
     assert len(cand_ids) >= 2
 
     # Accept without other fails closed.
-    with pytest.raises(ValueError, match="other_fact_id"):
+    with pytest.raises(ValueError, match="--other"):
         services.relations.accept(open_row["id"], actor="user", reason="bind")
 
     # Illegal other fails closed.
@@ -379,7 +379,7 @@ def test_open_leg_reject_suppresses_reopen(relation_runtime):
         if (p.get("evidence") or {}).get("open_leg")
         or p.get("secondary_fact_id") in (None, "")
     ]
-    # Reject occupies open anchor key — no second open-leg pending.
+    # A rejection occupies the anchor key, so no second unpaired relation is created.
     assert pending_after == []
     with services.uow as uow:
         if hasattr(uow.relations, "find_open_by_anchor"):

@@ -20,7 +20,7 @@
 - Q: 投资侧 `kind` 列如何变成 `action`？ → A: **物理 rename `kind` → `action`**；完成后无双列、无 `kind` 残留列。语义固定为投资事件 action；资产类别仅来自 `accounts.type`。
 - Q: 投资核心字段升列后 payload 如何处理？ → A: 升列后从 payload **删除**已提升的核心键；**不双写**。完成后 payload 仅可含非核心扩展键（可无扩展则为空对象）；读路径只信正式列。
 - Q: Public/导出层字段名策略？ → A: **一并改** public 列表/CSV 表头为 Shared Catalog 名；测试与文档同步；**不**保留长期旧表头别名。
-- Q: 迁移时列与 payload 对 action 等核心字段不一致怎么办？ → A: **失败关闭**（迁移/升级中止），报告冲突事实身份；禁止静默选边或自动“修好”账务语义。
+- Q: 迁移时列与 payload 对 action 等核心字段不一致怎么办？ → A: **失败关闭**（迁移/升级中止），报告冲突事实标识；禁止静默选边或自动“修好”账务语义。
 - Q: 产品阶段与兼容策略？ → A: **前期开发 + 一次性完成迁移**；完成后 **不留兼容代码**（无 shim、无双路径读旧列名/旧 JSON 核心键、无 deprecated 导出头）。
 
 ## User Scenarios & Testing *(mandatory)*

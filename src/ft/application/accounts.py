@@ -60,8 +60,8 @@ class AccountService:
                     name=normalized_name,
                 )
             # Investment accounts store optional base_currencies in metadata so portfolio
-            # cash legs (e.g. usd after deposit) are marked is_cash. Cash/loan/lend
-            # only seed a zero pocket on the snapshot.
+            # cash positions (e.g. usd after deposit) are marked is_cash. Cash/loan/lend
+            # only seed a zero balance entry on the snapshot.
             if seed_currency is not None and type_ in {"security", "crypto"}:
                 try:
                     uow.accounts.add(account, seed_currency=seed_currency)
@@ -129,7 +129,7 @@ class AccountService:
                 uow.rollback()
                 return AccountResult.fail(
                     "account.in_use",
-                    "账户已有正式事实，不能删除；请停用账户",
+                    "账户已有账本记录，不能删除；请改为停用账户",
                     name=name,
                 )
             if target.active:

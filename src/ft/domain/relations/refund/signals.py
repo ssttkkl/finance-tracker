@@ -17,7 +17,7 @@ REFUND_SIGNAL_TOKENS = (
 )
 # P2P / transfer / receipt / red-packet family (not ordinary merchant spend).
 # - As refund seed: allowed only with explicit refund signal (微信红包-退款).
-# - As expense leg: only pair with p2p-style refunds, not with 退款-商品.
+# - As expense row: only pair with p2p-style refunds, not with 退款-商品.
 REFUND_P2P_FAMILY_TOKENS = (
     "群收款",
     "二维码收款",
@@ -64,7 +64,7 @@ def has_refund_signal(text: str) -> bool:
 
 
 def is_p2p_transfer_family(text: str) -> bool:
-    """True for 转账/红包/收款/提现-style legs (including 微信红包-退款 text)."""
+    """True for 转账/红包/收款/提现-style rows (including 微信红包-退款 text)."""
     blob = _text_blob(text)
     return any(token.lower() in blob for token in REFUND_P2P_FAMILY_TOKENS)
 
@@ -91,10 +91,10 @@ def p2p_subtype(text: str) -> str:
 
 
 def is_refund_excluded_leg(text: str) -> bool:
-    """True for bare p2p/transfer legs that must not be refund *seeds*.
+    """True for bare p2p/transfer rows that must not be refund *seeds*.
 
     Explicit refund signals win (微信红包-退款, 消费退货, …).
-    Expense-side p2p legs are gated separately via ``is_p2p_transfer_family`` so
+    Outgoing p2p rows are gated separately via ``is_p2p_transfer_family`` so
     that p2p refunds can still strong-match original 红包/转账 spends.
     """
     if has_refund_signal(text):

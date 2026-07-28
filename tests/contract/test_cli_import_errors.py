@@ -1,13 +1,13 @@
-"""CLI import command error handling tests.
+"""CLI 导入命令的错误处理测试。
 
-Constitution III: Test-first - verify user-facing error messages.
+Constitution III：通过测试锁定用户可见的错误信息。
 """
 import pytest
 
 
-@pytest.mark.skip(reason="T029: Implementation not yet complete")
+@pytest.mark.skip(reason="T029：实现尚未完成")
 def test_cli_import_account_not_found(cli_runner, relational_uow):
-    """CLI should show clear error when account doesn't exist."""
+    """账户不存在时，CLI 应显示明确的错误。"""
     from ft.cli.import_cmd import import_cmd
 
     result = cli_runner.invoke(
@@ -16,13 +16,13 @@ def test_cli_import_account_not_found(cli_runner, relational_uow):
     )
 
     assert result.exit_code != 0
-    assert "not found" in result.output.lower()
+    assert "找不到账户" in result.output
     assert "NonExistent" in result.output
 
 
-@pytest.mark.skip(reason="T029: Implementation not yet complete")
+@pytest.mark.skip(reason="T029：实现尚未完成")
 def test_cli_import_file_not_found(cli_runner, relational_uow):
-    """CLI should show clear error when file doesn't exist."""
+    """文件不存在时，CLI 应显示明确的错误。"""
     from ft.cli.import_cmd import import_cmd
 
     result = cli_runner.invoke(
@@ -34,9 +34,9 @@ def test_cli_import_file_not_found(cli_runner, relational_uow):
     assert "not found" in result.output.lower() or "no such file" in result.output.lower()
 
 
-@pytest.mark.skip(reason="T029: Implementation not yet complete")
+@pytest.mark.skip(reason="T029：实现尚未完成")
 def test_cli_import_parse_failure(cli_runner, relational_uow, tmp_path):
-    """CLI should show parse error with context (page/line reference)."""
+    """解析失败时，CLI 应显示包含页码或行号上下文的错误。"""
     from ft.adapters.relational.uow import ensure_workspace
     from ft.domain.accounts import AccountDTO
 
@@ -47,7 +47,7 @@ def test_cli_import_parse_failure(cli_runner, relational_uow, tmp_path):
         uow.accounts.add(AccountDTO("东方证券", "security", active=True))
         uow.commit()
 
-    # Create corrupted file
+    # 构造无法解析的账单文件。
     corrupted = tmp_path / "corrupted.txt"
     corrupted.write_text("资金流水明细\n\nCorrupted data\n")
 
@@ -59,13 +59,13 @@ def test_cli_import_parse_failure(cli_runner, relational_uow, tmp_path):
     )
 
     assert result.exit_code != 0
-    # Should include helpful context
-    assert "parse" in result.output.lower() or "invalid" in result.output.lower()
+    # 错误应包含便于定位问题的上下文。
+    assert "导入失败" in result.output
 
 
-@pytest.mark.skip(reason="T029: Implementation not yet complete")
+@pytest.mark.skip(reason="T029：实现尚未完成")
 def test_cli_import_validation_failure(cli_runner, relational_uow, tmp_path):
-    """CLI should show validation error with specific field reference."""
+    """数据校验失败时，CLI 应指出具体字段。"""
     from ft.adapters.relational.uow import ensure_workspace
     from ft.domain.accounts import AccountDTO
 
@@ -76,13 +76,13 @@ def test_cli_import_validation_failure(cli_runner, relational_uow, tmp_path):
         uow.accounts.add(AccountDTO("东方证券", "security", active=True))
         uow.commit()
 
-    # TODO: Create fixture that produces NaN in snapshot
-    # Should show error mentioning the specific position/field
+    # TODO：构造一份会在账户快照中产生 NaN 的夹具。
+    # 错误应指出具体位置或字段。
 
 
-@pytest.mark.skip(reason="T029: Implementation not yet complete")
+@pytest.mark.skip(reason="T029：实现尚未完成")
 def test_cli_import_wrong_account_type(cli_runner, relational_uow):
-    """CLI should explain account type requirement."""
+    """账户类型不符时，CLI 应说明允许的类型。"""
     from ft.adapters.relational.uow import ensure_workspace
     from ft.domain.accounts import AccountDTO
 
@@ -104,10 +104,10 @@ def test_cli_import_wrong_account_type(cli_runner, relational_uow):
     assert "security" in result.output.lower() or "crypto" in result.output.lower()
 
 
-@pytest.mark.skip(reason="T029: Implementation not yet complete")
+@pytest.mark.skip(reason="T029：实现尚未完成")
 def test_cli_import_external_tool_missing(cli_runner, relational_uow, monkeypatch):
-    """CLI should show installation instructions when qpdf/mutool missing."""
-    # Mock tool check to return None
+    """缺少 qpdf 或 mutool 时，CLI 应显示安装方法。"""
+    # 模拟外部工具不存在。
     def mock_check_tools():
         return {"qpdf": None, "mutool": "1.20.0"}
 
@@ -123,13 +123,14 @@ def test_cli_import_external_tool_missing(cli_runner, relational_uow, monkeypatc
 
     assert result.exit_code != 0
     assert "qpdf" in result.output.lower()
-    # Should include installation hint
-    assert "install" in result.output.lower() or "brew" in result.output.lower()
+    # 提示应包含可执行的安装命令。
+    assert "安装命令" in result.output
+    assert "brew" in result.output.lower()
 
 
-@pytest.mark.skip(reason="T029: Implementation not yet complete")
+@pytest.mark.skip(reason="T029：实现尚未完成")
 def test_cli_import_success_message(cli_runner, relational_uow):
-    """CLI should show success summary with batch_id and event count."""
+    """导入成功时，CLI 应显示批次 ID 和账本记录数。"""
     from ft.adapters.relational.uow import ensure_workspace
     from ft.domain.accounts import AccountDTO
 
@@ -148,15 +149,15 @@ def test_cli_import_success_message(cli_runner, relational_uow):
     )
 
     assert result.exit_code == 0
-    assert "success" in result.output.lower() or "imported" in result.output.lower()
-    # Should show count
-    assert "6" in result.output  # 6 events
-    # Should show batch_id or reference
+    assert "已导入" in result.output
+    # 应显示新增账本记录数。
+    assert "6" in result.output  # 共导入 6 条账本记录。
+    assert "批次 ID" in result.output
 
 
-@pytest.mark.skip(reason="T029: Implementation not yet complete")
+@pytest.mark.skip(reason="T029：实现尚未完成")
 def test_cli_import_duplicate_message(cli_runner, relational_uow):
-    """CLI should clearly indicate duplicate import with no action taken."""
+    """重复导入时，CLI 应明确说明没有新增账本记录。"""
     from ft.adapters.relational.uow import ensure_workspace
     from ft.domain.accounts import AccountDTO
 
@@ -169,7 +170,7 @@ def test_cli_import_duplicate_message(cli_runner, relational_uow):
 
     from ft.cli.import_cmd import import_cmd
 
-    # First import
+    # 首次导入。
     result1 = cli_runner.invoke(
         import_cmd,
         ["--source", "dfzq", "--account", "东方证券", "tests/fixtures/dfzq/sample_statement.txt"],
@@ -177,21 +178,22 @@ def test_cli_import_duplicate_message(cli_runner, relational_uow):
 
     assert result1.exit_code == 0
 
-    # Second import
+    # 再次导入同一账单。
     result2 = cli_runner.invoke(
         import_cmd,
         ["--source", "dfzq", "--account", "东方证券", "tests/fixtures/dfzq/sample_statement.txt"],
     )
 
     assert result2.exit_code == 0
-    assert "duplicate" in result2.output.lower() or "already imported" in result2.output.lower()
-    assert "0" in result2.output  # 0 new events
+    assert "已经导入" in result2.output
+    assert "没有新增账本记录" in result2.output
+    assert "0" in result2.output  # 没有新增账本记录。
 
 
-# Pytest fixtures
+# Pytest 夹具。
 @pytest.fixture
 def cli_runner():
-    """Click CLI test runner."""
+    """Click CLI 测试运行器。"""
     from click.testing import CliRunner
 
     return CliRunner()

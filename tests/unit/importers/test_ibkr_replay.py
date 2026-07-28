@@ -22,6 +22,6 @@ def test_ibkr_fixture_offline_replay_reconciles_base_cash_and_open_shares():
         "sndk.us": Decimal("4"),
         "tsm.us": Decimal("20"),
     }
-    # IBKR 外汇交易组成部分 maps only the base-currency net P&L (spread), not full
-    # USD.HKD notionals — so no residual HKD cash leg is expected after offline replay.
+    # IBKR FX transactions map only the base-currency net P&L (spread), not full
+    # USD.HKD notionals, so no residual HKD cash balance is expected after offline replay.
     assert "hkd" not in positions or Decimal(positions["hkd"]["shares"]) == 0

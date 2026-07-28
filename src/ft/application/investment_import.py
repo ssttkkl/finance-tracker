@@ -57,12 +57,12 @@ class InvestmentImportService:
         except FileNotFoundError:
             return OperationResult(
                 ok=False,
-                message=f"File not found: {source_path}",
+                message=f"找不到文件：{source_path}",
             )
         except Exception as e:
             return OperationResult(
                 ok=False,
-                message=f"Failed to read file: {e}",
+                message=f"读取文件失败：{e}",
             )
 
         # Digest is job/audit metadata only (010); not a formalization gate.
@@ -75,14 +75,14 @@ class InvestmentImportService:
                 uow.rollback()
                 return OperationResult(
                     ok=False,
-                    message=f"Account not found: {account_name}",
+                    message=f"找不到账户：{account_name}",
                 )
 
             if account.type not in {"security", "crypto"}:
                 uow.rollback()
                 return OperationResult(
                     ok=False,
-                    message=f"Account must be security or crypto type, got: {account.type}",
+                    message=f"账户类型必须是 security 或 crypto，当前为：{account.type}",
                 )
 
             # Parse statement
@@ -94,14 +94,14 @@ class InvestmentImportService:
                 uow.rollback()
                 return OperationResult(
                     ok=False,
-                    message=f"Failed to parse statement: {e}",
+                    message=f"解析账单失败：{e}",
                 )
 
             if not transactions:
                 uow.rollback()
                 return OperationResult(
                     ok=False,
-                    message="No transactions found in statement",
+                    message="账单中没有可导入的交易记录",
                 )
 
             # Resolve currency: CLI override, else source-specific default.
@@ -120,8 +120,8 @@ class InvestmentImportService:
                     return OperationResult(
                         ok=False,
                         message=(
-                            "Currency required for IBKR import: pass --currency "
-                            "or ensure 总结.基础货币 is present in the CSV"
+                            "导入 IBKR 账单时必须通过 --currency 指定币种，"
+                            "或确保 CSV 中存在 总结.基础货币"
                         ),
                     )
             elif source == "schwab":
@@ -155,7 +155,7 @@ class InvestmentImportService:
                 uow.rollback()
                 return OperationResult(
                     ok=False,
-                    message=f"Import failed: {e}",
+                    message=f"导入失败：{e}",
                 )
 
             # Update snapshot with validation
@@ -170,13 +170,13 @@ class InvestmentImportService:
                 uow.rollback()
                 return OperationResult(
                     ok=False,
-                    message=f"Snapshot validation failed: {e}",
+                    message=f"校准结果校验失败：{e}",
                 )
             except Exception as e:
                 uow.rollback()
                 return OperationResult(
                     ok=False,
-                    message=f"Snapshot update failed: {e}",
+                    message=f"更新校准结果失败：{e}",
                 )
 
             uow.commit()
@@ -186,9 +186,9 @@ class InvestmentImportService:
             ok=True,
             count=event_count,
             message=(
-                "No new rows to import"
+                "没有可导入的新记录"
                 if no_new
-                else f"Imported {event_count} transactions"
+                else f"已导入 {event_count} 条投资事件"
             ),
             details={
                 "duplicate": no_new,
@@ -269,7 +269,7 @@ class InvestmentImportService:
                 decrypt_pdf(source_path, decrypted, password)
                 return parse_usmart_hk_text(extract_pdf_text(decrypted))
 
-        raise ValueError(f"Unsupported source: {source}")
+        raise ValueError(f"不支持的数据源：{source}")
 
 
     def _import_transactions(
@@ -310,7 +310,7 @@ class InvestmentImportService:
             )
             source_type = "usmart_hk_pdf"
         else:
-            raise ValueError(f"Unsupported investment source for import: {source}")
+            raise ValueError(f"不支持导入该投资数据源：{source}")
 
         record_ids = []
         payloads = []

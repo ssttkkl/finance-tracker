@@ -58,7 +58,7 @@ def _seed_015_open_leg(
 
             if allow_null_endpoints:
                 # Preserve 015 columns/types while allowing the legitimate
-                # NULL open leg observed in production data.
+                # NULL endpoint observed for an unpaired relation in production data.
                 conn.execute(text(
                     "CREATE TABLE transaction_relations__legacy AS "
                     "SELECT * FROM transaction_relations WHERE 0"

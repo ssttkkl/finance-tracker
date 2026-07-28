@@ -30,7 +30,7 @@ def evaluate_refund_offset(
 ) -> RelationProposal | None:
     """Refund pairing: auto strict, bounded pending, asymmetric P2P rules.
 
-    - Only amounts with explicit refund signals may be refund legs (not all income).
+    - Only amounts with explicit refund signals may be refund rows (not all income).
     - Bare p2p/transfer *income* (no 退款词) is never a refund seed.
     - P2P *expense* (红包/转账/群收款/…) MAY pair only with p2p-style refunds
       (e.g. 微信红包-退款) as a strong family link; merchant 退款-商品 must not.
@@ -47,9 +47,9 @@ def evaluate_refund_offset(
     if seed_amount > 0 and is_refund_excluded_leg(seed.text):
         return None
     is_refund_seed = seed_amount > 0 and has_refund_signal(seed.text)
-    # Open-leg fan-out control: only refund seeds propose refund_offset.
+    # `open_leg` fan-out control: only refund seeds propose refund_offset.
     # Expense seeds previously each wrote a bilateral edge to the same refund
-    # (unique from their POV), colliding with open-leg bind ordered-pair keys.
+    # (unique from their POV), colliding with unpaired relation bind ordered-pair keys.
     # P2P 红包-退款 is still matched when the refund fact is the seed.
     if not is_refund_seed:
         return None
@@ -68,7 +68,7 @@ def evaluate_refund_offset(
             if expense.signed_amount >= 0:
                 continue
         else:
-            # expense seed: only pair with explicit refund legs (not bare p2p income)
+            # expense seed: only pair with explicit refund rows (not bare p2p income)
             if cand.signed_amount <= 0 or not has_refund_signal(cand.text):
                 continue
             if is_refund_excluded_leg(cand.text):
@@ -189,9 +189,9 @@ def evaluate_refund_offset(
         matches.append((expense if is_refund_seed else refund, evidence, status, conf, title_exact))
 
     if not matches:
-        # Zero *legal* matches: only open-leg when there were no candidates at all
+        # Zero *legal* matches: only unpaired relation when there were no candidates at all
         # (true orphan). If candidates existed but all filtered (P2P exclusion, window,
-        # etc.), stay silent — do not create empty open-leg noise.
+        # etc.), stay silent — do not create empty unpaired relation noise.
         if is_refund_seed and not candidates:
             evidence = RelationEvidence(
                 amount_delta="0",
@@ -274,8 +274,8 @@ def evaluate_refund_offset(
             open_leg=False,
         )
     # Multi candidates:
-    # - refund seed → one open-leg pending (expense seeds must not fan out)
-    # - expense seed → skip (refund owns open-leg)
+    # - refund seed → one unpaired relation pending (expense seeds must not fan out)
+    # - expense seed → skip (refund owns unpaired relation)
     matches.sort(
         key=lambda m: (
             0 if m[2] == RelationStatus.ACCEPTED.value else 1,
@@ -313,5 +313,4 @@ def evaluate_refund_offset(
         anchor_fact_id=seed.id,
         open_leg=True,
     )
-
 

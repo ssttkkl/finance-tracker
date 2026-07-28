@@ -19,12 +19,12 @@ from ft.domain.investment_projection import apply_investment_event, normalize_ba
 from ft.domain.investment_validation import validate_investment_snapshot
 
 
-# source_type names for each provider
+# 各数据源写入账本时使用的 source_type。
 EXCHANGE_PROVIDERS = {"binance", "kraken", "okx"}
 POLYMARKET_PROVIDER = "polymarket"
 ALL_SYNC_PROVIDERS = EXCHANGE_PROVIDERS | {POLYMARKET_PROVIDER}
 
-# Account type requirements per provider category
+# 不同数据源允许写入的账户类型。
 EXCHANGE_ACCOUNT_TYPES = {"crypto"}
 POLYMARKET_ACCOUNT_TYPES = {"security", "crypto"}
 
@@ -32,7 +32,7 @@ DEFAULT_BATCH_SIZE = 500
 
 
 def _source_type_for_provider(provider: str) -> str:
-    """Return the source_type string for a given provider name."""
+    """返回指定数据源对应的 source_type。"""
     return f"{provider}_api"
 
 
@@ -55,7 +55,7 @@ class SyncService:
         batch_size: int = DEFAULT_BATCH_SIZE,
         connector: ConnectorPort | None = None,
     ) -> OperationResult:
-        """Execute a sync operation for the given provider and account.
+        """将指定数据源同步到目标账户。
 
         Parameters
         ----------
@@ -73,10 +73,10 @@ class SyncService:
         if provider not in ALL_SYNC_PROVIDERS:
             return OperationResult(
                 ok=False,
-                message=f"Unknown sync provider: {provider}. Supported: {', '.join(sorted(ALL_SYNC_PROVIDERS))}",
+                message=f"未知的同步数据源：{provider}。支持：{', '.join(sorted(ALL_SYNC_PROVIDERS))}",
             )
         if batch_size <= 0:
-            return OperationResult(ok=False, message="batch_size must be positive")
+            return OperationResult(ok=False, message="batch_size 必须大于 0")
 
         source_type = _source_type_for_provider(provider)
 
@@ -87,7 +87,7 @@ class SyncService:
                 uow.rollback()
                 return OperationResult(
                     ok=False,
-                    message=f"Account not found: {account_name}",
+                    message=f"找不到账户：{account_name}",
                 )
             allowed_types = (
                 EXCHANGE_ACCOUNT_TYPES if provider in EXCHANGE_PROVIDERS
@@ -98,8 +98,8 @@ class SyncService:
                 return OperationResult(
                     ok=False,
                     message=(
-                        f"Account '{account_name}' is type '{account.type}'; "
-                        f"{provider} sync requires {' or '.join(sorted(allowed_types))}"
+                        f"账户 {account_name} 的类型是 {account.type}；"
+                        f"同步 {provider} 需要 {' 或 '.join(sorted(allowed_types))} 类型的账户"
                     ),
                 )
             account_type = account.type
@@ -111,7 +111,7 @@ class SyncService:
         if connector is None:
             return OperationResult(
                 ok=False,
-                message=f"No connector provided for {provider}",
+                message=f"没有为数据源 {provider} 配置连接器",
             )
 
         # Read cursor (unless --full)
@@ -129,36 +129,36 @@ class SyncService:
         except ConnectorAuthError as exc:
             return OperationResult(
                 ok=False,
-                message=f"Authentication failed for {provider}: {exc}",
+                message=f"数据源 {provider} 认证失败：{exc}",
             )
         except ConnectorDataError as exc:
             return OperationResult(
                 ok=False,
-                message=f"Data error from {provider}: {exc}",
+                message=f"数据源 {provider} 返回的数据不符合要求：{exc}",
             )
         except ConnectorError as exc:
             if since is None:
                 return OperationResult(
                     ok=False,
-                    message=f"Connector error for {provider}: {exc}",
+                    message=f"数据源 {provider} 连接失败：{exc}",
                 )
             try:
                 result = connector.fetch_trades(since=None)
             except ConnectorAuthError as retry_exc:
                 return OperationResult(
                     ok=False,
-                    message=f"Authentication failed for {provider}: {retry_exc}",
+                    message=f"数据源 {provider} 认证失败：{retry_exc}",
                 )
             except ConnectorDataError as retry_exc:
                 return OperationResult(
                     ok=False,
-                    message=f"Data error from {provider}: {retry_exc}",
+                    message=f"数据源 {provider} 返回的数据不符合要求：{retry_exc}",
                 )
             except ConnectorError as retry_exc:
                 return OperationResult(
                     ok=False,
                     message=(
-                        f"Connector error for {provider}; stale cursor fallback failed: {retry_exc}"
+                        f"数据源 {provider} 连接失败，使用旧同步游标重试也失败：{retry_exc}"
                     ),
                 )
 
@@ -179,13 +179,13 @@ class SyncService:
             except Exception as exc:
                 return OperationResult(
                     ok=False,
-                    message=f"Sync failed: {exc}. No events, snapshot, or cursor were written.",
+                    message=f"同步失败：{exc}。未写入投资事件、校准结果或同步游标。",
                     details={"raw_count": result.raw_count, "new_count": 0, "skipped_count": 0},
                 )
             return OperationResult(
                 ok=True,
                 count=0,
-                message=f"No new trades from {provider}",
+                message=f"数据源 {provider} 没有新的交易记录",
                 details={
                     "raw_count": result.raw_count,
                     "new_count": 0,
@@ -207,7 +207,7 @@ class SyncService:
         except Exception as exc:
             return OperationResult(
                 ok=False,
-                message=f"Sync failed: {exc}. No events, snapshot, or cursor were written.",
+                message=f"同步失败：{exc}。未写入投资事件、校准结果或同步游标。",
                 details={
                     "raw_count": result.raw_count,
                     "new_count": 0,
@@ -219,8 +219,8 @@ class SyncService:
             ok=True,
             count=total_new,
             message=(
-                f"Synced {total_new} new events from {provider}"
-                + (f" ({total_skipped} duplicates skipped)" if total_skipped else "")
+                f"已从数据源 {provider} 同步 {total_new} 条新投资事件"
+                + (f"（跳过 {total_skipped} 条重复记录）" if total_skipped else "")
             ),
             details={
                 "raw_count": result.raw_count,
@@ -245,7 +245,7 @@ class SyncService:
             )
         )
         if row is None:
-            raise ValueError(f"Account not found: {account_name}")
+            raise ValueError(f"找不到账户：{account_name}")
         return row
 
 

@@ -2,7 +2,7 @@
 
 多账户、多币种个人财务工具：把**消费、储蓄与投资**放进同一套可审计账本，并在此之上做持仓估值与财富归因内核。
 
-运行时通过 `FT_DATABASE_URL` **显式选择一个**事实源——PostgreSQL 或文件型 SQLite。二者共享 Application Service、财务语义与 Alembic schema；**无自动回退、无双写、无隐式跨后端迁移**。CSV / XLS / PDF 只作导入输入或显式导出预览，**不是**账本。
+运行时通过 `FT_DATABASE_URL` **显式选择一个**事实源——PostgreSQL 或文件型 SQLite。二者共享 Application Service、财务语义与 Alembic schema；**不得自动回退（no fallback）、不得双写（dual-write）、不得隐式迁移（implicit migration）**。CSV / XLS / PDF 只作导入输入或显式导出预览，**不是**账本。
 
 当前工程基线在 `refactor/web`：**Phase 1 已关账**（`002`–`010` 现金/导入 + `011`–`016` schema 收口 + `017` 估值 + `018` 连接器同步）。下一产品方向是 Phase 2 只读账单 Web（新序号 feature）。
 
@@ -34,13 +34,13 @@ uv run alembic upgrade head
 
 CLI **不会**自动建表、建 workspace 或回退到文件账本。库不可达、schema 不是当前 head、workspace 不存在时直接失败。
 
-SQLite 使用 WAL、外键与有界写锁等待；`storage.busy` / `storage.readonly` / `storage.schema` 见运行时错误，诊断不暴露凭据或完整路径。内存 SQLite 仅限测试。
+SQLite 使用 WAL、外键与有界写锁等待；繁忙、读写权限或 schema 错误分别以 `storage.busy`、`storage.readonly`、`storage.schema` 报告，诊断信息不暴露凭据或完整路径。内存 SQLite 仅限测试。
 
 ## 核心命令
 
 ```bash
-# 账户（workspace 内名称唯一；cash/loan/lend 可多币种口袋）
-uv run ft acct add Cash --type cash --currency CNY   # 可选：零余额 CNY 口袋
+# 账户（workspace 内名称唯一；cash/loan/lend 可包含多种币种余额）
+uv run ft acct add Cash --type cash --currency CNY   # 可选：初始化 CNY 零余额
 uv run ft acct add 币安 --type crypto --currency USD # 投资账户：seed → metadata.base_currencies
 uv run ft acct add '工行信用卡(1200)' --type loan
 uv run ft acct list
@@ -102,7 +102,7 @@ uv run ft import usmart.pdf --source usmart-hk --account uSmart
 ```bash
 uv run ft relations pending
 uv run ft relations check
-uv run ft relations accept <relation_id>   # 开放单腿可加 --other <fact_id>
+uv run ft relations accept <relation_id>   # 待配对关系可加 --other <fact_id>
 uv run ft relations reject <relation_id>
 uv run ft fact-delete <fact_id> --reason 'duplicate historical row'
 ```
@@ -137,7 +137,7 @@ uv run ft stock checkin --cash 500 --currency USD --account IBKR
 
 ```bash
 uv run ft stock list
-uv run ft stock list --display-currency CNY   # 可选：只读 FX 折算展示币
+uv run ft stock list --display-currency CNY   # 可选：只读 FX 折算为展示币种
 ```
 
 统一 `ValuationService`（security / crypto / prediction market / cash），状态含 **complete / stale / partial / unsupported**。组合查询有有界行情预算：单项失败不影响其它持仓渲染。
@@ -185,7 +185,7 @@ uv run ft sync --source binance --account 币安 --full   # 忽略游标，全�
 | `stock {buy,sell,swap,deposit,withdraw,dividend,checkin,list}` | 投资手动 + 持仓估值 |
 | `sync` | 交易所 / Polymarket API 同步 |
 | `relations {pending,check,accept,reject,later,alias-add}` | 关系审查 |
-| `fact-delete` | 现金事实可审计逻辑删除 |
+| `fact-delete` | 以可审计方式逻辑删除现金流水 |
 
 相对旧 `main`（CSV+git）已删除：`append`、`reconcile`、`commit` / `status` / `reset`、`verify`、`stock append`、`stock sync <provider>`。对照见产品讨论记录；操作上以本文为准。
 

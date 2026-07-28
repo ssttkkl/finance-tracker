@@ -1,4 +1,4 @@
-# Contract: Review Inbox
+# Contract: 关系审查列表
 
 ## Purpose
 

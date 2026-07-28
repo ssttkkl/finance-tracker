@@ -10,7 +10,7 @@
 
 ## Account
 
-- `id`: UUID/string PK，稳定身份
+- `id`: UUID/string PK，稳定标识
 - `workspace_id`: FK -> Workspace
 - `name`, `type`, `currency`, `active`
 - `metadata_json`
@@ -26,13 +26,13 @@
 - `workspace_id`: FK -> Workspace
 - `account_id`: FK -> Account
 - `raw_record_id`: nullable FK -> RawRecord；statement-derived fact 必填，manual fact 为空
-- `external_record_id`: provider 记录身份，可空
+- `external_record_id`: provider 记录标识，可空
 - `occurred_at`: timestamptz
 - `amount`: numeric(38,18)
 - `currency`, `counterparty`, `description`, `category`
 - transfer/offset metadata
 - `revision`, `created_at`
-- provider 身份存在时 unique `(workspace_id, source_kind, external_record_id)`
+- provider 标识存在时 unique `(workspace_id, source_kind, external_record_id)`
 
 金额在持久化和投影计算中保持原始有限 Decimal，不做量化或展示舍入；超过 18 位小数直接拒绝，
 不允许依赖数据库隐式舍入。
@@ -65,7 +65,7 @@ payload 的账户 bucket 以稳定 account ID 为 key，账户名只在查询时
 
 - `id`: UUID PK
 - `workspace_id`: FK
-- `target_account_id`: FK -> Account；本次导入显式选择的稳定账户身份
+- `target_account_id`: FK -> Account；本次导入显式选择的稳定账户标识
 - `source_kind`: provider/parser kind
 - `source_digest`: SHA-256
 - `source_ref`: 去敏后的文件名或用户可识别标签，不保存不必要的绝对路径
@@ -88,7 +88,7 @@ source digest 重新指向另一个账户。
 RawFile 归属一个 batch；RawRecord 通过 `(workspace_id, batch_id, raw_file_id)` 组合外键保证不会
 引用其他 batch 的原始文件。
 
-原始内容本身不复制进仓库或日志；模型保存身份和解析证据。
+原始内容本身不复制进仓库或日志；模型保存标识和解析证据。
 
 ## RawRecord
 

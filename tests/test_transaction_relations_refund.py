@@ -189,7 +189,7 @@ def test_redpacket_refund_strong_matches_original_redpacket_spend():
     assert "p2p_family" in proposal.evidence.signals
 
     # Also from expense seed (strong only).
-    # Expense seeds no longer propose refund_offset (open-leg fan-out control).
+    # Expense seeds no longer propose refund_offset (controls unpaired-relation fan-out).
     assert evaluate_refund_offset(redpacket_out, [refund]) is None
 
 
@@ -344,5 +344,5 @@ def test_title_exact_not_auto_when_two_exact_titles():
     )
     proposal = evaluate_refund_offset(refund, [exp1, exp2])
     assert proposal is not None
-    # two exact titles → not unique → open-leg or multi pending, not silent auto of one
+    # Two exact titles are ambiguous: create an unpaired or multi-candidate pending relation.
     assert proposal.status == RelationStatus.PENDING_REVIEW.value

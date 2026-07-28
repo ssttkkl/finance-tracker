@@ -589,7 +589,7 @@ def _upgrade_sqlite() -> None:
             UNIQUE (workspace_id, kind, ordered_fact_a, ordered_fact_b, subtype, active_slot)
         )
     """))
-    # A NULL ordered endpoint is a valid open leg.  A non-NULL legacy endpoint
+    # A NULL ordered endpoint represents a valid unpaired relation. A non-NULL legacy endpoint
     # must map to a cash or investment fact; otherwise fail before copying.
     for old_col in ("ordered_fact_a", "ordered_fact_b"):
         orphan = conn.execute(text(

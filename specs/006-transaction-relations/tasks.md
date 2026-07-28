@@ -108,7 +108,7 @@
 
 ---
 
-## Phase 6: User Story 6 — Review Inbox (P1)
+## Phase 6: User Story 6 — 关系审查列表 (P1)
 
 **Goal**: List pending; accept/reject/later with audit; reject suppresses re-recommend; later stays pending
 
@@ -303,7 +303,7 @@ Recommended first shippable correctness slice after MVP: US2 + US3 + US6.
 - Dual-backend: same Application Service assertions on SQLite and real PostgreSQL
 - Do not expand into FX product, full Web UI, or CSV reconcile revival
 
-## Phase Open-Leg: 开放单腿 pending（006 extension）
+## Phase Open-Leg: 待配对关系（006 extension）
 
 **Purpose**: Implement FR-042–047 / US6b — multi/zero candidate → one open-leg pending; accept with `--other`; no fan-out.
 

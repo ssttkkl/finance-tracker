@@ -1,7 +1,7 @@
 """Charles Schwab Transaction History CSV importer.
 
 Parses single-table Chinese-header CSV (日期/类型/说明/参照号码/杂费/佣金/金额/余额).
-Fee contract (TRD): cash leg = abs(金额), commission = abs(杂费)+abs(佣金) once —
+Fee contract (TRD): cash component = abs(金额), commission = abs(杂费)+abs(佣金) once —
 never cash_leg=abs(金额+杂费) with non-zero commission (see research.md § schwab).
 """
 

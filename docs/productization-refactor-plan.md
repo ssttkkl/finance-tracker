@@ -37,7 +37,7 @@ Finance Tracker 面向同时使用银行、支付平台、券商和交易所的�
 三个长期产品域：
 
 1. **消费记账**：收入、消费、退款、转账和对账。
-2. **资产交易**：证券、加密资产、现金腿、公司行为和 Connector。
+2. **资产交易**：证券、加密资产、现金部分、公司行为和 Connector。
 3. **财富分析**：聚合前两者，解释净资产变化、投资表现、FX 和数据缺口。
 
 ## 3. 当前工程基线
@@ -79,7 +79,7 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
 
 - **现金链** `002`–`008`：双 DB、mapping/开放币种、多币种账户、关系、导入与 kind 解耦 — **Complete**。
 - **投资文件导入与账本收口** `009`–`016`：多券商文件导入（DFZQ/IBKR/Schwab/uSmart 等）、行级幂等、成本币种与 cash-like actions、事实字段统一、内联溯源、**整数代理主键** — **Complete**。
-- **估值** `017-asset-valuation-quote`：统一 `ValuationService` + 组合本币/展示币市值与 `quote_status` — **Complete**（已合入）。
+- **估值** `017-asset-valuation-quote`：统一 `ValuationService` + 组合计价币种市值/折算市值与 `quote_status` — **Complete**（已合入）。
 - **连接器同步** `018-investment-connector-sync`：ccxt（binance/kraken/okx）+ Polymarket Activity/pUSD checkin、`ft sync`、行级幂等与 `sync_cursors` — **Complete**（2026-07-28 全量双后端回归绿）。
 - **Alembic / `SCHEMA_REVISION` head**：`20260726_10`。
 - **编号漂移（重要）**：仓库 `011`–`016` 已用于 uSmart/成本/字段/provenance/bigint。路线图旧名 `011-asset-valuation-quote` → **`017`**；旧 `012` connector-sync → **`018`**。账单 Web 落地时用新序号。
@@ -108,7 +108,7 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
 - 不存在可执行 local backend 或隐式回退；
 - 当前受支持入口绑定明确 workspace；
 - 写入使用数据库事务且失败不发布部分事实；
-- 原始输入、正式事实和修订仍可追溯；
+- 导入记录可通过 `source_type + record_id` 识别，并可通过行内 `source_payload` 追溯来源；
 - 文档、CLI help 和测试不再承诺旧运行方式。
 
 ### 5.2 Phase 1：数据模型与数据导入（基座）
@@ -137,7 +137,7 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
   `014-fact-field-unify`、`015-inline-row-provenance`、`016-bigint-surrogate-ids` — 均为 **Complete**。
 
 - **`017-asset-valuation-quote`（Complete；历史路线图名 asset-valuation-quote / 旧编号 011）**：
-  组合持仓 **本币估值**（分币种不折算）与可选 **`display_currency` 只读 FX 折算**；统一 `ValuationService`（security/crypto/pm/cash）与 **complete/stale/partial/unsupported**。
+  组合持仓 **计价币种估值**（分币种不折算）与可选 **`display_currency` 只读 FX 折算**；统一 `ValuationService`（security/crypto/pm/cash）与 **complete/stale/partial/unsupported**。
   非目标：历史时间序列、期初/期末边界估值、收益率归因（归 Phase 3）。
 
 - **`018-investment-connector-sync`（Complete；历史路线图编号 `012` / 能力名 investment-connector-sync）**：
@@ -150,7 +150,7 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
 - `002`–`008` 全部收敛；✅
 - `009` 落地（投资事件可导入，多券商解析可用）；✅
 - `010` 落地（现金/投资导入行级幂等与重叠增量）；✅
-- **实时估值 + 组合市值**落地（`017`：本币/展示币 + coverage 状态）；✅
+- **实时估值 + 组合市值**落地（`017`：计价币种/展示币种 + coverage 状态）；✅
 - **Connector 同步**落地（`018`：交易所/Polymarket API → 统一投资事件）；✅
   （原「可延后不阻塞 Phase 2」仍成立；现已交付并关账。）
 
@@ -168,7 +168,7 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
 - loading/empty/partial/stale/unsupported 状态；
 - 本地打包、API schema、浏览器 QA 和无障碍基线。
 
-非目标：写入、财富归因、认证、Review Inbox accept/reject 交互。
+非目标：写入、财富归因、认证，以及关系审查列表的确认和驳回交互。
 
 ### 5.4 Phase 3：财富分析
 
@@ -178,7 +178,7 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
   财富变化恒等式与符号；期初/期末估值、外部现金流、投资收益、FX、负债重估和差额；
   每日原子桶与日/周/月聚合；投资市场收益率、coverage、partial/stale/unsupported；
   component、evidence 和 canonical DTO；PostgreSQL/SQLite 等价 contract、性能基线和重建测试。
-  非目标：Web、认证、Review Inbox、Connector、AI 和 MCP。
+  非目标：Web、认证、关系审查列表、Connector、AI 和 MCP。
   实现交接以 [`003-wealth-attribution-core`](../specs/003-wealth-attribution-core/spec.md) 的
   Spec Kit artifacts 为唯一事实源。内核保持 transport-neutral：Web/API 适配和展示 URL 不属于该
   feature；正式估值、账户生命周期和不可变 generation/evidence 是 PostgreSQL 与 SQLite 共享的
@@ -217,7 +217,7 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
 
 可能范围：最小登录、单 workspace 授权、托管数据库、备份与恢复。
 
-### C2：自助导入与 Review Inbox
+### C2：自助导入与关系审查列表
 
 触发：人工准备数据成为新用户增长瓶颈，且用户愿意托管原始数据。
 

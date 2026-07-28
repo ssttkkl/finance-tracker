@@ -121,14 +121,14 @@ def test_overlap_only_batch_preserves_existing_fact_account(tmp_path):
     with unit_of_work(sessions, "workspace-a") as uow:
         uow.accounts.add_raw({"name": "Other", "type": "cash", "currency": "CNY"})
         uow.commit()
-    # Same provider id, different account_name in parser output must fail.
+    # 同一数据源记录 ID 不能在后续导入中改归其他账户。
     overlap_service = StatementImportService(
         unit_of_work(sessions, "workspace-a"),
         FakeStatementParser([_cash_row(account_name="Other")]),
     )
 
     assert first_service.import_statement(_command(first_source)).count == 1
-    with pytest.raises(ValueError, match="different account"):
+    with pytest.raises(ValueError, match="已导入其他账户"):
         overlap_service.import_statement(_command(overlap_source))
 
 
@@ -171,7 +171,7 @@ def test_overlapping_digest_rejects_existing_record_from_a_different_account(tmp
         unit_of_work(sessions, "workspace-a"),
         FakeStatementParser([_cash_row(account_name="Other")]),
     )
-    with pytest.raises(ValueError, match="different account"):
+    with pytest.raises(ValueError, match="已导入其他账户"):
         other_service.import_statement(_command(second_source))
 
 
@@ -202,7 +202,7 @@ def test_cash_statement_currency_creates_another_pocket_on_selected_account(tmp_
 
     source = tmp_path / "statement.csv"
     source.write_bytes(b"currency mismatch")
-    # One account may hold both CNY and USD; the statement currency selects the pocket.
+    # One account may hold both CNY and USD; the statement currency selects the balance.
     sessions, _unit_of_work, service = _service([_cash_row(currency="USD")])
 
     result = service.import_statement(_command(source))
