@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+import time
 from typing import Protocol, Sequence
 
 from ft.domain.valuation import (
@@ -30,6 +31,11 @@ class QuoteProvider(Protocol):
     def raw_quote(self, identity: str, kind: AssetKind) -> ProviderTick | None:
         """Return a tick, None for soft miss, or raise UnsupportedQuote."""
 
+    def raw_quote_many(
+        self, refs: Sequence[AssetRef], *, timeout: float | None = None,
+    ) -> dict[str, ProviderTick | BaseException | None]:
+        """Return raw batch outcomes indexed by the supplied asset identities."""
+
 
 class ValuationService:
     def __init__(self, provider: QuoteProvider, *, clock=None):
@@ -40,7 +46,9 @@ class ValuationService:
         asset = ref if ref is not None else make_asset_ref(identity, kind, quantity)
         return self._quote_one(asset)
 
-    def quote_many(self, refs: Sequence[AssetRef]) -> QuoteBatchResult:
+    def quote_many(
+        self, refs: Sequence[AssetRef], *, timeout: float | None = None,
+    ) -> QuoteBatchResult:
         validated = []
         for ref in refs:
             if not isinstance(ref, AssetRef):
@@ -48,7 +56,48 @@ class ValuationService:
             # re-validate quantities/identities for fail-closed batch
             make_asset_ref(ref.identity, ref.kind, ref.quantity)
             validated.append(ref)
-        return QuoteBatchResult(tuple(self._quote_one(ref) for ref in validated))
+        deadline = None if timeout is None else time.monotonic() + max(timeout, 0)
+        precomputed = {
+            index: self._quote_one(ref)
+            for index, ref in enumerate(validated)
+            if identity_kind_mismatch(ref.identity, ref.kind)
+        }
+        routable = [
+            (index, ref) for index, ref in enumerate(validated)
+            if index not in precomputed
+        ]
+        if not routable:
+            return QuoteBatchResult(tuple(precomputed[index] for index in range(len(validated))))
+        raw_quote_many = getattr(self._provider, "raw_quote_many", None)
+        if callable(raw_quote_many):
+            remaining = None if deadline is None else max(deadline - time.monotonic(), 0)
+            if remaining is not None and remaining <= 0:
+                return QuoteBatchResult(tuple(
+                    precomputed.get(index, self._deadline_result(ref))
+                    for index, ref in enumerate(validated)
+                ))
+            try:
+                outcomes = raw_quote_many([ref for _, ref in routable], timeout=remaining)
+            except Exception:
+                return QuoteBatchResult(tuple(
+                    precomputed.get(index, self._provider_error_result(ref))
+                    for index, ref in enumerate(validated)
+                ))
+            return QuoteBatchResult(tuple(
+                precomputed.get(index, self._quote_outcome(ref, outcomes.get(ref.identity)))
+                for index, ref in enumerate(validated)
+            ))
+
+        results = []
+        for index, ref in enumerate(validated):
+            if index in precomputed:
+                results.append(precomputed[index])
+                continue
+            if deadline is not None and time.monotonic() >= deadline:
+                results.append(self._deadline_result(ref))
+            else:
+                results.append(self._quote_one(ref))
+        return QuoteBatchResult(tuple(results))
 
     def _quote_one(self, ref: AssetRef) -> QuoteResult:
         identity = ref.identity.strip()
@@ -80,7 +129,14 @@ class ValuationService:
             )
         try:
             tick = self._provider.raw_quote(identity, ref.kind)
-        except UnsupportedQuote:
+        except Exception as exc:
+            return self._quote_outcome(ref, exc)
+        return self._quote_outcome(ref, tick)
+
+    def _quote_outcome(self, ref: AssetRef, outcome: ProviderTick | BaseException | None) -> QuoteResult:
+        identity = ref.identity.strip()
+        quantity = ref.quantity
+        if isinstance(outcome, UnsupportedQuote):
             return QuoteResult(
                 identity=identity,
                 kind=ref.kind,
@@ -88,7 +144,7 @@ class ValuationService:
                 quantity=quantity,
                 reason="unsupported_identity",
             )
-        except Exception:
+        if isinstance(outcome, BaseException):
             return QuoteResult(
                 identity=identity,
                 kind=ref.kind,
@@ -96,7 +152,7 @@ class ValuationService:
                 quantity=quantity,
                 reason="provider_error",
             )
-        if tick is None:
+        if outcome is None:
             return QuoteResult(
                 identity=identity,
                 kind=ref.kind,
@@ -104,6 +160,7 @@ class ValuationService:
                 quantity=quantity,
                 reason="empty_provider_response",
             )
+        tick = outcome
         price = Decimal(str(tick.price))
         if not price.is_finite():
             return QuoteResult(
@@ -138,4 +195,18 @@ class ValuationService:
             quantity=quantity,
             reason=reason,
             provider=tick.provider,
+        )
+
+    @staticmethod
+    def _deadline_result(ref: AssetRef) -> QuoteResult:
+        return QuoteResult(
+            identity=ref.identity, kind=ref.kind, status=QuoteStatus.PARTIAL,
+            quantity=ref.quantity, reason="query_deadline_exceeded",
+        )
+
+    @staticmethod
+    def _provider_error_result(ref: AssetRef) -> QuoteResult:
+        return QuoteResult(
+            identity=ref.identity, kind=ref.kind, status=QuoteStatus.PARTIAL,
+            quantity=ref.quantity, reason="provider_error",
         )
