@@ -30,7 +30,7 @@ SQLite 遇到繁忙、读写权限或 schema 错误时会直接报告，不会�
 | 文档 | 说明 |
 |---|---|
 | [产品化重构顶层路线](productization-refactor-plan.md) | 阶段依赖与完成门槛 |
-| [Phase 2 Web Spec 拆分交接](phase2-web-spec-handoff.md) | 020/021 创建前输入；**非实施权威** |
+| [Phase 2 Web 单一 Spec 交接](phase2-web-spec-handoff.md) | 020 创建前输入；**非实施权威** |
 | [财富解释与趋势对比设计](productization-wealth-report-design.md) | 已批准决策输入；**非**实施权威 |
 | [财富报告线框](productization-wealth-report-wireframe.html) | 线框参考 |
 
