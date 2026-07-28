@@ -59,7 +59,16 @@ class AccountService:
                     f"账户已存在: {normalized_name}",
                     name=normalized_name,
                 )
-            uow.accounts.add(account)
+            # Investment accounts store optional base_currencies in metadata so portfolio
+            # cash legs (e.g. usd after deposit) are marked is_cash. Cash/loan/lend
+            # only seed a zero pocket on the snapshot.
+            if seed_currency is not None and type_ in {"security", "crypto"}:
+                try:
+                    uow.accounts.add(account, seed_currency=seed_currency)
+                except TypeError:
+                    uow.accounts.add(account)
+            else:
+                uow.accounts.add(account)
             if seed_currency is not None and type_ in {"cash", "loan", "lend"}:
                 snap = uow.snapshot.load(lock=True)
                 bucket = snap.setdefault("accounts", {}).setdefault(type_, {})

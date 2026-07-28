@@ -94,12 +94,22 @@ class RelationalAccountRepository:
         row = self._find_model(name)
         return None if row is None else self._dto(row)
 
-    def add(self, account: AccountDTO) -> None:
+    def add(self, account: AccountDTO, *, seed_currency: str | None = None) -> None:
+        metadata: dict = {}
+        if (
+            seed_currency
+            and account.type in {"security", "crypto"}
+        ):
+            try:
+                metadata["base_currencies"] = [_validate_currency(seed_currency)]
+            except ValueError:
+                metadata = {}
         self._session.add(AccountModel(
             workspace_id=self._workspace_id,
             name=account.name,
             type=account.type,
             active=account.active,
+            metadata_json=metadata or {},
         ))
 
     def add_raw(self, account: dict) -> None:

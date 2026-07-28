@@ -6,7 +6,9 @@
 
 **Updated**: 2026-07-25
 
-**Status**: Implemented (pending converge / PR)
+**Status**: Complete
+
+**Completed**: 已合入 `refactor/web`（PR #14/#15）；与 018 关账同期对齐 Status。
 
 **Input（初始）**: 实时资产估值接口：统一 port + adapter；coverage/stale/unsupported；yfinance / Polymarket / crypto；非目标含历史序列、边界估值、收益率归因、Connector。编号 017。
 

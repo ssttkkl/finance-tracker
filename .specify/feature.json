@@ -1,3 +1,4 @@
 {
-  "feature_directory": "specs/018-investment-connector-sync"
+  "feature_directory": null,
+  "note": "Phase 1 closed through 018-investment-connector-sync (2026-07-28). Next product feature: Phase 2 transaction-browser-web (new sequential id)."
 }

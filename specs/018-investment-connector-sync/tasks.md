@@ -168,7 +168,7 @@ against SQLite and real PostgreSQL; neither backend may be represented only by m
 **Purpose**: 文档更新、双 DB 等价最终验证、代码清理
 
 - [x] T046 [P] Update CLI help text and README for `ft sync` command
-- [ ] T047 [P] Run full test suite (`uv run pytest tests/ -v`) and verify no regressions
+- [x] T047 [P] Run full test suite (`uv run pytest tests/ -v`) and verify no regressions (2026-07-28: `FT_TEST_POSTGRES_URL=postgresql+psycopg://finance_tracker:finance_tracker_test@127.0.0.1:55432/finance_tracker_test` + `FT_REQUIRE_TEST_POSTGRES=1` → **975 passed, 9 skipped, 0 failed** in 333.71s. Fixed four pre-existing regressions uncovered by the full matrix: (1) investment `acct add --currency` now seeds `metadata.base_currencies` so portfolio cash legs mark `is_cash`; (2) `tests/test_market_data.py` retargeted to `PredictionMarketQuoteProvider` after 017 removed `_fetch_polymarket`; (3) IBKR offline replay no longer expects a residual `hkd` leg after FX net-P&L-only mapping; (4) wealth publish orphan fixture uses integer `owner_account_id=1` post-016.)
 - [x] T048 Run quickstart.md validation scenarios end-to-end (exchange + Polymarket + errors + dual DB)
 - [x] T049 Final diff review: no credentials in logs/test output, no unused imports, consistent error messages
 

@@ -14,7 +14,7 @@ class AccountRepository(Protocol):
     def find(self, name: str) -> AccountDTO | None:
         ...
 
-    def add(self, account: AccountDTO) -> None:
+    def add(self, account: AccountDTO, *, seed_currency: str | None = None) -> None:
         ...
 
     def rename(self, name: str, new_name: str) -> AccountDTO:
