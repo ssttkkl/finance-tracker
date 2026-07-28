@@ -4,7 +4,9 @@
 
 **Created**: 2026-07-26
 
-**Status**: Draft
+**Status**: Complete
+
+**Completed**: 2026-07-28（T047 全量双后端回归绿；实现已随 `refactor/web` 合入，本轮关账）
 
 **Input**: Phase 1 投资连接器同步（investment-connector-sync）。通过 exchange/Polymarket 等 Connector 自动拉取私有交易历史并映射到统一投资事件模型。
 

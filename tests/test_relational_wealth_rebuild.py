@@ -610,7 +610,8 @@ def test_publish_rejects_staged_invalid_component_coverage_evidence_parents(rebu
     repo = RelationalWealthReadModel(sessions, "wealth-rebuild")
     repo.store_source_manifest("bulk-parent-source", ())
     with sessions.begin() as session:
-        if session.get(AccountModel, "cash") is None:
+        # 016+: accounts.id is integer surrogate PK; owner_account_id must match.
+        if session.get(AccountModel, 1) is None:
             session.add(AccountModel(
                 id=1, workspace_id="wealth-rebuild", name="Cash", type="cash",
             ))
@@ -636,9 +637,9 @@ def test_publish_rejects_staged_invalid_component_coverage_evidence_parents(rebu
             "digest": "missing-coverage-parent",
             "day": "2026-07-01",
             "src": "bulk-parent-source",
-            "owner": "cash",
+            "owner": 1,
             "kind": "cash_account",
-            "identity": "cash",
+            "identity": "1:CNY",
             "disp": "supported",
         })
         _restore_fk(session)
@@ -681,9 +682,9 @@ def test_publish_rejects_staged_invalid_component_coverage_evidence_parents(rebu
             "digest": mismatch_digest,
             "day": "2026-07-01",
             "src": "bulk-parent-source",
-            "owner": "cash",
+            "owner": 1,
             "kind": "cash_account",
-            "identity": "cash",
+            "identity": "1:CNY",
             "disp": "supported",
         })
         _restore_fk(session)

@@ -75,14 +75,15 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
 双写或隐式跨后端迁移。SQLite 使用 WAL、外键和有界写锁等待；既有权限过宽的文件只给出修复建议，
 不会自动 chmod。`001-postgres-only-storage` 保留为已完成的历史收口记录，不回写新需求。
 
-### 当前基线（`refactor/web` @ 016 后）
+### 当前基线（`refactor/web` @ 018 后）
 
 - **现金链** `002`–`008`：双 DB、mapping/开放币种、多币种账户、关系、导入与 kind 解耦 — **Complete**。
-- **投资文件导入与账本收口** `009`–`016`：多券商文件导入（DFZQ/IBKR/Schwab/uSmart 等）、行级幂等、成本币种与 cash-like actions、事实字段统一、内联溯源、**整数代理主键** — **已合入**；对应 `spec.md` Status=Complete。
-- **Alembic / `SCHEMA_REVISION` head**：`20260724_09`。
-- **Phase 1 估值门槛**：`017-asset-valuation-quote` — 统一 `ValuationService` + 组合本币/展示币市值与 `quote_status`（实现已在 feature 分支；验收以 tasks/quickstart 为准）。
-- **编号漂移（重要）**：仓库 `011`–`016` 已用于 uSmart/成本/字段/provenance/bigint。路线图旧名 `011-asset-valuation-quote` 对应实施目录 **`017-asset-valuation-quote`**；Connector / 账单 Web 落地时用新序号。
-- 活跃指针：`.specify/feature.json` → `specs/017-asset-valuation-quote`。
+- **投资文件导入与账本收口** `009`–`016`：多券商文件导入（DFZQ/IBKR/Schwab/uSmart 等）、行级幂等、成本币种与 cash-like actions、事实字段统一、内联溯源、**整数代理主键** — **Complete**。
+- **估值** `017-asset-valuation-quote`：统一 `ValuationService` + 组合本币/展示币市值与 `quote_status` — **Complete**（已合入）。
+- **连接器同步** `018-investment-connector-sync`：ccxt（binance/kraken/okx）+ Polymarket Activity/pUSD checkin、`ft sync`、行级幂等与 `sync_cursors` — **Complete**（2026-07-28 全量双后端回归绿）。
+- **Alembic / `SCHEMA_REVISION` head**：`20260726_10`。
+- **编号漂移（重要）**：仓库 `011`–`016` 已用于 uSmart/成本/字段/provenance/bigint。路线图旧名 `011-asset-valuation-quote` → **`017`**；旧 `012` connector-sync → **`018`**。账单 Web 落地时用新序号。
+- 活跃指针：Phase 1 关账后无强制活跃 feature；下一产品方向为 Phase 2 `transaction-browser-web`（新序号）。
 
 ## 4. 产品与架构原则
 
@@ -135,20 +136,23 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
   `011-usmart-hk-import`、`012-investment-base-currency-cost`、`013-investment-cash-event-kinds`、
   `014-fact-field-unify`、`015-inline-row-provenance`、`016-bigint-surrogate-ids` — 均为 **Complete**。
 
-- **`017-asset-valuation-quote`（P0 组合市值 + P1 原子 quote；历史路线图名 asset-valuation-quote / 旧编号 011）**：
+- **`017-asset-valuation-quote`（Complete；历史路线图名 asset-valuation-quote / 旧编号 011）**：
   组合持仓 **本币估值**（分币种不折算）与可选 **`display_currency` 只读 FX 折算**；统一 `ValuationService`（security/crypto/pm/cash）与 **complete/stale/partial/unsupported**。
-  非目标：历史时间序列、期初/期末边界估值、收益率归因（归 Phase 3）、Connector。
+  非目标：历史时间序列、期初/期末边界估值、收益率归因（归 Phase 3）。
 
-- **`investment-connector-sync`（可延后；历史路线图编号 `012`）**：exchange/polymarket 等 Connector 自动同步。
-  不阻塞 Phase 2；新建时用新序号。
+- **`018-investment-connector-sync`（Complete；历史路线图编号 `012` / 能力名 investment-connector-sync）**：
+  手动 `ft sync`：ccxt 交易所（binance/kraken/okx）私有成交+ledger、Polymarket Activity（含 REDEEM/YIELD）与当前 pUSD `balanceOf` → USD checkin；
+  `source_type`×`record_id` 幂等、`sync_cursors` 增量、`~/.ft/credentials.yaml` 本地凭据；有界 `ft stock list` 渲染。
+  非目标：定时 Worker、Web、secret vault、通用 Connector 平台、行情/FX 自动更新（017）。
 
 #### Phase 1 完成门槛
 
 - `002`–`008` 全部收敛；✅
 - `009` 落地（投资事件可导入，多券商解析可用）；✅
 - `010` 落地（现金/投资导入行级幂等与重叠增量）；✅
-- **实时估值 + 组合市值**落地（`017`：本币/展示币 + coverage 状态）；✅（以 feature 分支验收为准）
-- Connector 可延后，不阻塞 Phase 2。
+- **实时估值 + 组合市值**落地（`017`：本币/展示币 + coverage 状态）；✅
+- **Connector 同步**落地（`018`：交易所/Polymarket API → 统一投资事件）；✅
+  （原「可延后不阻塞 Phase 2」仍成立；现已交付并关账。）
 
 ### 5.3 Phase 2：账单浏览 Web（只读）
 
