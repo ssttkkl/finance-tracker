@@ -1,8 +1,7 @@
 # References
 
-本目录只保留仍被当前 PostgreSQL-only runtime 使用的 parser、账单格式和只读行情适配资料。历史文件
-账本、reconcile session、Connector sync、迁移和 snapshot 修复 runbook 已删除；需要考古时使用 Git
-history，不把旧流程继续作为操作说明维护。
+本目录保留 **当前运行时**仍有用的 parser、账单格式与只读行情适配资料。  
+文件账本、reconcile session、旧 `stock sync` 流程等已删除；考古用 Git history。
 
 ## 原始账单解析
 
@@ -19,5 +18,7 @@ history，不把旧流程继续作为操作说明维护。
 - [Yahoo Finance ticker 格式](yfinance-ticker-format.md)
 - [Yahoo Finance 市场分组](yfinance-market-grouping.md)
 - [Yahoo Finance 港股价格](yfinance-hk-price-fetch.md)
+- [Polymarket gamma 字段](polymarket-gamma-field-quirks.md)（估值 017 / 同步 018 相关）
 
-实现行为仍以当前 feature artifacts、代码和测试为准；reference 只补充供应商格式细节。
+实现行为以 feature artifacts、代码和测试为准；reference 只补充供应商格式细节。  
+操作总览见根 [README.md](../README.md) 与 [docs/import-flow.md](../docs/import-flow.md)。

@@ -18,12 +18,12 @@
 
 当前相关材料：
 
-- [Phase 1 Application Services](phase1-application-services.md)：已完成的应用边界基线。
-- [Phase 2 PostgreSQL Storage](phase2-postgresql-storage.md)：已完成的双 backend 历史基线。
-- [001-postgres-only-storage](../specs/001-postgres-only-storage/spec.md)：已完成的 PostgreSQL-only 存储收口。
-- [002-dual-database-runtime](../specs/002-dual-database-runtime/spec.md)：已完成的双数据库运行时（Phase 1 现金链起点）。
-- [016-bigint-surrogate-ids](../specs/016-bigint-surrogate-ids/spec.md)：当前 `refactor/web` 已合入的最新账本 schema feature（整数代理主键；Alembic `20260724_09`）。
-- [database-schema.md](database-schema.md)：015+016 落地态结构速查。
+- [项目 README](../README.md)：运行时、CLI、导入与同步。
+- [文档索引](README.md)
+- [001-postgres-only-storage](../specs/001-postgres-only-storage/spec.md)：历史 PostgreSQL-only 收口（后由 002 双后端叙事覆盖）。
+- [002-dual-database-runtime](../specs/002-dual-database-runtime/spec.md)：双数据库运行时（Phase 1 现金链起点）。
+- [017-asset-valuation-quote](../specs/017-asset-valuation-quote/spec.md) / [018-investment-connector-sync](../specs/018-investment-connector-sync/spec.md)：估值与连接器（Phase 1 已 Complete）。
+- [database-schema.md](database-schema.md)：015+016+018 落地态结构速查（Alembic `20260726_10`）。
 - [财富解释与趋势对比设计](productization-wealth-report-design.md)：已批准、但非实施权威的产品决策输入。
 
 ## 2. 产品定位
@@ -164,7 +164,7 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
 
 - 按 `account.type` 分投资（investment）与消费（cash）两视图；
 - 可选展示当前市值（来自估值 port）；
-- 关系状态（accepted/pending）、来源（raw_records）与修订下钻；
+- 关系状态（accepted/pending）、来源（`source_payload` / `source_type`×`record_id`）与证据下钻；
 - loading/empty/partial/stale/unsupported 状态；
 - 本地打包、API schema、浏览器 QA 和无障碍基线。
 

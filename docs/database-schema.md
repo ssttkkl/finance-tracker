@@ -1,26 +1,22 @@
-# Finance Tracker 数据库表结构文档（016 落地态）
+# Finance Tracker 数据库表结构文档（018 落地态）
 
-> **文档性质**：本文件是 **`015-inline-row-provenance` + `016-bigint-surrogate-ids` 落地后** 的 schema 速查。  
-> **运行时权威**：`src/ft/adapters/relational/models.py` + Alembic head **`20260724_09`**（`SCHEMA_REVISION` 同值）。  
-> **双后端**：PostgreSQL（生产）与文件型 SQLite（契约/本地）；逻辑 schema 共享。  
-> **主键**：账本代理主键/外键为 **整数**（PG `BIGINT` / SQLite `INTEGER`，ORM `SurrogatePK`）。`workspaces.id` 与多数 wealth 读模型身份键仍为字符串业务/确定性键。  
+> **文档性质**：**`015` 内联溯源 + `016` 整数代理主键 + `018` `sync_cursors`** 后的 schema 速查。  
+> **运行时权威**：`src/ft/adapters/relational/models.py` + Alembic head **`20260726_10`**（`SCHEMA_REVISION` 同值）。  
+> **双后端**：PostgreSQL 与文件型 SQLite；逻辑 schema 共享。  
+> **主键**：账本代理主键/外键为 **整数**（PG `BIGINT` / SQLite `INTEGER`，`SurrogatePK`）。  
 > **不恢复**：015 已删的导入作业/raw/修订/检查 run 等表。
 
-可执行行为与持久化合同以 constitution 与各 feature `spec.md` 为准；本文是结构速查，不替代 Spec Kit artifacts。
+可执行行为与持久化合同以 constitution 与各 feature `spec.md` 为准；本文是结构速查。
 
-### 相对基线的变更摘要（015）
+### 相对旧基线的变更摘要
 
 | 动作 | 对象 |
 |---|---|
-| **删除表** | `import_batches`、`raw_files`、`raw_records`、`fact_deletion_events`、`record_revisions`、`relation_check_runs` |
-| **保留表（明确）** | `ledger_snapshots`（派生缓存）；wealth 读模型族（结构不动，仅去 raw 依赖） |
-| **删除列** | 事实/估值：`raw_record_id`；现金：`offset_*`（6）、`proposed_action`、`locked`、`transfer_account`、`source`、`bill_source`；投资：`price`（可由 legs 推导）；事实上仅服务未实现改账的 `revision`（若存在且无递增语义则删，见 spec FR-021） |
-| **保留列（明确）** | **`record_id`**（行键）与 **`source_type`**（导入渠道名）组成幂等复合键；软删行字段 `deleted_at`/`deleted_by`/`delete_reason` |
-| **新增/正式列** | 现金/投资：`source_type`（导入渠道名）、`source_payload`；投资业务行键正式列名统一为 **`record_id`**（不用平行 `source_identity`） |
-| **新增约束** | 活跃幂等：`(workspace_id, source_type, record_id)` = workspace 内 **`record_id` × `source_type`**（见 §5） |
-| **不再持久化** | 文件路径/digest/批次；行内 offset/locked/transfer_account/source/bill_source；投资 `price`；删除事件表；修订链；关系检查 run |
-
----
+| **删除表（015）** | `import_batches`、`raw_files`、`raw_records`、`fact_deletion_events`、`record_revisions`、`relation_check_runs` |
+| **保留** | `ledger_snapshots`；wealth 读模型族 |
+| **新增表（018）** | `sync_cursors` |
+| **正式幂等列** | **`record_id` × `source_type`**；`source_payload` 内联溯源 |
+| **主键（016）** | 账本整数代理 PK/FK |
 
 ---
 
@@ -37,9 +33,10 @@ workspaces  (租户隔离根)
     ├─ investment_events     source_type / record_id / source_payload + residual payload
     │
     ├─ transaction_relations
-    ├─ ledger_snapshots          (派生缓存，非 SoT，**保留**)
+    ├─ sync_cursors              (018 连接器增量游标)
+    ├─ ledger_snapshots          (派生缓存，非 SoT)
     │
-    └─ wealth_* 读模型族（本 feature 不砍表）
+    └─ wealth_* 读模型族
           valuation_observations
           wealth_source_manifests / items
           wealth_generations / generation_days / active_manifests
@@ -576,92 +573,52 @@ workspaces  (租户隔离根)
 
 ---
 
-## 8. 表清单速查（共 23 张）
+## 8. 表清单速查（ORM 当前）
 
-| # | 表名 | 职责 |
-|---|---|---|
-| 1 | `workspaces` | 租户根 |
-| 2 | `accounts` | 账户 |
-| 3 | `account_aliases` | 账户别名 |
-| 4 | `account_lifecycle_events` | 账户生命周期 |
-| 5 | `cash_transactions` | 现金事实 + 内联行级溯源 |
-| 6 | `investment_events` | 投资事实 + 内联行级溯源 |
-| 7 | `ledger_snapshots` | 派生快照缓存（**保留**） |
-| 10 | `transaction_relations` | 交易关系 |
-| 12 | `valuation_observations` | 估值观测 |
-| 13 | `wealth_source_manifests` | 源清单 |
-| 14 | `wealth_source_manifest_items` | 源清单项 |
-| 15 | `wealth_generations` | 财富构建世代 |
-| 16 | `wealth_generation_days` | 世代×日映射 |
-| 17 | `wealth_daily_results` | 日结果（内容寻址） |
-| 18 | `wealth_active_manifests` | 激活世代指针 |
-| 19 | `wealth_components` | 归因分量 |
-| 20 | `wealth_evidence_manifests` | 证据清单 |
-| 21 | `wealth_evidence_items` | 证据项 |
-| 22 | `wealth_evidence_manifest_items` | 证据清单链接 |
-| 23 | `wealth_coverage_dispositions` | 覆盖处置 |
+| 表名 | 职责 |
+|---|---|
+| `workspaces` | 租户根 |
+| `accounts` | 账户 |
+| `account_aliases` | 账户别名 |
+| `account_lifecycle_events` | 账户生命周期 |
+| `cash_transactions` | 现金事实 + 内联溯源 |
+| `investment_events` | 投资事实 + 内联溯源 |
+| `ledger_snapshots` | 派生快照缓存 |
+| `transaction_relations` | 交易关系 |
+| `sync_cursors` | 连接器同步游标（018） |
+| `valuation_observations` | 估值观测 |
+| `wealth_*` | 财富归因读模型族（manifest / generation / daily / component / evidence / coverage） |
 
-**已删除（相对基线）**：`import_batches`、`raw_files`、`raw_records`、`fact_deletion_events`、`record_revisions`、`relation_check_runs`。
+**015 已删**：`import_batches`、`raw_files`、`raw_records`、`fact_deletion_events`、`record_revisions`、`relation_check_runs`。  
+权威集合以 `models.py` 的 `__tablename__` 为准。
 
 ---
 
-## 9. 关键关系（逻辑 ER）
+## 9. 关键关系（逻辑）
 
 ```
 workspaces 1──* accounts 1──* account_aliases
                  │         └──* account_lifecycle_events
-                 │
-                 ├──* cash_transactions   （含 source_type / record_id / source_payload）
-                 ├──* investment_events   （同上）
-                 │
-                 ├──* transaction_relations (facts by id, no DB FK to facts)
+                 ├──* cash_transactions / investment_events
+                 ├──* transaction_relations
+                 ├──* sync_cursors
                  ├──1 ledger_snapshots
-                 │
-                 └── wealth 读模型（manifest → generation → daily_result → coverage/component/evidence）
-```
-
-```mermaid
-erDiagram
-    workspaces ||--o{ accounts : has
-    workspaces ||--o{ cash_transactions : has
-    workspaces ||--o{ investment_events : has
-    workspaces ||--o{ transaction_relations : has
-    workspaces ||--o| ledger_snapshots : has
-    accounts ||--o{ account_aliases : aliases
-    accounts ||--o{ account_lifecycle_events : lifecycle
-    accounts ||--o{ cash_transactions : posts
-    accounts ||--o{ investment_events : posts
-    wealth_source_manifests ||--o{ wealth_source_manifest_items : items
-    wealth_source_manifests ||--o{ wealth_generations : builds
-    wealth_generations ||--o{ wealth_generation_days : days
-    wealth_generations ||--o| wealth_active_manifests : active
-    wealth_daily_results ||--o{ wealth_generation_days : mapped
-    wealth_daily_results ||--o{ wealth_coverage_dispositions : coverage
-    wealth_evidence_manifests ||--o{ wealth_evidence_manifest_items : links
-    wealth_evidence_items ||--o{ wealth_evidence_manifest_items : referenced
-    wealth_evidence_manifests ||--o{ wealth_components : supports
+                 └── wealth 读模型
 ```
 
 ---
 
-## 10. 迁移历史（Alembic）
+## 10. 迁移历史（Alembic，摘要）
 
-| Revision | 文件 | 内容 |
-|---|---|---|
-| `20260717_01` | `..._initial.py` | 初始：workspace/account/import/raw/cash/investment/snapshot/revisions |
-| `20260719_02` | `..._wealth_attribution.py` | wealth 归因读模型表族 |
-| `20260720_03` | `..._import_batch_multi_account.py` | 导入批次多账户（target 可空等） |
-| `20260720_04` | `..._multi_currency_accounts.py` | 账户去 currency 列；同名合并；name 唯一 |
-| `20260721_05` | `..._transaction_relations.py` | relations / check_runs / aliases / deletion_events |
-| `20260722_06` | `..._open_leg_pending.py` | open-leg：`anchor_fact_id`、partial unique、checks |
-| `20260724_07` | `..._fact_field_unify.py` | cash `description`→`note`；investment `kind`→`action`；leg 列提升 |
-| **015（计划）** | *待实现* | fact 增 `source_*`；回填自 raw；drop `raw_record_id` 与 `import_batches`/`raw_files`/`raw_records`；valuation 去 `raw_record_id` |
-
-升级：
+| Revision | 内容 |
+|---|---|
+| `20260717_01` … `20260724_07` | 初始 → 多币种账户 → relations → fact 字段统一 |
+| `20260724_08` | 015 内联溯源 + 删 import/raw 作业壳 |
+| `20260724_09` | 016 整数代理主键 |
+| **`20260726_10`** | **018 `sync_cursors`（当前 head）** |
 
 ```bash
-export FT_DATABASE_URL='postgresql+psycopg://...'
-# 或 sqlite+pysqlite:////path/to.db
+export FT_DATABASE_URL='postgresql+psycopg://...'   # 或 sqlite+pysqlite:////path
 uv run alembic upgrade head
 ```
 
@@ -674,38 +631,28 @@ uv run alembic upgrade head
 | 金额 | `NUMERIC(38,18)` | 文本 Decimal |
 | 时间 | timestamptz | aware DateTime，读回补 UTC |
 | JSON | 原生 JSON | JSON affinity |
-| 引擎 | `pool_pre_ping=True` | WAL、`foreign_keys=ON`、busy_timeout 5s |
-| 选择 | `FT_DATABASE_URL` **显式**指定；无自动回退、无双写 | 同左 |
-| 建表 | CLI **不**自动 migrate；需 `alembic upgrade head` | 同左 |
+| 引擎 | `pool_pre_ping` | WAL、FK、busy_timeout |
+| 选择 | `FT_DATABASE_URL` 显式；无回退/双写 | 同左 |
+| 建表 | 需 `alembic upgrade head` | 同左 |
 
 ---
 
-## 12. 相关在途 feature
+## 12. 已落地 schema 相关 feature
 
-### 016 bigint surrogate ids（**Complete**，PR #13）
-
-- 范围内账本表 PK/FK 已改为整数代理键（PG `BIGINT` / SQLite `INTEGER`，`SurrogatePK`）
-- Alembic head / `SCHEMA_REVISION`：`20260724_09`
-- **对外/幂等**仍用稳定复合业务键：事实行上的 **`record_id` × `source_type`（导入渠道名）**
-- 关系 `ordered_fact_*`：open-leg 允许 NULL；迁移将 015 空串哨兵规范化为 NULL；非空未映射端点 fail-closed
-
-### 015 inline row provenance（**Complete**）
-
-- 删除导入作业/文件/独立 raw 表；删除 fact_deletion_events / record_revisions / relation_check_runs；现金列清理；幂等键为 **record_id × source_type（导入渠道名）**
-- 行级溯源内联到正式事实；删除投资 `price`
-- 本机升级证据见 `specs/016-bigint-surrogate-ids/tasks.md` T027（015→016 连续升级路径）
+| Feature | 要点 |
+|---|---|
+| 015 | 删 import/raw 表；行内溯源与幂等键 |
+| 016 | 账本 bigint/integer 代理 PK |
+| 017 | 估值服务（应用层；观测表既有） |
+| 018 | **`sync_cursors`**；head `20260726_10` |
 
 ---
 
-## 13. 文档与代码索引
+## 13. 索引
 
 | 资源 | 路径 |
 |---|---|
-| 本目标 schema | `specs/015-inline-row-provenance/database-schema.md` |
-| 规格 | `specs/015-inline-row-provenance/spec.md` |
-| 实现前基线速查 | `docs/database-schema.md` |
-| ORM 模型（落地后权威） | `src/ft/adapters/relational/models.py` |
-| 方言/引擎 | `src/ft/adapters/relational/dialect.py` |
-| Alembic env | `migrations/env.py` |
-| 领域常量（非表） | `src/ft/schema.py` |
-| 产品 README | `README.md` |
+| ORM | `src/ft/adapters/relational/models.py` |
+| 导入语义 | `docs/import-flow.md` |
+| README | `README.md` |
+| 015/016/018 specs | `specs/015-…`、`016-…`、`018-…` |
