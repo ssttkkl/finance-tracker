@@ -31,8 +31,9 @@ Distilled from feature `009-investment-account-import` and live DFZQ calibration
 ## When NOT to use
 
 - Cash/bank/wallet bills → use **`statement-source-onboarding`**
-- Connector auto-sync / credentials platform → feature `011` (out of scope here)
-- Live quotes / valuation → feature `010`
+- Connector API sync / credentials → feature **`018-investment-connector-sync`**
+  (`ft sync`, not this skill’s file-import path)
+- Live quotes / portfolio valuation → feature **`017-asset-valuation-quote`**
 - Investment **relations** (trade lots, FIFO) — not in Phase 1 baseline
 - Implementing product code in main session when CLAUDE.md requires
   `speckit_implementer` — still follow Spec Kit; this skill is the playbook
@@ -52,16 +53,16 @@ Distilled from feature `009-investment-account-import` and live DFZQ calibration
 ```text
 CLI: ft import <file> --source <src> --account <security|crypto> [--password-file]
         ↓
-InvestmentImportService (application)
-  1. source_digest = sha256(file bytes)  → batch idempotency
-  2. parse (decrypt/extract if PDF) → list[source txn]
-  3. map → unified investment event rows
-  4. ONE transaction:
-       import_batch + raw_file + raw_records
-       + investment_events (raw_record_id)
+InvestmentImportService (application)   # post-015: no import_batches / raw_* tables
+  1. parse (decrypt/extract if PDF) → list[source txn]
+  2. map → unified investment event rows
+  3. ONE transaction:
+       for each row: idempotent key = source_type × record_id
+         skip if exists; else insert investment_events
+         (source_payload inline; no raw_record_id FK)
        + apply_investment_event → ledger_snapshots
        + validate_investment_snapshot
-  5. NO cash_transactions, NO relations writes
+  4. NO cash_transactions, NO relations writes on this path
 ```
 
 | Layer | Location |
@@ -234,9 +235,10 @@ ft import /path/to/statement.pdf --source <src> --account <券商名> --password
 | Swaps with wrong double fee | 0 |
 | Idempotent re-import | same batch_id, count 0 |
 
-**Clean re-import:** delete `investment_events` for account → `raw_records`/`raw_files`/
-`import_batches` for source → reset snapshot security account → import again.
-Respect FK order (events before raw_records).
+**Clean re-import (post-015):** delete matching `investment_events` rows for the
+account/`source_type` (and related soft-delete state if any) → reset that account’s
+slice in `ledger_snapshots` → import again. There are **no** `raw_records` /
+`import_batches` tables to wipe.
 
 Stop tuning when:
 

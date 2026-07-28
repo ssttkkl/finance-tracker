@@ -37,9 +37,11 @@ real `~/.ft/bills` calibration loops (mirror, refund, transfer).
 ## Architecture you must respect
 
 ```text
-Import (facts only)
-  parse → raw_records.payload (source fields) → formal cash facts
-  NO refund_offset / payment_mirror / transfer_pair at import
+Import (facts only; post-015)
+  parse → formal cash_transactions with inline source_payload
+  idempotent on source_type × record_id
+  NO refund_offset / payment_mirror / transfer_pair written at import time
+  (no raw_records / import_batches tables)
 
 relations check (one shot, ordered)
   Phase A  platform hard-key refund_offset   (source-specific adapters)
@@ -167,9 +169,10 @@ Rules of thumb:
 - **Import must not write relations** to “fix” bad booking; fix convert/mapping first.
 - User `~/.ft/mapping.yaml` + `accounts.yaml` may need new accounts (e.g. 余额宝, 余利宝); document in feature notes (often not in git).
 
-### 3. Raw payload contract
+### 3. Inline source_payload contract (post-015)
 
-Every formal fact must retain **pairing fields** in `raw_records.payload` (JSON):
+Every formal fact must retain **pairing fields** in `source_payload` (JSON on the
+fact row; there is no separate `raw_records` table):
 
 Minimum by family:
 
@@ -328,11 +331,11 @@ After rule changes:
 | Parse source | `src/ft/convert.py`, `src/ft/importers/*` |
 | Mapping | `src/ft/mapping.py`, user `~/.ft/mapping.yaml` |
 | Import orchestration | `src/ft/application/statement_import.py` |
-| Phase A hard keys | `src/ft/domain/platform_refund.py` + `RelationService._phase_a_*` |
-| Phase B/C/D pure rules | `src/ft/domain/relations.py` |
+| Phase A hard keys | `src/ft/domain/platform_refund.py` + relations Phase A |
+| Phase B/C/D pure rules | `src/ft/domain/relations/`（竖切 transfer/refund/mirror） |
 | Check orchestration | `src/ft/application/relations.py` |
-| Raw join for scan | `list_detailed` + `FactView.raw_payload` |
-| Specs | `specs/00N-*/` (contracts for payload + scan phases) |
+| Payload for scan | fact `source_payload` / detailed list views |
+| Specs | `specs/00N-*/`；导入语义见 `docs/import-flow.md` |
 
 ---
 
