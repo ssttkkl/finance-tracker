@@ -4,7 +4,9 @@
 
 **Created**: 2026-07-28
 
-**Status**: Draft
+**Status**: Complete
+
+**Completed**: 2026-07-28（实现已合入 `refactor/web`；全部任务和收敛检查已完成。）
 
 **Input**: 用户希望优化持仓查询：默认 4 秒总预算目前只能完成约 6 至 8 次外部行情报价。
 
