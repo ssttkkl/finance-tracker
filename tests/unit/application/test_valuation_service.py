@@ -69,6 +69,53 @@ def test_quote_many_partial_and_unsupported():
     assert batch.results[2].unit_price is None
 
 
+def test_quote_many_uses_provider_batch_results_by_input_identity():
+    class BatchProvider(FakeProvider):
+        def raw_quote_many(self, refs, *, timeout=None):
+            return {
+                "ok": _tick("1"),
+                "missing": None,
+                "unsupported": UnsupportedQuote("unsupported"),
+                "broken": RuntimeError("boom"),
+            }
+
+    service = ValuationService(
+        BatchProvider(), clock=lambda: datetime(2026, 7, 25, tzinfo=timezone.utc)
+    )
+    batch = service.quote_many([
+        AssetRef("ok", AssetKind.SECURITY),
+        AssetRef("missing", AssetKind.SECURITY),
+        AssetRef("unsupported", AssetKind.SECURITY),
+        AssetRef("broken", AssetKind.SECURITY),
+    ])
+
+    by_identity = {result.identity: result for result in batch.results}
+    assert by_identity["ok"].status is QuoteStatus.COMPLETE
+    assert by_identity["missing"].reason == "empty_provider_response"
+    assert by_identity["unsupported"].status is QuoteStatus.UNSUPPORTED
+    assert by_identity["broken"].reason == "provider_error"
+
+
+def test_quote_many_rejects_identity_kind_mismatch_before_provider_batch_call():
+    class BatchProvider(FakeProvider):
+        def __init__(self):
+            super().__init__()
+            self.batch_calls = 0
+
+        def raw_quote_many(self, refs, *, timeout=None):
+            self.batch_calls += 1
+            return {ref.identity: _tick("1") for ref in refs}
+
+    provider = BatchProvider()
+    result = ValuationService(provider).quote_many([
+        AssetRef("btc", AssetKind.SECURITY),
+    ]).results[0]
+
+    assert result.status is QuoteStatus.UNSUPPORTED
+    assert result.reason == "identity_kind_mismatch"
+    assert provider.batch_calls == 0
+
+
 def test_invalid_quantity_whole_batch():
     service = ValuationService(FakeProvider())
     with pytest.raises(ValuationError):

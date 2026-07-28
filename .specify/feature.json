@@ -1,4 +1,4 @@
 {
-  "feature_directory": null,
-  "note": "Phase 1 closed through 018-investment-connector-sync (2026-07-28). Next product feature: Phase 2 transaction-browser-web (new sequential id)."
+  "feature_directory": "specs/019-portfolio-quote-orchestration",
+  "note": "Active feature: portfolio quote orchestration (2026-07-28)."
 }

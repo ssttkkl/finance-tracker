@@ -1,8 +1,9 @@
 """Investment write and portfolio query application services."""
-from queue import Empty, Queue
-from threading import Thread
+from collections import defaultdict
 import time
 from decimal import Decimal
+from queue import Empty, Queue
+from threading import Thread
 
 from ft.application.valuation import ValuationService
 from ft.domain.decimal import exact_decimal
@@ -120,7 +121,8 @@ class PortfolioQueryService:
         raw = self._repository.load_portfolio()
         configured = {item.upper() for item in raw.get("configured_currencies", ())}
         deadline = self._monotonic() + self._query_deadline_seconds
-        accounts = []
+        pending_accounts = []
+        requests = {}
         for name, account in raw.get("accounts", {}).items():
             currency = (account.get("currency") or "").upper()
             # Prefer per-account bases; fall back to workspace-configured currencies when
@@ -131,7 +133,7 @@ class PortfolioQueryService:
             if not allowed_cash:
                 allowed_cash = set(configured)
             positions = account.get("positions", {})
-            items = []
+            pending_positions = []
             for ticker, position in positions.items():
                 shares = _finite_decimal(position.get("shares", 0), "shares")
                 if shares == 0:
@@ -148,33 +150,44 @@ class PortfolioQueryService:
                     cash_tickers=allowed_cash,
                     configured_currencies=configured - allowed_cash,
                 )
+                request_key = None
+                if kind is not None and kind is not AssetKind.CASH:
+                    ref = AssetRef(identity=str(ticker), kind=kind, quantity=shares)
+                    request_key = (kind, str(ticker).strip().lower())
+                    requests.setdefault(request_key, ref)
+
+                pending_positions.append((
+                    ticker, shares, total_cost, cost_currency, is_cash, kind, request_key,
+                ))
+            pending_accounts.append((name, currency, pending_positions))
+
+        quote_results = self._quote_requests(requests, deadline)
+        accounts = []
+        for name, currency, pending_positions in pending_accounts:
+            items = []
+            for ticker, shares, total_cost, cost_currency, is_cash, kind, request_key in pending_positions:
                 quote_status = None
                 quote_reason = None
                 quote_currency = None
                 current_price = None
                 market_value = None
                 if kind is None:
-                    # configured non-cash (e.g. USDT as currency unit) — no market path
                     quote_status = QuoteStatus.UNSUPPORTED.value
                     quote_reason = "unsupported_identity"
+                elif kind is AssetKind.CASH:
+                    current_price = Decimal("1")
+                    market_value = shares
+                    quote_status = QuoteStatus.COMPLETE.value
+                    quote_reason = "ok"
+                    quote_currency = str(ticker).upper()
                 else:
-                    ref = AssetRef(identity=str(ticker), kind=kind, quantity=shares)
-                    result = self._quote_with_deadline(ref, deadline)
+                    result = quote_results[request_key]
                     quote_status = result.status.value
                     quote_reason = result.reason
                     quote_currency = result.quote_currency
                     if result.status in {QuoteStatus.COMPLETE, QuoteStatus.STALE}:
                         current_price = result.unit_price
-                        market_value = result.market_value
-                        if is_cash and current_price is None:
-                            current_price = Decimal("1")
-                            market_value = shares
-                    elif is_cash:
-                        current_price = Decimal("1")
-                        market_value = shares
-                        quote_status = QuoteStatus.COMPLETE.value
-                        quote_reason = "ok"
-                        quote_currency = ticker_currency
+                        market_value = result.unit_price * shares if result.unit_price is not None else None
 
                 profit = None
                 if (
@@ -217,27 +230,50 @@ class PortfolioQueryService:
             accounts.append(PortfolioAccountDTO(name, currency, tuple(items)))
         return PortfolioDTO(tuple(accounts))
 
-    def _quote_with_deadline(self, ref: AssetRef, deadline: float):
-        """Read one quote without letting an external provider exceed the portfolio budget."""
-        remaining = deadline - self._monotonic()
-        if remaining <= 0:
-            return self._deadline_result(ref)
-        results: Queue = Queue(maxsize=1)
+    def _quote_requests(self, requests, deadline: float):
+        grouped = defaultdict(list)
+        for request_key, ref in requests.items():
+            grouped[request_key[0]].append((request_key, ref))
+        if not grouped:
+            return {}
 
-        def read_quote() -> None:
+        results = {}
+        completed = Queue()
+        pending = list(grouped.values())
+
+        def read_group(grouped_items):
             try:
-                results.put((True, self._valuation.quote(ref)))
-            except Exception as exc:  # defensive: ValuationService is normally total
-                results.put((False, exc))
+                batch = self._valuation.quote_many(
+                    [ref for _, ref in grouped_items],
+                    timeout=max(deadline - self._monotonic(), 0),
+                )
+            except Exception:
+                batch = None
+            completed.put((grouped_items, batch))
 
-        Thread(target=read_quote, daemon=True).start()
-        try:
-            ok, value = results.get(timeout=remaining)
-        except Empty:
-            return self._deadline_result(ref)
-        if not ok:
-            return self._provider_error_result(ref)
-        return value
+        while pending and deadline > self._monotonic():
+            grouped_items = pending.pop(0)
+            Thread(target=read_group, args=(grouped_items,), daemon=True).start()
+
+        in_flight = len(grouped) - len(pending)
+        while in_flight:
+            remaining = max(deadline - self._monotonic(), 0)
+            if remaining <= 0:
+                break
+            try:
+                grouped_items, batch = completed.get(timeout=remaining)
+            except Empty:
+                break
+            in_flight -= 1
+            if batch is None:
+                results.update({key: self._provider_error_result(ref) for key, ref in grouped_items})
+            else:
+                results.update({
+                    key: result for (key, _), result in zip(grouped_items, batch.results, strict=True)
+                })
+        for request_key, ref in requests.items():
+            results.setdefault(request_key, self._deadline_result(ref))
+        return results
 
     @staticmethod
     def _deadline_result(ref: AssetRef):
