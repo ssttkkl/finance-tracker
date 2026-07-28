@@ -56,7 +56,7 @@ def _merge_edge_list(ctx: MatchContext, kind: str, pairs: Sequence[tuple[str, st
 
 
 def bank_refund_seed_ids(facts: Sequence[FactView], *, blocked: set[str]) -> list[str]:
-    """Positive bank legs with refund-ish text (diamond open seeds)."""
+    """Positive bank rows with refund-ish text (diamond open seeds)."""
     out: list[str] = []
     for f in facts:
         if f.id in blocked:
@@ -189,7 +189,7 @@ def run_relation_phases(
         if p.status == RelationStatus.ACCEPTED.value:
             _mark_used(ctx, p)
 
-    # --- Phase D: merchant / weak / open-leg refund (seed-scoped like Application) ---
+    # --- Phase D: merchant / weak / unpaired relation refund (seed-scoped like Application) ---
     if merchant_refund_seed_ids is None:
         refund_seeds = [f for f in active if f.fact_type == FactType.CASH.value]
     else:

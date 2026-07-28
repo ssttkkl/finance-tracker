@@ -7,7 +7,7 @@ from decimal import Decimal
 
 def test_cross_batch_seed_matches_prior_facts(relation_runtime):
     services = relation_runtime.services
-    # Both legs on same account (card booklet); platform bill_source still alipay.
+    # Both rows belong to the same card account; platform bill_source remains alipay.
     assert services.accounts.create_account("建行储蓄", "cash", "CNY").ok
     # batch A: bank only
     services.cashflow.add_manual_transaction(

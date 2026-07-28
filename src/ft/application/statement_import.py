@@ -1,4 +1,4 @@
-"""Atomic original-statement import orchestration (inline provenance)."""
+"""原始账单的原子导入流程，来源快照随账本记录保存。"""
 from __future__ import annotations
 
 from dataclasses import replace
@@ -27,7 +27,7 @@ def _json_safe(value):
 
 
 def _row_record_id(row: dict, occurrences: dict[str, int]) -> str:
-    """Resolve business row key; content-stable when provider id missing."""
+    """解析业务行标识；数据源未提供 ID 时，根据行内容生成稳定标识。"""
     identity = str(row.get("record_id") or "").strip()
     if identity:
         return identity
@@ -55,7 +55,7 @@ class StatementImportService:
         with path.open("rb") as source:
             content = source.read(MAX_STATEMENT_BYTES + 1)
         if len(content) > MAX_STATEMENT_BYTES:
-            raise ValueError("statement exceeds 100 MiB input limit")
+            raise ValueError("账单超过 100 MiB 输入上限")
         with tempfile.TemporaryDirectory(prefix="ft-statement-") as temp_dir:
             captured_path = Path(temp_dir) / f"source{path.suffix}"
             captured_path.write_bytes(content)
@@ -75,7 +75,7 @@ class StatementImportService:
                 return OperationResult(
                     ok=True,
                     count=0,
-                    message="imported",
+                    message="导入完成",
                     details={
                         "batch_id": None,
                         "duplicate": False,
@@ -85,13 +85,13 @@ class StatementImportService:
                         "import_refund_relations": [],
                     },
                 )
-            raise ValueError("statement contains no supported records")
+            raise ValueError("账单中没有可导入的记录")
 
         source_type = str(command.source or "").strip()
         for row in rows:
             if not row.get("account_name"):
                 raise ValueError(
-                    "statement row missing account_name; mapping must resolve every row"
+                    "账单记录缺少 account_name；账户映射规则必须为每条记录解析目标账户"
                 )
             raw_currency = row.get("currency") or command.currency or "CNY"
             row["currency"] = str(raw_currency).upper()
@@ -104,7 +104,7 @@ class StatementImportService:
                     continue
                 account = uow.accounts.find(row["account_name"])
                 if account is None:
-                    raise ValueError(f"account not found: {row['account_name']}")
+                    raise ValueError(f"找不到账户：{row['account_name']}")
                 account_cache[key] = account
 
             occurrences: dict[str, int] = {}
@@ -122,7 +122,7 @@ class StatementImportService:
                 existing_target = existing_targets.get(record_id)
                 if existing_target is not None and existing_target != expected:
                     raise ValueError(
-                        "statement record was already imported to a different account"
+                        "该账单记录已导入其他账户，不能更改归属"
                     )
 
             snapshot = uow.snapshot.load(lock=True)
@@ -151,7 +151,7 @@ class StatementImportService:
                     apply_investment_event(snapshot, formal, default_currency=row["currency"])
                     uow.investments.add(account.type, formal)
                 else:
-                    raise ValueError(f"unsupported account type: {account.type}")
+                    raise ValueError(f"不支持导入到 {account.type} 类型的账户")
                 existing_targets[record_id] = (row["account_name"], row["currency"])
                 imported_count += 1
                 by_account[account.name] += 1
@@ -193,7 +193,7 @@ class StatementImportService:
         return OperationResult(
             ok=True,
             count=saved_imported_count,
-            message="no new rows" if no_new else "imported",
+            message="没有新增账本记录" if no_new else "导入完成",
             details={
                 "batch_id": None,
                 "duplicate": no_new,

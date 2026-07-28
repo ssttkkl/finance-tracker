@@ -1,4 +1,4 @@
-"""Raw statement parsers without runtime persistence."""
+"""不直接写入运行时存储的原始账单解析器。"""
 from __future__ import annotations
 
 from decimal import Decimal
@@ -12,10 +12,10 @@ CASH_SOURCES = {"alipay", "wechat", "icbc", "icbc-debit", "ccb-debit"}
 def _decimal_text(value) -> str:
     decimal = Decimal(str(value))
     if not decimal.is_finite():
-        raise ValueError("statement amount must be finite")
+        raise ValueError("账单金额必须是有限数值")
     normalized = decimal.normalize() if decimal else decimal
     if max(0, -normalized.as_tuple().exponent) > 18:
-        raise ValueError("statement amount must have at most 18 decimal places")
+        raise ValueError("账单金额最多保留 18 位小数")
     return format(decimal, "f")
 
 
@@ -27,10 +27,10 @@ def _parse_cash_statement(command):
         command.source_path, command.source, command.password
     )
     rules, default_action = load_rules()
-    # 007 FR-004: mapping miss must fail closed — never silent default=skip
+    # 007 FR-004：mapping 未命中时必须失败关闭，不能通过默认 skip 静默跳过。
     action = (default_action or "error").lower()
     if action == "skip":
-        # Treat file-level default skip as error for statement import path
+        # 账单导入不能继承文件级的默认 skip，必须按错误处理。
         action = "error"
         default_action = "error"
     output = []
@@ -47,7 +47,7 @@ def _parse_cash_statement(command):
             skipped += 1
             continue
         item["amount"] = _decimal_text(item["amount"])
-        # Preserve platform metadata for import-time refund relations
+        # 保留平台元数据，供导入时建立退款关系。
         for key in (
             "platform_status", "status", "txn_id", "merchant_order_id",
             "txn_type", "payment_method", "offset_group", "offset_role",
@@ -61,10 +61,10 @@ def _parse_cash_statement(command):
         output.append(item)
     if skipped:
         raise ValueError(
-            f"{skipped} statement row(s) unmatched by mapping; "
-            f"add rules to ~/.ft/mapping.yaml (fail-closed, FR-004)"
+            f"有 {skipped} 条账单记录未匹配账户映射规则；"
+            f"请在 ~/.ft/mapping.yaml 中补充规则（失败关闭，FR-004）"
         )
-    # Stash acceptance + tracking on list for StatementImportService via attribute
+    # 将验收统计和跟踪信息随解析结果交给 StatementImportService。
     acceptance = {
         "source_lines": 0,
         "skipped_unpaid_closed": 0,
@@ -81,20 +81,18 @@ def _parse_cash_statement(command):
         "acceptance": acceptance,
         "refund_tracking_pairs": refund_pairs,
     }
-    # Use a list subclass? Simpler: attach to first row private key
+    # 将元数据挂到首条记录的内部字段，避免为此引入新的列表类型。
     if output:
         output[0] = dict(output[0])
         output[0]["_import_meta"] = output_meta
     elif acceptance.get("source_lines"):
-        # all whitelist-skipped: still return empty with meta via custom exception? 
-        # Represent as empty list; StatementImportService treats empty as error today.
-        # For pure-skip files, raise with counters in message is ok; better return sentinel.
+        # 全部记录都按白名单跳过时，当前仍返回空列表；服务层负责解释验收统计。
         pass
     return output
 
 
 def _route_dfzq_account(command) -> tuple[str, str]:
-    """Resolve DFZQ account via mapping (source=dfzq, match=*) or fail."""
+    """通过账户映射规则（source=dfzq、match=*）解析东方证券账户，未命中则失败。"""
     from ft.mapping import load_rules, match_payment_method
 
     rules, default_action = load_rules()
@@ -105,10 +103,10 @@ def _route_dfzq_account(command) -> tuple[str, str]:
     action = (default_action or "error").lower()
     if action in {"error", "fail"}:
         raise ValueError(
-            "未匹配 mapping 规则: source=dfzq match='*'\n"
+            "未匹配账户映射规则：source=dfzq match='*'\n"
             "  请在 ~/.ft/mapping.yaml 中添加 dfzq 映射规则后重试"
         )
-    raise ValueError("dfzq statement skipped by mapping default=skip")
+    raise ValueError("东方证券账单被账户映射规则的 default=skip 跳过")
 
 
 def _dfzq_rows(records, command):
@@ -152,7 +150,7 @@ def _dfzq_rows(records, command):
                    "to_ticker": "", "from_amount": "0",
                    "to_amount": abs(Decimal(str(record["amount"]))), "price": "1"}
         else:
-            raise ValueError(f"unsupported DFZQ action: {action}")
+            raise ValueError(f"不支持的东方证券业务动作：{action}")
         for key in ("from_amount", "to_amount", "price", "commission"):
             row[key] = _decimal_text(row.get(key, 0))
         mapped.append(row)
@@ -171,7 +169,7 @@ def _parse_dfzq_statement(command):
             decrypt_pdf(source, pdf_path, command.password, timeout=30)
         records = parse_dfzq_text(extract_pdf_text(pdf_path).splitlines())
     if not records:
-        raise ValueError("DFZQ statement contains no supported records")
+        raise ValueError("东方证券账单中没有可导入的记录")
     return _dfzq_rows(records, command)
 
 
@@ -179,9 +177,9 @@ class StatementParser:
     def parse(self, command):
         path = Path(command.source_path)
         if not path.is_file():
-            raise FileNotFoundError(f"statement file not found: {path}")
+            raise FileNotFoundError(f"找不到账单文件：{path}")
         if command.source in CASH_SOURCES:
             return _parse_cash_statement(command)
         if command.source == "dfzq":
             return _parse_dfzq_statement(command)
-        raise ValueError(f"unsupported statement source: {command.source}")
+        raise ValueError(f"不支持的账单数据源：{command.source}")

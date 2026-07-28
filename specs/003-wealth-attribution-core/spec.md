@@ -12,7 +12,7 @@
 
 Finance Tracker 已具备 PostgreSQL 与 SQLite 双数据库运行时、稳定 workspace/account identity、现金与投资事实、导入来源追踪和修订信息，但尚不能回答“这一段时间净资产为什么变化”。本 feature 建立唯一的财富归因内核：以规范每日桶为原子结果，用同一套口径生成自然月 breakdown 和日/周/月 series，并让每个金额、缺口和状态都可追溯到证据。
 
-本 feature 只交付领域模型、Application Service、repository/query ports、双数据库读模型与可执行契约，不交付 HTTP API、Web 页面、认证、Review Inbox、Connector、AI 或 MCP。
+本 feature 只交付领域模型、Application Service、repository/query ports、双数据库读模型与可执行契约，不交付 HTTP API、Web 页面、认证、关系审查列表、Connector、AI 或 MCP。
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -28,7 +28,7 @@ Finance Tracker 已具备 PostgreSQL 与 SQLite 双数据库运行时、稳定 w
 
 1. **Given** 一个 CNY workspace 在完整自然月内拥有完整边界估值和事实，**When** 查询该月 breakdown，**Then** 返回期初、期末、六个规范组成项、解释比例和 complete 状态，且未舍入恒等式严格成立。
 2. **Given** 工资、消费退款、内部转账、投资入出金、股息和交易费同时存在，**When** 归因该区间，**Then** 每类事件只进入规范组成项一次，内部转账不改变 workspace 净资产，投资入出金不被误算为市场收益。
-3. **Given** 非 CNY 投资、外币现金或外币负债，**When** 归因其本币价值和期间流量，**Then** 投资收益与 FX 按固定顺序分解，负债绝对值上升降低净资产，公式两侧保持一致。
+3. **Given** 非 CNY 投资、外币现金或外币负债，**When** 归因投资的计价币种市值、外币现金与负债的原币价值及期间流量，**Then** 投资收益与 FX 按固定顺序分解，负债绝对值上升降低净资产，公式两侧保持一致。
 4. **Given** 任一完整自然月，**When** 分别查询 monthly series point 与 month breakdown，**Then** opening、closing、六项组成、status、coverage、component identity 和 evidence 集合完全一致。
 
 ---
@@ -128,7 +128,7 @@ Finance Tracker 已具备 PostgreSQL 与 SQLite 双数据库运行时、稳定 w
 - **FR-003**: 系统 MUST 使用精确 Decimal 保存和计算金额、汇率、资本权重与收益率；中间计算不得舍入，canonical 金额只在展示边界按币种精度输出无指数十进制字符串。
 - **FR-004**: 系统 MUST 满足 `closing - opening = external_cashflow + investment_return + fx_impact + liability_revaluation + explained_other_adjustment + unexplained_adjustment`，所有符号以增加净资产为正。
 - **FR-005**: 系统 MUST 按规范事件表分类工资、消费、退款、内部转账、投资入出金、股息、利息、费用、已知修正和残差，并保证同一经济价值不被重复计入。
-- **FR-006**: 系统 MUST 对非 CNY 投资按期末 FX 固定顺序分解本币市场收益和 FX 影响，并对外币现金、外币负债应用相应 FX 公式；公式必须在未舍入精度上闭合。
+- **FR-006**: 系统 MUST 对非 CNY 投资按期末 FX 固定顺序分解计价币种市场收益和 FX 影响，并对外币现金、外币负债应用相应 FX 公式；公式必须在未舍入精度上闭合。
 - **FR-007**: 系统 MUST 对负债使用负余额净资产语义；借款本金发放/偿还是内部流量，明确利息/费用为负 external cashflow，非现金本金修正为 liability revaluation。
 - **FR-008**: 系统 MUST 按已定义分母计算 explained ratio，并返回 0 到 1 的规范 Decimal；unexplained 金额必须独立返回且不改变 complete/stale/partial/unsupported 状态。
 - **FR-009**: 系统 MUST 使用 boundary check-in 优先、完整事件与合格行情确定性回放次之的估值顺序；两者均不可用时不得估算。
@@ -143,7 +143,7 @@ Finance Tracker 已具备 PostgreSQL 与 SQLite 双数据库运行时、稳定 w
 - **FR-018**: 系统 MUST 以 ISO Monday-Sunday 聚合周、以自然月聚合月；不完整首尾周期必须返回并标记 `is_partial_period=true`。
 - **FR-019**: coverage 连续且字段完整时，周/月 opening 取首日、closing 取末日、组成项与 unexplained 求和、状态取最严重每日状态；不得平均净资产或另写一套归因算法。
 - **FR-020**: 缺少每日 point、coverage 变化或必需完整字段缺失时，系统 MUST 按规范传播 null、known fields、warning、status 和断线端点；不得插值、跳过坏日或把剩余日冒充完整周期。
-- **FR-021**: 系统 MUST 计算 daily Modified Dietz linked return：先按币种在本币中计算，再用日初 FX 固定换算资本权重汇总；外部资金只指 investment universe 边界流量，FX 影响不得进入收益率。
+- **FR-021**: 系统 MUST 计算 daily Modified Dietz linked return：先按各币种计算，再用日初 FX 固定换算资本权重汇总；外部资金只指 investment universe 边界流量，FX 影响不得进入收益率。
 - **FR-022**: 任一实质敞口币种 capital 不大于零、总加权资本不大于零、缺少日初 FX、边界缺失或 portfolio partial/unsupported 时，系统 MUST 返回 null 收益率；周/月使用 `product(1+daily_rate)-1`，任一天 null 则周期为 null。
 - **FR-023**: 每个完整或 known 公式组成项 MUST 返回固定 kind 顺序的 component，包含稳定 component key、版本化 component ID、result revision、金额、状态和 transport-neutral immutable evidence reference；核心不得生成 HTTP URL 或状态码。
 - **FR-024**: component key MUST 由 workspace identity、规范 period identity、granularity、kind 和 grouping identity 确定；result revision MUST 绑定 calculation、valuation 与 source revision；component ID MUST 绑定 component key 与 result revision，不能使用数据库自增 identity。
@@ -192,7 +192,7 @@ Finance Tracker 已具备 PostgreSQL 与 SQLite 双数据库运行时、稳定 w
 - **SC-001**: 所有 complete golden fixtures 和所有连续完整日/周/月范围的未舍入财富恒等式通过率为 100%。
 - **SC-002**: 所有 partial/unsupported fixtures 均不把已知部分伪装成完整总额；known 恒等式通过率为 100%，所有缺口都有稳定 evidence。
 - **SC-003**: 任意完整自然月的 breakdown 与 monthly series point 在共享财务字段、status、coverage、component IDs 和 evidence 集合上的 canonical parity 为 100%。
-- **SC-004**: Modified Dietz golden fixtures 覆盖两个投资账户、日内多次流入流出、USD→EUR 换汇、外币资产本币上涨 10% 同时 FX 大幅变化、零/负资本和缺失数据；每个 fixture 都返回规定数值或显式 null。
+- **SC-004**: Modified Dietz golden fixtures 覆盖两个投资账户、日内多次流入流出、USD→EUR 换汇、外币资产计价币种上涨 10% 同时 FX 大幅变化、零/负资本和缺失数据；每个 fixture 都返回规定数值或显式 null。
 - **SC-005**: 日→周→月性质测试在所有生成的完整连续范围内组成项零漂移；partial、missing 和 coverage 变化范围从不产生跨缺口的伪造 change 或 return。
 - **SC-006**: 相同输入重建至少两次得到字节等价 canonical DTO；迟到事实重建只发布完整新 generation，100% 的失败注入仍保留上一活动 generation。
 - **SC-007**: PostgreSQL 与真实 SQLite/真实 PostgreSQL 契约矩阵对所有业务结果和稳定错误实现 100% parity；不得存在未解释的存储测试跳过。
@@ -216,6 +216,6 @@ Finance Tracker 已具备 PostgreSQL 与 SQLite 双数据库运行时、稳定 w
 
 - HTTP API、FastAPI、OpenAPI、Web UI、Next.js、图表、浏览器 QA 或 `ft web`。
 - 登录、用户/成员权限、云托管、对象存储、后台 Worker 或多租户保留策略。
-- Review Inbox、Connector 平台、自动补数、AI 解释或 MCP。
+- 关系审查列表、Connector 平台、自动补数、AI 解释或 MCP。
 - 空头、期权、保证金、复杂公司行动、锁仓/质押衍生收益、未结算预测市场头寸或 XIRR。
 - “总财富收益率”、任意日期区间独立 breakdown、当前价格回填历史、跨数据库复制/迁移或 legacy 文件 backend。

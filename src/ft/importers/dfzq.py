@@ -487,7 +487,7 @@ def _split_commission(
     """Split statement net cash vs 手续费 for projection.
 
     DFZQ ``总发生金额`` is the **net** cash impact (already after 手续费/印花税/过户费).
-    Projection applies ``from/to_amount ± commission`` when commission_asset is the cash leg.
+    Projection applies ``from/to_amount ± commission`` when commission_asset is the cash component.
 
     Returns ``(cash_leg, commission)`` such that total cash impact still equals
     ``amount_abs``:
@@ -496,7 +496,7 @@ def _split_commission(
     - SELL: cash in  = to_amount - commission    → to_amount = net + fee, commission = fee
 
     If fee is missing or cannot be peeled from BUY net (fee >= net), keep net and
-    commission=0 (fees stay embedded in the cash leg / note).
+    commission=0 (fees stay embedded in the cash component / note).
     """
     if fee_abs <= 0:
         return amount_abs, Decimal("0")
@@ -547,9 +547,9 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
 
     # DFZQ「总发生金额」(amount) is the full cash delta (net of 手续费/印花税/过户费).
     # Projection: cash changes by from/to_amount ± commission (same asset).
-    # Policy: if 手续费 is separable, put it in commission and adjust the cash leg
+    # Policy: if 手续费 is separable, put it in commission and adjust the cash component
     # so total cash impact still equals abs(amount); otherwise keep net, commission=0.
-    # 印花税/过户费 stay inside the cash leg (not always cleanly invertible).
+    # 印花税/过户费 stay inside the cash component (not always cleanly invertible).
     amount_abs = abs(txn.get("amount") or Decimal("0"))
     shares_abs = abs(txn.get("shares") or Decimal("0"))
     fee_abs = abs(txn.get("fee") or Decimal("0"))

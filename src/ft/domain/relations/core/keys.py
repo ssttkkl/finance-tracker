@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 from ft.domain.relations.core.types import OPEN_LEG_CANDIDATE_TOP_K, OPEN_LEG_ORDERED_B_SENTINEL, RelationKind, SUBTYPE_NONE
 def ordered_fact_pair(fact_a, fact_b=None) -> tuple:
-    """Bilateral ordered pair. Open-leg uses empty secondary → (anchor, sentinel).
+    """Bilateral ordered pair. An `open_leg` uses empty secondary → (anchor, sentinel).
 
     Accepts int or str ids (016 bigint PKs); orders by (type-normalized string) for
     stable business keys across dialects.
@@ -36,7 +36,7 @@ def open_leg_business_key(
     anchor_fact_id: str,
     subtype: str = SUBTYPE_NONE,
 ) -> tuple[str, str, str, str]:
-    """Open-leg active key (workspace, kind, subtype, anchor)."""
+    """Active key for an `open_leg`: workspace, kind, subtype, and anchor."""
     return (workspace_id, kind, subtype or SUBTYPE_NONE, str(anchor_fact_id))
 
 
@@ -56,8 +56,7 @@ def top_k_candidate_ids(
     *,
     k: int = OPEN_LEG_CANDIDATE_TOP_K,
 ) -> tuple[str, ...]:
-    """Stable sorted top-K candidate fact ids for open-leg evidence."""
+    """Stable sorted top-K candidate fact ids for unpaired relation evidence."""
     ordered = sorted({str(cid) for cid in candidate_ids if cid})
     return tuple(ordered[: max(0, int(k))])
-
 

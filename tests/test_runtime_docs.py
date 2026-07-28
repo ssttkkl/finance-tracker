@@ -39,5 +39,5 @@ def test_cli_help_names_supported_backends_without_loading_runtime(monkeypatch, 
     output = capsys.readouterr().out.lower()
     assert "postgresql" in output
     assert "sqlite" in output
-    assert "fallback" in output
-    assert "dual-write" in output
+    assert "fallback" in output or "回退" in output
+    assert "dual-write" in output or "双写" in output

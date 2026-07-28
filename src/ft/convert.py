@@ -1940,13 +1940,13 @@ def _build_output_row(
             )
             if action in {"error", "fail"}:
                 raise ValueError(
-                    f"未匹配 mapping 规则: {detail}\n"
+                    f"未匹配账户映射规则：{detail}\n"
                     f"  请在 ~/.ft/mapping.yaml 中添加映射规则后重试"
                 )
             if action == "skip":
                 return None  # type: ignore[return-value]
             raise ValueError(
-                f"未匹配 mapping 规则且 default='{default_action}': {detail}"
+                f"未匹配账户映射规则，且 default='{default_action}'：{detail}"
             )
 
     payment_src = _infer_payment_source(

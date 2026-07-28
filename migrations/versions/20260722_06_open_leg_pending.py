@@ -1,4 +1,4 @@
-"""Open-leg pending: nullable secondary + anchor_fact_id + dual uniqueness.
+"""Unpaired pending relations: nullable secondary + anchor_fact_id + dual uniqueness.
 
 Revision ID: 20260722_06
 Revises: 20260721_05
@@ -25,7 +25,7 @@ def _dialect() -> str:
 
 
 def _backfill_anchor_sql() -> str:
-    # refund_offset: secondary is refund leg → anchor secondary
+    # refund_offset: the secondary row is the refund, so use it as the anchor
     # transfer_pair / payment_mirror: prefer primary (out / canonical)
     return """
         CASE
@@ -72,7 +72,7 @@ def _upgrade_postgresql() -> None:
         nullable=True,
         server_default=None,
     )
-    # Open-leg ordered_fact_b may be empty string sentinel.
+    # An unpaired relation may use the empty string as the ordered_fact_b sentinel.
     op.create_check_constraint(
         "ck_transaction_relations_accepted_bilateral",
         "transaction_relations",

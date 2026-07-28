@@ -53,7 +53,7 @@ def upgrade() -> None:
     tables = _historical_tables()
     for name in _TABLES:
         tables[name].create(bind, checkfirst=False)
-    # This historical revision predates multi-currency cash pockets.  Keep its
+    # This historical revision predates multi-currency cash balances. Keep its
     # schema faithful so 20260720_04 can migrate real legacy observations.
     with op.batch_alter_table("valuation_observations") as batch:
         batch.drop_constraint("ck_valuation_cash_owner_identity", type_="check")

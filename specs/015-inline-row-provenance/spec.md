@@ -6,7 +6,7 @@
 
 **状态**：Complete
 
-**输入**：015 扩成 **「事实表 + 作业壳全清理」**。去掉导入作业/文件表；账单行溯源内联到正式事实；删除现金 legacy 非权威列与其它作业壳/过度设计表列；**不考虑长期兼容**。幂等权威为 **`record_id` × `source_type`**：`record_id` = 平台流水/展示号或确定性业务行键，`source_type` = **导入渠道名**（如 alipay / wechat / 券商解析 kind）；二者复合，不是只按 `record_id` 全局唯一，也不是另造平行身份列。`ledger_snapshots` **保留**为派生缓存。spec 用中文。目标 schema 见本目录 `database-schema.md`。
+**输入**：015 扩成 **「事实表 + 作业壳全清理」**。去掉导入作业/文件表；账单行溯源内联到正式事实；删除现金 legacy 非权威列与其它作业壳/过度设计表列；**不考虑长期兼容**。幂等权威为 **`record_id` × `source_type`**：`record_id` = 平台流水/展示号或确定性业务行键，`source_type` = **导入渠道名**（如 alipay / wechat / 券商解析 kind）；二者复合，不是只按 `record_id` 全局唯一，也不是另造平行标识列。`ledger_snapshots` **保留**为派生缓存。spec 用中文。目标 schema 见本目录 `database-schema.md`。
 
 **上下文**：Flow-Forward。接续 `010` 行级幂等产品语义与 `006` 关系权威；在 `014` 字段统一之后一次性收紧 schema。与 `016-bigint-surrogate-ids` 正交（PK 类型）。产品初期干净切换，无 dual-read/dual-write/shim。
 
@@ -14,7 +14,7 @@
 
 ### 会话 2026-07-24
 
-- 问：导入溯源链在文件 digest 不再作去重后还有何用？ → 答：行级业务身份 + 原始 payload 仍被业务使用；希望与行数据放在一起。
+- 问：导入溯源链在文件 digest 不再作去重后还有何用？ → 答：行级业务标识 + 原始 payload 仍被业务使用；希望与行数据放在一起。
 - 问：是否仍持久化「导入过什么文件」？ → 答：**不希望**在数据库存储文件作业信息。
 - 问：规格语言？ → 答：spec 用中文。
 - 问：`offset_*` / `proposed_action` 是否删除？ → 答：**删除**（7 列）。
@@ -22,21 +22,21 @@
 - 问：候选清理项取舍？ → 答：
   1. **`locked`：删除**
   2. **`transfer_account`：删除**
-  3. **`source` + `bill_source`：删除正式双列**；渠道身份归入 `source_type`，其余进 `source_payload`/`note`
+  3. **`source` + `bill_source`：删除正式双列**；渠道标识归入 `source_type`，其余进 `source_payload`/`note`
   4. **`record_id`：保留**；此前「删 record_id、另用 source_identity」是**逻辑错误**——幂等键为 **`record_id` × `source_type`**（`record_id`=平台流水/展示号或确定性行键，`source_type`=导入渠道名）
   5. **软删双写：做**——删除 `fact_deletion_events`，审计留在事实行（`deleted_at` / `deleted_by` / `delete_reason`）
   6. **`record_revisions`：删除**——当前不涉及改账历史版本追溯，属过度设计
   7. **`ledger_snapshots`：保留**——必要派生缓存
   8. **`relation_check_runs`：删除**——检查作业壳，非关系 SoT
 - 问：wealth 读模型 11 表？ → 答：本 feature **不动**（非目标）。
-- 问：`investment_events.price` 是否保留？ → 答：**删除**。成交价可由 leg 数据推导（例如数量与现金腿金额），不必再占正式列；导入/投影不得再依赖持久化 `price` 列。
+- 问：`investment_events.price` 是否保留？ → 答：**删除**。成交价可由 leg 数据推导（例如数量与现金部分金额），不必再占正式列；导入/投影不得再依赖持久化 `price` 列。
 - 问：实现后是否迁移开发者本机 `~/.ft` 下的数据库？ → 答：**要**。代码与 Alembic 落地后，MUST **一次性**升级本机 **`~/.ft` 目录下的 SQLite 账本库**（当前为 `~/.ft/finance-tracker.db`，以该路径下实际被 `FT_DATABASE_URL` 使用的 `.db` 为准）；迁移前备份；失败关闭且可从备份恢复；不要求在本 feature 内迁移任意 PostgreSQL 生产实例（除非同机也用且用户显式指向）。
 
 ## 关系（Context）
 
 | 关系 | Feature | 说明 |
 |---|---|---|
-| **Supersedes（部分）** | `010-row-idempotent-import` | 保留：业务行身份 formalize 门禁、重叠只入新行、禁止 digest 短路。**废止**：batch/file 作业表；formal 必须 `raw_record_id`→raw。 |
+| **Supersedes（部分）** | `010-row-idempotent-import` | 保留：业务行标识 formalize 门禁、重叠只入新行、禁止 digest 短路。**废止**：batch/file 作业表；formal 必须 `raw_record_id`→raw。 |
 | Extends | `006-transaction-relations` | 关系权威在 `transaction_relations`；删除行内 offset 空壳与 `relation_check_runs` 作业壳。 |
 | Extends | `007` / `009` 等导入 | 解析配方可继续产出 record_id；编排直写 fact。 |
 | **Narrows（列）** | `014-fact-field-unify` | 014 曾把 `price` 升为投资正式列；本 feature **删除** `price`，以 legs 为权威可推导量。 |
@@ -59,7 +59,7 @@
 
 1. **给定** 成功现金导入，**当** 查看事实，**则** 有 `source_type`、稳定 **`record_id`**，且 `source_payload` 含 hard-key 等所需原始字段。
 2. **给定** 成功投资导入，**当** 查看事实，**则** 有等价的 `source_type`、稳定业务行键（正式列名 **`record_id`**，与现金目录一致）与 `source_payload`（与 residual `payload` 分工清晰）。
-3. **给定** 手工事实，**当** 持久化，**则** `source_type` / `record_id` / `source_payload` 可空，不强制伪造身份。
+3. **给定** 手工事实，**当** 持久化，**则** `source_type` / `record_id` / `source_payload` 可空，不强制伪造标识。
 
 ---
 
@@ -70,19 +70,19 @@
 - **`record_id`**：平台流水号、展示号或确定性业务行键；
 - **`source_type`**：**导入渠道名**（账单/券商解析渠道，如 `alipay`、`wechat`、对应券商 kind），不是支付方式文案、也不是文件路径。
 
-同一 `record_id` 在**不同** `source_type` 下是不同身份（可并存两条活跃事实）；同一 `(source_type, record_id)` 不得双记。不因文件 digest/批次跳过 novel 行；库中无导入批次/文件清单。
+同一 `record_id` 在**不同** `source_type` 下是不同标识（可并存两条活跃事实）；同一 `(source_type, record_id)` 不得双记。不因文件 digest/批次跳过 novel 行；库中无导入批次/文件清单。
 
-**优先级理由**：010 产品价值 + 正确身份模型（渠道内流水号才稳定）。
+**优先级理由**：010 产品价值 + 正确标识模型（渠道内流水号才稳定）。
 
-**独立测试**：同夹具导两次 → 新事实 0；A 再 B → 身份并集；跨渠道同号不互相吞掉；无 batch/file 表数据。
+**独立测试**：同夹具导两次 → 新事实 0；A 再 B → 标识并集；跨渠道同号不互相吞掉；无 batch/file 表数据。
 
 **验收场景**：
 
 1. **给定** 已导入 A，**当** 再导未改 A（同渠道），**则** 新事实 0；余额/持仓不变；无批次/文件持久化。
-2. **给定** B 与 A 部分 **`(source_type, record_id)`** 重叠，**当** 先 A 后 B，**则** 事实集合 = 该复合身份并集；new = novel 复合身份数。
+2. **给定** B 与 A 部分 **`(source_type, record_id)`** 重叠，**当** 先 A 后 B，**则** 事实集合 = 该复合标识并集；new = novel 复合标识数。
 3. **给定** 任意成功导入，**当** 查库，**则** 无文件路径/digest/batch 状态账本数据。
 4. **给定** 平台提供稳定流水号，**当** formalize，**则** 流水号写入 **`record_id`**、导入渠道名写入 **`source_type`**，二者共同参与幂等；**不得**再维护平行 `source_identity` 列，也**不得**只按裸 `record_id` 跨渠道去重。
-5. **给定** 渠道甲与渠道乙出现相同字面 `record_id`，**当** 分别导入，**则** 可各有一条活跃事实（身份不同）；不得因「流水号字符串相同」而跳过另一渠道。
+5. **给定** 渠道甲与渠道乙出现相同字面 `record_id`，**当** 分别导入，**则** 可各有一条活跃事实（标识不同）；不得因「流水号字符串相同」而跳过另一渠道。
 
 ---
 
@@ -179,7 +179,7 @@
 
 1. **给定** 升级完成，**当** 检查 `investment_events`，**则** 不存在 `price` 列。
 2. **给定** 导入或手工投资事实，**当** 写入，**则** 不要求、不落库 `price`；读回契约无 `price` 正式字段。
-3. **给定** 典型 buy/sell（数量在一腿、现金金额在另一腿），**当** 投影持仓与成本，**则** 不读取持久化 `price`；结果与确定性 leg 规则一致。
+3. **给定** 典型 buy/sell（数量在一侧、现金金额在另一侧），**当** 投影持仓与成本，**则** 不读取持久化 `price`；结果与确定性 leg 规则一致。
 4. **给定** 功能完成，**当** 审查实现，**则** 无 `price` 列 dual-write，也不得把 `price` 塞进 residual `payload` 充当正式核心字段。
 
 ---
@@ -205,13 +205,13 @@
 ### 边界与失败场景
 
 - 全重叠：成功，新事实 0。
-- 身份已绑其他账户：失败关闭。
+- 标识已绑其他账户：失败关闭。
 - 导入失败：整次不留部分事实。
 - 无稳定平台 id：用既有确定性内容键写入 **`record_id`**，并仍带正确 **`source_type`（导入渠道名）**（规则在 plan/importer 固定）；冲突 fail-closed。
 - 并发同 **`(source_type, record_id)`**：至多一条活跃事实。
 - PG/SQLite：用户可见事实集合与余额/持仓等价。
 - **`~/.ft` 库升级**：仅覆盖用户本机 `~/.ft` 下 SQLite 账本文件；不自动扫描全盘；不修改 `mapping.yaml`/账单文件本身。
-- 禁止：digest 门禁；文件路径作身份；恢复 batch/raw/check_run/revision 表；把已删 offset 塞进 payload 当关系权威；删除 `ledger_snapshots`；在无备份情况下就地破坏性改写 `~/.ft` 唯一 db。
+- 禁止：digest 门禁；文件路径作标识；恢复 batch/raw/check_run/revision 表；把已删 offset 塞进 payload 当关系权威；删除 `ledger_snapshots`；在无备份情况下就地破坏性改写 `~/.ft` 唯一 db。
 
 ---
 
@@ -221,16 +221,16 @@
 
 #### 溯源与幂等
 
-- **FR-001**：系统 MUST 仅以工作区内 **`record_id` × `source_type`** 判断账单行是否创建新的活跃正式事实（现金；投资等价）。复合身份定义为：
+- **FR-001**：系统 MUST 仅以工作区内 **`record_id` × `source_type`** 判断账单行是否创建新的活跃正式事实（现金；投资等价）。复合标识定义为：
   - **`record_id`**：正式业务行键（平台流水/展示号或确定性内容键）；
   - **`source_type`**：**导入渠道名**（importer/账单渠道标识，稳定短名；不是支付方式自由文案、不是文件路径）。
   MUST NOT 只按裸 `record_id` 跨渠道去重；MUST NOT 再引入与之平行的 `source_identity` 列。
 - **FR-002**：系统 MUST NOT 因文件 digest、路径或批次状态跳过 novel 行 formalize；MUST NOT 持久化文件路径/digest/导入批次。
 - **FR-003**：账单派生正式事实 MUST 同行保存：`source_type`（导入渠道名）、`record_id`、`source_payload`（JSON 快照）。手工事实三者可空。
 - **FR-004**：系统 MUST 移除 `import_batches`、`raw_files`、`raw_records` 及一切 `raw_record_id` 列/FK。
-- **FR-005**：现金：当 `record_id` 与 `source_type` 均非空且 `deleted_at` 为空时，`(workspace_id, source_type, record_id)` 至多一条活跃事实。删后再导同一复合身份允许新活跃行。不同 `source_type` 的相同 `record_id` 字面值 MUST 视为不同身份。
+- **FR-005**：现金：当 `record_id` 与 `source_type` 均非空且 `deleted_at` 为空时，`(workspace_id, source_type, record_id)` 至多一条活跃事实。删后再导同一复合标识允许新活跃行。不同 `source_type` 的相同 `record_id` 字面值 MUST 视为不同标识。
 - **FR-006**：投资：对非空 `(source_type, record_id)` 提供等价不双记保证（无软删则全量唯一；有软删则 partial 对齐现金）。
-- **FR-007**：导入编排：解析 → 得 **`source_type`（导入渠道名）与 `record_id`** → 该复合身份已存在活跃则跳过 → 否则写入事实并更新投影；失败原子回滚。
+- **FR-007**：导入编排：解析 → 得 **`source_type`（导入渠道名）与 `record_id`** → 该复合标识已存在活跃则跳过 → 否则写入事实并更新投影；失败原子回滚。
 - **FR-008**：导入后关系检查 MUST 仅 `seed_fact_ids`；MUST NOT 依赖 batch id 或 `relation_check_runs`。
 - **FR-009**：关系匹配 MUST 能从 `source_payload`（或已提升列）获得原 raw payload 所需字段，能力不回退。
 - **FR-010**：现金与投资导入入口一致遵守 FR-001～FR-009。
@@ -274,7 +274,7 @@
 
 | 实体 | 定义 |
 |---|---|
-| **业务行身份** | **`record_id` × `source_type`**（导入渠道名 × 行键）；决定是否已入账。 |
+| **业务行标识** | **`record_id` × `source_type`**（导入渠道名 × 行键）；决定是否已入账。 |
 | **正式事实** | `cash_transactions` / `investment_events`；SoT。 |
 | **行级原始快照** | `source_payload`；匹配/排障；非文件档案。 |
 | **分类** | 现金 `category`；投资 `action`。 |
@@ -290,7 +290,7 @@
 - **SC-001**：同现金夹具连导两次 → 第二次新事实 0；无 batch/file 表。
 - **SC-002**：投资 A 再重叠 B → 事件数 = \|`(source_type, record_id)` 并集\|；双后端一致。
 - **SC-003**：用户可重叠导出只入新活动（010 目标，无文件作业表）。
-- **SC-004**：双后端：身份集合与余额/持仓 100% 用户可见一致。
+- **SC-004**：双后端：标识集合与余额/持仓 100% 用户可见一致。
 - **SC-005**：schema：无 import/raw 三表；事实无 `raw_record_id`；有 `source_type`/`record_id`/`source_payload` 及约定唯一约束。
 - **SC-006**：无 digest 整单短路；无写文件 digest/路径入账本库。
 - **SC-007**：现金无 FR-015 所列列；导入读回无这些键。
@@ -310,7 +310,7 @@
 - 016 可后做；默认 UUID PK 上先落地 015。
 - 历史 offset/locked/transfer_account/source/bill_source 列值可丢弃。
 - 无改账产品：不需要 revision 链；wealth 水印改造在 plan/tasks 中安排测试。
-- **`price` 可丢弃**：历史或导入中的单价若能由 legs 还原则迁移时不保留列；importer 在 formalize 前把数量与现金金额写入 legs。若某源只有单价+数量而缺现金腿，应用层在写入前算出现金腿，**仍不**落 `price` 列。
+- **`price` 可丢弃**：历史或导入中的单价若能由 legs 还原则迁移时不保留列；importer 在 formalize 前把数量与现金金额写入 legs。若某源只有单价+数量而缺现金部分，应用层在写入前算出现金部分，**仍不**落 `price` 列。
 - **本机库**：当前开发者环境已存在 `~/.ft/finance-tracker.db`（含 cash/investment/raw/batch 等）；升级前 alembic 版本为既有 head（如 `20260724_07`）。`~/.ft` 内 mapping/bills/yaml **不是**本迁移对象。PostgreSQL 测试库（如 docker 契约库）仍按测试矩阵升级；**交付门禁额外要求**完成 `~/.ft` SQLite 实库升级或提供已执行证据。
 
 ---

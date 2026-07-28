@@ -32,7 +32,7 @@
 | `transfer`、`derivativescrossexchangetransfer` | `transfer` | 不改变账户快照，仅保留审计事实 | ledger ID |
 | 非零 `fee` | `fee` | 减少 fee currency | `<ledger_id>:fee` |
 
-`trade` ledger 分录是同一成交的资产双腿，已经由 `fetch_my_trades` 表达为一条 swap；不得二次建账。任何未列类型、缺失 ID/timestamp/currency/amount、不可解析 fee 或非零 fee 缺币种都抛出 `ConnectorDataError`，使全次同步回滚。
+`trade` ledger 分录记录同一成交的两项资产变动；该成交已由 `fetch_my_trades` 表达为一条 swap，不得二次建账。任何未列类型、缺失 ID/timestamp/currency/amount、不可解析 fee 或非零 fee 缺币种都抛出 `ConnectorDataError`，使全次同步回滚。
 
 ### Rationale
 

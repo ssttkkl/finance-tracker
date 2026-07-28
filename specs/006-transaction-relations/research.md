@@ -73,7 +73,7 @@
 - Platform dual-view refunds prefer `payment_mirror` (platform 退款 ↔ bank credit) + `refund_offset` on the platform/logical event; bare bank-channel ± self-pairs without refund text are not refund auto.
 - Main code’s float `0.01` is **not** a tolerance here.
 
-**Rationale**: Spec clarifications + main rule families without delete/rewrite persistence. Real `~/.ft` ledger showed v1 “same-day exact → pending” flooded Review Inbox and bank×bank false mirrors; main never did that. Symmetric “exclude all 红包/转账 on both legs” incorrectly blocked 微信红包-退款 ↔ 微信红包（单发） which is a true refund of a p2p spend. Correct gate: bare p2p **income** out; p2p **expense** only pairs with p2p-style refunds; merchant refunds never use p2p expenses. Weak `refund_abs <= remaining` + expense-seed fan-out had inflated pending to ~3200; exact-only + refund-seed-only cut pending to ~200 while keeping accepted ~162.
+**Rationale**: Spec clarifications + main rule families without delete/rewrite persistence. Real `~/.ft` ledger showed v1 “same-day exact → pending” flooded the review inbox and created bank×bank false mirrors; main never did that. Symmetric “exclude all 红包/转账 on both sides” incorrectly blocked 微信红包-退款 ↔ 微信红包（单发）, which is a true refund of a p2p spend. Correct gate: bare p2p **income** out; p2p **expense** only pairs with p2p-style refunds; merchant refunds never use p2p expenses. Weak `refund_abs <= remaining` + expense-seed fan-out had inflated pending to ~3200; exact-only + refund-seed-only cut pending to ~200 while keeping accepted ~162.
 
 **Alternatives rejected**:
 - Bare same-day exact pending (original v1 wording) — inbox explosion.
@@ -96,7 +96,7 @@ Balance projection: sum all **active** formal cash facts (ignore relation “de-
 - Incompatible on same fact: `transfer_pair` with `payment_mirror` or `refund_offset`
 Auto path emits pending with conflict evidence; human must supersede before accept.
 
-## Decision 10: Review Inbox surface
+## Decision 10: 关系审查入口
 
 **Decision**: CLI/query contract is MVP (`ft relations pending|accept|reject|later` or equivalent). Web UI optional, not correctness gate. `later` keeps `pending_review`.
 

@@ -18,14 +18,14 @@ uv run pytest tests/unit/domain/test_valuation_quote.py tests/unit/application/t
 uv run pytest tests/unit/adapters/test_quote_symbol_map.py -q
 ```
 
-## 3. 组合 P0：本币 + 展示币
+## 3. 组合 P0：计价币种 + 展示币种
 
 ```bash
 uv run pytest tests/test_application_investment.py tests/unit/application/test_portfolio_valuation.py -q
 ```
 
 期望：
-- `get_portfolio()` 多币种持仓各带 quote_status 与本币市值
+- `get_portfolio()` 多币种持仓各带 quote_status 与计价币种市值
 - `get_portfolio(display_currency="CNY")` 有 display_market_value 与 fx_rate；FX fail 时无默 1:1
 
 ## 4. Queries / fakes

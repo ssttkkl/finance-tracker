@@ -103,7 +103,7 @@ def test_dfzq_import_account_not_found(tmp_path):
             "dfzq", FIXTURE, "NonExistentAccount"
         )
         assert result.ok is False
-        assert "not found" in result.message.lower()
+        assert "找不到账户" in result.message
     finally:
         engine.dispose()
 

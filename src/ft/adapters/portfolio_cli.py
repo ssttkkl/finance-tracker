@@ -31,7 +31,7 @@ def _render_native_mode(account):
         grouped[key].append(position)
     for currency in sorted(grouped):
         symbol = CURRENCY_SYMBOLS.get(currency) or f"{currency} "
-        print(f"  📊 本币市值 [{currency}]")
+        print(f"  📊 计价币种市值 [{currency}]")
         print(
             f"  {'代码':<16} {'股数':>10} {'成本':>14} {'市值':>14} "
             f"{'盈亏':>14} {'状态':>10}"
@@ -62,10 +62,10 @@ def _render_display_mode(account):
         "???",
     )
     dsym = CURRENCY_SYMBOLS.get(display) or f"{display} "
-    print(f"  📊 展示币 [{display}]（本币市值保留）")
+    print(f"  📊 展示币种 [{display}]（保留计价币种市值）")
     print(
-        f"  {'代码':<16} {'股数':>10} {'本币':>6} {'本币市值':>14} "
-        f"{'汇率':>10} {'展示市值':>14} {'状态':>10}"
+        f"  {'代码':<16} {'股数':>10} {'计价币种':>6} {'计价币种市值':>14} "
+        f"{'汇率':>10} {'折算市值':>14} {'状态':>10}"
     )
     print("  " + "-" * 92)
     total = Decimal("0")
@@ -95,5 +95,5 @@ def _render_display_mode(account):
         else:
             missing += 1
     print("  " + "─" * 92)
-    note = "" if missing == 0 else f"（{missing} 项无展示市值，未计入）"
+    note = "" if missing == 0 else f"（{missing} 项无折算市值，未计入）"
     print(f"  展示合计 [{display}]  {dsym}{total:,.2f}  已折算 {priced} 项{note}")

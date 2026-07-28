@@ -8,7 +8,7 @@ CSV 只是用户选择的**预览/交换**格式，不是运行时存储。导�
 
 | 字段 | 含义 |
 |---|---|
-| `record_id` | 业务行身份（导入幂等键的一半） |
+| `record_id` | 业务行标识（导入幂等键的一半） |
 | `date` | 原始业务时间 |
 | `amount` | 精确十进制文本 |
 | `currency` | 三字符币种 |
@@ -34,7 +34,7 @@ ft convert statement.csv --source alipay --output preview.csv
 |---|---|
 | `date` | 业务时间 |
 | `action` | swap / deposit / withdraw / dividend / checkin / … |
-| `from_ticker` / `to_ticker` | 流出/流入腿 |
+| `from_ticker` / `to_ticker` | 付出资产/换入资产 |
 | `from_amount` / `to_amount` | 精确数量文本 |
 | `price` | 解析侧价格证据（落库投资事件可能不单列 price） |
 | `commission` / `commission_asset` | 手续费 |

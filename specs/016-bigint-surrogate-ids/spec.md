@@ -17,11 +17,11 @@
 - 问：采用哪一档？ → 答：**D2** 完整整数代理主键 + 对外业务键。
 - 问：是否保留兼容？ → 答：**不留** dual-read/dual-write、UUID 主键回退或长期 uuid↔bigint 映射表。
 - 问：规格语言？ → 答：**spec 用中文**。
-- 问：015 完成后如何重评 016？ → 答：范围从表清单中**剔除 015 已删对象**；幂等/对外身份以 015 的 `record_id`×`source_type` 为准，**不再**引入平行 `public_id` 列，也**不再**依赖 `raw_records`。
+- 问：015 完成后如何重评 016？ → 答：范围从表清单中**剔除 015 已删对象**；幂等/对外标识以 015 的 `record_id`×`source_type` 为准，**不再**引入平行 `public_id` 列，也**不再**依赖 `raw_records`。
 
 ### 会话 2026-07-25
 
-- 问：016 遇到开放单腿关系的空有序端点时如何迁移？ → 答：将 015 的 `NULL` 或空字符串 sentinel 规范化为 `NULL`；只有其他非空值无法映射到对应正式事实时才失败关闭。
+- 问：016 遇到待配对关系的空有序端点时如何迁移？ → 答：将 015 的 `NULL` 或空字符串 sentinel 规范化为 `NULL`；只有其他非空值无法映射到对应正式事实时才失败关闭。
 - 问：PostgreSQL 从空库升级到 015 基线时，财富 owner FK 与 UUID 账户键不兼容怎么办？ → 答：修复历史迁移的建表类型，使 015 基线在 PG 与 SQLite 都保持 owner FK 类型与当时 `accounts.id` 一致；016 再统一改为整数。
 
 ## 关系（Context）
@@ -51,14 +51,14 @@
 | `transaction_relations` | `id` String(36) | 关系边；端点 fact id 字符串 |
 | `account_aliases` | `id` String(36) | 账户别名 |
 
-### 默认不纳入（字符串业务/确定性身份）
+### 默认不纳入（字符串业务/确定性标识）
 
 | 表 / 键 | 原因 |
 |---|---|
 | `workspaces.id` | 工作区 slug（`FT_WORKSPACE_ID`） |
 | `ledger_snapshots.workspace_id` | 每 workspace 一行缓存 PK |
-| `account_lifecycle_events.event_id` | 确定性字符串身份 |
-| `valuation_observations.observation_id` 及 wealth 读模型 digest/manifest 字符串 PK | 确定性身份；**仅**把指向 `accounts.id` 的 UUID 形 FK 改为整数（若有） |
+| `account_lifecycle_events.event_id` | 确定性字符串标识 |
+| `valuation_observations.observation_id` 及 wealth 读模型 digest/manifest 字符串 PK | 确定性标识；**仅**把指向 `accounts.id` 的 UUID 形 FK 改为整数（若有） |
 | 事实 **`record_id` + `source_type`** | **业务幂等键**（015）；不是代理主键，**不得**改成整数 |
 
 ### 对外与幂等（015 已定，016 必须遵守）
@@ -88,7 +88,7 @@
 
 ---
 
-### 用户故事 2 - 导入与对外身份仍靠 015 业务键 (优先级: P1)
+### 用户故事 2 - 导入与对外标识仍靠 015 业务键 (优先级: P1)
 
 作为账本所有者，重复导入同一结单仍然 **幂等**；整数 id 可变，**`source_type`×`record_id`** 不变。
 
@@ -114,10 +114,10 @@
 
 **验收场景**：
 
-1. **给定** 升级前的双边与开放单腿关系，**当** 升级完成，**则** primary/secondary/anchor 仍标识同一逻辑事实（整数 FK）。
+1. **给定** 升级前的双边与待配对关系，**当** 升级完成，**则** primary/secondary/anchor 仍标识同一逻辑事实（整数 FK）。
 2. **给定** 现金与投资分表分序列，**当** 关系存储端点时，**则** 仍有显式 `primary_fact_type` / `secondary_fact_type`（或今日等价），禁止静默跨表撞号。
 3. **给定** 软删现金事实（行上 `deleted_*`，无独立删除事件表），**当** 升级后，**则** 删除标记与默认列表排除行为正确。
-4. **给定** `refund_offset`、`transfer_pair` 或其他开放单腿关系的 `ordered_fact_a` 或 `ordered_fact_b` 为 `NULL`，**当** 升级完成，**则** 该端点仍为 `NULL`；非空端点仍映射到同一业务事实。
+4. **给定** `refund_offset`、`transfer_pair` 或其他待配对关系的 `ordered_fact_a` 或 `ordered_fact_b` 为 `NULL`，**当** 升级完成，**则** 该端点仍为 `NULL`；非空端点仍映射到同一业务事实。
 
 ---
 
@@ -144,7 +144,7 @@
 - PostgreSQL 与 SQLite 自增表示可不同；**账务结果不得分叉**。
 - 财富确定性字符串 PK 默认不改；仅 account 等 UUID FK 改为整数。
 - `workspaces.id` 默认仍为 slug 字符串。
-- 开放单腿关系允许 `ordered_fact_a` 和/或 `ordered_fact_b` 为空；015 历史库可用 `NULL` 或空字符串 sentinel 表示，迁移必须规范化为 `NULL`，并与非空旧 UUID 无法映射的断链区分。
+- 待配对关系允许 `ordered_fact_a` 和/或 `ordered_fact_b` 为空；015 历史库可用 `NULL` 或空字符串 sentinel 表示，迁移必须规范化为 `NULL`，并与非空旧 UUID 无法映射的断链区分。
 - **禁止**为配合 bigint 恢复 015 已删的 import/raw/revision 表。
 
 ---
@@ -156,8 +156,8 @@
 - **FR-001**：系统 MUST 对所有 **范围内表** 使用 **整数代理主键**。
 - **FR-002**：范围内表之间的外键 MUST 引用上述整数代理键，不得再引用 UUID 字符串主键。
 - **FR-003**：功能完成后，系统 MUST NOT 保留对范围内表 UUID 主键的 dual-read、dual-write 或回退路径。
-- **FR-004**：导入幂等 MUST 继续以 **015 业务身份** `(workspace_id, source_type, record_id)` 为准（活跃现金 partial unique 等既有规则），MUST NOT 以整数代理键作为幂等键，MUST NOT 依赖已删除的 `raw_records`。
-- **FR-005**：正式事实 MUST 继续具备 015 的 `source_type` 与 `record_id` 列语义；MUST NOT 为「对外身份」再增加平行 `public_id`（或等价）列，除非 Living Spec 明确推翻本条。
+- **FR-004**：导入幂等 MUST 继续以 **015 业务标识** `(workspace_id, source_type, record_id)` 为准（活跃现金 partial unique 等既有规则），MUST NOT 以整数代理键作为幂等键，MUST NOT 依赖已删除的 `raw_records`。
+- **FR-005**：正式事实 MUST 继续具备 015 的 `source_type` 与 `record_id` 列语义；MUST NOT 为「对外标识」再增加平行 `public_id`（或等价）列，除非 Living Spec 明确推翻本条。
 - **FR-006**：事实的公共 list/CSV 契约 MUST 在账单派生场景暴露 `source_type`/`record_id`（及既有正式字段）；整数 PK 默认 **不必** 出现在公共现金 CSV。
 - **FR-007**：`transaction_relations` 端点字段 MUST 在整型化后仍能通过显式 fact_type 避免现金/投资 id 空间碰撞。
 - **FR-008**：今日指向 UUID 账户/事实的 FK（含 `account_aliases.account_id`、关系端点、lifecycle/valuation/wealth 上的 `account_id`/`owner_account_id` 等）MUST 改写为整数代理键；**不得**改写不存在的 `record_revisions` / `fact_deletion_events` / `relation_check_runs`。
@@ -187,7 +187,7 @@
 
 - `workspaces.id`（工作区 slug）
 - `ledger_snapshots`（workspace_id PK 缓存行）
-- 财富确定性身份表的字符串 PK（`observation_id`、digest/manifest 等）
+- 财富确定性标识表的字符串 PK（`observation_id`、digest/manifest 等）
 - **已由 015 删除的表**（见上「已不存在」清单）——禁止迁回
 - 事实业务键 `source_type` / `record_id` 的语义变更
 - 合并现金/投资为单物理表
@@ -198,7 +198,7 @@
 ### 关键实体
 
 - **代理主键（Surrogate Id）**：库分配的整数主键，仅内部使用。
-- **业务行身份**：015 的 `(source_type, record_id)`；决定是否已入账。
+- **业务行标识**：015 的 `(source_type, record_id)`；决定是否已入账。
 - **账户 / 现金正式事实 / 投资正式事实 / 交易关系 / 账户别名**：角色同 015 后，键类型重接。
 - **迁移期 Id 映射**：仅存在于 Alembic 修订过程内；成功后 **不是** 运行时产品表。
 

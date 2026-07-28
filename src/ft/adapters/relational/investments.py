@@ -23,10 +23,10 @@ class RelationalInvestmentCommandRepository:
             account = uow.accounts.find(command.account)
             if account is None:
                 uow.rollback()
-                return OperationResult(ok=False, message=f"account not found: {command.account}")
+                return OperationResult(ok=False, message=f"找不到账户：{command.account}")
             if account.type not in {"security", "crypto"}:
                 uow.rollback()
-                return OperationResult(ok=False, message="investment command requires an investment account")
+                return OperationResult(ok=False, message="投资命令需要 security 或 crypto 类型的账户")
             try:
                 snapshot = uow.snapshot.load(lock=True)
                 bases = _base_tickers_for_account(uow, command.account)

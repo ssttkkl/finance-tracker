@@ -51,7 +51,7 @@ manual facts 没有 raw record，statement-derived facts 必须有。所有关�
 formal facts、lineage、revision、projection 和 batch completion 在同一事务。`convert --output` 仅保留为用户
 显式导出工具，不再是正式导入必经步骤。
 
-**Rationale**: `convert -> CSV -> append` 会丢失原始文件身份，并让中间 CSV 重新成为事实源。
+**Rationale**: `convert -> CSV -> append` 会丢失原始文件标识，并让中间 CSV 重新成为事实源。
 
 **Supported matrix at feature start**: 支付宝、微信、工行信用卡、工行借记卡、建行借记卡和东方证券；
 具体扩展名为现有 parser 已覆盖的 CSV、XLS/XLSX 与 PDF。本 feature 不新增 JSON/YAML statement provider。
@@ -59,10 +59,10 @@ formal facts、lineage、revision、projection 和 batch completion 在同一事
 ## Decision 7: 文件型 reconcile 暂时删除
 
 **Decision**: 删除 `pending/ai_working.csv` 状态机、相关 CLI 入口与 local repository；纯匹配算法只有在不含
-文件持久化时才可保留。数据库 Review Inbox/reconciliation 另建 feature。
+文件持久化时才可保留。数据库关系审查列表和 reconciliation 另建 feature。
 
 **Rationale**: 旧 reconcile 把 staged CSV、人工决策文件和 Git 提交当状态；直接保留会违反唯一事实源。
-本 feature 又明确不引入 Review Inbox 新能力。
+本 feature 又明确不引入关系审查列表能力。
 
 ## Decision 8: 测试分层
 

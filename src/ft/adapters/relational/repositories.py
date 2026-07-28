@@ -712,7 +712,7 @@ class RelationalRelationRepository:
         if row is None:
             raise ValueError(f"relation not found: {relation_id}")
         if row.secondary_fact_id is not None:
-            raise ValueError("relation already has other leg")
+            raise ValueError("该关系已有对侧流水")
         other = _as_int_id(other_fact_id)
         left, right = ordered_fact_pair(row.primary_fact_id, other)
         conflict = self._session.scalar(select(TransactionRelationModel).where(
@@ -726,8 +726,7 @@ class RelationalRelationRepository:
         ))
         if conflict is not None:
             raise ValueError(
-                f"cannot bind other leg: active bilateral relation already exists "
-                f"({conflict.id}) for this fact pair"
+                f"无法绑定对侧流水：这两条账本记录已存在有效双边关系（{conflict.id}）"
             )
         row.secondary_fact_id = other
         row.secondary_fact_type = other_fact_type or "cash"

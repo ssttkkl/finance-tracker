@@ -149,7 +149,7 @@ def test_credit_repayment_fx_unique_high_confidence_auto():
 
 
 def test_credit_repayment_fx_multi_candidate_rate_separates():
-    """Two FX ins (HKD vs JPY): each out-leg picks the unique high-confidence match."""
+    """Two FX inflows (HKD vs JPY): each outflow picks its unique high-confidence match."""
     cash_hkd = _fv(
         id="c1", amount=Decimal("-144.61"), account_id="cash", account_name="工行借记卡",
         account_type="cash", currency="CNY",
@@ -211,7 +211,7 @@ def test_credit_repayment_fx_no_rate_pending():
 
 
 def test_credit_repayment_fx_two_high_confidence_open_leg_pending():
-    """Two candidates both within threshold and too close → open-leg pending."""
+    """Two candidates within the threshold and too close produce an unpaired pending relation."""
     cash = _fv(
         id="c", amount=Decimal("-100"), account_id="1", account_name="储蓄",
         account_type="cash", currency="CNY",

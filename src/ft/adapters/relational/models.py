@@ -474,7 +474,7 @@ class TransactionRelationModel(Base):
         Index("ix_transaction_relations_primary", "workspace_id", "primary_fact_id"),
         Index("ix_transaction_relations_secondary", "workspace_id", "secondary_fact_id"),
         Index("ix_transaction_relations_anchor", "workspace_id", "anchor_fact_id"),
-        # Partial unique for open-leg active occupancy (PG + SQLite 3.8+).
+        # Partial unique for unpaired relation active occupancy (PG + SQLite 3.8+).
         Index(
             "uq_transaction_relations_open_leg_active",
             "workspace_id",
@@ -517,11 +517,11 @@ class TransactionRelationModel(Base):
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     subtype: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     primary_fact_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
-    # Null only for open-leg refund_offset / transfer_pair pending/reject occupancy.
+    # Null only for unpaired relation refund_offset / transfer_pair pending/reject occupancy.
     secondary_fact_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
     primary_fact_type: Mapped[str] = mapped_column(String(32), default="cash", nullable=False)
     secondary_fact_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    # Open-leg relations retain a nullable ordered endpoint after the 016 cutover.
+    # `open_leg` relations retain a nullable ordered endpoint after the 016 cutover.
     ordered_fact_a: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
     ordered_fact_b: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
     # active_slot is 'active' for non-superseded rows; superseded rows use id slot to free the key.
@@ -537,7 +537,7 @@ class TransactionRelationModel(Base):
     decision_reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
     later_marker: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     superseded_by_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
-    # Durable open-leg / role anchor (refund leg, transfer out, etc.).
+    # Durable unpaired relation / role anchor (refund row, transfer out, etc.).
     anchor_fact_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
 
 
@@ -594,4 +594,3 @@ class SyncCursorModel(Base):
     source_type: Mapped[str] = mapped_column(String(64), nullable=False)
     cursor_value: Mapped[str] = mapped_column(String(256), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, onupdate=_now, nullable=False)
-

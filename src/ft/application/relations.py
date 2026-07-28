@@ -190,7 +190,7 @@ class RelationService:
             return OperationResult(
                 ok=True,
                 count=len(created),
-                message="relation check completed",
+                message="关系检查已完成",
                 details={"check_run_id": run_id, "relations": created, "stats": stats},
             )
         except Exception as exc:  # noqa: BLE001 — check must not break import; surface as failed run when possible
@@ -204,7 +204,7 @@ class RelationService:
             return OperationResult(
                 ok=False,
                 count=0,
-                message=f"relation check failed: {exc}",
+                message=f"关系检查失败：{exc}",
                 details={"error": str(exc)},
             )
 
@@ -224,25 +224,25 @@ class RelationService:
         with self._uow as uow:
             rel = uow.relations.get(relation_id)
             if rel is None:
-                raise ValueError(f"relation not found: {relation_id}")
+                raise ValueError(f"找不到关系：{relation_id}")
             if rel["status"] != RelationStatus.PENDING_REVIEW.value:
-                raise ValueError("only pending_review relations can be accepted")
+                raise ValueError("只能确认 pending_review 状态的关系")
             open_leg = is_open_leg_relation(rel)
             if open_leg:
                 if not other_fact_id:
-                    raise ValueError("open-leg accept requires other_fact_id")
+                    raise ValueError("确认待配对关系时，必须通过 --other 指定对侧流水")
                 other = self._require_active_cash(uow, other_fact_id)
                 self._validate_open_leg_other(rel, other)
                 fact_ids = [rel["primary_fact_id"], other_fact_id]
             else:
                 if rel.get("secondary_fact_id") in (None, ""):
-                    raise ValueError("bilateral pending missing secondary_fact_id")
+                    raise ValueError("待审核的双边关系缺少对侧流水，无法确认")
                 fact_ids = [rel["primary_fact_id"], rel["secondary_fact_id"]]
             conflicts = self._accepted_kinds_for_facts(uow, fact_ids)
             for fid, kinds in conflicts.items():
                 if not cross_kind_compatible(kinds, rel["kind"]):
                     raise ValueError(
-                        f"cross-kind conflict on fact {fid}: {sorted(kinds)} + {rel['kind']}"
+                        f"账本记录 {fid} 存在跨关系类型冲突：{sorted(kinds)} + {rel['kind']}"
                     )
             if open_leg:
                 evidence = dict(rel.get("evidence") or {})
@@ -265,15 +265,15 @@ class RelationService:
                     decision_reason=reason,
                 )
             uow.commit()
-        return OperationResult(ok=True, count=1, message="accepted", details=updated)
+        return OperationResult(ok=True, count=1, message="关系已确认", details=updated)
 
     def reject(self, relation_id: str, *, actor: str, reason: str = "") -> OperationResult:
         with self._uow as uow:
             rel = uow.relations.get(relation_id)
             if rel is None:
-                raise ValueError(f"relation not found: {relation_id}")
+                raise ValueError(f"找不到关系：{relation_id}")
             if rel["status"] != RelationStatus.PENDING_REVIEW.value:
-                raise ValueError("only pending_review relations can be rejected")
+                raise ValueError("只能驳回 pending_review 状态的关系")
             updated = uow.relations.update_status(
                 relation_id,
                 status=RelationStatus.REJECTED.value,
@@ -281,15 +281,15 @@ class RelationService:
                 decision_reason=reason or "rejected",
             )
             uow.commit()
-        return OperationResult(ok=True, count=1, message="rejected", details=updated)
+        return OperationResult(ok=True, count=1, message="关系已驳回", details=updated)
 
     def later(self, relation_id: str, *, actor: str) -> OperationResult:
         with self._uow as uow:
             rel = uow.relations.get(relation_id)
             if rel is None:
-                raise ValueError(f"relation not found: {relation_id}")
+                raise ValueError(f"找不到关系：{relation_id}")
             if rel["status"] != RelationStatus.PENDING_REVIEW.value:
-                raise ValueError("only pending_review relations can be marked later")
+                raise ValueError("只能将 pending_review 状态的关系标为稍后处理")
             marker = datetime.now(timezone.utc).isoformat()
             updated = uow.relations.update_status(
                 relation_id,
@@ -298,7 +298,7 @@ class RelationService:
                 later_marker=marker,
             )
             uow.commit()
-        return OperationResult(ok=True, count=1, message="later", details=updated)
+        return OperationResult(ok=True, count=1, message="关系保持待审核状态", details=updated)
 
     def supersede(
         self,
@@ -311,9 +311,9 @@ class RelationService:
         with self._uow as uow:
             old = uow.relations.get(relation_id)
             if old is None:
-                raise ValueError(f"relation not found: {relation_id}")
+                raise ValueError(f"找不到关系：{relation_id}")
             if old["status"] == RelationStatus.SUPERSEDED.value:
-                raise ValueError("relation already superseded")
+                raise ValueError("该关系已被新结果取代")
             # Human decisions require explicit path — still allowed here when caller is deliberate.
             # Free active business key before inserting replacement.
             uow.relations.update_status(
@@ -332,7 +332,7 @@ class RelationService:
             )
             uow.commit()
         return OperationResult(
-            ok=True, count=1, message="superseded",
+            ok=True, count=1, message="关系已被新结果取代",
             details={"old_id": relation_id, "new_id": new_id},
         )
 
@@ -415,7 +415,7 @@ class RelationService:
                     decision_reason=f"fact deleted: {reason}",
                 )
             uow.commit()
-        return OperationResult(ok=True, count=1, message="logically deleted", details=result)
+        return OperationResult(ok=True, count=1, message="现金流水已逻辑删除", details=result)
 
     def project(self) -> dict:
         with self._uow as uow:
@@ -527,7 +527,7 @@ class RelationService:
                 fact_b=proposal.secondary_fact_id,
                 subtype=subtype,
             )
-            # If a system open-leg pending occupies this anchor, upgrade/bind it
+            # If a system unpaired relation pending occupies this anchor, upgrade/bind it
             # instead of creating a second row (FX rate score after rates available).
             if existing is None and proposal.secondary_fact_id not in (None, ""):
                 open_existing = uow.relations.find_open_leg(
@@ -561,7 +561,7 @@ class RelationService:
                     RelationStatus.PENDING_REVIEW.value,
                 }:
                     return None
-            # System open-leg pending may be upgraded when a new proposal has a unique
+            # System unpaired relation pending may be upgraded when a new proposal has a unique
             # high-confidence secondary (e.g. FX rate scoring after rates available).
             if (
                 existing["status"] == RelationStatus.PENDING_REVIEW.value
@@ -611,7 +611,7 @@ class RelationService:
             return None
 
         # Cross-kind: auto-accept only if compatible; else force pending.
-        # Open-leg never auto-accepted.
+        # An `open_leg` relation is never accepted automatically.
         status = proposal.status
         if open_leg:
             status = RelationStatus.PENDING_REVIEW.value
@@ -661,21 +661,21 @@ class RelationService:
         facts = self._list_active_cash_facts(uow)
         by_id = {f.id: f for f in facts}
         if fact_id not in by_id:
-            raise ValueError(f"active cash fact not found: {fact_id}")
+            raise ValueError(f"找不到有效现金流水：{fact_id}")
         return by_id[fact_id]
 
 
     def _validate_open_leg_other(self, rel: dict, other: FactView) -> None:
         kind = rel["kind"]
         if other.deleted:
-            raise ValueError("other fact is deleted")
+            raise ValueError("指定的对侧流水已删除")
         if kind == RelationKind.REFUND_OFFSET.value:
             # other must be expense (negative)
             if other.signed_amount >= 0:
-                raise ValueError("refund open-leg other must be a negative expense fact")
+                raise ValueError("退款待配对关系的对侧必须是负金额消费流水")
             # refund anchor is positive
             return
         if kind == RelationKind.TRANSFER_PAIR.value:
             # opposite sign preferred; different account preferred — soft checks
             return
-        raise ValueError(f"open-leg accept not supported for kind {kind}")
+        raise ValueError(f"关系类型 {kind} 不支持确认待配对关系")

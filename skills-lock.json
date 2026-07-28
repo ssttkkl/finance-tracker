@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "chinese-documentation": {
+      "source": "jnmetacode/superpowers-zh",
+      "sourceType": "github",
+      "skillPath": "skills/chinese-documentation/SKILL.md",
+      "computedHash": "912f018335769e4ca30f685377812dc4163e8c318ddcc820d5ca2d7b76eafc9a"
+    },
+    "domain-glossary": {
+      "source": "kambleakash0/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/domain-glossary/SKILL.md",
+      "computedHash": "21926c78a2278cfca73cb72f95268f0d946c734a5fb48dce0e4d14b17408b931"
+    }
+  }
+}

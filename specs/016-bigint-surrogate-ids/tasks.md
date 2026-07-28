@@ -66,12 +66,12 @@
 - [X] T022 Run full `env -u FT_DATABASE_URL uv run pytest tests/ -q`
 - [X] T023 Mark tasks complete; ready for PR to `refactor/web` if requested
 
-## Phase 8: 真实 015 数据发现的开放单腿关系兼容性
+## Phase 8: 真实 015 数据发现的待配对关系兼容性
 
 - [X] T024 [US3] 先在 `tests/test_016_migration_parity.py` 写失败测试：从 015 schema 建立 `refund_offset` / `transfer_pair` 的 `ordered_fact_a` 或 `ordered_fact_b` 为 NULL 的关系，升级后保留 NULL，非空端点仍映射。
 - [X] T025 [US4] 先在 `tests/test_016_migration_parity.py` 写失败测试：非空 `ordered_fact_*` 无法映射时 fail-closed，并安排 SQLite 与真实 PostgreSQL 契约矩阵。
 - [X] T026 [US3] 在 `migrations/versions/20260724_09_bigint_surrogate_ids.py` 使 SQLite 与 PostgreSQL 的 `ordered_fact_a` / `ordered_fact_b` 保持 nullable，并只为非空未映射端点执行 fail-closed 检查。
-- [X] T027 [US4] 按 `quickstart.md` 备份并升级 `/Users/huangwenlong/.ft/finance-tracker.db`，记录 `20260724_09`、整数键和 `foreign_key_check` 验证证据：2026-07-25 从已核对 SHA-256 的 015 备份升级成功；revision `20260724_09`，19 个 accounts 为 integer，23 个开放关系端点规范化为 NULL，`foreign_key_check` 无输出。
+- [X] T027 [US4] 按 `quickstart.md` 备份并升级 `/Users/huangwenlong/.ft/finance-tracker.db`，记录 `20260724_09`、整数键和 `foreign_key_check` 验证证据：2026-07-25 从已核对 SHA-256 的 015 备份升级成功；revision `20260724_09`，19 个 accounts 为 integer，23 个待配对关系端点规范化为 NULL，`foreign_key_check` 无输出。
 - [X] T028 [US3] 在 `tests/test_016_migration_parity.py` 先覆盖 015 空字符串 `ordered_fact_*` sentinel 规范化为 NULL，再在 `migrations/versions/20260724_09_bigint_surrogate_ids.py` 实现该转换并重跑本机升级。
 - [X] T029 [US4] 先在 `tests/test_016_migration_parity.py` 覆盖空 PostgreSQL → `20260724_08` → 016；修复 `migrations/versions/20260719_02_wealth_attribution.py` 的历史 owner/account FK 类型，使其在 UUID 基线与 016 bigint 切换中均正确。
 

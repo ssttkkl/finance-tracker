@@ -23,7 +23,7 @@
 
 ### User Story 1 - 结构迁移后关系结果与基线一致 (Priority: P1)
 
-作为记账用户，我在完成「关系识别模块按 kind 拆分」的发布后，对同一账本执行与迁移前相同的全量关系检查，得到的用户可见关系结论（各 kind 的 accepted / pending_review / 开放单腿 pending 的业务含义与成员事实）与迁移前基线一致，无需重新理解新的关系类型或审查流程。
+作为记账用户，我在完成「关系识别模块按 kind 拆分」的发布后，对同一账本执行与迁移前相同的全量关系检查，得到的用户可见关系结论（各 kind 的 accepted / pending_review / 待配对关系的业务含义与成员事实）与迁移前基线一致，无需重新理解新的关系类型或审查流程。
 
 **Why this priority**: 解耦若改变配对待遇，会破坏已建立的财务可信与审查工作；零语义回归是本 feature 的首要交付。
 
@@ -31,7 +31,7 @@
 
 **Acceptance Scenarios**:
 
-1. **Given** 迁移前已记录基线关系检查结果，**When** 完成 kind 竖切结构迁移并执行同等范围的关系检查，**Then** 各 kind 的 accepted 与 pending_review（含开放单腿）业务结论与基线一致，用户无需学习新 kind。
+1. **Given** 迁移前已记录基线关系检查结果，**When** 完成 kind 竖切结构迁移并执行同等范围的关系检查，**Then** 各 kind 的 accepted 与 pending_review（含待配对关系）业务结论与基线一致，用户无需学习新 kind。
 2. **Given** 基线中存在 diamond 推导出的银行侧退款关系，**When** 迁移后重跑，**Then** 同等输入下仍能建立等价结论，且不要求用户手工重做 mirror。
 3. **Given** 用户使用既有审查命令 accept/reject/绑定 open-leg，**When** 迁移后，**Then** 命令语义与状态机与 006/007 一致，无新强制参数。
 
@@ -83,11 +83,11 @@
 ### Functional Requirements
 
 - **FR-001**: 系统 MUST 将 `payment_mirror`、`transfer_pair`、`refund_offset` 的**识别规则**划分为三个独立规则边界（RulePack 语义），使每个 kind 的信号、门控与配对策略可在不修改另外两个 kind 规则正文的前提下演进。
-- **FR-002**: 系统 MUST 提供最薄共享核心，仅包含跨 kind 必需的公共概念：正式事实视图、关系提案/证据壳、业务幂等键与开放单腿键、跨 kind 兼容矩阵、无 kind 语义的时间/金额等几何判定、以及关系投影顺序语义。MUST NOT 把任一 kind 的私有信号词表放入共享核心。
-- **FR-003**: 系统 MUST 通过唯一关系检查编排入口按固定阶段顺序执行识别：**A** 平台硬键类 `refund_offset` → **B** `payment_mirror` → **C** `transfer_pair`（含信用还款子类型）→ **D** 其余 `refund_offset` 路径（含商户/弱匹配/开放单腿与 diamond）。顺序 MUST 与 007 的统一扫描意图一致。
+- **FR-002**: 系统 MUST 提供最薄共享核心，仅包含跨 kind 必需的公共概念：正式事实视图、关系提案/证据壳、业务幂等键与待配对关系键、跨 kind 兼容矩阵、无 kind 语义的时间/金额等几何判定、以及关系投影顺序语义。MUST NOT 把任一 kind 的私有信号词表放入共享核心。
+- **FR-003**: 系统 MUST 通过唯一关系检查编排入口按固定阶段顺序执行识别：**A** 平台硬键类 `refund_offset` → **B** `payment_mirror` → **C** `transfer_pair`（含信用还款子类型）→ **D** 其余 `refund_offset` 路径（含商户/弱匹配/待配对关系与 diamond）。顺序 MUST 与 007 的统一扫描意图一致。
 - **FR-004**: 合法跨 kind 依赖 MUST 仅通过检查上下文中的**只读已接受关系边**与**事实占用集合**（及 006/007 已有的 remaining 等退款余额上下文）表达。规则边界 MUST NOT 为完成匹配而调用另一 kind 的匹配过程或读取其私有信号定义。
 - **FR-005**: Diamond（银行退货链）MUST 作为 **refund 规则边界内的子能力** 存在，产物 kind 仍为 `refund_offset`。其输入 MUST 为正式事实加上上下文中的 accepted `payment_mirror` 边与已接受的平台侧 `refund_offset` 边；MUST NOT 在 diamond 路径内重新执行 mirror 识别。
-- **FR-006**: 本 feature MUST NOT 改变 006/007 已规定的用户可见关系语义：关系 kind 集合、状态（pending_review / accepted / rejected / superseded）、开放单腿 pending 规则、审查 accept/reject/绑定对侧、幂等键占用、禁止单腿 accepted、导入不写关系、以及跨 kind 兼容与投影顺序。
+- **FR-006**: 本 feature MUST NOT 改变 006/007 已规定的用户可见关系语义：关系 kind 集合、状态（pending_review / accepted / rejected / superseded）、待配对规则、审查 accept/reject/绑定对侧、幂等键占用、禁止缺少对侧流水的关系进入 accepted 状态、导入不写关系、以及跨 kind 兼容与投影顺序。
 - **FR-007**: 结构迁移完成后，对同一活跃正式事实集的全量关系检查 MUST 与迁移前基线在用户可见业务结论上对齐（按 kind 与状态可核对；样本业务键一致）。允许保留 superseded 审计链，但 MUST NOT 无故新增或丢失 pending/accepted 业务结论。
 - **FR-008**: 系统 MUST 保持 transfer 与 refund 的信号语义**概念分离**：即使文案短语相同，也不得强制共享同一信号定义源。后续「强排除 / 软 P2P / 真 transfer 信号」分层 MUST 能只在 transfer 边界内完成而不修改 refund 边界（本 feature 不要求实现该分层，但 MUST 不阻断之）。
 - **FR-009**: 关系检查的应用服务（触发、持久化、审查 API）MUST 继续作为编排与存储边界；规则边界只负责从事实与上下文产生关系提案。MUST NOT 将持久化细节泄漏为第三套规则源。
@@ -95,7 +95,7 @@
 
 ### Key Entities
 
-- **Rule boundary (per kind)**: 某一关系 kind 的识别职责范围：私有信号与门控、配对与开放单腿策略、产出该 kind 的关系提案。
+- **Rule boundary (per kind)**: 某一关系 kind 的识别职责范围：私有信号与门控、配对与待配对关系策略、产出该 kind 的关系提案。
 - **Shared core concepts**: 跨 kind 公共模型与键、兼容矩阵、几何判定、投影语义；不含 kind 私有信号。
 - **Match context**: 单次关系检查中的只读协作数据：已接受边（按 kind）、事实占用集合、退款剩余等；由编排填充，供后阶段消费。
 - **Pipeline / orchestration**: 唯一阶段顺序与上下文组装职责；是跨 kind 数据依赖的唯一合法交汇点。
@@ -113,7 +113,7 @@
 
 - 不引入通用可插拔规则引擎或配置化 DSL。
 - 不改变 CLI/审查 API 的用户契约与关系 kind 枚举。
-- 不修改 006/007 的金额严格相等、禁止单腿 accepted、导入不写关系等财务原则。
+- 不修改 006/007 的金额严格相等、禁止缺少对侧流水的关系进入 accepted 状态、导入不写关系等财务原则。
 - 不在本 feature 内完成 transfer 强/软排除分层或批量清理历史 pending。
 - 不将 diamond 提升为第四种用户可见关系 kind。
 

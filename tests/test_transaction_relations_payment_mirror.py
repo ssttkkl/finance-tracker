@@ -15,7 +15,7 @@ from ft.domain.relations import (
 
 def _fv(**kwargs):
     fid = str(kwargs.get("id") or "")
-    # Heuristic used by fixtures: bank legs often id b* / account bank* / 工行 note markers.
+    # Fixture heuristic: bank-side rows often use b* IDs, bank* accounts, or 工行 note markers.
     default_src = "alipay"
     if fid.startswith("b") or "bank" in str(kwargs.get("account_id") or "").lower():
         default_src = "icbc"
@@ -249,7 +249,7 @@ def test_projection_mirror_counts_once_balances_both():
 
 def test_payment_mirror_persisted_via_service(relation_runtime):
     services = relation_runtime.services
-    # Both legs land on the same account (card booklet) — required for payment_mirror.
+    # Both rows belong to the same card account, as required for payment_mirror.
     assert services.accounts.create_account("建行储蓄", "cash", "CNY").ok
     services.cashflow.add_manual_transaction(
         amount=Decimal("-30.00"), counterparty="麦当劳", account_name="建行储蓄",

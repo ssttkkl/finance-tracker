@@ -1,4 +1,4 @@
-"""Fact field unification: cash note + investment action/legs.
+"""Fact field unification: cash note + investment action and asset components.
 
 Revision ID: 20260724_07
 Revises: 20260722_06

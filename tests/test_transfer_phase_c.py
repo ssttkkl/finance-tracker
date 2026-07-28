@@ -100,7 +100,7 @@ def test_xianyu_transfer_never_pairs_as_transfer():
 
 
 def test_bilateral_wechat_transfer_p2p_not_auto_accept():
-    """Soft 微信转账 both legs: may candidate but MUST NOT auto-accept."""
+    """Two weak 微信转账 signals may form a candidate but must not be accepted automatically."""
     out = _fv(
         "p1",
         "-50.00",
@@ -273,7 +273,7 @@ def test_credit_repayment_requires_exact_same_currency():
         account_type="cash",
         occurred="2025-10-04 08:52:41",
     )
-    # wrong in-leg: not exact
+    # The wrong inflow amount is not an exact match.
     inc = _fv(
         "i1",
         "100.00",

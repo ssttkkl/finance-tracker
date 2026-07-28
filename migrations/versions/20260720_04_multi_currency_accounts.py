@@ -1,4 +1,4 @@
-"""One-shot merge of name+currency booklet accounts into name-unique multi-currency accounts."""
+"""One-shot merge of name-and-currency accounts into name-unique multi-currency accounts."""
 from __future__ import annotations
 
 import json

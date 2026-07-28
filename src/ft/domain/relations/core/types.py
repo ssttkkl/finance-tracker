@@ -103,7 +103,7 @@ RULE_CREDIT_REPAYMENT_V1 = "transfer_pair.credit_repayment.v1"
 RULE_CREDIT_REPAYMENT_FX_V1 = "transfer_pair.credit_repayment.fx.v1"
 RULE_REFUND_OFFSET_V1 = "refund_offset.merchant_or_order.v1"
 
-# Open-leg pending (FR-042–047): null other leg; suggestions only in evidence.
+# `open_leg` pending (FR-042–047): null secondary fact; suggestions only in evidence.
 OPEN_LEG_KINDS = frozenset({
     RelationKind.REFUND_OFFSET.value,
     RelationKind.TRANSFER_PAIR.value,
@@ -163,7 +163,7 @@ class FactCandidateIndex:
             defaults to a no-op returning "other" if omitted.
         refund_gates:
             Refund text gates from the refund pack. If omitted, no positives are
-            indexed as refund legs and refund_candidates is conservative-empty for
+            indexed as refund rows and refund_candidates is conservative-empty for
             refund seeds without gates.
         """
         self._source_group = source_group or (lambda _f: "other")
@@ -266,7 +266,7 @@ class FactCandidateIndex:
         out: list[FactView] = []
         days = self._neighbor_days(day)
         if amount < 0:
-            # look for in-legs same currency abs
+            # look for incoming rows same currency abs
             for d in days:
                 for item in self._xfer_in.get((currency, abs_amount, d), ()):
                     if item.fact.id != seed.id and item.fact.account_id != seed.account_id:

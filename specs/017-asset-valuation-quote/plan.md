@@ -2,28 +2,28 @@
 
 **Branch**: `017-asset-valuation-quote` | **Date**: 2026-07-25 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Living Spec — **P0** 组合持仓市值（本币 + 指定展示币折算）消费统一估值；原子 quote 为 P1 支撑。
+**Input**: Living Spec — **P0** 组合持仓市值（计价币种 + 指定展示币种折算）消费统一估值；原子 quote 为 P1 支撑。
 
 ## Summary
 
-1. 实现可注入的 **`ValuationService`**（标识+类型→单价/状态/本币市值）。  
-2. **P0** 改造 **`PortfolioQueryService.get_portfolio(display_currency=None|ISO)`**：  
-   - 本币：各持仓按行情计价货币估值 + `quote_status`；  
-   - 展示币：本币结果 × 只读 FX mid → `display_market_value`（失败不 1:1 默折）。  
-3. 拆分/重构 `market_data` 为 Quote providers；FX port 可注入。  
-4. 同步 `FinanceQueryService` 证券市值路径与 fakes/tests。  
+1. 实现可注入的 **`ValuationService`**（标识+类型→单价/状态/计价币种市值）。
+2. **P0** 改造 **`PortfolioQueryService.get_portfolio(display_currency=None|ISO)`**：
+   - 计价币种：各持仓按行情计价货币估值 + `quote_status`；
+   - 展示币种：计价币种结果 × 只读 FX mid → `display_market_value`（失败不 1:1 默折）。
+3. 拆分/重构 `market_data` 为 Quote providers；FX port 可注入。
+4. 同步 `FinanceQueryService` 证券市值路径与 fakes/tests。
 5. 无 schema、不写账本。
 
 ## Technical Context
 
-**Language/Version**: Python 3.11+  
-**Primary Dependencies**: 现有 ft 六边形；yfinance；urllib HTTP；可选 Frankfurter FX  
-**Storage**: 无新表  
-**Testing**: pytest；Fake Valuation + Fake FX；可选 FT_TEST_POSTGRES_URL  
-**Target Platform**: CLI/library  
-**Project Type**: dual-backend finance app  
-**Performance Goals**: 个人组合规模；批内串行真源可接受  
-**Constraints**: Decimal；禁止异币默认汇率 1；无账本写入  
+**Language/Version**: Python 3.11+
+**Primary Dependencies**: 现有 ft 六边形；yfinance；urllib HTTP；可选 Frankfurter FX
+**Storage**: 无新表
+**Testing**: pytest；Fake Valuation + Fake FX；可选 FT_TEST_POSTGRES_URL
+**Target Platform**: CLI/library
+**Project Type**: dual-backend finance app
+**Performance Goals**: 个人组合规模；批内串行真源可接受
+**Constraints**: Decimal；禁止异币默认汇率 1；无账本写入
 **Scale/Scope**: domain/application/adapters + portfolio DTO + runtime wiring
 
 ## Constitution Check
@@ -78,9 +78,9 @@ tests/fakes.py
 
 ## Implementation notes
 
-1. 先原子 domain/service（支撑）再立刻做 portfolio P0，避免只交付原子 API。  
-2. `get_portfolio(display_currency=...)` 为对外主合同。  
-3. FX：`display_market_value = market_value * get_mid(quote_currency, display_currency)`。  
+1. 先原子 domain/service（支撑）再立刻做 portfolio P0，避免只交付原子 API。
+2. `get_portfolio(display_currency=...)` 为对外主合同。
+3. FX：`display_market_value = market_value * get_mid(quote_currency, display_currency)`。
 4. 文档 T：路线图指向 017。
 
 ## Complexity Tracking

@@ -129,13 +129,13 @@ class TestSyncServiceErrors:
         service, _, _ = sync_runtime
         result = service.sync(provider="unknown", account_name="x", connector=FakeConnector())
         assert not result.ok
-        assert "Unknown" in result.message
+        assert "未知的同步数据源" in result.message
 
     def test_account_not_found(self, sync_runtime):
         service, _, _ = sync_runtime
         result = service.sync(provider="binance", account_name="NoSuch", connector=FakeConnector())
         assert not result.ok
-        assert "not found" in result.message
+        assert "找不到账户" in result.message
 
     def test_wrong_account_type(self, sync_runtime):
         service, uow, _ = sync_runtime
@@ -152,7 +152,7 @@ class TestSyncServiceErrors:
         connector = FakeConnector(error=ConnectorAuthError("bad key"))
         result = service.sync(provider="binance", account_name="TestCrypto", connector=connector)
         assert not result.ok
-        assert "Authentication" in result.message
+        assert "认证失败" in result.message
 
     def test_connector_error(self, sync_runtime):
         service, _, _ = sync_runtime

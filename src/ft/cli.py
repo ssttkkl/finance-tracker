@@ -1,4 +1,4 @@
-"""Finance Tracker CLI — ft 统一入口"""
+"""Finance Tracker 的统一 CLI 入口。"""
 import argparse
 import contextlib
 import io
@@ -22,10 +22,10 @@ def _runtime_services():
     try:
         bundle = build_services(StorageSettings.load())
     except (StorageConfigurationError, StorageError) as exc:
-        print(f"ERROR: {exc}", file=__import__("sys").stderr)
+        print(f"错误：{exc}", file=__import__("sys").stderr)
         raise SystemExit(1) from exc
     for notice in getattr(bundle, "notices", ()):
-        print(f"WARNING: {notice}", file=__import__("sys").stderr)
+        print(f"警告：{notice}", file=__import__("sys").stderr)
     return bundle
 
 
@@ -34,7 +34,7 @@ def _read_password_file(path: str | None) -> str | None:
         return None
     lines = Path(path).read_text(encoding="utf-8").splitlines()
     if not lines:
-        raise ValueError("password file is empty")
+        raise ValueError("密码文件为空")
     return lines[0]
 
 
@@ -52,7 +52,7 @@ def main(argv=None):
     except Exception as exc:
         from .adapters.relational.runtime import StorageError
         if isinstance(exc, StorageError):
-            print(f"ERROR: {exc}", file=__import__("sys").stderr)
+            print(f"错误：{exc}", file=__import__("sys").stderr)
             raise SystemExit(1) from exc
         raise
 
@@ -61,8 +61,9 @@ def _main(argv=None):
     parser = argparse.ArgumentParser(
         prog="ft",
         description=(
-            "Finance Tracker (PostgreSQL or file SQLite; no fallback, dual-write, or implicit migration). "
-            "SQLite busy, permission, and schema failures are reported with sanitized storage codes."
+            "Finance Tracker（支持 PostgreSQL 或文件型 SQLite；不得自动回退（no fallback）、"
+            "不得双写（dual-write）、不得隐式迁移（implicit migration））。"
+            "SQLite 忙碌、权限或 schema 错误会以脱敏后的存储错误码报告。"
         ),
         allow_abbrev=False,
     )
@@ -72,12 +73,12 @@ def _main(argv=None):
     acct_p = sub.add_parser("acct", help="名称唯一的多币种账户管理")
     acct_sub = acct_p.add_subparsers(dest="acct_cmd")
 
-    acct_add_p = acct_sub.add_parser("add", help="新增名称唯一账户（可选初始化零余额币种口袋）")
+    acct_add_p = acct_sub.add_parser("add", help="新增名称唯一账户（可选初始化指定币种的零余额）")
     acct_add_p.add_argument("name")
     acct_add_p.add_argument("--type", required=True,
                             choices=["cash", "loan", "lend", "security", "crypto"])
     acct_add_p.add_argument(
-        "--currency", help="Optional zero-balance pocket currency (e.g. CNY, USD, JPY)",
+        "--currency", help="可选：要初始化为零余额的币种（如 CNY、USD、JPY）",
     )
 
     acct_sub.add_parser("list", help="列出所有账户")
@@ -97,7 +98,7 @@ def _main(argv=None):
 
     # report
     rpt = sub.add_parser("report", help="资产负债 + 消费总览")
-    rpt.add_argument("--month", help="月份 (YYYY-MM)")
+    rpt.add_argument("--month", help="月份（YYYY-MM）")
 
     # list
     lst = sub.add_parser("list", help="列出交易")
@@ -107,7 +108,7 @@ def _main(argv=None):
     lst.add_argument("--limit", type=int, default=30)
 
     # checkin
-    chk = sub.add_parser("checkin", help="记录余额快照")
+    chk = sub.add_parser("checkin", help="校准账户余额")
     chk.add_argument("account", help="账户名")
     chk.add_argument("--balance", required=True)
     chk.add_argument("--currency", required=True)
@@ -142,7 +143,7 @@ def _main(argv=None):
 
     buy_p = stk_sub.add_parser(
         "buy",
-        help="买入（legacy 便捷写法；落库为单行 SWAP: cash→ticker + commission）",
+        help="买入（兼容命令；保存为一条 SWAP：付出现金、换入证券并记录手续费）",
     )
     buy_p.add_argument("--ticker", required=True)
     buy_p.add_argument("--shares", required=True)
@@ -155,7 +156,7 @@ def _main(argv=None):
 
     sell_p = stk_sub.add_parser(
         "sell",
-        help="卖出（legacy 便捷写法；落库为单行 SWAP: ticker→cash + commission）",
+        help="卖出（兼容命令；保存为一条 SWAP：付出证券、换入现金并记录手续费）",
     )
     sell_p.add_argument("--ticker", required=True)
     sell_p.add_argument("--shares", required=True)
@@ -169,8 +170,9 @@ def _main(argv=None):
     swap_p = stk_sub.add_parser(
         "swap",
         help=(
-            "通用 SWAP 单行模型（持仓换持仓/币币兑换，成本结转）。"
-            " buy/sell 是 SWAP 的便捷包装；加密三方手续费用 --commission + --commission-asset"
+            "通用 SWAP 单行模型（持仓互换或币币兑换，并结转成本）。"
+            " buy/sell 是 SWAP 的便捷命令；第三种资产收取的手续费通过"
+            " --commission 和 --commission-asset 指定"
         ),
     )
     swap_p.add_argument("--from-ticker", required=True)
@@ -183,7 +185,7 @@ def _main(argv=None):
     swap_p.add_argument(
         "--commission-asset",
         default="",
-        help="手续费资产 ticker；缺省且 commission>0 时默认为 --from-ticker",
+        help="手续费资产代码；commission 大于 0 且省略此项时，默认使用 --from-ticker",
     )
     swap_p.add_argument("--note", default="")
     swap_p.add_argument("--date")
@@ -210,7 +212,7 @@ def _main(argv=None):
     div_p.add_argument("--note", default="")
     div_p.add_argument("--date")
 
-    checkin_p = stk_sub.add_parser("checkin", help="校正持仓或现金")
+    checkin_p = stk_sub.add_parser("checkin", help="校准持仓或投资账户现金余额")
     checkin_p.add_argument("--account", required=True)
     checkin_p.add_argument("--ticker")
     checkin_p.add_argument("--shares")
@@ -222,65 +224,65 @@ def _main(argv=None):
 
     # stock convert
     cv_stk = stk_sub.add_parser(
-        "convert", help="股票对账单→stock CSV", allow_abbrev=False,
+        "convert", help="将投资对账单转换为 stock CSV", allow_abbrev=False,
     )
     cv_stk.add_argument("file", help="对账单文件路径")
     cv_stk.add_argument("-s", "--source", required=True, help="券商类型（如 dfzq）")
-    cv_stk.add_argument("-o", "--output", required=True, help="输出CSV路径")
+    cv_stk.add_argument("-o", "--output", required=True, help="输出 CSV 路径")
     cv_stk.add_argument("--password-file", help="从文件首行读取 PDF 密码")
     cv_stk.add_argument(
         "--currency", default="CNY",
-        help="3-letter currency code default for stock convert",
+        help="对账单未提供币种时使用的三字符币种代码",
     )
 
-    list_p = stk_sub.add_parser("list", help="持仓总览（本币市值；可选统一折算展示币）")
+    list_p = stk_sub.add_parser("list", help="持仓总览（计价币种市值；可选统一折算为展示币种）")
     list_p.add_argument(
         "--display-currency",
         default=None,
         metavar="CCY",
-        help="可选：将各持仓本币市值折算为该 ISO 货币（如 CNY）；省略则仅本币",
+        help="可选：将各持仓的计价币种市值折算为该 ISO 货币（如 CNY）；省略则不折算",
     )
 
     # convert — account routing from bill + mapping (no CLI account override)
 
     rel = sub.add_parser("relations", help="账务关系检查与审查")
     rel_sub = rel.add_subparsers(dest="relations_cmd")
-    rel_pending = rel_sub.add_parser("pending", help="列出 pending_review 关系")
+    rel_pending = rel_sub.add_parser("pending", help="列出待审核关系（pending_review）")
     rel_pending.add_argument("--kind", default=None)
-    rel_check = rel_sub.add_parser("check", help="对种子事实重跑关系检查")
+    rel_check = rel_sub.add_parser("check", help="以指定账本记录为种子重新检查关系")
     rel_check.add_argument("--fact-id", action="append", default=[])
     rel_check.add_argument("--batch-id", default=None)
-    rel_accept = rel_sub.add_parser("accept", help="接受 pending 关系（开放单腿须 --other）")
+    rel_accept = rel_sub.add_parser("accept", help="确认待审核关系（待配对关系须指定 --other）")
     rel_accept.add_argument("relation_id")
-    rel_accept.add_argument("--other", dest="other_fact_id", default=None, help="开放单腿对侧 fact id")
+    rel_accept.add_argument("--other", dest="other_fact_id", default=None, help="待配对关系的对侧流水 ID")
     rel_accept.add_argument("--actor", default="cli-user")
     rel_accept.add_argument("--reason", default="")
-    rel_reject = rel_sub.add_parser("reject", help="拒绝 pending 关系")
+    rel_reject = rel_sub.add_parser("reject", help="驳回待审核关系")
     rel_reject.add_argument("relation_id")
     rel_reject.add_argument("--actor", default="cli-user")
     rel_reject.add_argument("--reason", default="rejected")
-    rel_later = rel_sub.add_parser("later", help="稍后处理（仍 pending）")
+    rel_later = rel_sub.add_parser("later", help="稍后处理（保持待审核状态）")
     rel_later.add_argument("relation_id")
     rel_later.add_argument("--actor", default="cli-user")
     rel_alias = rel_sub.add_parser("alias-add", help="添加账户别名（仅增强匹配）")
     rel_alias.add_argument("--type", dest="alias_type", default="card_tail")
     rel_alias.add_argument("--value", required=True)
     rel_alias.add_argument("--account", required=True)
-    fact_del = sub.add_parser("fact-delete", help="可审计逻辑删除正式现金事实")
+    fact_del = sub.add_parser("fact-delete", help="以可审计方式逻辑删除现金流水")
     fact_del.add_argument("fact_id")
     fact_del.add_argument("--actor", default="cli-user")
     fact_del.add_argument("--reason", required=True)
 
-    cv = sub.add_parser("convert", help="步骤① 账单→统一CSV", allow_abbrev=False)
+    cv = sub.add_parser("convert", help="步骤 1：将账单转换为统一 CSV", allow_abbrev=False)
     cv.add_argument("file", help="账单文件路径")
     cv.add_argument("-s", "--source", required=True,
                     choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit"],
                     help="账单类型")
-    cv.add_argument("-o", "--output", required=True, help="输出CSV路径")
+    cv.add_argument("-o", "--output", required=True, help="输出 CSV 路径")
     cv.add_argument("--password-file", help="从文件首行读取工行 PDF 密码")
     cv.add_argument(
         "--currency", default=None,
-        help="Optional default currency when a row has none (3-letter code)",
+        help="账单行未提供币种时使用的三字符币种代码",
     )
 
     statement_import = sub.add_parser(
@@ -299,7 +301,7 @@ def _main(argv=None):
     )
     statement_import.add_argument(
         "--currency", default=None,
-        help="Optional default currency when a row has none (3-letter code)",
+        help="账单行未提供币种时使用的三字符币种代码",
     )
     statement_import.add_argument("--password-file", help="从文件首行读取 PDF 密码")
 
@@ -313,7 +315,7 @@ def _main(argv=None):
     sync_p.add_argument(
         "--source", required=True,
         choices=["binance", "kraken", "okx", "polymarket"],
-        help="数据源 provider",
+        help="同步数据源",
     )
     sync_p.add_argument(
         "--account", required=True,
@@ -392,7 +394,7 @@ def _main(argv=None):
                     AccountModel.name == args.account,
                 ))
                 if acc is None:
-                    print(f"account not found: {args.account}")
+                    print(f"找不到账户：{args.account}")
                     raise SystemExit(1)
                 alias_id = uow.account_aliases.add(
                     alias_type=args.alias_type,
@@ -402,7 +404,7 @@ def _main(argv=None):
                 uow.commit()
             print(alias_id)
             return
-        print("unknown relations command")
+        print("未知的 `relations` 子命令")
         raise SystemExit(2)
 
     if args.cmd == "fact-delete":
@@ -422,7 +424,7 @@ def _main(argv=None):
         if args.source in investment_sources:
             # Investment statement import
             if not args.account:
-                print(f"❌ --account is required for {args.source} imports")
+                print(f"错误：导入 {args.source} 账单时必须指定 --account")
                 raise SystemExit(1)
 
             # T043: Check external tools for DFZQ
@@ -434,18 +436,18 @@ def _main(argv=None):
                 tools = check_external_tools()
 
                 if tools.get("qpdf") is None:
-                    print("❌ qpdf not found")
-                    print("\nqpdf is required for PDF decryption.")
-                    print("Install with: brew install qpdf")
+                    print("错误：找不到 qpdf")
+                    print("\n解密 PDF 需要 qpdf。")
+                    print("安装命令：brew install qpdf")
                     raise SystemExit(1)
 
                 if tools.get("mutool") is None:
-                    print("❌ mutool not found")
-                    print("\nmutool is required for PDF text extraction.")
-                    print("Install with: brew install mupdf-tools")
+                    print("错误：找不到 mutool")
+                    print("\n提取 PDF 文本需要 mutool。")
+                    print("安装命令：brew install mupdf-tools")
                     raise SystemExit(1)
 
-                print(f"Using qpdf {tools['qpdf']}, mutool {tools['mutool']}")
+                print(f"使用 qpdf {tools['qpdf']}、mutool {tools['mutool']}")
 
             # T042: Verify account exists and is correct type
             bundle = _runtime_services()
@@ -455,15 +457,15 @@ def _main(argv=None):
                 account_dto = session.accounts.find(args.account)
 
                 if account_dto is None:
-                    print(f"❌ Account not found: {args.account}")
-                    print("\nAvailable accounts:")
+                    print(f"错误：找不到账户 {args.account}")
+                    print("\n可用账户：")
                     for acc in session.accounts.list():
                         print(f"  - {acc.name} ({acc.type})")
                     raise SystemExit(1)
 
                 if account_dto.type not in {"security", "crypto"}:
-                    print(f"❌ Account '{args.account}' is type '{account_dto.type}'")
-                    print("\nInvestment imports require 'security' or 'crypto' account types.")
+                    print(f"错误：账户 {args.account} 的类型是 {account_dto.type}")
+                    print("\n投资账单只能导入 security 或 crypto 类型的账户。")
                     raise SystemExit(1)
 
                 session.rollback()
@@ -485,7 +487,7 @@ def _main(argv=None):
                 currency = args.currency or "CNY"
 
             # T045: Progress reporting
-            print(f"Importing {args.source} statement from {Path(args.file).name}...")
+            print(f"正在从 {Path(args.file).name} 导入 {args.source} 账单……")
 
             try:
                 result = service.import_statement(
@@ -497,7 +499,7 @@ def _main(argv=None):
                 )
             except Exception as e:
                 # T046: Error enrichment
-                print(f"❌ Import failed: {e}")
+                print(f"导入失败：{e}")
                 raise SystemExit(1)
 
             if not result.ok:
@@ -508,18 +510,18 @@ def _main(argv=None):
             details = result.details or {}
             batch_id = details.get("batch_id")
             if details.get("duplicate"):
-                print(f"📭 Statement already imported (batch: {batch_id})")
-                print("No new transactions added.")
+                print(f"该账单已经导入（批次：{batch_id}）")
+                print("没有新增账本记录。")
             else:
-                print(f"✅ Successfully imported {result.count} transactions")
-                print(f"Batch ID: {batch_id}")
-                print(f"Account: {args.account}")
+                print(f"已导入 {result.count} 条账本记录")
+                print(f"批次 ID：{batch_id}")
+                print(f"账户：{args.account}")
 
             return
 
-        # Original cash statement import
+        # 原始现金账单导入。
         if args.account:
-            parser.error("--account is only valid for investment statement imports")
+            parser.error("--account 仅适用于投资账单导入")
         result = _runtime_services().statement_import.import_statement(StatementImportCommand(
             source_path=args.file,
             source=args.source,
@@ -535,9 +537,9 @@ def _main(argv=None):
             by_account = result.details.get("by_account") or {}
             if by_account:
                 parts = ", ".join(f"{name}:{count}" for name, count in sorted(by_account.items()))
-                print(f"✅ 已导入 {result.count} 条（{parts}） → selected database")
+                print(f"已向当前数据库导入 {result.count} 条（{parts}）")
             else:
-                print(f"✅ 已导入 {result.count} 条 → selected database")
+                print(f"已向当前数据库导入 {result.count} 条")
         return
 
     if args.cmd == "acct":
@@ -667,7 +669,7 @@ def _main(argv=None):
                 creds = load_polymarket_credentials()
                 connector = PolymarketConnector(credentials=creds)
             else:
-                print(f"❌ Unknown sync source: {args.source}")
+                print(f"错误：未知的同步数据源 {args.source}")
                 raise SystemExit(1)
         except ValueError as exc:
             print(f"❌ {exc}")
@@ -686,7 +688,7 @@ def _main(argv=None):
         details = result.details or {}
         print(f"✅ {result.message}")
         if details.get("raw_count"):
-            print(f"   API records: {details['raw_count']}")
+            print(f"   API 返回记录：{details['raw_count']}")
         return
 
     if args.cmd == "stock":

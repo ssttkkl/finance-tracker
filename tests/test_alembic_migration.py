@@ -201,7 +201,7 @@ def test_initial_revision_upgrades_dedicated_postgresql():
             rel_cols = {c["name"] for c in inspect(engine).get_columns("transaction_relations")}
             assert "anchor_fact_id" in rel_cols
             # Multi-currency (20260720_04) and fact-field unify (20260724_07) are one-shot.
-            # Only walk back through open-leg → relations removal for reversible history.
+            # Only walk back through unpaired-relation removal to preserve reversible history.
             with pytest.raises(NotImplementedError, match="one-shot"):
                 command.downgrade(config, "20260722_06")
             # Reset and re-upgrade proves head is re-applicable on a clean schema.

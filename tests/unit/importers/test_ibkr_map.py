@@ -62,7 +62,7 @@ def test_fx_records_net_cash_impact_not_full_notional():
 
     tiny, large = (map_ibkr_to_investment_event(row, "IBKR", "USD") for row in fx_rows)
 
-    # Neither event should introduce an HKD notional leg.
+    # Neither event should introduce an HKD notional component.
     for event in (tiny, large):
         assert "hkd" not in (event.get("from_ticker"), event.get("to_ticker"))
         assert event["action"] in {"deposit", "withdraw"}

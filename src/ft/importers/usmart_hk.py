@@ -185,7 +185,7 @@ def map_usmart_hk_to_investment_event(
         #   认购扣款: cash out (from_amount)
         #   认购退款: cash in  (to_amount)
         #   认购手续费: fee (not ipo)
-        # Optional stock code may live in note/App only; not required for cash legs.
+        # Optional stock code may live in note/App only; not required for cash components.
         # Future allotment (中签) can stay a separate equity swap when it appears.
         if "IPO认购手续费" in flag or (flag.startswith("IPO") and "手续费" in flag) or (
             "IPO" in flag and "Handling" in note
@@ -295,7 +295,7 @@ def _decimal(value: str) -> Decimal:
 
 
 def _fmt(value: Decimal) -> str:
-    """Format for event legs; cap long division tails at 18 dp without forcing scale."""
+    """Format for event asset components; cap long division tails at 18 dp without forcing scale."""
     from decimal import ROUND_HALF_UP
     quantized = Decimal(value)
     exp = quantized.as_tuple().exponent
@@ -678,7 +678,7 @@ def _parse_cash_movements(rendered: str, *, profile: str = "margin") -> tuple[li
         ]
         if not candidates:
             raise ValueError(
-                f"unpaired FX leg: {leg['date']} {leg['ccy']} {_fmt(leg['amount'])}"
+                f"无法配对换汇流水：{leg['date']} {leg['ccy']} {_fmt(leg['amount'])}"
             )
 
         def _fx_rate_score(other: dict[str, Any]) -> Decimal:

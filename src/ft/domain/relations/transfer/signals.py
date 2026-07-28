@@ -64,7 +64,7 @@ def has_transfer_soft_p2p_signal(text: str) -> bool:
 
 
 def has_self_account_transfer_evidence(fact: "FactView") -> bool:
-    """True when leg looks like self wallet/card move (withdraw / bank in / to-card)."""
+    """True when side looks like self wallet/card move (withdraw / bank in / to-card)."""
     if is_withdraw_platform_out(fact) or is_withdraw_platform_receipt(fact):
         return True
     if is_bank_transfer_in(fact):
@@ -92,7 +92,7 @@ def has_self_account_transfer_evidence(fact: "FactView") -> bool:
 
 
 def is_withdraw_platform_out(fact: "FactView") -> bool:
-    """Alipay-style withdraw out-leg (negative + 提现)."""
+    """Alipay-style withdraw outgoing row (negative + 提现)."""
     if fact.signed_amount >= 0:
         return False
     blob = _text_blob(fact.text, fact.bill_source, fact.source)
@@ -130,7 +130,7 @@ def is_bank_transfer_in(fact: "FactView") -> bool:
 
 
 def is_transfer_taxonomy_out(fact: "FactView") -> bool:
-    """Stage-1: may initiate transfer (out-leg or withdraw receipt treated specially)."""
+    """Stage-1: may initiate transfer (outgoing row or withdraw receipt treated specially)."""
     if fact.deleted:
         return False
     if has_transfer_exclude_signal(fact.text) and not is_withdraw_platform_out(fact) and not is_withdraw_platform_receipt(fact):
@@ -159,7 +159,7 @@ def has_repayment_signal(text: str) -> bool:
 def has_unionpay_pair_signals(text_a: str, text_b: str) -> bool:
     """Strong bank↔bank unionpay bridge (云闪付/无卡 + 银联入账).
 
-    Bare「银联」is allowed here only as part of a *pair* gate (both legs must also
+    Bare「银联」is allowed here only as part of a *pair* gate (both sides must also
     show nocard/云闪付-class tokens). Generic transfer_signal must not use bare 银联.
     """
     combo = _text_blob(text_a) + " " + _text_blob(text_b)
@@ -175,7 +175,7 @@ def has_unionpay_pair_signals(text_a: str, text_b: str) -> bool:
 
 
 def transfer_same_business_day(seed: "FactView", cand: "FactView") -> bool:
-    """Day equality for transfer: prefer raw export business day when date-only bank legs exist.
+    """Day equality for transfer: prefer raw export business day when date-only bank rows exist.
 
     Mirrors payment_mirror FR-052/053: CCB date-only rows formalize to 16:00 UTC, which
     inflates clock Δt vs ICBC full timestamps. Raw ``date`` (YYYY-MM-DD) is authoritative.
@@ -189,7 +189,7 @@ def transfer_same_business_day(seed: "FactView", cand: "FactView") -> bool:
 
 
 def transfer_clock_delta_seconds(seed: "FactView", cand: "FactView") -> int:
-    """Clock Δt; when either leg is bank date-only, return 0 if same business day else formal Δt.
+    """Clock Δt; when either side is bank date-only, return 0 if same business day else formal Δt.
 
     Date-only exports have no trustworthy clock — do not use formal 16:00 sentinel as time.
     """

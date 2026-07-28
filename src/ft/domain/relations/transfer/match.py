@@ -43,8 +43,8 @@ def evaluate_transfer_pair(
     seed_amount = seed.signed_amount
     if seed_amount == 0:
         return None
-    # Only out-leg seeds propose transfer relations (prevents dual-side auto-accept
-    # of multiple in-legs against the same out-leg when each in-leg is unique).
+    # Only outgoing row seeds propose transfer relations (prevents dual-side auto-accept
+    # of multiple incoming rows against the same outgoing row when each incoming row is unique).
     if seed_amount > 0:
         return None
     matches: list[tuple[FactView, RelationEvidence, str, str, str]] = []
@@ -80,7 +80,7 @@ def evaluate_transfer_pair(
             or (cand.account_type == "cash" and cand_amount < 0 and seed.account_type == "loan" and seed_amount > 0)
         )
         repayment_text = has_repayment_signal(combined)
-        # 007 FR-049: strong repayment out-leg text (not bare 还款 + merchant)
+        # 007 FR-049: strong repayment outgoing row text (not bare 还款 + merchant)
         seed_blob = _text_blob(seed_text)
         cand_blob = _text_blob(cand_text)
         strong_repay_out = any(
@@ -143,7 +143,7 @@ def evaluate_transfer_pair(
             status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_TRANSFER_PAIR_STRONG_V1
         elif same_currency and exact and same_day and has_unionpay_pair_signals(seed_text, cand_text):
             # Same business day (raw day when date-only) + unionpay/云闪付 bridge → auto.
-            # date-only bank legs use transfer_clock_delta_seconds → 0, not formal 16:00 Δt.
+            # date-only bank rows use transfer_clock_delta_seconds → 0, not formal 16:00 Δt.
             status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_TRANSFER_PAIR_UNIONPAY_V1
         elif same_currency and exact and transfer_signal and TRANSFER_PAIR_STRONG_SECONDS < dt <= TRANSFER_PENDING_OUTER:
             # Signal+exact beyond 10s up to 5min → pending (not silent).
@@ -160,7 +160,7 @@ def evaluate_transfer_pair(
             continue
 
         # Soft tier (微信/支付宝转账): never auto-accept without self-account evidence
-        # on at least one leg (withdraw / bank-in / 转出到银行卡, etc.).
+        # on at least one side (withdraw / bank-in / 转出到银行卡, etc.).
         if status == RelationStatus.ACCEPTED.value and rule not in (
             RULE_TRANSFER_WITHDRAW_V1,
             RULE_CREDIT_REPAYMENT_V1,
@@ -243,7 +243,7 @@ def evaluate_transfer_pair(
             open_leg=False,
         )
     # Unique near-strong (only one match, not auto) → bilateral pending.
-    # Unique near-strong → bilateral pending only from out-leg seed (avoid dual-side fan-out).
+    # Unique near-strong → bilateral pending only from outgoing row seed (avoid dual-side fan-out).
     if len(matches) == 1:
         if seed.signed_amount >= 0:
             return None
@@ -261,10 +261,10 @@ def evaluate_transfer_pair(
             anchor_fact_id=seed.id,
             open_leg=False,
         )
-    # Multi candidates → one open-leg pending from out-leg seed only.
+    # Multi candidates → one unpaired relation pending from outgoing row seed only.
     if seed.signed_amount >= 0:
         return None
-    # Multi candidates → one open-leg pending (anchor = stronger signal / out leg / seed).
+    # Multi candidates → one unpaired relation pending (anchor = stronger signal / outgoing row / seed).
     matches.sort(
         key=lambda m: (
             0 if m[2] == RelationStatus.ACCEPTED.value else 1,
@@ -275,7 +275,7 @@ def evaluate_transfer_pair(
     cand_ids = top_k_candidate_ids([m[0].id for m in matches])
     subtype = matches[0][4]
     rule = matches[0][1].rule_id
-    # Anchor: out-leg if seed is out; else seed (stronger signal ownership).
+    # Anchor: outgoing row if seed is out; else seed (stronger signal ownership).
     if seed.signed_amount < 0:
         anchor_id = seed.id
         anchor_role = "out"
@@ -442,7 +442,7 @@ def _score_fx_repayment_matches(
 
     Returns a proposal when FX path applies (always, for non-empty fx_matches):
     - unique high-confidence → accepted bilateral
-    - else pending bilateral (1 cand) or open-leg (≥2)
+    - else pending bilateral (1 cand) or unpaired relation (≥2)
     """
     if not fx_matches:
         return None
@@ -676,7 +676,6 @@ def match_transfer_pairs_phase_c(
             used.add(prop.primary_fact_id)
         proposals.append(prop)
     return proposals
-
 
 
 

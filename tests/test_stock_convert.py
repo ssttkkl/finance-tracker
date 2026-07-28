@@ -119,5 +119,5 @@ def test_dfzq_rows_reject_amount_scale_over_18(tmp_path, monkeypatch):
         "fee": "0", "note": "",
     }]
 
-    with pytest.raises(ValueError, match="at most 18"):
+    with pytest.raises(ValueError, match="最多保留 18 位小数"):
         _dfzq_rows(records, command)

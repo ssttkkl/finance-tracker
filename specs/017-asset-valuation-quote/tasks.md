@@ -1,6 +1,6 @@
 # Tasks: 实时资产估值与持仓市值
 
-**Input**: `/specs/017-asset-valuation-quote/`（Living Spec：组合 P0 + 原子 P1）  
+**Input**: `/specs/017-asset-valuation-quote/`（Living Spec：组合 P0 + 原子 P1）
 **Tests**: 强制 TDD；假源 + 假 FX。
 
 ## Format: `- [X] T### [P?] [US#?] Description with file path`
@@ -31,9 +31,9 @@
 
 ---
 
-## Phase 3: User Story 1 — 组合本币市值与状态 (Priority: P0) 🎯
+## Phase 3: User Story 1 — 组合计价币种市值与状态 (Priority: P0) 🎯
 
-**Goal**: `get_portfolio()` 本币模式消费统一估值  
+**Goal**: `get_portfolio()` 计价币种模式消费统一估值
 **Independent Test**: 多币种假估值持仓均有 quote_status；失败项无虚构市价
 
 ### Tests
@@ -49,13 +49,13 @@
 - [X] T016 [US1] Wire ValuationService in `src/ft/adapters/relational/runtime.py`; remove sole silent get_prices-only path
 - [X] T017 [US1] Update `tests/fakes.py` and all PortfolioPositionDTO constructors
 
-**Checkpoint**: 本币组合 P0 可演示
+**Checkpoint**: 计价币种组合 P0 可演示
 
 ---
 
 ## Phase 4: User Story 2 — 指定展示货币折算 (Priority: P0)
 
-**Goal**: `get_portfolio(display_currency=...)` 可审计 FX 折算  
+**Goal**: `get_portfolio(display_currency=...)` 可审计 FX 折算
 **Independent Test**: Fake FX 折算精确；FX 失败无 1:1；非法 currency fail-closed
 
 ### Tests
@@ -70,13 +70,13 @@
 - [X] T022 [US2] Align `FinanceQueryService` security valuation with ValuationService + optional display rules in `src/ft/application/queries.py` without claiming cost is mark-to-market
 - [X] T023 [US2] Runtime wire FxRateProvider in `src/ft/adapters/relational/runtime.py`
 
-**Checkpoint**: 本币 + 展示币双模式 P0 齐
+**Checkpoint**: 计价币种 + 展示币种双模式 P0 齐
 
 ---
 
 ## Phase 5: User Story 3 — 原子 API 加固与批量 (Priority: P1)
 
-**Goal**: 对外原子能力完整可复用  
+**Goal**: 对外原子能力完整可复用
 **Independent Test**: 四类资产 + 批量混合合同
 
 ### Tests
@@ -103,17 +103,17 @@
 
 ## Dependencies
 
-- Phase 2 → Phase 3 (US1) → Phase 4 (US2) → Phase 5 (US3) → Polish  
-- US1/US2 为 P0 主交付；US3 加固原子面  
-- T003–T010 可与文档并行但必须先于 T015  
+- Phase 2 → Phase 3 (US1) → Phase 4 (US2) → Phase 5 (US3) → Polish
+- US1/US2 为 P0 主交付；US3 加固原子面
+- T003–T010 可与文档并行但必须先于 T015
 
 ## MVP
 
-**T001–T017（Foundational + US1 本币组合）** 为最小用户可见切片；**T018–T023** 完成 P0 双模式。
+**T001–T017（Foundational + US1 计价币种组合）** 为最小用户可见切片；**T018–T023** 完成 P0 双模式。
 
 ## Parallel
 
-- T003/T005/T008 测试并行  
-- T011/T012 并行  
-- T018/T019 并行  
-- T027/T028 并行  
+- T003/T005/T008 测试并行
+- T011/T012 并行
+- T018/T019 并行
+- T027/T028 并行

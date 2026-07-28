@@ -32,7 +32,7 @@
 
 1. **Given** 用户有一份密码保护的 uSmart HK 月结单 PDF（含页眉三市场汇总、交易明细、持仓明细、资金出入），且已有 type=`security` 账户，**When** 执行 `ft import statement.pdf --source usmart-hk --account 盈立证券 --password-file pw.txt`，**Then** 系统解密并解析 PDF、在同一事务中写入 import batch、raw_records（`source_type=usmart_hk_pdf`）、investment_events 并更新 LedgerSnapshot。
 2. **Given** 交易明细中同一订单组含多笔 fill 与一组「变动金额合计」，**When** 映射投资事件，**Then** 每个订单组生成 **一笔** 权益 SWAP（fills 数量与金额合并），不按 fill 拆成多笔独立收费 SWAP。
-3. **Given** 订单组满足费用恒等式 `fees = | |交易金额| − |变动金额合计| |` 且 `fees ≥ 0`（佣金、平台费、交收费、证监会规费、交易活动费、综合审计追踪费等合计），**When** 映射 SWAP，**Then** 现金腿 = `|交易金额|`（gross），`commission = fees`（非负），`commission_asset` = 交易币种小写（如 `usd`）；买入 `swap` 现金→证券（投影现金流出 = gross + commission = `|net|`）；卖出 `swap` 证券→现金（投影现金流入 = gross − commission = `|net|`）；净现金变动方向与「变动金额合计」一致；**禁止** 现金腿已用 `|变动金额合计|` 时再写非零 commission（双计）。
+3. **Given** 订单组满足费用恒等式 `fees = | |交易金额| − |变动金额合计| |` 且 `fees ≥ 0`（佣金、平台费、交收费、证监会规费、交易活动费、综合审计追踪费等合计），**When** 映射 SWAP，**Then** 现金部分 = `|交易金额|`（gross），`commission = fees`（非负），`commission_asset` = 交易币种小写（如 `usd`）；买入 `swap` 现金→证券（投影现金流出 = gross + commission = `|net|`）；卖出 `swap` 证券→现金（投影现金流入 = gross − commission = `|net|`）；净现金变动方向与「变动金额合计」一致；**禁止** 现金部分已用 `|变动金额合计|` 时再写非零 commission（双计）。
 4. **Given** 资金出入中出现与交易明细重叠的「买/卖股票」「买/卖股票手续费」「买入股票」「卖出股票」等标志，**When** 导入，**Then** 这些行 **不得** 再生成投资事件（仅由交易明细记账）；非重叠标志（出金、IPO 认购退款、融资利息等）按映射表记账。
 5. **Given** 页眉给出各市场「期末账户结余」，**When** 流水事件应用完毕，**Then** 系统对有数值的币种各追加一条现金 CHECKIN（如 HKD / USD；CNY 为 `--` 或缺省则跳过该币种）；CHECKIN 金额等于该市场期末账户结余，日期为结单月份末日（结单日期 `YYYY-MM` 的月末）。
 6. **Given** 「持仓明细」列出证券与持有数量且 **无成本价字段**，**When** 导入，**Then** 对每个持有数量≠0 的证券追加持仓 CHECKIN，**仅对齐股数**；MUST NOT 发明成本价或市价作为成本；成本保留流水回放结果（或文档化不可信）。
@@ -70,9 +70,9 @@
 1. **Given** 业务标志为出金（或提取），金额为负或绝对值出金语义，**When** 导入，**Then** 映射为 `withdraw`，币种与金额正确。
 2. **Given** 业务标志为 IPO 认购退款，**When** 导入，**Then** 映射为 `deposit`，备注保留 IPO Refund 等信息。
 3. **Given** 业务标志为融资利息，**When** 导入，**Then** 映射为 `withdraw`（现金减少）。
-4. **Given** 业务标志为换汇，且解析器能将相关行配对为两币种腿，**When** 导入，**Then** 生成 **一笔** `action=swap`，from/to 为两现金 ticker（如 `hkd`↔`usd`），from_amount/to_amount 为各腿绝对值，commission=0；note 标明换汇。
-5. **Given** 业务标志为换汇但无法在容差内配对对侧腿，**When** 导入，**Then** fail-closed 并报告未配对行（不得发明汇率凑平；不得静默改成 deposit/withdraw）。
-6. **Given** 业务标志为「转入到日内融账户」或其它转账类标志，**When** 导入，**Then** 按金额符号映射为 `withdraw`（金额为负或出账）或 `deposit`（金额为正或入账），note 保留原文；**不得**引入 `transfer` 动作或虚构子口袋 ticker。
+4. **Given** 业务标志为换汇，且解析器能将付出和换入两笔现金流水配对，**When** 导入，**Then** 生成 **一笔** `action=swap`，`from_ticker` / `to_ticker` 为两种现金资产的 ticker（如 `hkd` ↔ `usd`），`from_amount` / `to_amount` 分别为付出资产和换入资产的绝对金额，`commission=0`；`note` 标明换汇。
+5. **Given** 业务标志为换汇但无法在容差内配对对侧流水，**When** 导入，**Then** fail-closed 并报告未配对行（不得发明汇率凑平；不得静默改成 deposit/withdraw）。
+6. **Given** 业务标志为「转入到日内融账户」或其它转账类标志，**When** 导入，**Then** 按金额符号映射为 `withdraw`（金额为负或出账）或 `deposit`（金额为正或入账），`note` 保留原文；**不得**引入 `transfer` 动作，也不得虚构用于表示子账户的 ticker。
 7. **Given** 未知业务标志，**When** 导入，**Then** 整批失败并报告标志原文与行上下文，不发布部分事实。
 
 ---
@@ -118,7 +118,7 @@
   - 买入（`net < 0` 或侧=买）：`action=swap`，from=现金 ticker，to=证券，from_amount=`gross`，to_amount=合并数量；投影现金流出 = gross + commission = `abs_net`
   - 卖出（`net > 0` 或侧=卖）：from=证券，to=现金，from_amount=合并数量，to_amount=`gross`；投影现金流入 = gross − commission = `abs_net`
   - **禁止** 使用无符号公式 `commission = abs_net − gross` 作为卖出佣金（样本 DELL 卖出会得到 −4.00，非法）
-  - 同一分钱费用 MUST 只出现在 commission **或** 现金腿之一，禁止双计
+  - 同一分钱费用 MUST 只出现在 commission **或** 现金部分之一，禁止双计
   - 组内费用明细可写入 note/payload 审计，不得再扣一次
 
 - **FR-007**: 证券 ticker 规范化 MUST 稳定可测：美股 MUST 加 `.us`（如 `mrvl.us`）；港股 MUST 加 `.hk`（如 `00700.hk`）；与 IBKR/Schwab/DFZQ 共用 `ticker_normalize` 约定；中文名可进 note。市场字段（美股/港股/A股通）MUST 进入 payload 或 note 以便审计。
@@ -137,7 +137,7 @@
 
 - **FR-008a（换汇 → swap）**: 系统 MUST 将「换汇」资金行配对为 **单笔** 多币种现金 `swap`：
   - 配对规则（research 锁定细节）：同结单内符号相反、币种不同的换汇行；允许交收日差（样本 ±1 日）；金额比率应落在合理 FX 区间时可记录于 note，但 **不得** 为配对而改写任一侧金额。
-  - 映射：`action=swap`，`from_ticker`/`to_ticker` = 两现金 ticker 小写，`from_amount`/`to_amount` = 各腿 `|金额|`，`commission=0`，`currency` = 结单主展示币或 from 侧币种（research 锁定，全夹具一致）。
+  - 映射：`action=swap`；`from_ticker` / `to_ticker` 分别为付出资产和换入资产的 ticker（小写）；`from_amount` / `to_amount` 分别为两者的 `|金额|`；`commission=0`；`currency` 为结单主展示币种或付出资产的币种（research 锁定，全夹具一致）。
   - 无法配对 MUST fail-closed；MUST NOT 把换汇降级为独立 deposit/withdraw 双计或单边漏记。
   - 样本锚点：`HKD -3161.18` 与 `USD +402.32` 应配对为一笔 swap（比率约 7.86，仅审计）。
 
@@ -145,7 +145,7 @@
   - 金额为负或出账语义 → `withdraw`（`from_amount = |金额|`，现金 ticker = 行币种小写）
   - 金额为正或入账语义 → `deposit`（`to_amount = |金额|`）
   - note/payload MUST 保留原始业务标志（如「转入到日内融账户」）以便审计
-  - MUST NOT 创建子口袋 ticker、MUST NOT 新增投资事件 action
+  - MUST NOT 虚构用于表示子账户的 ticker；MUST NOT 新增投资事件 action
   - 本 feature **不**建模完整日内融子账户；期末现金以页眉 CHECKIN 为准对齐主账户结余
 
 - **FR-009**: 导入 MUST 在流水后追加：
@@ -168,7 +168,7 @@
 
 - **FR-014**: 解析/映射失败 MUST 事务回滚、无 partial facts，错误信息含区段/上下文片段与建议（密码、工具、格式）。
 
-- **FR-016（多币种现金投影）**: 系统 MUST 支持同一 security 账户内多现金 ticker（`hkd`/`usd`/`cny` 等）各自以 **本币** 为 `cost_currency`。跨币种现金 `swap`（换汇）MUST NOT 因单一 event `currency` 字段导致 `cost currency conflict`。权益腿仍以事件 `currency` 为成本币种（009）。现金↔现金时各腿面值入账。细则见 research D13。
+- **FR-016（多币种现金投影）**: 系统 MUST 支持同一 security 账户内多种现金资产（`hkd` / `usd` / `cny` 等）各自以对应币种为 `cost_currency`。跨币种现金 `swap`（换汇）MUST NOT 因单一 event `currency` 字段导致 `cost currency conflict`。证券部分仍以事件 `currency` 为成本币种（009）。现金与现金互换时，付出资产和换入资产均按面值入账。细则见 research D13。
 
 ### Key Entities
 
@@ -188,7 +188,7 @@
 - **SC-005**: 交易订单组 100% 有对应 SWAP 或显式失败；无未计数的 silent skip。
 - **SC-006**: 资金出入中成交镜像行 100% 不产生第二套事件；非交易映射表内标志 100% 按 FR-008 入账（换汇=swap，转账/日内融=withdraw|deposit，出金=withdraw）。
 - **SC-007**: 导入失败路径（错密码、未知标志、费用不平衡、换汇无法配对、缺工具）100% 回滚且错误可操作（用户可据消息修复后重试）。
-- **SC-008**: 校准样本中换汇配对后 USD/HKD 在 CHECKIN 后等于页眉期末结余；「转入到日内融账户」记为 withdraw（样本负额），无 `transfer` action、无虚构口袋 ticker。
+- **SC-008**: 校准样本中换汇配对后 USD/HKD 在 CHECKIN 后等于页眉期末结余；「转入到日内融账户」记为 withdraw（样本负额），无 `transfer` action、无虚构余额项 ticker。
 
 ## Dependencies
 
@@ -204,7 +204,7 @@
 - 实时行情与总市值估值（估值 feature）
 - 投资关系 / lot / FIFO / 已实现盈亏
 - 新投资事件 action（含曾讨论的 `transfer`）；转账只用 `withdraw`/`deposit`
-- 日内融/融资融券完整子账户产品模型、保证金强平策略、利息计提引擎、子口袋 ticker
+- 日内融/融资融券完整子账户产品模型、保证金强平策略、利息计提引擎，以及用于表示子账户的 ticker
 - 港股印花税/交易所征费的独立税种 peel（全部进 commission 合计即可）
 - Web/MCP 导入 UI、多用户权限
 - 其他券商（富途、老虎等）

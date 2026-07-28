@@ -4,7 +4,7 @@ Convention (all sources):
 - US equity: ``CODE.us`` (e.g. ``mrvl.us``, ``aapl.us``)
 - HK equity: ``CODE.hk`` (e.g. ``00700.hk``)
 - CN A-share: ``CODE.sh`` / ``CODE.sz`` (DFZQ / A-share connect heuristics)
-- Cash / FX legs: bare ISO lowercase (``usd``, ``hkd``) — never pass through here
+- Cash / FX tickers: bare ISO lowercase (``usd``, ``hkd``) — never pass through here
 - FX pairs (``USD.HKD``): not equity — do not call this helper
 
 Idempotent: if the code already ends with a known market suffix, keep it.
