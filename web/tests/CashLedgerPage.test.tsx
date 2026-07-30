@@ -39,6 +39,54 @@ beforeEach(() => vi.stubEnv("VITE_FT_API_ORIGIN", "http://127.0.0.1:8000"));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("CashLedgerPage", () => {
+  it("默认折叠筛选，并以加载更多追加记录、去重且在末批停止", async () => {
+    const second = { ...projection, projection_id: "cash:1004", counterparty: "第二笔" };
+    const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : input.includes("cursor=next") ? json({ projection_version: 1, items: [projection, second], next_cursor: null, page_size: 50, filters: {} }) : json({ projection_version: 1, items: [projection], next_cursor: "next", page_size: 50, filters: {} }));
+    vi.stubGlobal("fetch", fetch);
+    render(<CashLedgerPage />);
+    await screen.findByText("咖啡店");
+    expect(screen.getByRole("group", { name: "账本筛选工具" })).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByRole("button", { name: "加载更多" }));
+    await screen.findByText("第二笔");
+    expect(screen.getAllByText("咖啡店")).toHaveLength(1);
+    expect(screen.getByText("已显示全部记录。")).toBeInTheDocument();
+    expect(fetch.mock.calls.filter(([input]) => String(input).includes("cursor=next"))).toHaveLength(1);
+  });
+
+  it("追加失败时保留既有记录，并允许重试加载更多", async () => {
+    let appendAttempts = 0;
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (!input.includes("cursor=next")) return json({ projection_version: 1, items: [projection], next_cursor: "next", page_size: 50, filters: {} });
+      appendAttempts += 1;
+      return appendAttempts === 1 ? json({ error: { code: "storage.busy" } }, 503) : json({ projection_version: 1, items: [{ ...projection, projection_id: "cash:1005", counterparty: "重试后的记录" }], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<CashLedgerPage />);
+    await screen.findByText("咖啡店");
+    fireEvent.click(screen.getByRole("button", { name: "加载更多" }));
+    expect(await screen.findByRole("button", { name: "重试加载更多" })).toBeInTheDocument();
+    expect(screen.getByText("咖啡店")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重试加载更多" }));
+    await screen.findByText("重试后的记录");
+    expect(screen.getByText("已显示全部记录。")).toBeInTheDocument();
+  });
+
+  it("筛选变更会取消追加并从首批重新读取", async () => {
+    const pendingAppend = deferred<Promise<Response>>();
+    const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : input.includes("cursor=next") ? pendingAppend.promise : json({ projection_version: 1, items: [{ ...projection, counterparty: input.includes("category=%E9%A4%90%E9%A5%AE") ? "新筛选记录" : "咖啡店" }], next_cursor: "next", page_size: 50, filters: {} }));
+    vi.stubGlobal("fetch", fetch);
+    render(<CashLedgerPage />);
+    await screen.findByText("咖啡店");
+    fireEvent.click(screen.getByRole("button", { name: "加载更多" }));
+    fireEvent.change(screen.getByLabelText("分类"), { target: { value: "餐饮" } });
+    await screen.findByText("新筛选记录");
+    expect(screen.getByText("全部账户 · 分类：餐饮 · 全部收支")).toBeInTheDocument();
+    pendingAppend.resolve(json({ projection_version: 1, items: [{ ...projection, counterparty: "过期追加" }], next_cursor: null, page_size: 50, filters: {} }));
+    await waitFor(() => expect(screen.queryByText("过期追加")).not.toBeInTheDocument());
+  });
+
+
   it("展示紧跟交易对方的备注列，保留组成方式筛选且只调用投影端点", async () => {
     const withoutNote = { ...projection, projection_id: "cash:1004", counterparty: "无备注商户", note: "", record_id: "cash-004" };
     const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ projection_version: 1, items: [projection, withoutNote], next_cursor: null, page_size: 50, filters: {} }));
@@ -46,9 +94,13 @@ describe("CashLedgerPage", () => {
 
     render(<CashLedgerPage />);
 
-    expect(screen.getByText("正在读取收支投影…")).toBeInTheDocument();
+    expect(screen.getByText("正在读取收支记录…")).toBeInTheDocument();
     await screen.findByText("咖啡店");
     expect(screen.getByRole("heading", { name: "收支账本" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "收支账本工作台" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "账本筛选工具" })).not.toHaveAttribute("open");
+    expect(screen.queryByText("本机账本")).not.toBeInTheDocument();
+    expect(screen.queryByText("按主记录发生时间查看收支投影")).not.toBeInTheDocument();
     expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易对方", "备注", "分类", "金额", "来源", "操作"]);
     expect(screen.queryByRole("columnheader", { name: "组成方式" })).not.toBeInTheDocument();
     expect(screen.getByText("午间消费")).toBeInTheDocument();
@@ -84,6 +136,8 @@ describe("CashLedgerPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "查看咖啡店的证据详情" }));
 
     const dialog = await screen.findByRole("dialog", { name: "证据详情" });
+    expect(within(dialog).getByRole("region", { name: "投影结果" })).toHaveClass("evidence-section");
+    expect(within(dialog).getByRole("region", { name: "退款时间线" })).toHaveClass("evidence-section");
     expect(within(dialog).getByText("午间消费")).toBeInTheDocument();
     expect(screen.getByText("merchant")).toBeInTheDocument();
     expect(screen.getByText("退款冲销关系（refund.amount.v1）")).toBeInTheDocument();
@@ -111,11 +165,12 @@ describe("CashLedgerPage", () => {
     rerender(<CashLedgerPage key="busy" />);
     expect(await screen.findByText("账本正被其他操作占用，请稍后重试。")).toBeInTheDocument();
     expect(screen.queryByText(/ledger\.db/)).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveAttribute("data-status-kind", "error");
   });
 
   it.each([
     ["invalid_filter", "筛选条件有误，请检查日期、金额和选项后重试。"],
-    ["invalid_cursor", "分页位置已失效，请返回第一页后重试。"],
+    ["invalid_cursor", "加载位置已失效，请重新读取记录。"],
     ["unmapped_failure", "请求失败，请稍后重试。"],
   ])("为 %s 显示可修正的请求错误", async (code, message) => {
     vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/accounts")
@@ -145,7 +200,7 @@ describe("CashLedgerPage", () => {
     await screen.findByRole("dialog", { name: "证据详情" });
     fireEvent.change(screen.getByLabelText("分类"), { target: { value: "餐饮" } });
 
-    await screen.findByText("账本已更新，正在刷新第一页。")
+    await screen.findByText("账本已更新，正在刷新记录。")
     expect(screen.queryByRole("dialog", { name: "证据详情" })).not.toBeInTheDocument();
 
     refreshed.resolve(json({ projection_version: 2, items: [{ ...projection, projection_id: "cash:2001", counterparty: "刷新后的投影" }], next_cursor: null, page_size: 50, filters: {} }));

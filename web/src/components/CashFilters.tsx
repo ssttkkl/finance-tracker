@@ -2,10 +2,18 @@ import type { Account, CashFilters } from "../api/types";
 
 type Props = { filters: CashFilters; accounts: Account[]; onChange: (filters: CashFilters) => void };
 
+function filterSummary(filters: CashFilters, accounts: Account[]) {
+  const account = accounts.find((item) => String(item.id) === filters.account_id)?.name ?? "全部账户";
+  const dateRange = [filters.date_from, filters.date_to].filter(Boolean).join(" 至 ");
+  const economicType = filters.economic_type === "expense" ? "消费" : filters.economic_type === "income" ? "收入" : "全部收支";
+  const details = [dateRange, filters.category ? `分类：${filters.category}` : "", filters.counterparty ? `交易对方：${filters.counterparty}` : "", filters.currency ? filters.currency : "", filters.amount_min || filters.amount_max ? `金额：${filters.amount_min ?? "不限"} 至 ${filters.amount_max ?? "不限"}` : ""].filter(Boolean);
+  return [account, ...details, economicType].join(" · ");
+}
+
 export function CashFiltersBar({ filters, accounts, onChange }: Props) {
   const update = (key: keyof CashFilters, value: string) => onChange({ ...filters, [key]: value });
-  return <details className="filters" open>
-    <summary>筛选</summary>
+  return <details className="filters" aria-label="账本筛选工具" data-layout="filter-grid">
+    <summary><span className="filter-mark" aria-hidden="true">⌕</span><span><strong>筛选</strong><small>{filterSummary(filters, accounts)}</small></span><span className="filter-toggle">展开</span></summary>
     <div className="filter-grid">
       <label>开始日期<input aria-label="开始日期" type="date" value={filters.date_from ?? ""} onChange={(e) => update("date_from", e.target.value)} /></label>
       <label>结束日期<input aria-label="结束日期" type="date" value={filters.date_to ?? ""} onChange={(e) => update("date_to", e.target.value)} /></label>
