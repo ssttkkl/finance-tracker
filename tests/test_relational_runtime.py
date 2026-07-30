@@ -6,6 +6,7 @@ import stat
 from pathlib import Path
 
 import pytest
+from sqlalchemy import text
 
 
 def test_relational_adapter_package_exists():
@@ -157,6 +158,35 @@ def test_engine_factory_opens_only_the_explicitly_selected_backend(tmp_path, mon
     with pytest.raises(dialect.RelationalEngineError, match="unsupported"):
         dialect.create_relational_engine("mysql+pymysql://db/finance")
     assert calls == []
+
+
+def test_web_sqlite_engine_uses_a_refreshable_readonly_snapshot_and_releases_it(tmp_path):
+    from ft.adapters.relational.dialect import create_relational_engine, create_web_readonly_engine
+
+    database = tmp_path / "web-readonly.db"
+    url = f"sqlite+pysqlite:///{database}"
+    writer = create_relational_engine(url)
+    with writer.begin() as connection:
+        connection.execute(text("CREATE TABLE sample (id INTEGER PRIMARY KEY, value TEXT NOT NULL)"))
+        connection.execute(text("INSERT INTO sample (value) VALUES ('first')"))
+
+    reader = create_web_readonly_engine(url)
+    snapshot_directory = reader.info.get("snapshot_directory")
+    assert snapshot_directory is not None
+    assert Path(snapshot_directory).is_dir()
+    with reader.connect() as connection:
+        assert connection.execute(text("SELECT value FROM sample")).scalar() == "first"
+        with pytest.raises(Exception):
+            connection.execute(text("INSERT INTO sample (value) VALUES ('forbidden')"))
+
+    with writer.begin() as connection:
+        connection.execute(text("INSERT INTO sample (value) VALUES ('second')"))
+    with reader.connect() as connection:
+        assert connection.execute(text("SELECT value FROM sample ORDER BY id DESC")).scalar() == "second"
+
+    reader.dispose()
+    writer.dispose()
+    assert not Path(snapshot_directory).exists()
 
 
 def test_storage_error_messages_are_sanitized():

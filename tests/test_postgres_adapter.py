@@ -32,6 +32,9 @@ def _database():
     sessions = create_session_factory(engine)
     ensure_workspace(sessions, "workspace-a", name="Workspace A")
     ensure_workspace(sessions, "workspace-b", name="Workspace B")
+    from ft.application.cash_projections import CashProjectionService
+    CashProjectionService(sessions, "workspace-a").rebuild()
+    CashProjectionService(sessions, "workspace-b").rebuild()
     return sessions, RelationalUnitOfWork
 
 

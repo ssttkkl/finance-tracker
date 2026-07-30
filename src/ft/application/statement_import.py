@@ -158,6 +158,11 @@ class StatementImportService:
             if imported_count:
                 snapshot["updated_at"] = max(str(row.get("date", "")) for row in rows)
             uow.snapshot.save(snapshot)
+            if new_cash_fact_ids:
+                from ft.application.cash_projections import CashProjectionService
+                CashProjectionService.maintain_if_ready_in_session(
+                    uow._state().session, uow.workspace_id, {int(item) for item in new_cash_fact_ids},
+                )
             uow.commit()
             saved_imported_count = imported_count
             saved_by_account = dict(by_account)

@@ -288,6 +288,8 @@ def _drop_currency_sqlite(connection, id_map: dict[str, str]) -> None:
     for name in tables:
         drop_with_children(name)
 
+    legacy_alter_table = connection.scalar(text("PRAGMA legacy_alter_table"))
+    connection.execute(text("PRAGMA legacy_alter_table=OFF"))
     connection.execute(text("DROP TABLE accounts"))
     connection.execute(text("ALTER TABLE accounts_new RENAME TO accounts"))
     connection.execute(text(
@@ -296,6 +298,7 @@ def _drop_currency_sqlite(connection, id_map: dict[str, str]) -> None:
 
     for name in tables:
         connection.execute(text(f'ALTER TABLE "{shadow_name(name)}" RENAME TO "{name}"'))
+    connection.execute(text(f"PRAGMA legacy_alter_table={int(bool(legacy_alter_table))}"))
     # Recreate explicit indexes after old index names have been released.
     for ddl in index_ddls:
         if re.search(r"\bON\s+(?:\"?accounts\"?)\b", ddl, re.IGNORECASE):

@@ -51,6 +51,8 @@ def relational_runtime(request, tmp_path):
     engine = create_relational_engine(url)
     sessions = create_session_factory(engine)
     ensure_workspace(sessions, "parity-workspace")
+    from ft.application.cash_projections import CashProjectionService
+    CashProjectionService(sessions, "parity-workspace").rebuild()
     runtime = RelationalRuntime(
         request.param,
         build_services(StorageSettings(url, "parity-workspace")),
@@ -88,7 +90,10 @@ def test_file_sqlite_runtime_uses_shared_services_after_explicit_migration(tmp_p
 
     url = _upgrade_sqlite(tmp_path / "finance.db")
     engine = create_relational_engine(url)
-    ensure_workspace(create_session_factory(engine), "parity-workspace")
+    sessions = create_session_factory(engine)
+    ensure_workspace(sessions, "parity-workspace")
+    from ft.application.cash_projections import CashProjectionService
+    CashProjectionService(sessions, "parity-workspace").rebuild()
     engine.dispose()
 
     services = build_services(StorageSettings(url, "parity-workspace"))

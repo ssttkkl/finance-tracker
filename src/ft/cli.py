@@ -69,6 +69,14 @@ def _main(argv=None):
     )
     sub = parser.add_subparsers(dest="cmd")
 
+    web = sub.add_parser("web", help="仅在本机启动收支账本只读 API")
+    web.add_argument("--port", type=int, default=8000, help="本机 API 端口（默认 8000）")
+
+    projections = sub.add_parser("projections", help="维护收支投影")
+    projections_sub = projections.add_subparsers(dest="projections_cmd")
+    projections_sub.add_parser("rebuild", help="显式全量重建当前工作区的收支投影")
+    projections_sub.add_parser("status", help="查看当前工作区的收支投影状态")
+
     # acct
     acct_p = sub.add_parser("acct", help="名称唯一的多币种账户管理")
     acct_sub = acct_p.add_subparsers(dest="acct_cmd")
@@ -334,6 +342,76 @@ def _main(argv=None):
 
     if not args.cmd:
         parser.print_help()
+        return
+
+    if args.cmd == "web":
+        from ft.web.app import DEFAULT_WEB_ORIGIN, create_runtime_app, validate_local_origin
+        from ft.adapters.relational.runtime import StorageError
+        import os
+        import uvicorn
+
+        if not 1 <= args.port <= 65535:
+            parser.error("--port 必须在 1 到 65535 之间")
+        try:
+            origin = validate_local_origin(os.environ.get("FT_WEB_ORIGIN", DEFAULT_WEB_ORIGIN))
+            app = create_runtime_app()
+        except (StorageError, ValueError) as exc:
+            print(f"错误：{exc}", file=__import__("sys").stderr)
+            raise SystemExit(1) from exc
+        print(f"本机账本 API 已准备就绪：http://127.0.0.1:{args.port}")
+        print(f"允许的前端来源：{origin}")
+        uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
+        return
+
+    if args.cmd == "projections":
+        from sqlalchemy.exc import SQLAlchemyError
+        from .adapters.relational import create_relational_engine, create_session_factory, create_web_readonly_engine
+        from .adapters.relational.dialect import RelationalEngineError
+        from .adapters.relational.runtime import StorageError, storage_error
+        from .application.cash_projections import CashProjectionService
+        from .config import StorageConfigurationError, StorageSettings
+        from .domain.cash_projection import CashProjectionError
+
+        try:
+            settings = StorageSettings.load()
+        except StorageConfigurationError as exc:
+            raise StorageError("storage.config") from exc
+        try:
+            engine = (
+                create_relational_engine(settings.database_url)
+                if args.projections_cmd == "rebuild"
+                else create_web_readonly_engine(settings.database_url)
+            )
+        except RelationalEngineError as exc:
+            raise StorageError(exc.code, settings.database_url) from exc
+        try:
+            service = CashProjectionService(create_session_factory(engine), settings.workspace_id)
+            try:
+                status = service.rebuild() if args.projections_cmd == "rebuild" else service.status()
+            except SQLAlchemyError as exc:
+                raise storage_error(exc, settings.database_url) from exc
+            except CashProjectionError as exc:
+                print(f"错误：{exc.code}", file=__import__("sys").stderr)
+                raise SystemExit(1) from exc
+            except RuntimeError as exc:
+                code = str(exc)
+                if not code.startswith("projection."):
+                    raise
+                print(f"错误：{code}", file=__import__("sys").stderr)
+                raise SystemExit(1) from exc
+        finally:
+            try:
+                engine.dispose()
+            except RelationalEngineError as exc:
+                raise StorageError(exc.code, settings.database_url) from exc
+        print("工作区：" + settings.workspace_id)
+        print("可用性：" + status["availability"])
+        print("投影版本：" + str(status["projection_version"]))
+        print("规则版本：" + status["rules_version"])
+        print("投影条目数：" + str(status["projection_count"]))
+        print("成员数：" + str(status["member_count"]))
+        if status.get("last_error_code"):
+            print("失败码：" + status["last_error_code"])
         return
 
 

@@ -268,6 +268,21 @@ def test_cli_help_does_not_require_database(monkeypatch):
     assert exc.value.code == 0
 
 
+def test_web_refuses_an_unmigrated_selected_database_without_implicit_migration(tmp_path, monkeypatch):
+    from ft.adapters.relational.runtime import StorageError
+    from ft.web.app import create_runtime_app
+
+    database = tmp_path / "unmigrated.db"
+    database.touch()
+    monkeypatch.setenv("FT_DATABASE_URL", f"sqlite+pysqlite:///{database}")
+    monkeypatch.setenv("FT_WORKSPACE_ID", "default")
+
+    with pytest.raises(StorageError, match="storage.schema"):
+        create_runtime_app()
+
+    assert database.stat().st_size == 0
+
+
 def test_cli_commit_time_storage_error_is_controlled_and_nonzero(monkeypatch, capsys):
     from ft.adapters.relational.runtime import StorageError
 

@@ -1,0 +1,135 @@
+import { useEffect, useRef, useState } from "react";
+import { fetchCashAccounts, fetchCashPage, fetchEvidence } from "../api/cashLedger";
+import type { Account, CashFilters, CashPage, CashProjection, Evidence } from "../api/types";
+import { CashFiltersBar } from "../components/CashFilters";
+import { CashTable } from "../components/CashTable";
+import { EvidenceDetail } from "../components/EvidenceDetail";
+import { Pagination } from "../components/Pagination";
+import { StatusView } from "../components/StatusView";
+
+const requestErrorMessages: Record<string, string> = {
+  api_origin_invalid: "前端 API 地址无效。请设置 VITE_FT_API_ORIGIN 后重启。",
+  "storage.busy": "账本正被其他操作占用，请稍后重试。",
+  "storage.readonly": "账本当前不可读取，请检查本机 API 配置后重试。",
+  "storage.connect": "无法连接本机账本，请检查 API 和数据库连接后重试。",
+  "storage.schema": "账本结构不可用，请检查本机 API 配置后重试。",
+  "storage.workspace": "当前工作区不可用，请检查本机 API 配置后重试。",
+  "storage.config": "账本配置无效，请检查本机 API 配置后重试。",
+  "projection.unavailable": "收支投影暂不可用，请先完成重建。",
+  invalid_filter: "筛选条件有误，请检查日期、金额和选项后重试。",
+  invalid_cursor: "分页位置已失效，请返回第一页后重试。",
+  api_request_failed: "请求失败，请稍后重试。",
+};
+
+export function CashLedgerPage() {
+  const [filters, setFilters] = useState<CashFilters>({});
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountsError, setAccountsError] = useState(false);
+  const [page, setPage] = useState<CashPage | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error">("loading");
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  const [projectionUpdated, setProjectionUpdated] = useState(false);
+  const [refreshGeneration, setRefreshGeneration] = useState(0);
+  const [cursorStack, setCursorStack] = useState<Array<string | null>>([null]);
+  const [selected, setSelected] = useState<CashProjection | null>(null);
+  const [evidence, setEvidence] = useState<Evidence | null>(null);
+  const [evidenceState, setEvidenceState] = useState<"loading" | "ready" | "error">("loading");
+  const opener = useRef<HTMLButtonElement | null>(null);
+  const pageAbortController = useRef<AbortController | null>(null);
+  const evidenceAbortController = useRef<AbortController | null>(null);
+  const restoreEvidenceFocus = useRef(false);
+  const accountsAbortController = useRef<AbortController | null>(null);
+  const pageRequestId = useRef(0);
+  const evidenceRequestId = useRef(0);
+  const accountsRequestId = useRef(0);
+  const updateConfirmation = useRef<HTMLButtonElement | null>(null);
+  const cursor = cursorStack.at(-1) ?? null;
+
+  const loadPage = () => {
+    pageAbortController.current?.abort();
+    const controller = new AbortController();
+    pageAbortController.current = controller;
+    const requestId = ++pageRequestId.current;
+    setStatus("loading");
+    setErrorMessage(undefined);
+    fetchCashPage(filters, cursor, controller.signal).then((value) => {
+      if (requestId !== pageRequestId.current) return;
+      setPage(value);
+      setStatus(value.items.length ? "ready" : "empty");
+    }).catch((error: unknown) => {
+      if (controller.signal.aborted || requestId !== pageRequestId.current) return;
+      if (error instanceof Error && error.message === "projection.updated") {
+        closeEvidence();
+        setCursorStack([null]);
+        setProjectionUpdated(true);
+        setRefreshGeneration((value) => value + 1);
+        return;
+      }
+      const code = error instanceof Error ? error.message : "api_request_failed";
+      setErrorMessage(requestErrorMessages[code] ?? requestErrorMessages.api_request_failed);
+      setStatus("error");
+    });
+  };
+  const loadAccounts = () => {
+    accountsAbortController.current?.abort();
+    const controller = new AbortController();
+    accountsAbortController.current = controller;
+    const requestId = ++accountsRequestId.current;
+    fetchCashAccounts(controller.signal).then((value) => {
+      if (requestId !== accountsRequestId.current) return;
+      setAccounts(value);
+      setAccountsError(false);
+    }).catch(() => {
+      if (controller.signal.aborted || requestId !== accountsRequestId.current) return;
+      setAccountsError(true);
+    });
+  };
+  useEffect(() => {
+    loadAccounts();
+    return () => accountsAbortController.current?.abort();
+  }, []);
+  useEffect(() => {
+    loadPage();
+    return () => pageAbortController.current?.abort();
+  }, [cursor, filters.date_from, filters.date_to, filters.account_id, filters.counterparty, filters.category, filters.currency, filters.amount_min, filters.amount_max, filters.economic_type, filters.composition, refreshGeneration]);
+  useEffect(() => {
+    if (selected || !restoreEvidenceFocus.current) return;
+    restoreEvidenceFocus.current = false;
+    opener.current?.focus();
+  }, [selected]);
+  useEffect(() => {
+    if (projectionUpdated && status === "ready") updateConfirmation.current?.focus();
+  }, [projectionUpdated, status]);
+  const confirmUpdatedList = () => {
+    setProjectionUpdated(false);
+    requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(".cash-row .icon-button")?.focus());
+  };
+  const updateFilters = (value: CashFilters) => { setCursorStack([null]); setFilters(value); };
+  const openEvidence = (projection: CashProjection, source: HTMLButtonElement) => {
+    evidenceAbortController.current?.abort();
+    const controller = new AbortController();
+    evidenceAbortController.current = controller;
+    const requestId = ++evidenceRequestId.current;
+    opener.current = source;
+    setSelected(projection);
+    setEvidence(null);
+    setEvidenceState("loading");
+    fetchEvidence(projection.projection_id, controller.signal).then((value) => {
+      if (requestId !== evidenceRequestId.current) return;
+      setEvidence(value);
+      setEvidenceState("ready");
+    }).catch(() => {
+      if (controller.signal.aborted || requestId !== evidenceRequestId.current) return;
+      setEvidenceState("error");
+    });
+  };
+  const closeEvidence = () => {
+    evidenceAbortController.current?.abort();
+    evidenceRequestId.current += 1;
+    restoreEvidenceFocus.current = true;
+    setSelected(null);
+    setEvidence(null);
+  };
+
+  return <div className={`page-layout${selected ? " evidence-open" : ""}`}><main className="app-shell" inert={Boolean(selected) || undefined}><aside className="sidebar"><strong>Finance Tracker</strong><nav aria-label="主要导航"><a aria-current="page" href="#cash-ledger">收支账本</a></nav></aside><section className="ledger" id="cash-ledger"><header className="page-header"><div><p className="eyebrow">本机账本</p><h1>收支账本</h1></div><p>按主记录发生时间查看收支投影</p></header>{accountsError ? <div className="status-view status-error" role="alert"><p>无法读取账户目录。请检查本机 API 后重试。</p><button type="button" onClick={loadAccounts}>重试账户目录</button></div> : null}<CashFiltersBar filters={filters} accounts={accounts} onChange={updateFilters} />{status === "loading" ? <><CashTable items={[]} loading onEvidence={openEvidence} /><StatusView kind="loading" message={projectionUpdated ? "账本已更新，正在刷新第一页。" : undefined} /></> : null}{status === "empty" ? <StatusView kind="empty" /> : null}{status === "error" ? <StatusView kind="error" message={errorMessage} onRetry={loadPage} /> : null}{status === "ready" && page ? <>{projectionUpdated ? <div className="update-notice" role="status"><p>账本已更新，已刷新第一页。</p><button ref={updateConfirmation} type="button" onClick={confirmUpdatedList}>查看更新后的列表</button></div> : null}<CashTable items={page.items} onEvidence={openEvidence} /><Pagination nextCursor={page.next_cursor} hasPrevious={cursorStack.length > 1} onNext={() => page.next_cursor && setCursorStack([...cursorStack, page.next_cursor])} onPrevious={() => setCursorStack(cursorStack.slice(0, -1))} /></> : null}</section></main>{selected ? <EvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} onClose={closeEvidence} onRetry={() => openEvidence(selected, opener.current ?? document.createElement("button"))} /> : null}</div>;
+}

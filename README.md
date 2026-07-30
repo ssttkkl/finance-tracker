@@ -14,7 +14,7 @@
 uv sync
 export FT_DATABASE_URL='postgresql+psycopg://localhost/finance_tracker'
 export FT_WORKSPACE_ID='default'
-uv run alembic upgrade head    # head / SCHEMA_REVISION: 20260726_10
+uv run alembic upgrade head    # head / SCHEMA_REVISION: 20260729_11
 uv run python -c "
 import os
 from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace
@@ -186,8 +186,41 @@ uv run ft sync --source binance --account 币安 --full   # 忽略游标，全�
 | `sync` | 交易所 / Polymarket API 同步 |
 | `relations {pending,check,accept,reject,later,alias-add}` | 关系审查 |
 | `fact-delete` | 以可审计方式逻辑删除现金流水 |
+| `web` | 仅本机启动收支账本只读 API |
 
 相对旧 `main`（CSV+git）已删除：`append`、`reconcile`、`commit` / `status` / `reset`、`verify`、`stock append`、`stock sync <provider>`。对照见产品讨论记录；操作上以本文为准。
+
+## 收支账本 Web
+
+收支账本以两个显式进程运行。Python API 只绑定本机，Node 前端只通过 HTTP 读取 API；两者都不会创建、迁移或写入账本。列表展示已确认关系处理后的收支投影，而不是原始现金流水；内部转账和全额退款保留为可审计投影，但不进入列表。
+
+```bash
+export FT_DATABASE_URL='sqlite+pysqlite:////absolute/path/finance-tracker.db'
+export FT_WORKSPACE_ID='default'
+export FT_WEB_ORIGIN='http://127.0.0.1:5173'
+uv run ft web
+```
+
+在另一个终端运行：
+
+```bash
+cd web
+npm install
+VITE_FT_API_ORIGIN='http://127.0.0.1:8000' npm run dev
+```
+
+生产预览必须在构建时注入 API 来源，再启动预览服务器：
+
+```bash
+VITE_FT_API_ORIGIN='http://127.0.0.1:8000' npm run build
+npm run start
+```
+
+`npm run start` 只服务已经构建的产物，不会重新读取 `VITE_FT_API_ORIGIN`。`FT_WEB_ORIGIN` 与
+`VITE_FT_API_ORIGIN` 只能是带端口的 `http://127.0.0.1` 或 `http://localhost` 地址；配置无效或 API
+不可连接时，进程或页面会明确失败，不会使用其他后端或地址。
+
+当前只交付**收支账本**与**证据详情**。投资账本视图、投资事件、持仓和持仓估值属于 `021-investment-ledger-browser-web`，尚未交付。
 
 ## 配置合同
 
@@ -202,16 +235,15 @@ uv run ft sync --source binance --account 币安 --full   # 忽略游标，全�
 
 ```bash
 uv run pytest
-uv run alembic heads    # 期望 20260726_10
+uv run alembic heads    # 期望 20260729_11
 uv build
 git diff --check
 ```
 
-双后端契约矩阵需要真实 PostgreSQL `*_test` 库。本机常用：
+双后端契约矩阵需要本机 PostgreSQL `*_test` 库。本 feature 不使用容器：
 
 ```bash
-docker start finance-tracker-postgres-test 2>/dev/null || true
-export FT_TEST_POSTGRES_URL='postgresql+psycopg://finance_tracker:finance_tracker_test@127.0.0.1:55432/finance_tracker_test'
+export FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test'
 export FT_REQUIRE_TEST_POSTGRES=1
 uv run pytest
 ```
