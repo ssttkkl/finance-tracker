@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CashLedgerPage } from "../src/pages/CashLedgerPage";
 
@@ -39,8 +39,9 @@ beforeEach(() => vi.stubEnv("VITE_FT_API_ORIGIN", "http://127.0.0.1:8000"));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("CashLedgerPage", () => {
-  it("展示收支投影、经济类型筛选和组成方式筛选，且只调用投影端点", async () => {
-    const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {} }));
+  it("展示紧跟交易对方的备注列，保留组成方式筛选且只调用投影端点", async () => {
+    const withoutNote = { ...projection, projection_id: "cash:1004", counterparty: "无备注商户", note: "", record_id: "cash-004" };
+    const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ projection_version: 1, items: [projection, withoutNote], next_cursor: null, page_size: 50, filters: {} }));
     vi.stubGlobal("fetch", fetch);
 
     render(<CashLedgerPage />);
@@ -48,10 +49,15 @@ describe("CashLedgerPage", () => {
     expect(screen.getByText("正在读取收支投影…")).toBeInTheDocument();
     await screen.findByText("咖啡店");
     expect(screen.getByRole("heading", { name: "收支账本" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "组成方式" })).toBeInTheDocument();
-    expect(screen.getByText("同笔支付关系（1）；退款冲销关系（1）")).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易对方", "备注", "分类", "金额", "来源", "操作"]);
+    expect(screen.queryByRole("columnheader", { name: "组成方式" })).not.toBeInTheDocument();
+    expect(screen.getByText("午间消费")).toBeInTheDocument();
+    expect(screen.getByText("未提供")).toBeInTheDocument();
+    expect(screen.queryByText("同笔支付关系（1）；退款冲销关系（1）")).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: "消费" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "组合关系" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("组成方式"), { target: { value: "combined" } });
+    await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("composition=combined"))).toBe(true));
     expect(fetch.mock.calls.some(([input]) => String(input).includes("/cash-transactions"))).toBe(false);
     expect(fetch.mock.calls.some(([input]) => String(input).includes("/cash-projections"))).toBe(true);
   });
@@ -77,8 +83,8 @@ describe("CashLedgerPage", () => {
     await screen.findByText("咖啡店");
     fireEvent.click(screen.getByRole("button", { name: "查看咖啡店的证据详情" }));
 
-    await screen.findByRole("dialog", { name: "证据详情" });
-    expect(screen.getByText("午间消费")).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog", { name: "证据详情" });
+    expect(within(dialog).getByText("午间消费")).toBeInTheDocument();
     expect(screen.getByText("merchant")).toBeInTheDocument();
     expect(screen.getByText("退款冲销关系（refund.amount.v1）")).toBeInTheDocument();
     expect(screen.getByText(/同笔支付关系：待审核/)).toBeInTheDocument();

@@ -30,7 +30,9 @@ describe("现金账本无障碍", () => {
     render(<CashLedgerPage />);
     const trigger = await screen.findByRole("button", { name: "查看咖啡店的证据详情" });
     expect(screen.getByLabelText("账户")).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "组成方式" })).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易对方", "备注", "分类", "金额", "来源", "操作"]);
+    expect(screen.getAllByRole("columnheader").map((header) => header.getAttribute("scope"))).toEqual(["col", "col", "col", "col", "col", "col", "col", "col"]);
+    expect(screen.queryByRole("columnheader", { name: "组成方式" })).not.toBeInTheDocument();
 
     fireEvent.click(trigger);
     const close = await screen.findByRole("button", { name: "关闭证据详情" });

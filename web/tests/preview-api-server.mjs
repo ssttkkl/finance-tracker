@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 
 const account = { id: 901, name: "预览账户", type: "cash", active: true };
 const port = Number(process.env.FT_PREVIEW_API_PORT ?? "8766");
+const allowedOrigin = process.env.FT_PREVIEW_WEB_ORIGIN ?? "http://127.0.0.1:5173";
 const page = {
   projection_version: 1,
   items: [{
@@ -17,7 +18,7 @@ const page = {
 };
 
 const server = createServer((request, response) => {
-  response.setHeader("Access-Control-Allow-Origin", "http://127.0.0.1:5173");
+  response.setHeader("Access-Control-Allow-Origin", allowedOrigin);
   response.setHeader("Content-Type", "application/json");
   if (request.url === "/health") {
     response.end(JSON.stringify({ status: "ok" }));

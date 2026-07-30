@@ -701,3 +701,83 @@ FT_REQUIRE_TEST_POSTGRES=1 \
 最终检查中，`git diff --check` 通过，任务清单已全部勾选。用户授权的本地提交为
 `fa6f523 完成收支投影与历史关系修复验证`；分支 `spec-20-progress` 未配置上游，因此没有推送，也没有创建
 PR。验收结束后保留本机 API 和独立 Node 前端地址供继续使用；未删除账单，也未自动重扫交易关系。
+
+### 2026-07-30：T105～T107 收支账本列表列调整
+
+先在 `web/tests/CashLedgerPage.test.tsx` 与 `web/tests/accessibility.test.tsx` 写入列表列合同，并运行：
+
+```sh
+cd web
+npm test -- CashLedgerPage.test.tsx accessibility.test.tsx
+```
+
+实现前结果为 `2 failed, 12 passed`。两个失败均显示实际列序仍为“发生时间、账户、交易对方、分类、金额、组成方式、来源、操作”，缺少“备注”且仍包含“组成方式”，符合目标行为尚未实现的预期。
+
+实现后，收支账本列表列依次为发生时间、账户、交易对方、备注、分类、金额、来源和证据入口；备注为空时显示“未提供”。列表不再展示关系摘要；组成方式仍保留为筛选条件，已采用关系仍在证据详情说明。骨架行保持 8 列，窄屏卡片以可换行的“备注”行替换原关系摘要行。
+
+```sh
+cd web
+npm test -- CashLedgerPage.test.tsx accessibility.test.tsx
+npm run build
+```
+
+结果：指定 Vitest 为 `14 passed`，TypeScript 检查和 Vite 生产构建通过。
+
+用户禁用 Claude 与 Codex CLI，gstack `qa` 的交互包装器不可执行；因此使用独立 Node 前端和 Playwright 进行等价浏览器验证。以允许
+`http://127.0.0.1:5176` 来源的本机 API `http://127.0.0.1:8001` 启动临时前端后，检查 `1440 × 900` 与
+`390 × 844` 视口：宽屏列序正确、无关系摘要、备注可见；组成方式筛选发起投影请求；键盘 `Enter` 打开证据详情、
+`Escape` 关闭并把焦点返回原证据入口；窄屏备注可见且没有横向溢出。临时浏览器截图保存在
+`/tmp/spec020-phase11-wide.png` 和 `/tmp/spec020-phase11-mobile.png`。
+
+首次完整 `npm test` 结果为 `3` 个测试文件通过、`1` 个失败。唯一失败来自
+`web/tests/CashTable.test.tsx`：该旧测试仍断言列表应显示“同笔支付关系（1）”等关系摘要，与本次已确认的
+列表合同冲突。按 Flow-Back 已将该测试纳入 T105，并撤回 T105、T107 的完成状态；在更新过期断言并使完整
+前端测试转绿前，本轮验收不视为完成。
+
+Flow-Back 后，先复用上述失败输出作为旧关系摘要断言的红灯证据，再将 `CashTable.test.tsx` 改为当前列表合同：
+备注列紧跟交易对方、没有“组成方式”列或关系摘要、备注值可读且空备注显示“未提供”。修正测试夹具的 `note`
+字段传递后，执行：
+
+```sh
+cd web
+npm test -- CashTable.test.tsx
+npm test
+npm run build
+```
+
+结果：单个 `CashTable` 测试为 `1 passed`；完整 Vitest 为 `4` 个测试文件、`17 passed`；TypeScript 检查与 Vite
+生产构建通过。此前记录的独立 Node 浏览器验证继续适用，未运行 gstack `qa`、Claude 或 Codex CLI。
+
+### 2026-07-30：T109～T111 列表语义与隔离运行时验证
+
+先补充窄屏备注、列表无关系摘要、组成方式请求参数、证据详情已采用关系和原生表头语义的断言，再运行：
+
+```sh
+cd web
+npm test -- CashLedgerPage.test.tsx accessibility.test.tsx
+```
+
+实现前 `CashLedgerPage.test.tsx` 通过，`accessibility.test.tsx` 失败：8 个列表列头的 `scope` 均为 `null`。这证明窄屏仅通过 `display: none` 隐藏表头时，尚未满足原生列头作用域要求。
+
+实现为每个列表列头设置 `scope="col"`，并以视觉隐藏方式保留窄屏表头语义；同时删除无 DOM 对应项的关系摘要样式。随后运行：
+
+```sh
+cd web
+npm test -- CashLedgerPage.test.tsx accessibility.test.tsx
+npm test
+npm run build
+```
+
+结果：受影响 Vitest 为 `14 passed`，完整 Vitest 为 4 个测试文件、`17 passed`，TypeScript 检查与 Vite 生产构建均通过。
+
+固定端口 `5173` 和 `5174` 已由其他本机进程占用，未终止或复用这些进程。使用仅在本次验证期间创建的 Playwright 配置，以 `5176` 运行开发态前端，并以 `8767` 的临时 API 与 `5175` 的 Vite 生产预览运行：
+
+```sh
+cd web
+npx playwright test -c playwright.spec020.config.ts
+npx playwright test -c playwright.spec020.preview.config.ts
+```
+
+结果：开发态 E2E 为 `5 passed`，生产预览为 `1 passed`。开发态覆盖 `1440 × 900` 与 `390 × 844` 下的备注、无列表关系摘要、`composition=combined` 请求、证据详情中的同笔支付关系、键盘焦点返回、原生列头语义和无横向溢出。生产预览验证独立 Node 前端可读取临时 API 的账户与收支投影；临时 API 的允许来源通过 `FT_PREVIEW_WEB_ORIGIN` 显式限定为 `http://127.0.0.1:5175`。验证结束后移除了临时 Playwright 配置。
+
+用户禁止 Claude 与 Codex CLI，gstack `qa` 的交互包装器不可执行；本轮继续以独立 Node 前端和 Playwright 提供等价浏览器验证。

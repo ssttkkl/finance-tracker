@@ -3,14 +3,14 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 const account = { id: 101, name: "日常账户", type: "cash", active: true };
 const item = (id: string, counterparty: string) => ({
   projection_id: `cash:${id}`, occurred_at: "2026-07-03T09:00:00+08:00", account, counterparty, category: "餐饮",
-  amount: "-12.5", currency: "CNY", note: "", source_type: "fixture", record_id: `cash-${id}`,
+  amount: "-12.5", currency: "CNY", note: `备注${id}`, source_type: "fixture", record_id: `cash-${id}`,
   economic_type: "expense", transfer_subtype: null, composition: ["payment_mirror"], member_count: 2,
   accepted_relation_summary: [{ kind: "payment_mirror", subtype: "", count: 1 }], visible: true, hidden_reason: null,
 });
 
 function evidence(projection: ReturnType<typeof item>) {
   const root = { id: projection.projection_id.replace("cash:", ""), occurred_at: projection.occurred_at, account, counterparty: projection.counterparty, category: projection.category, note: projection.note, amount: projection.amount, currency: projection.currency, source_type: projection.source_type, record_id: projection.record_id };
-  return { projection_version: 1, projection, root_record: { ...root, source_snapshot: null }, members: [{ ...root, roles: ["root"] }], accepted_relations: [], inactive_relation_hints: [], refund_timeline: [] };
+  return { projection_version: 1, projection, root_record: { ...root, source_snapshot: null }, members: [{ ...root, roles: ["root"] }], accepted_relations: [{ id: "accepted-1", kind: "payment_mirror", subtype: "", rule_id: "payment.mirror.v1", confidence: "strong", evidence: {}, primary_record: null, secondary_record: null }], inactive_relation_hints: [], refund_timeline: [] };
 }
 
 async function mockLedger(page: Page) {
@@ -90,18 +90,22 @@ test("窄屏可触摸打开并关闭全屏证据详情，布局没有横向溢�
   await filters.locator("summary").focus();
   await page.keyboard.press("Enter");
   await expect(filters).toHaveAttribute("open", "");
-  await expect(page.getByText("同笔支付关系（1）")).toBeVisible();
-  await expect(page.getByText("payment_mirror")).toHaveCount(0);
+  await expect(page.getByText("备注1")).toBeVisible();
+  await expect(page.locator(".relation-summary")).toHaveCount(0);
+  const compositionRequest = page.waitForRequest((request) => request.url().includes("/cash-projections") && request.url().includes("composition=combined"));
+  await page.getByLabel("组成方式").selectOption("combined");
+  await compositionRequest;
   await page.getByRole("button", { name: "查看第一笔的证据详情" }).tap();
   const dialog = page.getByRole("dialog", { name: "证据详情" });
   await expect(dialog).toBeVisible();
   await expect(dialog).toHaveCSS("width", "390px");
+  await expect(dialog.getByText("同笔支付关系（payment.mirror.v1）")).toBeVisible();
   await page.getByRole("button", { name: "关闭证据详情" }).tap();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByText(/2026年7月3日/)).toBeVisible();
   await expect(page.getByText("第一笔")).toBeVisible();
   await expect(page.getByText("-12.5 CNY")).toBeVisible();
-  await expect(page.getByText("同笔支付关系（1）")).toBeVisible();
+  await expect(page.getByText("备注1")).toBeVisible();
   for (const button of await page.getByRole("button").all()) {
     const box = await button.boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(44);

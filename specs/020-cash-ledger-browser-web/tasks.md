@@ -242,6 +242,21 @@ SQLite 自动化测试只能操作 `/Users/huangwenlong/.ft/finance-tracker.db` 
 
 ---
 
+## Phase 11：收支账本列表列调整
+
+**目标**：让账本列表直接呈现主记录备注，同时将组成方式从列表移回筛选和证据详情，减少重复的关系信息。
+
+- [X] T105 [US5] 先在 `web/tests/CashLedgerPage.test.tsx`、`web/tests/accessibility.test.tsx` 和 `web/tests/CashTable.test.tsx` 编写或更新失败断言：宽屏表头中的“备注”紧跟“交易对方”，“组成方式”不作为列表列或行内容出现，备注值及缺失占位可读；组成方式筛选和证据详情中的已采用关系保持可用。不得保留要求列表关系摘要的过期断言（FR-016、FR-018、FR-022、FR-024、SC-008、SC-009）。
+- [X] T106 [US5] 在 `web/src/components/CashTable.tsx` 和 `web/src/styles.css` 实现 T105：移除列表关系摘要与“组成方式”列，插入“备注”列并紧跟交易对方；同步骨架列数和窄屏投影卡片布局，确保备注可换行且不遮挡金额、操作或后续字段（FR-022、FR-024、SC-009）。
+- [X] T107 [US5] 运行完整 Vitest 测试与 `npm run build`，再用独立 Node 前端执行 gstack `qa`，覆盖 `1440 × 900` 与 `390 × 844` 的备注、组成方式筛选、证据详情和键盘入口；将命令和结果写入 `specs/020-cash-ledger-browser-web/quickstart.md`。因用户禁止 Claude 与 Codex CLI 而无法执行 gstack `qa` 时，必须记录原因和等价的独立 Node 浏览器验证证据（FR-016、FR-018、FR-022、FR-024、SC-008、SC-009）。
+- [X] T108 [US5] 由独立子代理对 T105～T107 的 diff 和验收证据进行只读复审；已发现窄屏 E2E 的过期关系摘要断言、移动表头语义缺失和组成方式请求覆盖不足，按 T109～T112 回写并修复（FR-016、FR-018、FR-022、FR-024、SC-008、SC-009）。
+- [X] T109 [US5] 先在 `web/tests/cash-ledger.e2e.ts`、`web/tests/CashLedgerPage.test.tsx` 和 `web/tests/accessibility.test.tsx` 编写失败断言：窄屏展示备注、不展示列表关系摘要且无横向溢出；选择组成方式后请求包含 `composition=combined`；视觉隐藏的表头仍以原生列头语义关联各字段。运行受影响测试确认因当前实现缺失而失败（FR-016、FR-022、FR-024、SC-008、SC-009）。
+- [X] T110 [US5] 在 `web/src/components/CashTable.tsx` 和 `web/src/styles.css` 实现 T109：为各列表列提供原生列头作用域，窄屏仅视觉隐藏表头并保留语义；删除遗留的关系摘要样式。同步 E2E 夹具和断言，使备注、组成方式筛选与证据详情分别在正确位置验证（FR-016、FR-018、FR-022、FR-024、SC-008、SC-009）。
+- [X] T111 [US5] 运行完整 Vitest、`npm run build` 和隔离端口 Playwright E2E/生产预览；验证 `1440 × 900` 与 `390 × 844` 下的备注、无列表关系摘要、组成方式请求、证据详情关系、键盘焦点、原生表头语义和无横向溢出。将实际命令、结果和 gstack `qa` 限制记录到 `quickstart.md`（FR-016、FR-018、FR-022、FR-024、SC-008、SC-009）。
+- [X] T112 [US5] 由独立子代理只读复审 T109～T111 的 diff 和验收证据；复审为 CLEAR，确认窄屏备注与证据关系、原生列头语义、组成方式请求覆盖及隔离测试边界均符合要求（FR-016、FR-018、FR-022、FR-024、SC-008、SC-009）。
+
+---
+
 ## 依赖与执行顺序
 
 ### Phase 依赖
@@ -254,6 +269,7 @@ SQLite 自动化测试只能操作 `/Users/huangwenlong/.ft/finance-tracker.db` 
 - **用户故事 4（Phase 6）**：依赖用户故事 1～3 的完整后端行为，用同一矩阵证明 SQLite/PostgreSQL 等价。
 - **用户故事 5（Phase 7）**：依赖用户故事 1～2 的前端合同，可与用户故事 3 的后端维护任务交错实施。
 - **Phase 8**：依赖全部目标用户故事完成。
+- **Phase 11**：依赖 Phase 7 的前端表格、筛选和证据详情；仅调整列表呈现，不改变投影 API 或持久化行为。
 
 ### 每个用户故事内部顺序
 
