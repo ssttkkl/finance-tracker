@@ -55,7 +55,7 @@ npm run test:preview
 
 - `npx playwright test -c tests/playwright.visual.config.ts`：2026-07-30 在 `web/` 目录重跑。实施者确认候选差异仅来自已批准的筛选摘要、加载状态和视觉层级变更，更新 4 张受影响基线后复跑，8 项视觉测试通过。
 
-尚待完成的门禁：gstack `qa` 已通过 Skill 发起，但其强制要求干净 worktree；当前 worktree 有本 feature 的未提交实施改动，且本任务未获提交或暂存授权，故无法继续。自动化浏览器、生产预览与视觉回归均已通过，但风险是缺少独立浏览器 QA；待允许提交或安全暂存后重新执行 gstack `qa`。不得以 shell 的 `specify analyze`、`specify converge` 或 `hallmark audit` 代替对应 Skill。
+gstack `qa` 已在干净 worktree 运行，覆盖默认/展开筛选、桌面与 390 px 布局、详情 `Escape` 关闭、筛选、成功证据详情和控制台；均未发现问题。初次 QA 发现去标识化预览 API 缺少证据端点，已在 T035 补齐并通过生产预览测试及浏览器复测。不得以 shell 的 `specify analyze`、`specify converge` 或 `hallmark audit` 代替对应 Skill。
 本轮最终静态审计已通过：`git diff --check` 无输出，且禁止路径 `web/src/api/`、`src/ft/`、`migrations/`、依赖清单、`specs/020-*` 与 `specs/022-*` 的 name-only 审计无输出。T029 后运行 `npm test -- CashTable.test.tsx CashLedgerPage.test.tsx accessibility.test.tsx`，3 个文件、19 项测试通过；`npm run build` 通过。
 
 视觉快照已由用户逐项核对并批准，仅纳入当前 worktree，尚未创建 Git 提交。
