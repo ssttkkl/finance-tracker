@@ -668,3 +668,36 @@ SQLite。
 `2b7132eea425973f03e8f2ef443ea05bbbbd098226256e880ac068e48cd33b7d` 和
 `4632548fa2fab4295f19384da0dfabb12ffd0fbb27fc94571d56978f6a3be90b`。三条目标关系状态和审计原因符合
 计划，四条保留关系仍为 `accepted`；无需执行恢复。
+
+### 2026-07-30：T104 收敛验收
+
+保留既有初始备份 `/Users/huangwenlong/.ft/finance-tracker.db.pre-020-projection.bak`，并保留 T103 创建的
+`/Users/huangwenlong/.ft/finance-tracker.db.pre-020-legacy-repair-20260730-003339.bak`，未覆盖或删除任何备份。
+真实 SQLite 的 `integrity_check` 为 `ok`。历史关系修复后已重建 `default` 工作区投影；使用真实数据库的只读
+状态命令再次确认：可用性为 `ready`、投影版本为 `1`、规则版本为 `cash-projection-v1`、投影条目数为 `8029`、
+成员数为 `11387`。
+
+本机 Python API 绑定 `http://127.0.0.1:8000`，独立 Node 前端绑定 `http://127.0.0.1:5173`，前端 API 来源为
+`http://127.0.0.1:8000`。真实工作区验收确认投影和收支账户接口分别返回 `200`，已移除的
+`/api/v1/cash-transactions` 返回 `404`。浏览器 QA 覆盖列表、证据详情、键盘打开与关闭、空态、API 连接失败后的
+重试，以及 `1440 × 900` 和 `390 × 844` 视口；页面无控制台错误，宽窄屏均未发现重叠或横向遮挡。证据保存在
+`.gstack/qa-reports/screenshots/`。
+
+`npm run test:e2e` 和 `npm run test:preview` 的标准命令因已有 Vite 进程分别占用固定端口 `5174` 和 `5173`
+而按严格端口合同退出，未终止现有进程。以不含 `webServer` 的临时 Playwright 配置复用 `5174` 执行相同端到端
+用例，结果为 `5 passed`；以本会话专用的 `8767` API 替身和 `5175` 生产预览执行相同预览用例，结果为
+`1 passed`。此前 `web/npm test` 为 `17 passed`，`web/npm run build` 通过。
+
+```sh
+FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' \
+FT_REQUIRE_TEST_POSTGRES=1 \
+  uv run pytest -q \
+    -k 'not test_fixed_100k_fact_rebuild_and_active_cache_meet_budgets'
+```
+
+结果：`1117 passed, 10 skipped, 2 deselected, 1 warning in 105.20s`。唯一警告为既有 FastAPI 测试客户端对
+`httpx` 的弃用提示；排除的两项参数实例仍仅适用于已批准的财富冷构建性能门禁例外。
+
+最终检查中，`git diff --check` 通过，任务清单已全部勾选。用户授权的本地提交为
+`fa6f523 完成收支投影与历史关系修复验证`；分支 `spec-20-progress` 未配置上游，因此没有推送，也没有创建
+PR。验收结束后保留本机 API 和独立 Node 前端地址供继续使用；未删除账单，也未自动重扫交易关系。

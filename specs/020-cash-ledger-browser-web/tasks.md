@@ -191,10 +191,10 @@ SQLite 自动化测试只能操作 `/Users/huangwenlong/.ft/finance-tracker.db` 
 - [X] T067 使用本机 `postgresql+psycopg:///finance_tracker_test` 和 `FT_REQUIRE_TEST_POSTGRES=1` 运行 `tests/integration/test_cash_projection_postgres.py`、`tests/integration/test_web_postgres.py` 和共享合同，在 `specs/020-cash-ledger-browser-web/quickstart.md` 记录真实 PostgreSQL 结果（FR-020、SC-004）。
 - [X] T068 按 `plan.md` 的已批准例外，运行 `uv run pytest tests/ -q -k 'not test_fixed_100k_fact_rebuild_and_active_cache_meet_budgets'`、`uv build`、`uv run alembic heads`、`npm test`、`npm run test:e2e`、`npm run test:preview` 和 `npm run build`；在 `specs/020-cash-ledger-browser-web/quickstart.md` 记录排除范围、风险、结果和恢复路径（SC-001～SC-009）。
 - [X] T069 运行隔离环境的直接 `codex exec` 只读评审以完成 gstack 代码评审门禁，修复所有阻断性 finding；涉及需求或方案缺口时先更新 `specs/020-cash-ledger-browser-web/spec.md` 或 `plan.md`，再补测试并重新评审。标准 gstack 包装器依赖 Claude 配置和不可用的交互工具，按用户明确指示未运行 Claude（T079～T089）。
-- [ ] T070 在 T103 历史关系修复完成后，若 `/Users/huangwenlong/.ft/finance-tracker.db.pre-020-projection.bak` 不存在则建立该初始备份；若已存在则保留不覆盖，并另建带时间戳的重建前备份。随后显式升级 schema、对 `default` 工作区运行 `ft projections rebuild/status`，核对成员数与脱敏输出，并把证据写入 `specs/020-cash-ledger-browser-web/quickstart.md`（FR-011～FR-015、FR-032）。
+- [X] T070 在 T103 历史关系修复完成后，若 `/Users/huangwenlong/.ft/finance-tracker.db.pre-020-projection.bak` 不存在则建立该初始备份；若已存在则保留不覆盖，并另建带时间戳的重建前备份。随后显式升级 schema、对 `default` 工作区运行 `ft projections rebuild/status`，核对成员数与脱敏输出，并把证据写入 `specs/020-cash-ledger-browser-web/quickstart.md`（FR-011～FR-015、FR-032）。
   - 已解除的阻断：历史已确认关系存在混用退款冲销与内部转账的连通组，以及具有两个主记录的同笔支付归并组；按 T101～T103 的审计修复后重试重建。
-- [ ] T071 启动绑定本机的 Python API 与独立 Node 前端，使用真实 `default` 工作区运行 gstack `qa`，覆盖主流程、空态、错误态、纯键盘以及 `1440 × 900`/`390 × 844`，将结果回写 `specs/020-cash-ledger-browser-web/quickstart.md`（FR-021～FR-024、SC-008、SC-009）。
-- [ ] T072 检查最终 `git diff`、未跟踪文件、`specs/020-cash-ledger-browser-web/tasks.md` 勾选状态和真实数据库备份；确认未提交、未推送、未创建 PR，并保留可访问的本地服务地址。
+- [X] T071 启动绑定本机的 Python API 与独立 Node 前端，使用真实 `default` 工作区运行 gstack `qa`，覆盖主流程、空态、错误态、纯键盘以及 `1440 × 900`/`390 × 844`，将结果回写 `specs/020-cash-ledger-browser-web/quickstart.md`（FR-021～FR-024、SC-008、SC-009）。
+- [X] T072 检查最终 `git diff`、未跟踪文件、`specs/020-cash-ledger-browser-web/tasks.md` 勾选状态和真实数据库备份；确认未提交、未推送、未创建 PR，并保留可访问的本地服务地址。
 
 ---
 
@@ -238,7 +238,7 @@ SQLite 自动化测试只能操作 `/Users/huangwenlong/.ft/finance-tracker.db` 
 - [X] T101 [P] 在真实 SQLite 的只读连接中核对授权的 7 条关系及 8 条账单的工作区、状态、种类、端点、时间和金额；在临时 SQLite 副本与本机 PostgreSQL 去标识化 fixture 中先验证带全部前置条件的 3 条 `accepted→rejected` 更新可原子完成，任一前置条件不符时零行更新且事务回滚。对目标与保留关系逐字段断言 `created_*`、`decided_by`、`decided_at`、端点和 `evidence_json` 不变（FR-032、SC-010）。
 - [X] T102 在临时 SQLite 副本上执行精确的单事务修复，验证只将 `1541`、`2643`、`2834` 标为 `rejected`，保留原始账单、关系证据、创建和既有决定字段及 `1054`、`3085`、`1339`、`3055`；演练修复后验收失败时对精确主文件、同名 `-wal` 和 `-shm` 的恢复路径，确认恢复后摘要、关系和账单快照一致；运行投影重建并记录状态、成员数和关系依据（FR-011～FR-015、FR-032）。
 - [X] T103 在停止本机写入进程并以 `sqlite3 .backup` 创建、校验完整性与摘要的时间戳备份后，对 `/Users/huangwenlong/.ft/finance-tracker.db` 执行 T101 已验证的单事务历史关系修复；前置条件失败时不提交。完成后只读复核 7 条关系和 8 条账单未被删除且审计字段不变，将修复原因与备份摘要写入 `quickstart.md`；若提交后验收失败，按 plan 的精确恢复步骤恢复备份并复核（FR-032）。
-- [ ] T104 运行 T070、T071 和 T072：重建真实 `default` 工作区投影，启动独立 Node 前端与本机 API 执行 gstack `qa`，再检查最终 diff、任务状态、备份、未提交/未推送状态和本地服务地址；不得把历史修复扩展为删除账单或自动重扫关系（FR-011～FR-024、FR-032、SC-008～SC-010）。
+- [X] T104 运行 T070、T071 和 T072：重建真实 `default` 工作区投影，启动独立 Node 前端与本机 API 执行 gstack `qa`，再检查最终 diff、任务状态、备份、未提交/未推送状态和本地服务地址；不得把历史修复扩展为删除账单或自动重扫关系（FR-011～FR-024、FR-032、SC-008～SC-010）。
 
 ---
 
