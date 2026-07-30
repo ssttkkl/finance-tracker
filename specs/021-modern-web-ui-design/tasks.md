@@ -18,7 +18,7 @@
 
 **目的**：冻结 020 行为基线，并把 021 的范围、术语和验证边界写成可执行约束。
 
-- [ ] T001 核对 `specs/020-cash-ledger-browser-web/spec.md`、`tasks.md`、`quickstart.md` 与当前实现及验证记录，将 020 收敛为明确提交；在本文件与 `specs/021-modern-web-ui-design/plan.md` 写入实际冻结 SHA，未形成冻结 SHA 前不得开始 021 实现。
+- [X] T001 核对 `specs/020-cash-ledger-browser-web/spec.md`、`tasks.md`、`quickstart.md` 与当前实现及验证记录；020 已收敛并冻结为 `49449210a5ec1705085249b46f23d6fe66b1aab5`。在本文件和 `specs/021-modern-web-ui-design/plan.md` 记录该 SHA，并从该基线创建 021 独立实施 worktree（已完成）。
 - [ ] T002 [P] 使用 `$domain-glossary` 审校 `DOMAIN_GLOSSARY.md`、`specs/021-modern-web-ui-design/spec.md` 与本文件中的“收支账本”“投影条目”“证据详情”等术语；仅在概念新增、语义变化或歧义时更新 `DOMAIN_GLOSSARY.md`。
 - [ ] T003 [P] 使用 `$chinese-documentation` 审校 `.specify/feature.json`、`specs/021-modern-web-ui-design/spec.md`、`plan.md` 与本文件的新增中文内容，运行 `git diff --check`。
 - [ ] T004 在 `.specify/feature.json`、`specs/021-modern-web-ui-design/spec.md`、`plan.md` 与 `contracts/web-ui-compatibility.md` 复核范围一致：只现代化既有收支账本展示层，排除月度收支摘要、净现金流、跨币种计算、投资账本、API、数据模型和持久化。
