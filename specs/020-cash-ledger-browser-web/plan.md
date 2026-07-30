@@ -437,6 +437,8 @@ SQLite 连接不得创建文件或旁路文件，PostgreSQL 读取必须在数�
 | Codex Review | 隔离环境直接 `codex exec` 只读复审 | T079～T084 修复 | 1 | FAIL | 1 个 P1、2 个 P2：`transfer_pair` 端点不变量未实现、PostgreSQL 状态查询未设数据库级只读事务、SQLite 快照引擎错误可绕过 CLI 脱敏。已回写 T085～T087。 |
 | Codex Review | 隔离环境直接 `codex exec` 只读复审 | T085～T089 与异币种内部转账规则 | 2 | CLEAR | 首轮发现零金额端点与隐藏投影持久化断言缺口，已回写 T089；复审未发现可操作问题。 |
 | Codex Review | 临时 `HOME` 的隔离只读 `codex exec` 复审 | T090 零金额退款例外 | 1 | CLEAR | 实现、领域测试和 SQLite/PostgreSQL 契约测试与“双方为零且同币种”的受限例外一致；无可操作问题。 |
+| gstack Review | 只读评审 `a88139e..3e1e4b3` 的 020 范围 | 最终收敛前的代码、合同与可访问性复核 | 1 | CLEAR | 未发现可操作问题；收支账本列表的列顺序、备注回退、组成方式筛选、证据详情和窄屏表头语义均与 FR-022 一致。 |
+| gstack QA | 最终 Web QA | 真实浏览器流程复核 | 0 | 未运行 | QA skill 要求干净工作树；当前存在用户保留的 019、021、022、023 未提交工作，且本次禁止提交或暂存。以本轮标准 Playwright `npm run test:e2e`（5 passed）和 `npm run test:preview`（1 passed）提供等价证据。 |
 
 **UNRESOLVED**：无。
-**VERDICT**：评审门禁通过。真实 SQLite 已完成显式备份与重建尝试，但历史已确认关系违反关系种类不变量，投影保持未初始化；在人工修正关系前不得进入真实 Web QA。
+**VERDICT**：020 收敛通过。真实 SQLite 已完成授权的历史关系修复和投影重建；本轮双后端矩阵、共享合同、获批排除的 Python 回归、标准 Web 测试和构建均已通过。gstack QA 因工作树前置条件未运行，等价浏览器证据已记录在 `quickstart.md`。

@@ -1,6 +1,6 @@
 # Feature Specification: 投资账本浏览 Web
 
-**Feature Branch**: `021-investment-ledger-browser-web`
+**Feature Branch**: `022-investment-ledger-browser-web`
 
 **Created**: 2026-07-29
 

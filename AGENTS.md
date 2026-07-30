@@ -135,15 +135,14 @@ gstack 只承担产品与架构挑战、代码评审、Web QA 和发布验证。
 1. 主 session 负责完成规格、澄清、方案、任务拆分和一致性门禁，但不得直接实施产品代码。
 2. 只有 `spec.md`、`plan.md`、`tasks.md` 均已就绪，Constitution Check 已通过，且
    `$speckit-analyze` 不存在未解决的 CRITICAL 或 HIGH 问题时，主 session 才能进入实施阶段。
-3. 进入实施阶段后，主 session 必须调用项目级 `speckit_implementer` agent；由该 agent 在独立
-   feature 分支或 worktree 中使用 `$speckit-implement` 按 tasks 顺序实施。阶段交接只以 Spec Kit
-   artifacts 为依据，不得依赖未写入 artifacts 的对话决策。
-4. `speckit_implementer` 不可用或启动失败时必须停止并报告，不得由主 session 静默代替实施。
+3. 进入实施阶段后，实施必须在独立 feature 分支或 worktree 中使用 `$speckit-implement` 按 tasks
+   顺序执行。阶段交接只以 Spec Kit artifacts 为依据，不得依赖未写入 artifacts 的对话决策。
+4. 当前实施环境无法执行 `$speckit-implement` 时，必须停止并报告缺失项；不得跳过实施门禁或以
+   临时自创流程代替。
 5. 先运行新增测试确认其因目标行为缺失而失败，再小步实现并转绿；每完成一项立即更新 task 状态。
 6. 不扩大 feature 范围，不顺手重构无关代码。实施发现的新需求或架构决策必须先返回主 session，
    由主 session 回写 artifacts 后才能继续。
-7. 完成后由 `speckit_implementer` 使用 `$speckit-converge` 对照 spec、plan、tasks 和代码；若追加任务，
-   继续实施直至收敛。
+7. 完成后使用 `$speckit-converge` 对照 spec、plan、tasks 和代码；若追加任务，继续实施直至收敛。
 
 ### 5. 评审与验证
 

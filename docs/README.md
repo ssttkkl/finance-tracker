@@ -15,7 +15,7 @@ SQLite 遇到繁忙、读写权限或 schema 错误时会直接报告，不会�
 - **财富归因内核**（Phase 3 内核，已落地）：`003-wealth-attribution-core`（无专用 CLI/Web）
 - **收支账本 Web**：`020-cash-ledger-browser-web`（收支投影、稳定分页和证据详情）
 
-活跃 feature 指针见 `.specify/feature.json`。`020-cash-ledger-browser-web` 只包含收支账本；投资账本视图、持仓和持仓估值留给 `021-investment-ledger-browser-web`。
+活跃 feature 指针见 `.specify/feature.json`。`020-cash-ledger-browser-web` 只包含收支账本；投资账本视图、持仓和持仓估值留给 `022-investment-ledger-browser-web`。
 
 收支账本的生产预览需在 `npm run build` 时设置 `VITE_FT_API_ORIGIN`，随后才运行 `npm run start`；预览
 服务器不会重新读取该变量。具体命令见 [项目说明](../README.md#收支账本-web)。

@@ -4,12 +4,12 @@
 
 **Created**：2026-07-29
 
-**Status**：Draft（Flow-Back 修订中）
+**Status**：Complete（2026-07-30 收敛）
 
 **Context**：本 feature 原本把全部现金流水直接展示为“消费账本”，只附加关系摘要。实施后的业务复核
 确认该模型有误：账本应展示现金流水经过已确认关系归并、分类和冲销后形成的**收支投影**。本次按
 Living Spec / Flow-Back 修订 020；投资事件、持仓和持仓估值仍属于
-`021-investment-ledger-browser-web`。
+`022-investment-ledger-browser-web`。
 
 ## 澄清记录
 
@@ -230,4 +230,4 @@ Living Spec / Flow-Back 修订 020；投资事件、持仓和持仓估值仍属�
 - 使用者在受信任本机运行 Python API 与独立 Node 前端；首版不提供后台守护或云端部署。
 - 现有已确认关系的 `primary_fact_id` 表达关系主记录方向；历史数据若无法得到唯一主记录，将阻止新投影版本发布并要求先修复关系。
 - 当前关系模型已能表达同笔支付、退款、普通转账和信用还款；换汇、银证转账等缺失识别能力由后续独立 feature 提供。
-- `021-investment-ledger-browser-web` 仅在 020 完成后扩展运行形态，不读取或复用 020 的收支投影作为投资事实源。
+- `022-investment-ledger-browser-web` 仅在 020 完成后扩展运行形态，不读取或复用 020 的收支投影作为投资事实源。

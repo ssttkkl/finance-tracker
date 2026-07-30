@@ -1,4 +1,4 @@
 {
-  "feature_directory": "specs/020-cash-ledger-browser-web",
-  "note": "020-cash-ledger-browser-web：已确认关系驱动的收支投影与只读 Web；021 投资账本浏览在 020 完成后扩展同一运行形态。"
+  "feature_directory": "specs/021-modern-web-ui-design",
+  "note": "021-modern-web-ui-design：现代化既有收支账本展示层，保留 020 的筛选、稳定分页、证据详情和无障碍合同；明确排除月度摘要、净现金流、跨币种计算和投资账本。"
 }

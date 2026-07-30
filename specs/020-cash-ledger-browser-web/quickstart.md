@@ -781,3 +781,81 @@ npx playwright test -c playwright.spec020.preview.config.ts
 结果：开发态 E2E 为 `5 passed`，生产预览为 `1 passed`。开发态覆盖 `1440 × 900` 与 `390 × 844` 下的备注、无列表关系摘要、`composition=combined` 请求、证据详情中的同笔支付关系、键盘焦点返回、原生列头语义和无横向溢出。生产预览验证独立 Node 前端可读取临时 API 的账户与收支投影；临时 API 的允许来源通过 `FT_PREVIEW_WEB_ORIGIN` 显式限定为 `http://127.0.0.1:5175`。验证结束后移除了临时 Playwright 配置。
 
 用户禁止 Claude 与 Codex CLI，gstack `qa` 的交互包装器不可执行；本轮继续以独立 Node 前端和 Playwright 提供等价浏览器验证。
+
+### 2026-07-30：020 收敛验证补充
+
+本轮按本指南重新执行的 SQLite 安全集成矩阵仅把
+`/Users/huangwenlong/.ft/finance-tracker.db` 作为临时副本来源：
+
+```sh
+FT_TEST_SQLITE_SOURCE='/Users/huangwenlong/.ft/finance-tracker.db' \
+  uv run pytest tests/integration/test_cash_projection_sqlite.py \
+    tests/integration/test_web_sqlite.py -q
+```
+
+结果：`5 passed, 1 warning in 18.96s`。夹具校验源文件的大小、修改时间和摘要不变；唯一警告是既有 FastAPI
+测试客户端依赖的 `httpx` 弃用提示。
+
+真实 PostgreSQL 矩阵和共享合同矩阵均使用专用 `finance_tracker_test`：
+
+```sh
+FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' \
+  FT_REQUIRE_TEST_POSTGRES=1 \
+  uv run pytest tests/integration/test_cash_projection_postgres.py \
+    tests/integration/test_web_postgres.py -q
+
+FT_TEST_SQLITE_SOURCE='/Users/huangwenlong/.ft/finance-tracker.db' \
+  FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' \
+  FT_REQUIRE_TEST_POSTGRES=1 \
+  uv run pytest tests/contract/test_cash_projection_parity.py \
+    tests/contract/test_web_api.py -q
+```
+
+结果分别为 `5 passed, 1 warning in 6.33s` 和 `38 passed, 1 warning in 15.57s`；投影、分页、证据和稳定错误码的
+SQLite/PostgreSQL 合同一致。
+
+019 的测试稳定性修复已同步到代码与其 artifacts：
+
+```sh
+uv run pytest tests/test_application_investment.py::test_portfolio_query_uses_valuation_and_never_prices_configured_currency -q
+```
+
+结果：`1 passed in 0.06s`。该修复只向测试装配注入固定 UTC `clock`，不改变生产报价新鲜度或估值状态合同。
+
+按已批准例外执行完整 Python 回归、构建与迁移检查：
+
+```sh
+FT_TEST_SQLITE_SOURCE='/Users/huangwenlong/.ft/finance-tracker.db' \
+  FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' \
+  FT_REQUIRE_TEST_POSTGRES=1 \
+  uv run pytest tests/ -q \
+    -k 'not test_fixed_100k_fact_rebuild_and_active_cache_meet_budgets'
+
+uv build
+uv run alembic heads
+```
+
+结果：Python 回归为 `1118 passed, 9 skipped, 2 deselected, 1 warning in 122.21s`；`uv build` 成功构建源码包和
+wheel；Alembic 输出唯一迁移头 `20260729_11 (head)`。两项被排除的参数实例是已批准的财富冷构建性能门禁例外，
+未运行、未修改，也不将本结果表述为默认完整回归全绿。其风险是财富读模型的既有性能预算仍未得到本轮验证；
+准确补跑命令为 `uv run pytest -q`。
+
+标准 Web 验收命令如下：
+
+```sh
+cd web
+npm test
+npm run test:e2e
+npm run test:preview
+npm run build
+```
+
+结果：Vitest 为 `4` 个测试文件、`17 passed`；标准 Playwright 端到端为 `5 passed`；标准生产预览为
+`1 passed`；TypeScript 检查和 Vite 生产构建通过。首次在沙箱内执行端到端和生产预览时，分别因禁止监听
+`127.0.0.1:5174` 与 `127.0.0.1:8766` 退出；在允许本机监听的环境中以相同标准命令复跑后均通过。终端中的
+`rvm` 对 `ps` 的权限提示未影响任何命令的退出码。
+
+gstack `review` 已完成对 `a88139e..3e1e4b3` 的 020 只读复核，未发现可操作问题。gstack `qa` 未运行：该 skill
+要求干净工作树，而当前存在用户保留的 019、021、022、023 未提交工作，且本次禁止提交或暂存。标准 Playwright
+矩阵已覆盖键盘筛选、连续分页、证据详情、空/错误状态、窄屏、减少动效、背景不可交互、无横向溢出和生产预览，
+是本轮的等价浏览器验证证据。

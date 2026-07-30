@@ -220,7 +220,7 @@ npm run start
 `VITE_FT_API_ORIGIN` 只能是带端口的 `http://127.0.0.1` 或 `http://localhost` 地址；配置无效或 API
 不可连接时，进程或页面会明确失败，不会使用其他后端或地址。
 
-当前只交付**收支账本**与**证据详情**。投资账本视图、投资事件、持仓和持仓估值属于 `021-investment-ledger-browser-web`，尚未交付。
+当前只交付**收支账本**与**证据详情**。投资账本视图、投资事件、持仓和持仓估值属于 `022-investment-ledger-browser-web`，尚未交付。
 
 ## 配置合同
 

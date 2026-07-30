@@ -1,11 +1,11 @@
 # Phase 2 只读账本 Web：单一 Spec 新会话交接
 
 > 状态：已于 2026-07-29 被正式规格拆分决策取代。本文保留为历史交接输入，不能覆盖
-> `020-cash-ledger-browser-web` 与 `021-investment-ledger-browser-web` 的正式 artifacts。
+> `020-cash-ledger-browser-web` 与 `022-investment-ledger-browser-web` 的正式 artifacts。
 >
 > 本文不是需求、技术方案或任务的事实源。历史中的 `020-transaction-browser-web` 路径和“单一
 > feature”约束均已失效；新会话必须以 `020-cash-ledger-browser-web` 和
-> `021-investment-ledger-browser-web` 的正式 artifacts 为准。
+> `022-investment-ledger-browser-web` 的正式 artifacts 为准。
 
 ## 1. 用户已经确认的产品决策
 
@@ -16,7 +16,7 @@
 ```
 
 该决定已被用户撤销。当前正式拆分为：`020-cash-ledger-browser-web` 交付现金账本浏览与最小 Web/API
-运行形态；`021-investment-ledger-browser-web` 在 020 完成后交付投资事件、持仓和持仓估值浏览。两个
+运行形态；`022-investment-ledger-browser-web` 在 020 完成后交付投资事件、持仓和持仓估值浏览。两个
 feature 不创建独立的 Web 基础设施 feature；021 复用 020 已交付的运行形态。
 
 实施方式是沿完整用户链路逐步建立能力：
