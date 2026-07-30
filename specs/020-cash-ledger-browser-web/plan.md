@@ -442,3 +442,33 @@ SQLite 连接不得创建文件或旁路文件，PostgreSQL 读取必须在数�
 
 **UNRESOLVED**：无。
 **VERDICT**：020 收敛通过。真实 SQLite 已完成授权的历史关系修复和投影重建；本轮双后端矩阵、共享合同、获批排除的 Python 回归、标准 Web 测试和构建均已通过。gstack QA 因工作树前置条件未运行，等价浏览器证据已记录在 `quickstart.md`。
+
+## 021 审计工作台合并记录
+
+**例外授权**：用户于 2026-07-30 明确授权把 `021-modern-web-ui-design` 的已交付展示层规范、验证记录和兼容性合同合并回本 Complete feature，并删除 021 重复 artifacts。本次受控 Flow-Back 例外只整理当前收支账本的唯一规格入口；不改变 `src/ft/`、`web/src/api/`、数据库、迁移、依赖或 `022-investment-ledger-browser-web`。
+
+### 现行展示层架构
+
+```text
+既有本机 API（投影、账户、证据端点）
+             │
+             ▼
+CashLedgerPage（请求取消、请求代次、版本更新、焦点恢复）
+  ├── CashFiltersBar（默认折叠、范围摘要、即时筛选）
+  ├── CashTable（八列语义、移动端真实字段）
+  ├── LoadMoreControl（observer 自动加载与按钮回退）
+  └── EvidenceDetail（证据审阅、焦点圈定与关闭回焦）
+```
+
+前端继续只消费既有 DTO。列表状态由累计记录、下一个 cursor、首批加载、追加加载和追加错误组成：首批成功替换记录；追加按服务端顺序并以 `projection_id` 去重；筛选或版本更新取消请求、递增代次并从 `null` cursor 重读；追加失败保留记录且只允许人工重试。
+
+### 视觉、响应式与验证
+
+- 使用现有 `Noto Sans SC` 和 `IBM Plex Mono`；颜色、字体、间距、边界、动效和层级只引用 `web/src/styles.css` 的命名令牌。
+- `IntersectionObserver` 与“加载更多”共享防重入加载逻辑；无更多记录、追加中、追加失败和卸载时停止自动触发。
+- 1440 × 900、1024 × 768 支持并列详情；768 × 1024 以下重排；390 × 844 使用卡片列表和全屏详情；额外检查 320、375、414、768 px 的横向溢出、焦点、触控目标和表头语义。
+- `contracts/web-ui-compatibility.md` 是本计划的 UI 读取、筛选、连续加载、证据、失败与视觉快照合同；`web-api.md`、`projection-cli.md` 和 `local-runtime.md` 继续定义既有 API、CLI 和本机运行时合同。
+
+### 回滚
+
+本次 artifact 整合可通过回退本次提交恢复 020/021 分离目录；不涉及数据、schema 或运行时回滚。021 实现与验证证据位于提交 `3822ecd`、`7471a8d`，并由本目录的任务、quickstart 和兼容性合同追溯。
