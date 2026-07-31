@@ -1,13 +1,18 @@
 <!--
 Sync Impact Report
-- Version change: 3.1.0 -> 3.1.1
-- Modified principles: none
+- Version change: 3.1.1 -> 3.2.0
+- Modified principles:
+  - II. Spec Kit 规格驱动 — 按变更风险区分完整 Feature、轻量 Feature 与局部 Bug 修复
+  - III. 测试先行与验证证据 — 验证范围改为与变更风险相称，同时保留高风险完整门禁
 - Modified sections:
-  - 工程约束 — 新增 Spec Kit 规格语言（中文）约束
-- Added sections: none
+  - 交付与评审流程 — 增加分级流程、升级条件与适用验证
+- Added sections:
+  - 变更分级与升级条件
 - Removed sections: none
 - Templates/commands:
-  - ✅ 无强制改模板；新建 spec 由主 session / specify 遵循本约束
+  - ✅ `.specify/templates/{spec,plan,tasks}-template.md` 仅服务完整 Feature，无需修改
+  - ✅ `.agents/skills/speckit-*` 保持完整 Feature 的工作流定义，无需修改
+  - ✅ `CLAUDE.md` 同步分级规则与发布门禁
 - Follow-up TODOs:
   - ⚠ 历史英文 spec 不强制回翻；新 feature 与 Living 大改优先中文
   - ⚠ README.md — 保持描述当前已交付运行时行为；与 feature 交付同步
@@ -26,19 +31,26 @@ MUST 失败关闭并给出可操作错误。任何汇总或快照 MUST 能追溯
 
 ### II. Spec Kit 规格驱动
 
-领域行为、Bug 修复、跨模块重构、公共接口、财务规则、数据模型、持久化、迁移以及 CLI/Web/
-Worker/MCP 能力的变更，MUST 由一个目标单一的 Spec Kit feature 驱动。`spec.md` 定义需求和验收，
-`plan.md` 及设计产物定义技术决策，`tasks.md` 定义执行顺序与状态；实现不得引入 artifacts 中没有的
-行为。实施中发现的新事实 MUST 先回写正确 artifact 并重新检查一致性。每个 feature MUST 可独立
-测试、可审查、可回滚；过大范围 MUST 拆分。
+A 类完整 Feature 的领域行为、跨模块重构、公共接口、财务规则、数据模型、持久化、迁移以及
+CLI/Web/Worker/MCP 能力变更，MUST 由目标单一的完整 Spec Kit feature 驱动。`spec.md` 定义需求和
+验收，`plan.md` 及设计产物定义技术决策，`tasks.md` 定义执行顺序与状态；实现不得引入 artifacts 中
+没有的行为。每个完整 Feature MUST 可独立测试、可审查、可回滚；过大范围 MUST 拆分。
+
+B 类轻量 Feature 与 C 类局部 Bug 修复 MAY 使用最小 artifacts：当前 `tasks.md` 的变更记录或独立
+轻量记录，至少说明目标、非目标、验收、受影响文件、风险判断和验证证据。根因明确的 C 类修复可在
+提交说明记录这些信息。实施中一旦出现范围、需求解释或风险升级，MUST 切换为 A 类完整 Feature；
+发现的新事实 MUST 回写与分级相称的正确 artifact，不得让代码成为唯一事实源。
 
 ### III. 测试先行与验证证据
 
 所有可执行行为、财务计算、数据与迁移、兼容性和接口变更 MUST 先有能因目标行为缺失而失败的
-自动化测试，再写最小实现并使其通过。测试 MUST 覆盖正常、边界、错误、重复执行和恢复路径；
-涉及存储或外部边界时 MUST 包含相称的集成测试。交付前 MUST 运行受影响测试、完整测试套件及
-项目提供的类型检查、lint 和构建，并检查最终 diff。无法运行的验证 MUST 报告准确原因、风险和
-补跑命令，不得用推测代替证据。
+自动化测试，再写最小实现并使其通过。测试 MUST 覆盖与变更风险相称的正常、边界、错误、重复执行
+和恢复路径；涉及存储或外部边界时 MUST 包含相称的集成测试。
+
+A 类完整 Feature 交付前 MUST 运行受影响测试、完整测试套件及项目提供的类型检查、lint 和构建，
+并检查最终 diff。B/C 类至少 MUST 运行新增回归测试、受影响测试、相称的类型检查或构建，以及
+`git diff --check`；若项目未提供某项检查，须记录不适用原因。无法运行的验证 MUST 报告准确原因、
+风险和补跑命令，不得用推测代替证据。
 
 ### IV. 显式数据库选择与行为等价
 
@@ -86,9 +98,9 @@ MUST 在 feature artifacts 与操作文档中明确列出，但不得成为账�
 
 本仓库采用 Spec Kit 的三种 artifact 演进模型；选择规则如下，且 MUST 保持 artifacts 与代码一致。
 
-### 默认：Flow-Forward
+### 默认：Flow-Forward（A 类）
 
-新能力、新边界、目标已变或既有 feature 已 Complete 时，MUST 新建 `specs/00N-...` 目录并走完整
+A 类的新能力、新边界、目标已变或既有 feature 已 Complete 时，MUST 新建 `specs/00N-...` 目录并走完整
 specify → clarify → plan → tasks → analyze → implement → converge 流程。已完成 feature（例如
 `001-postgres-only-storage`）MUST 只读保留，不得回写新需求。新 feature 若扩展或取代先前工作，
 SHOULD 在 Context 中 cross-link 相关目录（Supersedes / Extends）。
@@ -113,14 +125,30 @@ SHOULD 使用干净工作树或独立分支，使生成物 diff 可审查。替�
 templates/skills，再执行约定的 `specify init --here --force ...`，随后恢复并复核定制。`specs/`
 不属于模板包，不得用升级覆盖 feature artifacts。
 
+## 变更分级与升级条件
+
+开始实施前 MUST 按风险选择 A/B/C 路径。A 类完整 Feature 适用于新领域能力、领域规则变化、完整页面、
+跨模块重构、公共接口或依赖边界、财务计算、币种与精度、数据模型、持久化、迁移、兼容性、审计和
+安全敏感变更，MUST 完成完整 Spec Kit 流程。B 类轻量 Feature 只可用于既有架构中的局部能力，且不得
+改变领域规则、金额语义、持久化、权限、路由、公共契约或依赖。C 类局部 Bug 修复只可用于根因明确、
+恢复既定行为、可由少量回归测试证明的变更。
+
+根因不明或同一修复连续失败 2 次；涉及金额、币种、精度、余额、关系匹配、数据写入、SQLite/
+PostgreSQL、迁移、权限、敏感数据、外部回调、公共 API/CLI/SDK、路由、新依赖、超过 3 个独立模块，
+或需求解释发生变化时，MUST 立即升级为 A 类。分类存疑时 MUST 选择更高等级。
+
 ## 交付与评审流程
 
-每个受约束变更 MUST 依次完成 specify、clarify、plan、tasks、analyze、implement 和 converge，并
-按上节选择 Flow-Forward 或 Living Spec。用户可见产品方向使用 gstack 产品挑战，跨模块或高风险
-技术方案使用 gstack 架构挑战；采纳结论 MUST 回写 Spec Kit artifacts。所有代码变更 MUST 通过
-gstack code review；Web 行为变更 MUST 通过浏览器 QA。发布、合并、部署和线上验证只在获得用户明确
-授权后执行。任何 CRITICAL/HIGH 规格分析问题、阻断性 review finding、失败测试或未解释的
-constitution 违例都会阻断下一阶段。
+A 类 MUST 依次完成 specify、clarify、plan、tasks、analyze、implement 和 converge，并按上节选择
+Flow-Forward 或 Living Spec。B 类 MUST 保留最小 artifacts 并完成受影响测试、范围化 gstack code
+review，以及适用的浏览器 QA 或 Hallmark 审计。C 类 MUST 复现缺陷、先添加失败回归测试、最小修复，
+并完成短范围 gstack code review；只有真实 Web 交互缺陷才须运行针对性浏览器 QA。
+
+用户可见产品方向使用 gstack 产品挑战，跨模块或高风险技术方案使用 gstack 架构挑战；采纳结论 MUST
+回写相称的 artifacts。所有代码变更 MUST 通过与分级相称的 gstack code review；Web 行为、UI 或样式
+变更按分级与影响范围运行浏览器 QA 或 Hallmark 审计。发布、合并、部署和线上验证只在获得用户明确
+授权后执行。任何 CRITICAL/HIGH 规格分析问题、阻断性 review finding、失败测试或未解释的 constitution
+违例都会阻断下一阶段。
 
 ## Governance
 
@@ -130,4 +158,4 @@ MAJOR，新增原则或实质扩展升 MINOR，澄清文字升 PATCH。每个 pl
 Constitution Check；`$speckit-analyze` 和代码评审 MUST 把违反 MUST 的问题视为阻断项。例外必须
 由用户明确批准、写入 plan 的 Complexity Tracking，并包含到期或消除路径。
 
-**Version**: 3.1.1 | **Ratified**: 2026-07-17 | **Last Amended**: 2026-07-24
+**Version**: 3.2.0 | **Ratified**: 2026-07-17 | **Last Amended**: 2026-08-01
