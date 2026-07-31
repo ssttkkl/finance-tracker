@@ -16,7 +16,7 @@ const requestErrorMessages: Record<string, string> = {
   "storage.workspace": "当前工作区不可用，请检查本机 API 配置后重试。",
   "storage.config": "账本配置无效，请检查本机 API 配置后重试。",
   "projection.unavailable": "收支投影暂不可用，请先完成重建。",
-  invalid_filter: "筛选条件有误，请检查日期、金额和选项后重试。",
+  invalid_filter: "请修正标记的金额筛选条件后重试。",
   invalid_cursor: "加载位置已失效，请重新读取记录。",
   api_request_failed: "请求失败，请稍后重试。",
 };
@@ -31,6 +31,7 @@ export function CashLedgerPage() {
   const [appendLoading, setAppendLoading] = useState(false);
   const [appendError, setAppendError] = useState<string | undefined>();
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  const [amountFilterState, setAmountFilterState] = useState<"error" | "success" | undefined>();
   const [projectionUpdated, setProjectionUpdated] = useState(false);
   const [refreshGeneration, setRefreshGeneration] = useState(0);
   const [selected, setSelected] = useState<CashProjection | null>(null);
@@ -56,13 +57,14 @@ export function CashLedgerPage() {
     setStatus("loading"); setErrorMessage(undefined); setAppendError(undefined); setAppendLoading(false); setItems([]); setNextCursor(null);
     fetchCashPage(filters, null, controller.signal).then((value) => {
       if (requestId !== pageRequestId.current) return;
-      setItems(value.items); setNextCursor(value.next_cursor); setStatus(value.items.length ? "ready" : "empty");
+      setItems(value.items); setNextCursor(value.next_cursor); setAmountFilterState(filters.amount_min || filters.amount_max ? "success" : undefined); setStatus(value.items.length ? "ready" : "empty");
     }).catch((error: unknown) => {
       if (controller.signal.aborted || requestId !== pageRequestId.current) return;
       if (error instanceof Error && error.message === "projection.updated") {
         closeEvidence(); setProjectionUpdated(true); setRefreshGeneration((value) => value + 1); return;
       }
       const code = error instanceof Error ? error.message : "api_request_failed";
+      setAmountFilterState(code === "invalid_filter" ? "error" : undefined);
       setErrorMessage(requestErrorMessages[code] ?? requestErrorMessages.api_request_failed); setStatus("error");
     });
   };
@@ -93,8 +95,9 @@ export function CashLedgerPage() {
   useEffect(() => { if (projectionUpdated && status === "ready") updateConfirmation.current?.focus(); }, [projectionUpdated, status]);
   const confirmUpdatedList = () => { setProjectionUpdated(false); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(".cash-row .icon-button")?.focus()); };
   const updateFilters = (value: CashFilters) => setFilters(value);
+  const clearAmountFilterState = () => setAmountFilterState(undefined);
   const openEvidence = (projection: CashProjection, source: HTMLButtonElement) => { evidenceAbortController.current?.abort(); const controller = new AbortController(); evidenceAbortController.current = controller; const requestId = ++evidenceRequestId.current; opener.current = source; setSelected(projection); setEvidence(null); setEvidenceState("loading"); fetchEvidence(projection.projection_id, controller.signal).then((value) => { if (requestId === evidenceRequestId.current) { setEvidence(value); setEvidenceState("ready"); } }).catch(() => { if (!controller.signal.aborted && requestId === evidenceRequestId.current) setEvidenceState("error"); }); };
   const closeEvidence = () => { evidenceAbortController.current?.abort(); evidenceRequestId.current += 1; restoreEvidenceFocus.current = true; setSelected(null); setEvidence(null); };
 
-  return <div className={`page-layout${selected ? " evidence-open" : ""}`}><main className="app-shell" inert={Boolean(selected) || undefined}><aside className="sidebar"><strong>Finance Tracker</strong><nav aria-label="主要导航"><a aria-current="page" href="#cash-ledger">收支账本</a></nav></aside><section className="ledger ledger-workbench" id="cash-ledger" aria-label="收支账本工作台"><header className="page-header"><div><h1>收支账本</h1></div></header>{accountsError ? <div className="status-view status-error" data-status-kind="error" role="alert"><p>无法读取账户目录。请检查本机 API 后重试。</p><button type="button" onClick={loadAccounts}>重试账户目录</button></div> : null}<CashFiltersBar filters={filters} accounts={accounts} onChange={updateFilters} />{status === "loading" ? <><CashTable items={[]} loading onEvidence={openEvidence} /><StatusView kind="loading" message={projectionUpdated ? "账本已更新，正在刷新记录。" : undefined} /></> : null}{status === "empty" ? <StatusView kind="empty" /> : null}{status === "error" ? <StatusView kind="error" message={errorMessage} onRetry={resetAndLoad} /> : null}{status === "ready" ? <>{projectionUpdated ? <div className="update-notice" role="status"><p>账本已更新，已刷新记录。</p><button ref={updateConfirmation} type="button" onClick={confirmUpdatedList}>查看更新后的列表</button></div> : null}<CashTable items={items} onEvidence={openEvidence} /><LoadMoreControl hasMore={Boolean(nextCursor)} loading={appendLoading} error={appendError} onLoadMore={appendError ? retryMore : loadMore} /></> : null}</section></main>{selected ? <EvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} onClose={closeEvidence} onRetry={() => openEvidence(selected, opener.current ?? document.createElement("button"))} /> : null}</div>;
+  return <div className={`page-layout${selected ? " evidence-open" : ""}`}><main className="app-shell" inert={Boolean(selected) || undefined}><aside className="sidebar"><strong>Finance Tracker</strong><nav aria-label="主要导航"><a aria-current="page" href="#cash-ledger">收支账本</a></nav></aside><section className="ledger ledger-workbench" id="cash-ledger" aria-label="收支账本工作台"><header className="page-header"><div><h1>收支账本</h1></div></header>{accountsError ? <div className="status-view status-error" data-status-kind="error" role="alert"><p>无法读取账户目录。请检查本机 API 后重试。</p><button type="button" onClick={loadAccounts}>重试账户目录</button></div> : null}<CashFiltersBar filters={filters} accounts={accounts} amountFilterState={amountFilterState} onChange={updateFilters} onAmountFilterChange={clearAmountFilterState} />{status === "loading" ? <><CashTable items={[]} loading onEvidence={openEvidence} /><StatusView kind="loading" message={projectionUpdated ? "账本已更新，正在刷新记录。" : undefined} /></> : null}{status === "empty" ? <StatusView kind="empty" /> : null}{status === "error" ? <StatusView kind="error" message={errorMessage} onRetry={resetAndLoad} /> : null}{status === "ready" ? <>{projectionUpdated ? <div className="update-notice" role="status"><p>账本已更新，已刷新记录。</p><button ref={updateConfirmation} type="button" onClick={confirmUpdatedList}>查看更新后的列表</button></div> : null}<CashTable items={items} onEvidence={openEvidence} /><LoadMoreControl hasMore={Boolean(nextCursor)} loading={appendLoading} error={appendError} onLoadMore={appendError ? retryMore : loadMore} /></> : null}</section></main>{selected ? <EvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} onClose={closeEvidence} onRetry={() => openEvidence(selected, opener.current ?? document.createElement("button"))} /> : null}</div>;
 }

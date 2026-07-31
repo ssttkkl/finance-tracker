@@ -181,6 +181,33 @@ describe("CashLedgerPage", () => {
     await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("account_id=102"))).toBe(true));
   });
 
+  it("将无效金额筛选关联到金额字段，并在修正后清除状态", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("amount_min=not-a-number")) return json({ error: { code: "invalid_filter" } }, 400);
+      return json({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {} });
+    }));
+
+    render(<CashLedgerPage />);
+    await screen.findByText("咖啡店");
+    fireEvent.change(screen.getByLabelText("最低金额"), { target: { value: "not-a-number" } });
+
+    const filters = screen.getByRole("group", { name: "账本筛选工具" });
+    expect(await within(filters).findByRole("alert")).toHaveTextContent("筛选条件有误，请检查日期、金额和选项后重试。");
+    const minimum = screen.getByLabelText("最低金额");
+    const maximum = screen.getByLabelText("最高金额");
+    expect(minimum).toHaveAttribute("aria-invalid", "true");
+    expect(maximum).toHaveAttribute("aria-invalid", "true");
+    expect(minimum).toHaveAccessibleDescription("筛选条件有误，请检查日期、金额和选项后重试。");
+
+    fireEvent.change(minimum, { target: { value: "5" } });
+
+    await screen.findByText("咖啡店");
+    expect(minimum).not.toHaveAttribute("aria-invalid");
+    expect(maximum).not.toHaveAttribute("aria-invalid");
+    expect(minimum).toHaveAccessibleDescription("金额筛选已应用。");
+  });
+
   it("在投影不可用和存储忙碌时显示脱敏的重试状态", async () => {
     vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ error: { code: "projection.unavailable" } }, 503)));
     const { rerender } = render(<CashLedgerPage />);
@@ -194,7 +221,7 @@ describe("CashLedgerPage", () => {
   });
 
   it.each([
-    ["invalid_filter", "筛选条件有误，请检查日期、金额和选项后重试。"],
+    ["invalid_filter", "请修正标记的金额筛选条件后重试。"],
     ["invalid_cursor", "加载位置已失效，请重新读取记录。"],
     ["unmapped_failure", "请求失败，请稍后重试。"],
   ])("为 %s 显示可修正的请求错误", async (code, message) => {
@@ -204,7 +231,7 @@ describe("CashLedgerPage", () => {
 
     render(<CashLedgerPage />);
 
-    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect((await screen.findAllByText(message)).length).toBeGreaterThan(0);
   });
 
   it("投影更新后保留筛选、关闭旧证据并刷新第一页", async () => {
