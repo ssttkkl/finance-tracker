@@ -187,7 +187,118 @@ git diff --check
    投影派生表且现金流水、关系行数和内容摘要不变。
 5. 修复后重新升级、重建和完成浏览器验收，再恢复收支账本。
 
-## 执行记录
+## Phase 15：收支投影性能门禁（PostgreSQL 失败基线）
+
+本阶段新增 `tests/test_cash_projection_performance.py`。该测试使用固定、去标识化的 10,000 条有效现金流水，
+合法覆盖单成员、同笔支付关系（`payment_mirror`）、退款冲销关系（`refund_offset`）和转账配对关系
+（`transfer_pair`）。测试沿用财富性能门禁的双后端夹具、3 次预热、20 个正式样本、p95 计算及环境输出格式，
+但正式计时仅覆盖 `CashProjectionService.rebuild()`；SQLite 和真实 PostgreSQL 的 p95 门禁均为不超过 10 秒。
+
+本轮实际执行结果如下：
+
+```text
+backend=sqlite
+fixture_digest=fe8586da211281da9643e8c3ba11fdb0587000c5ebdae479cbfddde6ec2a2b82
+warmups=3
+samples=20
+rebuild_p95_ns=6546026792
+python=3.11.8
+platform=macOS-15.6.1-arm64-arm-64bit
+```
+
+SQLite 参数实例通过（`1 passed in 103.20s`），p95 为 `6.546 s`，满足 10 秒门禁。该次正式计时仅覆盖
+`CashProjectionService.rebuild()`；迁移和固定夹具装载不在 20 个样本内。
+
+本轮未设置 `FT_TEST_POSTGRES_URL`，因此未执行真实 PostgreSQL 参数实例，也没有将 SQLite 结果表述为双后端
+通过。补跑命令如下：
+
+```sh
+FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' \
+  FT_REQUIRE_TEST_POSTGRES=1 \
+  uv run pytest 'tests/test_cash_projection_performance.py::test_fixed_10k_cash_projection_rebuild_meets_budget[postgresql]' -q -s
+```
+
+已执行 `uv run python -m compileall -q tests/test_cash_projection_performance.py` 与 `git diff --check`，两者通过。
+
+## Phase 16：收支投影批量写入 Flow-Back（2026-07-31）
+
+真实 PostgreSQL 性能测试已在 `FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test'` 和
+`FT_REQUIRE_TEST_POSTGRES=1` 下执行，`CashProjectionService.rebuild()` 的 p95 为 `11.584 s`，超过 10 秒门禁；
+SQLite p95 `6.546 s` 仍符合门禁。根因是关系型投影适配器逐条执行父投影 `add()` 与 `flush()`，使大量投影的
+写入往返累积。门禁保持不变，不能以跳过 PostgreSQL、扩大样本误差或放宽 p95 预算代替修复。
+
+获批修复严格限于 `src/ft/adapters/relational/projections.py`：共享 helper 使用 SQLAlchemy Core
+`session.execute(insert(Model), mappings)` 分块批量插入投影条目、投影成员和投影关系依据。插入父投影后，helper
+只按 `(workspace_id, dataset_id, projection_id)` 受限回查代理 ID；输入和回查的投影标识集合及基数必须完全一致，
+否则抛出 `RuntimeError('projection.incomplete')`。实现不得依赖 `RETURNING` 返回顺序、方言分支、原始 DBAPI 或
+COPY，且必须保留删除顺序、暂存与事务、来源摘要、发布、SQLite/PostgreSQL 锁、投影成员/投影关系依据的角色与顺序。
+
+测试先行：在 `tests/test_relational_cash_projections.py` 补充批量写入、受限父投影 ID 映射、角色与顺序、同一数据集
+重写幂等的失败测试；旧实现必须失败。实现后按以下顺序验证：
+
+```sh
+uv run pytest tests/test_relational_cash_projections.py -q
+
+FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' \
+FT_REQUIRE_TEST_POSTGRES=1 \
+uv run pytest tests/test_relational_cash_projections.py \
+  tests/test_application_cash_projections.py \
+  tests/contract/test_cash_projection_parity.py -q
+
+FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' \
+FT_REQUIRE_TEST_POSTGRES=1 \
+uv run pytest 'tests/test_cash_projection_performance.py::test_fixed_10k_cash_projection_rebuild_meets_budget[postgresql]' -q -s
+
+uv run python -m compileall -q src/ft/adapters/relational/projections.py tests/test_relational_cash_projections.py
+git diff --check
+```
+
+若 PostgreSQL p95 仍高于 10 秒，停止验证并记录实测值；不得勾选任务或放宽门禁。
+
+实际验证（已通过）：
+
+```sh
+uv run pytest tests/test_relational_cash_projections.py -q
+
+FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' \
+FT_REQUIRE_TEST_POSTGRES=1 \
+uv run pytest tests/test_relational_cash_projections.py \
+  tests/test_application_cash_projections.py \
+  tests/contract/test_cash_projection_parity.py -q
+
+FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' \
+FT_REQUIRE_TEST_POSTGRES=1 \
+uv run pytest 'tests/test_cash_projection_performance.py::test_fixed_10k_cash_projection_rebuild_meets_budget[postgresql]' -q -s
+
+uv run python -m compileall -q src/ft/adapters/relational/projections.py tests/test_relational_cash_projections.py
+git diff --check
+```
+
+定向验证已通过：SQLite 关系型投影测试 `4 passed in 0.80 s`；真实 PostgreSQL 上的关系型投影、Application
+投影和双后端等价矩阵 `35 passed in 15.76 s`。优化后的 PostgreSQL 性能测试 `1 passed in 75.34 s`，夹具摘要
+`fe8586da211281da9643e8c3ba11fdb0587000c5ebdae479cbfddde6ec2a2b82`，预热 `3` 次、样本 `20` 次，
+`CashProjectionService.rebuild()` p95 为 `3.625 s`（`3625200125 ns`），低于 10 秒门禁；Python `3.11.8`，
+平台 `macOS-15.6.1-arm64-arm-64bit`。与 PostgreSQL `11.584 s` 的失败基线相比，p95 降低 `7.959 s`（约 `68.7%`）。
+
+随后以同一 PostgreSQL 测试库运行收支投影双后端功能与性能矩阵：
+
+```sh
+FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' \
+FT_REQUIRE_TEST_POSTGRES=1 \
+uv run pytest \
+  tests/test_relational_cash_projections.py \
+  tests/test_application_cash_projections.py \
+  tests/contract/test_cash_projection_parity.py \
+  tests/integration/test_cash_projection_sqlite.py \
+  tests/integration/test_cash_projection_postgres.py \
+  tests/integration/test_cash_projection_concurrency.py \
+  tests/test_cash_projection_performance.py -q
+```
+
+结果为 `47 passed, 1 skipped in 159.07s`。两端的投影条目、投影成员、投影关系依据、原子发布、并发锁、来源摘要与 10,000 条性能门禁均通过；跳过项为未配置的可选外部测试，不替代 SQLite 或真实 PostgreSQL 证据。
+
+随后完成全量验证：在同一双后端环境中运行完整 Python 回归（仅按已批准范围排除既有财富 100,000 条冷重建性能用例）得到 `1141 passed, 9 skipped, 2 deselected, 1 warning in 311.08s`；警告为 FastAPI `TestClient` 的已知 Starlette 弃用提示。`uv build`、`uv run alembic heads`、`git diff --check` 均通过。前端未在本轮改动，但仍复跑 Vitest `23 passed` 与 `npm run build`，均通过。gstack review、gstack QA 和 `$speckit-converge` 尚待执行。
+
 
 ### 2026-07-29：T085～T087 关系不变量修正与完整验收
 

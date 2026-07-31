@@ -30,8 +30,15 @@ Playwright；不新增第三方图算法、任务队列或缓存依赖。
 真实 SQLite/真实 PostgreSQL 集成矩阵、Vitest 组件测试、Playwright 与 gstack `qa`。
 
 **性能目标**：最多 50 条的投影列表单页 p95 不超过 500 ms；增量路径只读取受影响关系前沿，不扫描或
-重算无关投影；10,000 条有效现金流水的全量重建有独立基准，目标在本机 10 秒内完成，超出时记录实测
-而不牺牲正确性。
+重算无关投影；固定、去标识化的 10,000 条有效现金流水全量重建工作负载必须覆盖单成员、同笔支付关系
+（`payment_mirror`）、退款冲销关系（`refund_offset`）和转账配对关系（`transfer_pair`）。在 SQLite 与真实
+PostgreSQL 上分别预热 3 次后，正式计时 `CashProjectionService.rebuild()` 20 次，p95 均不得超过 10 秒。测试
+必须输出后端、夹具摘要、预热和样本数、p95、Python 版本及运行平台；PostgreSQL 不可用时仅报告未执行，
+不得将 SQLite 结果表述为双后端通过。2026-07-31 的失败基线为 SQLite `6.546 s`、PostgreSQL `11.584 s`；
+修复仅限关系型投影适配器：以 SQLAlchemy Core 的 `session.execute(insert(Model), mappings)` 分块批量插入投影条目，
+再按 `(workspace_id, dataset_id, projection_id)` 受限回查代理 ID，严格校验输入与回查的投影标识集合和基数全等，
+否则抛出 `RuntimeError('projection.incomplete')`，最后分块批量插入投影成员与投影关系依据。不得依赖 `RETURNING`
+返回顺序、方言分支、原始 DBAPI 或 COPY。
 
 **约束**：精确十进制；`Asia/Shanghai` 日期归属；仅 `accepted` 双边现金关系；主记录字段整体采用；
 投影不可用时失败关闭；无自动回退、双写、隐式迁移或查询时实时计算。
@@ -339,7 +346,7 @@ SQLite 连接不得创建文件或旁路文件，PostgreSQL 读取必须在数�
 |------|------------|--------|----------|
 | schema | `BIGINT` 代理键、原生并发写锁 | `INTEGER` 代理键、文件数据库 | Alembic 升降级与模型约束测试。 |
 | 事务 | 状态行 `FOR UPDATE` | 现有 `BEGIN IMMEDIATE` | 同一 Application Service 事务矩阵。 |
-| 批量写 | SQLAlchemy 批量参数，可用服务端优化 | 参数化批量语句 | 相同规范输出和计数。 |
+| 批量写 | SQLAlchemy Core 分块参数化 `INSERT`，父投影按受限键回查代理 ID | 同一 SQLAlchemy Core 分块参数化 `INSERT`，父投影按受限键回查代理 ID | 输入与回查的投影标识集合和基数全等；成员与关系依据保持角色、顺序和数据集幂等。 |
 | 活动读取 | SQL 联接活动指针 | 只读动态快照中的同一 SQL 语义 | 共享 API 响应矩阵。 |
 | 竞争失败 | 等待锁或序列化后重试错误 | `storage.busy` | 允许运行错误不同，禁止业务结果不同。 |
 

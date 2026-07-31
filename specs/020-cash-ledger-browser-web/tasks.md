@@ -257,7 +257,23 @@ SQLite 自动化测试只能操作 `/Users/huangwenlong/.ft/finance-tracker.db` 
 
 ---
 
-## 依赖与执行顺序
+## Phase 15：收支投影性能门禁
+
+- [X] T129 [P] 在 `tests/test_cash_projection_performance.py` 先建立固定、去标识化的 10,000 条有效现金流水工作负载；场景必须合法覆盖单成员、同笔支付关系（`payment_mirror`）、退款冲销关系（`refund_offset`）和转账配对关系（`transfer_pair`）。复用 `tests/test_wealth_performance.py` 的 SQLite/真实 PostgreSQL 双后端、3 次预热、20 个样本、p95 计算和环境输出模式，但正式计时仅覆盖 `CashProjectionService.rebuild()`；SQLite 与 PostgreSQL 的 p95 均不超过 10 秒。PostgreSQL 环境变量缺失时跳过该后端并明确报告，不得伪称通过（SC-004、SC-011）。
+- [X] T130 先运行 T129 的 SQLite 参数实例，确认测试实际执行；仅在首次真实 p95 超过 10 秒时向主 session 报告并按 Flow-Back 决定是否修改生产代码。随后在具备 `FT_TEST_POSTGRES_URL` 时运行真实 PostgreSQL 参数实例；执行相称的静态检查，将实际命令、输出、未执行项和风险写入 `quickstart.md`，最后勾选本阶段任务（SC-011）。
+  - SQLite 与静态检查已验证：SQLite 参数实例 `1 passed in 103.20s`，`CashProjectionService.rebuild()` 的 p95 为 `6.546 s`，符合 10 秒门禁；`compileall` 与 `git diff --check` 通过。失败基线：真实 PostgreSQL 参数实例 p95 为 `11.584 s`，超过 10 秒门禁。按已批准 Flow-Back，先在 `tests/test_relational_cash_projections.py` 增加批量写入、父投影 ID 受限回查映射、投影成员/投影关系依据的角色与顺序，以及同一数据集重写幂等的失败测试；再且仅在 `src/ft/adapters/relational/projections.py` 使用共享 SQLAlchemy Core 批量 DML helper 替换逐投影 `add()` 加 `flush()`。helper 必须分块插入父投影，按 `(workspace_id, dataset_id, projection_id)` 受限回查代理 ID，严格校验输入与回查的投影标识集合和基数全等，不完整时抛出 `RuntimeError('projection.incomplete')`，随后分块插入成员和关系依据；不得依赖 `RETURNING` 返回顺序、方言分支、原始 DBAPI 或 COPY。
+
+---
+
+## Phase 16：收支投影批量写入 Flow-Back
+
+**目标**：修复固定 10,000 条收支投影重建在真实 PostgreSQL 上 p95 为 `11.584 s`、超过 10 秒门禁的问题；不改变投影业务语义、暂存与事务、删除顺序、来源摘要、发布、SQLite/PostgreSQL 锁、成员角色或顺序。
+
+- [X] T131 [P] 在 `tests/test_relational_cash_projections.py` 先补失败测试，证明数据集替换使用批量写入，父投影 ID 只能按 `(workspace_id, dataset_id, projection_id)` 受限回查映射，投影成员和投影关系依据保留 `role` 与 `ordinal`，且同一数据集重写保持幂等；确认旧逐条 `add()` 加 `flush()` 实现失败（FR-009、FR-012、FR-020、SC-004、SC-011）。
+- [X] T132 在 `src/ft/adapters/relational/projections.py` 仅以共享 SQLAlchemy Core 批量 DML helper 实现 T131：使用 `session.execute(insert(Model), mappings)` 分块插入父投影、成员和关系依据；父投影插入后按受限键回查代理 ID，并对输入与回查的投影标识集合和基数做全等校验，异常时抛出 `RuntimeError('projection.incomplete')`。同一 helper 必须供 `replace_dataset` 和 `replace_active_components` 使用；不得使用 `RETURNING` 顺序、方言分支、原始 DBAPI 或 COPY（FR-009、FR-010、FR-012、FR-020、SC-004、SC-011）。
+- [X] T133 先运行定向 SQLite 测试；再以 `FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' FT_REQUIRE_TEST_POSTGRES=1` 运行关系型投影测试、Application 投影测试、双后端等价测试和 10,000 条性能测试。若 PostgreSQL p95 仍超过 10 秒，停止且不得放宽门禁；仅在全部通过后勾选 T131～T133，并在 `quickstart.md` 记录实际命令、性能、静态检查、未执行项与风险（SC-004、SC-011）。
+
+---
 
 ### Phase 依赖
 

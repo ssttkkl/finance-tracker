@@ -6,7 +6,7 @@ from hashlib import sha256
 import json
 from uuid import uuid4
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, insert, select
 
 from ft.domain.cash_projection import (
     CashProjectionBuild,
@@ -194,37 +194,87 @@ class RelationalCashProjectionRepository:
         self._session.execute(delete(CashProjectionRelationModel).where(CashProjectionRelationModel.dataset_id == dataset_id))
         self._session.execute(delete(CashProjectionMemberModel).where(CashProjectionMemberModel.dataset_id == dataset_id))
         self._session.execute(delete(CashProjectionModel).where(CashProjectionModel.dataset_id == dataset_id))
-        for projection in build.projections:
-            self._insert_projection(dataset_id, projection, projection_version)
+        self._insert_projections(dataset_id, build.projections, projection_version)
 
-    def _insert_projection(self, dataset_id, projection, projection_version):
-        row = CashProjectionModel(
-                workspace_id=self._workspace_id, dataset_id=dataset_id, projection_id=projection.projection_id,
-                root_cash_transaction_id=projection.primary_record.id, economic_type=projection.economic_type.value,
-                transfer_subtype=projection.transfer_subtype, net_amount=projection.net_amount,
-                currency=projection.primary_record.currency, occurred_at=projection.primary_record.occurred_at,
-                account_id=projection.primary_record.account_id, counterparty=projection.primary_record.counterparty,
-                category=projection.primary_record.category, note=projection.primary_record.note,
-                source_type=projection.primary_record.source_type, record_id=projection.primary_record.record_id,
-                visible=projection.visible, hidden_reason=projection.hidden_reason,
-                has_payment_mirror="payment_mirror" in projection.compositions,
-                has_refund_offset="refund_offset" in projection.compositions,
-                has_transfer_pair="transfer_pair" in projection.compositions,
-                member_count=len(projection.members), accepted_relation_count=len(projection.relations),
-                built_projection_version=projection_version,
-        )
-        self._session.add(row)
-        self._session.flush()
-        for ordinal, (member, roles) in enumerate(projection.members):
-            self._session.add(CashProjectionMemberModel(
-                    workspace_id=self._workspace_id, dataset_id=dataset_id, projection_row_id=row.id,
-                    cash_transaction_id=member.id, roles_json=list(roles), ordinal=ordinal,
-            ))
-        for ordinal, relation in enumerate(projection.relations):
-            self._session.add(CashProjectionRelationModel(
-                    workspace_id=self._workspace_id, dataset_id=dataset_id, projection_row_id=row.id,
-                    transaction_relation_id=relation.id, kind=relation.kind, subtype=relation.subtype, ordinal=ordinal,
-            ))
+    def _insert_projections(self, dataset_id: str, projections, projection_version: int) -> None:
+        projections = tuple(projections)
+        if not projections:
+            return
+        projection_ids = {projection.projection_id for projection in projections}
+        if len(projection_ids) != len(projections):
+            raise RuntimeError("projection.incomplete")
+        parent_mappings = [
+            {
+                "workspace_id": self._workspace_id,
+                "dataset_id": dataset_id,
+                "projection_id": projection.projection_id,
+                "root_cash_transaction_id": projection.primary_record.id,
+                "economic_type": projection.economic_type.value,
+                "transfer_subtype": projection.transfer_subtype,
+                "net_amount": projection.net_amount,
+                "currency": projection.primary_record.currency,
+                "occurred_at": projection.primary_record.occurred_at,
+                "account_id": projection.primary_record.account_id,
+                "counterparty": projection.primary_record.counterparty,
+                "category": projection.primary_record.category,
+                "note": projection.primary_record.note,
+                "source_type": projection.primary_record.source_type,
+                "record_id": projection.primary_record.record_id,
+                "visible": projection.visible,
+                "hidden_reason": projection.hidden_reason,
+                "has_payment_mirror": "payment_mirror" in projection.compositions,
+                "has_refund_offset": "refund_offset" in projection.compositions,
+                "has_transfer_pair": "transfer_pair" in projection.compositions,
+                "member_count": len(projection.members),
+                "accepted_relation_count": len(projection.relations),
+                "built_projection_version": projection_version,
+            }
+            for projection in projections
+        ]
+        self._execute_batches(insert(CashProjectionModel), parent_mappings)
+        parent_rows = self._session.execute(
+            select(CashProjectionModel.id, CashProjectionModel.projection_id).where(
+                CashProjectionModel.workspace_id == self._workspace_id,
+                CashProjectionModel.dataset_id == dataset_id,
+                CashProjectionModel.projection_id.in_(projection_ids),
+            )
+        ).all()
+        parent_ids = {row.projection_id: row.id for row in parent_rows}
+        if len(parent_rows) != len(projections) or set(parent_ids) != projection_ids:
+            raise RuntimeError("projection.incomplete")
+        member_mappings = []
+        relation_mappings = []
+        for projection in projections:
+            projection_row_id = parent_ids[projection.projection_id]
+            member_mappings.extend(
+                {
+                    "workspace_id": self._workspace_id,
+                    "dataset_id": dataset_id,
+                    "projection_row_id": projection_row_id,
+                    "cash_transaction_id": member.id,
+                    "roles_json": list(roles),
+                    "ordinal": ordinal,
+                }
+                for ordinal, (member, roles) in enumerate(projection.members)
+            )
+            relation_mappings.extend(
+                {
+                    "workspace_id": self._workspace_id,
+                    "dataset_id": dataset_id,
+                    "projection_row_id": projection_row_id,
+                    "transaction_relation_id": relation.id,
+                    "kind": relation.kind,
+                    "subtype": relation.subtype,
+                    "ordinal": ordinal,
+                }
+                for ordinal, relation in enumerate(projection.relations)
+            )
+        self._execute_batches(insert(CashProjectionMemberModel), member_mappings)
+        self._execute_batches(insert(CashProjectionRelationModel), relation_mappings)
+
+    def _execute_batches(self, statement, mappings, *, batch_size: int = 2000) -> None:
+        for start in range(0, len(mappings), batch_size):
+            self._session.execute(statement, mappings[start:start + batch_size])
 
     def replace_active_components(self, build: CashProjectionBuild, affected_fact_ids: set[int]) -> dict:
         state = self.require_ready_state_lock()
@@ -260,9 +310,11 @@ class RelationalCashProjectionRepository:
             self._session.execute(delete(CashProjectionMemberModel).where(CashProjectionMemberModel.projection_row_id.in_(old_ids)))
             self._session.execute(delete(CashProjectionModel).where(CashProjectionModel.id.in_(old_ids)))
         next_version = state.projection_version + 1
-        for projection in build.projections:
-            if replaced_member_ids.intersection(projection.member_ids):
-                self._insert_projection(dataset_id, projection, next_version)
+        replacement_projections = tuple(
+            projection for projection in build.projections
+            if replaced_member_ids.intersection(projection.member_ids)
+        )
+        self._insert_projections(dataset_id, replacement_projections, next_version)
         source_count = len(self.read_sources()[0])
         member_count = len(self._session.scalars(select(CashProjectionMemberModel).where(CashProjectionMemberModel.dataset_id == dataset_id)).all())
         if source_count != member_count:
