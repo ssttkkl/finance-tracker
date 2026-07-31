@@ -382,3 +382,15 @@ SQLite 自动化测试只能操作 `/Users/huangwenlong/.ft/finance-tracker.db` 
 - [X] T126 修改 `src/ft/adapters/relational/projections.py` 与 `src/ft/application/cash_projections.py`，在决定未初始化跳过维护前复用工作区—投影状态锁；保持 ready 增量维护、显式首构建和 SQLite 事务语义。
 - [X] T127 修改 `src/ft/application/web_queries.py`，严格验证 cursor 合同字段类型，禁止布尔整数和 `projection_id` 宽松字符串转换。
 - [X] T128 运行双后端回归、完整验证、收敛、review、QA 和最终差异检查；仅记录实际证据后创建目标为 `refactor/web` 的 PR。
+
+---
+
+## Phase 19：Hallmark 审计 Flow-Back
+
+**目标**：修复 Hallmark 审计中已采纳的筛选控件状态、样式标记和错误状态层级；保留筛选标题与范围摘要的两行整体点击设计，不改变收支投影、筛选参数、接口、持久化或依赖。
+
+- [ ] T143 [P] [US5] 先在 `web/tests/CashLedgerPage.test.tsx` 编写失败测试：`invalid_filter` 会标记最低金额和最高金额输入、暴露关联错误说明；修改任一金额字段后无效状态清除；加载、空态和错误态均保留文字，错误态使用左对齐操作布局（FR-023、FR-024、FR-029、FR-038、FR-039、SC-008、SC-009）。
+- [ ] T144 [P] [US5] 在 `web/tests/accessibility.test.tsx` 或适用前端测试编写失败断言：`web/src/styles.css` 首个非空内容为包含 `macrostructure: Workbench`、`genre: modern-minimal`、`theme: Cobalt` 的标准 Hallmark 标记；筛选 `<summary>` 仍是包含标题和范围摘要的单一整体点击区域（FR-033、FR-038、SC-008、SC-009）。
+- [ ] T145 [US5] 在 `web/src/pages/CashLedgerPage.tsx`、`web/src/components/CashFilters.tsx`、`web/src/components/StatusView.tsx` 和 `web/src/styles.css` 实现 T143～T144：仅将 `invalid_filter` 关联到金额输入，编辑后清除；补齐筛选控件命名令牌状态；错误态改为左对齐紧凑操作布局；保留加载/空态居中和筛选摘要整体点击设计（FR-023、FR-024、FR-029、FR-033、FR-038、FR-039）。
+- [ ] T146 [US5] 运行受影响 Vitest、完整 `npm test`、`npm run test:e2e`、`npm run test:preview` 和 `npm run build`；以 gstack `/qa` 覆盖主流程、筛选无效/修正、加载、空态、错误、键盘及 320/375/414/768 px；运行 Hallmark `audit`，确认不再报告已采纳问题。记录实际命令、结果、验证 HEAD、比较基线、执行时间和风险（FR-023、FR-024、FR-029、FR-033、FR-038、FR-039、SC-008、SC-009）。
+- [ ] T147 运行 `$speckit-analyze` 与 `$speckit-converge`，检查 Flow-Back artifacts、实现和任务收敛；再执行 gstack `/review`、`git diff --check`，将实际证据记录到 `specs/020-cash-ledger-browser-web/quickstart.md`，并按发布门禁规则完成所有适用任务（FR-023、FR-024、FR-029、FR-033、FR-038、FR-039）。

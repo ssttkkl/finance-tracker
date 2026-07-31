@@ -477,6 +477,29 @@ CashLedgerPage（请求取消、请求代次、版本更新、焦点恢复）
 
 前端继续只消费既有 DTO。列表状态由累计记录、下一个 cursor、首批加载、追加加载和追加错误组成：首批成功替换记录；追加按服务端顺序并以 `projection_id` 去重；筛选或版本更新取消请求、递增代次并从 `null` cursor 重读；追加失败保留记录且只允许人工重试。
 
+## Hallmark 审计 Flow-Back（2026-08-01）
+
+### 范围与不采纳结论
+
+Hallmark 审计已采纳三项展示层修复：筛选控件状态、样式标记和错误状态层级。筛选 `<summary>` 中“筛选”标题与当前范围摘要形成两行整体点击区域是有意的信息层级，保留原生 `<summary>` 的完整点击范围，不拆分、缩短或另设控件。
+
+本轮不修改后端、收支投影、筛选参数、证据详情数据、分页语义、路由、持久化、迁移或依赖。
+
+### 前端状态方案
+
+- `CashLedgerPage` 继续以现有 `requestErrorMessages` 映射稳定错误码。仅当首批请求返回 `invalid_filter` 时，将页面错误状态传递给 `CashFiltersBar`；网络、存储、投影或 cursor 错误不得标记筛选字段无效。
+- `CashFiltersBar` 接收一个可选的金额筛选错误状态：最低金额与最高金额输入添加 `aria-invalid`，通过关联的 `role="alert"` 文字说明错误；用户修改任一金额字段时立即清除该状态。成功响应后也保持清除，避免迟到响应把旧错误重新标记到已修正输入。
+- 现有筛选控件继续复用 `styles.css` 的命名颜色、间距、边界和动效令牌。为输入框与下拉框补齐 hover、active、disabled、错误和成功选择器；错误与成功状态同时使用边界、背景和可见文字/语义，不能仅以颜色区分。
+- `StatusView` 继续保留文字、`role="status"` 与错误时的 `role="alert"`。CSS 将加载和空态维持居中说明；`.status-error` 改为左对齐、紧凑的操作布局，并使重试入口与错误说明同一阅读起点对齐。
+- `web/src/styles.css` 的首个非空内容改为可解析的 Hallmark 标记，记录 `macrostructure: Workbench`、`genre: modern-minimal` 和 `theme: Cobalt`，不伪造页面不存在的设计系统资产。
+
+### 测试与验证
+
+1. 先在 `web/tests/CashLedgerPage.test.tsx` 编写失败测试：`invalid_filter` 会标记两项金额输入并给出关联错误说明；编辑任一金额输入后状态清除；加载、空态、错误态仍保留文字，错误状态使用约定的左对齐类。
+2. 在 `web/tests/accessibility.test.tsx` 或相邻前端测试增加标准 Hallmark 标记和筛选摘要整体点击行为的静态/DOM 回归，确保不采纳结论不被误改。
+3. 再修改 `CashLedgerPage.tsx`、`CashFilters.tsx`、`StatusView.tsx` 与 `styles.css`，只实现上述前端状态合同。
+4. 运行受影响 Vitest、完整 `npm test`、`npm run test:e2e`、`npm run test:preview`、`npm run build`、gstack `/qa` 与 Hallmark `audit`；再运行 `$speckit-converge`。根据发布门禁规则，把实际 HEAD、比较基线、命令、结果、时间和风险记录到 `tasks.md` / `quickstart.md`。
+
 ### 视觉、响应式与验证
 
 - 使用现有 `Noto Sans SC` 和 `IBM Plex Mono`；颜色、字体、间距、边界、动效和层级只引用 `web/src/styles.css` 的命名令牌。
