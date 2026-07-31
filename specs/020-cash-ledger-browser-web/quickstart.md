@@ -882,5 +882,5 @@ npx playwright test -c tests/playwright.visual.config.ts
 - Base64 解码后 JSON 顶层为数组、字符串、数字、布尔值或 `null` 的 cursor，应用层统一返回 `invalid_cursor`，Web 合同为 HTTP 400。
 - Alembic `20260731_12` 仅新增 `cash_projection_members(dataset_id)` 与 `cash_projection_relations(dataset_id)` 索引；SQLite 和真实 PostgreSQL 均验证 `upgrade → downgrade → upgrade`，且事实源未被改写。
 - 已执行：定向后端测试 `46 passed, 3 skipped`；真实 SQLite 临时副本矩阵 `5 passed`；真实 PostgreSQL 迁移、投影、Web 与契约矩阵 `25 passed`；完整 Python 回归（排除既有财富冷构建性能门禁）`1010 passed, 80 skipped, 1 deselected`；`uv build`、`uv run alembic heads`、`git diff --check` 通过。
-- 已执行前端：Vitest `23 passed`、生产构建通过、Playwright E2E `3 passed`、生产预览 `1 passed`、视觉快照 `8 passed`。
+- 已执行前端：Vitest `23 passed`、生产构建通过、Playwright E2E `3 passed`、生产预览 `1 passed`、视觉快照 `8 passed`。gstack QA 使用隔离 Vite 与去标识化预览 API，覆盖默认列表、宽屏、`390 × 844` 窄屏、成功证据详情、`Escape` 关闭与控制台；发现问题 `0`，控制台错误 `0`。
 - 全量 Python 回归曾实际运行并暴露两项非本轮产品回归：迁移清单断言已随新增 revision 修复；既有 SQLite 财富冷构建 p95 为 5.83 s，超过 5 s 门禁，因此按既有批准的性能门禁例外排除该单个用例后完成完整回归。
