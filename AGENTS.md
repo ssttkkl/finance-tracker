@@ -7,6 +7,9 @@
 ## 工具、安装与能力边界
 
 - 本机或 Agent 环境必须提供 Spec Kit CLI `specify`，且版本必须与 `.specify/init-options.json` 的 `speckit_version` 一致。当前基线为 `0.12.17`。
+- `$speckit-*` 与 Hallmark 均是 AI 编码助手通过 Skill 工具调用的工作流技能，不是 shell CLI 或 `specify` 的同名子命令。`$speckit-specify`、`$speckit-clarify`、`$speckit-plan`、`$speckit-tasks`、`$speckit-analyze`、`$speckit-implement`、`$speckit-converge` 和 `$hallmark` 必须通过 Skill 工具执行；不得尝试或要求执行 `specify analyze`、`specify converge`、`hallmark audit` 等同名 shell 命令。若 Skill 不可用，应报告缺少对应 Skill，不得以 shell 命令失败作为缺失证据。
+- Hallmark 的 `audit`、`redesign`、`study` 是通过 `$hallmark` 传入的技能动词。例如执行设计审计时调用 `$hallmark audit <target>`；不得把 `hallmark` 当作需要安装或探测的独立终端命令。
+- `specify` CLI 只用于其实际提供的初始化、版本查询和项目脚本前置检查等操作；必须先以 `specify --help` 或项目脚本确认可用子命令，不能从 Skill 名称推断 CLI 能力。
 - Codex 必须能发现 `.agents/skills/speckit-*` 和项目级 `.agents/skills/hallmark/`。Hallmark 及其必需参考资料应作为项目技能提交；不得提交其运行记录、缓存、凭据或浏览器状态。
 - gstack 必须通过团队模式安装在开发者或 Agent 环境中。gstack 源码、插件和依赖必须在仓库外；不得复制、vendoring、以 Git submodule 引入或以 symlink 暴露到本仓库。
 - gstack 团队模式使用 `gstack-team-init required` 生成仓库内 `.claude/` 引导配置；变更前先审阅差异。团队模式不得覆盖本文件的 Spec Kit 主线、回写协议、验证门禁或外部写授权。
