@@ -1035,5 +1035,80 @@ npx playwright test -c tests/playwright.visual.config.ts
 - Alembic `20260731_12` 仅新增 `cash_projection_members(dataset_id)` 与 `cash_projection_relations(dataset_id)` 索引；SQLite 和真实 PostgreSQL 均验证 `upgrade → downgrade → upgrade`，且事实源未被改写。
 - 后续发布前复审补充：未初始化写入在决定跳过维护前锁定工作区与投影状态；真实 PostgreSQL 并发回归证明该锁域生效。cursor 还严格验证 `v`、`version`、`workspace`、`filters`、`occurred_at` 和 `projection_id`；无时区时间及其他非法字段统一返回 `invalid_cursor` / HTTP 400。
 - 已执行：本轮定向应用、Web 合同与 PostgreSQL 并发测试 `41 passed, 10 skipped`；SQLite 与真实 PostgreSQL 投影、迁移、Web 契约矩阵 `94 passed, 1 skipped`；完整 Python 回归（排除既有财富冷构建性能门禁）`1021 passed, 81 skipped, 1 deselected`；`uv build`、`uv run alembic heads`、`git diff --check` 通过。防御性复审复核当前差异后无 P1/P2 发现。
-- 已执行前端：Vitest `23 passed`、生产构建通过、Playwright E2E `3 passed`、生产预览 `1 passed`、视觉快照 `8 passed`。gstack QA 使用隔离 Vite 与去标识化预览 API，覆盖默认列表、宽屏、`390 × 844` 窄屏、成功证据详情、`Escape` 关闭与控制台；发现问题 `0`，控制台错误 `0`。
+
+
+## Phase 18：SQLite 绑定参数与 PostgreSQL 性能夹具 Flow-Back（2026-07-31）
+
+共享投影写入批次已从 `2,000` 收紧为 `900`。父投影受限回查每批包含最多 900 个 `projection_id`，再加
+`workspace_id` 与 `dataset_id` 两个条件，最多使用 902 个绑定参数，低于传统 SQLite 的 999 参数上限。新增的
+901 条真实投影 SQLite 回归不 monkeypatch 生产常量，验证两批父投影与成员批量写入、按工作区和数据集受限的
+两次父投影回查，以及完整的成员代理 ID 映射。
+
+PostgreSQL 测试夹具现在只接受专用 `_test` 数据库 URL。未设置 `FT_TEST_POSTGRES_URL` 时，性能测试仍收集
+PostgreSQL 参数并显式显示为 skip；设置 `FT_REQUIRE_TEST_POSTGRES=1` 却缺少 URL 时，pytest 收集阶段硬失败。
+迁移 helper 通过 Alembic `Config.attributes["connection"]` 固定到已验证的连接，因此运行期
+`FT_DATABASE_URL` 不会改变性能测试的迁移目标。财富性能测试仅复用了这套夹具生命周期，未修改财富预算或生产逻辑。
+
+测试先行失败证据：
+
+```sh
+uv run pytest tests/test_relational_cash_projections.py::test_replace_dataset_uses_the_real_901_projection_sqlite_boundary -q
+```
+
+实现 `900` 条共享批次前结果：`1 failed`，断言实际常量为 `2000` 而非 `900`。
+
+实际验证：
+
+```sh
+env -u FT_TEST_POSTGRES_URL -u FT_REQUIRE_TEST_POSTGRES \
+  uv run pytest tests/test_cash_projection_performance.py -q -rs
+
+FT_REQUIRE_TEST_POSTGRES=1 env -u FT_TEST_POSTGRES_URL \
+  uv run pytest tests/test_cash_projection_performance.py -q
+
+FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' \
+  FT_REQUIRE_TEST_POSTGRES=1 \
+  FT_DATABASE_URL='sqlite+pysqlite:////tmp/unrelated-runtime.db' \
+  uv run pytest tests/test_cash_projection_performance.py::test_postgres_migration_uses_test_connection_despite_runtime_database_url -q
+
+FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' \
+  FT_REQUIRE_TEST_POSTGRES=1 \
+  uv run pytest tests/test_relational_cash_projections.py \
+    tests/test_cash_projection_performance.py::test_fixed_10k_cash_projection_rebuild_meets_budget -q -s
+```
+
+结果：可选模式为 `3 passed, 2 skipped`，其中 PostgreSQL 参数明确显示为未配置 URL 的跳过；required 缺失 URL
+如预期在 pytest 收集阶段失败，错误为 `FT_REQUIRE_TEST_POSTGRES=1 requires FT_TEST_POSTGRES_URL`。无关
+`FT_DATABASE_URL` 回归为 `1 passed`，证明 `workspaces` 在专用 PostgreSQL 测试连接上迁移且无关 SQLite 文件未创建。
+定向关系型与性能矩阵为 `8 passed in 107.95 s`：SQLite p95 为 `1.837 s`（`1837342958 ns`），真实 PostgreSQL
+p95 为 `3.274 s`（`3274125625 ns`）；两个后端均完成 3 次预热和 20 个样本，并低于 10 秒门禁。
+
+未运行：完整 Python 回归、财富 100,000 条性能门禁、前端测试、gstack review、gstack QA 与 `$speckit-converge`。本轮没有
+修改前端；财富性能门禁仍保留既有预算与已批准的验收例外。
+
+### T142：关系型合同夹具固定连接迁移
+
+复审发现 `tests/test_relational_contract.py` 仍复制 PostgreSQL reset 加 Alembic URL 迁移路径；当进程设置无关
+`FT_DATABASE_URL` 时，SQLite 与 PostgreSQL 参数实例都会迁移无关库，随后在目标库读取 `workspaces` 失败。该文件现在
+复用 `tests/conftest.py` 的 `postgres_test_backend_params`、`require_test_postgres_url`、
+`migrate_test_postgres_schema` 和 `upgrade_schema_on_connection`。SQLite 的 `_upgrade_sqlite` 也通过固定连接执行升级，
+避免同一环境变量污染。
+
+测试先行时执行：
+
+```sh
+FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' \
+FT_REQUIRE_TEST_POSTGRES=1 \
+FT_DATABASE_URL='sqlite+pysqlite:////tmp/unrelated-contract-runtime.db' \
+  uv run pytest \
+    tests/test_relational_contract.py::test_relational_contract_runtime_uses_test_postgres_despite_runtime_database_url \
+    tests/test_relational_contract.py::test_shared_runtime_workflow_preserves_account_cash_transfer_and_investment_results -q
+```
+
+结果为 `2 passed, 1 error`：新增 PostgreSQL 迁移回归已通过，但复制路径的 SQLite 参数实例仍在无关运行期 URL
+上升级，读取 `workspaces` 时失败。这证明 SQLite helper 也必须固定连接。
+
+将两条路径改为共享 helper 后，使用相同命令复跑，结果为 `3 passed in 1.38 s`。该矩阵覆盖真实 PostgreSQL
+专用测试库和 SQLite 参数实例，确认无关 SQLite 文件不被创建，`workspaces` 仅在合同夹具选择的数据库中可用。
+
 - 全量 Python 回归曾实际运行并暴露两项非本轮产品回归：迁移清单断言已随新增 revision 修复；既有 SQLite 财富冷构建 p95 为 5.83 s，超过 5 s 门禁，因此按既有批准的性能门禁例外排除该单个用例后完成完整回归。

@@ -28,12 +28,53 @@ SAMPLES = 20
 P95_BUDGET_NS = 10_000_000_000
 
 
-def _backends() -> list[str]:
-    if os.environ.get("FT_TEST_POSTGRES_URL"):
-        return ["sqlite", "postgresql"]
-    if os.environ.get("FT_REQUIRE_TEST_POSTGRES") == "1":
-        pytest.fail("FT_REQUIRE_TEST_POSTGRES=1 requires FT_TEST_POSTGRES_URL")
-    return ["sqlite"]
+def _backends() -> list[object]:
+    from conftest import postgres_test_backend_params
+
+    return postgres_test_backend_params()
+
+
+def test_postgres_backend_parameter_is_explicitly_skipped_when_optional(monkeypatch) -> None:
+    from conftest import postgres_test_backend_params
+
+    monkeypatch.delenv("FT_TEST_POSTGRES_URL", raising=False)
+    monkeypatch.delenv("FT_REQUIRE_TEST_POSTGRES", raising=False)
+    parameters = postgres_test_backend_params()
+    assert parameters[0] == "sqlite"
+    assert parameters[1].values == ("postgresql",)
+    assert all(mark.name == "skip" for mark in parameters[1].marks)
+
+
+def test_required_postgres_backend_parameter_fails_without_url(monkeypatch) -> None:
+    from conftest import postgres_test_backend_params
+
+    monkeypatch.delenv("FT_TEST_POSTGRES_URL", raising=False)
+    monkeypatch.setenv("FT_REQUIRE_TEST_POSTGRES", "1")
+    with pytest.raises(pytest.fail.Exception, match="FT_TEST_POSTGRES_URL"):
+        postgres_test_backend_params()
+
+
+def test_postgres_migration_uses_test_connection_despite_runtime_database_url(monkeypatch, tmp_path) -> None:
+    from sqlalchemy import inspect
+
+    from conftest import migrate_test_postgres_schema, require_test_postgres_url, reset_postgres_schema
+    from ft.adapters.relational import create_relational_engine
+
+    url = require_test_postgres_url()
+    if url is None:
+        pytest.skip("未设置 FT_TEST_POSTGRES_URL，跳过真实 PostgreSQL 迁移连接回归")
+    unrelated = tmp_path / "unrelated-runtime.db"
+    monkeypatch.setenv("FT_DATABASE_URL", f"sqlite+pysqlite:///{unrelated}")
+    try:
+        migrate_test_postgres_schema(url, Path(__file__).parents[1])
+        engine = create_relational_engine(url)
+        try:
+            assert "workspaces" in inspect(engine).get_table_names()
+        finally:
+            engine.dispose()
+        assert not unrelated.exists()
+    finally:
+        reset_postgres_schema(url)
 
 
 @pytest.fixture(params=_backends())
@@ -42,21 +83,22 @@ def performance_runtime(request, tmp_path):
     from alembic.config import Config
     from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace
 
+    from conftest import migrate_test_postgres_schema, require_test_postgres_url
+
     root = Path(__file__).parents[1]
     url = (
         f"sqlite+pysqlite:///{tmp_path / 'cash-projection-performance.db'}"
         if request.param == "sqlite"
-        else os.environ["FT_TEST_POSTGRES_URL"]
+        else require_test_postgres_url()
     )
-    assert request.param == "sqlite" or url.rsplit("/", 1)[-1].endswith("_test")
-    config = Config(str(root / "alembic.ini"))
-    config.set_main_option("script_location", str(root / "migrations"))
-    config.set_main_option("sqlalchemy.url", url)
-    if request.param == "postgresql":
-        from conftest import reset_postgres_schema
-
-        reset_postgres_schema(url)
-    command.upgrade(config, "head")
+    assert url is not None
+    if request.param == "sqlite":
+        config = Config(str(root / "alembic.ini"))
+        config.set_main_option("script_location", str(root / "migrations"))
+        config.set_main_option("sqlalchemy.url", url)
+        command.upgrade(config, "head")
+    else:
+        migrate_test_postgres_schema(url, root)
     engine = create_relational_engine(url)
     sessions = create_session_factory(engine)
     ensure_workspace(sessions, WORKSPACE)

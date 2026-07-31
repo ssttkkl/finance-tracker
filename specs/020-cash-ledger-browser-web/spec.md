@@ -49,6 +49,9 @@ Living Spec / Flow-Back 修订 020；投资事件、持仓和持仓估值仍属�
 ### Session 2026-07-31
 
 - Q：10,000 条收支投影重建的 PostgreSQL p95 超过 10 秒门禁时，如何修复持久化写入？→ A：仅替换关系型投影适配器中的逐条 `add()` 加 `flush()` 写入；使用跨 SQLite 与 PostgreSQL 的 SQLAlchemy Core 批量 DML，批量插入父投影后按工作区、数据集和投影标识受限回查代理 ID，并严格校验输入与回查的投影标识集合和基数全等，随后批量插入投影成员与投影关系依据。
+- Q：父投影代理 ID 回查怎样同时兼容 SQLite 和 PostgreSQL 的绑定参数上限？→ A：父投影、投影成员和投影关系依据共用最多 900 条的写入批次；父投影回查的 900 个 `projection_id` 加工作区和数据集条件最多使用 902 个绑定参数，低于传统 SQLite 的 999 个参数上限。不得用当前 SQLite 编译选项或 PostgreSQL 上限替代跨后端预算。
+- Q：性能门禁未配置 PostgreSQL 时如何表达结果？→ A：测试必须显式收集并标记 PostgreSQL 参数实例为未执行；只有 SQLite 与专用 `_test` PostgreSQL 均实际完成预热和 20 个样本、且 p95 达标，才可声明双后端通过。`FT_REQUIRE_TEST_POSTGRES=1` 时，缺少或不安全的 PostgreSQL 测试 URL 必须硬失败。
+- Q：为什么性能测试在重置 PostgreSQL 后仍会缺少 `workspaces` 表？→ A：测试迁移必须通过 Alembic `Config.attributes["connection"]` 固定到已验证的测试连接，防止进程级 `FT_DATABASE_URL` 覆盖迁移目标；不得改变生产迁移对 `FT_DATABASE_URL` 的既有优先级。
 
 ## 产品与工程挑战结论
 

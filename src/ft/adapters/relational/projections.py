@@ -28,7 +28,7 @@ from .models import (
 )
 
 
-PROJECTION_WRITE_BATCH_SIZE = 2000
+PROJECTION_WRITE_BATCH_SIZE = 900
 
 
 def _now() -> datetime:

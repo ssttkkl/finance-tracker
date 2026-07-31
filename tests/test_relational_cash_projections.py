@@ -188,6 +188,109 @@ def test_replace_dataset_batches_parent_lookup_and_merges_complete_mapping(cash_
     assert {member.projection_row_id for member in members} == set(parent_ids.values())
 
 
+def test_replace_dataset_uses_the_real_901_projection_sqlite_boundary(cash_web_runtime, monkeypatch):
+    """901 个投影必须在 900 条共享批次上完成受限回查与批量写入。"""
+    from datetime import datetime
+    from decimal import Decimal
+    from zoneinfo import ZoneInfo
+
+    from sqlalchemy import select
+
+    from ft.adapters.relational import projections as projection_adapter
+    from ft.adapters.relational.models import CashProjectionMemberModel, CashProjectionModel, CashTransactionModel
+    from ft.adapters.relational.projections import RelationalCashProjectionRepository
+    from ft.domain.cash_projection import CashProjection, CashProjectionBuild, CashProjectionFact, EconomicType
+
+    assert projection_adapter.PROJECTION_WRITE_BATCH_SIZE == 900
+    with cash_web_runtime.sessions.begin() as session:
+        repository = RelationalCashProjectionRepository(session, cash_web_runtime.workspace_id)
+        occurred_at = datetime(2026, 7, 5, 8, tzinfo=ZoneInfo("Asia/Shanghai"))
+        facts = tuple(
+            CashProjectionFact(
+                id=2_000 + offset,
+                account_id=101,
+                occurred_at=occurred_at,
+                amount=Decimal("-1.00"),
+                currency="CNY",
+                counterparty="批量边界",
+                category="测试",
+                note="",
+                source_type="fixture",
+                record_id=f"boundary-{offset}",
+            )
+            for offset in range(901)
+        )
+        session.add_all(
+            CashTransactionModel(
+                id=fact.id,
+                workspace_id=cash_web_runtime.workspace_id,
+                account_id=fact.account_id,
+                occurred_at=fact.occurred_at,
+                amount=fact.amount,
+                currency=fact.currency,
+                counterparty=fact.counterparty,
+                category=fact.category,
+                note=fact.note,
+                source_type=fact.source_type,
+                record_id=fact.record_id,
+            )
+            for fact in facts
+        )
+        build = CashProjectionBuild(tuple(
+            CashProjection(
+                projection_id=f"cash:{fact.id}",
+                primary_record=fact,
+                net_amount=fact.amount,
+                economic_type=EconomicType.EXPENSE,
+                visible=True,
+                hidden_reason=None,
+                transfer_subtype=None,
+                member_ids=(fact.id,),
+                members=((fact, ("primary",)),),
+                relations=(),
+                compositions=(),
+            )
+            for fact in facts
+        ))
+        dataset_id = repository.create_staging_dataset(
+            source_digest=repository.source_digest(), rules_version="cash-projection-v1"
+        )
+        recorded = []
+        execute = session.execute
+
+        def record_execute(statement, *args, **kwargs):
+            recorded.append((statement, args))
+            return execute(statement, *args, **kwargs)
+
+        monkeypatch.setattr(session, "execute", record_execute)
+        repository.replace_dataset(dataset_id, build, projection_version=1)
+
+        parent_inserts = [
+            args[0]
+            for statement, args in recorded
+            if statement.is_insert and statement.table.name == CashProjectionModel.__tablename__
+        ]
+        member_inserts = [
+            args[0]
+            for statement, args in recorded
+            if statement.is_insert and statement.table.name == CashProjectionMemberModel.__tablename__
+        ]
+        parent_lookups = [
+            statement
+            for statement, _ in recorded
+            if statement.is_select and CashProjectionModel.__table__ in statement.get_final_froms()
+        ]
+        assert [len(batch) for batch in parent_inserts] == [900, 1]
+        assert [len(batch) for batch in member_inserts] == [900, 1]
+        assert len(parent_lookups) == 2
+        compiled = [str(statement.compile(compile_kwargs={"literal_binds": True})) for statement in parent_lookups]
+        assert all(CashProjectionModel.__tablename__ + ".workspace_id" in statement for statement in compiled)
+        assert all(CashProjectionModel.__tablename__ + ".dataset_id" in statement for statement in compiled)
+        assert len(session.scalars(
+            select(CashProjectionMemberModel).where(CashProjectionMemberModel.dataset_id == dataset_id)
+        ).all()) == 901
+
+
 def test_replace_dataset_rejects_incomplete_parent_lookup(cash_web_runtime, monkeypatch):
     from ft.adapters.relational.models import CashProjectionModel
     from ft.adapters.relational.projections import RelationalCashProjectionRepository
