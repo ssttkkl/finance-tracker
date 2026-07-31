@@ -35,10 +35,16 @@ Playwright；不新增第三方图算法、任务队列或缓存依赖。
 PostgreSQL 上分别预热 3 次后，正式计时 `CashProjectionService.rebuild()` 20 次，p95 均不得超过 10 秒。测试
 必须输出后端、夹具摘要、预热和样本数、p95、Python 版本及运行平台；PostgreSQL 不可用时仅报告未执行，
 不得将 SQLite 结果表述为双后端通过。2026-07-31 的失败基线为 SQLite `6.546 s`、PostgreSQL `11.584 s`；
-修复仅限关系型投影适配器：以 SQLAlchemy Core 的 `session.execute(insert(Model), mappings)` 分块批量插入投影条目，
+修复仅限关系型投影适配器：以 SQLAlchemy Core 的 `session.execute(insert(Model), mappings)` 分批批量插入投影条目，
 再按 `(workspace_id, dataset_id, projection_id)` 受限回查代理 ID，严格校验输入与回查的投影标识集合和基数全等，
-否则抛出 `RuntimeError('projection.incomplete')`，最后分块批量插入投影成员与投影关系依据。不得依赖 `RETURNING`
+否则抛出 `RuntimeError('projection.incomplete')`，最后分批批量插入投影成员与投影关系依据。不得依赖 `RETURNING`
 返回顺序、方言分支、原始 DBAPI 或 COPY。
+
+PostgreSQL 的单条语句最多接受 65,535 个 bind 参数；父投影回查的每个 `projection_id` 都会占用一个
+`IN` 参数，因此不得把全量投影标识放入同一查询。关系型适配器使用一个共享批次大小常量（`2,000`）：它同时
+限制 Core 批量插入和父投影回查的每批 `projection_id` 数量。父投影回查必须对每个批次保持相同的
+`workspace_id` 与 `dataset_id` 限制，合并所有查询结果后，才执行既有的输入/回查投影标识集合与基数全等校验。
+空投影集继续在写入前直接返回；事务边界、父代理 ID 映射、成员角色、顺序和跨后端业务结果均不得改变。
 
 **约束**：精确十进制；`Asia/Shanghai` 日期归属；仅 `accepted` 双边现金关系；主记录字段整体采用；
 投影不可用时失败关闭；无自动回退、双写、隐式迁移或查询时实时计算。

@@ -28,6 +28,9 @@ from .models import (
 )
 
 
+PROJECTION_WRITE_BATCH_SIZE = 2000
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -232,13 +235,17 @@ class RelationalCashProjectionRepository:
             for projection in projections
         ]
         self._execute_batches(insert(CashProjectionModel), parent_mappings)
-        parent_rows = self._session.execute(
-            select(CashProjectionModel.id, CashProjectionModel.projection_id).where(
-                CashProjectionModel.workspace_id == self._workspace_id,
-                CashProjectionModel.dataset_id == dataset_id,
-                CashProjectionModel.projection_id.in_(projection_ids),
-            )
-        ).all()
+        parent_rows = [
+            row
+            for projection_id_batch in self._batches(sorted(projection_ids))
+            for row in self._session.execute(
+                select(CashProjectionModel.id, CashProjectionModel.projection_id).where(
+                    CashProjectionModel.workspace_id == self._workspace_id,
+                    CashProjectionModel.dataset_id == dataset_id,
+                    CashProjectionModel.projection_id.in_(projection_id_batch),
+                )
+            ).all()
+        ]
         parent_ids = {row.projection_id: row.id for row in parent_rows}
         if len(parent_rows) != len(projections) or set(parent_ids) != projection_ids:
             raise RuntimeError("projection.incomplete")
@@ -272,9 +279,13 @@ class RelationalCashProjectionRepository:
         self._execute_batches(insert(CashProjectionMemberModel), member_mappings)
         self._execute_batches(insert(CashProjectionRelationModel), relation_mappings)
 
-    def _execute_batches(self, statement, mappings, *, batch_size: int = 2000) -> None:
-        for start in range(0, len(mappings), batch_size):
-            self._session.execute(statement, mappings[start:start + batch_size])
+    def _batches(self, values):
+        for start in range(0, len(values), PROJECTION_WRITE_BATCH_SIZE):
+            yield values[start:start + PROJECTION_WRITE_BATCH_SIZE]
+
+    def _execute_batches(self, statement, mappings) -> None:
+        for batch in self._batches(mappings):
+            self._session.execute(statement, batch)
 
     def replace_active_components(self, build: CashProjectionBuild, affected_fact_ids: set[int]) -> dict:
         state = self.require_ready_state_lock()

@@ -275,6 +275,16 @@ SQLite 自动化测试只能操作 `/Users/huangwenlong/.ft/finance-tracker.db` 
 
 ---
 
+## Phase 17：父投影回查 bind 参数 Flow-Back
+
+**目标**：避免父投影代理 ID 回查把超过 65,535 个 `projection_id` 放入同一 PostgreSQL `IN` 查询，从而超过数据库的 bind 参数上限；不改变空集路径、Core 批量插入、事务、父代理 ID 映射和既有完整性校验。
+
+- [X] T134 [P] 在 `tests/test_relational_cash_projections.py` 先为远小于数据库上限、但超过可替换共享批次大小常量的投影标识集合写入失败测试；断言回查分为多条受 `(workspace_id, dataset_id)` 限制的 `SELECT`、查询结果合并完整、父代理 ID 映射覆盖全部投影成员。旧的单次回查实现必须失败（FR-009、FR-012、FR-020、SC-004、SC-011）。
+- [X] T135 仅在 `src/ft/adapters/relational/projections.py` 定义共享批次大小常量 `PROJECTION_WRITE_BATCH_SIZE = 2000`，让 Core 批量插入与按 `projection_id` 的父投影回查共用它；逐批执行相同 workspace/dataset 受限 `SELECT`，合并后保留输入与回查投影标识集合和基数全等校验。不得改变空集返回、Core 批量插入、事务、父代理 ID 映射、成员角色或顺序（FR-009、FR-010、FR-012、FR-020、SC-004、SC-011）。
+- [X] T136 运行 SQLite 关系型投影测试、真实 PostgreSQL 关系型/应用/等价矩阵和 10,000 条性能测试；确认 PostgreSQL p95 不超过 10 秒，并运行 `compileall` 与 `git diff --check`。在 `quickstart.md` 记录实际命令、输出、未执行项与风险（SC-004、SC-011）。
+
+---
+
 ### Phase 依赖
 
 - **Phase 1**：立即开始，提供所有故事复用的规范场景与双后端 fixture。

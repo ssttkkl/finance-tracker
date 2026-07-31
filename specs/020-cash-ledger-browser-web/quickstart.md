@@ -299,6 +299,47 @@ uv run pytest \
 
 随后完成全量验证：在同一双后端环境中运行完整 Python 回归（仅按已批准范围排除既有财富 100,000 条冷重建性能用例）得到 `1141 passed, 9 skipped, 2 deselected, 1 warning in 311.08s`；警告为 FastAPI `TestClient` 的已知 Starlette 弃用提示。`uv build`、`uv run alembic heads`、`git diff --check` 均通过。前端未在本轮改动，但仍复跑 Vitest `23 passed` 与 `npm run build`，均通过。gstack review、gstack QA 和 `$speckit-converge` 尚待执行。
 
+## Phase 17：父投影回查 bind 参数 Flow-Back（2026-07-31）
+
+批量插入优化后，父投影代理 ID 回查仍把所有 `projection_id` 传给单条 `IN` 查询。PostgreSQL 的一条语句最多接受
+65,535 个 bind 参数；投影数超过该上限时，这条回查会失败。修复仅限
+`src/ft/adapters/relational/projections.py`：定义共享 `PROJECTION_WRITE_BATCH_SIZE = 2000`，供 Core 批量插入和父投影
+回查共同使用。父投影回查按 `projection_id` 切分；每一批保留相同的 `workspace_id` 与 `dataset_id` 条件，合并结果后
+继续执行输入与回查的投影标识集合和基数全等校验。空集路径、事务、Core 批量插入、父代理 ID 映射以及成员角色和顺序
+均不变。
+
+测试先行：新增关系型投影测试把共享批次大小临时改为 `1`，以 3 个投影模拟超过回查批次的场景。旧的单次回查实现
+没有 `PROJECTION_WRITE_BATCH_SIZE`，测试因缺少共享常量而失败；实现后断言生成 3 条受工作区和数据集限制的父投影
+`SELECT`，合并的代理 ID 映射覆盖全部投影条目和投影成员。
+
+实际执行：
+
+```sh
+uv run pytest tests/test_relational_cash_projections.py -q
+
+FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' \
+FT_REQUIRE_TEST_POSTGRES=1 \
+uv run pytest tests/test_relational_cash_projections.py \
+  tests/test_application_cash_projections.py \
+  tests/contract/test_cash_projection_parity.py -q
+
+FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' \
+FT_REQUIRE_TEST_POSTGRES=1 \
+uv run pytest 'tests/test_cash_projection_performance.py::test_fixed_10k_cash_projection_rebuild_meets_budget[postgresql]' -q -s
+
+uv run python -m compileall -q src/ft/adapters/relational/projections.py tests/test_relational_cash_projections.py
+git diff --check
+```
+
+结果：SQLite 关系型投影测试 `5 passed in 1.00s`；真实 PostgreSQL 的关系型投影、Application 投影与双后端等价矩阵
+`36 passed in 16.31s`。补充运行 PostgreSQL 集成投影矩阵后，组合结果为 `37 passed in 16.13s`。PostgreSQL 性能测试
+`1 passed in 71.73s`，夹具摘要 `fe8586da211281da9643e8c3ba11fdb0587000c5ebdae479cbfddde6ec2a2b82`，预热 3 次、样本
+20 次，`CashProjectionService.rebuild()` p95 为 `3.310 s`（`3310038292 ns`），低于 10 秒门禁。SQLite 性能测试
+`1 passed in 47.61s`，同一夹具摘要、预热 3 次、样本 20 次，p95 为 `2.148 s`（`2148172084 ns`），同样低于门禁。
+Python `3.11.8`，平台 `macOS-15.6.1-arm64-arm-64bit`。`compileall` 与 `git diff --check` 均通过；独立只读评审为
+CLEAR，未发现可操作问题。未运行完整 Python 回归、前端测试、gstack QA 或 `$speckit-converge`；本次未修改前端，
+其余未运行项需在后续收敛阶段补跑。
+
 
 ### 2026-07-29：T085～T087 关系不变量修正与完整验收
 

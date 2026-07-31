@@ -140,6 +140,54 @@ def test_replace_dataset_bulk_writes_restricted_parent_mapping_and_preserves_rol
         assert projection.projection_id in compiled
 
 
+def test_replace_dataset_batches_parent_lookup_and_merges_complete_mapping(cash_web_runtime, monkeypatch):
+    from sqlalchemy import select
+    from ft.adapters.relational.models import CashProjectionMemberModel, CashProjectionModel
+    from ft.adapters.relational import projections as projection_adapter
+    from ft.adapters.relational.projections import RelationalCashProjectionRepository
+    from ft.domain.cash_projection import build_cash_projections
+
+    monkeypatch.setattr(projection_adapter, "PROJECTION_WRITE_BATCH_SIZE", 1)
+    with cash_web_runtime.sessions.begin() as session:
+        repository = RelationalCashProjectionRepository(session, cash_web_runtime.workspace_id)
+        facts, relations = repository.read_sources()
+        build = build_cash_projections(facts, relations)
+        dataset_id = repository.create_staging_dataset(source_digest=repository.source_digest(), rules_version="cash-projection-v1")
+        executed = []
+        execute = session.execute
+
+        def record_execute(statement, *args, **kwargs):
+            if statement.is_select and CashProjectionModel.__table__ in statement.get_final_froms():
+                executed.append(statement)
+            return execute(statement, *args, **kwargs)
+
+        monkeypatch.setattr(session, "execute", record_execute)
+        repository.replace_dataset(dataset_id, build, projection_version=1)
+        recorded_lookups = tuple(executed)
+        parent_ids = dict(session.execute(
+            select(CashProjectionModel.projection_id, CashProjectionModel.id).where(
+                CashProjectionModel.workspace_id == cash_web_runtime.workspace_id,
+                CashProjectionModel.dataset_id == dataset_id,
+            )
+        ).all())
+        members = session.scalars(
+            select(CashProjectionMemberModel).where(CashProjectionMemberModel.dataset_id == dataset_id)
+        ).all()
+
+    assert len(recorded_lookups) == len(build.projections)
+    compiled_lookups = [str(statement.compile(compile_kwargs={"literal_binds": True})) for statement in recorded_lookups]
+    assert all(
+        f"{CashProjectionModel.__tablename__}.workspace_id" in statement
+        and f"{CashProjectionModel.__tablename__}.dataset_id" in statement
+        for statement in compiled_lookups
+    )
+    assert set().union(*(set(projection.projection_id for projection in build.projections if projection.projection_id in statement) for statement in compiled_lookups)) == {
+        projection.projection_id for projection in build.projections
+    }
+    assert set(parent_ids) == {projection.projection_id for projection in build.projections}
+    assert {member.projection_row_id for member in members} == set(parent_ids.values())
+
+
 def test_replace_dataset_rejects_incomplete_parent_lookup(cash_web_runtime, monkeypatch):
     from ft.adapters.relational.models import CashProjectionModel
     from ft.adapters.relational.projections import RelationalCashProjectionRepository
