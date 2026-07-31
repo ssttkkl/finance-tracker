@@ -53,6 +53,31 @@ describe("CashLedgerPage", () => {
     expect(fetch.mock.calls.filter(([input]) => String(input).includes("cursor=next"))).toHaveLength(1);
   });
 
+  it("账户目录失败后可重试，且不重置已读取的收支记录", async () => {
+    let accountAttempts = 0;
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) {
+        accountAttempts += 1;
+        return accountAttempts === 1
+          ? json({ error: { code: "storage.unavailable" } }, 503)
+          : json({ items: [account] });
+      }
+      return json({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<CashLedgerPage />);
+
+    await screen.findByText("咖啡店");
+    const retry = await screen.findByRole("button", { name: "重试账户目录" });
+    expect(screen.getByText("无法读取账户目录。请检查本机 API 后重试。")).toBeInTheDocument();
+    fireEvent.click(retry);
+    await waitFor(() => expect(screen.queryByText("无法读取账户目录。请检查本机 API 后重试。")).not.toBeInTheDocument());
+    expect(screen.getByRole("option", { name: "日常账户" })).toBeInTheDocument();
+    expect(screen.getByText("咖啡店")).toBeInTheDocument();
+    expect(fetch.mock.calls.filter(([input]) => String(input).includes("/accounts"))).toHaveLength(2);
+  });
+
   it("追加失败时保留既有记录，并允许重试加载更多", async () => {
     let appendAttempts = 0;
     const fetch = vi.fn((input: string) => {

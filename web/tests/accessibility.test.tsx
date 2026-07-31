@@ -45,6 +45,22 @@ describe("现金账本无障碍", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it("以键盘关闭详情并将 Tab 焦点限制在详情内", async () => {
+    render(<CashLedgerPage />);
+    const trigger = await screen.findByRole("button", { name: "查看咖啡店的证据详情" });
+
+    fireEvent.click(trigger);
+    const close = await screen.findByRole("button", { name: "关闭证据详情" });
+    fireEvent.keyDown(close, { key: "Tab" });
+    expect(close).toHaveFocus();
+    fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
+    expect(close).toHaveFocus();
+    fireEvent.keyDown(close, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: "证据详情" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
   it("以文字表达加载、空结果和错误状态", async () => {
     const { rerender } = render(<CashLedgerPage />);
     expect(screen.getByText("正在读取收支记录…")).toBeInTheDocument();

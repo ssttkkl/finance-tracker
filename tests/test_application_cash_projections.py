@@ -1,6 +1,8 @@
 """收支投影全量构建编排。"""
 from __future__ import annotations
 
+import pytest
+
 
 def _service(runtime):
     from ft.application.cash_projections import CashProjectionService
@@ -35,21 +37,36 @@ def test_status_without_state_is_uninitialized(cash_web_runtime):
     assert status["last_build_status"] == "never"
 
 
-def test_uninitialized_cash_write_rolls_back_source_fact(cash_web_runtime):
+def test_uninitialized_cash_write_commits_then_first_rebuild_publishes_it(cash_web_runtime):
     from decimal import Decimal
-    import pytest
     from sqlalchemy import func, select
     from ft.adapters.relational.models import CashTransactionModel
     from ft.adapters.relational.uow import RelationalUnitOfWork
-    from ft.application.cash_projections import ProjectionUnavailableError
     from ft.application.cashflow import CashflowService
+    from ft.application.web_queries import CashLedgerQueryService, ProjectionUnavailableError
 
-    with pytest.raises(ProjectionUnavailableError):
-        CashflowService(RelationalUnitOfWork(cash_web_runtime.sessions, cash_web_runtime.workspace_id)).add_manual_transaction(
-            amount=Decimal("-5"), counterparty="测试", account_name="日常账户", currency="CNY",
-        )
+    result = CashflowService(
+        RelationalUnitOfWork(cash_web_runtime.sessions, cash_web_runtime.workspace_id)
+    ).add_manual_transaction(
+        amount=Decimal("-5"), counterparty="首笔消费", account_name="日常账户", currency="CNY",
+    )
+
+    assert result.ok
     with cash_web_runtime.sessions() as session:
-        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 3
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 4
+    with pytest.raises(ProjectionUnavailableError):
+        CashLedgerQueryService(
+            cash_web_runtime.sessions, cash_web_runtime.workspace_id,
+        ).list_cash_projections()
+
+    status = _service(cash_web_runtime).rebuild()
+
+    assert status["availability"] == "ready"
+    assert status["member_count"] == 4
+    page = CashLedgerQueryService(
+        cash_web_runtime.sessions, cash_web_runtime.workspace_id,
+    ).list_cash_projections()
+    assert "首笔消费" in [item.counterparty for item in page.items]
 
 
 def test_transfer_replaces_only_its_affected_projection_component(cash_web_runtime):

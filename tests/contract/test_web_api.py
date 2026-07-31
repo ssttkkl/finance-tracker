@@ -18,12 +18,18 @@ def test_projection_api_contract_and_old_routes_are_absent(cash_web_runtime):
     assert client.get("/api/v1/evidence/cash/1003").status_code==404
 
 def test_projection_api_has_stable_errors(cash_web_runtime):
+    import base64
     from ft.application.web_queries import CashLedgerQueryService
     from ft.web.app import create_app
     unbuilt=TestClient(create_app(CashLedgerQueryService(cash_web_runtime.sessions,cash_web_runtime.workspace_id)))
     assert unbuilt.get("/api/v1/cash-projections").json()["error"]["code"]=="projection.unavailable"
     client=_client(cash_web_runtime)
     assert client.get("/api/v1/cash-projections?cursor=broken").json()["error"]["code"]=="invalid_cursor"
+    for payload in (b"[]", b'"cursor"', b"0", b"true", b"null"):
+        cursor = base64.urlsafe_b64encode(payload).decode().rstrip("=")
+        response = client.get("/api/v1/cash-projections", params={"cursor": cursor})
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "invalid_cursor"
     assert client.get("/api/v1/evidence/cash-projections/cash:999").status_code==404
 
 

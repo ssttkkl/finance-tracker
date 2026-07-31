@@ -111,5 +111,5 @@ class CashProjectionService:
 
         repository = RelationalCashProjectionRepository(session, workspace_id)
         if repository.status()["availability"] != "ready":
-            raise ProjectionUnavailableError()
+            return None
         return CashProjectionService.maintain_in_session(session, workspace_id, affected_fact_ids)

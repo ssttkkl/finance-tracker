@@ -109,7 +109,8 @@
 | `ordinal` | `Integer`，非空 | 证据详情中的确定性顺序。 |
 
 关键唯一键：`(workspace_id, dataset_id, cash_transaction_id)`。它从数据库层保证同一数据集中每条有效
-现金流水最多属于一个投影；全量发布前还必须验证成员数等于有效现金流水数。
+现金流水最多属于一个投影；全量发布前还必须验证成员数等于有效现金流水数。`dataset_id` 建立单列索引，
+用于数据集级删除和成员计数。
 
 ### `cash_projection_relations`
 
@@ -125,7 +126,7 @@
 | `ordinal` | `Integer`，非空 | 确定性证据顺序。 |
 
 唯一键：`(workspace_id, dataset_id, transaction_relation_id)`。未生效关系不写入此表，证据详情按当前
-投影成员实时批量读取并明确标记为未生效提示。
+投影成员实时批量读取并明确标记为未生效提示。`dataset_id` 建立单列索引，用于数据集级删除和关系依据计数。
 
 ## 领域输出
 
@@ -158,6 +159,12 @@
   │                           │
   │                           ├─成功──> ready/succeeded + active dataset
   │                           └─失败──> uninitialized/failed
+  └─合法事实源写入──> 无状态或 uninitialized（不生成活动数据集）
+
+uninitialized ──显式首次重建成功──> ready
+ready ──合法源变更 + 增量维护成功──> ready（版本递增）
+ready ──增量维护失败──> 源变更与派生变更一并回滚
+```
   │
 ready ──增量变更成功──> ready + 同一 dataset + version + 1
   │
@@ -182,7 +189,7 @@ ready ──增量变更成功──> ready + 同一 dataset + version + 1
 
 ## 迁移与回滚
 
-- Alembic `20260729_11` 只新增上述 5 张表、约束和索引，不更新现金流水、关系或快照。
+- Alembic `20260729_11` 新增上述 5 张派生表、约束和初始索引；`20260731_12` 仅为投影成员和投影关系依据表新增 `dataset_id` 索引，不更新现金流水、关系或快照。
 - 升级后显式运行 `ft projections rebuild`；未构建时 Web 返回 `projection.unavailable`。
 - 应用回滚可继续使用旧代码忽略派生表；必要时可降级删除投影表，事实源不需要反向转换。
 - 重建命令可重复执行；失败的暂存数据集可安全删除，不影响活动数据集。

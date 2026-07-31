@@ -23,6 +23,16 @@ def test_query_fails_closed_before_first_build(cash_web_runtime):
     from ft.application.web_queries import CashLedgerQueryService, ProjectionUnavailableError
     with pytest.raises(ProjectionUnavailableError):CashLedgerQueryService(cash_web_runtime.sessions,cash_web_runtime.workspace_id).list_cash_projections()
 
+
+@pytest.mark.parametrize("payload", [b"[]", b'"cursor"', b"0", b"true", b"null"])
+def test_non_object_cursor_is_invalid(cash_web_runtime, payload):
+    import base64
+
+    service = _service(cash_web_runtime)
+    cursor = base64.urlsafe_b64encode(payload).decode().rstrip("=")
+
+    with pytest.raises(ValueError, match="invalid_cursor"):
+        service.list_cash_projections(cursor=cursor)
 def test_old_version_cursor_requires_refresh(cash_web_runtime):
     from ft.application.cash_projections import CashProjectionService
     from ft.application.web_queries import ProjectionUpdatedError

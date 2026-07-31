@@ -74,6 +74,7 @@ def _encode(workspace, version, filters, occurred_at, projection_id):
 def _decode(cursor, workspace, filters):
     try: payload = json.loads(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)))
     except Exception as exc: raise ValueError("invalid_cursor") from exc
+    if not isinstance(payload, dict): raise ValueError("invalid_cursor")
     if payload.get("v") != 1 or payload.get("workspace") != workspace or payload.get("filters") != filters.as_cursor_data(): raise ValueError("invalid_cursor")
     try:
         version = payload["version"]
