@@ -2,7 +2,10 @@
 
 ## 展示层边界（021 合并）
 
-本 feature 的 React 展示层只消费既有账户、收支投影分页和证据 DTO；不新增持久化实体、API DTO 或数据库 schema。列表以累计收支记录、下一个 cursor、首批加载、追加加载和追加错误管理浏览状态；金额继续作为十进制字符串展示，前端不得重算财务结果。窄屏卡片保留原生表格列头关联，并通过真实文本显示分类与导入渠道。
+2026-08-01 Living Spec 已将主列表字段收敛为交易信息、经济类型和金额；旧 021 合并记录中的“分类与导入渠道”
+仅保留为筛选或证据详情语义，不作为主列表卡片字段。
+
+本 feature 的 React 展示层只消费既有账户、收支投影分页和证据 DTO；不新增持久化实体或数据库 schema，但分页 DTO 增加后端聚合的筛选选项。列表以累计收支记录、下一个 cursor、首批加载、追加加载和追加错误管理浏览状态；金额继续作为十进制字符串展示，前端不得重算财务结果。窄屏卡片保留原生表格列头关联，并通过真实文本显示交易信息与经济类型；真实分类和导入渠道仍属于筛选/证据语义。
 
 现金流水和交易关系继续作为唯一事实源。以下表只保存可删除、可重建的派生读模型，全部受
 `workspace_id` 约束。
@@ -75,14 +78,14 @@
 | `root_cash_transaction_id` | 现金流水代理键，外键，非空 | 主记录。 |
 | `economic_type` | `String(24)`，非空 | `expense`、`income` 或 `internal_transfer`。 |
 | `transfer_subtype` | `String(32)`，可空 | `ordinary_transfer`、`credit_repayment`、`currency_exchange`、`bank_security_transfer`、`balance_adjustment` 或关系提供的受控 subtype。 |
-| `net_amount` | 精确十进制，非空 | 投影净额；消费保持负号，收入保持正号。 |
+| `net_amount` | 精确十进制，非空 | 投影净额；消费保持负号，收入保持正号，内部转账固定为 0。内部转账展示所需的双端实际金额和账户从投影成员及已采用转账关系读取，不改写该净额字段。 |
 | `currency` | `String(3)`，非空 | 主记录币种；退款必须同币种。 |
 | `occurred_at` | 带时区时间，非空 | 主记录发生时间。 |
 | `account_id` | 账户代理键，外键，非空 | 主记录账户。 |
 | `counterparty` / `category` / `note` | 与现金流水一致 | 主记录展示字段。 |
 | `source_type` / `record_id` | 与现金流水一致 | 主记录来源身份。 |
 | `visible` | `Boolean`，非空 | 是否进入收支账本列表。 |
-| `hidden_reason` | `String(32)`，可空 | `full_refund`、`internal_transfer` 或 `balance_adjustment`。 |
+| `hidden_reason` | `String(32)`，可空 | `full_refund` 或 `balance_adjustment`；已确认内部转账可见，不使用隐藏原因。 |
 | `has_payment_mirror` / `has_refund_offset` / `has_transfer_pair` | `Boolean`，非空 | 组成方式筛选和摘要。 |
 | `member_count` / `accepted_relation_count` | `Integer`，非空 | 证据数量摘要。 |
 | `built_projection_version` | `BigInteger`，非空 | 最近一次写入该条目的投影版本。 |
@@ -140,13 +143,25 @@
 包含投影结果、主记录、全部成员现金流水、生效关系、未生效关系提示和退款时间线。成员按角色、
 发生时间和 ID 确定性排序；来源行快照继续使用既有白名单脱敏规则。
 
+### 筛选选项 DTO
+
+`filter_options` 是收支投影响应中的只读派生字段，不是持久化实体。它包含：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `categories` | `tuple[str, ...]` | 当前工作区活动数据集中全部 `visible = true` 投影的非空 `category` 去重值，覆盖 `expense`、`income` 和 `internal_transfer`，应用层稳定升序。 |
+| `currencies` | `tuple[str, ...]` | 同一投影集合中的非空币种去重值，规范为大写三位码并稳定升序。 |
+
+选项聚合忽略当前列表请求的所有筛选条件，但必须绑定同一 `projection_version` 和 `dataset_id`；全额退款和余额校准投影不得贡献选项，已确认的内部转账可以贡献选项。没有可见投影时两个数组均为空。前端不得从分页页内容自行推导
+选项或维护静态副本。
+
 ## 构建不变量
 
 1. 活动数据集中的有效现金流水归属完整率和唯一率均为 100%。
 2. 投影主记录必须是其成员，并且关系方向只能得到一个根；多根、无根或有向环均失败。
 3. 同笔支付成员金额只计主记录一次。
 4. 退款主端必须是负金额消费，退款端必须是正金额且币种一致；累计退款绝对值不得超过消费绝对值。仅两端金额均为零且币种一致时例外：该组形成净额为零的隐藏全额退款投影；单侧零金额退款无效。
-5. 内部转账、全额退款和余额校准投影必须存在，但 `visible = false`。
+5. 已确认内部转账、全额退款和余额校准投影必须存在；内部转账 `visible = true` 且 `net_amount = 0`，列表从其转账关系的主/次流水展示双端账户与金额，全额退款和余额校准 `visible = false`。
 6. `pending_review`、`rejected` 和 `superseded` 关系不得出现在 `cash_projection_relations` 中。
 7. 相同事实、已确认关系和规则版本必须生成相同 `projection_id`、成员、净额、类型和显示状态。
 8. `payment_mirror` 的两端金额、币种和经济方向必须一致；所有 `transfer_pair` 的两端必须为非零且金额异号，且仅币种相同时金额绝对值相等，币种不同时不比较金额绝对值；`currency_exchange` 还必须使用不同币种。

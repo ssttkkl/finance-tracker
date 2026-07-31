@@ -285,7 +285,7 @@ def test_credit_repayment_requires_exact_same_currency():
     assert evaluate_transfer_pair(out, [inc]) is None
 
 
-def test_manual_transfer_creates_an_accepted_pair_and_hidden_projection(cash_web_runtime):
+def test_manual_transfer_creates_an_accepted_pair_and_visible_projection(cash_web_runtime):
     from ft.adapters.relational.models import TransactionRelationModel
     from ft.adapters.relational.uow import RelationalUnitOfWork
     from ft.application.cash_projections import CashProjectionService
@@ -307,8 +307,8 @@ def test_manual_transfer_creates_an_accepted_pair_and_hidden_projection(cash_web
         f"cash:{relation.primary_fact_id}",
     )
     assert evidence["projection"].economic_type == "internal_transfer"
-    assert evidence["projection"].visible is False
-    assert evidence["projection"].hidden_reason == "internal_transfer"
+    assert evidence["projection"].visible is True
+    assert evidence["projection"].hidden_reason is None
 
 
 def test_wechat_withdraw_expense_to_bank_transfer():

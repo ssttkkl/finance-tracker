@@ -15,6 +15,7 @@ const page = {
   next_cursor: null,
   page_size: 50,
   filters: {},
+  filter_options: { categories: ["测试"], currencies: ["CNY"] },
 };
 const projection = page.items[0];
 const evidence = {

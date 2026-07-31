@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const account = { id: 101, name: "日常账户", type: "cash", active: true };
+const filter_options = { categories: ["餐饮"], currencies: ["CNY"] };
 const projection = {
   projection_id: "cash:visual-001", occurred_at: "2026-07-03T09:00:00+08:00", account,
   counterparty: "视觉核对商户", category: "餐饮", note: "固定去标识化备注", amount: "-12.50", currency: "CNY",
@@ -18,14 +19,14 @@ async function mockLedger(page: Page) {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
     if (url.pathname.includes("/evidence/")) return route.fulfill({ json: evidence() });
-    if (url.searchParams.get("category") === "empty") return route.fulfill({ json: { projection_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} } });
-    if (url.searchParams.get("category") === "error") return route.abort();
-    if (url.searchParams.get("category") === "append-loading" && url.searchParams.get("cursor") === null) return route.fulfill({ json: { projection_version: 1, items: [projection], next_cursor: "loading", page_size: 50, filters: {} } });
-    if (url.searchParams.get("category") === "append-error" && url.searchParams.get("cursor") === null) return route.fulfill({ json: { projection_version: 1, items: [projection], next_cursor: "error", page_size: 50, filters: {} } });
+    if (url.searchParams.get("counterparty") === "empty") return route.fulfill({ json: { projection_version: 1, items: [], next_cursor: null, page_size: 50, filters: {}, filter_options } });
+    if (url.searchParams.get("counterparty") === "error") return route.abort();
+    if (url.searchParams.get("counterparty") === "append-loading" && url.searchParams.get("cursor") === null) return route.fulfill({ json: { projection_version: 1, items: [projection], next_cursor: "loading", page_size: 50, filters: {}, filter_options } });
+    if (url.searchParams.get("counterparty") === "append-error" && url.searchParams.get("cursor") === null) return route.fulfill({ json: { projection_version: 1, items: [projection], next_cursor: "error", page_size: 50, filters: {}, filter_options } });
     if (url.searchParams.get("cursor") === "loading") return new Promise(() => undefined);
     if (url.searchParams.get("cursor") === "error") return route.abort();
-    if (url.searchParams.get("cursor") === "done") return route.fulfill({ json: { projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {} } });
-    return route.fulfill({ json: { projection_version: 1, items: [projection], next_cursor: "done", page_size: 50, filters: {} } });
+    if (url.searchParams.get("cursor") === "done") return route.fulfill({ json: { projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {}, filter_options } });
+    return route.fulfill({ json: { projection_version: 1, items: [projection], next_cursor: "done", page_size: 50, filters: {}, filter_options } });
   });
 }
 
@@ -57,24 +58,24 @@ test("追加加载中和失败候选快照", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await mockLedger(page); await page.goto("/");
   await page.locator("details.filters > summary").click();
-  await page.getByLabel("分类").fill("append-loading");
+  await page.getByLabel("交易信息").fill("append-loading");
   await expect(page.getByText("视觉核对商户")).toBeVisible();
   await expect(page.getByRole("button", { name: "正在加载更多…" })).toBeVisible();
   await expect(page).toHaveScreenshot("cash-ledger-append-loading.png", { fullPage: true, animations: "disabled" });
   await page.reload();
   await page.locator("details.filters > summary").click();
-  await page.getByLabel("分类").fill("append-error");
+  await page.getByLabel("交易信息").fill("append-error");
   await expect(page.getByText("视觉核对商户")).toBeVisible();
   await page.getByRole("button", { name: "加载更多" }).click();
   await expect(page.getByRole("button", { name: "重试加载更多" })).toBeVisible();
   await expect(page).toHaveScreenshot("cash-ledger-append-error.png", { fullPage: true, animations: "disabled" });
 });
 
-test("390 px 分类和导入渠道候选快照", async ({ page }) => {
+test("390 px 经济类型字段候选快照", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockLedger(page); await page.goto("/");
-  await expect(page.getByText("分类：餐饮")).toBeVisible();
-  await expect(page.getByText("导入渠道：fixture")).toBeVisible();
+  await expect(page.getByText("经济类型：消费")).toBeVisible();
+  await expect(page.getByText("导入渠道：fixture")).toHaveCount(0);
   await expect(page).toHaveScreenshot("cash-ledger-mobile-fields.png", { fullPage: true, animations: "disabled" });
 });
 
@@ -83,10 +84,10 @@ test("固定去标识化状态快照", async ({ page }) => {
   await mockLedger(page);
   await page.goto("/");
   await page.locator("details.filters > summary").click();
-  await page.getByLabel("分类").fill("empty");
+  await page.getByLabel("交易信息").fill("empty");
   await expect(page.getByText("当前筛选没有匹配的收支记录。")).toBeVisible();
   await expect(page).toHaveScreenshot("cash-ledger-empty.png", { fullPage: true, animations: "disabled" });
-  await page.getByLabel("分类").fill("error");
+  await page.getByLabel("交易信息").fill("error");
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(page).toHaveScreenshot("cash-ledger-error.png", { fullPage: true, animations: "disabled" });
 });

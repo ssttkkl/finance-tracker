@@ -8,7 +8,7 @@
 | 方法与路径 | 用途 |
 |------------|------|
 | `GET /accounts?view=cash` | 返回可用于收支投影筛选的非投资账户。 |
-| `GET /cash-projections` | 返回当前活动版本中应展示的消费和收入投影。 |
+| `GET /cash-projections` | 返回当前活动版本中应展示的消费、收入和个人转账投影，以及不受本次筛选影响的全量分类、币种选项。 |
 | `GET /evidence/cash-projections/{projection_id}` | 返回一个投影条目的完整证据详情。 |
 
 020 不提供原始现金流水读取端点或兼容别名。
@@ -21,17 +21,17 @@
 |------|------|
 | `date_from` / `date_to` | 可选，`YYYY-MM-DD`；按主记录在 `Asia/Shanghai` 的自然日。 |
 | `account_id` | 可选，正整数。 |
-| `counterparty` | 可选，去除首尾空白后按项目既有包含匹配规则查询。 |
+| `counterparty` | 可选，去除首尾空白后对主记录 `counterparty` 或 `note` 执行包含匹配；任一字段命中即可返回。该参数在 UI 中标注为“交易信息”。 |
 | `category` | 可选，主记录分类的精确值。 |
 | `currency` | 可选，3 位币种码，统一为大写。 |
 | `amount_min` / `amount_max` | 可选，精确十进制字符串，按投影净额筛选。 |
-| `economic_type` | 可选：`expense` 或 `income`；省略表示两者。 |
+| `economic_type` | 可选：`expense`、`income` 或 `internal_transfer`；省略表示全部可见经济类型。 |
 | `composition` | 可选：`single`、`payment_mirror`、`refund_offset` 或 `combined`。 |
 | `cursor` | 可选，只能继续相同工作区、完整筛选条件和投影版本。 |
 | `limit` | 可选，默认 50，范围 1 至 50。 |
 
 `amount_min` 大于 `amount_max`、日期倒置、未知枚举或非法数值均返回 `invalid_filter`。列表始终排除
-`visible = false` 的内部转账、全额退款和余额校准投影。
+`visible = false` 的全额退款和余额校准投影；可见的内部转账以 `economic_type = internal_transfer` 返回。
 
 ### 成功响应
 
@@ -50,6 +50,7 @@
       "currency": "CNY",
       "economic_type": "expense",
       "transfer_subtype": null,
+      "transfer": null,
       "composition": ["payment_mirror", "refund_offset"],
       "member_count": 3,
       "accepted_relation_summary": [
@@ -58,6 +59,19 @@
       ],
       "source_type": "alipay",
       "record_id": "example-001"
+    }
+  ],
+  "filter_options": {
+    "categories": ["餐饮", "工资"],
+    "currencies": ["CNY", "USD"]
+  },
+  "monthly_summaries": [
+    {
+      "month": "2026-01",
+      "currencies": [
+        {"currency": "CNY", "income": "2000", "expense": "-70"},
+        {"currency": "USD", "income": "10", "expense": "0"}
+      ]
     }
   ],
   "next_cursor": null,
@@ -76,6 +90,34 @@
   }
 }
 ```
+
+`filter_options` 必须从当前工作区活动数据集中全部 `visible = true` 的投影聚合，覆盖 `expense`、`income` 和
+`internal_transfer`，忽略本次请求的日期、账户、交易对方、分类、币种、金额、经济类型和组成方式筛选。
+数组排除空值、去重并稳定排序；`categories` 保留投影原值，`currencies` 为大写三位码。它与响应的
+`projection_version` 来自同一活动数据集读取上下文。无可见投影时返回空数组；投影不可用或读取失败沿用本合同
+已有 `projection.unavailable` / `storage.*` 错误，不返回部分选项。
+
+`monthly_summaries` 必须按当前完整筛选条件聚合全部可见投影，不受 `cursor` 或 `limit` 影响；月份按主记录时间在
+`Asia/Shanghai` 的 `YYYY-MM` 倒序排列。每个月的 `currencies` 按币种稳定排序，`income` 是该币种收入投影
+`net_amount` 的精确十进制合计，`expense` 是该币种消费投影 `net_amount` 的精确十进制合计；内部转账不参与
+任何合计。没有匹配投影时返回空数组；只有内部转账的月份可以返回空的 `currencies`。
+
+当 `economic_type = internal_transfer` 时，`amount` 仍是投影净额字符串 `"0"`，另返回非空 `transfer`：
+
+```json
+{
+  "transfer": {
+    "from_account": {"id": 7, "name": "日常账户", "type": "cash", "active": true},
+    "from_amount": "-200",
+    "from_currency": "CNY",
+    "to_account": {"id": 8, "name": "信用账户", "type": "loan", "active": true},
+    "to_amount": "14",
+    "to_currency": "USD"
+  }
+}
+```
+
+`transfer` 的两端按已采用 `transfer_pair` 的主记录到次记录方向返回，金额保留事实源的方向符号；前端以“转出账户 → 转入账户”展示账户，金额按以下规则展示：同币种去掉符号后只显示一次“金额 币种”，跨币种去掉两端符号后显示“转出金额 币种 → 转入金额 币种”。不将净额 `0` 当作收入或支出金额。
 
 排序固定为 `occurred_at DESC, projection_id DESC`。无匹配项返回 `200`、当前
 `projection_version` 和空 `items`。
@@ -97,7 +139,7 @@
 
 来源证据沿用白名单脱敏合同，不返回姓名、账号、完整订单号、凭据、完整本地路径、SQL 或驱动文本。
 
-证据详情允许按已知 `projection_id` 读取隐藏投影，但收支账本本身不提供内部转账或全额退款入口。
+证据详情允许按已知 `projection_id` 读取隐藏投影；收支账本列表直接展示可见的内部转账，仍不提供全额退款或余额校准的列表入口。
 
 ## 游标合同
 

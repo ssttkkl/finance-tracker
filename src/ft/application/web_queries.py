@@ -20,14 +20,31 @@ class ProjectionUpdatedError(RuntimeError):
 @dataclass(frozen=True)
 class CashAccountDTO: id: int; name: str; type: str; active: bool
 @dataclass(frozen=True)
+class CashTransferDTO:
+    from_account: CashAccountDTO; from_amount: str; from_currency: str
+    to_account: CashAccountDTO; to_amount: str; to_currency: str
+@dataclass(frozen=True)
 class ProjectionDTO:
     projection_id: str; occurred_at: str; account: CashAccountDTO; counterparty: str; category: str; note: str
     amount: str; currency: str; economic_type: str; transfer_subtype: str | None; composition: tuple[str, ...]
     member_count: int; accepted_relation_summary: tuple[dict, ...]; source_type: str | None; record_id: str
-    visible: bool = True; hidden_reason: str | None = None
+    visible: bool = True; hidden_reason: str | None = None; transfer: CashTransferDTO | None = None
+@dataclass(frozen=True)
+class CashFilterOptionsDTO:
+    categories: tuple[str, ...]
+    currencies: tuple[str, ...]
+@dataclass(frozen=True)
+class CashMonthlyCurrencySummaryDTO:
+    currency: str
+    income: str
+    expense: str
+@dataclass(frozen=True)
+class CashMonthlySummaryDTO:
+    month: str
+    currencies: tuple[CashMonthlyCurrencySummaryDTO, ...]
 @dataclass(frozen=True)
 class ProjectionPageDTO:
-    projection_version: int; items: tuple[ProjectionDTO, ...]; next_cursor: str | None; page_size: int; filters: dict[str, str | None]
+    projection_version: int; items: tuple[ProjectionDTO, ...]; next_cursor: str | None; page_size: int; filters: dict[str, str | None]; filter_options: CashFilterOptionsDTO; monthly_summaries: tuple[CashMonthlySummaryDTO, ...] = ()
 
 @dataclass(frozen=True)
 class ProjectionFilters:
@@ -60,7 +77,7 @@ def normalize_filters(**values: Any) -> ProjectionFilters:
     if minimum is not None and maximum is not None and Decimal(minimum) > Decimal(maximum): raise ValueError("invalid_filter")
     economic = values.get("economic_type") or None
     composition = values.get("composition") or None
-    if economic not in {None, "expense", "income"} or composition not in {None, "single", "payment_mirror", "refund_offset", "combined"}: raise ValueError("invalid_filter")
+    if economic not in {None, "expense", "income", "internal_transfer"} or composition not in {None, "single", "payment_mirror", "refund_offset", "combined"}: raise ValueError("invalid_filter")
     currency = values.get("currency") or None
     if currency and (len(currency) != 3 or not currency.isalpha()): raise ValueError("invalid_filter")
     return ProjectionFilters(start.isoformat() if start else None, end.isoformat() if end else None, account_id, (values.get("counterparty") or "").strip() or None, (values.get("category") or "").strip() or None, currency.upper() if currency else None, minimum, maximum, economic, composition)
@@ -103,7 +120,7 @@ class CashLedgerQueryService:
     def list_cash_projections(self, *, cursor=None, limit=50, **values):
         if not isinstance(limit, int) or not 1 <= limit <= 50: raise ValueError("invalid_filter")
         filters = normalize_filters(**values)
-        version, rows = self._repository.list_projection_page(filters, cursor, limit + 1); items = tuple(rows[:limit])
+        version, rows, filter_options, monthly_summaries = self._repository.list_projection_page(filters, cursor, limit + 1); items = tuple(rows[:limit])
         next_cursor = _encode(self._workspace_id, version, filters, items[-1].occurred_at, items[-1].projection_id) if len(rows) > limit else None
-        return ProjectionPageDTO(version, items, next_cursor, limit, filters.as_cursor_data())
+        return ProjectionPageDTO(version, items, next_cursor, limit, filters.as_cursor_data(), filter_options, monthly_summaries)
     def get_projection_evidence(self, projection_id): return self._repository.get_evidence(projection_id)

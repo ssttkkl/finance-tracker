@@ -112,7 +112,7 @@ describe("CashLedgerPage", () => {
   });
 
 
-  it("展示紧跟交易对方的备注列，保留组成方式筛选且只调用投影端点", async () => {
+  it("在交易信息中展示备注，保留组成方式筛选且只调用投影端点", async () => {
     const withoutNote = { ...projection, projection_id: "cash:1004", counterparty: "无备注商户", note: "", record_id: "cash-004" };
     const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ projection_version: 1, items: [projection, withoutNote], next_cursor: null, page_size: 50, filters: {} }));
     vi.stubGlobal("fetch", fetch);
@@ -126,10 +126,10 @@ describe("CashLedgerPage", () => {
     expect(screen.getByRole("group", { name: "账本筛选工具" })).not.toHaveAttribute("open");
     expect(screen.queryByText("本机账本")).not.toBeInTheDocument();
     expect(screen.queryByText("按主记录发生时间查看收支投影")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易对方", "备注", "分类", "金额", "来源", "操作"]);
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "经济类型", "金额", "操作"]);
     expect(screen.queryByRole("columnheader", { name: "组成方式" })).not.toBeInTheDocument();
     expect(screen.getByText("午间消费")).toBeInTheDocument();
-    expect(screen.getByText("未提供")).toBeInTheDocument();
+    expect(screen.getByText("-")).toBeInTheDocument();
     expect(screen.queryByText("同笔支付关系（1）；退款冲销关系（1）")).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: "消费" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "组合关系" })).toBeInTheDocument();
@@ -139,14 +139,53 @@ describe("CashLedgerPage", () => {
     expect(fetch.mock.calls.some(([input]) => String(input).includes("/cash-projections"))).toBe(true);
   });
 
-  it("不展示内部转账和全额退款的隐藏投影", async () => {
-    const hidden = { ...projection, projection_id: "cash:1004", counterparty: "不应展示的内部转账", economic_type: "internal_transfer" as const, visible: false, hidden_reason: "internal_transfer" };
-    vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {} })));
+  it("使用后端全量聚合的分类和币种下拉选项", async () => {
+    const filter_options = { categories: ["餐饮", "日用", "收入"], currencies: ["CNY", "USD"] };
+    const fetch = vi.fn((input: string) => input.includes("/accounts")
+      ? json({ items: [account] })
+      : json({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {}, filter_options }));
+    vi.stubGlobal("fetch", fetch);
+
+    render(<CashLedgerPage />);
+
+    const category = screen.getByLabelText("分类");
+    const currency = screen.getByLabelText("币种");
+    expect(category.tagName).toBe("SELECT");
+    expect(currency.tagName).toBe("SELECT");
+    expect(screen.queryByRole("textbox", { name: "分类" })).not.toBeInTheDocument();
+    expect(category).toBeDisabled();
+    expect(currency).toBeDisabled();
+
+    await screen.findByText("咖啡店");
+    expect(screen.getByRole("option", { name: "全部分类" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "工资" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "USD" })).toBeInTheDocument();
+    expect(category).not.toBeDisabled();
+    expect(currency).not.toBeDisabled();
+
+    fireEvent.change(category, { target: { value: "工资" } });
+    fireEvent.change(currency, { target: { value: "USD" } });
+    await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("category=%E5%B7%A5%E8%B5%84") && String(input).includes("currency=USD"))).toBe(true));
+  });
+
+  it("展示可见的内部转账及双端账户和金额", async () => {
+    const transfer = {
+      ...projection, projection_id: "cash:1004", counterparty: "信用账户", category: "转账", note: "账户间转移",
+      amount: "0", currency: "USD", economic_type: "internal_transfer" as const, transfer_subtype: "ordinary_transfer",
+      composition: ["transfer_pair"], visible: true, hidden_reason: null,
+      transfer: {
+        from_account: account, from_amount: "-200", from_currency: "CNY",
+        to_account: { ...account, id: 102, name: "信用账户", type: "loan" }, to_amount: "14", to_currency: "USD",
+      },
+    };
+    vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ projection_version: 1, items: [projection, transfer], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: ["餐饮", "转账"], currencies: ["CNY", "USD"] } })));
 
     render(<CashLedgerPage />);
 
     await screen.findByText("咖啡店");
-    expect(screen.queryByText(hidden.counterparty)).not.toBeInTheDocument();
+    const transferRow = screen.getByRole("row", { name: /日常账户 → 信用账户/ });
+    expect(transferRow).toHaveTextContent("200 CNY → 14 USD");
+    expect(transferRow).toHaveTextContent("个人转账");
   });
 
   it("在证据详情中展示主记录、成员、已采用关系、未生效提示和退款时间线", async () => {
@@ -306,13 +345,13 @@ describe("CashLedgerPage", () => {
     expect(screen.queryByRole("dialog", { name: "证据详情" })).not.toBeInTheDocument();
   });
 
-  it("将交易对方和金额范围传递到收支投影筛选", async () => {
+  it("将交易信息和金额范围传递到收支投影筛选", async () => {
     const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {} }));
     vi.stubGlobal("fetch", fetch);
 
     render(<CashLedgerPage />);
     await screen.findByText("咖啡店");
-    fireEvent.change(screen.getByLabelText("交易对方"), { target: { value: "咖啡" } });
+    fireEvent.change(screen.getByLabelText("交易信息"), { target: { value: "咖啡" } });
     fireEvent.change(screen.getByLabelText("最低金额"), { target: { value: "-20" } });
     fireEvent.change(screen.getByLabelText("最高金额"), { target: { value: "-10" } });
 

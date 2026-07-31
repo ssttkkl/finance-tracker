@@ -19,6 +19,151 @@ def test_projection_page_filters_and_stable_cursor(cash_web_runtime):
     assert [x.projection_id for x in service.list_cash_projections(economic_type="income").items]==["cash:1001"]
     with pytest.raises(ValueError,match="invalid_cursor"):service.list_cash_projections(cursor=first.next_cursor,category="餐饮")
 
+def test_projection_page_returns_monthly_summaries_for_all_filtered_rows(cash_web_runtime):
+    from ft.adapters.relational.models import CashProjectionModel, CashProjectionStateModel
+    from sqlalchemy import select
+
+    service = _service(cash_web_runtime)
+    with cash_web_runtime.sessions.begin() as session:
+        state = session.scalar(select(CashProjectionStateModel).where(CashProjectionStateModel.workspace_id == cash_web_runtime.workspace_id))
+        session.add_all((
+            CashProjectionModel(
+                workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:month-june-income",
+                root_cash_transaction_id=1001, economic_type="income", transfer_subtype=None, net_amount=Decimal("10"), currency="USD",
+                occurred_at=datetime(2026, 6, 30, 9, tzinfo=ZoneInfo("Asia/Shanghai")), account_id=101, counterparty="六月收入",
+                category="收入", note="", source_type="fixture", record_id="month-june-income", visible=True,
+                hidden_reason=None, member_count=1, accepted_relation_count=0, built_projection_version=1,
+            ),
+            CashProjectionModel(
+                workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:month-june-expense",
+                root_cash_transaction_id=1001, economic_type="expense", transfer_subtype=None, net_amount=Decimal("-3"), currency="USD",
+                occurred_at=datetime(2026, 6, 29, 9, tzinfo=ZoneInfo("Asia/Shanghai")), account_id=101, counterparty="六月支出",
+                category="日用", note="", source_type="fixture", record_id="month-june-expense", visible=True,
+                hidden_reason=None, member_count=1, accepted_relation_count=0, built_projection_version=1,
+            ),
+        ))
+
+    page = service.list_cash_projections(limit=1)
+
+    assert [
+        (summary.month, [(currency.currency, currency.income, currency.expense) for currency in summary.currencies])
+        for summary in page.monthly_summaries
+    ] == [
+        ("2026-07", [("CNY", "2000", "-112.5")]),
+        ("2026-06", [("USD", "10", "-3")]),
+    ]
+
+def test_projection_filter_matches_counterparty_or_note(cash_web_runtime):
+    from ft.adapters.relational.models import CashProjectionModel, CashProjectionStateModel
+    from sqlalchemy import select
+
+    service = _service(cash_web_runtime)
+    with cash_web_runtime.sessions.begin() as session:
+        state = session.scalar(select(CashProjectionStateModel).where(CashProjectionStateModel.workspace_id == cash_web_runtime.workspace_id))
+        session.add_all((
+            CashProjectionModel(
+                workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:counterparty-match",
+                root_cash_transaction_id=1001, economic_type="expense", transfer_subtype=None, net_amount=Decimal("-2"), currency="CNY",
+                occurred_at=datetime(2026, 7, 5, 9, tzinfo=ZoneInfo("Asia/Shanghai")), account_id=101, counterparty="星巴克",
+                category="餐饮", note="下午消费", source_type="fixture", record_id="counterparty-match", visible=True,
+                hidden_reason=None, member_count=1, accepted_relation_count=0, built_projection_version=1,
+            ),
+            CashProjectionModel(
+                workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:note-match",
+                root_cash_transaction_id=1001, economic_type="expense", transfer_subtype=None, net_amount=Decimal("-3"), currency="CNY",
+                occurred_at=datetime(2026, 7, 4, 9, tzinfo=ZoneInfo("Asia/Shanghai")), account_id=101, counterparty="便利店",
+                category="日用", note="星巴克豆采购", source_type="fixture", record_id="note-match", visible=True,
+                hidden_reason=None, member_count=1, accepted_relation_count=0, built_projection_version=1,
+            ),
+        ))
+
+    assert [item.projection_id for item in service.list_cash_projections(counterparty="星巴克").items] == ["cash:counterparty-match", "cash:note-match"]
+
+def test_projection_page_returns_global_filter_options_independent_of_current_filters(cash_web_runtime):
+    service = _service(cash_web_runtime)
+
+    page = service.list_cash_projections(limit=1)
+    filtered = service.list_cash_projections(
+        account_id="101", counterparty="咖啡", category="餐饮", currency="CNY",
+        date_from="2026-07-03", date_to="2026-07-03", amount_min="-20", amount_max="-1",
+        economic_type="expense", composition="single",
+    )
+
+    assert page.filter_options.categories == tuple(sorted(("餐饮", "日用", "收入")))
+    assert page.filter_options.currencies == ("CNY",)
+    assert filtered.filter_options == page.filter_options
+
+def test_projection_filter_options_exclude_hidden_and_blank_values(cash_web_runtime):
+    from ft.adapters.relational.models import CashProjectionModel, CashProjectionStateModel
+    from sqlalchemy import select
+
+    service = _service(cash_web_runtime)
+    with cash_web_runtime.sessions.begin() as session:
+        state = session.scalar(select(CashProjectionStateModel).where(CashProjectionStateModel.workspace_id == cash_web_runtime.workspace_id))
+        session.add_all((
+            CashProjectionModel(
+                workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:hidden-option",
+                root_cash_transaction_id=1001, economic_type="internal_transfer", transfer_subtype="ordinary_transfer",
+                net_amount=Decimal("0"), currency="JPY", occurred_at=datetime(2026, 7, 1, 9, tzinfo=ZoneInfo("Asia/Shanghai")),
+                account_id=101, counterparty="", category="隐藏分类", note="", source_type=None, record_id="hidden-option",
+                visible=False, hidden_reason="internal_transfer", member_count=1, accepted_relation_count=0, built_projection_version=1,
+            ),
+            CashProjectionModel(
+                workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:blank-option",
+                root_cash_transaction_id=1001, economic_type="expense", transfer_subtype=None,
+                net_amount=Decimal("-1"), currency="USD", occurred_at=datetime(2026, 7, 1, 10, tzinfo=ZoneInfo("Asia/Shanghai")),
+                account_id=101, counterparty="", category="", note="", source_type=None, record_id="blank-option",
+                visible=True, hidden_reason=None, member_count=1, accepted_relation_count=0, built_projection_version=1,
+            ),
+        ))
+
+    options = service.list_cash_projections(limit=1).filter_options
+
+    assert "隐藏分类" not in options.categories
+    assert options.categories == tuple(sorted(("餐饮", "日用", "收入")))
+    assert options.currencies == ("CNY", "USD")
+
+
+def test_projection_page_includes_visible_internal_transfer_and_filter_option(cash_web_runtime):
+    from ft.adapters.relational.models import CashProjectionModel, CashProjectionStateModel
+    from sqlalchemy import select
+
+    service = _service(cash_web_runtime)
+    with cash_web_runtime.sessions.begin() as session:
+        state = session.scalar(select(CashProjectionStateModel).where(CashProjectionStateModel.workspace_id == cash_web_runtime.workspace_id))
+        session.add(CashProjectionModel(
+            workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id,
+            projection_id="cash:visible-transfer", root_cash_transaction_id=1001,
+            economic_type="internal_transfer", transfer_subtype="ordinary_transfer", net_amount=Decimal("0"),
+            currency="HKD", occurred_at=datetime(2026, 7, 4, 9, tzinfo=ZoneInfo("Asia/Shanghai")),
+            account_id=101, counterparty="个人账户", category="转账", note="账户间转移",
+            source_type="fixture", record_id="visible-transfer", visible=True, hidden_reason=None,
+            member_count=2, accepted_relation_count=1, built_projection_version=1,
+        ))
+
+    page = service.list_cash_projections()
+    transfer = next(item for item in page.items if item.projection_id == "cash:visible-transfer")
+
+    assert transfer.economic_type == "internal_transfer"
+    assert transfer.amount == "0"
+    assert page.filter_options.categories == tuple(sorted(("餐饮", "日用", "收入", "转账")))
+    assert page.filter_options.currencies == ("CNY", "HKD")
+    assert [item.projection_id for item in service.list_cash_projections(economic_type="internal_transfer").items] == ["cash:visible-transfer"]
+
+def test_projection_filter_options_are_empty_when_no_visible_projection(cash_web_runtime):
+    from ft.adapters.relational.models import CashProjectionModel
+    from sqlalchemy import update
+
+    service = _service(cash_web_runtime)
+    with cash_web_runtime.sessions.begin() as session:
+        session.execute(update(CashProjectionModel).where(CashProjectionModel.workspace_id == cash_web_runtime.workspace_id).values(visible=False))
+
+    page = service.list_cash_projections()
+
+    assert page.items == ()
+    assert page.filter_options.categories == ()
+    assert page.filter_options.currencies == ()
+
 def test_query_fails_closed_before_first_build(cash_web_runtime):
     from ft.application.web_queries import CashLedgerQueryService, ProjectionUnavailableError
     with pytest.raises(ProjectionUnavailableError):CashLedgerQueryService(cash_web_runtime.sessions,cash_web_runtime.workspace_id).list_cash_projections()

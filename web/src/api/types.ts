@@ -2,6 +2,15 @@ export type Account = { id: number; name: string; type: string; active: boolean 
 
 export type AcceptedRelationSummary = { kind: string; subtype: string; count: number };
 
+export type CashTransfer = {
+  from_account: Account;
+  from_amount: string;
+  from_currency: string;
+  to_account: Account;
+  to_amount: string;
+  to_currency: string;
+};
+
 export type CashProjection = {
   projection_id: string;
   occurred_at: string;
@@ -20,6 +29,23 @@ export type CashProjection = {
   record_id: string;
   visible: boolean;
   hidden_reason: string | null;
+  transfer?: CashTransfer | null;
+};
+
+export type CashFilterOptions = {
+  categories: string[];
+  currencies: string[];
+};
+
+export type CashMonthlyCurrencySummary = {
+  currency: string;
+  income: string;
+  expense: string;
+};
+
+export type CashMonthlySummary = {
+  month: string;
+  currencies: CashMonthlyCurrencySummary[];
 };
 
 export type CashPage = {
@@ -28,6 +54,8 @@ export type CashPage = {
   next_cursor: string | null;
   page_size: number;
   filters: Record<string, string | null>;
+  filter_options: CashFilterOptions;
+  monthly_summaries?: CashMonthlySummary[];
 };
 
 export type EvidenceRecord = {
@@ -85,6 +113,6 @@ export type CashFilters = {
   currency?: string;
   amount_min?: string;
   amount_max?: string;
-  economic_type?: "expense" | "income";
+  economic_type?: "expense" | "income" | "internal_transfer";
   composition?: "single" | "payment_mirror" | "refund_offset" | "combined";
 };
