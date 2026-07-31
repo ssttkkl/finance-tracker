@@ -1,4 +1,4 @@
 {
-  "feature_directory": "specs/020-cash-ledger-browser-web",
-  "note": "020-cash-ledger-browser-web：收支投影、双后端、本机 Web/API 与现代化审计工作台的统一现行规格；021 内容已按用户授权合并，022 投资账本保持独立。"
+  "feature_directory": "specs/023-icbc-credit-refund-signal",
+  "note": "023-icbc-credit-refund-signal：工行信用卡与借记卡“摘要=退货”退款信号保留与退款冲销关系识别。"
 }

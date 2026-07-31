@@ -1580,6 +1580,30 @@ class TestIcbcRefundPairing:
         assert records[0]["category"] == "income"
         assert records[0]["amount"] == 600.0
 
+    def test_退货摘要保留为结构化退款信号(self):
+        lines = [
+            "2026-05-25",
+            "19:13:04",
+            "622599000000001200",
+            "贷",
+            "人民币",
+            "272.00",
+            "人民币",
+            "272.00",
+            "退货",
+            "美团支付-美团App山葵村烤肉",
+        ]
+        from ft.convert import _parse_icbc_lines
+
+        records, _ = _parse_icbc_lines(lines, is_credit=True)
+        refund = records[0]
+        assert refund["category"] == "income"
+        assert refund["summary"] == "退货"
+        assert refund["refund_signal"] == "icbc_credit_return"
+        assert refund["amount"] == Decimal("272.00")
+        assert refund["counterparty"] == "美团App山葵村烤肉"
+        assert refund["note"] == "美团支付-美团App山葵村烤肉"
+
     def test_退款摘要_也会按退款配对保留事实(self):
         """信用卡账单里出现“退款”摘要时，也应走退款配对，但保留原始事实。"""
         lines = [
@@ -2382,6 +2406,33 @@ class TestIcbcDebit:
         assert rec["counterparty"] == "梁碧玲"
         assert rec["note"] == "无卡支付"
         assert rec["currency"] == "CNY"
+
+    def test_退货摘要_生成正式退款信号(self):
+        row = [
+            "2026-05-25\n19:13:04", "1614020101021984636", "活期", "00000",
+            "人民币", "钞", "退货", "1614", "+272.00",
+            "17,851.26", "美团支付-美团App山葵村烤肉", "6225****1200", "快捷支付",
+        ]
+        from ft.convert import _parse_icbc_debit_row
+
+        rec = _parse_icbc_debit_row(row)
+        assert rec is not None
+        assert rec["summary"] == "退货"
+        assert rec["refund_signal"] == "icbc_debit_return"
+        assert rec["_refund_signal"] == "icbc_debit_refund"
+
+    def test_退款摘要_不生成正式退款信号(self):
+        row = [
+            "2026-05-25\n19:13:04", "1614020101021984636", "活期", "00000",
+            "人民币", "钞", "退款", "1614", "+272.00",
+            "17,851.26", "美团支付-美团App山葵村烤肉", "6225****1200", "快捷支付",
+        ]
+        from ft.convert import _parse_icbc_debit_row
+
+        rec = _parse_icbc_debit_row(row)
+        assert rec is not None
+        assert rec["summary"] == "退款"
+        assert rec.get("refund_signal", "") == ""
 
     def test_工行借记卡_pdf_record_id_使用短hash(self):
         row = [

@@ -15,6 +15,10 @@ from ft.domain.relations.core.types import FactView
 REFUND_SIGNAL_TOKENS = (
     "退款", "退货", "退回", "冲正", "消费退货", "refund", "return",
 )
+ICBC_STRUCTURED_REFUND_SIGNALS = {
+    "icbc_credit": "icbc_credit_return",
+    "icbc_debit": "icbc_debit_return",
+}
 # P2P / transfer / receipt / red-packet family (not ordinary merchant spend).
 # - As refund seed: allowed only with explicit refund signal (微信红包-退款).
 # - As expense row: only pair with p2p-style refunds, not with 退款-商品.
@@ -61,6 +65,18 @@ def is_platform_import_refund_source(fact: "FactView") -> bool:
 def has_refund_signal(text: str) -> bool:
     blob = _text_blob(text)
     return any(token.lower() in blob for token in REFUND_SIGNAL_TOKENS)
+
+
+def has_refund_signal_for_fact(fact: FactView) -> bool:
+    """判断一笔现金事实是否有明确退款信号。"""
+    if fact.signed_amount <= 0 or fact.fact_type != "cash":
+        return False
+    payload = fact.raw_payload
+    if fact.bill_source in ICBC_STRUCTURED_REFUND_SIGNALS:
+        if not isinstance(payload, dict) or payload.get("bill_source") != fact.bill_source:
+            return False
+        return payload.get("refund_signal") == ICBC_STRUCTURED_REFUND_SIGNALS[fact.bill_source]
+    return has_refund_signal(fact.text)
 
 
 def is_p2p_transfer_family(text: str) -> bool:
@@ -142,8 +158,8 @@ def refund_title_exact_match(refund: FactView, expense: FactView) -> bool:
 class DefaultRefundTextGates:
     """Refund pack implementation of core.types.RefundTextGates."""
 
-    def has_refund_signal(self, text: str) -> bool:
-        return has_refund_signal(text)
+    def has_refund_signal(self, fact: FactView) -> bool:
+        return has_refund_signal_for_fact(fact)
 
     def is_refund_excluded_leg(self, text: str) -> bool:
         return is_refund_excluded_leg(text)

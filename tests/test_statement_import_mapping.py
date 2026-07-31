@@ -255,6 +255,79 @@ def test_ccb_card_number_routes_via_mapping(tmp_path, monkeypatch):
     assert row_0523["account_name"] == "建行储蓄卡(0523)"
 
 
+def test_icbc_credit_refund_metadata_survives_statement_mapping():
+    from ft.convert import _build_output_row
+
+    row = _build_output_row(
+        {
+            "date": "2026-05-25 19:13:04",
+            "amount": Decimal("272.00"),
+            "currency": "CNY",
+            "counterparty": "美团支付-美团App山葵村烤肉",
+            "note": "美团支付-美团App山葵村烤肉",
+            "summary": "退货",
+            "refund_signal": "icbc_credit_return",
+            "category": "income",
+            "card_number": "1200",
+            "payment_method": "工行信用卡",
+        },
+        bill_type="icbc_credit",
+        account="工行信用卡(1200)",
+        currency="CNY",
+    )
+
+    assert row["summary"] == "退货"
+    assert row["refund_signal"] == "icbc_credit_return"
+    assert row["counterparty"] == "美团App山葵村烤肉"
+
+
+def test_icbc_credit_non_refund_income_has_no_refund_signal():
+    from ft.convert import _build_output_row
+
+    row = _build_output_row(
+        {
+            "date": "2026-05-26 10:00:00",
+            "amount": Decimal("10.00"),
+            "currency": "CNY",
+            "counterparty": "工资入账",
+            "note": "工资入账",
+            "summary": "转帐",
+            "category": "income",
+            "card_number": "1200",
+            "payment_method": "工行信用卡",
+        },
+        bill_type="icbc_credit",
+        account="工行信用卡(1200)",
+        currency="CNY",
+    )
+
+    assert row.get("refund_signal", "") == ""
+
+
+def test_icbc_debit_refund_metadata_survives_statement_mapping():
+    from ft.convert import _build_output_row
+
+    row = _build_output_row(
+        {
+            "date": "2026-05-25 19:13:04",
+            "amount": Decimal("272.00"),
+            "currency": "CNY",
+            "counterparty": "美团支付-美团App山葵村烤肉",
+            "note": "退货",
+            "summary": "退货",
+            "refund_signal": "icbc_debit_return",
+            "category": "income",
+            "payment_method": "银行卡",
+        },
+        bill_type="icbc_debit",
+        account="工行借记卡",
+        currency="CNY",
+    )
+
+    assert row["summary"] == "退货"
+    assert row["refund_signal"] == "icbc_debit_return"
+
+
 def test_convert_and_import_account_distribution_match(tmp_path, mapping_path):
     from collections import Counter
 

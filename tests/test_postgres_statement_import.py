@@ -78,6 +78,36 @@ def test_cash_statement_import_persists_provenance_and_projection(tmp_path):
         uow.commit()
 
 
+def test_cash_statement_import_persists_icbc_refund_signal_in_source_payload(tmp_path):
+    from ft.adapters.relational.models import CashTransactionModel
+
+    source = tmp_path / "icbc.pdf"
+    source.write_bytes(b"statement bytes")
+    rows = [
+        _cash_row(
+            record_id="icbc-credit-refund-1",
+            source="icbc_credit",
+            bill_source="icbc_credit",
+            source_type="icbc_credit",
+            amount="272.00",
+            category="income",
+            counterparty="美团App山葵村烤肉",
+            note="美团App山葵村烤肉",
+            summary="退货",
+            refund_signal="icbc_credit_return",
+        )
+    ]
+    sessions, _unit_of_work, service = _service(rows)
+
+    result = service.import_statement(_command(source, source="icbc"))
+
+    assert result.ok is True
+    with sessions() as session:
+        fact = session.scalar(select(CashTransactionModel))
+        assert fact.source_payload["summary"] == "退货"
+        assert fact.source_payload["refund_signal"] == "icbc_credit_return"
+
+
 def test_statement_import_is_idempotent_by_source_digest(tmp_path):
     from ft.adapters.relational.models import CashTransactionModel
 

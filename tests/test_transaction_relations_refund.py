@@ -85,6 +85,85 @@ def test_income_without_refund_word_not_refund_seed():
     assert evaluate_refund_offset(income, [expense]) is None
 
 
+def test_icbc_structured_refund_signal_can_seed_phase_d_without_refund_text():
+    expense = _fv(
+        id="e", amount=Decimal("-272"), account_id="icbc", account_name="工行信用卡",
+        occurred_at="2026-05-25 19:11:37", counterparty="美团App山葵村烤肉",
+        category="expense", bill_source="icbc_credit", source="icbc_credit",
+    )
+    refund = _fv(
+        id="r", amount=Decimal("272"), account_id="icbc", account_name="工行信用卡",
+        occurred_at="2026-05-25 19:13:04", counterparty="美团App山葵村烤肉",
+        category="income", bill_source="icbc_credit", source="icbc_credit",
+        raw_payload={
+            "bill_source": "icbc_credit",
+            "summary": "退货",
+            "refund_signal": "icbc_credit_return",
+        },
+    )
+    proposal = evaluate_refund_offset(refund, [expense])
+    assert proposal is not None
+    assert proposal.kind == "refund_offset"
+    assert proposal.primary_fact_id == "e"
+    assert proposal.secondary_fact_id == "r"
+
+
+def test_icbc_debit_structured_refund_signal_can_seed_phase_d_without_refund_text():
+    expense = _fv(
+        id="e", amount=Decimal("-272"), account_id="icbc-debit", account_name="工行借记卡",
+        occurred_at="2026-05-25 19:11:37", counterparty="美团App山葵村烤肉",
+        category="expense", bill_source="icbc_debit", source="icbc_debit",
+    )
+    refund = _fv(
+        id="r", amount=Decimal("272"), account_id="icbc-debit", account_name="工行借记卡",
+        occurred_at="2026-05-25 19:13:04", counterparty="美团App山葵村烤肉",
+        category="income", bill_source="icbc_debit", source="icbc_debit",
+        raw_payload={
+            "bill_source": "icbc_debit",
+            "summary": "退货",
+            "refund_signal": "icbc_debit_return",
+        },
+    )
+    proposal = evaluate_refund_offset(refund, [expense])
+    assert proposal is not None
+    assert proposal.kind == "refund_offset"
+    assert proposal.primary_fact_id == "e"
+    assert proposal.secondary_fact_id == "r"
+
+
+def test_icbc_debit_summary_without_formal_signal_is_not_legacy_compatible():
+    expense = _fv(
+        id="e", amount=Decimal("-272"), account_id="icbc-debit",
+        occurred_at="2026-05-25 19:11:37", counterparty="美团App山葵村烤肉",
+        category="expense", bill_source="icbc_debit", source="icbc_debit",
+    )
+    refund = _fv(
+        id="r", amount=Decimal("272"), account_id="icbc-debit",
+        occurred_at="2026-05-25 19:13:04", counterparty="美团App山葵村烤肉",
+        note="退款", category="income", bill_source="icbc_debit", source="icbc_debit",
+        raw_payload={"bill_source": "icbc_debit", "summary": "退货"},
+    )
+    assert evaluate_refund_offset(refund, [expense]) is None
+
+
+def test_icbc_structured_refund_signal_does_not_read_legacy_offset_source():
+    expense = _fv(
+        id="e", amount=Decimal("-272"), account_id="icbc",
+        occurred_at="2026-05-25 19:11:37", counterparty="美团App山葵村烤肉",
+        category="expense", bill_source="icbc_credit", source="icbc_credit",
+    )
+    refund = _fv(
+        id="r", amount=Decimal("272"), account_id="icbc",
+        occurred_at="2026-05-25 19:13:04", counterparty="美团App山葵村烤肉",
+        category="income", bill_source="icbc_credit", source="icbc_credit",
+        raw_payload={
+            "bill_source": "icbc_credit",
+            "offset_source": "icbc_credit_return",
+        },
+    )
+    assert evaluate_refund_offset(refund, [expense]) is None
+
+
 def test_refund_same_account_exact_without_merchant_is_pending_not_silent():
     expense = _fv(
         id="e", amount=Decimal("-100"), account_id="1",

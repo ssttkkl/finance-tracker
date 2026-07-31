@@ -17,7 +17,7 @@ from ft.domain.relations.core.types import (
     CONFIDENCE_STRONG, CONFIDENCE_WEAK, FactView, RelationEvidence, RelationKind,
     RelationProposal, RelationStatus, RULE_REFUND_DIAMOND_V1, SUBTYPE_NONE,
 )
-from ft.domain.relations.refund.signals import _refundish_text, has_refund_signal
+from ft.domain.relations.refund.signals import has_refund_signal_for_fact
 def match_diamond_bank_refunds(
     facts: Sequence[FactView],
     *,
@@ -65,7 +65,7 @@ def match_diamond_bank_refunds(
                 continue
             if f.signed_amount <= 0:
                 continue
-            if not (_refundish_text(f) or has_refund_signal(f.text)):
+            if not has_refund_signal_for_fact(f):
                 continue
             seeds.append(f)
 
@@ -129,6 +129,4 @@ def match_diamond_bank_refunds(
         used.add(bank_pay_id)
         used.add(bank_ref.id)
     return out
-
-
 

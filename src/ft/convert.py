@@ -1499,6 +1499,7 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                 # 从金额行向后扫描
                 counterparty = ""
                 description = ""
+                summary = ""
                 j = i + 1
                 while j < min(len(lines), i + 12):
                     s = lines[j].strip()
@@ -1513,6 +1514,10 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                         continue
                     if not s:
                         continue
+                    if s in ("消费", "退货", "退款", "转帐", "利息", "结息"):
+                        summary = s
+                        if s == "消费":
+                            continue
                     if s in ("人民币", "美元", "港币", "日元", "消费", "借", "贷",
                              "对方户名", "对方账号", "摘要", "交易场所",
                              "交易卡号", "收", "支", "交易币种", "入账币种",
@@ -1526,8 +1531,6 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     if counterparty and re.match(r"^\d", s) and "****" in s:
                         continue
                     if counterparty and re.match(r"^\d{4,}$", s):
-                        continue
-                    if s in ("转帐", "退款", "利息", "结息"):
                         continue
                     if s.startswith("手机银行") or s.startswith("网上银行"):
                         description = s
@@ -1566,10 +1569,12 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     "counterparty": normalized_cp,
                     "note": enriched_desc[:80],
                     "category": category,
+                    "summary": summary,
                     "payment_method": payment_method,
                     "card_number": card_number,
                     "_raw_cp": counterparty,  # 保存原始 cp 用于退款匹配
                     "_refund_signal": "",
+                    "refund_signal": "",
                     "_fact_id": f"icbc_credit_{fact_hash}",
                 }
                 if offset_type:
@@ -1578,6 +1583,8 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     merchant_text = description if counterparty == "退货" and description else counterparty
                     rec["_is_refund"] = True
                     rec["_refund_signal"] = "icbc_credit_return"
+                    if summary == "退货":
+                        rec["refund_signal"] = "icbc_credit_return"
                     rec["_icbc_refund_merchant_trusted"] = not _is_icbc_credit_untrusted_merchant_text(merchant_text)
                 elif offset_type in {"benefit_rebate", "campaign_cashback", "fee_reversal"}:
                     rec = _build_icbc_credit_offset_income(rec, offset_type)
@@ -1855,6 +1862,7 @@ def _parse_icbc_debit_row(row: list) -> dict | None:
         "currency": currency,
         "counterparty": counterparty,
         "note": summary,
+        "summary": summary,
         "category": category,
         "payment_method": channel,
         "_raw_cp": counterparty,
@@ -1863,6 +1871,7 @@ def _parse_icbc_debit_row(row: list) -> dict | None:
         "_is_refund": debit_offset_type == "refund",
         "_is_reversal": debit_offset_type == "reversal",
         "_refund_signal": "icbc_debit_refund" if debit_offset_type == "refund" and amount > 0 else "",
+        "refund_signal": "icbc_debit_return" if summary == "退货" and amount > 0 else "",
     }
 
 
@@ -1972,7 +1981,7 @@ def _build_output_row(
     if currency and not rec.get("currency"):
         row_currency = currency
 
-    return {
+    output = {
         "record_id": provider_record_id,
         "date": _rec_date(rec),
         "amount": rec["amount"],
@@ -1994,6 +2003,10 @@ def _build_output_row(
         "offset_match_type": rec.get("offset_match_type", ""),
         "proposed_action": rec.get("proposed_action", "leave_as_is"),
     }
+    if bill_type in {"icbc_credit", "icbc_debit"}:
+        output["summary"] = rec.get("summary", "")
+        output["refund_signal"] = rec.get("refund_signal", "")
+    return output
 
 
 def _prepare_convert_rows(path: str, source: str, password: str = None):

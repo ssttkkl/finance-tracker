@@ -28,7 +28,7 @@ from ft.domain.relations.core.types import (
 from ft.domain.relations.mirror.match import match_payment_mirrors_greedy
 from ft.domain.relations.refund.diamond import match_diamond_bank_refunds
 from ft.domain.relations.refund.match import evaluate_refund_offset
-from ft.domain.relations.refund.signals import has_refund_signal
+from ft.domain.relations.refund.signals import has_refund_signal_for_fact
 from ft.domain.relations.transfer.match import match_transfer_pairs_phase_c
 
 
@@ -65,9 +65,7 @@ def bank_refund_seed_ids(facts: Sequence[FactView], *, blocked: set[str]) -> lis
             continue
         if f.signed_amount <= 0:
             continue
-        if has_refund_signal(f.text) or any(
-            tok in f.text for tok in ("退货", "退款", "消费退货")
-        ):
+        if has_refund_signal_for_fact(f):
             out.append(f.id)
     return out
 

@@ -185,3 +185,52 @@ def test_is_platform_import_refund_source_helper():
         source="icbc",
     )
     assert is_platform_import_refund_source(f2) is False
+
+
+def test_icbc_credit_refund_source_snapshot_is_consumed_idempotently():
+    from ft.adapters.relational.models import TransactionRelationModel
+    from ft.application.relations import RelationService
+
+    sessions, UoW = _db()
+    with UoW(sessions, "ws") as uow:
+        uow.accounts.add_raw({"name": "工行信用卡", "type": "loan", "currency": "CNY"})
+        expense_id = uow.cashflows.add("loan", {
+            "occurred_at": "2026-05-25 19:11:37",
+            "amount": "-272.00",
+            "currency": "CNY",
+            "counterparty": "美团App山葵村烤肉",
+            "note": "美团支付-美团App山葵村烤肉",
+            "category": "expense",
+            "account_name": "工行信用卡",
+            "source_type": "icbc_credit",
+            "source_payload": {"bill_source": "icbc_credit", "summary": "消费"},
+        })
+        refund_id = uow.cashflows.add("loan", {
+            "occurred_at": "2026-05-25 19:13:04",
+            "amount": "272.00",
+            "currency": "CNY",
+            "counterparty": "美团App山葵村烤肉",
+            "note": "美团支付-美团App山葵村烤肉",
+            "category": "income",
+            "account_name": "工行信用卡",
+            "source_type": "icbc_credit",
+            "source_payload": {
+                "bill_source": "icbc_credit",
+                "summary": "退货",
+                "refund_signal": "icbc_credit_return",
+            },
+        })
+        uow.commit()
+
+    service = RelationService(UoW(sessions, "ws"))
+    first = service.check(seed_fact_ids=[refund_id], trigger="manual_range", seed_ref="icbc-1")
+    second = service.check(seed_fact_ids=[refund_id], trigger="manual_range", seed_ref="icbc-2")
+    assert first.ok is True
+    assert second.ok is True
+    with sessions() as session:
+        relations = list(session.scalars(select(TransactionRelationModel)))
+        assert len(relations) == 1
+        assert relations[0].kind == "refund_offset"
+        assert {str(relations[0].primary_fact_id), str(relations[0].secondary_fact_id)} == {
+            str(expense_id), str(refund_id)
+        }

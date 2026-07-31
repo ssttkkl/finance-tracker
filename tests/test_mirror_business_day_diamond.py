@@ -19,7 +19,7 @@ from ft.domain.relations import (
 
 
 def _fv(id, amount, *, account, bill_source=None, note="", counterparty="",
-        occurred="", raw_date="", category="", source=None):
+        occurred="", raw_date="", category="", source=None, raw_payload=None):
     fid = str(id)
     if bill_source is None:
         if fid.startswith("p") or "alipay" in fid or "wechat" in fid:
@@ -41,7 +41,7 @@ def _fv(id, amount, *, account, bill_source=None, note="", counterparty="",
         bill_source=bill_source,
         source=src,
         fact_type=FactType.CASH.value,
-        raw_payload={"date": raw_date} if raw_date else None,
+        raw_payload=raw_payload if raw_payload is not None else ({"date": raw_date} if raw_date else None),
     )
 
 
@@ -107,6 +107,22 @@ def test_diamond_refund():
     assert props[0].status == RelationStatus.ACCEPTED.value
     assert props[0].primary_fact_id == bank_pay.id
     assert props[0].secondary_fact_id == bank_ref.id
+
+
+def test_diamond_icbc_debit_requires_formal_return_signal():
+    bank_pay = _fv("bp", -19.90, account="icbc", bill_source="icbc_debit",
+                   note="消费", counterparty="支付宝网络")
+    bank_ref = _fv("br", 19.90, account="icbc", bill_source="icbc_debit",
+                   note="退款", counterparty="支付宝网络",
+                   raw_payload={"bill_source": "icbc_debit", "summary": "退款"})
+    plat_pay = _fv("pp", -19.90, account="ali", note="饭盒", counterparty="店")
+    plat_ref = _fv("pr", 19.90, account="ali", note="退款-饭盒", counterparty="店")
+    props = match_diamond_bank_refunds(
+        [bank_pay, bank_ref, plat_pay, plat_ref],
+        accepted_mirrors=[(bank_ref.id, plat_ref.id), (plat_pay.id, bank_pay.id)],
+        accepted_platform_refunds=[(plat_pay.id, plat_ref.id)],
+    )
+    assert props == []
 
 
 def test_fact_is_bank_date_only_yyyy_mm_dd_len10():
