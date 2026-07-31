@@ -190,8 +190,8 @@ Playwright；不新增第三方图算法、任务队列或缓存依赖。
 ```
 
 删除或失效关系可能把一个组拆成多个，因此必须从完整 `before_ids` 重新遍历新图，不能只重算仍直接相连
-的端点。新增关系可能合并两个组，因此变更前需分别展开两个端点。投影尚未初始化时，除重建命令外的
-现金或关系语义写入返回 `ProjectionUnavailableError`，避免事实源在没有派生版本时继续漂移。
+的端点。已有活动投影版本时，现金或关系语义写入必须与增量维护同事务提交；投影维护失败时回滚事实源。投影
+尚未初始化时，合法事实源写入可以提交，但不生成或维护投影；决定跳过维护前必须在与首次重建相同的工作区—投影状态锁域内重新确认未初始化，只有显式 `ft projections rebuild` 可以发布首个活动数据集，读取端在此之前继续返回 `ProjectionUnavailableError`。
 
 `ft transfer` 是例外中的已知事实构造：它在同一事务创建两条现金流水和一条已确认
 `transfer_pair`，随后构建一个隐藏投影，不依赖后续匹配器猜测。
@@ -229,7 +229,7 @@ schema 已升级
 
 合同见 [web-api.md](contracts/web-api.md)。列表查询必须以单条 SQL 的活动状态 CTE 读取版本和数据集，并由该
 CTE 同时约束游标版本校验、限长页面候选行和投影关系依据；查询结果在应用层按投影行归组为关系摘要，下一页
-游标只编码这条查询返回的版本与末行排序键。不得先读取活动状态后再发起页面或关系摘要 SQL，也不得依赖
+游标只编码这条查询返回的版本与末行排序键。解码 cursor 后必须先验证 JSON 顶层为对象，再验证 `v` 与 `version` 为非布尔整数、`workspace`、`occurred_at` 与 `projection_id` 为字符串、`filters` 为完整筛选对象；任何解码、形状或字段类型错误统一返回 `invalid_cursor`。不得先读取活动状态后再发起页面或关系摘要 SQL，也不得依赖
 PostgreSQL 默认 `READ COMMITTED` 会话在多条 SQL 间保持快照；SQLite 和 PostgreSQL 都以这条单语句的数据库
 快照证明等价行为。游标版本不一致抛出 `ProjectionUpdatedError`；无活动数据集抛出 `ProjectionUnavailableError`。
 证据金额和投影净额统一使用无指数形式的规范十进制字符串，不依赖
@@ -442,3 +442,33 @@ SQLite 连接不得创建文件或旁路文件，PostgreSQL 读取必须在数�
 
 **UNRESOLVED**：无。
 **VERDICT**：020 收敛通过。真实 SQLite 已完成授权的历史关系修复和投影重建；本轮双后端矩阵、共享合同、获批排除的 Python 回归、标准 Web 测试和构建均已通过。gstack QA 因工作树前置条件未运行，等价浏览器证据已记录在 `quickstart.md`。
+
+## 021 审计工作台合并记录
+
+**例外授权**：用户于 2026-07-30 明确授权把 `021-modern-web-ui-design` 的已交付展示层规范、验证记录和兼容性合同合并回本 Complete feature，并删除 021 重复 artifacts。本次受控 Flow-Back 例外只整理当前收支账本的唯一规格入口；不改变 `src/ft/`、`web/src/api/`、数据库、迁移、依赖或 `022-investment-ledger-browser-web`。
+
+### 现行展示层架构
+
+```text
+既有本机 API（投影、账户、证据端点）
+             │
+             ▼
+CashLedgerPage（请求取消、请求代次、版本更新、焦点恢复）
+  ├── CashFiltersBar（默认折叠、范围摘要、即时筛选）
+  ├── CashTable（八列语义、移动端真实字段）
+  ├── LoadMoreControl（observer 自动加载与按钮回退）
+  └── EvidenceDetail（证据审阅、焦点圈定与关闭回焦）
+```
+
+前端继续只消费既有 DTO。列表状态由累计记录、下一个 cursor、首批加载、追加加载和追加错误组成：首批成功替换记录；追加按服务端顺序并以 `projection_id` 去重；筛选或版本更新取消请求、递增代次并从 `null` cursor 重读；追加失败保留记录且只允许人工重试。
+
+### 视觉、响应式与验证
+
+- 使用现有 `Noto Sans SC` 和 `IBM Plex Mono`；颜色、字体、间距、边界、动效和层级只引用 `web/src/styles.css` 的命名令牌。
+- `IntersectionObserver` 与“加载更多”共享防重入加载逻辑；无更多记录、追加中、追加失败和卸载时停止自动触发。
+- 1440 × 900、1024 × 768 支持并列详情；768 × 1024 以下重排；390 × 844 使用卡片列表和全屏详情；额外检查 320、375、414、768 px 的横向溢出、焦点、触控目标和表头语义。
+- `contracts/web-ui-compatibility.md` 是本计划的 UI 读取、筛选、连续加载、证据、失败与视觉快照合同；`web-api.md`、`projection-cli.md` 和 `local-runtime.md` 继续定义既有 API、CLI 和本机运行时合同。
+
+### 回滚
+
+本次 artifact 整合可通过回退本次提交恢复 020/021 分离目录；不涉及数据、schema 或运行时回滚。021 实现与验证证据位于提交 `3822ecd`、`7471a8d`，并由本目录的任务、quickstart 和兼容性合同追溯。

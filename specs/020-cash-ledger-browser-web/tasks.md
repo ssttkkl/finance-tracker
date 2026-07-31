@@ -312,3 +312,34 @@ SQLite 自动化测试只能操作 `/Users/huangwenlong/.ft/finance-tracker.db` 
 - 本 feature 不识别新的换汇或银证转账关系，不增加关系审查 UI，不提供原始流水回退开关。
 - PostgreSQL 使用本机安装实例；不得使用容器，也不得升级 gstack。
 - 本轮只完成本地实现与验证，不提交、不推送、不创建 PR。
+
+---
+
+## Phase 12：合并 021 审计工作台规范
+
+- [X] T113 按用户明确授权，将 021 的默认折叠筛选、连续加载、主列表术语、移动端字段、焦点、视觉令牌和快照合同映射到本 spec 的 FR-033～FR-040、`plan.md`、`research.md`、`data-model.md` 与 `contracts/web-ui-compatibility.md`；不改变 022 的范围。
+- [X] T114 将 021 实现与验证提交 `3822ecd`、`7471a8d` 记录为 020 的展示层交付证据，并以现有前端组件、E2E、生产预览与视觉快照矩阵确认不新增 API、后端、持久化或依赖。
+- [X] T115 删除已被本目录完整吸收的 `specs/021-modern-web-ui-design/`，将 `.specify/feature.json` 切回 020；运行 `$speckit-analyze`、`$speckit-converge`、review、QA 和最终回归后记录结果。最终验证已逐项确认：FR-033 默认折叠与范围摘要、FR-034 连续加载/同 cursor 防重入/失败重试、FR-035 取消与迟到响应、FR-036 八列与业务术语、FR-037 移动真实字段和表头语义、FR-038 命名令牌、FR-039 详情焦点和响应式、FR-040 多视口快照。021 删除由用户明确授权；020 成为唯一活跃规格，022 未改动。
+
+---
+
+## Phase 13：发布前审查 Flow-Back 修复
+
+- [X] T116 [P] 先为未初始化工作区的事实源写入、首次显式重建发布和已有活动投影维护失败回滚补充失败测试，覆盖 FR-010、FR-011、FR-013、SC-007 与双后端等价性。
+- [X] T117 [P] 先为 Base64 解码后 JSON 顶层为数组、字符串、数字、布尔值或 `null` 的 cursor 补应用和 Web 合同失败测试，断言稳定 `invalid_cursor` 与 HTTP 400，覆盖 FR-017、FR-029。
+- [X] T118 [P] 先为投影成员与投影关系依据表的 `dataset_id` 索引补 SQLite 和真实 PostgreSQL 升级、降级、再升级测试，断言事实源不变，覆盖 FR-009、FR-015、FR-020。
+- [X] T119 [P] 为账户目录失败后的重试恢复、证据详情 `Escape`、Tab 与 Shift+Tab 焦点圈定补前端回归测试，覆盖 FR-023、FR-024、FR-039。
+- [X] T120 修改 `src/ft/application/cash_projections.py`，在 `uninitialized` 时跳过派生维护并允许合法事实源提交；保持 `ready` 时维护失败回滚和读取端投影不可用合同。
+- [X] T121 修改 `src/ft/application/web_queries.py`，在 cursor 访问字段前验证 JSON 顶层对象并统一映射为 `invalid_cursor`。
+- [X] T122 在 ORM 和新的 Alembic revision 中添加两个派生子表的 `dataset_id` 索引；升级与降级只改变索引，不改写事实源或投影业务数据。
+- [X] T123 运行定向、SQLite、真实 PostgreSQL、前端与完整回归；执行 `$speckit-analyze`、`$speckit-converge`、gstack review、gstack QA、`git diff --check`，将实际证据回写 `quickstart.md`。
+
+---
+
+## Phase 14：发布前复审 Flow-Back 修复
+
+- [X] T124 [P] 为未初始化事实源写入与首次显式重建的共享锁域补 PostgreSQL 回归，证明跳过维护前锁定工作区与投影状态，覆盖 FR-010、FR-011、SC-004、SC-010。
+- [X] T125 [P] 为完整 cursor 对象中的非法字段类型补应用和 Web 合同失败测试，覆盖 `v: true`、非字符串 `projection_id`、非法 `version`、`workspace`、`filters`、`occurred_at` 及无时区时间，断言 `invalid_cursor` 与 HTTP 400，覆盖 FR-017、FR-029。
+- [X] T126 修改 `src/ft/adapters/relational/projections.py` 与 `src/ft/application/cash_projections.py`，在决定未初始化跳过维护前复用工作区—投影状态锁；保持 ready 增量维护、显式首构建和 SQLite 事务语义。
+- [X] T127 修改 `src/ft/application/web_queries.py`，严格验证 cursor 合同字段类型，禁止布尔整数和 `projection_id` 宽松字符串转换。
+- [X] T128 运行双后端回归、完整验证、收敛、review、QA 和最终差异检查；仅记录实际证据后创建目标为 `refactor/web` 的 PR。

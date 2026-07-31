@@ -74,11 +74,25 @@ def _encode(workspace, version, filters, occurred_at, projection_id):
 def _decode(cursor, workspace, filters):
     try: payload = json.loads(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)))
     except Exception as exc: raise ValueError("invalid_cursor") from exc
-    if payload.get("v") != 1 or payload.get("workspace") != workspace or payload.get("filters") != filters.as_cursor_data(): raise ValueError("invalid_cursor")
+    if not isinstance(payload, dict): raise ValueError("invalid_cursor")
     try:
+        wire_version = payload["v"]
+        cursor_workspace = payload["workspace"]
+        cursor_filters = payload["filters"]
         version = payload["version"]
-        if isinstance(version, bool) or not isinstance(version, int): raise ValueError
-        return version, datetime.fromisoformat(payload["occurred_at"]), str(payload["projection_id"])
+        occurred_at = payload["occurred_at"]
+        projection_id = payload["projection_id"]
+        if (
+            type(wire_version) is not int or wire_version != 1
+            or not isinstance(cursor_workspace, str) or cursor_workspace != workspace
+            or not isinstance(cursor_filters, dict) or cursor_filters != filters.as_cursor_data()
+            or type(version) is not int
+            or not isinstance(occurred_at, str)
+            or not isinstance(projection_id, str)
+        ): raise ValueError
+        parsed_occurred_at = datetime.fromisoformat(occurred_at)
+        if parsed_occurred_at.tzinfo is None: raise ValueError
+        return version, parsed_occurred_at, projection_id
     except Exception as exc: raise ValueError("invalid_cursor") from exc
 
 class CashLedgerQueryService:

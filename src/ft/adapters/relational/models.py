@@ -268,6 +268,7 @@ class CashProjectionMemberModel(Base):
         ForeignKeyConstraint(["workspace_id", "cash_transaction_id"], ["cash_transactions.workspace_id", "cash_transactions.id"], ondelete="RESTRICT", name="fk_cash_projection_members_cash"),
         UniqueConstraint("workspace_id", "dataset_id", "cash_transaction_id", name="uq_cash_projection_members_dataset_cash"),
         UniqueConstraint("projection_row_id", "ordinal", name="uq_cash_projection_members_ordinal"),
+        Index("ix_cash_projection_members_dataset", "dataset_id"),
     )
 
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
@@ -286,6 +287,7 @@ class CashProjectionRelationModel(Base):
         ForeignKeyConstraint(["workspace_id", "transaction_relation_id"], ["transaction_relations.workspace_id", "transaction_relations.id"], ondelete="RESTRICT", name="fk_cash_projection_relations_relation"),
         UniqueConstraint("workspace_id", "dataset_id", "transaction_relation_id", name="uq_cash_projection_relations_dataset_relation"),
         UniqueConstraint("projection_row_id", "ordinal", name="uq_cash_projection_relations_ordinal"),
+        Index("ix_cash_projection_relations_dataset", "dataset_id"),
     )
 
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)

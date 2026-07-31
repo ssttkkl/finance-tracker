@@ -16,6 +16,16 @@ const page = {
   page_size: 50,
   filters: {},
 };
+const projection = page.items[0];
+const evidence = {
+  projection_version: 1,
+  projection,
+  root_record: { ...projection, id: "preview-001", source_snapshot: { merchant: "自包含预览投影" } },
+  members: [{ ...projection, id: "preview-001", roles: ["root"] }],
+  accepted_relations: [],
+  inactive_relation_hints: [],
+  refund_timeline: [],
+};
 
 const server = createServer((request, response) => {
   response.setHeader("Access-Control-Allow-Origin", allowedOrigin);
@@ -26,6 +36,10 @@ const server = createServer((request, response) => {
   }
   if (request.url?.startsWith("/api/v1/accounts")) {
     response.end(JSON.stringify({ items: [account] }));
+    return;
+  }
+  if (request.url?.startsWith("/api/v1/evidence/cash-projections/")) {
+    response.end(JSON.stringify(evidence));
     return;
   }
   if (request.url?.startsWith("/api/v1/cash-projections")) {

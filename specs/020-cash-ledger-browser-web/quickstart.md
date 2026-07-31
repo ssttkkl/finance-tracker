@@ -855,7 +855,33 @@ npm run build
 `127.0.0.1:5174` 与 `127.0.0.1:8766` 退出；在允许本机监听的环境中以相同标准命令复跑后均通过。终端中的
 `rvm` 对 `ps` 的权限提示未影响任何命令的退出码。
 
-gstack `review` 已完成对 `a88139e..3e1e4b3` 的 020 只读复核，未发现可操作问题。gstack `qa` 未运行：该 skill
-要求干净工作树，而当前存在用户保留的 019、021、022、023 未提交工作，且本次禁止提交或暂存。标准 Playwright
-矩阵已覆盖键盘筛选、连续分页、证据详情、空/错误状态、窄屏、减少动效、背景不可交互、无横向溢出和生产预览，
-是本轮的等价浏览器验证证据。
+gstack `review` 已完成对 `a88139e..3e1e4b3` 的 020 只读复核，未发现可操作问题。历史 020 交付阶段的 gstack `qa` 因当时工作树前置条件未运行，标准 Playwright 矩阵作为等价浏览器验证证据；该历史限制不适用于下方合并后的最终 QA。
+
+## 021 审计工作台合并验证（2026-07-30）
+
+021 的展示层交付已合并入本目录，实施证据为 `3822ecd` 与 `7471a8d`。使用去标识化 fixture 运行：
+
+```sh
+cd web
+npm test
+npm run build
+npm run test:e2e
+npm run test:preview
+npx playwright test -c tests/playwright.visual.config.ts
+```
+
+结果：Vitest 为 4 个文件、21 项测试通过；构建通过；连续加载 E2E 为 3 项通过；生产预览为 1 项通过，且覆盖成功证据详情；视觉快照为 8 项通过。gstack `qa` 在干净 worktree 覆盖默认/展开筛选、桌面与 390 px 布局、成功证据详情、`Escape` 关闭、筛选和控制台，未发现问题。快照使用受版本控制的去标识化基线；只有确认差异来自批准的展示层变更时才更新。
+
+本次将 021 artifacts 合并并删除后，复跑 `git diff --check`、活跃 feature 前置检查和禁止路径审计；020 为唯一活跃规格，`specs/022-investment-ledger-browser-web/` 未发生改动。
+
+现行 020 Web 行为以 `contracts/web-ui-compatibility.md` 为兼容性合同：筛选默认折叠，用户通过自动连续加载或“加载更多”浏览收支记录，不显示上一页/下一页；稳定 cursor、版本更新、请求取消、迟到响应保护、证据焦点与无障碍语义保持不变。
+
+## Phase 13：发布前 Flow-Back 修复验证（2026-07-31）
+
+- 未初始化工作区现在允许合法事实源写入；账本读取在首次显式 `ft projections rebuild` 前仍返回 `projection.unavailable`，首次重建后发布首个活动数据集。
+- Base64 解码后 JSON 顶层为数组、字符串、数字、布尔值或 `null` 的 cursor，应用层统一返回 `invalid_cursor`，Web 合同为 HTTP 400。
+- Alembic `20260731_12` 仅新增 `cash_projection_members(dataset_id)` 与 `cash_projection_relations(dataset_id)` 索引；SQLite 和真实 PostgreSQL 均验证 `upgrade → downgrade → upgrade`，且事实源未被改写。
+- 后续发布前复审补充：未初始化写入在决定跳过维护前锁定工作区与投影状态；真实 PostgreSQL 并发回归证明该锁域生效。cursor 还严格验证 `v`、`version`、`workspace`、`filters`、`occurred_at` 和 `projection_id`；无时区时间及其他非法字段统一返回 `invalid_cursor` / HTTP 400。
+- 已执行：本轮定向应用、Web 合同与 PostgreSQL 并发测试 `41 passed, 10 skipped`；SQLite 与真实 PostgreSQL 投影、迁移、Web 契约矩阵 `94 passed, 1 skipped`；完整 Python 回归（排除既有财富冷构建性能门禁）`1021 passed, 81 skipped, 1 deselected`；`uv build`、`uv run alembic heads`、`git diff --check` 通过。防御性复审复核当前差异后无 P1/P2 发现。
+- 已执行前端：Vitest `23 passed`、生产构建通过、Playwright E2E `3 passed`、生产预览 `1 passed`、视觉快照 `8 passed`。gstack QA 使用隔离 Vite 与去标识化预览 API，覆盖默认列表、宽屏、`390 × 844` 窄屏、成功证据详情、`Escape` 关闭与控制台；发现问题 `0`，控制台错误 `0`。
+- 全量 Python 回归曾实际运行并暴露两项非本轮产品回归：迁移清单断言已随新增 revision 修复；既有 SQLite 财富冷构建 p95 为 5.83 s，超过 5 s 门禁，因此按既有批准的性能门禁例外排除该单个用例后完成完整回归。

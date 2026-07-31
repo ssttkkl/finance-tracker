@@ -1,4 +1,4 @@
 {
-  "feature_directory": "specs/021-modern-web-ui-design",
-  "note": "021-modern-web-ui-design：现代化既有收支账本展示层，保留 020 的筛选、稳定 `cursor`、连续加载、证据详情和无障碍合同；明确排除月度摘要、净现金流、跨币种计算和投资账本。"
+  "feature_directory": "specs/020-cash-ledger-browser-web",
+  "note": "020-cash-ledger-browser-web：收支投影、双后端、本机 Web/API 与现代化审计工作台的统一现行规格；021 内容已按用户授权合并，022 投资账本保持独立。"
 }

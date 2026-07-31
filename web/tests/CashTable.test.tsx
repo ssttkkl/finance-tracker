@@ -12,6 +12,11 @@ it("在交易对方后展示备注，并且不把关系摘要作为列表内容"
   render(<CashTable items={[projection("1", "payment_mirror", "午间消费"), projection("2", "refund_offset"), projection("3", "unknown_kind")]} onEvidence={() => undefined} />);
 
   expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易对方", "备注", "分类", "金额", "来源", "操作"]);
+  expect(screen.getByRole("table")).toHaveClass("cash-table");
+  expect(screen.getByRole("cell", { name: "交易对方1" })).toHaveAttribute("headers", "cash-column-counterparty");
+  expect(screen.getAllByText("-12.50 CNY")[0]).toHaveAttribute("data-direction", "支出");
+  expect(screen.getByRole("row", { name: /交易对方1/ })).toHaveAttribute("data-projection-id", "1");
+  expect(screen.getByText("午间消费")).toHaveAttribute("headers", "cash-column-note");
   expect(screen.queryByRole("columnheader", { name: "组成方式" })).not.toBeInTheDocument();
   expect(screen.getByText("午间消费")).toBeInTheDocument();
   expect(screen.getAllByText("未提供")).toHaveLength(2);
