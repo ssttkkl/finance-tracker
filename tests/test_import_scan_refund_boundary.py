@@ -82,6 +82,8 @@ def test_scan_skips_duplicate_when_active_edge_exists():
         })
         uow.commit()
 
+    from ft.application.cash_projections import CashProjectionService
+    CashProjectionService(sessions, "ws").rebuild()
     svc = RelationService(UoW(sessions, "ws"))
     result = svc.check(seed_fact_ids=[exp_id, ref_id], trigger="manual_range", seed_ref="t")
     assert result.ok is True
@@ -131,6 +133,8 @@ def test_scan_phase_a_creates_alipay_order_prefix_edge():
         })
         uow.commit()
 
+    from ft.application.cash_projections import CashProjectionService
+    CashProjectionService(sessions, "ws").rebuild()
     svc = RelationService(UoW(sessions, "ws"))
     result = svc.check(seed_fact_ids=[ref_id, exp_id], trigger="manual_range", seed_ref="t2")
     assert result.ok is True

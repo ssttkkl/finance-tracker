@@ -8,6 +8,8 @@ import pytest
 from ft.domain.relations import (
     FactView,
     RelationKind,
+    RelationEvidence,
+    RelationProposal,
     RelationStatus,
     evaluate_refund_offset,
     evaluate_transfer_pair,
@@ -328,6 +330,8 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
     )
     assert accepted.ok
     assert accepted.details["status"] == RelationStatus.ACCEPTED.value
+    assert accepted.details["primary_fact_id"] == other
+    assert accepted.details["secondary_fact_id"] == refund_id
     assert accepted.details["secondary_fact_id"] not in (None, "")
     assert accepted.details["primary_fact_id"] not in (None, "")
     assert accepted.details["secondary_fact_id"] != accepted.details["primary_fact_id"]
@@ -335,6 +339,84 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
     projection = services.relations.project()
     # One expense netted by full refund → remaining expenses 200 (2×100).
     assert Decimal(str(projection["expenses"]["CNY"])) == Decimal("200")
+
+
+def test_system_open_refund_auto_accept_keeps_expense_as_primary(relation_runtime):
+    services = relation_runtime.services
+    assert services.accounts.create_account("支付宝", "cash", "CNY").ok
+    assert services.cashflow.add_manual_transaction(
+        amount=Decimal("-70.00"),
+        counterparty="京东",
+        account_name="支付宝",
+        currency="CNY",
+        date="2026-04-01 10:00:00",
+        note="原消费",
+        category="expense",
+    ).ok
+    assert services.cashflow.add_manual_transaction(
+        amount=Decimal("70.00"),
+        counterparty="京东",
+        account_name="支付宝",
+        currency="CNY",
+        date="2026-04-02 10:00:00",
+        note="退款",
+        category="income",
+    ).ok
+
+    with services.uow as uow:
+        rows = uow.cashflows.list_detailed()
+        expense_id = next(row["id"] for row in rows if Decimal(str(row["amount"])) < 0)
+        refund_id = next(row["id"] for row in rows if Decimal(str(row["amount"])) > 0)
+        open_relation_id = uow.relations.add({
+            "kind": RelationKind.REFUND_OFFSET.value,
+            "primary_fact_id": refund_id,
+            "secondary_fact_id": None,
+            "primary_fact_type": "cash",
+            "secondary_fact_type": None,
+            "anchor_fact_id": refund_id,
+            "status": RelationStatus.PENDING_REVIEW.value,
+            "rule_id": "refund_offset.open_leg",
+            "confidence": "weak",
+            "evidence": {"open_leg": True, "anchor_role": "refund"},
+            "created_by": "system",
+        })
+        proposal = RelationProposal(
+            kind=RelationKind.REFUND_OFFSET.value,
+            primary_fact_id=expense_id,
+            secondary_fact_id=refund_id,
+            status=RelationStatus.ACCEPTED.value,
+            rule_id="refund_offset.auto_accept",
+            confidence="strong",
+            evidence=RelationEvidence(extras={"refund_amount": "70"}),
+            anchor_fact_id=refund_id,
+        )
+        accepted = services.relations._persist_proposal(
+            uow,
+            proposal,
+            {expense_id: Decimal("70")},
+        )
+        uow.commit()
+
+    assert accepted is not None
+    assert accepted["id"] == open_relation_id
+    assert accepted["status"] == RelationStatus.ACCEPTED.value
+    assert accepted["primary_fact_id"] == expense_id
+    assert accepted["secondary_fact_id"] == refund_id
+    assert accepted["primary_fact_id"] != accepted["secondary_fact_id"]
+
+    from ft.application.cash_projections import CashProjectionService
+
+    CashProjectionService(relation_runtime.sessions, relation_runtime.workspace_id).rebuild()
+    with relation_runtime.sessions() as session:
+        from ft.adapters.relational.projections import RelationalCashProjectionRepository
+
+        facts, relations = RelationalCashProjectionRepository(
+            session,
+            relation_runtime.workspace_id,
+        ).read_sources()
+    assert [(relation.primary_fact_id, relation.secondary_fact_id) for relation in relations] == [
+        (expense_id, refund_id),
+    ]
 
 
 def test_open_leg_reject_suppresses_reopen(relation_runtime):

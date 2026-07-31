@@ -117,11 +117,18 @@ def run_relation_phases(
     out: list[RelationProposal] = []
 
     # --- Phase B: payment_mirror ---
+    occupied_mirror_fact_ids = {
+        fact_id
+        for edge in ctx.accepted_mirrors
+        for fact_id in (edge.fact_a_id, edge.fact_b_id)
+        if fact_id
+    }
     mirror_props = match_payment_mirrors_greedy(
         active,
         aliases_by_tail=aliases_by_tail,
         seed_ids=seed_ids,
         index=index,
+        occupied_fact_ids=occupied_mirror_fact_ids,
     )
     for p in mirror_props:
         out.append(p)

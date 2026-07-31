@@ -223,9 +223,176 @@ def test_match_payment_mirrors_greedy_one_to_one():
     )
     props = match_payment_mirrors_greedy([p1, p2, b1])
     assert len(props) == 1
-    used = {props[0].primary_fact_id, props[0].secondary_fact_id}
-    assert "b1" in used
-    assert len(used & {"p1", "p2"}) == 1
+    assert {item.status for item in props} == {RelationStatus.PENDING_REVIEW.value}
+    assert {
+        frozenset((item.primary_fact_id, item.secondary_fact_id))
+        for item in props
+    } == {frozenset(("p1", "b1"))}
+
+
+def test_payment_mirror_equal_candidate_group_pairs_by_time_then_id():
+    p1 = _fv(
+        id="p1", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:00:00", counterparty="同一商户", note="消费",
+    )
+    p2 = _fv(
+        id="p2", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:01:00", counterparty="同一商户", note="消费",
+    )
+    b1 = _fv(
+        id="b1", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 09:00:00", counterparty="同一商户", note="扣款",
+    )
+    b2 = _fv(
+        id="b2", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:01:00", counterparty="同一商户", note="扣款",
+    )
+
+    proposals = match_payment_mirrors_greedy([b2, p2, b1, p1])
+
+    assert {frozenset((item.primary_fact_id, item.secondary_fact_id)) for item in proposals} == {
+        frozenset(("p1", "b1")),
+        frozenset(("p2", "b2")),
+    }
+    assert {item.status for item in proposals} == {RelationStatus.ACCEPTED.value}
+
+
+def test_payment_mirror_unequal_candidate_group_stays_pending_review():
+    p1 = _fv(
+        id="p1", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:00:00", counterparty="同一商户", note="消费",
+    )
+    p2 = _fv(
+        id="p2", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:01:00", counterparty="同一商户", note="消费",
+    )
+    b1 = _fv(
+        id="b1", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:02:00", counterparty="同一商户", note="扣款",
+    )
+
+    proposals = match_payment_mirrors_greedy([p1, p2, b1])
+
+    assert len(proposals) == 1
+    assert {item.status for item in proposals} == {RelationStatus.PENDING_REVIEW.value}
+    assert {frozenset((item.primary_fact_id, item.secondary_fact_id)) for item in proposals} == {
+        frozenset(("p1", "b1")),
+    }
+
+
+def test_payment_mirror_incomplete_candidate_group_stays_pending_review():
+    platform = _fv(
+        id="p1", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:00:00", counterparty="", note="消费",
+    )
+    bank = _fv(
+        id="b1", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:01:00", counterparty="", note="扣款",
+    )
+
+    proposals = match_payment_mirrors_greedy([platform, bank])
+
+    assert len(proposals) == 1
+    assert proposals[0].status == RelationStatus.PENDING_REVIEW.value
+
+
+def test_payment_mirror_rescan_does_not_cross_existing_accepted_pair():
+    p1 = _fv(
+        id="p1", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:00:00", counterparty="同一商户", note="消费",
+    )
+    p2 = _fv(
+        id="p2", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:01:00", counterparty="同一商户", note="消费",
+    )
+    b1 = _fv(
+        id="b1", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:02:00", counterparty="同一商户", note="扣款",
+    )
+    b2 = _fv(
+        id="b2", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:03:00", counterparty="同一商户", note="扣款",
+    )
+
+    proposals = match_payment_mirrors_greedy(
+        [p1, p2, b1, b2],
+        occupied_fact_ids={"p1", "b1"},
+    )
+
+    assert len(proposals) == 1
+    assert frozenset((proposals[0].primary_fact_id, proposals[0].secondary_fact_id)) == frozenset(("p2", "b2"))
+    assert proposals[0].status == RelationStatus.ACCEPTED.value
+
+
+def test_payment_mirror_uses_stable_channel_pair_order_and_global_endpoint_occupancy():
+    platform = _fv(
+        id="p1", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:00:00", counterparty="同一商户", note="消费",
+        bill_source="alipay", source="alipay",
+    )
+    ccb = _fv(
+        id="b-ccb", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:01:00", counterparty="同一商户", note="扣款",
+        bill_source="ccb", source="ccb",
+    )
+    icbc = _fv(
+        id="b-icbc", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:02:00", counterparty="同一商户", note="扣款",
+        bill_source="icbc", source="icbc",
+    )
+
+    proposals = match_payment_mirrors_greedy([icbc, platform, ccb])
+
+    assert len(proposals) == 1
+    assert frozenset((proposals[0].primary_fact_id, proposals[0].secondary_fact_id)) == frozenset(("p1", "b-ccb"))
+    endpoint_ids = [fact_id for proposal in proposals for fact_id in (proposal.primary_fact_id, proposal.secondary_fact_id)]
+    assert len(endpoint_ids) == len(set(endpoint_ids))
+
+
+def test_payment_mirror_service_does_not_persist_shared_endpoint_across_channel_pairs(relation_runtime):
+    from tests.test_transaction_relations_support import add_cash_fact, ensure_accounts
+
+    services = relation_runtime.services
+    ensure_accounts(services, [("结算账户", "cash")])
+    platform_id = add_cash_fact(
+        services,
+        account_name="结算账户",
+        amount="-10",
+        date="2026-06-13 10:00:00",
+        counterparty="同一商户",
+        source="alipay",
+        record_id="channel-pair-platform",
+    )
+    ccb_id = add_cash_fact(
+        services,
+        account_name="结算账户",
+        amount="-10",
+        date="2026-06-13 10:01:00",
+        counterparty="同一商户",
+        source="ccb",
+        record_id="channel-pair-ccb",
+    )
+    icbc_id = add_cash_fact(
+        services,
+        account_name="结算账户",
+        amount="-10",
+        date="2026-06-13 10:02:00",
+        counterparty="同一商户",
+        source="icbc",
+        record_id="channel-pair-icbc",
+    )
+
+    result = services.relations.check(
+        seed_fact_ids=[platform_id, ccb_id, icbc_id],
+        trigger="manual_range",
+        seed_ref="channel-pair-order",
+    )
+
+    assert result.ok
+    with services.uow as uow:
+        accepted = uow.relations.list_active(kind="payment_mirror", status="accepted")
+    assert len(accepted) == 1
+    assert {accepted[0]["primary_fact_id"], accepted[0]["secondary_fact_id"]} == {platform_id, ccb_id}
 
 
 def test_projection_mirror_counts_once_balances_both():

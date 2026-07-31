@@ -59,8 +59,10 @@ def _run_multi_account_and_jpy(sessions, unit_of_work_cls, workspace: str, tmp_p
     from ft.application.statement_import import StatementImportService
     from ft.domain.imports import StatementImportCommand
     from ft.adapters.relational import ensure_workspace
+    from ft.application.cash_projections import CashProjectionService
 
     ensure_workspace(sessions, workspace, name=workspace)
+    CashProjectionService(sessions, workspace).rebuild()
     mapping = _write_mapping(tmp_path / "mapping.yaml")
     monkeypatch.setattr(mapping_mod, "MAPPING_PATH", mapping)
 

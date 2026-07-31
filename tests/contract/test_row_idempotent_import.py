@@ -49,6 +49,9 @@ def _backend_uow(tmp_path, backend, workspace: str):
     create_schema(engine)
     sessions = create_session_factory(engine)
     ensure_workspace(sessions, workspace)
+    from ft.application.cash_projections import CashProjectionService
+
+    CashProjectionService(sessions, workspace).rebuild()
     return engine, RelationalUnitOfWork(sessions, workspace)
 
 

@@ -597,7 +597,7 @@ class RelationalRelationRepository:
     def get(self, relation_id) -> dict | None:
         row = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
-            TransactionRelationModel.id == relation_id,
+            TransactionRelationModel.id == _as_int_id(relation_id),
         ))
         return None if row is None else self._to_dict(row)
 
@@ -700,6 +700,7 @@ class RelationalRelationRepository:
         *,
         other_fact_id,
         other_fact_type: str = "cash",
+        primary_fact_id=None,
         status: str,
         decided_by: str,
         decision_reason: str = "",
@@ -707,14 +708,16 @@ class RelationalRelationRepository:
     ) -> dict:
         row = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
-            TransactionRelationModel.id == relation_id,
+            TransactionRelationModel.id == _as_int_id(relation_id),
         ))
         if row is None:
             raise ValueError(f"relation not found: {relation_id}")
         if row.secondary_fact_id is not None:
             raise ValueError("该关系已有对侧流水")
         other = _as_int_id(other_fact_id)
-        left, right = ordered_fact_pair(row.primary_fact_id, other)
+        primary = _as_int_id(primary_fact_id) if primary_fact_id is not None else row.primary_fact_id
+        secondary = row.primary_fact_id if primary_fact_id is not None else other
+        left, right = ordered_fact_pair(primary, secondary)
         conflict = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
             TransactionRelationModel.kind == row.kind,
@@ -728,7 +731,8 @@ class RelationalRelationRepository:
             raise ValueError(
                 f"无法绑定对侧流水：这两条账本记录已存在有效双边关系（{conflict.id}）"
             )
-        row.secondary_fact_id = other
+        row.primary_fact_id = primary
+        row.secondary_fact_id = secondary
         row.secondary_fact_type = other_fact_type or "cash"
         row.ordered_fact_a = _as_int_id(left)
         row.ordered_fact_b = _as_int_id(right)
@@ -749,7 +753,7 @@ class RelationalRelationRepository:
     ) -> dict:
         row = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
-            TransactionRelationModel.id == relation_id,
+            TransactionRelationModel.id == _as_int_id(relation_id),
         ))
         if row is None:
             raise ValueError(f"relation not found: {relation_id}")

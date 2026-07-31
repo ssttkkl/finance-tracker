@@ -41,6 +41,8 @@ def sqlite_runtime(tmp_path):
     create_schema(engine)
     sessions = create_session_factory(engine)
     ensure_workspace(sessions, "workspace")
+    from ft.application.cash_projections import CashProjectionService
+    CashProjectionService(sessions, "workspace").rebuild()
     try:
         yield engine, sessions
     finally:

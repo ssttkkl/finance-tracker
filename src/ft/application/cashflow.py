@@ -59,12 +59,16 @@ class CashflowService:
                 "source_type": bill_source or source or "",
                 "record_id": record_id,
             }
-            uow.cashflows.add(account.type, row)
+            fact_id = uow.cashflows.add(account.type, row)
             snap = uow.snapshot.load(lock=True)
             _ensure_snapshot_account(snap, account.type, account_name, operation_currency)
             uow.snapshot.update_balance(snap, account_name, account.type, operation_currency, amount)
             snap["updated_at"] = date_str
             uow.snapshot.save(snap)
+            from ft.application.cash_projections import CashProjectionService
+            CashProjectionService.maintain_if_ready_in_session(
+                uow._state().session, uow.workspace_id, {int(fact_id)},
+            )
             uow.commit()
             return CashflowResult.success(row={**row, "amount": format(amount, "f")}, account=account)
 
@@ -104,7 +108,7 @@ class CashflowService:
                 "source_type": "",
                                 "locked": "",
             }
-            uow.cashflows.add(account.type, row)
+            fact_id = uow.cashflows.add(account.type, row)
             if hasattr(uow, "wealth_facts"):
                 observed_at = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=WORKSPACE_TIMEZONE)
                 uow.wealth_facts.record_cash_checkin(
@@ -115,6 +119,10 @@ class CashflowService:
             uow.snapshot.set_balance(snap, account_name, account.type, operation_currency, balance)
             snap["updated_at"] = day
             uow.snapshot.save(snap)
+            from ft.application.cash_projections import CashProjectionService
+            CashProjectionService.maintain_if_ready_in_session(
+                uow._state().session, uow.workspace_id, {int(fact_id)},
+            )
             uow.commit()
             return CashflowResult.success(row={**row, "amount": "0"}, account=account, day=day)
 
@@ -179,13 +187,32 @@ class TransferService:
             to_row = _transfer_event(
                 date_str, real_to, to_acct, from_acct, to_currency, from_currency, "in", note
             )
-            _stage_transfer_event(uow, from_acct, from_row)
-            _stage_transfer_event(uow, to_acct, to_row)
+            from_fact_id = _stage_transfer_event(uow, from_acct, from_row)
+            to_fact_id = _stage_transfer_event(uow, to_acct, to_row)
+            if from_fact_id is not None and to_fact_id is not None:
+                subtype = (
+                    "credit_repayment" if "loan" in {from_acct.type, to_acct.type}
+                    else "currency_exchange" if from_currency != to_currency
+                    else "ordinary_transfer"
+                )
+                uow.relations.add({
+                    "kind": "transfer_pair", "subtype": subtype,
+                    "primary_fact_id": from_fact_id, "secondary_fact_id": to_fact_id,
+                    "primary_fact_type": "cash", "secondary_fact_type": "cash",
+                    "anchor_fact_id": from_fact_id, "status": "accepted",
+                    "rule_id": "manual.transfer.v1", "confidence": "manual", "evidence": {},
+                    "created_by": "manual",
+                })
             snap = uow.snapshot.load(lock=True)
             _apply_transfer_snapshot(snap, from_acct, from_currency, -amount)
             _apply_transfer_snapshot(snap, to_acct, to_currency, real_to)
             snap["updated_at"] = date
             uow.snapshot.save(snap)
+            if from_fact_id is not None and to_fact_id is not None:
+                from ft.application.cash_projections import CashProjectionService
+                CashProjectionService.maintain_if_ready_in_session(
+                    uow._state().session, uow.workspace_id, {int(from_fact_id), int(to_fact_id)},
+                )
             uow.commit()
 
             details = {
@@ -255,11 +282,11 @@ def _transfer_event(date_str: str, amount: Decimal, account, counterpart, curren
     }
 
 
-def _stage_transfer_event(uow: UnitOfWork, account, row: dict) -> None:
+def _stage_transfer_event(uow: UnitOfWork, account, row: dict) -> str | None:
     if account.type in {"security", "crypto"}:
         uow.investments.add(account.type, row)
-    else:
-        uow.cashflows.add(account.type, row)
+        return None
+    return uow.cashflows.add(account.type, row)
 
 
 def _ambiguous_investment_account_name(uow: UnitOfWork, *accounts):

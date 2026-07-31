@@ -1,4 +1,4 @@
 {
-  "feature_directory": null,
-  "note": "019-portfolio-quote-orchestration 已于 2026-07-28 关闭；当前没有活跃 feature。"
+  "feature_directory": "specs/020-cash-ledger-browser-web",
+  "note": "020-cash-ledger-browser-web：收支投影、双后端、本机 Web/API 与现代化审计工作台的统一现行规格；021 内容已按用户授权合并，022 投资账本保持独立。"
 }

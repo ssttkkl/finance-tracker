@@ -110,3 +110,7 @@
 ## Phase 7: Convergence
 
 - [X] T024 添加可控规模回归，验证至少 30 个非零持仓、3 类数据源与重复标的在 4 秒预算内均返回确定估值状态；同时验证同一批量数据源的 10 个标的外部调用数少于 10（SC-001、SC-004，partial）。证据：30 仓位三源测试验证全部 `complete`、重复证券仅请求一次且在 4 秒内返回；10 证券批量测试验证下载调用数为 1。focused 矩阵 `35 passed in 1.67s`。
+
+## Phase 8: 完成后测试稳定性勘误（受控）
+
+- [X] T025 经用户明确授权，将 `023-deterministic-portfolio-valuation-test` 的唯一测试装配修复归属回写至已 Complete 的 019；023 创建基线为 `3e1e4b3`，现已吸收删除。先红：未注入测试 `clock` 时，固定 `ProviderTick.observed_at` 会随真实 UTC 日期超过新鲜窗口，证券行情为 `stale` 而与 `complete` 断言冲突。后绿：在 `tests/test_application_investment.py` 向 `ValuationService` 注入与固定观测时间相同的 UTC `clock` 后，`uv run pytest tests/test_application_investment.py::test_portfolio_query_uses_valuation_and_never_prices_configured_currency -q` 得到 `1 passed in 0.02s`；`uv run pytest tests/unit/domain/test_valuation_quote.py tests/unit/application/test_valuation_service.py tests/unit/application/test_portfolio_valuation.py tests/test_application_investment.py -q` 得到 `32 passed in 1.58s`；`FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' FT_REQUIRE_TEST_POSTGRES=1 uv run pytest tests/integration/test_portfolio_query_sqlite.py tests/integration/test_portfolio_query_postgres.py -q` 得到 `4 passed in 1.68s`。完整 `uv run pytest -q` 的已知无关失败为 `tests/test_wealth_performance.py::test_fixed_100k_fact_rebuild_and_active_cache_meet_budgets[sqlite]`：023 原始记录的冷路径 P95 为 `10.53 s`，本次复跑为 `7.43 s`，均超过 `5 s` 预算；用户授权将其作为非阻断记录，不修复或扩大本次范围。风险：完整回归并非全绿，须后续处理该性能回归；准确补跑命令为 `uv run pytest -q`。本任务仅改测试装配，不改生产时钟、报价状态或持久化合同。

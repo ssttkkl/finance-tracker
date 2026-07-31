@@ -58,6 +58,8 @@ def test_live_postgres_runtime_cross_entrypoint_and_empty_home(
     monkeypatch.setenv("FT_WORKSPACE_ID", "live-workspace")
 
     cli.main(["acct", "add", "Cash", "--type", "cash", "--currency", "CNY"])
+    from ft.application.cash_projections import CashProjectionService
+    CashProjectionService(postgres_sessions, "live-workspace").rebuild()
     cli.main([
         "add", "--amount", "-12.34", "--counterparty", "Coffee",
         "--account", "Cash", "--currency", "CNY", "--date", "2026-07-17 09:00:00",
@@ -78,6 +80,8 @@ def test_live_postgres_workspace_isolation_and_transaction_rollback(postgres_ses
     workspace_a = RelationalUnitOfWork(postgres_sessions, "workspace-a")
     workspace_b = RelationalUnitOfWork(postgres_sessions, "workspace-b")
     AccountService(workspace_a).create_account("Cash", "cash", "CNY")
+    from ft.application.cash_projections import CashProjectionService
+    CashProjectionService(postgres_sessions, "workspace-a").rebuild()
     assert CashflowService(workspace_a).add_manual_transaction(
         amount=Decimal("1.230000000000000001"), counterparty="Exact",
         account_name="Cash", currency="CNY", date="2026-07-17 09:00:00",
@@ -107,6 +111,8 @@ def test_live_shared_uow_serializes_concurrent_projection_updates(postgres_sessi
     ensure_workspace(postgres_sessions, "concurrent-workspace")
     shared = RelationalUnitOfWork(postgres_sessions, "concurrent-workspace")
     AccountService(shared).create_account("Cash", "cash", "CNY")
+    from ft.application.cash_projections import CashProjectionService
+    CashProjectionService(postgres_sessions, "concurrent-workspace").rebuild()
 
     def add(amount):
         return CashflowService(shared).add_manual_transaction(

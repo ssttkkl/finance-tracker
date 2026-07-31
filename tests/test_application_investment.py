@@ -156,12 +156,18 @@ class FakeQuoteProvider:
 
 
 def test_portfolio_query_uses_valuation_and_never_prices_configured_currency():
+    from datetime import datetime, timezone
+
     from ft.application.investment import PortfolioQueryService
     from ft.application.valuation import ValuationService
 
     provider = FakeQuoteProvider()
     result = PortfolioQueryService(
-        FakePortfolioRepository(), ValuationService(provider)
+        FakePortfolioRepository(),
+        ValuationService(
+            provider,
+            clock=lambda: datetime(2026, 7, 25, tzinfo=timezone.utc),
+        ),
     ).get_portfolio()
 
     account = result.accounts[0]

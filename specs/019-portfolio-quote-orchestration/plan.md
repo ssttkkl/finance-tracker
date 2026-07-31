@@ -86,3 +86,15 @@ tests/
 3. 为 yfinance 和 CoinGecko 增加源内批量读取；预测市场使用固定上限的并发工作，不新增未知 API。适配器测试追加到既有 `tests/test_market_data.py`，避免与同名测试模块产生 pytest 导入冲突。
 4. 将持仓查询改成“收集 → 去重 → 按源调度 → 映射回仓位 → FX 折算”。
 5. 在 SQLite 与真实 PostgreSQL 跑同一持仓报价契约矩阵；无网络的假源为确定性证据。
+
+---
+
+## 完成后测试稳定性勘误（2026-07-30）
+
+**受控例外**：019 已处于 Complete 状态。用户明确授权将已完成的 `023-deterministic-portfolio-valuation-test` 测试稳定性修复归属回写至 019；该授权仅适用于本次完成后勘误，不改变 Complete 历史规格通常只读的规则。
+
+**来源与基线**：勘误来源为 `023-deterministic-portfolio-valuation-test`，其创建基线为提交 `3e1e4b3`。023 已被 019 吸收并删除，不再作为独立 feature 保留。
+
+**实现边界**：唯一实现变更位于 `tests/test_application_investment.py`。目标测试向既有 `ValuationService` 注入与固定 `ProviderTick.observed_at` 一致的 UTC `clock`，使固定行情夹具不随真实日期变为过期行情。此改动只影响测试装配；生产运行时仍使用服务的默认当前 UTC 时钟。
+
+**合同不变**：不修改生产代码、报价新鲜度窗口、最大过期窗口，或 `complete`、`stale`、`partial`、`unsupported` 的状态与市值合同。不修改数据库、迁移、依赖、CLI、Web、README、docs 或其他 feature artifacts。

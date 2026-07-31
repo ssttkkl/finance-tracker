@@ -285,6 +285,32 @@ def test_credit_repayment_requires_exact_same_currency():
     assert evaluate_transfer_pair(out, [inc]) is None
 
 
+def test_manual_transfer_creates_an_accepted_pair_and_hidden_projection(cash_web_runtime):
+    from ft.adapters.relational.models import TransactionRelationModel
+    from ft.adapters.relational.uow import RelationalUnitOfWork
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.cashflow import TransferService
+    from ft.application.web_queries import CashLedgerQueryService
+
+    CashProjectionService(cash_web_runtime.sessions, cash_web_runtime.workspace_id).rebuild()
+    result = TransferService(RelationalUnitOfWork(cash_web_runtime.sessions, cash_web_runtime.workspace_id)).transfer(
+        from_name="日常账户", to_name="信用账户", amount=Decimal("20"),
+        from_currency="CNY", to_currency="CNY", date="2026-07-05", time_str="10:00:00",
+    )
+
+    assert result.ok is True
+    with cash_web_runtime.sessions() as session:
+        relation = session.query(TransactionRelationModel).filter_by(
+            workspace_id=cash_web_runtime.workspace_id, kind="transfer_pair", status="accepted",
+        ).one()
+    evidence = CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id).get_projection_evidence(
+        f"cash:{relation.primary_fact_id}",
+    )
+    assert evidence["projection"].economic_type == "internal_transfer"
+    assert evidence["projection"].visible is False
+    assert evidence["projection"].hidden_reason == "internal_transfer"
+
+
 def test_wechat_withdraw_expense_to_bank_transfer():
     """Correct model: 微信零钱 -A ↔ 建行 +A."""
     out = _fv(

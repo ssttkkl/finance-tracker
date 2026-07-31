@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 from ft.domain.accounts import AccountDTO
+from ft.domain.cash_projection import CashProjectionBuild
 
 
 @runtime_checkable
@@ -136,6 +137,29 @@ class FactDeletionRepository(Protocol):
         ...
 
     def list_events(self, fact_id: str | None = None) -> list[dict]:
+        ...
+
+
+@runtime_checkable
+class CashProjectionRepository(Protocol):
+    """收支投影派生读模型的最小持久化端口。"""
+
+    def read_sources(self) -> tuple[tuple[object, ...], tuple[object, ...]]:
+        ...
+
+    def source_digest(self) -> str:
+        ...
+
+    def create_staging_dataset(self, *, source_digest: str, rules_version: str) -> str:
+        ...
+
+    def replace_dataset(self, dataset_id: str, build: CashProjectionBuild, *, projection_version: int) -> None:
+        ...
+
+    def publish_dataset(self, dataset_id: str, *, source_digest: str, rules_version: str) -> dict:
+        ...
+
+    def status(self) -> dict:
         ...
 
 

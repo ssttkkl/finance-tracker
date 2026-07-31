@@ -19,6 +19,8 @@ def test_repository_has_clean_linear_revisions():
         "20260724_08_inline_provenance_cleanup.py",
         "20260724_09_bigint_surrogate_ids.py",
         "20260726_10_sync_cursors.py",
+        "20260729_11_cash_projections.py",
+        "20260731_12_cash_projection_dataset_indexes.py",
     ]
 
 
