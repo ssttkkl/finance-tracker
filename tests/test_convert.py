@@ -1604,6 +1604,40 @@ class TestIcbcRefundPairing:
         assert refund["counterparty"] == "美团App山葵村烤肉"
         assert refund["note"] == "美团支付-美团App山葵村烤肉"
 
+    def test_信用卡退货摘要不依赖商户分类和金额(self):
+        lines = [
+            "2025-11-13",
+            "10:32:19",
+            "622599000000001200",
+            "贷",
+            "港币",
+            "24.00",
+            "港币",
+            "24.00",
+            "退货",
+            "HKMetroRebate",
+        ]
+        from ft.convert import _parse_icbc_lines
+
+        records, _ = _parse_icbc_lines(lines, is_credit=True)
+        assert records[0]["summary"] == "退货"
+        assert records[0]["refund_signal"] == "icbc_credit_return"
+
+        zero_amount = [
+            "2025-11-17",
+            "19:04:28",
+            "622599000000001200",
+            "贷",
+            "人民币",
+            "0.00",
+            "人民币",
+            "0.00",
+            "退货",
+            "减免年费1000.00元",
+        ]
+        zero_records, _ = _parse_icbc_lines(zero_amount, is_credit=True)
+        assert zero_records[0]["refund_signal"] == "icbc_credit_return"
+
     def test_退款摘要_也会按退款配对保留事实(self):
         """信用卡账单里出现“退款”摘要时，也应走退款配对，但保留原始事实。"""
         lines = [
@@ -2420,6 +2454,19 @@ class TestIcbcDebit:
         assert rec["summary"] == "退货"
         assert rec["refund_signal"] == "icbc_debit_return"
         assert rec["_refund_signal"] == "icbc_debit_refund"
+
+    def test_借记卡退货摘要零金额也生成正式退款信号(self):
+        row = [
+            "2025-11-13\n10:32:19", "1614020101021984636", "活期", "00000",
+            "人民币", "钞", "退货", "1614", "+0.00",
+            "0", "HKMetroRebate", "6225****1200", "快捷支付",
+        ]
+        from ft.convert import _parse_icbc_debit_row
+
+        rec = _parse_icbc_debit_row(row)
+        assert rec is not None
+        assert rec["summary"] == "退货"
+        assert rec["refund_signal"] == "icbc_debit_return"
 
     def test_退款摘要_不生成正式退款信号(self):
         row = [

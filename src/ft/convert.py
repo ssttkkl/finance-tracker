@@ -1574,7 +1574,7 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     "card_number": card_number,
                     "_raw_cp": counterparty,  # 保存原始 cp 用于退款匹配
                     "_refund_signal": "",
-                    "refund_signal": "",
+                    "refund_signal": "icbc_credit_return" if summary == "退货" else "",
                     "_fact_id": f"icbc_credit_{fact_hash}",
                 }
                 if offset_type:
@@ -1583,8 +1583,6 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     merchant_text = description if counterparty == "退货" and description else counterparty
                     rec["_is_refund"] = True
                     rec["_refund_signal"] = "icbc_credit_return"
-                    if summary == "退货":
-                        rec["refund_signal"] = "icbc_credit_return"
                     rec["_icbc_refund_merchant_trusted"] = not _is_icbc_credit_untrusted_merchant_text(merchant_text)
                 elif offset_type in {"benefit_rebate", "campaign_cashback", "fee_reversal"}:
                     rec = _build_icbc_credit_offset_income(rec, offset_type)
@@ -1871,7 +1869,7 @@ def _parse_icbc_debit_row(row: list) -> dict | None:
         "_is_refund": debit_offset_type == "refund",
         "_is_reversal": debit_offset_type == "reversal",
         "_refund_signal": "icbc_debit_refund" if debit_offset_type == "refund" and amount > 0 else "",
-        "refund_signal": "icbc_debit_return" if summary == "退货" and amount > 0 else "",
+        "refund_signal": "icbc_debit_return" if summary == "退货" else "",
     }
 
 
