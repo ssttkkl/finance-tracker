@@ -110,6 +110,6 @@ class CashProjectionService:
         from ft.adapters.relational.projections import RelationalCashProjectionRepository
 
         repository = RelationalCashProjectionRepository(session, workspace_id)
-        if repository.status()["availability"] != "ready":
+        if repository.ready_state_lock_or_none() is None:
             return None
         return CashProjectionService.maintain_in_session(session, workspace_id, affected_fact_ids)

@@ -191,8 +191,7 @@ Playwright；不新增第三方图算法、任务队列或缓存依赖。
 
 删除或失效关系可能把一个组拆成多个，因此必须从完整 `before_ids` 重新遍历新图，不能只重算仍直接相连
 的端点。已有活动投影版本时，现金或关系语义写入必须与增量维护同事务提交；投影维护失败时回滚事实源。投影
-尚未初始化时，合法事实源写入可以提交，但不生成或维护投影；只有显式 `ft projections rebuild` 可以发布首个
-活动数据集，读取端在此之前继续返回 `ProjectionUnavailableError`。
+尚未初始化时，合法事实源写入可以提交，但不生成或维护投影；决定跳过维护前必须在与首次重建相同的工作区—投影状态锁域内重新确认未初始化，只有显式 `ft projections rebuild` 可以发布首个活动数据集，读取端在此之前继续返回 `ProjectionUnavailableError`。
 
 `ft transfer` 是例外中的已知事实构造：它在同一事务创建两条现金流水和一条已确认
 `transfer_pair`，随后构建一个隐藏投影，不依赖后续匹配器猜测。
@@ -230,8 +229,7 @@ schema 已升级
 
 合同见 [web-api.md](contracts/web-api.md)。列表查询必须以单条 SQL 的活动状态 CTE 读取版本和数据集，并由该
 CTE 同时约束游标版本校验、限长页面候选行和投影关系依据；查询结果在应用层按投影行归组为关系摘要，下一页
-游标只编码这条查询返回的版本与末行排序键。解码 cursor 后必须先验证 JSON 顶层为对象，再读取版本、工作区、
-筛选条件和排序键；任何解码、形状或字段类型错误统一返回 `invalid_cursor`。不得先读取活动状态后再发起页面或关系摘要 SQL，也不得依赖
+游标只编码这条查询返回的版本与末行排序键。解码 cursor 后必须先验证 JSON 顶层为对象，再验证 `v` 与 `version` 为非布尔整数、`workspace`、`occurred_at` 与 `projection_id` 为字符串、`filters` 为完整筛选对象；任何解码、形状或字段类型错误统一返回 `invalid_cursor`。不得先读取活动状态后再发起页面或关系摘要 SQL，也不得依赖
 PostgreSQL 默认 `READ COMMITTED` 会话在多条 SQL 间保持快照；SQLite 和 PostgreSQL 都以这条单语句的数据库
 快照证明等价行为。游标版本不一致抛出 `ProjectionUpdatedError`；无活动数据集抛出 `ProjectionUnavailableError`。
 证据金额和投影净额统一使用无指数形式的规范十进制字符串，不依赖

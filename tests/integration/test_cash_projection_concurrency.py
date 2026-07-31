@@ -83,6 +83,33 @@ def test_postgresql_rebuild_rejects_source_display_change_before_publish(
     assert status["active_dataset_id"] is None
 
 
+
+def test_postgresql_uninitialized_write_locks_workspace_before_skipping_projection_maintenance(
+    postgres_cash_web_runtime,
+):
+    from sqlalchemy import event
+    from ft.application.cash_projections import CashProjectionService
+
+    statements: list[str] = []
+
+    def capture(_connection, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement.lower())
+
+    runtime = postgres_cash_web_runtime
+    engine = runtime.sessions.kw["bind"]
+    event.listen(engine, "before_cursor_execute", capture)
+    try:
+        with runtime.sessions.begin() as session:
+            assert CashProjectionService.maintain_if_ready_in_session(
+                session, runtime.workspace_id, set(),
+            ) is None
+    finally:
+        event.remove(engine, "before_cursor_execute", capture)
+
+    assert any("workspaces" in statement and "for update" in statement for statement in statements)
+    assert any("cash_projection_states" in statement and "for update" in statement for statement in statements)
+
+
 def test_postgresql_source_digest_covers_accepted_relation_evidence(postgres_cash_web_runtime):
     from ft.adapters.relational.models import TransactionRelationModel
     from ft.adapters.relational.projections import RelationalCashProjectionRepository

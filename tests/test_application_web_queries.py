@@ -33,6 +33,38 @@ def test_non_object_cursor_is_invalid(cash_web_runtime, payload):
 
     with pytest.raises(ValueError, match="invalid_cursor"):
         service.list_cash_projections(cursor=cursor)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("v", True),
+        ("version", True),
+        ("workspace", 1),
+        ("filters", []),
+        ("occurred_at", 1),
+        ("occurred_at", "2026-07-03"),
+        ("projection_id", 1),
+        ("projection_id", True),
+        ("projection_id", None),
+        ("projection_id", []),
+        ("projection_id", {}),
+    ),
+)
+def test_cursor_with_invalid_contract_field_is_invalid(cash_web_runtime, field, value):
+    import base64
+    import json
+
+    service = _service(cash_web_runtime)
+    cursor = service.list_cash_projections(limit=1).next_cursor
+    payload = json.loads(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)))
+    payload[field] = value
+    cursor = base64.urlsafe_b64encode(
+        json.dumps(payload, separators=(",", ":")).encode()
+    ).decode().rstrip("=")
+
+    with pytest.raises(ValueError, match="invalid_cursor"):
+        service.list_cash_projections(cursor=cursor)
 def test_old_version_cursor_requires_refresh(cash_web_runtime):
     from ft.application.cash_projections import CashProjectionService
     from ft.application.web_queries import ProjectionUpdatedError

@@ -101,7 +101,7 @@
 
 ## 游标合同
 
-游标负载包含版本号、工作区、完整筛选摘要、最后一项 `occurred_at` 和 `projection_id`；Base64 解码后的 JSON 顶层必须是对象。以下情况返回：
+游标负载包含版本号、工作区、完整筛选摘要、最后一项 `occurred_at` 和 `projection_id`；Base64 解码后的 JSON 顶层必须是对象。`v` 与 `version` 必须是非布尔整数，`workspace` 与 `projection_id` 必须是字符串，`occurred_at` 必须是带时区的 ISO 8601 字符串，`filters` 必须是与当前筛选摘要完全相同的对象。以下情况返回：
 
 - 游标损坏、JSON 顶层非对象、缺少字段、字段类型非法、跨工作区或筛选不同：HTTP `400`，`invalid_cursor`。
 - 游标格式正确但 `projection_version` 已不是活动版本：HTTP `409`，`projection.updated`。

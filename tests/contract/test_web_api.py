@@ -19,6 +19,7 @@ def test_projection_api_contract_and_old_routes_are_absent(cash_web_runtime):
 
 def test_projection_api_has_stable_errors(cash_web_runtime):
     import base64
+    import json
     from ft.application.web_queries import CashLedgerQueryService
     from ft.web.app import create_app
     unbuilt=TestClient(create_app(CashLedgerQueryService(cash_web_runtime.sessions,cash_web_runtime.workspace_id)))
@@ -27,6 +28,14 @@ def test_projection_api_has_stable_errors(cash_web_runtime):
     assert client.get("/api/v1/cash-projections?cursor=broken").json()["error"]["code"]=="invalid_cursor"
     for payload in (b"[]", b'"cursor"', b"0", b"true", b"null"):
         cursor = base64.urlsafe_b64encode(payload).decode().rstrip("=")
+        response = client.get("/api/v1/cash-projections", params={"cursor": cursor})
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "invalid_cursor"
+    valid_cursor = client.get("/api/v1/cash-projections", params={"limit": "1"}).json()["next_cursor"]
+    payload = json.loads(base64.urlsafe_b64decode(valid_cursor + "=" * (-len(valid_cursor) % 4)))
+    for field, value in (("v", True), ("version", True), ("occurred_at", 1), ("occurred_at", "2026-07-03"), ("projection_id", [])):
+        invalid_payload = {**payload, field: value}
+        cursor = base64.urlsafe_b64encode(json.dumps(invalid_payload).encode()).decode().rstrip("=")
         response = client.get("/api/v1/cash-projections", params={"cursor": cursor})
         assert response.status_code == 400
         assert response.json()["error"]["code"] == "invalid_cursor"

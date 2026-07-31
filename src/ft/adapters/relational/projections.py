@@ -161,10 +161,17 @@ class RelationalCashProjectionRepository:
             "source_revision": state.source_revision,
         }
 
-    def require_ready_state_lock(self) -> CashProjectionStateModel:
-        """锁定可维护的活动数据集，未初始化时拒绝源写入。"""
+    def ready_state_lock_or_none(self) -> CashProjectionStateModel | None:
+        """锁定工作区后确认是否存在可维护的活动数据集。"""
         state = self._state(lock=True)
         if state is None or state.availability != "ready" or not state.active_dataset_id:
+            return None
+        return state
+
+    def require_ready_state_lock(self) -> CashProjectionStateModel:
+        """锁定可维护的活动数据集，未就绪时中止派生维护。"""
+        state = self.ready_state_lock_or_none()
+        if state is None:
             raise RuntimeError("projection.unavailable")
         return state
 
