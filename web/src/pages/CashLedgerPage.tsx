@@ -16,7 +16,7 @@ const requestErrorMessages: Record<string, string> = {
   "storage.workspace": "当前工作区不可用，请检查本机 API 配置后重试。",
   "storage.config": "账本配置无效，请检查本机 API 配置后重试。",
   "projection.unavailable": "收支投影暂不可用，请先完成重建。",
-  invalid_filter: "筛选条件有误，请检查日期、金额和选项后重试。",
+  invalid_filter: "请修正标记的金额筛选条件后重试。",
   invalid_cursor: "加载位置已失效，请重新读取记录。",
   api_request_failed: "请求失败，请稍后重试。",
 };

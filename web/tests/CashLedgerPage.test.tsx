@@ -221,7 +221,7 @@ describe("CashLedgerPage", () => {
   });
 
   it.each([
-    ["invalid_filter", "筛选条件有误，请检查日期、金额和选项后重试。"],
+    ["invalid_filter", "请修正标记的金额筛选条件后重试。"],
     ["invalid_cursor", "加载位置已失效，请重新读取记录。"],
     ["unmapped_failure", "请求失败，请稍后重试。"],
   ])("为 %s 显示可修正的请求错误", async (code, message) => {
