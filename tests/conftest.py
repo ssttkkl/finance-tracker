@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 from hashlib import sha256
 import shutil
 import os
@@ -11,17 +11,68 @@ import os
 import pytest
 
 
-def require_test_postgres_url() -> str | None:
-    """Return a safe dedicated PostgreSQL test URL or fail in required mode."""
-    url = os.environ.get("FT_TEST_POSTGRES_URL")
-    if os.environ.get("FT_REQUIRE_TEST_POSTGRES") != "1":
-        return url
-    if not url:
-        pytest.fail("FT_REQUIRE_TEST_POSTGRES=1 requires FT_TEST_POSTGRES_URL")
-    name = urlparse(url).path.rsplit("/", 1)[-1]
-    if not name.endswith("_test"):
-        pytest.fail("FT_TEST_POSTGRES_URL must target a dedicated _test database")
+def _validate_test_postgres_url(url: str) -> str:
+    """只接受专用 `_test` PostgreSQL 数据库，防止测试清空运行库。"""
+    parsed = urlparse(url)
+    database_name = unquote(parsed.path).strip("/")
+    if (
+        not parsed.scheme.startswith("postgresql")
+        or not database_name
+        or "/" in database_name
+        or not database_name.endswith("_test")
+    ):
+        pytest.fail("FT_TEST_POSTGRES_URL must target a dedicated _test PostgreSQL database")
     return url
+
+
+def require_test_postgres_url() -> str | None:
+    """返回已验证的 PostgreSQL 测试 URL；required 模式缺失时失败。"""
+    url = os.environ.get("FT_TEST_POSTGRES_URL")
+    if not url:
+        if os.environ.get("FT_REQUIRE_TEST_POSTGRES") == "1":
+            pytest.fail("FT_REQUIRE_TEST_POSTGRES=1 requires FT_TEST_POSTGRES_URL")
+        return None
+    return _validate_test_postgres_url(url)
+
+
+def postgres_test_backend_params() -> list[object]:
+    """始终收集 PostgreSQL 参数；未配置时显式显示为跳过。"""
+    url = require_test_postgres_url()
+    if url is None:
+        return [
+            "sqlite",
+            pytest.param(
+                "postgresql",
+                marks=pytest.mark.skip(reason="未设置 FT_TEST_POSTGRES_URL，跳过真实 PostgreSQL 测试"),
+            ),
+        ]
+    return ["sqlite", "postgresql"]
+
+
+def upgrade_schema_on_connection(connection, root: Path | None = None) -> None:
+    """在调用方已验证的连接上执行 Alembic 升级，忽略运行期数据库 URL。"""
+    from alembic import command
+    from alembic.config import Config
+
+    project_root = root or Path(__file__).parents[1]
+    config = Config(str(project_root / "alembic.ini"))
+    config.set_main_option("script_location", str(project_root / "migrations"))
+    config.attributes["connection"] = connection
+    command.upgrade(config, "head")
+
+
+def migrate_test_postgres_schema(url: str, root: Path | None = None) -> None:
+    """重置专用测试库后，在同一连接上升级 schema。"""
+    from ft.adapters.relational import create_relational_engine
+
+    _validate_test_postgres_url(url)
+    reset_postgres_schema(url)
+    engine = create_relational_engine(url)
+    try:
+        with engine.begin() as connection:
+            upgrade_schema_on_connection(connection, root)
+    finally:
+        engine.dispose()
 
 
 def reset_postgres_schema(url: str) -> None:
@@ -32,8 +83,7 @@ def reset_postgres_schema(url: str) -> None:
     """
     from sqlalchemy import create_engine, text
 
-    if not urlparse(url).path.rsplit("/", 1)[-1].endswith("_test"):
-        raise RuntimeError("refusing to reset non-_test PostgreSQL database")
+    _validate_test_postgres_url(url)
     engine = create_engine(url, isolation_level="AUTOCOMMIT")
     try:
         with engine.connect() as connection:
@@ -45,13 +95,8 @@ def reset_postgres_schema(url: str) -> None:
         engine.dispose()
 
 
-def _relation_backend_names() -> list[str]:
-    postgres_url = os.environ.get("FT_TEST_POSTGRES_URL")
-    if postgres_url:
-        return ["sqlite", "postgresql"]
-    if os.environ.get("FT_REQUIRE_TEST_POSTGRES") == "1":
-        pytest.fail("FT_REQUIRE_TEST_POSTGRES=1 requires FT_TEST_POSTGRES_URL")
-    return ["sqlite"]
+def _relation_backend_names() -> list[object]:
+    return postgres_test_backend_params()
 
 
 @dataclass
@@ -192,12 +237,7 @@ def postgres_cash_web_runtime():
     database_url = require_test_postgres_url()
     if database_url is None:
         pytest.skip("未设置 FT_TEST_POSTGRES_URL，跳过 PostgreSQL 现金账本浏览契约测试")
-    reset_postgres_schema(database_url)
-    root = Path(__file__).parents[1]
-    config = Config(str(root / "alembic.ini"))
-    config.set_main_option("script_location", str(root / "migrations"))
-    config.set_main_option("sqlalchemy.url", database_url)
-    command.upgrade(config, "head")
+    migrate_test_postgres_schema(database_url)
     engine = create_relational_engine(database_url)
     sessions = create_session_factory(engine)
     workspace_id = "cash-web-postgres-workspace"
@@ -250,14 +290,14 @@ def relation_runtime(request, tmp_path):
     root = Path(__file__).parents[1]
     if request.param == "sqlite":
         url = f"sqlite+pysqlite:///{tmp_path / 'relations.db'}"
+        config = Config(str(root / "alembic.ini"))
+        config.set_main_option("script_location", str(root / "migrations"))
+        config.set_main_option("sqlalchemy.url", url)
+        command.upgrade(config, "head")
     else:
-        url = os.environ["FT_TEST_POSTGRES_URL"]
-        assert url.rsplit("/", 1)[-1].endswith("_test")
-        reset_postgres_schema(url)
-    config = Config(str(root / "alembic.ini"))
-    config.set_main_option("script_location", str(root / "migrations"))
-    config.set_main_option("sqlalchemy.url", url)
-    command.upgrade(config, "head")
+        url = require_test_postgres_url()
+        assert url is not None
+        migrate_test_postgres_schema(url, root)
     engine = create_relational_engine(url)
     sessions = create_session_factory(engine)
     ensure_workspace(sessions, "relations-workspace")

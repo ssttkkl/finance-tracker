@@ -21,12 +21,10 @@ POSITION_COUNT = 50
 FACT_COUNT = 100_000
 
 
-def _backends() -> list[str]:
-    if os.environ.get("FT_TEST_POSTGRES_URL"):
-        return ["sqlite", "postgresql"]
-    if os.environ.get("FT_REQUIRE_TEST_POSTGRES") == "1":
-        pytest.fail("FT_REQUIRE_TEST_POSTGRES=1 requires FT_TEST_POSTGRES_URL")
-    return ["sqlite"]
+def _backends() -> list[object]:
+    from conftest import postgres_test_backend_params
+
+    return postgres_test_backend_params()
 
 
 @pytest.fixture(params=_backends())
@@ -38,15 +36,22 @@ def performance_runtime(request, tmp_path):
     from ft.config import StorageSettings
     from ft.runtime import build_services
 
-    root = Path(__file__).parents[1]
-    url = f"sqlite+pysqlite:///{tmp_path / 'wealth-performance.db'}" if request.param == "sqlite" else os.environ["FT_TEST_POSTGRES_URL"]
-    assert request.param == "sqlite" or url.rsplit("/", 1)[-1].endswith("_test")
-    config = Config(str(root / "alembic.ini")); config.set_main_option("script_location", str(root / "migrations")); config.set_main_option("sqlalchemy.url", url)
-    if request.param == "postgresql":
-        from conftest import reset_postgres_schema
+    from conftest import migrate_test_postgres_schema, require_test_postgres_url
 
-        reset_postgres_schema(url)
-    command.upgrade(config, "head")
+    root = Path(__file__).parents[1]
+    url = (
+        f"sqlite+pysqlite:///{tmp_path / 'wealth-performance.db'}"
+        if request.param == "sqlite"
+        else require_test_postgres_url()
+    )
+    assert url is not None
+    if request.param == "sqlite":
+        config = Config(str(root / "alembic.ini"))
+        config.set_main_option("script_location", str(root / "migrations"))
+        config.set_main_option("sqlalchemy.url", url)
+        command.upgrade(config, "head")
+    else:
+        migrate_test_postgres_schema(url, root)
     engine = create_relational_engine(url); sessions = create_session_factory(engine); ensure_workspace(sessions, WORKSPACE)
     try:
         yield request.param, build_services(StorageSettings(url, WORKSPACE)), sessions

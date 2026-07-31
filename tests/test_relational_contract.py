@@ -16,38 +16,27 @@ class RelationalRuntime:
     sessions: object
 
 
-def _backend_names() -> list[str]:
-    postgres_url = os.environ.get("FT_TEST_POSTGRES_URL")
-    if postgres_url:
-        return ["sqlite", "postgresql"]
-    if os.environ.get("FT_REQUIRE_TEST_POSTGRES") == "1":
-        pytest.fail("FT_REQUIRE_TEST_POSTGRES=1 requires FT_TEST_POSTGRES_URL")
-    return ["sqlite"]
+def _backend_names() -> list[object]:
+    from conftest import postgres_test_backend_params
+
+    return postgres_test_backend_params()
 
 
 @pytest.fixture(params=_backend_names())
 def relational_runtime(request, tmp_path):
     """A newly migrated formal runtime for the same scenario on each backend."""
-    from alembic import command
-    from alembic.config import Config
+    from conftest import migrate_test_postgres_schema, require_test_postgres_url, reset_postgres_schema
     from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace
     from ft.config import StorageSettings
     from ft.runtime import build_services
 
     root = Path(__file__).parents[1]
     if request.param == "sqlite":
-        url = f"sqlite+pysqlite:///{tmp_path / 'contract.db'}"
+        url = _upgrade_sqlite(tmp_path / "contract.db")
     else:
-        url = os.environ["FT_TEST_POSTGRES_URL"]
-        assert url.rsplit("/", 1)[-1].endswith("_test")
-    config = Config(str(root / "alembic.ini"))
-    config.set_main_option("script_location", str(root / "migrations"))
-    config.set_main_option("sqlalchemy.url", url)
-    if request.param == "postgresql":
-        import conftest as test_conftest
-
-        test_conftest.reset_postgres_schema(url)
-    command.upgrade(config, "head")
+        url = require_test_postgres_url()
+        assert url is not None
+        migrate_test_postgres_schema(url, root)
     engine = create_relational_engine(url)
     sessions = create_session_factory(engine)
     ensure_workspace(sessions, "parity-workspace")
@@ -63,22 +52,44 @@ def relational_runtime(request, tmp_path):
     finally:
         engine.dispose()
         if request.param == "postgresql":
-            import conftest as test_conftest
-
-            test_conftest.reset_postgres_schema(url)
+            reset_postgres_schema(url)
 
 
 def _upgrade_sqlite(database: Path) -> str:
-    from alembic import command
-    from alembic.config import Config
+    from conftest import upgrade_schema_on_connection
+    from ft.adapters.relational import create_relational_engine
 
-    root = Path(__file__).parents[1]
     url = f"sqlite+pysqlite:///{database}"
-    config = Config(str(root / "alembic.ini"))
-    config.set_main_option("script_location", str(root / "migrations"))
-    config.set_main_option("sqlalchemy.url", url)
-    command.upgrade(config, "head")
+    engine = create_relational_engine(url)
+    try:
+        with engine.begin() as connection:
+            upgrade_schema_on_connection(connection, Path(__file__).parents[1])
+    finally:
+        engine.dispose()
     return url
+
+
+def test_relational_contract_runtime_uses_test_postgres_despite_runtime_database_url(monkeypatch, tmp_path):
+    from sqlalchemy import inspect
+
+    from conftest import migrate_test_postgres_schema, require_test_postgres_url, reset_postgres_schema
+    from ft.adapters.relational import create_relational_engine
+
+    url = require_test_postgres_url()
+    if url is None:
+        pytest.skip("未设置 FT_TEST_POSTGRES_URL，跳过真实 PostgreSQL 合同夹具回归")
+    unrelated = tmp_path / "unrelated-contract-runtime.db"
+    monkeypatch.setenv("FT_DATABASE_URL", f"sqlite+pysqlite:///{unrelated}")
+    try:
+        migrate_test_postgres_schema(url, Path(__file__).parents[1])
+        engine = create_relational_engine(url)
+        try:
+            assert "workspaces" in inspect(engine).get_table_names()
+        finally:
+            engine.dispose()
+        assert not unrelated.exists()
+    finally:
+        reset_postgres_schema(url)
 
 
 def test_file_sqlite_runtime_uses_shared_services_after_explicit_migration(tmp_path):

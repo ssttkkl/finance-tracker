@@ -257,7 +257,46 @@ SQLite 自动化测试只能操作 `/Users/huangwenlong/.ft/finance-tracker.db` 
 
 ---
 
-## 依赖与执行顺序
+## Phase 15：收支投影性能门禁
+
+- [X] T129 [P] 在 `tests/test_cash_projection_performance.py` 先建立固定、去标识化的 10,000 条有效现金流水工作负载；场景必须合法覆盖单成员、同笔支付关系（`payment_mirror`）、退款冲销关系（`refund_offset`）和转账配对关系（`transfer_pair`）。复用 `tests/test_wealth_performance.py` 的 SQLite/真实 PostgreSQL 双后端、3 次预热、20 个样本、p95 计算和环境输出模式，但正式计时仅覆盖 `CashProjectionService.rebuild()`；SQLite 与 PostgreSQL 的 p95 均不超过 10 秒。PostgreSQL 环境变量缺失时跳过该后端并明确报告，不得伪称通过（SC-004、SC-011）。
+- [X] T130 先运行 T129 的 SQLite 参数实例，确认测试实际执行；仅在首次真实 p95 超过 10 秒时向主 session 报告并按 Flow-Back 决定是否修改生产代码。随后在具备 `FT_TEST_POSTGRES_URL` 时运行真实 PostgreSQL 参数实例；执行相称的静态检查，将实际命令、输出、未执行项和风险写入 `quickstart.md`，最后勾选本阶段任务（SC-011）。
+  - SQLite 与静态检查已验证：SQLite 参数实例 `1 passed in 103.20s`，`CashProjectionService.rebuild()` 的 p95 为 `6.546 s`，符合 10 秒门禁；`compileall` 与 `git diff --check` 通过。失败基线：真实 PostgreSQL 参数实例 p95 为 `11.584 s`，超过 10 秒门禁。按已批准 Flow-Back，先在 `tests/test_relational_cash_projections.py` 增加批量写入、父投影 ID 受限回查映射、投影成员/投影关系依据的角色与顺序，以及同一数据集重写幂等的失败测试；再且仅在 `src/ft/adapters/relational/projections.py` 使用共享 SQLAlchemy Core 批量 DML helper 替换逐投影 `add()` 加 `flush()`。helper 必须分块插入父投影，按 `(workspace_id, dataset_id, projection_id)` 受限回查代理 ID，严格校验输入与回查的投影标识集合和基数全等，不完整时抛出 `RuntimeError('projection.incomplete')`，随后分块插入成员和关系依据；不得依赖 `RETURNING` 返回顺序、方言分支、原始 DBAPI 或 COPY。
+
+---
+
+## Phase 16：收支投影批量写入 Flow-Back
+
+**目标**：修复固定 10,000 条收支投影重建在真实 PostgreSQL 上 p95 为 `11.584 s`、超过 10 秒门禁的问题；不改变投影业务语义、暂存与事务、删除顺序、来源摘要、发布、SQLite/PostgreSQL 锁、成员角色或顺序。
+
+- [X] T131 [P] 在 `tests/test_relational_cash_projections.py` 先补失败测试，证明数据集替换使用批量写入，父投影 ID 只能按 `(workspace_id, dataset_id, projection_id)` 受限回查映射，投影成员和投影关系依据保留 `role` 与 `ordinal`，且同一数据集重写保持幂等；确认旧逐条 `add()` 加 `flush()` 实现失败（FR-009、FR-012、FR-020、SC-004、SC-011）。
+- [X] T132 在 `src/ft/adapters/relational/projections.py` 仅以共享 SQLAlchemy Core 批量 DML helper 实现 T131：使用 `session.execute(insert(Model), mappings)` 分块插入父投影、成员和关系依据；父投影插入后按受限键回查代理 ID，并对输入与回查的投影标识集合和基数做全等校验，异常时抛出 `RuntimeError('projection.incomplete')`。同一 helper 必须供 `replace_dataset` 和 `replace_active_components` 使用；不得使用 `RETURNING` 顺序、方言分支、原始 DBAPI 或 COPY（FR-009、FR-010、FR-012、FR-020、SC-004、SC-011）。
+- [X] T133 先运行定向 SQLite 测试；再以 `FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' FT_REQUIRE_TEST_POSTGRES=1` 运行关系型投影测试、Application 投影测试、双后端等价测试和 10,000 条性能测试。若 PostgreSQL p95 仍超过 10 秒，停止且不得放宽门禁；仅在全部通过后勾选 T131～T133，并在 `quickstart.md` 记录实际命令、性能、静态检查、未执行项与风险（SC-004、SC-011）。
+
+---
+
+## Phase 17：父投影回查 bind 参数 Flow-Back
+
+**目标**：避免父投影代理 ID 回查把超过 65,535 个 `projection_id` 放入同一 PostgreSQL `IN` 查询，从而超过数据库的 bind 参数上限；不改变空集路径、Core 批量插入、事务、父代理 ID 映射和既有完整性校验。
+
+- [X] T134 [P] 在 `tests/test_relational_cash_projections.py` 先为远小于数据库上限、但超过可替换共享批次大小常量的投影标识集合写入失败测试；断言回查分为多条受 `(workspace_id, dataset_id)` 限制的 `SELECT`、查询结果合并完整、父代理 ID 映射覆盖全部投影成员。旧的单次回查实现必须失败（FR-009、FR-012、FR-020、SC-004、SC-011）。
+- [X] T135 仅在 `src/ft/adapters/relational/projections.py` 定义共享批次大小常量 `PROJECTION_WRITE_BATCH_SIZE = 2000`，让 Core 批量插入与按 `projection_id` 的父投影回查共用它；逐批执行相同 workspace/dataset 受限 `SELECT`，合并后保留输入与回查投影标识集合和基数全等校验。不得改变空集返回、Core 批量插入、事务、父代理 ID 映射、成员角色或顺序（FR-009、FR-010、FR-012、FR-020、SC-004、SC-011）。
+- [X] T136 运行 SQLite 关系型投影测试、真实 PostgreSQL 关系型/应用/等价矩阵和 10,000 条性能测试；确认 PostgreSQL p95 不超过 10 秒，并运行 `compileall` 与 `git diff --check`。在 `quickstart.md` 记录实际命令、输出、未执行项与风险（SC-004、SC-011）。
+
+---
+
+## Phase 18：SQLite 绑定参数与 PostgreSQL 性能夹具 Flow-Back
+
+**目标**：将共享投影写入批次收紧为 900，确保父投影受限回查最多使用 902 个绑定参数；统一真实 PostgreSQL 性能夹具的安全 URL、显式跳过/required 失败与固定 Alembic 连接迁移路径，不改变财富读模型预算或生产逻辑。
+
+- [X] T137 [P] 在 `tests/test_relational_cash_projections.py` 先新增真实 901 条投影的 SQLite 边界回归，不 monkeypatch 生产常量；验证受工作区和数据集限制的父投影回查、完整代理 ID 映射，以及父投影和成员的批量写入。旧的 `2,000` 条常量实现失败（FR-009、FR-012、FR-020、SC-004、SC-011）。
+- [X] T138 在 `src/ft/adapters/relational/projections.py` 将共享 `PROJECTION_WRITE_BATCH_SIZE` 调整为 `900`，供父投影、成员和关系依据的批量写入与受限回查共用；保留 Core DML、完整性校验和事务语义（FR-009、FR-010、FR-012、FR-020、SC-004、SC-011）。
+- [X] T139 [P] 在 `tests/conftest.py` 为专用 `_test` PostgreSQL URL 提供安全验证、显式可选 PostgreSQL 参数、required 模式硬失败，以及通过 `Config.attributes["connection"]` 固定到已验证连接的 schema 升级 helper；现有 PostgreSQL 夹具改用该 helper（FR-020、SC-004、SC-011）。
+- [X] T140 在 `tests/test_cash_projection_performance.py` 复用 T139 helper，并先覆盖可选 PostgreSQL 显式 skip、required 模式缺失 URL 失败，以及 `FT_DATABASE_URL` 指向无关 SQLite 库时仍在专用 PostgreSQL 连接上迁移并创建 `workspaces` 表；同一夹具根因仅同步到 `tests/test_wealth_performance.py`，不修改财富预算或生产逻辑（FR-020、SC-004、SC-011）。
+- [X] T141 运行定向 SQLite、可选 skip/required 失败、无关 `FT_DATABASE_URL`、真实 PostgreSQL 关系型与性能测试、`compileall` 和 `git diff --check`；仅记录实际结果与未运行项（SC-004、SC-011）。
+- [X] T142 在 `tests/test_relational_contract.py` 复用 `tests/conftest.py` 的 PostgreSQL 参数、专用 URL 验证、固定连接迁移 helper 和 SQLite 固定连接升级 helper；先证明无关 `FT_DATABASE_URL` 会污染复制的迁移路径，再以专用 PostgreSQL 合同夹具验证 `workspaces` 仅在目标测试库创建（FR-020、SC-004、SC-011）。
+
+---
 
 ### Phase 依赖
 
