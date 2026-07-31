@@ -1,4 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CashLedgerPage } from "../src/pages/CashLedgerPage";
 
@@ -59,6 +61,23 @@ describe("现金账本无障碍", () => {
 
     expect(screen.queryByRole("dialog", { name: "证据详情" })).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+  });
+
+  it("保留筛选摘要整体点击设计，并记录标准 Hallmark 标记", async () => {
+    render(<CashLedgerPage />);
+    await screen.findByText("咖啡店");
+
+    const filters = screen.getByRole("group", { name: "账本筛选工具" });
+    const summary = filters.querySelector("summary");
+    expect(summary).not.toBeNull();
+    expect(summary).toHaveTextContent("筛选");
+    expect(summary).toHaveTextContent("全部账户 · 全部收支");
+
+    const styles = readFileSync(resolve(import.meta.dirname, "../src/styles.css"), "utf8");
+    expect(styles.split(/\r?\n/, 1)[0]).toContain("Hallmark");
+    expect(styles).toContain("macrostructure: Workbench");
+    expect(styles).toContain("genre: modern-minimal");
+    expect(styles).toContain("theme: Cobalt");
   });
 
   it("以文字表达加载、空结果和错误状态", async () => {
