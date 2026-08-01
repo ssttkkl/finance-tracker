@@ -342,6 +342,7 @@ describe("CashLedgerPage", () => {
     staleEvidence.resolve(json(evidenceFor()));
     stalePage.resolve(json({ projection_version: 1, items: [{ ...projection, projection_id: "cash:3001", counterparty: "过期筛选结果" }], next_cursor: null, page_size: 50, filters: {} }));
     await waitFor(() => expect(screen.queryByText("过期筛选结果")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "证据详情" })).not.toBeInTheDocument());
     expect(screen.queryByRole("dialog", { name: "证据详情" })).not.toBeInTheDocument();
   });
 

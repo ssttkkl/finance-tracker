@@ -1240,3 +1240,117 @@ PostgreSQL 本轮未配置，未执行 PostgreSQL 运行时矩阵。
 浏览器 `http://192.168.1.3:5173/` 已验证桌面和 390px 移动端显示月份分割行，例如 `2026年6月` 及“收入/支出”
 汇总；390px `scrollWidth == innerWidth`。月度 API/查询回归、源代码 TypeScript 检查 `WEB_SOURCE_TSC_OK`、
 `uv run python -m compileall -q src tests` 和 `git diff --check` 通过。Vitest 和自动 Hallmark wrapper 当前不可用，未运行。
+
+## Phase 24：模态证据抽屉交互回写与实现（2026-08-01）
+
+020 本轮将证据详情统一为覆盖式右侧模态证据抽屉：打开时显示遮罩并使背景 `inert`，点击遮罩关闭，点击抽屉内容不关闭；面板和遮罩使用 `--dur-panel` 与 `--ease-standard` 做滑入、滑出和淡入淡出，并在 `prefers-reduced-motion: reduce` 下取消动画。旧的宽屏并列布局和阻止外部点击的全局监听已移除。
+
+已完成的静态验证：
+
+```sh
+git diff --check
+cd web && CHECK_DIR=$(mktemp -d /tmp/ft-web-check.XXXXXX) \
+  bun build src/main.tsx --outdir "$CHECK_DIR" --target browser \
+  --external react --external react-dom --external '@fontsource/*'
+```
+
+结果：`git diff --check` 通过；Bun 成功解析并打包 10 个本地 TypeScript/TSX 模块，生成 `main.js` 和 `main.css`。该命令只证明语法与打包链路，不替代 TypeScript 类型检查、Vitest 或 Playwright。
+
+依赖安装阻塞已在 Phase 25 解除。当前仍未更新 4 张模态证据详情视觉快照，也未完成完整 Web 回归、Playwright、gstack `/review`、gstack `/qa`、Hallmark 自动审计、`$speckit-analyze` 或 `$speckit-converge`；这些项目继续保留在 `tasks.md` 的 T173～T175。
+
+范围化人工检查结果：组件只新增命名颜色令牌、`transform`/`opacity` 动画、可见焦点和 reduced-motion 兜底，未发现新的 Hallmark 关键或主要问题；真实浏览器 QA 仍需补跑。
+
+## Phase 25：依赖锁文件镜像地址修复（2026-08-01）
+
+`web/package-lock.json` 中 218 个 `r.npm.sankuai.com` 历史 tarball 地址已改为合法的
+`https://registry.npmjs.org/<package>/-/<tarball>.tgz` 地址；未修改 `web/package.json`、版本、`integrity`
+或依赖树，其他 GitHub 和捐赠链接保持不变。
+
+验证命令与结果：
+
+```sh
+cd web
+npm install --ignore-scripts --no-audit --no-fund \
+  --registry=https://registry.npmjs.org --fetch-retries=1 --fetch-timeout=30000
+npx vitest run tests/accessibility.test.tsx \
+  -t '模态抽屉|键盘关闭详情|为筛选提供显式标签' --reporter=dot
+npm test
+npm run build
+```
+
+`npm install` 成功，输出 `changed 218 packages in 7s`；解析前后锁文件确认只有 218 个 `resolved` 字段变化，
+没有历史镜像地址，`git diff --check` 通过。模态抽屉定向测试为 `3 passed, 3 skipped`。完整 `npm test` 为
+`23 passed, 9 failed`；`npm run build` 仍因当前已有的 `web/tests/CashTable.test.tsx:37` 测试夹具缺少
+`projection` 参数而失败，均不属于本次锁文件地址修复。完整回归、视觉快照和浏览器 QA 仍按 T173～T175 待补。
+
+## Phase 26：模态证据抽屉 Review 与 QA（2026-08-01）
+
+本轮代码验证基线为 `origin/refactor/web` 到 `e596edc`，PR 为
+[#26](https://github.com/ssttkkl/finance-tracker/pull/26)。浏览器必须使用当前 PR 工作树启动的服务：
+`http://127.0.0.1:5173/`；此前用户看到的旧右侧面板来自 `/Users/huangwenlong/.hermes/skills/finance/finance-tracker/web`
+旧工作树服务，不是本分支代码。
+
+目标 Vitest：
+
+```sh
+cd web
+npx vitest run tests/accessibility.test.tsx tests/CashLedgerPage.test.tsx \
+  -t '模态抽屉|键盘关闭详情|为筛选提供显式标签' --reporter=dot
+```
+
+结果：`3 passed, 21 skipped`。
+
+目标 Playwright：
+
+```sh
+cd web
+npx playwright test --config=tests/playwright.visual.config.ts \
+  --grep '模态证据抽屉点击遮罩关闭' --reporter=line
+```
+
+结果：`1 passed`。首次运行因本机缺少 Chromium executable 被环境阻塞，安装 Playwright Chromium 后复跑通过。
+
+真实浏览器 QA 覆盖：
+
+- 1280 × 800、1440 × 900：固定全屏遮罩、右侧 480 px 抽屉、`role="dialog"`、`aria-modal="true"`。
+- 390 × 844：抽屉宽度为 390 px，`scrollWidth == innerWidth`，无横向溢出。
+- 点击抽屉内容不关闭；点击遮罩开始 160 ms 退场动画并卸载；`Escape` 同样关闭。
+- 关闭后焦点回到原证据触发按钮；打开时背景 `main` 为 `inert`；清空旧日志后无控制台错误。
+- Hallmark audit：`0 critical · 0 major · 0 minor`。
+
+完整验证结果：
+
+- `npm test -- --reporter=dot`：`23 passed, 9 failed`，失败是当前基线测试夹具/断言与现行表格语义不一致。
+- `npm run build`：被现有 `web/tests/CashTable.test.tsx:37` 的 `projection("empty")` 参数数量错误阻塞。
+- `npx playwright test --config=tests/playwright.visual.config.ts --reporter=line`：新增模态遮罩关闭用例通过；其余 8 个视觉快照在进入证据详情断言前失败。期望图仍是旧版 8 列表格，当前 `refactor/web` 基线代码已是 5 列表格，1024 px 期望图尺寸也不匹配。
+- `git diff --check`：通过。
+- 结构化 gstack review、独立 Codex review：无可执行 findings；review log 已记录 `quality_score: 10.0`。
+
+未完成项：未更新旧版视觉基线快照；未执行默认 Playwright E2E、生产预览、320/375/414/768 px 完整矩阵；
+`$speckit-analyze` 与 `$speckit-converge` 未执行，因为 `.specify/feature.json` 当前指向
+`specs/023-icbc-refund-pairing`，不是本次 Living Spec 020。上述风险已写入 `tasks.md` 的 T173～T175，
+并同步到 PR 描述和 `.gstack/qa-reports/qa-report-finance-tracker-2026-08-01.md`。
+
+## Phase 27：模态遮罩悬停空白缺陷修复（2026-08-01）
+
+用户反馈打开证据详情后将鼠标移到抽屉外，底层账本会变成整块空白。浏览器复现确认：全屏 `.evidence-backdrop` 是 `<button>`，被全局 `button:hover` 规则覆盖了原本的透明背景；悬停时计算值为 `oklch(0.94 0.03 252)`，因此遮罩遮住了底层账本，并非账本数据消失。
+
+先新增回归测试并确认失败：
+
+```sh
+cd web
+npx playwright test --config=tests/playwright.visual.config.ts \
+  --grep 'modal backdrop remains transparent while hovered' --reporter=line
+```
+
+失败值为 `oklch(0.94 0.03 252)`。随后在 `web/src/styles.css` 为证据遮罩增加专用 `hover` 和 `active` 透明覆盖，提交为 `7e5efa2`；回归验证：
+
+```sh
+npx playwright test --config=tests/playwright.visual.config.ts \
+  --grep '模态证据抽屉点击遮罩关闭|modal backdrop remains transparent while hovered' --reporter=line
+npx vitest run tests/accessibility.test.tsx tests/CashLedgerPage.test.tsx \
+  -t '模态抽屉|键盘关闭详情|为筛选提供显式标签' --reporter=dot
+git diff --check
+```
+
+结果分别为 `2 passed`、`3 passed, 21 skipped` 和通过。当前 5173 服务实际悬停前后遮罩计算值均为 `rgba(0, 0, 0, 0)`，底层账本可见，抽屉内容点击与遮罩关闭仍正常。
