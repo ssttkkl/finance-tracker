@@ -235,7 +235,7 @@ def _validate_group(group: list[int], facts: dict[int, CashProjectionFact], rela
         subtype = transfer_relations[0].subtype or "ordinary_transfer"
         if any(item.subtype not in {"", subtype} for item in transfer_relations):
             raise CashProjectionError("projection.invalid_relation")
-        economic_type, amount, visible, hidden_reason = EconomicType.INTERNAL_TRANSFER, Decimal("0"), False, "internal_transfer"
+        economic_type, amount, visible, hidden_reason = EconomicType.INTERNAL_TRANSFER, Decimal("0"), True, None
     elif refund_relations:
         refund_inputs = tuple(
             (facts[primary], facts[secondary])

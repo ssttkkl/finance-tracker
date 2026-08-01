@@ -13,9 +13,39 @@ def test_projection_api_contract_and_old_routes_are_absent(cash_web_runtime):
     page=client.get("/api/v1/cash-projections?limit=2"); accounts=client.get("/api/v1/accounts?view=cash")
     assert page.status_code==200 and page.json()["projection_version"]==1
     assert page.json()["items"][0]["projection_id"]=="cash:1003" and isinstance(page.json()["items"][0]["amount"],str)
+    assert page.json()["filter_options"] == {"categories": sorted(["餐饮", "日用", "收入"]), "currencies": ["CNY"]}
+    assert page.json()["monthly_summaries"] == [{"month": "2026-07", "currencies": [{"currency": "CNY", "income": "2000", "expense": "-112.5"}]}]
     assert [x["name"] for x in accounts.json()["items"]]==["日常账户","信用账户"]
     assert client.get("/api/v1/cash-transactions").status_code==404
     assert client.get("/api/v1/evidence/cash/1003").status_code==404
+
+
+def test_projection_api_returns_visible_internal_transfer(cash_web_runtime):
+    from decimal import Decimal
+    from ft.adapters.relational.uow import RelationalUnitOfWork
+    from ft.application.cashflow import TransferService
+
+    client = _client(cash_web_runtime)
+    result = TransferService(RelationalUnitOfWork(cash_web_runtime.sessions, cash_web_runtime.workspace_id)).transfer(
+        from_name="日常账户", to_name="信用账户", amount=Decimal("20"),
+        from_currency="CNY", to_currency="USD", to_amount=Decimal("14"), date="2026-07-05", time_str="10:00:00",
+    )
+    assert result.ok is True
+
+    response = client.get("/api/v1/cash-projections", params={"economic_type": "internal_transfer"})
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert len(payload["items"]) == 1
+    item = payload["items"][0]
+    assert item["economic_type"] == "internal_transfer"
+    assert item["amount"] == "0"
+    assert item["transfer"] == {
+        "from_account": {"id": 101, "name": "日常账户", "type": "cash", "active": True},
+        "from_amount": "-20", "from_currency": "CNY",
+        "to_account": {"id": 102, "name": "信用账户", "type": "loan", "active": True},
+        "to_amount": "14", "to_currency": "USD",
+    }
 
 def test_projection_api_has_stable_errors(cash_web_runtime):
     import base64
@@ -133,6 +163,31 @@ def test_projection_api_binds_all_filters_and_paginates_three_pages_without_gaps
         "/api/v1/cash-projections",
         params={**params, "cursor": client.get("/api/v1/cash-projections", params=params).json()["next_cursor"], "category": "日用"},
     ).json()["error"]["code"] == "invalid_cursor"
+
+
+@pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_projection_api_counterparty_filter_matches_note(request, runtime_name):
+    from datetime import datetime
+    from decimal import Decimal
+    from zoneinfo import ZoneInfo
+
+    from ft.adapters.relational.models import CashTransactionModel
+    from ft.application.cash_projections import CashProjectionService
+
+    runtime = request.getfixturevalue(runtime_name)
+    with runtime.sessions.begin() as session:
+        session.add(CashTransactionModel(
+            id=1300, workspace_id=runtime.workspace_id, account_id=101,
+            occurred_at=datetime(2026, 7, 6, 9, tzinfo=ZoneInfo("Asia/Shanghai")), amount=Decimal("-8"),
+            currency="CNY", counterparty="其他商户", note="备注命中交易信息筛选", category="餐饮",
+            source_type="fixture", record_id="cash-note-filter",
+        ))
+    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+
+    response = _client(runtime).get("/api/v1/cash-projections", params={"counterparty": "备注命中", "limit": "50"})
+
+    assert response.status_code == 200
+    assert [item["record_id"] for item in response.json()["items"]] == ["cash-note-filter"]
 
 
 @pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])

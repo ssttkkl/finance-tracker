@@ -358,6 +358,21 @@ SQLite 自动化测试只能操作 `/Users/huangwenlong/.ft/finance-tracker.db` 
 
 - [X] T113 按用户明确授权，将 021 的默认折叠筛选、连续加载、主列表术语、移动端字段、焦点、视觉令牌和快照合同映射到本 spec 的 FR-033～FR-040、`plan.md`、`research.md`、`data-model.md` 与 `contracts/web-ui-compatibility.md`；不改变 022 的范围。
 - [X] T114 将 021 实现与验证提交 `3822ecd`、`7471a8d` 记录为 020 的展示层交付证据，并以现有前端组件、E2E、生产预览与视觉快照矩阵确认不新增 API、后端、持久化或依赖。
+
+## Phase 19：全量筛选选项与表格语义 Living Spec 更新（2026-08-01）
+
+**目标**：将分类、币种筛选改为后端全量聚合驱动的原生下拉框；选项与投影列表版本绑定且不受当前筛选缩小；同步收支账本表格的交易信息/经济类型语义，移除来源列。不新增持久化实体或独立选项路由。
+
+- [X] T143 [P] 先在 `tests/test_application_web_queries.py`、`tests/contract/test_web_api.py`、`tests/integration/test_web_sqlite.py` 和适用的 PostgreSQL Web 合同中编写失败测试：响应返回活动数据集内全部可见消费/收入投影的非空去重分类和币种；带日期、账户、分类或币种筛选时选项集合不缩小；隐藏内部转账/全额退款不贡献选项；空集合返回两个空数组；SQLite 与 PostgreSQL 结果和排序一致（FR-045、SC-004、SC-012）。失败基线：`uv run pytest tests/test_application_web_queries.py::test_projection_page_returns_global_filter_options_independent_of_current_filters tests/contract/test_web_api.py::test_projection_api_contract_and_old_routes_are_absent -q` 为 2 failed；补充隐藏/空值/空集合回归后进入实现验证。
+- [X] T144 在 `src/ft/application/web_queries.py`、`src/ft/adapters/relational/web_queries.py` 和 `src/ft/web/routes.py` 实现 `filter_options` DTO 与查询：使用当前工作区活动数据集，只聚合 `visible = true` 且 `economic_type IN ('expense', 'income')` 的非空分类/币种；应用层稳定排序和大写规范化；与 `projection_version` 同一只读查询上下文返回，不改变列表过滤、cursor、金额和错误合同（FR-016、FR-045、SC-012）。验证：上述回归加 `tests/test_application_web_queries.py::test_projection_filter_options_exclude_hidden_and_blank_values` 共 3 passed；完整 Web Python 定向矩阵为 47 passed、3 skipped。
+- [ ] T145 [P] 先在 `web/tests/CashLedgerPage.test.tsx`、`web/tests/accessibility.test.tsx` 和必要的 E2E 夹具中编写失败测试：分类/币种不再渲染文本输入；首批响应前下拉框禁用；响应选项完整呈现并提供“全部分类”“全部币种”；选择值继续发送 `category` / `currency`；表格只显示交易信息、经济类型、金额和操作列且交易对方/备注为主次文本（FR-022、FR-042、FR-046、SC-009、SC-012）。运行受影响前端测试确认当前实现失败。
+- [X] T146 在 `web/src/api/types.ts`、`web/src/components/CashFilters.tsx`、`web/src/pages/CashLedgerPage.tsx` 和必要 CSS 中实现前端下拉框：消费 `filter_options`，加载期间禁用，空选项保持全部项，保留请求取消/迟到响应保护和即时查询参数语义；清理表格来源/真实分类列，保持经济类型和交易信息 DOM/无障碍关联（FR-022、FR-037、FR-042、FR-046）。源代码定向 TypeScript 检查通过；浏览器 `http://192.168.1.3:5173/` 实测分类/币种选项、查询参数、表头和响应式宽度通过。
+- [ ] T147 更新 `web/tests/cash-ledger.e2e.ts`、`web/tests/cash-ledger.visual.e2e.ts` 及去标识化 fixture，覆盖筛选展开、下拉选择、桌面/移动端无横向溢出、加载/空态/错误态和键盘焦点；只在确认属于本次批准 UI 变更时更新快照（FR-040、SC-009、SC-012）。
+- [X] T148 运行后端定向应用/API/SQLite Web 测试；在具备 `FT_TEST_POSTGRES_URL` 时运行真实 PostgreSQL Web 合同与双后端响应矩阵；运行 `uv run compileall src tests`、`git diff --check`。记录实际 HEAD、比较基线、命令、结果、执行时间和未执行项到 `quickstart.md`，未配置 PostgreSQL 时不得表述为双后端通过（FR-020、FR-045、SC-004、SC-012）。本轮 `uv run pytest tests/test_application_web_queries.py tests/contract/test_web_api.py tests/integration/test_web_sqlite.py -q` 为 47 passed、3 skipped；`uv run python -m compileall -q src tests` 与 `git diff --check` 通过；真实 PostgreSQL 未配置，未执行。
+- [ ] T149 运行 `web` 受影响 Vitest、完整 `npm test`、`npm run build`、隔离端口 Playwright E2E/生产预览；按 320、375、414、768、390×844 和 1440×900 检查下拉框状态、表头语义、无横向溢出和金额/表格视觉；依赖缺失时准确记录（FR-024、FR-037、FR-040、FR-046、SC-009）。
+- [ ] T150 在实现和测试通过后运行范围化 gstack `/review`、`/qa`、Hallmark `audit`，检查 API 选项全量语义、可访问状态、响应式和表格列层级；将采纳/拒绝结论回写本阶段任务与 `plan.md`，再运行 `$speckit-converge`，补齐并勾选所有收敛任务（FR-016、FR-022、FR-045、FR-046、SC-004、SC-009、SC-012）。
+  - 2026-08-01 手工浏览器验证已覆盖 `http://192.168.1.3:5173/` 的 `320/375/414/768/1440` 宽度、筛选下拉选择和查询参数；自动化 Vitest、Playwright、build 仍因 `npm ci` 无法完成而未执行。
+  - 按 Hallmark `audit` 只读规则检查当前页面：标记与 Workbench/Ledger Grid 结构一致，蓝灰白主题无紫色渐变、模板化三卡片或失焦轮廓，结果为 `0 critical · 0 major · 0 minor`。范围化 gstack `/review`、`/qa` 包装流程和 `$speckit-converge` 尚未在当前环境执行，因此本任务保持未勾选。
 - [X] T115 删除已被本目录完整吸收的 `specs/021-modern-web-ui-design/`，将 `.specify/feature.json` 切回 020；运行 `$speckit-analyze`、`$speckit-converge`、review、QA 和最终回归后记录结果。最终验证已逐项确认：FR-033 默认折叠与范围摘要、FR-034 连续加载/同 cursor 防重入/失败重试、FR-035 取消与迟到响应、FR-036 八列与业务术语、FR-037 移动真实字段和表头语义、FR-038 命名令牌、FR-039 详情焦点和响应式、FR-040 多视口快照。021 删除由用户明确授权；020 成为唯一活跃规格，022 未改动。
 
 ---
@@ -399,3 +414,43 @@ SQLite 自动化测试只能操作 `/Users/huangwenlong/.ft/finance-tracker.db` 
   - 通过证据：2026-08-01，`cd web && npm test` 为 `25 passed`；无效金额会关联两项金额输入，修正后清除，筛选摘要整体点击断言保持通过。
 - [ ] T146 [US5] 运行受影响 Vitest、完整 `npm test`、`npm run test:e2e`、`npm run test:preview` 和 `npm run build`；以 gstack `/qa` 覆盖主流程、筛选无效/修正、加载、空态、错误、键盘及 320/375/414/768 px；运行 Hallmark `audit`，确认不再报告已采纳问题。记录实际命令、结果、验证 HEAD、比较基线、执行时间和风险（FR-023、FR-024、FR-029、FR-033、FR-038、FR-039、SC-008、SC-009）。
 - [ ] T147 运行 `$speckit-analyze` 与 `$speckit-converge`，检查 Flow-Back artifacts、实现和任务收敛；再执行 gstack `/review`、`git diff --check`，将实际证据记录到 `specs/020-cash-ledger-browser-web/quickstart.md`，并按发布门禁规则完成所有适用任务（FR-023、FR-024、FR-029、FR-033、FR-038、FR-039）。
+
+## Phase 20：转账投影可见与双端展示（2026-08-01）
+
+**目标**：将已确认 `transfer_pair` 形成的投影纳入收支账本，以“个人转账”标识；投影净额保持 0，但列表展示转出/转入账户、实际金额和币种，跨币种使用双端金额格式。不改变现金流水、关系事实或投影表 schema。
+
+- [X] T151 [P] 在 `spec.md`、`plan.md`、`data-model.md`、`contracts/web-api.md` 和 `contracts/web-ui-compatibility.md` 回写转账可见、双端金额/账户、跨币种与净额语义；保留全额退款和余额校准隐藏口径。
+- [X] T152 [P] 先在领域、查询、API 和前端测试中编写失败回归：转账投影可见、可按 `internal_transfer` 筛选、API 返回双端展示 DTO、页面显示“个人转账”和“账户 → 账户 / 金额 币种 → 金额 币种”。失败基线：`uv run pytest tests/test_cash_projection.py::test_transfer_pair_is_visible_internal_transfer tests/test_application_web_queries.py::test_projection_page_includes_visible_internal_transfer_and_filter_option tests/contract/test_cash_projection_parity.py::test_cross_currency_transfer_pair_is_visible_on_both_backends tests/test_transfer_phase_c.py::test_manual_transfer_creates_an_accepted_pair_and_visible_projection -q` 为 `6 failed, 4 passed, 4 skipped`。
+- [X] T153 修改 `src/ft/domain/cash_projection.py` 使已确认转账投影 `visible = true`、`hidden_reason = null`；修改应用/关系型 Web 查询允许所有可见经济类型，并从已采用转账关系及成员事实读取双端账户、金额和币种；`net_amount` 继续为 `0`。
+- [X] T154 修改 `src/ft/application/web_queries.py`、`web/src/api/types.ts` 和 API 合同增加 `transfer` 双端 DTO；经济类型筛选允许 `internal_transfer`；补充 API/查询/领域/双后端回归。验证：`uv run pytest tests/test_cash_projection.py tests/test_application_web_queries.py tests/contract/test_web_api.py tests/test_transfer_phase_c.py tests/contract/test_cash_projection_parity.py -q` 为 `82 passed, 18 skipped, 1 warning`。
+- [X] T155 修改 `web/src/components/CashTable.tsx`、`CashFilters.tsx`、`EvidenceDetail.tsx` 与命名令牌样式：转账显示“个人转账”、双端账户和蓝色中性金额样式；保留普通收支原有符号与精确字符串展示。源代码 TypeScript 检查通过：`WEB_SOURCE_TSC_OK`；`git diff --check` 与 `uv run python -m compileall -q src tests` 通过。
+- [X] T156 为真实本地 SQLite 创建不覆盖备份 `/Users/huangwenlong/.ft/finance-tracker.db.before-transfer-visible-20260801`，执行显式 `ft projections rebuild/status`；活动投影版本从 1 发布为 2，`8029` 条投影、`11387` 个成员，其中 `107` 条 `transfer_pair` 投影可见，`788` 条余额校准继续隐藏，现金流水和关系事实未修改。
+- [X] T157 浏览器验证 `http://192.168.1.3:5173/`：接口 `economic_type=internal_transfer` 返回转账行；真实页面显示双端账户、同币种和跨币种双端金额、“个人转账”；390 px `scrollWidth == innerWidth`，无横向溢出，清空旧控制台后无新错误。截图见 `/tmp/cash-ledger-transfer-1440-real.png`、`/tmp/cash-ledger-transfer-390-real.png`。
+- [ ] T158 运行受影响 Vitest、完整 `npm test`、`npm run build`、Playwright E2E/预览，以及 320/375/414/768/390×844/1440×900 自动化响应式矩阵；当前 `web/node_modules` 缺少 Vitest/Vite/Playwright 可执行文件，保留为未执行。
+- [ ] T159 运行范围化 gstack `/review`、`/qa`、Hallmark `audit` 与 `$speckit-analyze` / `$speckit-converge`；当前会话未提供这些 wrapper/skill 调用入口，手工 Hallmark 检查已覆盖页面结构、蓝灰白主题、焦点、双端金额和响应式无溢出，自动门禁保留未完成。
+
+## Phase 21：转账金额展示规则修正（2026-08-01）
+
+**目标**：修正转账金额的用户可见格式：去掉方向符号；同币种只展示一次金额，跨币种展示两端金额。不改变 API 保留事实源方向符号的合同、投影净额或持久化数据。
+
+- [X] T160 [P] 在 `web/tests/CashTable.test.tsx` 和 `web/tests/CashLedgerPage.test.tsx` 先覆盖同币种 `200 CNY`、跨币种 `200 CNY → 14 USD`，并明确不显示前置负号；旧实现基线为同币种显示 `-200 CNY → 200 CNY`、跨币种显示 `-200 CNY → 14 USD`。
+- [X] T161 在 `web/src/components/CashTable.tsx` 增加转账金额无符号格式化：同币种使用转出金额绝对值和单一币种，跨币种使用两端绝对值和币种；普通收支金额展示保持不变。
+- [X] T163 修正 `web/src/components/CashTable.tsx` 普通消费/收入金额展示，恢复拼接 `item.currency`；补充支出和收入的货币单位回归断言。
+- [ ] T162 运行受影响 Vitest、源代码 TypeScript 检查、浏览器同币种/跨币种验证和 `git diff --check`；将实际结果写入 `quickstart.md`。当前 Vitest 可执行文件仍缺失。
+
+## Phase 22：交易信息筛选与空描述占位（2026-08-01）
+
+**目标**：将筛选栏的“交易对方”改为“交易信息”，按交易对方或备注包含匹配；空的交易对方和备注在列表及证据主记录中显示 `-`。保留既有 `counterparty` API 参数以兼容 cursor 和调用方。
+
+- [X] T164 [P] 在 `web/tests/CashTable.test.tsx`、`web/tests/CashLedgerPage.test.tsx` 和 `tests/test_application_web_queries.py` 先覆盖空交易信息显示 `-`、控件名称为“交易信息”以及仅备注命中筛选；测试数据同时覆盖交易对方命中和备注命中。
+- [X] T165 在 `web/src/components/CashTable.tsx`、`web/src/components/EvidenceDetail.tsx` 和 `web/src/components/CashFilters.tsx` 实现横杠占位、筛选文案和摘要；在 `src/ft/adapters/relational/web_queries.py` 将 `counterparty` 条件改为交易对方或备注的包含匹配。
+- [ ] T166 运行受影响 Python/Vitest 测试、源代码 TypeScript 检查、浏览器筛选与空描述验证和 `git diff --check`；Vitest 可执行文件缺失时记录替代证据。
+
+## Phase 23：月份分割行与多币种收支汇总（2026-08-01）
+
+**目标**：在收支账本中按 `Asia/Shanghai` 月份插入分割行，展示当前完整筛选结果的收入/支出总额；月度汇总跨分页且按币种拆分，内部转账不计入收支。
+
+- [X] T167 [P] 在 `tests/test_application_web_queries.py`、`tests/contract/test_web_api.py` 和 `web/tests/CashTable.test.tsx` 先覆盖多月份、多币种、完整筛选结果而非当前页、精确十进制合计和月份分割行；旧实现基线为响应没有 `monthly_summaries`、表格没有月份分割行。
+- [X] T168 在 `src/ft/application/web_queries.py`、`src/ft/adapters/relational/web_queries.py` 和 `web/src/api/types.ts` 增加 `monthly_summaries` 合同；后端按完整筛选条件聚合收入/支出，前端按月份插入分割行并按币种展示。
+- [X] T169 在 `web/src/pages/CashLedgerPage.tsx`、`web/src/components/CashTable.tsx` 和 `web/src/styles.css` 接入月度汇总，覆盖桌面/移动布局、加载更多不重复插入月份行和空收支月份；真实页面验证 `2026年6月` 月度汇总及 390px 无横向溢出。
+- [ ] T170 运行受影响 Python/Vitest、完整 Web 回归、源代码 TypeScript 检查、浏览器多月份/多币种验证、Hallmark `audit` 和 `git diff --check`；Vitest 与自动 Hallmark wrapper 当前不可用时记录替代证据。

@@ -7,7 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from ft.adapters.relational.dialect import RelationalEngineError
 from ft.adapters.relational.models import AccountModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionModel, TransactionRelationModel
 from ft.adapters.relational.runtime import StorageError, storage_error
-from ft.application.web_queries import CashAccountDTO, ProjectionDTO, ProjectionUnavailableError, ProjectionUpdatedError, shanghai_bounds
+from ft.application.web_queries import SHANGHAI, CashAccountDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionUnavailableError, ProjectionUpdatedError, shanghai_bounds
 
 def _amount(value):
     amount = Decimal(value).normalize()
@@ -92,9 +92,97 @@ class RelationalCashLedgerQueryRepository:
         return state
     def active_version(self):
         with self._session() as s: return self._active(s).projection_version
-    def _dto(self, row, account, relations):
+    def _dto(self, row, account, relations, transfer=None):
         kinds=tuple(sorted({r.kind for r in relations})); summary=tuple({"kind":kind,"subtype":subtype,"count":sum(r.kind==kind and r.subtype==subtype for r in relations)} for kind,subtype in sorted({(r.kind,r.subtype) for r in relations}))
-        return ProjectionDTO(row.projection_id,row.occurred_at.isoformat(),CashAccountDTO(account.id,account.name,account.type,account.active),row.counterparty,row.category,row.note,_amount(row.net_amount),row.currency,row.economic_type,row.transfer_subtype,kinds,row.member_count,summary,row.source_type,row.record_id,row.visible,row.hidden_reason)
+        return ProjectionDTO(row.projection_id,row.occurred_at.isoformat(),CashAccountDTO(account.id,account.name,account.type,account.active),row.counterparty,row.category,row.note,_amount(row.net_amount),row.currency,row.economic_type,row.transfer_subtype,kinds,row.member_count,summary,row.source_type,row.record_id,row.visible,row.hidden_reason,transfer)
+    def _transfer_details(self, session, dataset_id, projection_row_ids):
+        projection_row_ids = tuple(projection_row_ids)
+        if not projection_row_ids:
+            return {}
+        relation_rows = session.execute(
+            select(
+                CashProjectionRelationModel.projection_row_id,
+                TransactionRelationModel.primary_fact_id,
+                TransactionRelationModel.secondary_fact_id,
+            ).join(
+                TransactionRelationModel,
+                and_(
+                    TransactionRelationModel.workspace_id == CashProjectionRelationModel.workspace_id,
+                    TransactionRelationModel.id == CashProjectionRelationModel.transaction_relation_id,
+                ),
+            ).where(
+                CashProjectionRelationModel.workspace_id == self._workspace_id,
+                CashProjectionRelationModel.dataset_id == dataset_id,
+                CashProjectionRelationModel.projection_row_id.in_(projection_row_ids),
+                CashProjectionRelationModel.kind == "transfer_pair",
+            ).order_by(CashProjectionRelationModel.projection_row_id, CashProjectionRelationModel.ordinal)
+        ).all()
+        endpoint_ids = sorted({endpoint for _row_id, primary_id, secondary_id in relation_rows for endpoint in (primary_id, secondary_id)})
+        if not endpoint_ids:
+            return {}
+        endpoint_rows = session.execute(
+            select(CashTransactionModel, AccountModel).join(
+                AccountModel,
+                and_(AccountModel.workspace_id == CashTransactionModel.workspace_id, AccountModel.id == CashTransactionModel.account_id),
+            ).where(
+                CashTransactionModel.workspace_id == self._workspace_id,
+                CashTransactionModel.id.in_(endpoint_ids),
+            )
+        ).all()
+        endpoints = {cash.id: (cash, account) for cash, account in endpoint_rows}
+        transfers = {}
+        for projection_row_id, primary_id, secondary_id in relation_rows:
+            if projection_row_id in transfers or primary_id not in endpoints or secondary_id not in endpoints:
+                continue
+            primary, primary_account = endpoints[primary_id]
+            secondary, secondary_account = endpoints[secondary_id]
+            transfers[projection_row_id] = CashTransferDTO(
+                CashAccountDTO(primary_account.id, primary_account.name, primary_account.type, primary_account.active),
+                _amount(primary.amount), primary.currency,
+                CashAccountDTO(secondary_account.id, secondary_account.name, secondary_account.type, secondary_account.active),
+                _amount(secondary.amount), secondary.currency,
+            )
+        return transfers
+    def _filter_options(self, session, dataset_id):
+        values = session.execute(
+            select(CashProjectionModel.category, CashProjectionModel.currency).where(
+                CashProjectionModel.workspace_id == self._workspace_id,
+                CashProjectionModel.dataset_id == dataset_id,
+                CashProjectionModel.visible.is_(True),
+            )
+        ).all()
+        categories = tuple(sorted({str(category).strip() for category, _currency in values if category and str(category).strip()}))
+        currencies = tuple(sorted({str(currency).strip().upper() for _category, currency in values if currency and str(currency).strip()}))
+        return CashFilterOptionsDTO(categories, currencies)
+    @staticmethod
+    def _monthly_summaries(rows):
+        months = set()
+        totals = {}
+        for occurred_at, economic_type, amount, currency in rows:
+            if occurred_at is None:
+                continue
+            local_time = occurred_at.astimezone(SHANGHAI) if occurred_at.tzinfo else occurred_at
+            month = local_time.strftime("%Y-%m")
+            months.add(month)
+            if economic_type not in ("expense", "income") or not currency:
+                continue
+            key = (month, str(currency).strip().upper())
+            income, expense = totals.get(key, (Decimal("0"), Decimal("0")))
+            if economic_type == "income":
+                income += Decimal(amount)
+            else:
+                expense += Decimal(amount)
+            totals[key] = (income, expense)
+        return tuple(
+            CashMonthlySummaryDTO(
+                month,
+                tuple(
+                    CashMonthlyCurrencySummaryDTO(currency, _amount(totals[(month, currency)][0]), _amount(totals[(month, currency)][1]))
+                    for _month, currency in sorted(totals) if _month == month
+                ),
+            )
+            for month in sorted(months, reverse=True)
+        )
     def list_projection_page(self, filters, cursor, limit):
         from ft.application.web_queries import _decode
         with self._session() as s:
@@ -107,36 +195,39 @@ class RelationalCashLedgerQueryRepository:
                 CashProjectionStateModel.active_dataset_id.label("active_dataset_id"),
                 CashProjectionStateModel.availability.label("availability"),
             ).where(CashProjectionStateModel.workspace_id==self._workspace_id).cte("active_state")
-            conditions=[
+            filter_conditions=[
                 CashProjectionModel.workspace_id==self._workspace_id,
-                CashProjectionModel.dataset_id==state.c.active_dataset_id,
                 CashProjectionModel.visible.is_(True),
-                CashProjectionModel.economic_type.in_(("expense","income")),
             ]
-            if cursor_version is not None: conditions.append(state.c.projection_version==cursor_version)
             start,end=shanghai_bounds(filters)
-            if start:conditions.append(CashProjectionModel.occurred_at>=start)
-            if end:conditions.append(CashProjectionModel.occurred_at<end)
+            if start:filter_conditions.append(CashProjectionModel.occurred_at>=start)
+            if end:filter_conditions.append(CashProjectionModel.occurred_at<end)
             for field in ("account_id","category","currency","economic_type"):
                 value=getattr(filters,field)
-                if value is not None:conditions.append(getattr(CashProjectionModel,field)==value)
-            if filters.counterparty:conditions.append(CashProjectionModel.counterparty.contains(filters.counterparty))
+                if value is not None:filter_conditions.append(getattr(CashProjectionModel,field)==value)
+            if filters.counterparty:
+                filter_conditions.append(or_(
+                    CashProjectionModel.counterparty.contains(filters.counterparty),
+                    CashProjectionModel.note.contains(filters.counterparty),
+                ))
             if filters.amount_min:
-                conditions.append(
+                filter_conditions.append(
                     func.decimal_compare(CashProjectionModel.net_amount, filters.amount_min) >= 0
                     if s.bind.dialect.name == "sqlite"
                     else CashProjectionModel.net_amount >= Decimal(filters.amount_min)
                 )
             if filters.amount_max:
-                conditions.append(
+                filter_conditions.append(
                     func.decimal_compare(CashProjectionModel.net_amount, filters.amount_max) <= 0
                     if s.bind.dialect.name == "sqlite"
                     else CashProjectionModel.net_amount <= Decimal(filters.amount_max)
                 )
-            if filters.composition=="single":conditions.extend((~CashProjectionModel.has_payment_mirror,~CashProjectionModel.has_refund_offset,~CashProjectionModel.has_transfer_pair))
-            elif filters.composition=="payment_mirror":conditions.append(CashProjectionModel.has_payment_mirror)
-            elif filters.composition=="refund_offset":conditions.append(CashProjectionModel.has_refund_offset)
-            elif filters.composition=="combined":conditions.append(or_(and_(CashProjectionModel.has_payment_mirror,CashProjectionModel.has_refund_offset),and_(CashProjectionModel.has_payment_mirror,CashProjectionModel.has_transfer_pair),and_(CashProjectionModel.has_refund_offset,CashProjectionModel.has_transfer_pair)))
+            if filters.composition=="single":filter_conditions.extend((~CashProjectionModel.has_payment_mirror,~CashProjectionModel.has_refund_offset,~CashProjectionModel.has_transfer_pair))
+            elif filters.composition=="payment_mirror":filter_conditions.append(CashProjectionModel.has_payment_mirror)
+            elif filters.composition=="refund_offset":filter_conditions.append(CashProjectionModel.has_refund_offset)
+            elif filters.composition=="combined":filter_conditions.append(or_(and_(CashProjectionModel.has_payment_mirror,CashProjectionModel.has_refund_offset),and_(CashProjectionModel.has_payment_mirror,CashProjectionModel.has_transfer_pair),and_(CashProjectionModel.has_refund_offset,CashProjectionModel.has_transfer_pair)))
+            conditions = [CashProjectionModel.dataset_id==state.c.active_dataset_id, *filter_conditions]
+            if cursor_version is not None: conditions.append(state.c.projection_version==cursor_version)
             if position:conditions.append(or_(CashProjectionModel.occurred_at<position[0],and_(CashProjectionModel.occurred_at==position[0],CashProjectionModel.projection_id<position[1])))
             page=select(
                 state.c.projection_version,
@@ -170,6 +261,13 @@ class RelationalCashLedgerQueryRepository:
             version,dataset_id,availability,_,_,_=result[0]
             if availability != "ready" or not dataset_id: raise ProjectionUnavailableError()
             if cursor_version is not None and cursor_version != version: raise ProjectionUpdatedError()
+            summary_rows = s.execute(
+                select(CashProjectionModel.occurred_at, CashProjectionModel.economic_type, CashProjectionModel.net_amount, CashProjectionModel.currency).where(
+                    CashProjectionModel.dataset_id == dataset_id,
+                    *filter_conditions,
+                )
+            ).all()
+            monthly_summaries = self._monthly_summaries(summary_rows)
             rows=[]; by={}
             for _,_,_,row,account,relation in result:
                 if row is None: continue
@@ -177,7 +275,8 @@ class RelationalCashLedgerQueryRepository:
                     rows.append((row,account))
                     by[row.id]=[]
                 if relation is not None: by[row.id].append(relation)
-            return version, [self._dto(row,account,by[row.id]) for row,account in rows]
+            transfer_details = self._transfer_details(s, dataset_id, [row.id for row, _account in rows])
+            return version, [self._dto(row,account,by[row.id],transfer_details.get(row.id)) for row,account in rows], self._filter_options(s, dataset_id), monthly_summaries
     def get_evidence(self, projection_id):
         with self._evidence_snapshot() as s:
             state=self._active(s); row=s.scalar(select(CashProjectionModel).where(CashProjectionModel.workspace_id==self._workspace_id,CashProjectionModel.dataset_id==state.active_dataset_id,CashProjectionModel.projection_id==projection_id))
@@ -226,7 +325,7 @@ class RelationalCashLedgerQueryRepository:
             root_record["source_snapshot"] = _safe_snapshot(root.source_payload)
             return {
                 "projection_version": state.projection_version,
-                "projection": self._dto(row, account, rels),
+                "projection": self._dto(row, account, rels, self._transfer_details(s, state.active_dataset_id, [row.id]).get(row.id)),
                 "root_record": root_record,
                 "members": [
                     {**_record_summary(cash, member_account), "roles": list(member.roles_json)}

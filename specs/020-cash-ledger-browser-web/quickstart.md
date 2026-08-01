@@ -144,7 +144,7 @@ npm run start
 1. 页面名称为“收支账本”，不出现“消费账本”或原始流水回退开关。
 2. 已确认同笔支付只显示一个投影。
 3. 部分退款显示在原消费时间并使用冲销后金额；退款时间只在证据详情。
-4. 全额退款和内部转账不进入列表。
+4. 全额退款和余额校准不进入列表；内部转账进入列表并显示为“个人转账”。
 5. 未确认关系两端仍独立显示，证据详情只把它列为未生效提示。
 6. 组成方式筛选、经济类型分段、连续 3 页、证据详情和纯键盘焦点路径正确。
 7. 投影版本变化时保留筛选并刷新第一页；投影不可用时不请求旧 `/cash-transactions`。
@@ -217,6 +217,53 @@ FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' \
   FT_REQUIRE_TEST_POSTGRES=1 \
   uv run pytest 'tests/test_cash_projection_performance.py::test_fixed_10k_cash_projection_rebuild_meets_budget[postgresql]' -q -s
 ```
+
+## Phase 19：全量筛选选项与表格语义 Living Spec（2026-08-01）
+
+本轮验证基线为当前工作树 `HEAD=6a62a1e0457f84e0cf30392741e8982ea65039f3`，目标分支基线未同步；未提交或
+推送。实现将 `filter_options.categories` 与 `filter_options.currencies` 加入 `GET /api/v1/cash-projections`
+成功响应，选项从当前活动数据集的全部可见消费、收入和内部转账投影聚合，分类和币种筛选仍使用既有 `category`、`currency`
+参数；表格移除来源和真实分类列，交易对方/备注合并为交易信息，展示经济类型。
+
+已执行：
+
+```sh
+uv run pytest tests/test_application_web_queries.py::test_projection_page_returns_global_filter_options_independent_of_current_filters \
+  tests/contract/test_web_api.py::test_projection_api_contract_and_old_routes_are_absent -q
+# 先失败：2 failed（缺少 filter_options）
+
+uv run pytest tests/test_application_web_queries.py::test_projection_filter_options_exclude_hidden_and_blank_values \
+  tests/test_application_web_queries.py::test_projection_filter_options_are_empty_when_no_visible_projection \
+  tests/contract/test_web_api.py::test_projection_api_contract_and_old_routes_are_absent -q
+# 3 passed
+
+uv run pytest tests/test_application_web_queries.py tests/contract/test_web_api.py tests/integration/test_web_sqlite.py -q
+# 47 passed, 3 skipped；3 个 PostgreSQL 参数实例因未配置 FT_TEST_POSTGRES_URL 跳过
+
+uv run python -m compileall -q src tests
+git diff --check
+# 均通过
+```
+
+真实本机浏览器验证使用 `http://192.168.1.3:5173/` 和重启后的本机 API `http://192.168.1.3:8001`：
+
+- API 全量选项为 `categories=["expense", "income"]`、`currencies=["CNY", "HKD", "JPY", "USD"]`；
+  加 `category=expense&currency=USD` 后选项集合保持不变。
+- 分类与币种均为原生下拉框，分别显示“全部分类”“全部币种”和后端选项；选择 `expense`、`USD` 后请求分别
+  包含 `category=expense`、`currency=USD`。
+- `1440×900`、`768×1024`、`414×844`、`375×844`、`320×844` 均无横向溢出；表头为“发生时间、账户、交易信息、
+  经济类型、金额、操作”，页面无“来源”列；控制台无错误。
+
+未完成/风险：
+
+- `npm ci --ignore-scripts` 在当前环境网络阶段持续无输出后中止，`npm test` 报 `vitest: command not found`，
+  因此 Vitest、Playwright、`npm run build` 未执行。范围化 gstack `/review`、`/qa` 包装流程和
+  `$speckit-converge` 也未执行；T145、T147、T149、T150 保持未勾选。
+- 手工浏览器验证已在 `http://192.168.1.3:5173/` 完成：分类/币种下拉选项来自 API 全量聚合，选择后请求包含
+  `category=expense`、`currency=USD`；`320/375/414/768/1440` 宽度均无横向溢出，表头为“发生时间、账户、交易信息、
+  经济类型、金额、操作”，来源列和旧分类列均不存在，控制台无错误。按 Hallmark `audit` 只读规则检查结果为
+  `0 critical · 0 major · 0 minor`；未把手工结果冒充自动化 QA。
+- 本机 PostgreSQL 测试 URL 未配置，不能宣称双后端合同已通过；SQLite 与 API 合同证据已通过。
 
 已执行 `uv run python -m compileall -q tests/test_cash_projection_performance.py` 与 `git diff --check`，两者通过。
 
@@ -1112,3 +1159,84 @@ FT_DATABASE_URL='sqlite+pysqlite:////tmp/unrelated-contract-runtime.db' \
 专用测试库和 SQLite 参数实例，确认无关 SQLite 文件不被创建，`workspaces` 仅在合同夹具选择的数据库中可用。
 
 - 全量 Python 回归曾实际运行并暴露两项非本轮产品回归：迁移清单断言已随新增 revision 修复；既有 SQLite 财富冷构建 p95 为 5.83 s，超过 5 s 门禁，因此按既有批准的性能门禁例外排除该单个用例后完成完整回归。
+
+## Phase 20：转账投影可见与双端展示（2026-08-01）
+
+本轮 Living Spec 明确：已确认 `transfer_pair` 投影进入收支账本，UI 经济类型显示“个人转账”；投影 `net_amount`
+仍为 `0`，但列表金额从关系两端读取实际值，账户和金额分别显示为“转出 → 转入”。跨币种示例为
+`-526.58 CNY → 73.12 USD`。全额退款和余额校准继续隐藏。
+
+测试先行失败证据：
+
+```sh
+uv run pytest \
+  tests/test_cash_projection.py::test_transfer_pair_is_visible_internal_transfer \
+  tests/test_application_web_queries.py::test_projection_page_includes_visible_internal_transfer_and_filter_option \
+  tests/contract/test_cash_projection_parity.py::test_cross_currency_transfer_pair_is_visible_on_both_backends \
+  tests/test_transfer_phase_c.py::test_manual_transfer_creates_an_accepted_pair_and_visible_projection -q
+```
+
+旧实现结果为 `6 failed, 4 passed, 4 skipped`：领域和手工转账仍返回 `visible = false`，Web 查询不返回可见内部转账。
+
+实际验证：
+
+```sh
+uv run pytest tests/test_cash_projection.py tests/test_application_web_queries.py \
+  tests/contract/test_web_api.py tests/test_transfer_phase_c.py \
+  tests/contract/test_cash_projection_parity.py -q
+```
+
+结果：`82 passed, 18 skipped, 1 warning`。另执行 `uv run python -m compileall -q src tests`、
+`git diff --check` 和源代码 TypeScript 定向检查，均通过。TypeScript 检查输出 `WEB_SOURCE_TSC_OK`；真实
+PostgreSQL 本轮未配置，未执行 PostgreSQL 运行时矩阵。
+
+本地真实账本验证前先创建不覆盖的备份：
+
+```text
+/Users/huangwenlong/.ft/finance-tracker.db.before-transfer-visible-20260801
+```
+
+随后执行 `FT_DATABASE_URL='sqlite:////Users/huangwenlong/.ft/finance-tracker.db' FT_WORKSPACE_ID='default' uv run ft projections rebuild`
+和 `status`。结果为活动投影版本 `2`、投影 `8029` 条、成员 `11387` 个；其中 `107` 条 `transfer_pair` 投影可见，
+`788` 条余额校准投影继续隐藏。只重建派生读模型，不修改现金流水或交易关系。
+
+浏览器验证：
+
+- 页面：`http://192.168.1.3:5173/`。
+- API `GET /api/v1/cash-projections?economic_type=internal_transfer` 返回可见转账，`transfer` 包含两端账户、金额和币种。
+- 页面筛选“个人转账”后显示“工行借记卡 → 建行储蓄卡(2820)”以及 `-5000 CNY → 5000 CNY`，跨币种行显示两端币种。
+- 390 px 检查 `document.documentElement.scrollWidth == innerWidth`，无横向溢出；清空旧控制台后无新错误。
+- 截图：`/tmp/cash-ledger-transfer-1440-real.png`、`/tmp/cash-ledger-transfer-390-real.png`。
+
+未执行：Vitest、完整 `npm test`、`npm run build`、Playwright、gstack `/review`、gstack `/qa`、Hallmark 自动审计、
+`$speckit-analyze` 和 `$speckit-converge`。原因是当前 `web/node_modules` 缺少 Vitest/Vite/Playwright 可执行文件，
+且当前会话未提供这些 wrapper/skill 调用入口；手工页面检查结果为 `0 critical · 0 major · 0 minor`。
+
+## Phase 21：转账金额展示规则修正（2026-08-01）
+
+转账列表金额改为无方向符号展示：同币种只显示一次金额，例如 `200 CNY`；跨币种保留两端，例如
+`200 CNY → 14 USD`。API 的 `from_amount` / `to_amount` 仍保留事实源方向符号，仅由表格展示层去掉。
+普通消费和收入金额同时恢复显示对应币种，例如 `-12.50 CNY`、`+18000 CNY`。前端回归测试已补充
+同币种、跨币种及普通收支三种场景；源代码 TypeScript 检查输出 `WEB_SOURCE_TSC_OK`，浏览器实际验证同币种显示
+`5000 CNY`、跨币种显示 `128.96 CNY → 3000 JPY`，`git diff --check` 通过。Vitest 因当前
+`web/node_modules` 缺少可执行文件仍未运行。
+
+## Phase 22：交易信息筛选与空描述占位（2026-08-01）
+
+“交易对方”筛选栏已改名为“交易信息”；请求仍使用兼容性的 `counterparty` 参数，后端同时匹配投影主记录的
+`counterparty` 和 `note`。真实 API 用备注值 `北京象鲜科技有限公司` 查询返回 15 条结果；页面实际展示空备注为 `-`，
+交易信息筛选控件名称为“交易信息”。
+
+验证：`uv run pytest tests/test_application_web_queries.py tests/contract/test_web_api.py -q` 为 `47 passed, 4 skipped, 1 warning`；
+新增 OR 匹配回归和既有 Web 合同均通过。源代码 TypeScript 检查输出 `WEB_SOURCE_TSC_OK`，`uv run python -m compileall -q src tests`
+与 `git diff --check` 通过。Vitest 因当前 `web/node_modules` 缺少可执行文件未运行。
+
+## Phase 23：月份分割行与多币种收支汇总（2026-08-01）
+
+`GET /api/v1/cash-projections` 现在返回 `monthly_summaries`：按当前完整筛选结果、`Asia/Shanghai` 月份和币种聚合，
+不受 `limit`/`cursor` 影响；内部转账不计入收入或支出。真实接口示例返回 `2026-06` 的 `CNY` 收入 `24615.62`、
+支出 `-8737.06`，以及 `2026-05` 的 CNY/USD 分币种汇总。
+
+浏览器 `http://192.168.1.3:5173/` 已验证桌面和 390px 移动端显示月份分割行，例如 `2026年6月` 及“收入/支出”
+汇总；390px `scrollWidth == innerWidth`。月度 API/查询回归、源代码 TypeScript 检查 `WEB_SOURCE_TSC_OK`、
+`uv run python -m compileall -q src tests` 和 `git diff --check` 通过。Vitest 和自动 Hallmark wrapper 当前不可用，未运行。

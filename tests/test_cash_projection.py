@@ -41,7 +41,7 @@ def test_payment_mirror_uses_primary_record_once_and_is_deterministic():
 
 
 @pytest.mark.parametrize("subtype", ["ordinary_transfer", "credit_repayment", "currency_exchange", "bank_security_transfer"])
-def test_transfer_pair_is_hidden_internal_transfer(subtype):
+def test_transfer_pair_is_visible_internal_transfer(subtype):
     from ft.domain.cash_projection import CashProjectionFact, ProjectionRelation, build_cash_projections
 
     scenario = projection_scenarios()["transfer"]
@@ -53,7 +53,8 @@ def test_transfer_pair_is_hidden_internal_transfer(subtype):
     item = build_cash_projections(facts, (relation,)).projections[0]
     assert item.economic_type.value == "internal_transfer"
     assert item.transfer_subtype == subtype
-    assert not item.visible and item.hidden_reason == "internal_transfer"
+    assert item.net_amount == Decimal("0")
+    assert item.visible and item.hidden_reason is None
 
 
 def test_refunds_reduce_expense_without_moving_its_date_or_creating_income():

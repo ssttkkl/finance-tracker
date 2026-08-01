@@ -106,7 +106,7 @@ def test_transfer_pair_endpoint_invariants_are_identical_on_both_backends(
     "subtype",
     ["ordinary_transfer", "credit_repayment", "currency_exchange", "bank_security_transfer"],
 )
-def test_cross_currency_transfer_pair_is_hidden_on_both_backends(
+def test_cross_currency_transfer_pair_is_visible_on_both_backends(
     cash_web_runtime,
     postgres_cash_web_runtime,
     subtype,
@@ -176,8 +176,8 @@ def test_cross_currency_transfer_pair_is_hidden_on_both_backends(
         assert member_ids == tuple(sorted((1003, counterparty.id)))
         assert projections[-1] == (
             "internal_transfer",
-            False,
-            "internal_transfer",
+            True,
+            None,
             subtype,
             Decimal("0"),
             2,

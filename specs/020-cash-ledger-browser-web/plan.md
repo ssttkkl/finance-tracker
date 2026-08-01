@@ -7,13 +7,14 @@
 ## 目标
 
 把现有“原始现金流水 + 关系摘要”页面改为只读取持久化收支投影：无关系流水投影到自身，同笔支付只计
-一次，退款冲销原消费，内部转账和全额退款保留派生结果但不进入列表。
+一次，退款冲销原消费，已确认内部转账进入列表并以“个人转账”显示，全额退款保留派生结果但不进入列表。
 
 ## 摘要
 
 新增纯领域投影构建器、事务内投影维护 Application Service 和 5 张派生读模型表。日常事实或关系变更
 锁定工作区状态，只重建变更前后受影响的完整关系连通组；全量命令构建暂存数据集，验证后原子切换活动
 指针。Python API 仅查询活动数据集，独立 Node 前端改为“收支账本”，不保留原始流水回退端点。
+现有投影列表响应同时返回当前活动版本的全量分类、币种选项，前端以原生下拉框消费，不新增选项端点。
 
 ## 技术上下文
 
@@ -102,7 +103,7 @@ PostgreSQL 的单条语句最多接受 65,535 个 bind 参数；父投影回查�
 | ORM 与迁移 | `src/ft/adapters/relational/models.py`、`migrations/versions/20260729_11_cash_projections.py` | 实现 [data-model.md](data-model.md) 的 5 张表、约束和索引。 |
 | 事务接入 | `src/ft/adapters/relational/uow.py`、现金/导入/关系 Application Service | 确保所有现金事实和生效关系语义变更在提交前维护投影。 |
 | 维护 CLI | `src/ft/cli.py`、`src/ft/runtime.py` | `ft projections rebuild/status`，输出脱敏状态。 |
-| Web 查询 | `src/ft/application/web_queries.py`、`src/ft/adapters/relational/web_queries.py`、`src/ft/web/routes.py` | 版本化投影分页、证据详情和稳定错误合同。 |
+| Web 查询 | `src/ft/application/web_queries.py`、`src/ft/adapters/relational/web_queries.py`、`src/ft/web/routes.py` | 版本化投影分页、全量筛选选项、证据详情和稳定错误合同。 |
 | 前端 API | `web/src/api/cashLedger.ts`、`web/src/api/types.ts` | 只调用投影端点并区分更新/不可用错误。 |
 | 前端页面 | `web/src/pages/CashLedgerPage.tsx` 及既有组件 | 收支筛选、投影表格、备注展示和投影证据；组成方式只用于筛选和证据详情。 |
 
@@ -187,7 +188,7 @@ PostgreSQL 的单条语句最多接受 65,535 个 bind 参数；父投影回查�
 对状态转换、审计字段、投影结果和失败条件提供等价行为，运行期仍只由 `FT_DATABASE_URL` 显式选择一个后端。
 
 无关系负金额形成消费，正金额形成收入，零金额校准形成
-`internal_transfer/balance_adjustment` 隐藏投影。已确认 `transfer_pair` 形成隐藏内部转账；subtype
+`internal_transfer/balance_adjustment` 隐藏投影。已确认 `transfer_pair` 形成可见的内部转账，投影净额保持 0，列表通过已采用关系读取实际转出/转入账户、金额和币种；subtype
 `credit_repayment` 原样映射，普通转账缺省为 `ordinary_transfer`。不根据备注产生换汇或银证转账关系。
 
 ### 增量重建
@@ -242,11 +243,13 @@ schema 已升级
 
 ## API 与查询
 
-合同见 [web-api.md](contracts/web-api.md)。列表查询必须以单条 SQL 的活动状态 CTE 读取版本和数据集，并由该
+合同见 [web-api.md](contracts/web-api.md)。列表查询必须以活动状态 CTE 读取版本和数据集，并由该
 CTE 同时约束游标版本校验、限长页面候选行和投影关系依据；查询结果在应用层按投影行归组为关系摘要，下一页
 游标只编码这条查询返回的版本与末行排序键。解码 cursor 后必须先验证 JSON 顶层为对象，再验证 `v` 与 `version` 为非布尔整数、`workspace`、`occurred_at` 与 `projection_id` 为字符串、`filters` 为完整筛选对象；任何解码、形状或字段类型错误统一返回 `invalid_cursor`。不得先读取活动状态后再发起页面或关系摘要 SQL，也不得依赖
-PostgreSQL 默认 `READ COMMITTED` 会话在多条 SQL 间保持快照；SQLite 和 PostgreSQL 都以这条单语句的数据库
-快照证明等价行为。游标版本不一致抛出 `ProjectionUpdatedError`；无活动数据集抛出 `ProjectionUnavailableError`。
+PostgreSQL 默认 `READ COMMITTED` 会话在多条 SQL 间保持快照；SQLite 和 PostgreSQL 都以同一只读查询上下文
+读取活动版本。每个成功页面响应还要在同一活动数据集上聚合不受当前筛选影响的非空分类和币种选项；选项与
+页面版本绑定，游标追加可以复用该版本选项。游标版本不一致抛出 `ProjectionUpdatedError`；无活动数据集抛出
+`ProjectionUnavailableError`。
 证据金额和投影净额统一使用无指数形式的规范十进制字符串，不依赖
 SQLite 或 PostgreSQL 的存储小数位。证据读取必须采用一条查询或显式快照事务，在同一快照内以
 `projection_id + active_dataset_id` 定位投影并批量读取成员、已采用关系及所有成员的未生效关系，禁止逐成员
@@ -262,8 +265,9 @@ N+1 或在 PostgreSQL `READ COMMITTED` 下依赖多条查询的偶然一致性�
 `IBM Plex Mono`、不超过 8 px 圆角、可见焦点和非纯颜色状态；不增加渐变、统计卡片或装饰图形。
 
 **宽屏信息架构**：页面标题改为“收支账本”。主工作区从上到下为筛选条、投影表格和分页；证据详情在
-右侧抽屉并列显示。列表列依次为主记录发生时间、账户、交易对方、备注、分类、金额（含币种）、来源和
-证据入口；备注紧跟交易对方。“组成方式”不占用列表列，只保留为筛选条件，并在证据详情的已采用关系中说明。
+右侧抽屉并列显示。列表列依次为发生时间、账户、交易信息、经济类型、金额（含币种）和证据入口；交易信息
+单元格上下显示交易对方主文本与备注次文本，任一字段为空时显示 `-`；筛选栏的“交易信息”同时匹配交易对方和备注，不再重复展示来源或真实分类。“组成方式”不占用列表列，只保留
+为筛选条件，并在证据详情的已采用关系中说明。分类与币种筛选使用后端全量选项下拉框。
 
 详情打开后，`1024 px` 及以上视口把主工作区重排为“可伸缩表格区 + `360～440 px` 证据区”，不得用
 固定浮层遮住表格。表格区可在自身内部横向滚动；当前投影行同时使用文字或图标和选中态表达，不只依赖
@@ -279,11 +283,11 @@ Finance Tracker | 收支账本                      | 证据详情
                |                               | 退款时间线
 ```
 
-经济类型使用“全部 / 消费 / 收入”分段控件；组成方式使用选项菜单。内部转账和全额退款没有列表筛选项，
-也没有原始流水开关。已采用关系只在证据详情说明；未生效关系只在证据详情提示。
+经济类型使用“全部 / 消费 / 收入 / 个人转账”选项菜单；分类和币种使用后端聚合的下拉框；组成方式使用选项菜单。全额退款和余额校准没有列表筛选项，
+可见内部转账通过“个人转账”筛选。已采用关系只在证据详情说明；未生效关系只在证据详情提示。
 
-**窄屏**：顶部栏显示产品和“收支账本”；筛选收纳为可展开区域；投影卡片保留时间、交易对方、备注、净额、
-账户、分类、来源和证据入口；详情为全屏模态层，关闭后焦点返回原投影条目。表头可视觉隐藏，但仍必须通过
+**窄屏**：顶部栏显示产品和“收支账本”；筛选收纳为可展开区域；投影卡片保留时间、交易信息、净额、
+账户、经济类型和证据入口；详情为全屏模态层，关闭后焦点返回原投影条目。表头可视觉隐藏，但仍必须通过
 原生表格语义与列作用域关联每个字段，不能只由 CSS 伪元素提供标签。触摸目标不小于 44 × 44 px。
 
 **状态**：
@@ -470,7 +474,7 @@ SQLite 连接不得创建文件或旁路文件，PostgreSQL 读取必须在数�
              ▼
 CashLedgerPage（请求取消、请求代次、版本更新、焦点恢复）
   ├── CashFiltersBar（默认折叠、范围摘要、即时筛选）
-  ├── CashTable（八列语义、移动端真实字段）
+  ├── CashTable（交易信息/经济类型六列语义、移动端真实字段）
   ├── LoadMoreControl（observer 自动加载与按钮回退）
   └── EvidenceDetail（证据审阅、焦点圈定与关闭回焦）
 ```
@@ -510,3 +514,51 @@ Hallmark 审计已采纳三项展示层修复：筛选控件状态、样式标�
 ### 回滚
 
 本次 artifact 整合可通过回退本次提交恢复 020/021 分离目录；不涉及数据、schema 或运行时回滚。021 实现与验证证据位于提交 `3822ecd`、`7471a8d`，并由本目录的任务、quickstart 和兼容性合同追溯。
+
+## Living Spec 更新：全量筛选选项与表格语义（2026-08-01）
+
+### 设计决策
+
+- 不新增筛选选项路由。`GET /cash-projections` 的成功响应增加 `filter_options`，包含 `categories` 和
+  `currencies` 两个稳定排序数组；它们从当前工作区活动数据集的全部可见消费、收入和内部转账投影聚合，不套用本次
+  请求的日期、账户、交易对方、分类、币种、金额、经济类型或组成方式条件。
+- `filter_options` 与列表响应共用活动投影版本和数据集读取上下文。后端 DTO 明确返回 `projection_version`、
+  `items` 与 `filter_options`，前端不从当前页内容推导选项，也不维护静态枚举。
+- 分类选项使用投影的真实 `category` 值；币种选项使用大写三位码。两者去除空值、去重并使用应用层稳定
+  排序，避免 PostgreSQL 与 SQLite 的默认排序/NULL 行为造成差异。
+- `CashFiltersBar` 将分类、币种从 `<input>` 改为 `<select>`，分别提供“全部分类”“全部币种”空值选项；
+  首批响应到达前禁用控件，追加响应继续复用已加载选项。列表表格同时收敛为“交易信息”和“经济类型”语义，
+  移除来源列。
+
+### 转账投影展示决策
+
+- `transfer_pair` 形成的投影保持 `net_amount = 0`，但 `visible = true`，并允许通过 `economic_type=internal_transfer`
+  筛选；全额退款和余额校准继续隐藏。
+- API 在转账投影上返回 `transfer` 双端展示 DTO。它从同一活动数据集的已采用关系和成员事实读取转出/转入账户、
+  实际金额与币种并保留事实方向符号；前端以“转出账户 → 转入账户”显示账户，同币种去掉符号后只显示一次金额，跨币种以“转出金额 币种 → 转入金额 币种”显示，避免把净额 0 误读为收入。
+- API 同时返回 `monthly_summaries`，在当前筛选条件下跨完整结果集按 `Asia/Shanghai` 月份和币种聚合收入/支出净额；不把
+  `limit`、`cursor` 或当前页边界带入聚合，内部转账不计入收入/支出。前端只负责按列表实际出现的月份插入分割行和格式化精确十进制字符串。
+
+### 影响范围与实现顺序
+
+1. 先在 Python Web DTO、关系型只读查询、API 契约测试中增加 `filter_options` 失败断言，证明选项跨当前
+   筛选保持完整且为空值安全；同时在前端测试中断言两个输入框已不存在、下拉选项来自响应。
+2. 修改应用查询与关系型查询适配器，使用活动数据集过滤 `visible = true` 的行，允许 `economic_type` 为
+   `expense`、`income` 或 `internal_transfer`；聚合非空分类和币种；不改变列表过滤、金额精度、cursor、证据或持久化。
+3. 修改 `CashFiltersBar`、`CashLedgerPage`、前端类型和 fixture，保留请求取消、迟到响应保护和即时筛选
+   语义；仅将控件值继续写入既有 `category` / `currency` 查询参数。
+4. 运行 SQLite 与真实 PostgreSQL Web 合同矩阵，随后执行前端测试、构建、代码审查、Hallmark 审计和 gstack
+   浏览器 QA；若发现合同或设计问题，先回写本节与相应任务再修复。
+
+### 验证门禁
+
+- 后端：应用/关系型 Web 查询测试、API 合同测试、SQLite 与 PostgreSQL 真实 Web 集成和响应矩阵；额外验证
+  空分类、空币种、可见内部转账进入列表和选项，隐藏全额退款/余额校准不进入选项。
+- 前端：Vitest 覆盖首批响应、空选项、下拉选择触发 `category` / `currency` 请求、加载禁用和键盘焦点；
+  Playwright 覆盖展开筛选、桌面/移动视口无溢出。
+- 静态：`uv run compileall src tests`、`npm run build`、`git diff --check`；依赖未安装时必须明确记录未
+  执行，不得用旧结果代替当前验证。
+
+本轮手工 Hallmark `audit` 只读检查页面标记、Workbench/Ledger Grid 结构、蓝灰白主题、焦点轮廓与响应式表格，结果为
+`0 critical · 0 major · 0 minor`；自动化 Vitest、Playwright、build、gstack `/review`、`/qa` 与 `$speckit-converge`
+因前端依赖安装阻塞和当前工作树未提交而保留为未完成门禁，证据见 `quickstart.md`。
