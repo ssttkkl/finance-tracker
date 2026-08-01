@@ -265,7 +265,7 @@ def test_unionpay_compound_signals_still_match():
     assert has_transfer_signal("银联") is False
 
 
-def test_transfer_exact_no_signal_within_10s_is_pending_high_recall():
+def test_transfer_without_source_out_signal_is_not_a_seed():
     out_leg = _fv(
         id="a", amount=Decimal("-100"), account_id="1", account_name="A",
         occurred_at="2026-01-01 10:00:00", note="支出",
@@ -274,9 +274,7 @@ def test_transfer_exact_no_signal_within_10s_is_pending_high_recall():
         id="b", amount=Decimal("100"), account_id="2", account_name="B",
         occurred_at="2026-01-01 10:00:05", note="收入",
     )
-    proposal = evaluate_transfer_pair(out_leg, [in_leg])
-    assert proposal is not None
-    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert evaluate_transfer_pair(out_leg, [in_leg]) is None
 
 
 def test_transfer_signal_exact_beyond_10s_within_5min_pending():

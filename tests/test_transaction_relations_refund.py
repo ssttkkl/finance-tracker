@@ -223,7 +223,7 @@ def test_refund_mirror_is_occupied_after_first_same_scan_match():
     assert refunds[0].secondary_fact_id == "icbc-refund"
 
 
-def test_refund_same_account_exact_without_merchant_is_pending_not_silent():
+def test_refund_same_account_exact_without_merchant_unique_auto_accepts_as_strong():
     expense = _fv(
         id="e", amount=Decimal("-100"), account_id="1",
         occurred_at="2026-01-01 10:00:00", counterparty="商家A", category="expense",
@@ -235,7 +235,64 @@ def test_refund_same_account_exact_without_merchant_is_pending_not_silent():
     )
     proposal = evaluate_refund_offset(refund, [expense])
     assert proposal is not None
+    assert proposal.status == RelationStatus.ACCEPTED.value
+    assert proposal.confidence == "strong"
+    assert proposal.primary_fact_id == "e"
+    assert proposal.secondary_fact_id == "r"
+
+
+def test_refund_same_account_exact_unique_outside_auto_window_is_strong_pending():
+    expense = _fv(
+        id="e", amount=Decimal("-100"), account_id="1",
+        occurred_at="2026-01-01 10:00:00", counterparty="商家A", category="expense",
+    )
+    refund = _fv(
+        id="r", amount=Decimal("100"), account_id="1",
+        occurred_at="2026-01-20 10:00:00", counterparty="其他", note="退款到账",
+        category="income",
+    )
+    proposal = evaluate_refund_offset(refund, [expense])
+    assert proposal is not None
     assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.confidence == "strong"
+    assert proposal.open_leg is False
+
+
+def test_refund_same_account_exact_multiple_candidates_stays_open_pending():
+    expenses = [
+        _fv(
+            id="e1", amount=Decimal("-100"), account_id="1",
+            occurred_at="2026-01-01 10:00:00", counterparty="商家A", category="expense",
+        ),
+        _fv(
+            id="e2", amount=Decimal("-100"), account_id="1",
+            occurred_at="2026-01-02 10:00:00", counterparty="商家B", category="expense",
+        ),
+    ]
+    refund = _fv(
+        id="r", amount=Decimal("100"), account_id="1",
+        occurred_at="2026-01-05 10:00:00", counterparty="其他", note="退款到账",
+        category="income",
+    )
+    proposal = evaluate_refund_offset(refund, expenses)
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.confidence == "weak"
+    assert proposal.open_leg is True
+    assert proposal.evidence.candidate_count == 2
+
+
+def test_refund_same_account_exact_does_not_cross_account_match():
+    expense = _fv(
+        id="e", amount=Decimal("-100"), account_id="2",
+        occurred_at="2026-01-01 10:00:00", counterparty="商家A", category="expense",
+    )
+    refund = _fv(
+        id="r", amount=Decimal("100"), account_id="1",
+        occurred_at="2026-01-05 10:00:00", counterparty="其他", note="退款到账",
+        category="income",
+    )
+    assert evaluate_refund_offset(refund, [expense]) is None
 
 
 def test_same_account_partial_amount_without_merchant_is_silent():
