@@ -52,7 +52,7 @@ def _parse_cash_statement(command):
             "platform_status", "status", "txn_id", "merchant_order_id",
             "txn_type", "payment_method", "offset_group", "offset_role",
             "offset_rule_hint", "offset_match_type", "offset_strength",
-            "proposed_action", "record_id",
+            "proposed_action", "record_id", "summary", "refund_signal", "_raw_cp",
         ):
             if key in row and key not in item:
                 item[key] = row[key]

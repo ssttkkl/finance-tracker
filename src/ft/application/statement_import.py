@@ -87,7 +87,28 @@ class StatementImportService:
                 )
             raise ValueError("账单中没有可导入的记录")
 
-        source_type = str(command.source or "").strip()
+        parsed_source_types = set()
+        for row in rows:
+            parsed_source_type = str(
+                row.get("bill_source")
+                or row.get("source_type")
+                or (command.source if row.get("action") else "")
+            ).strip()
+            if not parsed_source_type and command.source not in {"icbc", "icbc-debit"}:
+                # 预路由的非工行测试/应用行仍由命令来源标识；工行必须由解析器提供正式渠道。
+                parsed_source_type = str(command.source or "").strip()
+            if command.source == "icbc" and parsed_source_type not in {
+                "icbc_credit", "icbc_debit",
+            }:
+                raise ValueError("工行账单必须提供 icbc_credit 或 icbc_debit 正式导入渠道")
+            if command.source == "icbc-debit" and parsed_source_type != "icbc_debit":
+                raise ValueError("工行借记卡账单必须提供 icbc_debit 正式导入渠道")
+            parsed_source_types.add(parsed_source_type)
+        if not parsed_source_types or "" in parsed_source_types:
+            raise ValueError("账单记录缺少 bill_source，无法确定正式导入渠道")
+        if len(parsed_source_types) != 1:
+            raise ValueError("同一账单不能混合多个正式导入渠道")
+        source_type = next(iter(parsed_source_types))
         for row in rows:
             if not row.get("account_name"):
                 raise ValueError(

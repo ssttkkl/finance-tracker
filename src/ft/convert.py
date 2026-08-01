@@ -346,8 +346,11 @@ def _icbc_credit_offset_text(counterparty: str, description: str) -> str:
     )
 
 
-def _classify_icbc_credit_offset_type(counterparty: str, description: str) -> str:
+def _classify_icbc_credit_offset_type(
+    counterparty: str, description: str, summary: str = ""
+) -> str:
     text = _icbc_credit_offset_text(counterparty, description)
+    text = " ".join(part for part in (summary or "", text) if part)
     if "减免年费" in text:
         return "fee_reversal"
     if "刷卡金入账" in text or "刷卡金退款" in text:
@@ -1499,6 +1502,7 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                 # 从金额行向后扫描
                 counterparty = ""
                 description = ""
+                summary = ""
                 j = i + 1
                 while j < min(len(lines), i + 12):
                     s = lines[j].strip()
@@ -1513,12 +1517,16 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                         continue
                     if not s:
                         continue
-                    if s in ("人民币", "美元", "港币", "日元", "消费", "借", "贷",
+                    if s in ("人民币", "美元", "港币", "日元", "借", "贷",
                              "对方户名", "对方账号", "摘要", "交易场所",
                              "交易卡号", "收", "支", "交易币种", "入账币种",
                              "入账金额", "账户余额"):
                         continue
                     if s.startswith("下单时间"):  # 跳过页脚元数据行
+                        continue
+                    if s in ("消费", "退货", "退款", "转帐", "利息", "结息"):
+                        if not summary and s in ("消费", "退货", "退款"):
+                            summary = s
                         continue
                     if not counterparty and not re.match(r"^\d{4,}$", s) and "****" not in s:
                         counterparty = s
@@ -1526,8 +1534,6 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     if counterparty and re.match(r"^\d", s) and "****" in s:
                         continue
                     if counterparty and re.match(r"^\d{4,}$", s):
-                        continue
-                    if s in ("转帐", "退款", "利息", "结息"):
                         continue
                     if s.startswith("手机银行") or s.startswith("网上银行"):
                         description = s
@@ -1546,9 +1552,16 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                         break
                     counterparty = s
 
-                offset_type = _classify_icbc_credit_offset_type(counterparty, description)
+                offset_type = _classify_icbc_credit_offset_type(counterparty, description, summary)
                 is_refund = offset_type == "merchant_refund"
-                normalized_cp, enriched_desc = _normalize_counterparty(counterparty, description[:80], "icbc")
+                normalization_description = description
+                if not normalization_description and (
+                    _infer_payment_source("icbc", counterparty, "") != "银行卡"
+                ):
+                    normalization_description = counterparty
+                normalized_cp, enriched_desc = _normalize_counterparty(
+                    counterparty, normalization_description[:80], "icbc"
+                )
                 payment_method = _infer_payment_source("icbc", normalized_cp, enriched_desc[:80])
                 card_number = current_card[-4:] if current_card else ""
                 fact_hash = _stable_short_hash(
@@ -1569,6 +1582,8 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     "payment_method": payment_method,
                     "card_number": card_number,
                     "_raw_cp": counterparty,  # 保存原始 cp 用于退款匹配
+                    "summary": summary,
+                    "refund_signal": "",
                     "_refund_signal": "",
                     "_fact_id": f"icbc_credit_{fact_hash}",
                 }
@@ -1578,6 +1593,7 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     merchant_text = description if counterparty == "退货" and description else counterparty
                     rec["_is_refund"] = True
                     rec["_refund_signal"] = "icbc_credit_return"
+                    rec["refund_signal"] = "icbc_credit_return" if summary == "退货" else ""
                     rec["_icbc_refund_merchant_trusted"] = not _is_icbc_credit_untrusted_merchant_text(merchant_text)
                 elif offset_type in {"benefit_rebate", "campaign_cashback", "fee_reversal"}:
                     rec = _build_icbc_credit_offset_income(rec, offset_type)
@@ -1661,6 +1677,8 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                 "category": category,
                 "payment_method": channel,
                 "_raw_cp": cpy,
+                "summary": summary,
+                "refund_signal": "icbc_debit_return" if summary == "退货" else "",
                 "_refund_signal": "",
                 "_fact_id": f"icbc_debit_{fact_hash}",
             }
@@ -1675,23 +1693,25 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
     expenses = [r for r in records if r["category"] == "expense"]
     refunds = [r for r in records if r["amount"] > 0 and r.get("_is_refund")]
     if refunds:
-        for r in refunds:
-            if r.get("_refund_signal") == "icbc_debit_refund" and r.get("_raw_cp"):
-                r["counterparty"] = r["_raw_cp"]
-            elif r.get("note"):
-                r["counterparty"] = r["note"]
+        if not is_credit:
+            for r in refunds:
+                if r.get("_refund_signal") == "icbc_debit_refund" and r.get("_raw_cp"):
+                    r["counterparty"] = r["_raw_cp"]
+                elif r.get("note"):
+                    r["counterparty"] = r["note"]
         records, tracking_pairs = _pair_refunds(expenses, refunds, records)
-        for pair in tracking_pairs:
-            for key in ("expense", "refund"):
-                raw = pair[key].get("counterparty", "")
-                desc = pair[key].get("note", "")
-                new_cp, new_desc = _normalize_counterparty(raw, desc, "icbc")
-                pair[key]["counterparty"] = new_cp
-                pair[key]["note"] = new_desc
-        records = [r for r in records if not (
-            r["category"] == "income"
-            and r.get("counterparty", "") in ("消费", "财付通")
-        )]
+        if not is_credit:
+            for pair in tracking_pairs:
+                for key in ("expense", "refund"):
+                    raw = pair[key].get("counterparty", "")
+                    desc = pair[key].get("note", "")
+                    new_cp, new_desc = _normalize_counterparty(raw, desc, "icbc")
+                    pair[key]["counterparty"] = new_cp
+                    pair[key]["note"] = new_desc
+            records = [r for r in records if not (
+                r["category"] == "income"
+                and r.get("counterparty", "") in ("消费", "财付通")
+            )]
     else:
         tracking_pairs = []
 
@@ -1862,6 +1882,8 @@ def _parse_icbc_debit_row(row: list) -> dict | None:
         "_debit_offset_type": debit_offset_type,
         "_is_refund": debit_offset_type == "refund",
         "_is_reversal": debit_offset_type == "reversal",
+        "summary": summary,
+        "refund_signal": "icbc_debit_return" if summary == "退货" else "",
         "_refund_signal": "icbc_debit_refund" if debit_offset_type == "refund" and amount > 0 else "",
     }
 
@@ -1993,6 +2015,9 @@ def _build_output_row(
         "offset_rule_hint": rec.get("offset_rule_hint", ""),
         "offset_match_type": rec.get("offset_match_type", ""),
         "proposed_action": rec.get("proposed_action", "leave_as_is"),
+        "summary": rec.get("summary", ""),
+        "refund_signal": rec.get("refund_signal", ""),
+        "_raw_cp": rec.get("_raw_cp", ""),
     }
 
 
