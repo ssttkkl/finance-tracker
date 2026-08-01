@@ -119,7 +119,7 @@ def test_zero_candidate_refund_signal_open_leg():
     assert list(proposal.evidence.candidate_fact_ids) == []
 
 
-def test_unique_near_strong_refund_remains_bilateral_pending():
+def test_unique_exact_weak_refund_promotes_to_bilateral_accepted():
     expense = _fv(
         id="e",
         amount=Decimal("-100"),
@@ -142,7 +142,8 @@ def test_unique_near_strong_refund_remains_bilateral_pending():
     assert proposal.open_leg is False
     assert proposal.secondary_fact_id == "r"
     assert proposal.primary_fact_id == "e"
-    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.status == RelationStatus.ACCEPTED.value
+    assert proposal.confidence == "strong"
 
 
 def test_unique_strong_refund_still_bilateral_accepted():

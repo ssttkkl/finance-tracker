@@ -26,6 +26,18 @@ TRANSFER_SIGNAL_TOKENS = (
     "银转证", "证转银", "银行转证券", "证券转银行",
     "转出到银行卡", "转账到银行卡",
 )
+# Phase-C out-leg seed signals.  These are intentionally narrower than the
+# broad pair-side vocabulary above: an incoming-side token must not promote a
+# normal expense into a transfer seed.
+TRANSFER_OUT_SEED_TOKENS = (
+    "提现", "转出到银行卡", "转账到银行卡", "转账支取", "无卡自助", "无卡付", "无卡支付",
+    "银转证", "银行转证券", "信用卡还款", "购汇还款", "自动还款",
+    "主动还款", "还款",
+)
+# Structured source summaries are stronger than arbitrary text.  In
+# particular, ICBC debit rows use summary=转账 for recurring transfers into
+# the owner's ICBC credit-card account.
+TRANSFER_OUT_SEED_SUMMARIES = frozenset({"转账"})
 # Stage-1 **strong** exclusions: never enter transfer_pair auto pool (007 FR-043 tiers).
 # Exact phrases only — never bare「闲鱼」/「转账」(latter is a signal token).
 TRANSFER_STRONG_EXCLUDE_TOKENS = (
@@ -50,6 +62,33 @@ REPAYMENT_SIGNAL_TOKENS = (
 def has_transfer_signal(text: str) -> bool:
     blob = _text_blob(text)
     return any(token.lower() in blob for token in TRANSFER_SIGNAL_TOKENS)
+
+
+def _source_signal_blob(fact: "FactView") -> str:
+    payload = fact.raw_payload if isinstance(fact.raw_payload, dict) else {}
+    return _text_blob(
+        fact.text,
+        payload.get("summary"),
+        payload.get("description"),
+        payload.get("payment_method"),
+        payload.get("status"),
+        payload.get("type"),
+        payload.get("txn_type"),
+    )
+
+
+def has_transfer_out_seed_signal(fact: "FactView") -> bool:
+    """Whether a fact carries a source-specific Phase-C out-leg signal."""
+    if fact.deleted or fact.signed_amount >= 0:
+        return False
+    payload = fact.raw_payload if isinstance(fact.raw_payload, dict) else {}
+    source_summary = str(payload.get("summary") or "").strip()
+    blob = _source_signal_blob(fact)
+    if has_transfer_exclude_signal(blob):
+        return False
+    if source_group(fact) == "bank" and source_summary in TRANSFER_OUT_SEED_SUMMARIES:
+        return True
+    return any(token.lower() in blob for token in TRANSFER_OUT_SEED_TOKENS)
 
 def has_transfer_exclude_signal(text: str) -> bool:
     """Strong P2P/QR/redpacket/闲鱼 — must not enter transfer auto pool (007 FR-043)."""
@@ -141,12 +180,10 @@ def is_transfer_taxonomy_out(fact: "FactView") -> bool:
         return True
     if fact.signed_amount >= 0:
         return False
-    blob = _text_blob(fact.text)
+    blob = _source_signal_blob(fact)
     if has_transfer_exclude_signal(blob) and "转账支取" not in blob and "无卡" not in blob:
         return False
-    if any(x in blob for x in ("转账支取", "无卡自助", "银转证", "银行转证券", "信用卡还款", "还款")):
-        return True
-    return has_transfer_signal(blob) and not has_transfer_exclude_signal(blob)
+    return has_transfer_out_seed_signal(fact)
 
 
 
@@ -197,5 +234,3 @@ def transfer_clock_delta_seconds(seed: "FactView", cand: "FactView") -> int:
         if same_business_day_shanghai(seed, cand):
             return 0
     return _time_delta_seconds(seed.occurred_at, cand.occurred_at)
-
-

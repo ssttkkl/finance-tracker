@@ -27,6 +27,7 @@ def _fv(
     bill_source: str = "",
     occurred: str = "2023-06-15 12:25:59",
     account_type: str = "cash",
+    raw_payload: dict | None = None,
 ) -> FactView:
     return FactView(
         id=id,
@@ -38,8 +39,11 @@ def _fv(
         occurred_at=occurred,
         counterparty=text.split()[0] if text else "",
         note=text,
+        bill_source=bill_source,
+        source=bill_source,
         category="expense" if Decimal(amount) < 0 else "income",
         fact_type=FactType.CASH.value,
+        raw_payload=raw_payload,
     )
 
 
@@ -283,6 +287,124 @@ def test_credit_repayment_requires_exact_same_currency():
         occurred="2025-10-05 05:12:35",
     )
     assert evaluate_transfer_pair(out, [inc]) is None
+
+
+def test_transfer_seed_gate_rejects_icbc_consume_with_ccb_inbound_signal():
+    """A bank inbound keyword must not promote an ordinary ICBC expense to a seed."""
+    icbc_consume = _fv(
+        "icbc-consume",
+        "-173.00",
+        account="icbc-credit",
+        account_type="loan",
+        text="美团 财付通-美团",
+        bill_source="icbc_credit",
+        occurred="2025-04-11 15:19:19",
+        raw_payload={"bill_source": "icbc_credit", "summary": "消费", "refund_signal": ""},
+    )
+    ccb_inbound = _fv(
+        "ccb-inbound",
+        "173.00",
+        account="ccb-debit",
+        text="爱你老公 电子汇入",
+        bill_source="ccb_debit",
+        occurred="2025-04-11 00:00:00",
+        raw_payload={"bill_source": "ccb_debit", "summary": "电子汇入"},
+    )
+
+    assert match_transfer_pairs_phase_c(
+        [icbc_consume, ccb_inbound], seed_ids=["icbc-consume"]
+    ) == []
+    assert match_transfer_pairs_phase_c([icbc_consume, ccb_inbound]) == []
+
+
+def test_transfer_seed_gate_accepts_structured_ccb_transfer_out_summary():
+    out = _fv(
+        "ccb-out",
+        "-173.00",
+        account="ccb-a",
+        text="",
+        bill_source="ccb_debit",
+        occurred="2025-04-11 00:00:00",
+        raw_payload={"bill_source": "ccb_debit", "summary": "转账支取"},
+    )
+    inbound = _fv(
+        "ccb-in",
+        "173.00",
+        account="ccb-b",
+        text="银联入账",
+        bill_source="ccb_debit",
+        occurred="2025-04-11 00:00:05",
+        raw_payload={"bill_source": "ccb_debit", "summary": "银联入账"},
+    )
+
+    proposals = match_transfer_pairs_phase_c([out, inbound], seed_ids=["ccb-out"])
+
+    assert len(proposals) == 1
+    assert proposals[0].status == RelationStatus.ACCEPTED.value
+    assert {proposals[0].primary_fact_id, proposals[0].secondary_fact_id} == {
+        "ccb-out", "ccb-in",
+    }
+
+
+def test_icbc_structured_transfer_summary_is_a_seed_for_both_scan_entries():
+    out = _fv(
+        "icbc-transfer-out",
+        "-4182.27",
+        account="icbc-debit",
+        text="黄文龙 转账",
+        bill_source="icbc_debit",
+        occurred="2024-12-02 01:36:44",
+        raw_payload={
+            "bill_source": "icbc_debit",
+            "summary": "转账",
+            "payment_method": "手机银行",
+        },
+    )
+    credit = _fv(
+        "icbc-credit-in",
+        "4182.27",
+        account="icbc-credit",
+        text="黄文龙 手机银行",
+        bill_source="icbc_credit",
+        occurred="2024-12-02 01:36:44",
+        raw_payload={"bill_source": "icbc_credit", "payment_method": "手机银行"},
+    )
+
+    explicit = match_transfer_pairs_phase_c(
+        [out, credit], seed_ids=["icbc-transfer-out"]
+    )
+    full_scan = match_transfer_pairs_phase_c([out, credit])
+
+    for proposals in (explicit, full_scan):
+        assert len(proposals) == 1
+        assert proposals[0].status == RelationStatus.ACCEPTED.value
+        assert {proposals[0].primary_fact_id, proposals[0].secondary_fact_id} == {
+            "icbc-transfer-out", "icbc-credit-in",
+        }
+
+
+def test_transfer_text_only_does_not_make_an_icbc_seed():
+    out = _fv(
+        "icbc-text-only",
+        "-4182.27",
+        account="icbc-debit",
+        text="黄文龙 转账",
+        bill_source="icbc_debit",
+        raw_payload={"bill_source": "icbc_debit", "summary": "消费"},
+    )
+    credit = _fv(
+        "icbc-credit-in-2",
+        "4182.27",
+        account="icbc-credit",
+        text="黄文龙 手机银行",
+        bill_source="icbc_credit",
+        raw_payload={"bill_source": "icbc_credit"},
+    )
+
+    assert match_transfer_pairs_phase_c(
+        [out, credit], seed_ids=["icbc-text-only"]
+    ) == []
+    assert match_transfer_pairs_phase_c([out, credit]) == []
 
 
 def test_manual_transfer_creates_an_accepted_pair_and_visible_projection(cash_web_runtime):

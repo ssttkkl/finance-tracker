@@ -5,6 +5,7 @@
 ```bash
 uv run pytest -q tests/test_convert.py -k 'icbc or 工行'
 uv run pytest -q tests/test_relations_index_injection.py tests/test_transaction_relations_refund.py
+uv run pytest -q tests/test_transfer_phase_c.py tests/test_transaction_relations_transfer.py
 ```
 
 ## 2. 使用目标 PDF 做只读解析验证
@@ -26,7 +27,15 @@ PY
 
 预期：目标三行的规范化 `counterparty` 相同，19:13 行的 `summary` 为 `退货`、`refund_signal` 为 `icbc_credit_return`。
 
-## 3. 运行双后端验证
+## 3. 验证转账种子闸门
+
+```bash
+uv run pytest -q tests/test_transfer_phase_c.py -k 'seed or ordinary or summary or ccb'
+```
+
+预期：普通工行消费不会因为对侧建行 `电子汇入` 而生成 `transfer_pair`；结构化 `summary=转账` 的工行借记卡转出与工行信用卡 `手机银行` 入账仍可配对；显式 `seed_ids` 与全量扫描使用相同的来源信号闸门，已有提现和卡间转账样例仍可配对。
+
+## 4. 运行双后端验证
 
 ```bash
 uv run pytest -q tests/contract/test_dual_backend_icbc_refund_pairing.py

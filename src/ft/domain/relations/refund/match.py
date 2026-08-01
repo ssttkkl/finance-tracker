@@ -61,6 +61,11 @@ def evaluate_refund_offset(
             continue
         if cand.fact_type != FactType.CASH.value:
             continue
+        # Refund pairing is account-local.  Do this before merchant/order
+        # matching so a same-name transaction on another account cannot become
+        # either a strong candidate or a pending review candidate.
+        if str(cand.account_id) != str(seed.account_id):
+            continue
         if str(cand.currency).upper() != str(seed.currency).upper():
             continue
         if is_refund_seed:
@@ -118,7 +123,7 @@ def evaluate_refund_offset(
             bool(refund.counterparty) and refund.counterparty == expense.counterparty
         )
         title_exact = refund_title_exact_match(refund, expense)
-        same_account = refund.account_id == expense.account_id
+        same_account = str(refund.account_id) == str(expense.account_id)
         # Exact full or exact remaining — not "any expense larger than refund".
         exact = refund_abs == expense_abs or refund_abs == remaining
         refund_word = has_refund_signal_for_fact(refund)
@@ -184,6 +189,7 @@ def evaluate_refund_offset(
                 "expense_amount": format(expense_abs, "f"),
                 "remaining_before": format(remaining, "f"),
                 "days": str(int(days)),
+                "within_auto": str(within_auto).lower(),
             },
         )
         matches.append((expense if is_refund_seed else refund, evidence, status, conf, title_exact))
@@ -220,6 +226,38 @@ def evaluate_refund_offset(
                 open_leg=True,
             )
         return None
+    # A unique same-account exact-amount weak link is deterministic within the
+    # candidate window.  Promote it to strong; the existing auto-accept window
+    # still decides whether it is accepted now or remains bilateral pending.
+    if is_refund_seed and len(matches) == 1 and "weak_link" in matches[0][1].signals:
+        expense_fact, evidence, _status, _conf, _title_exact = matches[0]
+        over = "over_refund" in evidence.signals
+        within_auto = str((evidence.extras or {}).get("within_auto", "")).lower() == "true"
+        if not over:
+            evidence = RelationEvidence(
+                **{
+                    **evidence.__dict__,
+                    "signals": tuple(dict.fromkeys(
+                        list(evidence.signals) + ["weak_unique_strong"]
+                    )),
+                }
+            )
+            status = (
+                RelationStatus.ACCEPTED.value
+                if within_auto
+                else RelationStatus.PENDING_REVIEW.value
+            )
+            return RelationProposal(
+                kind=RelationKind.REFUND_OFFSET.value,
+                primary_fact_id=expense_fact.id,
+                secondary_fact_id=seed.id,
+                status=status,
+                rule_id=RULE_REFUND_OFFSET_V1,
+                confidence=CONFIDENCE_STRONG,
+                evidence=evidence,
+                anchor_fact_id=seed.id,
+                open_leg=False,
+            )
     strong = [m for m in matches if m[2] == RelationStatus.ACCEPTED.value]
     # If multiple soft strong autos but exactly one title_exact among them, take it.
     strong_title = [m for m in strong if m[4]]

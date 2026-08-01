@@ -43,6 +43,8 @@ def evaluate_transfer_pair(
     seed_amount = seed.signed_amount
     if seed_amount == 0:
         return None
+    if not is_transfer_taxonomy_out(seed):
+        return None
     # Only outgoing row seeds propose transfer relations (prevents dual-side auto-accept
     # of multiple incoming rows against the same outgoing row when each incoming row is unique).
     if seed_amount > 0:
@@ -636,9 +638,12 @@ def match_transfer_pairs_phase_c(
     active = [f for f in facts if not f.deleted and f.fact_type == FactType.CASH.value]
     by_id = {f.id: f for f in active}
     if seed_ids is None:
-        seeds = [f for f in active if is_transfer_taxonomy_out(f) or f.signed_amount < 0]
+        seed_pool = active
     else:
-        seeds = [by_id[s] for s in seed_ids if s in by_id]
+        seed_pool = [by_id[s] for s in seed_ids if s in by_id]
+    # Import/manual seed IDs are an optimization boundary, not a permission
+    # to bypass the source-specific out-leg classification gate.
+    seeds = [f for f in seed_pool if is_transfer_taxonomy_out(f)]
     # Prefer withdraw outs first
     seeds.sort(
         key=lambda f: (
@@ -676,6 +681,5 @@ def match_transfer_pairs_phase_c(
             used.add(prop.primary_fact_id)
         proposals.append(prop)
     return proposals
-
 
 

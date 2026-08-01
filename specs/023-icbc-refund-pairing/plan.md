@@ -4,7 +4,7 @@
 
 ## Summary
 
-修复工行信用卡与借记卡账单的来源摘要解析、正式导入渠道和退款关系门禁。解析器将 `退货` 从对手方位置中分离出来，消费与退货共用同一套对手方规范化；导入服务保存 `bill_source`、`summary` 和精确退款信号，并以工行解析结果的 `bill_source` 作为正式 `source_type`。其他来源的预路由行继续使用其既有命令来源路径。关系层改为对工行读取结构化来源行快照，其他来源继续使用其既有规则。
+修复工行信用卡与借记卡账单的来源摘要解析、正式导入渠道和退款关系门禁。解析器将 `退货` 从对手方位置中分离出来，消费与退货共用同一套对手方规范化；导入服务保存 `bill_source`、`summary` 和精确退款信号，并以工行解析结果的 `bill_source` 作为正式 `source_type`。其他来源的预路由行继续使用其既有命令来源路径。关系层改为对工行读取结构化来源行快照，其他来源继续使用其既有规则；Phase C 同时增加来源专用的转账出账种子闸门，避免普通消费被对侧入账信号提升为转账。
 
 ## Technical Context
 
@@ -24,7 +24,7 @@
 
 **Constraints**: 金额继续使用精确十进制；导入不写关系；不增加历史兼容回退；不泄露原始账单到日志或仓库
 
-**Scale/Scope**: 影响 `src/ft/convert.py`、账单导入服务、退款关系领域层及对应测试
+**Scale/Scope**: 影响 `src/ft/convert.py`、账单导入服务、退款与转账关系领域层及对应测试
 
 ## Constitution Check（研究前）
 
@@ -70,6 +70,8 @@ ICBC PDF
 
 `has_refund_signal_for_fact(fact)` 先验证现金收入，再按渠道分支：工行信用卡和借记卡要求 `raw_payload` 为字典、`raw_payload.bill_source == fact.bill_source` 且 `raw_payload.refund_signal` 等于对应精确值；其他渠道调用原有文本规则。候选索引、种子识别、普通退款匹配和银行退款链路统一调用该 fact-level gate。
 
+Phase C 的转账匹配先执行来源分类闸门。转账出账种子必须自身命中提现、结构化 `summary=转账`、转出到银行卡、卡间转账、银证或明确还款信号；全量扫描和显式 `seed_ids` 不得绕过该闸门。任意备注或对手方文本中的裸“转账”不单独放行。对侧的 `电子汇入`、`银联入账` 只作为入账候选信号，不能把普通消费提升为转账种子。
+
 ### Counterparty parsing
 
 信用卡金额后的扫描遇到 `消费` 或 `退货` 时先写入 `summary` 并跳过；之后遇到完整商户文本才写入 `counterparty`。两种行都调用 `_normalize_counterparty`，因此目标三条记录均得到 `山葵村烤肉`；完整 `美团支付-美团App山葵村烤肉` 保留在来源行快照。
@@ -107,8 +109,12 @@ ICBC PDF
 - `src/ft/domain/relations/refund/diamond.py`
 - `src/ft/domain/relations/refund/match.py`
 - `src/ft/domain/relations/refund/signals.py`
+- `src/ft/domain/relations/transfer/signals.py`
+- `src/ft/domain/relations/transfer/match.py`
 - `tests/test_convert.py`
 - `tests/test_relations_index_injection.py`
 - `tests/test_transaction_relations_refund.py`
 - `tests/test_import_scan_refund_boundary.py`
+- `tests/test_transfer_phase_c.py`
+- `tests/test_transaction_relations_transfer.py`
 - `tests/contract/`
