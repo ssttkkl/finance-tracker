@@ -24,6 +24,8 @@
 :root{--color-detail-backdrop:oklch(.18 .02 250/.48)}
 .evidence-layer{position:fixed;inset:0;z-index:var(--z-detail);display:flex;align-items:stretch;justify-content:flex-end;background:var(--color-detail-backdrop);animation:evidence-layer-in var(--dur-panel) var(--ease-standard) both}
 .evidence-backdrop{position:absolute;inset:0;width:100%;height:100%;min-height:0;padding:0;border:0;border-radius:0;background:transparent;cursor:default}
+.evidence-layer .evidence-backdrop:hover:not(:disabled){border-color:transparent;background:transparent}
+.evidence-layer .evidence-backdrop:active:not(:disabled){border-color:transparent;background:transparent;transform:none}
 .evidence-layer .evidence{position:relative;inset:auto;z-index:1;width:min(480px,100vw);height:100%;max-height:100%;animation:evidence-panel-in var(--dur-panel) var(--ease-standard) both}
 @media(max-width:1023px){.evidence-layer .evidence{width:100vw}}
 .evidence-layer.is-closing{animation:evidence-layer-out var(--dur-panel) var(--ease-standard) both}
