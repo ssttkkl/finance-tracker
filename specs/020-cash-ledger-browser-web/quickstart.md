@@ -1330,3 +1330,27 @@ npx playwright test --config=tests/playwright.visual.config.ts \
 `$speckit-analyze` 与 `$speckit-converge` 未执行，因为 `.specify/feature.json` 当前指向
 `specs/023-icbc-refund-pairing`，不是本次 Living Spec 020。上述风险已写入 `tasks.md` 的 T173～T175，
 并同步到 PR 描述和 `.gstack/qa-reports/qa-report-finance-tracker-2026-08-01.md`。
+
+## Phase 27：模态遮罩悬停空白缺陷修复（2026-08-01）
+
+用户反馈打开证据详情后将鼠标移到抽屉外，底层账本会变成整块空白。浏览器复现确认：全屏 `.evidence-backdrop` 是 `<button>`，被全局 `button:hover` 规则覆盖了原本的透明背景；悬停时计算值为 `oklch(0.94 0.03 252)`，因此遮罩遮住了底层账本，并非账本数据消失。
+
+先新增回归测试并确认失败：
+
+```sh
+cd web
+npx playwright test --config=tests/playwright.visual.config.ts \
+  --grep 'modal backdrop remains transparent while hovered' --reporter=line
+```
+
+失败值为 `oklch(0.94 0.03 252)`。随后在 `web/src/styles.css` 为证据遮罩增加专用 `hover` 和 `active` 透明覆盖，提交为 `7e5efa2`；回归验证：
+
+```sh
+npx playwright test --config=tests/playwright.visual.config.ts \
+  --grep '模态证据抽屉点击遮罩关闭|modal backdrop remains transparent while hovered' --reporter=line
+npx vitest run tests/accessibility.test.tsx tests/CashLedgerPage.test.tsx \
+  -t '模态抽屉|键盘关闭详情|为筛选提供显式标签' --reporter=dot
+git diff --check
+```
+
+结果分别为 `2 passed`、`3 passed, 21 skipped` 和通过。当前 5173 服务实际悬停前后遮罩计算值均为 `rgba(0, 0, 0, 0)`，底层账本可见，抽屉内容点击与遮罩关闭仍正常。

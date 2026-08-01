@@ -468,6 +468,7 @@ SQLite 自动化测试只能操作 `/Users/huangwenlong/.ft/finance-tracker.db` 
 - [ ] T174 [US5] 运行受影响 Vitest、完整 Web 回归、源代码 TypeScript 检查、Playwright E2E/预览、320/375/414/768 px 响应式与键盘验证；运行范围化 gstack `/review`、`/qa`、Hallmark `audit`、`git diff --check`，并把实际命令、HEAD、基线、时间和未解决风险写入 `quickstart.md`（FR-024、FR-039、FR-040、SC-008、SC-009）。
   - 当前证据：2026-08-01，`npm install` 已成功；定向模态测试 `3 passed, 3 skipped`；完整 `npm test` 为 `23 passed, 9 failed`，`npm run build` 因现有 `web/tests/CashTable.test.tsx:37` 测试夹具缺少 `projection` 参数失败。完整回归、Playwright、视觉矩阵、gstack、Hallmark 仍待补。
   - 补充证据：2026-08-01，目标 Playwright 模态用例 `1 passed`；gstack 浏览器在 1280 × 800、1440 × 900 和 390 × 844 验证遮罩、抽屉内点击、遮罩关闭、Escape、关闭回焦、背景 `inert`、无横向溢出和无控制台错误；范围化 gstack review 无 findings，Hallmark audit 为 `0 critical · 0 major · 0 minor`，`git diff --check` 通过。完整预览、默认 E2E、320/375/414/768 px 矩阵尚未执行，且 `npm test`、`npm run build` 与视觉基线仍有已记录失败。
+  - 缺陷回归与修复：2026-08-01，浏览器复现发现全屏 `.evidence-backdrop` 同时匹配全局 `button:hover`，悬停时背景由透明变为不透明实色，导致底层账本看似空白；新增 Playwright 悬停透明度断言，先以 `oklch(0.94 0.03 252)` 失败，再在 `7e5efa2` 中增加遮罩专用 hover/active 覆盖。`npx playwright test --config=tests/playwright.visual.config.ts --grep '模态证据抽屉点击遮罩关闭|modal backdrop remains transparent while hovered' --reporter=line` 结果为 `2 passed`；5173 实际浏览器悬停前后计算值均为 `rgba(0, 0, 0, 0)`，截图确认账本仍可见。
 - [ ] T175 运行 `$speckit-analyze` 和 `$speckit-converge`，确认本轮 spec、plan、contracts、tasks 与实现一致；若发现规格或方案缺口，先 Flow-Back 回写后再继续验证（FR-024、FR-039、FR-040）。
 
 ## Phase 25：依赖锁文件镜像地址修复（2026-08-01）
