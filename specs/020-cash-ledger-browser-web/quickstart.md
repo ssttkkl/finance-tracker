@@ -1282,3 +1282,51 @@ npm run build
 没有历史镜像地址，`git diff --check` 通过。模态抽屉定向测试为 `3 passed, 3 skipped`。完整 `npm test` 为
 `23 passed, 9 failed`；`npm run build` 仍因当前已有的 `web/tests/CashTable.test.tsx:37` 测试夹具缺少
 `projection` 参数而失败，均不属于本次锁文件地址修复。完整回归、视觉快照和浏览器 QA 仍按 T173～T175 待补。
+
+## Phase 26：模态证据抽屉 Review 与 QA（2026-08-01）
+
+本轮代码验证基线为 `origin/refactor/web` 到 `e596edc`，PR 为
+[#26](https://github.com/ssttkkl/finance-tracker/pull/26)。浏览器必须使用当前 PR 工作树启动的服务：
+`http://127.0.0.1:5173/`；此前用户看到的旧右侧面板来自 `/Users/huangwenlong/.hermes/skills/finance/finance-tracker/web`
+旧工作树服务，不是本分支代码。
+
+目标 Vitest：
+
+```sh
+cd web
+npx vitest run tests/accessibility.test.tsx tests/CashLedgerPage.test.tsx \
+  -t '模态抽屉|键盘关闭详情|为筛选提供显式标签' --reporter=dot
+```
+
+结果：`3 passed, 21 skipped`。
+
+目标 Playwright：
+
+```sh
+cd web
+npx playwright test --config=tests/playwright.visual.config.ts \
+  --grep '模态证据抽屉点击遮罩关闭' --reporter=line
+```
+
+结果：`1 passed`。首次运行因本机缺少 Chromium executable 被环境阻塞，安装 Playwright Chromium 后复跑通过。
+
+真实浏览器 QA 覆盖：
+
+- 1280 × 800、1440 × 900：固定全屏遮罩、右侧 480 px 抽屉、`role="dialog"`、`aria-modal="true"`。
+- 390 × 844：抽屉宽度为 390 px，`scrollWidth == innerWidth`，无横向溢出。
+- 点击抽屉内容不关闭；点击遮罩开始 160 ms 退场动画并卸载；`Escape` 同样关闭。
+- 关闭后焦点回到原证据触发按钮；打开时背景 `main` 为 `inert`；清空旧日志后无控制台错误。
+- Hallmark audit：`0 critical · 0 major · 0 minor`。
+
+完整验证结果：
+
+- `npm test -- --reporter=dot`：`23 passed, 9 failed`，失败是当前基线测试夹具/断言与现行表格语义不一致。
+- `npm run build`：被现有 `web/tests/CashTable.test.tsx:37` 的 `projection("empty")` 参数数量错误阻塞。
+- `npx playwright test --config=tests/playwright.visual.config.ts --reporter=line`：新增模态遮罩关闭用例通过；其余 8 个视觉快照在进入证据详情断言前失败。期望图仍是旧版 8 列表格，当前 `refactor/web` 基线代码已是 5 列表格，1024 px 期望图尺寸也不匹配。
+- `git diff --check`：通过。
+- 结构化 gstack review、独立 Codex review：无可执行 findings；review log 已记录 `quality_score: 10.0`。
+
+未完成项：未更新旧版视觉基线快照；未执行默认 Playwright E2E、生产预览、320/375/414/768 px 完整矩阵；
+`$speckit-analyze` 与 `$speckit-converge` 未执行，因为 `.specify/feature.json` 当前指向
+`specs/023-icbc-refund-pairing`，不是本次 Living Spec 020。上述风险已写入 `tasks.md` 的 T173～T175，
+并同步到 PR 描述和 `.gstack/qa-reports/qa-report-finance-tracker-2026-08-01.md`。

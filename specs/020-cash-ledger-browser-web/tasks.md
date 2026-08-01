@@ -459,12 +459,15 @@ SQLite 自动化测试只能操作 `/Users/huangwenlong/.ft/finance-tracker.db` 
 
 **目标**：将证据详情从桌面并列区域统一改为所有视口的覆盖式右侧模态证据抽屉，增加遮罩点击关闭和进出动画；保留键盘焦点圈定、背景不可交互、关闭回焦、证据数据和既有 API 合同。
 
-- [ ] T171 [US5] 在 `web/tests/accessibility.test.tsx`、`web/tests/CashLedgerPage.test.tsx` 和 `web/tests/cash-ledger.visual.e2e.ts` 先覆盖失败回归：模态抽屉显示遮罩、背景带 `inert`、点击遮罩关闭、点击抽屉内容不关闭、关闭回焦和打开/关闭动效状态；视觉差异按 FR-040 标记为已批准展示层变更（FR-024、FR-039、FR-040）。
+- [X] T171 [US5] 在 `web/tests/accessibility.test.tsx`、`web/tests/CashLedgerPage.test.tsx` 和 `web/tests/cash-ledger.visual.e2e.ts` 先覆盖失败回归：模态抽屉显示遮罩、背景带 `inert`、点击遮罩关闭、点击抽屉内容不关闭、关闭回焦和打开/关闭动效状态；视觉差异按 FR-040 标记为已批准展示层变更（FR-024、FR-039、FR-040）。
   - 通过证据：2026-08-01，先完成测试改动再实现；依赖恢复后运行 `npx vitest run tests/accessibility.test.tsx -t '模态抽屉|键盘关闭详情|为筛选提供显式标签' --reporter=dot`，结果为 `3 passed, 3 skipped`。完整回归仍有现有测试失败，T174 待完成。
+  - 补充通过证据：2026-08-01，`npx playwright test --config=tests/playwright.visual.config.ts --grep '模态证据抽屉点击遮罩关闭' --reporter=line` 结果为 `1 passed`。
 - [X] T172 [US5] 在 `web/src/components/EvidenceDetail.tsx`、`web/src/pages/CashLedgerPage.tsx` 和 `web/src/styles.css` 实现覆盖式右侧模态证据抽屉：增加遮罩与点击外部关闭、保留内容区点击不关闭、移除阻止外部点击的全局监听、增加进出动画和 `prefers-reduced-motion` 兜底；桌面面板宽度不超过 `480 px`，窄屏使用 `100vw`（FR-024、FR-038、FR-039）。
 - [ ] T173 [US5] 更新 `web/tests/cash-ledger.visual.e2e.ts-snapshots/` 中受影响的证据详情多视口快照，并验证 1440 × 900、1024 × 768、768 × 1024 和 390 × 844 的遮罩、面板边界和无横向溢出（FR-040、SC-009）；历史镜像地址已由 T176 修复，依赖安装不再阻塞本任务。
+  - 当前风险：完整视觉套件在进入证据详情断言前有 8 个基线快照失败；期望图仍是旧版 8 列表格，当前 `refactor/web` 基线代码已是 5 列表格，暂不将无关基线图片整体重录混入本轮。
 - [ ] T174 [US5] 运行受影响 Vitest、完整 Web 回归、源代码 TypeScript 检查、Playwright E2E/预览、320/375/414/768 px 响应式与键盘验证；运行范围化 gstack `/review`、`/qa`、Hallmark `audit`、`git diff --check`，并把实际命令、HEAD、基线、时间和未解决风险写入 `quickstart.md`（FR-024、FR-039、FR-040、SC-008、SC-009）。
   - 当前证据：2026-08-01，`npm install` 已成功；定向模态测试 `3 passed, 3 skipped`；完整 `npm test` 为 `23 passed, 9 failed`，`npm run build` 因现有 `web/tests/CashTable.test.tsx:37` 测试夹具缺少 `projection` 参数失败。完整回归、Playwright、视觉矩阵、gstack、Hallmark 仍待补。
+  - 补充证据：2026-08-01，目标 Playwright 模态用例 `1 passed`；gstack 浏览器在 1280 × 800、1440 × 900 和 390 × 844 验证遮罩、抽屉内点击、遮罩关闭、Escape、关闭回焦、背景 `inert`、无横向溢出和无控制台错误；范围化 gstack review 无 findings，Hallmark audit 为 `0 critical · 0 major · 0 minor`，`git diff --check` 通过。完整预览、默认 E2E、320/375/414/768 px 矩阵尚未执行，且 `npm test`、`npm run build` 与视觉基线仍有已记录失败。
 - [ ] T175 运行 `$speckit-analyze` 和 `$speckit-converge`，确认本轮 spec、plan、contracts、tasks 与实现一致；若发现规格或方案缺口，先 Flow-Back 回写后再继续验证（FR-024、FR-039、FR-040）。
 
 ## Phase 25：依赖锁文件镜像地址修复（2026-08-01）
