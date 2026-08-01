@@ -1240,3 +1240,45 @@ PostgreSQL 本轮未配置，未执行 PostgreSQL 运行时矩阵。
 浏览器 `http://192.168.1.3:5173/` 已验证桌面和 390px 移动端显示月份分割行，例如 `2026年6月` 及“收入/支出”
 汇总；390px `scrollWidth == innerWidth`。月度 API/查询回归、源代码 TypeScript 检查 `WEB_SOURCE_TSC_OK`、
 `uv run python -m compileall -q src tests` 和 `git diff --check` 通过。Vitest 和自动 Hallmark wrapper 当前不可用，未运行。
+
+## Phase 24：模态证据抽屉交互回写与实现（2026-08-01）
+
+020 本轮将证据详情统一为覆盖式右侧模态证据抽屉：打开时显示遮罩并使背景 `inert`，点击遮罩关闭，点击抽屉内容不关闭；面板和遮罩使用 `--dur-panel` 与 `--ease-standard` 做滑入、滑出和淡入淡出，并在 `prefers-reduced-motion: reduce` 下取消动画。旧的宽屏并列布局和阻止外部点击的全局监听已移除。
+
+已完成的静态验证：
+
+```sh
+git diff --check
+cd web && CHECK_DIR=$(mktemp -d /tmp/ft-web-check.XXXXXX) \
+  bun build src/main.tsx --outdir "$CHECK_DIR" --target browser \
+  --external react --external react-dom --external '@fontsource/*'
+```
+
+结果：`git diff --check` 通过；Bun 成功解析并打包 10 个本地 TypeScript/TSX 模块，生成 `main.js` 和 `main.css`。该命令只证明语法与打包链路，不替代 TypeScript 类型检查、Vitest 或 Playwright。
+
+依赖安装阻塞已在 Phase 25 解除。当前仍未更新 4 张模态证据详情视觉快照，也未完成完整 Web 回归、Playwright、gstack `/review`、gstack `/qa`、Hallmark 自动审计、`$speckit-analyze` 或 `$speckit-converge`；这些项目继续保留在 `tasks.md` 的 T173～T175。
+
+范围化人工检查结果：组件只新增命名颜色令牌、`transform`/`opacity` 动画、可见焦点和 reduced-motion 兜底，未发现新的 Hallmark 关键或主要问题；真实浏览器 QA 仍需补跑。
+
+## Phase 25：依赖锁文件镜像地址修复（2026-08-01）
+
+`web/package-lock.json` 中 218 个 `r.npm.sankuai.com` 历史 tarball 地址已改为合法的
+`https://registry.npmjs.org/<package>/-/<tarball>.tgz` 地址；未修改 `web/package.json`、版本、`integrity`
+或依赖树，其他 GitHub 和捐赠链接保持不变。
+
+验证命令与结果：
+
+```sh
+cd web
+npm install --ignore-scripts --no-audit --no-fund \
+  --registry=https://registry.npmjs.org --fetch-retries=1 --fetch-timeout=30000
+npx vitest run tests/accessibility.test.tsx \
+  -t '模态抽屉|键盘关闭详情|为筛选提供显式标签' --reporter=dot
+npm test
+npm run build
+```
+
+`npm install` 成功，输出 `changed 218 packages in 7s`；解析前后锁文件确认只有 218 个 `resolved` 字段变化，
+没有历史镜像地址，`git diff --check` 通过。模态抽屉定向测试为 `3 passed, 3 skipped`。完整 `npm test` 为
+`23 passed, 9 failed`；`npm run build` 仍因当前已有的 `web/tests/CashTable.test.tsx:37` 测试夹具缺少
+`projection` 参数而失败，均不属于本次锁文件地址修复。完整回归、视觉快照和浏览器 QA 仍按 T173～T175 待补。

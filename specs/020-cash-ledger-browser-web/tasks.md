@@ -167,14 +167,14 @@ SQLite 自动化测试只能操作 `/Users/huangwenlong/.ft/finance-tracker.db` 
 - [X] T055 [P] [US5] 为列头和骨架稳定加载、无数据、投影更新后保留筛选并刷新第一页、投影不可用且不请求旧端点、失败重试和证据不完整编写失败组件测试，写入 `web/tests/CashLedgerPage.test.tsx`（FR-023）。
 - [X] T056 [P] [US5] 为快速切换筛选/分页/证据时旧响应不得覆盖当前状态、关闭详情后迟到响应失效，以及投影版本更新时关闭旧证据、保留筛选刷新并移动焦点编写失败组件测试，写入 `web/tests/runtime.test.tsx`（FR-016～FR-018、FR-023、FR-024）。
 - [X] T057 [P] [US5] 为筛选、分页、投影行和模态证据的可访问名称、可见焦点、焦点限制与关闭后返回编写失败测试，写入 `web/tests/accessibility.test.tsx`（FR-024、SC-008）。
-- [X] T058 [P] [US5] 用真实键盘事件和明确视口编写宽屏打开详情后主表重排且不被遮盖、窄屏可展开筛选/全屏详情、44 × 44 px 触摸目标、无重叠和 reduced motion 的失败 E2E，写入 `web/tests/cash-ledger.e2e.ts`（FR-024、SC-008、SC-009）。
+- [X] T058 [P] [US5] 用真实键盘事件和明确视口编写宽屏打开详情后主表重排且不被遮盖、窄屏可展开筛选/全屏详情、44 × 44 px 触摸目标、无重叠和 reduced motion 的失败 E2E，写入 `web/tests/cash-ledger.e2e.ts`（历史展示方案；已由 T171～T172 的覆盖式模态抽屉回写替代）。
 - [X] T059 [P] [US5] 为独立 Node 生产预览的构建时 API 来源、固定 `127.0.0.1:5173` 严格端口及自包含 API 替身编写失败测试，写入 `web/tests/runtime-preview.e2e.ts` 和 `web/tests/preview-api-server.mjs`（FR-021）。
 - [X] T060 [P] [US5] 在至少 100 条投影数据下，用浏览器自动化计时筛选、连续翻页和证据查看流程，编写会在总时长超过 2 分钟时失败的验收测试，写入 `web/tests/cash-ledger.e2e.ts`（SC-003）。
 
 ### 用户故事 5 的实现
 
 - [X] T061 [US5] 在 `web/src/pages/CashLedgerPage.tsx`、`web/src/components/StatusView.tsx`、`web/src/components/Pagination.tsx` 和 `web/src/api/cashLedger.ts` 实现 T055～T056 的文字状态、版本更新时关闭旧证据并保留筛选刷新、焦点恢复、请求取消与响应序号保护（FR-023、FR-024）。
-- [X] T062 [US5] 在 `web/src/components/CashFilters.tsx`、`web/src/components/CashTable.tsx`、`web/src/components/EvidenceDetail.tsx` 和 `web/src/styles.css` 实现 T057～T058、T060 的键盘、焦点、宽窄屏、无重叠和高密度操作流（FR-022～FR-024、SC-003、SC-008、SC-009）。
+- [X] T062 [US5] 在 `web/src/components/CashFilters.tsx`、`web/src/components/CashTable.tsx`、`web/src/components/EvidenceDetail.tsx` 和 `web/src/styles.css` 实现 T057～T058、T060 的键盘、焦点、宽窄屏、无重叠和高密度操作流（历史展示方案；模态抽屉交互由 T171～T172 重新定义）。
 - [X] T063 [US5] 在 `web/package.json`、`web/vite.config.ts` 和 `web/playwright.preview.config.ts` 实现 T059 的独立 Node 前端运行合同（FR-021）。
 
 **Checkpoint**：五个用户故事均可独立验收，页面不需要鼠标或原始流水回退路径。
@@ -200,7 +200,7 @@ SQLite 自动化测试只能操作 `/Users/huangwenlong/.ft/finance-tracker.db` 
 
 ## Phase 9：收敛
 
-- [X] T073 将宽屏证据详情改为主表与详情并列重排，并以浏览器测试验证详情不会遮挡主表（plan: 已确认界面设计，contradicts）。
+- [X] T073 将宽屏证据详情改为主表与详情并列重排，并以浏览器测试验证详情不会遮挡主表（历史展示方案；已由 T171～T172 的覆盖式模态抽屉回写替代）。
 - [X] T074 在前端提供交易对方、最低金额和最高金额筛选控件，并验证完整筛选条件传递到投影 API（FR-016，missing）。
 - [X] T075 在投影更新后将焦点先置于可确认的更新提示，再由该提示进入刷新的首个证据入口，并覆盖键盘路径（plan: 已确认界面设计，partial）。
 
@@ -454,3 +454,20 @@ SQLite 自动化测试只能操作 `/Users/huangwenlong/.ft/finance-tracker.db` 
 - [X] T168 在 `src/ft/application/web_queries.py`、`src/ft/adapters/relational/web_queries.py` 和 `web/src/api/types.ts` 增加 `monthly_summaries` 合同；后端按完整筛选条件聚合收入/支出，前端按月份插入分割行并按币种展示。
 - [X] T169 在 `web/src/pages/CashLedgerPage.tsx`、`web/src/components/CashTable.tsx` 和 `web/src/styles.css` 接入月度汇总，覆盖桌面/移动布局、加载更多不重复插入月份行和空收支月份；真实页面验证 `2026年6月` 月度汇总及 390px 无横向溢出。
 - [ ] T170 运行受影响 Python/Vitest、完整 Web 回归、源代码 TypeScript 检查、浏览器多月份/多币种验证、Hallmark `audit` 和 `git diff --check`；Vitest 与自动 Hallmark wrapper 当前不可用时记录替代证据。
+
+## Phase 24：模态证据抽屉交互回写与实现（2026-08-01）
+
+**目标**：将证据详情从桌面并列区域统一改为所有视口的覆盖式右侧模态证据抽屉，增加遮罩点击关闭和进出动画；保留键盘焦点圈定、背景不可交互、关闭回焦、证据数据和既有 API 合同。
+
+- [ ] T171 [US5] 在 `web/tests/accessibility.test.tsx`、`web/tests/CashLedgerPage.test.tsx` 和 `web/tests/cash-ledger.visual.e2e.ts` 先覆盖失败回归：模态抽屉显示遮罩、背景带 `inert`、点击遮罩关闭、点击抽屉内容不关闭、关闭回焦和打开/关闭动效状态；视觉差异按 FR-040 标记为已批准展示层变更（FR-024、FR-039、FR-040）。
+  - 通过证据：2026-08-01，先完成测试改动再实现；依赖恢复后运行 `npx vitest run tests/accessibility.test.tsx -t '模态抽屉|键盘关闭详情|为筛选提供显式标签' --reporter=dot`，结果为 `3 passed, 3 skipped`。完整回归仍有现有测试失败，T174 待完成。
+- [X] T172 [US5] 在 `web/src/components/EvidenceDetail.tsx`、`web/src/pages/CashLedgerPage.tsx` 和 `web/src/styles.css` 实现覆盖式右侧模态证据抽屉：增加遮罩与点击外部关闭、保留内容区点击不关闭、移除阻止外部点击的全局监听、增加进出动画和 `prefers-reduced-motion` 兜底；桌面面板宽度不超过 `480 px`，窄屏使用 `100vw`（FR-024、FR-038、FR-039）。
+- [ ] T173 [US5] 更新 `web/tests/cash-ledger.visual.e2e.ts-snapshots/` 中受影响的证据详情多视口快照，并验证 1440 × 900、1024 × 768、768 × 1024 和 390 × 844 的遮罩、面板边界和无横向溢出（FR-040、SC-009）；历史镜像地址已由 T176 修复，依赖安装不再阻塞本任务。
+- [ ] T174 [US5] 运行受影响 Vitest、完整 Web 回归、源代码 TypeScript 检查、Playwright E2E/预览、320/375/414/768 px 响应式与键盘验证；运行范围化 gstack `/review`、`/qa`、Hallmark `audit`、`git diff --check`，并把实际命令、HEAD、基线、时间和未解决风险写入 `quickstart.md`（FR-024、FR-039、FR-040、SC-008、SC-009）。
+  - 当前证据：2026-08-01，`npm install` 已成功；定向模态测试 `3 passed, 3 skipped`；完整 `npm test` 为 `23 passed, 9 failed`，`npm run build` 因现有 `web/tests/CashTable.test.tsx:37` 测试夹具缺少 `projection` 参数失败。完整回归、Playwright、视觉矩阵、gstack、Hallmark 仍待补。
+- [ ] T175 运行 `$speckit-analyze` 和 `$speckit-converge`，确认本轮 spec、plan、contracts、tasks 与实现一致；若发现规格或方案缺口，先 Flow-Back 回写后再继续验证（FR-024、FR-039、FR-040）。
+
+## Phase 25：依赖锁文件镜像地址修复（2026-08-01）
+
+- [X] T176 [P] 将 `web/package-lock.json` 中 218 个历史 `r.npm.sankuai.com` tarball 地址改为 npm 官方 registry 地址；保留版本、`integrity`、依赖树和 `web/package.json` 不变，并用官方 registry 完成安装验证。
+  - 通过证据：2026-08-01，`npm install --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org --fetch-retries=1 --fetch-timeout=30000` 成功，输出 `changed 218 packages in 7s`；锁文件解析对比确认只有 218 个 `resolved` 字段变化，历史镜像地址为 0，`git diff --check` 通过。完整测试和构建的剩余失败已记录在 T174 与 `quickstart.md`，不属于本任务范围。

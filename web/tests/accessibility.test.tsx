@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -43,8 +43,10 @@ describe("现金账本无障碍", () => {
     const close = await screen.findByRole("button", { name: "关闭证据详情" });
     expect(close).toHaveFocus();
     expect(screen.getByRole("dialog", { name: "证据详情" })).toHaveAttribute("data-focus-trap", "active");
+    expect(screen.getByRole("dialog", { name: "证据详情" })).toHaveAttribute("data-state", "open");
+    expect(document.querySelector("main.app-shell")).toHaveAttribute("inert");
     fireEvent.click(close);
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("以键盘关闭详情并将 Tab 焦点限制在详情内", async () => {
@@ -59,7 +61,25 @@ describe("现金账本无障碍", () => {
     expect(close).toHaveFocus();
     fireEvent.keyDown(close, { key: "Escape" });
 
-    expect(screen.queryByRole("dialog", { name: "证据详情" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "证据详情" })).toHaveAttribute("data-state", "closing");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "证据详情" })).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+  });
+
+  it("点击遮罩关闭模态抽屉，但点击抽屉内容不会关闭", async () => {
+    render(<CashLedgerPage />);
+    const trigger = await screen.findByRole("button", { name: "查看咖啡店的证据详情" });
+
+    fireEvent.click(trigger);
+    const dialog = await screen.findByRole("dialog", { name: "证据详情" });
+    fireEvent.click(dialog);
+    expect(screen.getByRole("dialog", { name: "证据详情" })).toBeInTheDocument();
+
+    const backdrop = document.querySelector<HTMLElement>(".evidence-backdrop");
+    expect(backdrop).not.toBeNull();
+    fireEvent.click(backdrop!);
+    expect(screen.getByRole("dialog", { name: "证据详情" })).toHaveAttribute("data-state", "closing");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "证据详情" })).not.toBeInTheDocument());
     expect(trigger).toHaveFocus();
   });
 
