@@ -19,7 +19,7 @@ from ft.domain.relations.core.types import (
     RULE_REFUND_OFFSET_V1, SUBTYPE_NONE,
 )
 from ft.domain.relations.refund.signals import (
-    has_refund_signal, is_p2p_style_refund, is_p2p_transfer_family,
+    has_refund_signal_for_fact, is_p2p_style_refund, is_p2p_transfer_family,
     is_refund_excluded_leg, p2p_subtype, refund_title_exact_match,
 )
 def evaluate_refund_offset(
@@ -46,7 +46,7 @@ def evaluate_refund_offset(
     # Bare p2p/transfer income without refund word is never a refund seed.
     if seed_amount > 0 and is_refund_excluded_leg(seed.text):
         return None
-    is_refund_seed = seed_amount > 0 and has_refund_signal(seed.text)
+    is_refund_seed = seed_amount > 0 and has_refund_signal_for_fact(seed)
     # `open_leg` fan-out control: only refund seeds propose refund_offset.
     # Expense seeds previously each wrote a bilateral edge to the same refund
     # (unique from their POV), colliding with unpaired relation bind ordered-pair keys.
@@ -69,7 +69,7 @@ def evaluate_refund_offset(
                 continue
         else:
             # expense seed: only pair with explicit refund rows (not bare p2p income)
-            if cand.signed_amount <= 0 or not has_refund_signal(cand.text):
+            if cand.signed_amount <= 0 or not has_refund_signal_for_fact(cand):
                 continue
             if is_refund_excluded_leg(cand.text):
                 continue
@@ -121,7 +121,7 @@ def evaluate_refund_offset(
         same_account = refund.account_id == expense.account_id
         # Exact full or exact remaining — not "any expense larger than refund".
         exact = refund_abs == expense_abs or refund_abs == remaining
-        refund_word = has_refund_signal(refund.text)
+        refund_word = has_refund_signal_for_fact(refund)
         same_cp = bool(refund.counterparty) and refund.counterparty == expense.counterparty
         # Strong p2p: same fine-grained subtype (红包↔红包, 转账↔转账), not cross-class.
         refund_sub = p2p_subtype(refund.text) if refund_is_p2p else ""
@@ -313,4 +313,3 @@ def evaluate_refund_offset(
         anchor_fact_id=seed.id,
         open_leg=True,
     )
-

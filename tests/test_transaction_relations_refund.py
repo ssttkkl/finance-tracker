@@ -3,7 +3,15 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from ft.domain.relations import FactView, RelationStatus, evaluate_refund_offset, project_balances_and_pnl
+from ft.domain.relations import (
+    FactView,
+    MatchContext,
+    RelationEdge,
+    RelationStatus,
+    evaluate_refund_offset,
+    project_balances_and_pnl,
+    run_relation_phases,
+)
 
 
 def _fv(**kwargs):
@@ -83,6 +91,136 @@ def test_income_without_refund_word_not_refund_seed():
         category="income",
     )
     assert evaluate_refund_offset(income, [expense]) is None
+
+
+def test_icbc_structured_return_signal_can_form_strong_refund_offset():
+    expense = _fv(
+        id="e", amount=Decimal("-272"), account_id="icbc", account_name="工行信用卡",
+        occurred_at="2026-05-25 19:11:37", counterparty="山葵村烤肉",
+        category="expense", bill_source="icbc_credit", source="icbc_credit",
+    )
+    refund = _fv(
+        id="r", amount=Decimal("272"), account_id="icbc", account_name="工行信用卡",
+        occurred_at="2026-05-25 19:13:04", counterparty="山葵村烤肉",
+        category="income", bill_source="icbc_credit", source="icbc_credit",
+        raw_payload={
+            "bill_source": "icbc_credit",
+            "summary": "退货",
+            "refund_signal": "icbc_credit_return",
+        },
+    )
+
+    proposal = evaluate_refund_offset(refund, [expense])
+
+    assert proposal is not None
+    assert proposal.status == RelationStatus.ACCEPTED.value
+    assert proposal.confidence == "strong"
+    assert proposal.primary_fact_id == "e"
+    assert proposal.secondary_fact_id == "r"
+
+
+def test_icbc_structured_return_signal_does_not_read_summary_or_text_fallback():
+    expense = _fv(
+        id="e", amount=Decimal("-272"), account_id="icbc", account_name="工行信用卡",
+        occurred_at="2026-05-25 19:11:37", counterparty="山葵村烤肉",
+        category="expense", bill_source="icbc_credit", source="icbc_credit",
+    )
+    refund = _fv(
+        id="r", amount=Decimal("272"), account_id="icbc", account_name="工行信用卡",
+        occurred_at="2026-05-25 19:13:04", counterparty="山葵村烤肉",
+        note="退货", category="income", bill_source="icbc_credit", source="icbc_credit",
+        raw_payload={"bill_source": "icbc_credit", "summary": "退货"},
+    )
+
+    assert evaluate_refund_offset(refund, [expense]) is None
+
+
+def test_refund_mirror_does_not_reuse_already_paired_bank_refund():
+    """A platform mirror of a bank refund must not create a second refund edge."""
+    platform_expense = _fv(
+        id="alipay-expense", amount=Decimal("-36.74"), account_id="alipay",
+        account_name="支付宝", occurred_at="2026-05-25 19:11:00",
+        counterparty="美团支付-美团App山葵村烤肉", category="expense",
+        bill_source="alipay", source="alipay",
+    )
+    bank_expense = _fv(
+        id="icbc-expense", amount=Decimal("-271.77"), account_id="icbc",
+        account_name="工行信用卡", occurred_at="2026-05-25 19:11:37",
+        counterparty="山葵村烤肉", category="expense",
+        bill_source="icbc_credit", source="icbc_credit",
+    )
+    platform_refund = _fv(
+        id="alipay-refund", amount=Decimal("36.74"), account_id="alipay",
+        account_name="支付宝", occurred_at="2026-05-25 19:13:00",
+        counterparty="美团支付-美团App山葵村烤肉", category="income",
+        bill_source="alipay", source="alipay", note="退款",
+    )
+    bank_refund = _fv(
+        id="icbc-refund", amount=Decimal("36.74"), account_id="icbc",
+        account_name="工行信用卡", occurred_at="2026-05-25 19:13:04",
+        counterparty="山葵村烤肉", category="income",
+        bill_source="icbc_credit", source="icbc_credit",
+        raw_payload={"bill_source": "icbc_credit", "summary": "退货", "refund_signal": "icbc_credit_return"},
+    )
+
+    ctx = MatchContext(
+        accepted_mirrors=[RelationEdge("alipay-refund", "icbc-refund", "payment_mirror")],
+        accepted_platform_refunds=[RelationEdge("icbc-expense", "icbc-refund", "refund_offset")],
+    )
+    proposals = run_relation_phases(
+        [platform_expense, bank_expense, platform_refund, bank_refund],
+        ctx=ctx,
+        refund_blocked_ids={"icbc-expense", "icbc-refund"},
+        merchant_refund_seed_ids=["alipay-refund"],
+    )
+
+    assert not [p for p in proposals if p.kind == "refund_offset"]
+
+
+def test_refund_mirror_is_occupied_after_first_same_scan_match():
+    """One scan must not create two refund edges for a mirrored refund pair."""
+    facts = [
+        _fv(
+            id="icbc-expense", amount=Decimal("-271.77"), account_id="icbc",
+            account_name="工行信用卡", occurred_at="2026-05-25 19:11:37",
+            counterparty="山葵村烤肉", category="expense",
+            bill_source="icbc_credit", source="icbc_credit",
+        ),
+        _fv(
+            id="icbc-refund", amount=Decimal("36.74"), account_id="icbc",
+            account_name="工行信用卡", occurred_at="2026-05-25 19:13:04",
+            counterparty="山葵村烤肉", category="income",
+            bill_source="icbc_credit", source="icbc_credit",
+            raw_payload={"bill_source": "icbc_credit", "summary": "退货", "refund_signal": "icbc_credit_return"},
+        ),
+        _fv(
+            id="alipay-expense", amount=Decimal("-36.74"), account_id="alipay",
+            account_name="支付宝", occurred_at="2026-05-25 19:11:00",
+            counterparty="美团支付-美团App山葵村烤肉", category="expense",
+            bill_source="alipay", source="alipay",
+        ),
+        _fv(
+            id="alipay-refund", amount=Decimal("36.74"), account_id="alipay",
+            account_name="支付宝", occurred_at="2026-05-25 19:13:00",
+            counterparty="美团支付-美团App山葵村烤肉", category="income",
+            bill_source="alipay", source="alipay", note="退款",
+        ),
+    ]
+    ctx = MatchContext(
+        accepted_mirrors=[RelationEdge("alipay-refund", "icbc-refund", "payment_mirror")],
+    )
+
+    proposals = run_relation_phases(
+        facts,
+        ctx=ctx,
+        seed_ids=[],
+        merchant_refund_seed_ids=["icbc-refund", "alipay-refund"],
+    )
+    refunds = [p for p in proposals if p.kind == "refund_offset"]
+
+    assert len(refunds) == 1
+    assert refunds[0].primary_fact_id == "icbc-expense"
+    assert refunds[0].secondary_fact_id == "icbc-refund"
 
 
 def test_refund_same_account_exact_without_merchant_is_pending_not_silent():

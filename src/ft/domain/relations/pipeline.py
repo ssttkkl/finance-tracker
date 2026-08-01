@@ -28,7 +28,7 @@ from ft.domain.relations.core.types import (
 from ft.domain.relations.mirror.match import match_payment_mirrors_greedy
 from ft.domain.relations.refund.diamond import match_diamond_bank_refunds
 from ft.domain.relations.refund.match import evaluate_refund_offset
-from ft.domain.relations.refund.signals import has_refund_signal
+from ft.domain.relations.refund.signals import has_refund_signal_for_fact
 from ft.domain.relations.transfer.match import match_transfer_pairs_phase_c
 
 
@@ -55,6 +55,27 @@ def _merge_edge_list(ctx: MatchContext, kind: str, pairs: Sequence[tuple[str, st
             ctx.accepted_transfers.append(_edge(kind, a, b))
 
 
+def _expand_refund_blocked_through_mirrors(
+    blocked: set[str], mirror_pairs: Sequence[tuple[str, str]],
+) -> None:
+    """Block every mirror-equivalent fact of an occupied refund leg."""
+    adjacency: dict[str, set[str]] = {}
+    for left, right in mirror_pairs:
+        if not left or not right:
+            continue
+        adjacency.setdefault(left, set()).add(right)
+        adjacency.setdefault(right, set()).add(left)
+
+    pending = list(blocked)
+    while pending:
+        fact_id = pending.pop()
+        for mirror_id in adjacency.get(fact_id, ()):
+            if mirror_id in blocked:
+                continue
+            blocked.add(mirror_id)
+            pending.append(mirror_id)
+
+
 def bank_refund_seed_ids(facts: Sequence[FactView], *, blocked: set[str]) -> list[str]:
     """Positive bank rows with refund-ish text (diamond open seeds)."""
     out: list[str] = []
@@ -65,9 +86,7 @@ def bank_refund_seed_ids(facts: Sequence[FactView], *, blocked: set[str]) -> lis
             continue
         if f.signed_amount <= 0:
             continue
-        if has_refund_signal(f.text) or any(
-            tok in f.text for tok in ("退货", "退款", "消费退货")
-        ):
+        if has_refund_signal_for_fact(f):
             out.append(f.id)
     return out
 
@@ -147,6 +166,11 @@ def run_relation_phases(
             )
             _mark_used(ctx, p)
 
+    # A refund already paired on one source must also occupy every mirror of
+    # that refund. Otherwise the same real-world refund can receive a second
+    # refund_offset from another source, which makes projection ambiguous.
+    _expand_refund_blocked_through_mirrors(refund_blocked, ctx.mirror_pairs())
+
     # --- Phase C: transfer_pair ---
     transfer_props = match_transfer_pairs_phase_c(
         active,
@@ -195,6 +219,7 @@ def run_relation_phases(
             refund_blocked.add(p.secondary_fact_id)
         if p.status == RelationStatus.ACCEPTED.value:
             _mark_used(ctx, p)
+        _expand_refund_blocked_through_mirrors(refund_blocked, ctx.mirror_pairs())
 
     # --- Phase D: merchant / weak / unpaired relation refund (seed-scoped like Application) ---
     if merchant_refund_seed_ids is None:
@@ -226,5 +251,6 @@ def run_relation_phases(
             refund_blocked.add(prop.secondary_fact_id)
         if prop.anchor_fact_id:
             refund_blocked.add(prop.anchor_fact_id)
+        _expand_refund_blocked_through_mirrors(refund_blocked, ctx.mirror_pairs())
 
     return out

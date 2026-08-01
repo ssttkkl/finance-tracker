@@ -185,3 +185,86 @@ def test_is_platform_import_refund_source_helper():
         source="icbc",
     )
     assert is_platform_import_refund_source(f2) is False
+
+
+def test_icbc_credit_refund_scan_pairs_only_matching_consumption():
+    from ft.adapters.relational.models import TransactionRelationModel
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.relations import RelationService
+    from ft.domain.relations import RelationKind, RelationStatus
+
+    sessions, UoW = _db()
+    with UoW(sessions, "ws") as uow:
+        uow.accounts.add_raw({"name": "工行信用卡(1200)", "type": "loan", "currency": "CNY"})
+        common = {
+            "currency": "CNY",
+            "account_name": "工行信用卡(1200)",
+            "source_type": "icbc_credit",
+            "bill_source": "icbc_credit",
+            "source": "美团支付",
+        }
+        expense_id = uow.cashflows.add("loan", {
+            **common,
+            "record_id": "icbc-expense-272",
+            "occurred_at": "2026-05-25 19:11:37",
+            "amount": "-272.00",
+            "counterparty": "山葵村烤肉",
+            "note": "",
+            "category": "expense",
+            "source_payload": {
+                **common,
+                "summary": "消费",
+                "refund_signal": "",
+                "_raw_cp": "美团支付-美团App山葵村烤肉",
+            },
+        })
+        refund_id = uow.cashflows.add("loan", {
+            **common,
+            "record_id": "icbc-refund-272",
+            "occurred_at": "2026-05-25 19:13:04",
+            "amount": "272.00",
+            "counterparty": "山葵村烤肉",
+            "note": "",
+            "category": "income",
+            "source_payload": {
+                **common,
+                "summary": "退货",
+                "refund_signal": "icbc_credit_return",
+                "_raw_cp": "美团支付-美团App山葵村烤肉",
+            },
+        })
+        other_id = uow.cashflows.add("loan", {
+            **common,
+            "record_id": "icbc-expense-222",
+            "occurred_at": "2026-05-25 19:16:39",
+            "amount": "-222.00",
+            "counterparty": "山葵村烤肉",
+            "note": "",
+            "category": "expense",
+            "source_payload": {
+                **common,
+                "summary": "消费",
+                "refund_signal": "",
+                "_raw_cp": "美团支付-美团App山葵村烤肉",
+            },
+        })
+        uow.commit()
+
+    CashProjectionService(sessions, "ws").rebuild()
+    result = RelationService(UoW(sessions, "ws")).check(
+        seed_fact_ids=[refund_id], trigger="manual_range", seed_ref="icbc-regression"
+    )
+
+    assert result.ok is True
+    with sessions() as session:
+        relations = list(session.scalars(
+            select(TransactionRelationModel).where(
+                TransactionRelationModel.workspace_id == "ws",
+                TransactionRelationModel.kind == RelationKind.REFUND_OFFSET.value,
+                TransactionRelationModel.status == RelationStatus.ACCEPTED.value,
+            )
+        ))
+        assert len(relations) == 1
+        assert {relations[0].primary_fact_id, relations[0].secondary_fact_id} == {expense_id, refund_id}
+        assert other_id not in {relations[0].primary_fact_id, relations[0].secondary_fact_id}
+        assert relations[0].confidence == "strong"

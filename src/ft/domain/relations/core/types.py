@@ -22,9 +22,9 @@ class SourceGroupFn(Protocol):
 
 @runtime_checkable
 class RefundTextGates(Protocol):
-    """Injected refund text classification (implemented by refund pack)."""
+    """Injected refund classification (implemented by refund pack)."""
 
-    def has_refund_signal(self, text: str) -> bool: ...
+    def has_refund_signal(self, fact: "FactView") -> bool: ...
 
     def is_refund_excluded_leg(self, text: str) -> bool: ...
 
@@ -222,7 +222,7 @@ class FactCandidateIndex:
                 self._expenses_by_day[(idx.currency, idx.day)].append(idx)
             else:
                 # Only explicit refund-signal positives are refund candidates
-                if self._refund_gates is not None and self._refund_gates.has_refund_signal(fact.text):
+                if self._refund_gates is not None and self._refund_gates.has_refund_signal(fact):
                     self._refunds_by_day[(idx.currency, idx.day)].append(idx)
 
         for cur in {k[0] for k in self._expenses_by_day}:
@@ -312,7 +312,7 @@ class FactCandidateIndex:
         # window pad: refund may be up to REFUND_CANDIDATE_DAYS after expense
         pad_days = REFUND_CANDIDATE_DAYS + CANDIDATE_DAY_PAD
         if amount > 0:
-            if gates is None or not gates.has_refund_signal(seed.text):
+            if gates is None or not gates.has_refund_signal(seed):
                 return []
             # seed is refund-like: look for earlier expenses
             days = self._expense_days_by_currency.get(currency, [])
