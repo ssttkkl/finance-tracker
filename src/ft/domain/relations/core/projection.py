@@ -9,13 +9,7 @@ from ft.domain.relations.core.geometry import _abs_decimal, _as_decimal
 from ft.domain.relations.core.keys import is_open_leg_relation
 from ft.domain.relations.core.types import FactType, FactView, RelationKind, RelationStatus
 from ft.domain.relations.core.mirror_graph import build_mirror_components, canonical_mirror_fact
-
-
-def _proj_has_refund_signal(text: str) -> bool:
-    blob = " ".join(str(p or "") for p in (text,)).lower()
-    # accept full text blob style
-    b = str(text or "").lower()
-    return any(tok in b for tok in ("退款", "退货", "退回", "冲正", "消费退货", "refund", "return"))
+from ft.domain.relations.core.record_types import is_refund_in
 
 @dataclass(frozen=True)
 class ProjectionResult:
@@ -113,7 +107,7 @@ def project_balances_and_pnl(
             expenses[currency] += net
             net_expense_by_group[canonical.id] = net
         elif amount > 0 and canonical.id not in refund_secondary_ids:
-            if not _proj_has_refund_signal(canonical.text):
+            if not is_refund_in(canonical):
                 income[currency] += amount
 
     return ProjectionResult(

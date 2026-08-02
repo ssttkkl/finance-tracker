@@ -13,6 +13,8 @@ from ft.domain.platform_refund import (
     wechat_is_refund_income_leg,
     wechat_is_refund_origin_expense,
 )
+from ft.domain.relations.core.types import FactView
+from ft.domain.relations.refund.hard_key import match_phase_a_platform_refunds
 
 
 class TestAlipayOrderKey:
@@ -51,6 +53,26 @@ class TestAlipaySkipPredicates:
 
     def test_paid_closed(self):
         assert alipay_is_paid_closed_expense("交易关闭", "支出")
+
+    def test_hard_key_skips_non_consumer_transfer_reversal(self):
+        facts = {
+            "out": FactView(
+                id="out", amount=Decimal("-100"), currency="CNY",
+                account_id="wallet", account_type="cash", occurred_at="2026-01-01 10:00:00",
+                bill_source="alipay", source="alipay", record_type="transfer_reversal",
+            ),
+            "in": FactView(
+                id="in", amount=Decimal("100"), currency="CNY",
+                account_id="wallet", account_type="cash", occurred_at="2026-01-01 10:01:00",
+                bill_source="alipay", source="alipay", record_type="transfer_reversal",
+            ),
+        }
+        rows = [
+            {"id": "out", "bill_source": "alipay", "record_id": "P2P", "status": "芝麻免押下单成功"},
+            {"id": "in", "bill_source": "alipay", "record_id": "P2P_advance", "status": "解冻成功"},
+        ]
+
+        assert match_phase_a_platform_refunds(rows, facts_by_id=facts) == []
 
 
 class TestWeChatDualRow:
@@ -95,7 +117,7 @@ class TestWeChatDualRow:
         m = wechat_find_expense_for_refund(income, expenses)
         assert m is not None
 
-    def test_redpacket_mer_equals_income_txn(self):
+    def test_redpacket_return_is_not_a_consumer_refund_match(self):
         expenses = [{
             "direction": "支出", "status": "已全额退款", "amount": Decimal("-50"),
             "pay": "零钱", "cp": "发给某人", "occurred_at": "2025-05-15 17:09:34",
@@ -106,11 +128,9 @@ class TestWeChatDualRow:
             "pay": "零钱", "cp": "/", "occurred_at": "2025-05-16 17:09:37",
             "txn": "1000039801202505157184950651034", "mer": "", "type": "微信红包-退款",
         }
-        m = wechat_find_expense_for_refund(income, expenses)
-        assert m is not None
-        assert "mer" in m.rule_id or m.rule_id.endswith("v1")
+        assert wechat_find_expense_for_refund(income, expenses) is None
 
-    def test_transfer_return(self):
+    def test_transfer_return_is_not_a_consumer_refund_match(self):
         expenses = [{
             "direction": "支出", "status": "对方已退还", "amount": Decimal("-200"),
             "pay": "零钱", "cp": "是我小转转啊", "occurred_at": "2025-05-10 16:35:30",
@@ -121,31 +141,46 @@ class TestWeChatDualRow:
             "pay": "零钱", "cp": "/", "occurred_at": "2025-05-10 18:06:58",
             "txn": "r", "mer": "", "type": "转账-退款",
         }
-        m = wechat_find_expense_for_refund(income, expenses)
-        assert m is not None
+        assert wechat_find_expense_for_refund(income, expenses) is None
+
+    def test_pair_wechat_refunds_excludes_transfer_reversal_rows(self):
+        rows = [
+            {
+                "direction": "支出", "status": "对方已退还", "amount": Decimal("-200"),
+                "pay": "零钱", "cp": "收款人", "occurred_at": "2025-05-10 16:35:30",
+                "txn": "out", "mer": "", "type": "转账", "record_type": "transfer_reversal",
+            },
+            {
+                "direction": "收入", "status": "已全额退款", "amount": Decimal("200"),
+                "pay": "零钱", "cp": "/", "occurred_at": "2025-05-10 18:06:58",
+                "txn": "in", "mer": "", "type": "转账-退款", "record_type": "transfer_reversal",
+            },
+        ]
+
+        assert pair_wechat_refunds(rows) == []
 
     def test_residual_jd_style(self):
         expenses = [{
             "direction": "支出", "status": "已退款(¥470.72)", "amount": Decimal("-557.92"),
             "pay": "零钱", "cp": "京东", "occurred_at": "2024-11-11 01:15:51",
-            "txn": "e", "mer": "m", "type": "商户消费",
+            "txn": "e", "mer": "m", "type": "商户消费", "record_type": "consumption",
         }]
         rows = [
             expenses[0],
             {
                 "direction": "收入", "status": "已退款¥470.72", "amount": Decimal("341.3"),
                 "pay": "零钱", "cp": "京东商城平台商户", "occurred_at": "2024-11-11 01:16:12",
-                "txn": "r1", "mer": "", "type": "京东商城平台商户-退款",
+                "txn": "r1", "mer": "", "type": "京东商城平台商户-退款", "record_type": "refund",
             },
             {
                 "direction": "收入", "status": "已退款¥470.72", "amount": Decimal("32.56"),
                 "pay": "零钱", "cp": "京东商城平台商户", "occurred_at": "2024-11-11 01:16:17",
-                "txn": "r2", "mer": "", "type": "京东商城平台商户-退款",
+                "txn": "r2", "mer": "", "type": "京东商城平台商户-退款", "record_type": "refund",
             },
             {
                 "direction": "收入", "status": "已退款¥470.72", "amount": Decimal("96.86"),
                 "pay": "零钱", "cp": "京东商城平台商户", "occurred_at": "2024-11-11 01:16:25",
-                "txn": "r3", "mer": "", "type": "京东商城平台商户-退款",
+                "txn": "r3", "mer": "", "type": "京东商城平台商户-退款", "record_type": "refund",
             },
         ]
         pairs = pair_wechat_refunds(rows)

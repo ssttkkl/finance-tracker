@@ -30,16 +30,10 @@ from ft.domain.relations.core.types import (
     RULE_PAYMENT_MIRROR_SHORT_WINDOW_TEXT_V1, RULE_PAYMENT_MIRROR_STRONG_V1,
     RULE_PAYMENT_MIRROR_WEAK_V1, SUBTYPE_NONE, OPEN_LEG_CANDIDATE_TOP_K,
 )
-# Local refund-word check to avoid pack→pack import (FR-004); tokens duplicated intentionally.
-def has_refund_signal(text: str) -> bool:
-    blob = _text_blob(text)
-    return any(tok in blob for tok in ("退款", "退货", "退回", "冲正", "消费退货", "refund", "return"))
-
-def _refundish_text(fact) -> bool:
-    blob = _text_blob(fact.counterparty, fact.note, fact.category)
-    return any(tok in blob for tok in ("退款", "退货", "消费退货", "refund", "return"))
-
-
+from ft.domain.relations.core.record_types import (
+    is_payment_mirror_expense,
+    is_payment_mirror_refund,
+)
 def _mirror_channel(fact: FactView) -> str:
     return str(fact.bill_source or fact.source or "").strip().lower()
 
@@ -103,6 +97,11 @@ def _deterministic_payment_mirror_groups(
     ] = defaultdict(list)
     handled: set[str] = set()
     for fact in facts:
+        if not (
+            is_payment_mirror_expense(fact)
+            or is_payment_mirror_refund(fact)
+        ):
+            continue
         group = source_group(fact)
         if group not in {"platform", "bank"}:
             continue
@@ -224,8 +223,11 @@ def evaluate_payment_mirror(
         if str(cand.currency).upper() != str(seed.currency).upper():
             continue
         cand_amount = cand.signed_amount
-        # External payment rows are same-sign expenses (or same-sign refunds).
-        if (seed_amount > 0) != (cand_amount > 0):
+        # External payment rows are typed same-sign expenses or typed refunds.
+        if not (
+            (is_payment_mirror_expense(seed) and is_payment_mirror_expense(cand))
+            or (is_payment_mirror_refund(seed) and is_payment_mirror_refund(cand))
+        ):
             continue
         amount_delta = seed_amount - cand_amount
         exact = amount_delta == 0
@@ -251,6 +253,16 @@ def evaluate_payment_mirror(
         cross = main_style_cross_verify(seed, cand)
         card_ok = bool(shared_tails) or alias_hit
         text_or_card = cross or card_ok
+        seed_counterparty = str(seed.counterparty or "").strip()
+        cand_counterparty = str(cand.counterparty or "").strip()
+        counterparty_evidence = (
+            len(seed_counterparty) >= 2
+            and len(cand_counterparty) >= 2
+            and (
+                seed_counterparty in cand_counterparty
+                or cand_counterparty in seed_counterparty
+            )
+        )
 
         # Signed lag: bank_ts - platform_ts. Platform must not be later for no-text exact-2.
         if seed_group == "platform":
@@ -270,7 +282,8 @@ def evaluate_payment_mirror(
             (seed_group == "bank" and fact_is_bank_date_only(seed))
             or (cand_group == "bank" and fact_is_bank_date_only(cand))
         )
-        both_refundish = _refundish_text(seed) and _refundish_text(cand)
+        both_refundish = is_payment_mirror_refund(seed) and is_payment_mirror_refund(cand)
+        has_identity_evidence = text_or_card or counterparty_evidence
         # Ranking score for uniqueness: higher is better.
         score = 0
         status = ""
@@ -288,6 +301,7 @@ def evaluate_payment_mirror(
             and both_refundish
             and (same_account or biz_same_day)
             and (bank_date_only or dt <= PAYMENT_MIRROR_SHORT_WINDOW_SECONDS or biz_same_day)
+            and (not bank_date_only or has_identity_evidence)
         ):
             status = RelationStatus.ACCEPTED.value
             conf = CONFIDENCE_STRONG
@@ -296,7 +310,9 @@ def evaluate_payment_mirror(
         # FR-053/056: same-account exact same Shanghai business day → accepted.
         # bank_date_only is a label for audit when bank export has no clock time;
         # it is fully subsumed by the business-day condition (no separate match logic).
-        elif exact and same_account and biz_same_day:
+        elif exact and same_account and biz_same_day and (
+            not bank_date_only or has_identity_evidence
+        ):
             status = RelationStatus.ACCEPTED.value
             conf = CONFIDENCE_STRONG
             if bank_date_only:
@@ -305,6 +321,11 @@ def evaluate_payment_mirror(
             else:
                 rule = RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1
                 score = 4480
+        elif exact and same_account and biz_same_day and bank_date_only:
+            status = RelationStatus.PENDING_REVIEW.value
+            conf = CONFIDENCE_WEAK
+            rule = RULE_PAYMENT_MIRROR_WEAK_V1
+            score = 1500
         # Same-account short-window autos (cross-account already filtered out):
         elif exact and dt <= PAYMENT_MIRROR_STRONG_SECONDS and text_or_card:
             status = RelationStatus.ACCEPTED.value

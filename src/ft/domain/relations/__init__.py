@@ -6,6 +6,7 @@ from ft.domain.relations.core.geometry import *  # noqa: F403
 from ft.domain.relations.core.compatibility import *  # noqa: F403
 from ft.domain.relations.core.projection import *  # noqa: F403
 from ft.domain.relations.core.routing import source_group  # noqa: F401
+from ft.domain.relations.core.record_types import *  # noqa: F403
 from ft.domain.relations.core.types import MatchContext, RelationEdge  # noqa: F401
 from ft.domain.relations.core.mirror_graph import (
     build_mirror_components, canonical_mirror_fact, platform_score as _platform_score,

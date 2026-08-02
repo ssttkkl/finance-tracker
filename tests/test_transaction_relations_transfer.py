@@ -14,6 +14,15 @@ from ft.domain.relations import (
 def _fv(**kwargs):
     base = dict(currency="CNY", account_type="cash", fact_type="cash", deleted=False)
     base.update(kwargs)
+    if "record_type" not in base:
+        amount = Decimal(str(base.get("amount") or 0))
+        note = str(base.get("note") or "")
+        base["record_type"] = (
+            "repayment" if amount < 0 and any(token in note for token in ("还款", "购汇")) else
+            "transfer_out" if amount < 0 else
+            "income" if base.get("account_type") == "loan" and amount > 0 else
+            "transfer_in" if amount > 0 else "other"
+        )
     return FactView(**base)
 
 
@@ -81,6 +90,7 @@ def test_unionpay_ccb_date_only_uses_raw_business_day_auto():
         occurred_at="2024-05-05 17:48:03",
         counterparty="银联转账（云闪付）",
         note="无卡支付",
+        record_type="transfer_out",
         fact_type=FactType.CASH.value,
         raw_payload={"occurred_at": "2024-05-06 01:48:03"},
     )
@@ -94,6 +104,7 @@ def test_unionpay_ccb_date_only_uses_raw_business_day_auto():
         occurred_at="2024-05-05 16:00:00",
         counterparty="微信",
         note="银联入账",
+        record_type="transfer_in",
         fact_type=FactType.CASH.value,
         raw_payload={"occurred_at": "2024-05-06"},
     )
@@ -245,11 +256,13 @@ def test_bare_unionpay_merchant_refund_not_transfer_signal():
         id="a", amount=Decimal("-100"), account_id="1", account_name="微信零钱",
         occurred_at="2023-06-19 08:54:52", counterparty="美团",
         note="美团订单-23061911100400000024247213555312",
+        record_type="consumption",
     )
     in_leg = _fv(
         id="b", amount=Decimal("100"), account_id="2", account_name="工行借记卡",
         occurred_at="2023-06-19 10:06:50", counterparty="中国银联无卡快捷支付业务专户",
         note="退货",
+        record_type="income",
     )
     assert evaluate_transfer_pair(out_leg, [in_leg]) is None
 
@@ -269,10 +282,12 @@ def test_transfer_without_source_out_signal_is_not_a_seed():
     out_leg = _fv(
         id="a", amount=Decimal("-100"), account_id="1", account_name="A",
         occurred_at="2026-01-01 10:00:00", note="支出",
+        record_type="consumption",
     )
     in_leg = _fv(
         id="b", amount=Decimal("100"), account_id="2", account_name="B",
         occurred_at="2026-01-01 10:00:05", note="收入",
+        record_type="income",
     )
     assert evaluate_transfer_pair(out_leg, [in_leg]) is None
 

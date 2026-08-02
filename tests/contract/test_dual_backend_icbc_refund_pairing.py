@@ -61,6 +61,7 @@ def _rows():
             "summary": "消费",
             "refund_signal": "",
             "_raw_cp": "美团支付-美团App山葵村烤肉",
+            "record_type": "consumption",
         },
         {
             **common,
@@ -73,6 +74,7 @@ def _rows():
             "summary": "退货",
             "refund_signal": "icbc_credit_return",
             "_raw_cp": "美团支付-美团App山葵村烤肉",
+            "record_type": "refund",
         },
         {
             **common,
@@ -85,6 +87,7 @@ def _rows():
             "summary": "消费",
             "refund_signal": "",
             "_raw_cp": "美团支付-美团App山葵村烤肉",
+            "record_type": "consumption",
         },
     ]
 

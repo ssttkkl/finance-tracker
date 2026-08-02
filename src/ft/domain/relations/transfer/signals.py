@@ -16,6 +16,14 @@ from ft.domain.relations.core.geometry import (
 )
 from ft.domain.relations.core.types import FactView
 from ft.domain.relations.core.routing import source_group
+from ft.domain.relations.core.record_types import (
+    is_loan_repayment_in,
+    is_repayment_out_record,
+    is_transfer_in_record,
+    is_transfer_out_record,
+    is_withdrawal_in_record,
+    is_withdrawal_out_record,
+)
 TRANSFER_SIGNAL_TOKENS = (
     "转账", "转出", "转入", "调拨", "内部转", "汇款", "汇入", "汇出",
     "transfer", "无卡付", "无卡支付", "电子汇入", "转账支取", "转账存入",
@@ -26,18 +34,6 @@ TRANSFER_SIGNAL_TOKENS = (
     "银转证", "证转银", "银行转证券", "证券转银行",
     "转出到银行卡", "转账到银行卡",
 )
-# Phase-C out-leg seed signals.  These are intentionally narrower than the
-# broad pair-side vocabulary above: an incoming-side token must not promote a
-# normal expense into a transfer seed.
-TRANSFER_OUT_SEED_TOKENS = (
-    "提现", "转出到银行卡", "转账到银行卡", "转账支取", "无卡自助", "无卡付", "无卡支付",
-    "银转证", "银行转证券", "信用卡还款", "购汇还款", "自动还款",
-    "主动还款", "还款",
-)
-# Structured source summaries are stronger than arbitrary text.  In
-# particular, ICBC debit rows use summary=转账 for recurring transfers into
-# the owner's ICBC credit-card account.
-TRANSFER_OUT_SEED_SUMMARIES = frozenset({"转账"})
 # Stage-1 **strong** exclusions: never enter transfer_pair auto pool (007 FR-043 tiers).
 # Exact phrases only — never bare「闲鱼」/「转账」(latter is a signal token).
 TRANSFER_STRONG_EXCLUDE_TOKENS = (
@@ -64,31 +60,13 @@ def has_transfer_signal(text: str) -> bool:
     return any(token.lower() in blob for token in TRANSFER_SIGNAL_TOKENS)
 
 
-def _source_signal_blob(fact: "FactView") -> str:
-    payload = fact.raw_payload if isinstance(fact.raw_payload, dict) else {}
-    return _text_blob(
-        fact.text,
-        payload.get("summary"),
-        payload.get("description"),
-        payload.get("payment_method"),
-        payload.get("status"),
-        payload.get("type"),
-        payload.get("txn_type"),
-    )
-
-
 def has_transfer_out_seed_signal(fact: "FactView") -> bool:
-    """Whether a fact carries a source-specific Phase-C out-leg signal."""
-    if fact.deleted or fact.signed_amount >= 0:
-        return False
-    payload = fact.raw_payload if isinstance(fact.raw_payload, dict) else {}
-    source_summary = str(payload.get("summary") or "").strip()
-    blob = _source_signal_blob(fact)
-    if has_transfer_exclude_signal(blob):
-        return False
-    if source_group(fact) == "bank" and source_summary in TRANSFER_OUT_SEED_SUMMARIES:
-        return True
-    return any(token.lower() in blob for token in TRANSFER_OUT_SEED_TOKENS)
+    """Whether the formal type allows a transfer-family out seed."""
+    return not fact.deleted and (
+        is_transfer_out_record(fact)
+        or is_withdrawal_out_record(fact)
+        or is_repayment_out_record(fact)
+    )
 
 def has_transfer_exclude_signal(text: str) -> bool:
     """Strong P2P/QR/redpacket/闲鱼 — must not enter transfer auto pool (007 FR-043)."""
@@ -141,49 +119,25 @@ def is_withdraw_platform_out(fact: "FactView") -> bool:
 
 
 def is_withdraw_platform_receipt(fact: "FactView") -> bool:
-    """Legacy: positive wechat withdraw rows (wrong mapping era). Prefer is_withdraw_platform_out."""
-    if fact.signed_amount <= 0:
+    """正式的平台提现入账角色；文本只作为到账细节证据。"""
+    if not is_withdrawal_in_record(fact) or source_group(fact) != "platform":
         return False
     blob = _text_blob(fact.text, fact.bill_source, fact.source)
     return "提现已到账" in blob or ("零钱提现" in blob and "退款" not in blob)
 
 
 def is_bank_transfer_in(fact: "FactView") -> bool:
-    if fact.signed_amount <= 0:
-        return False
-    blob = _text_blob(fact.text, fact.bill_source, fact.source)
-    if source_group(fact) != "bank" and not any(
-        k in (fact.bill_source or "").lower() + (fact.source or "").lower()
-        for k in ("icbc", "ccb", "bank", "工行", "建行", "debit", "credit")
-    ):
-        # still allow if text screams bank channel
-        if not any(x in blob for x in ("银联入账", "支付机构提现", "电子汇入", "转账存入")):
-            return False
-    return any(
-        x in blob
-        for x in (
-            "银联入账", "支付机构提现", "电子汇入", "转账存入",
-            "快捷支付",  # icbc debit self-name credits often only this
-        )
-    ) or source_group(fact) == "bank"
+    """Formal bank transfer-in; credit-account repayment is a separate route."""
+    return is_transfer_in_record(fact) and source_group(fact) == "bank"
 
 
 def is_transfer_taxonomy_out(fact: "FactView") -> bool:
-    """Stage-1: may initiate transfer (outgoing row or withdraw receipt treated specially)."""
-    if fact.deleted:
-        return False
-    if has_transfer_exclude_signal(fact.text) and not is_withdraw_platform_out(fact) and not is_withdraw_platform_receipt(fact):
-        # QR/P2P excluded unless withdraw
-        if any(x in _text_blob(fact.text) for x in ("二维码", "转账备注", "群收款", "对方已收钱")):
-            return False
-    if is_withdraw_platform_out(fact) or is_withdraw_platform_receipt(fact):
-        return True
-    if fact.signed_amount >= 0:
-        return False
-    blob = _source_signal_blob(fact)
-    if has_transfer_exclude_signal(blob) and "转账支取" not in blob and "无卡" not in blob:
-        return False
-    return has_transfer_out_seed_signal(fact)
+    """Stage-1: transfer, withdrawal, and repayment out rows may initiate matching."""
+    return not fact.deleted and (
+        is_transfer_out_record(fact)
+        or is_withdrawal_out_record(fact)
+        or is_repayment_out_record(fact)
+    )
 
 
 

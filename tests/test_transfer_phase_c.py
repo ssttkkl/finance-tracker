@@ -28,6 +28,7 @@ def _fv(
     occurred: str = "2023-06-15 12:25:59",
     account_type: str = "cash",
     raw_payload: dict | None = None,
+    record_type: str | None = None,
 ) -> FactView:
     return FactView(
         id=id,
@@ -42,6 +43,10 @@ def _fv(
         bill_source=bill_source,
         source=bill_source,
         category="expense" if Decimal(amount) < 0 else "income",
+        record_type=record_type or (
+            "transfer_out" if Decimal(amount) < 0 else
+            "income" if account_type == "loan" else "transfer_in"
+        ),
         fact_type=FactType.CASH.value,
         raw_payload=raw_payload,
     )
@@ -76,6 +81,7 @@ def test_xianyu_transfer_never_pairs_as_transfer():
         account="yuebao",
         text="淘天物流 闲鱼寄件-寄件费_886818156_LP00738984207382",
         occurred="2025-06-05 13:11:14",
+        record_type="consumption",
     )
     xianyu_in = _fv(
         "xy1",
@@ -83,6 +89,7 @@ def test_xianyu_transfer_never_pairs_as_transfer():
         account="alipay_bal",
         text="微信 闲鱼转账",
         occurred="2025-06-05 15:22:11",
+        record_type="transfer_in",
     )
     assert evaluate_transfer_pair(ship, [xianyu_in]) is None
 
@@ -92,6 +99,7 @@ def test_xianyu_transfer_never_pairs_as_transfer():
         account="mybank",
         text="B站 【秒出租发货】大会员",
         occurred="2025-11-04 14:02:59",
+        record_type="consumption",
     )
     xianyu2 = _fv(
         "xy2",
@@ -99,6 +107,7 @@ def test_xianyu_transfer_never_pairs_as_transfer():
         account="alipay_bal",
         text="闲鱼转账",
         occurred="2025-11-04 14:10:24",
+        record_type="transfer_in",
     )
     assert evaluate_transfer_pair(bsite, [xianyu2]) is None
 
@@ -110,6 +119,7 @@ def test_bilateral_wechat_transfer_p2p_not_auto_accept():
         "-50.00",
         account="wechat",
         text="转账备注:微信转账 对方已收钱",
+        record_type="transfer_out",
     )
     inn = _fv(
         "p2",
@@ -117,6 +127,7 @@ def test_bilateral_wechat_transfer_p2p_not_auto_accept():
         account="wechat2",
         text="转账备注:微信转账 已存入零钱",
         occurred="2023-06-15 12:26:00",
+        record_type="transfer_in",
     )
     prop = evaluate_transfer_pair(out, [inn])
     if prop is not None:
@@ -142,7 +153,10 @@ def test_qr_pay_not_auto_transfer():
 
 
 def test_alipay_withdraw_to_bank_accepts():
-    out = _fv("a1", "-200.00", account="alipay", text="中国工商银行 提现-实时提现")
+    out = _fv(
+        "a1", "-200.00", account="alipay", text="中国工商银行 提现-实时提现",
+        record_type="withdrawal_out",
+    )
     bank = _fv(
         "b1",
         "200.00",
@@ -163,19 +177,64 @@ def test_wechat_withdraw_same_account_dual_source_is_mirror():
         "2100.00",
         account="ccb2820",
         text="零钱提现 建设银行(2820)",
+        bill_source="wechat",
         occurred="2025-08-17 15:54:28",
+        record_type="withdrawal_in",
     )
     bank = _fv(
         "c1",
         "2100.00",
         account="ccb2820",
         text="微信零钱提现 银联入账",
+        bill_source="ccb_debit",
         occurred="2025-08-16 16:00:00",  # date-only skew
     )
     props = match_withdraw_receipt_to_bank([wx, bank])
     assert len(props) == 1
     assert props[0].kind == RelationKind.PAYMENT_MIRROR.value
     assert "withdraw_dual_source" in props[0].rule_id or props[0].rule_id.endswith("withdraw_dual_source.v1")
+
+
+def test_withdraw_receipt_requires_formal_platform_withdrawal_in_type():
+    platform_income = _fv(
+        "wallet-income",
+        "2100.00",
+        account="wechat_change",
+        text="零钱提现 建设银行(2820)",
+        bill_source="wechat",
+        record_type="income",
+    )
+    bank_in = _fv(
+        "bank-in",
+        "2100.00",
+        account="ccb2820",
+        text="微信零钱提现 银联入账",
+        bill_source="ccb_debit",
+        record_type="transfer_in",
+    )
+
+    assert match_withdraw_receipt_to_bank([platform_income, bank_in]) == []
+
+
+def test_withdraw_receipt_requires_formal_bank_inbound_type():
+    platform_receipt = _fv(
+        "wallet-receipt",
+        "2100.00",
+        account="wechat_change",
+        text="零钱提现 建设银行(2820)",
+        bill_source="wechat",
+        record_type="withdrawal_in",
+    )
+    bank_consumption = _fv(
+        "bank-consumption",
+        "2100.00",
+        account="ccb2820",
+        text="微信零钱提现 银联入账",
+        bill_source="ccb_debit",
+        record_type="consumption",
+    )
+
+    assert match_withdraw_receipt_to_bank([platform_receipt, bank_consumption]) == []
 
 
 def test_credit_repayment_rejects_merchant_repay_to_refund_income():
@@ -185,6 +244,7 @@ def test_credit_repayment_rejects_merchant_repay_to_refund_income():
         account="ccb",
         text="京东 还款",
         account_type="cash",
+        record_type="repayment",
     )
     inc = _fv(
         "i1",
@@ -193,6 +253,7 @@ def test_credit_repayment_rejects_merchant_repay_to_refund_income():
         text="退款-火车票",
         account_type="loan",
         occurred="2025-01-03 00:15:40",
+        record_type="refund",
     )
     prop = evaluate_transfer_pair(out, [inc])
     assert prop is None
@@ -206,6 +267,7 @@ def test_credit_repayment_accepts_explicit_card_repay():
         text="黄文龙 自动还款",
         account_type="cash",
         occurred="2025-12-18 23:05:40",
+        record_type="repayment",
     )
     inc = _fv(
         "i1",
@@ -214,6 +276,7 @@ def test_credit_repayment_accepts_explicit_card_repay():
         text="转帐北京分行银行卡中心",
         account_type="loan",
         occurred="2025-12-18 23:08:37",
+        record_type="income",
     )
     prop = evaluate_transfer_pair(out, [inc])
     assert prop is not None
@@ -222,7 +285,10 @@ def test_credit_repayment_accepts_explicit_card_repay():
 
 
 def test_phase_c_matcher_includes_withdraw_and_skips_strong_p2p():
-    out = _fv("a1", "-200.00", account="alipay", text="提现-实时提现")
+    out = _fv(
+        "a1", "-200.00", account="alipay", text="提现-实时提现",
+        record_type="withdrawal_out",
+    )
     bank = _fv(
         "b1",
         "200.00",
@@ -243,6 +309,7 @@ def test_phase_c_matcher_includes_withdraw_and_skips_strong_p2p():
         account="wechat2",
         text="微信红包-退款",
         occurred="2023-06-15 12:26:00",
+        record_type="transfer_reversal",
     )
     xianyu_exp = _fv(
         "x1",
@@ -300,6 +367,7 @@ def test_transfer_seed_gate_rejects_icbc_consume_with_ccb_inbound_signal():
         bill_source="icbc_credit",
         occurred="2025-04-11 15:19:19",
         raw_payload={"bill_source": "icbc_credit", "summary": "消费", "refund_signal": ""},
+        record_type="consumption",
     )
     ccb_inbound = _fv(
         "ccb-inbound",
@@ -309,6 +377,7 @@ def test_transfer_seed_gate_rejects_icbc_consume_with_ccb_inbound_signal():
         bill_source="ccb_debit",
         occurred="2025-04-11 00:00:00",
         raw_payload={"bill_source": "ccb_debit", "summary": "电子汇入"},
+        record_type="transfer_in",
     )
 
     assert match_transfer_pairs_phase_c(
@@ -326,6 +395,7 @@ def test_transfer_seed_gate_accepts_structured_ccb_transfer_out_summary():
         bill_source="ccb_debit",
         occurred="2025-04-11 00:00:00",
         raw_payload={"bill_source": "ccb_debit", "summary": "转账支取"},
+        record_type="transfer_out",
     )
     inbound = _fv(
         "ccb-in",
@@ -335,6 +405,7 @@ def test_transfer_seed_gate_accepts_structured_ccb_transfer_out_summary():
         bill_source="ccb_debit",
         occurred="2025-04-11 00:00:05",
         raw_payload={"bill_source": "ccb_debit", "summary": "银联入账"},
+        record_type="transfer_in",
     )
 
     proposals = match_transfer_pairs_phase_c([out, inbound], seed_ids=["ccb-out"])
@@ -359,6 +430,7 @@ def test_icbc_structured_transfer_summary_is_a_seed_for_both_scan_entries():
             "summary": "转账",
             "payment_method": "手机银行",
         },
+        record_type="transfer_out",
     )
     credit = _fv(
         "icbc-credit-in",
@@ -368,6 +440,7 @@ def test_icbc_structured_transfer_summary_is_a_seed_for_both_scan_entries():
         bill_source="icbc_credit",
         occurred="2024-12-02 01:36:44",
         raw_payload={"bill_source": "icbc_credit", "payment_method": "手机银行"},
+        record_type="transfer_in",
     )
 
     explicit = match_transfer_pairs_phase_c(
@@ -391,6 +464,7 @@ def test_transfer_text_only_does_not_make_an_icbc_seed():
         text="黄文龙 转账",
         bill_source="icbc_debit",
         raw_payload={"bill_source": "icbc_debit", "summary": "消费"},
+        record_type="consumption",
     )
     credit = _fv(
         "icbc-credit-in-2",
@@ -399,6 +473,7 @@ def test_transfer_text_only_does_not_make_an_icbc_seed():
         text="黄文龙 手机银行",
         bill_source="icbc_credit",
         raw_payload={"bill_source": "icbc_credit"},
+        record_type="income",
     )
 
     assert match_transfer_pairs_phase_c(
@@ -441,6 +516,7 @@ def test_wechat_withdraw_expense_to_bank_transfer():
         account="wechat_change",
         text="零钱提现 建设银行储蓄卡(2820)",
         occurred="2025-08-17 15:54:28",
+        record_type="withdrawal_out",
     )
     bank = _fv(
         "c1",
@@ -448,6 +524,7 @@ def test_wechat_withdraw_expense_to_bank_transfer():
         account="ccb2820",
         text="微信零钱提现 银联入账",
         occurred="2025-08-16 16:00:00",
+        bill_source="ccb_debit",
     )
     prop = evaluate_transfer_pair(out, [bank])
     assert prop is not None

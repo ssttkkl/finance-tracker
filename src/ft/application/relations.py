@@ -46,6 +46,7 @@ def _fact_view_from_row(row: dict) -> FactView:
         counterparty=str(row.get("counterparty") or ""),
         note=str(row.get("note") or ""),
         category=str(row.get("category") or ""),
+        record_type=str(row.get("record_type") or "other"),
         bill_source=source_type,
         source=source_type,
         fact_type=str(row.get("fact_type") or FactType.CASH.value),
@@ -114,23 +115,43 @@ class RelationService:
                             match_ctx.accepted_platform_refunds.append(
                                 RelationEdge(fact_a_id=a, fact_b_id=b, kind=RelationKind.REFUND_OFFSET.value)
                             )
-                            match_ctx.used_fact_ids.add(a)
-                            match_ctx.used_fact_ids.add(b)
 
                 # Block sets from DB accepted + Phase A created
                 refund_blocked: set[str] = set(match_ctx.used_fact_ids)
                 for rel in uow.relations.list_active(kind=RelationKind.REFUND_OFFSET.value):
                     if rel.get("status") == RelationStatus.SUPERSEDED.value:
                         continue
-                    if rel.get("primary_fact_id"):
-                        refund_blocked.add(rel["primary_fact_id"])
-                    if rel.get("secondary_fact_id"):
-                        refund_blocked.add(rel["secondary_fact_id"])
+                    primary_id = rel.get("primary_fact_id")
+                    secondary_id = rel.get("secondary_fact_id")
+                    # A partially refunded expense remains a valid candidate for
+                    # later refund rows.  Refund legs and fully consumed expenses
+                    # stay occupied, as do all pending/open relations.
+                    keep_expense_candidate = (
+                        rel.get("status") == RelationStatus.ACCEPTED.value
+                        and secondary_id not in (None, "")
+                        and primary_id in remaining
+                        and remaining[primary_id] > 0
+                        and primary_id in fact_by_id
+                        and fact_by_id[primary_id].signed_amount < 0
+                    )
+                    if primary_id and not keep_expense_candidate:
+                        refund_blocked.add(primary_id)
+                    if secondary_id:
+                        refund_blocked.add(secondary_id)
                     if rel.get("anchor_fact_id"):
                         refund_blocked.add(rel["anchor_fact_id"])
                 for item in phase_a:
-                    if item.get("primary_fact_id"):
-                        refund_blocked.add(item["primary_fact_id"])
+                    primary_id = item.get("primary_fact_id")
+                    keep_expense_candidate = (
+                        item.get("status") == RelationStatus.ACCEPTED.value
+                        and item.get("secondary_fact_id") not in (None, "")
+                        and primary_id in remaining
+                        and remaining[primary_id] > 0
+                        and primary_id in fact_by_id
+                        and fact_by_id[primary_id].signed_amount < 0
+                    )
+                    if primary_id and not keep_expense_candidate:
+                        refund_blocked.add(primary_id)
                     if item.get("secondary_fact_id"):
                         refund_blocked.add(item["secondary_fact_id"])
 

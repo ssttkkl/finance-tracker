@@ -560,7 +560,7 @@ class TestWechatCategory:
         assert any(k in _pairs_only(tracking_pairs)[0]["rule_hint"] for k in ("wechat", "full", "brand"))
         assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
-    def test_微信红包退款_按统计优先自动核销(self):
+    def test_微信红包退回_归为转账退回不生成消费退款关系(self):
         path = str(TEST_DIR / "wechat_refund_red_packet_auto.xlsx")
         _make_wechat_xlsx([
             ["2025-05-15 17:09:34", "发给是我小转转啊", "/", "支出", "50.00", "零钱", "已全额退款", "微信红包（单发）", "100003980125051500055211649566164214", "1000039801202505157184950651034"],
@@ -569,9 +569,10 @@ class TestWechatCategory:
         from ft.convert import _read_wechat_raw
         records, tracking_pairs = _read_wechat_raw(path)
         assert len(records) == 2
-        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
+        assert {row["record_type"] for row in records} == {"transfer_reversal"}
+        assert _pairs_only(tracking_pairs) == []
 
-    def test_微信转账退款_按统计优先自动核销(self):
+    def test_微信转账退回_归为转账退回不生成消费退款关系(self):
         path = str(TEST_DIR / "wechat_refund_transfer_auto.xlsx")
         _make_wechat_xlsx([
             ["2026-03-07 04:11:13", "是我小转转啊", "转账备注:微信转账", "支出", "60.00", "建设银行储蓄卡(2820)", "已全额退款", "转账", "53010002371104202603070433707100", "1000050001202603070820865004483"],
@@ -580,7 +581,8 @@ class TestWechatCategory:
         from ft.convert import _read_wechat_raw
         records, tracking_pairs = _read_wechat_raw(path)
         assert len(records) == 2
-        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
+        assert {row["record_type"] for row in records} == {"transfer_reversal"}
+        assert _pairs_only(tracking_pairs) == []
 
     def test_微信多候选退款_按最近候选自动核销(self):
         path = str(TEST_DIR / "wechat_refund_recent_candidate_tiebreak.xlsx")

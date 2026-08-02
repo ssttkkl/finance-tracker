@@ -16,6 +16,7 @@ def _fv(
     desc: str = "",
     day: str = "2026-01-02",
     raw_payload: dict | None = None,
+    record_type: str | None = None,
 ) -> FactView:
     return FactView(
         id=id,
@@ -28,16 +29,16 @@ def _fv(
         bill_source=src,
         source=src,
         fact_type="cash",
+        record_type=record_type or ("consumption" if Decimal(amount) < 0 else "refund"),
         raw_payload=raw_payload,
     )
 
 
-def test_without_refund_gates_no_refund_bucket_hits():
+def test_formal_refund_does_not_need_text_gates_for_candidate_index():
     exp = _fv("e", "-10.00", src="alipay", desc="消费", day="2026-01-01")
     ref = _fv("r", "10.00", src="alipay", desc="退款成功", day="2026-01-02")
     idx = FactCandidateIndex([exp, ref], source_group=source_group, refund_gates=None)
-    # Do not index the refund side unless its gates pass.
-    assert idx.refund_candidates(ref) == []
+    assert [fact.id for fact in idx.refund_candidates(ref)] == ["e"]
 
 
 def test_with_refund_gates_finds_expense_for_refund():
@@ -74,7 +75,9 @@ def test_icbc_structured_signal_rejects_summary_without_signal():
     exp = _fv("e", "-272.00", src="icbc_credit", desc="山葵村烤肉", day="2026-05-25")
     ref = _fv(
         "r", "272.00", src="icbc_credit", desc="退货 山葵村烤肉", day="2026-05-25",
+        # The old summary-only row is explicitly not a refund.
         raw_payload={"bill_source": "icbc_credit", "summary": "退货"},
+        record_type="income",
     )
     idx = FactCandidateIndex(
         [exp, ref], source_group=source_group, refund_gates=DefaultRefundTextGates()
