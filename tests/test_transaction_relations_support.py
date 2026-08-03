@@ -23,6 +23,7 @@ def add_cash_fact(
     bill_source: str = "",
     source: str = "",
     record_id: str = "",
+    record_type: str = "other",
 ) -> str:
     note = description or ""
     source_type = bill_source or source or ""
@@ -37,6 +38,7 @@ def add_cash_fact(
         source=source_type,
         bill_source=source_type,
         record_id=record_id,
+        record_type=record_type,
     )
     assert result.ok, result.message
     with services.uow as uow:

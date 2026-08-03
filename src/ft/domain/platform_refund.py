@@ -196,6 +196,9 @@ def wechat_find_expense_for_refund(
     inc_mer = str(income.get("mer") or income.get("merchant_order_id") or "")
     inc_status = str(income.get("status") or "")
 
+    if any(token in inc_type for token in ("转账", "红包", "群收款")):
+        return None
+
     def exp_field(e, *keys, default=""):
         for k in keys:
             if k in e and e[k] is not None:
@@ -332,42 +335,6 @@ def wechat_find_expense_for_refund(
         if r4[0][0] != r4[1][0]:
             return WeChatRefundMatch(r4[0][1], "import.wechat.residual.v1")
 
-    # R5 transfer return
-    if "转账" in inc_type or "转账" in inc_status or inc_type.endswith("-退款"):
-        r5: list[tuple[float, int]] = []
-        for ei, e in enumerate(expenses):
-            if ei in used:
-                continue
-            st = str(exp_field(e, "status"))
-            if st != WECHAT_TRANSFER_RETURN_STATUS and str(exp_field(e, "type", "txn_type")) != "转账":
-                if st != WECHAT_TRANSFER_RETURN_STATUS:
-                    continue
-            e_amt = _to_decimal(exp_field(e, "amount"))
-            if e_amt is None or abs(e_amt) != inc_amt:
-                continue
-            e_pay = str(exp_field(e, "pay", "payment_method"))
-            if not wechat_refund_pay_compatible(e_pay, inc_pay):
-                continue
-            if st != WECHAT_TRANSFER_RETURN_STATUS and "转账" not in str(exp_field(e, "type", "txn_type")):
-                continue
-            # prefer 对方已退还
-            edt = _parse_dt(str(exp_field(e, "date", "occurred_at")))
-            if idt and edt:
-                delta = idt - edt
-                if delta < timedelta(0) or delta > timedelta(days=7):
-                    continue
-                pri = 0 if st == WECHAT_TRANSFER_RETURN_STATUS else 1
-                r5.append((pri + delta.total_seconds() / 1e9, ei))
-            else:
-                r5.append((0.0 if st == WECHAT_TRANSFER_RETURN_STATUS else 1.0, ei))
-        if len(r5) == 1:
-            return WeChatRefundMatch(r5[0][1], "import.wechat.transfer_return.v1")
-        if len(r5) > 1:
-            r5.sort()
-            # unique best
-            if r5[0][0] != r5[1][0]:
-                return WeChatRefundMatch(r5[0][1], "import.wechat.transfer_return.v1")
-
     return None
 
 
@@ -378,26 +345,14 @@ def pair_wechat_refunds(
     expenses = []
     incomes = []
     for i, r in enumerate(rows):
-        d = str(r.get("direction") or r.get("dir") or r.get("_wechat_direction") or "")
-        # convert uses category + amount sign; also accept direction
-        if d == "支出" or r.get("category") == "expense" or (
-            d == "" and _to_decimal(r.get("amount")) is not None and _to_decimal(r.get("amount")) < 0
-        ):
+        amount = _to_decimal(r.get("amount"))
+        record_type = str(r.get("record_type") or "")
+        if amount is None:
+            continue
+        if amount < 0 and record_type in {"consumption", "refund"}:
             expenses.append(i)
-        if d == "收入" or (
-            r.get("category") == "income"
-            and wechat_is_refund_income_leg(
-                "收入",
-                str(r.get("status") or ""),
-                str(r.get("txn_type") or r.get("type") or ""),
-            )
-        ):
-            if wechat_is_refund_income_leg(
-                "收入" if d in ("", "收入") else d,
-                str(r.get("status") or ""),
-                str(r.get("txn_type") or r.get("type") or ""),
-            ):
-                incomes.append(i)
+        if amount > 0 and record_type == "refund":
+            incomes.append(i)
 
     # Build expense dict list with direction
     exp_rows = []

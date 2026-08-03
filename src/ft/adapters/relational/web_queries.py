@@ -323,9 +323,14 @@ class RelationalCashLedgerQueryRepository:
             root_record = _record_summary(root, root_account)
             assert root_record is not None
             root_record["source_snapshot"] = _safe_snapshot(root.source_payload)
+            transfer = (
+                self._transfer_details(s, state.active_dataset_id, [row.id]).get(row.id)
+                if any(relation.kind == "transfer_pair" for relation in rels)
+                else None
+            )
             return {
                 "projection_version": state.projection_version,
-                "projection": self._dto(row, account, rels, self._transfer_details(s, state.active_dataset_id, [row.id]).get(row.id)),
+                "projection": self._dto(row, account, rels, transfer),
                 "root_record": root_record,
                 "members": [
                     {**_record_summary(cash, member_account), "roles": list(member.roles_json)}

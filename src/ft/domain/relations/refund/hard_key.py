@@ -24,6 +24,10 @@ from ft.domain.relations.core.types import (
     RelationStatus,
     SUBTYPE_NONE,
 )
+from ft.domain.relations.core.record_types import (
+    is_refund_expense_candidate,
+    is_refund_in,
+)
 
 
 def _normalize_scan_rule_id(rule_id: str) -> str:
@@ -61,6 +65,8 @@ def _proposal_pair(
     if not exp_id or not ref_id or exp_id == ref_id:
         return None
     if exp is None or ref is None:
+        return None
+    if not is_refund_expense_candidate(exp) or not is_refund_in(ref):
         return None
     rid = _normalize_scan_rule_id(rule_id)
     refund_amt = abs(ref.signed_amount)
@@ -132,14 +138,9 @@ def match_phase_a_platform_refunds(
             or payload.get("platform_status")
             or ""
         )
-        desc = str(r.get("note") or "")
-        direction = str(r.get("direction") or payload.get("direction") or "")
-        is_ref = amt > 0 and ("退款" in status or "退款" in desc or status == "退款成功")
-        is_exp = (
-            amt < 0
-            or (direction == "支出" and amt != 0)
-            or (str(r.get("category") or "") == "expense")
-        )
+        fact = facts_by_id.get(str(r.get("id") or ""))
+        is_ref = bool(fact and is_refund_in(fact))
+        is_exp = bool(fact and is_refund_expense_candidate(fact))
         if alipay_is_auth_hold(status):
             origins.append(r)
             continue
@@ -148,7 +149,7 @@ def match_phase_a_platform_refunds(
             continue
         if is_ref:
             refunds.append(r)
-        elif is_exp or amt < 0:
+        elif is_exp:
             origins.append(r)
 
     origin_txns = [str(o.get("txn_id") or o.get("record_id") or "") for o in origins]
@@ -264,6 +265,7 @@ def match_phase_a_platform_refunds(
             row.get("merchant_order_id") or payload.get("merchant_order_id") or ""
         )
         row["mer"] = row["merchant_order_id"]
+        row["record_type"] = str(row.get("record_type") or "")
         row["direction"] = row.get("direction") or payload.get("direction") or (
             "支出" if Decimal(str(row.get("amount") or 0)) < 0 else "收入"
         )

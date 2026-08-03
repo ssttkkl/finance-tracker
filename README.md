@@ -250,7 +250,7 @@ uv run pytest
 
 不要把测试指到业务库或非 `*_test` 库名（`tests/conftest.py` 可能重置 schema）。
 
-工程原则见 [`.specify/memory/constitution.md`](.specify/memory/constitution.md)（财务正确性与可审计、Spec Kit、测试先行、显式双后端等价、清晰边界）。金额在库中为高精度精确小数；幂等权威为 **`record_id` × `source_type`**。
+工程原则见 [`openspec/project-context.md`](openspec/project-context.md)（财务正确性与可审计、OpenSpec、测试先行、显式双后端等价、清晰边界）。金额在库中为高精度精确小数；幂等权威为 **`record_id` × `source_type`**。
 
 ## 财富归因内核
 
@@ -268,9 +268,9 @@ uv run pytest
 | [docs/export-csv-format.md](docs/export-csv-format.md) | 显式 CSV 导出字段 |
 | [docs/database-schema.md](docs/database-schema.md) | ORM + Alembic 表结构速查 |
 | [docs/productization-wealth-report-design.md](docs/productization-wealth-report-design.md) | 财富报告产品决策输入（非实施权威） |
-| [specs/](specs/) | Spec Kit feature 事实源 |
+| [openspec/](openspec/) | OpenSpec 主规格、active changes 与历史归档 |
 | [references/](references/) | 解析器 / 行情供应商细节 |
-| [AGENTS.md](AGENTS.md) | AI / Spec Kit 工作流（`CLAUDE.md` 同内容） |
+| [AGENTS.md](AGENTS.md) | AI / OpenSpec 工作流（`CLAUDE.md` 同内容） |
 
 AI 接入新账单源或券商对账单时，优先用项目 skill：
 

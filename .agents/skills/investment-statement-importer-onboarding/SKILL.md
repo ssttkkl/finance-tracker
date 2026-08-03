@@ -36,11 +36,11 @@ Distilled from feature `009-investment-account-import` and live DFZQ calibration
 - Live quotes / portfolio valuation → feature **`017-asset-valuation-quote`**
 - Investment **relations** (trade lots, FIFO) — not in Phase 1 baseline
 - Implementing product code in main session when CLAUDE.md requires
-  `speckit_implementer` — still follow Spec Kit; this skill is the playbook
+  `$openspec-apply-change` — follow the OpenSpec workflow; this skill is the playbook
 
 ## Non-goals
 
-- Does not replace Spec Kit (`specify` → plan → tasks → implementer)
+- Does not replace OpenSpec (`$openspec-propose` → `$openspec-apply-change` → `$openspec-archive-change`)
 - Does not invent fee semantics without real samples
 - Does not restore CSV/Git file ledgers (removed by `001`)
 - Does not add independent `FEE` / `BUY` / `SELL` actions if product chose
@@ -73,7 +73,7 @@ InvestmentImportService (application)   # post-015: no import_batches / raw_* ta
 | Projection | `src/ft/domain/investment_projection.py` |
 | Snapshot validation | `src/ft/domain/investment_validation.py` |
 | CLI wire | `src/ft/cli.py` (`--source` choices + investment branch) |
-| Spec | `specs/00N-investment-…` |
+| Spec | `openspec/changes/<name>` |
 
 **Event actions (009 baseline):** `swap` | `deposit` | `withdraw` | `dividend` | `checkin`  
 Buy/sell = **SWAP** (cash↔ticker). Fees: prefer **inside cash leg** or explicit
@@ -85,13 +85,13 @@ Dual backend, Decimal money, workspace isolation, fail-closed parse.
 
 ## Golden workflow (do not skip)
 
-### 0. Spec Kit feature
+### 0. OpenSpec change
 
-1. Flow-forward: `specs/00N-…-import` (or living update of active investment feature)
+1. Flow-forward: `openspec/changes/<name>` (or living update of active investment feature)
 2. Spec must state: sources in scope, event action set, fee/cost rules, checkin policy,
    dual-backend, non-goals (no connector platform, no valuation, no relations)
 3. Clarify: **fee double-count**, SWAP vs BUY/SELL, opening cost when history incomplete
-4. plan → tasks → analyze → implementer
+4. design → tasks → validate → apply-change
 
 ### 1. Real statement → native field census → fee/cost contract → map → calibrate
 
@@ -308,13 +308,13 @@ Stop tuning when:
 
 ---
 
-## Collaboration with Spec Kit / cash skill
+## Collaboration with OpenSpec / cash skill
 
-1. Spec/clarify/plan/tasks/analyze first  
+1. explore/propose/validate first
 2. Use this skill for **investment** calibration; `statement-source-onboarding` for cash  
-3. Implementer agent for product code when constitution requires  
+3. Use `$openspec-apply-change` for product code when the project context requires it
 4. Real-statement calibration is **in-scope** product validation  
 5. If calibration changes product rules, Flow-Back: update spec then code  
 
 When user only asks “can we support broker X?”, run census + fee table + gap list;
-do not implement until Spec Kit feature exists.
+do not implement until the OpenSpec change exists.

@@ -15,6 +15,7 @@ from decimal import Decimal
 from typing import Any
 
 from ft.domain.relations.core.routing import source_group
+from ft.domain.relations.core.geometry import _abs_decimal, _as_decimal
 from ft.domain.relations.core.types import (
     FactCandidateIndex,
     FactType,
@@ -26,6 +27,7 @@ from ft.domain.relations.core.types import (
     RelationStatus,
 )
 from ft.domain.relations.mirror.match import match_payment_mirrors_greedy
+from ft.domain.relations.core.mirror_graph import build_mirror_components, canonical_mirror_fact
 from ft.domain.relations.refund.diamond import match_diamond_bank_refunds
 from ft.domain.relations.refund.match import evaluate_refund_offset
 from ft.domain.relations.refund.signals import has_refund_signal_for_fact
@@ -74,6 +76,31 @@ def _expand_refund_blocked_through_mirrors(
                 continue
             blocked.add(mirror_id)
             pending.append(mirror_id)
+
+
+def _collapse_refund_candidate_events(
+    candidates: Sequence[FactView],
+    mirror_pairs: Sequence[tuple[str, str]],
+) -> list[FactView]:
+    """Collapse accepted payment mirrors before refund ranking.
+
+    A platform row and its bank mirror are two source facts for one economic
+    expense.  Leaving both in Phase D creates a false nearest-time tie and
+    inflates the pending candidate count.
+    """
+    if not candidates or not mirror_pairs:
+        return list(candidates)
+    by_id = {fact.id: fact for fact in candidates}
+    collapsed: list[FactView] = []
+    for component in build_mirror_components(by_id.keys(), mirror_pairs):
+        group = [by_id[fact_id] for fact_id in component if fact_id in by_id]
+        if not group:
+            continue
+        representative = canonical_mirror_fact(group)
+        if representative is None:
+            representative = min(group, key=lambda fact: fact.id)
+        collapsed.append(representative)
+    return collapsed
 
 
 def bank_refund_seed_ids(facts: Sequence[FactView], *, blocked: set[str]) -> list[str]:
@@ -239,18 +266,44 @@ def run_relation_phases(
                 for f in index.refund_candidates(seed)
                 if f.id != seed.id and f.id not in refund_blocked
             ]
+            others = _collapse_refund_candidate_events(others, ctx.mirror_pairs())
         else:
             others = [f for f in active if f.id != seed.id and f.id not in refund_blocked]
+        others = _collapse_refund_candidate_events(others, ctx.mirror_pairs())
         prop = evaluate_refund_offset(seed, others, remaining_by_expense=remaining)
         if prop is None:
             continue
         out.append(prop)
-        if prop.primary_fact_id:
-            refund_blocked.add(prop.primary_fact_id)
-        if prop.secondary_fact_id:
+        if (
+            prop.kind == RelationKind.REFUND_OFFSET.value
+            and prop.status == RelationStatus.ACCEPTED.value
+            and prop.primary_fact_id
+            and prop.secondary_fact_id
+        ):
+            # A consumed refund fact is always occupied, but a partially
+            # refunded expense remains eligible until its Decimal balance is
+            # exhausted.  This also applies to later scans via the persisted
+            # remaining map prepared by the application layer.
             refund_blocked.add(prop.secondary_fact_id)
-        if prop.anchor_fact_id:
-            refund_blocked.add(prop.anchor_fact_id)
+            if prop.anchor_fact_id:
+                refund_blocked.add(prop.anchor_fact_id)
+            refund_amount = _as_decimal(
+                (prop.evidence.extras or {}).get("refund_amount")
+            )
+            remaining[prop.primary_fact_id] = remaining.get(
+                prop.primary_fact_id,
+                _abs_decimal(by_id[prop.primary_fact_id].signed_amount)
+                if prop.primary_fact_id in by_id else Decimal("0"),
+            ) - refund_amount
+            if remaining[prop.primary_fact_id] <= 0:
+                refund_blocked.add(prop.primary_fact_id)
+        else:
+            if prop.primary_fact_id:
+                refund_blocked.add(prop.primary_fact_id)
+            if prop.secondary_fact_id:
+                refund_blocked.add(prop.secondary_fact_id)
+            if prop.anchor_fact_id:
+                refund_blocked.add(prop.anchor_fact_id)
         _expand_refund_blocked_through_mirrors(refund_blocked, ctx.mirror_pairs())
 
     return out

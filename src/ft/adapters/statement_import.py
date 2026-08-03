@@ -53,6 +53,9 @@ def _parse_cash_statement(command):
             "txn_type", "payment_method", "offset_group", "offset_role",
             "offset_rule_hint", "offset_match_type", "offset_strength",
             "proposed_action", "record_id", "summary", "refund_signal", "_raw_cp",
+            "record_type", "direction", "_wechat_direction", "_alipay_direction",
+            "_refund_signal", "_ccb_refund_signal", "_is_refund", "_is_reversal",
+            "_debit_offset_type", "offset_type", "location", "acct_name_raw",
         ):
             if key in row and key not in item:
                 item[key] = row[key]

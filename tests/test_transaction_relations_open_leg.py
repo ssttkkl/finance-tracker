@@ -26,6 +26,18 @@ def _fv(**kwargs):
         bill_source=default, source=default,
     )
     base.update(kwargs)
+    if "record_type" not in base:
+        amount = Decimal(str(base.get("amount") or 0))
+        note_text = str(base.get("note") or "")
+        if amount < 0:
+            base["record_type"] = "transfer_out" if "转账" in note_text else "consumption"
+        elif amount > 0:
+            base["record_type"] = (
+                "refund" if any(token in note_text for token in ("退款", "退货", "冲正")) else
+                "transfer_in" if "转账" in note_text else "income"
+            )
+        else:
+            base["record_type"] = "other"
     return FactView(**base)
 
 
@@ -35,7 +47,7 @@ def test_multi_candidate_refund_is_single_open_leg_pending():
             id=f"e{i}",
             amount=Decimal("-100"),
             account_id="1",
-            occurred_at=f"2026-01-0{i+1} 10:00:00",
+            occurred_at=f"2026-01-{('01' if i == 0 else '02')} 10:00:00",
             counterparty="京东",
             note="消费",
             category="expense",
@@ -268,15 +280,16 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
     services = relation_runtime.services
     assert services.accounts.create_account("支付宝", "cash", "CNY").ok
     # Three same-merchant expenses and one refund produce one unpaired pending relation.
-    for i, day in enumerate(("01", "02", "03"), start=1):
+    for i, day in enumerate(("01", "02", "02"), start=1):
         services.cashflow.add_manual_transaction(
             amount=Decimal("-100.00"),
             counterparty="京东",
             account_name="支付宝",
             currency="CNY",
             date=f"2026-01-{day} 10:00:00",
-            note=f"消费{i}",
-            category="expense",
+                note=f"消费{i}",
+                category="expense",
+                record_type="consumption",
         )
     services.cashflow.add_manual_transaction(
         amount=Decimal("100.00"),
@@ -284,8 +297,9 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
         account_name="支付宝",
         currency="CNY",
         date="2026-01-10 10:00:00",
-        note="退货退款",
-        category="income",
+            note="退货退款",
+            category="income",
+            record_type="refund",
     )
     with services.uow as uow:
         rows = uow.cashflows.list_detailed()
@@ -420,18 +434,83 @@ def test_system_open_refund_auto_accept_keeps_expense_as_primary(relation_runtim
     ]
 
 
+def test_partial_refund_keeps_expense_eligible_across_scans(relation_runtime):
+    services = relation_runtime.services
+    assert services.accounts.create_account("支付宝", "cash", "CNY").ok
+    assert services.cashflow.add_manual_transaction(
+        amount=Decimal("-100.00"),
+        counterparty="商家A",
+        account_name="支付宝",
+        currency="CNY",
+        date="2026-04-01 10:00:00",
+        note="原消费",
+        category="expense",
+        record_type="consumption",
+    ).ok
+    assert services.cashflow.add_manual_transaction(
+        amount=Decimal("30.00"),
+        counterparty="商家A",
+        account_name="支付宝",
+        currency="CNY",
+        date="2026-04-02 10:00:00",
+        note="退款一",
+        category="income",
+        record_type="refund",
+    ).ok
+
+    with services.uow as uow:
+        rows = uow.cashflows.list_detailed()
+        expense_id = next(row["id"] for row in rows if row["note"] == "原消费")
+        first_refund_id = next(row["id"] for row in rows if row["note"] == "退款一")
+    first = services.relations.check(
+        seed_fact_ids=[expense_id, first_refund_id],
+        trigger="manual_range",
+    )
+    assert first.ok, first.message
+
+    assert services.cashflow.add_manual_transaction(
+        amount=Decimal("20.00"),
+        counterparty="商家A",
+        account_name="支付宝",
+        currency="CNY",
+        date="2026-04-03 10:00:00",
+        note="退款二",
+        category="income",
+        record_type="refund",
+    ).ok
+    with services.uow as uow:
+        rows = uow.cashflows.list_detailed()
+        second_refund_id = next(row["id"] for row in rows if row["note"] == "退款二")
+    second = services.relations.check(
+        seed_fact_ids=[second_refund_id],
+        trigger="manual_range",
+    )
+    assert second.ok, second.message
+
+    with services.uow as uow:
+        accepted = uow.relations.list_active(
+            kind=RelationKind.REFUND_OFFSET.value,
+            status=RelationStatus.ACCEPTED.value,
+        )
+    assert {(row["primary_fact_id"], row["secondary_fact_id"]) for row in accepted} == {
+        (expense_id, first_refund_id),
+        (expense_id, second_refund_id),
+    }
+
+
 def test_open_leg_reject_suppresses_reopen(relation_runtime):
     services = relation_runtime.services
     assert services.accounts.create_account("支付宝", "cash", "CNY").ok
-    for day in ("01", "02"):
+    for day in ("01", "01"):
         services.cashflow.add_manual_transaction(
             amount=Decimal("-80.00"),
             counterparty="京东",
             account_name="支付宝",
             currency="CNY",
             date=f"2026-02-{day} 10:00:00",
-            note="消费",
-            category="expense",
+                note="消费",
+                category="expense",
+                record_type="consumption",
         )
     services.cashflow.add_manual_transaction(
         amount=Decimal("80.00"),
@@ -439,8 +518,9 @@ def test_open_leg_reject_suppresses_reopen(relation_runtime):
         account_name="支付宝",
         currency="CNY",
         date="2026-02-10 10:00:00",
-        note="退货退款",
-        category="income",
+            note="退货退款",
+            category="income",
+            record_type="refund",
     )
     with services.uow as uow:
         ids = [r["id"] for r in uow.cashflows.list_detailed()]
@@ -486,8 +566,9 @@ def test_transfer_open_leg_persisted_and_accept(relation_runtime):
         account_name="A",
         currency="CNY",
         date="2026-03-01 10:00:00",
-        note="转账支取",
-        category="expense",
+            note="转账支取",
+            category="expense",
+            record_type="transfer_out",
     )
     services.cashflow.add_manual_transaction(
         amount=Decimal("500.00"),
@@ -495,8 +576,9 @@ def test_transfer_open_leg_persisted_and_accept(relation_runtime):
         account_name="B1",
         currency="CNY",
         date="2026-03-01 10:00:03",
-        note="转账存入",
-        category="income",
+            note="转账存入",
+            category="income",
+            record_type="transfer_in",
     )
     services.cashflow.add_manual_transaction(
         amount=Decimal("500.00"),
@@ -504,8 +586,9 @@ def test_transfer_open_leg_persisted_and_accept(relation_runtime):
         account_name="B2",
         currency="CNY",
         date="2026-03-01 10:00:04",
-        note="转账存入",
-        category="income",
+            note="转账存入",
+            category="income",
+            record_type="transfer_in",
     )
     with services.uow as uow:
         rows = uow.cashflows.list_detailed()

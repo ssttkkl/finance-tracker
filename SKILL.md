@@ -81,7 +81,7 @@ uv run ft stock convert FILE --source dfzq --output preview.csv
 
 ## 开发工作流
 
-行为、模型、持久化或财务规则变更必须按仓库 `AGENTS.md` 走 Spec Kit 主流程。完成实现后运行：
+行为、模型、持久化或财务规则变更必须按仓库 `AGENTS.md` 走 OpenSpec 主流程（`$openspec-propose` → `$openspec-apply-change` → `$openspec-archive-change`）。完成实现后运行：
 
 ```bash
 uv run pytest

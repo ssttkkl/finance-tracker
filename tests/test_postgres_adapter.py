@@ -106,6 +106,7 @@ def test_cashflow_service_contract_persists_decimal_snapshot():
         "counterparty": "Coffee",
         "note": "",
         "category": "expense",
+        "record_type": "other",
         "account_name": "Cash",
         "source_type": "",
         "source": "",

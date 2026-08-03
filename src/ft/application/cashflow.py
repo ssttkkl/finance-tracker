@@ -29,7 +29,8 @@ class CashflowService:
     def add_manual_transaction(self, *, amount: Decimal, counterparty: str, account_name: str,
                                note: str = "", source: str = "", date: str | None = None,
                                currency: str | None = None, category: str | None = None,
-                               bill_source: str = "", record_id: str = "", **_extra) -> CashflowResult:
+                               bill_source: str = "", record_id: str = "",
+                               record_type: str = "other", **_extra) -> CashflowResult:
         try:
             operation_currency = normalize_currency(currency or "")
         except ValueError:
@@ -54,6 +55,7 @@ class CashflowService:
                 "counterparty": counterparty,
                 "note": note,
                 "category": category if category is not None else ("expense" if amount < 0 else "income"),
+                "record_type": record_type or "other",
                 "account_name": account_name,
                 "source": source,
                 "source_type": bill_source or source or "",

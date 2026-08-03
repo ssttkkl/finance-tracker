@@ -1,0 +1,92 @@
+# Tasks
+
+## 1. 迁移后的历史任务清单
+
+- [x] T001 Confirm feature artifacts under `openspec/specs/006-transaction-relations/` and branch `006-transaction-relations`
+- [x] T002 [P] Inventory import completion path, cash fact identity/raw linkage, report/balance projection, and convert offset fields in `src/ft/application/statement_import.py`, `src/ft/adapters/relational/{models,imports,repositories,queries,uow,runtime}.py`, `src/ft/application/{cashflow,queries}.py`, `src/ft/convert.py`, `src/ft/report.py`, `src/ft/cli.py`, `src/ft/repositories/protocols.py`
+- [x] T003 [P] Add domain relation types/constants (kinds, statuses, subtype, evidence helpers, business-key ordering) in `src/ft/domain/relations.py`
+- [x] T004 [P] Extend repository protocols for relations, check runs, aliases, logical delete in `src/ft/repositories/protocols.py`
+- [x] T005 Create Alembic revision + models for `transaction_relations`, check runs, account aliases, formal-fact logical delete marker/event, active-aware identity constraints in `migrations/versions/20260721_05_transaction_relations.py` and `src/ft/adapters/relational/models.py`; update `tests/test_alembic_migration.py` revision list
+- [x] T006 Wire relational adapters/UoW/runtime stubs for relation repositories in `src/ft/adapters/relational/{repositories,uow,runtime}.py` (enough for red tests to import)
+- [x] T007 [P] Write failing dual-backend test harness/helpers for relation fixtures in `tests/test_transaction_relations_support.py` (SQLite always; PG when `FT_TEST_POSTGRES_URL` set)
+- [x] T008 [P] Write failing foundational tests: active-only source identity occupancy + schema presence in `tests/test_transaction_relations_foundation.py`
+- [x] T009 [P] [US1] Failing tests for payment_mirror auto-accept (≤10s, exact amount, card-tail/text, unique) and weak/pending/delta cases in `tests/test_transaction_relations_payment_mirror.py`
+- [x] T010 [P] [US1] Failing tests for n-way mirror connected component + canonical conflict pending in `tests/test_transaction_relations_payment_mirror.py`
+- [x] T011 [P] [US1] Failing projection test: accepted mirror expenses count once; balances both legs in `tests/test_transaction_relations_projection.py`
+- [x] T012 [US1] Implement payment_mirror matching + evidence + relation persistence in `src/ft/domain/relations.py` and `src/ft/application/relations.py`
+- [x] T013 [US1] Hook post-import relation check after commit with new-fact seeds in `src/ft/application/statement_import.py`
+- [x] T014 [US1] Projection: mirror grouping + single external count in `src/ft/domain/relations.py` / `src/ft/application/queries.py` / `src/ft/adapters/relational/queries.py` / `src/ft/report.py` as needed
+- [x] T015 [US1] Green US1 tests on SQLite; run PG matrix when available
+- [x] T016 [P] [US2] Failing transfer_pair tests (exact, windows, signals, amount delta, unionpay same-day) in `tests/test_transaction_relations_transfer.py`
+- [x] T017 [US2] Implement transfer_pair matching/rules in `src/ft/domain/relations.py` and `src/ft/application/relations.py`
+- [x] T018 [US2] Projection excludes accepted transfer_pair legs from external P&L in projection modules used by `src/ft/application/queries.py` / `src/ft/report.py`
+- [x] T019 [US2] Green US2 tests SQLite + PG if available
+- [x] T020 [P] [US3] Failing refund_offset tests (partial/full/over, windows, multi-refund, one-refund-one-expense, strict remaining balance) in `tests/test_transaction_relations_refund.py`
+- [x] T021 [P] [US3] Failing test: legacy `offset_*`/`proposed_action` do not drive nets in `tests/test_transaction_relations_refund.py`
+- [x] T022 [US3] Implement refund matching + remaining-balance accounting in `src/ft/domain/relations.py` / `src/ft/application/relations.py`
+- [x] T023 [US3] Ensure import/convert path does not net-rewrite formal fact amounts for refunds in `src/ft/application/statement_import.py` / `src/ft/convert.py` (preview tracking only if kept)
+- [x] T024 [US3] Projection applies refund_offset after mirror grouping in projection modules
+- [x] T025 [US3] Green US3 tests SQLite + PG if available
+- [x] T026 [P] [US6] Failing review inbox contract tests in `tests/test_transaction_relations_review.py`
+- [x] T027 [US6] Implement review decision APIs in `src/ft/application/relations.py` + repository methods
+- [x] T028 [US6] CLI commands for pending/accept/reject/later in `src/ft/cli.py`
+- [x] T029 [US6] Enforce human decisions not silently overwritten; supersede path only in `src/ft/application/relations.py`
+- [x] T030 [US6] Green US6 tests SQLite + PG if available
+- [x] T031 [P] [US9] Failing cross-batch seed/candidate tests in `tests/test_transaction_relations_cross_batch.py`
+- [x] T032 [US9] Ensure check seeds are batch-new facts and candidates are workspace-active with windows in `src/ft/application/relations.py` / `src/ft/application/statement_import.py`
+- [x] T033 [US9] Manual re-run seed-range API (batch/date/facts) in `src/ft/application/relations.py` + CLI hook in `src/ft/cli.py`
+- [x] T034 [US9] Green US9 tests SQLite + PG if available
+- [x] T035 [P] [US4] Failing credit_repayment tests in `tests/test_transaction_relations_transfer.py` (or dedicated file)
+- [x] T035b [P] [US4] FX rate-scoring tests: unique high-confidence auto; multi-candidate rate separates HKD vs JPY; no-rate → pending
+- [x] T036 [US4] Implement repayment detection/subtype/evidence in `src/ft/domain/relations.py` / `src/ft/application/relations.py`
+- [x] T036b [US4] Market-rate FX scoring for 购汇还款 (adapter + domain thresholds + evidence fields)
+- [x] T037 [US4] Ensure user-visible listing distinguishes repayment vs ordinary transfer in CLI/query output
+- [x] T038 [US4] Green US4 tests SQLite + PG if available
+- [x] T038b [US4] Green FX rate-scoring tests
+- [x] T039 [P] [US5] Failing logical-delete + re-import tests (active idempotency, new instance, no undelete, digest unchanged) in `tests/test_transaction_relations_delete.py`
+- [x] T040 [US5] Implement logical delete + supersede related relations atomically in `src/ft/application/cashflow.py` / `src/ft/application/relations.py` / adapters
+- [x] T041 [US5] Active-only formal publish / identity occupancy in `src/ft/adapters/relational/imports.py` and `src/ft/application/statement_import.py`
+- [x] T042 [US5] CLI delete command with required reason in `src/ft/cli.py`
+- [x] T043 [US5] Green US5 tests SQLite + PG if available
+- [x] T044 [P] [US7] Failing alias tests in `tests/test_transaction_relations_aliases.py`
+- [x] T045 [US7] Persist/query account aliases in models/adapters/application
+- [x] T046 [US7] Use aliases only in relation scoring/evidence in `src/ft/application/relations.py`
+- [x] T047 [US7] CLI maintain aliases in `src/ft/cli.py`
+- [x] T048 [US7] Green US7 tests SQLite + PG if available
+- [x] T049 [P] [US8] Failing supersede tests in `tests/test_transaction_relations_review.py` or `tests/test_transaction_relations_foundation.py`
+- [x] T050 [US8] Implement supersede API + automatic rule version path in `src/ft/application/relations.py`
+- [x] T051 [US8] Green US8 tests SQLite + PG if available
+- [x] T052 [P] Failing/complete tests for cross-kind compatibility matrix and projection order in `tests/test_transaction_relations_projection.py`
+- [x] T053 Enforce cross-kind accept guards (pending on conflict) in `src/ft/application/relations.py`
+- [x] T054 Idempotent concurrent check behavior tests + implementation notes in `tests/test_transaction_relations_foundation.py` / service locking strategy
+- [x] T055 Ensure matching ignores logically deleted facts (SC-017) in check path + tests
+- [x] T056 Update docs: `docs/import-reconcile-flow.md`, `README.md` — relation layer, no CSV reconcile, logical delete/re-import semantics
+- [x] T057 Run full `uv run pytest` on SQLite; run PG matrix when URL set; typecheck/lint if project provides; report any skipped evidence with exact commands
+- [x] T058 [US3] Exclude transfer/receipt/redpacket/withdraw legs from `refund_offset` (both sides) unless explicit refund signal; tokens + `is_refund_excluded_leg` in `src/ft/domain/relations.py`; prune in `FactCandidateIndex` refund buckets; FR-020 + edge cases + research Decision 7 updated; tests in `tests/test_transaction_relations_refund.py`
+- [x] T059 [US3] Real-ledger verification on `~/.ft` copy: refund accepted 162 / pending 3218 (vs prior 165 / 3305); transferish pollution 0; 消费退货 still accepted; 0 true-refund positives lost all candidates in simulation
+- [x] T060 [US3] Tighten weak refund pending: exact amount only (not ≤ remaining); expense seeds strong_link only; FR-020 + research; real-ledger pending 3218 → 226, accepted stays 162
+- [x] T061 [US3] Spec first: asymmetric P2P refund rule in FR-020 + edge cases + research (bare p2p income ≠ refund; p2p expense MAY pair with 微信红包-退款 as strong; merchant refunds still exclude p2p expenses)
+- [x] T062 [US3] Implement T061: asymmetric P2P + fine subtype (红包/转账/收款/提现); p2p expense strong only via same subtype or order_lock; tests; real-ledger 微信红包-退款 pairs 微信红包（单发） without merchant×p2p flood
+- [x] T063 Converge + dual-backend verification: all `tasks.md` items `[x]` (T001–T062); domain/application surface check 19/19; `pytest tests/test_transaction_relations_*.py tests/test_alembic_migration.py` **69 passed** with `FT_TEST_POSTGRES_URL=postgresql+psycopg://finance_tracker:finance_tracker_test@127.0.0.1:55432/finance_tracker_test` + `FT_REQUIRE_TEST_POSTGRES=1` (foundation/delete parametrize sqlite+postgresql green); real-ledger `~/.ft` copy check ~5s → mirror acc 2213 / pend 160, transfer acc 8 / pend 104, refund acc **163** / pend **226**, 微信红包-退款→微信红包（单发） accepted. Full-repo `pytest tests/` on same PG: 629 passed + unrelated wealth/multi-currency PG teardown errors (`NotImplementedError: multi-currency account merge is one-shot and not irreversible`) and 1 wealth perf budget miss — **out of 006 scope**, not regressions of this feature. No project ruff/mypy config. No push/PR (no user auth).
+- [x] T100 Confirm open-leg updates in `openspec/specs/006-transaction-relations/{spec,plan,research,data-model}.md` and contracts `contracts/review-inbox.md`, `contracts/relation-check.md`
+- [x] T101 [P] Inventory current `secondary_fact_id` NOT NULL, business key, accept API in `migrations/versions/20260721_05_transaction_relations.py`, `src/ft/adapters/relational/models.py`, `src/ft/application/relations.py`, `src/ft/cli.py`
+- [x] T102 [P] Write failing tests for open-leg multi-candidate refund → single pending in `tests/test_transaction_relations_open_leg.py`
+- [x] T103 [P] Write failing tests: open-leg accept requires other_fact_id; illegal other fails; projection ignores open-leg in `tests/test_transaction_relations_open_leg.py`
+- [x] T104 [P] Write failing tests: transfer multi-candidate open-leg; reject suppresses re-open; payment_mirror never null secondary in `tests/test_transaction_relations_open_leg.py`
+- [x] T105 Create Alembic revision `migrations/versions/20260722_06_open_leg_pending.py`: nullable secondary, `anchor_fact_id`, checks, partial unique for open-leg; dual-backend; update `tests/test_alembic_migration.py`
+- [x] T106 Update ORM/repositories for nullable secondary + anchor + open key in `src/ft/adapters/relational/models.py`, `src/ft/adapters/relational/repositories.py`, `src/ft/repositories/protocols.py`
+- [x] T107 [US6b] Extend domain proposals for open-leg (`secondary_fact_id` optional, evidence candidate_fact_ids top-K=20) in `src/ft/domain/relations.py`
+- [x] T108 [US6b] Change `evaluate_refund_offset` multi/zero-candidate path to one open-leg; stop expense-seed fan-out of multi bilateral pendings in `src/ft/domain/relations.py`
+- [x] T109 [US6b] Change `evaluate_transfer_pair` multi/zero-candidate path to one open-leg with anchor_role in `src/ft/domain/relations.py`
+- [x] T110 [US6b] Persist open-leg keys; accept(other_fact_id); reject open anchor occupancy; projection skip open-leg in `src/ft/application/relations.py`
+- [x] T111 [US6] CLI list shows open-leg; `accept` requires `--other` for open-leg in `src/ft/cli.py`
+- [x] T112 Green `tests/test_transaction_relations_open_leg.py` and adjust `tests/test_transaction_relations_refund.py` / `tests/test_transaction_relations_transfer.py` for multi-candidate → open-leg
+- [x] T113 [P] Dual-backend matrix for open-leg migration + core open-leg tests when `FT_TEST_POSTGRES_URL` set
+- [x] T114 [P] Real-ledger smoke optional: multi 京东退货 candidates → 1 open pending (document path under `/tmp`)
+- [x] T115 Update `openspec/specs/006-transaction-relations/tasks.md` checkboxes; `openspec validate --all --strict` if available
+- [x] T116 Commit on `006-open-leg-pending` with message covering schema+behavior (no push unless authorized)
+
+## 2. 迁移确认
+
+- [x] 2.1 保留原始任务、验证证据和未解决风险。
+- [x] 2.2 将行为需求投影到 OpenSpec 主规格。

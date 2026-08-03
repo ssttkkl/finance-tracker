@@ -10,8 +10,10 @@ ROOT = Path(__file__).parents[1]
 @pytest.mark.parametrize("path", [
     ROOT / "README.md",
     ROOT / "docs" / "README.md",
-    ROOT / "specs" / "002-dual-database-runtime" / "quickstart.md",
-    ROOT / "specs" / "002-dual-database-runtime" / "contracts" / "runtime.md",
+        ROOT / "openspec" / "changes" / "archive" / "2026-08-01-002-dual-database-runtime"
+        / "legacy" / "002-dual-database-runtime" / "quickstart.md",
+        ROOT / "openspec" / "changes" / "archive" / "2026-08-01-002-dual-database-runtime"
+        / "legacy" / "002-dual-database-runtime" / "contracts" / "runtime.md",
 ])
 def test_operator_docs_describe_both_backends_and_sqlite_limits(path):
     text = path.read_text(encoding="utf-8").lower()

@@ -1,6 +1,6 @@
 # 文档索引
 
-可执行行为的唯一事实源是 [`.specify/memory/constitution.md`](../.specify/memory/constitution.md) 与 `specs/<feature>/{spec,plan,tasks}.md`。本目录只保存使用说明、顶层路线和冻结的产品决策记录。
+可执行行为的唯一事实源是 [`openspec/project-context.md`](../openspec/project-context.md) 与 `openspec/specs/<capability>/spec.md`。本目录只保存使用说明、顶层路线和冻结的产品决策记录。
 
 运行时：`FT_DATABASE_URL` 选择 **PostgreSQL 或文件型 SQLite** 之一——不得自动回退（no fallback）、不得双写（dual-write）、不得隐式迁移（implicit migration）。
 SQLite 遇到繁忙、读写权限或 schema 错误时会直接报告，不会静默改用其他存储后端。
@@ -15,7 +15,7 @@ SQLite 遇到繁忙、读写权限或 schema 错误时会直接报告，不会�
 - **财富归因内核**（Phase 3 内核，已落地）：`003-wealth-attribution-core`（无专用 CLI/Web）
 - **收支账本 Web**：`020-cash-ledger-browser-web`（收支投影、稳定分页和证据详情）
 
-活跃 feature 指针见 `.specify/feature.json`。`020-cash-ledger-browser-web` 只包含收支账本；投资账本视图、持仓和持仓估值留给 `022-investment-ledger-browser-web`。
+active change 通过 `openspec list` 查看。`020-cash-ledger-browser-web` 只包含收支账本；投资账本视图、持仓和持仓估值留给 `022-investment-ledger-browser-web`。
 
 收支账本的生产预览需在 `npm run build` 时设置 `VITE_FT_API_ORIGIN`，随后才运行 `npm run start`；预览
 服务器不会重新读取该变量。具体命令见 [项目说明](../README.md#收支账本-web)。
@@ -25,7 +25,7 @@ SQLite 遇到繁忙、读写权限或 schema 错误时会直接报告，不会�
 | 文档 | 说明 |
 |---|---|
 | [项目说明](../README.md) | 安装、CLI、导入、同步、验证 |
-| [收支账本 Web 规格](../specs/020-cash-ledger-browser-web/spec.md) | 只读收支投影浏览与本机双进程运行形态 |
+| [收支账本 Web 规格](../openspec/specs/020-cash-ledger-browser-web/spec.md) | 只读收支投影浏览与本机双进程运行形态 |
 | [导入 / 关系 / 同步流程](import-flow.md) | 事务语义与命令（015 后） |
 | [显式 CSV 导出格式](export-csv-format.md) | 只读预览，非账本 |
 | [数据库表结构](database-schema.md) | ORM + Alembic 速查（含 `sync_cursors`） |
@@ -39,18 +39,19 @@ SQLite 遇到繁忙、读写权限或 schema 错误时会直接报告，不会�
 | [财富解释与趋势对比设计](productization-wealth-report-design.md) | 已批准决策输入；**非**实施权威 |
 | [财富报告线框](productization-wealth-report-wireframe.html) | 线框参考 |
 
-## Spec Kit
+## OpenSpec
 
-`specs/` 使用 sequential Flow-Forward：`specs/00N-short-name/`。Complete 历史只读；Living Spec 仅改当前活跃目录。约定见 constitution 与根目录 [AGENTS.md](../AGENTS.md)。
+`openspec/specs/` 保存当前能力主规格，`openspec/changes/` 保存 active change，完成后归档到
+`openspec/changes/archive/`。迁移清单和每个旧 feature 的完整产物见 [`openspec/MIGRATION.md`](../openspec/MIGRATION.md)。约定见 [`openspec/project-context.md`](../openspec/project-context.md) 与根目录 [AGENTS.md](../AGENTS.md)。
 
 已完成 Phase 1 相关（节选）：
 
-- [001](../specs/001-postgres-only-storage/spec.md) … [016](../specs/016-bigint-surrogate-ids/spec.md) schema/导入链
-- [017-asset-valuation-quote](../specs/017-asset-valuation-quote/spec.md)
-- [018-investment-connector-sync](../specs/018-investment-connector-sync/spec.md)
-- [003-wealth-attribution-core](../specs/003-wealth-attribution-core/spec.md)（Phase 3 内核）
+- [001](../openspec/specs/001-postgres-only-storage/spec.md) … [016](../openspec/specs/016-bigint-surrogate-ids/spec.md) schema/导入链
+- [017-asset-valuation-quote](../openspec/specs/017-asset-valuation-quote/spec.md)
+- [018-investment-connector-sync](../openspec/specs/018-investment-connector-sync/spec.md)
+- [003-wealth-attribution-core](../openspec/specs/003-wealth-attribution-core/spec.md)（Phase 3 内核）
 
-完整列表以 `specs/` 目录为准；本索引不维护平行任务清单。
+完整列表以 `openspec/` 目录和 `openspec list --specs` 为准；本索引不维护平行任务清单。
 
 ## 解析与行情参考
 

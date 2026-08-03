@@ -26,12 +26,22 @@ from ft.domain.relations.core.types import (
 )
 from ft.domain.relations.transfer.signals import (
     RULE_TRANSFER_WITHDRAW_V1,
-    has_repayment_signal, has_self_account_transfer_evidence, has_transfer_exclude_signal,
-    has_transfer_signal, has_transfer_soft_p2p_signal, has_unionpay_pair_signals,
+    has_self_account_transfer_evidence, has_transfer_exclude_signal,
+    has_transfer_soft_p2p_signal, has_unionpay_pair_signals,
     is_bank_transfer_in, is_transfer_taxonomy_out,
     is_withdraw_platform_out, is_withdraw_platform_receipt,
     transfer_clock_delta_seconds, transfer_same_business_day,
 )
+from ft.domain.relations.core.record_types import (
+    is_loan_repayment_in,
+    is_repayment_out_record,
+    is_transfer_in_record,
+    is_transfer_out_record,
+    is_withdrawal_in_record,
+    is_withdrawal_out_record,
+)
+
+
 def evaluate_transfer_pair(
     seed: FactView,
     candidates: Sequence[FactView],
@@ -49,6 +59,15 @@ def evaluate_transfer_pair(
     # of multiple incoming rows against the same outgoing row when each incoming row is unique).
     if seed_amount > 0:
         return None
+    ordinary_transfer = is_transfer_out_record(seed)
+    withdrawal_to_bank = (
+        is_withdrawal_out_record(seed)
+        and source_group(seed) == "platform"
+        and is_withdraw_platform_out(seed)
+    )
+    credit_repayment = is_repayment_out_record(seed)
+    if not (ordinary_transfer or withdrawal_to_bank or credit_repayment):
+        return None
     matches: list[tuple[FactView, RelationEvidence, str, str, str]] = []
     seed_text = seed.text
     TRANSFER_PENDING_OUTER = 5 * 60
@@ -56,6 +75,15 @@ def evaluate_transfer_pair(
         if cand.id == seed.id or cand.deleted:
             continue
         if cand.account_id == seed.account_id:
+            continue
+        if ordinary_transfer and not is_transfer_in_record(cand):
+            continue
+        if withdrawal_to_bank and not (
+            source_group(cand) == "bank"
+            and (is_withdrawal_in_record(cand) or is_transfer_in_record(cand))
+        ):
+            continue
+        if credit_repayment and not is_loan_repayment_in(cand):
             continue
         # 007 FR-043: strong exclude pure P2P/QR/红包/闲鱼 from transfer matching
         if has_transfer_exclude_signal(seed.text) and not (
@@ -75,39 +103,21 @@ def evaluate_transfer_pair(
         dt = transfer_clock_delta_seconds(seed, cand)
         same_day = transfer_same_business_day(seed, cand)
         cand_text = cand.text
-        combined = seed_text + " " + cand_text
-        transfer_signal = has_transfer_signal(combined) or has_unionpay_pair_signals(seed_text, cand_text)
+        transfer_signal = ordinary_transfer
         is_cash_to_loan = (
             (seed.account_type == "cash" and seed_amount < 0 and cand.account_type == "loan" and cand_amount > 0)
             or (cand.account_type == "cash" and cand_amount < 0 and seed.account_type == "loan" and seed_amount > 0)
-        )
-        repayment_text = has_repayment_signal(combined)
-        # 007 FR-049: strong repayment outgoing row text (not bare 还款 + merchant)
-        seed_blob = _text_blob(seed_text)
-        cand_blob = _text_blob(cand_text)
-        strong_repay_out = any(
-            tok in seed_blob
-            for tok in (
-                "信用卡还款", "购汇还款", "自动还款", "主动还款",
-                "月付】主动还款", "花呗自动还款", "花呗主动还款", "花呗还款",
-            )
-        ) or ("花呗" in seed_blob and "还款" in seed_blob)
-        # Deny CCB-like 还款 summary used as merchant installments
-        deny_repay_out = (
-            (seed_blob.strip() in ("还款", "消费 还款", "还款 消费") or seed_blob.endswith(" 还款") or seed_blob.startswith("还款 "))
-            and not strong_repay_out
-        ) or any(m in seed_blob for m in ("京东", "美团支付", "拼多多")) and "信用卡" not in seed_blob and "花呗" not in seed_blob and "月付" not in seed_blob and "购汇" not in seed_blob
-        deny_repay_in = any(
-            tok in cand_blob for tok in ("退款", "退货", "消费退货", "刷卡金", "返现", "返利")
         )
         subtype = SUBTYPE_NONE
         status = RelationStatus.PENDING_REVIEW.value
         conf = CONFIDENCE_WEAK
         rule = RULE_TRANSFER_PAIR_STRONG_V1
 
-        if is_cash_to_loan and repayment_text and (not strong_repay_out or deny_repay_out or deny_repay_in):
-            continue
-        if is_cash_to_loan and repayment_text and strong_repay_out and not deny_repay_out and not deny_repay_in:
+        if (
+            is_cash_to_loan
+            and is_repayment_out_record(seed)
+            and is_loan_repayment_in(cand)
+        ):
             subtype = SUBTYPE_CREDIT_REPAYMENT
             if same_currency and exact and dt <= CREDIT_REPAYMENT_SAME_CURRENCY_SECONDS:
                 status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_CREDIT_REPAYMENT_V1
@@ -130,7 +140,7 @@ def evaluate_transfer_pair(
                 continue
         elif (
             same_currency and exact
-            and is_withdraw_platform_out(seed)
+            and withdrawal_to_bank
             and cand_amount > 0
             and (
                 dt <= 60
@@ -334,10 +344,7 @@ def match_withdraw_receipt_to_bank(
     banks = [
         f for f in facts
         if not f.deleted and f.id not in used and f.signed_amount > 0
-        and (
-            is_bank_transfer_in(f)
-            or any(x in _text_blob(f.text) for x in ("银联入账", "支付机构提现", "微信零钱提现"))
-        )
+        and (is_withdrawal_in_record(f) or is_bank_transfer_in(f))
         and source_group(f) == "bank"
     ]
     proposals: list[RelationProposal] = []
@@ -374,10 +381,6 @@ def match_withdraw_receipt_to_bank(
                 continue
             if not _near_day(rec.occurred_at, b.occurred_at):
                 continue
-            # require bank-side withdraw/unionpay signal
-            if not any(x in _text_blob(b.text) for x in ("银联入账", "支付机构提现", "微信零钱提现", "零钱提现")):
-                if not is_bank_transfer_in(b):
-                    continue
             if b.account_id == rec.account_id:
                 hits_same.append(b)
             else:
@@ -681,5 +684,3 @@ def match_transfer_pairs_phase_c(
             used.add(prop.primary_fact_id)
         proposals.append(prop)
     return proposals
-
-

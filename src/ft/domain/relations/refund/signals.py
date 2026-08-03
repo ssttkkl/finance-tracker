@@ -12,13 +12,10 @@ import re
 
 from ft.domain.relations.core.geometry import _text_blob, main_style_cross_verify
 from ft.domain.relations.core.types import FactView
+from ft.domain.relations.core.record_types import is_refund_in
 REFUND_SIGNAL_TOKENS = (
     "退款", "退货", "退回", "冲正", "消费退货", "refund", "return",
 )
-ICBC_STRUCTURED_REFUND_SIGNALS = {
-    "icbc_credit": "icbc_credit_return",
-    "icbc_debit": "icbc_debit_return",
-}
 # P2P / transfer / receipt / red-packet family (not ordinary merchant spend).
 # - As refund seed: allowed only with explicit refund signal (微信红包-退款).
 # - As expense row: only pair with p2p-style refunds, not with 退款-商品.
@@ -43,13 +40,6 @@ REFUND_P2P_FAMILY_TOKENS = (
 REFUND_EXCLUDED_LEG_TOKENS = REFUND_P2P_FAMILY_TOKENS
 
 # Performance: candidate index day padding beyond business windows (safety for TZ).
-def _refundish_text(fact: "FactView") -> bool:
-    blob = _text_blob(fact.counterparty, fact.note, fact.category)
-    return any(tok in blob for tok in ("退款", "退货", "消费退货", "refund", "return"))
-
-
-
-
 def is_platform_import_refund_source(fact: "FactView") -> bool:
     """True when fact is from alipay/wechat (platform hard-key Phase A sources).
 
@@ -68,19 +58,8 @@ def has_refund_signal(text: str) -> bool:
 
 
 def has_refund_signal_for_fact(fact: FactView) -> bool:
-    """只从工行来源行快照读取正式退款信号，其他来源沿用文本规则。"""
-    if fact.signed_amount <= 0 or fact.fact_type != "cash":
-        return False
-    expected = ICBC_STRUCTURED_REFUND_SIGNALS.get(fact.bill_source)
-    if expected is not None:
-        payload = fact.raw_payload
-        if not isinstance(payload, dict):
-            return False
-        return (
-            payload.get("bill_source") == fact.bill_source
-            and payload.get("refund_signal") == expected
-        )
-    return has_refund_signal(fact.text)
+    """退款一级类型只读取导入时持久化的 ``record_type``。"""
+    return fact.fact_type == "cash" and is_refund_in(fact)
 
 
 def is_p2p_transfer_family(text: str) -> bool:

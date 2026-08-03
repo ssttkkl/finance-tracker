@@ -10,19 +10,19 @@
 
 本文只回答“产品往哪里走、为什么按这个顺序走”，不是可直接实施的 feature spec。
 
-- `.specify/memory/constitution.md` 定义不可妥协的工程原则。
-- `specs/<feature>/spec.md` 定义该变更做什么和为什么。
-- `plan.md` 定义技术方案、数据模型和 contracts。
-- `tasks.md` 定义测试先行的执行顺序和完成状态。
+- `openspec/project-context.md` 定义不可妥协的工程原则。
+- `openspec/specs/<capability>/spec.md` 定义该变更做什么和为什么。
+- `design.md` 定义技术方案、数据模型和 contracts。
+- `tasks.md` 定义测试先行的执行顺序和完成状态，并位于对应的 OpenSpec change 中。
 - gstack 产品或架构评审结论必须回写上述 artifacts，不能在 `docs/` 独立演进。
 
 当前相关材料：
 
 - [项目 README](../README.md)：运行时、CLI、导入与同步。
 - [文档索引](README.md)
-- [001-postgres-only-storage](../specs/001-postgres-only-storage/spec.md)：历史 PostgreSQL-only 收口（后由 002 双后端叙事覆盖）。
-- [002-dual-database-runtime](../specs/002-dual-database-runtime/spec.md)：双数据库运行时（Phase 1 现金链起点）。
-- [017-asset-valuation-quote](../specs/017-asset-valuation-quote/spec.md) / [018-investment-connector-sync](../specs/018-investment-connector-sync/spec.md)：估值与连接器（Phase 1 已 Complete）。
+- [001-postgres-only-storage](../openspec/specs/001-postgres-only-storage/spec.md)：历史 PostgreSQL-only 收口（后由 002 双后端叙事覆盖）。
+- [002-dual-database-runtime](../openspec/specs/002-dual-database-runtime/spec.md)：双数据库运行时（Phase 1 现金链起点）。
+- [017-asset-valuation-quote](../openspec/specs/017-asset-valuation-quote/spec.md) / [018-investment-connector-sync](../openspec/specs/018-investment-connector-sync/spec.md)：估值与连接器（Phase 1 已 Complete）。
 - [database-schema.md](database-schema.md)：015+016+018 落地态结构速查（Alembic `20260726_10`）。
 - [财富解释与趋势对比设计](productization-wealth-report-design.md)：已批准、但非实施权威的产品决策输入。
 
@@ -65,7 +65,7 @@ Finance Tracker 面向同时使用银行、支付平台、券商和交易所的�
 - 当前数据可丢弃；应用不得读取、迁移或自动删除用户目录中的旧账本。
 - 财务语义、来源审计、精确金额、幂等和事务原子性必须保留。
 
-具体范围和验证证据见 `specs/001-postgres-only-storage/`。README、CLI help 和当前操作文档已经同步为
+具体范围和验证证据见 `openspec/specs/001-postgres-only-storage/` 及其归档 change。README、CLI help 和当前操作文档已经同步为
 PostgreSQL-only；旧文件账本、迁移、shadow comparison、Connector sync 和文件 reconcile 已从产品表面删除。
 
 ### 已完成：PostgreSQL 与 SQLite 双数据库运行时（`002`）
@@ -179,8 +179,8 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
   每日原子桶与日/周/月聚合；投资市场收益率、coverage、partial/stale/unsupported；
   component、evidence 和 canonical DTO；PostgreSQL/SQLite 等价 contract、性能基线和重建测试。
   非目标：Web、认证、关系审查列表、Connector、AI 和 MCP。
-  实现交接以 [`003-wealth-attribution-core`](../specs/003-wealth-attribution-core/spec.md) 的
-  Spec Kit artifacts 为唯一事实源。内核保持 transport-neutral：Web/API 适配和展示 URL 不属于该
+  实现交接以 [`003-wealth-attribution-core`](../openspec/specs/003-wealth-attribution-core/spec.md) 的
+  OpenSpec artifacts 为唯一事实源。内核保持 transport-neutral：Web/API 适配和展示 URL 不属于该
   feature；正式估值、账户生命周期和不可变 generation/evidence 是 PostgreSQL 与 SQLite 共享的
   可重建输入/读模型边界。
 
@@ -209,7 +209,7 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
 
 ## 6. A 到 C 的触发式路线
 
-以下不是当前 backlog。只有触发条件出现后，才创建独立 Spec Kit feature。
+以下不是当前 backlog。只有触发条件出现后，才创建独立 OpenSpec change。
 
 ### C1：托管单 workspace
 
@@ -285,6 +285,6 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
 ## 10. 文档维护规则
 
 - 本文只维护方向、顺序和触发门槛，不加入表结构、API schema 或任务清单。
-- feature 决策改变路线时，先更新对应 Spec Kit artifact，再同步本文摘要。
+- feature 决策改变路线时，先更新对应 OpenSpec artifact，再同步本文摘要。
 - 已完成实现的详细证据进入当前架构文档；历史计划由 Git history 保存。
-- gstack 产品设计可以作为决策记录保留，但必须指向吸收其内容的 Spec Kit features，并停止独立演进。
+- gstack 产品设计可以作为决策记录保留，但必须指向吸收其内容的 OpenSpec changes，并停止独立演进。

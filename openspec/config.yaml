@@ -1,0 +1,33 @@
+schema: spec-driven
+
+context: |
+  Read openspec/project-context.md before creating or changing artifacts.
+  Finance Tracker is a Python 3.11+ financial ledger with PostgreSQL and SQLite
+  as explicit runtime backends. Preserve exact Decimal semantics, workspace
+  isolation, source provenance, idempotency, and dual-backend contract evidence.
+  Use DOMAIN_GLOSSARY.md for Chinese domain terminology. Existing behavior
+  baselines are in openspec/specs/; historical migrated evidence is in the
+  relevant change's legacy/ directory.
+
+rules:
+  proposal:
+    - Write intent, scope, non-goals, capabilities, impact, and migration or rollback notes.
+    - Keep product behavior in the capability specs and implementation details in design.md.
+  specs:
+    - Use Chinese for new or substantially revised prose, with code identifiers and protocol literals unchanged.
+    - Every requirement must contain MUST or SHALL and at least one WHEN/THEN scenario.
+    - State exact Decimal, currency, idempotency, provenance, workspace, and PostgreSQL/SQLite behavior when applicable.
+  design:
+    - Record alternatives, risks, transaction boundaries, backend differences, and rollback strategy for persistence changes.
+  tasks:
+    - Arrange failing tests before implementation and include validation evidence as executable checklist items.
+
+operations:
+  apply:
+    guidance:
+      - Work only from the selected change's tasks.md and stop on scope, data, permission, or contract ambiguity.
+      - Run the affected tests before and after each implementation slice; update tasks.md immediately.
+  archive:
+    guidance:
+      - Validate artifacts and tasks, synchronize delta specs, and preserve the complete change history.
+      - Never archive an active change as complete merely because its migration or planning artifacts exist.
