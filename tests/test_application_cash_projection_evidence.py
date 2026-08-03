@@ -23,6 +23,51 @@ def test_evidence_returns_root_members_and_explicit_absence(cash_web_runtime):
     assert evidence["refund_timeline"] == []
 
 
+def test_evidence_whitelists_personal_fx_relation_fields(cash_web_runtime):
+    from decimal import Decimal
+
+    from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.web_queries import CashLedgerQueryService
+
+    with cash_web_runtime.sessions.begin() as session:
+        counterparty = CashTransactionModel(
+            workspace_id=cash_web_runtime.workspace_id, account_id=101,
+            occurred_at=session.get(CashTransactionModel, 1003).occurred_at,
+            amount=Decimal("14"), currency="USD", counterparty="购汇对侧",
+            category="转账", source_type="fixture", record_id="fx-evidence",
+        )
+        session.add(counterparty)
+        session.flush()
+        session.add(TransactionRelationModel(
+            workspace_id=cash_web_runtime.workspace_id, kind="transfer_pair", subtype="currency_exchange",
+            primary_fact_id=1003, secondary_fact_id=counterparty.id, primary_fact_type="cash", secondary_fact_type="cash",
+            ordered_fact_a=min(1003, counterparty.id), ordered_fact_b=max(1003, counterparty.id), anchor_fact_id=1003,
+            status="accepted", rule_id="personal.fx.v2", confidence="strong",
+            evidence_json={
+                "source_pair": ["icbc_debit", "icbc_debit"],
+                "candidate_count": 1,
+                "candidate_fact_ids": [str(counterparty.id)],
+                "time_delta_seconds": None,
+                "temporal_precision": "business_day_only",
+                "secret": "must-not-leak",
+                "nested": {"must": "not-leak"},
+            },
+        ))
+    CashProjectionService(cash_web_runtime.sessions, cash_web_runtime.workspace_id).rebuild()
+
+    evidence = CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id).get_projection_evidence("cash:1003")
+
+    relation = evidence["accepted_relations"][0]
+    assert relation["evidence"] == {
+        "source_pair": ["icbc_debit", "icbc_debit"],
+        "candidate_count": 1,
+        "candidate_fact_ids": [str(relation["secondary_record"]["id"])],
+        "time_delta_seconds": None,
+        "temporal_precision": "business_day_only",
+    }
+
+
 def test_evidence_reads_members_and_relations_in_fixed_batch_queries(cash_web_runtime):
     from decimal import Decimal
 

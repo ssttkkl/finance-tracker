@@ -1527,8 +1527,8 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                         continue
                     if s.startswith("下单时间"):  # 跳过页脚元数据行
                         continue
-                    if s in ("消费", "退货", "退款", "转帐", "利息", "结息"):
-                        if not summary and s in ("消费", "退货", "退款"):
+                    if s in ("消费", "退货", "退款", "转账", "转帐", "利息", "结息"):
+                        if not summary:
                             summary = s
                         continue
                     if not counterparty and not re.match(r"^\d{4,}$", s) and "****" not in s:
@@ -1638,13 +1638,14 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     continue
                 if re.match(r"^\d{2}:\d{2}:\d{2}$", s):
                     continue
-                summary = s.replace("支", "").strip()
-                if summary:
+                if re.match(r"^\d{16,20}$", s):
+                    continue
+                if s in {"消费", "退货", "退款", "撤销交易", "利息", "基金购买", "基金赎回", "银联消费", "还款", "转账", "转帐"}:
+                    summary = s
                     break
-
             lookahead = [lines[j].strip() for j in range(i + 1, min(len(lines), i + 6)) if lines[j].strip()]
             if not summary and lookahead:
-                if lookahead[0] in {"退款", "退货", "撤销交易", "利息", "基金购买", "基金赎回", "银联消费", "还款"}:
+                if lookahead[0] in {"退款", "退货", "撤销交易", "利息", "基金购买", "基金赎回", "银联消费", "还款", "转账", "转帐"}:
                     summary = lookahead[0]
 
             channel = ""

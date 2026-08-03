@@ -8,6 +8,7 @@ from ft.domain.relations import (
     RelationStatus,
     SUBTYPE_CREDIT_REPAYMENT,
     evaluate_transfer_pair,
+    match_transfer_pairs_phase_c,
 )
 
 
@@ -304,3 +305,182 @@ def test_transfer_signal_exact_beyond_10s_within_5min_pending():
     proposal = evaluate_transfer_pair(out_leg, [in_leg])
     assert proposal is not None
     assert proposal.status == RelationStatus.PENDING_REVIEW.value
+
+
+def test_personal_fx_exchange_same_account_auto_accepts():
+    out_leg = _fv(
+        id="out", amount=Decimal("-47952.10"), currency="CNY",
+        account_id="icbc", account_name="工行借记卡", bill_source="icbc_debit",
+        source="icbc_debit", record_type="fx_out",
+        occurred_at="2026-05-02 09:36:56", note="个人购汇",
+    )
+    in_leg = _fv(
+        id="in", amount=Decimal("7000"), currency="USD",
+        account_id="icbc", account_name="工行借记卡", bill_source="icbc_debit",
+        source="icbc_debit", record_type="fx_in",
+        occurred_at="2026-05-02 09:36:56", note="个人购汇",
+    )
+
+    proposals = match_transfer_pairs_phase_c([out_leg, in_leg])
+
+    assert len(proposals) == 1
+    proposal = proposals[0]
+    assert proposal.kind == "transfer_pair"
+    assert proposal.subtype == "currency_exchange"
+    assert proposal.status == RelationStatus.ACCEPTED.value
+    assert proposal.primary_fact_id == "out"
+    assert proposal.secondary_fact_id == "in"
+    assert proposal.evidence.source_pair == ("icbc_debit", "icbc_debit")
+    assert proposal.evidence.candidate_count == 1
+
+
+def test_personal_fx_exchange_multiple_candidates_creates_open_pending():
+    out_leg = _fv(
+        id="out", amount=Decimal("-100"), currency="CNY", account_id="icbc",
+        bill_source="icbc_debit", source="icbc_debit", record_type="fx_out",
+        occurred_at="2026-05-02 09:36:56", note="个人购汇",
+    )
+    usd_leg = _fv(
+        id="usd", amount=Decimal("14"), currency="USD", account_id="icbc",
+        bill_source="icbc_debit", source="icbc_debit", record_type="fx_in",
+        occurred_at="2026-05-02 09:36:56", note="个人购汇",
+    )
+    hkd_leg = _fv(
+        id="hkd", amount=Decimal("110"), currency="HKD", account_id="icbc",
+        bill_source="icbc_debit", source="icbc_debit", record_type="fx_in",
+        occurred_at="2026-05-02 09:36:56", note="个人购汇",
+    )
+
+    proposals = match_transfer_pairs_phase_c([out_leg, usd_leg, hkd_leg])
+
+    assert len(proposals) == 1
+    proposal = proposals[0]
+    assert proposal.subtype == "currency_exchange"
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.open_leg is True
+    assert proposal.primary_fact_id == "out"
+    assert proposal.secondary_fact_id is None
+    assert proposal.evidence.candidate_count == 2
+    assert proposal.evidence.candidate_fact_ids == ("hkd", "usd")
+
+
+def test_personal_fx_exchange_date_only_stays_pending_with_null_delta():
+    out_leg = _fv(
+        id="out", amount=Decimal("-100"), currency="CNY", account_id="icbc",
+        bill_source="icbc_debit", source="icbc_debit", record_type="fx_out",
+        occurred_at="2026-05-02 16:00:00", raw_payload={"date": "2026-05-02"},
+    )
+    in_leg = _fv(
+        id="in", amount=Decimal("14"), currency="USD", account_id="icbc",
+        bill_source="icbc_debit", source="icbc_debit", record_type="fx_in",
+        occurred_at="2026-05-02 16:00:00", raw_payload={"date": "2026-05-02"},
+    )
+
+    proposals = match_transfer_pairs_phase_c([out_leg, in_leg])
+
+    assert len(proposals) == 1
+    proposal = proposals[0]
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.open_leg is True
+    assert proposal.secondary_fact_id is None
+    assert proposal.evidence.time_delta_seconds is None
+    assert proposal.evidence.extras["temporal_precision"] == "business_day_only"
+
+
+def test_personal_fx_exchange_reverse_ambiguity_stays_pending():
+    out_a = _fv(
+        id="out-a", amount=Decimal("-100"), currency="CNY", account_id="icbc",
+        bill_source="icbc_debit", source="icbc_debit", record_type="fx_out",
+        occurred_at="2026-05-02 09:36:50", note="个人购汇",
+    )
+    out_b = _fv(
+        id="out-b", amount=Decimal("-200"), currency="CNY", account_id="icbc",
+        bill_source="icbc_debit", source="icbc_debit", record_type="fx_out",
+        occurred_at="2026-05-02 09:36:55", note="个人购汇",
+    )
+    in_leg = _fv(
+        id="in", amount=Decimal("14"), currency="USD", account_id="icbc",
+        bill_source="icbc_debit", source="icbc_debit", record_type="fx_in",
+        occurred_at="2026-05-02 09:36:56", note="个人购汇",
+    )
+
+    proposals = match_transfer_pairs_phase_c([out_a, out_b, in_leg])
+
+    assert {proposal.primary_fact_id for proposal in proposals} == {"out-a", "out-b"}
+    assert all(proposal.status == RelationStatus.PENDING_REVIEW.value for proposal in proposals)
+    assert all(proposal.secondary_fact_id is None for proposal in proposals)
+
+
+def test_personal_fx_exchange_incoming_seed_rechecks_existing_outgoing_leg():
+    out_leg = _fv(
+        id="out", amount=Decimal("-47952.10"), currency="CNY", account_id="icbc",
+        bill_source="icbc_debit", source="icbc_debit", record_type="fx_out",
+        occurred_at="2026-05-02 09:36:56", note="个人购汇",
+    )
+    in_leg = _fv(
+        id="in", amount=Decimal("7000"), currency="USD", account_id="icbc",
+        bill_source="icbc_debit", source="icbc_debit", record_type="fx_in",
+        occurred_at="2026-05-02 09:36:56", note="个人购汇",
+    )
+    from ft.domain.relations import FactCandidateIndex
+
+    index = FactCandidateIndex([out_leg, in_leg])
+    proposals = match_transfer_pairs_phase_c([out_leg, in_leg], seed_ids=["in"], index=index)
+
+    assert len(proposals) == 1
+    assert proposals[0].status == RelationStatus.ACCEPTED.value
+    assert proposals[0].primary_fact_id == "out"
+    assert proposals[0].secondary_fact_id == "in"
+
+
+def test_personal_fx_exchange_rejects_empty_or_conflicting_source():
+    out_leg = _fv(
+        id="out", amount=Decimal("-100"), currency="CNY", account_id="icbc",
+        occurred_at="2026-05-02 09:36:56", record_type="fx_out",
+    )
+    in_leg = _fv(
+        id="in", amount=Decimal("14"), currency="USD", account_id="icbc",
+        occurred_at="2026-05-02 09:36:56", record_type="fx_in",
+    )
+    conflicting = _fv(
+        id="conflicting", amount=Decimal("14"), currency="USD", account_id="icbc",
+        bill_source="icbc_debit", source="ccb_debit",
+        occurred_at="2026-05-02 09:36:56", record_type="fx_in",
+    )
+
+    assert match_transfer_pairs_phase_c([out_leg, in_leg]) == []
+    assert match_transfer_pairs_phase_c([
+        _fv(
+            id="out-source", amount=Decimal("-100"), currency="CNY", account_id="icbc",
+            bill_source="icbc_debit", source="icbc_debit",
+            occurred_at="2026-05-02 09:36:56", record_type="fx_out",
+        ),
+        conflicting,
+    ]) == []
+
+
+def test_personal_fx_exchange_rejects_unrelated_or_invalid_legs():
+    out_leg = _fv(
+        id="out", amount=Decimal("-100"), currency="CNY", account_id="icbc",
+        bill_source="icbc_debit", source="icbc_debit", record_type="fx_out",
+        occurred_at="2026-05-02 09:36:56", note="个人购汇",
+    )
+    same_currency = _fv(
+        id="same-currency", amount=Decimal("100"), currency="CNY", account_id="icbc",
+        bill_source="icbc_debit", source="icbc_debit", record_type="fx_in",
+        occurred_at="2026-05-02 09:36:56", note="个人购汇",
+    )
+    other_source = _fv(
+        id="other-source", amount=Decimal("14"), currency="USD", account_id="icbc",
+        bill_source="ccb_debit", source="ccb_debit", record_type="fx_in",
+        occurred_at="2026-05-02 09:36:56", note="个人购汇",
+    )
+    stale = _fv(
+        id="stale", amount=Decimal("14"), currency="USD", account_id="icbc",
+        bill_source="icbc_debit", source="icbc_debit", record_type="fx_in",
+        occurred_at="2026-05-02 09:38:00", note="个人购汇",
+    )
+
+    assert match_transfer_pairs_phase_c([out_leg, same_currency]) == []
+    assert match_transfer_pairs_phase_c([out_leg, other_source]) == []
+    assert match_transfer_pairs_phase_c([out_leg, stale]) == []
