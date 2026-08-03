@@ -99,7 +99,7 @@ describe("CashLedgerPage", () => {
 
   it("筛选变更会取消追加并从首批重新读取", async () => {
     const pendingAppend = deferred<Promise<Response>>();
-    const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : input.includes("cursor=next") ? pendingAppend.promise : json({ projection_version: 1, items: [{ ...projection, counterparty: input.includes("category=%E9%A4%90%E9%A5%AE") ? "新筛选记录" : "咖啡店" }], next_cursor: "next", page_size: 50, filters: {} }));
+    const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : input.includes("cursor=next") ? pendingAppend.promise : json({ projection_version: 1, items: [{ ...projection, counterparty: input.includes("category=%E9%A4%90%E9%A5%AE") ? "新筛选记录" : "咖啡店" }], next_cursor: "next", page_size: 50, filters: {}, filter_options: { categories: ["餐饮"], currencies: ["CNY"] } }));
     vi.stubGlobal("fetch", fetch);
     render(<CashLedgerPage />);
     await screen.findByText("咖啡店");
@@ -140,7 +140,7 @@ describe("CashLedgerPage", () => {
   });
 
   it("使用后端全量聚合的分类和币种下拉选项", async () => {
-    const filter_options = { categories: ["餐饮", "日用", "收入"], currencies: ["CNY", "USD"] };
+    const filter_options = { categories: ["餐饮", "日用", "工资"], currencies: ["CNY", "USD"] };
     const fetch = vi.fn((input: string) => input.includes("/accounts")
       ? json({ items: [account] })
       : json({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {}, filter_options }));
@@ -280,7 +280,7 @@ describe("CashLedgerPage", () => {
       if (input.includes("/accounts")) return json({ items: [account] });
       if (input.includes("/evidence/")) return json(evidenceFor());
       pageCalls += 1;
-      if (pageCalls === 1) return json({ projection_version: 1, items: [projection], next_cursor: "old-page", page_size: 50, filters: {} });
+      if (pageCalls === 1) return json({ projection_version: 1, items: [projection], next_cursor: "old-page", page_size: 50, filters: {}, filter_options: { categories: ["餐饮"], currencies: ["CNY"] } });
       if (pageCalls === 2) return json({ error: { code: "projection.updated" } }, 409);
       return refreshed.promise;
     }));
@@ -326,7 +326,7 @@ describe("CashLedgerPage", () => {
       if (input.includes("/accounts")) return json({ items: [account] });
       if (input.includes("/evidence/")) return staleEvidence.promise;
       pageCalls += 1;
-      if (pageCalls === 1) return json({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {} });
+      if (pageCalls === 1) return json({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: ["餐饮", "旧筛选", "当前筛选"], currencies: ["CNY"] } });
       if (pageCalls === 2) return stalePage.promise;
       return json({ projection_version: 1, items: [{ ...projection, projection_id: "cash:3002", counterparty: "当前筛选结果" }], next_cursor: null, page_size: 50, filters: {} });
     }));

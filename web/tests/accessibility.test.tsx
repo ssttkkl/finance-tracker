@@ -113,7 +113,7 @@ describe("现金账本无障碍", () => {
     render(<CashLedgerPage />);
     const trigger = await screen.findByRole("button", { name: "查看咖啡店的证据详情" });
 
-    expect(screen.getByText("-12.5 CNY")).toHaveAttribute("data-direction", "支出");
+    expect(screen.getByRole("cell", { name: "-12.5 CNY" })).toHaveAttribute("data-direction", "支出");
     expect(trigger).toHaveClass("evidence-trigger");
     expect(screen.getByRole("group", { name: "账本筛选工具" })).toHaveAttribute("data-layout", "filter-grid");
     expect(screen.getByRole("button", { name: "加载更多" })).toHaveAttribute("aria-describedby", "load-more-instructions");
