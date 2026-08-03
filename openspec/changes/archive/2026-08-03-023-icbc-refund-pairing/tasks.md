@@ -23,8 +23,8 @@
 - [X] T019 [US2] 运行 T007、T009 及现有工行借记卡测试，确认非工行来源仍使用既有信号规则。证据：2026-08-01 14:09 CST，受影响套件 `269 passed, 2 skipped`，非工行退款规则回归通过。
 - [X] T020 [US1] [US2] 运行受影响测试：`uv run pytest -q tests/test_convert.py tests/test_statement_import_mapping.py tests/test_relations_index_injection.py tests/test_transaction_relations_refund.py tests/test_import_scan_refund_boundary.py`。证据：2026-08-01 14:09 CST，扩展受影响命令包含导入、双后端契约和新增回归：`269 passed, 2 skipped`。
 - [X] T021 [US1] [US2] 运行 SQLite 与真实 PostgreSQL 契约矩阵：`uv run pytest -q tests/contract/test_dual_backend_icbc_refund_pairing.py`；记录当前 HEAD、基线、时间和 PostgreSQL 环境结果。证据：2026-08-01 14:09 CST，HEAD `fca208a`，基线 `origin/refactor/web` merge-base `6a62a1e`，结果 `1 passed, 1 skipped`；未设置 `FT_TEST_POSTGRES_URL`。
-- [ ] T022 [US1] [US2] 运行完整测试套件：`uv run pytest -q`。证据：2026-08-01 21:39 CST，HEAD `fed111a`，`1055 passed, 104 skipped, 1 failed`；唯一失败为未改动的 `tests/test_application_cash_projection_evidence.py::test_evidence_reads_members_and_relations_in_fixed_batch_queries`，实际 SELECT 9 条而既有断言上限 8 条。
-- [ ] T023 [US1] [US2] 运行项目提供的类型检查、lint、构建；若某项命令不存在，记录实际探测结果和不适用理由。证据：2026-08-01 21:39 CST，`uv build` 通过；项目未配置独立 Python lint/type 命令；`npm run build` 被未触及的 `web/tests/CashTable.test.tsx:37` 既有 TS2554（`projection` 少传一个参数）阻断。
+- [X] T022 [US1] [US2] 运行完整测试套件：`uv run pytest -q`。证据：2026-08-03 10:47 CST，验证 HEAD `0172dca`，`1124 passed, 110 skipped, 1 warning`；原有投影查询断言失败已不存在。
+- [X] T023 [US1] [US2] 运行项目提供的类型检查、lint、构建；若某项命令不存在，记录实际探测结果和不适用理由。证据：2026-08-03 10:47 CST，`uv build`、`uv run python -m compileall -q src tests`、`npm test` 32/32、`npm run build` 和常规 Playwright E2E 3/3 通过；项目未配置独立 Python lint/type 命令；标准 `npm run test:preview` 因其他 worktree 占用 5173 未能启动，等价独立端口预览 1/1 通过。
 - [X] T024 [US1] [US2] 执行 `git diff --check`，检查未跟踪文件和最终 diff，确认不包含账单原文、密码、运行时数据库或用户私有运行文件。证据：2026-08-01 21:39 CST，HEAD `fed111a`，`git diff --check` 通过；改动文件扫描未发现目标 PDF、密码、SQLite 数据库或私有账单内容。
 - [X] T025 [US1] [US2] 运行范围化 gstack `/review`，修复所有阻断 finding；代码变更不涉及 Web/UI，因此 `/qa`、Hallmark audit 不适用并记录理由。证据：2026-08-01 21:39 CST，基于 `origin/refactor/web` merge-base `fed111a` 审查工作树变更；SQL/并发/输入边界/枚举完整性未发现阻断问题。Web/UI、路由和样式未改动，`/qa` 与 Hallmark audit 不适用。
 - [X] T026 [US1] [US2] 使用目标 PDF 做只读导入解析和来源字段核验，记录三行输出及退款关系证据；不在代码测试阶段修改用户数据库。证据：2026-08-01 14:09 CST，完整 `_parse_cash_statement` 只读链路输出：19:11 `-272/山葵村烤肉/消费/空信号`；19:13 `+272/山葵村烤肉/退货/icbc_credit_return`；19:16 `-222/山葵村烤肉/消费/空信号`；三行 `_raw_cp` 均为 `美团支付-美团App山葵村烤肉`。
@@ -50,6 +50,6 @@
 
 ## 2. OpenSpec 交付门禁
 
-- [ ] 2.1 运行 `openspec validate --all --strict` 并修复阻断项。
-- [ ] 2.2 完成受影响测试、完整回归、构建和 `git diff --check`，回写验证证据。
-- [ ] 2.3 代码实现完成后运行 `$openspec-archive-change`，同步主规格并保留归档记录。
+- [X] 2.1 运行 `openspec validate --all --strict` 并修复阻断项。证据：2026-08-03 10:47 CST，27/27 通过。
+- [X] 2.2 完成受影响测试、完整回归、构建和 `git diff --check`，回写验证证据。证据：2026-08-03 10:47 CST，完整 Python、Web 单测/构建、E2E、预览替代端口、视觉回归和 diff check 均通过。
+- [X] 2.3 代码实现完成后运行 `$openspec-archive-change`，同步主规格并保留归档记录。证据：2026-08-03 10:48 CST，`openspec archive --yes --json 023-icbc-refund-pairing` 成功，归档至 `openspec/changes/archive/2026-08-03-023-icbc-refund-pairing`；主规格无需变更，CLI 报告 `specsUpdated=false`、delta 变更 0。
