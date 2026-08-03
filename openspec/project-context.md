@@ -31,23 +31,9 @@
 - 凭据、Token、账户隐私和原始账单只能存放在受控位置；测试夹具和日志必须去标识化。
 - CSV、JSON、YAML 和 PDF 只能作为产品明确支持的原始输入或显式导出，不能成为运行时事实源、迁移载体或隐式回退。
 
-## 变更分类与升级
+## 变更流程
 
-### A 类：完整变更
-
-新领域能力、领域规则、跨模块重构、公共接口、财务计算、币种与精度、数据模型、持久化、迁移、兼容性、审计和安全敏感变更，必须使用完整 OpenSpec change：
-
-`$openspec-explore`（可选）→ `$openspec-propose` → `openspec validate` → `$openspec-apply-change` → `$openspec-archive-change`
-
-### B 类：轻量变更
-
-既有架构内的局部能力，且不改变领域规则、金额语义、持久化、权限、路由、公共合同或依赖边界时，可以使用一个较小的 OpenSpec change，但仍必须包含目标、非目标、验收、受影响文件和验证证据。
-
-### C 类：局部缺陷修复
-
-根因明确、恢复既定行为且能由少量回归测试证明的修复，可以使用最小 OpenSpec change。必须先复现并添加失败回归测试，再写最小修复。
-
-以下情况必须升级为 A 类：根因不明、同一修复连续失败 2 次；涉及金额、币种、精度、余额、关系匹配、数据库写入、迁移、权限、敏感数据、外部回调、公共 API/CLI/SDK、路由、新依赖，或影响超过 3 个独立模块。
+变更分级、升级条件、八阶段强度、UI 原型与审计、审查、验证证据和外部写授权以根目录 `AGENTS.md` 为唯一来源。本文件只定义跨变更工程原则；每个 OpenSpec change 必须按其风险遵守这些原则并在相应 artifact 中留下证据。
 
 ## OpenSpec 工作约定
 
@@ -56,11 +42,10 @@
 - `openspec/changes/archive/YYYY-MM-DD-<name>/` 是已完成变更的审计记录；归档前必须把 delta 同步到主规格，不能把未完成工作伪装成完成。
 - 主规格写行为合同：使用 `### Requirement:` 和 `#### Scenario:`，每条 requirement 至少有一个可验证场景，使用 `MUST` 或 `SHALL` 表示规范性要求。
 - 设计细节进入 `design.md`，执行顺序进入 `tasks.md`；不要把内部类名、框架选择或逐行实现步骤塞进主规格。
-- 每次变更完成后运行 `openspec validate --all --strict` 和 `openspec doctor`；实现、Web、UI、数据库和安全风险仍按本文件及根目录 `AGENTS.md` 运行相称的 gstack 审查与测试。
+- 每次变更完成后运行 `openspec validate --all --strict` 和 `openspec doctor`；实现、Web、UI、数据库和安全风险仍按本文件及根目录 `AGENTS.md` 运行相称的审查、测试和 QA。审查工具可以替换，但范围、finding、采纳/拒绝理由和验证证据必须回写正式 artifact。
 
 ## 运行基线
 
 - Python 运行时为 3.11+，依赖与命令以 `pyproject.toml` 和 `uv` 工作流为准。
 - PostgreSQL 与 SQLite 由 `FT_DATABASE_URL` 显式选择；任何新能力不得依赖文件账本 backend。
 - 账户、币种、时间、来源和业务行标识的语义必须在相关 OpenSpec 主规格中明确，不能依赖字符串猜测或隐式默认值。
-- 默认不执行本地提交、推送、创建 PR、合并、部署或第三方写操作，除非用户明确授权具体动作。
