@@ -26,6 +26,7 @@ export type CashProjection = {
   member_count: number;
   accepted_relation_summary: AcceptedRelationSummary[];
   source_type: string | null;
+  source_types: string[];
   record_id: string;
   visible: boolean;
   hidden_reason: string | null;
@@ -82,7 +83,7 @@ export type EndpointRelation = {
 export type AcceptedEvidenceRelation = EndpointRelation & {
   rule_id: string;
   confidence: string;
-  evidence: Record<string, string | number | boolean>;
+  evidence: Record<string, string | number | boolean | null | string[]>;
 };
 export type InactiveRelationHint = EndpointRelation & {
   status: "pending_review" | "rejected" | "superseded";

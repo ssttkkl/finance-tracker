@@ -8,7 +8,7 @@ const page = {
   items: [{
     projection_id: "cash:preview-001", occurred_at: "2026-07-03T09:00:00+08:00", account,
     counterparty: "自包含预览投影", category: "测试", amount: "1", currency: "CNY",
-    note: "", source_type: "preview", record_id: "preview-001",
+    note: "", source_type: "preview", source_types: ["preview"], record_id: "preview-001",
     economic_type: "income", transfer_subtype: null, composition: [], member_count: 1,
     accepted_relation_summary: [], visible: true, hidden_reason: null,
   }],

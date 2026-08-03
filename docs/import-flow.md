@@ -48,7 +48,7 @@ ft relations alias-add --type account_identifier --value 6222000000001234 --acco
 ft fact-delete <fact_id> --reason '…'
 ```
 
-`card_tail` 仅接受四位尾号；`account_identifier` 用于完整数字账号。它们是用户显式登记的本人账户标识：转账、提现和还款的转出流水仅在账单直接提供 `counterparty_account` 时使用该标识筛选候选。关系证据只展示 `exact` 或 `tail`，不会回显账号或别名原文；未登记或尾号冲突时保持既有关系行为。
+`card_tail` 仅接受四位尾号；`account_identifier` 用于完整数字账号。它们是用户显式登记的本人账户标识：转账、提现和还款的转出流水仅在账单直接提供 `counterparty_account` 时使用该标识筛选候选。账号命中只参与运行时筛选，不写入关系记录；未登记或尾号冲突时保持既有关系行为。
 
 ## 事务语义（015 后）
 

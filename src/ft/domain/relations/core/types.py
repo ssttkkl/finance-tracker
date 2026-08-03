@@ -24,6 +24,8 @@ from ft.domain.relations.core.record_types import (
     is_withdrawal_out_record,
     is_repayment_out_record,
     is_loan_repayment_in,
+    is_fx_in_record,
+    is_fx_out_record,
 )
 
 from typing import Protocol, runtime_checkable
@@ -94,6 +96,7 @@ CREDIT_REPAYMENT_FX_SECONDS = 60
 # High confidence if |implied/market - 1| <= this; must beat runner-up by margin.
 CREDIT_REPAYMENT_FX_RATE_ERROR_MAX = Decimal("0.015")
 CREDIT_REPAYMENT_FX_RATE_ERROR_MARGIN = Decimal("0.005")
+PERSONAL_FX_STRONG_SECONDS = 60
 REFUND_CANDIDATE_DAYS = 15
 REFUND_AUTO_ACCEPT_DAYS = 15
 REFUND_ORDER_LOCK_AUTO_ACCEPT_DAYS = 30
@@ -116,6 +119,7 @@ RULE_TRANSFER_PAIR_STRONG_V1 = "transfer_pair.same_amount.transfer_signal.time_w
 RULE_TRANSFER_PAIR_UNIONPAY_V1 = "transfer_pair.unionpay.same_day.v1"
 RULE_CREDIT_REPAYMENT_V1 = "transfer_pair.credit_repayment.v1"
 RULE_CREDIT_REPAYMENT_FX_V1 = "transfer_pair.credit_repayment.fx.v1"
+RULE_PERSONAL_FX_EXCHANGE_V1 = "transfer_pair.personal_fx.same_source.time60.v1"
 RULE_REFUND_OFFSET_V1 = "refund_offset.merchant_or_order.v1"
 
 # `open_leg` pending (FR-042–047): null secondary fact; suggestions only in evidence.
@@ -157,6 +161,15 @@ class _IndexedFact:
     group: str
 
 
+def _personal_fx_source_key(fact: FactView) -> str | None:
+    """仅接受有单一、非空正式来源键的购汇端点。"""
+    bill_source = str(fact.bill_source or "").strip()
+    source = str(fact.source or "").strip()
+    if bill_source and source and bill_source != source:
+        return None
+    return bill_source or source or None
+
+
 class FactCandidateIndex:
     """In-memory indexes for O(bucket) candidate lookup instead of O(n) scans.
 
@@ -191,6 +204,9 @@ class FactCandidateIndex:
         # FX repayment: day -> cash outs / loan ins
         self._fx_cash_out_by_day: dict[str, list[_IndexedFact]] = defaultdict(list)
         self._fx_loan_in_by_day: dict[str, list[_IndexedFact]] = defaultdict(list)
+        # FX personal exchange: business day -> explicitly typed FX legs
+        self._personal_fx_out_by_day: dict[str, list[_IndexedFact]] = defaultdict(list)
+        self._personal_fx_in_by_day: dict[str, list[_IndexedFact]] = defaultdict(list)
         # refund: account, currency, day -> typed expenses / refunds
         self._expenses_by_day: dict[tuple[str, str, str], list[_IndexedFact]] = defaultdict(list)
         self._refunds_by_day: dict[tuple[str, str, str], list[_IndexedFact]] = defaultdict(list)
@@ -232,6 +248,10 @@ class FactCandidateIndex:
                 self._xfer_in[(idx.currency, idx.abs_amount, idx.day)].append(idx)
                 if fact.account_type == "loan":
                     self._fx_loan_in_by_day[idx.day].append(idx)
+            if is_fx_out_record(fact):
+                self._personal_fx_out_by_day[idx.day].append(idx)
+            elif is_fx_in_record(fact):
+                self._personal_fx_in_by_day[idx.day].append(idx)
             # refunds / expenses
             if is_refund_expense_candidate(fact):
                 self._expenses_by_day[(str(fact.account_id), idx.currency, idx.day)].append(idx)
@@ -332,6 +352,35 @@ class FactCandidateIndex:
                 unique.append(fact)
         return unique
 
+    def personal_fx_candidates(self, seed: FactView) -> list[FactView]:
+        """仅返回来源一致、异币种的明确购汇对侧，允许同一多币种账户。"""
+        try:
+            day = _parse_dt(seed.occurred_at).date().isoformat()
+        except ValueError:
+            return []
+        if is_fx_out_record(seed):
+            buckets = self._personal_fx_in_by_day
+        elif is_fx_in_record(seed):
+            buckets = self._personal_fx_out_by_day
+        else:
+            return []
+        currency = str(seed.currency or "CNY").upper()
+        source = _personal_fx_source_key(seed)
+        if source is None:
+            return []
+        out: list[FactView] = []
+        for d in self._neighbor_days(day):
+            for item in buckets.get(d, ()):
+                candidate = item.fact
+                if candidate.id == seed.id:
+                    continue
+                if str(candidate.currency or "CNY").upper() == currency:
+                    continue
+                if _personal_fx_source_key(candidate) != source:
+                    continue
+                out.append(candidate)
+        return out
+
     def refund_candidates(self, seed: FactView) -> list[FactView]:
         """Bounded, same-account consumption/refund candidates."""
         try:
@@ -381,7 +430,7 @@ class FactCandidateIndex:
 @dataclass(frozen=True)
 class RelationEvidence:
     amount_delta: str = "0"
-    time_delta_seconds: int = 0
+    time_delta_seconds: int | None = 0
     same_currency: bool = True
     counterparty_similarity: str = ""
     source_pair: tuple[str, str] = ("", "")

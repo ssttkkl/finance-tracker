@@ -27,6 +27,59 @@ def test_accept_rejects_a_refund_that_cannot_form_a_cash_projection(cash_web_run
         assert session.get(TransactionRelationModel, int(relation_id)).status == "pending_review"
 
 
+def test_personal_fx_relation_check_replaces_income_and_expense_projections(relation_runtime):
+    from ft.application.web_queries import CashLedgerQueryService
+    from tests.test_transaction_relations_support import add_cash_fact, ensure_accounts
+
+    services = relation_runtime.services
+    ensure_accounts(services, [("工行借记卡", "cash")])
+    out_id = add_cash_fact(
+        services, account_name="工行借记卡", amount="-47952.10", currency="CNY",
+        date="2026-05-02 09:36:56", counterparty="黄文龙", description="个人购汇",
+        bill_source="icbc_debit", record_id="fx-out", record_type="fx_out",
+    )
+    in_id = add_cash_fact(
+        services, account_name="工行借记卡", amount="7000", currency="USD",
+        date="2026-05-02 09:36:56", counterparty="黄文龙", description="个人购汇",
+        bill_source="icbc_debit", record_id="fx-in", record_type="fx_in",
+    )
+
+    result = services.relations.check(
+        seed_fact_ids=[out_id, in_id], trigger="manual_range", seed_ref="personal-fx",
+    )
+
+    assert result.ok
+    with services.uow as uow:
+        relations = uow.relations.list_active(kind="transfer_pair")
+    assert len(relations) == 1
+    assert relations[0]["status"] == "accepted"
+    assert relations[0]["subtype"] == "currency_exchange"
+
+    page = CashLedgerQueryService(
+        relation_runtime.sessions, "relations-workspace",
+    ).list_cash_projections(limit=50)
+    matched = [
+        item
+        for item in page.items
+        if item.economic_type == "internal_transfer" and item.transfer is not None
+    ]
+    assert len(matched) == 1
+    projection = matched[0]
+    assert projection.economic_type == "internal_transfer"
+    assert projection.amount == "0"
+    assert projection.transfer is not None
+    assert projection.transfer.from_amount == "-47952.1"
+    assert projection.transfer.from_currency == "CNY"
+    assert projection.transfer.to_amount == "7000"
+    assert projection.transfer.to_currency == "USD"
+    evidence = CashLedgerQueryService(
+        relation_runtime.sessions, "relations-workspace",
+    ).get_projection_evidence(projection.projection_id)
+    assert {member["record_id"] for member in evidence["members"]} == {"fx-out", "fx-in"}
+    assert projection.projection_id == f"cash:{out_id}"
+    assert f"cash:{in_id}" not in {item.projection_id for item in page.items}
+
+
 def test_relation_check_hides_internal_error_and_does_not_open_a_second_unit_of_work():
     from ft.application.relations import RelationService
 

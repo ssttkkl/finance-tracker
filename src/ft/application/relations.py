@@ -20,7 +20,10 @@ from ft.domain.relations import (
     RelationKind,
     RelationStatus,
     SUBTYPE_NONE,
+    is_fx_in_record,
+    is_fx_out_record,
     is_open_leg_relation,
+    match_personal_fx_exchange,
     ordered_fact_pair,
     project_balances_and_pnl,
     run_relation_phases,
@@ -290,12 +293,13 @@ class RelationService:
                 }
                 if str(other.id) not in candidate_fact_ids:
                     raise ValueError("指定的对侧流水不在待配对候选中")
-                self._validate_open_leg_other(rel, other)
+                self._validate_open_leg_other(uow, rel, other)
                 fact_ids = [rel["primary_fact_id"], other_fact_id]
             else:
                 if rel.get("secondary_fact_id") in (None, ""):
                     raise ValueError("待审核的双边关系缺少对侧流水，无法确认")
                 fact_ids = [rel["primary_fact_id"], rel["secondary_fact_id"]]
+            self._validate_transfer_endpoint_availability(uow, fact_ids, relation_id)
             self._validate_projection_acceptance(uow, rel, other_fact_id=other_fact_id)
             if open_leg:
                 updated = uow.relations.bind_other_leg(
@@ -811,7 +815,17 @@ class RelationService:
         return by_id[fact_id]
 
 
-    def _validate_open_leg_other(self, rel: dict, other: FactView) -> None:
+    def _validate_transfer_endpoint_availability(self, uow, fact_ids: Sequence[str], relation_id: str) -> None:
+        """一条已确认内部转账不得复用另一条已确认转账端点。"""
+        endpoints = {str(fact_id) for fact_id in fact_ids if fact_id not in (None, "")}
+        for relation in uow.relations.list_active(kind=RelationKind.TRANSFER_PAIR.value):
+            if relation["status"] != RelationStatus.ACCEPTED.value or str(relation["id"]) == str(relation_id):
+                continue
+            occupied = {str(relation.get("primary_fact_id") or ""), str(relation.get("secondary_fact_id") or "")}
+            if endpoints & occupied:
+                raise ValueError("指定的转账端点已被另一条已确认关系占用")
+
+    def _validate_open_leg_other(self, uow, rel: dict, other: FactView) -> None:
         kind = rel["kind"]
         if other.deleted:
             raise ValueError("指定的对侧流水已删除")
@@ -822,6 +836,19 @@ class RelationService:
             # refund anchor is positive
             return
         if kind == RelationKind.TRANSFER_PAIR.value:
-            # opposite sign preferred; different account preferred — soft checks
+            anchor = self._require_active_cash(uow, rel["primary_fact_id"])
+            if (rel.get("subtype") or "") == "currency_exchange":
+                if not is_fx_out_record(anchor) or not is_fx_in_record(other):
+                    raise ValueError("个人购汇待配对关系必须连接购汇转出和购汇转入")
+                if anchor.currency == other.currency:
+                    raise ValueError("个人购汇待配对关系的两端币种必须不同")
+                anchor_source = str(anchor.bill_source or anchor.source or "").strip()
+                other_source = str(other.bill_source or other.source or "").strip()
+                if not anchor_source or anchor_source != other_source:
+                    raise ValueError("个人购汇待配对关系的两端来源必须一致且非空")
+                # 证据只保存有限的候选标识，不能将该展示上限误作人工确认的
+                # 候选范围。确认时按完整端点合同重新验证指定的对侧。
+                if match_personal_fx_exchange(anchor, [other]) is None:
+                    raise ValueError("指定的对侧不在个人购汇待配对候选范围内")
             return
         raise ValueError(f"关系类型 {kind} 不支持确认待配对关系")

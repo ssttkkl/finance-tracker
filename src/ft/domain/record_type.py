@@ -212,7 +212,7 @@ def classify_cash_record_type(
     if bank_summary in {"证转银", "证券转银行", "基金赎回"}:
         return CashRecordType.INVESTMENT_IN.value
     if bank_summary in {
-        "转账", "转账支取", "支付宝转账", "跨行汇款", "转账存入", "网转",
+        "转账", "转帐", "转账支取", "支付宝转账", "跨行汇款", "转账存入", "网转",
         "他行汇入", "银联入账", "电子汇入", "存款", "ATM存款",
     }:
         return _directional_transfer(row)

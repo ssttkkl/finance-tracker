@@ -7,7 +7,7 @@ afterEach(cleanup);
 const projection = (projection_id: string, kind: string, note = "") => ({
   projection_id, occurred_at: "2026-07-03T09:00:00+08:00", account: { id: 101, name: "日常账户", type: "cash", active: true },
   counterparty: `交易对方${projection_id}`, category: "餐饮", amount: "-12.50", currency: "CNY", note, economic_type: "expense" as const,
-  transfer_subtype: null, composition: [kind], member_count: 2, accepted_relation_summary: [{ kind, subtype: "", count: 1 }], source_type: "fixture", record_id: `cash-${projection_id}`, visible: true, hidden_reason: null,
+  transfer_subtype: null, composition: [kind], member_count: 2, accepted_relation_summary: [{ kind, subtype: "", count: 1 }], source_type: "fixture", source_types: ["fixture"], record_id: `cash-${projection_id}`, visible: true, hidden_reason: null,
 });
 
 const transfer = (crossCurrency = false) => ({
@@ -20,10 +20,10 @@ const transfer = (crossCurrency = false) => ({
   },
 });
 
-it("在交易信息中展示交易对方和备注，并且不把关系摘要作为列表内容", () => {
+it("在交易信息中展示交易对方、备注和关系投影标记，在来源列展示渠道", () => {
   render(<CashTable items={[projection("1", "payment_mirror", "午间消费"), projection("2", "refund_offset"), projection("3", "unknown_kind")]} onEvidence={(_projection, _source) => undefined} />);
 
-  expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "经济类型", "金额", "操作"]);
+  expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "来源", "经济类型", "金额", "操作"]);
   expect(screen.getByRole("table")).toHaveClass("cash-table");
   expect(screen.getByRole("cell", { name: /交易对方1/ })).toHaveAttribute("headers", "cash-column-transaction-info");
   expect(screen.getAllByRole("cell", { name: "-12.50 CNY" })[0]).toHaveAttribute("data-direction", "支出");
@@ -31,8 +31,32 @@ it("在交易信息中展示交易对方和备注，并且不把关系摘要作�
   expect(screen.getByText("午间消费")).toHaveAttribute("data-label", "备注");
   expect(screen.queryByRole("columnheader", { name: "组成方式" })).not.toBeInTheDocument();
   expect(screen.getByText("午间消费")).toBeInTheDocument();
-  expect(screen.getAllByText("-")).toHaveLength(2);
+  expect(screen.getAllByText("fixture")).toHaveLength(3);
   expect(screen.queryByText(/同笔支付关系|退款冲销关系|未识别的关系类型/)).not.toBeInTheDocument();
+  expect(screen.getAllByText("关系投影")).toHaveLength(3);
+  expect(screen.queryByText(/条账本记录/)).not.toBeInTheDocument();
+});
+
+it("关系投影在来源列展示所有成员来源并去重，单源投影回退为自身来源", () => {
+  const single = { ...projection("single", "single"), composition: [], member_count: 1, accepted_relation_summary: [], source_types: ["支付宝"] };
+  const related = { ...projection("related", "refund_offset"), source_types: ["支付宝", "工商银行"] };
+  const missing = { ...projection("missing", "single"), composition: [], member_count: 1, accepted_relation_summary: [], source_type: null, source_types: [] };
+  render(<CashTable items={[single, related, missing]} onEvidence={(_projection, _source) => undefined} />);
+
+  expect(screen.getByRole("cell", { name: "支付宝" })).toHaveAttribute("headers", "cash-column-source");
+  expect(screen.getByRole("cell", { name: "支付宝、工商银行" })).toHaveAttribute("headers", "cash-column-source");
+  expect(screen.getByRole("cell", { name: "-" })).toHaveAttribute("headers", "cash-column-source");
+  expect(screen.getByRole("row", { name: /交易对方related/ })).toHaveTextContent("关系投影");
+});
+
+it("仅为关系投影显示来源标记", () => {
+  const single = { ...projection("single", "single"), composition: [], member_count: 1, accepted_relation_summary: [] };
+  const related = { ...projection("related", "refund_offset"), member_count: 3 };
+  render(<CashTable items={[single, related]} onEvidence={(_projection, _source) => undefined} />);
+
+  expect(screen.queryByText("单源投影")).not.toBeInTheDocument();
+  expect(screen.queryByText(/条账本记录/)).not.toBeInTheDocument();
+  expect(screen.getByLabelText("关系投影")).toHaveTextContent("关系投影");
 });
 
 it("空的交易对方和备注显示横杠", () => {

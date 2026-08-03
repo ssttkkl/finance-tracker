@@ -582,6 +582,110 @@ def test_open_leg_reject_suppresses_reopen(relation_runtime):
             assert occupied["status"] == RelationStatus.REJECTED.value
 
 
+def test_personal_fx_open_leg_accepts_a_legal_candidate(relation_runtime):
+    from tests.test_transaction_relations_support import add_cash_fact, ensure_accounts
+
+    services = relation_runtime.services
+    ensure_accounts(services, [("工行借记卡", "cash"), ("外币账户", "cash")])
+    out_id = add_cash_fact(
+        services, account_name="工行借记卡", amount="-100", currency="CNY",
+        date="2026-05-02 09:36:56", description="个人购汇", bill_source="icbc_debit",
+        record_id="fx-out", record_type="fx_out",
+    )
+    usd_id = add_cash_fact(
+        services, account_name="外币账户", amount="14", currency="USD",
+        date="2026-05-02 09:36:56", description="个人购汇", bill_source="icbc_debit",
+        record_id="fx-usd", record_type="fx_in", category="income",
+    )
+    hkd_id = add_cash_fact(
+        services, account_name="外币账户", amount="110", currency="HKD",
+        date="2026-05-02 09:36:56", description="个人购汇", bill_source="icbc_debit",
+        record_id="fx-hkd", record_type="fx_in", category="income",
+    )
+    result = services.relations.check(
+        seed_fact_ids=[out_id, usd_id, hkd_id], trigger="manual_range",
+    )
+    assert result.ok, result.message
+    pending = services.relations.list_pending(kind=RelationKind.TRANSFER_PAIR.value)
+    assert len(pending) == 1
+
+    accepted = services.relations.accept(
+        pending[0]["id"], actor="tester", reason="确认美元购汇", other_fact_id=usd_id,
+    )
+
+    assert accepted.ok
+    assert accepted.details["status"] == RelationStatus.ACCEPTED.value
+    assert {accepted.details["primary_fact_id"], accepted.details["secondary_fact_id"]} == {
+        out_id,
+        usd_id,
+    }
+
+
+
+def test_personal_fx_open_leg_accept_rejects_non_candidate_and_occupied_endpoint(relation_runtime):
+    from tests.test_transaction_relations_support import add_cash_fact, ensure_accounts
+
+    services = relation_runtime.services
+    ensure_accounts(services, [("工行借记卡", "cash"), ("美元账户", "cash")])
+    out_id = add_cash_fact(
+        services, account_name="工行借记卡", amount="-100", currency="CNY",
+        date="2026-05-02 09:36:56", description="个人购汇", bill_source="icbc_debit",
+        record_id="fx-out", record_type="fx_out",
+    )
+    usd_id = add_cash_fact(
+        services, account_name="美元账户", amount="14", currency="USD",
+        date="2026-05-02 09:36:56", description="个人购汇", bill_source="icbc_debit",
+        record_id="fx-usd", record_type="fx_in", category="income",
+    )
+    hkd_id = add_cash_fact(
+        services, account_name="美元账户", amount="110", currency="HKD",
+        date="2026-05-02 09:36:56", description="个人购汇", bill_source="icbc_debit",
+        record_id="fx-hkd", record_type="fx_in", category="income",
+    )
+    unrelated_id = add_cash_fact(
+        services, account_name="美元账户", amount="14", currency="USD",
+        date="2026-05-02 09:36:56", description="普通收入", bill_source="icbc_debit",
+        record_id="ordinary-income", record_type="income", category="income",
+    )
+
+    result = services.relations.check(
+        seed_fact_ids=[out_id, usd_id, hkd_id, unrelated_id], trigger="manual_range",
+    )
+    assert result.ok, result.message
+    pending = services.relations.list_pending(kind=RelationKind.TRANSFER_PAIR.value)
+    assert len(pending) == 1
+    open_row = pending[0]
+    assert open_row["subtype"] == "currency_exchange"
+    assert set(open_row["candidate_fact_ids"]) == {int(usd_id), int(hkd_id)}
+
+    with pytest.raises(ValueError, match="不在待配对候选中"):
+        services.relations.accept(
+            open_row["id"], actor="tester", reason="wrong leg", other_fact_id=unrelated_id,
+        )
+
+    with services.uow as uow:
+        uow.relations.add({
+            "kind": RelationKind.TRANSFER_PAIR.value,
+            "subtype": "currency_exchange",
+            "primary_fact_id": out_id,
+            "secondary_fact_id": usd_id,
+            "primary_fact_type": "cash",
+            "secondary_fact_type": "cash",
+            "status": RelationStatus.ACCEPTED.value,
+            "rule_id": "fixture.occupied",
+            "confidence": "strong",
+        })
+        uow.commit()
+
+    with pytest.raises(ValueError, match="已被另一条已确认关系占用"):
+        services.relations.accept(
+            open_row["id"], actor="tester", reason="occupied", other_fact_id=usd_id,
+        )
+
+    with services.uow as uow:
+        assert uow.relations.get(open_row["id"])["status"] == RelationStatus.PENDING_REVIEW.value
+
+
 def test_transfer_open_leg_persisted_and_accept(relation_runtime):
     services = relation_runtime.services
     assert services.accounts.create_account("A", "cash", "CNY").ok
