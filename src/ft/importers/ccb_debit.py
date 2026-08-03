@@ -6,6 +6,15 @@ from datetime import datetime, timedelta
 from ft.convert import _normalize_counterparty, _stable_short_hash
 
 
+def _cell_text(value: object) -> str:
+    """保留 Excel 单元格的可读文本，不为整数引入浮点后缀。"""
+    if value is None:
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
 def _extract_ccb_counterparty(location: str) -> str | None:
     """从建行交易地点列提取纯 counterparty
 
@@ -75,6 +84,12 @@ def _extract_ccb_acct_name_counterparty(acct_name_raw: str) -> str:
     return acct_name_raw.strip()
 
 
+def _extract_ccb_counterparty_account(acct_name_raw: str) -> str:
+    if "/" not in acct_name_raw:
+        return ""
+    return acct_name_raw.split("/", 1)[0].strip()
+
+
 def _infer_ccb_refund_signal(summary: str, amount: Decimal) -> str:
     if amount <= 0:
         return ""
@@ -108,6 +123,9 @@ def read_ccb_debit(path: str):
     records = []
 
     # 数据从第 5 行开始（row index 4），是 Excel 的第 5 行（前面是标题/卡号/合计/表头）
+    headers = [_cell_text(sh.cell_value(3, c)) for c in range(sh.ncols)]
+    if not all(headers) or len(set(headers)) != len(headers):
+        raise ValueError("建行账单表头不完整或重复，无法保存完整来源行")
     for ri in range(4, sh.nrows):
         row_vals = [sh.cell_value(ri, c) for c in range(sh.ncols)]
 
@@ -141,6 +159,10 @@ def read_ccb_debit(path: str):
 
         # 对方账号与户名（列 8）
         acct_name_raw = str(row_vals[8] or "").strip() if len(row_vals) > 8 else ""
+        source_payload = {
+            header: _cell_text(value)
+            for header, value in zip(headers, row_vals, strict=True)
+        }
 
         # counterparty：优先从交易地点提取，失败则回退对方户名
         location_cp = _extract_ccb_counterparty(location)
@@ -169,6 +191,7 @@ def read_ccb_debit(path: str):
             "currency": currency,
             "card_number": card_last4,
             "counterparty": normalized_cp,
+            "counterparty_account": _extract_ccb_counterparty_account(acct_name_raw),
             "note": enriched_desc,
             "category": category,
             "payment_method": pm,
@@ -180,6 +203,7 @@ def read_ccb_debit(path: str):
             "_ccb_acct_cp": acct_cp,
             "_ccb_refund_signal": refund_signal,
             "_fact_id": f"ccb_debit_{fact_hash}",
+            "_source_payload": source_payload,
         }
         if refund_signal:
             record["_refund_signal"] = refund_signal

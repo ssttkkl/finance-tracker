@@ -62,6 +62,7 @@ def _rows():
             "refund_signal": "",
             "_raw_cp": "美团支付-美团App山葵村烤肉",
             "record_type": "consumption",
+            "source_payload": {"原始文本单元": ["消费", "美团支付-美团App山葵村烤肉"]},
         },
         {
             **common,
@@ -75,6 +76,7 @@ def _rows():
             "refund_signal": "icbc_credit_return",
             "_raw_cp": "美团支付-美团App山葵村烤肉",
             "record_type": "refund",
+            "source_payload": {"原始文本单元": ["退货", "美团支付-美团App山葵村烤肉"]},
         },
         {
             **common,
@@ -88,6 +90,7 @@ def _rows():
             "refund_signal": "",
             "_raw_cp": "美团支付-美团App山葵村烤肉",
             "record_type": "consumption",
+            "source_payload": {"原始文本单元": ["消费", "美团支付-美团App山葵村烤肉"]},
         },
     ]
 
@@ -125,8 +128,9 @@ def test_icbc_refund_import_and_scan_are_backend_equivalent(tmp_path, backend):
             facts = list(session.scalars(select(CashTransactionModel).order_by(CashTransactionModel.occurred_at)))
             assert [fact.source_type for fact in facts] == ["icbc_credit"] * 3
             refund = facts[1]
-            assert refund.source_payload["summary"] == "退货"
-            assert refund.source_payload["refund_signal"] == "icbc_credit_return"
+            assert refund.source_payload == {
+                "原始文本单元": ["退货", "美团支付-美团App山葵村烤肉"],
+            }
 
         check = RelationService(uow).check(
             seed_fact_ids=[facts[1].id],

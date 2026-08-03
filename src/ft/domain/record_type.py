@@ -187,6 +187,15 @@ def classify_cash_record_type(
             return CashRecordType.CONSUMPTION.value
         return CashRecordType.INCOME.value
 
+    if source == "icbc_asia_current_account":
+        source_text = f"{txn_type} {summary}"
+        if any(token in source_text for token in ("轉賬", "轉帳", "转账", "转帐", "匯款", "汇款")):
+            return _directional_transfer(row)
+        if any(token in source_text for token in ("提現", "提现", "取現", "取现")):
+            return _directional_withdrawal(row)
+        if any(token in source_text for token in ("消費", "消费")):
+            return CashRecordType.CONSUMPTION.value
+
     bank_summary = summary
     if bank_summary in {"基金购买", "买入基金", "理财"}:
         return CashRecordType.INVESTMENT_OUT.value

@@ -154,12 +154,18 @@ class StatementImportService:
                 if record_id in existing_targets:
                     continue
                 account = account_cache[row["account_name"]]
-                payload = _json_safe(row)
+                payload = row.get("source_payload")
+                if account.type in {"cash", "loan", "lend"} and (
+                    not isinstance(payload, dict) or not payload
+                ):
+                    raise ValueError("账单记录缺少完整来源行快照")
+                if payload is None:
+                    payload = _json_safe(row)
                 formal = {
                     **row,
                     "source_type": source_type,
                     "record_id": record_id,
-                    "source_payload": payload,
+                    "source_payload": _json_safe(payload),
                 }
                 if account.type in {"cash", "loan", "lend"}:
                     fact_id = uow.cashflows.add(account.type, formal)

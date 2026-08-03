@@ -6,7 +6,9 @@ from pathlib import Path
 import tempfile
 
 
-CASH_SOURCES = {"alipay", "wechat", "icbc", "icbc-debit", "ccb-debit"}
+CASH_SOURCES = {
+    "alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "icbc-asia-current-account",
+}
 
 
 def _decimal_text(value) -> str:
@@ -47,6 +49,10 @@ def _parse_cash_statement(command):
             skipped += 1
             continue
         item["amount"] = _decimal_text(item["amount"])
+        source_payload = row.get("_source_payload")
+        if not isinstance(source_payload, dict) or not source_payload:
+            raise ValueError("账单行缺少完整来源行快照")
+        item["source_payload"] = source_payload
         # 保留平台元数据，供导入时建立退款关系。
         for key in (
             "platform_status", "status", "txn_id", "merchant_order_id",

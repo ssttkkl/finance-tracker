@@ -92,9 +92,9 @@ def _deterministic_payment_mirror_groups(
 ) -> tuple[list[RelationProposal], set[str]]:
     """为字段完全相同的渠道对生成稳定的一对一候选。"""
     grouped: dict[
-        tuple[tuple[str, str, str, Decimal, int, date], str, str],
-        list[FactView],
-    ] = defaultdict(list)
+        tuple[str, str, str, Decimal, int, date],
+        dict[str, dict[str, list[FactView]]],
+    ] = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     handled: set[str] = set()
     for fact in facts:
         if not (
@@ -109,22 +109,15 @@ def _deterministic_payment_mirror_groups(
         channel = _mirror_channel(fact)
         if key is None or not channel:
             continue
-        grouped[(key, group, channel)].append(fact)
+        grouped[key][group][channel].append(fact)
 
     proposals: list[RelationProposal] = []
     claimed_fact_ids: set[str] = set()
-    bases = {key for key, _group, _channel in grouped}
-    for base in sorted(bases, key=lambda item: tuple(str(value) for value in item)):
-        platforms = {
-            channel: values
-            for (key, group, channel), values in grouped.items()
-            if key == base and group == "platform"
-        }
-        banks = {
-            channel: values
-            for (key, group, channel), values in grouped.items()
-            if key == base and group == "bank"
-        }
+    for base, channels in sorted(
+        grouped.items(), key=lambda item: tuple(str(value) for value in item[0])
+    ):
+        platforms = channels.get("platform", {})
+        banks = channels.get("bank", {})
         channel_pairs = [
             (tuple(sorted((platform_channel, bank_channel))), platform_facts, bank_facts)
             for platform_channel, platform_facts in platforms.items()

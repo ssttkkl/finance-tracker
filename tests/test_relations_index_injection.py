@@ -1,9 +1,10 @@
 """FactCandidateIndex runtime injection (008)."""
 from __future__ import annotations
 
+import builtins
 from decimal import Decimal
 
-from ft.domain.relations import FactView, source_group
+from ft.domain.relations import FactView, MatchContext, run_relation_phases, source_group
 from ft.domain.relations.core.types import FactCandidateIndex
 from ft.domain.relations.refund.signals import DefaultRefundTextGates, has_refund_signal
 
@@ -84,6 +85,57 @@ def test_icbc_structured_signal_rejects_summary_without_signal():
     )
 
     assert idx.refund_candidates(ref) == []
+
+
+def test_candidate_index_aggregates_refund_days_once_per_account_currency(monkeypatch):
+    facts = [
+        _fv(f"expense-{day}", "-10.00", src="alipay", day=f"2026-01-0{day}")
+        for day in range(1, 5)
+    ]
+    calls = 0
+    original_sorted = builtins.sorted
+
+    def tracked_sorted(values, *args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original_sorted(values, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "sorted", tracked_sorted)
+
+    FactCandidateIndex(facts, source_group=source_group, refund_gates=None)
+
+    assert calls == 1
+
+
+def test_relation_scan_builds_mirror_components_once_for_all_refund_seeds(monkeypatch):
+    import ft.domain.relations.pipeline as pipeline
+
+    platform_expense = _fv("platform-expense", "-10.00", src="alipay", day="2026-01-01")
+    bank_expense = _fv("bank-expense", "-10.00", src="icbc_debit", day="2026-01-01")
+    refunds = [
+        _fv(f"refund-{index}", "10.00", src="alipay", day="2026-01-02")
+        for index in range(2)
+    ]
+    facts = [platform_expense, bank_expense, *refunds]
+    index = FactCandidateIndex(facts, source_group=source_group, refund_gates=None)
+    calls = 0
+    original_build = pipeline.build_mirror_components
+
+    def tracked_build(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original_build(*args, **kwargs)
+
+    monkeypatch.setattr(pipeline, "build_mirror_components", tracked_build)
+
+    run_relation_phases(
+        facts,
+        ctx=MatchContext(),
+        seed_ids=[fact.id for fact in facts],
+        index=index,
+    )
+
+    assert calls == 1
 
 
 def test_core_types_module_has_no_refund_pack_import():

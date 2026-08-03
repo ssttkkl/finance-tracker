@@ -215,11 +215,12 @@ workspaces  (租户隔离根)
 | `account_id` | SurrogatePK | N | 复合 FK→accounts `RESTRICT` |
 | `source_type` | String(64) | Y | **导入渠道名**（幂等复合键的一半；如 alipay/wechat/券商 kind）；手工可空 |
 | `record_id` | String(512) | Y* | **业务行键**（平台流水/展示号或确定性内容键）；与 `source_type` 组成幂等；账单派生应非空；手工可空。空串视为「无标识」（见约束） |
-| `source_payload` | JSON | Y | 行级原始快照（匹配/排障；可含原 payment 文案等）；手工可空 |
+| `source_payload` | JSON | Y | 账单派生行的完整原始业务行快照：保留全部来源列和值（含空值），不得混入解析、映射或关系字段；手工可空 |
 | `occurred_at` | UTCDateTime | N | 发生时刻（UTC） |
 | `amount` | ExactDecimal | N | 有符号金额 |
 | `currency` | String(3) | N | 币种 |
 | `counterparty` | String(512) | N | 对手方 |
+| `counterparty_account` | String(512) | N | 来源直接提供的对方账号、卡号、掩码账号或账户标识；未提供时为空字符串，便于受控查询 |
 | `note` | Text | N | 备注 |
 | `category` | String(64) | N | 分类（含 transfer / transfer_in / transfer_out 等） |
 | `created_at` | UTCDateTime | N | |
@@ -245,7 +246,7 @@ workspaces  (租户隔离根)
 - 账单派生：`source_type`（导入渠道名）、`record_id`、`source_payload` 均应非空（应用层强制）。
 - 手工事实：标识相关字段可空；不占用 partial unique。
 - 幂等比较单位永远是 **`(source_type, record_id)`**，不是裸 `record_id`。
-- `source_payload` 至少覆盖 relations hard-key / 日期几何所需键；允许瘦身，不得丢匹配字段。
+- 账单派生的 `source_payload` 必须保存完整原始业务行；关系读取只能消费该快照中的原始字段或已提升的正式列，不得要求派生键。
 - **015 删除**列：`raw_record_id`、`offset_*`、`proposed_action`、`locked`、`transfer_account`、`source`、`bill_source`、以及无改账语义时的 `revision`。核销/转账权威在 `transaction_relations` + 正式 `category`。
 
 ### 5.2 `investment_events`

@@ -139,7 +139,8 @@ PAYMENT_PLATFORM_SOURCES = frozenset({
     "alipay", "wechat", "weixin", "支付宝", "微信",
 })
 BANK_CHANNEL_SOURCES = frozenset({
-    "ccb_debit", "ccb_credit", "icbc_debit", "icbc_credit", "bank", "debit", "credit",
+    "ccb_debit", "ccb_credit", "icbc_debit", "icbc_credit", "icbc_asia_current_account",
+    "bank", "debit", "credit",
 })
 CANDIDATE_DAY_PAD = 1
 
@@ -195,6 +196,8 @@ class FactCandidateIndex:
         # sorted day keys per account/currency for refund window walk
         self._expense_days_by_account_currency: dict[tuple[str, str], list[str]] = defaultdict(list)
         self._refund_days_by_account_currency: dict[tuple[str, str], list[str]] = defaultdict(list)
+        expense_days: dict[tuple[str, str], set[str]] = defaultdict(set)
+        refund_days: dict[tuple[str, str], set[str]] = defaultdict(set)
 
         for fact in facts:
             if fact.deleted or fact.fact_type != FactType.CASH.value:
@@ -231,15 +234,17 @@ class FactCandidateIndex:
             # refunds / expenses
             if is_refund_expense_candidate(fact):
                 self._expenses_by_day[(str(fact.account_id), idx.currency, idx.day)].append(idx)
+                expense_days[(str(fact.account_id), idx.currency)].add(idx.day)
             elif is_refund_in(fact):
                 self._refunds_by_day[(str(fact.account_id), idx.currency, idx.day)].append(idx)
+                refund_days[(str(fact.account_id), idx.currency)].add(idx.day)
 
-        for account, cur, _day in self._expenses_by_day:
-            days = sorted({d for a, c, d in self._expenses_by_day if a == account and c == cur})
-            self._expense_days_by_account_currency[(account, cur)] = days
-        for account, cur, _day in self._refunds_by_day:
-            days = sorted({d for a, c, d in self._refunds_by_day if a == account and c == cur})
-            self._refund_days_by_account_currency[(account, cur)] = days
+        self._expense_days_by_account_currency = {
+            key: sorted(days) for key, days in expense_days.items()
+        }
+        self._refund_days_by_account_currency = {
+            key: sorted(days) for key, days in refund_days.items()
+        }
 
     @staticmethod
     def _neighbor_days(day: str, pad: int = CANDIDATE_DAY_PAD) -> list[str]:

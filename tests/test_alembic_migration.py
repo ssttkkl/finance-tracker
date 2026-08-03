@@ -24,6 +24,7 @@ def test_repository_has_clean_linear_revisions():
         "20260801_13_cash_record_type.py",
         "20260802_14_cash_record_type_reversal_withdrawal.py",
         "20260802_15_split_withdrawal_direction.py",
+        "20260803_16_cash_counterparty_account.py",
     ]
 
 
@@ -114,6 +115,7 @@ def test_metadata_uses_enforceable_fact_relationships_post_015():
         assert "source_payload" in model.__table__.c
         assert "raw_record_id" not in model.__table__.c
         assert "revision" not in model.__table__.c
+    assert "counterparty_account" in CashTransactionModel.__table__.c
     assert "price" not in InvestmentEventModel.__table__.c
     for dead in (
         "source", "bill_source", "transfer_account", "locked",
@@ -153,6 +155,55 @@ def test_migrated_sqlite_amount_columns_use_canonical_text_and_round_trip_exactl
             connection.execute(text("INSERT INTO accounts (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) VALUES (1, 'w', 'Cash', 'cash', 1, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
             connection.execute(text("INSERT INTO cash_transactions (id, workspace_id, account_id, record_id, occurred_at, amount, currency, counterparty, note, category, created_at) VALUES (1, 'w', 1, '', CURRENT_TIMESTAMP, '1.230000000000000001', 'CNY', '', '', '', CURRENT_TIMESTAMP)"))
             assert connection.scalar(text("SELECT amount FROM cash_transactions WHERE id = 1")) == "1.230000000000000001"
+    finally:
+        engine.dispose()
+
+
+def test_counterparty_account_migration_backfills_only_recoverable_source_values(tmp_path):
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+
+    root = Path(__file__).parents[1]
+    database = tmp_path / "counterparty-account.db"
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "migrations"))
+    config.set_main_option("sqlalchemy.url", f"sqlite+pysqlite:///{database}")
+    command.upgrade(config, "20260802_15")
+    engine = create_engine(f"sqlite+pysqlite:///{database}")
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', CURRENT_TIMESTAMP)"
+            ))
+            connection.execute(text(
+                "INSERT INTO accounts (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) "
+                "VALUES (1, 'w', 'Cash', 'cash', 1, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            ))
+            for record_id, source_type, payload in (
+                ("alipay-1", "alipay", '{"对方账号":"示例卡(4321)"}'),
+                ("ccb-1", "ccb_debit", '{"acct_name_raw":"6222****4321/示例户名"}'),
+                ("unknown-1", "wechat", '{"支付方式":"零钱"}'),
+            ):
+                connection.execute(text(
+                    "INSERT INTO cash_transactions "
+                    "(workspace_id, account_id, source_type, record_id, occurred_at, amount, currency, counterparty, note, category, record_type, created_at) "
+                    "VALUES ('w', 1, :source_type, :record_id, CURRENT_TIMESTAMP, '1.00', 'CNY', '', '', '', 'other', CURRENT_TIMESTAMP)"
+                ), {"source_type": source_type, "record_id": record_id})
+                connection.execute(text(
+                    "UPDATE cash_transactions SET source_payload = :payload WHERE workspace_id = 'w' AND record_id = :record_id"
+                ), {"payload": payload, "record_id": record_id})
+
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            values = dict(connection.execute(text(
+                "SELECT record_id, counterparty_account FROM cash_transactions"
+            )).all())
+        assert values == {
+            "alipay-1": "示例卡(4321)",
+            "ccb-1": "6222****4321",
+            "unknown-1": "",
+        }
     finally:
         engine.dispose()
 
@@ -202,7 +253,7 @@ def test_initial_revision_upgrades_dedicated_postgresql():
             assert {"from_ticker", "to_ticker", "from_amount", "to_amount", "commission", "commission_asset", "note", "source_type", "record_id", "source_payload"} <= inv_cols
             assert "price" not in inv_cols
             cash_cols = {c["name"] for c in columns}
-            assert {"source_type", "record_id", "source_payload"} <= cash_cols
+            assert {"source_type", "record_id", "source_payload", "counterparty_account"} <= cash_cols
             rel_cols = {c["name"] for c in inspect(engine).get_columns("transaction_relations")}
             assert "anchor_fact_id" in rel_cols
             # Multi-currency (20260720_04) and fact-field unify (20260724_07) are one-shot.

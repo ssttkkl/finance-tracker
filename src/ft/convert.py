@@ -579,7 +579,7 @@ def _build_convert_fact_rows(rows: list[dict], tracking_pairs) -> list[dict]:
             return
         existing = combined[fact_id]
         for key, value in rec.items():
-            if key not in existing or existing.get(key, "") in {"", None}:
+            if key not in existing or existing.get(key, "") in ("", None):
                 existing[key] = value
 
     for row in rows:
@@ -1116,32 +1116,38 @@ def _read_alipay_raw(path: str):
     """解析支付宝CSV，不落库，返回 list[dict]"""
     from .importers.alipay import _detect_encoding
     import csv as csv_mod
+    from io import StringIO
 
     enc = _detect_encoding(path)
     with open(path, "r", encoding=enc) as f:
         text = f.read()
-    lines = text.splitlines()
-
-    header_ln = None
-    for i, line in enumerate(lines):
-        if "交易时间" in line and "收/支" in line and "金额" in line:
-            header_ln = i
+    reader = csv_mod.reader(StringIO(text))
+    header = None
+    for candidate in reader:
+        if candidate:
+            candidate[0] = candidate[0].removeprefix("\ufeff")
+        if "交易时间" in candidate and "收/支" in candidate and "金额" in candidate:
+            header = candidate
             break
-    if header_ln is None:
+    if header is None:
         print("❌ 无法找到支付宝账单表头")
         return []
 
-    reader = csv_mod.reader(lines[header_ln:])
-    header = next(reader)
+    if len(set(header)) != len(header):
+        raise ValueError("支付宝账单表头重复，无法保存完整来源行")
     h = {col: idx for idx, col in enumerate(header)}
 
     raw = []  # (date_str, amount, payment_method, counterparty, description, category, txn_type)
     for row in reader:
-        if len(row) < 7:
+        if len(row) != len(header):
             raise ValueError(
-                f"❌ 支付宝账单行缺少字段: 仅 {len(row)} 列，预期 >= 7\n"
+                f"❌ 支付宝账单行字段数量不匹配: 实际 {len(row)} 列，预期 {len(header)} 列\n"
                 f"   可能是支付宝导出的格式已变更，需要更新转换器"
             )
+        source_payload = {
+            column: row[index]
+            for index, column in enumerate(header)
+        }
         date_str = row[h.get("交易时间", 0)].strip()[:19].replace("/", "-")
         direction = row[h.get("收/支", 5)].strip()
         amount_str = row[h.get("金额", 6)].strip()
@@ -1237,6 +1243,7 @@ def _read_alipay_raw(path: str):
             "amount": amount,
             "payment_method": payment_method,
             "counterparty": normalized_cp,
+            "counterparty_account": source_payload.get("对方账号", ""),
             "note": enriched_desc[:80],
             "category": category,
             "txn_type": txn_type,
@@ -1246,6 +1253,7 @@ def _read_alipay_raw(path: str):
             "_alipay_direction": direction,
             "_refund_signal": refund_signal,
             "_fact_id": fact_id,
+            "_source_payload": source_payload,
         }
         raw.append(_alipay_route_wealth_product(_alipay_rec))
 
@@ -1301,14 +1309,26 @@ def _read_wechat_raw(path: str):
         print("❌ 无法找到微信账单表头")
         return []
 
-    header = [str(c or "") for c in next(ws.iter_rows(min_row=header_row_i, max_row=header_row_i, values_only=True))]
+    header = [str(c) if c is not None else "" for c in next(
+        ws.iter_rows(min_row=header_row_i, max_row=header_row_i, values_only=True)
+    )]
+    if not all(header) or len(set(header)) != len(header):
+        raise ValueError("微信账单表头不完整或重复，无法保存完整来源行")
     h = {col: idx for idx, col in enumerate(header)}
 
     raw = []
     for row in ws.iter_rows(min_row=header_row_i + 1, values_only=True):
         if not row or not any(v for v in row if v is not None):
             continue
-        vals = [str(c or "") for c in row]
+        vals = [str(c) if c is not None else "" for c in row]
+        if len(vals) != len(header):
+            raise ValueError(
+                f"微信账单行字段数量不匹配: 实际 {len(vals)} 列，预期 {len(header)} 列"
+            )
+        source_payload = {
+            column: vals[index]
+            for index, column in enumerate(header)
+        }
         direction = vals[h["收/支"]] if "收/支" in h else ""
         status = vals[h["当前状态"]] if "当前状态" in h else ""
 
@@ -1324,6 +1344,7 @@ def _read_wechat_raw(path: str):
         
         # 提前提取所有字段，后面会按需使用
         payment_method = vals[h["支付方式"]] if "支付方式" in h else ""
+        counterparty_account = ""
         counterparty = vals[h["交易对方"]] if "交易对方" in h else ""
         desc = vals[h["商品"]] if "商品" in h else ""
         txn_type = vals[h["交易类型"]] if "交易类型" in h else ""
@@ -1345,6 +1366,7 @@ def _read_wechat_raw(path: str):
                 amount = -amount
                 category = "expense"
                 # Preserve destination card in counterparty if empty; force routing key.
+                counterparty_account = payment_method
                 if payment_method and (not counterparty or counterparty in ("/", "-")):
                     counterparty = payment_method
                 payment_method = "零钱"
@@ -1371,6 +1393,7 @@ def _read_wechat_raw(path: str):
                 "amount": amount,
                 "payment_method": payment_method,
                 "counterparty": normalized_cp,
+                "counterparty_account": counterparty_account,
                 "note": enriched_desc[:80],
                 "category": category,
                 "status": status,
@@ -1381,6 +1404,7 @@ def _read_wechat_raw(path: str):
                 "_wechat_direction": direction or "/",
                 "_refund_signal": "wechat_status" if "退款" in status else "",
                 "_fact_id": fact_id,
+                "_source_payload": source_payload,
             })
             continue
         else:
@@ -1400,6 +1424,7 @@ def _read_wechat_raw(path: str):
             "amount": amount,
             "payment_method": payment_method,
             "counterparty": normalized_cp,
+            "counterparty_account": "",
             "note": enriched_desc[:80],
             "category": category,
             "status": status,
@@ -1410,6 +1435,7 @@ def _read_wechat_raw(path: str):
             "_wechat_direction": (direction or ("支出" if category == "expense" else "收入")),
             "_refund_signal": "wechat_status" if "退款" in status else "",
             "_fact_id": fact_id,
+            "_source_payload": source_payload,
         })
 
     # Dual-row refund tracking via FR-029 pure matcher; never rewrite amounts.
@@ -1447,7 +1473,7 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
     records = []
 
     if is_credit:
-        i, current_date, current_time, current_card = 0, None, "00:00:00", ""
+        i, current_date, current_time, current_card, record_start = 0, None, "00:00:00", "", 0
         while i < len(lines):
             line = lines[i].strip()
             dm = re.match(r"^(\d{4}-\d{2}-\d{2})$", line)
@@ -1457,6 +1483,7 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                 # 卡号在时间行下一行（16~19位纯数字）
                 card_line = lines[i+2].strip() if i + 2 < len(lines) else ""
                 current_card = card_line if re.match(r"^\d{16,19}$", card_line) else ""
+                record_start = i
                 i += 1
                 continue
             if not current_date:
@@ -1589,6 +1616,9 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     "refund_signal": "",
                     "_refund_signal": "",
                     "_fact_id": f"icbc_credit_{fact_hash}",
+                    "_source_payload": {
+                        "原始文本单元": lines[record_start:min(len(lines), i + 12)],
+                    },
                 }
                 if offset_type:
                     rec["offset_type"] = offset_type
@@ -1684,6 +1714,7 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                 "refund_signal": "icbc_debit_return" if summary == "退货" else "",
                 "_refund_signal": "",
                 "_fact_id": f"icbc_debit_{fact_hash}",
+                "_source_payload": {"原始文本单元": lines[i:min(len(lines), i + 6)]},
             }
             if summary in {"退款", "退货"} and amount > 0:
                 rec["_is_refund"] = True
@@ -1788,10 +1819,21 @@ def _read_icbc_debit_raw(path: str, password: str):
         tables = filtered.extract_tables()
         if not tables:
             continue
+        raw_headers = ["" if cell is None else str(cell) for cell in tables[0][0]]
+        if not all(raw_headers) or len(set(raw_headers)) != len(raw_headers):
+            raise ValueError("工行借记卡账单表头不完整或重复，无法保存完整来源行")
         for row in tables[0][1:]:  # 跳过表头
             if not row or not row[0]:
                 continue
-            rec = _parse_icbc_debit_row(row)
+            if len(row) != len(raw_headers):
+                raise ValueError(
+                    f"工行借记卡账单行字段数量不匹配: 实际 {len(row)} 列，预期 {len(raw_headers)} 列"
+                )
+            source_payload = {
+                header: str(value) if value is not None else ""
+                for header, value in zip(raw_headers, row, strict=True)
+            }
+            rec = _parse_icbc_debit_row(row, source_payload=source_payload)
             if rec:
                 records.append(rec)
 
@@ -1809,7 +1851,7 @@ def _read_icbc_debit_raw(path: str, password: str):
     return fact_rows, "icbc_debit", tracking_pairs
 
 
-def _parse_icbc_debit_row(row: list) -> dict | None:
+def _parse_icbc_debit_row(row: list, *, source_payload: dict | None = None) -> dict | None:
     """解析储蓄卡PDF的一行表格数据"""
     import re as _re
 
@@ -1851,6 +1893,7 @@ def _parse_icbc_debit_row(row: list) -> dict | None:
 
     # 对方户名
     counterparty = (row[10] or "").replace("\n", "").strip()
+    counterparty_account = (row[11] or "").replace("\n", "").strip()
 
     # 清洗对方户名：摘要文本可能因水印/换行混入 counterparty
     if counterparty and summary:
@@ -1877,6 +1920,7 @@ def _parse_icbc_debit_row(row: list) -> dict | None:
         "amount": amount,
         "currency": currency,
         "counterparty": counterparty,
+        "counterparty_account": counterparty_account,
         "note": summary,
         "category": category,
         "payment_method": channel,
@@ -1888,6 +1932,7 @@ def _parse_icbc_debit_row(row: list) -> dict | None:
         "summary": summary,
         "refund_signal": "icbc_debit_return" if summary == "退货" else "",
         "_refund_signal": "icbc_debit_refund" if debit_offset_type == "refund" and amount > 0 else "",
+        "_source_payload": source_payload,
     }
 
 
@@ -1993,6 +2038,10 @@ def _build_output_row(
         provider_record_id = rec.get("txn_id") or rec.get("merchant_order_id") or ""
     elif bill_type in {"icbc_credit", "icbc_debit", "ccb_debit"}:
         provider_record_id = rec.get("_fact_id", "")
+    elif bill_type == "icbc_asia_current_account":
+        raw_identity = str(rec.get("_fact_id") or "")
+        account_scope = hashlib.sha256(acct_name.encode("utf-8")).hexdigest()[:12]
+        provider_record_id = f"{raw_identity}_{account_scope}" if raw_identity else ""
 
     row_currency = rec.get("currency", cur) or cur
     if currency and not rec.get("currency"):
@@ -2004,6 +2053,7 @@ def _build_output_row(
         "amount": rec["amount"],
         "currency": str(row_currency).upper(),
         "counterparty": cpy,
+        "counterparty_account": rec.get("counterparty_account", ""),
         "note": rec.get("note", ""),
         "category": rec["category"],
         "record_type": classify_cash_record_type(bill_type, rec),
@@ -2038,6 +2088,13 @@ def _build_output_row(
     }
 
 
+def _read_icbc_asia_current_account_raw(path: str):
+    """解析工银亚洲活期账户 CSV，不落库。"""
+    from .importers.icbc_asia_current_account import read_icbc_asia_current_account
+
+    return read_icbc_asia_current_account(path)
+
+
 def _prepare_convert_rows(path: str, source: str, password: str = None):
     tracking_pairs = []
     if source == "icbc":
@@ -2069,6 +2126,8 @@ def _prepare_convert_rows(path: str, source: str, password: str = None):
             else:
                 others.append(row)
         rows, tracking_pairs = _pair_refunds(expenses, refunds, others)
+    elif source == "icbc-asia-current-account":
+        rows, bill_type, tracking_pairs = _read_icbc_asia_current_account_raw(path)
     else:
         print(f"❌ 未知账单类型: {source}")
         return [], "", []

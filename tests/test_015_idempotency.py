@@ -26,6 +26,7 @@ def _row(**over):
         "note": "Coffee",
         "category": "expense",
         "account_name": "Cash",
+        "source_payload": {"交易对方": "Coffee", "金额": "-12.34"},
     }
     base.update(over)
     return base

@@ -28,6 +28,17 @@ from ft.domain.relations import ordered_fact_pair, RelationStatus, is_open_leg_r
 WORKSPACE_TIMEZONE = ZoneInfo("Asia/Shanghai")
 
 
+_SOURCE_PAYLOAD_FIELD_ALIASES = {
+    "平台状态": ("交易状态", "当前状态"),
+    "status": ("交易状态", "当前状态"),
+    "txn_id": ("交易订单号", "交易单号"),
+    "merchant_order_id": ("商家订单号", "商户单号"),
+    "txn_type": ("交易分类", "交易类型"),
+    "payment_method": ("收/付款方式", "支付方式"),
+    "direction": ("收/支",),
+}
+
+
 def _json_safe(value):
     if isinstance(value, Decimal):
         return format(exact_decimal(value), "f")
@@ -213,16 +224,19 @@ class RelationalCashflowRepository:
         for item in detailed:
             payload = item.get("source_payload") if isinstance(item.get("source_payload"), dict) else {}
             item["raw_payload"] = payload or {}
-            for key in (
-                "platform_status", "status", "txn_id", "merchant_order_id",
-                "txn_type", "payment_method", "direction", "type",
-            ):
+            for key in ("platform_status", "status", "txn_id", "merchant_order_id", "txn_type", "payment_method", "direction", "type"):
                 if not item.get(key) and payload.get(key) not in (None, ""):
                     item[key] = payload.get(key)
+            for key, aliases in _SOURCE_PAYLOAD_FIELD_ALIASES.items():
+                if item.get(key):
+                    continue
+                for source_key in aliases:
+                    value = payload.get(source_key)
+                    if value not in (None, ""):
+                        item[key] = value
+                        break
             if not item.get("txn_id") and item.get("record_id"):
                 item["txn_id"] = item["record_id"]
-            if not item.get("platform_status") and payload.get("txn_status"):
-                item["platform_status"] = payload.get("txn_status")
             st = item.get("source_type") or ""
             item.setdefault("source", st)
             item.setdefault("bill_source", st)
@@ -256,6 +270,7 @@ class RelationalCashflowRepository:
             "amount": row.get("amount"),
             "currency": row.get("currency"),
             "counterparty": row.get("counterparty", ""),
+            "counterparty_account": row.get("counterparty_account", ""),
             "note": row.get("note", ""),
             "category": row.get("category", ""),
             "record_type": row.get("record_type", "other"),
@@ -296,6 +311,7 @@ class RelationalCashflowRepository:
             amount=exact_decimal(normalized["amount"]),
             currency=currency,
             counterparty=str(normalized["counterparty"] or ""),
+            counterparty_account=str(normalized["counterparty_account"] or ""),
             note=str(normalized["note"] or ""),
             category=str(normalized["category"] or ""),
             record_type=str(row.get("record_type") or normalized.get("record_type") or "other"),
@@ -317,6 +333,7 @@ class RelationalCashflowRepository:
             "amount": row.amount,
             "currency": row.currency,
             "counterparty": row.counterparty,
+            "counterparty_account": row.counterparty_account,
             "note": row.note,
             "category": row.category,
             "record_type": row.record_type,

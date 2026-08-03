@@ -8,7 +8,7 @@
 
 ```bash
 # 现金：禁止 --account；账户由账单字段 + ~/.ft/mapping.yaml 推断
-ft import FILE --source alipay|wechat|icbc|icbc-debit|ccb-debit \
+ft import FILE --source alipay|wechat|icbc|icbc-debit|ccb-debit|icbc-asia-current-account \
   [--currency CURRENCY] [--password-file FILE]
 
 # 投资：必须 --account（security 或 crypto）
@@ -54,7 +54,7 @@ ft fact-delete <fact_id> --reason '…'
   → parser / connector 映射为行或投资事件
   → 幂等键：source_type × record_id（渠道名 × 业务行键）
   → 已存在则跳过；新行写入 cash_transactions 或 investment_events
-       （含 source_payload 内联溯源；无 raw_records 表）
+       （现金 source_payload 仅为该业务行的完整原始列和值；无 raw_records 表）
   → 投资：apply_investment_event → ledger_snapshots + 校验
   → 现金导入后可触发 relations check（镜像 / 转账 / 退款等）
   → 同步成功则 upsert sync_cursors
@@ -78,12 +78,33 @@ ft fact-delete <fact_id> --reason '…'
 
 `~/.ft/mapping.yaml`（缺失时建默认模板）。匹配优先更长 `fnmatch`；`default: error|fail` 时未匹配整批失败。
 
+工银亚洲活期账户账单使用 `icbc_asia_current_account` 作为持久化导入渠道。样本未提供可用的下挂账户尾号时，使用通用规则：
+
+```yaml
+rules:
+  - source: icbc_asia_current_account
+    match: "工银亚洲活期账户"
+    account: "工银亚洲账户"
+    currency: HKD
+```
+
+若未来账单提供尾号，可用更高优先级的 `source: icbc_asia_current_account_<尾号>`、`match: "*"` 规则。账单内币种是权威值，账户必须支持相应币种；映射中的 `currency` 只作为既有路由配置字段。
+
 ## 失败与幂等
 
 - 文件/解析/密码/工具缺失：非零退出，不写库。
 - 账户不存在、类型不符、币种非法、金额非有限或超精度：整批回滚。
+- 无法唯一保留完整原始业务行（例如表头为空、重复或行列数不一致）：整批回滚；不以标准化字段补造 `source_payload`。
 - 重复 `(workspace, source_type, record_id)`：跳过，不重复发布。
 - API 可重试错误：有限次退避后仍失败则本批不提交。
+
+## 来源行与对方账号
+
+`source_payload` 保存原始账单中该业务行的全部列名和值，空值列也必须保留。它不保存来源文件路径、整份文件、解析结果、账户映射结果或关系处理字段。
+
+现金流水的 `counterparty_account` 是独立正式列，仅从账单直接提供的对方账号、到账卡或账户标识提取；来源未提供或无法可靠识别时保存空字符串。该列用于受控查询，原始值仍可在同一行的 `source_payload` 审计。账号属于隐私数据，错误信息、日志和测试夹具不得回显真实账号。
+
+升级前已经丢失原始列的历史快照保持原样。迁移只回填可以从既有来源专用值可靠确定的 `counterparty_account`，不伪造完整来源行，也不会自动重导 `~/.ft/bills` 中的账单。
 
 ## 关系种类（摘要）
 

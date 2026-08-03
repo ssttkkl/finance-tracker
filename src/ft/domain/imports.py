@@ -7,13 +7,15 @@ from pathlib import Path
 
 CASHFLOW_EXPORT_FIELDS = (
     "record_id", "occurred_at", "amount", "currency", "counterparty",
-    "note", "category", "record_type", "account_name", "source_type",
+    "counterparty_account", "note", "category", "record_type", "account_name", "source_type",
 )
 
 
 def infer_statement_source(source_path: str) -> str:
     """Best-effort channel name from filename (tests/CLI may omit explicit source)."""
     name = Path(source_path).name.lower()
+    if "currentaccounthistory" in name:
+        return "icbc-asia-current-account"
     if "alipay" in name or "支付宝" in name:
         return "alipay"
     if "wechat" in name or "微信" in name:

@@ -165,6 +165,11 @@ class RelationService:
                         transfer_blocked.add(rel["secondary_fact_id"])
 
                 # --- Phases B–D: sole domain orchestration entry (008 FR-003) ---
+                accepted_relations = [
+                    relation
+                    for relation in uow.relations.list_active()
+                    if relation.get("status") == RelationStatus.ACCEPTED.value
+                ]
                 proposals = run_relation_phases(
                     active_facts,
                     ctx=match_ctx,
@@ -183,12 +188,19 @@ class RelationService:
                         stats["phase_c_transfers"] = stats.get("phase_c_transfers", 0) + 1
                     if proposal.rule_id and "diamond" in (proposal.rule_id or ""):
                         stats["phase_d_diamond"] = stats.get("phase_d_diamond", 0) + 1
-                    outcome = self._persist_proposal(uow, proposal, remaining)
+                    outcome = self._persist_proposal(
+                        uow, proposal, remaining, accepted_relations=accepted_relations,
+                    )
                     if outcome is None:
                         stats["skipped"] += 1
                         continue
                     created.append(outcome)
                     if outcome["status"] == RelationStatus.ACCEPTED.value:
+                        if not any(
+                            relation.get("id") == outcome.get("id")
+                            for relation in accepted_relations
+                        ):
+                            accepted_relations.append(outcome)
                         stats["accepted"] += 1
                         if outcome.get("kind") == RelationKind.REFUND_OFFSET.value:
                             exp_id = outcome.get("primary_fact_id")
@@ -561,13 +573,18 @@ class RelationService:
                 remaining[exp] -= abs(refund_fact.signed_amount)
         return remaining
 
-    def _candidate_creates_kind_conflict(self, uow, proposal) -> bool:
+    def _candidate_creates_kind_conflict(
+        self, uow, proposal, *, accepted_relations: Sequence[dict] | None = None,
+    ) -> bool:
         """候选加入完整已确认连通组后，退款与内部转账不得共存。"""
         if proposal.secondary_fact_id in (None, ""):
             return False
         adjacency: dict[str, set[str]] = defaultdict(set)
         kinds_by_edge: list[tuple[str, str, str]] = []
-        for relation in uow.relations.list_active(status=RelationStatus.ACCEPTED.value):
+        relations = accepted_relations
+        if relations is None:
+            relations = uow.relations.list_active(status=RelationStatus.ACCEPTED.value)
+        for relation in relations:
             primary = relation.get("primary_fact_id")
             secondary = relation.get("secondary_fact_id")
             if primary in (None, "") or secondary in (None, ""):
@@ -599,7 +616,10 @@ class RelationService:
             RelationKind.TRANSFER_PAIR.value,
         }.issubset(kinds)
 
-    def _persist_proposal(self, uow, proposal, remaining: dict[str, Decimal]) -> dict | None:
+    def _persist_proposal(
+        self, uow, proposal, remaining: dict[str, Decimal], *,
+        accepted_relations: Sequence[dict] | None = None,
+    ) -> dict | None:
         open_leg = bool(getattr(proposal, "open_leg", False) or proposal.secondary_fact_id in (None, ""))
         subtype = proposal.subtype or SUBTYPE_NONE
         anchor_id = getattr(proposal, "anchor_fact_id", None) or proposal.primary_fact_id
@@ -640,7 +660,9 @@ class RelationService:
                     and not open_existing.get("decided_by")
                     and proposal.status == RelationStatus.ACCEPTED.value
                 ):
-                    if self._candidate_creates_kind_conflict(uow, proposal):
+                    if self._candidate_creates_kind_conflict(
+                        uow, proposal, accepted_relations=accepted_relations,
+                    ):
                         return open_existing
                     evidence = proposal.evidence.to_json()
                     evidence["open_leg"] = False
@@ -681,7 +703,9 @@ class RelationService:
                 and proposal.status == RelationStatus.ACCEPTED.value
                 and not open_leg
             ):
-                if self._candidate_creates_kind_conflict(uow, proposal):
+                if self._candidate_creates_kind_conflict(
+                    uow, proposal, accepted_relations=accepted_relations,
+                ):
                     return existing
                 evidence = proposal.evidence.to_json()
                 evidence["open_leg"] = False
@@ -719,7 +743,9 @@ class RelationService:
                     and not open_leg
                     and proposal.secondary_fact_id not in (None, "")
                 ):
-                    if self._candidate_creates_kind_conflict(uow, proposal):
+                    if self._candidate_creates_kind_conflict(
+                        uow, proposal, accepted_relations=accepted_relations,
+                    ):
                         return existing
                     evidence = proposal.evidence.to_json()
                     evidence["open_leg"] = False
@@ -739,7 +765,9 @@ class RelationService:
             status = RelationStatus.PENDING_REVIEW.value
         kind_conflict = (
             status == RelationStatus.ACCEPTED.value
-            and self._candidate_creates_kind_conflict(uow, proposal)
+            and self._candidate_creates_kind_conflict(
+                uow, proposal, accepted_relations=accepted_relations,
+            )
         )
         if kind_conflict:
             status = RelationStatus.PENDING_REVIEW.value

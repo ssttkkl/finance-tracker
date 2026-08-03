@@ -22,11 +22,13 @@ def _cash_row(**overrides):
         "amount": "-12.34",
         "currency": "CNY",
         "counterparty": "Coffee",
+        "counterparty_account": "",
         "note": "Coffee",
         "category": "expense",
         "account_name": "Cash",
         "source": "Alipay",
         "bill_source": "alipay",
+        "source_payload": {"交易时间": "2026-07-17 09:00:00", "交易对方": "Coffee"},
     }
     row.update(overrides)
     return row
@@ -109,6 +111,7 @@ def test_icbc_import_uses_parsed_bill_source_and_refund_fields(tmp_path):
         account_name="Cash",
         source="美团支付",
         bill_source="icbc_credit",
+        source_payload={"原始文本单元": ["退货", "美团支付-美团App山葵村烤肉"]},
         summary="退货",
         refund_signal="icbc_credit_return",
         _raw_cp="美团支付-美团App山葵村烤肉",
@@ -121,10 +124,9 @@ def test_icbc_import_uses_parsed_bill_source_and_refund_fields(tmp_path):
     with sessions() as session:
         fact = session.scalar(select(CashTransactionModel))
         assert fact.source_type == "icbc_credit"
-        assert fact.source_payload["bill_source"] == "icbc_credit"
-        assert fact.source_payload["summary"] == "退货"
-        assert fact.source_payload["refund_signal"] == "icbc_credit_return"
-        assert fact.source_payload["_raw_cp"] == "美团支付-美团App山葵村烤肉"
+        assert fact.source_payload == {
+            "原始文本单元": ["退货", "美团支付-美团App山葵村烤肉"],
+        }
 
 
 def test_statement_import_is_idempotent_by_source_digest(tmp_path):
