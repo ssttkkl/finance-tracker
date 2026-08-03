@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 from decimal import Decimal
 from zoneinfo import ZoneInfo
+import re
 
 from sqlalchemy import func, select
 
@@ -819,10 +820,19 @@ class RelationalAccountAliasRepository:
         return [self._to_dict(row) for row in rows]
 
     def add(self, *, alias_type: str, alias_value: str, account_id) -> int:
+        value = str(alias_value).strip()
+        if alias_type == "card_tail" and (
+            len(value) != 4 or not all("0" <= char <= "9" for char in value)
+        ):
+            raise ValueError("card_tail must contain exactly four ASCII digits")
+        if alias_type == "account_identifier":
+            value = re.sub(r"[\s\-()（）]", "", value)
+            if len(value) <= 4 or not all("0" <= char <= "9" for char in value):
+                raise ValueError("account_identifier must contain more than four ASCII digits")
         model = AccountAliasModel(
             workspace_id=self._workspace_id,
             alias_type=alias_type,
-            alias_value=str(alias_value).strip(),
+            alias_value=value,
             account_id=_as_int_id(account_id) if not isinstance(account_id, int) else account_id,
         )
         self._session.add(model)

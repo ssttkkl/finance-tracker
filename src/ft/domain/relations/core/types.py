@@ -76,6 +76,7 @@ class RelationCheckStatus(str, Enum):
 
 class AccountAliasType(str, Enum):
     CARD_TAIL = "card_tail"
+    ACCOUNT_IDENTIFIER = "account_identifier"
     PAYMENT_METHOD = "payment_method"
     OTHER = "other"
 
@@ -384,6 +385,7 @@ class RelationEvidence:
     same_currency: bool = True
     card_tail_match: str = ""
     account_alias_match: bool = False
+    counterparty_account_match: str = ""
     counterparty_similarity: str = ""
     source_pair: tuple[str, str] = ("", "")
     rule_id: str = ""
@@ -401,6 +403,7 @@ class RelationEvidence:
             "same_currency": self.same_currency,
             "card_tail_match": self.card_tail_match,
             "account_alias_match": self.account_alias_match,
+            "counterparty_account_match": self.counterparty_account_match,
             "counterparty_similarity": self.counterparty_similarity,
             "source_pair": list(self.source_pair),
             "rule_id": self.rule_id,
@@ -421,6 +424,7 @@ class RelationEvidence:
         known = {
             "amount_delta", "time_delta_seconds", "same_currency", "card_tail_match",
             "account_alias_match", "counterparty_similarity", "source_pair", "rule_id",
+            "counterparty_account_match",
             "candidate_count", "signals", "open_leg", "anchor_role", "candidate_fact_ids",
         }
         source_pair = data.get("source_pair") or ("", "")
@@ -439,6 +443,7 @@ class RelationEvidence:
             same_currency=bool(data.get("same_currency", True)),
             card_tail_match=str(data.get("card_tail_match") or ""),
             account_alias_match=bool(data.get("account_alias_match", False)),
+            counterparty_account_match=str(data.get("counterparty_account_match") or ""),
             counterparty_similarity=str(data.get("counterparty_similarity") or ""),
             source_pair=(str(source_pair[0]), str(source_pair[1])) if len(source_pair) == 2 else ("", ""),
             rule_id=str(data.get("rule_id") or ""),
@@ -485,6 +490,7 @@ class FactView:
     account_type: str = "cash"
     occurred_at: datetime | str = ""
     counterparty: str = ""
+    counterparty_account: str = ""
     note: str = ""
     category: str = ""
     record_type: str = "other"

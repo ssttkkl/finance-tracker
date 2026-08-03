@@ -42,6 +42,147 @@ def test_transfer_pair_auto_accept_exact():
     assert proposal.subtype == ""
 
 
+def test_transfer_pair_exact_counterparty_account_selects_only_registered_target():
+    out_leg = _fv(
+        id="out", amount=Decimal("-1000"), account_id="source", account_name="来源账户",
+        occurred_at="2026-01-01 10:00:00", note="转账支取",
+        counterparty_account="6222-0000-0000-1234",
+    )
+    wrong = _fv(
+        id="wrong", amount=Decimal("1000"), account_id="wrong-account", account_name="错误候选",
+        occurred_at="2026-01-01 10:00:01", note="转账存入",
+    )
+    target = _fv(
+        id="target", amount=Decimal("1000"), account_id="target-account", account_name="目标账户",
+        occurred_at="2026-01-01 10:00:02", note="转账存入",
+    )
+
+    proposal = evaluate_transfer_pair(
+        out_leg, [wrong, target],
+        account_identifiers_by_value={"6222000000001234": ["target-account"]},
+    )
+
+    assert proposal is not None
+    assert proposal.status == RelationStatus.ACCEPTED.value
+    assert proposal.secondary_fact_id == "target"
+    assert proposal.evidence.counterparty_account_match == "exact"
+    assert "6222" not in str(proposal.evidence.to_json())
+
+
+def test_transfer_pair_unique_counterparty_tail_selects_only_registered_target():
+    out_leg = _fv(
+        id="out", amount=Decimal("-1000"), account_id="source", account_name="来源账户",
+        occurred_at="2026-01-01 10:00:00", note="转账支取",
+        counterparty_account="示例银行储蓄卡(1234)",
+    )
+    wrong = _fv(
+        id="wrong", amount=Decimal("1000"), account_id="wrong-account", account_name="错误候选",
+        occurred_at="2026-01-01 10:00:01", note="转账存入",
+    )
+    target = _fv(
+        id="target", amount=Decimal("1000"), account_id="target-account", account_name="目标账户",
+        occurred_at="2026-01-01 10:00:02", note="转账存入",
+    )
+
+    proposal = evaluate_transfer_pair(
+        out_leg, [wrong, target],
+        card_tails_by_value={"1234": ["target-account"]},
+    )
+
+    assert proposal is not None
+    assert proposal.status == RelationStatus.ACCEPTED.value
+    assert proposal.secondary_fact_id == "target"
+    assert proposal.evidence.counterparty_account_match == "tail"
+
+
+def test_transfer_pair_excludes_registered_candidates_with_mismatched_counterparty_account():
+    out_leg = _fv(
+        id="out", amount=Decimal("-1000"), account_id="source", account_name="来源账户",
+        occurred_at="2026-01-01 10:00:00", note="转账支取",
+        counterparty_account="示例银行储蓄卡(9999)",
+    )
+    first = _fv(
+        id="first", amount=Decimal("1000"), account_id="first-account", account_name="候选一",
+        occurred_at="2026-01-01 10:00:01", note="转账存入",
+    )
+    second = _fv(
+        id="second", amount=Decimal("1000"), account_id="second-account", account_name="候选二",
+        occurred_at="2026-01-01 10:00:02", note="转账存入",
+    )
+
+    proposal = evaluate_transfer_pair(
+        out_leg, [first, second],
+        card_tails_by_value={"1234": ["first-account"], "5678": ["second-account"]},
+    )
+
+    assert proposal is None
+
+
+def test_transfer_pair_conflicting_counterparty_tail_does_not_auto_accept():
+    out_leg = _fv(
+        id="out", amount=Decimal("-1000"), account_id="source", account_name="来源账户",
+        occurred_at="2026-01-01 10:00:00", note="转账支取",
+        counterparty_account="示例银行储蓄卡(1234)",
+    )
+    first = _fv(
+        id="first", amount=Decimal("1000"), account_id="first-account", account_name="候选一",
+        occurred_at="2026-01-01 10:00:01", note="转账存入",
+    )
+    second = _fv(
+        id="second", amount=Decimal("1000"), account_id="second-account", account_name="候选二",
+        occurred_at="2026-01-01 10:00:02", note="转账存入",
+    )
+
+    proposal = evaluate_transfer_pair(
+        out_leg, [first, second],
+        card_tails_by_value={"1234": ["first-account", "second-account"]},
+    )
+
+    assert proposal is not None
+    assert proposal.status != RelationStatus.ACCEPTED.value
+    assert proposal.evidence.counterparty_account_match == ""
+
+
+def test_transfer_pair_without_counterparty_account_keeps_existing_behavior():
+    out_leg = _fv(
+        id="out", amount=Decimal("-1000"), account_id="source", account_name="来源账户",
+        occurred_at="2026-01-01 10:00:00", note="转账支取",
+    )
+    candidate = _fv(
+        id="candidate", amount=Decimal("1000"), account_id="target", account_name="目标账户",
+        occurred_at="2026-01-01 10:00:01", note="转账存入",
+    )
+
+    proposal = evaluate_transfer_pair(
+        out_leg, [candidate],
+        card_tails_by_value={"1234": ["target"]},
+    )
+
+    assert proposal is not None
+    assert proposal.status == RelationStatus.ACCEPTED.value
+    assert proposal.evidence.counterparty_account_match == ""
+
+
+def test_transfer_pair_without_numeric_counterparty_account_keeps_existing_behavior():
+    out_leg = _fv(
+        id="out", amount=Decimal("-1000"), account_id="source", account_name="来源账户",
+        occurred_at="2026-01-01 10:00:00", note="转账支取",
+        counterparty_account="未提供账号",
+    )
+    candidate = _fv(
+        id="candidate", amount=Decimal("1000"), account_id="target", account_name="目标账户",
+        occurred_at="2026-01-01 10:00:01", note="转账存入",
+    )
+
+    proposal = evaluate_transfer_pair(
+        out_leg, [candidate],
+        card_tails_by_value={"1234": ["target"]},
+    )
+
+    assert proposal is not None
+    assert proposal.status == RelationStatus.ACCEPTED.value
+
+
 def test_transfer_amount_delta_pending():
     out_leg = _fv(
         id="a", amount=Decimal("-100"), account_id="1", account_name="A",

@@ -42,10 +42,75 @@ from ft.domain.relations.core.record_types import (
 )
 
 
+def _full_account_identifier(value: str) -> str:
+    """返回未掩码、仅含账号格式分隔符的完整数字标识。"""
+    text = str(value or "").strip()
+    if not text or any(marker in text for marker in ("*", "＊")):
+        return ""
+    normalized = re.sub(r"[\s\-()（）]", "", text)
+    return normalized if normalized.isdigit() and len(normalized) > 4 else ""
+
+
+def _account_tail(value: str) -> str:
+    digits = "".join(char for char in str(value or "") if "0" <= char <= "9")
+    return digits[-4:] if len(digits) >= 4 else ""
+
+
+def _mapped_accounts(
+    mapping: Mapping[str, Sequence[str]] | None,
+    value: str,
+) -> set[str]:
+    if not mapping or not value:
+        return set()
+    return {str(account_id) for account_id in mapping.get(value, ())}
+
+
+def _counterparty_account_candidate_match(
+    seed: FactView,
+    candidate: FactView,
+    *,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None,
+    card_tails_by_value: Mapping[str, Sequence[str]] | None,
+) -> tuple[bool, str]:
+    """返回候选是否保留及不含账号原文的命中种类。"""
+    source_account = str(seed.counterparty_account or "")
+    if not source_account:
+        return True, ""
+
+    source_tail = _account_tail(source_account)
+    if not source_tail:
+        return True, ""
+
+    exact_accounts = _mapped_accounts(
+        account_identifiers_by_value,
+        _full_account_identifier(source_account),
+    )
+    if len(exact_accounts) == 1:
+        return str(candidate.account_id) in exact_accounts, "exact"
+    if len(exact_accounts) > 1:
+        return True, ""
+
+    tail_accounts = _mapped_accounts(card_tails_by_value, source_tail)
+    if len(tail_accounts) == 1:
+        return str(candidate.account_id) in tail_accounts, "tail"
+    if len(tail_accounts) > 1:
+        return True, ""
+
+    registered_accounts = {
+        str(account_id)
+        for mapping in (account_identifiers_by_value, card_tails_by_value)
+        for account_ids in (mapping or {}).values()
+        for account_id in account_ids
+    }
+    return str(candidate.account_id) not in registered_accounts, ""
+
+
 def evaluate_transfer_pair(
     seed: FactView,
     candidates: Sequence[FactView],
     *,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
+    card_tails_by_value: Mapping[str, Sequence[str]] | None = None,
     fx_rate_provider: Callable[..., Decimal | None] | None = None,
 ) -> RelationProposal | None:
     if seed.deleted:
@@ -91,6 +156,14 @@ def evaluate_transfer_pair(
         ):
             return None
         if has_transfer_exclude_signal(cand.text) and not is_bank_transfer_in(cand):
+            continue
+        account_eligible, account_match = _counterparty_account_candidate_match(
+            seed,
+            cand,
+            account_identifiers_by_value=account_identifiers_by_value,
+            card_tails_by_value=card_tails_by_value,
+        )
+        if not account_eligible:
             continue
         cand_amount = cand.signed_amount
         if (seed_amount > 0) == (cand_amount > 0):
@@ -191,6 +264,7 @@ def evaluate_transfer_pair(
             amount_delta=format(_abs_decimal(amount_delta), "f") if same_currency else "0",
             time_delta_seconds=dt,
             same_currency=same_currency,
+            counterparty_account_match=account_match,
             source_pair=(seed.bill_source or seed.source, cand.bill_source or cand.source),
             rule_id=rule,
             signals=tuple(filter(None, (
@@ -635,6 +709,8 @@ def match_transfer_pairs_phase_c(
     *,
     seed_ids: Sequence[str] | None = None,
     index: FactCandidateIndex | None = None,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
+    card_tails_by_value: Mapping[str, Sequence[str]] | None = None,
     fx_rate_provider: Callable[..., Decimal | None] | None = None,
 ) -> list[RelationProposal]:
     """Phase C: taxonomy-aware transfer matching (007)."""
@@ -674,7 +750,13 @@ def match_transfer_pairs_phase_c(
             others = [f for f in index.transfer_candidates(seed) if f.id not in used]
         else:
             others = [f for f in active if f.id != seed.id and f.id not in used]
-        prop = evaluate_transfer_pair(seed, others, fx_rate_provider=fx_rate_provider)
+        prop = evaluate_transfer_pair(
+            seed,
+            others,
+            account_identifiers_by_value=account_identifiers_by_value,
+            card_tails_by_value=card_tails_by_value,
+            fx_rate_provider=fx_rate_provider,
+        )
         if prop is None:
             continue
         if prop.secondary_fact_id:

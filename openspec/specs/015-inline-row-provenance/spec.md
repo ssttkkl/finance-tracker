@@ -39,7 +39,7 @@
 - WHEN 执行以下验收条件：执行该用户故事的独立测试，结果符合迁移前的验收口径。
 - THEN 系统满足该条件，并保留可复核的验证证据。
 ### Requirement: 关系匹配读事实行快照
-系统 MUST 作为对账用户，从事实 `source_payload`（或已提升列）读取 hard-key 与日期几何所需的原始字段；种子仅为 `seed_fact_ids`。关系匹配可以读取 `counterparty_account` 作为附加证据，但不得修改来源行快照，也不得依赖曾被禁止写入快照的派生字段。
+系统 MUST 作为对账用户，从事实 `source_payload`（或已提升列）读取 hard-key 与日期几何所需的原始字段；种子仅为 `seed_fact_ids`。关系匹配可以读取 `counterparty_account` 作为附加证据，但不得修改来源行快照，也不得依赖曾被禁止写入快照的派生字段。当且仅当用户显式登记当前工作区的本人账户标识时，转账、提现和还款关系可以将 `counterparty_account` 与该标识比较以筛选或排除既有合格候选；比较结论只能以命中种类进入关系证据，不得把账号原文复制到关系、日志或输出中。
 
 #### Scenario: 完整快照支持关系检查
 - **WHEN** 已导入的来源行包含关系检查所需的原始支付方式、日期或账号信息
@@ -48,6 +48,10 @@
 #### Scenario: 历史快照保持可审计
 - **WHEN** 升级前事实缺少原始列，无法重建完整来源行
 - **THEN** 迁移 MUST 保留该事实及其既有来源快照，关系检查不得把迁移生成的值描述为原始来源字段
+
+#### Scenario: 对方账号只匹配显式本人标识
+- **WHEN** 转账关系读取一条带有 `counterparty_account` 的事实，但当前工作区没有与候选账户绑定的本人账户标识
+- **THEN** 系统 MUST 不从账户名称、来源映射、备注或其他事实猜测目标账户，并保持既有候选行为
 ### Requirement: 一次切换，无垫片
 系统 MUST 升级后只认目标模型；删除旧表/旧列；无 dual-write。 **验收场景**： 1. 自 raw 回填 `source_type`/`record_id`/`source_payload` 后删 raw 链。 2. 不存在 `import_batches`/`raw_files`/`raw_records`。 3. 估值等处无 `raw_record_id` 依赖。 ---。
 

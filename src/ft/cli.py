@@ -273,7 +273,12 @@ def _main(argv=None):
     rel_later.add_argument("relation_id")
     rel_later.add_argument("--actor", default="cli-user")
     rel_alias = rel_sub.add_parser("alias-add", help="添加账户别名（仅增强匹配）")
-    rel_alias.add_argument("--type", dest="alias_type", default="card_tail")
+    rel_alias.add_argument(
+        "--type",
+        dest="alias_type",
+        default="card_tail",
+        help="别名类型：card_tail（四位尾号）或 account_identifier（完整账号）",
+    )
     rel_alias.add_argument("--value", required=True)
     rel_alias.add_argument("--account", required=True)
     fact_del = sub.add_parser("fact-delete", help="以可审计方式逻辑删除现金流水")

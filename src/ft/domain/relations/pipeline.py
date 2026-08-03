@@ -144,6 +144,7 @@ def run_relation_phases(
     seed_ids: Sequence[str] | None = None,
     index: FactCandidateIndex | None = None,
     aliases_by_tail: Mapping[str, Sequence[str]] | None = None,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
     fx_rate_provider: Callable[..., Decimal | None] | None = None,
     transfer_blocked_ids: set[str] | None = None,
     refund_blocked_ids: set[str] | None = None,
@@ -223,6 +224,8 @@ def run_relation_phases(
         active,
         seed_ids=seed_ids,
         index=index,
+        account_identifiers_by_value=account_identifiers_by_value,
+        card_tails_by_value=aliases_by_tail,
         fx_rate_provider=ctx.fx_rate_provider,
     )
     for p in transfer_props:

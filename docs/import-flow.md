@@ -43,9 +43,12 @@ ft sync --source binance|kraken|okx|polymarket --account NAME [--full] [--batch-
 ft relations pending [--kind …]
 ft relations check [--fact-id …] [--batch-id …]
 ft relations accept|reject|later <relation_id> […]
-ft relations alias-add --value … --account …
+ft relations alias-add --type card_tail --value 1234 --account '某储蓄卡'
+ft relations alias-add --type account_identifier --value 6222000000001234 --account '某储蓄卡'
 ft fact-delete <fact_id> --reason '…'
 ```
+
+`card_tail` 仅接受四位尾号；`account_identifier` 用于完整数字账号。它们是用户显式登记的本人账户标识：转账、提现和还款的转出流水仅在账单直接提供 `counterparty_account` 时使用该标识筛选候选。关系证据只展示 `exact` 或 `tail`，不会回显账号或别名原文；未登记或尾号冲突时保持既有关系行为。
 
 ## 事务语义（015 后）
 

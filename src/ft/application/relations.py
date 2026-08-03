@@ -44,6 +44,7 @@ def _fact_view_from_row(row: dict) -> FactView:
         account_type=str(row.get("account_type") or row.get("_record_type") or "cash"),
         occurred_at=row.get("occurred_at") or row.get("date") or "",
         counterparty=str(row.get("counterparty") or ""),
+        counterparty_account=str(row.get("counterparty_account") or ""),
         note=str(row.get("note") or ""),
         category=str(row.get("category") or ""),
         record_type=str(row.get("record_type") or "other"),
@@ -78,7 +79,7 @@ class RelationService:
                 active_facts = self._list_active_cash_facts(uow)
                 fact_by_id = {f.id: f for f in active_facts}
                 seed_views = [fact_by_id[sid] for sid in seeds if sid in fact_by_id]
-                aliases = self._alias_index(uow)
+                aliases_by_tail, account_identifiers_by_value = self._alias_indexes(uow)
                 remaining = self._refund_remaining(uow, active_facts)
                 created = []
                 stats = {
@@ -175,7 +176,8 @@ class RelationService:
                     ctx=match_ctx,
                     seed_ids=seeds,
                     index=index,
-                    aliases_by_tail=aliases,
+                    aliases_by_tail=aliases_by_tail,
+                    account_identifiers_by_value=account_identifiers_by_value,
                     transfer_blocked_ids=transfer_blocked,
                     refund_blocked_ids=refund_blocked,
                     merchant_refund_seed_ids=seeds,
@@ -548,12 +550,23 @@ class RelationService:
             return uow.cashflows.list_with_ids(include_deleted=include_deleted)
         return rows
 
-    def _alias_index(self, uow) -> dict[str, list[str]]:
-        index: dict[str, list[str]] = defaultdict(list)
+    def _alias_indexes(self, uow) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+        tails: dict[str, list[str]] = defaultdict(list)
+        identifiers: dict[str, list[str]] = defaultdict(list)
         for alias in uow.account_aliases.list():
             if alias["alias_type"] == "card_tail":
-                index[alias["alias_value"]].append(alias["account_id"])
-        return dict(index)
+                tail = "".join(
+                    char for char in str(alias["alias_value"]) if "0" <= char <= "9"
+                )
+                if len(tail) == 4:
+                    tails[tail].append(alias["account_id"])
+            elif alias["alias_type"] == "account_identifier":
+                identifier = "".join(
+                    char for char in str(alias["alias_value"]) if "0" <= char <= "9"
+                )
+                if len(identifier) > 4:
+                    identifiers[identifier].append(alias["account_id"])
+        return dict(tails), dict(identifiers)
 
     def _refund_remaining(self, uow, facts: Sequence[FactView]) -> dict[str, Decimal]:
         remaining = {

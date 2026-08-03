@@ -150,6 +150,8 @@ workspaces  (租户隔离根)
 - `fk_account_aliases_workspace_account`：`(workspace_id, account_id)` → accounts，`CASCADE`
 - `ix_account_aliases_workspace_value`：`(workspace_id, alias_type, alias_value)`
 
+用于转账关系的本人账户标识仅接受两种别名类型：`card_tail` 为恰好四位 ASCII 数字；`account_identifier` 为可去除空白、连字符和括号的完整数字账号。它们必须由用户显式登记，关系证据只保存命中种类，不复制别名原文。
+
 ### 3.4 `account_lifecycle_events`
 
 账户生命周期事件（开户/销户等，驱动 wealth 覆盖「不适用」）。
