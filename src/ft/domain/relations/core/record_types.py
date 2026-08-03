@@ -13,6 +13,8 @@ WITHDRAWAL_IN_RECORD_TYPE = "withdrawal_in"
 WITHDRAWAL_OUT_RECORD_TYPE = "withdrawal_out"
 REPAYMENT_RECORD_TYPE = "repayment"
 INCOME_RECORD_TYPE = "income"
+FX_OUT_RECORD_TYPE = "fx_out"
+FX_IN_RECORD_TYPE = "fx_in"
 
 
 def _payload(fact: Any) -> Mapping[str, Any]:
@@ -51,6 +53,22 @@ def is_payment_mirror_expense(fact: Any) -> bool:
 
 def is_payment_mirror_refund(fact: Any) -> bool:
     return is_refund_in(fact)
+
+
+def is_fx_out_record(fact: Any) -> bool:
+    """来源已明确分类的个人购汇转出。"""
+    return (
+        getattr(fact, "record_type", "") == FX_OUT_RECORD_TYPE
+        and fact.signed_amount < 0
+    )
+
+
+def is_fx_in_record(fact: Any) -> bool:
+    """来源已明确分类的个人购汇转入。"""
+    return (
+        getattr(fact, "record_type", "") == FX_IN_RECORD_TYPE
+        and fact.signed_amount > 0
+    )
 
 
 def is_transfer_out_record(fact: Any) -> bool:

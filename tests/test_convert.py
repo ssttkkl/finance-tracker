@@ -1413,6 +1413,57 @@ class TestIcbcEdgeCases:
             f"币种应为 USD, 实际={records[0]['currency']!r}"
 
 
+    def test_信用卡转账摘要保留且不混入交易场所(self):
+        lines = [
+            "2026-05-14",
+            "10:14:05",
+            "6225990041051200",
+            "贷",
+            "人民币",
+            "12302.04",
+            "人民币",
+            "12302.04",
+            "黄文龙",
+            "6212****3697",
+            "转账",
+            "手机银行",
+        ]
+        from ft.convert import _parse_icbc_lines
+
+        records, _ = _parse_icbc_lines(lines, is_credit=True)
+
+        assert len(records) == 1
+        assert records[0]["summary"] == "转账"
+        assert records[0]["note"] == "手机银行"
+        assert records[0]["counterparty"] == "黄文龙"
+        assert records[0]["amount"] == Decimal("12302.04")
+    def test_借记卡回退解析跳过业务流水号并保留转账摘要(self):
+        lines = [
+            "2026-05-14",
+            "10:14:05",
+            "1614020101021984636",
+            "活期",
+            "00000",
+            "人民币",
+            "钞",
+            "转账",
+            "1614",
+            "-12,302.04",
+            "12,025.09",
+            "黄文龙",
+            "6225****1200",
+            "手机银行",
+        ]
+        from ft.convert import _parse_icbc_lines
+
+        records, _ = _parse_icbc_lines(lines, is_credit=False)
+
+        assert len(records) == 1
+        assert records[0]["summary"] == "转账"
+        assert records[0]["note"] == "转账"
+        assert records[0]["amount"] == Decimal("-12302.04")
+
+
 class TestPlatformEdgeCases:
     """平台推断边界"""
 

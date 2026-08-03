@@ -28,6 +28,11 @@ function snapshotEntries(snapshot: Evidence["root_record"]["source_snapshot"]) {
   return <dl>{Object.entries(snapshot).map(([key, value]) => <Fragment key={key}><dt>{key}</dt><dd>{String(value)}</dd></Fragment>)}</dl>;
 }
 
+function relationEvidenceEntries(evidence: Record<string, string | number | boolean | null | string[]>) {
+  if (!Object.keys(evidence).length) return <p>此关系未提供可展示的决策证据。</p>;
+  return <dl>{Object.entries(evidence).map(([key, value]) => <Fragment key={key}><dt>{key}</dt><dd>{Array.isArray(value) ? value.join("、") : String(value ?? "未提供")}</dd></Fragment>)}</dl>;
+}
+
 export function EvidenceDetail({ evidence, loading, error, onClose, onRetry }: Props) {
   const closeButton = useRef<HTMLButtonElement>(null);
   const dialog = useRef<HTMLElement>(null);
@@ -69,7 +74,7 @@ export function EvidenceDetail({ evidence, loading, error, onClose, onRetry }: P
         <section className="evidence-section" aria-label="主记录"><h3>主记录</h3><dl><dt>发生时间</dt><dd className="mono">{formatOccurredAt(root.occurred_at)}</dd><dt>账户</dt><dd>{root.account.name}</dd><dt>交易对方</dt><dd>{root.counterparty || "-"}</dd><dt>分类</dt><dd>{root.category || "未分类"}</dd><dt>备注</dt><dd>{root.note || "-"}</dd><dt>金额</dt><dd className="mono">{root.amount} {root.currency}</dd><dt>导入渠道</dt><dd>{root.source_type || "未提供"}</dd><dt>业务行标识</dt><dd className="mono">{root.record_id || "未提供"}</dd></dl></section>
         <section className="evidence-section" aria-label="来源行快照"><h3>来源行快照</h3>{snapshotEntries(root.source_snapshot)}</section>
         <section className="evidence-section" aria-label="成员流水"><h3>成员流水</h3>{evidence.members.length ? <ul>{evidence.members.map((member) => <li key={member.id}>{formatOccurredAt(member.occurred_at)}，{member.account.name}，{member.amount} {member.currency}（{member.roles.map((role) => memberRoles[role] ?? "未识别角色").join("、")}）</li>)}</ul> : <p>此投影未提供成员流水。</p>}</section>
-        <section className="evidence-section" aria-label="已采用关系"><h3>已采用关系</h3>{evidence.accepted_relations.length ? <ul>{evidence.accepted_relations.map((relation) => <li key={relation.id}>{relationKinds[relation.kind] ?? "未识别的关系类型"}{relation.rule_id ? `（${relation.rule_id}）` : ""}</li>)}</ul> : <p>此投影没有已采用关系。</p>}</section>
+        <section className="evidence-section" aria-label="已采用关系"><h3>已采用关系</h3>{evidence.accepted_relations.length ? <ul>{evidence.accepted_relations.map((relation) => <li key={relation.id}><p>{relationKinds[relation.kind] ?? "未识别的关系类型"}{relation.rule_id ? `（${relation.rule_id}）` : ""}</p>{relationEvidenceEntries(relation.evidence)}</li>)}</ul> : <p>此投影没有已采用关系。</p>}</section>
         <section className="evidence-section" aria-label="未生效关系提示"><h3>未生效关系提示</h3>{evidence.inactive_relation_hints.length ? <ul>{evidence.inactive_relation_hints.map((relation) => <li key={relation.id}>{relationKinds[relation.kind] ?? "未识别的关系类型"}：{relationStatuses[relation.status]}。{recordSummary(relation.primary_record)}；{recordSummary(relation.secondary_record)}</li>)}</ul> : <p>此投影没有未生效关系提示。</p>}</section>
         <section className="evidence-section" aria-label="退款时间线"><h3>退款时间线</h3>{evidence.refund_timeline.length ? <ul>{evidence.refund_timeline.map((refund) => <li key={refund.record_id}>{formatOccurredAt(refund.occurred_at)}，{refund.amount} {refund.currency}，{refund.source_type || "未提供"}</li>)}</ul> : <p>此投影没有退款。</p>}</section>
       </div> : null}

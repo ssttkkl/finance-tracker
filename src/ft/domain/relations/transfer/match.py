@@ -21,18 +21,23 @@ from ft.domain.relations.core.types import (
     FactCandidateIndex, FactType, FactView, RelationEvidence, RelationKind,
     RelationProposal, RelationStatus,
     RULE_CREDIT_REPAYMENT_FX_V1, RULE_CREDIT_REPAYMENT_V1,
+    RULE_PERSONAL_FX_EXCHANGE_V1,
     RULE_TRANSFER_PAIR_STRONG_V1, RULE_TRANSFER_PAIR_UNIONPAY_V1,
     SUBTYPE_CREDIT_REPAYMENT, SUBTYPE_NONE, TRANSFER_PAIR_STRONG_SECONDS,
+    PERSONAL_FX_STRONG_SECONDS,
 )
 from ft.domain.relations.transfer.signals import (
     RULE_TRANSFER_WITHDRAW_V1,
     has_self_account_transfer_evidence, has_transfer_exclude_signal,
     has_transfer_soft_p2p_signal, has_unionpay_pair_signals,
     is_bank_transfer_in, is_transfer_taxonomy_out,
+    fact_is_bank_date_only,
     is_withdraw_platform_out, is_withdraw_platform_receipt,
     transfer_clock_delta_seconds, transfer_same_business_day,
 )
 from ft.domain.relations.core.record_types import (
+    is_fx_in_record,
+    is_fx_out_record,
     is_loan_repayment_in,
     is_repayment_out_record,
     is_transfer_in_record,
@@ -630,6 +635,92 @@ def _score_fx_repayment_matches(
     )
 
 
+def match_personal_fx_exchange(
+    seed: FactView,
+    candidates: Sequence[FactView],
+) -> RelationProposal | None:
+    """为明确来源分类的个人购汇建立受限的换汇关系。"""
+    if seed.deleted or not is_fx_out_record(seed):
+        return None
+    source = str(seed.bill_source or seed.source or "").strip()
+    if not source or (seed.bill_source and seed.source and seed.bill_source != seed.source):
+        return None
+    seed_date_only = fact_is_bank_date_only(seed)
+    matches: list[tuple[FactView, int | None, bool]] = []
+    for candidate in candidates:
+        if candidate.id == seed.id or candidate.deleted or not is_fx_in_record(candidate):
+            continue
+        candidate_source = str(candidate.bill_source or candidate.source or "").strip()
+        if (
+            candidate_source != source
+            or (candidate.bill_source and candidate.source and candidate.bill_source != candidate.source)
+        ):
+            continue
+        if str(candidate.currency or "").upper() == str(seed.currency or "").upper():
+            continue
+        candidate_date_only = fact_is_bank_date_only(candidate)
+        if seed_date_only or candidate_date_only:
+            if not transfer_same_business_day(seed, candidate):
+                continue
+            matches.append((candidate, None, True))
+            continue
+        delta = transfer_clock_delta_seconds(seed, candidate)
+        if delta <= PERSONAL_FX_STRONG_SECONDS:
+            matches.append((candidate, delta, False))
+    if not matches:
+        return None
+
+    matches.sort(key=lambda item: (item[1] is None, item[1] if item[1] is not None else 0, item[0].id))
+    candidate_ids = top_k_candidate_ids([candidate.id for candidate, _delta, _date_only in matches])
+    best, delta, date_only = matches[0]
+    evidence = RelationEvidence(
+        amount_delta="0",
+        time_delta_seconds=delta,
+        same_currency=False,
+        source_pair=(source, str(best.bill_source or best.source or "")),
+        rule_id=RULE_PERSONAL_FX_EXCHANGE_V1,
+        candidate_count=len(matches),
+        candidate_fact_ids=candidate_ids,
+        signals=("opposite_sign", "fx_out", "fx_in", "same_source", "cross_currency"),
+        extras={
+            "temporal_precision": "business_day_only" if date_only else "exact_clock",
+            "seed_amount": format(seed.signed_amount, "f"),
+            "candidate_amount": format(best.signed_amount, "f"),
+            "seed_currency": str(seed.currency or "").upper(),
+            "candidate_currency": str(best.currency or "").upper(),
+        },
+    )
+    if len(matches) == 1 and not date_only:
+        return RelationProposal(
+            kind=RelationKind.TRANSFER_PAIR.value,
+            primary_fact_id=seed.id,
+            secondary_fact_id=best.id,
+            primary_fact_type=seed.fact_type,
+            secondary_fact_type=best.fact_type,
+            subtype="currency_exchange",
+            status=RelationStatus.ACCEPTED.value,
+            rule_id=RULE_PERSONAL_FX_EXCHANGE_V1,
+            confidence=CONFIDENCE_STRONG,
+            evidence=evidence,
+            anchor_fact_id=seed.id,
+            open_leg=False,
+        )
+    return RelationProposal(
+        kind=RelationKind.TRANSFER_PAIR.value,
+        primary_fact_id=seed.id,
+        secondary_fact_id=None,
+        primary_fact_type=seed.fact_type,
+        secondary_fact_type=None,
+        subtype="currency_exchange",
+        status=RelationStatus.PENDING_REVIEW.value,
+        rule_id=RULE_PERSONAL_FX_EXCHANGE_V1,
+        confidence=CONFIDENCE_WEAK,
+        evidence=RelationEvidence(**{**evidence.__dict__, "open_leg": True, "anchor_role": "fx_out"}),
+        anchor_fact_id=seed.id,
+        open_leg=True,
+    )
+
+
 def match_transfer_pairs_phase_c(
     facts: Sequence[FactView],
     *,
@@ -644,13 +735,34 @@ def match_transfer_pairs_phase_c(
         seed_pool = active
     else:
         seed_pool = [by_id[s] for s in seed_ids if s in by_id]
+    # 入账种子只能反向激活合法的出账锚点，实际提议仍由出账发起。
+    reverse_fx_outs = {
+        candidate.id
+        for seed in seed_pool
+        if is_fx_in_record(seed)
+        for candidate in (
+            index.personal_fx_candidates(seed)
+            if index is not None
+            else active
+        )
+        if is_fx_out_record(candidate)
+    }
+    seed_ids_set = {seed.id for seed in seed_pool}
     # Import/manual seed IDs are an optimization boundary, not a permission
     # to bypass the source-specific out-leg classification gate.
-    seeds = [f for f in seed_pool if is_transfer_taxonomy_out(f)]
-    # Prefer withdraw outs first
+    seeds = [
+        f
+        for f in active
+        if (
+            (seed_ids is None or f.id in seed_ids_set | reverse_fx_outs)
+            and (is_transfer_taxonomy_out(f) or is_fx_out_record(f))
+        )
+    ]
+    # Prefer withdraw outs first, then explicit personal-FX seeds.
     seeds.sort(
         key=lambda f: (
             0 if is_withdraw_platform_out(f) else 1,
+            0 if is_fx_out_record(f) else 1,
             0 if f.signed_amount < 0 else 1,
             str(f.occurred_at),
             f.id,
@@ -663,6 +775,59 @@ def match_transfer_pairs_phase_c(
         proposals.append(prop)
     for seed in seeds:
         if seed.id in used:
+            continue
+        if is_fx_out_record(seed):
+            others = (
+                [f for f in index.personal_fx_candidates(seed) if f.id not in used]
+                if index is not None
+                else [f for f in active if f.id != seed.id and f.id not in used]
+            )
+            prop = match_personal_fx_exchange(seed, others)
+            if prop is None:
+                continue
+            if prop.status == RelationStatus.ACCEPTED.value and prop.secondary_fact_id:
+                counterpart = by_id[prop.secondary_fact_id]
+                competing_outs = [
+                    other
+                    for other in active
+                    if other.id != seed.id
+                    and is_fx_out_record(other)
+                    and match_personal_fx_exchange(other, [counterpart]) is not None
+                ]
+                if competing_outs:
+                    candidate_ids = top_k_candidate_ids(
+                        [candidate.id for candidate in others]
+                    )
+                    prop = RelationProposal(
+                        kind=RelationKind.TRANSFER_PAIR.value,
+                        primary_fact_id=seed.id,
+                        secondary_fact_id=None,
+                        primary_fact_type=seed.fact_type,
+                        secondary_fact_type=None,
+                        subtype="currency_exchange",
+                        status=RelationStatus.PENDING_REVIEW.value,
+                        rule_id=RULE_PERSONAL_FX_EXCHANGE_V1,
+                        confidence=CONFIDENCE_WEAK,
+                        evidence=RelationEvidence(
+                            **{
+                                **prop.evidence.__dict__,
+                                "candidate_count": len(others),
+                                "candidate_fact_ids": candidate_ids,
+                                "open_leg": True,
+                                "anchor_role": "fx_out",
+                                "extras": {
+                                    **dict(prop.evidence.extras),
+                                    "reverse_candidate_count": len(competing_outs) + 1,
+                                },
+                            }
+                        ),
+                        anchor_fact_id=seed.id,
+                        open_leg=True,
+                    )
+            used.add(prop.primary_fact_id)
+            if prop.secondary_fact_id:
+                used.add(prop.secondary_fact_id)
+            proposals.append(prop)
             continue
         if seed.signed_amount > 0 and not is_withdraw_platform_receipt(seed):
             continue
