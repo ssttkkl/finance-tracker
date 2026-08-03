@@ -37,7 +37,7 @@ def test_evidence_reads_members_and_relations_in_fixed_batch_queries(cash_web_ru
             workspace_id=cash_web_runtime.workspace_id, kind="payment_mirror", subtype="",
             primary_fact_id=1003, secondary_fact_id=1002, primary_fact_type="cash", secondary_fact_type="cash",
             ordered_fact_a=1002, ordered_fact_b=1003, anchor_fact_id=1003, status="accepted",
-            rule_id="mirror.fixture.v1", confidence="strong", evidence_json={"amount_match": True},
+            rule_id="mirror.fixture.v1",
         ))
     CashProjectionService(cash_web_runtime.sessions, cash_web_runtime.workspace_id).rebuild()
     statements = []
@@ -57,7 +57,6 @@ def test_evidence_reads_members_and_relations_in_fixed_batch_queries(cash_web_ru
     assert len(relation) == 1
     assert relation[0]["kind"] == "payment_mirror"
     assert relation[0]["rule_id"] == "mirror.fixture.v1"
-    assert relation[0]["evidence"] == {"amount_match": True}
     assert relation[0]["primary_record"]["id"] == "1003"
     assert relation[0]["secondary_record"]["id"] == "1002"
     assert len([statement for statement in statements if statement.lstrip().upper().startswith("SELECT")]) <= 8

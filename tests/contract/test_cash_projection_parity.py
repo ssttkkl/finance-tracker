@@ -440,7 +440,6 @@ def test_relation_kind_conflict_is_pending_for_auto_scan_but_rejected_on_confirm
                     ordered_fact_b=max(transfer.id, mirrored_refund.id),
                     anchor_fact_id=transfer.id,
                     status="pending_review",
-                    evidence_json={"auto_confirmation_blocker": "relation.kind_conflict"},
                 ),
             ))
             session.flush()

@@ -147,7 +147,7 @@ def test_icbc_refund_import_and_scan_are_backend_equivalent(tmp_path, backend):
                 )
             ))
             assert len(relations) == 1
-            assert relations[0].confidence == "strong"
-            assert Decimal(str(relations[0].evidence_json["amount_delta"])) == Decimal("0")
+            assert not hasattr(relations[0], "confidence")
+            assert not hasattr(relations[0], "evidence_json")
     finally:
         engine.dispose()

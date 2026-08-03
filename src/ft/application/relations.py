@@ -45,6 +45,7 @@ def _fact_view_from_row(row: dict) -> FactView:
         occurred_at=row.get("occurred_at") or row.get("date") or "",
         counterparty=str(row.get("counterparty") or ""),
         counterparty_account=str(row.get("counterparty_account") or ""),
+        payment_method=str(row.get("payment_method") or ""),
         note=str(row.get("note") or ""),
         category=str(row.get("category") or ""),
         record_type=str(row.get("record_type") or "other"),
@@ -124,6 +125,13 @@ class RelationService:
                         continue
                     primary_id = rel.get("primary_fact_id")
                     secondary_id = rel.get("secondary_fact_id")
+                    refreshable_open_leg = (
+                        rel.get("status") == RelationStatus.PENDING_REVIEW.value
+                        and is_open_leg_relation(rel)
+                        and rel.get("created_by") == "system"
+                        and not rel.get("decided_by")
+                        and not rel.get("candidate_fact_ids")
+                    )
                     # A partially refunded expense remains a valid candidate for
                     # later refund rows.  Refund legs and fully consumed expenses
                     # stay occupied, as do all pending/open relations.
@@ -135,11 +143,11 @@ class RelationService:
                         and primary_id in fact_by_id
                         and fact_by_id[primary_id].signed_amount < 0
                     )
-                    if primary_id and not keep_expense_candidate:
+                    if primary_id and not keep_expense_candidate and not refreshable_open_leg:
                         refund_blocked.add(primary_id)
                     if secondary_id:
                         refund_blocked.add(secondary_id)
-                    if rel.get("anchor_fact_id"):
+                    if rel.get("anchor_fact_id") and not refreshable_open_leg:
                         refund_blocked.add(rel["anchor_fact_id"])
                 for item in phase_a:
                     primary_id = item.get("primary_fact_id")
@@ -206,12 +214,11 @@ class RelationService:
                         stats["accepted"] += 1
                         if outcome.get("kind") == RelationKind.REFUND_OFFSET.value:
                             exp_id = outcome.get("primary_fact_id")
-                            extras = outcome.get("evidence") or {}
-                            refund_amt = Decimal(str(
-                                extras.get("refund_amount")
-                                or (extras.get("extras") or {}).get("refund_amount")
-                                or 0
-                            ))
+                            refund_id = outcome.get("secondary_fact_id")
+                            refund_amt = (
+                                abs(fact_by_id[refund_id].signed_amount)
+                                if refund_id in fact_by_id else Decimal("0")
+                            )
                             if exp_id and exp_id in fact_by_id and refund_amt:
                                 remaining[exp_id] = remaining.get(
                                     exp_id, abs(fact_by_id[exp_id].signed_amount)
@@ -277,6 +284,12 @@ class RelationService:
                 if not other_fact_id:
                     raise ValueError("确认待配对关系时，必须通过 --other 指定对侧流水")
                 other = self._require_active_cash(uow, other_fact_id)
+                candidate_fact_ids = {
+                    str(fact_id)
+                    for fact_id in rel.get("candidate_fact_ids") or ()
+                }
+                if str(other.id) not in candidate_fact_ids:
+                    raise ValueError("指定的对侧流水不在待配对候选中")
                 self._validate_open_leg_other(rel, other)
                 fact_ids = [rel["primary_fact_id"], other_fact_id]
             else:
@@ -285,9 +298,6 @@ class RelationService:
                 fact_ids = [rel["primary_fact_id"], rel["secondary_fact_id"]]
             self._validate_projection_acceptance(uow, rel, other_fact_id=other_fact_id)
             if open_leg:
-                evidence = dict(rel.get("evidence") or {})
-                evidence["open_leg"] = False
-                evidence["bound_other_fact_id"] = other_fact_id
                 updated = uow.relations.bind_other_leg(
                     relation_id,
                     other_fact_id=other_fact_id,
@@ -300,7 +310,6 @@ class RelationService:
                     status=RelationStatus.ACCEPTED.value,
                     decided_by=actor,
                     decision_reason=reason,
-                    evidence=evidence,
                 )
             else:
                 updated = uow.relations.update_status(
@@ -358,25 +367,6 @@ class RelationService:
             CashProjectionService.maintain_if_ready_in_session(uow._state().session, uow.workspace_id, {int(item) for item in (rel["primary_fact_id"], rel.get("secondary_fact_id")) if item not in (None, "")})
             uow.commit()
         return OperationResult(ok=True, count=1, message="关系已驳回", details=updated)
-
-    def later(self, relation_id: str, *, actor: str) -> OperationResult:
-        with self._uow as uow:
-            rel = uow.relations.get(relation_id)
-            if rel is None:
-                raise ValueError(f"找不到关系：{relation_id}")
-            if rel["status"] != RelationStatus.PENDING_REVIEW.value:
-                raise ValueError("只能将 pending_review 状态的关系标为稍后处理")
-            marker = datetime.now(timezone.utc).isoformat()
-            updated = uow.relations.update_status(
-                relation_id,
-                status=RelationStatus.PENDING_REVIEW.value,
-                decided_by=actor,
-                later_marker=marker,
-            )
-            from ft.application.cash_projections import CashProjectionService
-            CashProjectionService.maintain_if_ready_in_session(uow._state().session, uow.workspace_id, {int(item) for item in (rel["primary_fact_id"], rel.get("secondary_fact_id")) if item not in (None, "")})
-            uow.commit()
-        return OperationResult(ok=True, count=1, message="关系保持待审核状态", details=updated)
 
     def supersede(
         self,
@@ -677,8 +667,6 @@ class RelationService:
                         uow, proposal, accepted_relations=accepted_relations,
                     ):
                         return open_existing
-                    evidence = proposal.evidence.to_json()
-                    evidence["open_leg"] = False
                     return uow.relations.bind_other_leg(
                         open_existing["id"],
                         other_fact_id=(
@@ -694,9 +682,18 @@ class RelationService:
                         status=RelationStatus.ACCEPTED.value,
                         decided_by="system",
                         decision_reason="fx_rate_score_auto",
-                        evidence=evidence,
                     )
         if existing is not None:
+            if (
+                open_leg
+                and existing["status"] == RelationStatus.PENDING_REVIEW.value
+                and existing.get("created_by") == "system"
+                and not existing.get("decided_by")
+            ):
+                return uow.relations.update_open_leg_candidates(
+                    existing["id"],
+                    list(proposal.evidence.candidate_fact_ids),
+                )
             # Do not overwrite human decisions.
             if existing.get("created_by") != "system" or existing.get("decided_by"):
                 if existing["status"] in {
@@ -720,8 +717,6 @@ class RelationService:
                     uow, proposal, accepted_relations=accepted_relations,
                 ):
                     return existing
-                evidence = proposal.evidence.to_json()
-                evidence["open_leg"] = False
                 updated = uow.relations.bind_other_leg(
                     existing["id"],
                     other_fact_id=(
@@ -737,7 +732,6 @@ class RelationService:
                     status=RelationStatus.ACCEPTED.value,
                     decided_by="system",
                     decision_reason="fx_rate_score_auto",
-                    evidence=evidence,
                 )
                 return updated
             if existing["status"] in {
@@ -760,8 +754,6 @@ class RelationService:
                         uow, proposal, accepted_relations=accepted_relations,
                     ):
                         return existing
-                    evidence = proposal.evidence.to_json()
-                    evidence["open_leg"] = False
                     return uow.relations.update_status(
                         existing["id"],
                         status=RelationStatus.ACCEPTED.value,
@@ -790,17 +782,9 @@ class RelationService:
             and proposal.kind == RelationKind.REFUND_OFFSET.value
         ):
             exp_id = proposal.primary_fact_id
-            extras = proposal.evidence.extras or {}
-            refund_amt = Decimal(str(extras.get("refund_amount") or 0))
-            if exp_id in remaining and refund_amt > remaining[exp_id]:
+            refund_amount = abs(proposal.refund_amount)
+            if exp_id in remaining and refund_amount > remaining[exp_id]:
                 status = RelationStatus.PENDING_REVIEW.value
-
-        evidence = proposal.evidence.to_json()
-        if kind_conflict:
-            evidence["auto_confirmation_blocker"] = "relation.kind_conflict"
-        if open_leg:
-            evidence["open_leg"] = True
-            evidence.setdefault("anchor_role", getattr(proposal.evidence, "anchor_role", "") or "")
         payload = {
             "kind": proposal.kind,
             "subtype": subtype,
@@ -811,8 +795,9 @@ class RelationService:
             "anchor_fact_id": anchor_id,
             "status": status,
             "rule_id": proposal.rule_id,
-            "confidence": proposal.confidence,
-            "evidence": evidence,
+            "candidate_fact_ids": (
+                list(proposal.evidence.candidate_fact_ids) if open_leg else []
+            ),
             "created_by": proposal.created_by,
         }
         new_id = uow.relations.add(payload)

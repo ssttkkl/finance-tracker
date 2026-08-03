@@ -157,7 +157,7 @@ def evaluate_transfer_pair(
             return None
         if has_transfer_exclude_signal(cand.text) and not is_bank_transfer_in(cand):
             continue
-        account_eligible, account_match = _counterparty_account_candidate_match(
+        account_eligible, _account_match = _counterparty_account_candidate_match(
             seed,
             cand,
             account_identifiers_by_value=account_identifiers_by_value,
@@ -264,7 +264,6 @@ def evaluate_transfer_pair(
             amount_delta=format(_abs_decimal(amount_delta), "f") if same_currency else "0",
             time_delta_seconds=dt,
             same_currency=same_currency,
-            counterparty_account_match=account_match,
             source_pair=(seed.bill_source or seed.source, cand.bill_source or cand.source),
             rule_id=rule,
             signals=tuple(filter(None, (

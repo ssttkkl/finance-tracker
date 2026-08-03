@@ -17,28 +17,12 @@ def _amount(value):
 _SOURCE_SNAPSHOT_KEYS = frozenset({
     "merchant", "store", "channel", "transaction_type", "amount", "currency", "occurred_at",
 })
-_RELATION_EVIDENCE_KEYS = frozenset({
-    "rule_id", "amount_match", "time_distance_minutes", "anchor_role",
-})
-
-
 def _safe_snapshot(payload):
     if not isinstance(payload, dict):
         return None
     return {
         key: value for key, value in payload.items()
         if key in _SOURCE_SNAPSHOT_KEYS
-        and isinstance(value, (str, int, float, bool))
-        and len(str(value)) <= 160
-    }
-
-
-def _safe_relation_evidence(payload):
-    if not isinstance(payload, dict):
-        return {}
-    return {
-        key: value for key, value in payload.items()
-        if key in _RELATION_EVIDENCE_KEYS
         and isinstance(value, (str, int, float, bool))
         and len(str(value)) <= 160
     }
@@ -340,8 +324,6 @@ class RelationalCashLedgerQueryRepository:
                     {
                         "id": str(relation.transaction_relation_id), "kind": relation.kind, "subtype": relation.subtype,
                         "rule_id": accepted_by_id[relation.transaction_relation_id].rule_id if relation.transaction_relation_id in accepted_by_id else "",
-                        "confidence": accepted_by_id[relation.transaction_relation_id].confidence if relation.transaction_relation_id in accepted_by_id else "",
-                        "evidence": _safe_relation_evidence(accepted_by_id[relation.transaction_relation_id].evidence_json) if relation.transaction_relation_id in accepted_by_id else {},
                         "primary_record": _record_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].primary_fact_id]) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].primary_fact_id in endpoint_rows else None,
                         "secondary_record": _record_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].secondary_fact_id]) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_fact_id in endpoint_rows else None,
                     }

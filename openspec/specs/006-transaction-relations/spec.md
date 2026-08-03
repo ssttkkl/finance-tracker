@@ -55,7 +55,7 @@ User description: "重新设计账单导入后的去重、退款核销、转账�
 - WHEN 执行以下验收条件：执行该用户故事的独立测试，结果符合迁移前的验收口径。
 - THEN 系统满足该条件，并保留可复核的验证证据。
 ### Requirement: 账户别名增强候选但不劫持导入
-系统 MUST 作为用户，我可以维护卡尾号、支付方式文本、亲属卡/虚拟卡等账户别名，用于增强关系候选匹配；别名命中必须进入 evidence，冲突可见；别名不得无审计地覆盖导入账户路由。
+系统 MUST 作为用户，我可以维护卡尾号、支付方式文本、亲属卡/虚拟卡等账户别名，用于增强关系候选匹配；别名冲突必须保守处理；别名不得覆盖导入账户路由。
 
 #### Scenario: 验收场景 1
 - GIVEN 迁移前规格所描述的有效业务上下文。
@@ -63,7 +63,7 @@ User description: "重新设计账单导入后的去重、退款核销、转账�
 - THEN 系统满足该条件，并保留可复核的验证证据。
 
 ### Requirement: 转账关系的本人账户标识证据
-系统 MUST 在转账、提现和还款的转出方具有来源直接提供的对方账号时，以当前工作区用户显式登记的本人账户标识收敛或排除既有候选。该证据只能筛选已满足金额、币种、时间、方向和记录类型规则的候选，且不得单独使关系自动确认。系统 MUST 在证据中只记录 `counterparty_account_match=exact`、`tail` 或空字符串，不得保存任何账号原文。
+系统 MUST 在转账、提现和还款的转出方具有来源直接提供的对方账号时，以当前工作区用户显式登记的本人账户标识收敛或排除既有候选。账号命中只能筛选已满足金额、币种、时间、方向和记录类型规则的候选，且不得单独使关系自动确认。命中结果仅在本次匹配中使用，不得写入关系、日志、CLI 输出或任何 JSON。
 
 #### Scenario: 账号证据不放宽转账门槛
 - **WHEN** 对方账号命中一个候选账户但该候选不满足既有金额、币种、时间、方向或记录类型门槛
@@ -71,7 +71,22 @@ User description: "重新设计账单导入后的去重、退款核销、转账�
 
 #### Scenario: 账号证据收敛强候选
 - **WHEN** 多个既有强转账候选中只有一个目标账户命中来源直接提供的对方账号
-- **THEN** 系统 MUST 仅对该命中候选按既有规则创建关系，并在证据中记录命中种类
+- **THEN** 系统 MUST 仅对该命中候选按既有规则创建关系
+
+### Requirement: 平台支付方式验证同账户支付镜像
+系统 MUST 仅在既有 `payment_mirror` 的平台账单与银行账单属于同一 `account_id` 时，使用平台侧原始 `payment_method` 中的账户标识验证该账户。未掩码完整数字标识 MUST 与唯一 `account_identifier` 精确匹配；仅有四位尾号时，系统 MUST 同时使用显式 `card_tail` 和完整 `account_identifier` 推导的尾号，并且仅当合并结果唯一映射到该账户时作为匹配条件。该条件 MUST NOT 创建跨账户支付镜像、放宽金额或币种条件，或将完整账号、账号尾号或命中过程写入关系。
+
+#### Scenario: 完整账号验证支付镜像
+- **WHEN** 平台账单 `payment_method` 含有未掩码完整账号，且该账号唯一匹配同账户的 `account_identifier`
+- **THEN** 系统 MUST 将其作为支付镜像匹配条件
+
+#### Scenario: 由完整账号推导的唯一尾号验证支付镜像
+- **WHEN** 平台账单 `payment_method` 仅包含四位尾号，用户没有对应 `card_tail` 但有同账户、尾号唯一的完整 `account_identifier`
+- **THEN** 系统 MUST 将其作为支付镜像身份证据
+
+#### Scenario: 支付方式尾号冲突
+- **WHEN** 显式 `card_tail` 与完整 `account_identifier` 推导后有多个账户共享平台支付方式尾号
+- **THEN** 系统 MUST NOT 将该尾号作为支付镜像身份证据或提高置信度
 
 ### Requirement: 规则升级可 supersede 旧关系
 系统 MUST 作为系统维护者，规则版本升级后可以产生新关系版本，将旧关系标记为 `superseded`，而不是原地覆盖历史判断；审计可解释为何升级。
@@ -96,15 +111,15 @@ User description: "重新设计账单导入后的去重、退款核销、转账�
 - - **FR-004**: 既有导入链路合同 MUST 保持：workspace 隔离、文件级幂等（workspace+source+digest）、行级幂等（workspace+source_type+source_identity，**仅对活跃正式事实**）、raw→formal 关联、原始记录不可变、正式事实追加式 revision 审计、Decimal 金额、统一时区可比较时间。
 - - **FR-005**: 同一 RawRecord 若被路由到不同账户，System MUST 拒绝，不得静默改归属。
 - - **FR-006**: 本 feature MUST NOT 恢复 CSV 时代的物理删除式 dedup/reconcile，也 MUST NOT 把 pending CSV 作为候选审查机制。
-- - **FR-007**: System MUST 以数据库原生对象持久化事实间关系（或候选与关系的等价模型），至少包含：workspace、kind、锚点/对侧事实引用、status、rule_id、confidence、evidence、创建者/来源、时间、版本/revision。对 `refund_offset` 与 `transfer_pair`，**待配对关系** `pending_review` 允许对侧事实引用为空；`accepted` 的对侧 MUST 非空。`payment_mirror` 的两侧 MUST 始终非空。
+- - **FR-007**: System MUST 以数据库原生对象持久化事实间关系，至少包含：workspace、kind、锚点/对侧事实引用、status、rule_id、创建者、创建时间与人工决定。分数、信号和派生对照 MUST NOT 落库；唯一例外是待配对关系为人工选择对侧保存的 `candidate_fact_ids`，其仅包含按规则排序、去重且最多 20 个的账本记录 ID。对 `refund_offset` 与 `transfer_pair`，**待配对关系** `pending_review` 允许对侧事实引用为空；`accepted` 的对侧 MUST 非空。`payment_mirror` 的两侧 MUST 始终非空。
 - - **FR-008**: 关系 kind 至少支持：`payment_mirror`（跨平台消费镜像）、`transfer_pair`、`refund_offset`。信用还款不使用独立顶层 kind，而以 `transfer_pair` + subtype/证据（如 `credit_repayment`）表达；用户可见语义与报表影响 MUST 仍可区分普通内部转账与信用还款。MUST NOT 引入 `duplicate_of` 或等价 duplicated/canonical 关系 kind 来表达“重复事实只统计一条”。
 - - **FR-009**: 关系状态 MUST 支持：`pending_review`、`accepted`、`rejected`、`superseded`。
 - - **FR-010**: `pending_review`（含待配对关系）与 `rejected` MUST NOT 影响报表与当前派生投影；仅 **双边** `accepted` 影响当前报表；`superseded` 不参与当前报表但保留审计。待配对关系 MUST NOT 因“有锚点”而提前排除转账或核销退款。
-- - **FR-011**: 自动 accepted MUST 保存 rule_id、confidence 与 evidence；人工 accept/reject MUST 保存操作者、时间与原因。
+- - **FR-011**: 自动 accepted MUST 保存 rule_id；人工 accept/reject MUST 保存操作者、时间与原因。
 - - **FR-012**: 人工决策 MUST NOT 被后续自动规则静默覆盖；替换 MUST 通过新版本 + `superseded` 审计链完成。
 - - **FR-013**: 同一 workspace 内，同一关系业务键上的活跃（非 superseded）表达 MUST 唯一。**双边**业务键至少包含 `(workspace, kind, ordered_fact_pair, subtype_if_any)`。**待配对关系**业务键至少包含 `(workspace, kind, subtype_if_any, anchor_fact_id, open)`，同一锚点不得并存多条有效待配对关系。两类键均不得并存多个活跃 pending/accepted/rejected。
 - - **FR-014**: rejected 决策 MUST 持久化，使同一候选业务键在后续自动检查中不再重复推荐为 pending（除非显式 supersede 重开）。
-- - **FR-015**: 每条自动生成的候选或 accepted 关系 MUST 保存可解释 evidence（如金额差、时间差、币种一致、卡尾号、账户别名命中、counterparty 相似度、source 对、rule_id 等）。
+- - **FR-015**: 每条自动生成的关系 MUST 能由正式事实、当前别名和 `rule_id` 重新计算；金额差、时间差、账号命中、信号和其他过程值 MUST NOT 落库。待配对关系的 `candidate_fact_ids` 是人工选择所需的受控操作状态，确认、驳回或 supersede 后 MUST 清空。
 - - **FR-016**: 跨平台镜像 `payment_mirror` 匹配 MUST 对齐 main 分支跨源去重的**精度与静默策略**，并适配多账户模型。具体 MUST：
 - - **FR-017**: 内部转账匹配信号 MUST 参考 main 分支 reconcile 转账语义：一正一负、不同账户、同币种绝对金额严格相等、有效时间接近、转账强信号词（如转账支取/存入、银联入账、手机银行、提现等）；并支持同日银联现金类已验证规则族。同币种强匹配 auto-accept 时间窗为有效时间差 ≤10 秒且候选唯一；同日宽窗口 auto-accept 仅允许“银联入账/电子汇入 ↔ 无卡付/**无卡支付**/云闪付/转账支取”强信号组合且候选唯一。**当任一侧为银行 date-only 导出**（raw_payload `date` 为 `YYYY-MM-DD`，无真实钟点；formal 常落 16:00 UTC）时，MUST 回退用 **raw 业务日**（与 payment_mirror FR-052/053 同一 `business_day_shanghai` / `fact_is_bank_date_only`）判定同日，且 MUST NOT 用 formal 16:00 哨兵时刻计算 Δt 来否决同日银联桥；同业务日 + 等额 + 银联/转账强信号 + 唯一候选 → MAY auto-accept。同币种两侧任意非零金额差额 MUST NOT auto-accept，但 MAY 以精确 `amount_delta` 证据进入 pending；不得把差额舍入、吸收或隐式解释为手续费。当转账/还款合法对侧 ≥2 或不唯一时，MUST 落 1 条待配对关系（锚点由信号规则决定），而非 N 条双边 pending；唯一近强对侧 MAY 双边 pending。
 - - **FR-018**: 信用还款匹配 MUST 覆盖 cash→loan 同币种与跨币种（含购汇还款）形态。信用还款以 `transfer_pair` subtype（如 `credit_repayment`）表达；用户可见语义与报表影响 MUST 可区分普通内部转账与信用还款。
@@ -116,11 +131,11 @@ User description: "重新设计账单导入后的去重、退款核销、转账�
 - - **FR-024**: 关系检查 MUST 幂等、可重试；失败 MUST NOT 破坏或回滚已导入事实。同步执行或登记可重试任务均可；若检查未完成/失败，正式事实仍保持已导入状态，并可再次触发检查。同一 workspace 内并发检查 MUST 收敛到等价结果，不得产生重复活跃关系或静默覆盖人工决策。
 - - **FR-025**: 对每个种子事实，System MUST 在同一 workspace 的全部既有**活跃**正式事实中，按关系类型使用有界、可索引的候选条件（金额、币种、时间窗口、账户类型、支付方式、卡尾号、别名、文本、source 组合、外部 id 等）筛选候选；候选 MAY 来自任意既有导入批次。增量检查 MUST 只创建或重评至少包含一个种子事实的关系，**不得以全库无界双重扫描（O(n²) 笛卡尔式）作为正确性或默认实现路径**。
 - - **FR-026**: 关联账单后到才导入时，后到批次的新增正式事实作为种子，MUST 仍能与先前任意批次中符合规则的活跃事实建立关系。手动按批次、事实或日期范围重跑时，指定范围 MUST 只限定种子事实；候选 MAY 位于该范围之外，但 MUST 满足关系类型的规则。全 workspace 重算 MUST 由显式全量重跑触发。
-- - **FR-027**: System MUST 提供审查入口列出 pending 候选，展示 kind、锚点事实关键字段、对侧字段（待配对关系可空）、evidence（含 candidate_fact_ids/candidate_count/anchor_role 若有）、confidence。
-- - **FR-028**: 用户 MUST 能 accept、reject、ignore/later；accept/reject MUST 写审计。ignore/later MUST NOT 创建独立终态，候选保持 `pending_review`，可记录稍后处理意图，继续不影响报表，并仍出现在审查入口。
-- - **FR-029**: 状态迁移至少支持：`pending_review→accepted`、`pending_review→rejected`、`accepted→superseded`；`rejected→superseded` 仅在新规则/新证据明确重开时允许。ignore/later 不改变 `pending_review` 状态。待配对关系仅存在于 `pending_review`；进入 accepted 时 MUST 已是双边。
+- - **FR-027**: System MUST 提供审查入口列出 pending 候选，展示 kind、锚点事实关键字段与对侧字段（待配对关系可空）。
+- - **FR-028**: 用户 MUST 能 accept、reject；accept/reject MUST 写审计。
+- - **FR-029**: 状态迁移至少支持：`pending_review→accepted`、`pending_review→rejected`、`accepted→superseded`；`rejected→superseded` 仅在新规则或新事实明确重开时允许。待配对关系仅存在于 `pending_review`；进入 accepted 时 MUST 已是双边。
 - - **FR-030**: System MUST 支持账户别名（卡尾号、支付方式文本、历史卡号、亲属卡/虚拟卡等）用于候选增强与验证。
-- - **FR-031**: 别名命中 MUST 进入 evidence；别名冲突 MUST 可见；别名 MUST NOT 无审计地替代导入 mapping 路由。
+- - **FR-031**: 别名冲突 MUST 保守处理；别名 MUST NOT 替代导入 mapping 路由。
 - - **FR-032**: 别名变更后 MUST 能触发相关候选重算（幂等、可审计）。
 - - **FR-033**: 收支类报表/投影 MUST 基于「活跃正式事实 + **双边** accepted 关系」计算，而不是修改事实后的净额字段，也不是读取行内 `offset_*`/`transfer_account` 权威字段；对侧为空的 pending MUST 忽略。
 - - **FR-034**: 收支投影 MUST 按以下顺序解释 accepted 关系：先将 accepted `payment_mirror` 连通事实归一为逻辑事件组并确定一次外部计次，再排除 accepted `transfer_pair`（含 credit repayment subtype）两侧，最后以逻辑事件组标识应用 accepted `refund_offset`，得到原始消费、退款与净消费。同一退款镜像组 MUST 只贡献一次核销；组合关系 MUST NOT 重复计次、重复排除或重复核销。错误重复事实通过用户手动逻辑删除后不再进入统计，而不是通过 duplicated 关系排重。
@@ -131,10 +146,10 @@ User description: "重新设计账单导入后的去重、退款核销、转账�
 - - **FR-039**: PostgreSQL 与 SQLite MUST 对上述用户可见行为、幂等、失败合同与报表结果提供等价证据；禁止自动回退、双写、隐式跨后端迁移。允许的运行差异仅限锁实现、并发吞吐、底层驱动错误信息与任务调度时延。
 - - **FR-040**: 文档与操作说明 MUST 说明：自动流程不得删改事实、用户手动逻辑删除及其审计语义、逻辑删除后再导入发布新活跃事实、关系状态机、审查入口、报表如何读取 accepted 关系、与旧 CSV reconcile 及行内 offset 字段的差异。
 - - **FR-041**: 逻辑删除后再导入同 identity 时，文件级 digest 幂等 MUST 继续阻止同一已成功文件整文件重放；行级 MUST 在无活跃同 identity 事实时允许发布新活跃正式事实，且新旧实例可审计区分。
-- - **FR-042**: System MUST 支持 `refund_offset` 与 `transfer_pair`（含 `credit_repayment`）的 **待配对关系** `pending_review`：锚点事实非空，对侧事实为空，建议对侧（若有）仅存在于 evidence，不落多条关系行。
+- - **FR-042**: System MUST 支持 `refund_offset` 与 `transfer_pair`（含 `credit_repayment`）的 **待配对关系** `pending_review`：锚点事实非空，对侧事实为空，不落多条关系行。
 - - **FR-043**: 待配对关系触发条件 MUST 为：在既有匹配规则下，锚点形态成立，且（合法对侧候选 ≥2，或候选为 0 但仍需人工处理的高信号锚点）。唯一对侧的近强未达 MAY 仍建双边 pending；唯一强匹配 MUST 仍双边 auto-accepted（若达标）。
 - - **FR-044**: `payment_mirror` MUST NOT 使用待配对关系模型。
-- - **FR-045**: 待配对关系的 `evidence` MUST 可包含：`open_leg=true`、`anchor_role`、`candidate_count`、`candidate_fact_ids`（按规则排序的 top-K，默认 K=20；没有候选时列表可空）。
+- - **FR-045**: 待配对关系 MUST 以 `candidate_fact_ids` 保存按规则排序、去重的 top-K 候选账本记录 ID（默认 K=20；没有候选时列表可空）。人工 accept 必须选择该列中的活跃同工作区流水；不得保存 `open_leg`、`anchor_role`、`candidate_count` 或其他过程证据。
 - - **FR-046**: 用户为待配对关系指定对侧并 accept 后，结果 MUST 与「系统一开始就唯一匹配到该对侧并 accepted」在投影语义上等价（在通过同一合法性校验的前提下）。
 - - **FR-047**: System MUST NOT 创建占位/虚假正式事实充当对侧以回避可空对侧。
 
@@ -162,9 +177,9 @@ User description: "重新设计账单导入后的去重、退款核销、转账�
 - - **SC-015**: 对“活跃同 identity 再导入”样本 100% 不重复发布；对“仅存在已逻辑删除同 identity 后再导入”样本 100% 成功发布新活跃事实且不静默复活旧实例。
 - - **SC-016**: 先导入银行、后导入对应支付平台的跨批样本中，后批检查后 100% 能建立跨批 `payment_mirror`（accepted 或 pending），且不改写旧批事实。
 - - **SC-018**: 在含 ≥10_000 条活跃现金事实（约 3 年个人账本量级）的库上，单次全量关系检查 wall clock ≤ 60 秒；且实现路径不依赖对全部事实的无界双重全表扫描。
-- - **SC-019**: 在「1 个退款锚点 × N 个同商户合法消费候选」（N≥2）样本上，关系检查后活跃 `refund_offset` pending 条数 MUST 为 1（待配对关系），且 evidence.candidate_count≥N 或 candidate_fact_ids 长度反映截断前的意图；MUST NOT 产生 N 条双边 pending。
+- - **SC-019**: 在「1 个退款锚点 × N 个同商户合法消费候选」（N≥2）样本上，关系检查后活跃 `refund_offset` pending 条数 MUST 为 1（待配对关系），且 `candidate_fact_ids` 按规则顺序列出最多 20 个候选；MUST NOT 产生 N 条双边 pending。
 - - **SC-020**: 用户对待配对关系指定合法对侧 accept 后，净消费/转账排除结果与手工验算一致；accept 前投影与无该关系一致。
-- - **SC-021**: 0 候选高信号退款/转账锚点 MUST 可进入待配对关系；用户后续选定合法对侧后可完成 accepted。
+- - **SC-021**: 0 候选高信号退款/转账锚点 MUST 可进入待配对关系并保存空 `candidate_fact_ids`；用户不得绕过空候选集合任意选择对侧，后续关系检查得到候选后才可完成 accepted。
 - - **SC-022**: 驳回待配对关系后，自动重跑时同一待配对锚点键 100% 不再出现新关系（除非 supersede 重开）。
 - - **SC-023**: `payment_mirror` 全量检查不得产生对侧为空的关系行。
 

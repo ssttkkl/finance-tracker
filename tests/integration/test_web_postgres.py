@@ -122,8 +122,6 @@ def test_postgres_evidence_read_uses_one_projection_snapshot(postgres_cash_web_r
             anchor_fact_id=1004,
             status="accepted",
             rule_id="refund.fixture.v1",
-            confidence="strong",
-            evidence_json={"amount_match": True},
         ))
     baseline = CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
 
@@ -143,7 +141,6 @@ def test_postgres_evidence_read_uses_one_projection_snapshot(postgres_cash_web_r
                 TransactionRelationModel.status == "accepted",
             ))
             accepted.rule_id = "refund.fixture.v2"
-            accepted.evidence_json = {"amount_match": False}
             session.add(TransactionRelationModel(
                 workspace_id=runtime.workspace_id,
                 kind="transfer_pair",
@@ -173,5 +170,4 @@ def test_postgres_evidence_read_uses_one_projection_snapshot(postgres_cash_web_r
     assert len(evidence["accepted_relations"]) == 1
     assert evidence["accepted_relations"][0]["kind"] == "refund_offset"
     assert evidence["accepted_relations"][0]["rule_id"] == "refund.fixture.v1"
-    assert evidence["accepted_relations"][0]["evidence"] == {"amount_match": True}
     assert evidence["inactive_relation_hints"] == []

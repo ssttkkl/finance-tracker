@@ -112,9 +112,63 @@ def test_counterparty_account_matching_is_workspace_scoped_and_redacted(tmp_path
             assert relation is not None
             assert relation.primary_fact_id == out_id
             assert relation.secondary_fact_id == target_fact_id
-            assert relation.evidence_json["counterparty_account_match"] == "exact"
-            evidence = json.dumps(relation.evidence_json, ensure_ascii=False)
-            assert "6222" not in evidence
+            assert not hasattr(relation, "evidence_json")
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize("backend", postgres_test_backend_params())
+def test_payment_method_full_account_identifier_verifies_mirror_without_leaking_value(tmp_path, backend):
+    from ft.adapters.relational.models import AccountModel, TransactionRelationModel
+    from ft.application.relations import RelationService
+    from ft.domain.relations import RelationKind, RelationStatus
+
+    engine, sessions, uow = _backend(tmp_path, backend)
+    try:
+        with uow as session:
+            session.accounts.add_raw({"name": "结算账户", "type": "cash", "currency": "CNY"})
+            account = session._state().session.scalar(select(AccountModel).where(
+                AccountModel.workspace_id == "counterparty-account",
+                AccountModel.name == "结算账户",
+            ))
+            assert account is not None
+            session.account_aliases.add(
+                alias_type="account_identifier",
+                alias_value="6222000000001234",
+                account_id=account.id,
+            )
+            platform_id = session.cashflows.add("cash", {
+                **_row(
+                    account_name="结算账户", record_id="platform", amount="-100.00",
+                    record_type="consumption", occurred_at="2026-01-01 10:00:00",
+                ),
+                "source_type": "alipay",
+                "source_payload": {"收/付款方式": "招商银行储蓄卡（6222 0000 0000 1234）"},
+                "note": "消费",
+            })
+            bank_id = session.cashflows.add("cash", {
+                **_row(
+                    account_name="结算账户", record_id="bank", amount="-100.00",
+                    record_type="consumption", occurred_at="2026-01-01 10:00:05",
+                ),
+                "source_type": "icbc_debit",
+                "source_payload": {"摘要": "扣款"},
+                "note": "扣款",
+            })
+            session.commit()
+
+        result = RelationService(uow).check(seed_fact_ids=[platform_id], trigger="manual_range")
+        assert result.ok is True
+
+        with sessions() as session:
+            relation = session.scalar(select(TransactionRelationModel).where(
+                TransactionRelationModel.workspace_id == "counterparty-account",
+                TransactionRelationModel.kind == RelationKind.PAYMENT_MIRROR.value,
+                TransactionRelationModel.status == RelationStatus.ACCEPTED.value,
+            ))
+            assert relation is not None
+            assert {relation.primary_fact_id, relation.secondary_fact_id} == {platform_id, bank_id}
+            assert not hasattr(relation, "evidence_json")
     finally:
         engine.dispose()
 

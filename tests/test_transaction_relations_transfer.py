@@ -3,8 +3,11 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
+
 from ft.domain.relations import (
     FactView,
+    RelationEvidence,
     RelationStatus,
     SUBTYPE_CREDIT_REPAYMENT,
     evaluate_transfer_pair,
@@ -24,6 +27,12 @@ def _fv(**kwargs):
             "transfer_in" if amount > 0 else "other"
         )
     return FactView(**base)
+
+
+def test_relation_evidence_is_not_a_persisted_schema_contract():
+    evidence = RelationEvidence()
+    assert not hasattr(evidence, "to_json")
+    assert not hasattr(RelationEvidence, "from_json")
 
 
 def test_transfer_pair_auto_accept_exact():
@@ -65,8 +74,6 @@ def test_transfer_pair_exact_counterparty_account_selects_only_registered_target
     assert proposal is not None
     assert proposal.status == RelationStatus.ACCEPTED.value
     assert proposal.secondary_fact_id == "target"
-    assert proposal.evidence.counterparty_account_match == "exact"
-    assert "6222" not in str(proposal.evidence.to_json())
 
 
 def test_transfer_pair_unique_counterparty_tail_selects_only_registered_target():
@@ -92,7 +99,6 @@ def test_transfer_pair_unique_counterparty_tail_selects_only_registered_target()
     assert proposal is not None
     assert proposal.status == RelationStatus.ACCEPTED.value
     assert proposal.secondary_fact_id == "target"
-    assert proposal.evidence.counterparty_account_match == "tail"
 
 
 def test_transfer_pair_excludes_registered_candidates_with_mismatched_counterparty_account():
@@ -140,7 +146,6 @@ def test_transfer_pair_conflicting_counterparty_tail_does_not_auto_accept():
 
     assert proposal is not None
     assert proposal.status != RelationStatus.ACCEPTED.value
-    assert proposal.evidence.counterparty_account_match == ""
 
 
 def test_transfer_pair_without_counterparty_account_keeps_existing_behavior():
@@ -160,7 +165,6 @@ def test_transfer_pair_without_counterparty_account_keeps_existing_behavior():
 
     assert proposal is not None
     assert proposal.status == RelationStatus.ACCEPTED.value
-    assert proposal.evidence.counterparty_account_match == ""
 
 
 def test_transfer_pair_without_numeric_counterparty_account_keeps_existing_behavior():

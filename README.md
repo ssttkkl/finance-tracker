@@ -14,7 +14,7 @@
 uv sync
 export FT_DATABASE_URL='postgresql+psycopg://localhost/finance_tracker'
 export FT_WORKSPACE_ID='default'
-uv run alembic upgrade head    # head / SCHEMA_REVISION: 20260729_11
+uv run alembic upgrade head    # head / SCHEMA_REVISION: 20260803_18
 uv run python -c "
 import os
 from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace
@@ -186,7 +186,7 @@ uv run ft sync --source binance --account 币安 --full   # 忽略游标，全�
 | `convert` / `stock convert` | 解析预览 → CSV（非账本） |
 | `stock {buy,sell,swap,deposit,withdraw,dividend,checkin,list}` | 投资手动 + 持仓估值 |
 | `sync` | 交易所 / Polymarket API 同步 |
-| `relations {pending,check,accept,reject,later,alias-add}` | 关系审查 |
+| `relations {pending,check,accept,reject,alias-add}` | 关系审查 |
 | `fact-delete` | 以可审计方式逻辑删除现金流水 |
 | `web` | 仅本机启动收支账本只读 API |
 

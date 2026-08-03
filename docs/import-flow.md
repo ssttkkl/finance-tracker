@@ -42,7 +42,7 @@ ft sync --source binance|kraken|okx|polymarket --account NAME [--full] [--batch-
 ```bash
 ft relations pending [--kind …]
 ft relations check [--fact-id …] [--batch-id …]
-ft relations accept|reject|later <relation_id> […]
+ft relations accept|reject <relation_id> […]
 ft relations alias-add --type card_tail --value 1234 --account '某储蓄卡'
 ft relations alias-add --type account_identifier --value 6222000000001234 --account '某储蓄卡'
 ft fact-delete <fact_id> --reason '…'

@@ -140,7 +140,6 @@ def test_auto_scan_keeps_indirect_relation_kind_conflict_pending_and_commits_imp
     assert len(facts) == 4
     assert len(relations) == 1
     assert relations[0]["status"] == "pending_review"
-    assert relations[0]["evidence"]["auto_confirmation_blocker"] == "relation.kind_conflict"
 
     rescan = services.relations.check(
         seed_fact_ids=[expense_id, refund_id, mirrored_refund_id, transfer_id],
@@ -153,4 +152,3 @@ def test_auto_scan_keeps_indirect_relation_kind_conflict_pending_and_commits_imp
         relations = uow.relations.list_active(kind="transfer_pair")
     assert len(relations) == 1
     assert relations[0]["status"] == "pending_review"
-    assert relations[0]["evidence"]["auto_confirmation_blocker"] == "relation.kind_conflict"

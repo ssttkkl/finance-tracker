@@ -383,9 +383,6 @@ class RelationEvidence:
     amount_delta: str = "0"
     time_delta_seconds: int = 0
     same_currency: bool = True
-    card_tail_match: str = ""
-    account_alias_match: bool = False
-    counterparty_account_match: str = ""
     counterparty_similarity: str = ""
     source_pair: tuple[str, str] = ("", "")
     rule_id: str = ""
@@ -395,65 +392,6 @@ class RelationEvidence:
     anchor_role: str = ""
     candidate_fact_ids: tuple[str, ...] = ()
     extras: Mapping[str, Any] = field(default_factory=dict)
-
-    def to_json(self) -> dict[str, Any]:
-        payload: dict[str, Any] = {
-            "amount_delta": self.amount_delta,
-            "time_delta_seconds": self.time_delta_seconds,
-            "same_currency": self.same_currency,
-            "card_tail_match": self.card_tail_match,
-            "account_alias_match": self.account_alias_match,
-            "counterparty_account_match": self.counterparty_account_match,
-            "counterparty_similarity": self.counterparty_similarity,
-            "source_pair": list(self.source_pair),
-            "rule_id": self.rule_id,
-            "candidate_count": self.candidate_count,
-            "signals": list(self.signals),
-        }
-        if self.open_leg or self.anchor_role or self.candidate_fact_ids:
-            payload["open_leg"] = bool(self.open_leg)
-            if self.anchor_role:
-                payload["anchor_role"] = self.anchor_role
-            payload["candidate_fact_ids"] = list(self.candidate_fact_ids)
-        payload.update(dict(self.extras))
-        return payload
-
-    @classmethod
-    def from_json(cls, data: Mapping[str, Any] | None) -> "RelationEvidence":
-        data = dict(data or {})
-        known = {
-            "amount_delta", "time_delta_seconds", "same_currency", "card_tail_match",
-            "account_alias_match", "counterparty_similarity", "source_pair", "rule_id",
-            "counterparty_account_match",
-            "candidate_count", "signals", "open_leg", "anchor_role", "candidate_fact_ids",
-        }
-        source_pair = data.get("source_pair") or ("", "")
-        if isinstance(source_pair, list):
-            source_pair = tuple(source_pair[:2]) if source_pair else ("", "")
-        signals = data.get("signals") or ()
-        if isinstance(signals, list):
-            signals = tuple(signals)
-        cand_ids = data.get("candidate_fact_ids") or ()
-        if isinstance(cand_ids, list):
-            cand_ids = tuple(str(x) for x in cand_ids)
-        extras = {k: v for k, v in data.items() if k not in known}
-        return cls(
-            amount_delta=str(data.get("amount_delta", "0")),
-            time_delta_seconds=int(data.get("time_delta_seconds") or 0),
-            same_currency=bool(data.get("same_currency", True)),
-            card_tail_match=str(data.get("card_tail_match") or ""),
-            account_alias_match=bool(data.get("account_alias_match", False)),
-            counterparty_account_match=str(data.get("counterparty_account_match") or ""),
-            counterparty_similarity=str(data.get("counterparty_similarity") or ""),
-            source_pair=(str(source_pair[0]), str(source_pair[1])) if len(source_pair) == 2 else ("", ""),
-            rule_id=str(data.get("rule_id") or ""),
-            candidate_count=int(data.get("candidate_count") or 1),
-            signals=tuple(signals),
-            open_leg=bool(data.get("open_leg", False)),
-            anchor_role=str(data.get("anchor_role") or ""),
-            candidate_fact_ids=tuple(cand_ids),
-            extras=extras,
-        )
 
 
 @dataclass(frozen=True)
@@ -479,6 +417,11 @@ class RelationProposal:
         if self.open_leg and not self.anchor_fact_id:
             object.__setattr__(self, "anchor_fact_id", self.primary_fact_id)
 
+    @property
+    def refund_amount(self) -> Decimal:
+        """退款匹配在单次计算中使用的金额，不写入关系表。"""
+        return _as_decimal((self.evidence.extras or {}).get("refund_amount"))
+
 
 @dataclass(frozen=True)
 class FactView:
@@ -491,6 +434,7 @@ class FactView:
     occurred_at: datetime | str = ""
     counterparty: str = ""
     counterparty_account: str = ""
+    payment_method: str = ""
     note: str = ""
     category: str = ""
     record_type: str = "other"

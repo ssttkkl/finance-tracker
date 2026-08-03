@@ -192,6 +192,7 @@ def run_relation_phases(
     mirror_props = match_payment_mirrors_greedy(
         active,
         aliases_by_tail=aliases_by_tail,
+        account_identifiers_by_value=account_identifiers_by_value,
         seed_ids=seed_ids,
         index=index,
         occupied_fact_ids=occupied_mirror_fact_ids,

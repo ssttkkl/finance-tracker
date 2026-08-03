@@ -25,6 +25,8 @@ def test_repository_has_clean_linear_revisions():
         "20260802_14_cash_record_type_reversal_withdrawal.py",
         "20260802_15_split_withdrawal_direction.py",
         "20260803_16_cash_counterparty_account.py",
+        "20260803_17_simplify_transaction_relations.py",
+        "20260803_18_open_leg_candidate_fact_ids.py",
     ]
 
 
@@ -53,6 +55,12 @@ def test_initial_alembic_revision_upgrades_and_downgrades(tmp_path):
     } <= tables
     assert not {"import_batches", "raw_files", "raw_records", "record_revisions",
                 "fact_deletion_events", "relation_check_runs"} & tables
+    relation_columns = {
+        column["name"]
+        for column in inspect(engine).get_columns("transaction_relations")
+    }
+    assert {"evidence_json", "confidence", "later_marker"}.isdisjoint(relation_columns)
+    assert "candidate_fact_ids" in relation_columns
 
     # 005 is an explicitly one-shot, non-reversible account merge.
     with pytest.raises(NotImplementedError, match="one-shot"):
@@ -116,6 +124,11 @@ def test_metadata_uses_enforceable_fact_relationships_post_015():
         assert "raw_record_id" not in model.__table__.c
         assert "revision" not in model.__table__.c
     assert "counterparty_account" in CashTransactionModel.__table__.c
+    from ft.adapters.relational.models import TransactionRelationModel
+    assert {"evidence_json", "confidence", "later_marker"}.isdisjoint(
+        TransactionRelationModel.__table__.c.keys()
+    )
+    assert "candidate_fact_ids" in TransactionRelationModel.__table__.c
     assert "price" not in InvestmentEventModel.__table__.c
     for dead in (
         "source", "bill_source", "transfer_account", "locked",
@@ -159,7 +172,7 @@ def test_migrated_sqlite_amount_columns_use_canonical_text_and_round_trip_exactl
         engine.dispose()
 
 
-def test_counterparty_account_migration_backfills_only_recoverable_source_values(tmp_path):
+def test_counterparty_account_migration_does_not_read_legacy_source_payload(tmp_path):
     from alembic import command
     from alembic.config import Config
     from sqlalchemy import create_engine, text
@@ -200,10 +213,93 @@ def test_counterparty_account_migration_backfills_only_recoverable_source_values
                 "SELECT record_id, counterparty_account FROM cash_transactions"
             )).all())
         assert values == {
-            "alipay-1": "示例卡(4321)",
-            "ccb-1": "6222****4321",
+            "alipay-1": "",
+            "ccb-1": "",
             "unknown-1": "",
         }
+    finally:
+        engine.dispose()
+
+
+def test_relation_simplification_preserves_referencing_projection_rows(tmp_path):
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+
+    root = Path(__file__).parents[1]
+    database = tmp_path / "relation-reference.db"
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "migrations"))
+    config.set_main_option("sqlalchemy.url", f"sqlite+pysqlite:///{database}")
+    command.upgrade(config, "20260803_16")
+    engine = create_engine(f"sqlite+pysqlite:///{database}")
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', CURRENT_TIMESTAMP)"
+            ))
+            connection.execute(text(
+                """INSERT INTO transaction_relations (
+                    workspace_id, kind, subtype, primary_fact_id, secondary_fact_id,
+                    primary_fact_type, secondary_fact_type, ordered_fact_a, ordered_fact_b,
+                    active_slot, status, rule_id, confidence, evidence_json, created_by,
+                    created_at, decided_by, decision_reason, later_marker, anchor_fact_id
+                ) VALUES (
+                    'w', 'transfer_pair', '', 1, 2, 'cash', 'cash', 1, 2,
+                    'active', 'accepted', 'fixture.v1', 'strong', '{}', 'system',
+                    CURRENT_TIMESTAMP, '', '', '', 1
+                )"""
+            ))
+            connection.execute(text(
+                """CREATE TABLE relation_reference (
+                    relation_id INTEGER NOT NULL REFERENCES transaction_relations(id)
+                )"""
+            ))
+            connection.execute(text("INSERT INTO relation_reference (relation_id) VALUES (1)"))
+
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT relation_id FROM relation_reference")) == 1
+            assert connection.execute(text("PRAGMA foreign_key_check")).all() == []
+    finally:
+        engine.dispose()
+
+
+def test_open_leg_candidate_migration_defaults_existing_relations_to_empty_list(tmp_path):
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+    import json
+
+    root = Path(__file__).parents[1]
+    database = tmp_path / "open-leg-candidates.db"
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "migrations"))
+    config.set_main_option("sqlalchemy.url", f"sqlite+pysqlite:///{database}")
+    command.upgrade(config, "20260803_17")
+    engine = create_engine(f"sqlite+pysqlite:///{database}")
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', CURRENT_TIMESTAMP)"
+            ))
+            connection.execute(text(
+                """INSERT INTO transaction_relations (
+                    workspace_id, kind, subtype, primary_fact_id, primary_fact_type,
+                    ordered_fact_a, ordered_fact_b, active_slot, status, rule_id,
+                    created_by, created_at, anchor_fact_id
+                ) VALUES (
+                    'w', 'transfer_pair', '', 1, 'cash',
+                    1, 0, 'active', 'pending_review', 'fixture.v1',
+                    'system', CURRENT_TIMESTAMP, 1
+                )"""
+            ))
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            raw_value = connection.scalar(text(
+                "SELECT candidate_fact_ids FROM transaction_relations"
+            ))
+        assert json.loads(raw_value) == []
     finally:
         engine.dispose()
 
@@ -256,6 +352,8 @@ def test_initial_revision_upgrades_dedicated_postgresql():
             assert {"source_type", "record_id", "source_payload", "counterparty_account"} <= cash_cols
             rel_cols = {c["name"] for c in inspect(engine).get_columns("transaction_relations")}
             assert "anchor_fact_id" in rel_cols
+            assert "candidate_fact_ids" in rel_cols
+            assert {"evidence_json", "confidence", "later_marker"}.isdisjoint(rel_cols)
             # Multi-currency (20260720_04) and fact-field unify (20260724_07) are one-shot.
             # Only walk back through unpaired-relation removal to preserve reversible history.
             with pytest.raises(NotImplementedError, match="one-shot"):

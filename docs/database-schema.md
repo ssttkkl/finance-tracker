@@ -1,7 +1,7 @@
 # Finance Tracker 数据库表结构文档（018 落地态）
 
 > **文档性质**：**`015` 内联溯源 + `016` 整数代理主键 + `018` `sync_cursors`** 后的 schema 速查。  
-> **运行时权威**：`src/ft/adapters/relational/models.py` + Alembic head **`20260726_10`**（`SCHEMA_REVISION` 同值）。  
+> **运行时权威**：`src/ft/adapters/relational/models.py` + Alembic head **`20260803_18`**（`SCHEMA_REVISION` 同值）。
 > **双后端**：PostgreSQL 与文件型 SQLite；逻辑 schema 共享。  
 > **主键**：账本代理主键/外键为 **整数**（PG `BIGINT` / SQLite `INTEGER`，`SurrogatePK`）。  
 > **不恢复**：015 已删的导入作业/raw/修订/检查 run 等表。
@@ -335,16 +335,13 @@ workspaces  (租户隔离根)
 | `active_slot` | String(36) | N | 活跃占位；默认 `active`；superseded 用 id 字符串释放键 |
 | `status` | String(32) | N | pending_review / accepted / rejected / superseded |
 | `rule_id` | String(128) | N | 匹配规则 |
-| `confidence` | String(32) | N | |
-| `evidence_json` | JSON | N | 证据 |
+| `candidate_fact_ids` | JSON | N | 仅待配对关系保存的有序候选账本记录 ID，默认 `[]`；确认、驳回或替换后清空 |
 | `created_by` | String(128) | N | 默认 `system` |
 | `created_at` | UTCDateTime | N | |
 | `decided_by` | String(128) | N | |
 | `decided_at` | UTCDateTime | Y | |
 | `decision_reason` | Text | N | |
-| `later_marker` | String(64) | N | |
 | `superseded_by_id` | SurrogatePK | Y | 被谁替代 |
-| `revision` | Integer | N | 默认 1 |
 | `anchor_fact_id` | SurrogatePK | N | 待配对关系或关系角色的锚点流水 |
 
 **关键约束**

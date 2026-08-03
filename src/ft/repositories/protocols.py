@@ -101,6 +101,9 @@ class RelationRepository(Protocol):
     def add(self, relation: dict) -> str:
         ...
 
+    def update_open_leg_candidates(self, relation_id: str, candidate_fact_ids: list[str]) -> dict:
+        ...
+
     def update_status(
         self,
         relation_id: str,
@@ -108,7 +111,6 @@ class RelationRepository(Protocol):
         status: str,
         decided_by: str | None = None,
         decision_reason: str | None = None,
-        later_marker: str | None = None,
         superseded_by_id: str | None = None,
     ) -> dict:
         ...

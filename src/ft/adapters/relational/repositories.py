@@ -23,7 +23,13 @@ from .models import (
     WorkspaceModel,
     exact_decimal,
 )
-from ft.domain.relations import ordered_fact_pair, RelationStatus, is_open_leg_relation, OPEN_LEG_ORDERED_B_SENTINEL
+from ft.domain.relations import (
+    OPEN_LEG_CANDIDATE_TOP_K,
+    OPEN_LEG_ORDERED_B_SENTINEL,
+    RelationStatus,
+    is_open_leg_relation,
+    ordered_fact_pair,
+)
 
 
 WORKSPACE_TIMEZONE = ZoneInfo("Asia/Shanghai")
@@ -570,6 +576,23 @@ def _as_int_id(value):
     return int(value)
 
 
+def _candidate_fact_ids(value) -> list[int]:
+    """规范化待配对关系可供人工选择的有序账本记录 ID。"""
+    if not isinstance(value, (list, tuple)):
+        return []
+    result: list[int] = []
+    for item in value:
+        if isinstance(item, bool):
+            continue
+        try:
+            fact_id = _as_int_id(item)
+        except (TypeError, ValueError):
+            continue
+        if fact_id is not None and fact_id > 0 and fact_id not in result:
+            result.append(fact_id)
+    return result[:OPEN_LEG_CANDIDATE_TOP_K]
+
+
 class RelationalRelationRepository:
     def __init__(self, session, workspace_id: str):
         self._session = session
@@ -589,14 +612,12 @@ class RelationalRelationRepository:
             "anchor_fact_id": getattr(row, "anchor_fact_id", None) or row.primary_fact_id,
             "status": row.status,
             "rule_id": row.rule_id,
-            "confidence": row.confidence,
-            "evidence": dict(row.evidence_json or {}),
+            "candidate_fact_ids": _candidate_fact_ids(row.candidate_fact_ids),
             "created_by": row.created_by,
             "created_at": row.created_at,
             "decided_by": row.decided_by,
             "decided_at": row.decided_at,
             "decision_reason": row.decision_reason,
-            "later_marker": row.later_marker or "",
             "superseded_by_id": row.superseded_by_id,
             "active_slot": row.active_slot,
         }
@@ -675,6 +696,11 @@ class RelationalRelationRepository:
             sec_type = None
         elif not sec_type:
             sec_type = "cash"
+        candidate_fact_ids = (
+            _candidate_fact_ids(relation.get("candidate_fact_ids"))
+            if secondary is None and status == RelationStatus.PENDING_REVIEW.value
+            else []
+        )
         model = TransactionRelationModel(
             workspace_id=self._workspace_id,
             kind=relation["kind"],
@@ -688,12 +714,10 @@ class RelationalRelationRepository:
             active_slot=str(active_slot),
             status=status,
             rule_id=str(relation.get("rule_id") or ""),
-            confidence=str(relation.get("confidence") or ""),
-            evidence_json=_json_safe(relation.get("evidence") or {}),
+            candidate_fact_ids=candidate_fact_ids,
             created_by=str(relation.get("created_by") or "system"),
             decided_by=str(relation.get("decided_by") or ""),
             decision_reason=str(relation.get("decision_reason") or ""),
-            later_marker=str(relation.get("later_marker") or ""),
             superseded_by_id=_as_int_id(relation.get("superseded_by_id")),
             anchor_fact_id=_as_int_id(anchor),
         )
@@ -725,7 +749,6 @@ class RelationalRelationRepository:
         status: str,
         decided_by: str,
         decision_reason: str = "",
-        evidence: dict | None = None,
     ) -> dict:
         row = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
@@ -759,18 +782,30 @@ class RelationalRelationRepository:
         row.ordered_fact_b = _as_int_id(right)
         row.status = status
         row.active_slot = "active" if status != RelationStatus.SUPERSEDED.value else str(row.id)
+        row.candidate_fact_ids = []
         row.decided_by = decided_by
         row.decided_at = datetime.now(timezone.utc)
         row.decision_reason = decision_reason or ""
-        if evidence is not None:
-            row.evidence_json = _json_safe(evidence)
+        self._session.flush()
+        return self._to_dict(row)
+
+    def update_open_leg_candidates(self, relation_id, candidate_fact_ids: list) -> dict:
+        row = self._session.scalar(select(TransactionRelationModel).where(
+            TransactionRelationModel.workspace_id == self._workspace_id,
+            TransactionRelationModel.id == _as_int_id(relation_id),
+        ))
+        if row is None:
+            raise ValueError(f"relation not found: {relation_id}")
+        if row.secondary_fact_id is not None or row.status != RelationStatus.PENDING_REVIEW.value:
+            raise ValueError("只能更新待配对关系的候选")
+        row.candidate_fact_ids = _candidate_fact_ids(candidate_fact_ids)
         self._session.flush()
         return self._to_dict(row)
 
 
     def update_status(
         self, relation_id, *, status: str, decided_by: str = "", decision_reason: str = "",
-        later_marker: str | None = None, superseded_by_id=None,
+        superseded_by_id=None,
     ) -> dict:
         row = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
@@ -783,13 +818,13 @@ class RelationalRelationRepository:
             row.active_slot = str(row.id)
         else:
             row.active_slot = "active"
+        if status != RelationStatus.PENDING_REVIEW.value:
+            row.candidate_fact_ids = []
         if decided_by:
             row.decided_by = decided_by
             row.decided_at = datetime.now(timezone.utc)
         if decision_reason:
             row.decision_reason = decision_reason
-        if later_marker is not None:
-            row.later_marker = later_marker
         if superseded_by_id is not None:
             row.superseded_by_id = _as_int_id(superseded_by_id)
         self._session.flush()
