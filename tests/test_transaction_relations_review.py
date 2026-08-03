@@ -11,11 +11,13 @@ def test_review_accept_reject_later(relation_runtime):
         amount=Decimal("-40.00"), counterparty="商户甲", account_name="支付宝",
         currency="CNY", date="2026-06-01 09:00:00", note="订单AAA 尾号1111",
         category="expense", bill_source="alipay", source="alipay",
+        record_type="consumption",
     )
     services.cashflow.add_manual_transaction(
         amount=Decimal("-40.00"), counterparty="商户乙", account_name="支付宝",
         currency="CNY", date="2026-06-01 09:00:05", note="订单BBB 尾号1111",
         category="expense", bill_source="icbc", source="icbc",
+        record_type="consumption",
     )
     with services.uow as uow:
         ids = [r["id"] for r in uow.cashflows.list_detailed()]
@@ -38,11 +40,13 @@ def test_review_accept_reject_later(relation_runtime):
         amount=Decimal("-12.00"), counterparty="弱A", account_name="支付宝",
         currency="CNY", date="2026-06-02 09:00:00", note="描述一",
         category="expense",
+        record_type="consumption",
     )
     services.cashflow.add_manual_transaction(
         amount=Decimal("-12.00"), counterparty="弱B", account_name="支付宝",
         currency="CNY", date="2026-06-02 09:00:05", note="描述二",
         category="expense",
+        record_type="consumption",
     )
     with services.uow as uow:
         rows = uow.cashflows.list_detailed()
@@ -87,11 +91,13 @@ def test_supersede_preserves_history(relation_runtime):
         amount=Decimal("-10"), counterparty="X", account_name="A",
         currency="CNY", date="2026-06-01 10:00:00", note="尾号1111",
         category="expense", bill_source="alipay", source="alipay",
+        record_type="consumption",
     )
     services.cashflow.add_manual_transaction(
         amount=Decimal("-10"), counterparty="X", account_name="A",
         currency="CNY", date="2026-06-01 10:00:05", note="尾号1111",
         category="expense", bill_source="icbc", source="icbc",
+        record_type="consumption",
     )
     with services.uow as uow:
         ids = [r["id"] for r in uow.cashflows.list_detailed()]

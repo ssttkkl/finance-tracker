@@ -258,6 +258,7 @@ class RelationalCashflowRepository:
             "counterparty": row.get("counterparty", ""),
             "note": row.get("note", ""),
             "category": row.get("category", ""),
+            "record_type": row.get("record_type", "other"),
             "account_name": row.get("account_name", ""),
             "source_type": row.get("source_type", "") or "",
             "source": row.get("source_type", "") or "",
@@ -297,6 +298,7 @@ class RelationalCashflowRepository:
             counterparty=str(normalized["counterparty"] or ""),
             note=str(normalized["note"] or ""),
             category=str(normalized["category"] or ""),
+            record_type=str(row.get("record_type") or normalized.get("record_type") or "other"),
         )
         self._session.add(model)
         self._session.flush()
@@ -317,6 +319,7 @@ class RelationalCashflowRepository:
             "counterparty": row.counterparty,
             "note": row.note,
             "category": row.category,
+            "record_type": row.record_type,
             "account_name": account.name,
             "account_id": account.id,
             "account_type": account.type,

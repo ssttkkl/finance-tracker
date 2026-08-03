@@ -78,6 +78,25 @@ def test_cash_statement_import_persists_provenance_and_projection(tmp_path):
         uow.commit()
 
 
+def test_statement_import_persists_record_type(tmp_path):
+    from ft.adapters.relational.models import CashTransactionModel
+
+    source = tmp_path / "alipay.csv"
+    source.write_bytes(b"statement bytes")
+    sessions, _unit_of_work, service = _service([_cash_row(
+        record_id="repay-1",
+        record_type="repayment",
+        txn_type="信用借还",
+    )])
+
+    result = service.import_statement(_command(source))
+
+    assert result.count == 1
+    with sessions() as session:
+        fact = session.scalar(select(CashTransactionModel))
+        assert fact.record_type == "repayment"
+
+
 def test_icbc_import_uses_parsed_bill_source_and_refund_fields(tmp_path):
     from ft.adapters.relational.models import CashTransactionModel
     from ft.application.statement_import import StatementImportService

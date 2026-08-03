@@ -32,6 +32,14 @@ def _fv(**kwargs):
         source=default_src,
     )
     base.update(kwargs)
+    if "record_type" not in base:
+        amount = Decimal(str(base.get("amount") or 0))
+        note_text = str(base.get("note") or "")
+        base["record_type"] = (
+            "consumption" if amount < 0 else
+            "refund" if any(token in note_text for token in ("退款", "退货", "冲正")) else
+            "income" if amount > 0 else "other"
+        )
     return FactView(**base)
 
 
@@ -89,6 +97,24 @@ def test_payment_mirror_same_account_long_lag_same_day_is_pending_high_recall():
     assert proposal is not None
     assert proposal.status == RelationStatus.ACCEPTED.value
     assert "same_account" in proposal.rule_id or "business_day" in proposal.rule_id
+
+
+def test_bank_date_only_without_identity_evidence_is_pending_review():
+    platform = _fv(
+        id="p1", amount=Decimal("-100.00"), account_id="card",
+        occurred_at="2026-06-13 08:00:00", counterparty="金色提香",
+        note="收钱码收款",
+    )
+    bank = _fv(
+        id="b1", amount=Decimal("-100.00"), account_id="card",
+        occurred_at="2026-06-13 16:00:00", counterparty="蚂蚁基金销售",
+        note="消费", raw_payload={"date": "2026-06-13"},
+    )
+
+    proposal = evaluate_payment_mirror(platform, [bank])
+
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
 
 
 def test_payment_mirror_same_account_platform_after_bank_is_pending_not_auto():
@@ -257,6 +283,33 @@ def test_payment_mirror_equal_candidate_group_pairs_by_time_then_id():
     assert {item.status for item in proposals} == {RelationStatus.ACCEPTED.value}
 
 
+def test_deterministic_mirror_group_ignores_non_payment_record_types():
+    platform = _fv(
+        id="p1", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:00:00", counterparty="同一商户", note="消费",
+        record_type="consumption",
+    )
+    non_payment_bank_row = _fv(
+        id="b0", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 09:00:00", counterparty="同一商户", note="转账支取",
+        record_type="transfer_out",
+    )
+    payment_bank_row = _fv(
+        id="b1", amount=Decimal("-10"), account_id="card",
+        occurred_at="2026-06-13 10:00:05", counterparty="同一商户", note="扣款",
+        record_type="consumption",
+    )
+
+    proposals = match_payment_mirrors_greedy(
+        [platform, non_payment_bank_row, payment_bank_row]
+    )
+
+    assert {frozenset((item.primary_fact_id, item.secondary_fact_id)) for item in proposals} == {
+        frozenset(("p1", "b1")),
+    }
+    assert proposals[0].status == RelationStatus.ACCEPTED.value
+
+
 def test_payment_mirror_unequal_candidate_group_stays_pending_review():
     p1 = _fv(
         id="p1", amount=Decimal("-10"), account_id="card",
@@ -360,8 +413,9 @@ def test_payment_mirror_service_does_not_persist_shared_endpoint_across_channel_
         amount="-10",
         date="2026-06-13 10:00:00",
         counterparty="同一商户",
-        source="alipay",
-        record_id="channel-pair-platform",
+            source="alipay",
+            record_id="channel-pair-platform",
+            record_type="consumption",
     )
     ccb_id = add_cash_fact(
         services,
@@ -369,8 +423,9 @@ def test_payment_mirror_service_does_not_persist_shared_endpoint_across_channel_
         amount="-10",
         date="2026-06-13 10:01:00",
         counterparty="同一商户",
-        source="ccb",
-        record_id="channel-pair-ccb",
+            source="ccb",
+            record_id="channel-pair-ccb",
+            record_type="consumption",
     )
     icbc_id = add_cash_fact(
         services,
@@ -378,8 +433,9 @@ def test_payment_mirror_service_does_not_persist_shared_endpoint_across_channel_
         amount="-10",
         date="2026-06-13 10:02:00",
         counterparty="同一商户",
-        source="icbc",
-        record_id="channel-pair-icbc",
+            source="icbc",
+            record_id="channel-pair-icbc",
+            record_type="consumption",
     )
 
     result = services.relations.check(
@@ -421,12 +477,14 @@ def test_payment_mirror_persisted_via_service(relation_runtime):
     services.cashflow.add_manual_transaction(
         amount=Decimal("-30.00"), counterparty="麦当劳", account_name="建行储蓄",
         currency="CNY", date="2026-06-13 23:15:00", note="付款方式 尾号1234",
-        category="expense", bill_source="alipay", source="alipay",
+            category="expense", bill_source="alipay", source="alipay",
+            record_type="consumption",
     )
     services.cashflow.add_manual_transaction(
         amount=Decimal("-30.00"), counterparty="支付宝-麦当劳", account_name="建行储蓄",
         currency="CNY", date="2026-06-13 23:15:05", note="快捷支付 尾号1234",
-        category="expense", bill_source="icbc", source="icbc",
+            category="expense", bill_source="icbc", source="icbc",
+            record_type="consumption",
     )
     with services.uow as uow:
         ids = [r["id"] for r in uow.cashflows.list_detailed()]

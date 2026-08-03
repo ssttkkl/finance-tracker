@@ -26,6 +26,14 @@ def _fv(**kwargs):
         record_id="",
     )
     base.update(kwargs)
+    if "record_type" not in base:
+        amount = Decimal(str(base.get("amount") or 0))
+        note = str(base.get("note") or "")
+        base["record_type"] = (
+            "consumption" if amount < 0 else
+            "refund" if any(token in note for token in ("退款", "退货", "冲正")) else
+            "income" if amount > 0 else "other"
+        )
     return FactView(**base)
 
 

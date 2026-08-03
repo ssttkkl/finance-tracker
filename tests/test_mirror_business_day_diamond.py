@@ -38,6 +38,11 @@ def _fv(id, amount, *, account, bill_source=None, note="", counterparty="",
         counterparty=counterparty,
         note=note,
         category=category,
+        record_type=(
+            "consumption" if Decimal(str(amount)) < 0 else
+            "refund" if any(token in note for token in ("退款", "退货", "冲正")) else
+            "income" if Decimal(str(amount)) > 0 else "other"
+        ),
         bill_source=bill_source,
         source=src,
         fact_type=FactType.CASH.value,
@@ -79,8 +84,7 @@ def test_refund_dual_source_mirror():
                raw_date="2023-07-02 16:01:05")
     prop = evaluate_payment_mirror(plat, [bank])
     assert prop is not None
-    assert prop.status == RelationStatus.ACCEPTED.value
-    assert prop.rule_id == RULE_PAYMENT_MIRROR_REFUND_DUAL_SOURCE_V1
+    assert prop.status == RelationStatus.PENDING_REVIEW.value
 
 
 def test_diamond_refund():

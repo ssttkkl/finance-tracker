@@ -11,6 +11,20 @@ import bisect
 import re
 
 from ft.domain.relations.core.geometry import _abs_decimal, _as_decimal, _parse_dt, _text_blob, business_day_shanghai
+from ft.domain.relations.core.record_types import (
+    is_payment_mirror_expense,
+    is_payment_mirror_refund,
+    is_refund_expense_candidate,
+    is_refund_in,
+    is_transfer_candidate_in,
+    is_transfer_candidate_out,
+    is_transfer_in_record,
+    is_transfer_out_record,
+    is_withdrawal_in_record,
+    is_withdrawal_out_record,
+    is_repayment_out_record,
+    is_loan_repayment_in,
+)
 
 from typing import Protocol, runtime_checkable
 
@@ -79,8 +93,8 @@ CREDIT_REPAYMENT_FX_SECONDS = 60
 # High confidence if |implied/market - 1| <= this; must beat runner-up by margin.
 CREDIT_REPAYMENT_FX_RATE_ERROR_MAX = Decimal("0.015")
 CREDIT_REPAYMENT_FX_RATE_ERROR_MARGIN = Decimal("0.005")
-REFUND_CANDIDATE_DAYS = 30
-REFUND_AUTO_ACCEPT_DAYS = 14
+REFUND_CANDIDATE_DAYS = 15
+REFUND_AUTO_ACCEPT_DAYS = 15
 REFUND_ORDER_LOCK_AUTO_ACCEPT_DAYS = 30
 
 RULE_PAYMENT_MIRROR_STRONG_V1 = "payment_mirror.platform_bank.exact.time10.cross.v2"
@@ -162,9 +176,8 @@ class FactCandidateIndex:
             Channel classifier (platform|bank|other). Required for mirror buckets;
             defaults to a no-op returning "other" if omitted.
         refund_gates:
-            Refund text gates from the refund pack. If omitted, no positives are
-            indexed as refund rows and refund_candidates is conservative-empty for
-            refund seeds without gates.
+            Secondary refund-family gates from the refund pack. The positive
+            refund role itself always comes from ``FactView.record_type``.
         """
         self._source_group = source_group or (lambda _f: "other")
         self._refund_gates = refund_gates
@@ -176,12 +189,12 @@ class FactCandidateIndex:
         # FX repayment: day -> cash outs / loan ins
         self._fx_cash_out_by_day: dict[str, list[_IndexedFact]] = defaultdict(list)
         self._fx_loan_in_by_day: dict[str, list[_IndexedFact]] = defaultdict(list)
-        # refund: currency, day -> expenses / refunds
-        self._expenses_by_day: dict[tuple[str, str], list[_IndexedFact]] = defaultdict(list)
-        self._refunds_by_day: dict[tuple[str, str], list[_IndexedFact]] = defaultdict(list)
-        # sorted day keys per currency for refund window walk
-        self._expense_days_by_currency: dict[str, list[str]] = defaultdict(list)
-        self._refund_days_by_currency: dict[str, list[str]] = defaultdict(list)
+        # refund: account, currency, day -> typed expenses / refunds
+        self._expenses_by_day: dict[tuple[str, str, str], list[_IndexedFact]] = defaultdict(list)
+        self._refunds_by_day: dict[tuple[str, str, str], list[_IndexedFact]] = defaultdict(list)
+        # sorted day keys per account/currency for refund window walk
+        self._expense_days_by_account_currency: dict[tuple[str, str], list[str]] = defaultdict(list)
+        self._refund_days_by_account_currency: dict[tuple[str, str], list[str]] = defaultdict(list)
 
         for fact in facts:
             if fact.deleted or fact.fact_type != FactType.CASH.value:
@@ -207,30 +220,26 @@ class FactCandidateIndex:
             if idx.group in {"platform", "bank"}:
                 self._mirror_buckets[(idx.group, idx.currency, idx.abs_amount, idx.day)].append(idx)
             # transfer same-currency opposite sign
-            if idx.sign < 0:
+            if idx.sign < 0 and is_transfer_candidate_out(fact):
                 self._xfer_out[(idx.currency, idx.abs_amount, idx.day)].append(idx)
                 if fact.account_type == "cash":
                     self._fx_cash_out_by_day[idx.day].append(idx)
-            else:
+            elif idx.sign > 0 and is_transfer_candidate_in(fact):
                 self._xfer_in[(idx.currency, idx.abs_amount, idx.day)].append(idx)
                 if fact.account_type == "loan":
                     self._fx_loan_in_by_day[idx.day].append(idx)
             # refunds / expenses
-            # Keep p2p/transfer expenses in the index so 微信红包-退款 can pair them;
-            # evaluate_refund_offset applies asymmetric p2p rules.
-            if idx.sign < 0:
-                self._expenses_by_day[(idx.currency, idx.day)].append(idx)
-            else:
-                # Only explicit refund-signal positives are refund candidates
-                if self._refund_gates is not None and self._refund_gates.has_refund_signal(fact):
-                    self._refunds_by_day[(idx.currency, idx.day)].append(idx)
+            if is_refund_expense_candidate(fact):
+                self._expenses_by_day[(str(fact.account_id), idx.currency, idx.day)].append(idx)
+            elif is_refund_in(fact):
+                self._refunds_by_day[(str(fact.account_id), idx.currency, idx.day)].append(idx)
 
-        for cur in {k[0] for k in self._expenses_by_day}:
-            days = sorted({d for c, d in self._expenses_by_day if c == cur})
-            self._expense_days_by_currency[cur] = days
-        for cur in {k[0] for k in self._refunds_by_day}:
-            days = sorted({d for c, d in self._refunds_by_day if c == cur})
-            self._refund_days_by_currency[cur] = days
+        for account, cur, _day in self._expenses_by_day:
+            days = sorted({d for a, c, d in self._expenses_by_day if a == account and c == cur})
+            self._expense_days_by_account_currency[(account, cur)] = days
+        for account, cur, _day in self._refunds_by_day:
+            days = sorted({d for a, c, d in self._refunds_by_day if a == account and c == cur})
+            self._refund_days_by_account_currency[(account, cur)] = days
 
     @staticmethod
     def _neighbor_days(day: str, pad: int = CANDIDATE_DAY_PAD) -> list[str]:
@@ -251,7 +260,10 @@ class FactCandidateIndex:
         out: list[FactView] = []
         for d in self._neighbor_days(day):
             for item in self._mirror_buckets.get((other, currency, abs_amount, d), ()):
-                if item.fact.id != seed.id:
+                if item.fact.id != seed.id and (
+                    (is_payment_mirror_expense(seed) and is_payment_mirror_expense(item.fact))
+                    or (is_payment_mirror_refund(seed) and is_payment_mirror_refund(item.fact))
+                ):
                     out.append(item.fact)
         return out
 
@@ -266,13 +278,31 @@ class FactCandidateIndex:
         out: list[FactView] = []
         days = self._neighbor_days(day)
         if amount < 0:
+            ordinary_transfer = is_transfer_candidate_out(seed) and is_transfer_out_record(seed)
+            withdrawal_to_bank = (
+                is_withdrawal_out_record(seed)
+                and self._source_group(seed) == "platform"
+            )
+            credit_repayment = is_repayment_out_record(seed)
             # look for incoming rows same currency abs
             for d in days:
                 for item in self._xfer_in.get((currency, abs_amount, d), ()):
-                    if item.fact.id != seed.id and item.fact.account_id != seed.account_id:
-                        out.append(item.fact)
+                    if item.fact.id == seed.id or item.fact.account_id == seed.account_id:
+                        continue
+                    if ordinary_transfer and not is_transfer_in_record(item.fact):
+                        continue
+                    if withdrawal_to_bank and not (
+                        item.group == "bank"
+                        and (is_withdrawal_in_record(item.fact) or is_transfer_in_record(item.fact))
+                    ):
+                        continue
+                    if credit_repayment and not is_loan_repayment_in(item.fact):
+                        continue
+                    if not (ordinary_transfer or withdrawal_to_bank or credit_repayment):
+                        continue
+                    out.append(item.fact)
             # FX repayment: cash out may match loan in any currency same day window
-            if seed.account_type == "cash":
+            if credit_repayment and seed.account_type == "cash":
                 for d in days:
                     for item in self._fx_loan_in_by_day.get(d, ()):
                         if item.fact.id != seed.id and item.fact.account_id != seed.account_id:
@@ -297,12 +327,12 @@ class FactCandidateIndex:
         return unique
 
     def refund_candidates(self, seed: FactView) -> list[FactView]:
-        """Bounded expense/refund candidates (p2p pairing filtered in evaluate)."""
+        """Bounded, same-account consumption/refund candidates."""
         try:
             seed_dt = _parse_dt(seed.occurred_at)
         except ValueError:
             return []
-        # Bare p2p/transfer without refund word is never a refund seed.
+        # Text remains a secondary guard for malformed source rows.
         gates = self._refund_gates
         if gates is not None and gates.is_refund_excluded_leg(seed.text):
             return []
@@ -312,10 +342,10 @@ class FactCandidateIndex:
         # window pad: refund may be up to REFUND_CANDIDATE_DAYS after expense
         pad_days = REFUND_CANDIDATE_DAYS + CANDIDATE_DAY_PAD
         if amount > 0:
-            if gates is None or not gates.has_refund_signal(seed):
+            if not is_refund_in(seed):
                 return []
             # seed is refund-like: look for earlier expenses
-            days = self._expense_days_by_currency.get(currency, [])
+            days = self._expense_days_by_account_currency.get((str(seed.account_id), currency), [])
             if not days:
                 return []
             start = (seed_dt.date() - timedelta(days=pad_days)).isoformat()
@@ -323,12 +353,12 @@ class FactCandidateIndex:
             lo = bisect.bisect_left(days, start)
             hi = bisect.bisect_right(days, end)
             for d in days[lo:hi]:
-                for item in self._expenses_by_day.get((currency, d), ()):
+                for item in self._expenses_by_day.get((str(seed.account_id), currency, d), ()):
                     if item.fact.id != seed.id:
                         out.append(item.fact)
         elif amount < 0:
             # seed is expense: look for later refunds
-            days = self._refund_days_by_currency.get(currency, [])
+            days = self._refund_days_by_account_currency.get((str(seed.account_id), currency), [])
             if not days:
                 return []
             start = seed_dt.date().isoformat()
@@ -336,7 +366,7 @@ class FactCandidateIndex:
             lo = bisect.bisect_left(days, start)
             hi = bisect.bisect_right(days, end)
             for d in days[lo:hi]:
-                for item in self._refunds_by_day.get((currency, d), ()):
+                for item in self._refunds_by_day.get((str(seed.account_id), currency, d), ()):
                     if item.fact.id != seed.id:
                         out.append(item.fact)
         return out
@@ -452,6 +482,7 @@ class FactView:
     counterparty: str = ""
     note: str = ""
     category: str = ""
+    record_type: str = "other"
     bill_source: str = ""
     source: str = ""
     fact_type: str = FactType.CASH.value

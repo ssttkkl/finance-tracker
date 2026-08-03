@@ -21,6 +21,9 @@ def test_repository_has_clean_linear_revisions():
         "20260726_10_sync_cursors.py",
         "20260729_11_cash_projections.py",
         "20260731_12_cash_projection_dataset_indexes.py",
+        "20260801_13_cash_record_type.py",
+        "20260802_14_cash_record_type_reversal_withdrawal.py",
+        "20260802_15_split_withdrawal_direction.py",
     ]
 
 

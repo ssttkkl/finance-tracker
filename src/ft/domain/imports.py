@@ -7,7 +7,7 @@ from pathlib import Path
 
 CASHFLOW_EXPORT_FIELDS = (
     "record_id", "occurred_at", "amount", "currency", "counterparty",
-    "note", "category", "account_name", "source_type",
+    "note", "category", "record_type", "account_name", "source_type",
 )
 
 

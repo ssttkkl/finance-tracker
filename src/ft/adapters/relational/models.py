@@ -137,6 +137,10 @@ class AccountModel(Base):
 class CashTransactionModel(Base):
     __tablename__ = "cash_transactions"
     __table_args__ = (
+        CheckConstraint(
+            "record_type IN ('consumption', 'refund', 'reversal', 'transfer_reversal', 'withdrawal_in', 'withdrawal_out', 'transfer_in', 'transfer_out', 'repayment', 'income', 'investment_in', 'investment_out', 'interest', 'fee', 'fx_in', 'fx_out', 'other')",
+            name="ck_cash_transactions_record_type",
+        ),
         UniqueConstraint("workspace_id", "id", name="uq_cash_transactions_workspace_id"),
         ForeignKeyConstraint(
             ["workspace_id", "account_id"],
@@ -163,6 +167,7 @@ class CashTransactionModel(Base):
     counterparty: Mapped[str] = mapped_column(String(512), default="", nullable=False)
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     category: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    record_type: Mapped[str] = mapped_column(String(32), default="other", nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     deleted_by: Mapped[str] = mapped_column(String(128), default="", nullable=False)

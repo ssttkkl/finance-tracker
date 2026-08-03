@@ -1414,6 +1414,9 @@ def _read_wechat_raw(path: str):
 
     # Dual-row refund tracking via FR-029 pure matcher; never rewrite amounts.
     from ft.domain.platform_refund import pair_wechat_refunds
+    from ft.domain.record_type import classify_cash_record_type
+    for row in raw:
+        row["record_type"] = classify_cash_record_type("wechat", row)
     pairs = pair_wechat_refunds(raw)
     tracking_pairs = []
     for exp_i, inc_i, rule_id in pairs:
@@ -1934,6 +1937,7 @@ def _build_output_row(
     Longer mapping match wins (see ft.mapping.match_payment_method).
     """
     from .mapping import match_payment_method
+    from .domain.record_type import classify_cash_record_type
 
     if account:
         acct_name = account
@@ -2002,6 +2006,7 @@ def _build_output_row(
         "counterparty": cpy,
         "note": rec.get("note", ""),
         "category": rec["category"],
+        "record_type": classify_cash_record_type(bill_type, rec),
         "account_name": acct_name,
         "source": payment_src,
         "bill_source": bill_type,
@@ -2018,6 +2023,18 @@ def _build_output_row(
         "summary": rec.get("summary", ""),
         "refund_signal": rec.get("refund_signal", ""),
         "_raw_cp": rec.get("_raw_cp", ""),
+        "txn_type": rec.get("txn_type", ""),
+        "direction": rec.get("_wechat_direction") or rec.get("_alipay_direction") or "",
+        "_wechat_direction": rec.get("_wechat_direction", ""),
+        "_alipay_direction": rec.get("_alipay_direction", ""),
+        "_refund_signal": rec.get("_refund_signal", ""),
+        "_ccb_refund_signal": rec.get("_ccb_refund_signal", ""),
+        "_is_refund": bool(rec.get("_is_refund")),
+        "_is_reversal": bool(rec.get("_is_reversal")),
+        "_debit_offset_type": rec.get("_debit_offset_type", ""),
+        "offset_type": rec.get("offset_type", ""),
+        "location": rec.get("location", ""),
+        "acct_name_raw": rec.get("acct_name_raw", ""),
     }
 
 
