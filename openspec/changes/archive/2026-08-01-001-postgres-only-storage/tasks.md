@@ -1,0 +1,89 @@
+# Tasks
+
+## 1. 迁移后的历史任务清单
+
+- [X] T001 Record the supported statement provider/extension matrix from `src/ft/importers/`, `src/ft/convert.py`, and `tests/test_convert.py` in `openspec/specs/001-postgres-only-storage/quickstart.md`
+- [X] T002 Run and record the pre-change PostgreSQL contract baseline in `openspec/specs/001-postgres-only-storage/tasks.md` using `tests/test_postgres_adapter.py`, `tests/test_storage_configuration.py`, and `tests/test_postgres_import_provenance.py`
+- [X] T003 Capture the pre-change CLI tree and legacy executable reference inventory in `openspec/specs/001-postgres-only-storage/tasks.md` from `src/ft/cli.py`, `README.md`, `docs/`, `SKILL.md`, and `references/`
+- [X] T004 Add failing repeatable single-baseline, metadata-parity, account-RESTRICT, timestamptz, raw-lineage, revision-target, and workspace-constraint tests in `tests/test_alembic_migration.py`
+- [X] T005 Add failing rename/projection identity, referenced-account delete rejection, cross-workspace reference, Decimal scale rejection, currency, timezone round-trip/bucketing, and rollback tests in `tests/test_postgres_adapter.py`
+- [X] T006 Add failing statement provenance tests using non-migration source kinds, `raw_record_id` lineage, and fact-specific revision FKs in `tests/test_postgres_import_provenance.py`
+- [X] T007 Replace the two development revisions with one clean initial baseline in `migrations/versions/20260717_01_initial.py`
+- [X] T008 Update stable account IDs, RESTRICT deletes, timestamptz fields, raw-record/revision FKs, exactly-one revision target, uniqueness, and workspace constraints in `src/ft/adapters/postgres/models.py`
+- [X] T009 Update repositories for Decimal scale validation, UTC/Asia-Shanghai time conversion, account/fact relations, projections, and imports in `src/ft/adapters/postgres/repositories.py` and `src/ft/adapters/postgres/imports.py`
+- [X] T010 Make Alembic fixtures the schema authority and keep `create_schema` test-only in `src/ft/adapters/postgres/uow.py`, `tests/test_postgres_adapter.py`, and `tests/test_postgres_live.py`
+- [X] T011 Run the focused schema/repository tests and record RED-to-GREEN evidence in `openspec/specs/001-postgres-only-storage/tasks.md`
+- [X] T012 [P] [US1] Replace backend-switch tests with failing required-URL/workspace, rejected legacy-key, and environment-only tests in `tests/test_storage_configuration.py`
+- [X] T013 [P] [US1] Add failing startup tests for unreachable DB, stale/missing schema, unknown workspace, and help-without-DB in `tests/test_postgres_runtime.py`
+- [X] T014 [P] [US1] Add failing CLI tests for PostgreSQL-backed account, cash, transfer, report, list, and cross-command visibility in `tests/test_cli.py` and `tests/test_cli_application_boundary.py`
+- [X] T015 [P] [US1] Add failing PostgreSQL investment command/projection-by-account-ID tests for all retained manual operations in `tests/test_application_investment.py` and `tests/test_postgres_adapter.py`
+- [X] T016 [US1] Run T012-T015 and record that failures come from the local selector or missing PostgreSQL behavior in `openspec/specs/001-postgres-only-storage/tasks.md`
+- [X] T017 [US1] Remove backend, ledger-root, legacy environment, HOME, and runtime YAML behavior from `src/ft/config.py`
+- [X] T018 [US1] Add connection/schema/workspace validation and PostgreSQL-only composition in `src/ft/adapters/postgres/runtime.py` and `src/ft/runtime.py`
+- [X] T019 [US1] Make account CLI helpers consume injected application/query services in `src/ft/acct.py`
+- [X] T020 [US1] Build one settings/bundle per invocation and route retained account/cash/transfer/query commands through it in `src/ft/cli.py`
+- [X] T021 [US1] Extract storage-independent investment projection from `src/ft/stock.py` into `src/ft/domain/investment_projection.py` while preserving financial cases in `tests/test_stock.py`
+- [X] T022 [US1] Implement atomic PostgreSQL investment command and projection writes in `src/ft/adapters/postgres/investments.py`, `src/ft/adapters/postgres/uow.py`, and `src/ft/adapters/postgres/runtime.py`
+- [X] T023 [US1] Remove Git change-set calls from retained investment services in `src/ft/application/investment.py` and `src/ft/runtime.py`
+- [X] T024 [US1] Route investment commands through the PostgreSQL bundle and parse numeric CLI inputs as Decimal-compatible strings in `src/ft/cli.py`
+- [X] T025 [US1] Add an empty-HOME guard and live cross-entrypoint smoke scenario in `tests/test_postgres_live.py`
+- [X] T026 [US1] Run the complete US1 suite and record GREEN/no-`.ft` evidence in `openspec/specs/001-postgres-only-storage/tasks.md`
+- [X] T027 [P] [US3] Add failing direct cash-statement import tests for all retained provider fixtures in `tests/test_postgres_statement_import.py`
+- [X] T028 [P] [US3] Add failing direct DFZQ import tests in `tests/test_postgres_statement_import.py` and preserve parser cases in `tests/test_stock_convert.py`
+- [X] T029 [P] [US3] Add failing duplicate-digest, lineage, Decimal-scale, provider-timezone, invalid-row, and mid-transaction rollback tests in `tests/test_postgres_statement_import.py`
+- [X] T030 [P] [US3] Add failing `ft import FILE --source ... --account ...` tests proving direct import needs no converted CSV and explicit export never becomes runtime state in `tests/test_cli.py`
+- [X] T031 [US3] Run T027-T030 and record the intended missing-service/lineage failures in `openspec/specs/001-postgres-only-storage/tasks.md`
+- [X] T032 [US3] Move pure cash parsing and built-in mappings out of `src/ft/adapters/local_import.py` into `src/ft/importers/` and `src/ft/adapters/statement_import.py`
+- [X] T033 [US3] Move pure DFZQ parsing out of local persistence into `src/ft/importers/dfzq.py` and `src/ft/adapters/statement_import.py`
+- [X] T034 [US3] Implement one UoW import service for digest, raw records, facts, revisions, projection, completion, and rollback in `src/ft/application/statement_import.py`
+- [X] T035 [US3] Add batch account/source preload and direct raw-record lineage writes in `src/ft/adapters/postgres/imports.py` and `src/ft/adapters/postgres/repositories.py`
+- [X] T036 [US3] Implement the contracted `ft import FILE --source ... --account ...` command, replace converted-CSV append paths, and retain explicit user export in `src/ft/cli.py` and `src/ft/adapters/export_csv.py`
+- [X] T037 [US3] Run parser/import/provenance/CLI/rollback/live tests and record GREEN evidence in `openspec/specs/001-postgres-only-storage/tasks.md`
+- [X] T038 [P] [US2] Add failing CLI tests for removed commit/status/reset/migrate/append/verify-fix/reconcile/stock-sync commands in `tests/test_cli.py`
+- [X] T039 [P] [US2] Add a failing executable-reference and forbidden-ledger-file static test in `tests/test_postgres_only_surface.py`
+- [X] T040 [P] [US2] Rewrite live tests to remove local migration/shadow/export setup in `tests/test_postgres_live.py`
+- [X] T041 [US2] Run T038-T040 and record the intended legacy-surface failures in `openspec/specs/001-postgres-only-storage/tasks.md`
+- [X] T042 [US2] Delete migration code in `src/ft/domain/migration.py`, `src/ft/application/migration.py`, `src/ft/adapters/local_migration.py`, and `src/ft/adapters/postgres/migration.py`
+- [X] T043 [US2] Delete local composition/core adapters under `src/ft/adapters/local_runtime.py`, `src/ft/adapters/local_change_set.py`, `src/ft/adapters/local_config.py`, `src/ft/adapters/local_csv/`, `src/ft/adapters/local_query.py`, `src/ft/adapters/local_verification.py`, and `src/ft/adapters/local_legacy.py`
+- [X] T044 [US2] Delete file-backed mixed adapters after parser extraction in `src/ft/adapters/local_import.py`, `src/ft/adapters/local_investment.py`, `src/ft/adapters/local_reconciliation.py`, and `src/ft/adapters/local_sync.py`
+- [X] T045 [US2] Delete Git/file-only application surfaces in `src/ft/application/change_sets.py`, `src/ft/application/reconcile.py`, `src/ft/application/verification.py`, and obsolete DTOs in `src/ft/domain/application.py`
+- [X] T046 [US2] Remove local functions from `src/ft/models.py`, `src/ft/report.py`, and `src/ft/stock.py`, then delete `src/ft/accounts.py`, `src/ft/append.py`, `src/ft/snapshot.py`, `src/ft/ledger_layout.py`, `src/ft/pending.py`, `src/ft/ai_working_csv.py`, and `src/ft/ai_apply.py`
+- [X] T047 [US2] Remove reconcile, Connector, migration, append, verify, and Git branches from `src/ft/cli.py` plus unused bundle fields/protocols in `src/ft/runtime.py` and `src/ft/repositories/queries.py`
+- [X] T048 [US2] Delete `tests/test_storage_migration.py`, `tests/test_migrate_cli.py`, `tests/test_accounts.py`, `tests/test_append.py`, `tests/test_snapshot.py`, `tests/test_report_csv.py`, `tests/test_application_reconciliation.py`, and file-backed `tests/test_reconcile.py`, `tests/test_reconcile_locked.py`, `tests/test_reconcile_pending.py`; move only valid invariants to PostgreSQL/application suites under `tests/`
+- [X] T049 [US2] Remove dead imports, protocols, dependencies, exports, and cache artifacts in `src/ft/`, `tests/`, and `pyproject.toml` after an import audit
+- [X] T050 [US2] Run CLI/static surface tests and full pytest, then record zero executable legacy references in `openspec/specs/001-postgres-only-storage/tasks.md`
+- [X] T051 [P] Rewrite current setup/command/storage guidance in `README.md`, `docs/README.md`, `docs/import-reconcile-flow.md`, and `docs/unified-csv-format.md`
+- [X] T052 [P] Mark superseded implementation docs historical in `docs/phase1-application-services.md` and `docs/phase2-postgresql-storage.md`
+- [X] T053 [P] Synchronize completed status and deferred Connector/关系审查列表 scope in `docs/productization-refactor-plan.md` and `docs/productization-wealth-report-design.md`
+- [X] T054 [P] Rewrite or delete obsolete local-ledger instructions in `SKILL.md` and `references/`
+- [X] T055 Validate Markdown links, CLI examples, forbidden references, and `git diff --check` across repository documentation
+- [X] T056 Run `openspec validate --all --strict` against `openspec/specs/001-postgres-only-storage/` and append any required tasks
+- [X] T057 Run gstack `review`, fix blocking findings, and rerun review against the final diff
+- [X] T058 Run focused tests, full `uv run pytest`, live PostgreSQL tests when available, `uv run alembic heads`, package build/import checks, and record evidence in `openspec/specs/001-postgres-only-storage/tasks.md`
+- [X] T059 Inspect final diff/status/untracked files/task completion for repository root `.` without staging, committing, pushing, or publishing
+- [X] T060 [CRITICAL] Replace float conversion in manual transfer projection updates with exact Decimal text and add cash/security cross-currency precision regression tests per FR-018 and Constitution I (contradicts)
+- [X] T061 Reject investment command/event projection results whose computed shares or costs exceed 18 decimal places, with atomic rollback tests for proportional sell/swap calculations per FR-018 and SC-011 (partial)
+- [X] T062 [CRITICAL] Capture each statement once and derive digest, size, media validation and parser rows from the
+- [X] T063 [CRITICAL] Move ICBC/DFZQ decrypted artifacts into mode-0700 temporary directories, pass qpdf passwords
+- [X] T064 [CRITICAL] Make overlapping statements idempotent by provider record identity so reused raw records do not
+- [X] T065 [CRITICAL] Enforce both scale 18 and NUMERIC(38,18)'s 20-integer-digit bound before persistence and add
+- [X] T066 Dispatch pure `stock convert` before PostgreSQL service composition and add a no-database regression test
+- [X] T067 Delete confirmed unreachable compatibility/reconcile remnants and obsolete test-only islands
+- [X] T068 Correct repository protocols for fact IDs and import provenance used by the application service
+- [X] T069 Run focused review regression tests, full tests, gstack re-review, build, documentation/link scans and final
+- [X] T070 [CRITICAL] Isolate shared runtime UoW state per concurrent context and lock the workspace projection row
+- [X] T071 [CRITICAL] Restore retained financial invariants for positive transfers, explicit multi-currency account
+- [X] T072 Make Alembic honor `FT_DATABASE_URL`, generate default timestamps in Asia/Shanghai, and bound statement/PDF
+- [X] T073 [CRITICAL] Add a failing portfolio regression for a normally created investment account, then include its
+- [X] T074 Add a failing same-file duplicate-provider-ID import regression, then deduplicate raw IDs before formal-fact
+- [X] T075 Add a failing overlap-only duplicate-digest target-account regression, then persist the stable target account
+- [X] T076 Add a failing active-empty-account deletion regression, then require deactivation before hard deletion
+- [X] T077 Add failing CLI regressions for rejected investment commands, then propagate `OperationResult.ok=False` as
+- [X] T078 Run focused regressions, full tests, gstack re-review, build, documentation/link scans and final diff/status
+- [X] T079 Remove row-position fallback IDs from current statement parsers so records without a provider-stable ID use
+- [X] T080 Propagate rejected account create/rename/delete/activate/deactivate results to a non-zero CLI exit status,
+
+## 2. 迁移确认
+
+- [x] 2.1 保留原始任务、验证证据和未解决风险。
+- [x] 2.2 将行为需求投影到 OpenSpec 主规格。

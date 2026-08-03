@@ -1,0 +1,78 @@
+# Tasks
+
+## 1. 迁移后的历史任务清单
+
+- [x] T001 Create connector adapters directory structure: `src/ft/adapters/connectors/__init__.py`
+- [x] T002 [P] Create test fixture `tests/fixtures/ccxt_trades.json` with mock Binance BUY/SELL/crypto-to-crypto trades (含 fee 各种情况)
+- [x] T003 [P] Create test fixture `tests/fixtures/polymarket_activities.json` with mock TRADE/non-TRADE activities (含缺字段边界)
+- [x] T004 [P] Define `ConnectorPort` Protocol, `ConnectorResult` dataclass, `ConnectorError`/`ConnectorAuthError`/`ConnectorDataError` exceptions in `src/ft/domain/connector_port.py`
+- [x] T005 [P] Unit test for CredentialProvider: load/missing/malformed/permissions in `tests/unit/test_credentials.py`
+- [x] T006 [P] Extend SyncService unit tests with global fail-closed coverage: pagination/mapping failure leaves no events, snapshot, or cursor; preserve happy path, chunk splitting, and idempotent skip in `tests/unit/test_sync_service.py`
+- [x] T007 [P] Integration test for `sync_cursors` table CRUD + UPSERT on SQLite in `tests/integration/test_sync_cursor_sqlite.py`
+- [x] T008 [P] Integration test for `sync_cursors` table CRUD + UPSERT on real PostgreSQL in `tests/integration/test_sync_cursor_postgres.py`
+- [x] T009 Implement `CredentialProvider` in `src/ft/credentials.py`: load YAML, validate fields, chmod 600, gitignore, no secret leaking
+- [x] T010 [P] Add `SyncCursorModel` to `src/ft/adapters/relational/models.py`: table `sync_cursors` with `(workspace_id, account_id, source_type)` unique constraint
+- [x] T011 Create Alembic migration `migrations/versions/20260726_10_sync_cursors.py`: dual-dialect (PG/SQLite), bump `SCHEMA_REVISION`
+- [x] T012 Add cursor read/write/upsert methods to `ImportRepository` protocol in `src/ft/repositories/protocols.py` and relational adapter in `src/ft/adapters/relational/imports.py`
+- [x] T013 Implement `SyncService` in `src/ft/application/sync_service.py`: load credentials → validate account → read cursor → call connector → process chunks in one atomic import transaction (reuse `_import_transactions` pattern) → upsert cursor in that transaction → report
+- [x] T014 Add `ft sync` subcommand skeleton in `src/ft/cli.py`: argparse `--source`/`--account`/`--full`/`--batch-size`, wire to `SyncService`
+- [x] T015 Update `SCHEMA_REVISION` in `src/ft/adapters/relational/runtime.py` to match new migration head
+- [x] T016 [P] [US1] Unit test for ccxt trade → investment event mapping (BUY/SELL/crypto-to-crypto/fee variants) in `tests/unit/test_ccxt_connector.py`
+- [x] T017 [P] [US1] Unit test for ccxt `fetch_my_trades` pagination (multi-page, empty, single-page) in `tests/unit/test_ccxt_connector.py`
+- [x] T018 [P] [US1] Unit test for ccxt retry logic (429/timeout/auth error) in `tests/unit/test_ccxt_connector.py`
+- [x] T019 [P] [US1] Unit test for ccxt data validation (missing id, bad symbol, bad side, non-finite amount) → `ConnectorDataError` in `tests/unit/test_ccxt_connector.py`
+- [x] T020 [P] [US1] Integration test for exchange sync end-to-end on SQLite (mock ccxt, real DB) in `tests/integration/test_sync_exchange_sqlite.py`
+- [x] T021 [P] [US1] Integration test for exchange sync end-to-end on real PostgreSQL in `tests/integration/test_sync_exchange_postgres.py`
+- [x] T022 [US1] Implement `CcxtExchangeConnector` in `src/ft/adapters/connectors/ccxt_exchange.py`: ccxt client init, `fetch_trades` with `since`-based pagination, trade validation, mapping to investment event dicts, retry with exponential backoff
+- [x] T023 [US1] Wire `binance`/`kraken`/`okx` source names to `CcxtExchangeConnector` in `SyncService` and CLI (`src/ft/application/sync_service.py`, `src/ft/cli.py`)
+- [x] T024 [US1] Run US1 tests and verify: mapping correctness, global fail-closed on pagination/bad data, idempotent re-sync, SQLite/PG equivalence
+- [x] T025 [P] [US2] Unit test for Polymarket activity → investment event mapping (BUY/SELL/non-TRADE skip) in `tests/unit/test_polymarket_connector.py`
+- [x] T026 [P] [US2] Unit test for Polymarket API pagination (multi-page, empty) in `tests/unit/test_polymarket_connector.py`
+- [x] T027 [P] [US2] Unit test for Polymarket data validation (missing slug/outcome/txHash) → `ConnectorDataError` in `tests/unit/test_polymarket_connector.py`
+- [x] T028 [P] [US2] Unit test for proxy wallet resolution (login → proxy address) in `tests/unit/test_polymarket_connector.py`
+- [x] T029 [P] [US2] Integration test for Polymarket sync end-to-end on SQLite in `tests/integration/test_sync_polymarket_sqlite.py`
+- [x] T030 [P] [US2] Integration test for Polymarket sync end-to-end on real PostgreSQL in `tests/integration/test_sync_polymarket_postgres.py`
+- [x] T031 [US2] Implement `PolymarketConnector` in `src/ft/adapters/connectors/polymarket.py`: Activity API fetching, offset pagination, proxy wallet resolution, TRADE filtering, activity → investment event mapping, retry
+- [x] T032 [US2] Wire `polymarket` source name to `PolymarketConnector` in `SyncService` and CLI
+- [x] T033 [US2] Run US2 tests and verify: mapping correctness, non-TRADE skip, global fail-closed, idempotent, SQLite/PG equivalence
+- [x] T034 [P] [US3] Unit test for credential edge cases: empty file, invalid YAML, extra fields ignored, nested error messages never contain key values in `tests/unit/test_credentials.py`
+- [x] T035 [P] [US3] Integration test for CLI error output: no credentials → example config; wrong type → type hint; missing field → field name in `tests/integration/test_sync_cli_errors.py`
+- [x] T036 [US3] Harden credential error messages in `src/ft/credentials.py`: ensure example configs are provider-specific, error paths never log/display `api_key`/`api_secret` values
+- [x] T037 [US3] Add Polymarket-specific credential validation (wallet address format `0x[a-fA-F0-9]{40}`) in `src/ft/credentials.py`
+- [x] T038 [US3] Run US3 tests and verify all credential edge cases pass
+- [x] T039 [P] [US4] Unit test for cursor read/write lifecycle in SyncService: first sync → cursor saved; incremental → cursor used; `--full` → cursor ignored in `tests/unit/test_sync_service.py`
+- [x] T040 [P] [US4] Integration test for cursor persistence + incremental sync on SQLite in `tests/integration/test_sync_cursor_incremental_sqlite.py`
+- [x] T041 [P] [US4] Integration test for cursor persistence + incremental sync on real PostgreSQL in `tests/integration/test_sync_cursor_incremental_postgres.py`
+- [x] T042 [US4] Implement cursor integration in `SyncService`: read cursor before fetch, pass `since` to connector, upsert cursor after successful commit in `src/ft/application/sync_service.py`
+- [x] T043 [US4] Implement `--full` flag handling in CLI and SyncService: skip cursor read when `--full` is passed
+- [x] T044 [US4] Handle stale cursor (API returns error for old cursor value) → fallback to full fetch with warning in `src/ft/application/sync_service.py`
+- [x] T045 [US4] Run US4 tests and verify: cursor saved, incremental works, `--full` works, stale cursor fallback works
+- [x] T046 [P] Update CLI help text and README for `ft sync` command
+- [x] T047 [P] Run full test suite (`uv run pytest tests/ -v`) and verify no regressions (2026-07-28: `FT_TEST_POSTGRES_URL=postgresql+psycopg://finance_tracker:finance_tracker_test@127.0.0.1:55432/finance_tracker_test` + `FT_REQUIRE_TEST_POSTGRES=1` → **975 passed, 9 skipped, 0 failed** in 333.71s. Fixed four pre-existing regressions uncovered by the full matrix: (1) investment `acct add --currency` now seeds `metadata.base_currencies` so portfolio cash legs mark `is_cash`; (2) `tests/test_market_data.py` retargeted to `PredictionMarketQuoteProvider` after 017 removed `_fetch_polymarket`; (3) IBKR offline replay no longer expects a residual `hkd` leg after FX net-P&L-only mapping; (4) wealth publish orphan fixture uses integer `owner_account_id=1` post-016.)
+- [x] T048 Run quickstart.md validation scenarios end-to-end (exchange + Polymarket + errors + dual DB)
+- [x] T049 Final diff review: no credentials in logs/test output, no unused imports, consistent error messages
+- [x] T050 [P] [US2] Extend `tests/unit/test_polymarket_connector.py` with failing `REDEEM` → swap、`YIELD` → USD dividend、unknown-type skip and missing transactionHash fail-closed cases.
+- [x] T051 [P] [US2] Extend SQLite and PostgreSQL Polymarket sync integration tests for `REDEEM` / `YIELD` import and idempotent re-sync in `tests/integration/test_sync_polymarket_sqlite.py` and `tests/integration/test_sync_polymarket_postgres.py`.
+- [x] T052 [US2] Update `src/ft/adapters/connectors/polymarket.py` to map `REDEEM` and `YIELD` exactly as specified; preserve transactionHash provenance and fail closed on missing required fields.
+- [x] T053 [US2] Execute the SQLite/PostgreSQL Polymarket matrix, then run `ft sync --source polymarket --account Polymarket --full` against the user-approved `~/.ft` SQLite ledger to idempotently backfill the new activity kinds.
+- [x] T054 [P] [US1] Add failing unit tests for ccxt ledger pagination (including repeated/no-progress page failure), deposit/withdraw/reward/staking/transfer mapping, strict unknown-type and malformed-fee failures in `tests/unit/test_ccxt_connector.py`.
+- [x] T055 [P] [US1] Add SQLite and real PostgreSQL integration tests for combined trade + ledger import, fee child events, idempotent re-sync, and whole-sync rollback in `tests/integration/test_sync_exchange_sqlite.py` and `tests/integration/test_sync_exchange_postgres.py`.
+- [x] T056 [US1] Extend `src/ft/adapters/connectors/ccxt_exchange.py` to fetch and page ledger entries with trades, map all specified activity types, retain source payloads, and fail closed for invalid fee or unsupported types.
+- [x] T057 [US1] Extend `src/ft/domain/investment_projection.py` to accept `transfer` as a no-position-change auditable event, with focused domain tests in `tests/unit/domain/test_investment_event_replay.py`.
+- [x] T058 [US1] Run the affected SQLite/PostgreSQL matrix and use the user-approved Kraken credentials to perform a `--full` import into `~/.ft/finance-tracker.db`; report activity counts without exposing credentials or raw private data.
+- [x] T059 [US1] Add failing aliases-and-atomicity tests: CCXT trade/ledger ticker aliases must match the file-import normalizer, and a mapped ledger event that fails during replay must roll back events, snapshot, and cursor on SQLite and real PostgreSQL in `tests/unit/test_ccxt_connector.py`, `tests/integration/test_sync_exchange_sqlite.py`, and `tests/integration/test_sync_exchange_postgres.py`.
+- [x] T060 [US1] Add the minimal canonical `normalize_crypto_ticker` helper in `src/ft/importers/ticker_normalize.py` using `schema.CRYPTO_IDS` plus explicit exchange aliases, call it from `src/ft/adapters/connectors/ccxt_exchange.py`, then complete the combined raw trade+ledger integration/rollback matrix and update the verification evidence in `openspec/specs/018-investment-connector-sync/tasks.md`.
+- [x] T061 [P] [US5] Add a failing unit test for a multi-position portfolio with an actually blocking/raising quote provider: a monotonic query deadline returns every nonzero position within budget and failed/expired quotes are partial/N/A in `tests/unit/application/test_portfolio_valuation.py`.
+- [x] T062 [P] [US5] Add a failing CLI rendering test that asserts `ft stock list` emits its own table without provider diagnostic leakage in `tests/test_application_investment.py`.
+- [x] T063 [P] [US5] Add SQLite and real PostgreSQL integration coverage for an identical nonzero holding set and partial quote statuses in `tests/integration/test_portfolio_query_sqlite.py` and `tests/integration/test_portfolio_query_postgres.py`.
+- [x] T064 [US5] Implement the smallest monotonic query deadline with a daemon bounded quote worker/failure downgrade in `src/ft/application/investment.py`, plus provider timeout and yfinance logger containment in `src/ft/adapters/market_data.py`; preserve all nonzero DTO positions and avoid ledger writes.
+- [x] T065 [US5] Run the unit, CLI, SQLite and real PostgreSQL portfolio matrix; manually verify `FT_DATABASE_URL=sqlite+pysqlite:////Users/huangwenlong/.ft/finance-tracker.db FT_WORKSPACE_ID=default uv run ft stock list` outputs the imported Kraken and Polymarket holdings within five seconds (2026-07-27: 5-test matrix passed; real SQLite CLI completed in 4.67s with all Kraken and 16 Polymarket positions rendered, and no provider diagnostics).
+- [x] T066 [P] [US6] Add failing unit tests for current pUSD `balanceOf`: exact six-decimal USD `checkin`, `checkin:<block>` identity/payload, no `eth_getLogs` call, and RPC failure atomicity in `tests/unit/test_polymarket_connector.py`.
+- [x] T067 [P] [US6] Add SQLite and real PostgreSQL end-to-end tests proving Activity + pUSD checkin commit atomically, replace USD only, preserve pm positions, and same-block re-run idempotency in `tests/integration/test_sync_polymarket_sqlite.py` and `tests/integration/test_sync_polymarket_postgres.py`.
+- [x] T068 [US6] Implement one current-block/timestamp RPC read plus pUSD `balanceOf` → USD `checkin` in `src/ft/adapters/connectors/polymarket.py`; remove all `eth_getLogs`, Transfer mapper, history window and compound-cursor behavior.
+- [x] T069 [US6] Run the focused unit and SQLite/real-PostgreSQL matrix, then synchronize the user-authorized `.ft/finance-tracker.db`; verify final USD equals pUSD checkin and no market position changed in `openspec/specs/018-investment-connector-sync/tasks.md` (2026-07-27: `29 passed`; real SQLite sync added `checkin:90960575` at USD `260.398415`, retained all 16 pm positions, and advanced the Activity cursor to `1785121333`).
+
+## 2. 迁移确认
+
+- [x] 2.1 保留原始任务、验证证据和未解决风险。
+- [x] 2.2 将行为需求投影到 OpenSpec 主规格。

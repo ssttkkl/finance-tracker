@@ -46,12 +46,12 @@ Phase 2 是可信、可追溯的本地账本浏览器，不是财富分析大屏
 
 ## 3. 前置状态：先收敛 019
 
-本文写入时的基线已包含 019 的产品代码，但 Spec Kit 状态仍需单独核对和关账。新会话不得默认 019
+本文写入时的基线已包含 019 的产品代码，但 OpenSpec 状态仍需单独核对和关账。新会话不得默认 019
 已经在 artifacts 层完成，应先检查：
 
-- `specs/019-portfolio-quote-orchestration/spec.md` 的状态；
+- `openspec/specs/019-portfolio-quote-orchestration/spec.md` 的状态；
 - `tasks.md`、收敛结果与验证证据；
-- `.specify/feature.json` 的活跃 feature 指针；
+- `openspec list` 的活跃 feature 指针；
 - 是否已有 019 关账分支或 PR，避免重复提交。
 
 019 关账应保持为独立变更，并以 `refactor/web` 为 base；不要把 020 的 artifacts 或代码混入 019 的
@@ -286,15 +286,15 @@ Application Service
 
 020 必须按仓库门禁执行：
 
-1. `$speckit-specify`；
-2. `$speckit-clarify`；
-3. 对用户可见能力运行 gstack `plan-ceo-review`，把采纳结论回写 `spec.md`；
-4. `$speckit-plan`；
+1. `$openspec-propose`；
+2. `$openspec-update-change`；
+3. 对用户可见能力运行 gstack `plan-ceo-review`，把采纳结论回写 proposal、delta spec 或 design；
+4. `$openspec-update-change`，同步 proposal、delta spec 和 design；
 5. 对 Web/API、公共边界和双数据库行为运行 gstack `plan-eng-review`，把结论回写设计产物；
-6. `$speckit-tasks`，覆盖消费与投资两条链路，并先安排失败测试；
-7. `$speckit-analyze`，解决所有 CRITICAL/HIGH 问题；
-8. 仅在 artifacts 就绪后交给项目级 `speckit_implementer` 使用 `$speckit-implement`；
-9. 完成后执行 `$speckit-converge`、gstack `review` 和 Web gstack `qa`。
+6. `$openspec-update-change`，覆盖消费与投资两条链路，并先安排失败测试；
+7. `openspec validate --all --strict`，解决所有 ERROR；
+8. 仅在 artifacts 就绪后使用 `$openspec-apply-change`；
+9. 完成后执行 `$openspec-archive-change`、gstack `review` 和 Web gstack `qa`。
 
 测试证据至少覆盖：
 
@@ -317,10 +317,10 @@ Application Service
 
 新会话可以直接使用下面的任务描述：
 
-> 先读取根目录 `AGENTS.md`、`.specify/memory/constitution.md`、
+> 先读取根目录 `AGENTS.md`、`openspec/project-context.md`、
 > `docs/productization-refactor-plan.md`、`docs/phase2-web-spec-handoff.md`、`DOMAIN_GLOSSARY.md`，并核对
 > 019 的关账与 PR 状态。Phase 2 只能创建一个 `020-transaction-browser-web` spec，不得拆成
 > 020/021，也不得创建独立 Web foundation feature。在同一个 feature 中，先沿消费账本链路建立最小
 > Web/API 运行形态，再继续完成投资事件、持仓和当前市值；两条链路均完成后才能关账。先执行完整
-> Spec Kit 规格、澄清、产品挑战、方案、工程挑战、任务拆分和 analyze 门禁；artifacts 通过前不要
+> OpenSpec proposal、delta spec、design、tasks 和 validate 门禁；artifacts 通过前不要
 > 修改产品代码。所有中文文档和程序文案遵守项目领域词表与中文文档规范。

@@ -12,10 +12,10 @@ Repo: ssttkkl/finance-tracker
 Status: APPROVED
 Mode: Startup
 Parent roadmap: [Finance Tracker 产品化重构顶层路线](productization-refactor-plan.md)
-Implementation authority: [Spec Kit features](../specs/)
+Implementation authority: [OpenSpec features](../openspec/specs/)
 
 > 本文是 gstack 产出的已批准产品设计输入，不是独立实施事实源。存储基线由
-> [001-postgres-only-storage](../specs/001-postgres-only-storage/spec.md) 定义；后续财富 feature 的
+> [001-postgres-only-storage](../openspec/specs/001-postgres-only-storage/spec.md) 定义；后续财富 feature 的
 > `spec.md`、`plan.md` 和 `tasks.md` 建立后，本文只保留为产品决策记录。
 
 ## Problem Statement
@@ -573,7 +573,7 @@ A 支持现金、银行存款、普通借贷、现货多头股票/ETF、现货�
 
 #### A0：PostgreSQL-only 基线与财富契约收口
 
-- 已完成 [001-postgres-only-storage](../specs/001-postgres-only-storage/spec.md)，删除 local backend、迁移兼容层和双存储配置。
+- 已完成 [001-postgres-only-storage](../openspec/specs/001-postgres-only-storage/spec.md)，删除 local backend、迁移兼容层和双存储配置。
 - 财富报告读取的账户、现金事实和投资事件直接使用稳定 `account_id`，不增加 account name 兼容解析层。
 - 报告读取层已有 UTC `timestamptz` 与 Asia/Shanghai 分桶合同；后续财富 feature 直接复用。
 - statement import 以 `source_type + record_id` 提供行级幂等，并以行内 `source_payload` 保存来源快照。
@@ -825,7 +825,7 @@ Canonical serialization 规定：金额为无指数 Decimal 字符串；时间�
 
 - 现有 Application Service 与 repository protocols；
 - 已完成的 PostgreSQL repositories、queries、workspace 隔离和事务边界；
-- 已完成的 [001-postgres-only-storage](../specs/001-postgres-only-storage/spec.md) 基线；
+- 已完成的 [001-postgres-only-storage](../openspec/specs/001-postgres-only-storage/spec.md) 基线；
 - 证券与加密事件回放；
 - 历史行情与 FX 数据；
 - 至少三组能覆盖财富恒等式的真实匿名 fixture；

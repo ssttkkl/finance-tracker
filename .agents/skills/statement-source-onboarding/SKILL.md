@@ -6,7 +6,7 @@ description: >
   or extending payment_mirror / refund_offset / transfer_pair for a new bill type.
   Core method: real bills → native taxonomy buckets (e.g. Alipay status×direction) →
   per-bucket feature inventory → bucket-scoped scan rules (not global keyword soup).
-  Encodes the 007 real-bill workflow, pitfalls, and rule architecture (Spec Kit + dual DB).
+  Encodes the 007 real-bill workflow, pitfalls, and rule architecture (OpenSpec + dual DB).
 ---
 
 # Statement Source Onboarding (Import + Scan)
@@ -27,10 +27,10 @@ real `~/.ft/bills` calibration loops (mirror, refund, transfer).
 
 ## Non-goals of this skill
 
-- Does not replace Spec Kit (`specify` → plan → tasks → implementer agent)
+- Does not replace OpenSpec (`$openspec-propose` → `$openspec-apply-change` → `$openspec-archive-change`)
 - Does not invent financial semantics without real bill samples
 - Does not implement production code in the main session when project rules require
-  `speckit_implementer` (follow CLAUDE.md / constitution)
+  `$openspec-apply-change` (follow CLAUDE.md / constitution)
 
 ---
 
@@ -56,13 +56,13 @@ Dual backend (SQLite + PostgreSQL), Decimal money, formal facts immutable, works
 
 ## Golden workflow (do not skip)
 
-### 0. Spec Kit feature
+### 0. OpenSpec change
 
-1. New or living feature under `specs/00N-…`
+1. New or living feature under `openspec/changes/<name>`
 2. Spec must state: acceptance counts, raw payload contract, scan phase ownership,
    non-goals (no silent skip, no amount netting, no import-time relations unless
    product explicitly revisits that decision)
-3. Plan + tasks + analyze before implement
+3. Proposal/specs/design/tasks + `openspec validate` before implementation
 
 ### 1. Real bills → taxonomy buckets → per-bucket features → bucket-scoped rules
 
@@ -144,9 +144,9 @@ weak mirror noise.
 
 #### 1.5 Worked references in-repo
 
-- Alipay status×direction map: `specs/007-closed-trade-refund-import/spec.md` appendix  
+- Alipay status×direction map: `openspec/specs/007-closed-trade-refund-import/spec.md` appendix
 - WeChat dual-row / status×type: same spec appendix  
-- Transfer buckets: `specs/007-closed-trade-refund-import/attachments/transfer-source-taxonomy.md`  
+- Transfer buckets: `openspec/changes/archive/2026-08-01-007-closed-trade-refund-import/legacy/007-closed-trade-refund-import/attachments/transfer-source-taxonomy.md`
 - Calibration: fresh DB, full import, `relations check`, pending by rule_id  
 
 **Pitfall (lived):** Do not invent “import-time pairing” because the source is “simple”.
@@ -335,7 +335,7 @@ After rule changes:
 | Phase B/C/D pure rules | `src/ft/domain/relations/`（竖切 transfer/refund/mirror） |
 | Check orchestration | `src/ft/application/relations.py` |
 | Payload for scan | fact `source_payload` / detailed list views |
-| Specs | `specs/00N-*/`；导入语义见 `docs/import-flow.md` |
+| Specs | `openspec/changes/<name>/`；导入语义见 `docs/import-flow.md` |
 
 ---
 
@@ -353,12 +353,12 @@ After rule changes:
 
 ---
 
-## Collaboration with Spec Kit / gstack
+## Collaboration with OpenSpec / gstack
 
-1. Spec/clarify/plan/tasks/analyze first  
-2. Implementer agent for product code when required  
+1. explore/propose/validate first
+2. Use `$openspec-apply-change` for product code when required
 3. Real-bill calibration is **in-scope product validation**, not optional QA  
-4. gstack review after code; re-open spec if calibration forces product changes  
+4. gstack review after code; update the OpenSpec change if calibration forces product changes
 
 When the user asks only for exploration (“would this source fit?”), run steps 1–2 and report
 gaps without implementing.

@@ -1,4 +1,0 @@
-{
-  "feature_directory": "specs/025-record-type-relation-gates",
-  "note": "025-record-type-relation-gates：关系配对使用导入时持久化的 record_type；P2P 退回属于 transfer_reversal，refund 仅表示消费退款；普通转账、提现到账和信用账户还款使用互斥路线。"
-}
