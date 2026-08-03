@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>收支详情抽屉原型</title>
+  <style>
+    /* Hallmark · macrostructure: Workbench · genre: modern-minimal · theme: Cobalt
+     * pre-emit critique: P5 H5 E4 S5 R5 V4
+     * states: 默认 · 关系投影 · 无关联 · 加载 · 错误 · 审计展开 · 键盘焦点
+     */
+    :root { --paper:#f8fafc; --raised:#fff; --muted:#eef2f7; --ink:#1f2937; --subtle:#5d6b7d; --rule:#cfd8e3; --accent:#2459c4; --accent-soft:#e9f0ff; --expense:#9c412d; --income:#18775a; --danger:#b33b32; --shadow:rgba(31,41,55,.18); --body:"Noto Sans SC",sans-serif; --mono:"IBM Plex Mono",monospace; --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px; --radius:4px; --ease:cubic-bezier(.16,1,.3,1); }
+    * { box-sizing:border-box; } html,body { min-width:0; overflow-x:clip; } body { margin:0; background:var(--paper); color:var(--ink); font-family:var(--body); }
+    button { min-height:44px; padding:0 var(--space-3); border:1px solid var(--rule); border-radius:var(--radius); background:var(--raised); color:var(--ink); font:inherit; cursor:pointer; white-space:nowrap; transition:background-color 150ms var(--ease),border-color 150ms var(--ease),transform 120ms var(--ease); } button:hover { border-color:var(--accent); background:var(--accent-soft); } button:active { transform:translateY(1px); } button:focus-visible,summary:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+    .app { min-height:100vh; padding:32px; background:linear-gradient(90deg,#273447 0 224px,var(--paper) 224px); } .backdrop { position:fixed; inset:0; background:rgba(31,41,55,.46); } .sheet { position:relative; z-index:1; width:min(480px,100%); min-height:100vh; margin-left:auto; padding:24px; background:var(--raised); box-shadow:-16px 0 40px var(--shadow); }
+    .toolbar { display:flex; flex-wrap:wrap; gap:var(--space-2); margin-bottom:var(--space-4); } .toolbar button[aria-pressed="true"] { border-color:var(--accent); background:var(--accent); color:var(--raised); }
+    .head { display:flex; align-items:center; justify-content:space-between; gap:var(--space-3); padding-bottom:var(--space-3); border-bottom:1px solid var(--rule); } h1,h2,h3,p { margin:0; } h1 { font-size:20px; } h2 { font-size:14px; } h3 { font-size:13px; } .eyebrow { margin-bottom:var(--space-1); color:var(--subtle); font-family:var(--mono); font-size:11px; }
+    .amount { margin:var(--space-4) 0; font-family:var(--mono); font-size:30px; font-weight:700; color:var(--expense); } .amount.income { color:var(--income); } .formation { display:inline-flex; gap:var(--space-2); align-items:center; padding:5px 8px; border:1px solid var(--rule); background:var(--muted); color:var(--subtle); font-size:12px; } .formation strong { color:var(--accent); }
+    .section { margin-top:var(--space-4); padding-top:var(--space-4); border-top:1px solid var(--rule); } dl { display:grid; grid-template-columns:112px minmax(0,1fr); gap:10px var(--space-3); margin:var(--space-3) 0 0; font-size:13px; } dt { color:var(--subtle); } dd { min-width:0; margin:0; overflow-wrap:anywhere; } .record-list { display:grid; gap:var(--space-2); margin-top:var(--space-3); } .record { padding:var(--space-3); border-left:3px solid var(--accent); background:var(--muted); } .record strong,.record small { display:block; } .record small { margin-top:var(--space-1); color:var(--subtle); } .record.refund { border-left-color:var(--income); } .empty,.state { margin-top:var(--space-3); padding:var(--space-3); background:var(--muted); color:var(--subtle); font-size:13px; } .state.error { border-left:3px solid var(--danger); color:var(--danger); } details { margin-top:var(--space-4); border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); } summary { min-height:48px; display:flex; align-items:center; cursor:pointer; color:var(--accent); font-weight:650; } .audit { padding:0 0 var(--space-4); } .audit p { margin-bottom:var(--space-2); color:var(--subtle); font-size:12px; } .audit code { font-family:var(--mono); overflow-wrap:anywhere; }
+    [hidden] { display:none!important; } @media(max-width:480px) { .app { padding:0; background:var(--paper); } .sheet { width:100%; padding:18px 16px; } .toolbar { padding:12px 16px; } dl { grid-template-columns:minmax(0,1fr); gap:3px; } dd { margin-bottom:8px; } .amount { font-size:26px; } } @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition-duration:0ms!important; } }
+  </style>
+</head>
+<body>
+  <main class="app"><div class="backdrop"></div><div class="sheet" aria-label="收支详情原型">
+    <div class="toolbar" aria-label="原型状态"><button data-view="relation" aria-pressed="true">关系形成</button><button data-view="single">单源</button><button data-view="empty">无关联</button><button data-view="loading">加载</button><button data-view="error">错误</button></div>
+    <header class="head"><div><p class="eyebrow">收支账本</p><h1>收支详情</h1></div><button aria-label="关闭收支详情">关闭</button></header>
+    <div class="state" data-state="loading" hidden>正在读取收支详情…</div><div class="state error" data-state="error" hidden>无法读取收支详情。<button>重试</button></div>
+    <div data-content><p class="amount">-70.00 CNY</p><p class="formation"><strong>关系投影</strong><span>由 3 条账本记录形成</span></p>
+      <section class="section"><h2>收支详情</h2><dl><dt>交易对方</dt><dd>咖啡店</dd><dt>发生时间</dt><dd>2026-07-03 09:00</dd><dt>账户</dt><dd>日常账户</dd><dt>分类</dt><dd>餐饮</dd><dt>备注</dt><dd>午间消费</dd></dl></section>
+      <section class="section" data-records><h2>关联记录</h2><div class="record-list"><article class="record"><strong>同笔支付 · -100.00 CNY</strong><small>2026-07-03 · 日常账户 · 该笔支付已归并，不重复计入。</small></article><article class="record refund"><strong>退款 · +30.00 CNY</strong><small>2026-07-04 · 日常账户 · 已冲销本次消费。</small></article></div></section><p class="empty" data-empty hidden>这笔收支由一条账本记录直接形成，没有关联记录。</p>
+      <details><summary>审计信息</summary><div class="audit"><p>用于核验系统的计算依据，不影响账本结果。</p><dl><dt>投影标识</dt><dd><code>cash:1003</code></dd><dt>业务行标识</dt><dd><code>cash-003</code></dd><dt>来源行快照</dt><dd>merchant: 咖啡店</dd><dt>规则标识</dt><dd><code>refund.amount.v1</code></dd></dl></div></details>
+    </div>
+  </div></main>
+  <script>
+    const buttons = document.querySelectorAll('[data-view]'); const content = document.querySelector('[data-content]'); const records = document.querySelector('[data-records]'); const empty = document.querySelector('[data-empty]'); const loading = document.querySelector('[data-state="loading"]'); const error = document.querySelector('[data-state="error"]'); const amount = document.querySelector('.amount'); const formation = document.querySelector('.formation');
+    buttons.forEach((button) => button.addEventListener('click', () => { const view = button.dataset.view; buttons.forEach((item) => item.setAttribute('aria-pressed', String(item === button))); loading.hidden = view !== 'loading'; error.hidden = view !== 'error'; content.hidden = view === 'loading' || view === 'error'; records.hidden = view === 'single' || view === 'empty'; empty.hidden = view !== 'single' && view !== 'empty'; amount.textContent = view === 'single' || view === 'empty' ? '-12.50 CNY' : '-70.00 CNY'; formation.innerHTML = view === 'single' || view === 'empty' ? '<strong>单源投影</strong><span>由 1 条账本记录形成</span>' : '<strong>关系投影</strong><span>由 3 条账本记录形成</span>'; }));
+  </script>
+</body>
+</html>

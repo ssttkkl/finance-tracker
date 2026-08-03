@@ -13,11 +13,40 @@ def test_projection_api_contract_and_old_routes_are_absent(cash_web_runtime):
     page=client.get("/api/v1/cash-projections?limit=2"); accounts=client.get("/api/v1/accounts?view=cash")
     assert page.status_code==200 and page.json()["projection_version"]==1
     assert page.json()["items"][0]["projection_id"]=="cash:1003" and isinstance(page.json()["items"][0]["amount"],str)
+    assert page.json()["items"][0]["source_types"] == ["fixture"]
     assert page.json()["filter_options"] == {"categories": sorted(["餐饮", "日用", "收入"]), "currencies": ["CNY"]}
     assert page.json()["monthly_summaries"] == [{"month": "2026-07", "currencies": [{"currency": "CNY", "income": "2000", "expense": "-112.5"}]}]
     assert [x["name"] for x in accounts.json()["items"]]==["日常账户","信用账户"]
     assert client.get("/api/v1/cash-transactions").status_code==404
     assert client.get("/api/v1/evidence/cash/1003").status_code==404
+
+
+@pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_projection_api_returns_member_sources_in_member_order_without_duplicates(request, runtime_name):
+    from datetime import datetime
+    from decimal import Decimal
+    from zoneinfo import ZoneInfo
+
+    from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
+
+    runtime = request.getfixturevalue(runtime_name)
+    with runtime.sessions.begin() as session:
+        session.add(CashTransactionModel(
+            id=1004, workspace_id=runtime.workspace_id, account_id=101,
+            occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("Asia/Shanghai")), amount=Decimal("3"),
+            currency="CNY", counterparty="咖啡店", category="退款", source_type="bank", record_id="cash-004",
+        ))
+        session.add(TransactionRelationModel(
+            workspace_id=runtime.workspace_id, kind="refund_offset", subtype="",
+            primary_fact_id=1003, secondary_fact_id=1004, primary_fact_type="cash", secondary_fact_type="cash",
+            ordered_fact_a=1003, ordered_fact_b=1004, anchor_fact_id=1004, status="accepted",
+        ))
+
+    payload = _client(runtime).get("/api/v1/cash-projections", params={"limit": 50}).json()
+    projection = next(item for item in payload["items"] if item["projection_id"] == "cash:1003")
+
+    assert projection["source_type"] == "fixture"
+    assert projection["source_types"] == ["fixture", "bank"]
 
 
 def test_projection_api_returns_visible_internal_transfer(cash_web_runtime):

@@ -8,7 +8,7 @@ const projection = {
   counterparty: "咖啡店", category: "餐饮", note: "午间消费", amount: "-12.50", currency: "CNY",
   economic_type: "expense" as const, transfer_subtype: null, composition: ["payment_mirror", "refund_offset"],
   member_count: 3, accepted_relation_summary: [{ kind: "payment_mirror", subtype: "", count: 1 }, { kind: "refund_offset", subtype: "", count: 1 }],
-  source_type: "fixture", record_id: "cash-003", visible: true, hidden_reason: null,
+  source_type: "alipay", source_types: ["alipay", "icbc_credit"], record_id: "cash-003", visible: true, hidden_reason: null,
 };
 
 function evidenceFor(item = projection) {
@@ -17,7 +17,7 @@ function evidenceFor(item = projection) {
     root_record: { id: "1003", occurred_at: item.occurred_at, account: item.account, counterparty: item.counterparty, category: item.category, note: item.note, amount: "-100.00", currency: item.currency, source_type: item.source_type, record_id: item.record_id, source_snapshot: { merchant: "咖啡店" } },
     members: [
       { id: "1003", occurred_at: item.occurred_at, account: item.account, counterparty: item.counterparty, category: item.category, note: item.note, amount: "-100.00", currency: item.currency, source_type: item.source_type, record_id: item.record_id, roles: ["root"] },
-      { id: "1004", occurred_at: "2026-07-04T09:00:00+08:00", account: item.account, counterparty: "咖啡店", category: "退款", note: "", amount: "30.00", currency: item.currency, source_type: item.source_type, record_id: "cash-004", roles: ["refund"] },
+      { id: "1004", occurred_at: "2026-07-04T09:00:00+08:00", account: item.account, counterparty: "咖啡店", category: "退款", note: "", amount: "30.00", currency: item.currency, source_type: "icbc_credit", record_id: "cash-004", roles: ["refund"] },
     ],
     accepted_relations: [{ id: "7", kind: "refund_offset", subtype: "", rule_id: "refund.amount.v1", confidence: "strong", evidence: { amount_match: true }, primary_record: null, secondary_record: null }],
     inactive_relation_hints: [{ id: "8", kind: "payment_mirror", subtype: "", status: "pending_review", primary_record: { id: "1003", occurred_at: item.occurred_at, account: item.account, counterparty: item.counterparty, category: item.category, note: item.note, amount: "-100.00", currency: item.currency, source_type: item.source_type, record_id: item.record_id }, secondary_record: null }],
@@ -126,7 +126,7 @@ describe("CashLedgerPage", () => {
     expect(screen.getByRole("group", { name: "账本筛选工具" })).not.toHaveAttribute("open");
     expect(screen.queryByText("本机账本")).not.toBeInTheDocument();
     expect(screen.queryByText("按主记录发生时间查看收支投影")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "经济类型", "金额", "操作"]);
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "来源", "经济类型", "金额", "操作"]);
     expect(screen.queryByRole("columnheader", { name: "组成方式" })).not.toBeInTheDocument();
     expect(screen.getByText("午间消费")).toBeInTheDocument();
     expect(screen.getByText("-")).toBeInTheDocument();
@@ -188,7 +188,7 @@ describe("CashLedgerPage", () => {
     expect(transferRow).toHaveTextContent("个人转账");
   });
 
-  it("在证据详情中展示主记录、成员、已采用关系、未生效提示和退款时间线", async () => {
+  it("以收支详情和关联记录服务核对，不显示审计结构", async () => {
     vi.stubGlobal("fetch", vi.fn((input: string) => {
       if (input.includes("/accounts")) return json({ items: [account] });
       if (input.includes("/evidence/cash-projections/cash%3A1003")) return json(evidenceFor());
@@ -200,13 +200,56 @@ describe("CashLedgerPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "查看咖啡店的证据详情" }));
 
     const dialog = await screen.findByRole("dialog", { name: "证据详情" });
-    expect(within(dialog).getByRole("region", { name: "投影结果" })).toHaveClass("evidence-section");
-    expect(within(dialog).getByRole("region", { name: "退款时间线" })).toHaveClass("evidence-section");
+    expect(within(dialog).getByRole("region", { name: "收支详情" })).toHaveClass("evidence-section");
+    expect(within(dialog).getByRole("region", { name: "关联记录" })).toHaveClass("evidence-section");
+    expect(within(dialog).getByText("关系投影")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/条账本记录/)).not.toBeInTheDocument();
     expect(within(dialog).getByText("午间消费")).toBeInTheDocument();
-    expect(screen.getByText("merchant")).toBeInTheDocument();
-    expect(screen.getByText("退款冲销关系（refund.amount.v1）")).toBeInTheDocument();
-    expect(screen.getByText(/同笔支付关系：待审核/)).toBeInTheDocument();
-    expect(screen.getByText(/30.00 CNY，fixture/)).toBeInTheDocument();
+    expect(within(dialog).getByText("alipay、icbc_credit")).toBeInTheDocument();
+    const relatedRecord = within(within(dialog).getByRole("region", { name: "关联记录" })).getByRole("listitem");
+    expect(within(relatedRecord).getByText("关联类型")).toBeInTheDocument();
+    expect(within(relatedRecord).getAllByText("退款")).toHaveLength(2);
+    expect(within(relatedRecord).getByText("+30.00 CNY")).toBeInTheDocument();
+    expect(within(relatedRecord).getByText("icbc_credit")).toBeInTheDocument();
+    expect(within(relatedRecord).getByText("已冲销本次消费。")).toBeInTheDocument();
+    expect(within(dialog).queryByText("审计信息")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("merchant")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("退款冲销关系（refund.amount.v1）")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/同笔支付关系：待审核/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/30.00 CNY，fixture/)).not.toBeInTheDocument();
+  });
+
+  it("单源投影显示自身来源，不显示关系标记或关联记录", async () => {
+    const single = {
+      ...projection,
+      projection_id: "cash:1006",
+      composition: [],
+      member_count: 1,
+      accepted_relation_summary: [],
+      source_types: ["alipay"],
+      record_id: "cash-006",
+    };
+    const singleEvidence = evidenceFor(single);
+    singleEvidence.members = [singleEvidence.members[0]];
+    singleEvidence.accepted_relations = [];
+    singleEvidence.inactive_relation_hints = [];
+    singleEvidence.refund_timeline = [];
+    vi.stubGlobal("fetch", vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/evidence/")) return json(singleEvidence);
+      return json({ projection_version: 1, items: [single], next_cursor: null, page_size: 50, filters: {} });
+    }));
+
+    render(<CashLedgerPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "查看咖啡店的证据详情" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "证据详情" });
+    expect(within(dialog).queryByText("单源投影")).not.toBeInTheDocument();
+    expect(within(dialog).getByText("alipay")).toBeInTheDocument();
+    expect(within(dialog).queryByText("关系投影")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/条账本记录/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("region", { name: "关联记录" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("这笔收支由一条账本记录直接形成，没有关联记录。")).not.toBeInTheDocument();
   });
 
   it("切换账户后保留投影合同并重新读取第一页", async () => {
