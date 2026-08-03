@@ -26,6 +26,7 @@ export type CashProjection = {
   member_count: number;
   accepted_relation_summary: AcceptedRelationSummary[];
   source_type: string | null;
+  source_types: string[];
   record_id: string;
   visible: boolean;
   hidden_reason: string | null;

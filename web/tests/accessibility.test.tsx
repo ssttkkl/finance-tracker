@@ -8,7 +8,7 @@ const transaction = {
   projection_id: "cash:1003", occurred_at: "2026-07-03T09:00:00+08:00",
   account: { id: 101, name: "日常账户", type: "cash", active: true },
   counterparty: "咖啡店", category: "餐饮", amount: "-12.5", currency: "CNY", note: "",
-  source_type: "fixture", record_id: "cash-003", economic_type: "expense" as const, transfer_subtype: null,
+  source_type: "fixture", source_types: ["fixture"], record_id: "cash-003", economic_type: "expense" as const, transfer_subtype: null,
   composition: [], member_count: 1, accepted_relation_summary: [], visible: true, hidden_reason: null,
 };
 
@@ -32,8 +32,8 @@ describe("现金账本无障碍", () => {
     render(<CashLedgerPage />);
     const trigger = await screen.findByRole("button", { name: "查看咖啡店的证据详情" });
     expect(screen.getByLabelText("账户")).toBeInTheDocument();
-    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "经济类型", "金额", "操作"]);
-    expect(screen.getAllByRole("columnheader").map((header) => header.getAttribute("scope"))).toEqual(["col", "col", "col", "col", "col", "col"]);
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "来源", "经济类型", "金额", "操作"]);
+    expect(screen.getAllByRole("columnheader").map((header) => header.getAttribute("scope"))).toEqual(["col", "col", "col", "col", "col", "col", "col"]);
     expect(screen.getByRole("columnheader", { name: "交易信息" })).toHaveAttribute("id", "cash-column-transaction-info");
     expect(screen.getByRole("cell", { name: /咖啡店/ })).toHaveAttribute("headers", "cash-column-transaction-info");
     expect(screen.getByRole("table", { name: "收支账本中的收支记录" })).toHaveClass("cash-table");

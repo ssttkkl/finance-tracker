@@ -106,9 +106,32 @@ class RelationalCashLedgerQueryRepository:
         return state
     def active_version(self):
         with self._session() as s: return self._active(s).projection_version
-    def _dto(self, row, account, relations, transfer=None):
+    def _dto(self, row, account, relations, source_types=(), transfer=None):
         kinds=tuple(sorted({r.kind for r in relations})); summary=tuple({"kind":kind,"subtype":subtype,"count":sum(r.kind==kind and r.subtype==subtype for r in relations)} for kind,subtype in sorted({(r.kind,r.subtype) for r in relations}))
-        return ProjectionDTO(row.projection_id,row.occurred_at.isoformat(),CashAccountDTO(account.id,account.name,account.type,account.active),row.counterparty,row.category,row.note,_amount(row.net_amount),row.currency,row.economic_type,row.transfer_subtype,kinds,row.member_count,summary,row.source_type,row.record_id,row.visible,row.hidden_reason,transfer)
+        return ProjectionDTO(row.projection_id,row.occurred_at.isoformat(),CashAccountDTO(account.id,account.name,account.type,account.active),row.counterparty,row.category,row.note,_amount(row.net_amount),row.currency,row.economic_type,row.transfer_subtype,kinds,row.member_count,summary,row.source_type,tuple(source_types),row.record_id,row.visible,row.hidden_reason,transfer)
+    def _member_source_types(self, session, dataset_id, projection_row_ids):
+        projection_row_ids = tuple(projection_row_ids)
+        source_types = {projection_row_id: [] for projection_row_id in projection_row_ids}
+        if not source_types:
+            return source_types
+        rows = session.execute(
+            select(CashProjectionMemberModel.projection_row_id, CashTransactionModel.source_type)
+            .join(
+                CashTransactionModel,
+                and_(
+                    CashTransactionModel.workspace_id == CashProjectionMemberModel.workspace_id,
+                    CashTransactionModel.id == CashProjectionMemberModel.cash_transaction_id,
+                ),
+            ).where(
+                CashProjectionMemberModel.workspace_id == self._workspace_id,
+                CashProjectionMemberModel.dataset_id == dataset_id,
+                CashProjectionMemberModel.projection_row_id.in_(source_types),
+            ).order_by(CashProjectionMemberModel.projection_row_id, CashProjectionMemberModel.ordinal)
+        )
+        for projection_row_id, source_type in rows:
+            if source_type and source_type not in source_types[projection_row_id]:
+                source_types[projection_row_id].append(source_type)
+        return source_types
     def _transfer_details(self, session, dataset_id, projection_row_ids):
         projection_row_ids = tuple(projection_row_ids)
         if not projection_row_ids:
@@ -290,7 +313,8 @@ class RelationalCashLedgerQueryRepository:
                     by[row.id]=[]
                 if relation is not None: by[row.id].append(relation)
             transfer_details = self._transfer_details(s, dataset_id, [row.id for row, _account in rows])
-            return version, [self._dto(row,account,by[row.id],transfer_details.get(row.id)) for row,account in rows], self._filter_options(s, dataset_id), monthly_summaries
+            source_types = self._member_source_types(s, dataset_id, [row.id for row, _account in rows])
+            return version, [self._dto(row,account,by[row.id],source_types[row.id],transfer_details.get(row.id)) for row,account in rows], self._filter_options(s, dataset_id), monthly_summaries
     def get_evidence(self, projection_id):
         with self._evidence_snapshot() as s:
             state=self._active(s); row=s.scalar(select(CashProjectionModel).where(CashProjectionModel.workspace_id==self._workspace_id,CashProjectionModel.dataset_id==state.active_dataset_id,CashProjectionModel.projection_id==projection_id))
@@ -337,6 +361,9 @@ class RelationalCashLedgerQueryRepository:
             root_record = _record_summary(root, root_account)
             assert root_record is not None
             root_record["source_snapshot"] = _safe_snapshot(root.source_payload)
+            source_types = tuple(dict.fromkeys(
+                cash.source_type for _member, cash, _member_account in members if cash.source_type
+            ))
             transfer = (
                 self._transfer_details(s, state.active_dataset_id, [row.id]).get(row.id)
                 if any(relation.kind == "transfer_pair" for relation in rels)
@@ -344,7 +371,7 @@ class RelationalCashLedgerQueryRepository:
             )
             return {
                 "projection_version": state.projection_version,
-                "projection": self._dto(row, account, rels, transfer),
+                "projection": self._dto(row, account, rels, source_types, transfer),
                 "root_record": root_record,
                 "members": [
                     {**_record_summary(cash, member_account), "roles": list(member.roles_json)}

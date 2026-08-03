@@ -2,16 +2,18 @@ import { expect, test, type Page } from "@playwright/test";
 
 const account = { id: 101, name: "日常账户", type: "cash", active: true };
 const filter_options = { categories: ["餐饮"], currencies: ["CNY"] };
+const EVIDENCE_ANIMATION_MS = 200;
 const projection = {
   projection_id: "cash:visual-001", occurred_at: "2026-07-03T09:00:00+08:00", account,
   counterparty: "视觉核对商户", category: "餐饮", note: "固定去标识化备注", amount: "-12.50", currency: "CNY",
-  economic_type: "expense", transfer_subtype: null, composition: ["payment_mirror"], member_count: 1,
-  accepted_relation_summary: [], source_type: "fixture", record_id: "cash-visual-001", visible: true, hidden_reason: null,
+  economic_type: "expense", transfer_subtype: null, composition: ["payment_mirror"], member_count: 2,
+  accepted_relation_summary: [{ kind: "payment_mirror", subtype: "", count: 1 }], source_type: "wallet", source_types: ["wallet", "bank"], record_id: "cash-visual-001", visible: true, hidden_reason: null,
 };
 
 function evidence() {
-  const root = { id: "visual-001", occurred_at: projection.occurred_at, account, counterparty: projection.counterparty, category: projection.category, note: projection.note, amount: projection.amount, currency: projection.currency, source_type: "fixture", record_id: "cash-visual-001" };
-  return { projection_version: 1, projection, root_record: { ...root, source_snapshot: { merchant: "视觉核对商户" } }, members: [{ ...root, roles: ["root"] }], accepted_relations: [], inactive_relation_hints: [], refund_timeline: [] };
+  const root = { id: "visual-001", occurred_at: projection.occurred_at, account, counterparty: projection.counterparty, category: projection.category, note: projection.note, amount: projection.amount, currency: projection.currency, source_type: "wallet", record_id: "cash-visual-001" };
+  const mirror = { ...root, id: "visual-002", source_type: "bank", record_id: "cash-visual-002", roles: ["mirror"] };
+  return { projection_version: 1, projection, root_record: { ...root, source_snapshot: { merchant: "视觉核对商户" } }, members: [{ ...root, roles: ["root"] }, mirror], accepted_relations: [], inactive_relation_hints: [], refund_timeline: [] };
 }
 
 async function mockLedger(page: Page) {
@@ -39,6 +41,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 1024, height: 768
     await expect(page).toHaveScreenshot(`cash-ledger-${viewport.width}x${viewport.height}.png`, { fullPage: true, animations: "disabled" });
     await page.getByRole("button", { name: "查看视觉核对商户的证据详情" }).click();
     await expect(page.getByRole("dialog", { name: "证据详情" })).toBeVisible();
+    await page.waitForTimeout(EVIDENCE_ANIMATION_MS);
     await expect(page).toHaveScreenshot(`cash-ledger-evidence-${viewport.width}x${viewport.height}.png`, { fullPage: true, animations: "disabled" });
   });
 }
