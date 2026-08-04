@@ -60,14 +60,18 @@ def _write_statement(
     return path
 
 
-def _write_mapping(path: Path, tail: str = "5678") -> Path:
+def _write_mapping(
+    path: Path,
+    tail: str = "5670",
+    account: str = "工银亚洲港币账户",
+) -> Path:
     path.write_text(
         yaml.safe_dump(
             {
                 "rules": [{
                     "source": f"icbc_asia_current_account_{tail}",
                     "match": "*",
-                    "account": "工银亚洲港币账户",
+                    "account": account,
                     "currency": "HKD",
                 }],
                 "default": "error",
@@ -96,7 +100,7 @@ def test_parse_preserves_complete_source_row_and_counterparty_account(tmp_path):
     assert record["date"] == "2026-07-01 09:10:11"
     assert record["amount"] == Decimal("100.50")
     assert record["currency"] == "HKD"
-    assert record["card_number"] == "5678"
+    assert record["card_number"] == "5670"
     assert record["counterparty"] == "测验收款人"
     assert record["counterparty_account"] == "99887766"
     assert record["_source_payload"] == dict(zip(HEADERS, source_row, strict=True))
@@ -198,8 +202,8 @@ def test_prefers_bank_account_over_subaccount_for_routing_and_identity(tmp_path)
     first_records, _, _ = _read_icbc_asia_current_account_raw(str(first))
     second_records, _, _ = _read_icbc_asia_current_account_raw(str(second))
 
-    assert first_records[0]["card_number"] == "4321"
-    assert first_records[0]["payment_method"] == "工银亚洲活期账户(4321)"
+    assert first_records[0]["card_number"] == "4320"
+    assert first_records[0]["payment_method"] == "工银亚洲活期账户(4320)"
     assert first_records[0]["_fact_id"] != second_records[0]["_fact_id"]
 
 
@@ -244,7 +248,7 @@ def test_statement_import_is_backend_equivalent_and_overlap_idempotent(
         monkeypatch.setattr(
             mapping_mod,
             "MAPPING_PATH",
-            _write_mapping(tmp_path / "mapping.yaml", tail="4321"),
+            _write_mapping(tmp_path / "mapping.yaml", tail="4320"),
         )
         with uow as entered:
             entered.accounts.add_raw({
@@ -326,3 +330,67 @@ def test_statement_import_accepts_identical_rows_in_different_file_currencies(
             assert sorted(fact.currency for fact in facts) == ["HKD", "USD"]
     finally:
         engine.dispose()
+
+
+@pytest.mark.parametrize("backend", postgres_test_backend_params())
+def test_currency_subaccounts_route_to_one_canonical_account(tmp_path, monkeypatch, backend):
+    from ft import mapping as mapping_mod
+    from ft.adapters.relational.models import CashTransactionModel
+    from ft.adapters.statement_import import StatementParser
+    from ft.application.statement_import import StatementImportService
+    from ft.domain.imports import StatementImportCommand
+
+    engine, sessions, uow = _backend(tmp_path, backend)
+    try:
+        monkeypatch.setattr(
+            mapping_mod,
+            "MAPPING_PATH",
+            _write_mapping(
+                tmp_path / "mapping.yaml", tail="6780", account="工银亚洲账户",
+            ),
+        )
+        with uow as entered:
+            entered.accounts.add_raw({
+                "name": "工银亚洲账户", "type": "cash", "currency": "HKD",
+            })
+            entered.commit()
+
+        hkd = _write_statement(
+            tmp_path / "currentaccounthistory-hkd.csv", [_row("1", income="1.00")],
+            bank_account="123456780", currency="港幣",
+        )
+        usd = _write_statement(
+            tmp_path / "currentaccounthistory-usd.csv", [_row("1", income="1.00")],
+            bank_account="123456781", currency="美元",
+        )
+        service = StatementImportService(uow, StatementParser())
+
+        assert service.import_statement(StatementImportCommand(source_path=str(hkd))).count == 1
+        assert service.import_statement(StatementImportCommand(source_path=str(usd))).count == 1
+
+        with sessions() as session:
+            facts = list(session.scalars(select(CashTransactionModel).order_by(CashTransactionModel.currency)))
+            assert len(facts) == 2
+            assert {fact.currency for fact in facts} == {"HKD", "USD"}
+            assert len({fact.account_id for fact in facts}) == 1
+            assert facts[0].record_id != facts[1].record_id
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize("bank_account", ["12345674240", "12345674241"])
+def test_currency_subaccount_keeps_length_and_normalizes_currency_digit_to_zero(
+    tmp_path, bank_account,
+):
+    from ft.convert import _read_icbc_asia_current_account_raw
+
+    statement = _write_statement(
+        tmp_path / f"currentaccounthistory-{bank_account}.csv",
+        [_row("1", income="1.00")],
+        bank_account=bank_account,
+    )
+
+    records, _, _ = _read_icbc_asia_current_account_raw(str(statement))
+
+    assert records[0]["card_number"] == "4240"
+    assert records[0]["payment_method"] == "工银亚洲活期账户(4240)"

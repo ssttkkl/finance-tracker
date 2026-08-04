@@ -629,3 +629,155 @@ def test_personal_fx_exchange_rejects_unrelated_or_invalid_legs():
     assert match_transfer_pairs_phase_c([out_leg, same_currency]) == []
     assert match_transfer_pairs_phase_c([out_leg, other_source]) == []
     assert match_transfer_pairs_phase_c([out_leg, stale]) == []
+
+
+def test_icbc_asia_internal_cross_currency_transfer_matches_same_account():
+    out_leg = _fv(
+        id="asia-out", amount=Decimal("-87.19"), currency="CNY",
+        account_id="asia", account_name="工银亚洲账户", bill_source="icbc_asia_current_account",
+        source="icbc_asia_current_account", record_type="transfer_out",
+        counterparty_account="123456781", occurred_at="2026-05-24 13:47:09",
+        note="手机转账提款",
+    )
+    in_leg = _fv(
+        id="asia-in", amount=Decimal("100"), currency="HKD",
+        account_id="asia", account_name="工银亚洲账户", bill_source="icbc_asia_current_account",
+        source="icbc_asia_current_account", record_type="transfer_in",
+        occurred_at="2026-05-24 13:47:12", note="手机转账存款",
+    )
+
+    proposals = match_transfer_pairs_phase_c(
+        [out_leg, in_leg], card_tails_by_value={"6780": ["asia"]},
+    )
+
+    assert len(proposals) == 1
+    proposal = proposals[0]
+    assert proposal.status == RelationStatus.ACCEPTED.value
+    assert proposal.subtype == "currency_exchange"
+    assert {proposal.primary_fact_id, proposal.secondary_fact_id} == {"asia-out", "asia-in"}
+
+
+def test_icbc_asia_internal_same_currency_transfer_requires_exact_amount():
+    out_leg = _fv(
+        id="asia-out", amount=Decimal("-100"), currency="HKD", account_id="asia",
+        bill_source="icbc_asia_current_account", source="icbc_asia_current_account",
+        record_type="transfer_out", counterparty_account="123456781",
+        occurred_at="2026-05-24 13:47:09", note="手机转账提款",
+    )
+    in_leg = _fv(
+        id="asia-in", amount=Decimal("99.99"), currency="HKD", account_id="asia",
+        bill_source="icbc_asia_current_account", source="icbc_asia_current_account",
+        record_type="transfer_in", occurred_at="2026-05-24 13:47:12", note="手机转账存款",
+    )
+
+    assert match_transfer_pairs_phase_c(
+        [out_leg, in_leg], account_identifiers_by_value={"123456780": ["asia"]},
+    ) == []
+
+
+def test_icbc_asia_internal_transfer_ambiguity_creates_open_pending():
+    out_leg = _fv(
+        id="asia-out", amount=Decimal("-100"), currency="CNY", account_id="asia",
+        bill_source="icbc_asia_current_account", source="icbc_asia_current_account",
+        record_type="transfer_out", counterparty_account="123456781",
+        occurred_at="2026-05-24 13:47:09", note="手机转账提款",
+    )
+    first = _fv(
+        id="first", amount=Decimal("107"), currency="HKD", account_id="asia",
+        bill_source="icbc_asia_current_account", source="icbc_asia_current_account",
+        record_type="transfer_in", occurred_at="2026-05-24 13:47:12", note="手机转账存款",
+    )
+    second = _fv(
+        id="second", amount=Decimal("108"), currency="HKD", account_id="asia",
+        bill_source="icbc_asia_current_account", source="icbc_asia_current_account",
+        record_type="transfer_in", occurred_at="2026-05-24 13:47:15", note="手机转账存款",
+    )
+
+    proposals = match_transfer_pairs_phase_c(
+        [out_leg, first, second], account_identifiers_by_value={"123456780": ["asia"]},
+    )
+
+    assert len(proposals) == 1
+    proposal = proposals[0]
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.secondary_fact_id is None
+    assert proposal.evidence.candidate_fact_ids == ("first", "second")
+
+
+def test_icbc_cross_border_remittance_matches_icbc_asia_credit():
+    out_leg = _fv(
+        id="debit-out", amount=Decimal("-100"), currency="CNY", account_id="debit",
+        account_name="工行借记卡", bill_source="icbc_debit", source="icbc_debit",
+        record_type="transfer_out", counterparty_account="123456781",
+        occurred_at="2026-05-24 13:44:06", note="跨境汇款",
+    )
+    in_leg = _fv(
+        id="asia-in", amount=Decimal("100"), currency="CNY", account_id="asia",
+        account_name="工银亚洲账户", bill_source="icbc_asia_current_account",
+        source="icbc_asia_current_account", record_type="transfer_in",
+        occurred_at="2026-05-24 13:44:13", note="FPS Transfer",
+    )
+
+    proposals = match_transfer_pairs_phase_c(
+        [out_leg, in_leg], card_tails_by_value={"6780": ["asia"]},
+    )
+
+    assert len(proposals) == 1
+    proposal = proposals[0]
+    assert proposal.status == RelationStatus.ACCEPTED.value
+    assert proposal.subtype == ""
+    assert {proposal.primary_fact_id, proposal.secondary_fact_id} == {"debit-out", "asia-in"}
+
+
+def test_icbc_cross_border_remittance_next_day_and_non_cross_border_gate():
+    out_leg = _fv(
+        id="debit-out", amount=Decimal("-2000"), currency="USD", account_id="debit",
+        bill_source="icbc_debit", source="icbc_debit", record_type="transfer_out",
+        counterparty_account="123456781", occurred_at="2026-05-24 13:44:06", note="跨境汇款",
+    )
+    in_leg = _fv(
+        id="asia-in", amount=Decimal("2000"), currency="USD", account_id="asia",
+        bill_source="icbc_asia_current_account", source="icbc_asia_current_account",
+        record_type="transfer_in", occurred_at="2026-05-25 08:44:06", note="汇款存入",
+    )
+    unrelated = _fv(
+        id="not-cross-border", amount=Decimal("-2000"), currency="USD", account_id="other",
+        bill_source="icbc_debit", source="icbc_debit", record_type="fx_out",
+        counterparty_account="123456781", occurred_at="2026-05-24 13:44:06", note="个人购汇",
+    )
+
+    proposals = match_transfer_pairs_phase_c(
+        [out_leg, in_leg, unrelated], account_identifiers_by_value={"123456780": ["asia"]},
+    )
+
+    assert len(proposals) == 1
+    assert proposals[0].status == RelationStatus.ACCEPTED.value
+    assert proposals[0].primary_fact_id == "debit-out"
+
+
+def test_icbc_cross_border_remittance_multiple_candidates_creates_open_pending():
+    out_leg = _fv(
+        id="debit-out", amount=Decimal("-100"), currency="CNY", account_id="debit",
+        bill_source="icbc_debit", source="icbc_debit", record_type="transfer_out",
+        counterparty_account="123456781", occurred_at="2026-05-24 13:44:06", note="跨境汇款",
+    )
+    first = _fv(
+        id="first", amount=Decimal("100"), currency="CNY", account_id="asia",
+        bill_source="icbc_asia_current_account", source="icbc_asia_current_account",
+        record_type="transfer_in", occurred_at="2026-05-24 13:54:06", note="FPS Transfer",
+    )
+    second = _fv(
+        id="second", amount=Decimal("100"), currency="CNY", account_id="asia",
+        bill_source="icbc_asia_current_account", source="icbc_asia_current_account",
+        record_type="transfer_in", occurred_at="2026-05-24 14:04:06", note="FPS Transfer",
+    )
+
+    proposals = match_transfer_pairs_phase_c(
+        [out_leg, first, second], account_identifiers_by_value={"123456780": ["asia"]},
+    )
+
+    assert len(proposals) == 1
+    proposal = proposals[0]
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+    assert proposal.secondary_fact_id is None
+    assert proposal.evidence.candidate_fact_ids == ("first", "second")

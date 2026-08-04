@@ -140,6 +140,16 @@ def is_transfer_taxonomy_out(fact: "FactView") -> bool:
     )
 
 
+def is_icbc_debit_cross_border_remittance_out(fact: "FactView") -> bool:
+    """工行借记卡明确标记为跨境汇款的出账，限定工银亚洲桥接使用。"""
+    source = str(fact.bill_source or fact.source or "").strip()
+    return (
+        source == "icbc_debit"
+        and is_transfer_out_record(fact)
+        and "跨境汇款" in _text_blob(fact.text)
+    )
+
+
 
 
 def has_repayment_signal(text: str) -> bool:

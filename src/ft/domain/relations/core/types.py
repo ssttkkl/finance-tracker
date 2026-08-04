@@ -120,6 +120,8 @@ RULE_TRANSFER_PAIR_UNIONPAY_V1 = "transfer_pair.unionpay.same_day.v1"
 RULE_CREDIT_REPAYMENT_V1 = "transfer_pair.credit_repayment.v1"
 RULE_CREDIT_REPAYMENT_FX_V1 = "transfer_pair.credit_repayment.fx.v1"
 RULE_PERSONAL_FX_EXCHANGE_V1 = "transfer_pair.personal_fx.same_source.time60.v1"
+RULE_ICBC_ASIA_INTERNAL_TRANSFER_V1 = "transfer_pair.icbc_asia.internal_subaccount.v1"
+RULE_ICBC_DEBIT_ASIA_CROSS_BORDER_V1 = "transfer_pair.icbc_debit.icbc_asia.cross_border.v1"
 RULE_REFUND_OFFSET_V1 = "refund_offset.merchant_or_order.v1"
 
 # `open_leg` pending (FR-042–047): null secondary fact; suggestions only in evidence.
@@ -207,6 +209,8 @@ class FactCandidateIndex:
         # FX personal exchange: business day -> explicitly typed FX legs
         self._personal_fx_out_by_day: dict[str, list[_IndexedFact]] = defaultdict(list)
         self._personal_fx_in_by_day: dict[str, list[_IndexedFact]] = defaultdict(list)
+        # 工银亚洲到账候选：同一规范账户内调拨和工行跨境汇款专用。
+        self._icbc_asia_transfer_in_by_day: dict[str, list[_IndexedFact]] = defaultdict(list)
         # refund: account, currency, day -> typed expenses / refunds
         self._expenses_by_day: dict[tuple[str, str, str], list[_IndexedFact]] = defaultdict(list)
         self._refunds_by_day: dict[tuple[str, str, str], list[_IndexedFact]] = defaultdict(list)
@@ -252,6 +256,12 @@ class FactCandidateIndex:
                 self._personal_fx_out_by_day[idx.day].append(idx)
             elif is_fx_in_record(fact):
                 self._personal_fx_in_by_day[idx.day].append(idx)
+            if (
+                is_transfer_in_record(fact)
+                and str(fact.bill_source or fact.source or "").strip()
+                == "icbc_asia_current_account"
+            ):
+                self._icbc_asia_transfer_in_by_day[idx.day].append(idx)
             # refunds / expenses
             if is_refund_expense_candidate(fact):
                 self._expenses_by_day[(str(fact.account_id), idx.currency, idx.day)].append(idx)
@@ -380,6 +390,24 @@ class FactCandidateIndex:
                     continue
                 out.append(candidate)
         return out
+
+    def icbc_asia_transfer_in_candidates(
+        self,
+        seed: FactView,
+        *,
+        day_pad: int,
+    ) -> list[FactView]:
+        """返回有界时间范围内的工银亚洲转账入账候选。"""
+        try:
+            day = _parse_dt(seed.occurred_at).date().isoformat()
+        except ValueError:
+            return []
+        return [
+            item.fact
+            for candidate_day in self._neighbor_days(day, pad=day_pad)
+            for item in self._icbc_asia_transfer_in_by_day.get(candidate_day, ())
+            if item.fact.id != seed.id
+        ]
 
     def refund_candidates(self, seed: FactView) -> list[FactView]:
         """Bounded, same-account consumption/refund candidates."""

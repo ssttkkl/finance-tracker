@@ -205,14 +205,14 @@ def classify_cash_record_type(
         return CashRecordType.INTEREST.value
     if any(token in bank_summary for token in ("手续费", "管理费")):
         return CashRecordType.FEE.value
-    if any(token in bank_summary for token in ("购汇", "个人购汇", "预约购汇", "跨境汇款", "外汇", "汇兑")):
+    if any(token in bank_summary for token in ("购汇", "个人购汇", "预约购汇", "外汇", "汇兑")):
         return CashRecordType.FX_OUT.value if not _is_income(row) else CashRecordType.FX_IN.value
     if bank_summary in {"银转证", "银行转证券", "基金购买"}:
         return CashRecordType.INVESTMENT_OUT.value
     if bank_summary in {"证转银", "证券转银行", "基金赎回"}:
         return CashRecordType.INVESTMENT_IN.value
     if bank_summary in {
-        "转账", "转帐", "转账支取", "支付宝转账", "跨行汇款", "转账存入", "网转",
+        "转账", "转帐", "转账支取", "支付宝转账", "跨境汇款", "跨行汇款", "转账存入", "网转",
         "他行汇入", "银联入账", "电子汇入", "存款", "ATM存款",
     }:
         return _directional_transfer(row)

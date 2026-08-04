@@ -1,9 +1,28 @@
-"""Tests for _normalize_counterparty and _strip_platform_prefix"""
+"""Tests for normalization helpers and source-native cash record types."""
 import pytest
 from ft.convert import (
     _normalize_counterparty,
     _strip_platform_prefix,
 )
+from ft.domain.record_type import CashRecordType, classify_cash_record_type
+
+
+class TestIcbcDebitRecordType:
+    @pytest.mark.parametrize(
+        ("summary", "amount", "expected"),
+        [
+            ("跨境汇款", "-100.00", CashRecordType.TRANSFER_OUT.value),
+            ("跨境汇款", "100.00", CashRecordType.TRANSFER_IN.value),
+            ("个人购汇", "-100.00", CashRecordType.FX_OUT.value),
+            ("预约购汇", "100.00", CashRecordType.FX_IN.value),
+        ],
+    )
+    def test_cross_border_remittance_is_transfer_but_fx_purchase_stays_fx(
+        self, summary, amount, expected,
+    ):
+        assert classify_cash_record_type(
+            "icbc_debit", {"summary": summary, "amount": amount},
+        ) == expected
 
 
 class TestStripPlatformPrefix:

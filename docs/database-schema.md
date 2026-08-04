@@ -150,7 +150,7 @@ workspaces  (租户隔离根)
 - `fk_account_aliases_workspace_account`：`(workspace_id, account_id)` → accounts，`CASCADE`
 - `ix_account_aliases_workspace_value`：`(workspace_id, alias_type, alias_value)`
 
-用于转账关系的本人账户标识仅接受两种别名类型：`card_tail` 为恰好四位 ASCII 数字；`account_identifier` 为可去除空白、连字符和括号的完整数字账号。它们必须由用户显式登记，匹配时只参与运行时筛选，不将命中种类或别名原文写入关系记录。
+用于转账关系的本人账户标识仅接受两种别名类型：`card_tail` 为恰好四位 ASCII 数字；`account_identifier` 为可去除空白、连字符和括号的完整数字账号。它们必须由用户显式登记，匹配时只参与运行时筛选，不将命中种类或别名原文写入关系记录。仅工银亚洲转出流水可将 `account_identifier` 的末位标准化为 `0`，再以规范账号前缀与至少同长度的对方账号作候选筛选；其他来源仍只使用精确账号或唯一尾号。
 
 ### 3.4 `account_lifecycle_events`
 

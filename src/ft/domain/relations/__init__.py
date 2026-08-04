@@ -17,7 +17,8 @@ from ft.domain.relations.mirror.match import (
 from ft.domain.relations.transfer.signals import *  # noqa: F403
 from ft.domain.relations.transfer.match import (
     evaluate_transfer_pair, match_personal_fx_exchange, match_transfer_pairs_phase_c,
-    match_withdraw_receipt_to_bank, _score_fx_repayment_matches,
+    match_withdraw_receipt_to_bank, match_icbc_asia_bridge_transfers,
+    _score_fx_repayment_matches,
 )
 from ft.domain.relations.refund.signals import *  # noqa: F403
 # DefaultRefundTextGates included via signals star export if named

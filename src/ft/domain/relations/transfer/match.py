@@ -22,6 +22,8 @@ from ft.domain.relations.core.types import (
     RelationProposal, RelationStatus,
     RULE_CREDIT_REPAYMENT_FX_V1, RULE_CREDIT_REPAYMENT_V1,
     RULE_PERSONAL_FX_EXCHANGE_V1,
+    RULE_ICBC_ASIA_INTERNAL_TRANSFER_V1,
+    RULE_ICBC_DEBIT_ASIA_CROSS_BORDER_V1,
     RULE_TRANSFER_PAIR_STRONG_V1, RULE_TRANSFER_PAIR_UNIONPAY_V1,
     SUBTYPE_CREDIT_REPAYMENT, SUBTYPE_NONE, TRANSFER_PAIR_STRONG_SECONDS,
     PERSONAL_FX_STRONG_SECONDS,
@@ -32,6 +34,7 @@ from ft.domain.relations.transfer.signals import (
     has_transfer_soft_p2p_signal, has_unionpay_pair_signals,
     is_bank_transfer_in, is_transfer_taxonomy_out,
     fact_is_bank_date_only,
+    is_icbc_debit_cross_border_remittance_out,
     is_withdraw_platform_out, is_withdraw_platform_receipt,
     transfer_clock_delta_seconds, transfer_same_business_day,
 )
@@ -70,6 +73,60 @@ def _mapped_accounts(
     return {str(account_id) for account_id in mapping.get(value, ())}
 
 
+def _icbc_asia_canonical_accounts(
+    seed: FactView,
+    source_account: str,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None,
+    *,
+    allow_icbc_debit: bool = False,
+) -> set[str]:
+    """解析工银亚洲规范账号家族，仅由调用方显式放开工行跨境路径。"""
+    source = str(seed.bill_source or seed.source or "").strip()
+    if source != "icbc_asia_current_account" and not (
+        allow_icbc_debit and source == "icbc_debit"
+    ):
+        return set()
+    source_identifier = _full_account_identifier(source_account)
+    if not source_identifier:
+        return set()
+    matches: set[str] = set()
+    for identifier, account_ids in (account_identifiers_by_value or {}).items():
+        canonical_identifier = f"{identifier[:-1]}0" if len(identifier) > 5 else ""
+        account_prefix = canonical_identifier[:-1]
+        if (
+            account_prefix
+            and len(source_identifier) >= len(canonical_identifier)
+            and source_identifier.startswith(account_prefix)
+        ):
+            matches.update(str(account_id) for account_id in account_ids)
+    return matches
+
+
+def _icbc_asia_target_accounts(
+    seed: FactView,
+    source_account: str,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None,
+    card_tails_by_value: Mapping[str, Sequence[str]] | None,
+    *,
+    allow_icbc_debit: bool,
+) -> set[str]:
+    """解析工银亚洲规范账号，尾号路径仅供受限桥接规则使用。"""
+    canonical_accounts = _icbc_asia_canonical_accounts(
+        seed,
+        source_account,
+        account_identifiers_by_value,
+        allow_icbc_debit=allow_icbc_debit,
+    )
+    if canonical_accounts:
+        return canonical_accounts
+    source_identifier = _full_account_identifier(source_account)
+    if not source_identifier:
+        return set()
+    source_tail = _account_tail(source_identifier)
+    canonical_tail = f"{source_tail[:-1]}0" if source_tail else ""
+    return _mapped_accounts(card_tails_by_value, canonical_tail)
+
+
 def _counterparty_account_candidate_match(
     seed: FactView,
     candidate: FactView,
@@ -93,6 +150,14 @@ def _counterparty_account_candidate_match(
     if len(exact_accounts) == 1:
         return str(candidate.account_id) in exact_accounts, "exact"
     if len(exact_accounts) > 1:
+        return True, ""
+
+    canonical_accounts = _icbc_asia_canonical_accounts(
+        seed, source_account, account_identifiers_by_value,
+    )
+    if len(canonical_accounts) == 1:
+        return str(candidate.account_id) in canonical_accounts, "icbc_asia_canonical"
+    if len(canonical_accounts) > 1:
         return True, ""
 
     tail_accounts = _mapped_accounts(card_tails_by_value, source_tail)
@@ -794,6 +859,244 @@ def match_personal_fx_exchange(
     )
 
 
+def _formal_source(fact: FactView) -> str:
+    return str(fact.bill_source or fact.source or "").strip()
+
+
+def _icbc_asia_transfer_in_candidates(
+    seed: FactView,
+    active: Sequence[FactView],
+    index: FactCandidateIndex | None,
+    *,
+    day_pad: int,
+) -> list[FactView]:
+    if index is not None:
+        return index.icbc_asia_transfer_in_candidates(seed, day_pad=day_pad)
+    return [
+        fact
+        for fact in active
+        if fact.id != seed.id
+        and _formal_source(fact) == "icbc_asia_current_account"
+        and is_transfer_in_record(fact)
+    ]
+
+
+def _icbc_asia_bridge_proposal(
+    seed: FactView,
+    candidates: Sequence[FactView],
+    *,
+    subtype: str,
+    rule_id: str,
+    accepted: bool,
+) -> RelationProposal:
+    ordered = sorted(
+        candidates,
+        key=lambda candidate: (transfer_clock_delta_seconds(seed, candidate), candidate.id),
+    )
+    best = ordered[0]
+    delta = transfer_clock_delta_seconds(seed, best)
+    same_currency = str(seed.currency or "").upper() == str(best.currency or "").upper()
+    signals = ["opposite_sign", "icbc_asia_canonical_account"]
+    signals.append("exact_amount" if same_currency else "cross_currency")
+    if rule_id == RULE_ICBC_DEBIT_ASIA_CROSS_BORDER_V1:
+        signals.append("cross_border_remittance")
+    evidence = RelationEvidence(
+        amount_delta="0",
+        time_delta_seconds=delta,
+        same_currency=same_currency,
+        source_pair=(_formal_source(seed), _formal_source(best)),
+        rule_id=rule_id,
+        candidate_count=len(ordered),
+        candidate_fact_ids=top_k_candidate_ids([candidate.id for candidate in ordered]),
+        signals=tuple(signals),
+    )
+    if accepted:
+        return RelationProposal(
+            kind=RelationKind.TRANSFER_PAIR.value,
+            primary_fact_id=seed.id,
+            secondary_fact_id=best.id,
+            primary_fact_type=seed.fact_type,
+            secondary_fact_type=best.fact_type,
+            subtype=subtype,
+            status=RelationStatus.ACCEPTED.value,
+            rule_id=rule_id,
+            confidence=CONFIDENCE_STRONG,
+            evidence=evidence,
+            anchor_fact_id=seed.id,
+            open_leg=False,
+        )
+    return RelationProposal(
+        kind=RelationKind.TRANSFER_PAIR.value,
+        primary_fact_id=seed.id,
+        secondary_fact_id=None,
+        primary_fact_type=seed.fact_type,
+        secondary_fact_type=None,
+        subtype=subtype,
+        status=RelationStatus.PENDING_REVIEW.value,
+        rule_id=rule_id,
+        confidence=CONFIDENCE_WEAK,
+        evidence=RelationEvidence(**{
+            **evidence.__dict__, "open_leg": True, "anchor_role": "out",
+        }),
+        anchor_fact_id=seed.id,
+        open_leg=True,
+    )
+
+
+def _match_icbc_asia_bridge(
+    seeds: Sequence[FactView],
+    active: Sequence[FactView],
+    *,
+    index: FactCandidateIndex | None,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None,
+    card_tails_by_value: Mapping[str, Sequence[str]] | None,
+    seed_ids: set[str] | None,
+    rule_id: str,
+    max_seconds: int,
+    allow_cross_currency: bool,
+    allow_icbc_debit: bool,
+) -> list[RelationProposal]:
+    """匹配工银亚洲规范账号桥接；只在本规则的严格候选池内允许同账户。"""
+    candidates_by_seed: dict[str, tuple[FactView, list[FactView], str]] = {}
+    day_pad = 2 if max_seconds > 24 * 3600 else 1
+    for seed in seeds:
+        targets = _icbc_asia_target_accounts(
+            seed,
+            str(seed.counterparty_account or ""),
+            account_identifiers_by_value,
+            card_tails_by_value,
+            allow_icbc_debit=allow_icbc_debit,
+        )
+        if len(targets) != 1:
+            continue
+        target_account_id = next(iter(targets))
+        eligible: list[FactView] = []
+        for candidate in _icbc_asia_transfer_in_candidates(
+            seed, active, index, day_pad=day_pad,
+        ):
+            if candidate.deleted or str(candidate.account_id) != target_account_id:
+                continue
+            delta = transfer_clock_delta_seconds(seed, candidate)
+            if delta > max_seconds:
+                continue
+            same_currency = str(seed.currency or "").upper() == str(candidate.currency or "").upper()
+            if not allow_cross_currency:
+                if not same_currency or _abs_decimal(seed.signed_amount) != _abs_decimal(candidate.signed_amount):
+                    continue
+                subtype = SUBTYPE_NONE
+            elif same_currency:
+                if _abs_decimal(seed.signed_amount) != _abs_decimal(candidate.signed_amount):
+                    continue
+                subtype = SUBTYPE_NONE
+            else:
+                subtype = "currency_exchange"
+            eligible.append(candidate)
+        if eligible:
+            candidates_by_seed[seed.id] = (seed, eligible, subtype)
+
+    proposals: list[RelationProposal] = []
+    used: set[str] = set()
+
+    # 工行跨境汇款在 10 秒内到账时优先占用唯一的强候选，避免同额旧汇款抢占。
+    if rule_id == RULE_ICBC_DEBIT_ASIA_CROSS_BORDER_V1:
+        strict_reverse: dict[str, list[str]] = {}
+        for seed_id, (seed, candidates, _subtype) in candidates_by_seed.items():
+            for candidate in candidates:
+                if transfer_clock_delta_seconds(seed, candidate) <= TRANSFER_PAIR_STRONG_SECONDS:
+                    strict_reverse.setdefault(candidate.id, []).append(seed_id)
+        for seed_id, (seed, candidates, subtype) in sorted(
+            candidates_by_seed.items(), key=lambda item: (str(item[1][0].occurred_at), item[0]),
+        ):
+            if seed_ids is not None and seed.id not in seed_ids and not any(
+                candidate.id in seed_ids for candidate in candidates
+            ):
+                continue
+            strict = [
+                candidate for candidate in candidates
+                if transfer_clock_delta_seconds(seed, candidate) <= TRANSFER_PAIR_STRONG_SECONDS
+                and len(strict_reverse.get(candidate.id, ())) == 1
+            ]
+            if len(strict) != 1 or seed.id in used or strict[0].id in used:
+                continue
+            proposals.append(_icbc_asia_bridge_proposal(
+                seed, strict, subtype=subtype, rule_id=rule_id, accepted=True,
+            ))
+            used.update((seed.id, strict[0].id))
+
+    reverse: dict[str, list[str]] = {}
+    for seed_id, (_seed, candidates, _subtype) in candidates_by_seed.items():
+        for candidate in candidates:
+            if candidate.id not in used:
+                reverse.setdefault(candidate.id, []).append(seed_id)
+    for seed_id, (seed, candidates, subtype) in sorted(
+        candidates_by_seed.items(), key=lambda item: (str(item[1][0].occurred_at), item[0]),
+    ):
+        if seed.id in used:
+            continue
+        remaining = [candidate for candidate in candidates if candidate.id not in used]
+        if not remaining:
+            continue
+        if seed_ids is not None and seed.id not in seed_ids and not any(
+            candidate.id in seed_ids for candidate in remaining
+        ):
+            continue
+        accepted = len(remaining) == 1 and len(reverse.get(remaining[0].id, ())) == 1
+        proposal = _icbc_asia_bridge_proposal(
+            seed, remaining, subtype=subtype, rule_id=rule_id, accepted=accepted,
+        )
+        proposals.append(proposal)
+        used.add(seed.id)
+        if proposal.secondary_fact_id:
+            used.add(proposal.secondary_fact_id)
+    return proposals
+
+
+def match_icbc_asia_bridge_transfers(
+    facts: Sequence[FactView],
+    *,
+    seed_ids: Sequence[str] | None = None,
+    index: FactCandidateIndex | None = None,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
+    card_tails_by_value: Mapping[str, Sequence[str]] | None = None,
+) -> list[RelationProposal]:
+    """识别工银亚洲规范账号的内部调拨及工行跨境汇款到账。"""
+    active = [
+        fact for fact in facts
+        if not fact.deleted and fact.fact_type == FactType.CASH.value
+    ]
+    selected_ids = set(seed_ids) if seed_ids is not None else None
+    internal = [
+        fact for fact in active
+        if _formal_source(fact) == "icbc_asia_current_account"
+        and is_transfer_out_record(fact)
+    ]
+    cross_border = [
+        fact for fact in active if is_icbc_debit_cross_border_remittance_out(fact)
+    ]
+    return [
+        *_match_icbc_asia_bridge(
+            internal, active, index=index,
+            account_identifiers_by_value=account_identifiers_by_value,
+            card_tails_by_value=card_tails_by_value,
+            seed_ids=selected_ids,
+            rule_id=RULE_ICBC_ASIA_INTERNAL_TRANSFER_V1,
+            max_seconds=5 * 60,
+            allow_cross_currency=True,
+            allow_icbc_debit=False,
+        ),
+        *_match_icbc_asia_bridge(
+            cross_border, active, index=index,
+            account_identifiers_by_value=account_identifiers_by_value,
+            card_tails_by_value=card_tails_by_value,
+            seed_ids=selected_ids,
+            rule_id=RULE_ICBC_DEBIT_ASIA_CROSS_BORDER_V1,
+            max_seconds=36 * 3600,
+            allow_cross_currency=False,
+            allow_icbc_debit=True,
+        ),
+    ]
+
+
 def match_transfer_pairs_phase_c(
     facts: Sequence[FactView],
     *,
@@ -845,6 +1148,21 @@ def match_transfer_pairs_phase_c(
     )
     used: set[str] = set()
     proposals: list[RelationProposal] = []
+    for prop in match_icbc_asia_bridge_transfers(
+        active,
+        seed_ids=seed_ids,
+        index=index,
+        account_identifiers_by_value=account_identifiers_by_value,
+        card_tails_by_value=card_tails_by_value,
+    ):
+        if prop.primary_fact_id in used or (
+            prop.secondary_fact_id and prop.secondary_fact_id in used
+        ):
+            continue
+        proposals.append(prop)
+        used.add(prop.primary_fact_id)
+        if prop.secondary_fact_id:
+            used.add(prop.secondary_fact_id)
     # Same-sign withdraw receipts first
     for prop in match_withdraw_receipt_to_bank(active, used=used):
         proposals.append(prop)

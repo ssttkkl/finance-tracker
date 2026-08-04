@@ -38,12 +38,14 @@ def _metadata_value(rows: list[list[str]], label: str) -> str:
 
 
 def _account_identifier(metadata_rows: list[list[str]]) -> tuple[str, str]:
+    """返回完整币种子账号及规范账号尾号。"""
     for label in ("銀行賬號", "银行账号", "下掛賬戶", "下挂账户"):
         value = _metadata_value(metadata_rows, label)
         digits = re.findall(r"\d{4,}", value)
         if digits:
             account = max(digits, key=len)
-            return account, account[-4:]
+            canonical_account = f"{account[:-1]}0"
+            return account, canonical_account[-4:]
     return "", ""
 
 
