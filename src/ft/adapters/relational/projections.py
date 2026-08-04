@@ -139,8 +139,6 @@ class RelationalCashProjectionRepository:
                     "status": item.status,
                     "subtype": item.subtype,
                     "rule_id": item.rule_id,
-                    "confidence": item.confidence,
-                    "evidence_json": item.evidence_json,
                 }
                 for item in self._session.scalars(
                     select(TransactionRelationModel).where(

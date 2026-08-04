@@ -41,14 +41,7 @@ def open_leg_business_key(
 
 
 def is_open_leg_relation(row: Mapping[str, Any] | None) -> bool:
-    if not row:
-        return False
-    if row.get("secondary_fact_id") in (None, ""):
-        return True
-    evidence = row.get("evidence") or {}
-    if isinstance(evidence, Mapping) and evidence.get("open_leg"):
-        return True
-    return False
+    return bool(row) and row.get("secondary_fact_id") in (None, "")
 
 
 def top_k_candidate_ids(
@@ -59,4 +52,3 @@ def top_k_candidate_ids(
     """Stable sorted top-K candidate fact ids for unpaired relation evidence."""
     ordered = sorted({str(cid) for cid in candidate_ids if cid})
     return tuple(ordered[: max(0, int(k))])
-

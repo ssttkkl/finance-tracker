@@ -49,6 +49,7 @@ class _Parser:
             "account_name": "Cash",
             "bill_source": "alipay",
             "txn_type": "信用借还",
+            "source_payload": {"交易分类": "信用借还"},
         }]
 
 
@@ -79,7 +80,7 @@ def test_record_type_schema_and_import_are_backend_equivalent(tmp_path, backend)
         with sessions() as session:
             fact = session.scalar(select(CashTransactionModel))
             assert fact.record_type == "repayment"
-            assert fact.source_payload["txn_type"] == "信用借还"
+            assert fact.source_payload["交易分类"] == "信用借还"
             assert fact.record_type in {
                 "consumption", "refund", "reversal", "transfer_reversal", "withdrawal_in", "withdrawal_out",
                 "transfer_in", "transfer_out",

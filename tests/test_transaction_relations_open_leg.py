@@ -288,9 +288,19 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
             currency="CNY",
             date=f"2026-01-{day} 10:00:00",
                 note=f"消费{i}",
-                category="expense",
-                record_type="consumption",
+            category="expense",
+            record_type="consumption",
         )
+    services.cashflow.add_manual_transaction(
+        amount=Decimal("-100.00"),
+        counterparty="无关商户",
+        account_name="支付宝",
+        currency="CNY",
+        date="2025-12-01 10:00:00",
+        note="不在退款候选窗口内的消费",
+        category="expense",
+        record_type="consumption",
+    )
     services.cashflow.add_manual_transaction(
         amount=Decimal("100.00"),
         counterparty="京东",
@@ -309,17 +319,11 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
         p
         for p in services.relations.list_pending(kind=RelationKind.REFUND_OFFSET.value)
         if p.get("secondary_fact_id") in (None, "")
-        or (p.get("evidence") or {}).get("open_leg")
     ]
     assert len(pending) == 1, pending
     open_row = pending[0]
     assert open_row["secondary_fact_id"] in (None, "")
-    assert open_row.get("anchor_fact_id") or (open_row.get("evidence") or {}).get("open_leg")
-    evidence = open_row.get("evidence") or {}
-    assert evidence.get("open_leg") is True
-    assert int(evidence.get("candidate_count") or 0) >= 2
-    cand_ids = list(evidence.get("candidate_fact_ids") or [])
-    assert len(cand_ids) >= 2
+    assert open_row.get("anchor_fact_id")
 
     # Accept without other fails closed.
     with pytest.raises(ValueError, match="--other"):
@@ -331,11 +335,32 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
     refund_id = next(
         r["id"] for r in all_rows if Decimal(str(r["amount"])) > 0
     )
-    expense_ids = [r["id"] for r in all_rows if Decimal(str(r["amount"])) < 0]
-    # Use a non-candidate/wrong shape if possible: refund as other is illegal.
-    with pytest.raises(ValueError):
+    expense_ids = [
+        r["id"]
+        for r in all_rows
+        if Decimal(str(r["amount"])) < 0 and r["counterparty"] == "京东"
+    ]
+    non_candidate_id = next(
+        r["id"] for r in all_rows if r["counterparty"] == "无关商户"
+    )
+    assert open_row["candidate_fact_ids"] == sorted(expense_ids)
+
+    # 旧待配对关系升级后初始为空列表，下一次关系检查会重新写入当前候选。
+    with services.uow as uow:
+        uow.relations.update_open_leg_candidates(open_row["id"], [])
+        uow.commit()
+    services.relations.check(seed_fact_ids=ids, trigger="manual_range")
+    open_row = next(
+        p
+        for p in services.relations.list_pending(kind=RelationKind.REFUND_OFFSET.value)
+        if p["id"] == open_row["id"]
+    )
+    assert open_row["candidate_fact_ids"] == sorted(expense_ids)
+
+    # 形态合法但不在系统候选中的流水不得被人工绕过选择。
+    with pytest.raises(ValueError, match="候选"):
         services.relations.accept(
-            open_row["id"], actor="user", reason="bad", other_fact_id=refund_id
+            open_row["id"], actor="user", reason="bad", other_fact_id=non_candidate_id
         )
 
     # Legal other → accepted bilateral; projection nets.
@@ -344,6 +369,7 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
         open_row["id"], actor="user", reason="this one", other_fact_id=other
     )
     assert accepted.ok
+    assert accepted.details["candidate_fact_ids"] == []
     assert accepted.details["status"] == RelationStatus.ACCEPTED.value
     assert accepted.details["primary_fact_id"] == other
     assert accepted.details["secondary_fact_id"] == refund_id
@@ -352,8 +378,8 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
     assert accepted.details["secondary_fact_id"] != accepted.details["primary_fact_id"]
 
     projection = services.relations.project()
-    # One expense netted by full refund → remaining expenses 200 (2×100).
-    assert Decimal(str(projection["expenses"]["CNY"])) == Decimal("200")
+    # 一笔京东消费被全额退款，另外两笔京东消费和一笔无关消费仍计入支出。
+    assert Decimal(str(projection["expenses"]["CNY"])) == Decimal("300")
 
 
 def test_system_open_refund_auto_accept_keeps_expense_as_primary(relation_runtime):
@@ -535,6 +561,7 @@ def test_open_leg_reject_suppresses_reopen(relation_runtime):
     anchor = pending[0].get("anchor_fact_id") or pending[0]["primary_fact_id"]
     rejected = services.relations.reject(rid, actor="user", reason="not sure")
     assert rejected.ok
+    assert rejected.details["candidate_fact_ids"] == []
     services.relations.check(seed_fact_ids=ids, trigger="manual_range")
     pending_after = [
         p
@@ -629,9 +656,9 @@ def test_personal_fx_open_leg_accept_rejects_non_candidate_and_occupied_endpoint
     assert len(pending) == 1
     open_row = pending[0]
     assert open_row["subtype"] == "currency_exchange"
-    assert set(open_row["evidence"]["candidate_fact_ids"]) == {str(usd_id), str(hkd_id)}
+    assert set(open_row["candidate_fact_ids"]) == {int(usd_id), int(hkd_id)}
 
-    with pytest.raises(ValueError, match="购汇转出和购汇转入"):
+    with pytest.raises(ValueError, match="不在待配对候选中"):
         services.relations.accept(
             open_row["id"], actor="tester", reason="wrong leg", other_fact_id=unrelated_id,
         )

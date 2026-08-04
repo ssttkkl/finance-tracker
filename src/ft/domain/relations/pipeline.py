@@ -10,7 +10,7 @@ invoke :func:`run_relation_phases` as the **sole** domain matcher for B–D.
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from typing import Any
 
@@ -80,7 +80,7 @@ def _expand_refund_blocked_through_mirrors(
 
 def _collapse_refund_candidate_events(
     candidates: Sequence[FactView],
-    mirror_pairs: Sequence[tuple[str, str]],
+    mirror_components_by_fact: Mapping[str, frozenset[str]],
 ) -> list[FactView]:
     """Collapse accepted payment mirrors before refund ranking.
 
@@ -88,12 +88,17 @@ def _collapse_refund_candidate_events(
     expense.  Leaving both in Phase D creates a false nearest-time tie and
     inflates the pending candidate count.
     """
-    if not candidates or not mirror_pairs:
+    if not candidates or not mirror_components_by_fact:
         return list(candidates)
     by_id = {fact.id: fact for fact in candidates}
     collapsed: list[FactView] = []
-    for component in build_mirror_components(by_id.keys(), mirror_pairs):
+    visited: set[str] = set()
+    for candidate in candidates:
+        if candidate.id in visited:
+            continue
+        component = mirror_components_by_fact.get(candidate.id, frozenset({candidate.id}))
         group = [by_id[fact_id] for fact_id in component if fact_id in by_id]
+        visited.update(fact.id for fact in group)
         if not group:
             continue
         representative = canonical_mirror_fact(group)
@@ -101,6 +106,20 @@ def _collapse_refund_candidate_events(
             representative = min(group, key=lambda fact: fact.id)
         collapsed.append(representative)
     return collapsed
+
+
+def _mirror_components_by_fact(
+    facts: Sequence[FactView],
+    mirror_pairs: Sequence[tuple[str, str]],
+) -> dict[str, frozenset[str]]:
+    if not mirror_pairs:
+        return {}
+    components_by_fact: dict[str, frozenset[str]] = {}
+    for component in build_mirror_components((fact.id for fact in facts), mirror_pairs):
+        frozen = frozenset(component)
+        for fact_id in frozen:
+            components_by_fact[fact_id] = frozen
+    return components_by_fact
 
 
 def bank_refund_seed_ids(facts: Sequence[FactView], *, blocked: set[str]) -> list[str]:
@@ -125,7 +144,7 @@ def run_relation_phases(
     seed_ids: Sequence[str] | None = None,
     index: FactCandidateIndex | None = None,
     aliases_by_tail: Mapping[str, Sequence[str]] | None = None,
-    fx_rate_provider: Callable[..., Decimal | None] | None = None,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
     transfer_blocked_ids: set[str] | None = None,
     refund_blocked_ids: set[str] | None = None,
     merchant_refund_seed_ids: Sequence[str] | None = None,
@@ -147,8 +166,6 @@ def run_relation_phases(
         full-check diamond parity (008 seed policy).
     """
     ctx = ctx or MatchContext()
-    if fx_rate_provider is not None:
-        ctx.fx_rate_provider = fx_rate_provider
     if ctx.remaining_by_expense is None:
         ctx.remaining_by_expense = {}
 
@@ -172,6 +189,7 @@ def run_relation_phases(
     mirror_props = match_payment_mirrors_greedy(
         active,
         aliases_by_tail=aliases_by_tail,
+        account_identifiers_by_value=account_identifiers_by_value,
         seed_ids=seed_ids,
         index=index,
         occupied_fact_ids=occupied_mirror_fact_ids,
@@ -197,13 +215,15 @@ def run_relation_phases(
     # that refund. Otherwise the same real-world refund can receive a second
     # refund_offset from another source, which makes projection ambiguous.
     _expand_refund_blocked_through_mirrors(refund_blocked, ctx.mirror_pairs())
+    mirror_components_by_fact = _mirror_components_by_fact(active, ctx.mirror_pairs())
 
     # --- Phase C: transfer_pair ---
     transfer_props = match_transfer_pairs_phase_c(
         active,
         seed_ids=seed_ids,
         index=index,
-        fx_rate_provider=ctx.fx_rate_provider,
+        account_identifiers_by_value=account_identifiers_by_value,
+        card_tails_by_value=aliases_by_tail,
     )
     for p in transfer_props:
         if p.primary_fact_id in transfer_blocked or (
@@ -266,10 +286,10 @@ def run_relation_phases(
                 for f in index.refund_candidates(seed)
                 if f.id != seed.id and f.id not in refund_blocked
             ]
-            others = _collapse_refund_candidate_events(others, ctx.mirror_pairs())
+            others = _collapse_refund_candidate_events(others, mirror_components_by_fact)
         else:
             others = [f for f in active if f.id != seed.id and f.id not in refund_blocked]
-        others = _collapse_refund_candidate_events(others, ctx.mirror_pairs())
+        others = _collapse_refund_candidate_events(others, mirror_components_by_fact)
         prop = evaluate_refund_offset(seed, others, remaining_by_expense=remaining)
         if prop is None:
             continue

@@ -1,637 +1,229 @@
+"""只使用标准化现金字段的资金移动关系匹配。"""
 from __future__ import annotations
 
-from collections import defaultdict
-from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta, date
-from zoneinfo import ZoneInfo
-from decimal import Decimal
-from enum import Enum
-from typing import Any, Callable, Iterable, Mapping, Sequence
-import bisect
+from collections.abc import Mapping, Sequence
 import re
 
-from ft.domain.relations.core.routing import source_group
+from ft.domain.relations.core.geometry import _abs_decimal, _time_delta_seconds
 from ft.domain.relations.core.keys import top_k_candidate_ids
-from ft.domain.relations.core.geometry import _abs_decimal, _as_decimal, _parse_dt, _same_calendar_day, _text_blob, _time_delta_seconds
-from ft.domain.relations.core.types import (
-    OPEN_LEG_CANDIDATE_TOP_K,
-    CONFIDENCE_STRONG, CONFIDENCE_WEAK,
-    CREDIT_REPAYMENT_FX_RATE_ERROR_MARGIN, CREDIT_REPAYMENT_FX_RATE_ERROR_MAX,
-    CREDIT_REPAYMENT_FX_SECONDS, CREDIT_REPAYMENT_SAME_CURRENCY_SECONDS,
-    FactCandidateIndex, FactType, FactView, RelationEvidence, RelationKind,
-    RelationProposal, RelationStatus,
-    RULE_CREDIT_REPAYMENT_FX_V1, RULE_CREDIT_REPAYMENT_V1,
-    RULE_PERSONAL_FX_EXCHANGE_V1,
-    RULE_TRANSFER_PAIR_STRONG_V1, RULE_TRANSFER_PAIR_UNIONPAY_V1,
-    SUBTYPE_CREDIT_REPAYMENT, SUBTYPE_NONE, TRANSFER_PAIR_STRONG_SECONDS,
-    PERSONAL_FX_STRONG_SECONDS,
-)
-from ft.domain.relations.transfer.signals import (
-    RULE_TRANSFER_WITHDRAW_V1,
-    has_self_account_transfer_evidence, has_transfer_exclude_signal,
-    has_transfer_soft_p2p_signal, has_unionpay_pair_signals,
-    is_bank_transfer_in, is_transfer_taxonomy_out,
-    fact_is_bank_date_only,
-    is_withdraw_platform_out, is_withdraw_platform_receipt,
-    transfer_clock_delta_seconds, transfer_same_business_day,
-)
 from ft.domain.relations.core.record_types import (
     is_fx_in_record,
     is_fx_out_record,
-    is_loan_repayment_in,
-    is_repayment_out_record,
     is_transfer_in_record,
     is_transfer_out_record,
-    is_withdrawal_in_record,
-    is_withdrawal_out_record,
+)
+from ft.domain.relations.core.types import (
+    CONFIDENCE_STRONG,
+    CONFIDENCE_WEAK,
+    OPEN_LEG_CANDIDATE_TOP_K,
+    PERSONAL_FX_STRONG_SECONDS,
+    RULE_CROSS_BORDER_REMITTANCE_V1,
+    RULE_INTERNAL_ACCOUNT_TRANSFER_V1,
+    RULE_PERSONAL_FX_EXCHANGE_V1,
+    RULE_TRANSFER_PAIR_STRONG_V1,
+    TRANSFER_PAIR_STRONG_SECONDS,
+    FactCandidateIndex,
+    FactType,
+    FactView,
+    RelationEvidence,
+    RelationKind,
+    RelationProposal,
+    RelationStatus,
 )
 
 
-def evaluate_transfer_pair(
+_STANDARD_SUBTYPES = frozenset({
+    "ordinary_transfer",
+    "withdraw_to_bank",
+    "credit_repayment",
+})
+_TARGETED_TRANSFER_SUBTYPES = frozenset({
+    "ordinary_transfer",
+    "cross_border_remittance",
+    "internal_account_transfer",
+})
+_TARGETED_TRANSFER_WINDOW_SECONDS = 7 * 24 * 60 * 60
+_TARGETED_TRANSFER_DAY_PAD = _TARGETED_TRANSFER_WINDOW_SECONDS // (24 * 60 * 60)
+
+
+def _full_account_identifier(value: str) -> str:
+    """返回可用于精确别名匹配的完整数字账号。"""
+    text = str(value or "").strip()
+    if not text or any(marker in text for marker in ("*", "＊")):
+        return ""
+    identifier = re.sub(r"[\s\-()（）]", "", text)
+    return identifier if identifier.isdigit() and len(identifier) > 4 else ""
+
+
+def _account_tail(value: str) -> str:
+    digits = "".join(char for char in str(value or "") if char.isdigit())
+    return digits[-4:] if len(digits) >= 4 else ""
+
+
+def _mapped_accounts(
+    mapping: Mapping[str, Sequence[str]] | None,
+    value: str,
+) -> set[str]:
+    if not mapping or not value:
+        return set()
+    return {str(account_id) for account_id in mapping.get(value, ())}
+
+
+def _account_targets(
+    value: str,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None,
+    card_tails_by_value: Mapping[str, Sequence[str]] | None,
+) -> set[str]:
+    """将规范对方账号解析为当前工作区的显式账户别名。"""
+    exact = _mapped_accounts(
+        account_identifiers_by_value, _full_account_identifier(value),
+    )
+    if exact:
+        return exact
+    return _mapped_accounts(card_tails_by_value, _account_tail(value))
+
+
+def _candidate_matches_counterparty_account(
+    seed: FactView,
+    candidate: FactView,
+    *,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None,
+    card_tails_by_value: Mapping[str, Sequence[str]] | None,
+) -> tuple[bool, bool]:
+    """对方账号已唯一归属时只保留其目标账户。
+
+    未提供、无法解析或别名冲突时不借此自动收窄候选；特殊转账路径会
+    更严格地要求唯一归属。
+    """
+    value = str(seed.counterparty_account or "")
+    targets = _account_targets(
+        value, account_identifiers_by_value, card_tails_by_value,
+    )
+    if not targets:
+        return True, True
+    if len(targets) > 1:
+        return True, False
+    return str(candidate.account_id) in targets, True
+
+
+def _proposal(
     seed: FactView,
     candidates: Sequence[FactView],
     *,
-    fx_rate_provider: Callable[..., Decimal | None] | None = None,
-) -> RelationProposal | None:
-    if seed.deleted:
-        return None
-    seed_amount = seed.signed_amount
-    if seed_amount == 0:
-        return None
-    if not is_transfer_taxonomy_out(seed):
-        return None
-    # Only outgoing row seeds propose transfer relations (prevents dual-side auto-accept
-    # of multiple incoming rows against the same outgoing row when each incoming row is unique).
-    if seed_amount > 0:
-        return None
-    ordinary_transfer = is_transfer_out_record(seed)
-    withdrawal_to_bank = (
-        is_withdrawal_out_record(seed)
-        and source_group(seed) == "platform"
-        and is_withdraw_platform_out(seed)
+    subtype: str,
+    rule_id: str,
+    accepted: bool,
+    same_currency: bool,
+) -> RelationProposal:
+    """以既有开放候选关系载体表达唯一或歧义结果。"""
+    ordered = sorted(
+        candidates,
+        key=lambda item: (_time_delta_seconds(seed.occurred_at, item.occurred_at), item.id),
     )
-    credit_repayment = is_repayment_out_record(seed)
-    if not (ordinary_transfer or withdrawal_to_bank or credit_repayment):
-        return None
-    matches: list[tuple[FactView, RelationEvidence, str, str, str]] = []
-    seed_text = seed.text
-    TRANSFER_PENDING_OUTER = 5 * 60
-    for cand in candidates:
-        if cand.id == seed.id or cand.deleted:
-            continue
-        if cand.account_id == seed.account_id:
-            continue
-        if ordinary_transfer and not is_transfer_in_record(cand):
-            continue
-        if withdrawal_to_bank and not (
-            source_group(cand) == "bank"
-            and (is_withdrawal_in_record(cand) or is_transfer_in_record(cand))
-        ):
-            continue
-        if credit_repayment and not is_loan_repayment_in(cand):
-            continue
-        # 007 FR-043: strong exclude pure P2P/QR/红包/闲鱼 from transfer matching
-        if has_transfer_exclude_signal(seed.text) and not (
-            is_withdraw_platform_out(seed) or is_withdraw_platform_receipt(seed)
-        ):
-            return None
-        if has_transfer_exclude_signal(cand.text) and not is_bank_transfer_in(cand):
-            continue
-        cand_amount = cand.signed_amount
-        if (seed_amount > 0) == (cand_amount > 0):
-            continue
-        same_currency = str(seed.currency).upper() == str(cand.currency).upper()
-        abs_seed, abs_cand = _abs_decimal(seed_amount), _abs_decimal(cand_amount)
-        amount_delta = abs_seed - abs_cand if same_currency else Decimal("0")
-        exact = same_currency and amount_delta == 0
-        # Prefer raw business day + ignore fake 16:00 clock when bank date-only (CCB etc.)
-        dt = transfer_clock_delta_seconds(seed, cand)
-        same_day = transfer_same_business_day(seed, cand)
-        cand_text = cand.text
-        transfer_signal = ordinary_transfer
-        is_cash_to_loan = (
-            (seed.account_type == "cash" and seed_amount < 0 and cand.account_type == "loan" and cand_amount > 0)
-            or (cand.account_type == "cash" and cand_amount < 0 and seed.account_type == "loan" and seed_amount > 0)
-        )
-        subtype = SUBTYPE_NONE
-        status = RelationStatus.PENDING_REVIEW.value
-        conf = CONFIDENCE_WEAK
-        rule = RULE_TRANSFER_PAIR_STRONG_V1
-
-        if (
-            is_cash_to_loan
-            and is_repayment_out_record(seed)
-            and is_loan_repayment_in(cand)
-        ):
-            subtype = SUBTYPE_CREDIT_REPAYMENT
-            if same_currency and exact and dt <= CREDIT_REPAYMENT_SAME_CURRENCY_SECONDS:
-                status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_CREDIT_REPAYMENT_V1
-            elif same_currency and exact and dt <= TRANSFER_PENDING_OUTER:
-                status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_CREDIT_REPAYMENT_V1
-            elif same_currency and not exact:
-                # Same-currency unequal amounts are never credit_repayment candidates
-                # (prevents 信用卡还款 -500 ↔ hotel +100).
-                continue
-            elif not same_currency and dt <= CREDIT_REPAYMENT_FX_SECONDS:
-                # FX / 购汇: provisional pending; rate scoring after the loop may upgrade
-                # a unique high-confidence candidate to accepted.
-                status, conf, rule = (
-                    RelationStatus.PENDING_REVIEW.value,
-                    CONFIDENCE_WEAK,
-                    RULE_CREDIT_REPAYMENT_FX_V1,
-                )
-            else:
-                # FX beyond window / missing shape: skip rather than noisy pending
-                continue
-        elif (
-            same_currency and exact
-            and withdrawal_to_bank
-            and cand_amount > 0
-            and (
-                dt <= 60
-                or same_day
-                or dt <= 36 * 3600  # date-only bank / timezone skew
-            )
-        ):
-            # 007: platform 提现/零钱提现 → bank credit
-            status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_TRANSFER_WITHDRAW_V1
-            transfer_signal = True
-        elif same_currency and exact and dt <= TRANSFER_PAIR_STRONG_SECONDS and transfer_signal:
-            status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_TRANSFER_PAIR_STRONG_V1
-        elif same_currency and exact and same_day and has_unionpay_pair_signals(seed_text, cand_text):
-            # Same business day (raw day when date-only) + unionpay/云闪付 bridge → auto.
-            # date-only bank rows use transfer_clock_delta_seconds → 0, not formal 16:00 Δt.
-            status, conf, rule = RelationStatus.ACCEPTED.value, CONFIDENCE_STRONG, RULE_TRANSFER_PAIR_UNIONPAY_V1
-        elif same_currency and exact and transfer_signal and TRANSFER_PAIR_STRONG_SECONDS < dt <= TRANSFER_PENDING_OUTER:
-            # Signal+exact beyond 10s up to 5min → pending (not silent).
-            status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_TRANSFER_PAIR_STRONG_V1
-        elif same_currency and exact and transfer_signal and same_day:
-            status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_TRANSFER_PAIR_STRONG_V1
-        elif same_currency and exact and dt <= TRANSFER_PAIR_STRONG_SECONDS and not transfer_signal:
-            # High-recall: opposite exact within 10s without signal words → pending.
-            status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_TRANSFER_PAIR_STRONG_V1
-        elif same_currency and (not exact) and transfer_signal and dt <= TRANSFER_PAIR_STRONG_SECONDS:
-            # Amount delta with transfer signal near window → pending.
-            status, conf, rule = RelationStatus.PENDING_REVIEW.value, CONFIDENCE_WEAK, RULE_TRANSFER_PAIR_STRONG_V1
-        else:
-            continue
-
-        # Soft tier (微信/支付宝转账): never auto-accept without self-account evidence
-        # on at least one side (withdraw / bank-in / 转出到银行卡, etc.).
-        if status == RelationStatus.ACCEPTED.value and rule not in (
-            RULE_TRANSFER_WITHDRAW_V1,
-            RULE_CREDIT_REPAYMENT_V1,
-            RULE_CREDIT_REPAYMENT_FX_V1,
-        ):
-            seed_self = has_self_account_transfer_evidence(seed)
-            cand_self = has_self_account_transfer_evidence(cand)
-            soft_touch = has_transfer_soft_p2p_signal(seed.text) or has_transfer_soft_p2p_signal(
-                cand.text
-            )
-            if soft_touch and not seed_self and not cand_self:
-                status = RelationStatus.PENDING_REVIEW.value
-                conf = CONFIDENCE_WEAK
-
-        evidence = RelationEvidence(
-            amount_delta=format(_abs_decimal(amount_delta), "f") if same_currency else "0",
-            time_delta_seconds=dt,
-            same_currency=same_currency,
-            source_pair=(seed.bill_source or seed.source, cand.bill_source or cand.source),
-            rule_id=rule,
-            signals=tuple(filter(None, (
-                "opposite_sign",
-                "exact_amount" if exact else "amount_delta",
-                "transfer" if transfer_signal else "",
-                "repayment" if subtype == SUBTYPE_CREDIT_REPAYMENT else "",
-                "unionpay" if has_unionpay_pair_signals(seed_text, cand_text) else "",
-            ))),
-            extras={
-                "seed_amount": format(seed_amount, "f"),
-                "candidate_amount": format(cand_amount, "f"),
-                "seed_currency": seed.currency,
-                "candidate_currency": cand.currency,
-            } if (subtype == SUBTYPE_CREDIT_REPAYMENT and not same_currency) or not exact else {},
-        )
-        matches.append((cand, evidence, status, conf, subtype))
-
-    if not matches:
-        return None
-
-    # --- FX 购汇 rate scoring (FR-018): rank multi FX candidates; unique high-confidence auto ---
-    fx_matches = [
-        m for m in matches
-        if m[4] == SUBTYPE_CREDIT_REPAYMENT and m[1].rule_id == RULE_CREDIT_REPAYMENT_FX_V1
-    ]
-    if fx_matches:
-        scored = _score_fx_repayment_matches(
-            seed, fx_matches, fx_rate_provider=fx_rate_provider,
-        )
-        if scored is not None:
-            return scored
-
-    strong = [m for m in matches if m[2] == RelationStatus.ACCEPTED.value]
-    if len(strong) == 1 and (
-        _as_decimal(strong[0][1].amount_delta) == 0
-        or strong[0][4] == SUBTYPE_CREDIT_REPAYMENT
-    ):
-        cand, evidence, status, conf, subtype = strong[0]
-        evidence = RelationEvidence(**{**evidence.__dict__, "candidate_count": 1})
-        if seed.signed_amount < 0:
-            primary_id, secondary_id = seed.id, cand.id
-            ptype, stype = seed.fact_type, cand.fact_type
-        elif cand.signed_amount < 0:
-            primary_id, secondary_id = cand.id, seed.id
-            ptype, stype = cand.fact_type, seed.fact_type
-        else:
-            primary_id, secondary_id = seed.id, cand.id
-            ptype, stype = seed.fact_type, cand.fact_type
-        return RelationProposal(
-            kind=RelationKind.TRANSFER_PAIR.value,
-            primary_fact_id=primary_id,
-            secondary_fact_id=secondary_id,
-            primary_fact_type=ptype,
-            secondary_fact_type=stype,
-            subtype=subtype,
-            status=status,
-            rule_id=evidence.rule_id,
-            confidence=conf,
-            evidence=evidence,
-            anchor_fact_id=primary_id,
-            open_leg=False,
-        )
-    # Unique near-strong (only one match, not auto) → bilateral pending.
-    # Unique near-strong → bilateral pending only from outgoing row seed (avoid dual-side fan-out).
-    if len(matches) == 1:
-        if seed.signed_amount >= 0:
-            return None
-        cand, evidence, _, conf, subtype = matches[0]
-        evidence = RelationEvidence(**{**evidence.__dict__, "candidate_count": 1})
-        return RelationProposal(
-            kind=RelationKind.TRANSFER_PAIR.value,
-            primary_fact_id=seed.id,
-            secondary_fact_id=cand.id,
-            subtype=subtype,
-            status=RelationStatus.PENDING_REVIEW.value,
-            rule_id=evidence.rule_id,
-            confidence=CONFIDENCE_WEAK,
-            evidence=evidence,
-            anchor_fact_id=seed.id,
-            open_leg=False,
-        )
-    # Multi candidates → one unpaired relation pending from outgoing row seed only.
-    if seed.signed_amount >= 0:
-        return None
-    # Multi candidates → one unpaired relation pending (anchor = stronger signal / outgoing row / seed).
-    matches.sort(
-        key=lambda m: (
-            0 if m[2] == RelationStatus.ACCEPTED.value else 1,
-            m[1].time_delta_seconds,
-            m[0].id,
-        )
-    )
-    cand_ids = top_k_candidate_ids([m[0].id for m in matches])
-    subtype = matches[0][4]
-    rule = matches[0][1].rule_id
-    # Anchor: outgoing row if seed is out; else seed (stronger signal ownership).
-    if seed.signed_amount < 0:
-        anchor_id = seed.id
-        anchor_role = "out"
-    else:
-        anchor_id = seed.id
-        anchor_role = "in"
+    best = ordered[0]
     evidence = RelationEvidence(
-        amount_delta="0",
-        time_delta_seconds=matches[0][1].time_delta_seconds,
-        same_currency=matches[0][1].same_currency,
-        rule_id=rule,
-        candidate_count=len(matches),
-        signals=tuple(dict.fromkeys(
-            s for m in matches for s in m[1].signals if s
-        )),
-        open_leg=True,
-        anchor_role=anchor_role,
-        candidate_fact_ids=cand_ids,
-        extras={"seed_amount": format(seed.signed_amount, "f")},
+        amount_delta=(
+            format(_abs_decimal(seed.signed_amount) - _abs_decimal(best.signed_amount), "f")
+            if same_currency else "0"
+        ),
+        time_delta_seconds=_time_delta_seconds(seed.occurred_at, best.occurred_at),
+        same_currency=same_currency,
+        rule_id=rule_id,
+        candidate_count=len(ordered),
+        candidate_fact_ids=top_k_candidate_ids([item.id for item in ordered]),
+        signals=("opposite_sign", "record_subtype", "counterparty_account"),
     )
-    return RelationProposal(
-        kind=RelationKind.TRANSFER_PAIR.value,
-        primary_fact_id=anchor_id,
-        secondary_fact_id=None,
-        primary_fact_type=seed.fact_type,
-        secondary_fact_type=None,
-        subtype=subtype,
-        status=RelationStatus.PENDING_REVIEW.value,
-        rule_id=rule,
-        confidence=CONFIDENCE_WEAK,
-        evidence=evidence,
-        anchor_fact_id=anchor_id,
-        open_leg=True,
-    )
-
-
-
-def match_withdraw_receipt_to_bank(
-    facts: Sequence[FactView],
-    *,
-    used: set[str] | None = None,
-) -> list[RelationProposal]:
-    """WeChat 零钱提现 dual-source / cross-account pairing.
-
-    - **Different accounts**: transfer_pair.withdraw_to_bank (platform零钱 → bank).
-    - **Same account** (mapping landed 提现 on bank booklet + CCB 银联入账): payment_mirror
-      with adjacent-day tolerance (date-only bank rows).
-    """
-    used = used if used is not None else set()
-    receipts = [
-        f for f in facts
-        if not f.deleted and f.id not in used and is_withdraw_platform_receipt(f) and f.signed_amount > 0
-    ]
-    banks = [
-        f for f in facts
-        if not f.deleted and f.id not in used and f.signed_amount > 0
-        and (is_withdrawal_in_record(f) or is_bank_transfer_in(f))
-        and source_group(f) == "bank"
-    ]
-    proposals: list[RelationProposal] = []
-
-    def _near_day(a, b) -> bool:
-        if _same_calendar_day(a, b):
-            return True
-        dt = _time_delta_seconds(a, b)
-        if dt <= 36 * 3600:
-            return True
-        # adjacent calendar days (date-only UTC skew)
-        da, db = str(a)[:10], str(b)[:10]
-        if len(da) == 10 and len(db) == 10:
-            try:
-                from datetime import date as _date
-                d1 = _date.fromisoformat(da)
-                d2 = _date.fromisoformat(db)
-                return abs((d1 - d2).days) <= 1
-            except ValueError:
-                return False
-        return False
-
-    for rec in receipts:
-        if rec.id in used:
-            continue
-        hits_same: list[FactView] = []
-        hits_cross: list[FactView] = []
-        for b in banks:
-            if b.id in used or b.id == rec.id:
-                continue
-            if str(rec.currency).upper() != str(b.currency).upper():
-                continue
-            if _abs_decimal(rec.signed_amount) != _abs_decimal(b.signed_amount):
-                continue
-            if not _near_day(rec.occurred_at, b.occurred_at):
-                continue
-            if b.account_id == rec.account_id:
-                hits_same.append(b)
-            else:
-                hits_cross.append(b)
-        # Prefer same-account mirror (dual source)
-        if len(hits_same) == 1:
-            bank = hits_same[0]
-            # platform primary = wechat receipt
-            evidence = RelationEvidence(
-                amount_delta="0",
-                time_delta_seconds=_time_delta_seconds(rec.occurred_at, bank.occurred_at),
-                same_currency=True,
-                source_pair=(rec.bill_source or rec.source, bank.bill_source or bank.source),
-                rule_id="payment_mirror.withdraw_dual_source.v1",
-                candidate_count=1,
-                signals=("withdraw_dual_source", "exact_amount", "same_account", "platform_bank"),
-            )
-            proposals.append(RelationProposal(
-                kind=RelationKind.PAYMENT_MIRROR.value,
-                primary_fact_id=rec.id,
-                secondary_fact_id=bank.id,
-                status=RelationStatus.ACCEPTED.value,
-                rule_id="payment_mirror.withdraw_dual_source.v1",
-                confidence=CONFIDENCE_STRONG,
-                evidence=evidence,
-            ))
-            used.add(rec.id)
-            used.add(bank.id)
-            continue
-        if len(hits_cross) == 1:
-            bank = hits_cross[0]
-            evidence = RelationEvidence(
-                amount_delta="0",
-                time_delta_seconds=_time_delta_seconds(rec.occurred_at, bank.occurred_at),
-                same_currency=True,
-                source_pair=(rec.bill_source or rec.source, bank.bill_source or bank.source),
-                rule_id=RULE_TRANSFER_WITHDRAW_V1,
-                candidate_count=1,
-                signals=("withdraw_receipt", "exact_amount", "cross_account"),
-            )
-            proposals.append(RelationProposal(
-                kind=RelationKind.TRANSFER_PAIR.value,
-                primary_fact_id=rec.id,
-                secondary_fact_id=bank.id,
-                status=RelationStatus.ACCEPTED.value,
-                rule_id=RULE_TRANSFER_WITHDRAW_V1,
-                confidence=CONFIDENCE_STRONG,
-                evidence=evidence,
-                anchor_fact_id=rec.id,
-                open_leg=False,
-            ))
-            used.add(rec.id)
-            used.add(bank.id)
-    return proposals
-
-
-def _score_fx_repayment_matches(
-    seed: FactView,
-    fx_matches: list[tuple[FactView, RelationEvidence, str, str, str]],
-    *,
-    fx_rate_provider: Callable[..., Decimal | None] | None = None,
-) -> RelationProposal | None:
-    """Score FX credit_repayment candidates by market rate error.
-
-    Returns a proposal when FX path applies (always, for non-empty fx_matches):
-    - unique high-confidence → accepted bilateral
-    - else pending bilateral (1 cand) or unpaired relation (≥2)
-    """
-    if not fx_matches:
-        return None
-    try:
-        from ft.adapters.fx_rates import business_day_shanghai, get_mid_rate, rate_error
-    except ImportError:  # pragma: no cover
-        business_day_shanghai = None  # type: ignore
-        get_mid_rate = None  # type: ignore
-        rate_error = None  # type: ignore
-
-    cash_abs = _abs_decimal(seed.signed_amount)
-    cash_ccy = str(seed.currency or "CNY").upper()
-    day = ""
-    if business_day_shanghai is not None:
-        day = business_day_shanghai(seed.occurred_at)
-
-    provider = fx_rate_provider
-    if provider is None and get_mid_rate is not None:
-        provider = get_mid_rate
-
-    ranked: list[tuple[Decimal | None, FactView, RelationEvidence, dict]] = []
-    for cand, evidence, _status, _conf, _subtype in fx_matches:
-        loan_abs = _abs_decimal(cand.signed_amount)
-        loan_ccy = str(cand.currency or "").upper()
-        market = None
-        err = None
-        if provider is not None and day and cash_ccy and loan_ccy and cash_ccy != loan_ccy:
-            try:
-                market = provider(day, cash_ccy, loan_ccy)
-            except TypeError:
-                # allow simple lambda (day, base, quote)
-                market = provider(day, cash_ccy, loan_ccy)  # type: ignore[misc]
-            except Exception:
-                market = None
-            if rate_error is not None:
-                err = rate_error(cash_abs, loan_abs, cash_ccy, loan_ccy, market)
-        implied = None
-        if cash_abs > 0 and loan_abs > 0:
-            implied = loan_abs / cash_abs
-        meta = {
-            "seed_amount": format(seed.signed_amount, "f"),
-            "candidate_amount": format(cand.signed_amount, "f"),
-            "seed_currency": cash_ccy,
-            "candidate_currency": loan_ccy,
-            "market_rate": format(market, "f") if market is not None else "",
-            "implied_rate": format(implied, "f") if implied is not None else "",
-            "rate_error": format(err, "f") if err is not None else "",
-            "fx_source": "frankfurter" if market is not None and fx_rate_provider is None else (
-                "injected" if market is not None else ""
-            ),
-            "fx_day": day,
-        }
-        ranked.append((err, cand, evidence, meta))
-
-    # Sort: known errors first (ascending), then unknown, then by time
-    def _sort_key(item):
-        err, cand, evidence, _meta = item
-        known = 0 if err is not None else 1
-        err_key = err if err is not None else Decimal("999")
-        return (known, err_key, evidence.time_delta_seconds, cand.id)
-
-    ranked.sort(key=_sort_key)
-    best_err, best_cand, best_ev, best_meta = ranked[0]
-    runner_err = ranked[1][0] if len(ranked) > 1 else None
-
-    high = (
-        best_err is not None
-        and best_err <= CREDIT_REPAYMENT_FX_RATE_ERROR_MAX
-    )
-    unique_high = high and (
-        runner_err is None
-        or runner_err is None
-        or (runner_err - best_err) >= CREDIT_REPAYMENT_FX_RATE_ERROR_MARGIN
-        or runner_err > CREDIT_REPAYMENT_FX_RATE_ERROR_MAX
-    )
-    # If runner also high-confidence and margin not met → not unique
-    if (
-        high
-        and runner_err is not None
-        and runner_err <= CREDIT_REPAYMENT_FX_RATE_ERROR_MAX
-        and (runner_err - best_err) < CREDIT_REPAYMENT_FX_RATE_ERROR_MARGIN
-    ):
-        unique_high = False
-
-    cand_ids = top_k_candidate_ids([c.id for _, c, _, _ in ranked])
-    extras = {
-        **best_meta,
-        "fx_candidates": [
-            {
-                "fact_id": c.id,
-                "currency": m.get("candidate_currency"),
-                "amount": m.get("candidate_amount"),
-                "rate_error": m.get("rate_error"),
-                "implied_rate": m.get("implied_rate"),
-                "market_rate": m.get("market_rate"),
-                "dt": e.time_delta_seconds,
-            }
-            for _, c, e, m in ranked[:OPEN_LEG_CANDIDATE_TOP_K]
-        ],
-    }
-
-    if unique_high and len(ranked) >= 1:
-        evidence = RelationEvidence(
-            amount_delta="0",
-            time_delta_seconds=best_ev.time_delta_seconds,
-            same_currency=False,
-            source_pair=best_ev.source_pair,
-            rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
-            candidate_count=len(ranked),
-            candidate_fact_ids=cand_ids,
-            signals=("opposite_sign", "amount_delta", "repayment", "fx_rate_score"),
-            extras=extras,
-        )
+    if accepted:
         return RelationProposal(
             kind=RelationKind.TRANSFER_PAIR.value,
             primary_fact_id=seed.id,
-            secondary_fact_id=best_cand.id,
+            secondary_fact_id=best.id,
             primary_fact_type=seed.fact_type,
-            secondary_fact_type=best_cand.fact_type,
-            subtype=SUBTYPE_CREDIT_REPAYMENT,
+            secondary_fact_type=best.fact_type,
+            subtype=subtype,
             status=RelationStatus.ACCEPTED.value,
-            rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
+            rule_id=rule_id,
             confidence=CONFIDENCE_STRONG,
             evidence=evidence,
             anchor_fact_id=seed.id,
-            open_leg=False,
         )
-
-    # Pending path
-    if len(ranked) == 1:
-        evidence = RelationEvidence(
-            amount_delta="0",
-            time_delta_seconds=best_ev.time_delta_seconds,
-            same_currency=False,
-            source_pair=best_ev.source_pair,
-            rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
-            candidate_count=1,
-            candidate_fact_ids=cand_ids,
-            signals=("opposite_sign", "amount_delta", "repayment", "fx_rate_score"),
-            extras=extras,
-        )
-        return RelationProposal(
-            kind=RelationKind.TRANSFER_PAIR.value,
-            primary_fact_id=seed.id,
-            secondary_fact_id=best_cand.id,
-            subtype=SUBTYPE_CREDIT_REPAYMENT,
-            status=RelationStatus.PENDING_REVIEW.value,
-            rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
-            confidence=CONFIDENCE_WEAK,
-            evidence=evidence,
-            anchor_fact_id=seed.id,
-            open_leg=False,
-        )
-
-    evidence = RelationEvidence(
-        amount_delta="0",
-        time_delta_seconds=best_ev.time_delta_seconds,
-        same_currency=False,
-        rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
-        candidate_count=len(ranked),
-        signals=("opposite_sign", "amount_delta", "repayment", "fx_rate_score"),
-        open_leg=True,
-        anchor_role="out",
-        candidate_fact_ids=cand_ids,
-        extras=extras,
-    )
     return RelationProposal(
         kind=RelationKind.TRANSFER_PAIR.value,
         primary_fact_id=seed.id,
         secondary_fact_id=None,
         primary_fact_type=seed.fact_type,
         secondary_fact_type=None,
-        subtype=SUBTYPE_CREDIT_REPAYMENT,
+        subtype=subtype,
         status=RelationStatus.PENDING_REVIEW.value,
-        rule_id=RULE_CREDIT_REPAYMENT_FX_V1,
+        rule_id=rule_id,
         confidence=CONFIDENCE_WEAK,
-        evidence=evidence,
+        evidence=RelationEvidence(
+            **{**evidence.__dict__, "open_leg": True, "anchor_role": "out"},
+        ),
         anchor_fact_id=seed.id,
         open_leg=True,
+    )
+
+
+def evaluate_transfer_pair(
+    seed: FactView,
+    candidates: Sequence[FactView],
+    *,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
+    card_tails_by_value: Mapping[str, Sequence[str]] | None = None,
+) -> RelationProposal | None:
+    """匹配同币种普通转账、提现和信用还款。
+
+    此函数刻意不读取账单文本、来源、来源快照和账户类型。信用还款的入账
+    端也必须在导入时标记为 ``credit_repayment``，避免由账户类别反推语义。
+    """
+    if seed.deleted or seed.signed_amount >= 0:
+        return None
+    subtype = str(seed.record_subtype or "")
+    if subtype not in _STANDARD_SUBTYPES:
+        return None
+    eligible: list[FactView] = []
+    counterpart_unique = True
+    for candidate in candidates:
+        if candidate.id == seed.id or candidate.deleted or candidate.signed_amount <= 0:
+            continue
+        if str(candidate.record_subtype or "") != subtype:
+            continue
+        if subtype == "ordinary_transfer":
+            if not is_transfer_out_record(seed) or not is_transfer_in_record(candidate):
+                continue
+            if str(candidate.account_id) == str(seed.account_id):
+                continue
+        if str(seed.currency).upper() != str(candidate.currency).upper():
+            continue
+        if _abs_decimal(seed.signed_amount) != _abs_decimal(candidate.signed_amount):
+            continue
+        if _time_delta_seconds(seed.occurred_at, candidate.occurred_at) > 5 * 60:
+            continue
+        account_eligible, account_unique = _candidate_matches_counterparty_account(
+            seed,
+            candidate,
+            account_identifiers_by_value=account_identifiers_by_value,
+            card_tails_by_value=card_tails_by_value,
+        )
+        if not account_eligible:
+            continue
+        counterpart_unique = counterpart_unique and account_unique
+        eligible.append(candidate)
+    if not eligible:
+        return None
+    return _proposal(
+        seed,
+        eligible,
+        subtype="credit_repayment" if subtype == "credit_repayment" else "ordinary_transfer",
+        rule_id=RULE_TRANSFER_PAIR_STRONG_V1,
+        accepted=(
+            len(eligible) == 1
+            and counterpart_unique
+            and _time_delta_seconds(seed.occurred_at, eligible[0].occurred_at)
+            <= TRANSFER_PAIR_STRONG_SECONDS
+        ),
+        same_currency=True,
     )
 
 
@@ -639,86 +231,125 @@ def match_personal_fx_exchange(
     seed: FactView,
     candidates: Sequence[FactView],
 ) -> RelationProposal | None:
-    """为明确来源分类的个人购汇建立受限的换汇关系。"""
-    if seed.deleted or not is_fx_out_record(seed):
+    """匹配导入期明确分类的换入/换出资产。"""
+    if (
+        seed.deleted
+        or not is_fx_out_record(seed)
+        or str(seed.record_subtype or "") != "currency_exchange"
+    ):
         return None
-    source = str(seed.bill_source or seed.source or "").strip()
-    if not source or (seed.bill_source and seed.source and seed.bill_source != seed.source):
+    eligible = [
+        candidate
+        for candidate in candidates
+        if not candidate.deleted
+        and is_fx_in_record(candidate)
+        and str(candidate.record_subtype or "") == "currency_exchange"
+        and str(candidate.currency).upper() != str(seed.currency).upper()
+        and _time_delta_seconds(seed.occurred_at, candidate.occurred_at)
+        <= PERSONAL_FX_STRONG_SECONDS
+    ]
+    if not eligible:
         return None
-    seed_date_only = fact_is_bank_date_only(seed)
-    matches: list[tuple[FactView, int | None, bool]] = []
-    for candidate in candidates:
-        if candidate.id == seed.id or candidate.deleted or not is_fx_in_record(candidate):
-            continue
-        candidate_source = str(candidate.bill_source or candidate.source or "").strip()
-        if (
-            candidate_source != source
-            or (candidate.bill_source and candidate.source and candidate.bill_source != candidate.source)
-        ):
-            continue
-        if str(candidate.currency or "").upper() == str(seed.currency or "").upper():
-            continue
-        candidate_date_only = fact_is_bank_date_only(candidate)
-        if seed_date_only or candidate_date_only:
-            if not transfer_same_business_day(seed, candidate):
-                continue
-            matches.append((candidate, None, True))
-            continue
-        delta = transfer_clock_delta_seconds(seed, candidate)
-        if delta <= PERSONAL_FX_STRONG_SECONDS:
-            matches.append((candidate, delta, False))
-    if not matches:
-        return None
-
-    matches.sort(key=lambda item: (item[1] is None, item[1] if item[1] is not None else 0, item[0].id))
-    candidate_ids = top_k_candidate_ids([candidate.id for candidate, _delta, _date_only in matches])
-    best, delta, date_only = matches[0]
-    evidence = RelationEvidence(
-        amount_delta="0",
-        time_delta_seconds=delta,
-        same_currency=False,
-        source_pair=(source, str(best.bill_source or best.source or "")),
-        rule_id=RULE_PERSONAL_FX_EXCHANGE_V1,
-        candidate_count=len(matches),
-        candidate_fact_ids=candidate_ids,
-        signals=("opposite_sign", "fx_out", "fx_in", "same_source", "cross_currency"),
-        extras={
-            "temporal_precision": "business_day_only" if date_only else "exact_clock",
-            "seed_amount": format(seed.signed_amount, "f"),
-            "candidate_amount": format(best.signed_amount, "f"),
-            "seed_currency": str(seed.currency or "").upper(),
-            "candidate_currency": str(best.currency or "").upper(),
-        },
-    )
-    if len(matches) == 1 and not date_only:
-        return RelationProposal(
-            kind=RelationKind.TRANSFER_PAIR.value,
-            primary_fact_id=seed.id,
-            secondary_fact_id=best.id,
-            primary_fact_type=seed.fact_type,
-            secondary_fact_type=best.fact_type,
-            subtype="currency_exchange",
-            status=RelationStatus.ACCEPTED.value,
-            rule_id=RULE_PERSONAL_FX_EXCHANGE_V1,
-            confidence=CONFIDENCE_STRONG,
-            evidence=evidence,
-            anchor_fact_id=seed.id,
-            open_leg=False,
-        )
-    return RelationProposal(
-        kind=RelationKind.TRANSFER_PAIR.value,
-        primary_fact_id=seed.id,
-        secondary_fact_id=None,
-        primary_fact_type=seed.fact_type,
-        secondary_fact_type=None,
+    return _proposal(
+        seed,
+        eligible,
         subtype="currency_exchange",
-        status=RelationStatus.PENDING_REVIEW.value,
         rule_id=RULE_PERSONAL_FX_EXCHANGE_V1,
-        confidence=CONFIDENCE_WEAK,
-        evidence=RelationEvidence(**{**evidence.__dict__, "open_leg": True, "anchor_role": "fx_out"}),
-        anchor_fact_id=seed.id,
-        open_leg=True,
+        accepted=len(eligible) == 1,
+        same_currency=False,
     )
+
+
+def _transfer_in_candidates(
+    seed: FactView,
+    active: Sequence[FactView],
+    index: FactCandidateIndex | None,
+) -> Sequence[FactView]:
+    if index is not None:
+        return index.transfer_in_candidates(seed, day_pad=_TARGETED_TRANSFER_DAY_PAD)
+    return active
+
+
+def match_normalized_subtype_transfers(
+    facts: Sequence[FactView],
+    *,
+    seed_ids: Sequence[str] | None = None,
+    index: FactCandidateIndex | None = None,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
+    card_tails_by_value: Mapping[str, Sequence[str]] | None = None,
+) -> list[RelationProposal]:
+    """按唯一对方账号目标全局分配长窗口资金移动。"""
+    active = [
+        fact for fact in facts
+        if not fact.deleted and fact.fact_type == FactType.CASH.value
+    ]
+    selected = {str(item) for item in seed_ids} if seed_ids is not None else None
+    edges: list[tuple[int, str, str, FactView, FactView, str, str, bool]] = []
+    for seed in active:
+        subtype = str(seed.record_subtype or "")
+        if not is_transfer_out_record(seed) or subtype not in _TARGETED_TRANSFER_SUBTYPES:
+            continue
+        targets = _account_targets(
+            str(seed.counterparty_account or ""),
+            account_identifiers_by_value,
+            card_tails_by_value,
+        )
+        if len(targets) != 1:
+            continue
+        target = next(iter(targets))
+        for candidate in _transfer_in_candidates(seed, active, index):
+            if (
+                candidate.id == seed.id
+                or candidate.deleted
+                or not is_transfer_in_record(candidate)
+                or str(candidate.account_id) != target
+                or _time_delta_seconds(seed.occurred_at, candidate.occurred_at)
+                > _TARGETED_TRANSFER_WINDOW_SECONDS
+            ):
+                continue
+            same_currency = str(seed.currency).upper() == str(candidate.currency).upper()
+            if same_currency and _abs_decimal(seed.signed_amount) != _abs_decimal(candidate.signed_amount):
+                continue
+            internal = str(target) == str(seed.account_id)
+            if not same_currency and not internal and subtype != "cross_border_remittance":
+                continue
+            relation_subtype = "ordinary_transfer"
+            rule_id = RULE_CROSS_BORDER_REMITTANCE_V1
+            if not same_currency:
+                relation_subtype = "currency_exchange" if internal else "cross_currency_remittance"
+            if internal:
+                rule_id = RULE_INTERNAL_ACCOUNT_TRANSFER_V1
+            edges.append(
+                (
+                    _time_delta_seconds(seed.occurred_at, candidate.occurred_at),
+                    str(seed.id),
+                    str(candidate.id),
+                    seed,
+                    candidate,
+                    relation_subtype,
+                    rule_id,
+                    same_currency,
+                )
+            )
+    proposals: list[RelationProposal] = []
+    assigned: set[str] = set()
+    for _delta, seed_id, candidate_id, seed, candidate, subtype, rule_id, same_currency in sorted(edges):
+        if seed_id in assigned or candidate_id in assigned:
+            continue
+        assigned.update({seed_id, candidate_id})
+        if selected is not None and seed_id not in selected and candidate_id not in selected:
+            continue
+        proposals.append(
+            _proposal(
+                seed,
+                [candidate],
+                subtype=subtype,
+                rule_id=rule_id,
+                accepted=True,
+                same_currency=same_currency,
+            )
+        )
+    return proposals
 
 
 def match_transfer_pairs_phase_c(
@@ -726,126 +357,48 @@ def match_transfer_pairs_phase_c(
     *,
     seed_ids: Sequence[str] | None = None,
     index: FactCandidateIndex | None = None,
-    fx_rate_provider: Callable[..., Decimal | None] | None = None,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
+    card_tails_by_value: Mapping[str, Sequence[str]] | None = None,
 ) -> list[RelationProposal]:
-    """Phase C: taxonomy-aware transfer matching (007)."""
-    active = [f for f in facts if not f.deleted and f.fact_type == FactType.CASH.value]
-    by_id = {f.id: f for f in active}
-    if seed_ids is None:
-        seed_pool = active
-    else:
-        seed_pool = [by_id[s] for s in seed_ids if s in by_id]
-    # 入账种子只能反向激活合法的出账锚点，实际提议仍由出账发起。
-    reverse_fx_outs = {
-        candidate.id
-        for seed in seed_pool
-        if is_fx_in_record(seed)
-        for candidate in (
-            index.personal_fx_candidates(seed)
-            if index is not None
-            else active
-        )
-        if is_fx_out_record(candidate)
-    }
-    seed_ids_set = {seed.id for seed in seed_pool}
-    # Import/manual seed IDs are an optimization boundary, not a permission
-    # to bypass the source-specific out-leg classification gate.
-    seeds = [
-        f
-        for f in active
-        if (
-            (seed_ids is None or f.id in seed_ids_set | reverse_fx_outs)
-            and (is_transfer_taxonomy_out(f) or is_fx_out_record(f))
-        )
+    """扫描所有标准化资金移动关系，保留稳定的开放候选语义。"""
+    active = [
+        fact for fact in facts
+        if not fact.deleted and fact.fact_type == FactType.CASH.value
     ]
-    # Prefer withdraw outs first, then explicit personal-FX seeds.
-    seeds.sort(
-        key=lambda f: (
-            0 if is_withdraw_platform_out(f) else 1,
-            0 if is_fx_out_record(f) else 1,
-            0 if f.signed_amount < 0 else 1,
-            str(f.occurred_at),
-            f.id,
-        )
+    by_id = {fact.id: fact for fact in active}
+    selected = {str(item) for item in seed_ids} if seed_ids is not None else None
+    proposals = match_normalized_subtype_transfers(
+        active,
+        seed_ids=seed_ids,
+        index=index,
+        account_identifiers_by_value=account_identifiers_by_value,
+        card_tails_by_value=card_tails_by_value,
     )
-    used: set[str] = set()
-    proposals: list[RelationProposal] = []
-    # Same-sign withdraw receipts first
-    for prop in match_withdraw_receipt_to_bank(active, used=used):
-        proposals.append(prop)
-    for seed in seeds:
-        if seed.id in used:
+    used = {
+        fact_id
+        for proposal in proposals
+        for fact_id in (proposal.primary_fact_id, proposal.secondary_fact_id)
+        if fact_id
+    }
+    for seed in sorted(active, key=lambda item: (str(item.occurred_at), item.id)):
+        if seed.id in used or seed.signed_amount >= 0:
             continue
-        if is_fx_out_record(seed):
-            others = (
-                [f for f in index.personal_fx_candidates(seed) if f.id not in used]
-                if index is not None
-                else [f for f in active if f.id != seed.id and f.id not in used]
+        if selected is not None and str(seed.id) not in selected:
+            continue
+        others = [fact for fact in active if fact.id != seed.id and fact.id not in used]
+        if str(seed.record_subtype or "") == "currency_exchange":
+            proposal = match_personal_fx_exchange(seed, others)
+        else:
+            proposal = evaluate_transfer_pair(
+                seed,
+                others,
+                account_identifiers_by_value=account_identifiers_by_value,
+                card_tails_by_value=card_tails_by_value,
             )
-            prop = match_personal_fx_exchange(seed, others)
-            if prop is None:
-                continue
-            if prop.status == RelationStatus.ACCEPTED.value and prop.secondary_fact_id:
-                counterpart = by_id[prop.secondary_fact_id]
-                competing_outs = [
-                    other
-                    for other in active
-                    if other.id != seed.id
-                    and is_fx_out_record(other)
-                    and match_personal_fx_exchange(other, [counterpart]) is not None
-                ]
-                if competing_outs:
-                    candidate_ids = top_k_candidate_ids(
-                        [candidate.id for candidate in others]
-                    )
-                    prop = RelationProposal(
-                        kind=RelationKind.TRANSFER_PAIR.value,
-                        primary_fact_id=seed.id,
-                        secondary_fact_id=None,
-                        primary_fact_type=seed.fact_type,
-                        secondary_fact_type=None,
-                        subtype="currency_exchange",
-                        status=RelationStatus.PENDING_REVIEW.value,
-                        rule_id=RULE_PERSONAL_FX_EXCHANGE_V1,
-                        confidence=CONFIDENCE_WEAK,
-                        evidence=RelationEvidence(
-                            **{
-                                **prop.evidence.__dict__,
-                                "candidate_count": len(others),
-                                "candidate_fact_ids": candidate_ids,
-                                "open_leg": True,
-                                "anchor_role": "fx_out",
-                                "extras": {
-                                    **dict(prop.evidence.extras),
-                                    "reverse_candidate_count": len(competing_outs) + 1,
-                                },
-                            }
-                        ),
-                        anchor_fact_id=seed.id,
-                        open_leg=True,
-                    )
-            used.add(prop.primary_fact_id)
-            if prop.secondary_fact_id:
-                used.add(prop.secondary_fact_id)
-            proposals.append(prop)
+        if proposal is None:
             continue
-        if seed.signed_amount > 0 and not is_withdraw_platform_receipt(seed):
-            continue
-        if has_transfer_exclude_signal(seed.text) and not (
-            is_withdraw_platform_out(seed) or is_withdraw_platform_receipt(seed)
-        ):
-            continue
-        if index is not None:
-            others = [f for f in index.transfer_candidates(seed) if f.id not in used]
-        else:
-            others = [f for f in active if f.id != seed.id and f.id not in used]
-        prop = evaluate_transfer_pair(seed, others, fx_rate_provider=fx_rate_provider)
-        if prop is None:
-            continue
-        if prop.secondary_fact_id:
-            used.add(prop.primary_fact_id)
-            used.add(prop.secondary_fact_id)
-        else:
-            used.add(prop.primary_fact_id)
-        proposals.append(prop)
+        proposals.append(proposal)
+        used.add(proposal.primary_fact_id)
+        if proposal.secondary_fact_id:
+            used.add(proposal.secondary_fact_id)
     return proposals

@@ -6,7 +6,9 @@ from pathlib import Path
 import tempfile
 
 
-CASH_SOURCES = {"alipay", "wechat", "icbc", "icbc-debit", "ccb-debit"}
+CASH_SOURCES = {
+    "alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "icbc-asia",
+}
 
 
 def _decimal_text(value) -> str:
@@ -47,13 +49,17 @@ def _parse_cash_statement(command):
             skipped += 1
             continue
         item["amount"] = _decimal_text(item["amount"])
+        source_payload = row.get("_source_payload")
+        if not isinstance(source_payload, dict) or not source_payload:
+            raise ValueError("账单行缺少完整来源行快照")
+        item["source_payload"] = source_payload
         # 保留平台元数据，供导入时建立退款关系。
         for key in (
             "platform_status", "status", "txn_id", "merchant_order_id",
             "txn_type", "payment_method", "offset_group", "offset_role",
             "offset_rule_hint", "offset_match_type", "offset_strength",
             "proposed_action", "record_id", "summary", "refund_signal", "_raw_cp",
-            "record_type", "direction", "_wechat_direction", "_alipay_direction",
+            "record_type", "record_subtype", "direction", "_wechat_direction", "_alipay_direction",
             "_refund_signal", "_ccb_refund_signal", "_is_refund", "_is_reversal",
             "_debit_offset_type", "offset_type", "location", "acct_name_raw",
         ):

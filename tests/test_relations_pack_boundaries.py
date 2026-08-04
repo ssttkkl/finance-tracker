@@ -46,7 +46,8 @@ def test_packs_do_not_import_other_pack_signals_or_match():
     assert not violations, "cross-pack imports:\n" + "\n".join(violations)
 
 
-def test_transfer_and_refund_own_signal_modules():
-    assert (ROOT / "transfer" / "signals.py").is_file()
+def test_refund_owns_signal_module_and_transfer_uses_match_module():
+    assert (ROOT / "transfer" / "match.py").is_file()
+    assert not (ROOT / "transfer" / "signals.py").exists()
     assert (ROOT / "refund" / "signals.py").is_file()
     assert not (ROOT / "signals.py").exists()

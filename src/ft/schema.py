@@ -50,7 +50,7 @@ FOREIGN_EXCHANGE_KEYWORDS = ("购汇", "跨境", "外汇", "换汇")
 
 CASH_CSV_FIELDS = [
     "record_id", "occurred_at", "amount", "currency", "counterparty",
-    "note", "category", "record_type", "account_name", "source_type",
+    "counterparty_account", "note", "category", "record_type", "record_subtype", "account_name", "source_type",
 ]
 
 CSV_FIELDS = [

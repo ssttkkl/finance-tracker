@@ -249,9 +249,10 @@ def test_statement_import_maintains_complete_projection(cash_web_runtime, tmp_pa
         def parse(self, _command):
             return [{
                 "occurred_at": "2026-07-05 10:00:00", "amount": "-8.50", "currency": "CNY",
-                "counterparty": "早餐店", "category": "餐饮", "account_name": "日常账户",
-                "record_id": "projection-import-001",
-            }]
+                    "counterparty": "早餐店", "category": "餐饮", "account_name": "日常账户",
+                    "record_id": "projection-import-001",
+                    "source_payload": {"交易对方": "早餐店", "金额": "-8.50"},
+                }]
 
     _service(cash_web_runtime).rebuild()
     source = tmp_path / "statement.csv"

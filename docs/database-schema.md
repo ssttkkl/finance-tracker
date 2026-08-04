@@ -1,7 +1,7 @@
 # Finance Tracker 数据库表结构文档（018 落地态）
 
 > **文档性质**：**`015` 内联溯源 + `016` 整数代理主键 + `018` `sync_cursors`** 后的 schema 速查。  
-> **运行时权威**：`src/ft/adapters/relational/models.py` + Alembic head **`20260726_10`**（`SCHEMA_REVISION` 同值）。  
+> **运行时权威**：`src/ft/adapters/relational/models.py` + Alembic head **`20260804_20`**（`SCHEMA_REVISION` 同值）。
 > **双后端**：PostgreSQL 与文件型 SQLite；逻辑 schema 共享。  
 > **主键**：账本代理主键/外键为 **整数**（PG `BIGINT` / SQLite `INTEGER`，`SurrogatePK`）。  
 > **不恢复**：015 已删的导入作业/raw/修订/检查 run 等表。
@@ -150,6 +150,8 @@ workspaces  (租户隔离根)
 - `fk_account_aliases_workspace_account`：`(workspace_id, account_id)` → accounts，`CASCADE`
 - `ix_account_aliases_workspace_value`：`(workspace_id, alias_type, alias_value)`
 
+用于转账关系的本人账户标识仅接受两种别名类型：`card_tail` 为恰好四位 ASCII 数字；`account_identifier` 为可去除空白、连字符和括号的完整数字账号。它们必须由用户显式登记，匹配时只参与运行时筛选，不将命中种类或别名原文写入关系记录。工银亚洲账号的币种位在导入期已标准化为末位 `0`；关系层只以该规范值精确匹配完整账号或唯一尾号，不按来源或账号前缀扩展候选。
+
 ### 3.4 `account_lifecycle_events`
 
 账户生命周期事件（开户/销户等，驱动 wealth 覆盖「不适用」）。
@@ -215,13 +217,16 @@ workspaces  (租户隔离根)
 | `account_id` | SurrogatePK | N | 复合 FK→accounts `RESTRICT` |
 | `source_type` | String(64) | Y | **导入渠道名**（幂等复合键的一半；如 alipay/wechat/券商 kind）；手工可空 |
 | `record_id` | String(512) | Y* | **业务行键**（平台流水/展示号或确定性内容键）；与 `source_type` 组成幂等；账单派生应非空；手工可空。空串视为「无标识」（见约束） |
-| `source_payload` | JSON | Y | 行级原始快照（匹配/排障；可含原 payment 文案等）；手工可空 |
+| `source_payload` | JSON | Y | 账单派生行的完整原始业务行快照：保留全部来源列和值（含空值），不得混入解析、映射或关系字段；手工可空 |
 | `occurred_at` | UTCDateTime | N | 发生时刻（UTC） |
 | `amount` | ExactDecimal | N | 有符号金额 |
 | `currency` | String(3) | N | 币种 |
 | `counterparty` | String(512) | N | 对手方 |
+| `counterparty_account` | String(512) | N | 来源直接提供的对方账号、卡号或账户标识的导入期规范值；未提供、掩码或无法可靠识别时为空字符串 |
 | `note` | Text | N | 备注 |
 | `category` | String(64) | N | 分类（含 transfer / transfer_in / transfer_out 等） |
+| `record_type` | String(32) | N | 标准记录类型 |
+| `record_subtype` | String(32) | N | 标准记录子类型；与 `record_type` 受组合约束 |
 | `created_at` | UTCDateTime | N | |
 | `deleted_at` | UTCDateTime | Y | 逻辑删除时间 |
 | `deleted_by` | String(128) | N | 删除操作者（行内审计；无独立删除事件表） |
@@ -245,7 +250,7 @@ workspaces  (租户隔离根)
 - 账单派生：`source_type`（导入渠道名）、`record_id`、`source_payload` 均应非空（应用层强制）。
 - 手工事实：标识相关字段可空；不占用 partial unique。
 - 幂等比较单位永远是 **`(source_type, record_id)`**，不是裸 `record_id`。
-- `source_payload` 至少覆盖 relations hard-key / 日期几何所需键；允许瘦身，不得丢匹配字段。
+- 账单派生的 `source_payload` 必须保存完整原始业务行；关系读取只能消费该快照中的原始字段或已提升的正式列，不得要求派生键。
 - **015 删除**列：`raw_record_id`、`offset_*`、`proposed_action`、`locked`、`transfer_account`、`source`、`bill_source`、以及无改账语义时的 `revision`。核销/转账权威在 `transaction_relations` + 正式 `category`。
 
 ### 5.2 `investment_events`
@@ -332,16 +337,13 @@ workspaces  (租户隔离根)
 | `active_slot` | String(36) | N | 活跃占位；默认 `active`；superseded 用 id 字符串释放键 |
 | `status` | String(32) | N | pending_review / accepted / rejected / superseded |
 | `rule_id` | String(128) | N | 匹配规则 |
-| `confidence` | String(32) | N | |
-| `evidence_json` | JSON | N | 证据 |
+| `candidate_fact_ids` | JSON | N | 仅待配对关系保存的有序候选账本记录 ID，默认 `[]`；确认、驳回或替换后清空 |
 | `created_by` | String(128) | N | 默认 `system` |
 | `created_at` | UTCDateTime | N | |
 | `decided_by` | String(128) | N | |
 | `decided_at` | UTCDateTime | Y | |
 | `decision_reason` | Text | N | |
-| `later_marker` | String(64) | N | |
 | `superseded_by_id` | SurrogatePK | Y | 被谁替代 |
-| `revision` | Integer | N | 默认 1 |
 | `anchor_fact_id` | SurrogatePK | N | 待配对关系或关系角色的锚点流水 |
 
 **关键约束**

@@ -274,4 +274,4 @@ def test_icbc_credit_refund_scan_pairs_only_matching_consumption():
         assert len(relations) == 1
         assert {relations[0].primary_fact_id, relations[0].secondary_fact_id} == {expense_id, refund_id}
         assert other_id not in {relations[0].primary_fact_id, relations[0].secondary_fact_id}
-        assert relations[0].confidence == "strong"
+        assert not hasattr(relations[0], "confidence")

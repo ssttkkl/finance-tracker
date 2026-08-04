@@ -6,12 +6,31 @@
 ## Requirements
 
 ### Requirement: 账单行溯源与正式事实同在一行
-系统 MUST 作为账本所有者，账单派生正式事实在**同一行**保存渠道类型、**业务行键 `record_id`** 与匹配/排障所需的 **`source_payload`**；不再挂独立 raw 表。 **优先级理由**：核心数据模型。
+系统 MUST 作为账本所有者，在每条本变更发布后的账单派生正式事实同一行保存导入渠道、业务行键、完整的来源行快照和正式字段。来源行快照 `source_payload` MUST 是来源账单中该业务行全部原始列名和值的 JSON 表示：不得遗漏来源列、不得因值为空而省略列、不得混入解析、账户映射、关系检查、格式规范化或兼容性字段。来源账单的无标题列 MUST 使用空字符串 `""` 作为 JSON 键并保留其原始值；若任一列名重复（包括多个无标题列），系统 MUST 拒绝导入，不能编造列名。正式字段 `counterparty`、`counterparty_account`、`note`、`record_type`、`record_subtype`、`account_name`、`source_type` 和 `record_id` 可以由来源行派生，但不得反写或补充进 `source_payload`。对无法以唯一列结构表达的 PDF 业务行，系统 MUST 保存解析器可归属该行的全部原始表格单元或原始文本单元，且不得保存推断值。
 
-#### Scenario: 验收场景 1
-- GIVEN 迁移前规格所描述的有效业务上下文。
-- WHEN 执行以下验收条件：执行该用户故事的独立测试，结果符合迁移前的验收口径。
-- THEN 系统满足该条件，并保留可复核的验证证据。
+`counterparty_account` MUST 保存从来源直接提供的对方账号、卡号、掩码账号或账户标识导出的可匹配规范值；来源未提供或无法可靠识别时 MUST 为空字符串。工银亚洲掩码账号仅可在与当前账单账户的长度、前缀、掩码宽度和尾号严格一致时还原为完整对方账号；这不是从名称或文本猜测。本账户账号、映射账户名或从对方名称推断出的对侧账户不得写入该列。对应未经改写的原始账号值 MUST 保留在 `source_payload`；规范化结果仅用于受控查询和关系配对。
+
+历史事实在本变更前已经丢失原始列时，系统 MUST 保留既有来源快照和事实，不得伪造完整来源行；迁移只能从已有可确定值回填 `counterparty_account`。
+
+#### Scenario: 支付宝完整来源行与对方账号
+- **WHEN** 用户导入一行同时包含 `对方账号`、备注和空值列的支付宝账单
+- **THEN** 新建现金流水的 `source_payload` MUST 与该行全部原始表头和值完全一致，`counterparty_account` MUST 等于从原始 `对方账号` 得出的可匹配规范值，且快照中不得出现 `account_name`、`record_type`、`record_subtype`、`source_type` 或映射结果
+
+#### Scenario: 微信提现到账卡
+- **WHEN** 用户导入一行交易类型为 `零钱提现`、支付方式直接表示到账卡的微信账单
+- **THEN** 现金流水 MUST 将该到账卡保存为 `counterparty_account`，同时来源行快照 MUST 保留原始 `支付方式` 值而非被路由后的支付方式
+
+#### Scenario: 缺少或无法验证掩码对方账号的来源行
+- **WHEN** 用户导入不提供对方账号或仅提供无法严格验证的掩码账号的账单行
+- **THEN** 系统 MUST 保存完整来源行快照并将 `counterparty_account` 保存为空字符串，不得以本账户、账户映射或文本猜测填充该列
+
+#### Scenario: 无标题来源列
+- **WHEN** 用户导入一行包含唯一无标题来源列且该列有原始值的账单
+- **THEN** 系统 MUST 使用 `""` 作为该列在 `source_payload` 中的键并保留原始值，不得删除、重命名或以派生字段替代该列
+
+#### Scenario: 双后端等价
+- **WHEN** 同一来源账单分别导入 SQLite 和 PostgreSQL 工作区
+- **THEN** 两个后端的来源行快照、`counterparty_account`、幂等结果和正式金额 MUST 等价，允许代理键和时间戳字面差异
 ### Requirement: 以 record_id × source_type 行级幂等，无文件作业表
 系统 MUST 作为用户，重复/重叠导入时仅按 **`record_id` × `source_type`**（再加 workspace；活跃、未删）决定是否新建正式事实： - **`record_id`**：平台流水号、展示号或确定性业务行键； - **`source_type`**：**导入渠道名**（账单/券商解析渠道，如 `alipay`、`wechat`、对应券商 kind），不是支付方式文案、也不是文件路径。 同一 `record_id` 在**不同** `source_type` 下是不同标识（可并存两条活跃事实）；同一 `(source_type, record_id)` 不得双记。不因文件 digest/批次跳过 novel 行；库中无导入批次/文件清单。 **优先级理由**：010 产品价值 + 正确标识模型（渠道内流水号才稳定）。
 
@@ -20,12 +39,19 @@
 - WHEN 执行以下验收条件：执行该用户故事的独立测试，结果符合迁移前的验收口径。
 - THEN 系统满足该条件，并保留可复核的验证证据。
 ### Requirement: 关系匹配读事实行快照
-系统 MUST 作为对账用户，hard-key 与日期几何从事实 `source_payload`（或已提升列）读取；种子仅为 **`seed_fact_ids`**。 **验收场景**： 1. hard-key 夹具在无 raw 表时仍能提出等价候选。 2. 关系检查不依赖 `seed_batch_id` / `relation_check_runs`。 3. 逻辑删除后再导同一 **`(source_type, record_id)`** → 允许新活跃实例；种子为新 fact id。 ---。
+系统 MUST 作为对账用户，从事实 `source_payload`（或已提升列）读取退款 hard-key 与日期几何所需的原始字段；种子仅为 `seed_fact_ids`。转账、提现、还款、跨境汇款和内部账户调拨的关系匹配 MUST 只读取 `record_type`、`record_subtype`、`account_id`、`counterparty_account`、币种、金额、时间和显式账户别名，不得读取来源行快照或任何账单原文。关系匹配不得修改来源行快照，也不得依赖曾被禁止写入快照的派生字段。
 
-#### Scenario: 验收场景 1
-- GIVEN 迁移前规格所描述的有效业务上下文。
-- WHEN 执行以下验收条件：执行该用户故事的独立测试，结果符合迁移前的验收口径。
-- THEN 系统满足该条件，并保留可复核的验证证据。
+#### Scenario: 完整快照支持关系检查
+- **WHEN** 已导入的来源行包含关系检查所需的原始支付方式、日期或账号信息
+- **THEN** 关系检查 MUST 从完整来源行快照或 `counterparty_account` 获得该信息，且不得重新解析来源文件或依赖独立 raw 表
+
+#### Scenario: 历史快照保持可审计
+- **WHEN** 升级前事实缺少原始列，无法重建完整来源行
+- **THEN** 迁移 MUST 保留该事实及其既有来源快照，关系检查不得把迁移生成的值描述为原始来源字段
+
+#### Scenario: 对方账号只匹配显式本人标识
+- **WHEN** 转账关系读取一条带有 `counterparty_account` 的事实，但当前工作区没有与候选账户绑定的本人账户标识
+- **THEN** 系统 MUST 不从账户名称、来源映射、备注或其他事实猜测目标账户，并保持既有候选行为
 ### Requirement: 一次切换，无垫片
 系统 MUST 升级后只认目标模型；删除旧表/旧列；无 dual-write。 **验收场景**： 1. 自 raw 回填 `source_type`/`record_id`/`source_payload` 后删 raw 链。 2. 不存在 `import_batches`/`raw_files`/`raw_records`。 3. 估值等处无 `raw_record_id` 依赖。 ---。
 

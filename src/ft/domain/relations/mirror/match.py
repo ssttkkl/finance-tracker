@@ -65,8 +65,15 @@ def _pending_group_proposal(
     right: FactView,
     *,
     candidate_ids: tuple[str, ...],
+    aliases_by_tail: Mapping[str, Sequence[str]] | None = None,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
 ) -> RelationProposal | None:
-    proposal = evaluate_payment_mirror(left, [right])
+    proposal = evaluate_payment_mirror(
+        left,
+        [right],
+        aliases_by_tail=aliases_by_tail,
+        account_identifiers_by_value=account_identifiers_by_value,
+    )
     if proposal is None:
         return None
     evidence = RelationEvidence(**{
@@ -89,12 +96,14 @@ def _deterministic_payment_mirror_groups(
     facts: Sequence[FactView],
     *,
     seed_ids: set[str] | None,
+    aliases_by_tail: Mapping[str, Sequence[str]] | None = None,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
 ) -> tuple[list[RelationProposal], set[str]]:
     """为字段完全相同的渠道对生成稳定的一对一候选。"""
     grouped: dict[
-        tuple[tuple[str, str, str, Decimal, int, date], str, str],
-        list[FactView],
-    ] = defaultdict(list)
+        tuple[str, str, str, Decimal, int, date],
+        dict[str, dict[str, list[FactView]]],
+    ] = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     handled: set[str] = set()
     for fact in facts:
         if not (
@@ -109,22 +118,15 @@ def _deterministic_payment_mirror_groups(
         channel = _mirror_channel(fact)
         if key is None or not channel:
             continue
-        grouped[(key, group, channel)].append(fact)
+        grouped[key][group][channel].append(fact)
 
     proposals: list[RelationProposal] = []
     claimed_fact_ids: set[str] = set()
-    bases = {key for key, _group, _channel in grouped}
-    for base in sorted(bases, key=lambda item: tuple(str(value) for value in item)):
-        platforms = {
-            channel: values
-            for (key, group, channel), values in grouped.items()
-            if key == base and group == "platform"
-        }
-        banks = {
-            channel: values
-            for (key, group, channel), values in grouped.items()
-            if key == base and group == "bank"
-        }
+    for base, channels in sorted(
+        grouped.items(), key=lambda item: tuple(str(value) for value in item[0])
+    ):
+        platforms = channels.get("platform", {})
+        banks = channels.get("bank", {})
         channel_pairs = [
             (tuple(sorted((platform_channel, bank_channel))), platform_facts, bank_facts)
             for platform_channel, platform_facts in platforms.items()
@@ -165,13 +167,62 @@ def _deterministic_payment_mirror_groups(
                             platform_fact,
                             bank_fact,
                             candidate_ids=candidate_ids,
+                            aliases_by_tail=aliases_by_tail,
+                            account_identifiers_by_value=account_identifiers_by_value,
                         )
                     else:
-                        proposal = evaluate_payment_mirror(platform_fact, [bank_fact])
+                        proposal = evaluate_payment_mirror(
+                            platform_fact,
+                            [bank_fact],
+                            aliases_by_tail=aliases_by_tail,
+                            account_identifiers_by_value=account_identifiers_by_value,
+                        )
                     if proposal is not None:
                         proposals.append(proposal)
                         claimed_fact_ids.update((proposal.primary_fact_id, proposal.secondary_fact_id))
     return proposals, handled
+
+
+def _payment_method_alias_match(
+    *,
+    platform_fact: FactView,
+    account_id: str,
+    aliases_by_tail: Mapping[str, Sequence[str]],
+    account_identifiers_by_value: Mapping[str, Sequence[str]],
+) -> str:
+    """验证平台原始支付方式是否唯一指向既有同账户。"""
+    payment_method = str(platform_fact.payment_method or "")
+    digits = "".join(char for char in payment_method if "0" <= char <= "9")
+    if len(digits) < 4:
+        return ""
+
+    expected_account = str(account_id)
+    full_accounts = {
+        str(mapped_account)
+        for mapped_account in account_identifiers_by_value.get(digits, ())
+    }
+    if (
+        len(digits) > 4
+        and not re.search(r"[*＊]", payment_method)
+        and len(full_accounts) == 1
+        and expected_account in full_accounts
+    ):
+        return "exact"
+
+    tail = digits[-4:]
+    tail_accounts = {
+        str(mapped_account)
+        for mapped_account in aliases_by_tail.get(tail, ())
+    }
+    tail_accounts.update(
+        str(mapped_account)
+        for identifier, mapped_accounts in account_identifiers_by_value.items()
+        if str(identifier).endswith(tail)
+        for mapped_account in mapped_accounts
+    )
+    if len(tail_accounts) == 1 and expected_account in tail_accounts:
+        return "tail"
+    return ""
 
 
 
@@ -180,6 +231,7 @@ def evaluate_payment_mirror(
     candidates: Sequence[FactView],
     *,
     aliases_by_tail: Mapping[str, Sequence[str]] | None = None,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
 ) -> RelationProposal | None:
     """Propose one platform×bank payment_mirror for *seed*.
 
@@ -202,6 +254,7 @@ def evaluate_payment_mirror(
         return None
 
     aliases_by_tail = aliases_by_tail or {}
+    account_identifiers_by_value = account_identifiers_by_value or {}
     seed_tails = extract_card_tails(seed.text)
     matches: list[tuple[FactView, RelationEvidence, str, str, int]] = []
 
@@ -236,7 +289,6 @@ def evaluate_payment_mirror(
         cand_tails = extract_card_tails(cand.text)
         shared_tails = seed_tails & cand_tails
         alias_hit = False
-        alias_tail = ""
         for tail in seed_tails | cand_tails:
             accounts = list(aliases_by_tail.get(tail, ()))
             if not accounts:
@@ -248,9 +300,15 @@ def evaluate_payment_mirror(
                 or cand.account_name in accounts
             ):
                 alias_hit = True
-                alias_tail = tail
                 break
         cross = main_style_cross_verify(seed, cand)
+        payment_method_match = _payment_method_alias_match(
+            platform_fact=seed if seed_group == "platform" else cand,
+            account_id=seed.account_id,
+            aliases_by_tail=aliases_by_tail,
+            account_identifiers_by_value=account_identifiers_by_value,
+        )
+        alias_hit = alias_hit or bool(payment_method_match)
         card_ok = bool(shared_tails) or alias_hit
         text_or_card = cross or card_ok
         seed_counterparty = str(seed.counterparty or "").strip()
@@ -376,8 +434,6 @@ def evaluate_payment_mirror(
             amount_delta=format(_abs_decimal(amount_delta), "f"),
             time_delta_seconds=dt,
             same_currency=True,
-            card_tail_match=next(iter(shared_tails), alias_tail),
-            account_alias_match=alias_hit,
             counterparty_similarity=seed.counterparty or cand.counterparty,
             source_pair=(seed.bill_source or seed.source, cand.bill_source or cand.source),
             rule_id=rule,
@@ -466,6 +522,7 @@ def match_payment_mirrors_greedy(
     facts: Sequence[FactView],
     *,
     aliases_by_tail: Mapping[str, Sequence[str]] | None = None,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
     seed_ids: Sequence[str] | None = None,
     index: FactCandidateIndex | None = None,
     occupied_fact_ids: set[str] | None = None,
@@ -496,6 +553,8 @@ def match_payment_mirrors_greedy(
     proposals, grouped_ids = _deterministic_payment_mirror_groups(
         active,
         seed_ids=requested_seed_ids,
+        aliases_by_tail=aliases_by_tail,
+        account_identifiers_by_value=account_identifiers_by_value,
     )
     used: set[str] = {
         fact_id
@@ -510,7 +569,12 @@ def match_payment_mirrors_greedy(
             others = [f for f in index.mirror_candidates(seed) if f.id not in used and f.id not in occupied]
         else:
             others = [f for f in active if f.id != seed.id and f.id not in used]
-        proposal = evaluate_payment_mirror(seed, others, aliases_by_tail=aliases_by_tail)
+        proposal = evaluate_payment_mirror(
+            seed,
+            others,
+            aliases_by_tail=aliases_by_tail,
+            account_identifiers_by_value=account_identifiers_by_value,
+        )
         if proposal is None:
             continue
         used.add(proposal.primary_fact_id)

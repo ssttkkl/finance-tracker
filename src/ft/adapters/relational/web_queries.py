@@ -17,16 +17,6 @@ def _amount(value):
 _SOURCE_SNAPSHOT_KEYS = frozenset({
     "merchant", "store", "channel", "transaction_type", "amount", "currency", "occurred_at",
 })
-_RELATION_EVIDENCE_KEYS = frozenset({
-    "rule_id", "amount_match", "time_distance_minutes", "anchor_role",
-    "amount_delta", "time_delta_seconds", "same_currency", "source_pair",
-    "candidate_count", "reverse_candidate_count", "candidate_fact_ids",
-    "signals", "open_leg", "seed_amount", "candidate_amount",
-    "seed_currency", "candidate_currency", "temporal_precision", "auto_confirmation_blocker",
-    "bound_other_fact_id",
-})
-
-
 def _safe_snapshot(payload):
     if not isinstance(payload, dict):
         return None
@@ -36,26 +26,6 @@ def _safe_snapshot(payload):
         and isinstance(value, (str, int, float, bool))
         and len(str(value)) <= 160
     }
-
-
-def _safe_relation_evidence(payload):
-    if not isinstance(payload, dict):
-        return {}
-    safe = {}
-    for key, value in payload.items():
-        if key not in _RELATION_EVIDENCE_KEYS:
-            continue
-        if isinstance(value, (str, int, float, bool)) or value is None:
-            if len(str(value)) <= 160:
-                safe[key] = value
-        elif (
-            key in {"source_pair", "candidate_fact_ids", "signals"}
-            and isinstance(value, (list, tuple))
-            and len(value) <= 20
-            and all(isinstance(item, (str, int)) and len(str(item)) <= 160 for item in value)
-        ):
-            safe[key] = list(value)
-    return safe
 
 
 def _record_summary(row, account):
@@ -381,8 +351,6 @@ class RelationalCashLedgerQueryRepository:
                     {
                         "id": str(relation.transaction_relation_id), "kind": relation.kind, "subtype": relation.subtype,
                         "rule_id": accepted_by_id[relation.transaction_relation_id].rule_id if relation.transaction_relation_id in accepted_by_id else "",
-                        "confidence": accepted_by_id[relation.transaction_relation_id].confidence if relation.transaction_relation_id in accepted_by_id else "",
-                        "evidence": _safe_relation_evidence(accepted_by_id[relation.transaction_relation_id].evidence_json) if relation.transaction_relation_id in accepted_by_id else {},
                         "primary_record": _record_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].primary_fact_id]) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].primary_fact_id in endpoint_rows else None,
                         "secondary_record": _record_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].secondary_fact_id]) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_fact_id in endpoint_rows else None,
                     }

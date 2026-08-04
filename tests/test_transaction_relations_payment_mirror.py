@@ -117,6 +117,94 @@ def test_bank_date_only_without_identity_evidence_is_pending_review():
     assert proposal.status == RelationStatus.PENDING_REVIEW.value
 
 
+def test_payment_method_full_account_identifier_verifies_same_account_mirror():
+    platform = _fv(
+        id="p1", amount=Decimal("-100.00"), account_id="card",
+        occurred_at="2026-06-13 08:00:00", counterparty="商户", note="消费",
+        payment_method="招商银行储蓄卡（6222 0000 0000 1234）",
+    )
+    bank = _fv(
+        id="b1", amount=Decimal("-100.00"), account_id="card",
+        occurred_at="2026-06-13 16:00:00", counterparty="平台扣款", note="消费",
+        raw_payload={"date": "2026-06-13"},
+    )
+
+    proposal = evaluate_payment_mirror(
+        platform,
+        [bank],
+        account_identifiers_by_value={"6222000000001234": ["card"]},
+    )
+
+    assert proposal is not None
+    assert proposal.status == RelationStatus.ACCEPTED.value
+
+
+def test_payment_method_tail_uses_registered_full_account_identifier():
+    platform = _fv(
+        id="p1", amount=Decimal("-100.00"), account_id="card",
+        occurred_at="2026-06-13 08:00:00", counterparty="商户", note="消费",
+        payment_method="招商银行储蓄卡（1234）",
+    )
+    bank = _fv(
+        id="b1", amount=Decimal("-100.00"), account_id="card",
+        occurred_at="2026-06-13 16:00:00", counterparty="平台扣款", note="消费",
+        raw_payload={"date": "2026-06-13"},
+    )
+
+    proposal = evaluate_payment_mirror(
+        platform,
+        [bank],
+        account_identifiers_by_value={"6222000000001234": ["card"]},
+    )
+
+    assert proposal is not None
+    assert proposal.status == RelationStatus.ACCEPTED.value
+
+
+def test_payment_method_tail_collision_does_not_verify_mirror():
+    platform = _fv(
+        id="p1", amount=Decimal("-100.00"), account_id="card-one",
+        occurred_at="2026-06-13 08:00:00", counterparty="商户", note="消费",
+        payment_method="招商银行储蓄卡（1234）",
+    )
+    bank = _fv(
+        id="b1", amount=Decimal("-100.00"), account_id="card-one",
+        occurred_at="2026-06-13 16:00:00", counterparty="平台扣款", note="消费",
+        raw_payload={"date": "2026-06-13"},
+    )
+
+    proposal = evaluate_payment_mirror(
+        platform,
+        [bank],
+        account_identifiers_by_value={
+            "6222000000001234": ["card-one"],
+            "4333000000001234": ["card-two"],
+        },
+    )
+
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+
+
+def test_payment_method_account_identifier_never_creates_cross_account_mirror():
+    platform = _fv(
+        id="p1", amount=Decimal("-100.00"), account_id="platform-card",
+        occurred_at="2026-06-13 08:00:00", counterparty="商户", note="消费",
+        payment_method="招商银行储蓄卡（6222000000001234）",
+    )
+    bank = _fv(
+        id="b1", amount=Decimal("-100.00"), account_id="bank-card",
+        occurred_at="2026-06-13 16:00:00", counterparty="平台扣款", note="消费",
+        raw_payload={"date": "2026-06-13"},
+    )
+
+    assert evaluate_payment_mirror(
+        platform,
+        [bank],
+        account_identifiers_by_value={"6222000000001234": ["bank-card"]},
+    ) is None
+
+
 def test_payment_mirror_same_account_platform_after_bank_is_pending_not_auto():
     """FR-056: 10s bank-before-platform skew on same account is accepted."""
     seed = _fv(

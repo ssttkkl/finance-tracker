@@ -202,7 +202,7 @@ class TransferService:
                     "primary_fact_id": from_fact_id, "secondary_fact_id": to_fact_id,
                     "primary_fact_type": "cash", "secondary_fact_type": "cash",
                     "anchor_fact_id": from_fact_id, "status": "accepted",
-                    "rule_id": "manual.transfer.v1", "confidence": "manual", "evidence": {},
+                    "rule_id": "manual.transfer.v1",
                     "created_by": "manual",
                 })
             snap = uow.snapshot.load(lock=True)

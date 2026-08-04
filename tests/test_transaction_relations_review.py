@@ -4,7 +4,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 
-def test_review_accept_reject_later(relation_runtime):
+def test_review_accept_and_reject(relation_runtime):
     services = relation_runtime.services
     assert services.accounts.create_account("支付宝", "cash", "CNY").ok
     services.cashflow.add_manual_transaction(
@@ -28,8 +28,6 @@ def test_review_accept_reject_later(relation_runtime):
     assert pending or active, "expected payment_mirror relation"
     rid = pending[0]["id"] if pending else active[0]["id"]
     if pending:
-        later = services.relations.later(rid, actor="user")
-        assert later.ok
         accepted = services.relations.accept(rid, actor="user", reason="looks good")
         assert accepted.ok
         assert accepted.details["status"] == "accepted"

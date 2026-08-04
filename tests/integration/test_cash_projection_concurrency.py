@@ -128,8 +128,6 @@ def test_postgresql_source_digest_covers_accepted_relation_evidence(postgres_cas
             anchor_fact_id=1002,
             status="accepted",
             rule_id="refund.fixture.v1",
-            confidence="strong",
-            evidence_json={"amount_match": True},
         ))
 
     with postgres_cash_web_runtime.sessions.begin() as session:
@@ -140,7 +138,6 @@ def test_postgresql_source_digest_covers_accepted_relation_evidence(postgres_cas
                 TransactionRelationModel.workspace_id == postgres_cash_web_runtime.workspace_id,
             )
         )
-        relation.evidence_json = {"amount_match": False}
         session.flush()
         assert repository.source_digest() != before
 

@@ -9,10 +9,6 @@ CONSUMPTION_RECORD_TYPE = "consumption"
 TRANSFER_IN_RECORD_TYPE = "transfer_in"
 TRANSFER_OUT_RECORD_TYPE = "transfer_out"
 TRANSFER_REVERSAL_RECORD_TYPE = "transfer_reversal"
-WITHDRAWAL_IN_RECORD_TYPE = "withdrawal_in"
-WITHDRAWAL_OUT_RECORD_TYPE = "withdrawal_out"
-REPAYMENT_RECORD_TYPE = "repayment"
-INCOME_RECORD_TYPE = "income"
 FX_OUT_RECORD_TYPE = "fx_out"
 FX_IN_RECORD_TYPE = "fx_in"
 
@@ -78,62 +74,8 @@ def is_transfer_out_record(fact: Any) -> bool:
     )
 
 
-def is_withdrawal_in_record(fact: Any) -> bool:
-    return (
-        getattr(fact, "record_type", "") == WITHDRAWAL_IN_RECORD_TYPE
-        and fact.signed_amount > 0
-    )
-
-
-def is_withdrawal_out_record(fact: Any) -> bool:
-    return (
-        getattr(fact, "record_type", "") == WITHDRAWAL_OUT_RECORD_TYPE
-        and fact.signed_amount < 0
-    )
-
-
-def is_repayment_out_record(fact: Any) -> bool:
-    return (
-        getattr(fact, "record_type", "") == REPAYMENT_RECORD_TYPE
-        and fact.signed_amount < 0
-    )
-
-
 def is_transfer_in_record(fact: Any) -> bool:
     return (
         getattr(fact, "record_type", "") == TRANSFER_IN_RECORD_TYPE
         and fact.signed_amount > 0
-    )
-
-
-def is_loan_repayment_in(fact: Any) -> bool:
-    """信用账户入账的正式类型边界。
-
-    工行信用卡账单中的手机银行还款入账会被导入分类为 income；只有贷款账户
-    的正向 income/transfer_in/repayment 才能进入该特殊对侧池。
-    """
-    return (
-        getattr(fact, "account_type", "") == "loan"
-        and fact.signed_amount > 0
-        and getattr(fact, "record_type", "") in {
-            INCOME_RECORD_TYPE,
-            TRANSFER_IN_RECORD_TYPE,
-            REPAYMENT_RECORD_TYPE,
-        }
-    )
-
-
-def is_transfer_candidate_in(fact: Any) -> bool:
-    return (
-        is_transfer_in_record(fact)
-        or is_withdrawal_in_record(fact)
-        or is_loan_repayment_in(fact)
-    )
-
-
-def is_transfer_candidate_out(fact: Any) -> bool:
-    return (
-        is_transfer_out_record(fact)
-        or is_withdrawal_out_record(fact)
-        or is_repayment_out_record(fact)
     )

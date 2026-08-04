@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from enum import Enum
+import re
 from typing import Mapping
 
 
@@ -27,6 +28,104 @@ class CashRecordType(str, Enum):
 
 
 VALID_CASH_RECORD_TYPES = frozenset(item.value for item in CashRecordType)
+
+
+class CashRecordSubtype(str, Enum):
+    ORDINARY_TRANSFER = "ordinary_transfer"
+    CROSS_BORDER_REMITTANCE = "cross_border_remittance"
+    INTERNAL_ACCOUNT_TRANSFER = "internal_account_transfer"
+    CURRENCY_EXCHANGE = "currency_exchange"
+    WITHDRAW_TO_BANK = "withdraw_to_bank"
+    CREDIT_REPAYMENT = "credit_repayment"
+    NOT_APPLICABLE = "not_applicable"
+
+
+VALID_CASH_RECORD_SUBTYPES = frozenset(item.value for item in CashRecordSubtype)
+
+_TRANSFER_SUBTYPES = frozenset({
+    CashRecordSubtype.ORDINARY_TRANSFER.value,
+    CashRecordSubtype.CROSS_BORDER_REMITTANCE.value,
+    CashRecordSubtype.INTERNAL_ACCOUNT_TRANSFER.value,
+})
+
+
+def validate_cash_record_subtype(record_type: str, record_subtype: str) -> None:
+    """拒绝无法由正式一级类型解释的记录子类型。"""
+    record_type = str(record_type or "")
+    record_subtype = str(record_subtype or "")
+    if record_type not in VALID_CASH_RECORD_TYPES:
+        raise ValueError(f"unknown record_type: {record_type}")
+    if record_subtype not in VALID_CASH_RECORD_SUBTYPES:
+        raise ValueError(f"unknown record_subtype: {record_subtype}")
+    if record_type in {CashRecordType.TRANSFER_IN.value, CashRecordType.TRANSFER_OUT.value}:
+        valid = record_subtype in _TRANSFER_SUBTYPES
+    elif record_type in {CashRecordType.FX_IN.value, CashRecordType.FX_OUT.value}:
+        valid = record_subtype == CashRecordSubtype.CURRENCY_EXCHANGE.value
+    elif record_type == CashRecordType.REPAYMENT.value:
+        valid = record_subtype == CashRecordSubtype.CREDIT_REPAYMENT.value
+    elif record_type in {CashRecordType.WITHDRAWAL_IN.value, CashRecordType.WITHDRAWAL_OUT.value}:
+        valid = record_subtype == CashRecordSubtype.WITHDRAW_TO_BANK.value
+    else:
+        valid = record_subtype == CashRecordSubtype.NOT_APPLICABLE.value
+    if not valid:
+        raise ValueError(
+            f"record_subtype {record_subtype!r} is invalid for record_type {record_type!r}"
+        )
+
+
+def default_cash_record_subtype(record_type: str) -> str:
+    """为手工创建的正式流水提供由一级类型唯一决定的子类型。"""
+    record_type = str(record_type or CashRecordType.OTHER.value)
+    if record_type in {CashRecordType.TRANSFER_IN.value, CashRecordType.TRANSFER_OUT.value}:
+        return CashRecordSubtype.ORDINARY_TRANSFER.value
+    if record_type in {CashRecordType.FX_IN.value, CashRecordType.FX_OUT.value}:
+        return CashRecordSubtype.CURRENCY_EXCHANGE.value
+    if record_type == CashRecordType.REPAYMENT.value:
+        return CashRecordSubtype.CREDIT_REPAYMENT.value
+    if record_type in {CashRecordType.WITHDRAWAL_IN.value, CashRecordType.WITHDRAWAL_OUT.value}:
+        return CashRecordSubtype.WITHDRAW_TO_BANK.value
+    return CashRecordSubtype.NOT_APPLICABLE.value
+
+
+def normalize_counterparty_account(
+    value: object,
+    *,
+    source: str = "",
+    source_account_identifier: str = "",
+) -> str:
+    """把来源直接提供的账号归一为关系匹配可比较的值。
+
+    原始文本永远由来源行快照保存；此函数不从名称或备注补造账号。
+    """
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if any(marker in text for marker in ("*", "＊")):
+        if source != "icbc_asia":
+            return ""
+        reference = re.sub(r"[\s\-()（）]", "", str(source_account_identifier or ""))
+        masked = re.fullmatch(r"(\d+)[*＊]+(\d+)", text.replace(" ", ""))
+        if (
+            masked is None
+            or not reference.isdigit()
+            or len(reference) < 6
+            or len(masked.group(1)) < 4
+            or len(masked.group(2)) < 2
+            or len(masked.group(1)) + len(masked.group(2)) >= len(reference)
+            or len(text.replace(" ", "")) != len(reference)
+            or not reference.startswith(masked.group(1))
+        ):
+            return ""
+        return f"{reference[:-len(masked.group(2))]}{masked.group(2)}"
+    digits = re.sub(r"[\s\-()（）]", "", text)
+    if not digits.isdigit():
+        tail = re.search(r"(?<!\d)(\d{4})(?!\d)", text)
+        return tail.group(1) if tail else ""
+    if len(digits) < 4:
+        return ""
+    if len(digits) == 4:
+        return digits
+    return digits
 
 
 def _text(row: Mapping[str, object], *keys: str) -> str:
@@ -187,6 +286,15 @@ def classify_cash_record_type(
             return CashRecordType.CONSUMPTION.value
         return CashRecordType.INCOME.value
 
+    if source == "icbc_asia":
+        source_text = f"{txn_type} {summary}"
+        if any(token in source_text for token in ("轉賬", "轉帳", "转账", "转帐", "匯款", "汇款")):
+            return _directional_transfer(row)
+        if any(token in source_text for token in ("提現", "提现", "取現", "取现")):
+            return _directional_withdrawal(row)
+        if any(token in source_text for token in ("消費", "消费")):
+            return CashRecordType.CONSUMPTION.value
+
     bank_summary = summary
     if bank_summary in {"基金购买", "买入基金", "理财"}:
         return CashRecordType.INVESTMENT_OUT.value
@@ -196,14 +304,14 @@ def classify_cash_record_type(
         return CashRecordType.INTEREST.value
     if any(token in bank_summary for token in ("手续费", "管理费")):
         return CashRecordType.FEE.value
-    if any(token in bank_summary for token in ("购汇", "个人购汇", "预约购汇", "跨境汇款", "外汇", "汇兑")):
+    if any(token in bank_summary for token in ("购汇", "个人购汇", "预约购汇", "外汇", "汇兑")):
         return CashRecordType.FX_OUT.value if not _is_income(row) else CashRecordType.FX_IN.value
     if bank_summary in {"银转证", "银行转证券", "基金购买"}:
         return CashRecordType.INVESTMENT_OUT.value
     if bank_summary in {"证转银", "证券转银行", "基金赎回"}:
         return CashRecordType.INVESTMENT_IN.value
     if bank_summary in {
-        "转账", "转帐", "转账支取", "支付宝转账", "跨行汇款", "转账存入", "网转",
+        "转账", "转帐", "转账支取", "支付宝转账", "跨境汇款", "跨行汇款", "转账存入", "网转",
         "他行汇入", "银联入账", "电子汇入", "存款", "ATM存款",
     }:
         return _directional_transfer(row)
@@ -219,3 +327,18 @@ def classify_cash_record_type(
     if _is_income(row):
         return CashRecordType.INCOME.value
     return CashRecordType.OTHER.value
+
+
+def classify_cash_record(source: str, row: Mapping[str, object]) -> tuple[str, str]:
+    """按来源原生语义归一一级类型与记录子类型。"""
+    record_type = classify_cash_record_type(source, row)
+    source = str(source or row.get("bill_source") or row.get("source_type") or "").strip()
+    summary = str(row.get("summary") or "").strip()
+    txn_type = str(row.get("txn_type") or "").strip()
+
+    if record_type in {CashRecordType.TRANSFER_IN.value, CashRecordType.TRANSFER_OUT.value}:
+        subtype = CashRecordSubtype.ORDINARY_TRANSFER.value
+        if source == "icbc_debit" and summary == "跨境汇款":
+            subtype = CashRecordSubtype.CROSS_BORDER_REMITTANCE.value
+        return record_type, subtype
+    return record_type, default_cash_record_subtype(record_type)

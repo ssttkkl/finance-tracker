@@ -269,11 +269,13 @@ def _main(argv=None):
     rel_reject.add_argument("relation_id")
     rel_reject.add_argument("--actor", default="cli-user")
     rel_reject.add_argument("--reason", default="rejected")
-    rel_later = rel_sub.add_parser("later", help="稍后处理（保持待审核状态）")
-    rel_later.add_argument("relation_id")
-    rel_later.add_argument("--actor", default="cli-user")
     rel_alias = rel_sub.add_parser("alias-add", help="添加账户别名（仅增强匹配）")
-    rel_alias.add_argument("--type", dest="alias_type", default="card_tail")
+    rel_alias.add_argument(
+        "--type",
+        dest="alias_type",
+        default="card_tail",
+        help="别名类型：card_tail（四位尾号）或 account_identifier（完整账号）",
+    )
     rel_alias.add_argument("--value", required=True)
     rel_alias.add_argument("--account", required=True)
     fact_del = sub.add_parser("fact-delete", help="以可审计方式逻辑删除现金流水")
@@ -284,7 +286,7 @@ def _main(argv=None):
     cv = sub.add_parser("convert", help="步骤 1：将账单转换为统一 CSV", allow_abbrev=False)
     cv.add_argument("file", help="账单文件路径")
     cv.add_argument("-s", "--source", required=True,
-                    choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit"],
+                    choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "icbc-asia"],
                     help="账单类型")
     cv.add_argument("-o", "--output", required=True, help="输出 CSV 路径")
     cv.add_argument("--password-file", help="从文件首行读取工行 PDF 密码")
@@ -301,7 +303,7 @@ def _main(argv=None):
     statement_import.add_argument("file", help="原始账单文件路径")
     statement_import.add_argument(
         "--source", required=True,
-        choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "dfzq", "ibkr", "schwab", "usmart-hk", "usmart_hk", "binance", "okx", "polymarket"],
+        choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "icbc-asia", "dfzq", "ibkr", "schwab", "usmart-hk", "usmart_hk", "binance", "okx", "polymarket"],
     )
     statement_import.add_argument(
         "--account", default=None,
@@ -418,7 +420,7 @@ def _main(argv=None):
     if args.cmd == "relations":
         services = _runtime_services()
         if not args.relations_cmd:
-            print("usage: ft relations {pending|check|accept|reject|later|alias-add}")
+            print("usage: ft relations {pending|check|accept|reject|alias-add}")
             raise SystemExit(2)
         if args.relations_cmd == "pending":
             rows = services.relations.list_pending(kind=args.kind)
@@ -426,7 +428,7 @@ def _main(argv=None):
                 print(
                     f"{row['id']}\t{row['kind']}\t{row['status']}\t"
                     f"{row['primary_fact_id']}\t{row['secondary_fact_id']}\t"
-                    f"{row.get('confidence','')}\t{row.get('rule_id','')}"
+                    f"{row.get('rule_id','')}"
                 )
             return
         if args.relations_cmd == "check":
@@ -452,12 +454,6 @@ def _main(argv=None):
             return
         if args.relations_cmd == "reject":
             result = services.relations.reject(args.relation_id, actor=args.actor, reason=args.reason)
-            print(result.message)
-            if not result.ok:
-                raise SystemExit(1)
-            return
-        if args.relations_cmd == "later":
-            result = services.relations.later(args.relation_id, actor=args.actor)
             print(result.message)
             if not result.ok:
                 raise SystemExit(1)
