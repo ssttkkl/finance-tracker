@@ -69,7 +69,7 @@ def _write_mapping(
         yaml.safe_dump(
             {
                 "rules": [{
-                    "source": f"icbc_asia_current_account_{tail}",
+                    "source": f"icbc_asia_{tail}",
                     "match": "*",
                     "account": account,
                     "currency": "HKD",
@@ -93,7 +93,7 @@ def test_parse_preserves_complete_source_row_and_counterparty_account(tmp_path):
 
     records, bill_type, tracking = _read_icbc_asia_current_account_raw(str(statement))
 
-    assert bill_type == "icbc_asia_current_account"
+    assert bill_type == "icbc_asia"
     assert tracking == []
     assert len(records) == 1
     record = records[0]
@@ -130,7 +130,7 @@ def test_verified_masked_counterparty_account_is_restored_without_changing_sourc
 def test_infers_current_account_history_source():
     from ft.domain.imports import infer_statement_source
 
-    assert infer_statement_source("currentaccounthistory7.csv") == "icbc-asia-current-account"
+    assert infer_statement_source("currentaccounthistory7.csv") == "icbc-asia"
 
 
 @pytest.mark.parametrize(
@@ -302,8 +302,8 @@ def test_statement_import_is_backend_equivalent_and_overlap_idempotent(
             facts = list(session.scalars(select(CashTransactionModel).order_by(CashTransactionModel.amount)))
             assert len(facts) == 2
             expense, income = facts
-            assert expense.source_type == "icbc_asia_current_account"
-            assert expense.record_id.startswith("icbc_asia_current_account_")
+            assert expense.source_type == "icbc_asia"
+            assert expense.record_id.startswith("icbc_asia_")
             assert expense.amount == Decimal("-100.50")
             assert expense.currency == "HKD"
             assert expense.counterparty == "测验收款人"

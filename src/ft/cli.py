@@ -286,7 +286,7 @@ def _main(argv=None):
     cv = sub.add_parser("convert", help="步骤 1：将账单转换为统一 CSV", allow_abbrev=False)
     cv.add_argument("file", help="账单文件路径")
     cv.add_argument("-s", "--source", required=True,
-                    choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "icbc-asia-current-account"],
+                    choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "icbc-asia"],
                     help="账单类型")
     cv.add_argument("-o", "--output", required=True, help="输出 CSV 路径")
     cv.add_argument("--password-file", help="从文件首行读取工行 PDF 密码")
@@ -303,7 +303,7 @@ def _main(argv=None):
     statement_import.add_argument("file", help="原始账单文件路径")
     statement_import.add_argument(
         "--source", required=True,
-        choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "icbc-asia-current-account", "dfzq", "ibkr", "schwab", "usmart-hk", "usmart_hk", "binance", "okx", "polymarket"],
+        choices=["alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "icbc-asia", "dfzq", "ibkr", "schwab", "usmart-hk", "usmart_hk", "binance", "okx", "polymarket"],
     )
     statement_import.add_argument(
         "--account", default=None,

@@ -1,7 +1,7 @@
 # Finance Tracker 数据库表结构文档（018 落地态）
 
 > **文档性质**：**`015` 内联溯源 + `016` 整数代理主键 + `018` `sync_cursors`** 后的 schema 速查。  
-> **运行时权威**：`src/ft/adapters/relational/models.py` + Alembic head **`20260803_18`**（`SCHEMA_REVISION` 同值）。
+> **运行时权威**：`src/ft/adapters/relational/models.py` + Alembic head **`20260804_20`**（`SCHEMA_REVISION` 同值）。
 > **双后端**：PostgreSQL 与文件型 SQLite；逻辑 schema 共享。  
 > **主键**：账本代理主键/外键为 **整数**（PG `BIGINT` / SQLite `INTEGER`，`SurrogatePK`）。  
 > **不恢复**：015 已删的导入作业/raw/修订/检查 run 等表。

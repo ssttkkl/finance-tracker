@@ -101,7 +101,7 @@ def normalize_counterparty_account(
     if not text:
         return ""
     if any(marker in text for marker in ("*", "＊")):
-        if source != "icbc_asia_current_account":
+        if source != "icbc_asia":
             return ""
         reference = re.sub(r"[\s\-()（）]", "", str(source_account_identifier or ""))
         masked = re.fullmatch(r"(\d+)[*＊]+(\d+)", text.replace(" ", ""))
@@ -286,7 +286,7 @@ def classify_cash_record_type(
             return CashRecordType.CONSUMPTION.value
         return CashRecordType.INCOME.value
 
-    if source == "icbc_asia_current_account":
+    if source == "icbc_asia":
         source_text = f"{txn_type} {summary}"
         if any(token in source_text for token in ("轉賬", "轉帳", "转账", "转帐", "匯款", "汇款")):
             return _directional_transfer(row)

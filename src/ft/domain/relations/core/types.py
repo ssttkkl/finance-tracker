@@ -126,7 +126,7 @@ PAYMENT_PLATFORM_SOURCES = frozenset({
     "alipay", "wechat", "weixin", "支付宝", "微信",
 })
 BANK_CHANNEL_SOURCES = frozenset({
-    "ccb_debit", "ccb_credit", "icbc_debit", "icbc_credit", "icbc_asia_current_account",
+    "ccb_debit", "ccb_credit", "icbc_debit", "icbc_credit", "icbc_asia",
     "bank", "debit", "credit",
 })
 CANDIDATE_DAY_PAD = 1

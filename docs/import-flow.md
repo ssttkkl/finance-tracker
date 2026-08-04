@@ -8,7 +8,7 @@
 
 ```bash
 # 现金：禁止 --account；账户由账单字段 + ~/.ft/mapping.yaml 推断
-ft import FILE --source alipay|wechat|icbc|icbc-debit|ccb-debit|icbc-asia-current-account \
+ft import FILE --source alipay|wechat|icbc|icbc-debit|ccb-debit|icbc-asia \
   [--currency CURRENCY] [--password-file FILE]
 
 # 投资：必须 --account（security 或 crypto）
@@ -81,17 +81,17 @@ ft fact-delete <fact_id> --reason '…'
 
 `~/.ft/mapping.yaml`（缺失时建默认模板）。匹配优先更长 `fnmatch`；`default: error|fail` 时未匹配整批失败。
 
-工银亚洲活期账户账单使用 `icbc_asia_current_account` 作为持久化导入渠道。样本未提供可用的下挂账户尾号时，使用通用规则：
+工银亚洲活期账户账单使用 `icbc_asia` 作为持久化导入渠道。样本未提供可用的下挂账户尾号时，使用通用规则：
 
 ```yaml
 rules:
-  - source: icbc_asia_current_account
+  - source: icbc_asia
     match: "工银亚洲活期账户"
     account: "工银亚洲账户"
     currency: HKD
 ```
 
-若账单提供完整币种子账号，可用更高优先级的 `source: icbc_asia_current_account_<规范账号尾号>`、`match: "*"` 规则，其中规范账号尾号为完整子账号末位标准化为 `0` 后的最后四位。例如 `…74240` 和 `…74241` 都使用 `4240`。相同规范账号的不同币种子账号会路由到同一账本账户；完整子账号与账单币种仍参与业务行键。账单内币种是权威值，账户必须支持相应币种；映射中的 `currency` 只作为既有路由配置字段。
+若账单提供完整币种子账号，可用更高优先级的 `source: icbc_asia_<规范账号尾号>`、`match: "*"` 规则，其中规范账号尾号为完整子账号末位标准化为 `0` 后的最后四位。例如 `…74240` 和 `…74241` 都使用 `4240`。相同规范账号的不同币种子账号会路由到同一账本账户；完整子账号与账单币种仍参与业务行键。账单内币种是权威值，账户必须支持相应币种；映射中的 `currency` 只作为既有路由配置字段。
 
 ## 失败与幂等
 

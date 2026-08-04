@@ -3,12 +3,14 @@
 - [x] 1.1 阅读项目上下文、OpenSpec 主规格、术语词表、现有解析器、数据库和 `~/.ft/bills`，确认支付宝字段丢失、微信与建行的现状及历史数据不可完全恢复。
 - [x] 1.2 完成 proposal、delta 规格和设计，明确严格来源行合同仅适用于升级后的新导入，历史事实不伪造来源数据。
 - [x] 1.3 更新术语词表中的来源行快照和对方账号定义，并完成中文文档排版复核。
+- [x] 1.4 清点工银亚洲 CLI、映射、正式流水、分类和关系渠道中的旧键，确认旧键参与活跃业务行唯一性。
 
 ## 2. 测试与数据契约
 
 - [x] 2.1 先增加 SQLite 失败回归测试：支付宝完整原始列、空列和 `对方账号` 必须按合同写入。
 - [x] 2.2 先增加微信、建行和工行来源行快照与 `counterparty_account` 的失败回归测试，覆盖提现到账卡、对方账号缺失和来源字段不外溢。
 - [x] 2.3 增加 SQLite/PostgreSQL 迁移和导入契约测试，覆盖正式列、历史回填、精确金额和幂等。
+- [x] 2.4 增加工银亚洲新渠道键、业务行键迁移和活跃冲突失败关闭的回归测试。
 
 ## 3. 实施
 
@@ -17,6 +19,7 @@
 - [x] 3.3 在 `cash_transactions` 模型、仓库和导出/查询契约中增加 `counterparty_account`。
 - [x] 3.4 增加双后端 Alembic 迁移与运行时 revision，保守回填历史可确定值并保持无法恢复值为空。
 - [x] 3.5 更新数据库结构和导入流程文档，说明来源行快照、隐私边界和历史数据限制。
+- [x] 3.6 将工银亚洲 CLI、解析、分类、关系渠道和映射键收敛为 `icbc-asia` / `icbc_asia`，并添加 `20260804_20` 迁移。
 
 ## 4. 审查
 
@@ -56,6 +59,8 @@
 - 回归按目录与顶层分组完成：contract/unit 218 passed、43 skipped；integration 42 passed、28 skipped；其余已完成分组覆盖转换、导入、迁移、关系、CLI、运行时和财富功能，均通过。`uv run python -m compileall -q src` 与 `uv build` 成功；项目未配置独立静态类型检查器。
 - `openspec validate preserve-complete-statement-source-rows --strict`、`openspec doctor` 和 `git diff --check`：通过。
 - 本地 PostgreSQL 证据：以专用 `finance_tracker_test` 运行 `tests/test_alembic_migration.py`（8 passed）、`tests/contract/test_dual_backend_record_type.py tests/contract/test_dual_backend_icbc_refund_pairing.py`（12 passed）和 `tests/test_mapping_import_dual_backend.py`（2 passed）。各组之间重建 `public` schema，最后执行 `alembic upgrade head`；核验版本为 `20260803_16`，`cash_transactions.counterparty_account` 为非空 `character varying`，默认值为空字符串。
+- 工银亚洲渠道收敛：`FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/finance_tracker_test FT_REQUIRE_TEST_POSTGRES=1 uv run pytest -q tests/test_icbc_asia_current_account.py tests/test_cash_record_subtype.py tests/test_cli.py tests/test_alembic_migration.py tests/test_statement_import_mapping.py tests/test_postgres_statement_import.py`：101 passed。另在专用 PostgreSQL schema 从 `20260804_19` 插入旧 `icbc_asia_current_account` 事实，升级到 `20260804_20` 后核验渠道与业务行键均为 `icbc_asia` 前缀；随后重建该专用 schema 至 head。
+- 工银亚洲渠道收敛的构建证据：`uv run python -m compileall -q src`、`uv build`、`git diff --check`、`openspec validate --all --strict` 和 `openspec doctor` 通过。完整 Python 回归（跳过 `tests/test_wealth_performance.py`）被执行环境在完成前中止，未视为通过；补跑条件是在无前台时限环境执行该命令。
 - 未完成：`tests/test_cash_projection_performance.py` 的固定 10 万事实性能门禁超过 2 分钟仍未完成，未将其结果视为通过。补跑条件：在允许长时间运行的环境执行该性能用例及完整 `uv run pytest -q`。
 - 导入后关系扫描跟进：真实账本重建后 `transaction_relations` 为空，投影无法合并镜像关系。根因是候选索引、镜像分组、退款候选连通图和已接受关系冲突检查存在重复全量遍历，11,384 条事实的扫描无法在可接受时间内完成；同时导入流程吞掉关系扫描失败细节。修复将日期、镜像连通图与已接受关系在一次扫描内复用，不改变关系规则或自动确认阈值。
 - 关系扫描验证：`uv run pytest tests/test_relations_index_injection.py tests/test_transaction_relations_payment_mirror.py tests/test_transaction_relations_cross_batch.py tests/test_transaction_relations_open_leg.py tests/test_transaction_relations_transfer.py tests/test_transaction_relations_refund.py tests/test_relations_pipeline_order.py tests/test_record_type_relation_gates.py -q` 为 `122 passed, 10 skipped`；在专用 PostgreSQL 库执行 `FT_TEST_POSTGRES_URL=... FT_REQUIRE_TEST_POSTGRES=1 uv run pytest tests/contract/test_cash_projection_parity.py tests/contract/test_dual_backend_icbc_refund_pairing.py -q` 为 `18 passed`。全量候选生成对 11,384 条事实在 2.367 秒内产生 3,250 个候选；`ft relations check` 已在真实 SQLite 账本写入 3,250 条关系，随后 `ft projections rebuild` 发布投影版本 3，8,314 条经济记录、11,384 个成员，`PRAGMA integrity_check` 返回 `ok`。

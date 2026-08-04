@@ -2039,7 +2039,7 @@ def _build_output_row(
         provider_record_id = rec.get("txn_id") or rec.get("merchant_order_id") or ""
     elif bill_type in {"icbc_credit", "icbc_debit", "ccb_debit"}:
         provider_record_id = rec.get("_fact_id", "")
-    elif bill_type == "icbc_asia_current_account":
+    elif bill_type == "icbc_asia":
         raw_identity = str(rec.get("_fact_id") or "")
         account_scope = hashlib.sha256(acct_name.encode("utf-8")).hexdigest()[:12]
         provider_record_id = f"{raw_identity}_{account_scope}" if raw_identity else ""
@@ -2133,7 +2133,7 @@ def _prepare_convert_rows(path: str, source: str, password: str = None):
             else:
                 others.append(row)
         rows, tracking_pairs = _pair_refunds(expenses, refunds, others)
-    elif source == "icbc-asia-current-account":
+    elif source == "icbc-asia":
         rows, bill_type, tracking_pairs = _read_icbc_asia_current_account_raw(path)
     else:
         print(f"❌ 未知账单类型: {source}")

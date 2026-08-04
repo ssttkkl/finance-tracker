@@ -14,7 +14,7 @@
 uv sync
 export FT_DATABASE_URL='postgresql+psycopg://localhost/finance_tracker'
 export FT_WORKSPACE_ID='default'
-uv run alembic upgrade head    # head / SCHEMA_REVISION: 20260803_18
+uv run alembic upgrade head    # head / SCHEMA_REVISION: 20260804_20
 uv run python -c "
 import os
 from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace
@@ -74,7 +74,7 @@ uv run ft import alipay.csv --source alipay
 uv run ft import wechat.xlsx --source wechat
 uv run ft import icbc.pdf --source icbc --password-file /tmp/pw.txt
 uv run ft import hqmx.xls --source ccb-debit
-uv run ft import currentaccounthistory.csv --source icbc-asia-current-account
+uv run ft import currentaccounthistory.csv --source icbc-asia
 
 # 投资（先建 security/crypto 账户）
 uv run ft acct add 东方证券 --type security --currency CNY
@@ -90,7 +90,7 @@ uv run ft import usmart.pdf --source usmart-hk --account uSmart
 | `wechat` | XLSX | cash，自动路由 | 微信 |
 | `icbc` / `icbc-debit` | PDF | cash，自动路由 | 工行信用/借记（PDF 需 qpdf + mupdf-tools） |
 | `ccb-debit` | XLS | cash，自动路由 | 建行借记 |
-| `icbc-asia-current-account` | UTF-16 TSV CSV | cash，自动路由 | 工银亚洲活期账户明细 |
+| `icbc-asia` | UTF-16 TSV CSV | cash，自动路由 | 工银亚洲活期账户明细 |
 | `dfzq` | PDF | security，必填 `--account` | 东方证券 |
 | `ibkr` | CSV | security，必填 `--account` | Interactive Brokers |
 | `schwab` | CSV | security，必填 `--account` | Charles Schwab |

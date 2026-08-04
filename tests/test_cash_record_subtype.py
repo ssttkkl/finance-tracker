@@ -38,7 +38,7 @@ def test_icbc_asia_counterparty_account_preserves_subaccount_and_reconstructs_ve
     )
 
     record_type, record_subtype = classify_cash_record(
-        "icbc_asia_current_account",
+        "icbc_asia",
         {
             "txn_type": "轉賬",
             "summary": "本地轉賬",
@@ -51,16 +51,16 @@ def test_icbc_asia_counterparty_account_preserves_subaccount_and_reconstructs_ve
     assert record_type == "transfer_out"
     assert record_subtype == CashRecordSubtype.ORDINARY_TRANSFER.value
     assert normalize_counterparty_account(
-        "1234-5678-1", source="icbc_asia_current_account",
+        "1234-5678-1", source="icbc_asia",
     ) == "123456781"
     assert normalize_counterparty_account(
         "879825****47",
-        source="icbc_asia_current_account",
+        source="icbc_asia",
         source_account_identifier="879825074240",
     ) == "879825074247"
     assert normalize_counterparty_account(
         "879825****47",
-        source="icbc_asia_current_account",
+        source="icbc_asia",
         source_account_identifier="8798250742400",
     ) == ""
 

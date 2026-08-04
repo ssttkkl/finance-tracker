@@ -33,7 +33,7 @@ def test_cli_direct_statement_import_dispatches_without_intermediate_csv(monkeyp
     assert not hasattr(calls[0], "account") or getattr(calls[0], "account", None) is None
 
 
-def test_cli_accepts_icbc_asia_current_account_source(monkeypatch, tmp_path):
+def test_cli_accepts_icbc_asia_source(monkeypatch, tmp_path):
     from ft.domain.application import OperationResult
 
     source = tmp_path / "currentaccounthistory.csv"
@@ -46,9 +46,19 @@ def test_cli_accepts_icbc_asia_current_account_source(monkeypatch, tmp_path):
             return OperationResult(ok=True, count=1, details={"duplicate": False})
 
     _install_bundle(monkeypatch, type("Bundle", (), {"statement_import": Importer()})())
-    cli.main(["import", str(source), "--source", "icbc-asia-current-account"])
+    cli.main(["import", str(source), "--source", "icbc-asia"])
 
-    assert calls[0].source == "icbc-asia-current-account"
+    assert calls[0].source == "icbc-asia"
+
+
+def test_cli_rejects_retired_icbc_asia_current_account_source(tmp_path):
+    source = tmp_path / "currentaccounthistory.csv"
+    source.write_text("fixture", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main(["import", str(source), "--source", "icbc-asia-current-account"])
+
+    assert exc_info.value.code == 2
 
 
 def test_cli_ibkr_leaves_currency_unset_for_statement_base_currency(monkeypatch, tmp_path):

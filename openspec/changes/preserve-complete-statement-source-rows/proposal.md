@@ -7,6 +7,7 @@
 - 将 `source_payload` 的合同收紧为原始账单单行的完整列名和值，禁止缺列、派生字段和兼容空字段。
 - 为现金流水增加正式的可查询 `counterparty_account`（对方账号）列；保留原始值，不以规范化结果覆盖来源行快照。
 - 更新支付宝、微信、建行和工行现金账单解析器，使其从原始列捕获对方账号，并只把原始行写入 `source_payload`。
+- 将工银亚洲渠道统一为 CLI `icbc-asia` 与持久化 `icbc_asia`；迁移既有业务行键，不保留旧键读取路径。
 - **BREAKING**：详情/内部读取方不得再依赖 `source_payload` 中的 `account_name`、`record_type`、`source_type`、映射结果或关系处理字段。
 - 为既有数据库执行可审计迁移：从现存快照可确定的值回填 `counterparty_account`；不能从已丢失来源恢复的历史字段保持空值，不伪造原始行。
 

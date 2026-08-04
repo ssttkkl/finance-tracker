@@ -7,7 +7,7 @@ import tempfile
 
 
 CASH_SOURCES = {
-    "alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "icbc-asia-current-account",
+    "alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "icbc-asia",
 }
 
 

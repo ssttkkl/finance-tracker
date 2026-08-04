@@ -10,7 +10,7 @@ from pathlib import Path
 import re
 
 
-SOURCE_TYPE = "icbc_asia_current_account"
+SOURCE_TYPE = "icbc_asia"
 HEADERS = (
     "序號", "交易時間", "", "起息日期", "業務類型", "摘要", "收入金額", "支出金額",
     "餘額", "對方賬號", "對方戶名", "憑證號", "匯率", "備註", "交易場所",

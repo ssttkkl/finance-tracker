@@ -28,6 +28,7 @@ def test_repository_has_clean_linear_revisions():
         "20260803_17_simplify_transaction_relations.py",
         "20260803_18_open_leg_candidate_fact_ids.py",
         "20260804_19_cash_record_subtype.py",
+        "20260804_20_rename_icbc_asia_source_type.py",
     ]
 
 
@@ -289,6 +290,97 @@ def test_cash_record_subtype_migration_keeps_active_identity_partial_index(tmp_p
             ))
         assert definition is not None
         assert "deleted_at IS NULL" in definition
+    finally:
+        engine.dispose()
+
+
+def test_icbc_asia_source_type_migration_renames_active_business_identity(tmp_path):
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+
+    root = Path(__file__).parents[1]
+    database = tmp_path / "icbc-asia-source-type.db"
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "migrations"))
+    config.set_main_option("sqlalchemy.url", f"sqlite+pysqlite:///{database}")
+    command.upgrade(config, "20260804_19")
+    engine = create_engine(f"sqlite+pysqlite:///{database}")
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', CURRENT_TIMESTAMP)"
+            ))
+            connection.execute(text(
+                "INSERT INTO accounts (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) "
+                "VALUES (1, 'w', 'Cash', 'cash', 1, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            ))
+            connection.execute(text(
+                "INSERT INTO cash_transactions "
+                "(workspace_id, account_id, source_type, record_id, occurred_at, amount, currency, counterparty, note, category, record_type, record_subtype, created_at) "
+                "VALUES ('w', 1, 'icbc_asia_current_account', 'icbc_asia_current_account_abc', CURRENT_TIMESTAMP, '1.00', 'HKD', '', '', '', 'transfer_in', 'ordinary_transfer', CURRENT_TIMESTAMP)"
+            ))
+
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            values = connection.execute(text(
+                "SELECT source_type, record_id FROM cash_transactions"
+            )).one()
+        assert values == ("icbc_asia", "icbc_asia_abc")
+
+        command.downgrade(config, "20260804_19")
+        with engine.connect() as connection:
+            values = connection.execute(text(
+                "SELECT source_type, record_id FROM cash_transactions"
+            )).one()
+        assert values == (
+            "icbc_asia_current_account", "icbc_asia_current_account_abc",
+        )
+    finally:
+        engine.dispose()
+
+
+def test_icbc_asia_source_type_migration_fails_without_partial_rewrite_on_active_conflict(tmp_path):
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+
+    root = Path(__file__).parents[1]
+    database = tmp_path / "icbc-asia-source-conflict.db"
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "migrations"))
+    config.set_main_option("sqlalchemy.url", f"sqlite+pysqlite:///{database}")
+    command.upgrade(config, "20260804_19")
+    engine = create_engine(f"sqlite+pysqlite:///{database}")
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', CURRENT_TIMESTAMP)"
+            ))
+            connection.execute(text(
+                "INSERT INTO accounts (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) "
+                "VALUES (1, 'w', 'Cash', 'cash', 1, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            ))
+            for source_type, record_id in (
+                ("icbc_asia_current_account", "icbc_asia_current_account_collision"),
+                ("icbc_asia", "icbc_asia_collision"),
+            ):
+                connection.execute(text(
+                    "INSERT INTO cash_transactions "
+                    "(workspace_id, account_id, source_type, record_id, occurred_at, amount, currency, counterparty, note, category, record_type, record_subtype, created_at) "
+                    "VALUES ('w', 1, :source_type, :record_id, CURRENT_TIMESTAMP, '1.00', 'HKD', '', '', '', 'transfer_in', 'ordinary_transfer', CURRENT_TIMESTAMP)"
+                ), {"source_type": source_type, "record_id": record_id})
+
+        with pytest.raises(RuntimeError, match="工银亚洲渠道迁移后会与现有活跃业务行冲突"):
+            command.upgrade(config, "head")
+        with engine.connect() as connection:
+            values = set(connection.execute(text(
+                "SELECT source_type, record_id FROM cash_transactions"
+            )).all())
+        assert values == {
+            ("icbc_asia_current_account", "icbc_asia_current_account_collision"),
+            ("icbc_asia", "icbc_asia_collision"),
+        }
     finally:
         engine.dispose()
 

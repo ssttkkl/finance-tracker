@@ -15,7 +15,7 @@ def infer_statement_source(source_path: str) -> str:
     """Best-effort channel name from filename (tests/CLI may omit explicit source)."""
     name = Path(source_path).name.lower()
     if "currentaccounthistory" in name:
-        return "icbc-asia-current-account"
+        return "icbc-asia"
     if "alipay" in name or "支付宝" in name:
         return "alipay"
     if "wechat" in name or "微信" in name:
