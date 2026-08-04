@@ -11,12 +11,12 @@ from sqlalchemy import or_, select
 _RULE_ID = "cash-investment-funding-v1"
 _SHANGHAI = ZoneInfo("Asia/Shanghai")
 _AUTO_CASH_TYPES = {
-    "deposit": "investment_out",
-    "withdraw": "investment_in",
+    True: "investment_out",
+    False: "investment_in",
 }
 _CANDIDATE_CASH_TYPES = {
-    "deposit": frozenset({"investment_out", "transfer_out"}),
-    "withdraw": frozenset({"investment_in", "transfer_in"}),
+    True: frozenset({"investment_out", "transfer_out"}),
+    False: frozenset({"investment_in", "transfer_in"}),
 }
 
 
@@ -45,8 +45,18 @@ class CashInvestmentFundingRelationService:
         }
 
     @staticmethod
-    def _investment_amount(event) -> Decimal:
-        value = event.to_amount if event.record_type == "deposit" else event.from_amount
+    def _investment_is_incoming(event) -> bool:
+        from_amount = Decimal(str(event.from_amount or 0))
+        to_amount = Decimal(str(event.to_amount or 0))
+        if to_amount > 0 and from_amount == 0:
+            return True
+        if from_amount > 0 and to_amount == 0:
+            return False
+        raise ValueError("外部出入金必须恰有一个非零现金部分")
+
+    @classmethod
+    def _investment_amount(cls, event) -> Decimal:
+        value = event.to_amount if cls._investment_is_incoming(event) else event.from_amount
         if value is None:
             raise ValueError("外部出入金缺少金额")
         amount = Decimal(str(value))
@@ -69,8 +79,8 @@ class CashInvestmentFundingRelationService:
             .where(
                 InvestmentEventModel.workspace_id == self._workspace_id,
                 AccountModel.type.in_(("security", "crypto")),
-                InvestmentEventModel.record_type.in_(("deposit", "withdraw")),
-                InvestmentEventModel.record_subtype == "external_funding",
+                InvestmentEventModel.record_type == "funding",
+                InvestmentEventModel.record_subtype == "external",
             ).order_by(InvestmentEventModel.occurred_at, InvestmentEventModel.id)
         ).all()
 
@@ -78,8 +88,9 @@ class CashInvestmentFundingRelationService:
         from ft.adapters.relational.models import AccountModel, CashTransactionModel
 
         amount = self._investment_amount(event)
-        expected_types = _CANDIDATE_CASH_TYPES[event.record_type]
-        expected_negative = event.record_type == "deposit"
+        incoming = self._investment_is_incoming(event)
+        expected_types = _CANDIDATE_CASH_TYPES[incoming]
+        expected_negative = incoming
         candidates = []
         for cash, _account_type in session.execute(
             select(CashTransactionModel, AccountModel.type)
@@ -128,13 +139,14 @@ class CashInvestmentFundingRelationService:
         ).limit(1)) is not None
 
     def _pair_is_valid(self, cash, investment) -> bool:
-        if investment.record_type not in {"deposit", "withdraw"} or investment.record_subtype != "external_funding":
+        if investment.record_type != "funding" or investment.record_subtype != "external":
             return False
         amount = self._investment_amount(investment)
         if cash.currency != investment.currency or abs(Decimal(str(cash.amount))) != amount:
             return False
-        return (investment.record_type == "deposit" and Decimal(str(cash.amount)) < 0) or (
-            investment.record_type == "withdraw" and Decimal(str(cash.amount)) > 0
+        incoming = self._investment_is_incoming(investment)
+        return (incoming and Decimal(str(cash.amount)) < 0) or (
+            not incoming and Decimal(str(cash.amount)) > 0
         )
 
     def _evidence(self, cash, window: int, candidate_count: int) -> dict:
@@ -185,7 +197,7 @@ class CashInvestmentFundingRelationService:
                     auto_accept = (
                         count == 1
                         and window == 0
-                        and cash.record_type == _AUTO_CASH_TYPES[investment.record_type]
+                        and cash.record_type == _AUTO_CASH_TYPES[self._investment_is_incoming(investment)]
                     )
                     if relation is not None:
                         if relation.status == "pending_review" and relation.created_by == "system" and not relation.decided_by:
@@ -196,7 +208,7 @@ class CashInvestmentFundingRelationService:
                         workspace_id=self._workspace_id,
                         cash_transaction_id=cash.id,
                         investment_event_id=investment.id,
-                        direction="cash_to_investment" if investment.record_type == "deposit" else "investment_to_cash",
+                        direction="cash_to_investment" if self._investment_is_incoming(investment) else "investment_to_cash",
                         status="accepted" if auto_accept else "pending_review",
                         rule_id=_RULE_ID,
                         evidence=self._evidence(cash, window, count),

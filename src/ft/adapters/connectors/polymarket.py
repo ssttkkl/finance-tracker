@@ -5,7 +5,7 @@ for the SyncService batch-import pipeline.
 
 Ticker convention: ``pm:<slug>:<yes|no>`` (lowercase).
 Cash counterpart: ``usd`` (not ``usdc``).
-TRADE and REDEEM map to ``swap``; YIELD maps to ``dividend``.
+TRADE 和 REDEEM 映射为 ``trade(security)``，YIELD 映射为 ``income(interest)``。
 """
 from __future__ import annotations
 
@@ -248,7 +248,7 @@ class PolymarketConnector:
         units = self._parse_hex_int(self._rpc("eth_call", [call, hex(latest)]), "pUSD balance")
         amount = Decimal(units) / (Decimal(10) ** PUSD_DECIMALS)
         return {
-            "record_type": "checkin", "record_subtype": "not_applicable", "account": "", "currency": "USD",
+            "record_type": "snapshot", "record_subtype": "cash", "account": "", "currency": "USD",
             "occurred_at": datetime.fromtimestamp(timestamp, tz=timezone.utc),
             "from_ticker": "", "from_amount": "0", "to_ticker": "usd",
             "to_amount": _format_decimal(amount), "commission": "0", "commission_asset": "",
@@ -410,8 +410,8 @@ class PolymarketConnector:
             to_amount = usdc_size
 
         return {
-            "record_type": "swap",
-            "record_subtype": "not_applicable",
+            "record_type": "trade",
+            "record_subtype": "security",
             "account": "",
             "currency": "USD",
             "occurred_at": occurred_at,
@@ -463,8 +463,8 @@ class PolymarketConnector:
         occurred_at, timestamp = self._occurred_at(activity, "REDEEM")
         pm_ticker = f"pm:{slug}:{outcome}"
         return {
-            "record_type": "swap",
-            "record_subtype": "not_applicable",
+            "record_type": "trade",
+            "record_subtype": "security",
             "account": "",
             "currency": "USD",
             "occurred_at": occurred_at,
@@ -485,8 +485,8 @@ class PolymarketConnector:
         tx_hash = self._transaction_hash(activity, "YIELD")
         occurred_at, timestamp = self._occurred_at(activity, "YIELD")
         return {
-            "record_type": "dividend",
-            "record_subtype": "not_applicable",
+            "record_type": "income",
+            "record_subtype": "interest",
             "account": "",
             "currency": "USD",
             "occurred_at": occurred_at,

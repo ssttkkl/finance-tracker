@@ -127,7 +127,7 @@ class TestPolymarketSyncPostgres:
         with uow as u:
             actions = sorted(e["record_type"] for e in u.investments.list())
             u.rollback()
-        assert actions == ["dividend", "swap"]
+        assert actions == ["income", "trade"]
 
     def test_activity_and_pusd_checkin_are_atomic_idempotent_and_preserve_market_position(self, pg_pm_sync):
         service, uow = pg_pm_sync

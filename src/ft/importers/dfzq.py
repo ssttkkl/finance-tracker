@@ -13,6 +13,8 @@ import subprocess
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from ft.domain.decimal import exact_decimal
+
 ACTION_MAP = {
     "证券买入": "BUY", "证券卖出": "SELL",
     "银行转证券": "DEPOSIT", "证券转银行": "WITHDRAW",
@@ -467,6 +469,7 @@ def _make_txn(date_str, action_raw, **kw) -> dict[str, Any]:
     return {
         "date": date_fmt,
         "action": action,
+        "action_raw": action_raw,
         "ticker": full_ticker,
         "name": name,
         "shares": shares,
@@ -528,12 +531,12 @@ def construct_source_identity(txn: dict[str, Any]) -> str:
 def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currency: str = "CNY") -> dict[str, Any]:
     """Map DFZQ transaction to unified investment event schema.
 
-    Converts DFZQ actions (BUY/SELL/DEPOSIT/WITHDRAW/DIVIDEND/CHECKIN) to
-    unified event format (swap/deposit/withdraw/dividend/checkin).
+    将东方证券原生动作规范化为经济事实类型与记录子类型。
 
     Constitution II: Follows data-model.md event schema specification.
     """
     action = txn["action"]
+    action_raw = str(txn.get("action_raw") or action)
     ticker = txn.get("ticker", "")
     cash_ticker = currency.lower()
 
@@ -550,21 +553,32 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
     # Policy: if 手续费 is separable, put it in commission and adjust the cash component
     # so total cash impact still equals abs(amount); otherwise keep net, commission=0.
     # 印花税/过户费 stay inside the cash component (not always cleanly invertible).
-    amount_abs = abs(txn.get("amount") or Decimal("0"))
-    shares_abs = abs(txn.get("shares") or Decimal("0"))
-    fee_abs = abs(txn.get("fee") or Decimal("0"))
+    # 此函数也被适配层直接调用；接受解析器提供的 Decimal 和测试/外部
+    # 适配器提供的精确文本，但在进入经济语义映射前统一校验精度。
+    def amount(field: str) -> Decimal:
+        try:
+            return exact_decimal(txn.get(field) or Decimal("0"), f"东方证券账单{field}")
+        except ValueError as exc:
+            if "at most 18 decimal places" in str(exc):
+                raise ValueError(f"东方证券账单{field}最多保留 18 位小数") from exc
+            raise
+
+    amount_abs = abs(amount("amount"))
+    shares_abs = abs(amount("shares"))
+    fee_abs = abs(amount("fee"))
+    price_abs = abs(amount("price"))
     cash_leg, commission = _split_commission(amount_abs, fee_abs, side=action)
 
     if action == "BUY":
         # BUY → SWAP (cash → ticker).
         # cash_leg + commission == amount_abs (total cash out).
         event.update({
-            "record_type": "swap", "record_subtype": "not_applicable",
+            "record_type": "trade", "record_subtype": "repo" if ticker == REPO_TICKER else "security",
             "from_ticker": cash_ticker,
             "from_amount": format(cash_leg, "f"),
             "to_ticker": ticker,
             "to_amount": format(shares_abs, "f"),
-            "price": format(abs(txn["price"]), "f"),
+            "price": format(price_abs, "f"),
             "commission": format(commission, "f"),
             "commission_asset": cash_ticker if commission else "",
         })
@@ -574,58 +588,61 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
         # Projection does to_amount - commission when commission_asset == cash;
         # so to_amount = net + commission, commission = fee → cash in = net.
         event.update({
-            "record_type": "swap", "record_subtype": "not_applicable",
+            "record_type": "trade", "record_subtype": "repo" if ticker == REPO_TICKER else "security",
             "from_ticker": ticker,
             "from_amount": format(shares_abs, "f"),
             "to_ticker": cash_ticker,
             "to_amount": format(cash_leg, "f"),
-            "price": format(abs(txn["price"]), "f"),
+            "price": format(price_abs, "f"),
             "commission": format(commission, "f"),
             "commission_asset": cash_ticker if commission else "",
         })
 
-    elif action == "DEPOSIT":
-        event.update({
-            "record_type": "deposit", "record_subtype": "external_funding",
-            "to_ticker": cash_ticker,
-            "to_amount": format(amount_abs, "f"),
-            "from_ticker": "",
-            "from_amount": "0",
-            "price": "1",
-            "commission": "0",
-            "commission_asset": "",
-        })
-
-    elif action == "WITHDRAW":
-        event.update({
-            "record_type": "withdraw", "record_subtype": "external_funding",
-            "from_ticker": cash_ticker,
-            "from_amount": format(amount_abs, "f"),
-            "to_ticker": "",
-            "to_amount": "0",
-            "price": "1",
-            "commission": "0",
-            "commission_asset": "",
-        })
+    elif action in {"DEPOSIT", "WITHDRAW"}:
+        incoming = action == "DEPOSIT"
+        subtype = "subaccount" if action_raw in {"OTC资金划入", "OTC资金划出"} else "external"
+        if action_raw == "利息归本":
+            event.update({
+                "record_type": "income", "record_subtype": "interest",
+                "to_ticker": cash_ticker, "to_amount": format(amount_abs, "f"),
+                "from_ticker": "", "from_amount": "0", "price": "1",
+                "commission": "0", "commission_asset": "",
+            })
+        elif action_raw == "股息红利差异扣税":
+            event.update({
+                "record_type": "expense", "record_subtype": "tax",
+                "from_ticker": cash_ticker, "from_amount": format(amount_abs, "f"),
+                "to_ticker": "", "to_amount": "0", "price": "1",
+                "commission": "0", "commission_asset": "",
+            })
+        else:
+            event.update({
+                "record_type": "funding", "record_subtype": subtype,
+                "to_ticker": cash_ticker if incoming else "",
+                "to_amount": format(amount_abs, "f") if incoming else "0",
+                "from_ticker": "" if incoming else cash_ticker,
+                "from_amount": "0" if incoming else format(amount_abs, "f"),
+                "price": "1", "commission": "0", "commission_asset": "",
+            })
 
     elif action == "DIVIDEND":
         # Cash or stock dividend
         if ticker:
             # Stock dividend (送股/转增)
             event.update({
-                "record_type": "dividend", "record_subtype": "not_applicable",
+                "record_type": "income", "record_subtype": "dividend_stock",
                 "from_ticker": ticker,
                 "to_ticker": ticker,
                 "to_amount": format(shares_abs, "f"),
                 "from_amount": "0",
-                "price": format(abs(txn["price"]), "f"),
+                "price": format(price_abs, "f"),
                 "commission": "0",
                 "commission_asset": "",
             })
         else:
             # Cash dividend (红利入账)
             event.update({
-                "record_type": "dividend", "record_subtype": "not_applicable",
+                "record_type": "income", "record_subtype": "dividend_cash",
                 "from_ticker": txn.get("name", ""),
                 "to_ticker": cash_ticker,
                 "to_amount": format(amount_abs, "f"),
@@ -641,7 +658,7 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
         # Position checkin: ticker set, shares=qty, price=avg cost (cost basis).
         if ticker:
             event.update({
-                "record_type": "checkin", "record_subtype": "not_applicable",
+                "record_type": "snapshot", "record_subtype": "position",
                 "from_ticker": "",
                 "to_ticker": ticker,
                 "to_amount": format(shares_abs, "f"),
@@ -652,7 +669,7 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
             })
         else:
             event.update({
-                "record_type": "checkin", "record_subtype": "not_applicable",
+                "record_type": "snapshot", "record_subtype": "cash",
                 "from_ticker": "",
                 "to_ticker": cash_ticker,
                 "to_amount": format(amount_abs, "f"),

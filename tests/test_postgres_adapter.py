@@ -126,7 +126,8 @@ def test_investment_repository_and_snapshot_are_workspace_scoped():
     AccountService(unit_of_work(sessions, "workspace-a")).create_account("Broker", "security", "USD")
     event = {
         "occurred_at": "2026-07-17 10:00:00",
-        "record_type": "deposit",
+        "record_type": "funding",
+        "record_subtype": "external",
         "from_ticker": "",
         "to_ticker": "usd",
         "from_amount": "0",

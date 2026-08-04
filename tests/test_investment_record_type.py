@@ -22,8 +22,8 @@ def test_investment_repository_uses_record_type_and_record_subtype(tmp_path):
         unit.accounts.add(AccountDTO("Broker", "security", active=True))
         unit.investments.add("security", {
             "occurred_at": "2026-08-04 09:00:00",
-            "record_type": "deposit",
-            "record_subtype": "external_funding",
+            "record_type": "funding",
+            "record_subtype": "external",
             "to_ticker": "usd",
             "to_amount": "12.34",
             "from_amount": "0",
@@ -36,8 +36,8 @@ def test_investment_repository_uses_record_type_and_record_subtype(tmp_path):
         row = unit.investments.list()[0]
         unit.commit()
 
-    assert row["record_type"] == "deposit"
-    assert row["record_subtype"] == "external_funding"
+    assert row["record_type"] == "funding"
+    assert row["record_subtype"] == "external"
     assert "action" not in row
     assert Decimal(row["to_amount"]) == Decimal("12.34")
     assert row["source_payload"] == {"native_type": "wire_in"}
@@ -46,17 +46,40 @@ def test_investment_repository_uses_record_type_and_record_subtype(tmp_path):
 @pytest.mark.parametrize(
     ("record_type", "record_subtype"),
     [
-        ("deposit", "tax"),
-        ("withdraw", "withdrawal_refund"),
-        ("fee", "external_funding"),
-        ("cash_adjustment", "external_funding"),
+        ("funding", "tax"),
+        ("expense", "external"),
+        ("reversal", "reward"),
+        ("snapshot", "interest"),
     ],
 )
 def test_investment_record_type_subtype_combinations_fail_closed(record_type, record_subtype):
     from ft.domain.investment_record_type import validate_investment_record_subtype
 
-    with pytest.raises(ValueError, match="record_subtype"):
+    with pytest.raises(ValueError, match="record_type|record_subtype"):
         validate_investment_record_subtype(record_type, record_subtype)
+
+
+@pytest.mark.parametrize(
+    ("record_type", "record_subtype"),
+    [
+        ("funding", "external"),
+        ("funding", "subaccount"),
+        ("trade", "security"),
+        ("income", "interest"),
+        ("expense", "tax"),
+        ("reversal", "funding_withdrawal"),
+        ("subscription", "ipo_refund"),
+        ("adjustment", "fx_net"),
+        ("snapshot", "position"),
+    ],
+)
+def test_investment_economic_fact_type_subtype_combinations_are_accepted(record_type, record_subtype):
+    from ft.domain.investment_record_type import validate_investment_record_subtype
+
+    assert validate_investment_record_subtype(record_type, record_subtype) == (
+        record_type,
+        record_subtype,
+    )
 
 
 def test_investment_mappers_normalize_funding_and_non_funding_cash_events():
@@ -89,22 +112,22 @@ def test_investment_mappers_normalize_funding_and_non_funding_cash_events():
         "type": "DOI", "date": "2026-08-01", "amount": "-0.4", "description": "Interest Adjusted",
     }, "Schwab", "USD")
 
-    assert (ibkr_tax["record_type"], ibkr_tax["record_subtype"]) == ("fee", "tax")
+    assert (ibkr_tax["record_type"], ibkr_tax["record_subtype"]) == ("expense", "tax")
     assert (ibkr_fx["record_type"], ibkr_fx["record_subtype"]) == (
-        "fx_adjustment", "net_cash_adjustment",
+        "adjustment", "fx_net",
     )
     assert (usmart_transfer["record_type"], usmart_transfer["record_subtype"]) == (
-        "withdraw", "subaccount_transfer",
+        "funding", "subaccount",
     )
     assert (usmart_refund["record_type"], usmart_refund["record_subtype"]) == (
-        "withdrawal_reversal", "withdrawal_refund",
+        "reversal", "funding_withdrawal",
     )
     assert (dfzq_funding["record_type"], dfzq_funding["record_subtype"]) == (
-        "deposit", "external_funding",
+        "funding", "external",
     )
     assert (schwab_interest["record_type"], schwab_interest["record_subtype"]) == (
-        "fee", "interest",
+        "expense", "interest",
     )
 
     for event in (ibkr_tax, ibkr_fx, usmart_refund, schwab_interest):
-        assert event["record_type"] not in {"deposit", "withdraw"}
+        assert event["record_type"] not in {"deposit", "withdraw", "fee", "fx_adjustment"}

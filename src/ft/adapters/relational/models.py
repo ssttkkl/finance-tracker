@@ -324,18 +324,18 @@ class InvestmentEventModel(Base):
     __tablename__ = "investment_events"
     __table_args__ = (
         CheckConstraint(
-            "record_type IN ('swap', 'buy', 'sell', 'deposit', 'withdraw', 'dividend', 'fee', 'ipo', 'checkin', 'transfer', 'fx_adjustment', 'reward', 'withdrawal_reversal', 'cash_adjustment')",
+            "record_type IN ('funding', 'trade', 'income', 'expense', 'reversal', 'subscription', 'adjustment', 'snapshot')",
             name="ck_investment_events_record_type",
         ),
         CheckConstraint(
-            "(record_type IN ('deposit', 'withdraw') AND record_subtype IN ('external_funding', 'subaccount_transfer')) OR "
-            "(record_type = 'fee' AND record_subtype IN ('commission', 'interest', 'tax', 'handling_fee', 'fee_refund', 'interest_refund', 'tax_refund')) OR "
-            "(record_type = 'ipo' AND record_subtype IN ('subscription_debit', 'subscription_refund')) OR "
-            "(record_type = 'fx_adjustment' AND record_subtype = 'net_cash_adjustment') OR "
-            "(record_type = 'reward' AND record_subtype = 'cash_reward') OR "
-            "(record_type = 'withdrawal_reversal' AND record_subtype = 'withdrawal_refund') OR "
-            "(record_type = 'cash_adjustment' AND record_subtype = 'unclassified') OR "
-            "(record_type IN ('swap', 'buy', 'sell', 'dividend', 'checkin', 'transfer') AND record_subtype = 'not_applicable')",
+            "(record_type = 'funding' AND record_subtype IN ('external', 'subaccount')) OR "
+            "(record_type = 'trade' AND record_subtype IN ('security', 'fx', 'repo')) OR "
+            "(record_type = 'income' AND record_subtype IN ('dividend_cash', 'dividend_stock', 'interest', 'reward')) OR "
+            "(record_type = 'expense' AND record_subtype IN ('commission', 'tax', 'interest', 'handling_fee', 'penalty')) OR "
+            "(record_type = 'reversal' AND record_subtype IN ('expense_tax', 'expense_interest', 'expense_commission', 'funding_withdrawal')) OR "
+            "(record_type = 'subscription' AND record_subtype IN ('ipo_debit', 'ipo_refund')) OR "
+            "(record_type = 'adjustment' AND record_subtype IN ('fx_net', 'manual', 'unclassified')) OR "
+            "(record_type = 'snapshot' AND record_subtype IN ('cash', 'position'))",
             name="ck_investment_events_record_type_subtype",
         ),
         UniqueConstraint("workspace_id", "id", name="uq_investment_events_workspace_id"),

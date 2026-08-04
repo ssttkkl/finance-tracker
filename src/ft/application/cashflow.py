@@ -270,8 +270,8 @@ def _transfer_event(date_str: str, amount: Decimal, account, counterpart, curren
     ticker = currency.lower()
     return {
         "occurred_at": date_str,
-        "record_type": "withdraw" if direction == "out" else "deposit",
-        "record_subtype": "subaccount_transfer",
+        "record_type": "funding",
+        "record_subtype": "subaccount",
         "from_ticker": ticker if direction == "out" else "",
         "to_ticker": ticker if direction == "in" else "",
         "from_amount": str(amount if direction == "out" else 0),

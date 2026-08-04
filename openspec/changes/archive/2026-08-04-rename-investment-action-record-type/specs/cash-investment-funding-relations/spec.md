@@ -5,14 +5,14 @@
 ## ADDED Requirements
 
 ### Requirement: 基于规范语义扫描外部资金调拨
-系统 MUST 只扫描工作区内 `deposit(external_funding)` 与 `withdraw(external_funding)` 投资事件，以及方向相反的可匹配收支账户资金流水。扫描 MUST 使用记录类型、记录子类型、账户类型、精确十进制金额、币种和 `Asia/Shanghai` 业务日；不得以导入渠道、券商名称、银行名称、账户名称或自由文本作为必要条件。
+系统 MUST 只扫描工作区内 `funding(external)` 投资事件，以及方向相反的可匹配收支账户资金流水。扫描 MUST 从投资事件现金部分确定资金方向，并使用记录类型、记录子类型、账户类型、精确十进制金额、币种和 `Asia/Shanghai` 业务日；不得以导入渠道、券商名称、银行名称、账户名称或自由文本作为必要条件。
 
 #### Scenario: 不同银行和券商的同类外部入金
-- **WHEN** 收支账户转出流水与不同导入渠道的 `deposit(external_funding)` 投资事件具有相反方向、相同币种、相同精确金额且在允许业务日窗口内
+- **WHEN** 收支账户转出流水与不同导入渠道的现金流入 `funding(external)` 投资事件具有相反方向、相同币种、相同精确金额且在允许业务日窗口内
 - **THEN** 系统按同一套规则生成资金调拨候选，不因渠道名称不同而改变候选资格
 
 #### Scenario: 内部子账户调拨不进入候选
-- **WHEN** 投资事件的 `record_subtype=subaccount_transfer`
+- **WHEN** 投资事件为 `funding(subaccount)`
 - **THEN** 系统不得为它生成收支账户资金调拨候选
 
 ### Requirement: 候选确认必须唯一且可审计

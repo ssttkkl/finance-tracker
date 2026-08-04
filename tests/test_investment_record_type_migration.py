@@ -59,6 +59,19 @@ def test_investment_action_migration_preserves_event_identity_and_provenance(tmp
                 "INSERT INTO ledger_snapshots (workspace_id, payload, version, updated_at) "
                 "VALUES ('w', :payload, 1, CURRENT_TIMESTAMP)"
             ).bindparams(bindparam("payload", type_=JSON)), {"payload": snapshot_payload})
+            connection.execute(text(
+                "INSERT INTO investment_events (workspace_id, account_id, source_type, record_id, source_payload, "
+                "occurred_at, action, currency, note, from_ticker, from_amount, to_ticker, to_amount, commission, "
+                "commission_asset, payload, created_at) VALUES "
+                "('w', 1, 'dfzq_pdf', 'row-2', :source_payload, CURRENT_TIMESTAMP, 'deposit', 'CNY', '', "
+                "'', '0', 'cny', '100', '0', '', :payload, CURRENT_TIMESTAMP)"
+            ).bindparams(
+                bindparam("source_payload", type_=JSON),
+                bindparam("payload", type_=JSON),
+            ), {
+                "source_payload": {"action": "DEPOSIT", "amount": "100"},
+                "payload": {},
+            })
 
         command.upgrade(config, "head")
         columns = {column["name"] for column in inspect(engine).get_columns("investment_events")}
@@ -67,7 +80,11 @@ def test_investment_action_migration_preserves_event_identity_and_provenance(tmp
         with engine.connect() as connection:
             row = connection.execute(text(
                 "SELECT record_type, record_subtype, currency, from_amount, source_payload, record_id "
-                "FROM investment_events WHERE workspace_id = 'w'"
+                "FROM investment_events WHERE workspace_id = 'w' AND record_id = 'row-1'"
+            )).mappings().one()
+            folded_dfzq = connection.execute(text(
+                "SELECT record_type, record_subtype, source_payload FROM investment_events "
+                "WHERE workspace_id = 'w' AND record_id = 'row-2'"
             )).mappings().one()
             count = connection.execute(text(
                 "SELECT count(*) FROM investment_events "
@@ -76,7 +93,7 @@ def test_investment_action_migration_preserves_event_identity_and_provenance(tmp
             replayed_snapshot = connection.execute(text(
                 "SELECT payload FROM ledger_snapshots WHERE workspace_id = 'w'"
             )).scalar_one()
-        assert row["record_type"] == "fee"
+        assert row["record_type"] == "expense"
         assert row["record_subtype"] == "tax"
         assert row["currency"] == "USD"
         assert Decimal(str(row["from_amount"])) == Decimal("0.14")
@@ -84,6 +101,9 @@ def test_investment_action_migration_preserves_event_identity_and_provenance(tmp
         assert _json_value(row["source_payload"]) == source_payload
         assert count == 1
         assert _json_value(replayed_snapshot) == snapshot_payload
+        assert dict(folded_dfzq)["record_type"] == "adjustment"
+        assert dict(folded_dfzq)["record_subtype"] == "unclassified"
+        assert _json_value(folded_dfzq["source_payload"]) == {"action": "DEPOSIT", "amount": "100"}
 
         command.downgrade(config, "20260804_20")
         downgraded_columns = {column["name"] for column in inspect(engine).get_columns("investment_events")}

@@ -1,7 +1,7 @@
 # Investment cash event kinds
 
 ## Purpose
-| `deposit` / `withdraw` | True customer funding; internal transfers (P1) | 本能力的行为契约由迁移后的需求与场景持续维护。
+本能力规定投资事件以来源无关的经济事实类型和记录子类型表达，并约束资金调拨候选资格。它防止利息、税费、奖励和余额调整被误写为资金调拨，从而污染跨账本配对。
 
 ## Requirements
 
@@ -20,12 +20,12 @@
 - **WHEN** 调用方读取一条投资事件
 - **THEN** 响应包含 `record_type` 与 `record_subtype`，不包含 `action`，且资产组成、精确十进制金额、币种、业务行标识和来源行快照与迁移前同一经济事实一致
 
-### Requirement: 出入金记录类型的范围约束
-系统 MUST 只允许 `record_type=deposit` 或 `record_type=withdraw` 搭配 `record_subtype=external_funding` 或 `record_subtype=subaccount_transfer`。利息、税费和佣金 MUST 使用 `record_type=fee` 及相应子类型；外汇净额、奖励和出金冲回 MUST 分别使用 `fx_adjustment(net_cash_adjustment)`、`reward(cash_reward)` 和 `withdrawal_reversal(withdrawal_refund)`，且不得进入外部出入金候选。无法从结构化来源字段安全归类的历史现金变化 MUST 使用 `cash_adjustment(unclassified)`，不得保留为 `deposit` 或 `withdraw`。
+### Requirement: 投资经济事实的范围约束
+系统 MUST 只允许 `funding(external|subaccount)`、`trade(security|fx|repo)`、`income(dividend_cash|dividend_stock|interest|reward)`、`expense(commission|tax|interest|handling_fee|penalty)`、`reversal(expense_tax|expense_interest|expense_commission|funding_withdrawal)`、`subscription(ipo_debit|ipo_refund)`、`adjustment(fx_net|manual|unclassified)` 与 `snapshot(cash|position)`。方向 MUST 由 `from_*` / `to_*` 资产组成表达；仅 `funding(external)` 可配对；无法安全归类的历史现金变化 MUST 为 `adjustment(unclassified)`。
 
 #### Scenario: 导入非出入金现金变化
 - **WHEN** 导入来源语义为利息、税费、外汇净额、奖励或出金冲回的投资事件
-- **THEN** 系统不得将其记录为 `deposit` 或 `withdraw`，并保留能够解释规范化决定的来源行快照
+- **THEN** 系统分别记录为 `income(interest)`、`expense(tax|interest|commission|handling_fee|penalty)`、`adjustment(fx_net)`、`income(reward)` 或 `reversal(funding_withdrawal)`，并保留能够解释规范化决定的原生来源字段
 
 ### Requirement: 双后端兼容的投资事件字段迁移
 系统 MUST 在 SQLite 与 PostgreSQL 中以等价的字段名称、记录类型、记录子类型、精确十进制金额、币种、工作区隔离和幂等身份保存投资事件。重复导入相同 `source_type` 与 `record_id` 时 MUST 不创建重复事件，也不得改变既有规范化结果。

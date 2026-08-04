@@ -13,7 +13,7 @@ def test_buy_dividend_sell_sequence():
 
     buy = {
         "occurred_at": "2026-06-12 00:00:00",
-        "record_type": "swap",
+        "record_type": "trade", "record_subtype": "security",
         "account_name": account,
         "from_ticker": "cny",
         "from_amount": "1250.00",
@@ -27,7 +27,7 @@ def test_buy_dividend_sell_sequence():
     # seed cash first
     deposit = {
         "occurred_at": "2026-06-10 00:00:00",
-        "record_type": "deposit",
+        "record_type": "funding", "record_subtype": "external",
         "account_name": account,
         "to_ticker": "cny",
         "to_amount": "10000.00",
@@ -35,7 +35,7 @@ def test_buy_dividend_sell_sequence():
     }
     dividend = {
         "occurred_at": "2026-06-20 00:00:00",
-        "record_type": "dividend",
+        "record_type": "income", "record_subtype": "dividend_cash",
         "account_name": account,
         "from_ticker": "600000.sh",
         "to_ticker": "cny",
@@ -44,7 +44,7 @@ def test_buy_dividend_sell_sequence():
     }
     sell = {
         "occurred_at": "2026-06-25 00:00:00",
-        "record_type": "swap",
+        "record_type": "trade", "record_subtype": "security",
         "account_name": account,
         "from_ticker": "600000.sh",
         "from_amount": "50",
@@ -76,7 +76,7 @@ def test_zero_shares_and_missing_position_edge_cases():
         snapshot,
         {
             "occurred_at": "2026-01-01 00:00:00",
-            "record_type": "swap",
+            "record_type": "trade", "record_subtype": "security",
             "account_name": "broker",
             "from_ticker": "cny",
             "from_amount": "0",

@@ -204,9 +204,10 @@ class RelationalWealthFactRepository:
             } else "external_cashflow"
 
         def investment_projection(row: InvestmentFact):
-            raw = row.commission
+            kind = row.record_type.lower()
+            raw = row.commission if kind == "trade" else None
             if raw is None:
-                raw = row.to_amount if row.record_type.lower() in {"dividend", "deposit"} else row.from_amount
+                raw = row.to_amount if Decimal(str(row.to_amount or 0)) > 0 else row.from_amount
             if raw is None and isinstance(row.payload, dict):
                 raw = row.payload.get("amount", row.payload.get("commission"))
             if raw is None:
@@ -214,17 +215,18 @@ class RelationalWealthFactRepository:
             amount = projected_amount(Decimal(str(raw)), row.currency, row.occurred_at)
             if amount is None:
                 return None, None
-            kind = row.record_type.lower()
-            if kind == "dividend":
+            if kind == "income":
                 return "dividend", amount
-            if kind in {"buy", "sell", "swap"} and row.commission is not None:
+            if kind == "trade" and row.commission is not None:
                 return "fee", -abs(amount)
-            if kind == "withdraw" and row.record_subtype == "external_funding":
-                return "investment_funding", -amount
-            if kind == "deposit" and row.record_subtype == "external_funding":
+            if kind == "funding" and row.record_subtype == "external":
+                return "investment_funding", amount if Decimal(str(row.to_amount or 0)) > 0 else -amount
+            if kind == "reversal" and row.record_subtype == "funding_withdrawal":
                 return "investment_funding", amount
-            if kind == "fee":
-                return "fee", -abs(amount) if (row.from_amount or 0) else abs(amount)
+            if kind == "expense":
+                return "fee", -abs(amount)
+            if kind == "reversal" and row.record_subtype.startswith("expense_"):
+                return "fee", abs(amount)
             return None, None
         items = [
             WealthSourceItem("account", f"account:{row.account_id}", "account", canonical_digest({"type": row.account_type, "metadata": dict(row.metadata)}))

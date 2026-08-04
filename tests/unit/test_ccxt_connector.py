@@ -62,7 +62,7 @@ class TestTradeMapping:
         result = connector.fetch_trades()
         assert len(result.events) == 1
         event = result.events[0]
-        assert event["record_type"] == "swap"
+        assert (event["record_type"], event["record_subtype"]) == ("trade", "security")
         assert event["from_ticker"] == "usdt"
         assert event["to_ticker"] == "eth"
         assert event["to_amount"] == "1.5"
@@ -233,24 +233,30 @@ class TestLedgerMapping:
         assert len(result.events) == 51
         assert result.next_cursor == "101"
 
-    @pytest.mark.parametrize(("kind", "action"), [
-        ("deposit", "deposit"), ("withdrawal", "withdraw"),
-        ("staking", "dividend"), ("reward", "dividend"),
-        ("credit", "dividend"), ("rollover", "dividend"),
-        ("transfer", "transfer"),
-        ("derivativescrossexchangetransfer", "transfer"),
+    @pytest.mark.parametrize(("kind", "semantics"), [
+        ("deposit", ("funding", "external")),
+        ("withdrawal", ("funding", "external")),
+        ("staking", ("income", "reward")),
+        ("reward", ("income", "reward")),
+        ("credit", ("income", "reward")),
+        ("rollover", ("income", "reward")),
+        ("transfer", ("funding", "subaccount")),
+        ("derivativescrossexchangetransfer", ("funding", "subaccount")),
     ])
-    def test_supported_ledger_types_map_to_events(self, kind, action):
+    def test_supported_ledger_types_map_to_events(self, kind, semantics):
         entry = {"id": kind, "timestamp": 1000, "currency": "USD", "amount": "2", "info": {"type": kind}}
         connector = CcxtExchangeConnector(provider="binance", credentials={}, _client=FakeCcxtClient(ledger=[entry]))
         event = connector.fetch_trades().events[0]
-        assert event["record_type"] == action
+        assert (event["record_type"], event["record_subtype"]) == semantics
         assert event["record_id"] == kind
 
     def test_ledger_fee_becomes_child_event(self):
         entry = {"id": "reward", "timestamp": 1000, "currency": "ETH", "amount": "2", "info": {"type": "reward"}, "fee": {"cost": "0.1", "currency": "ETH"}}
         connector = CcxtExchangeConnector(provider="binance", credentials={}, _client=FakeCcxtClient(ledger=[entry]))
-        assert [(event["record_type"], event["record_id"]) for event in connector.fetch_trades().events] == [("dividend", "reward"), ("fee", "reward:fee")]
+        assert [
+            (event["record_type"], event["record_subtype"], event["record_id"])
+            for event in connector.fetch_trades().events
+        ] == [("income", "reward", "reward"), ("expense", "commission", "reward:fee")]
 
     def test_unknown_type_and_bad_fee_fail_closed(self):
         unknown = {"id": "bad", "timestamp": 1000, "currency": "USD", "amount": "1", "info": {"type": "unknown"}}

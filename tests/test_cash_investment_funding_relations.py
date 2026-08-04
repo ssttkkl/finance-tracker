@@ -76,8 +76,8 @@ def _add_cash(session, model, *, account_id, record_id, amount, record_type, day
     return row
 
 
-def _add_investment(session, model, *, account_id, record_id, record_type="deposit", record_subtype="external_funding", amount="100", day="2026-08-04", workspace_id="funding"):
-    incoming = record_type == "deposit"
+def _add_investment(session, model, *, account_id, record_id, record_type="funding", record_subtype="external", amount="100", day="2026-08-04", workspace_id="funding"):
+    incoming = record_type == "funding" and record_subtype in {"external", "subaccount"}
     row = model(
         workspace_id=workspace_id,
         account_id=account_id,
@@ -190,7 +190,7 @@ def test_non_external_funding_and_other_workspace_endpoints_fail_closed(funding_
             investment_model,
             account_id=broker.id,
             record_id="investment-sub",
-            record_subtype="subaccount_transfer",
+            record_subtype="subaccount",
         )
 
     service = CashInvestmentFundingRelationService(sessions, "funding")

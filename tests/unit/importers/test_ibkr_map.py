@@ -39,16 +39,16 @@ def test_equity_buy_and_sell_use_gross_cash_leg_plus_commission_once():
 def test_non_equity_cash_actions_map_to_their_locked_event_types():
     _statement, rows = _rows_by_action()
     cases = {
-        "存款": ("deposit", "to_amount", "4757"),
-        "股息": ("dividend", "to_amount", "0.45"),
-        "外国预扣税": ("fee", "from_amount", "0.14"),
-        "借方利息": ("fee", "from_amount", "0.34"),
+        "存款": (("funding", "external"), "to_amount", "4757"),
+        "股息": (("income", "dividend_cash"), "to_amount", "0.45"),
+        "外国预扣税": (("expense", "tax"), "from_amount", "0.14"),
+        "借方利息": (("expense", "interest"), "from_amount", "0.34"),
     }
 
-    for action, (event_action, amount_key, amount) in cases.items():
+    for action, (semantics, amount_key, amount) in cases.items():
         row = next(row for row in rows if row["action"] == action)
         event = map_ibkr_to_investment_event(row, "IBKR", "USD")
-        assert event["record_type"] == event_action
+        assert (event["record_type"], event["record_subtype"]) == semantics
         assert event[amount_key] == amount
 
 
@@ -66,18 +66,18 @@ def test_fx_records_net_cash_impact_not_full_notional():
     for event in (tiny, large):
         assert "hkd" not in (event.get("from_ticker"), event.get("to_ticker"))
         assert (event["record_type"], event["record_subtype"]) == (
-            "fx_adjustment", "net_cash_adjustment",
+            "adjustment", "fx_net",
         )
 
     # tiny: net ≈ +2.76e-7 USD → cash adjustment on usd (clamped to 18 dp for storage)
-    assert tiny["record_type"] == "fx_adjustment"
+    assert tiny["record_type"] == "adjustment"
     assert tiny["to_ticker"] == "usd"
     assert Decimal(tiny["to_amount"]) == abs(
         Decimal("2.7556650000065686E-7").quantize(Decimal("1e-18"))
     )
 
     # large: net = -2.030467550750018 USD → cash adjustment on usd
-    assert large["record_type"] == "fx_adjustment"
+    assert large["record_type"] == "adjustment"
     assert large["from_ticker"] == "usd"
     assert Decimal(large["from_amount"]) == abs(Decimal("-2.030467550750018"))
     assert "佣金2" in large["note"]

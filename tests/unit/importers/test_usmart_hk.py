@@ -26,7 +26,7 @@ def test_trade_groups_merge_fills_and_put_fee_outside_gross_cash_leg():
     assert dell["commission"] == Decimal("4.00")
 
     event = map_usmart_hk_to_investment_event(dell, "盈立证券")
-    assert event["record_type"] == "swap"
+    assert event["record_type"] == "trade"
     assert event["from_ticker"] == "dell.us"
     assert event["to_ticker"] == "usd"
     assert event["to_amount"] == "3699.41"
@@ -75,7 +75,7 @@ def test_traded_but_absent_from_holdings_gets_zero_share_checkin():
         if traded:
             assert code in zeros, f"expected flat CHECKIN for {code}"
             event = map_usmart_hk_to_investment_event(zeros[code], "盈立证券")
-            assert event["record_type"] == "checkin"
+            assert event["record_type"] == "snapshot"
             assert event["to_ticker"] == code
             assert event["to_amount"] == "0"
             assert construct_source_identity(zeros[code]).endswith(f":{code}:0")
@@ -87,8 +87,8 @@ def test_cash_flags_ignore_trade_mirrors_and_map_non_trade_rows():
     assert not any(row.get("flag") == "卖股票" for row in rows)
     refund = next(row for row in rows if row.get("flag") == "IPO认购退款")
     interest = next(row for row in rows if row.get("flag") == "融资利息")
-    assert map_usmart_hk_to_investment_event(refund, "盈立证券")["record_type"] == "ipo"
-    assert map_usmart_hk_to_investment_event(interest, "盈立证券")["record_type"] == "fee"
+    assert map_usmart_hk_to_investment_event(refund, "盈立证券")["record_type"] == "subscription"
+    assert map_usmart_hk_to_investment_event(interest, "盈立证券")["record_type"] == "expense"
 
 
 def test_fx_rows_pair_to_one_swap_and_unpaired_fails_closed():
@@ -108,7 +108,7 @@ def test_transfer_by_sign_is_not_a_transfer_action_and_unknown_flag_fails_closed
     rows = _rows()
     transfer = next(row for row in rows if row.get("flag") == "转入到日内融账户")
     event = map_usmart_hk_to_investment_event(transfer, "盈立证券")
-    assert (event["record_type"], event["record_subtype"]) == ("withdraw", "subaccount_transfer")
+    assert (event["record_type"], event["record_subtype"]) == ("funding", "subaccount")
     assert event["from_amount"] == "1781.03"
     assert "转入到日内融账户" in event["note"]
 
@@ -133,12 +133,12 @@ def test_cash_fee_and_dividend_actions():
         "kind": "cash", "date": "2026-04-01", "flag": "美股股息税", "flag_norm": "美股股息税",
         "ccy": "USD", "amount": Decimal("-1.28"), "note": "美股股息税",
     }
-    assert map_usmart_hk_to_investment_event(interest, "盈立证券")["record_type"] == "fee"
-    assert map_usmart_hk_to_investment_event(div, "盈立证券")["record_type"] == "dividend"
-    assert map_usmart_hk_to_investment_event(tax, "盈立证券")["record_type"] == "fee"
+    assert map_usmart_hk_to_investment_event(interest, "盈立证券")["record_type"] == "expense"
+    assert map_usmart_hk_to_investment_event(div, "盈立证券")["record_type"] == "income"
+    assert map_usmart_hk_to_investment_event(tax, "盈立证券")["record_type"] == "expense"
 
 
-def test_tax_refund_maps_to_fee_not_deposit():
+def test_tax_refund_maps_to_expense_reversal_not_funding():
     tax_refund = {
         "kind": "cash", "date": "2026-02-26", "flag": "资金存", "flag_norm": "资金存",
         "ccy": "USD", "amount": Decimal("0.27"), "note": "Refund tax of TQQQ.US",
@@ -148,11 +148,11 @@ def test_tax_refund_maps_to_fee_not_deposit():
         "ccy": "HKD", "amount": Decimal("5181.74"), "note": "IPO Refund",
     }
     ev = map_usmart_hk_to_investment_event(tax_refund, "盈立证券")
-    assert ev["record_type"] == "fee"
+    assert (ev["record_type"], ev["record_subtype"]) == ("reversal", "expense_tax")
     assert ev["to_amount"] == "0.27"
     assert ev["from_amount"] == "0"
     ev2 = map_usmart_hk_to_investment_event(ipo, "盈立证券")
-    assert ev2["record_type"] == "ipo"
+    assert ev2["record_type"] == "subscription"
     assert ev2["to_amount"] == "5181.74"
     assert ev2["from_amount"] == "0"
     debit = {
@@ -164,6 +164,6 @@ def test_tax_refund_maps_to_fee_not_deposit():
         "ccy": "HKD", "amount": Decimal("-100"), "note": "IPO Handling Fee",
     }
     ev3 = map_usmart_hk_to_investment_event(debit, "盈立证券")
-    assert ev3["record_type"] == "ipo"
+    assert ev3["record_type"] == "subscription"
     assert ev3["from_amount"] == "5181.74"
-    assert map_usmart_hk_to_investment_event(fee, "盈立证券")["record_type"] == "fee"
+    assert map_usmart_hk_to_investment_event(fee, "盈立证券")["record_type"] == "expense"

@@ -313,7 +313,7 @@ def map_schwab_to_investment_event(
         amount_abs = abs(Decimal(str(txn.get("amount") or 0)))
         return {
             **base,
-            "record_type": "deposit", "record_subtype": "external_funding",
+            "record_type": "funding", "record_subtype": "external",
             "to_ticker": cash,
             "to_amount": _fmt(amount_abs),
             "from_ticker": "",
@@ -327,11 +327,11 @@ def map_schwab_to_investment_event(
         amount = Decimal(str(txn.get("amount") or 0))
         amount_abs = abs(amount)
         if amount > 0:
-            # dividend
+            subtype = "interest" if "INTEREST" in note.upper() else "dividend_cash"
             from_ticker = _guess_underlying(txn.get("description") or "")
             return {
                 **base,
-                "record_type": "dividend", "record_subtype": "not_applicable",
+                "record_type": "income", "record_subtype": subtype,
                 "from_ticker": from_ticker,
                 "to_ticker": cash,
                 "to_amount": _fmt(amount_abs),
@@ -343,7 +343,7 @@ def map_schwab_to_investment_event(
         # Interest charge is a fee, never a withdrawal.
         return {
             **base,
-            "record_type": "fee", "record_subtype": "interest",
+            "record_type": "expense", "record_subtype": "interest",
             "from_ticker": cash,
             "from_amount": _fmt(amount_abs),
             "to_ticker": "",
@@ -360,7 +360,7 @@ def map_schwab_to_investment_event(
         if txn.get("journal_kind") == "withholding_tax":
             return {
                 **base,
-                "record_type": "fee", "record_subtype": "tax",
+                "record_type": "expense", "record_subtype": "tax",
                 "from_ticker": cash,
                 "from_amount": _fmt(amount_abs),
                 "to_ticker": "",
@@ -372,7 +372,7 @@ def map_schwab_to_investment_event(
         if amount > 0 and "REFUND" in desc:
             return {
                 **base,
-                "record_type": "withdrawal_reversal", "record_subtype": "withdrawal_refund",
+                "record_type": "reversal", "record_subtype": "funding_withdrawal",
                 "to_ticker": cash,
                 "to_amount": _fmt(amount_abs),
                 "from_ticker": "",
@@ -387,7 +387,7 @@ def map_schwab_to_investment_event(
         amount = abs(Decimal(str(txn.get("amount") or 0)))
         return {
             **base,
-            "record_type": "checkin", "record_subtype": "not_applicable",
+            "record_type": "snapshot", "record_subtype": "cash",
             "from_ticker": "",
             "to_ticker": cash,
             "to_amount": _fmt(amount),
@@ -415,7 +415,7 @@ def _map_trd(txn: dict[str, Any], base: dict[str, Any], cash: str) -> dict[str, 
     if side == "BOT":
         return {
             **base,
-            "record_type": "swap", "record_subtype": "not_applicable",
+            "record_type": "trade", "record_subtype": "security",
             "from_ticker": cash,
             "from_amount": _fmt(amount_abs),
             "to_ticker": code,
@@ -427,7 +427,7 @@ def _map_trd(txn: dict[str, Any], base: dict[str, Any], cash: str) -> dict[str, 
     if side == "SOLD":
         return {
             **base,
-            "record_type": "swap", "record_subtype": "not_applicable",
+            "record_type": "trade", "record_subtype": "security",
             "from_ticker": code,
             "from_amount": _fmt(qty),
             "to_ticker": cash,

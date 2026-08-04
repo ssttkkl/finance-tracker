@@ -66,8 +66,8 @@ def test_cash_and_investment_public_rows_use_catalog_names(tmp_path):
         })
         u.investments.add("security", {
             "occurred_at": "2026-07-01 11:00:00",
-            "record_type": "deposit",
-            "record_subtype": "external_funding",
+            "record_type": "funding",
+            "record_subtype": "external",
             "to_ticker": "usd",
             "to_amount": "10",
             "from_amount": "0",
@@ -82,8 +82,8 @@ def test_cash_and_investment_public_rows_use_catalog_names(tmp_path):
         u.commit()
     assert "note" in cash and "description" not in cash
     assert "occurred_at" in cash and "date" not in cash
-    assert inv["record_type"] == "deposit"
-    assert inv["record_subtype"] == "external_funding"
+    assert inv["record_type"] == "funding"
+    assert inv["record_subtype"] == "external"
     assert inv["note"] == "fund"
     assert inv["to_amount"] == "10"
     assert inv.get("payload") in (None, {},) or "action" not in (inv.get("payload") or {})

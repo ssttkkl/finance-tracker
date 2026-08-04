@@ -91,7 +91,7 @@ def _seed_formal_workload(sessions) -> None:
                 occurred = START + timedelta(days=number % DAYS)
                 rows.append({"id": number + 1, "workspace_id": WORKSPACE, "account_id": (number % 5) + 1, "record_id": f"seed-{number:06d}", "source_type": "perf", "occurred_at": at(occurred) + timedelta(hours=number % 23), "amount": Decimal("0.01") if number % 2 else Decimal("-0.01"), "currency": "CNY", "counterparty": "seed", "note": "fixed formal cash fact", "category": "expense"})
             session.execute(insert(CashTransactionModel), rows)
-        session.execute(insert(InvestmentEventModel), [{"id": i + 1, "workspace_id": WORKSPACE, "account_id": 6 + i % 5, "record_id": f"inv-{i:02d}", "source_type": "perf", "occurred_at": at(START + timedelta(days=i)), "record_type": "buy", "currency": "CNY", "payload": {"position": f"position:{i:02d}", "quantity": "1"}, "note": "", "from_ticker": "", "to_ticker": "", "commission_asset": ""} for i in range(POSITION_COUNT)])
+        session.execute(insert(InvestmentEventModel), [{"id": i + 1, "workspace_id": WORKSPACE, "account_id": 6 + i % 5, "record_id": f"inv-{i:02d}", "source_type": "perf", "occurred_at": at(START + timedelta(days=i)), "record_type": "trade", "record_subtype": "security", "currency": "CNY", "payload": {"position": f"position:{i:02d}", "quantity": "1"}, "note": "", "from_ticker": "", "to_ticker": "", "commission_asset": ""} for i in range(POSITION_COUNT)])
 
 
 def _reset_read_model(sessions) -> None:

@@ -4,7 +4,7 @@ Maps ccxt ``fetch_my_trades`` results to standardized investment event dicts
 for the SyncService batch-import pipeline.
 
 Ticker convention: lowercase (``btc``, ``eth``, ``usdt``).
-Action: always ``swap`` (one asset for another).
+交易事件统一写为 ``trade(security)``，一项资产换取另一项资产。
 """
 from __future__ import annotations
 
@@ -335,8 +335,8 @@ class CcxtExchangeConnector:
             to_amount = cost
 
         return {
-            "record_type": "swap",
-            "record_subtype": "not_applicable",
+            "record_type": "trade",
+            "record_subtype": "security",
             "account": "",  # filled by SyncService
             "currency": "USD",
             "occurred_at": occurred_at,
@@ -359,19 +359,19 @@ class CcxtExchangeConnector:
             # Trade endpoint is the canonical two-legged representation.
             return []
         record_type_by_type = {
-            "deposit": ("deposit", "external_funding"),
-            "withdrawal": ("withdraw", "external_funding"),
-            "staking": ("dividend", "not_applicable"),
-            "reward": ("dividend", "not_applicable"),
-            "credit": ("dividend", "not_applicable"),
-            "rollover": ("dividend", "not_applicable"),
-            "transfer": ("transfer", "not_applicable"),
-            "derivativescrossexchangetransfer": ("transfer", "not_applicable"),
+            "deposit": ("funding", "external", True),
+            "withdrawal": ("funding", "external", False),
+            "staking": ("income", "reward", True),
+            "reward": ("income", "reward", True),
+            "credit": ("income", "reward", True),
+            "rollover": ("income", "reward", True),
+            "transfer": ("funding", "subaccount", False),
+            "derivativescrossexchangetransfer": ("funding", "subaccount", False),
         }
         semantics = record_type_by_type.get(entry_type)
         if semantics is None:
             raise ConnectorDataError(f"unsupported ledger type: {entry_type or '<missing>'}")
-        record_type, record_subtype = semantics
+        record_type, record_subtype, incoming = semantics
         entry_id = str(entry.get("id", "")).strip()
         ticker = normalize_crypto_ticker(str(entry.get("currency", "")))
         timestamp = entry.get("timestamp")
@@ -390,10 +390,10 @@ class CcxtExchangeConnector:
             "account": "",
             "currency": "USD",
             "occurred_at": occurred_at,
-            "from_ticker": ticker if record_type in {"withdraw", "transfer"} else "",
-            "from_amount": _format_decimal(amount) if record_type in {"withdraw", "transfer"} else "0",
-            "to_ticker": ticker if record_type in {"deposit", "dividend"} else "",
-            "to_amount": _format_decimal(amount) if record_type in {"deposit", "dividend"} else "0",
+            "from_ticker": "" if incoming else ticker,
+            "from_amount": "0" if incoming else _format_decimal(amount),
+            "to_ticker": ticker if incoming else "",
+            "to_amount": _format_decimal(amount) if incoming else "0",
             "commission": "0",
             "commission_asset": "",
             "note": f"{self._provider} ledger {entry_type} {entry_id}",
@@ -415,7 +415,7 @@ class CcxtExchangeConnector:
             raise ConnectorDataError("non-zero ledger fee missing currency")
         fee_event = dict(event)
         fee_event.update({
-            "record_type": "fee", "record_subtype": "commission", "from_ticker": fee_ticker,
+            "record_type": "expense", "record_subtype": "commission", "from_ticker": fee_ticker,
             "from_amount": _format_decimal(fee_cost), "to_ticker": "",
             "to_amount": "0", "record_id": f"{entry_id}:fee",
             "note": f"{self._provider} ledger fee {entry_id}",

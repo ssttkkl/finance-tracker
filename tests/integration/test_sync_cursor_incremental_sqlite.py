@@ -25,7 +25,7 @@ class _Connector:
 
 def _event(record_id: str) -> dict:
     return {
-        "record_type": "swap", "currency": "USD", "occurred_at": datetime(2026, 7, 26, tzinfo=timezone.utc),
+        "record_type": "trade", "record_subtype": "security", "currency": "USD", "occurred_at": datetime(2026, 7, 26, tzinfo=timezone.utc),
         "from_ticker": "usd", "from_amount": "100", "to_ticker": "btc", "to_amount": "1",
         "commission": "0", "commission_asset": "", "record_id": record_id,
         "source_payload": {"id": record_id},

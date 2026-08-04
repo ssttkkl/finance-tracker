@@ -89,7 +89,7 @@ class TestActivityMapping:
         result = connector.fetch_trades()
         assert len(result.events) == 1
         event = result.events[0]
-        assert event["record_type"] == "swap"
+        assert (event["record_type"], event["record_subtype"]) == ("trade", "security")
         assert event["from_ticker"] == "usd"
         assert event["to_ticker"] == "pm:will-trump-win-2024:yes"
         assert event["from_amount"] == "65"
@@ -134,12 +134,12 @@ class TestActivityMapping:
             credentials={"proxy_wallet": "0x" + "a" * 40},
             _fetch_fn=_make_fetch_fn([[activity]]),
         ).fetch_trades()
-        assert result.events[0]["record_type"] == "swap"
+        assert (result.events[0]["record_type"], result.events[0]["record_subtype"]) == ("trade", "security")
         assert result.events[0]["from_ticker"] == "pm:market:yes"
         assert result.events[0]["to_ticker"] == "usd"
         assert result.events[0]["record_id"] == "redeem-hash"
 
-    def test_yield_maps_to_usd_dividend(self):
+    def test_yield_maps_to_usd_interest_income(self):
         from ft.adapters.connectors.polymarket import PolymarketConnector
         activity = {
             "type": "YIELD", "usdcSize": "1.25", "timestamp": 1_700_000_000,
@@ -149,7 +149,7 @@ class TestActivityMapping:
             credentials={"proxy_wallet": "0x" + "a" * 40},
             _fetch_fn=_make_fetch_fn([[activity]]),
         ).fetch_trades()
-        assert result.events[0]["record_type"] == "dividend"
+        assert (result.events[0]["record_type"], result.events[0]["record_subtype"]) == ("income", "interest")
         assert result.events[0]["to_ticker"] == "usd"
         assert result.events[0]["to_amount"] == "1.25"
         assert result.events[0]["record_id"] == "yield-hash"
@@ -261,7 +261,7 @@ class TestPusdBalanceCheckin:
 
         result = PolymarketConnector(credentials={"proxy_wallet": _FUNDER}, _fetch_fn=_make_fetch_fn([[]]), _rpc_fetch_fn=rpc).fetch_trades()
         assert calls == ["eth_blockNumber", "eth_getBlockByNumber", "eth_call"]
-        assert result.events[0]["record_type"] == "checkin"
+        assert (result.events[0]["record_type"], result.events[0]["record_subtype"]) == ("snapshot", "cash")
         assert result.events[0]["to_ticker"] == "usd"
         assert result.events[0]["to_amount"] == "1.234567"
         assert result.events[0]["record_id"] == "checkin:12"

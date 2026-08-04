@@ -5,10 +5,12 @@
 ## What Changes
 
 - **BREAKING** 将 `investment_events.action` 重命名为 `record_type`，并在数据库、领域对象、导入合同、CLI/API 查询与测试中统一使用新名称。
-- 为投资事件增加 `record_subtype`，使 `deposit` / `withdraw` 只能表达 `external_funding` 或 `subaccount_transfer`；费用、税费、外汇调整、奖励和出金冲回使用非出入金记录类型或子类型。
+- 为投资事件增加 `record_subtype`，以经济事实而非方向建模：`funding`、`trade`、`income`、`expense`、`reversal`、`subscription`、`adjustment` 与 `snapshot`；方向仅由付出资产和换入资产表达。
+- 将收支—投资配对资格收敛为唯一规则 `funding(external)`；`funding(subaccount)`、投资收入、投资支出、冲回、认购、调整和快照均不得进入候选。
+- 导入器保留来源的原生动作并在写入前规范化；无法从历史来源行快照可靠还原的折叠记录安全回填为 `adjustment(unclassified)`，不得猜测为外部出入金。
 - 新增收支账户现金流水与投资事件之间的资金调拨关系及审查流程。扫描规则只消费规范化记录类型、记录子类型、方向、精确金额、币种和业务日，不绑定银行或券商名称。
 - 已确认的外部资金调拨将对应现金流水归类为不计收支的银证转账投影，同时保留两端来源和关系证据。
-- 对现有 SQLite 与 PostgreSQL 数据执行可审计迁移：保留来源行快照，回填新字段，纠正不符合出入金语义的历史投资事件，并提供可恢复的回滚步骤。
+- 对现有 SQLite 与 PostgreSQL 数据执行可审计迁移：保留来源行快照，回填新字段，纠正不符合出入金语义的历史投资事件，并提供可恢复的回滚步骤。经明确授权后，才可用原始账单重解析修复已折叠的真实历史记录。
 
 ## Capabilities
 

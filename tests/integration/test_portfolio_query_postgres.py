@@ -40,7 +40,7 @@ def test_bounded_portfolio_query_preserves_postgres_holdings_without_writes():
             snapshot = entered.snapshot.load()
             for index in range(16):
                 apply_investment_event(snapshot, {
-                    "date": "2026-07-27", "record_type": "checkin", "account_name": "Polymarket",
+                    "date": "2026-07-27", "record_type": "snapshot", "record_subtype": "position", "account_name": "Polymarket",
                     "currency": "USD", "to_ticker": f"pm:market-{index}:yes", "to_amount": "1",
                     "price": "1",
                 }, default_currency="USD")
@@ -100,7 +100,7 @@ def test_postgres_portfolio_quote_contract_deduplicates_and_preserves_display_va
                 ("One", "AAPL.US", "2"), ("One", "missing.us", "1"), ("Two", "aapl.us", "1"),
             ):
                 apply_investment_event(snapshot, {
-                    "date": "2026-07-27", "record_type": "checkin", "account_name": account_name,
+                    "date": "2026-07-27", "record_type": "snapshot", "record_subtype": "position", "account_name": account_name,
                     "currency": "USD", "to_ticker": ticker, "to_amount": quantity, "price": "1",
                 }, default_currency="USD")
             entered.snapshot.save(snapshot)

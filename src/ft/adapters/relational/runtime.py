@@ -174,21 +174,17 @@ def build_relational_services(settings) -> ServiceBundle:
                 return position if isinstance(position, str) and position else None
 
             def _investment_amount(value, kind: str):
-                if kind in {"buy", "sell", "swap", "fee"}:
+                if kind == "trade":
                     raw = value.commission
-                elif kind in {"dividend", "deposit"}:
-                    raw = value.to_amount
-                elif kind in {"withdraw"}:
-                    raw = value.from_amount
                 else:
-                    raw = None
+                    raw = value.to_amount if decimal_value(value.to_amount or 0) > 0 else value.from_amount
                 if raw is None and isinstance(value.payload, dict):
-                    raw = value.payload.get("commission") if kind in {"buy", "sell", "swap"} else value.payload.get("amount")
+                    raw = value.payload.get("commission") if kind == "trade" else value.payload.get("amount")
                 return raw
 
             for value in investments:
                 kind = value.record_type.lower()
-                if kind not in {"buy", "sell", "swap"}:
+                if kind != "trade":
                     continue
                 position = _investment_position(value)
                 if not position:
@@ -297,10 +293,14 @@ def build_relational_services(settings) -> ServiceBundle:
             for value in investments:
                 occurred = local_day(value.occurred_at)
                 kind = value.record_type.lower()
-                if kind not in {"dividend", "deposit", "withdraw", "buy", "sell", "swap", "fee"}:
+                if kind not in {"funding", "trade", "income", "expense", "reversal", "subscription", "adjustment", "snapshot"}:
                     unsupported_by_day.add(occurred)
                     continue
-                if kind in {"buy", "sell", "swap"}:
+                if kind == "adjustment" and value.record_subtype == "unclassified":
+                    # 无法解释的历史折叠记录不能静默进入完整财富归因。
+                    unsupported_by_day.add(occurred)
+                    continue
+                if kind == "trade":
                     position = _investment_position(value)
                     if not position:
                         unsupported_by_day.add(occurred)
@@ -311,9 +311,9 @@ def build_relational_services(settings) -> ServiceBundle:
                     )
                 raw_amount = _investment_amount(value, kind)
                 if raw_amount is None:
-                    # A buy/sell without a fee still establishes formal position
+                    # 没有手续费的成交仍然建立正式持仓归属。
                     # ownership, but has no standalone wealth contribution.
-                    if kind in {"buy", "sell"}:
+                    if kind == "trade":
                         continue
                     unsupported_by_day.add(occurred)
                     continue
@@ -328,13 +328,13 @@ def build_relational_services(settings) -> ServiceBundle:
                 else:
                     amount = local_amount
                     flow_rate = Decimal("1")
-                if kind == "dividend":
-                    # Dividends are absorbed by the boundary formula; keep only
-                    # source-manifest evidence, never a second return addend.
+                if kind == "income":
+                    # 投资收入已由边界价值吸收，只保留来源证据。
                     continue
-                if kind in {"deposit", "withdraw"}:
-                    signed_local = -local_amount if kind == "withdraw" else local_amount
-                    signed_cny = -amount if kind == "withdraw" else amount
+                if kind == "funding" and value.record_subtype == "external":
+                    incoming = decimal_value(value.to_amount or 0) > 0
+                    signed_local = local_amount if incoming else -local_amount
+                    signed_cny = amount if incoming else -amount
                     # Direct external funding is workspace external cashflow and
                     # one portfolio Fi for the funding currency universe.
                     investment_events_by_day.setdefault(occurred, []).append(
@@ -349,7 +349,7 @@ def build_relational_services(settings) -> ServiceBundle:
                         (occurred, value.currency), []
                     ).append((signed_local, dietz_time_weight(value.occurred_at, day_start_at, day_end_at)))
                     continue
-                if kind in {"buy", "sell"} and value.payload.get("commission") is not None:
+                if kind == "trade" and value.payload.get("commission") is not None:
                     # Fees reduce local market return through the boundary values.
                     continue
             current = start
@@ -663,7 +663,7 @@ def build_relational_services(settings) -> ServiceBundle:
                             ],
                         }
                     elif component.kind.value == "investment_return":
-                        # Boundary formula owns the amount; dividend/fee rows remain
+                        # 边界公式决定金额；投资收入与费用行只保留来源证据。
                         # as explanatory source-manifest evidence only.
                         selection_by_component[component.component_id] = {
                             "local_date": current.isoformat(), "kinds": ["dividend", "fee"],

@@ -24,30 +24,30 @@
 
 `investment_events.action` 是投资事件的业务记录类型，不额外创建冗余列。迁移将列名改为 `record_type`，并在领域 DTO、导入器、投影重放、查询和 CLI/Web 合同中同步替换。新增 `record_subtype`：
 
-- `deposit` / `withdraw` 仅允许 `external_funding` 或 `subaccount_transfer`；
-- `fee` 使用费用原因子类型；
-- 外汇净额、奖励与出金冲回使用非出入金的调整类型或子类型；
-- 其他不涉及资金移动范围的记录使用 `not_applicable`。
+- `funding` 使用 `external` 或 `subaccount`；
+- `trade`、`income`、`expense`、`reversal`、`subscription`、`adjustment` 与 `snapshot` 使用固定经济事实子类型；
+- 方向只由现金部分在付出资产或换入资产决定，绝不编码进 `record_type`。
 
 这样 `record_type` 仍驱动持仓重放，`record_type` 与 `record_subtype` 同时驱动关系候选资格。相比新增第二个 `record_type` 列，可避免双字段语义漂移。
 
 #### 固定枚举与历史回填
 
-投资事件的 `record_type` 固定为 `swap`、`buy`、`sell`、`deposit`、`withdraw`、`dividend`、`fee`、`ipo`、`checkin`、`transfer`、`fx_adjustment`、`reward`、`withdrawal_reversal` 或 `cash_adjustment`。其中 `buy` 和 `sell` 只用于兼容历史的直接事件；新导入的证券成交使用 `swap`。
+投资事件的 `record_type` 固定为 `funding`、`trade`、`income`、`expense`、`reversal`、`subscription`、`adjustment` 或 `snapshot`。成交、现金股息、利息、佣金和余额校准均使用各自经济事实类型，不保留 `deposit`、`withdraw`、`fee`、`dividend`、`checkin` 等旧一级类型。
 
 `record_subtype` 必须由 `record_type` 决定：
 
 | `record_type` | 允许的 `record_subtype` |
 | --- | --- |
-| `deposit`、`withdraw` | `external_funding`、`subaccount_transfer` |
-| `fee` | `commission`、`interest`、`tax`、`handling_fee`、`fee_refund`、`interest_refund`、`tax_refund` |
-| `ipo` | `subscription_debit`、`subscription_refund` |
-| `fx_adjustment` | `net_cash_adjustment` |
-| `reward` | `cash_reward` |
-| `withdrawal_reversal` | `withdrawal_refund` |
-| 其他类型 | `not_applicable` |
+| `funding` | `external`、`subaccount` |
+| `trade` | `security`、`fx`、`repo` |
+| `income` | `dividend_cash`、`dividend_stock`、`interest`、`reward` |
+| `expense` | `commission`、`tax`、`interest`、`handling_fee`、`penalty` |
+| `reversal` | `expense_tax`、`expense_interest`、`expense_commission`、`funding_withdrawal` |
+| `subscription` | `ipo_debit`、`ipo_refund` |
+| `adjustment` | `fx_net`、`manual`、`unclassified` |
+| `snapshot` | `cash`、`position` |
 
-历史回填先读取 `source_type` 和 `source_payload` 中的结构化原生类型：东方证券的 `DEPOSIT` / `WITHDRAW`、IBKR 的存取款、明确的券商入金 / 出金与同步渠道的链上存取款回填为 `external_funding`；明确的保证金、日内融或子账户划转回填为 `subaccount_transfer`。利息、税费、佣金、外汇净额、奖励和出金退款分别映射到上表的非出入金语义。历史行无法由这两个字段安全判断时，迁移将其改为 `cash_adjustment(unclassified)`，保留金额、来源快照和幂等身份，但不得进入资金调拨扫描。该降级是失败关闭，不会静默把未知现金变化升级为外部出入金。
+历史回填先读取 `source_type` 和 `source_payload` 中的结构化原生类型，包括未来导入保存的 `action_raw`。明确的券商入金/出金与同步渠道链上存取款回填为 `funding(external)`；明确的保证金、日内融或子账户划转回填为 `funding(subaccount)`。利息、税费、佣金、外汇净额、奖励和出金退款分别映射到上表的非资金供给语义。历史行无法由现有来源字段安全判断时，迁移将其改为 `adjustment(unclassified)`，保留金额、来源快照和幂等身份，但不得进入资金调拨扫描。旧东方证券来源快照把原始动作折叠为 `DEPOSIT` / `WITHDRAW` 时，迁移必须视为无法安全判断，不能据此设为外部出入金；经用户明确授权的原始账单重解析才可精确修复。
 
 ### 专用跨表关系而非泛化现有关系表
 
@@ -57,7 +57,7 @@
 
 ### 分层、来源无关的扫描策略
 
-导入器将原生字段转为投资事件规范字段；关系扫描只读取已持久化字段。候选必须同工作区、投资侧为 `external_funding`、方向相反、同币种、精确 Decimal 金额相等，且未被确认关系占用。
+导入器将原生字段转为投资事件规范字段；关系扫描只读取已持久化字段。候选必须同工作区、投资侧为 `funding(external)`、现金部分方向相反、同币种、精确 Decimal 金额相等，且未被确认关系占用。
 
 按 `Asia/Shanghai` 业务日窗口寻找候选。带 `investment_in` / `investment_out` 现金类型的唯一同日候选可自动确认；普通 `transfer_in` / `transfer_out` 或跨日候选只进入待审核。候选不唯一、金额或币种不同一律不得自动确认。
 
@@ -77,10 +77,10 @@
 
 1. 创建迁移前备份，校验数据库文件与 SQLite `-wal` / `-shm` 同步状态。
 2. 在两个后端将 `investment_events.action` 改名为 `record_type`，新增受约束的 `record_subtype`，创建资金调拨关系表与索引。
-3. 以现有 `source_payload` 重放每条投资事件的规范化分类；保留来源快照与幂等键，记录无法安全分类的稳定失败原因并中止对应事务。
+3. 以现有 `source_payload` 重放每条投资事件的规范化分类；保留来源快照与幂等键。无法安全分类的行落为 `adjustment(unclassified)`；它们不能被迁移或扫描提升为外部出入金。
 4. 为合格的历史外部出入金生成候选，不自动越过唯一性和端点占用约束；重建并校验收支投影和投资快照。
 5. 回滚时恢复经校验的备份；应用回滚只移除新增关系和字段访问，不删除来源行快照或投资事件。
 
 ## Open Questions
 
-无。费用、税费、外汇调整、奖励和出金冲回的具体非出入金 `record_type` / `record_subtype` 枚举在实施前由现有来源夹具和历史数据回填测试共同固定；该选择不改变本设计的配对边界。
+无。固定枚举、历史降级策略与真实账本重解析授权边界均已确认。

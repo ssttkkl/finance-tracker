@@ -129,10 +129,10 @@ class TestExchangeSyncSQLite:
         service, uow = sqlite_sync
         at = datetime(2026, 7, 26, tzinfo=timezone.utc)
         events = [
-            {"record_type": "deposit", "from_ticker": "", "from_amount": "0", "to_ticker": "usd", "to_amount": "100", "commission": "0", "commission_asset": "", "occurred_at": at, "record_id": "dep", "source_payload": {}},
-            {"record_type": "dividend", "from_ticker": "", "from_amount": "0", "to_ticker": "usd", "to_amount": "10", "commission": "0", "commission_asset": "", "occurred_at": at, "record_id": "reward", "source_payload": {}},
-            {"record_type": "fee", "from_ticker": "usd", "from_amount": "1", "to_ticker": "", "to_amount": "0", "commission": "0", "commission_asset": "", "occurred_at": at, "record_id": "reward:fee", "source_payload": {}},
-            {"record_type": "transfer", "from_ticker": "usd", "from_amount": "50", "to_ticker": "", "to_amount": "0", "commission": "0", "commission_asset": "", "occurred_at": at, "record_id": "move", "source_payload": {}},
+            {"record_type": "funding", "record_subtype": "external", "from_ticker": "", "from_amount": "0", "to_ticker": "usd", "to_amount": "100", "commission": "0", "commission_asset": "", "occurred_at": at, "record_id": "dep", "source_payload": {}},
+            {"record_type": "income", "record_subtype": "reward", "from_ticker": "", "from_amount": "0", "to_ticker": "usd", "to_amount": "10", "commission": "0", "commission_asset": "", "occurred_at": at, "record_id": "reward", "source_payload": {}},
+            {"record_type": "expense", "record_subtype": "commission", "from_ticker": "usd", "from_amount": "1", "to_ticker": "", "to_amount": "0", "commission": "0", "commission_asset": "", "occurred_at": at, "record_id": "reward:fee", "source_payload": {}},
+            {"record_type": "funding", "record_subtype": "subaccount", "from_ticker": "usd", "from_amount": "50", "to_ticker": "", "to_amount": "0", "commission": "0", "commission_asset": "", "occurred_at": at, "record_id": "move", "source_payload": {}},
         ]
         first = service.sync(provider="binance", account_name="Binance", connector=FakeExchangeConnector(events=events))
         second = service.sync(provider="binance", account_name="Binance", connector=FakeExchangeConnector(events=events))
@@ -141,7 +141,7 @@ class TestExchangeSyncSQLite:
         with uow as u:
             shares = u.snapshot.load()["accounts"]["security"]["Binance"]["positions"]["usd"]["shares"]
             u.rollback()
-        assert shares == "109"
+        assert shares == "59"
 
     def test_raw_ccxt_trade_and_ledger_are_atomic_and_idempotent(self, sqlite_sync, monkeypatch):
         service, uow = sqlite_sync

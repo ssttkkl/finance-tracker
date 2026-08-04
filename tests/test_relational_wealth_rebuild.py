@@ -91,11 +91,11 @@ def _insert_three_day_formal_fixture(sessions) -> None:
             ),
             InvestmentEventModel(
                 id=446365, workspace_id="wealth-rebuild", account_id=2, occurred_at=at(2),
-                record_type="deposit", record_subtype="external_funding", currency="USD", to_amount="1", payload={},
+                record_type="funding", record_subtype="external", currency="USD", to_amount="1", payload={},
             ),
             InvestmentEventModel(
                 id=3499926, workspace_id="wealth-rebuild", account_id=2, occurred_at=at(2),
-                record_type="dividend", record_subtype="not_applicable", currency="USD", to_amount="1", payload={},
+                record_type="income", record_subtype="interest", currency="USD", to_amount="1", payload={},
             ),
         ))
         for day, cash, position, fx in (
@@ -319,7 +319,7 @@ def test_runtime_unsupported_investment_input_is_published_as_fail_closed_covera
         session.add(InvestmentEventModel(
             id=2909920, workspace_id="wealth-rebuild", account_id=2,
             occurred_at=datetime(2026, 7, 2, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
-            record_type="cash_adjustment", record_subtype="unclassified", currency="USD", payload={"amount": "1"},
+            record_type="adjustment", record_subtype="unclassified", currency="USD", payload={"amount": "1"},
         ))
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
     services.wealth.rebuild(affected_from="2026-07-01")
@@ -411,7 +411,7 @@ def test_runtime_fails_closed_for_position_expected_from_formal_ownership_withou
         session.add(InvestmentEventModel(
             id=9791237, workspace_id="wealth-rebuild", account_id=2,
             occurred_at=datetime(2026, 7, 1, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
-            record_type="buy", record_subtype="not_applicable", currency="USD", payload={"position": "unvalued-etf", "quantity": "1"},
+            record_type="trade", record_subtype="security", currency="USD", payload={"position": "unvalued-etf", "quantity": "1"},
         ))
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
     services.wealth.rebuild(affected_from="2026-07-01")

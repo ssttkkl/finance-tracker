@@ -71,7 +71,7 @@ def test_investment_projection_deducts_commission_from_cash_settlement_and_rejec
         },
     }}}}
     apply_investment_event(snapshot, {
-        "date": "2026-07-17", "record_type": "swap", "currency": "USD", "account_name": "IBKR",
+        "date": "2026-07-17", "record_type": "trade", "record_subtype": "security", "currency": "USD", "account_name": "IBKR",
         "from_ticker": "aapl", "to_ticker": "usd", "from_amount": "1", "to_amount": "120",
         "commission": "2", "commission_asset": "usd",
     }, default_currency="USD")
@@ -84,7 +84,7 @@ def test_investment_projection_deducts_commission_from_cash_settlement_and_rejec
     }}}}
     with pytest.raises(ValueError, match="cost currency"):
         apply_investment_event(conflict_snapshot, {
-            "date": "2026-07-17", "record_type": "swap", "currency": "CNY", "account_name": "IBKR",
+            "date": "2026-07-17", "record_type": "trade", "record_subtype": "security", "currency": "CNY", "account_name": "IBKR",
             "from_ticker": "cny", "to_ticker": "aapl", "from_amount": "1", "to_amount": "1",
             "commission": "0", "commission_asset": "",
         }, default_currency="USD")
@@ -104,7 +104,7 @@ def test_investment_projection_soft_start_oversell_and_numeric_overflow():
         },
     }}}}
     apply_investment_event(snapshot, {
-        "date": "2026-07-17", "record_type": "swap", "currency": "USD", "account_name": "IBKR",
+        "date": "2026-07-17", "record_type": "trade", "record_subtype": "security", "currency": "USD", "account_name": "IBKR",
         "from_ticker": "aapl", "to_ticker": "usd", "from_amount": "2", "to_amount": "40",
         "commission": "0", "commission_asset": "",
     }, default_currency="USD")
@@ -114,7 +114,7 @@ def test_investment_projection_soft_start_oversell_and_numeric_overflow():
 
     with pytest.raises(ValueError, match=r"NUMERIC\(38,18\)"):
         apply_investment_event({"accounts": {}}, {
-            "date": "2026-07-17", "record_type": "deposit", "currency": "USD", "account_name": "IBKR",
+            "date": "2026-07-17", "record_type": "funding", "record_subtype": "external", "currency": "USD", "account_name": "IBKR",
             "from_ticker": "", "to_ticker": "usd", "from_amount": "0", "to_amount": "1e100",
             "commission": "0", "commission_asset": "",
         }, default_currency="USD")

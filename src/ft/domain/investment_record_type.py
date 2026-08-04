@@ -1,59 +1,49 @@
-"""投资事件规范记录类型与记录子类型。"""
+"""投资事件的经济事实类型与记录子类型。"""
 from __future__ import annotations
 
 
 INVESTMENT_RECORD_TYPES = frozenset({
-    "swap",
-    "buy",
-    "sell",
-    "deposit",
-    "withdraw",
-    "dividend",
-    "fee",
-    "ipo",
-    "checkin",
-    "transfer",
-    "fx_adjustment",
-    "reward",
-    "withdrawal_reversal",
-    "cash_adjustment",
+    "funding",
+    "trade",
+    "income",
+    "expense",
+    "reversal",
+    "subscription",
+    "adjustment",
+    "snapshot",
 })
 
 _SUBTYPES_BY_RECORD_TYPE = {
-    "deposit": frozenset({"external_funding", "subaccount_transfer"}),
-    "withdraw": frozenset({"external_funding", "subaccount_transfer"}),
-    "fee": frozenset({
-        "commission",
-        "interest",
-        "tax",
-        "handling_fee",
-        "fee_refund",
-        "interest_refund",
-        "tax_refund",
+    "funding": frozenset({"external", "subaccount"}),
+    "trade": frozenset({"security", "fx", "repo"}),
+    "income": frozenset({"dividend_cash", "dividend_stock", "interest", "reward"}),
+    "expense": frozenset({"commission", "tax", "interest", "handling_fee", "penalty"}),
+    "reversal": frozenset({
+        "expense_tax", "expense_interest", "expense_commission", "funding_withdrawal",
     }),
-    "ipo": frozenset({"subscription_debit", "subscription_refund"}),
-    "fx_adjustment": frozenset({"net_cash_adjustment"}),
-    "reward": frozenset({"cash_reward"}),
-    "withdrawal_reversal": frozenset({"withdrawal_refund"}),
-    "cash_adjustment": frozenset({"unclassified"}),
+    "subscription": frozenset({"ipo_debit", "ipo_refund"}),
+    "adjustment": frozenset({"fx_net", "manual", "unclassified"}),
+    "snapshot": frozenset({"cash", "position"}),
+}
+
+_DEFAULT_SUBTYPE_BY_RECORD_TYPE = {
+    "funding": "external",
+    "trade": "security",
+    "income": "dividend_cash",
+    "expense": "commission",
+    "reversal": "expense_commission",
+    "subscription": "ipo_debit",
+    "adjustment": "manual",
+    "snapshot": "cash",
 }
 
 
 def default_investment_record_subtype(record_type: str) -> str:
     normalized = str(record_type or "").strip().lower()
-    if normalized in {"deposit", "withdraw"}:
-        return "external_funding"
-    if normalized == "fee":
-        return "commission"
-    if normalized == "fx_adjustment":
-        return "net_cash_adjustment"
-    if normalized == "reward":
-        return "cash_reward"
-    if normalized == "withdrawal_reversal":
-        return "withdrawal_refund"
-    if normalized == "cash_adjustment":
-        return "unclassified"
-    return "not_applicable"
+    try:
+        return _DEFAULT_SUBTYPE_BY_RECORD_TYPE[normalized]
+    except KeyError as exc:
+        raise ValueError(f"unsupported investment record_type: {record_type}") from exc
 
 
 def validate_investment_record_subtype(record_type: str, record_subtype: str) -> tuple[str, str]:
@@ -61,8 +51,7 @@ def validate_investment_record_subtype(record_type: str, record_subtype: str) ->
     normalized_subtype = str(record_subtype or "").strip().lower()
     if normalized_type not in INVESTMENT_RECORD_TYPES:
         raise ValueError(f"unsupported investment record_type: {record_type}")
-    allowed = _SUBTYPES_BY_RECORD_TYPE.get(normalized_type, frozenset({"not_applicable"}))
-    if normalized_subtype not in allowed:
+    if normalized_subtype not in _SUBTYPES_BY_RECORD_TYPE[normalized_type]:
         raise ValueError(
             f"invalid investment record_subtype {record_subtype!r} for record_type {record_type!r}"
         )

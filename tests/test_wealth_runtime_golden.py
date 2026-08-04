@@ -83,17 +83,17 @@ def _seed_base(sessions, *, with_fee=True) -> None:
             ),
             InvestmentEventModel(
                 id=5003488, workspace_id="wealth-runtime-golden", account_id=2, occurred_at=at(2, 10),
-                record_type="deposit", record_subtype="external_funding", currency="USD", to_amount="1", payload={},
+                record_type="funding", record_subtype="external", currency="USD", to_amount="1", payload={},
             ),
             InvestmentEventModel(
                 id=364094, workspace_id="wealth-runtime-golden", account_id=2, occurred_at=at(2, 12),
-                record_type="dividend", record_subtype="not_applicable", currency="USD", to_amount="1", payload={},
+                record_type="income", record_subtype="dividend_cash", currency="USD", to_amount="1", payload={},
             ),
         ))
         if with_fee:
             session.add(InvestmentEventModel(
                 id=9084465, workspace_id="wealth-runtime-golden", account_id=2, occurred_at=at(3, 11),
-                record_type="buy", record_subtype="not_applicable", currency="USD", payload={"position": "broker:global-etf", "commission": "0.1"},
+                record_type="trade", record_subtype="security", currency="USD", payload={"position": "broker:global-etf", "commission": "0.1"},
             ))
         for day, cash, position, fx in (
             (1, "100", "10", "7.0"),
@@ -355,7 +355,7 @@ def test_runtime_missing_fx_stale_and_unsupported_fail_closed(runtime_golden, mo
         session.add(InvestmentEventModel(
             id=1073575, workspace_id="wealth-runtime-golden", account_id=2,
             occurred_at=datetime(2026, 7, 2, 15, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
-            record_type="cash_adjustment", record_subtype="unclassified", currency="USD", payload={"amount": "1"},
+            record_type="adjustment", record_subtype="unclassified", currency="USD", payload={"amount": "1"},
         ))
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
     services.wealth.rebuild(affected_from="2026-07-01")
