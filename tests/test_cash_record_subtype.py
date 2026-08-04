@@ -52,17 +52,19 @@ def test_icbc_asia_counterparty_account_preserves_subaccount_and_reconstructs_ve
     assert record_subtype == CashRecordSubtype.ORDINARY_TRANSFER.value
     assert normalize_counterparty_account(
         "1234-5678-1", source="icbc_asia",
-    ) == "123456781"
-    assert normalize_counterparty_account(
+    ).value == "123456781"
+    reconstructed = normalize_counterparty_account(
         "879825****47",
         source="icbc_asia",
         source_account_identifier="879825074240",
-    ) == "879825074247"
+    )
+    assert reconstructed.value == "879825074247"
+    assert reconstructed.attrs == ("masked", "reconstructed")
     assert normalize_counterparty_account(
         "879825****47",
         source="icbc_asia",
         source_account_identifier="8798250742400",
-    ) == ""
+    ).value == "879825****47"
 
 
 def test_cash_transaction_model_exposes_non_nullable_record_subtype():

@@ -278,6 +278,7 @@ class RelationalCashflowRepository:
             "currency": row.get("currency"),
             "counterparty": row.get("counterparty", ""),
             "counterparty_account": row.get("counterparty_account", ""),
+            "counterparty_account_attrs": list(row.get("counterparty_account_attrs") or []),
             "note": row.get("note", ""),
             "category": row.get("category", ""),
             "record_type": row.get("record_type", "other"),
@@ -290,7 +291,11 @@ class RelationalCashflowRepository:
         }
 
     def add(self, account_type: str, row: dict) -> str:
-        from ft.domain.record_type import default_cash_record_subtype, validate_cash_record_subtype
+        from ft.domain.record_type import (
+            default_cash_record_subtype,
+            validate_cash_record_subtype,
+            validate_counterparty_account_for_write,
+        )
 
         if account_type not in {"cash", "loan", "lend"}:
             raise ValueError("cashflow repository only supports cash, loan, and lend records")
@@ -311,22 +316,39 @@ class RelationalCashflowRepository:
         payload = row.get("source_payload")
         if payload is not None and not isinstance(payload, dict):
             payload = dict(payload) if payload else None
+        source_type = str(
+            row.get("source_type")
+            or normalized.get("source_type")
+            or row.get("bill_source")
+            or row.get("source")
+            or ""
+        ).strip()
         record_type = str(row.get("record_type") or normalized.get("record_type") or "other")
         record_subtype = str(row.get("record_subtype") or normalized.get("record_subtype") or "")
         if not record_subtype:
             record_subtype = default_cash_record_subtype(record_type)
         validate_cash_record_subtype(record_type, record_subtype)
+        counterparty_account = str(normalized["counterparty_account"] or "")
+        counterparty_account_attrs = row.get("counterparty_account_attrs", [])
+        validate_counterparty_account_for_write(
+            counterparty_account,
+            counterparty_account_attrs,
+            row.get("_counterparty_account_reconstruction_proof"),
+            source_type=source_type,
+            source_payload=payload,
+        )
         model = CashTransactionModel(
             workspace_id=self._workspace_id,
             account_id=account.id,
-            source_type=(str(row.get("source_type") or normalized.get("source_type") or row.get("bill_source") or row.get("source") or "").strip() or None),
+            source_type=(source_type or None),
             record_id=str(normalized["record_id"] or row.get("record_id") or ""),
             source_payload=payload,
             occurred_at=_parse_timestamp(normalized["occurred_at"]),
             amount=exact_decimal(normalized["amount"]),
             currency=currency,
             counterparty=str(normalized["counterparty"] or ""),
-            counterparty_account=str(normalized["counterparty_account"] or ""),
+            counterparty_account=counterparty_account,
+            counterparty_account_attrs=list(counterparty_account_attrs),
             note=str(normalized["note"] or ""),
             category=str(normalized["category"] or ""),
             record_type=record_type,
@@ -350,6 +372,7 @@ class RelationalCashflowRepository:
             "currency": row.currency,
             "counterparty": row.counterparty,
             "counterparty_account": row.counterparty_account,
+            "counterparty_account_attrs": list(row.counterparty_account_attrs or []),
             "note": row.note,
             "category": row.category,
             "record_type": row.record_type,

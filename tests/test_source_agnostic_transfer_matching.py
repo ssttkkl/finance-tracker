@@ -25,6 +25,7 @@ def test_cross_currency_remittance_matches_unique_tail_target_after_days_without
         id="out", amount="-100.00", currency="CNY", account_id="icbc",
         occurred_at="2026-05-02 13:47:00", record_type="transfer_out",
         record_subtype="cross_border_remittance", counterparty_account="123456784245",
+        counterparty_account_attrs=("full",),
         bill_source="unrelated_a", source="unrelated_a", note="任意文本",
         account_type="cash",
     )
@@ -51,6 +52,7 @@ def test_indexed_cross_border_remittance_matches_across_three_calendar_days():
         id="out", amount="-4000.00", currency="USD", account_id="icbc",
         occurred_at="2026-01-23 11:38:22", record_type="transfer_out",
         record_subtype="cross_border_remittance", counterparty_account="123456784245",
+        counterparty_account_attrs=("full",),
     )
     incoming = _fact(
         id="in", amount="4000.00", currency="USD", account_id="asia",
@@ -76,6 +78,7 @@ def test_internal_cross_currency_transfer_matches_same_account_by_unique_alias_w
         id="out", amount="-100.00", currency="CNY", account_id="asia",
         occurred_at="2026-05-24 13:47:00", record_type="transfer_out",
         record_subtype="ordinary_transfer", counterparty_account="123456784242",
+        counterparty_account_attrs=("full",),
         bill_source="source_a", source="source_a", note="文本甲", account_type="cash",
     )
     incoming = _fact(
@@ -100,11 +103,13 @@ def test_unique_alias_target_uses_global_nearest_one_to_one_assignment():
         id="out-1", amount="-87.19", currency="CNY", account_id="asia",
         occurred_at="2026-05-24 13:47:09", record_type="transfer_out",
         record_subtype="ordinary_transfer", counterparty_account="123456784242",
+        counterparty_account_attrs=("full",),
     )
     second_out = _fact(
         id="out-2", amount="-87.19", currency="CNY", account_id="asia",
         occurred_at="2026-05-24 14:12:30", record_type="transfer_out",
         record_subtype="ordinary_transfer", counterparty_account="123456784247",
+        counterparty_account_attrs=("full",),
     )
     first_in = _fact(
         id="in-1", amount="100.00", currency="HKD", account_id="asia",
@@ -134,6 +139,7 @@ def test_conflicting_tail_does_not_expand_ordinary_transfer_window():
         id="out", amount="-100.00", currency="USD", account_id="icbc",
         occurred_at="2026-05-02 13:47:00", record_type="transfer_out",
         record_subtype="cross_border_remittance", counterparty_account="123456784245",
+        counterparty_account_attrs=("full",),
     )
     incoming = _fact(
         id="in", amount="100.00", currency="USD", account_id="asia",

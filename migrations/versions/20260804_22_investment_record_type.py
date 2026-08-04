@@ -1,7 +1,7 @@
 """投资事件使用规范记录类型与记录子类型。
 
-Revision ID: 20260804_21
-Revises: 20260804_20
+Revision ID: 20260804_22
+Revises: 20260804_21
 Create Date: 2026-08-04
 """
 from __future__ import annotations
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision = "20260804_21"
-down_revision = "20260804_20"
+revision = "20260804_22"
+down_revision = "20260804_21"
 branch_labels = None
 depends_on = None
 

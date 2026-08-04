@@ -1,10 +1,13 @@
 """Source-native classification for imported cash transactions."""
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
+import hashlib
+import json
 import re
-from typing import Mapping
+from typing import Iterable, Mapping
 
 
 class CashRecordType(str, Enum):
@@ -87,45 +90,176 @@ def default_cash_record_subtype(record_type: str) -> str:
     return CashRecordSubtype.NOT_APPLICABLE.value
 
 
+@dataclass(frozen=True)
+class CounterpartyAccount:
+    """导入边界生成的对方账号规范表示。"""
+
+    value: str
+    attrs: tuple[str, ...]
+    _reconstruction_proof: object | None = field(
+        default=None, repr=False, compare=False,
+    )
+
+
+@dataclass(frozen=True)
+class _CounterpartyAccountReconstructionProof:
+    token: object = field(repr=False)
+    source_type: str
+    source_payload_digest: str
+
+
+_COUNTERPARTY_ACCOUNT_ATTRS = frozenset({"full", "tail", "masked", "reconstructed"})
+_COUNTERPARTY_ACCOUNT_COMBINATIONS = frozenset({
+    (),
+    ("full",),
+    ("tail",),
+    ("masked",),
+    ("masked", "reconstructed"),
+})
+_EMPTY_COUNTERPARTY_ACCOUNT_MARKERS = frozenset({"", "/", "-", "--", "(空)", "（空）"})
+_RECONSTRUCTION_PROOF = object()
+
+
+def _source_payload_digest(value: object) -> str:
+    if not isinstance(value, Mapping) or not value:
+        return ""
+    try:
+        canonical = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        )
+    except (TypeError, ValueError):
+        return ""
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def validate_counterparty_account(value: object, attrs: Iterable[object] | None) -> None:
+    """校验新写入的对方账号与属性是否构成规范组合。"""
+    account = str(value or "").strip()
+    if not isinstance(attrs, (list, tuple)):
+        raise ValueError("counterparty_account_attrs must be a JSON array")
+    normalized_attrs = tuple(str(item) for item in attrs)
+    if (
+        any(item not in _COUNTERPARTY_ACCOUNT_ATTRS for item in normalized_attrs)
+        or normalized_attrs not in _COUNTERPARTY_ACCOUNT_COMBINATIONS
+    ):
+        raise ValueError("counterparty_account_attrs has an invalid combination")
+    if not account:
+        if normalized_attrs:
+            raise ValueError("counterparty_account_attrs must be empty when account is empty")
+        return
+    if not normalized_attrs:
+        raise ValueError("counterparty_account_attrs is required for a non-empty account")
+    if normalized_attrs == ("tail",) and re.fullmatch(r"\d{4}", account) is None:
+        raise ValueError("counterparty_account_attrs tail requires exactly four digits")
+    if normalized_attrs == ("full",):
+        if "*" in account or "＊" in account or (account.isdigit() and len(account) <= 4):
+            raise ValueError("counterparty_account_attrs full conflicts with account value")
+    if normalized_attrs == ("masked",) and not any(marker in account for marker in ("*", "＊")):
+        raise ValueError("counterparty_account_attrs masked requires an explicit mask")
+    if normalized_attrs == ("masked", "reconstructed"):
+        if not account.isdigit() or len(account) <= 4:
+            raise ValueError("counterparty_account_attrs reconstructed requires a full numeric value")
+
+
+def validate_counterparty_account_for_write(
+    value: object,
+    attrs: Iterable[object] | None,
+    reconstruction_proof: object = None,
+    *,
+    source_type: object = "",
+    source_payload: object = None,
+) -> None:
+    """校验写入合同，并要求严格重建结果携带同一规范化过程的瞬时证明。"""
+    validate_counterparty_account(value, attrs)
+    normalized_attrs = tuple(str(item) for item in attrs or ())
+    if normalized_attrs != ("masked", "reconstructed"):
+        return
+    account = str(value or "").strip()
+    proof = (
+        reconstruction_proof._reconstruction_proof
+        if isinstance(reconstruction_proof, CounterpartyAccount)
+        else None
+    )
+    if not (
+        isinstance(proof, _CounterpartyAccountReconstructionProof)
+        and proof.token is _RECONSTRUCTION_PROOF
+        and reconstruction_proof.value == account
+        and reconstruction_proof.attrs == normalized_attrs
+        and proof.source_type == str(source_type or "").strip()
+        and bool(proof.source_payload_digest)
+        and proof.source_payload_digest == _source_payload_digest(source_payload)
+    ):
+        raise ValueError(
+            "counterparty_account_attrs reconstructed requires verified source reconstruction "
+            "from the same source row"
+        )
+
+
 def normalize_counterparty_account(
     value: object,
     *,
     source: str = "",
     source_account_identifier: str = "",
-) -> str:
+    source_payload: object = None,
+) -> CounterpartyAccount:
     """把来源直接提供的账号归一为关系匹配可比较的值。
 
     原始文本永远由来源行快照保存；此函数不从名称或备注补造账号。
     """
     text = str(value or "").strip()
-    if not text:
-        return ""
+    if text in _EMPTY_COUNTERPARTY_ACCOUNT_MARKERS:
+        return CounterpartyAccount("", ())
     if any(marker in text for marker in ("*", "＊")):
-        if source != "icbc_asia":
-            return ""
-        reference = re.sub(r"[\s\-()（）]", "", str(source_account_identifier or ""))
-        masked = re.fullmatch(r"(\d+)[*＊]+(\d+)", text.replace(" ", ""))
-        if (
-            masked is None
-            or not reference.isdigit()
-            or len(reference) < 6
-            or len(masked.group(1)) < 4
-            or len(masked.group(2)) < 2
-            or len(masked.group(1)) + len(masked.group(2)) >= len(reference)
-            or len(text.replace(" ", "")) != len(reference)
-            or not reference.startswith(masked.group(1))
-        ):
-            return ""
-        return f"{reference[:-len(masked.group(2))]}{masked.group(2)}"
+        masked_text = re.sub(r"\s+", "", text).replace("＊", "*")
+        compact_numeric_mask = re.sub(r"[\-()（）]", "", masked_text)
+        masked = re.fullmatch(r"(\d+)\*+(\d+)", compact_numeric_mask)
+        if masked is not None:
+            masked_text = compact_numeric_mask
+        if source == "icbc_asia":
+            reference = re.sub(r"[\s\-()（）]", "", str(source_account_identifier or ""))
+            if (
+                masked is not None
+                and reference.isdigit()
+                and len(reference) >= 6
+                and len(masked.group(1)) >= 4
+                and len(masked.group(2)) >= 2
+                and len(masked.group(1)) + len(masked.group(2)) < len(reference)
+                and len(masked_text) == len(reference)
+                and reference.startswith(masked.group(1))
+            ):
+                reconstructed = f"{reference[:-len(masked.group(2))]}{masked.group(2)}"
+                source_payload_digest = _source_payload_digest(source_payload)
+                proof = (
+                    _CounterpartyAccountReconstructionProof(
+                        _RECONSTRUCTION_PROOF,
+                        str(source or "").strip(),
+                        source_payload_digest,
+                    )
+                    if source_payload_digest
+                    else None
+                )
+                return CounterpartyAccount(
+                    reconstructed,
+                    ("masked", "reconstructed"),
+                    proof,
+                )
+        return CounterpartyAccount(masked_text, ("masked",))
     digits = re.sub(r"[\s\-()（）]", "", text)
-    if not digits.isdigit():
+    if digits.isdigit():
+        if len(digits) < 4:
+            return CounterpartyAccount("", ())
+        if len(digits) == 4:
+            return CounterpartyAccount(digits, ("tail",))
+        return CounterpartyAccount(digits, ("full",))
+    if "@" not in text:
         tail = re.search(r"(?<!\d)(\d{4})(?!\d)", text)
-        return tail.group(1) if tail else ""
-    if len(digits) < 4:
-        return ""
-    if len(digits) == 4:
-        return digits
-    return digits
+        if tail is not None:
+            return CounterpartyAccount(tail.group(1), ("tail",))
+    return CounterpartyAccount(text, ("full",))
 
 
 def _text(row: Mapping[str, object], *keys: str) -> str:

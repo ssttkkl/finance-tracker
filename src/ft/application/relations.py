@@ -48,6 +48,11 @@ def _fact_view_from_row(row: dict) -> FactView:
         occurred_at=row.get("occurred_at") or row.get("date") or "",
         counterparty=str(row.get("counterparty") or ""),
         counterparty_account=str(row.get("counterparty_account") or ""),
+        counterparty_account_attrs=(
+            tuple(str(item) for item in row.get("counterparty_account_attrs", ()))
+            if isinstance(row.get("counterparty_account_attrs", ()), (list, tuple))
+            else ()
+        ),
         payment_method=str(row.get("payment_method") or ""),
         note=str(row.get("note") or ""),
         category=str(row.get("category") or ""),

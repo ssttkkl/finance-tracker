@@ -1531,6 +1531,7 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
 
                 # 从金额行向后扫描
                 counterparty = ""
+                counterparty_account_candidates: list[str] = []
                 description = ""
                 summary = ""
                 j = i + 1
@@ -1557,6 +1558,9 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     if s in ("消费", "退货", "退款", "转账", "转帐", "利息", "结息"):
                         if not summary:
                             summary = s
+                        continue
+                    if re.fullmatch(r"\d+[*＊]+\d+", re.sub(r"\s+", "", s)):
+                        counterparty_account_candidates.append(s)
                         continue
                     if not counterparty and not re.match(r"^\d{4,}$", s) and "****" not in s:
                         counterparty = s
@@ -1607,6 +1611,14 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     "amount": amount,
                     "currency": currency,
                     "counterparty": normalized_cp,
+                    "counterparty_account": (
+                        next(iter(dict.fromkeys(counterparty_account_candidates)), "")
+                        if (
+                            summary in {"转账", "转帐"}
+                            and len(set(counterparty_account_candidates)) == 1
+                        )
+                        else ""
+                    ),
                     "note": enriched_desc[:80],
                     "category": category,
                     "payment_method": payment_method,
@@ -2049,17 +2061,20 @@ def _build_output_row(
         row_currency = currency
 
     record_type, record_subtype = classify_cash_record(bill_type, rec)
-    return {
+    normalized_counterparty_account = normalize_counterparty_account(
+        rec.get("counterparty_account", ""),
+        source=bill_type,
+        source_account_identifier=str(rec.get("_source_account_identifier") or ""),
+        source_payload=rec.get("_source_payload"),
+    )
+    output = {
         "record_id": provider_record_id,
         "date": _rec_date(rec),
         "amount": rec["amount"],
         "currency": str(row_currency).upper(),
         "counterparty": cpy,
-        "counterparty_account": normalize_counterparty_account(
-            rec.get("counterparty_account", ""),
-            source=bill_type,
-            source_account_identifier=str(rec.get("_source_account_identifier") or ""),
-        ),
+        "counterparty_account": normalized_counterparty_account.value,
+        "counterparty_account_attrs": list(normalized_counterparty_account.attrs),
         "note": rec.get("note", ""),
         "category": rec["category"],
         "record_type": record_type,
@@ -2093,6 +2108,9 @@ def _build_output_row(
         "location": rec.get("location", ""),
         "acct_name_raw": rec.get("acct_name_raw", ""),
     }
+    if normalized_counterparty_account.attrs == ("masked", "reconstructed"):
+        output["_counterparty_account_reconstruction_proof"] = normalized_counterparty_account
+    return output
 
 
 def _read_icbc_asia_current_account_raw(path: str):

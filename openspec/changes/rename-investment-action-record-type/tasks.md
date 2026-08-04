@@ -51,7 +51,7 @@
 
 ## 审查与验证证据（2026-08-04）
 
-- 当前 `HEAD`：`4fa34f0f95d69d04de3819bd0a07298b37113c78`；比较基线：`8c18ed7ecff6b31cd5adcc18becb4e4e09035f55`。
+- 实施起点 `HEAD`：`4fa34f0f95d69d04de3819bd0a07298b37113c78`；比较基线：`8c18ed7ecff6b31cd5adcc18becb4e4e09035f55`。后续合并 `origin/refactor/web` 的 `e119eec` 后，将迁移链调整为对方账号属性 `20260804_21`、投资记录类型 `20260804_22`、资金调拨关系 `20260804_23`，避免重复 revision ID；运行时 `SCHEMA_REVISION` 同步为 `20260804_23`。
 - 产品与范围复核：通过。自动扫描仅接受 `deposit(external_funding)` 与 `withdraw(external_funding)`；`subaccount_transfer`、利息、税费、外汇净额、奖励、出金退款和未分类现金调整均不能进入候选。
 - 工程与安全复核：通过，未发现阻断性 finding。金额比较使用 `Decimal`；模型与迁移均有记录类型/子类型检查约束；关系表以工作区复合外键和已确认端点唯一索引隔离端点；关系响应仅返回白名单证据，不复制来源行快照、账号或备注。受影响真实 PostgreSQL 矩阵已通过。
 - 最终 diff 复核：通过，未发现阻断性 finding。`action` 仅保留为原始账单解析字段或来源行快照键，不再是投资事件持久化/API 字段；未实现的稳定参考号承诺已从 change 工件移除。
@@ -61,5 +61,6 @@
 - `openspec validate --all --strict`：`31 passed`；`openspec doctor`：通过。
 - `cd web && npm test`：`35 passed`；`npm run build`：通过；`npm run test:e2e`：`3 passed`；`FT_PREVIEW_WEB_PORT=5174 npm run test:preview`：`1 passed`。端口 `5173` 已被既有开发服务器占用，未改动该进程。
 - 本机 PostgreSQL 完整回归：`FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test' FT_REQUIRE_TEST_POSTGRES=1 uv run pytest -q`：首次结果为 `1320 passed, 10 skipped, 5 failed`，816.80 s。两项迁移回滚失败暴露了新迁移将空字符串与 PostgreSQL `NUMERIC` 比较的方言错误；一项源摘要测试在比较前后没有实际改变关系。已将回滚改为按行使用既有方向规则映射，并修正测试在写入关系前后比较摘要。`tests/test_investment_record_type_migration.py tests/test_alembic_migration.py tests/test_cash_projection_migration.py tests/integration/test_cash_projection_concurrency.py` 随后为 `29 passed`，20.00 s；`uv run pytest -q --ignore=tests/test_wealth_performance.py` 为 `1323 passed, 10 skipped`，333.72 s。
+- 合并后适配复核：对方账号属性只服务于既有收支账户间转账匹配，本 change 的收支—投资配对仍不消费该来源字段。复核发现收支投影迁移测试有 3 处未关闭的临时连接，其中 PostgreSQL 会保留 `idle in transaction` 并阻塞后续 DDL；已改为上下文托管连接。`tests/test_cash_projection_migration.py tests/test_alembic_migration.py tests/test_investment_record_type_migration.py tests/test_cash_investment_funding_relations.py tests/test_counterparty_account_attrs.py tests/contract/test_dual_backend_counterparty_account_transfer_matching.py` 为 `71 passed`，13.39 s；合并后完整功能回归 `uv run pytest -q --ignore=tests/test_wealth_performance.py` 为 `1358 passed, 10 skipped`，310.95 s。
 - 仍未通过的完整回归项仅为 `tests/test_wealth_performance.py::test_fixed_100k_fact_rebuild_and_active_cache_meet_budgets` 的两个后端参数：SQLite 冷重建 p95 为 `6.899861208 s`，超过 `5 s` 门槛；PostgreSQL 冷重建 p95 为 `14.162753041 s`，超过 `6.5 s` 门槛。该夹具不含投资事件或资金调拨关系；不得通过放宽门槛掩盖此风险。完整回归质量门槛尚未关闭，补跑条件为优化财富事实重建后在同一命令下完整复跑。
 - 发布与回滚：未运行真实 `.ft` SQLite 迁移、PostgreSQL 迁移、投影重建或关系扫描。发布前须先备份 SQLite 主文件及同名 `-wal`、`-shm` 文件；获用户明确授权后再执行迁移、重建与扫描。回滚使用已校验备份，不删除来源行快照或投资事件。

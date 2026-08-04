@@ -1,7 +1,7 @@
 """新增收支与投资账户资金调拨关系。
 
-Revision ID: 20260804_22
-Revises: 20260804_21
+Revision ID: 20260804_23
+Revises: 20260804_22
 Create Date: 2026-08-04
 """
 from __future__ import annotations
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision = "20260804_22"
-down_revision = "20260804_21"
+revision = "20260804_23"
+down_revision = "20260804_22"
 branch_labels = None
 depends_on = None
 

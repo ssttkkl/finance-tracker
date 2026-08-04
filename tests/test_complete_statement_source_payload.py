@@ -43,7 +43,7 @@ def test_alipay_source_payload_is_complete_raw_row_and_persists_counterparty_acc
         "收/付款方式", "交易状态", "交易订单号", "商家订单号", "备注",
     ]
     source_row = [
-        "2026-08-03 10:00:00", "账户提现", "示例银行", "示例卡(4321)", "提现-实时提现",
+        "2026-08-03 10:00:00", "账户提现", "示例银行", "demo***@example.com", "提现-实时提现",
         "不计收支", "88.00", "账户余额", "交易成功", "PAYLOAD-001", "", "",
     ]
     source = tmp_path / "alipay.csv"
@@ -68,7 +68,8 @@ def test_alipay_source_payload_is_complete_raw_row_and_persists_counterparty_acc
     with sessions() as session:
         fact = session.scalar(select(CashTransactionModel))
         assert fact is not None
-        assert fact.counterparty_account == "4321"
+        assert fact.counterparty_account == "demo***@example.com"
+        assert fact.counterparty_account_attrs == ["masked"]
         assert fact.source_payload == dict(zip(header, source_row, strict=True))
         assert not {"account_name", "record_type", "source_type", "payment_method"} & set(
             fact.source_payload
@@ -152,6 +153,12 @@ def test_wechat_withdrawal_keeps_raw_payment_method_and_extracts_destination_car
     assert records[0]["counterparty_account"] == "示例银行储蓄卡(4321)"
     assert records[0]["_source_payload"] == dict(zip(header, source_row, strict=True))
 
+    from ft.convert import _build_output_row
+
+    output = _build_output_row(records[0], bill_type="wechat", account="微信零钱")
+    assert output["counterparty_account"] == "4321"
+    assert output["counterparty_account_attrs"] == ["tail"]
+
 
 def test_wechat_source_without_a_counterparty_account_keeps_the_field_empty(tmp_path):
     from openpyxl import Workbook
@@ -209,6 +216,12 @@ def test_ccb_keeps_full_row_and_extracts_only_counterparty_account(tmp_path):
         for key, value in zip(header, source_row, strict=True)
     }
 
+    from ft.convert import _build_output_row
+
+    output = _build_output_row(records[0], bill_type="ccb_debit", account="建行储蓄卡")
+    assert output["counterparty_account"] == "6222****4321"
+    assert output["counterparty_account_attrs"] == ["masked"]
+
 
 def test_icbc_debit_keeps_full_table_row_and_extracts_counterparty_account():
     from ft.convert import _parse_icbc_debit_row
@@ -228,3 +241,63 @@ def test_icbc_debit_keeps_full_table_row_and_extracts_counterparty_account():
     assert record is not None
     assert record["counterparty_account"] == "6222****4321"
     assert record["_source_payload"] == source_payload
+
+    from ft.convert import _build_output_row
+
+    output = _build_output_row(record, bill_type="icbc_debit", account="工行借记卡")
+    assert output["counterparty_account"] == "6222****4321"
+    assert output["counterparty_account_attrs"] == ["masked"]
+
+
+def test_icbc_credit_transfer_extracts_structured_masked_counterparty_account():
+    from ft.convert import _build_output_row, _parse_icbc_lines
+
+    lines = [
+        "2026-08-03", "10:00:00", "6222000000000000", "借", "人民币", "88.00",
+        "人民币", "88.00", "100.00", "转帐", "6222****4321", "",
+    ]
+
+    records, _tracking = _parse_icbc_lines(lines, is_credit=True)
+
+    assert len(records) == 1
+    assert records[0]["counterparty_account"] == "6222****4321"
+    output = _build_output_row(records[0], bill_type="icbc_credit", account="工行信用卡")
+    assert output["counterparty_account"] == "6222****4321"
+    assert output["counterparty_account_attrs"] == ["masked"]
+
+
+def test_icbc_credit_transfer_does_not_choose_between_multiple_masked_accounts():
+    from ft.convert import _parse_icbc_lines
+
+    lines = [
+        "2026-08-03", "10:00:00", "6222000000000000", "借", "人民币", "88.00",
+        "转帐", "6222****4321", "9558****7654", "",
+    ]
+
+    records, _tracking = _parse_icbc_lines(lines, is_credit=True)
+
+    assert len(records) == 1
+    assert records[0]["counterparty_account"] == ""
+
+
+def test_icbc_asia_preserves_non_numeric_counterparty_account_identifier():
+    from ft.convert import _build_output_row
+
+    record = {
+        "date": "2026-08-03 10:00:00",
+        "amount": "12.34",
+        "currency": "HKD",
+        "counterparty": "示例对方",
+        "counterparty_account": "counterparty@example.com",
+        "note": "本地转账",
+        "category": "income",
+        "payment_method": "工银亚洲活期账户",
+        "txn_type": "轉賬",
+        "summary": "本地轉賬",
+        "_fact_id": "fixture",
+    }
+
+    output = _build_output_row(record, bill_type="icbc_asia", account="工银亚洲账户")
+
+    assert output["counterparty_account"] == "counterparty@example.com"
+    assert output["counterparty_account_attrs"] == ["full"]

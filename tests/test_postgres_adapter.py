@@ -105,6 +105,7 @@ def test_cashflow_service_contract_persists_decimal_snapshot():
         "currency": "CNY",
         "counterparty": "Coffee",
         "counterparty_account": "",
+        "counterparty_account_attrs": [],
         "note": "",
             "category": "expense",
             "record_type": "other",

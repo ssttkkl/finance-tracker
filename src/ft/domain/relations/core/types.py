@@ -368,6 +368,7 @@ class FactView:
     occurred_at: datetime | str = ""
     counterparty: str = ""
     counterparty_account: str = ""
+    counterparty_account_attrs: tuple[str, ...] = ()
     payment_method: str = ""
     note: str = ""
     category: str = ""
@@ -383,6 +384,13 @@ class FactView:
     raw_payload: dict | None = None
 
     def __post_init__(self) -> None:
+        attrs = self.counterparty_account_attrs
+        if isinstance(attrs, (list, tuple)):
+            object.__setattr__(
+                self, "counterparty_account_attrs", tuple(str(item) for item in attrs),
+            )
+        else:
+            object.__setattr__(self, "counterparty_account_attrs", ())
         if self.record_subtype == "not_applicable" and self.record_type in {
             "transfer_in", "transfer_out", "fx_in", "fx_out", "repayment",
             "withdrawal_in", "withdrawal_out",
