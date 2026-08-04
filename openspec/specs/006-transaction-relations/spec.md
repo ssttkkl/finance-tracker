@@ -121,9 +121,9 @@ User description: "重新设计账单导入后的去重、退款核销、转账�
 - - **FR-014**: rejected 决策 MUST 持久化，使同一候选业务键在后续自动检查中不再重复推荐为 pending（除非显式 supersede 重开）。
 - - **FR-015**: 每条自动生成的关系 MUST 能由正式事实、当前别名和 `rule_id` 重新计算；金额差、时间差、账号命中、信号和其他过程值 MUST NOT 落库。待配对关系的 `candidate_fact_ids` 是人工选择所需的受控操作状态，确认、驳回或 supersede 后 MUST 清空。
 - - **FR-016**: 跨平台镜像 `payment_mirror` 匹配 MUST 对齐 main 分支跨源去重的**精度与静默策略**，并适配多账户模型。具体 MUST：
-- - **FR-017**: 内部转账匹配信号 MUST 参考 main 分支 reconcile 转账语义：一正一负、不同账户、同币种绝对金额严格相等、有效时间接近、转账强信号词（如转账支取/存入、银联入账、手机银行、提现等）；并支持同日银联现金类已验证规则族。同币种强匹配 auto-accept 时间窗为有效时间差 ≤10 秒且候选唯一；同日宽窗口 auto-accept 仅允许“银联入账/电子汇入 ↔ 无卡付/**无卡支付**/云闪付/转账支取”强信号组合且候选唯一。**当任一侧为银行 date-only 导出**（raw_payload `date` 为 `YYYY-MM-DD`，无真实钟点；formal 常落 16:00 UTC）时，MUST 回退用 **raw 业务日**（与 payment_mirror FR-052/053 同一 `business_day_shanghai` / `fact_is_bank_date_only`）判定同日，且 MUST NOT 用 formal 16:00 哨兵时刻计算 Δt 来否决同日银联桥；同业务日 + 等额 + 银联/转账强信号 + 唯一候选 → MAY auto-accept。同币种两侧任意非零金额差额 MUST NOT auto-accept，但 MAY 以精确 `amount_delta` 证据进入 pending；不得把差额舍入、吸收或隐式解释为手续费。当转账/还款合法对侧 ≥2 或不唯一时，MUST 落 1 条待配对关系（锚点由信号规则决定），而非 N 条双边 pending；唯一近强对侧 MAY 双边 pending。
+- - **FR-017**: 转账、提现、还款、跨境汇款和内部账户调拨的关系扫描 MUST 只使用 `record_type`、`record_subtype`、`account_id`、`counterparty_account`、币种、精确 Decimal 金额、时间和显式账户别名；不得读取导入渠道、来源快照、账单文本、对方名称或账户类型。普通同币种转账的双边确认仍要求方向相反、不同账户、金额严格相等、强时间窗唯一及账号归属不冲突。对方账号唯一归属到目标账户的转出可在最多 7 天内按时间差全局一对一分配；别名缺失或冲突不得放宽普通转账窗口。
 - - **FR-018**: 信用还款匹配 MUST 覆盖 cash→loan 同币种与跨币种（含购汇还款）形态。信用还款以 `transfer_pair` subtype（如 `credit_repayment`）表达；用户可见语义与报表影响 MUST 可区分普通内部转账与信用还款。
-- - **FR-019**: 对仅一侧出现在账本内的内部调拨信号，System MUST NOT 自动建立 **accepted** 双边关系，也 MUST NOT 伪造缺失的对侧流水或改写已有流水的分类。高信号锚点 MAY 创建状态为 `pending_review` 的 `transfer_pair` **待配对关系**（对侧为空），待用户补录或选择对侧流水后再绑定并确认。main `transfer_rules` 文本信号族仅可作为补录提示、候选搜索或待配对关系线索，不得单独成为 accepted 关系。
+- - **FR-019**: 对仅一侧出现在账本内的 `ordinary_transfer`、`cross_border_remittance`、`internal_account_transfer`、`withdraw_to_bank` 或 `credit_repayment`，系统 MUST NOT 自动建立 **accepted** 双边关系，也 MUST NOT 伪造缺失的对侧流水或改写已有流水的分类。没有唯一对方账号目标的标准字段候选不唯一时 MUST 创建状态为 `pending_review` 的 `transfer_pair` 待配对关系；唯一目标的 7 天候选由全局一对一分配决定，不因候选数大于一而降级。账单文本不得成为候选或自动确认的独立依据。
 - - **FR-020**: 退款匹配 MUST 支持全额与部分、多退款对一消费；每笔退款事实最多关联一笔消费，MUST NOT 在 v1 中把一笔退款分摊给多笔消费。**退款流水 MUST 有明确退款文本信号**（不得把任意 income 当退款种子）。
 - - **FR-021**: `payment_mirror` MUST 声明 primary/canonical 或提供确定性选择规则（例如支付平台详情优先于银行通道摘要；同源时信息量更高者优先），仅用于报表“外部消费只计一次”，双方/多方事实仍保留。accepted `payment_mirror` MAY 形成连通组；组内 MUST 只有一个确定性 canonical，外部消费 MUST 只计一次；冲突 canonical 候选 MUST `pending_review`。MUST NOT 用 `duplicate_of` 处理错误重复事实。
 - - **FR-022**: 规则版本升级时，System MUST 能 supersede 旧关系并保留旧证据，而不是覆盖写历史。
@@ -157,55 +157,48 @@ User description: "重新设计账单导入后的去重、退款核销、转账�
 - GIVEN 迁移前规格所描述的有效业务上下文。
 - WHEN 执行以下验收条件：对该能力进行修改时，验证结果 MUST 覆盖迁移后的功能需求清单。
 - THEN 系统满足该条件，并保留可复核的验证证据。
-### Requirement: 个人购汇关系的安全确认
-系统 MUST 仅在负额 `fx_out` 与正额 `fx_in` 的类型、方向、币种、来源和时间形态均合法时确认 `transfer_pair(currency_exchange)`。自动确认 MUST 额外满足非空无冲突的同一来源键、可靠钟点不超过 60 秒、双向唯一候选与端点未被其他已确认 `transfer_pair` 占用。来源缺失或冲突、仅日期精度、超窗或任一方向候选不唯一时系统 MUST NOT 自动确认；候选歧义 MUST 以 `fx_out` 为锚点创建一条开放端 `pending_review`，并记录候选、来源和时间证据。
 
-#### Scenario: 已确认购汇保持双边审计
-- **WHEN** 一对 `fx_out` / `fx_in` 满足所有自动确认条件
-- **THEN** 系统 MUST 创建双边 `accepted transfer_pair(currency_exchange)`，保留两条原始事实和确认依据
+### Requirement: 长窗口转账候选索引覆盖业务时间窗
 
-#### Scenario: 歧义购汇不改变收支
-- **WHEN** 购汇的正向或反向候选不唯一，或来源/时间证据不足
-- **THEN** 系统 MUST 仅创建待审核关系或不创建关系，且不得改变任一现金事实的当前收支投影
+系统 MUST 对唯一对方账号目标的转账关系，以有界且可索引的候选查询完整覆盖最多 7 天的精确时间窗口。候选索引可以因日期分桶读取边界日，但系统 MUST 在生成关系前以 `occurred_at` 的精确时间差排除超过 7 天的记录；不得因索引范围短于业务时间窗遗漏合法关系。
 
-### Requirement: 个人购汇的人工确认边界
-系统 MUST 在 `pending_review → accepted` 时验证 `currency_exchange` 的子类型端点合同：锚点为负额 `fx_out`、对侧为正额 `fx_in`、双方币种不同、来源键非空无冲突且一致、对侧在合法候选范围内且两个端点均未被已确认转账占用。人工确认 MAY 消解多个合法候选，但 MUST NOT 将普通收入、退款或普通转账绑定为个人购汇。
+#### Scenario: 跨越三个自然日的同币种跨境汇款
 
-#### Scenario: 人工确认拒绝非法购汇对侧
-- **WHEN** 用户为待配对购汇指定不满足端点合同、来源、候选范围或端点占用约束的对侧
-- **THEN** 系统 MUST 拒绝确认并保持待审核关系及原投影不变
+- **WHEN** `cross_border_remittance` 转出以唯一对方账号目标指向转入账户，双方同币种、金额绝对值精确相等、时间差小于 7 天但发生日期相隔三个自然日
+- **THEN** 系统 MUST 创建 `accepted transfer_pair(ordinary_transfer)`
 
-### Requirement: 工银亚洲规范账号内部调拨关系
+#### Scenario: 索引边界外的转入不配对
 
-系统 MUST 对来源均为 `icbc_asia_current_account` 的转账出账和转账入账识别同一规范账号内的资金移动，即使两条正式事实已路由到同一 `account_id`。转出侧来源直接提供的、未掩码完整对方账号 MUST 通过当前工作区唯一登记的工银亚洲规范账号归属转入账户；用户仅登记 `card_tail` 时，系统 MUST 只将来源账号末四位的末位标准化为 `0` 后，与唯一已登记尾号比较。没有该归属、目标归属不唯一、方向或记录类型不合法时，系统 MUST 不创建关系。同币种时金额绝对值 MUST 精确相等，关系 subtype MUST 为空；异币种时关系 subtype MUST 为 `currency_exchange`，不得以金额换算或容差推断汇率。两侧时间差 MUST 不超过 5 分钟；只有正反两侧在该窗口内均唯一时系统才可以创建双边 `accepted transfer_pair`。存在多个合法候选时，系统 MUST 以转出为锚点创建一条 `pending_review` 待配对关系，并仅保存稳定的 `candidate_fact_ids`。
+- **WHEN** 唯一对方账号目标的转出和转入时间差超过 7 天
+- **THEN** 系统 MUST 不创建该两条流水之间的转账配对关系
 
-#### Scenario: 同一正式账户内的跨币种调拨
-- **WHEN** 工银亚洲 CNY 转账出账的完整对方账号唯一归属到其自身规范账号，且 5 分钟内存在唯一 HKD 转账入账
-- **THEN** 系统 MUST 创建双边 `accepted transfer_pair(currency_exchange)`，两条现金流水仍保留且不计入外部收支
+### Requirement: 基于标准字段的转账关系匹配
 
-#### Scenario: 工银亚洲同币种调拨金额不等
-- **WHEN** 工银亚洲同一规范账号的同币种转账出账与入账金额存在任意非零 Decimal 差额
-- **THEN** 系统 MUST NOT 自动确认 `transfer_pair`
+系统 MUST 仅使用现金流水的 `record_type`、`record_subtype`、`account_id`、`counterparty_account`、`currency`、精确 Decimal 金额、`occurred_at` 与当前工作区显式登记的 `account_aliases` 扫描普通转账、跨境汇款和内部账户调拨。该扫描 MUST NOT 判断 `source_type`、来源快照、账单文本、对方名称或账户类型。本人账户标识与规范对方账号的归属不唯一时，系统 MUST 不自动确认关系。
 
-#### Scenario: 工银亚洲内部调拨存在歧义
-- **WHEN** 一笔工银亚洲规范账号转账出账在 5 分钟内有多个合法转账入账
-- **THEN** 系统 MUST 仅创建一条以该出账为锚点的 `pending_review` 待配对关系，且不得自动排除任一现金流水
+#### Scenario: 同字段事实跨来源得到相同配对结果
+- **WHEN** 两组现金流水具有相同的规范字段、账户别名与时间金额条件但来自不同导入渠道
+- **THEN** 系统 MUST 生成相同的转账候选和确认结果，不得因导入渠道或账单文本不同而改变结果
 
-### Requirement: 工行跨境汇款至工银亚洲关系
+#### Scenario: 跨币种跨境汇款慢到账
+- **WHEN** `cross_border_remittance` 转出以规范对方账号唯一归属到一条反向转入账户，双方币种不同且时间差不超过 7 天
+- **THEN** 系统 MUST 不比较金额并创建 `accepted transfer_pair(cross_currency_remittance)`
 
-系统 MUST 将来源为 `icbc_debit`、正式记录类型为负额 `transfer_out` 且来源语义明确为跨境汇款的流水作为工银亚洲跨境转账出账种子。候选必须是来源为 `icbc_asia_current_account` 的正额 `transfer_in`，其账本账户必须由转出侧未掩码完整对方账号唯一归属到同一工银亚洲规范账号，且币种一致、绝对金额严格相等、时间差不超过 36 小时。若在 10 秒强窗口中正反两侧唯一，或在 36 小时内正反两侧唯一，系统 MUST 创建双边 `accepted transfer_pair`；多个合法候选时系统 MUST 以跨境汇款出账为锚点创建一条 `pending_review` 待配对关系。该规则 MUST NOT 接受购汇类 `fx_out`、普通工行转账或未归属到工银亚洲规范账号的候选。
+#### Scenario: 唯一目标的最近一对一分配
+- **WHEN** 多笔具有唯一对方账号目标的转出在 7 天内竞争多个同一目标账户的合格转入
+- **THEN** 系统 MUST 按时间差、转出业务行标识、转入业务行标识稳定排序全部合法边，并仅在两端均未占用时确认最近一对；任何转入不得被重复分配
 
-#### Scenario: 工行跨境汇款同币种短时到账
-- **WHEN** 工行借记卡的 CNY 跨境汇款转出后 10 秒内，唯一工银亚洲规范账号出现同币种等额转账入账
-- **THEN** 系统 MUST 创建双边 `accepted transfer_pair`
+#### Scenario: 同一账户跨币种调拨
+- **WHEN** 一笔具有唯一对方账号目标的转出与转入归属同一 `account_id`、币种不同且时间差不超过 7 天
+- **THEN** 系统 MUST 创建 `accepted transfer_pair(currency_exchange)`，且该关系不得计入外部收支
 
-#### Scenario: 工行跨境汇款次日到账
-- **WHEN** 工行借记卡的 USD 跨境汇款转出后 36 小时内，唯一工银亚洲规范账号出现同币种等额转账入账
-- **THEN** 系统 MUST 创建双边 `accepted transfer_pair`
+### Requirement: 转账关系子类型语义
 
-#### Scenario: 非跨境汇款不得走工银亚洲桥接
-- **WHEN** 工行借记卡的购汇类 `fx_out` 或不具有明确跨境汇款来源语义的 `transfer_out` 出账出现
-- **THEN** 系统 MUST NOT 因本规则为其创建 `transfer_pair`
+系统 MUST 将同币种普通或跨境资金转移关系保存为 `ordinary_transfer`，将跨币种跨境汇款关系保存为 `cross_currency_remittance`，将明确换汇或同一规范账户跨币种调拨保存为 `currency_exchange`，并将还款关系保存为 `credit_repayment`。系统 MUST 根据配对两端币种确定跨币种汇款关系子类型，而不得仅凭任一来源的账单文本推断。
+
+#### Scenario: 同币种跨境汇款保持普通转账关系
+- **WHEN** 两端均为 `cross_border_remittance` 或其合格反向转入且币种相同、金额精确相等
+- **THEN** 系统 MUST 创建 `transfer_pair(ordinary_transfer)`，不得标记为换汇
 
 ### Requirement: 可度量验收结果
 系统 MUST 继续满足以下可度量结果；它们是迁移后的验收回归基线。

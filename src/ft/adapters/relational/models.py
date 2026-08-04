@@ -141,6 +141,14 @@ class CashTransactionModel(Base):
             "record_type IN ('consumption', 'refund', 'reversal', 'transfer_reversal', 'withdrawal_in', 'withdrawal_out', 'transfer_in', 'transfer_out', 'repayment', 'income', 'investment_in', 'investment_out', 'interest', 'fee', 'fx_in', 'fx_out', 'other')",
             name="ck_cash_transactions_record_type",
         ),
+        CheckConstraint(
+            "(record_type IN ('transfer_in', 'transfer_out') AND record_subtype IN ('ordinary_transfer', 'cross_border_remittance', 'internal_account_transfer')) OR "
+            "(record_type IN ('fx_in', 'fx_out') AND record_subtype = 'currency_exchange') OR "
+            "(record_type = 'repayment' AND record_subtype = 'credit_repayment') OR "
+            "(record_type IN ('withdrawal_in', 'withdrawal_out') AND record_subtype = 'withdraw_to_bank') OR "
+            "(record_type NOT IN ('transfer_in', 'transfer_out', 'fx_in', 'fx_out', 'repayment', 'withdrawal_in', 'withdrawal_out') AND record_subtype = 'not_applicable')",
+            name="ck_cash_transactions_record_type_subtype",
+        ),
         UniqueConstraint("workspace_id", "id", name="uq_cash_transactions_workspace_id"),
         ForeignKeyConstraint(
             ["workspace_id", "account_id"],
@@ -169,6 +177,7 @@ class CashTransactionModel(Base):
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     category: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     record_type: Mapped[str] = mapped_column(String(32), default="other", nullable=False)
+    record_subtype: Mapped[str] = mapped_column(String(32), default="not_applicable", nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     deleted_by: Mapped[str] = mapped_column(String(128), default="", nullable=False)

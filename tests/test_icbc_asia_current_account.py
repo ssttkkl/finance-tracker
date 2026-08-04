@@ -108,6 +108,25 @@ def test_parse_preserves_complete_source_row_and_counterparty_account(tmp_path):
     assert set(record["_source_payload"]) == set(HEADERS)
 
 
+def test_verified_masked_counterparty_account_is_restored_without_changing_source_row(tmp_path):
+    from ft.convert import _build_output_row, _read_icbc_asia_current_account_raw
+
+    source_row = _row(
+        "1", expense="100.50", counterparty_account="879825****47", counterparty="测验收款人",
+    )
+    statement = _write_statement(
+        tmp_path / "currentaccounthistory.csv",
+        [source_row],
+        bank_account="879825074240",
+    )
+
+    records, bill_type, _tracking = _read_icbc_asia_current_account_raw(str(statement))
+    output = _build_output_row(records[0], bill_type=bill_type, account="工银亚洲账户")
+
+    assert output["counterparty_account"] == "879825074247"
+    assert records[0]["_source_payload"]["對方賬號"] == "879825****47"
+
+
 def test_infers_current_account_history_source():
     from ft.domain.imports import infer_statement_source
 
@@ -289,6 +308,7 @@ def test_statement_import_is_backend_equivalent_and_overlap_idempotent(
             assert expense.currency == "HKD"
             assert expense.counterparty == "测验收款人"
             assert expense.counterparty_account == "99887766"
+            assert expense.source_payload["對方賬號"] == "99887766"
             assert expense.source_payload == dict(zip(HEADERS, shared, strict=True))
             assert expense.source_payload[""] == "09:10:11"
             assert income.amount == Decimal("5.25")

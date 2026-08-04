@@ -164,6 +164,7 @@ def read_icbc_asia_current_account(path: str) -> tuple[list[dict], str, list[dic
             ),
             "summary": source_payload["摘要"].strip(),
             "txn_type": source_payload["業務類型"].strip(),
+            "_source_account_identifier": account_identifier,
             "location": source_payload["交易場所"].strip(),
             "_raw_cp": source_payload["對方戶名"].strip(),
             "_fact_id": fact_id,

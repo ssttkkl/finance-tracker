@@ -1983,7 +1983,7 @@ def _build_output_row(
     Longer mapping match wins (see ft.mapping.match_payment_method).
     """
     from .mapping import match_payment_method
-    from .domain.record_type import classify_cash_record_type
+    from .domain.record_type import classify_cash_record, normalize_counterparty_account
 
     if account:
         acct_name = account
@@ -2048,16 +2048,22 @@ def _build_output_row(
     if currency and not rec.get("currency"):
         row_currency = currency
 
+    record_type, record_subtype = classify_cash_record(bill_type, rec)
     return {
         "record_id": provider_record_id,
         "date": _rec_date(rec),
         "amount": rec["amount"],
         "currency": str(row_currency).upper(),
         "counterparty": cpy,
-        "counterparty_account": rec.get("counterparty_account", ""),
+        "counterparty_account": normalize_counterparty_account(
+            rec.get("counterparty_account", ""),
+            source=bill_type,
+            source_account_identifier=str(rec.get("_source_account_identifier") or ""),
+        ),
         "note": rec.get("note", ""),
         "category": rec["category"],
-        "record_type": classify_cash_record_type(bill_type, rec),
+        "record_type": record_type,
+        "record_subtype": record_subtype,
         "account_name": acct_name,
         "source": payment_src,
         "bill_source": bill_type,

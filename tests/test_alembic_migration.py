@@ -27,6 +27,7 @@ def test_repository_has_clean_linear_revisions():
         "20260803_16_cash_counterparty_account.py",
         "20260803_17_simplify_transaction_relations.py",
         "20260803_18_open_leg_candidate_fact_ids.py",
+        "20260804_19_cash_record_subtype.py",
     ]
 
 
@@ -123,7 +124,7 @@ def test_metadata_uses_enforceable_fact_relationships_post_015():
         assert "source_payload" in model.__table__.c
         assert "raw_record_id" not in model.__table__.c
         assert "revision" not in model.__table__.c
-    assert "counterparty_account" in CashTransactionModel.__table__.c
+    assert {"counterparty_account", "record_subtype"} <= set(CashTransactionModel.__table__.c.keys())
     from ft.adapters.relational.models import TransactionRelationModel
     assert {"evidence_json", "confidence", "later_marker"}.isdisjoint(
         TransactionRelationModel.__table__.c.keys()
@@ -217,6 +218,77 @@ def test_counterparty_account_migration_does_not_read_legacy_source_payload(tmp_
             "ccb-1": "",
             "unknown-1": "",
         }
+    finally:
+        engine.dispose()
+
+
+def test_cash_record_subtype_migration_backfills_only_deterministic_type_mapping(tmp_path):
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+
+    root = Path(__file__).parents[1]
+    database = tmp_path / "cash-record-subtype.db"
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "migrations"))
+    config.set_main_option("sqlalchemy.url", f"sqlite+pysqlite:///{database}")
+    command.upgrade(config, "20260803_18")
+    engine = create_engine(f"sqlite+pysqlite:///{database}")
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', CURRENT_TIMESTAMP)"
+            ))
+            connection.execute(text(
+                "INSERT INTO accounts (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) "
+                "VALUES (1, 'w', 'Cash', 'cash', 1, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            ))
+            for record_id, record_type in (
+                ("ordinary", "transfer_out"),
+                ("exchange", "fx_in"),
+                ("repayment", "repayment"),
+                ("other", "other"),
+            ):
+                connection.execute(text(
+                    "INSERT INTO cash_transactions "
+                    "(workspace_id, account_id, record_id, occurred_at, amount, currency, counterparty, note, category, record_type, created_at) "
+                    "VALUES ('w', 1, :record_id, CURRENT_TIMESTAMP, '1.00', 'CNY', '', '', '', :record_type, CURRENT_TIMESTAMP)"
+                ), {"record_id": record_id, "record_type": record_type})
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            values = dict(connection.execute(text(
+                "SELECT record_id, record_subtype FROM cash_transactions"
+            )).all())
+        assert values == {
+            "ordinary": "ordinary_transfer",
+            "exchange": "currency_exchange",
+            "repayment": "credit_repayment",
+            "other": "not_applicable",
+        }
+    finally:
+        engine.dispose()
+
+
+def test_cash_record_subtype_migration_keeps_active_identity_partial_index(tmp_path):
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+
+    root = Path(__file__).parents[1]
+    database = tmp_path / "cash-record-subtype-index.db"
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "migrations"))
+    config.set_main_option("sqlalchemy.url", f"sqlite+pysqlite:///{database}")
+    command.upgrade(config, "head")
+    engine = create_engine(f"sqlite+pysqlite:///{database}")
+    try:
+        with engine.connect() as connection:
+            definition = connection.scalar(text(
+                "SELECT sql FROM sqlite_master WHERE type = 'index' "
+                "AND name = 'uq_cash_transactions_active_source_record'"
+            ))
+        assert definition is not None
+        assert "deleted_at IS NULL" in definition
     finally:
         engine.dispose()
 

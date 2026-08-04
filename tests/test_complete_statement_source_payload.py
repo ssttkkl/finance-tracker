@@ -68,7 +68,7 @@ def test_alipay_source_payload_is_complete_raw_row_and_persists_counterparty_acc
     with sessions() as session:
         fact = session.scalar(select(CashTransactionModel))
         assert fact is not None
-        assert fact.counterparty_account == "示例卡(4321)"
+        assert fact.counterparty_account == "4321"
         assert fact.source_payload == dict(zip(header, source_row, strict=True))
         assert not {"account_name", "record_type", "source_type", "payment_method"} & set(
             fact.source_payload

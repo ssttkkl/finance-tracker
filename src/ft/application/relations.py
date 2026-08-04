@@ -52,6 +52,7 @@ def _fact_view_from_row(row: dict) -> FactView:
         note=str(row.get("note") or ""),
         category=str(row.get("category") or ""),
         record_type=str(row.get("record_type") or "other"),
+        record_subtype=str(row.get("record_subtype") or "not_applicable"),
         bill_source=source_type,
         source=source_type,
         fact_type=str(row.get("fact_type") or FactType.CASH.value),
@@ -842,10 +843,6 @@ class RelationService:
                     raise ValueError("个人购汇待配对关系必须连接购汇转出和购汇转入")
                 if anchor.currency == other.currency:
                     raise ValueError("个人购汇待配对关系的两端币种必须不同")
-                anchor_source = str(anchor.bill_source or anchor.source or "").strip()
-                other_source = str(other.bill_source or other.source or "").strip()
-                if not anchor_source or anchor_source != other_source:
-                    raise ValueError("个人购汇待配对关系的两端来源必须一致且非空")
                 # 证据只保存有限的候选标识，不能将该展示上限误作人工确认的
                 # 候选范围。确认时按完整端点合同重新验证指定的对侧。
                 if match_personal_fx_exchange(anchor, [other]) is None:

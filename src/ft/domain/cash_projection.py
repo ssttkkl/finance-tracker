@@ -13,7 +13,7 @@ from ft.domain.decimal import exact_decimal
 RULES_VERSION = "cash-projection-v1"
 _RELATION_KINDS = frozenset({"payment_mirror", "refund_offset", "transfer_pair"})
 _TRANSFER_SUBTYPES = frozenset({
-    "", "ordinary_transfer", "credit_repayment", "currency_exchange", "bank_security_transfer", "balance_adjustment",
+    "", "ordinary_transfer", "cross_currency_remittance", "credit_repayment", "currency_exchange", "bank_security_transfer", "balance_adjustment",
 })
 
 

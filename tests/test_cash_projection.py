@@ -40,7 +40,7 @@ def test_payment_mirror_uses_primary_record_once_and_is_deterministic():
     assert first == second
 
 
-@pytest.mark.parametrize("subtype", ["ordinary_transfer", "credit_repayment", "currency_exchange", "bank_security_transfer"])
+@pytest.mark.parametrize("subtype", ["ordinary_transfer", "cross_currency_remittance", "credit_repayment", "currency_exchange", "bank_security_transfer"])
 def test_transfer_pair_is_visible_internal_transfer(subtype):
     from ft.domain.cash_projection import CashProjectionFact, ProjectionRelation, build_cash_projections
 

@@ -10,7 +10,7 @@ invoke :func:`run_relation_phases` as the **sole** domain matcher for B–D.
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from typing import Any
 
@@ -145,7 +145,6 @@ def run_relation_phases(
     index: FactCandidateIndex | None = None,
     aliases_by_tail: Mapping[str, Sequence[str]] | None = None,
     account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
-    fx_rate_provider: Callable[..., Decimal | None] | None = None,
     transfer_blocked_ids: set[str] | None = None,
     refund_blocked_ids: set[str] | None = None,
     merchant_refund_seed_ids: Sequence[str] | None = None,
@@ -167,8 +166,6 @@ def run_relation_phases(
         full-check diamond parity (008 seed policy).
     """
     ctx = ctx or MatchContext()
-    if fx_rate_provider is not None:
-        ctx.fx_rate_provider = fx_rate_provider
     if ctx.remaining_by_expense is None:
         ctx.remaining_by_expense = {}
 
@@ -227,7 +224,6 @@ def run_relation_phases(
         index=index,
         account_identifiers_by_value=account_identifiers_by_value,
         card_tails_by_value=aliases_by_tail,
-        fx_rate_provider=ctx.fx_rate_provider,
     )
     for p in transfer_props:
         if p.primary_fact_id in transfer_blocked or (

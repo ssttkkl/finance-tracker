@@ -150,7 +150,7 @@ workspaces  (租户隔离根)
 - `fk_account_aliases_workspace_account`：`(workspace_id, account_id)` → accounts，`CASCADE`
 - `ix_account_aliases_workspace_value`：`(workspace_id, alias_type, alias_value)`
 
-用于转账关系的本人账户标识仅接受两种别名类型：`card_tail` 为恰好四位 ASCII 数字；`account_identifier` 为可去除空白、连字符和括号的完整数字账号。它们必须由用户显式登记，匹配时只参与运行时筛选，不将命中种类或别名原文写入关系记录。仅工银亚洲转出流水可将 `account_identifier` 的末位标准化为 `0`，再以规范账号前缀与至少同长度的对方账号作候选筛选；其他来源仍只使用精确账号或唯一尾号。
+用于转账关系的本人账户标识仅接受两种别名类型：`card_tail` 为恰好四位 ASCII 数字；`account_identifier` 为可去除空白、连字符和括号的完整数字账号。它们必须由用户显式登记，匹配时只参与运行时筛选，不将命中种类或别名原文写入关系记录。工银亚洲账号的币种位在导入期已标准化为末位 `0`；关系层只以该规范值精确匹配完整账号或唯一尾号，不按来源或账号前缀扩展候选。
 
 ### 3.4 `account_lifecycle_events`
 
@@ -222,9 +222,11 @@ workspaces  (租户隔离根)
 | `amount` | ExactDecimal | N | 有符号金额 |
 | `currency` | String(3) | N | 币种 |
 | `counterparty` | String(512) | N | 对手方 |
-| `counterparty_account` | String(512) | N | 来源直接提供的对方账号、卡号、掩码账号或账户标识；未提供时为空字符串，便于受控查询 |
+| `counterparty_account` | String(512) | N | 来源直接提供的对方账号、卡号或账户标识的导入期规范值；未提供、掩码或无法可靠识别时为空字符串 |
 | `note` | Text | N | 备注 |
 | `category` | String(64) | N | 分类（含 transfer / transfer_in / transfer_out 等） |
+| `record_type` | String(32) | N | 标准记录类型 |
+| `record_subtype` | String(32) | N | 标准记录子类型；与 `record_type` 受组合约束 |
 | `created_at` | UTCDateTime | N | |
 | `deleted_at` | UTCDateTime | Y | 逻辑删除时间 |
 | `deleted_by` | String(128) | N | 删除操作者（行内审计；无独立删除事件表） |

@@ -281,6 +281,7 @@ class RelationalCashflowRepository:
             "note": row.get("note", ""),
             "category": row.get("category", ""),
             "record_type": row.get("record_type", "other"),
+            "record_subtype": row.get("record_subtype", "not_applicable"),
             "account_name": row.get("account_name", ""),
             "source_type": row.get("source_type", "") or "",
             "source": row.get("source_type", "") or "",
@@ -289,6 +290,8 @@ class RelationalCashflowRepository:
         }
 
     def add(self, account_type: str, row: dict) -> str:
+        from ft.domain.record_type import default_cash_record_subtype, validate_cash_record_subtype
+
         if account_type not in {"cash", "loan", "lend"}:
             raise ValueError("cashflow repository only supports cash, loan, and lend records")
         normalized = {field: row.get(field, "") for field in CASH_CSV_FIELDS}
@@ -308,6 +311,11 @@ class RelationalCashflowRepository:
         payload = row.get("source_payload")
         if payload is not None and not isinstance(payload, dict):
             payload = dict(payload) if payload else None
+        record_type = str(row.get("record_type") or normalized.get("record_type") or "other")
+        record_subtype = str(row.get("record_subtype") or normalized.get("record_subtype") or "")
+        if not record_subtype:
+            record_subtype = default_cash_record_subtype(record_type)
+        validate_cash_record_subtype(record_type, record_subtype)
         model = CashTransactionModel(
             workspace_id=self._workspace_id,
             account_id=account.id,
@@ -321,7 +329,8 @@ class RelationalCashflowRepository:
             counterparty_account=str(normalized["counterparty_account"] or ""),
             note=str(normalized["note"] or ""),
             category=str(normalized["category"] or ""),
-            record_type=str(row.get("record_type") or normalized.get("record_type") or "other"),
+            record_type=record_type,
+            record_subtype=record_subtype,
         )
         self._session.add(model)
         self._session.flush()
@@ -344,6 +353,7 @@ class RelationalCashflowRepository:
             "note": row.note,
             "category": row.category,
             "record_type": row.record_type,
+            "record_subtype": row.record_subtype,
             "account_name": account.name,
             "account_id": account.id,
             "account_type": account.type,

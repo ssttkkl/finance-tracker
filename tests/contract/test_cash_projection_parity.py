@@ -104,7 +104,7 @@ def test_transfer_pair_endpoint_invariants_are_identical_on_both_backends(
 
 @pytest.mark.parametrize(
     "subtype",
-    ["ordinary_transfer", "credit_repayment", "currency_exchange", "bank_security_transfer"],
+    ["ordinary_transfer", "cross_currency_remittance", "credit_repayment", "currency_exchange", "bank_security_transfer"],
 )
 def test_cross_currency_transfer_pair_is_visible_on_both_backends(
     cash_web_runtime,
