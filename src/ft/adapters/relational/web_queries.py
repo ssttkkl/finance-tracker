@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from ft.adapters.relational.dialect import RelationalEngineError
-from ft.adapters.relational.models import AccountModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionModel, TransactionRelationModel
+from ft.adapters.relational.models import AccountModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionModel, TransactionRelationModel
 from ft.adapters.relational.runtime import StorageError, storage_error
 from ft.application.web_queries import SHANGHAI, CashAccountDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionUnavailableError, ProjectionUpdatedError, shanghai_bounds
 
@@ -26,6 +26,30 @@ def _safe_snapshot(payload):
         and isinstance(value, (str, int, float, bool))
         and len(str(value)) <= 160
     }
+
+
+_FUNDING_MATCH_KEYS = ["amount", "currency", "direction", "business_day"]
+_FUNDING_CASH_RECORD_TYPES = frozenset({
+    "investment_in", "investment_out", "transfer_in", "transfer_out",
+})
+
+
+def _safe_funding_evidence(payload):
+    if not isinstance(payload, dict):
+        return {}
+    result = {}
+    window = payload.get("business_day_window")
+    if type(window) is int and 0 <= window <= 7:
+        result["business_day_window"] = window
+    candidate_count = payload.get("candidate_count")
+    if type(candidate_count) is int and 1 <= candidate_count <= 100_000:
+        result["candidate_count"] = candidate_count
+    record_type = payload.get("cash_record_type")
+    if record_type in _FUNDING_CASH_RECORD_TYPES:
+        result["cash_record_type"] = record_type
+    if payload.get("match_keys") == _FUNDING_MATCH_KEYS:
+        result["match_keys"] = list(_FUNDING_MATCH_KEYS)
+    return result
 
 
 def _record_summary(row, account):
@@ -339,6 +363,23 @@ class RelationalCashLedgerQueryRepository:
                 if any(relation.kind == "transfer_pair" for relation in rels)
                 else None
             )
+            funding_relation = None
+            if row.funding_relation_id is not None:
+                relation = s.scalar(select(CashInvestmentFundingRelationModel).where(
+                    CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
+                    CashInvestmentFundingRelationModel.id == row.funding_relation_id,
+                    CashInvestmentFundingRelationModel.status == "accepted",
+                    CashInvestmentFundingRelationModel.active_slot == "active",
+                ))
+                if relation is not None:
+                    funding_relation = {
+                        "id": str(relation.id),
+                        "investment_event_id": str(relation.investment_event_id),
+                        "direction": relation.direction,
+                        "status": relation.status,
+                        "rule_id": relation.rule_id,
+                        "evidence": _safe_funding_evidence(relation.evidence),
+                    }
             return {
                 "projection_version": state.projection_version,
                 "projection": self._dto(row, account, rels, source_types, transfer),
@@ -368,4 +409,5 @@ class RelationalCashLedgerQueryRepository:
                     {"record_id": cash.record_id, "occurred_at": cash.occurred_at.isoformat(), "amount": _amount(cash.amount), "currency": cash.currency, "source_type": cash.source_type}
                     for member, cash, _ in members if "refund" in member.roles_json
                 ],
+                "funding_relation": funding_relation,
             }

@@ -152,6 +152,17 @@
 - **AND** 仅关系投影显示与列表一致的「关系投影」
 - **AND** 收支详情不显示审计信息
 
+### Requirement: 已确认外部出入金不计入收支
+系统 MUST 将已确认的现金—投资资金调拨关系对应的收支账户现金流水投影为 `internal_transfer(bank_security_transfer)`，其净额 MUST 为精确十进制 `0`，不得计入消费、收入或月度汇总。未确认、被拒绝或已取代的资金调拨关系不得改变现金流水的既有投影。
+
+#### Scenario: 确认收支账户向投资账户入金
+- **WHEN** 一条收支账户转出流水与一条 `deposit(external_funding)` 投资事件的资金调拨关系被确认
+- **THEN** 收支账本将该现金流水显示为银证转账而非消费，且证据详情能追溯两端账本记录和已采用关系
+
+#### Scenario: 驳回资金调拨候选
+- **WHEN** 使用者驳回一条待审核的现金—投资资金调拨关系
+- **THEN** 收支账户现金流水保持其驳回前的单源或既有关系投影，且不得从消费或收入汇总中移除
+
 ## Source
 完整迁移来源与原始验证证据：[020-cash-ledger-browser-web/spec.md](../../changes/020-cash-ledger-browser-web/legacy/020-cash-ledger-browser-web/spec.md)。
 本文件是 OpenSpec 的行为导向投影；实现细节、研究记录和历史任务保留在对应 change 的 `legacy/` 目录。

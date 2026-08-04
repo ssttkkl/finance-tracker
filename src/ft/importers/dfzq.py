@@ -559,7 +559,7 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
         # BUY → SWAP (cash → ticker).
         # cash_leg + commission == amount_abs (total cash out).
         event.update({
-            "action": "swap",
+            "record_type": "swap", "record_subtype": "not_applicable",
             "from_ticker": cash_ticker,
             "from_amount": format(cash_leg, "f"),
             "to_ticker": ticker,
@@ -574,7 +574,7 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
         # Projection does to_amount - commission when commission_asset == cash;
         # so to_amount = net + commission, commission = fee → cash in = net.
         event.update({
-            "action": "swap",
+            "record_type": "swap", "record_subtype": "not_applicable",
             "from_ticker": ticker,
             "from_amount": format(shares_abs, "f"),
             "to_ticker": cash_ticker,
@@ -586,7 +586,7 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
 
     elif action == "DEPOSIT":
         event.update({
-            "action": "deposit",
+            "record_type": "deposit", "record_subtype": "external_funding",
             "to_ticker": cash_ticker,
             "to_amount": format(amount_abs, "f"),
             "from_ticker": "",
@@ -598,7 +598,7 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
 
     elif action == "WITHDRAW":
         event.update({
-            "action": "withdraw",
+            "record_type": "withdraw", "record_subtype": "external_funding",
             "from_ticker": cash_ticker,
             "from_amount": format(amount_abs, "f"),
             "to_ticker": "",
@@ -613,7 +613,7 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
         if ticker:
             # Stock dividend (送股/转增)
             event.update({
-                "action": "dividend",
+                "record_type": "dividend", "record_subtype": "not_applicable",
                 "from_ticker": ticker,
                 "to_ticker": ticker,
                 "to_amount": format(shares_abs, "f"),
@@ -625,7 +625,7 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
         else:
             # Cash dividend (红利入账)
             event.update({
-                "action": "dividend",
+                "record_type": "dividend", "record_subtype": "not_applicable",
                 "from_ticker": txn.get("name", ""),
                 "to_ticker": cash_ticker,
                 "to_amount": format(amount_abs, "f"),
@@ -641,7 +641,7 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
         # Position checkin: ticker set, shares=qty, price=avg cost (cost basis).
         if ticker:
             event.update({
-                "action": "checkin",
+                "record_type": "checkin", "record_subtype": "not_applicable",
                 "from_ticker": "",
                 "to_ticker": ticker,
                 "to_amount": format(shares_abs, "f"),
@@ -652,7 +652,7 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
             })
         else:
             event.update({
-                "action": "checkin",
+                "record_type": "checkin", "record_subtype": "not_applicable",
                 "from_ticker": "",
                 "to_ticker": cash_ticker,
                 "to_amount": format(amount_abs, "f"),

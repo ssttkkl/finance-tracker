@@ -29,6 +29,8 @@ def test_repository_has_clean_linear_revisions():
         "20260803_18_open_leg_candidate_fact_ids.py",
         "20260804_19_cash_record_subtype.py",
         "20260804_20_rename_icbc_asia_source_type.py",
+        "20260804_21_investment_record_type.py",
+        "20260804_22_cash_investment_funding_relations.py",
     ]
 
 
@@ -509,7 +511,8 @@ def test_initial_revision_upgrades_dedicated_postgresql():
             assert any(column["name"] == "note" for column in columns)
             assert not any(column["name"] == "description" for column in columns)
             inv_cols = {c["name"] for c in inspect(engine).get_columns("investment_events")}
-            assert "action" in inv_cols and "kind" not in inv_cols
+            assert {"record_type", "record_subtype"} <= inv_cols
+            assert "action" not in inv_cols and "kind" not in inv_cols
             assert {"from_ticker", "to_ticker", "from_amount", "to_amount", "commission", "commission_asset", "note", "source_type", "record_id", "source_payload"} <= inv_cols
             assert "price" not in inv_cols
             cash_cols = {c["name"] for c in columns}
@@ -528,7 +531,8 @@ def test_initial_revision_upgrades_dedicated_postgresql():
             tables_again = set(inspect(engine).get_table_names())
             assert "cash_transactions" in tables_again and "investment_events" in tables_again
             inv_cols_again = {c["name"] for c in inspect(engine).get_columns("investment_events")}
-            assert "action" in inv_cols_again and "kind" not in inv_cols_again
+            assert {"record_type", "record_subtype"} <= inv_cols_again
+            assert "action" not in inv_cols_again and "kind" not in inv_cols_again
         finally:
             engine.dispose()
     finally:

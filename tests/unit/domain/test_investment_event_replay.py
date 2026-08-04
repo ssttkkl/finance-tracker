@@ -11,16 +11,16 @@ from ft.domain.investment_projection import apply_investment_event
 def test_cash_to_cash_swap_keeps_each_fiat_pocket_in_its_native_cost_currency():
     snapshot = {"accounts": {"security": {"盈立证券": {"currency": "USD", "positions": {}}}}}
     apply_investment_event(snapshot, {
-        "date": "2026-06-01", "action": "deposit", "account_name": "盈立证券",
+        "date": "2026-06-01", "record_type": "deposit", "account_name": "盈立证券",
         "currency": "HKD", "to_ticker": "hkd", "to_amount": "5181.74",
     }, default_currency="USD")
     apply_investment_event(snapshot, {
-        "date": "2026-06-16", "action": "swap", "account_name": "盈立证券",
+        "date": "2026-06-16", "record_type": "swap", "account_name": "盈立证券",
         "currency": "HKD", "from_ticker": "hkd", "from_amount": "3161.18",
         "to_ticker": "usd", "to_amount": "402.32", "commission": "0",
     }, default_currency="USD")
     apply_investment_event(snapshot, {
-        "date": "2026-06-17", "action": "deposit", "account_name": "盈立证券",
+        "date": "2026-06-17", "record_type": "deposit", "account_name": "盈立证券",
         "currency": "USD", "to_ticker": "usd", "to_amount": "10",
     }, default_currency="USD")
 
@@ -50,7 +50,7 @@ def test_swap_buy_cash_to_ticker():
 
     event = {
         "date": "2026-06-12 00:00:00",
-        "action": "swap",
+        "record_type": "swap",
         "account_name": "broker",
         "from_ticker": "cny",
         "from_amount": "1251.00",
@@ -90,7 +90,7 @@ def test_swap_sell_ticker_to_cash():
 
     event = {
         "date": "2026-06-15 00:00:00",
-        "action": "swap",
+        "record_type": "swap",
         "account_name": "broker",
         "from_ticker": "600000.sh",
         "from_amount": "50",
@@ -130,7 +130,7 @@ def test_swap_crypto_to_crypto():
 
     event = {
         "date": "2026-06-20 00:00:00",
-        "action": "swap",
+        "record_type": "swap",
         "account_name": "binance",
         "from_ticker": "btc",
         "from_amount": "0.05",
@@ -169,7 +169,7 @@ def test_swap_with_third_party_commission():
 
     event = {
         "date": "2026-06-20 00:00:00",
-        "action": "swap",
+        "record_type": "swap",
         "account_name": "binance",
         "from_ticker": "usdt",
         "from_amount": "5000.00",
@@ -209,7 +209,7 @@ def test_deposit_increases_cash():
 
     event = {
         "date": "2026-06-10 00:00:00",
-        "action": "deposit",
+        "record_type": "deposit",
         "account_name": "broker",
         "to_ticker": "cny",
         "to_amount": "10000.00",
@@ -240,7 +240,7 @@ def test_withdraw_decreases_cash():
 
     event = {
         "date": "2026-06-15 00:00:00",
-        "action": "withdraw",
+        "record_type": "withdraw",
         "account_name": "broker",
         "from_ticker": "cny",
         "from_amount": "5000.00",
@@ -272,7 +272,7 @@ def test_dividend_increases_cash_no_cost():
 
     event = {
         "date": "2026-06-20 00:00:00",
-        "action": "dividend",
+        "record_type": "dividend",
         "account_name": "broker",
         "from_ticker": "600000.sh",  # Source for audit
         "to_ticker": "cny",
@@ -308,7 +308,7 @@ def test_checkin_replaces_position():
 
     event = {
         "date": "2026-06-30 00:00:00",
-        "action": "checkin",
+        "record_type": "checkin",
         "account_name": "broker",
         "to_ticker": "600000.sh",
         "to_amount": "100",
@@ -341,7 +341,7 @@ def test_checkin_cash():
 
     event = {
         "date": "2026-06-30 00:00:00",
-        "action": "checkin",
+        "record_type": "checkin",
         "account_name": "broker",
         "to_ticker": "cny",
         "to_amount": "9000.00",
@@ -362,7 +362,7 @@ def test_event_creates_account_if_missing():
 
     event = {
         "date": "2026-06-12 00:00:00",
-        "action": "deposit",
+        "record_type": "deposit",
         "account_name": "new_broker",
         "to_ticker": "usd",
         "to_amount": "1000.00",
@@ -394,7 +394,7 @@ def test_swap_allows_sell_without_prior_position():
 
     event = {
         "date": "2026-06-15 00:00:00",
-        "action": "swap",
+        "record_type": "swap",
         "account_name": "broker",
         "from_ticker": "600000.sh",
         "from_amount": "100",  # More than available
@@ -414,7 +414,7 @@ def test_swap_zero_shares_and_zero_cost_edge():
     snapshot = {"accounts": {}}
     event = {
         "date": "2026-01-01 00:00:00",
-        "action": "swap",
+        "record_type": "swap",
         "account_name": "broker",
         "from_ticker": "cny",
         "from_amount": "0",
@@ -435,7 +435,7 @@ def test_deposit_creates_missing_cash_position():
         snapshot,
         {
             "date": "2026-01-01 00:00:00",
-            "action": "deposit",
+            "record_type": "deposit",
             "account_name": "broker",
             "to_ticker": "usd",
             "to_amount": "100",
@@ -451,7 +451,7 @@ def test_transfer_is_auditable_noop_for_positions():
         "usd": {"shares": "100", "total_cost": "100", "cost_currency": "USD"},
     }}}}}
     apply_investment_event(snapshot, {
-        "date": "2026-07-26", "action": "transfer", "account_name": "exchange",
+        "date": "2026-07-26", "record_type": "transfer", "account_name": "exchange",
         "from_ticker": "usd", "from_amount": "20", "currency": "USD",
     }, default_currency="USD")
     assert snapshot["accounts"]["security"]["exchange"]["positions"]["usd"]["shares"] == "100"

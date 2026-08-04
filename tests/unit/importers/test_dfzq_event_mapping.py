@@ -56,7 +56,7 @@ def test_map_dfzq_buy_to_swap():
 
     event = map_dfzq_to_investment_event(txn, account_name="东方证券", currency="CNY")
 
-    assert event["action"] == "swap"
+    assert event["record_type"] == "swap"
     assert event["from_ticker"] == "cny"
     assert event["from_amount"] == "1250.00"  # net - fee
     assert event["to_ticker"] == "600000.sh"
@@ -84,7 +84,7 @@ def test_map_dfzq_sell_to_swap():
 
     event = map_dfzq_to_investment_event(txn, account_name="东方证券", currency="CNY")
 
-    assert event["action"] == "swap"
+    assert event["record_type"] == "swap"
     assert event["from_ticker"] == "600000.sh"
     assert event["from_amount"] == "50"
     assert event["to_ticker"] == "cny"
@@ -143,7 +143,7 @@ def test_map_dfzq_deposit():
 
     event = map_dfzq_to_investment_event(txn, account_name="东方证券", currency="CNY")
 
-    assert event["action"] == "deposit"
+    assert (event["record_type"], event["record_subtype"]) == ("deposit", "external_funding")
     assert event["to_ticker"] == "cny"
     assert event["to_amount"] == "10000.00"
 
@@ -165,7 +165,7 @@ def test_map_dfzq_cash_dividend():
 
     event = map_dfzq_to_investment_event(txn, account_name="东方证券", currency="CNY")
 
-    assert event["action"] == "dividend"
+    assert event["record_type"] == "dividend"
     assert event["to_ticker"] == "cny"
     assert event["to_amount"] == "50.00"
     assert event["from_ticker"] == "600000.sh"  # Source for audit
@@ -187,7 +187,7 @@ def test_map_dfzq_stock_dividend():
 
     event = map_dfzq_to_investment_event(txn, account_name="东方证券", currency="CNY")
 
-    assert event["action"] == "dividend"
+    assert event["record_type"] == "dividend"
     assert event["to_ticker"] == "600000.sh"
     assert event["to_amount"] == "10"
     assert event["from_ticker"] == "600000.sh"
@@ -209,7 +209,7 @@ def test_map_dfzq_checkin():
 
     event = map_dfzq_to_investment_event(txn, account_name="东方证券", currency="CNY")
 
-    assert event["action"] == "checkin"
+    assert event["record_type"] == "checkin"
     assert event["to_ticker"] == "cny"
     assert event["to_amount"] == "9447.30"
 
@@ -226,9 +226,9 @@ def test_map_dfzq_integration_with_parser():
     ]
 
     assert len(events) == 6
-    assert events[0]["action"] == "deposit"
-    assert events[1]["action"] == "swap"
-    assert events[2]["action"] == "swap"
-    assert events[3]["action"] == "dividend"
-    assert events[4]["action"] == "dividend"
-    assert events[5]["action"] == "checkin"
+    assert events[0]["record_type"] == "deposit"
+    assert events[1]["record_type"] == "swap"
+    assert events[2]["record_type"] == "swap"
+    assert events[3]["record_type"] == "dividend"
+    assert events[4]["record_type"] == "dividend"
+    assert events[5]["record_type"] == "checkin"

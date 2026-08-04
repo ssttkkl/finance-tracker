@@ -13,6 +13,7 @@ class ServiceBundle:
     transfers: Any = None
     statement_import: Any = None
     relations: Any = None
+    funding_relations: Any = None
     wealth: Any = None
     uow: Any = None
     notices: tuple[str, ...] = ()

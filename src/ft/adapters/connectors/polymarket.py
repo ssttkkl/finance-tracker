@@ -248,7 +248,7 @@ class PolymarketConnector:
         units = self._parse_hex_int(self._rpc("eth_call", [call, hex(latest)]), "pUSD balance")
         amount = Decimal(units) / (Decimal(10) ** PUSD_DECIMALS)
         return {
-            "action": "checkin", "account": "", "currency": "USD",
+            "record_type": "checkin", "record_subtype": "not_applicable", "account": "", "currency": "USD",
             "occurred_at": datetime.fromtimestamp(timestamp, tz=timezone.utc),
             "from_ticker": "", "from_amount": "0", "to_ticker": "usd",
             "to_amount": _format_decimal(amount), "commission": "0", "commission_asset": "",
@@ -410,7 +410,8 @@ class PolymarketConnector:
             to_amount = usdc_size
 
         return {
-            "action": "swap",
+            "record_type": "swap",
+            "record_subtype": "not_applicable",
             "account": "",
             "currency": "USD",
             "occurred_at": occurred_at,
@@ -462,7 +463,8 @@ class PolymarketConnector:
         occurred_at, timestamp = self._occurred_at(activity, "REDEEM")
         pm_ticker = f"pm:{slug}:{outcome}"
         return {
-            "action": "swap",
+            "record_type": "swap",
+            "record_subtype": "not_applicable",
             "account": "",
             "currency": "USD",
             "occurred_at": occurred_at,
@@ -483,7 +485,8 @@ class PolymarketConnector:
         tx_hash = self._transaction_hash(activity, "YIELD")
         occurred_at, timestamp = self._occurred_at(activity, "YIELD")
         return {
-            "action": "dividend",
+            "record_type": "dividend",
+            "record_subtype": "not_applicable",
             "account": "",
             "currency": "USD",
             "occurred_at": occurred_at,

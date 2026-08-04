@@ -47,11 +47,11 @@ def test_dfzq_import_full_flow(tmp_path):
         assert all(e.get("source_type") == "dfzq_pdf" for e in events)
         assert all(str(e.get("record_id") or "").startswith("dfzq:") for e in events)
 
-        actions = [e["action"] for e in events]
-        assert actions.count("deposit") == 1
-        assert actions.count("swap") == 2
-        assert actions.count("dividend") == 2
-        assert actions.count("checkin") == 1
+        record_types = [e["record_type"] for e in events]
+        assert record_types.count("deposit") == 1
+        assert record_types.count("swap") == 2
+        assert record_types.count("dividend") == 2
+        assert record_types.count("checkin") == 1
 
         positions = snapshot["accounts"]["security"]["东方证券"]["positions"]
         assert Decimal(positions["cny"]["shares"]) == Decimal("9447.30")

@@ -275,7 +275,7 @@ def map_ibkr_to_investment_event(
         price = abs(Decimal(str(txn.get("price") or 0)))
         return {
             **base,
-            "action": "swap",
+            "record_type": "swap", "record_subtype": "not_applicable",
             "from_ticker": cash,
             "from_amount": _fmt(gross_abs),
             "to_ticker": code,
@@ -293,7 +293,7 @@ def map_ibkr_to_investment_event(
         price = abs(Decimal(str(txn.get("price") or 0)))
         return {
             **base,
-            "action": "swap",
+            "record_type": "swap", "record_subtype": "not_applicable",
             "from_ticker": code,
             "from_amount": _fmt(qty_abs),
             "to_ticker": cash,
@@ -307,7 +307,7 @@ def map_ibkr_to_investment_event(
         net_abs = abs(Decimal(str(txn.get("net") or 0)))
         return {
             **base,
-            "action": "deposit",
+            "record_type": "deposit", "record_subtype": "external_funding",
             "to_ticker": cash,
             "to_amount": _fmt(net_abs),
             "from_ticker": "",
@@ -322,7 +322,7 @@ def map_ibkr_to_investment_event(
         code = _equity_code(txn)
         return {
             **base,
-            "action": "dividend",
+            "record_type": "dividend", "record_subtype": "not_applicable",
             "from_ticker": code,
             "to_ticker": cash,
             "to_amount": _fmt(net_abs),
@@ -336,7 +336,7 @@ def map_ibkr_to_investment_event(
         net_abs = abs(Decimal(str(txn.get("net") or 0)))
         return {
             **base,
-            "action": "withdraw",
+            "record_type": "fee", "record_subtype": "tax" if action == "外国预扣税" else "interest",
             "from_ticker": cash,
             "from_amount": _fmt(net_abs),
             "to_ticker": "",
@@ -353,7 +353,7 @@ def map_ibkr_to_investment_event(
         amount = abs(Decimal(str(txn.get("amount") or txn.get("net") or 0)))
         return {
             **base,
-            "action": "checkin",
+            "record_type": "checkin", "record_subtype": "not_applicable",
             "from_ticker": "",
             "to_ticker": cash,
             "to_amount": _fmt(amount),
@@ -367,7 +367,7 @@ def map_ibkr_to_investment_event(
 
 
 def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
-    """Map 外汇交易组成部分 to a net cash adjustment.
+    """Map 外汇交易组成部分 to a non-funding net cash adjustment.
 
     IBKR FX rows report the **net cash impact** in 净额/总额 (usually a tiny
     spread / P&L amount), NOT the full notional sides. The full notional is only
@@ -375,8 +375,8 @@ def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
     count the currency movement that is already captured elsewhere (e.g. the
     deposit that funded the conversion).
 
-    Correct mapping: treat 净额 as a deposit (positive) or withdraw (negative)
-    on the account's base cash ticker. Commission goes to note when 净额==总额.
+    The net amount changes the account's base cash ticker but is never funding.
+    Commission goes to note when 净额==总额.
     """
     code = (txn.get("code") or "").strip()
     net = Decimal(str(txn.get("net") or 0))
@@ -397,11 +397,11 @@ def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
     cash = (base.get("currency") or "USD").lower()
 
     if net_abs == 0:
-        # Zero net impact — skip as deposit 0 (harmless but clean).
+        # Zero net impact remains an auditable, non-funding adjustment.
         return {
             **base,
             "note": note or f"FX {code} zero net",
-            "action": "deposit",
+            "record_type": "fx_adjustment", "record_subtype": "net_cash_adjustment",
             "to_ticker": cash,
             "to_amount": "0",
             "from_ticker": "",
@@ -415,7 +415,7 @@ def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
         return {
             **base,
             "note": note or f"FX {code}",
-            "action": "deposit",
+            "record_type": "fx_adjustment", "record_subtype": "net_cash_adjustment",
             "to_ticker": cash,
             "to_amount": _fmt(net_abs),
             "from_ticker": "",
@@ -428,7 +428,7 @@ def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
         return {
             **base,
             "note": note or f"FX {code}",
-            "action": "withdraw",
+            "record_type": "fx_adjustment", "record_subtype": "net_cash_adjustment",
             "from_ticker": cash,
             "from_amount": _fmt(net_abs),
             "to_ticker": "",

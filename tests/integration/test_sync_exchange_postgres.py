@@ -112,10 +112,10 @@ class TestExchangeSyncPostgres:
         at = datetime(2026, 7, 26, tzinfo=timezone.utc)
         common = {"commission": "0", "commission_asset": "", "occurred_at": at, "source_payload": {}}
         events = [
-            dict(common, action="deposit", from_ticker="", from_amount="0", to_ticker="usd", to_amount="100", record_id="dep"),
-            dict(common, action="dividend", from_ticker="", from_amount="0", to_ticker="usd", to_amount="10", record_id="reward"),
-            dict(common, action="fee", from_ticker="usd", from_amount="1", to_ticker="", to_amount="0", record_id="reward:fee"),
-            dict(common, action="transfer", from_ticker="usd", from_amount="50", to_ticker="", to_amount="0", record_id="move"),
+            dict(common, record_type="deposit", from_ticker="", from_amount="0", to_ticker="usd", to_amount="100", record_id="dep"),
+            dict(common, record_type="dividend", from_ticker="", from_amount="0", to_ticker="usd", to_amount="10", record_id="reward"),
+            dict(common, record_type="fee", from_ticker="usd", from_amount="1", to_ticker="", to_amount="0", record_id="reward:fee"),
+            dict(common, record_type="transfer", from_ticker="usd", from_amount="50", to_ticker="", to_amount="0", record_id="move"),
         ]
         class LedgerConnector:
             source_type = "binance_api"

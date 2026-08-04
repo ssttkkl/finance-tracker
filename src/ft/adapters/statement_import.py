@@ -130,32 +130,32 @@ def _dfzq_rows(records, command):
         }
         if action == "BUY":
             amount = abs(Decimal(str(record["amount"])))
-            row = {**common, "action": "swap", "from_ticker": currency.lower(),
+            row = {**common, "record_type": "swap", "record_subtype": "not_applicable", "from_ticker": currency.lower(),
                    "to_ticker": record["ticker"], "from_amount": amount,
                    "to_amount": record["shares"], "price": record["price"],
                    "commission": record["fee"], "commission_asset": currency.lower()}
         elif action == "SELL":
             amount = abs(Decimal(str(record["amount"])))
-            row = {**common, "action": "swap", "from_ticker": record["ticker"],
+            row = {**common, "record_type": "swap", "record_subtype": "not_applicable", "from_ticker": record["ticker"],
                    "to_ticker": currency.lower(), "from_amount": record["shares"],
                    "to_amount": amount, "price": record["price"],
                    "commission": record["fee"], "commission_asset": currency.lower()}
         elif action == "DIVIDEND":
             ticker = record.get("ticker", "")
-            row = {**common, "action": "dividend", "from_ticker": ticker,
+            row = {**common, "record_type": "dividend", "record_subtype": "not_applicable", "from_ticker": ticker,
                    "to_ticker": ticker or currency.lower(), "from_amount": "0",
                    "to_amount": record["shares"] if ticker else abs(Decimal(str(record["amount"]))),
                    "price": "0" if ticker else "1"}
         elif action in {"DEPOSIT", "WITHDRAW"}:
             incoming = action == "DEPOSIT"
             amount = abs(Decimal(str(record["amount"])))
-            row = {**common, "action": action.lower(),
+            row = {**common, "record_type": action.lower(), "record_subtype": "external_funding",
                    "from_ticker": "" if incoming else currency.lower(),
                    "to_ticker": currency.lower() if incoming else "",
                    "from_amount": "0" if incoming else amount,
                    "to_amount": amount if incoming else "0", "price": "1"}
         elif action == "CHECKIN":
-            row = {**common, "action": "checkin", "from_ticker": currency.lower(),
+            row = {**common, "record_type": "checkin", "record_subtype": "not_applicable", "from_ticker": currency.lower(),
                    "to_ticker": "", "from_amount": "0",
                    "to_amount": abs(Decimal(str(record["amount"]))), "price": "1"}
         else:

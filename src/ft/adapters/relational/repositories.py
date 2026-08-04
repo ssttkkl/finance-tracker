@@ -372,7 +372,7 @@ class RelationalInvestmentRepository:
         self._workspace_id = workspace_id
 
     _INVESTMENT_CORE_KEYS = frozenset({
-        "action", "kind", "date", "occurred_at", "currency", "note",
+        "record_type", "record_subtype", "date", "occurred_at", "currency", "note",
         "from_ticker", "from_amount", "to_ticker", "to_amount",
         "price", "commission", "commission_asset", "amount", "ticker",
         "shares", "quantity", "account_name", "source_type", "record_id",
@@ -395,7 +395,8 @@ class RelationalInvestmentRepository:
                 "occurred_at": _format_timestamp(row.occurred_at),
                 "date": _format_timestamp(row.occurred_at),  # projection still keys on date
                 "account_name": account.name,
-                "action": row.action,
+                "record_type": row.record_type,
+                "record_subtype": row.record_subtype,
                 "currency": row.currency,
                 "note": row.note or "",
                 "from_ticker": row.from_ticker or "",
@@ -432,9 +433,12 @@ class RelationalInvestmentRepository:
         currency = data.get("currency") or ""
         if currency:
             currency = _validate_currency(currency)
-        action = str(data.get("action") or "").strip()
-        if not action:
-            raise ValueError("investment event action is required")
+        from ft.domain.investment_record_type import normalize_investment_record_semantics
+
+        record_type, record_subtype = normalize_investment_record_semantics(
+            data.get("record_type") or "",
+            data.get("record_subtype"),
+        )
         time_raw = data.get("occurred_at") or data.get("date") or ""
         note = str(data.get("note") or "")
         def _amt(key):
@@ -469,7 +473,8 @@ class RelationalInvestmentRepository:
             record_id=str(data.get("record_id") or ""),
             source_payload=sp,
             occurred_at=_parse_timestamp(str(time_raw)),
-            action=action,
+            record_type=record_type,
+            record_subtype=record_subtype,
             currency=str(currency or ""),
             note=note,
             from_ticker=str(data.get("from_ticker") or "").lower(),

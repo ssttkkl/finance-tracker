@@ -37,7 +37,7 @@ class FakeConnector:
 
 def _make_event(record_id="t1", ticker="eth"):
     return {
-        "action": "swap",
+        "record_type": "swap",
         "account": "",
         "currency": "USD",
         "occurred_at": datetime(2024, 1, 1, tzinfo=timezone.utc),

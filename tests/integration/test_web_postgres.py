@@ -29,7 +29,7 @@ def test_postgres_cash_contract_ignores_investment_relation_endpoint_id_collisio
         session.add(InvestmentEventModel(
             id=1003, workspace_id=postgres_cash_web_runtime.workspace_id, account_id=103,
             occurred_at=datetime(2026, 7, 3, 9, tzinfo=ZoneInfo("Asia/Shanghai")),
-            action="buy", currency="CNY", payload={}, record_id="investment-1003",
+            record_type="buy", record_subtype="not_applicable", currency="CNY", payload={}, record_id="investment-1003",
         ))
 
         session.add(TransactionRelationModel(

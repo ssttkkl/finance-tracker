@@ -11,6 +11,7 @@ from ft.adapters.fx_rates import FxRateProvider
 from ft.adapters.market_data import CompositeQuoteProvider, MarketDataProvider
 from ft.application.accounts import AccountService
 from ft.application.cashflow import CashflowService, TransferService
+from ft.application.cash_investment_funding_relations import CashInvestmentFundingRelationService
 from ft.application.investment import InvestmentService, PortfolioQueryService
 from ft.application.queries import FinanceQueryService
 from ft.application.statement_import import StatementImportService
@@ -35,7 +36,7 @@ from .investments import RelationalInvestmentCommandRepository
 from ft.adapters.statement_import import StatementParser
 
 
-SCHEMA_REVISION = "20260804_20"
+SCHEMA_REVISION = "20260804_22"
 REQUIRED_TABLES = {
     "workspaces", "accounts", "cash_transactions", "investment_events",
     "ledger_snapshots",
@@ -48,6 +49,7 @@ REQUIRED_TABLES = {
     "sync_cursors",
     "cash_projection_states", "cash_projection_datasets", "cash_projections",
     "cash_projection_members", "cash_projection_relations",
+    "cash_investment_funding_relations",
 }
 
 
@@ -185,7 +187,7 @@ def build_relational_services(settings) -> ServiceBundle:
                 return raw
 
             for value in investments:
-                kind = value.action.lower()
+                kind = value.record_type.lower()
                 if kind not in {"buy", "sell", "swap"}:
                     continue
                 position = _investment_position(value)
@@ -294,7 +296,7 @@ def build_relational_services(settings) -> ServiceBundle:
             dietz_funding_by_day_currency: dict[tuple[date, str], list[tuple[Decimal, Decimal]]] = {}
             for value in investments:
                 occurred = local_day(value.occurred_at)
-                kind = value.action.lower()
+                kind = value.record_type.lower()
                 if kind not in {"dividend", "deposit", "withdraw", "buy", "sell", "swap", "fee"}:
                     unsupported_by_day.add(occurred)
                     continue
@@ -764,6 +766,7 @@ def build_relational_services(settings) -> ServiceBundle:
             ) for kind, amount in zip(ComponentKind, amounts, strict=True))
 
     relations = relations_preview
+    funding_relations = CashInvestmentFundingRelationService(sessions, settings.workspace_id)
     return ServiceBundle(
         queries=queries,
         portfolio=PortfolioQueryService(
@@ -776,6 +779,7 @@ def build_relational_services(settings) -> ServiceBundle:
         ),
         statement_import=StatementImportService(uow, StatementParser(), relation_service=relations),
         relations=relations,
+        funding_relations=funding_relations,
         wealth=WealthChangeService(WealthRuntime()),
         accounts=AccountService(uow),
         cashflow=CashflowService(uow),

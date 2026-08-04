@@ -64,6 +64,70 @@ def test_evidence_only_exposes_cash_inactive_relation_hints(cash_web_runtime):
     assert hint["secondary_record"]["id"] == "1002"
 
 
+def test_evidence_exposes_only_whitelisted_funding_relation_fields(cash_web_runtime):
+    import json
+    from datetime import datetime
+    from decimal import Decimal
+    from zoneinfo import ZoneInfo
+
+    from ft.adapters.relational.models import CashTransactionModel, InvestmentEventModel
+    from ft.application.cash_investment_funding_relations import CashInvestmentFundingRelationService
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.web_queries import CashLedgerQueryService
+
+    with cash_web_runtime.sessions.begin() as session:
+        cash = session.get(CashTransactionModel, 1003)
+        cash.record_type = "investment_out"
+        cash.record_subtype = "not_applicable"
+        session.add(InvestmentEventModel(
+            workspace_id=cash_web_runtime.workspace_id,
+            account_id=103,
+            occurred_at=datetime(2026, 7, 3, 10, tzinfo=ZoneInfo("Asia/Shanghai")),
+            record_type="deposit",
+            record_subtype="external_funding",
+            currency="CNY",
+            note="原始备注不应出现在关系证据中",
+            from_ticker="",
+            from_amount=None,
+            to_ticker="cny",
+            to_amount=Decimal("12.50"),
+            commission=None,
+            commission_asset="",
+            payload={},
+            source_type="broker-statement",
+            record_id="investment-funding-evidence",
+            source_payload={"account": "sensitive-account", "memo": "sensitive-memo"},
+        ))
+
+    relation = CashInvestmentFundingRelationService(
+        cash_web_runtime.sessions, cash_web_runtime.workspace_id,
+    ).scan()[0]
+    assert relation["status"] == "accepted"
+    CashProjectionService(cash_web_runtime.sessions, cash_web_runtime.workspace_id).rebuild()
+
+    evidence = CashLedgerQueryService(
+        cash_web_runtime.sessions, cash_web_runtime.workspace_id,
+    ).get_projection_evidence("cash:1003")
+
+    assert evidence["projection"].transfer_subtype == "bank_security_transfer"
+    assert evidence["funding_relation"] == {
+        "id": str(relation["id"]),
+        "investment_event_id": str(relation["investment_event_id"]),
+        "direction": "cash_to_investment",
+        "status": "accepted",
+        "rule_id": "cash-investment-funding-v1",
+        "evidence": {
+            "business_day_window": 0,
+            "candidate_count": 1,
+            "cash_record_type": "investment_out",
+            "match_keys": ["amount", "currency", "direction", "business_day"],
+        },
+    }
+    payload = json.dumps(evidence, default=lambda value: value.__dict__, ensure_ascii=True)
+    assert "sensitive-account" not in payload
+    assert "sensitive-memo" not in payload
+
+
 def _query_evidence(runtime):
     from ft.application.cash_projections import CashProjectionService
     from ft.application.web_queries import CashLedgerQueryService

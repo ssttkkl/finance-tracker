@@ -238,6 +238,7 @@ class CashProjectionModel(Base):
         ForeignKeyConstraint(["dataset_id"], ["cash_projection_datasets.id"], ondelete="CASCADE", name="fk_cash_projections_dataset"),
         ForeignKeyConstraint(["workspace_id", "account_id"], ["accounts.workspace_id", "accounts.id"], ondelete="RESTRICT", name="fk_cash_projections_workspace_account"),
         ForeignKeyConstraint(["workspace_id", "root_cash_transaction_id"], ["cash_transactions.workspace_id", "cash_transactions.id"], ondelete="RESTRICT", name="fk_cash_projections_workspace_root"),
+        ForeignKeyConstraint(["workspace_id", "funding_relation_id"], ["cash_investment_funding_relations.workspace_id", "cash_investment_funding_relations.id"], ondelete="RESTRICT", name="fk_cash_projections_workspace_funding_relation"),
         UniqueConstraint("workspace_id", "dataset_id", "projection_id", name="uq_cash_projections_dataset_projection"),
         CheckConstraint("economic_type IN ('expense', 'income', 'internal_transfer')", name="ck_cash_projections_economic_type"),
         Index("ix_cash_projections_visible_list", "workspace_id", "dataset_id", "visible", "occurred_at", "projection_id"),
@@ -253,6 +254,7 @@ class CashProjectionModel(Base):
     dataset_id: Mapped[str] = mapped_column(String(64), nullable=False)
     projection_id: Mapped[str] = mapped_column(String(96), nullable=False)
     root_cash_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    funding_relation_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
     economic_type: Mapped[str] = mapped_column(String(24), nullable=False)
     transfer_subtype: Mapped[str | None] = mapped_column(String(32), nullable=True)
     net_amount: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
@@ -318,6 +320,21 @@ class CashProjectionRelationModel(Base):
 class InvestmentEventModel(Base):
     __tablename__ = "investment_events"
     __table_args__ = (
+        CheckConstraint(
+            "record_type IN ('swap', 'buy', 'sell', 'deposit', 'withdraw', 'dividend', 'fee', 'ipo', 'checkin', 'transfer', 'fx_adjustment', 'reward', 'withdrawal_reversal', 'cash_adjustment')",
+            name="ck_investment_events_record_type",
+        ),
+        CheckConstraint(
+            "(record_type IN ('deposit', 'withdraw') AND record_subtype IN ('external_funding', 'subaccount_transfer')) OR "
+            "(record_type = 'fee' AND record_subtype IN ('commission', 'interest', 'tax', 'handling_fee', 'fee_refund', 'interest_refund', 'tax_refund')) OR "
+            "(record_type = 'ipo' AND record_subtype IN ('subscription_debit', 'subscription_refund')) OR "
+            "(record_type = 'fx_adjustment' AND record_subtype = 'net_cash_adjustment') OR "
+            "(record_type = 'reward' AND record_subtype = 'cash_reward') OR "
+            "(record_type = 'withdrawal_reversal' AND record_subtype = 'withdrawal_refund') OR "
+            "(record_type = 'cash_adjustment' AND record_subtype = 'unclassified') OR "
+            "(record_type IN ('swap', 'buy', 'sell', 'dividend', 'checkin', 'transfer') AND record_subtype = 'not_applicable')",
+            name="ck_investment_events_record_type_subtype",
+        ),
         UniqueConstraint("workspace_id", "id", name="uq_investment_events_workspace_id"),
         ForeignKeyConstraint(
             ["workspace_id", "account_id"],
@@ -339,7 +356,8 @@ class InvestmentEventModel(Base):
     record_id: Mapped[str] = mapped_column(String(512), default="", nullable=False)
     source_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
-    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    record_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    record_subtype: Mapped[str] = mapped_column(String(32), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="", nullable=False)
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     from_ticker: Mapped[str] = mapped_column(String(64), default="", nullable=False)
@@ -350,6 +368,67 @@ class InvestmentEventModel(Base):
     commission_asset: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+
+
+class CashInvestmentFundingRelationModel(Base):
+    __tablename__ = "cash_investment_funding_relations"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_cash_investment_funding_relations_workspace_id"),
+        UniqueConstraint(
+            "workspace_id", "cash_transaction_id", "investment_event_id", "active_slot",
+            name="uq_cash_investment_funding_relations_active_pair",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "cash_transaction_id"],
+            ["cash_transactions.workspace_id", "cash_transactions.id"],
+            ondelete="RESTRICT",
+            name="fk_cash_investment_funding_relations_workspace_cash",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "investment_event_id"],
+            ["investment_events.workspace_id", "investment_events.id"],
+            ondelete="RESTRICT",
+            name="fk_cash_investment_funding_relations_workspace_investment",
+        ),
+        CheckConstraint(
+            "direction IN ('cash_to_investment', 'investment_to_cash')",
+            name="ck_cash_investment_funding_relations_direction",
+        ),
+        CheckConstraint(
+            "status IN ('pending_review', 'accepted', 'rejected')",
+            name="ck_cash_investment_funding_relations_status",
+        ),
+        Index("ix_cash_investment_funding_relations_workspace_status", "workspace_id", "status"),
+        Index(
+            "uq_cash_investment_funding_relations_accepted_cash",
+            "workspace_id", "cash_transaction_id",
+            unique=True,
+            sqlite_where=text("status = 'accepted' AND active_slot = 'active'"),
+            postgresql_where=text("status = 'accepted' AND active_slot = 'active'"),
+        ),
+        Index(
+            "uq_cash_investment_funding_relations_accepted_investment",
+            "workspace_id", "investment_event_id",
+            unique=True,
+            sqlite_where=text("status = 'accepted' AND active_slot = 'active'"),
+            postgresql_where=text("status = 'accepted' AND active_slot = 'active'"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    cash_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    investment_event_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    direction: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    rule_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    evidence: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    active_slot: Mapped[str] = mapped_column(String(36), default="active", nullable=False)
+    created_by: Mapped[str] = mapped_column(String(128), default="system", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+    decided_by: Mapped[str] = mapped_column(String(128), default="", nullable=False)
+    decided_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    decision_reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
 
 class LedgerSnapshotModel(Base):

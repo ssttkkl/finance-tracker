@@ -89,15 +89,15 @@ def _insert_golden_formal_fixture(sessions) -> None:
             # Direct external funding into the investment account (workspace external + portfolio Fi).
             InvestmentEventModel(
                 id=446365, workspace_id="wealth-golden", account_id=2, occurred_at=at(2, 10),
-                action="deposit", currency="USD", to_amount="1", payload={},
+                record_type="deposit", record_subtype="external_funding", currency="USD", to_amount="1", payload={},
             ),
             InvestmentEventModel(
                 id=3499926, workspace_id="wealth-golden", account_id=2, occurred_at=at(2, 12),
-                action="dividend", currency="USD", to_amount="1", payload={},
+                record_type="dividend", record_subtype="not_applicable", currency="USD", to_amount="1", payload={},
             ),
             InvestmentEventModel(
                 id=1933020, workspace_id="wealth-golden", account_id=2, occurred_at=at(3, 11),
-                action="buy", currency="USD", payload={"position": "broker:global-etf", "commission": "0.1"},
+                record_type="buy", record_subtype="not_applicable", currency="USD", payload={"position": "broker:global-etf", "commission": "0.1"},
             ),
         ))
         for day, cash, position, fx in (

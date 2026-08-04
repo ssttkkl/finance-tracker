@@ -122,18 +122,35 @@ def map_usmart_hk_to_investment_event(
         "date": txn["date"], "account_name": account_name, "currency": ccy,
         "note": txn.get("note", ""),
     }
+
+    def cash_event(record_type: str, record_subtype: str) -> dict[str, Any]:
+        amount = abs(Decimal(str(txn["amount"])))
+        incoming = Decimal(str(txn["amount"])) >= 0
+        return {
+            **base,
+            "record_type": record_type,
+            "record_subtype": record_subtype,
+            "from_ticker": "" if incoming else cash,
+            "from_amount": "0" if incoming else _fmt(amount),
+            "to_ticker": cash if incoming else "",
+            "to_amount": _fmt(amount) if incoming else "0",
+            "price": "1",
+            "commission": "0",
+            "commission_asset": "",
+        }
+
     if kind == "trade":
         if txn["side"] == "BUY":
-            return {**base, "action": "swap", "from_ticker": cash,
+            return {**base, "record_type": "swap", "record_subtype": "not_applicable", "from_ticker": cash,
                     "from_amount": _fmt(txn["gross"]), "to_ticker": txn["ticker"].lower(),
                     "to_amount": _fmt(txn["qty"]), "price": _fmt(txn["gross"] / txn["qty"]),
                     "commission": _fmt(txn["commission"]), "commission_asset": cash}
-        return {**base, "action": "swap", "from_ticker": txn["ticker"].lower(),
+        return {**base, "record_type": "swap", "record_subtype": "not_applicable", "from_ticker": txn["ticker"].lower(),
                 "from_amount": _fmt(txn["qty"]), "to_ticker": cash,
                 "to_amount": _fmt(txn["gross"]), "price": _fmt(txn["gross"] / txn["qty"]),
                 "commission": _fmt(txn["commission"]), "commission_asset": cash}
     if kind == "fx":
-        return {**base, "action": "swap", "from_ticker": txn["from_ccy"].lower(),
+        return {**base, "record_type": "swap", "record_subtype": "not_applicable", "from_ticker": txn["from_ccy"].lower(),
                 "from_amount": _fmt(txn["from_amount"]), "to_ticker": txn["to_ccy"].lower(),
                 "to_amount": _fmt(txn["to_amount"]), "price": "0", "commission": "0",
                 "commission_asset": ""}
@@ -145,7 +162,7 @@ def map_usmart_hk_to_investment_event(
         # Dividend income
         if flag == "红利入账" or flag.startswith("红利入账"):
             return {
-                **base, "action": "dividend", "from_ticker": "", "from_amount": "0",
+                **base, "record_type": "dividend", "record_subtype": "not_applicable", "from_ticker": "", "from_amount": "0",
                 "to_ticker": cash, "to_amount": _fmt(amount), "price": "1",
                 "commission": "0", "commission_asset": "",
             }
@@ -169,19 +186,11 @@ def map_usmart_hk_to_investment_event(
         )
         if is_fee_flag or is_tax_refund or is_fee_refund:
             if txn["amount"] >= 0 and (is_tax_refund or is_fee_refund or is_fee_flag and txn["amount"] > 0):
-                # Refund of fee/tax → still action=fee, cash in via to_amount
-                return {
-                    **base, "action": "fee", "from_ticker": "", "from_amount": "0",
-                    "to_ticker": cash, "to_amount": _fmt(amount), "price": "1",
-                    "commission": "0", "commission_asset": "",
-                }
-            # Charge
-            return {
-                **base, "action": "fee", "from_ticker": cash, "from_amount": _fmt(amount),
-                "to_ticker": "", "to_amount": "0", "price": "1",
-                "commission": "0", "commission_asset": "",
-            }
-        # IPO subscription lifecycle as dedicated action=ipo (not swap):
+                subtype = "tax_refund" if is_tax_refund else "interest_refund" if "息" in text else "fee_refund"
+                return cash_event("fee", subtype)
+            subtype = "tax" if "税" in text else "interest" if "息" in text else "commission"
+            return cash_event("fee", subtype)
+        # IPO subscription lifecycle uses a dedicated non-funding record type:
         #   认购扣款: cash out (from_amount)
         #   认购退款: cash in  (to_amount)
         #   认购手续费: fee (not ipo)
@@ -190,33 +199,42 @@ def map_usmart_hk_to_investment_event(
         if "IPO认购手续费" in flag or (flag.startswith("IPO") and "手续费" in flag) or (
             "IPO" in flag and "Handling" in note
         ):
-            return {
-                **base, "action": "fee", "from_ticker": cash, "from_amount": _fmt(amount),
-                "to_ticker": "", "to_amount": "0", "price": "1",
-                "commission": "0", "commission_asset": "",
-            }
+            return cash_event("fee", "handling_fee")
         if flag in {"IPO认购扣款"} or ("IPO" in flag and "扣款" in flag) or "IPO Debit" in note:
-            return {
-                **base, "action": "ipo", "from_ticker": cash, "from_amount": _fmt(amount),
-                "to_ticker": "", "to_amount": "0", "price": "1",
-                "commission": "0", "commission_asset": "",
-            }
+            return cash_event("ipo", "subscription_debit")
         if flag in {"IPO认购退款"} or ("IPO" in flag and "退款" in flag) or "IPO Refund" in note:
-            return {
-                **base, "action": "ipo", "from_ticker": "", "from_amount": "0",
-                "to_ticker": cash, "to_amount": _fmt(amount), "price": "1",
-                "commission": "0", "commission_asset": "",
-            }
-        if txn["amount"] > 0:
-            return {**base, "action": "deposit", "from_ticker": "", "from_amount": "0",
-                    "to_ticker": cash, "to_amount": _fmt(amount), "price": "1", "commission": "0", "commission_asset": ""}
-        return {**base, "action": "withdraw", "from_ticker": cash, "from_amount": _fmt(amount),
-                "to_ticker": "", "to_amount": "0", "price": "1", "commission": "0", "commission_asset": ""}
+            return cash_event("ipo", "subscription_refund")
+        if flag == "出金退款":
+            if txn["amount"] < 0:
+                raise ValueError("出金退款必须为现金入账")
+            return cash_event("withdrawal_reversal", "withdrawal_refund")
+        if flag in {"优惠券"}:
+            if txn["amount"] < 0:
+                raise ValueError("奖励必须为现金入账")
+            return cash_event("reward", "cash_reward")
+        if flag in {"平台费返还", "佣金返还", "手续费返还"}:
+            if txn["amount"] < 0:
+                raise ValueError("费用返还必须为现金入账")
+            return cash_event("fee", "fee_refund")
+        if flag in {
+            "转入到日内融账户", "转入到保证金账户", "从保证金账户转入",
+            "从日内融账户转出", "从日内融账户转入",
+        }:
+            return cash_event(
+                "deposit" if txn["amount"] >= 0 else "withdraw",
+                "subaccount_transfer",
+            )
+        if flag in {"入金", "出金", "提取", "资金存", "EDDA入金", "EDDA出金"}:
+            return cash_event(
+                "deposit" if txn["amount"] >= 0 else "withdraw",
+                "external_funding",
+            )
+        raise ValueError(f"unsupported uSmart HK cash flag for normalized funding: {flag!r}")
     if kind == "checkin_cash":
-        return {**base, "action": "checkin", "from_ticker": "", "from_amount": "0",
+        return {**base, "record_type": "checkin", "record_subtype": "not_applicable", "from_ticker": "", "from_amount": "0",
                 "to_ticker": cash, "to_amount": _fmt(txn["amount"]), "price": "1", "commission": "0", "commission_asset": ""}
     if kind == "checkin_position":
-        return {**base, "action": "checkin", "from_ticker": "", "from_amount": "0",
+        return {**base, "record_type": "checkin", "record_subtype": "not_applicable", "from_ticker": "", "from_amount": "0",
                 "to_ticker": txn["ticker"].lower(), "to_amount": _fmt(txn["shares"]), "price": "0", "commission": "0", "commission_asset": ""}
     raise ValueError(f"unsupported uSmart HK row kind: {kind}")
 

@@ -24,6 +24,14 @@ _TRD_DESC_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Schwab records withholding tax as a negative JRN beside the positive DOI
+# dividend it belongs to.  The native JRN code alone has broader meanings, so
+# it is eligible for tax normalization only after this statement-level check.
+_CASH_DESCRIPTION_RE = re.compile(
+    r"^(?P<label>.+?)\s+[+-]?\d+(?:\.\d+)?\s+US\$$",
+    re.IGNORECASE,
+)
+
 
 @dataclass
 class SchwabStatement:
@@ -97,6 +105,33 @@ def _normalize_date(raw: str) -> str:
                 time_part = f"{h:02d}:{mi:02d}"
         return f"{date_part} {time_part}"
     return date_part
+
+
+def _dividend_label(description: str) -> str | None:
+    """Return a normalized issuer label from a cash DOI/JRN description."""
+    match = _CASH_DESCRIPTION_RE.match(description.strip())
+    if match is None:
+        return None
+    label = match.group("label").strip()
+    label = re.sub(r"^QUALIFIED\s+DIVIDEND\s+-\s*", "", label, flags=re.IGNORECASE)
+    return " ".join(label.upper().split()) or None
+
+
+def _annotate_journal_tax_rows(rows: list[dict[str, Any]]) -> None:
+    """Mark only JRN rows structurally paired with a positive dividend DOI."""
+    dividend_keys = {
+        (row["date"], label)
+        for row in rows
+        if row["type"] == "DOI"
+        and row["amount"] > 0
+        and (label := _dividend_label(str(row["note"]))) is not None
+    }
+    for row in rows:
+        if row["type"] != "JRN" or row["amount"] >= 0:
+            continue
+        label = _dividend_label(str(row["note"]))
+        if label is not None and (row["date"], label) in dividend_keys:
+            row["journal_kind"] = "withholding_tax"
 
 
 def _strip_headers(fieldnames: list[str] | None) -> list[str]:
@@ -190,6 +225,7 @@ def parse_schwab_csv(path: str | Path) -> SchwabStatement:
                 "qty": qty,
                 "price": price,
                 "note": description,
+                "journal_kind": "",
             })
 
     if not flow_rows:
@@ -199,6 +235,8 @@ def parse_schwab_csv(path: str | Path) -> SchwabStatement:
         raise ValueError("Schwab CSV missing balance for CHECKIN")
 
     statement.ending_cash = newest_balance
+
+    _annotate_journal_tax_rows(flow_rows)
 
     # Sort ascending by date then ref for chronological replay
     flow_rows.sort(key=lambda r: (r["date"], r["ref"]))
@@ -220,6 +258,7 @@ def parse_schwab_csv(path: str | Path) -> SchwabStatement:
         "qty": Decimal("0"),
         "price": Decimal("1"),
         "note": "newest 余额",
+        "journal_kind": "",
     }
 
     statement.transactions = flow_rows + [checkin]
@@ -274,7 +313,7 @@ def map_schwab_to_investment_event(
         amount_abs = abs(Decimal(str(txn.get("amount") or 0)))
         return {
             **base,
-            "action": "deposit",
+            "record_type": "deposit", "record_subtype": "external_funding",
             "to_ticker": cash,
             "to_amount": _fmt(amount_abs),
             "from_ticker": "",
@@ -292,7 +331,7 @@ def map_schwab_to_investment_event(
             from_ticker = _guess_underlying(txn.get("description") or "")
             return {
                 **base,
-                "action": "dividend",
+                "record_type": "dividend", "record_subtype": "not_applicable",
                 "from_ticker": from_ticker,
                 "to_ticker": cash,
                 "to_amount": _fmt(amount_abs),
@@ -301,10 +340,10 @@ def map_schwab_to_investment_event(
                 "commission": "0",
                 "commission_asset": "",
             }
-        # interest charge / negative DOI → withdraw
+        # Interest charge is a fee, never a withdrawal.
         return {
             **base,
-            "action": "withdraw",
+            "record_type": "fee", "record_subtype": "interest",
             "from_ticker": cash,
             "from_amount": _fmt(amount_abs),
             "to_ticker": "",
@@ -317,11 +356,23 @@ def map_schwab_to_investment_event(
     if type_code == "JRN":
         amount = Decimal(str(txn.get("amount") or 0))
         amount_abs = abs(amount)
-        desc = (txn.get("description") or "").upper()
-        if amount > 0 or "REFUND" in desc:
+        desc = note.upper()
+        if txn.get("journal_kind") == "withholding_tax":
             return {
                 **base,
-                "action": "deposit",
+                "record_type": "fee", "record_subtype": "tax",
+                "from_ticker": cash,
+                "from_amount": _fmt(amount_abs),
+                "to_ticker": "",
+                "to_amount": "0",
+                "price": "1",
+                "commission": "0",
+                "commission_asset": "",
+            }
+        if amount > 0 and "REFUND" in desc:
+            return {
+                **base,
+                "record_type": "withdrawal_reversal", "record_subtype": "withdrawal_refund",
                 "to_ticker": cash,
                 "to_amount": _fmt(amount_abs),
                 "from_ticker": "",
@@ -330,23 +381,13 @@ def map_schwab_to_investment_event(
                 "commission": "0",
                 "commission_asset": "",
             }
-        return {
-            **base,
-            "action": "withdraw",
-            "from_ticker": cash,
-            "from_amount": _fmt(amount_abs),
-            "to_ticker": "",
-            "to_amount": "0",
-            "price": "1",
-            "commission": "0",
-            "commission_asset": "",
-        }
+        raise ValueError("unsupported Schwab JRN without a structured tax or refund signal")
 
     if type_code == "CHECKIN":
         amount = abs(Decimal(str(txn.get("amount") or 0)))
         return {
             **base,
-            "action": "checkin",
+            "record_type": "checkin", "record_subtype": "not_applicable",
             "from_ticker": "",
             "to_ticker": cash,
             "to_amount": _fmt(amount),
@@ -374,7 +415,7 @@ def _map_trd(txn: dict[str, Any], base: dict[str, Any], cash: str) -> dict[str, 
     if side == "BOT":
         return {
             **base,
-            "action": "swap",
+            "record_type": "swap", "record_subtype": "not_applicable",
             "from_ticker": cash,
             "from_amount": _fmt(amount_abs),
             "to_ticker": code,
@@ -386,7 +427,7 @@ def _map_trd(txn: dict[str, Any], base: dict[str, Any], cash: str) -> dict[str, 
     if side == "SOLD":
         return {
             **base,
-            "action": "swap",
+            "record_type": "swap", "record_subtype": "not_applicable",
             "from_ticker": code,
             "from_amount": _fmt(qty),
             "to_ticker": cash,

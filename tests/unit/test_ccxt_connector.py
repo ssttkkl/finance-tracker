@@ -62,7 +62,7 @@ class TestTradeMapping:
         result = connector.fetch_trades()
         assert len(result.events) == 1
         event = result.events[0]
-        assert event["action"] == "swap"
+        assert event["record_type"] == "swap"
         assert event["from_ticker"] == "usdt"
         assert event["to_ticker"] == "eth"
         assert event["to_amount"] == "1.5"
@@ -244,13 +244,13 @@ class TestLedgerMapping:
         entry = {"id": kind, "timestamp": 1000, "currency": "USD", "amount": "2", "info": {"type": kind}}
         connector = CcxtExchangeConnector(provider="binance", credentials={}, _client=FakeCcxtClient(ledger=[entry]))
         event = connector.fetch_trades().events[0]
-        assert event["action"] == action
+        assert event["record_type"] == action
         assert event["record_id"] == kind
 
     def test_ledger_fee_becomes_child_event(self):
         entry = {"id": "reward", "timestamp": 1000, "currency": "ETH", "amount": "2", "info": {"type": "reward"}, "fee": {"cost": "0.1", "currency": "ETH"}}
         connector = CcxtExchangeConnector(provider="binance", credentials={}, _client=FakeCcxtClient(ledger=[entry]))
-        assert [(event["action"], event["record_id"]) for event in connector.fetch_trades().events] == [("dividend", "reward"), ("fee", "reward:fee")]
+        assert [(event["record_type"], event["record_id"]) for event in connector.fetch_trades().events] == [("dividend", "reward"), ("fee", "reward:fee")]
 
     def test_unknown_type_and_bad_fee_fail_closed(self):
         unknown = {"id": "bad", "timestamp": 1000, "currency": "USD", "amount": "1", "info": {"type": "unknown"}}

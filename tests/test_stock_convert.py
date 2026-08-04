@@ -45,7 +45,8 @@ def test_dfzq_rows_map_buy_sell_and_cash_with_exact_decimal_text(tmp_path, monke
     assert rows[0]["to_ticker"] == "600000.ss"
     assert rows[0]["account_name"] == "东方证券"
     assert rows[1]["from_ticker"] == "600000.ss"
-    assert rows[2]["action"] == "deposit"
+    assert rows[2]["record_type"] == "deposit"
+    assert rows[2]["record_subtype"] == "external_funding"
     assert rows[2]["to_amount"] == "3.5"
 
 

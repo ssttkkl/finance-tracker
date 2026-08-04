@@ -49,6 +49,7 @@ class CashProjectionFact:
     note: str
     source_type: str | None
     record_id: str
+    funding_relation_id: int | None = None
 
     def __post_init__(self) -> None:
         try:
@@ -93,6 +94,7 @@ class CashProjection:
     members: tuple[tuple[CashProjectionFact, tuple[str, ...]], ...]
     relations: tuple[ProjectionRelation, ...]
     compositions: tuple[str, ...]
+    funding_relation_id: int | None = None
 
     @property
     def occurred_at(self) -> datetime:
@@ -217,6 +219,8 @@ def _validate_group(group: list[int], facts: dict[int, CashProjectionFact], rela
         raise CashProjectionError("projection.invalid_relation")
 
     root = facts[root_id]
+    if root.funding_relation_id is not None and len(group) != 1:
+        raise CashProjectionError("projection.invalid_relation")
     transfer_relations = tuple(item for item, _primary, _secondary in logical if item.kind == "transfer_pair")
     refund_relations = tuple(item for item, _primary, _secondary in logical if item.kind == "refund_offset")
     if transfer_relations and refund_relations:
@@ -231,7 +235,10 @@ def _validate_group(group: list[int], facts: dict[int, CashProjectionFact], rela
         roles[relation.primary_fact_id].add("transfer")
         roles[relation.secondary_fact_id].add("transfer")
 
-    if transfer_relations:
+    if root.funding_relation_id is not None:
+        subtype = "bank_security_transfer"
+        economic_type, amount, visible, hidden_reason = EconomicType.INTERNAL_TRANSFER, Decimal("0"), True, None
+    elif transfer_relations:
         subtype = transfer_relations[0].subtype or "ordinary_transfer"
         if any(item.subtype not in {"", subtype} for item in transfer_relations):
             raise CashProjectionError("projection.invalid_relation")
@@ -275,6 +282,7 @@ def _validate_group(group: list[int], facts: dict[int, CashProjectionFact], rela
         economic_type=economic_type, visible=visible, hidden_reason=hidden_reason, transfer_subtype=subtype,
         member_ids=tuple(item.id for item, _ in members), members=members, relations=contained,
         compositions=tuple(kind for kind in ("payment_mirror", "transfer_pair", "refund_offset") if any(item.kind == kind for item in contained)),
+        funding_relation_id=root.funding_relation_id,
     )
 
 

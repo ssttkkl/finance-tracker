@@ -125,7 +125,7 @@ def test_investment_repository_and_snapshot_are_workspace_scoped():
     AccountService(unit_of_work(sessions, "workspace-a")).create_account("Broker", "security", "USD")
     event = {
         "occurred_at": "2026-07-17 10:00:00",
-        "action": "deposit",
+        "record_type": "deposit",
         "from_ticker": "",
         "to_ticker": "usd",
         "from_amount": "0",
@@ -151,7 +151,7 @@ def test_investment_repository_and_snapshot_are_workspace_scoped():
     with unit_of_work(sessions, "workspace-a") as uow:
         listed = uow.investments.list()
         assert len(listed) == 1
-        assert listed[0]["action"] == event["action"]
+        assert listed[0]["record_type"] == event["record_type"]
         assert listed[0]["to_amount"] == event["to_amount"]
         assert listed[0]["account_name"] == event["account_name"]
         assert listed[0]["_record_type"] == "security"

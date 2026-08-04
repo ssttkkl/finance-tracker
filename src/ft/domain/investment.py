@@ -5,7 +5,7 @@ from decimal import Decimal
 
 @dataclass(frozen=True)
 class InvestmentCommandDTO:
-    action: str
+    record_type: str
     account: str
     currency: str | None = None
     ticker: str = ""

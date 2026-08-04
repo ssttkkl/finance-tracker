@@ -52,11 +52,11 @@ User description: "从 main 恢复投资事件领域模型与文件/手动导入
 
 - - **FR-001**: 系统 MUST 支持通过 `ft import <file> --source dfzq --account <account_name>` 直接导入 DFZQ PDF 对账单，解析为投资事件并保存到 `investment_events` 表，整个过程（batch → raw_records → investment_events → snapshot update）在一个数据库事务中完成（参考 007 的导入契约）。
 - - **FR-002**: 系统 MUST 使用 `raw_records.source_identity`（基于文件哈希与记录业务键如日期+ticker+金额组合）进行幂等去重；重复导入同一对账单时，系统 MUST 拒绝重复记录并返回幂等结果，不创建重复的 `investment_events` 或修改快照。
-- - **FR-003**: 系统 MUST 支持完整投资事件类型：SWAP（资产交换，用于替代传统 BUY/SELL 操作）、DEPOSIT（入金）、WITHDRAW（出金）、DIVIDEND（分红）、CHECKIN（快照核对），每种事件类型 MUST 在 `domain/investment_projection.py` 中有明确的快照应用逻辑（apply_investment_event）。说明：买入表示为现金→资产 SWAP，卖出表示为资产→现金 SWAP；手续费通过 commission 字段记录而非独立 FEE action。
+- - **FR-003**: 系统 MUST 使用 `record_type` 和 `record_subtype` 持久化投资事件的规范语义。`record_type` 支持 `swap`、`buy`、`sell`、`deposit`、`withdraw`、`dividend`、`fee`、`ipo`、`checkin`、`transfer`、`fx_adjustment`、`reward`、`withdrawal_reversal` 与 `cash_adjustment`；每种类型 MUST 在 `domain/investment_projection.py` 中有明确的快照应用逻辑。买入表示为现金→资产 `swap`，卖出表示为资产→现金 `swap`；`deposit` 与 `withdraw` 仅表达外部出入金或投资账户内部子账户调拨。
 - - **FR-004**: 系统 MUST 恢复 main 分支的快照验证逻辑（`_validate_security_snapshot_finite`），在每次快照更新后检查：持仓数量非负、现金非 NaN/Infinity、总市值有限；验证失败时 MUST 拒绝整个导入事务并报告具体异常字段。
 - - **FR-005**: 投资事件 MUST 链接 `raw_record_id`（外键到 `raw_records` 表），保持来源审计链；手动创建的投资事件（如 `ft stock buy` CLI 命令）的 `raw_record_id` 为 NULL，但仍需记录 created_at 与 revision。
 - - **FR-006**: 系统 MUST 采用单行 SWAP 模式（保留当前分支的 from/to 统一 schema），SWAP 事件用于替代传统 BUY/SELL 操作（买入视为现金→资产 SWAP，卖出视为资产→现金 SWAP）。释放成本通过快照中保留的成本基础信息与 from_amount 计算。
-- - **FR-007**: 系统 MUST 采用 commission 字段处理手续费，commission 作为所有交易事件（BUY/SELL/SWAP/DEPOSIT/WITHDRAW）的附加属性。系统 MUST 提供 commission_asset 字段标识手续费单位（可能与交易主币种不同，如用 BNB 支付手续费）。本 feature 不引入独立 FEE action；独立费用（如提币费、账户管理费）可在后续 feature 中按需扩展。
+- - **FR-007**: 系统 MUST 采用 `commission` 与 `commission_asset` 记录成交附加手续费，并以 `fee` 记录独立费用、利息、税费及其返还。`commission_asset` 标识手续费单位；独立费用不得被降级为 `deposit` 或 `withdraw`。
 - - **FR-008** *(DEFERRED → 012)*: ~~交易所 ccxt 交易同步~~ — **not required for 009 completion**. Superseded by productization plan: implement under `012-investment-connector-sync`.
 - - **FR-009** *(DEFERRED → 012)*: ~~Polymarket Activity API 交易同步~~ — **not required for 009**. Quotes/valuation for Polymarket markets → **011**; activity import → **012**.
 - - **FR-010** *(DEFERRED → 012)*: ~~交易所/Polymarket API 凭据存储~~ — **not required for 009**. Documented long-term under 012.
@@ -65,11 +65,11 @@ User description: "从 main 恢复投资事件领域模型与文件/手动导入
 - - **FR-013**: 系统 MUST 拒绝将投资对账单导入非投资账户（account.type 不为 'security' 或 'crypto'），并明确提示账户类型不匹配错误。
 - - **FR-014**: 系统 MUST 支持通过 `ft import <file> --source ibkr --account <account_name>` 导入 Interactive Brokers Activity Statement 风格的 Transaction History CSV，解析为投资事件并写入 `investment_events`，batch → raw_records → events → snapshot 在同一事务中完成；`raw_records.source_type` MUST 为 `ibkr_csv`。
 - - **FR-015**: 对 IBKR 权益「买/卖」，系统 MUST 采用 **总额 + commission** 费用合同：SWAP 现金部分 = `abs(总额)`，`commission = abs(佣金)`（空佣金视为 0），`commission_asset` = 账户/总结基础货币小写 ticker；MUST NOT 在现金部分已使用 `abs(净额)` 时再写入非零 commission（双计费禁止）。投影后单笔现金影响 MUST 等于该行 `净额` 的绝对值方向一致结果。
-- - **FR-016**: IBKR 非权益类型映射 MUST 为：`存款`→`deposit`，`股息`→`dividend`（现金分红），`外国预扣税`→`withdraw`，`借方利息`→`withdraw`，`外汇交易组成部分`→`swap`。FX 规则：代码 `BASE.QUOTE`（如 `USD.HKD`）；左侧资产数量 = abs(数量)，右侧资产数量 = abs(数量)×价格（Price Currency）；买卖方向由数量/净额符号决定（买左/卖右或相反须与样本一致并单测锁定）；若该行 `净额 == 总额`（佣金已嵌在总额内），MUST `commission=0` 且佣金写入 note——**不得**再对 commission 字段扣减。无法解析 pair 或缺少数量/价格 MUST fail-closed。未知 `交易类型` MUST fail-closed。验收以 base 货币现金 CHECKIN 为准；非 base 货币仓位（如 hkd）允许非零残差，不得为对齐而发明金额。
+- - **FR-016**: IBKR 非权益类型映射 MUST 为：`存款`→`deposit(external_funding)`，`股息`→`dividend(not_applicable)`，`外国预扣税`→`fee(tax)`，`借方利息`→`fee(interest)`，`外汇交易组成部分`→`fx_adjustment(net_cash_adjustment)`。FX 规则：代码 `BASE.QUOTE`（如 `USD.HKD`）；左侧资产数量 = abs(数量)，右侧资产数量 = abs(数量)×价格（Price Currency）；买卖方向由数量/净额符号决定（买左/卖右或相反须与样本一致并单测锁定）；若该行 `净额 == 总额`（佣金已嵌在总额内），MUST `commission=0` 且佣金写入 note——**不得**再对 commission 字段扣减。无法解析 pair 或缺少数量/价格 MUST fail-closed。未知 `交易类型` MUST fail-closed。验收以 base 货币现金 CHECKIN 为准；非 base 货币仓位（如 hkd）允许非零残差，不得为对齐而发明金额。
 - - **FR-017**: IBKR 导入 MUST 在流水事件之后追加 **一条** base 货币现金 CHECKIN，金额取自 CSV「总结」`期末现金`；本 CSV 无持仓成本表时 MUST NOT 发明持仓 CHECKIN。`source_identity` MUST 使用稳定业务键（见 research.md `ibkr:…` 配方）。
 - - **FR-018**: 系统 MUST 支持通过 `ft import <file> --source schwab --account <account_name>` 导入 Charles Schwab Transaction History 风格 CSV，解析为投资事件并写入 `investment_events`，batch → raw_records → events → snapshot 在同一事务中完成；`raw_records.source_type` MUST 为 `schwab_csv`。
 - - **FR-019**: 对 Schwab TRD，系统 MUST 采用 **金额 + 杂费** 费用合同：SWAP 现金部分 = `abs(金额)`；`commission = abs(杂费) + abs(佣金)`（空/`-` 视为 0），`commission_asset = usd`（或账户 base）；MUST NOT 以 `abs(金额+杂费)` 为现金部分同时写入非零 commission。投影后单笔现金影响 MUST 等于该行 `金额 + 杂费`（与余额差分一致）。
-- - **FR-020**: Schwab 非 TRD 映射 MUST 为：`WIN` 入金→`deposit`；`DOI` 金额>0（股息）→`dividend`，金额<0（利息等）→`withdraw`；`JRN` 金额<0→`withdraw`，金额>0 或说明含 REFUND→`deposit`。未知 `类型` 或 TRD 说明无法解析 BOT/SOLD MUST fail-closed。
+- - **FR-020**: Schwab 非 TRD 映射 MUST 为：`WIN` 入金→`deposit(external_funding)`；`DOI` 金额>0→`dividend(not_applicable)`，金额<0→`fee(interest)`；只有同一份账单中与正向 `DOI` 股息同一时间、同一标的说明的负向 `JRN` 才能映射为 `fee(tax)`；正向且明确含 `REFUND` 的 `JRN` 映射为 `withdrawal_reversal(withdrawal_refund)`。其他 `JRN`、未知 `类型` 或无法解析 BOT/SOLD 的 TRD MUST fail-closed。
 - - **FR-021**: Schwab 导入 MUST 在流水后追加 **一条** USD 现金 CHECKIN，金额 = 文件中按时间最新一行的 `余额`；无持仓表时 MUST NOT 发明持仓 CHECKIN。`source_identity` 优先 `schwab:{参照号码}:{类型}`（见 research.md）。
 
 #### Scenario: 验收场景 1
@@ -93,6 +93,20 @@ User description: "从 main 恢复投资事件领域模型与文件/手动导入
 - GIVEN 迁移前规格所描述的有效业务上下文。
 - WHEN 执行以下验收条件：运行该能力的验收矩阵时，结果 MUST 满足迁移后的成功标准。
 - THEN 系统满足该条件，并保留可复核的验证证据。
+
+### Requirement: 导入时规范化投资事件记录类型
+系统 MUST 在写入投资事件前，根据来源的结构化交易类型、方向和字段将其规范化为 `record_type` 与 `record_subtype`。导入器 MUST 只负责这种归一，不得把券商名称、银行名称或账单文本规则传递到后续资金调拨扫描器。
+
+#### Scenario: 相同规范语义跨来源导入
+- **WHEN** 两个不同导入渠道分别提供语义相同的外部入金来源行
+- **THEN** 两条投资事件均为 `record_type=deposit` 和 `record_subtype=external_funding`，并各自保留完整来源行快照与独立幂等身份
+
+### Requirement: 导入时拒绝混淆出入金与现金调整
+系统 MUST 对无法安全归类为外部出入金、投资账户内部调拨或已支持的非出入金记录类型的来源行失败关闭。系统不得仅因金额正负将其猜测为 `deposit` 或 `withdraw`。
+
+#### Scenario: 来源类型不支持的现金变化
+- **WHEN** 导入器无法从来源的结构化字段确定一笔现金变化的业务语义
+- **THEN** 导入失败并提供可操作错误，不写入投资事件或投资快照
 
 ## Source
 完整迁移来源与原始验证证据：[009-investment-account-import/spec.md](../../changes/archive/2026-08-01-009-investment-account-import/legacy/009-investment-account-import/spec.md)。

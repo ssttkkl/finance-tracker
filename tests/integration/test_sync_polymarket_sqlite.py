@@ -144,7 +144,7 @@ class TestPolymarketSyncSQLite:
         assert first.ok and first.count == 2
         assert second.ok and second.count == 0
         with uow as u:
-            actions = sorted(e["action"] for e in u.investments.list())
+            actions = sorted(e["record_type"] for e in u.investments.list())
             u.rollback()
         assert actions == ["dividend", "swap"]
 

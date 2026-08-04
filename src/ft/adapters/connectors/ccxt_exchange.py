@@ -335,7 +335,8 @@ class CcxtExchangeConnector:
             to_amount = cost
 
         return {
-            "action": "swap",
+            "record_type": "swap",
+            "record_subtype": "not_applicable",
             "account": "",  # filled by SyncService
             "currency": "USD",
             "occurred_at": occurred_at,
@@ -357,16 +358,20 @@ class CcxtExchangeConnector:
         if entry_type == "trade":
             # Trade endpoint is the canonical two-legged representation.
             return []
-        action_by_type = {
-            "deposit": "deposit", "withdrawal": "withdraw",
-            "staking": "dividend", "reward": "dividend",
-            "credit": "dividend", "rollover": "dividend",
-            "transfer": "transfer",
-            "derivativescrossexchangetransfer": "transfer",
+        record_type_by_type = {
+            "deposit": ("deposit", "external_funding"),
+            "withdrawal": ("withdraw", "external_funding"),
+            "staking": ("dividend", "not_applicable"),
+            "reward": ("dividend", "not_applicable"),
+            "credit": ("dividend", "not_applicable"),
+            "rollover": ("dividend", "not_applicable"),
+            "transfer": ("transfer", "not_applicable"),
+            "derivativescrossexchangetransfer": ("transfer", "not_applicable"),
         }
-        action = action_by_type.get(entry_type)
-        if action is None:
+        semantics = record_type_by_type.get(entry_type)
+        if semantics is None:
             raise ConnectorDataError(f"unsupported ledger type: {entry_type or '<missing>'}")
+        record_type, record_subtype = semantics
         entry_id = str(entry.get("id", "")).strip()
         ticker = normalize_crypto_ticker(str(entry.get("currency", "")))
         timestamp = entry.get("timestamp")
@@ -380,14 +385,15 @@ class CcxtExchangeConnector:
         except (TypeError, ValueError, OSError) as exc:
             raise ConnectorDataError(f"invalid ledger timestamp: {timestamp!r}") from exc
         event = {
-            "action": action,
+            "record_type": record_type,
+            "record_subtype": record_subtype,
             "account": "",
             "currency": "USD",
             "occurred_at": occurred_at,
-            "from_ticker": ticker if action in {"withdraw", "transfer"} else "",
-            "from_amount": _format_decimal(amount) if action in {"withdraw", "transfer"} else "0",
-            "to_ticker": ticker if action in {"deposit", "dividend"} else "",
-            "to_amount": _format_decimal(amount) if action in {"deposit", "dividend"} else "0",
+            "from_ticker": ticker if record_type in {"withdraw", "transfer"} else "",
+            "from_amount": _format_decimal(amount) if record_type in {"withdraw", "transfer"} else "0",
+            "to_ticker": ticker if record_type in {"deposit", "dividend"} else "",
+            "to_amount": _format_decimal(amount) if record_type in {"deposit", "dividend"} else "0",
             "commission": "0",
             "commission_asset": "",
             "note": f"{self._provider} ledger {entry_type} {entry_id}",
@@ -409,7 +415,7 @@ class CcxtExchangeConnector:
             raise ConnectorDataError("non-zero ledger fee missing currency")
         fee_event = dict(event)
         fee_event.update({
-            "action": "fee", "from_ticker": fee_ticker,
+            "record_type": "fee", "record_subtype": "commission", "from_ticker": fee_ticker,
             "from_amount": _format_decimal(fee_cost), "to_ticker": "",
             "to_amount": "0", "record_id": f"{entry_id}:fee",
             "note": f"{self._provider} ledger fee {entry_id}",

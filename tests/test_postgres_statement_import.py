@@ -363,7 +363,8 @@ def test_dfzq_statement_import_writes_investment_event_and_projection(tmp_path):
         })
         uow.commit()
     parser = FakeStatementParser([{
-        "occurred_at": "2026-07-17 09:00:00", "action": "deposit",
+        "occurred_at": "2026-07-17 09:00:00", "record_type": "deposit",
+        "record_subtype": "external_funding",
         "from_ticker": "", "to_ticker": "usd", "from_amount": "0",
         "to_amount": "100", "price": "1", "commission": "0",
         "commission_asset": "", "currency": "USD", "account_name": "IBKR",
