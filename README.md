@@ -14,7 +14,7 @@
 uv sync
 export FT_DATABASE_URL='postgresql+psycopg://localhost/finance_tracker'
 export FT_WORKSPACE_ID='default'
-uv run alembic upgrade head    # head / SCHEMA_REVISION: 20260804_20
+uv run alembic upgrade head    # head / SCHEMA_REVISION: 20260804_21
 uv run python -c "
 import os
 from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace

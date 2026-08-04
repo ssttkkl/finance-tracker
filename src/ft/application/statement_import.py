@@ -34,7 +34,13 @@ def _row_record_id(row: dict, occurrences: dict[str, int]) -> str:
     payload = _json_safe(row)
     identity_payload = {
         key: value for key, value in payload.items()
-        if key not in {"account_name", "raw_record_id", "source_payload", "source_type"}
+        if key not in {
+            "account_name",
+            "raw_record_id",
+            "source_payload",
+            "source_type",
+            "_counterparty_account_reconstruction_proof",
+        }
     }
     canonical = json.dumps(
         identity_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
