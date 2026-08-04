@@ -222,7 +222,8 @@ workspaces  (租户隔离根)
 | `amount` | ExactDecimal | N | 有符号金额 |
 | `currency` | String(3) | N | 币种 |
 | `counterparty` | String(512) | N | 对手方 |
-| `counterparty_account` | String(512) | N | 来源直接提供的对方账号、卡号或账户标识的导入期规范值；未提供、掩码或无法可靠识别时为空字符串 |
+| `counterparty_account` | String(512) | N | 来源直接提供的对方账号、卡号或账户标识的导入期规范值；可识别的掩码与非数字标识不得因当前无法匹配而清空 |
+| `counterparty_account_attrs` | JSON | N | 对方账号属性数组；规范组合为 `[]`、`["full"]`、`["tail"]`、`["masked"]` 或 `["masked", "reconstructed"]` |
 | `note` | Text | N | 备注 |
 | `category` | String(64) | N | 分类（含 transfer / transfer_in / transfer_out 等） |
 | `record_type` | String(32) | N | 标准记录类型 |

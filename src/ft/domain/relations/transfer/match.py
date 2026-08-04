@@ -71,16 +71,72 @@ def _mapped_accounts(
 
 def _account_targets(
     value: str,
+    attrs: Sequence[str],
     account_identifiers_by_value: Mapping[str, Sequence[str]] | None,
     card_tails_by_value: Mapping[str, Sequence[str]] | None,
 ) -> set[str]:
     """将规范对方账号解析为当前工作区的显式账户别名。"""
-    exact = _mapped_accounts(
-        account_identifiers_by_value, _full_account_identifier(value),
-    )
-    if exact:
-        return exact
-    return _mapped_accounts(card_tails_by_value, _account_tail(value))
+    from ft.domain.record_type import validate_counterparty_account
+
+    normalized_attrs = tuple(str(item) for item in attrs)
+    try:
+        validate_counterparty_account(value, normalized_attrs)
+    except ValueError:
+        return set()
+    if normalized_attrs == ("tail",):
+        return _mapped_accounts(card_tails_by_value, value)
+    if normalized_attrs in {("full",), ("masked", "reconstructed")}:
+        exact = _mapped_accounts(
+            account_identifiers_by_value, _full_account_identifier(value),
+        )
+        if exact:
+            return exact
+        return _mapped_accounts(card_tails_by_value, _account_tail(value))
+    if normalized_attrs != ("masked",):
+        return set()
+
+    masked = re.fullmatch(r"(\d+)\*+(\d+)", str(value or "").strip())
+    if masked is None:
+        return set()
+    prefix, suffix = masked.groups()
+    if len(suffix) < 4:
+        return set()
+    targets: set[str] = set()
+    for identifier, account_ids in (account_identifiers_by_value or {}).items():
+        normalized_identifier = _full_account_identifier(str(identifier))
+        if (
+            normalized_identifier
+            and len(normalized_identifier) > len(prefix) + len(suffix)
+            and normalized_identifier.startswith(prefix)
+            and normalized_identifier.endswith(suffix)
+        ):
+            targets.update(str(account_id) for account_id in account_ids)
+    targets.update(_mapped_accounts(card_tails_by_value, suffix[-4:]))
+    return targets
+
+
+def _has_valid_counterparty_account_attrs(seed: FactView) -> bool:
+    from ft.domain.record_type import validate_counterparty_account
+
+    try:
+        validate_counterparty_account(
+            seed.counterparty_account, seed.counterparty_account_attrs,
+        )
+    except ValueError:
+        return False
+    return bool(seed.counterparty_account)
+
+
+def _registered_account_ids(
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None,
+    card_tails_by_value: Mapping[str, Sequence[str]] | None,
+) -> set[str]:
+    return {
+        str(account_id)
+        for mapping in (account_identifiers_by_value or {}, card_tails_by_value or {})
+        for account_ids in mapping.values()
+        for account_id in account_ids
+    }
 
 
 def _candidate_matches_counterparty_account(
@@ -95,14 +151,22 @@ def _candidate_matches_counterparty_account(
     未提供、无法解析或别名冲突时不借此自动收窄候选；特殊转账路径会
     更严格地要求唯一归属。
     """
-    value = str(seed.counterparty_account or "")
+    if not _has_valid_counterparty_account_attrs(seed):
+        return True, True
     targets = _account_targets(
-        value, account_identifiers_by_value, card_tails_by_value,
+        str(seed.counterparty_account or ""),
+        seed.counterparty_account_attrs,
+        account_identifiers_by_value,
+        card_tails_by_value,
     )
     if not targets:
+        if str(candidate.account_id) in _registered_account_ids(
+            account_identifiers_by_value, card_tails_by_value,
+        ):
+            return False, True
         return True, True
     if len(targets) > 1:
-        return True, False
+        return str(candidate.account_id) in targets, False
     return str(candidate.account_id) in targets, True
 
 
@@ -291,6 +355,7 @@ def match_normalized_subtype_transfers(
             continue
         targets = _account_targets(
             str(seed.counterparty_account or ""),
+            seed.counterparty_account_attrs,
             account_identifiers_by_value,
             card_tails_by_value,
         )

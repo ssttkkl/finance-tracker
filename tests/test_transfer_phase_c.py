@@ -19,7 +19,7 @@ def test_cross_border_same_currency_is_ordinary_transfer():
     outgoing = _fact(
         id="out", amount="-500.00", account_id="icbc", occurred_at="2026-05-24 13:47:00",
         record_type="transfer_out", record_subtype="cross_border_remittance",
-        counterparty_account="123456780",
+        counterparty_account="123456780", counterparty_account_attrs=("full",),
     )
     incoming = _fact(
         id="in", amount="500.00", account_id="asia", occurred_at="2026-05-24 13:47:07",
@@ -39,7 +39,7 @@ def test_cross_border_unique_target_chooses_nearest_arrival_once():
     outgoing = _fact(
         id="out", amount="-500.00", account_id="icbc", occurred_at="2026-05-24 13:47:00",
         record_type="transfer_out", record_subtype="cross_border_remittance",
-        counterparty_account="123456780",
+        counterparty_account="123456780", counterparty_account_attrs=("full",),
     )
     first = _fact(
         id="first", amount="54.00", currency="HKD", account_id="asia", occurred_at="2026-05-24 13:47:20",
@@ -64,7 +64,7 @@ def test_internal_same_account_cross_currency_is_currency_exchange():
     outgoing = _fact(
         id="out", amount="-100.00", currency="CNY", account_id="asia", occurred_at="2026-05-24 13:47:00",
         record_type="transfer_out", record_subtype="internal_account_transfer",
-        counterparty_account="123456780",
+        counterparty_account="123456780", counterparty_account_attrs=("full",),
     )
     incoming = _fact(
         id="in", amount="108.00", currency="HKD", account_id="asia", occurred_at="2026-05-24 13:47:07",

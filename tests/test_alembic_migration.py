@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import os
 
 import pytest
@@ -29,6 +30,7 @@ def test_repository_has_clean_linear_revisions():
         "20260803_18_open_leg_candidate_fact_ids.py",
         "20260804_19_cash_record_subtype.py",
         "20260804_20_rename_icbc_asia_source_type.py",
+        "20260804_21_counterparty_account_attrs.py",
     ]
 
 
@@ -125,7 +127,9 @@ def test_metadata_uses_enforceable_fact_relationships_post_015():
         assert "source_payload" in model.__table__.c
         assert "raw_record_id" not in model.__table__.c
         assert "revision" not in model.__table__.c
-    assert {"counterparty_account", "record_subtype"} <= set(CashTransactionModel.__table__.c.keys())
+    assert {
+        "counterparty_account", "counterparty_account_attrs", "record_subtype",
+    } <= set(CashTransactionModel.__table__.c.keys())
     from ft.adapters.relational.models import TransactionRelationModel
     assert {"evidence_json", "confidence", "later_marker"}.isdisjoint(
         TransactionRelationModel.__table__.c.keys()
@@ -209,7 +213,7 @@ def test_counterparty_account_migration_does_not_read_legacy_source_payload(tmp_
                     "UPDATE cash_transactions SET source_payload = :payload WHERE workspace_id = 'w' AND record_id = :record_id"
                 ), {"payload": payload, "record_id": record_id})
 
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260803_16")
         with engine.connect() as connection:
             values = dict(connection.execute(text(
                 "SELECT record_id, counterparty_account FROM cash_transactions"
@@ -221,6 +225,208 @@ def test_counterparty_account_migration_does_not_read_legacy_source_payload(tmp_
         }
     finally:
         engine.dispose()
+
+
+def test_counterparty_account_attrs_migration_backfills_only_proven_source_values(tmp_path):
+    import json
+
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+
+    root = Path(__file__).parents[1]
+    database = tmp_path / "counterparty-account-attrs.db"
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "migrations"))
+    config.set_main_option("sqlalchemy.url", f"sqlite+pysqlite:///{database}")
+    command.upgrade(config, "20260804_20")
+    engine = create_engine(f"sqlite+pysqlite:///{database}")
+    rows = (
+        (
+            "alipay-masked", "alipay", "",
+            {"对方账号": "demo***@example.com"},
+            "demo***@example.com", ["masked"],
+        ),
+        (
+            "ccb-masked", "ccb_debit", "",
+            {"对方账号与户名": "6222****4321/示例户名"},
+            "6222****4321", ["masked"],
+        ),
+        (
+            "credit-transfer", "icbc_credit", "",
+            {"原始文本单元": [
+                "2026-08-03", "10:00:00", "6222000000000000", "借", "人民币",
+                "88.00", "人民币", "88.00", "100.00", "转帐", "6222****4321", "",
+            ]},
+            "6222****4321", ["masked"],
+        ),
+        (
+            "existing-full", "fixture", "6222000000001234", {},
+            "6222000000001234", ["full"],
+        ),
+        (
+            "unproven", "unknown", "legacy-value", {},
+            "legacy-value", [],
+        ),
+    )
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', CURRENT_TIMESTAMP)"
+            ))
+            connection.execute(text(
+                "INSERT INTO accounts (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) "
+                "VALUES (1, 'w', 'Cash', 'cash', 1, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            ))
+            for record_id, source_type, account, payload, _expected, _attrs in rows:
+                connection.execute(text(
+                    "INSERT INTO cash_transactions "
+                    "(workspace_id, account_id, source_type, record_id, source_payload, occurred_at, amount, currency, counterparty, counterparty_account, note, category, record_type, created_at) "
+                    "VALUES ('w', 1, :source_type, :record_id, :payload, CURRENT_TIMESTAMP, '1.00', 'CNY', '', :account, '', '', 'other', CURRENT_TIMESTAMP)"
+                ), {
+                    "source_type": source_type,
+                    "record_id": record_id,
+                    "payload": json.dumps(payload, ensure_ascii=False),
+                    "account": account,
+                })
+
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            stored = {
+                record_id: (account, json.loads(attrs) if isinstance(attrs, str) else attrs)
+                for record_id, account, attrs in connection.execute(text(
+                    "SELECT record_id, counterparty_account, counterparty_account_attrs "
+                    "FROM cash_transactions"
+                ))
+            }
+        assert stored == {
+            record_id: (expected, attrs)
+            for record_id, _source, _account, _payload, expected, attrs in rows
+        }
+    finally:
+        engine.dispose()
+
+
+def test_counterparty_account_attrs_migration_round_trips_dedicated_postgresql():
+    url = os.environ.get("FT_TEST_POSTGRES_URL")
+    if not url:
+        pytest.skip("未设置 FT_TEST_POSTGRES_URL，跳过真实 PostgreSQL migration 测试")
+
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, inspect, text
+    import conftest as test_conftest
+
+    test_conftest._validate_test_postgres_url(url)
+    root = Path(__file__).parents[1]
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "migrations"))
+    config.set_main_option("sqlalchemy.url", url)
+    test_conftest.reset_postgres_schema(url)
+    engine = create_engine(url)
+    rows = (
+        (
+            "full", "fixture", "6222000000001234", {},
+            "6222000000001234", ["full"],
+        ),
+        (
+            "masked", "alipay", "", {"对方账号": "demo***@example.com"},
+            "demo***@example.com", ["masked"],
+        ),
+        (
+            "reconstructed", "icbc_asia", "879825074247", {"對方賬號": "879825****47"},
+            "879825074247", ["masked", "reconstructed"],
+        ),
+        (
+            "unknown", "unknown", "legacy-value", {},
+            "legacy-value", [],
+        ),
+    )
+    try:
+        command.upgrade(config, "20260804_20")
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO workspaces (id, name, created_at) "
+                "VALUES ('w', 'w', CURRENT_TIMESTAMP)"
+            ))
+            connection.execute(text(
+                "INSERT INTO accounts "
+                "(id, workspace_id, name, type, active, metadata_json, created_at, updated_at) "
+                "VALUES (1, 'w', 'Cash', 'cash', true, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            ))
+            for record_id, source_type, account, payload, _expected, _attrs in rows:
+                connection.execute(text(
+                    "INSERT INTO cash_transactions "
+                    "(workspace_id, account_id, source_type, record_id, source_payload, "
+                    "occurred_at, amount, currency, counterparty, counterparty_account, "
+                    "note, category, record_type, created_at) "
+                    "VALUES ('w', 1, :source_type, :record_id, CAST(:payload AS JSONB), "
+                    "CURRENT_TIMESTAMP, '1.00', 'CNY', '', :account, '', '', 'other', "
+                    "CURRENT_TIMESTAMP)"
+                ), {
+                    "source_type": source_type,
+                    "record_id": record_id,
+                    "payload": json.dumps(payload, ensure_ascii=False),
+                    "account": account,
+                })
+
+        for pass_number in (1, 2):
+            command.upgrade(config, "20260804_21")
+            columns = {column["name"]: column for column in inspect(engine).get_columns(
+                "cash_transactions"
+            )}
+            assert columns["counterparty_account_attrs"]["nullable"] is False
+            with engine.begin() as connection:
+                stored = {
+                    record_id: (account, attrs)
+                    for record_id, account, attrs in connection.execute(text(
+                        "SELECT record_id, counterparty_account, counterparty_account_attrs "
+                        "FROM cash_transactions WHERE record_id <> 'default'"
+                    ))
+                }
+                assert stored == {
+                    record_id: (expected, attrs)
+                    for record_id, _source, _account, _payload, expected, attrs in rows
+                }
+                if pass_number == 1:
+                    connection.execute(text(
+                        "INSERT INTO cash_transactions "
+                        "(workspace_id, account_id, source_type, record_id, source_payload, "
+                        "occurred_at, amount, currency, counterparty, counterparty_account, "
+                        "note, category, record_type, created_at) "
+                        "VALUES ('w', 1, 'fixture', 'default', '{}'::jsonb, CURRENT_TIMESTAMP, "
+                        "'1.00', 'CNY', '', '', '', '', 'other', CURRENT_TIMESTAMP)"
+                    ))
+                    assert connection.scalar(text(
+                        "SELECT counterparty_account_attrs FROM cash_transactions "
+                        "WHERE record_id = 'default'"
+                    )) == []
+                index_definition = connection.scalar(text(
+                    "SELECT indexdef FROM pg_indexes "
+                    "WHERE schemaname = 'public' "
+                    "AND indexname = 'uq_cash_transactions_active_source_record'"
+                ))
+                assert index_definition is not None
+                assert "deleted_at IS NULL" in index_definition
+
+            command.downgrade(config, "20260804_20")
+            assert "counterparty_account_attrs" not in {
+                column["name"] for column in inspect(engine).get_columns("cash_transactions")
+            }
+            with engine.connect() as connection:
+                assert connection.scalar(text(
+                    "SELECT counterparty_account FROM cash_transactions WHERE record_id = 'masked'"
+                )) == "demo***@example.com"
+                index_definition = connection.scalar(text(
+                    "SELECT indexdef FROM pg_indexes "
+                    "WHERE schemaname = 'public' "
+                    "AND indexname = 'uq_cash_transactions_active_source_record'"
+                ))
+                assert index_definition is not None
+                assert "deleted_at IS NULL" in index_definition
+    finally:
+        engine.dispose()
+        test_conftest.reset_postgres_schema(url)
 
 
 def test_cash_record_subtype_migration_backfills_only_deterministic_type_mapping(tmp_path):
@@ -513,7 +719,10 @@ def test_initial_revision_upgrades_dedicated_postgresql():
             assert {"from_ticker", "to_ticker", "from_amount", "to_amount", "commission", "commission_asset", "note", "source_type", "record_id", "source_payload"} <= inv_cols
             assert "price" not in inv_cols
             cash_cols = {c["name"] for c in columns}
-            assert {"source_type", "record_id", "source_payload", "counterparty_account"} <= cash_cols
+            assert {
+                "source_type", "record_id", "source_payload", "counterparty_account",
+                "counterparty_account_attrs",
+            } <= cash_cols
             rel_cols = {c["name"] for c in inspect(engine).get_columns("transaction_relations")}
             assert "anchor_fact_id" in rel_cols
             assert "candidate_fact_ids" in rel_cols

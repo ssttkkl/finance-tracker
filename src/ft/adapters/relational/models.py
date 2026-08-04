@@ -174,6 +174,9 @@ class CashTransactionModel(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     counterparty: Mapped[str] = mapped_column(String(512), default="", nullable=False)
     counterparty_account: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    counterparty_account_attrs: Mapped[list[str]] = mapped_column(
+        JSON, default=list, nullable=False,
+    )
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     category: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     record_type: Mapped[str] = mapped_column(String(32), default="other", nullable=False)

@@ -50,7 +50,8 @@ def test_registered_counterparty_account_selects_only_its_target():
     outgoing = _fact(
         id="out", amount="-1000.00", account_id="source",
         record_type="transfer_out", record_subtype="ordinary_transfer",
-        counterparty_account="6222-0000-0000-1234",
+        counterparty_account="6222000000001234",
+        counterparty_account_attrs=("full",),
     )
     wrong = _fact(
         id="wrong", amount="1000.00", account_id="wrong",
@@ -77,7 +78,8 @@ def test_conflicting_counterparty_alias_never_auto_accepts():
     outgoing = _fact(
         id="out", amount="-1000.00", account_id="source",
         record_type="transfer_out", record_subtype="ordinary_transfer",
-        counterparty_account="尾号 1234",
+        counterparty_account="1234",
+        counterparty_account_attrs=("tail",),
     )
     incoming = _fact(
         id="in", amount="1000.00", account_id="target-a",

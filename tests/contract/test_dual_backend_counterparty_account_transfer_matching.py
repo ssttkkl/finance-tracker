@@ -36,7 +36,10 @@ def _backend(tmp_path, backend):
 def _row(
     *, account_name, record_id, amount, record_type, record_subtype, occurred_at,
     counterparty_account="", currency="CNY", source_type="fixture",
+    counterparty_account_attrs=None,
 ):
+    if counterparty_account_attrs is None:
+        counterparty_account_attrs = ["full"] if counterparty_account else []
     return {
         "account_name": account_name,
         "record_id": record_id,
@@ -47,6 +50,7 @@ def _row(
         "currency": currency,
         "counterparty": "示例对手方",
         "counterparty_account": counterparty_account,
+        "counterparty_account_attrs": counterparty_account_attrs,
         "note": "任意原始文本",
         "category": "transfer",
         "record_type": record_type,
@@ -114,6 +118,120 @@ def test_ordinary_transfer_uses_workspace_scoped_account_identifier(tmp_path, ba
             assert relation.status == RelationStatus.ACCEPTED.value
             assert {relation.primary_fact_id, relation.secondary_fact_id} == {out_id, target_id}
             assert relation.subtype == "ordinary_transfer"
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize("backend", postgres_test_backend_params())
+def test_masked_account_attrs_are_persisted_and_consumed_equally(tmp_path, backend):
+    from ft.adapters.relational.models import AccountModel, CashTransactionModel
+    from ft.application.relations import RelationService
+    from ft.domain.relations import RelationStatus
+
+    engine, sessions, uow = _backend(tmp_path, backend)
+    try:
+        with uow as session:
+            for name in ("来源账户", "目标账户"):
+                session.accounts.add_raw({"name": name, "type": "cash", "currency": "CNY"})
+            target = session._state().session.scalar(select(AccountModel).where(
+                AccountModel.workspace_id == "normalized-transfer", AccountModel.name == "目标账户",
+            ))
+            assert target is not None
+            session.account_aliases.add(
+                alias_type="account_identifier", alias_value="6222000000004321", account_id=target.id,
+            )
+            out_id = session.cashflows.add("cash", _row(
+                account_name="来源账户", record_id="out-masked", amount="-100.00",
+                record_type="transfer_out", record_subtype="ordinary_transfer",
+                occurred_at="2026-01-01 10:00:00", counterparty_account="6222****4321",
+                counterparty_account_attrs=["masked"],
+            ))
+            in_id = session.cashflows.add("cash", _row(
+                account_name="目标账户", record_id="in-masked", amount="100.00",
+                record_type="transfer_in", record_subtype="ordinary_transfer",
+                occurred_at="2026-01-04 10:00:00",
+            ))
+            session.commit()
+
+        with sessions() as session:
+            stored = session.get(CashTransactionModel, out_id)
+            assert stored is not None
+            assert stored.counterparty_account_attrs == ["masked"]
+        assert RelationService(uow).check(seed_fact_ids=[out_id], trigger="manual_range").ok
+        with sessions() as session:
+            relation = _relation(session)
+            assert relation is not None
+            assert relation.status == RelationStatus.ACCEPTED.value
+            assert {relation.primary_fact_id, relation.secondary_fact_id} == {out_id, in_id}
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize("backend", postgres_test_backend_params())
+def test_reconstructed_attrs_require_same_row_normalization_proof(tmp_path, backend):
+    from decimal import Decimal
+
+    from ft.adapters.relational.models import CashTransactionModel
+    from ft.convert import _build_output_row
+
+    engine, sessions, uow = _backend(tmp_path, backend)
+    try:
+        with uow as session:
+            session.accounts.add_raw({"name": "来源账户", "type": "cash", "currency": "HKD"})
+            forged = _row(
+                account_name="来源账户", record_id="forged", amount="-100.00",
+                currency="HKD", record_type="transfer_out",
+                record_subtype="ordinary_transfer", occurred_at="2026-01-01 10:00:00",
+                counterparty_account="879825074247",
+                counterparty_account_attrs=["masked", "reconstructed"],
+            )
+            with pytest.raises(ValueError, match="verified source reconstruction"):
+                session.cashflows.add("cash", forged)
+
+            source_payload = {
+                "對方賬號": "879825****47",
+                "交易參考": "same-row",
+            }
+            verified = _build_output_row({
+                "date": "2026-01-01 10:00:00",
+                "amount": Decimal("-100.00"),
+                "currency": "HKD",
+                "counterparty": "示例对手方",
+                "counterparty_account": "879825****47",
+                "_source_account_identifier": "879825074240",
+                "note": "转账",
+                "category": "transfer",
+                "txn_type": "转账",
+                "_source_payload": source_payload,
+            }, bill_type="icbc_asia", account="来源账户")
+            transplanted = {
+                **verified,
+                "record_id": "transplanted-row",
+                "source_payload": {**source_payload, "交易參考": "other-row"},
+            }
+            with pytest.raises(ValueError, match="same source row"):
+                session.cashflows.add("cash", transplanted)
+            transplanted = {
+                **verified,
+                "record_id": "transplanted-source",
+                "source_type": "fixture",
+                "source_payload": source_payload,
+            }
+            with pytest.raises(ValueError, match="same source row"):
+                session.cashflows.add("cash", transplanted)
+
+            verified.update({
+                "record_id": "verified",
+                "source_payload": source_payload,
+            })
+            fact_id = session.cashflows.add("cash", verified)
+            session.commit()
+
+        with sessions() as session:
+            stored = session.get(CashTransactionModel, fact_id)
+            assert stored is not None
+            assert stored.counterparty_account == "879825074247"
+            assert stored.counterparty_account_attrs == ["masked", "reconstructed"]
     finally:
         engine.dispose()
 
