@@ -33,6 +33,7 @@ def test_repository_has_clean_linear_revisions():
         "20260804_21_counterparty_account_attrs.py",
         "20260804_22_investment_record_type.py",
         "20260804_23_cash_investment_funding_relations.py",
+        "20260805_24_investment_event_fee_reversal_semantics.py",
     ]
 
 

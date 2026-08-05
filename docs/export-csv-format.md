@@ -33,7 +33,7 @@ ft convert statement.csv --source alipay --output preview.csv
 | 字段 | 含义 |
 |---|---|
 | `date` | 业务时间 |
-| `action` | swap / deposit / withdraw / dividend / checkin / … |
+| `record_type` / `record_subtype` | 规范事件语义，如 `funding` / `external`、`trade` / `security`、`expense` / `tax` |
 | `from_ticker` / `to_ticker` | 付出资产/换入资产 |
 | `from_amount` / `to_amount` | 精确数量文本 |
 | `price` | 解析侧价格证据（落库投资事件可能不单列 price） |

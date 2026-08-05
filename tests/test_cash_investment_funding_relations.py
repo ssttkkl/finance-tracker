@@ -192,6 +192,22 @@ def test_non_external_funding_and_other_workspace_endpoints_fail_closed(funding_
             record_id="investment-sub",
             record_subtype="subaccount",
         )
+        _add_investment(
+            session,
+            investment_model,
+            account_id=broker.id,
+            record_id="investment-tax-refund",
+            record_type="reversal",
+            record_subtype="expense_tax",
+        )
+        _add_investment(
+            session,
+            investment_model,
+            account_id=broker.id,
+            record_id="investment-handling-refund",
+            record_type="reversal",
+            record_subtype="expense_handling_fee",
+        )
 
     service = CashInvestmentFundingRelationService(sessions, "funding")
     assert service.scan() == []

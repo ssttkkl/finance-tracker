@@ -21,7 +21,7 @@
 - **THEN** 响应包含 `record_type` 与 `record_subtype`，不包含 `action`，且资产组成、精确十进制金额、币种、业务行标识和来源行快照与迁移前同一经济事实一致
 
 ### Requirement: 投资经济事实的范围约束
-系统 MUST 只允许 `funding(external|subaccount)`、`trade(security|fx|repo)`、`income(dividend_cash|dividend_stock|interest|reward)`、`expense(commission|tax|interest|handling_fee|penalty)`、`reversal(expense_tax|expense_interest|expense_commission|funding_withdrawal)`、`subscription(ipo_debit|ipo_refund)`、`adjustment(fx_net|manual|unclassified)` 与 `snapshot(cash|position)`。方向 MUST 由 `from_*` / `to_*` 资产组成表达；仅 `funding(external)` 可配对；无法安全归类的历史现金变化 MUST 为 `adjustment(unclassified)`。
+系统 MUST 只允许 `funding(external|subaccount)`、`trade(security|fx|repo)`、`income(dividend_cash|dividend_stock|interest|reward)`、`expense(commission|tax|interest|handling_fee|penalty)`、`reversal(expense_tax|expense_interest|expense_commission|expense_handling_fee|expense_penalty|funding_withdrawal)`、`subscription(ipo_debit|ipo_refund)`、`adjustment(fx_net|manual|unclassified)` 与 `snapshot(cash|position)`。方向 MUST 由 `from_*` / `to_*` 资产组成表达；仅 `funding(external)` 可配对；无法安全归类的历史现金变化 MUST 为 `adjustment(unclassified)`。
 
 #### Scenario: 导入非出入金现金变化
 - **WHEN** 导入来源语义为利息、税费、外汇净额、奖励或出金冲回的投资事件

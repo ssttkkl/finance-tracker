@@ -31,8 +31,15 @@ def test_usmart_hk_fixture_imports_native_cash_holdings_and_is_idempotent(tmp_pa
         assert first.count == 46
         assert second.ok and second.count == 0
         with uow as session:
+            events = session.investments.list()
             snapshot = session.snapshot.load()
             session.rollback()
+        assert all(
+            not any(str(key).startswith("_") for key in (event.get("source_payload") or {}))
+            for event in events
+        )
+        cash_event = next(event for event in events if event.get("source_payload", {}).get("flag") == "融资利息")
+        assert cash_event["source_payload"]["note"] == "融资利息"
         positions = snapshot["accounts"]["security"]["盈立证券"]["positions"]
         assert Decimal(positions["usd"]["shares"]) == Decimal("4750.17")
         assert Decimal(positions["hkd"]["shares"]) == Decimal("2021.09")

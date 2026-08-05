@@ -56,6 +56,8 @@ def test_dfzq_import_backend_contract(tmp_path, backend):
             snapshot = session.snapshot.load()
             session.rollback()
         assert len(events) == 6
+        funding = next(event for event in events if event["record_type"] == "funding")
+        assert funding["source_payload"]["action_raw"] == "银行转证券"
         positions = snapshot["accounts"]["security"]["东方证券"]["positions"]
         assert Decimal(positions["cny"]["shares"]) == Decimal("9447.30")
         assert Decimal(positions["600000.sh"]["shares"]) == Decimal("60")

@@ -312,6 +312,19 @@ class InvestmentImportService:
         else:
             raise ValueError(f"不支持导入该投资数据源：{source}")
 
+        metadata_keys = {
+            "ibkr": {"_ibkr_base_currency", "_ibkr_ending_cash"},
+            "schwab": {"_schwab_ending_cash"},
+            "usmart-hk": {
+                "_id_seq", "_profile", "_usmart_ignored_trade_mirrors",
+                "_usmart_statement_profile",
+            },
+            "usmart_hk": {
+                "_id_seq", "_profile", "_usmart_ignored_trade_mirrors",
+                "_usmart_statement_profile",
+            },
+        }.get(source, set())
+
         record_ids = []
         payloads = []
         for txn in transactions:
@@ -321,9 +334,7 @@ class InvestmentImportService:
             payload = {
                 k: (format(v, "f") if isinstance(v, _Dec) else v)
                 for k, v in txn.items()
-                if not (
-                    str(k).startswith("_ibkr_") or str(k).startswith("_schwab_")
-                )
+                if k not in metadata_keys
             }
             record_ids.append(record_id)
             payloads.append(payload)

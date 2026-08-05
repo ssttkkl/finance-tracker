@@ -77,6 +77,8 @@ def test_dfzq_import_writes_inline_provenance(tmp_path):
         assert len(events) == 6
         assert all(e.get("source_type") == "dfzq_pdf" for e in events)
         assert all(e.get("source_payload") for e in events)
+        funding = next(event for event in events if event["record_type"] == "funding")
+        assert funding["source_payload"]["action_raw"] == "银行转证券"
     finally:
         engine.dispose()
 

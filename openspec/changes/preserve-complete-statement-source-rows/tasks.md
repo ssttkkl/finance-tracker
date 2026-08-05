@@ -35,7 +35,7 @@
 
 ## 6. 发布准备
 
-- [x] 6.1 记录迁移前备份、升级、验证和从备份回滚步骤；不执行用户 `~/.ft` 账本迁移，除非取得单独授权。
+- [x] 6.1 记录迁移前备份、升级、验证和从备份回滚步骤；仅在取得用户明确授权后执行真实 `~/.ft` 账本迁移与重建。
 
 ## 7. 反思
 
@@ -45,11 +45,25 @@
 
 - [ ] 8.1 将已验证的 delta 规格同步到 OpenSpec 主规格，复核同步结果后归档变更。
 
+## 9. 投资事件分类修复与重建
+
+- [x] 9.1 更新术语词表、proposal、delta 规格和设计，记录外部出入金、投资账户内部调拨、费用、冲回与未分类调整的边界。
+- [x] 9.2 先增加失败回归测试：东方证券原始动作溯源、盈立税费返还、罚息、代收费、认购手续费和平台费返还的分类，以及资金调拨候选排除。
+- [x] 9.3 扩展投资事件记录子类型与 SQLite/PostgreSQL 迁移约束；对可由来源快照确定的历史盈立事件执行前向重分类。
+- [x] 9.4 修正东方证券和盈立导入映射，并保证重导事件保存完整原始动作或旗标。
+- [x] 9.5 在隔离 SQLite 与本机 PostgreSQL 执行导入、迁移、幂等、候选资格和事件回放契约矩阵。
+- [x] 9.6 完成产品/范围、工程、安全和最终 diff 独立复核；记录按严重级别排序的 finding、结论和残余风险。
+- [x] 9.7 在用户明确授权的真实 `.ft` 账本上创建并校验备份，清空投资事件、现金—投资资金调拨关系和依赖投资读模型，从指定原始投资账单重导，重建读模型并扫描候选。
+- [x] 9.8 记录真实账本操作的精确命令、数据库版本、导入统计、验证结果、回滚位置和未解决风险。
+
 ## 审查记录
 
 - 产品/范围复核：通过。实现只保存业务行，不保存来源文件、路径或文件级元数据；`counterparty_account` 只接收来源直接提供的值，历史缺失值保持为空。
 - 工程与安全复核：通过。CSV、XLSX、XLS 和表格 PDF 在表头不唯一或行列数不一致时失败关闭；关系读取在查询时映射来源列名，不改写 `source_payload`；迁移仅从 `对方账号` 和建行 `acct_name_raw` 回填。未发现账号进入日志或真实测试夹具的路径。
 - 最终范围化 diff 复核：通过。修复了来源快照成为字典后合并逻辑对不可散列值的错误，并更新了公共现金列表契约断言。未发现范围外重构。残余风险见验证记录。
+- 投资分类产品/范围复核：通过。外部出入金仅保留 `funding(external)`；投资账户内部调拨、费用、冲回、认购、调整和快照均被排除在资金调拨候选外。`D11` 以账单正文的 `margin` 档案路由，未按文件名猜测账户。
+- 投资分类工程与安全复核：已修复 1 个中等 finding：盈立解析器的 `_profile`、`_id_seq` 等编排元数据曾可能进入 `source_payload`。现仅排除各来源显式声明的元数据键，避免丢弃潜在以下划线开头的原始列；SQLite 与 PostgreSQL 契约均覆盖该规则。未发现 critical 或 major finding。
+- 投资分类最终 diff 复核：通过。`20260805_24` 的双后端约束、历史前向重分类、导入映射、候选门禁、运行时 revision 和主规格一致；真实重建保持证券快照等价。残余风险是完整 Python 回归的性能用例超过交互执行窗口，未将其视为通过。
 
 ## 验证记录
 
@@ -64,8 +78,12 @@
 - 未完成：`tests/test_cash_projection_performance.py` 的固定 10 万事实性能门禁超过 2 分钟仍未完成，未将其结果视为通过。补跑条件：在允许长时间运行的环境执行该性能用例及完整 `uv run pytest -q`。
 - 导入后关系扫描跟进：真实账本重建后 `transaction_relations` 为空，投影无法合并镜像关系。根因是候选索引、镜像分组、退款候选连通图和已接受关系冲突检查存在重复全量遍历，11,384 条事实的扫描无法在可接受时间内完成；同时导入流程吞掉关系扫描失败细节。修复将日期、镜像连通图与已接受关系在一次扫描内复用，不改变关系规则或自动确认阈值。
 - 关系扫描验证：`uv run pytest tests/test_relations_index_injection.py tests/test_transaction_relations_payment_mirror.py tests/test_transaction_relations_cross_batch.py tests/test_transaction_relations_open_leg.py tests/test_transaction_relations_transfer.py tests/test_transaction_relations_refund.py tests/test_relations_pipeline_order.py tests/test_record_type_relation_gates.py -q` 为 `122 passed, 10 skipped`；在专用 PostgreSQL 库执行 `FT_TEST_POSTGRES_URL=... FT_REQUIRE_TEST_POSTGRES=1 uv run pytest tests/contract/test_cash_projection_parity.py tests/contract/test_dual_backend_icbc_refund_pairing.py -q` 为 `18 passed`。全量候选生成对 11,384 条事实在 2.367 秒内产生 3,250 个候选；`ft relations check` 已在真实 SQLite 账本写入 3,250 条关系，随后 `ft projections rebuild` 发布投影版本 3，8,314 条经济记录、11,384 个成员，`PRAGMA integrity_check` 返回 `ok`。
+- 投资分类比较基线与 `HEAD`：`39abd11`。隔离 SQLite 使用 `sqlite3 ~/.ft/finance-tracker.db .backup` 创建副本，升级 `20260804_23 → 20260805_24` 后清空投资事件、资金调拨关系和现金投影数据集，按原始账单重导并重建读模型：共 `1,010` 条事件（东方证券 `497`、IBKR `36`、盈立证券 `370`、盈立证券日内融 `107`）；盈立 9 份 `margin` 账单路由至保证金账户、7 份 `day` 账单路由至日内融账户。`PRAGMA foreign_key_check` 为空、`integrity_check=ok`、证券快照与重建前等价。
+- 投资分类自动化证据：`uv run pytest -q tests/integration/test_usmart_hk_import.py tests/integration/test_dfzq_import.py tests/unit/importers/test_usmart_hk.py tests/test_investment_record_type.py tests/test_alembic_migration.py` 为 `53 passed, 2 skipped`；本机专用 PostgreSQL `finance_tracker_test` 运行 `tests/contract/test_dual_backend_usmart_hk.py tests/contract/test_dual_backend_dfzq.py tests/test_investment_record_type_migration.py tests/test_cash_investment_funding_relations.py` 为 `19 passed`。`uv build`、`openspec validate --all --strict`、`openspec doctor` 和 `git diff --check` 通过；项目未配置独立静态类型检查器。
+- 真实账本发布证据：用户明确授权后，先以 SQLite `.backup` 创建并校验 `~/.ft/backups/finance-tracker.before-investment-rebuild-20260805T155012+0800.db`，再升级真实库、清空投资事件及依赖投影、从原始账单重导、重建财富与现金投影并扫描关系。发布后为 `20260805_24`、`1,010` 条投资事件、`0` 条 `adjustment(unclassified)`、`62` 条资金调拨关系（`21` 条 `accepted`、`41` 条 `pending_review`）；全部关系端点均为 `funding(external)`，477 条盈立来源快照均不含编排元数据，`PRAGMA foreign_key_check` 为空且 `integrity_check=ok`。失败恢复命令为对该数据库执行 SQLite `.restore` 使用上述备份；本次未触发恢复。
+- 完整 `uv run pytest -q` 在交互执行器中受性能用例和重复会话干扰，未获得可归档的最终退出码，未视为通过。补跑条件：在无前台时限、单一进程环境运行完整回归；本次受影响改动已由上述 SQLite、PostgreSQL 和真实账本矩阵覆盖。
 
 ## 发布准备与反思
 
-- 未获用户单独授权，不读取、不备份、不迁移 `~/.ft`。发布时先对精确数据库文件创建可恢复副本，再以该数据库 URL 执行 `alembic upgrade head`，验证 `alembic_version=20260803_16`、正式列存在和抽样导入；回滚使用升级前副本，或在已验证备份存在时执行 migration downgrade。
-- 防复发规则：来源行快照由解析边界创建，标准行只用于账户映射、分类和关系处理；任何新现金解析器必须在源列无法唯一表达时拒绝导入，且不得以标准化字段或历史推断填补快照。
+- 已在用户明确授权下读取、备份并重建 `~/.ft`。发布前创建可恢复副本，再以该数据库 URL 执行 `alembic upgrade head`，验证运行时版本、导入统计、投影、关系、外键和完整性；回滚使用 SQLite `.restore` 还原已验证备份。
+- 防复发规则：来源行快照由解析边界创建，标准行只用于账户映射、分类和关系处理；任何新现金解析器必须在源列无法唯一表达时拒绝导入，且不得以标准化字段或历史推断填补快照。投资账单重建必须从账单正文识别产品档案，不得以文件名路由账户；`source_payload` 仅排除来源显式声明的编排键，不能按键名前缀批量剔除原始列。

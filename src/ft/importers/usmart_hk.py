@@ -166,30 +166,11 @@ def map_usmart_hk_to_investment_event(
                 "to_ticker": cash, "to_amount": _fmt(amount), "price": "1",
                 "commission": "0", "commission_asset": "",
             }
-        # Fee / tax / interest family (charges and refunds of the same kind).
-        fee_flags = {
-            "融资利息", "融券罚息转出", "融券利息", "罚息转出",
-            "美股股息税", "股息代收费", "红利税费", "股息税",
-        }
-        is_fee_flag = flag in fee_flags or any(
-            k in flag for k in ("利息", "罚息", "股息税", "代收费", "税费")
-        )
-        # 资金存 + tax refund notes, or note-only tax refund rows
+        # 税费返还会以“资金存”出现，必须先于外部入金判断。
         is_tax_refund = (
             ("税" in text or "tax" in text.lower() or "withhold" in text.lower())
             and ("退" in text or "refund" in text.lower() or flag == "资金存")
         )
-        is_fee_refund = is_tax_refund or (
-            txn["amount"] > 0 and any(
-                k in text for k in ("利息", "罚息", "代收费", "税费", "fee", "返还", "退还")
-            ) and any(k in text for k in ("费", "税", "息", "佣金", "fee", "tax", "interest"))
-        )
-        if is_fee_flag or is_tax_refund or is_fee_refund:
-            if txn["amount"] >= 0 and (is_tax_refund or is_fee_refund or is_fee_flag and txn["amount"] > 0):
-                subtype = "expense_tax" if is_tax_refund else "expense_interest" if "息" in text else "expense_commission"
-                return cash_event("reversal", subtype)
-            subtype = "tax" if "税" in text else "interest" if "息" in text else "commission"
-            return cash_event("expense", subtype)
         # IPO subscription lifecycle uses a dedicated non-funding record type:
         #   认购扣款: cash out (from_amount)
         #   认购退款: cash in  (to_amount)
@@ -200,6 +181,34 @@ def map_usmart_hk_to_investment_event(
             "IPO" in flag and "Handling" in note
         ):
             return cash_event("expense", "handling_fee")
+        if is_tax_refund:
+            if txn["amount"] < 0:
+                raise ValueError("税费返还必须为现金入账")
+            return cash_event("reversal", "expense_tax")
+        fee_charge_subtypes = {
+            "融资利息": "interest",
+            "融券利息": "interest",
+            "融券罚息转出": "penalty",
+            "罚息转出": "penalty",
+            "美股股息税": "tax",
+            "红利税费": "tax",
+            "股息税": "tax",
+            "股息代收费": "handling_fee",
+        }
+        if flag in fee_charge_subtypes:
+            subtype = fee_charge_subtypes[flag]
+            if txn["amount"] > 0:
+                return cash_event("reversal", f"expense_{subtype}")
+            return cash_event("expense", subtype)
+        fee_reversal_subtypes = {
+            "平台费返还": "expense_handling_fee",
+            "佣金返还": "expense_commission",
+            "手续费返还": "expense_commission",
+        }
+        if flag in fee_reversal_subtypes:
+            if txn["amount"] < 0:
+                raise ValueError("费用返还必须为现金入账")
+            return cash_event("reversal", fee_reversal_subtypes[flag])
         if flag in {"IPO认购扣款"} or ("IPO" in flag and "扣款" in flag) or "IPO Debit" in note:
             return cash_event("subscription", "ipo_debit")
         if flag in {"IPO认购退款"} or ("IPO" in flag and "退款" in flag) or "IPO Refund" in note:
@@ -212,10 +221,6 @@ def map_usmart_hk_to_investment_event(
             if txn["amount"] < 0:
                 raise ValueError("奖励必须为现金入账")
             return cash_event("income", "reward")
-        if flag in {"平台费返还", "佣金返还", "手续费返还"}:
-            if txn["amount"] < 0:
-                raise ValueError("费用返还必须为现金入账")
-            return cash_event("reversal", "expense_commission")
         if flag in {
             "转入到日内融账户", "转入到保证金账户", "从保证金账户转入",
             "从日内融账户转出", "从日内融账户转入",

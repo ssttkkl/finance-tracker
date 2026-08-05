@@ -68,6 +68,8 @@ def test_investment_record_type_subtype_combinations_fail_closed(record_type, re
         ("income", "interest"),
         ("expense", "tax"),
         ("reversal", "funding_withdrawal"),
+        ("reversal", "expense_handling_fee"),
+        ("reversal", "expense_penalty"),
         ("subscription", "ipo_refund"),
         ("adjustment", "fx_net"),
         ("snapshot", "position"),

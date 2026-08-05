@@ -19,7 +19,8 @@ _SUBTYPES_BY_RECORD_TYPE = {
     "income": frozenset({"dividend_cash", "dividend_stock", "interest", "reward"}),
     "expense": frozenset({"commission", "tax", "interest", "handling_fee", "penalty"}),
     "reversal": frozenset({
-        "expense_tax", "expense_interest", "expense_commission", "funding_withdrawal",
+        "expense_tax", "expense_interest", "expense_commission",
+        "expense_handling_fee", "expense_penalty", "funding_withdrawal",
     }),
     "subscription": frozenset({"ipo_debit", "ipo_refund"}),
     "adjustment": frozenset({"fx_net", "manual", "unclassified"}),

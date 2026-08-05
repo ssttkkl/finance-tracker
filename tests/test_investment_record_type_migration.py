@@ -116,3 +116,108 @@ def test_investment_action_migration_preserves_event_identity_and_provenance(tmp
         engine.dispose()
         if backend == "postgresql":
             reset_postgres_schema(database_url)
+
+
+@pytest.mark.parametrize("backend", postgres_test_backend_params())
+def test_fee_reversal_migration_reclassifies_only_determinable_usmart_rows(tmp_path, backend):
+    root = Path(__file__).parents[1]
+    if backend == "postgresql":
+        database_url = require_test_postgres_url()
+        assert database_url is not None
+        reset_postgres_schema(database_url)
+    else:
+        database_url = f"sqlite+pysqlite:///{tmp_path / 'investment-fee-reversal.db'}"
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "migrations"))
+    config.set_main_option("sqlalchemy.url", database_url)
+    command.upgrade(config, "20260804_23")
+
+    engine = create_engine(database_url)
+    rows = [
+        ("tax-refund", "funding", "external", {"flag": "资金存", "note": "Refund tax of TQQQ.US"}),
+        ("penalty", "expense", "interest", {"flag": "融券罚息转出", "note": "融券罚息转出"}),
+        ("handling", "expense", "interest", {"flag": "股息代收费", "note": "股息代收费"}),
+        ("ipo-fee", "expense", "handling_fee", {"flag": "IPO认购手续费", "note": "IPO Handling Fee"}),
+        ("platform-refund", "reversal", "expense_commission", {"flag": "平台费返还", "note": "平台费返还"}),
+        ("commission-refund", "reversal", "expense_commission", {"flag": "佣金返还", "note": "佣金返还"}),
+    ]
+    active_value = "TRUE" if backend == "postgresql" else "1"
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'W', CURRENT_TIMESTAMP)"
+            ))
+            connection.execute(text(
+                "INSERT INTO accounts (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) "
+                f"VALUES (1, 'w', 'Broker', 'security', {active_value}, '{{}}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            ))
+            statement = text(
+                "INSERT INTO investment_events (workspace_id, account_id, source_type, record_id, source_payload, "
+                "occurred_at, record_type, record_subtype, currency, note, from_ticker, from_amount, to_ticker, "
+                "to_amount, commission, commission_asset, payload, created_at) VALUES "
+                "('w', 1, 'usmart_hk_pdf', :record_id, :source_payload, CURRENT_TIMESTAMP, :record_type, "
+                ":record_subtype, 'USD', '', 'usd', '1', '', '0', '0', '', :payload, CURRENT_TIMESTAMP)"
+            ).bindparams(
+                bindparam("source_payload", type_=JSON),
+                bindparam("payload", type_=JSON),
+            )
+            for record_id, record_type, record_subtype, source_payload in rows:
+                connection.execute(statement, {
+                    "record_id": record_id,
+                    "record_type": record_type,
+                    "record_subtype": record_subtype,
+                    "source_payload": source_payload,
+                    "payload": {},
+                })
+            investment_id = connection.scalar(text(
+                "SELECT id FROM investment_events WHERE workspace_id = 'w' AND record_id = 'tax-refund'"
+            ))
+            connection.execute(text(
+                "INSERT INTO accounts (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) "
+                f"VALUES (2, 'w', 'Cash', 'cash', {active_value}, '{{}}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            ))
+            connection.execute(text(
+                "INSERT INTO cash_transactions (id, workspace_id, account_id, source_type, record_id, source_payload, "
+                "occurred_at, amount, currency, counterparty, counterparty_account, counterparty_account_attrs, note, "
+                "category, record_type, record_subtype, created_at, deleted_by, delete_reason) VALUES "
+                "(1, 'w', 2, 'fixture', 'cash-1', :source_payload, CURRENT_TIMESTAMP, '-1', 'USD', '', '', "
+                ":account_attrs, '', '', 'investment_out', 'not_applicable', CURRENT_TIMESTAMP, '', '')"
+            ).bindparams(
+                bindparam("source_payload", type_=JSON),
+                bindparam("account_attrs", type_=JSON),
+            ), {"source_payload": {}, "account_attrs": []})
+            connection.execute(text(
+                "INSERT INTO cash_investment_funding_relations (workspace_id, cash_transaction_id, investment_event_id, "
+                "direction, status, rule_id, evidence, active_slot, created_by, created_at, decided_by, decision_reason) "
+                "VALUES ('w', 1, :investment_event_id, 'cash_to_investment', 'accepted', 'fixture', :evidence, "
+                "'active', 'system', CURRENT_TIMESTAMP, '', '')"
+            ).bindparams(bindparam("evidence", type_=JSON)), {
+                "investment_event_id": investment_id,
+                "evidence": {},
+            })
+
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            actual = {
+                row["record_id"]: (row["record_type"], row["record_subtype"])
+                for row in connection.execute(text(
+                    "SELECT record_id, record_type, record_subtype FROM investment_events ORDER BY record_id"
+                )).mappings()
+            }
+        assert actual == {
+            "tax-refund": ("reversal", "expense_tax"),
+            "penalty": ("expense", "penalty"),
+            "handling": ("expense", "handling_fee"),
+            "ipo-fee": ("expense", "handling_fee"),
+            "platform-refund": ("reversal", "expense_handling_fee"),
+            "commission-refund": ("reversal", "expense_commission"),
+        }
+        if backend == "sqlite":
+            with engine.connect() as connection:
+                assert list(connection.exec_driver_sql("PRAGMA foreign_key_check")) == []
+
+        command.downgrade(config, "20260804_23")
+    finally:
+        engine.dispose()
+        if backend == "postgresql":
+            reset_postgres_schema(database_url)

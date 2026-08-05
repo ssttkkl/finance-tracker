@@ -332,7 +332,7 @@ class InvestmentEventModel(Base):
             "(record_type = 'trade' AND record_subtype IN ('security', 'fx', 'repo')) OR "
             "(record_type = 'income' AND record_subtype IN ('dividend_cash', 'dividend_stock', 'interest', 'reward')) OR "
             "(record_type = 'expense' AND record_subtype IN ('commission', 'tax', 'interest', 'handling_fee', 'penalty')) OR "
-            "(record_type = 'reversal' AND record_subtype IN ('expense_tax', 'expense_interest', 'expense_commission', 'funding_withdrawal')) OR "
+            "(record_type = 'reversal' AND record_subtype IN ('expense_tax', 'expense_interest', 'expense_commission', 'expense_handling_fee', 'expense_penalty', 'funding_withdrawal')) OR "
             "(record_type = 'subscription' AND record_subtype IN ('ipo_debit', 'ipo_refund')) OR "
             "(record_type = 'adjustment' AND record_subtype IN ('fx_net', 'manual', 'unclassified')) OR "
             "(record_type = 'snapshot' AND record_subtype IN ('cash', 'position'))",

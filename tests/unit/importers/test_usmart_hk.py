@@ -167,3 +167,25 @@ def test_tax_refund_maps_to_expense_reversal_not_funding():
     assert ev3["record_type"] == "subscription"
     assert ev3["from_amount"] == "5181.74"
     assert map_usmart_hk_to_investment_event(fee, "盈立证券")["record_type"] == "expense"
+
+
+@pytest.mark.parametrize(
+    ("flag", "amount", "note", "expected"),
+    [
+        ("资金存", "0.27", "Refund tax of TQQQ.US", ("reversal", "expense_tax")),
+        ("融券罚息转出", "-1.23", "融券罚息转出", ("expense", "penalty")),
+        ("股息代收费", "-0.66", "股息代收费", ("expense", "handling_fee")),
+        ("IPO认购手续费", "-100", "IPO Handling Fee", ("expense", "handling_fee")),
+        ("平台费返还", "0.88", "平台费返还", ("reversal", "expense_handling_fee")),
+        ("佣金返还", "0.99", "佣金返还", ("reversal", "expense_commission")),
+    ],
+)
+def test_explicit_cash_flags_use_fee_semantics_instead_of_external_funding(
+    flag, amount, note, expected,
+):
+    event = map_usmart_hk_to_investment_event({
+        "kind": "cash", "date": "2026-08-01", "flag": flag, "flag_norm": flag,
+        "ccy": "USD", "amount": Decimal(amount), "note": note,
+    }, "盈立证券")
+
+    assert (event["record_type"], event["record_subtype"]) == expected

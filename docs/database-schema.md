@@ -265,9 +265,10 @@ workspaces  (租户隔离根)
 | `account_id` | SurrogatePK | N | → accounts `RESTRICT` |
 | `source_type` | String(64) | Y | **导入渠道名**（幂等复合键一半；券商/解析 kind）；手工可空 |
 | `record_id` | String(512) | Y | **业务行键**（与 `source_type` 组成幂等；与现金目录同名；不用平行 source_identity） |
-| `source_payload` | JSON | Y | 导入解析行快照（可瘦身）；与 residual `payload` 分工见下 |
+| `source_payload` | JSON | Y | 完整来源行快照；与 residual `payload` 分工见下 |
 | `occurred_at` | UTCDateTime | N | |
-| `action` | String(64) | N | 原 `kind`；如 swap/deposit/withdraw/dividend/fee/ipo 等 |
+| `record_type` | String(64) | N | 规范记录类型：`funding`、`trade`、`income`、`expense`、`reversal`、`subscription`、`adjustment` 或 `snapshot` |
+| `record_subtype` | String(32) | N | 记录子类型；与 `record_type` 受组合约束，例如 `funding(external)`、`expense(tax)`、`reversal(expense_tax)` |
 | `currency` | String(3) | N | 默认 `""` |
 | `note` | Text | N | |
 | `from_ticker` | String(64) | N | 付出资产标的 |

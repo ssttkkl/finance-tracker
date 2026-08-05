@@ -42,8 +42,13 @@ def test_usmart_hk_import_backend_contract(tmp_path, backend):
         assert result.ok, result.message
         assert result.count == 46
         with uow as session:
+            events = session.investments.list()
             snapshot = session.snapshot.load()
             session.rollback()
+        assert all(
+            not any(str(key).startswith("_") for key in (event.get("source_payload") or {}))
+            for event in events
+        )
         positions = snapshot["accounts"]["security"]["盈立证券"]["positions"]
         assert Decimal(positions["usd"]["shares"]) == Decimal("4750.17")
         assert Decimal(positions["hkd"]["shares"]) == Decimal("2021.09")
