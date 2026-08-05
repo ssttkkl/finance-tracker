@@ -56,14 +56,17 @@ def funding_runtime(tmp_path, request):
             reset_postgres_schema(database_url)
 
 
-def _add_cash(session, model, *, account_id, record_id, amount, record_type, day="2026-08-04", workspace_id="funding"):
+def _add_cash(
+    session, model, *, account_id, record_id, amount, record_type,
+    day="2026-08-04", currency="USD", counterparty="", workspace_id="funding",
+):
     row = model(
         workspace_id=workspace_id,
         account_id=account_id,
         occurred_at=datetime.fromisoformat(f"{day}T10:00:00").replace(tzinfo=SHANGHAI),
         amount=Decimal(amount),
-        currency="USD",
-        counterparty="",
+        currency=currency,
+        counterparty=counterparty,
         category="transfer",
         record_type=record_type,
         record_subtype="ordinary_transfer" if record_type.startswith("transfer_") else "not_applicable",
@@ -76,7 +79,11 @@ def _add_cash(session, model, *, account_id, record_id, amount, record_type, day
     return row
 
 
-def _add_investment(session, model, *, account_id, record_id, record_type="funding", record_subtype="external", amount="100", day="2026-08-04", workspace_id="funding"):
+def _add_investment(
+    session, model, *, account_id, record_id, record_type="funding",
+    record_subtype="external", amount="100", day="2026-08-04", currency="USD",
+    source_type="broker_statement", workspace_id="funding",
+):
     incoming = record_type == "funding" and record_subtype in {"external", "subaccount"}
     row = model(
         workspace_id=workspace_id,
@@ -84,7 +91,7 @@ def _add_investment(session, model, *, account_id, record_id, record_type="fundi
         occurred_at=datetime.fromisoformat(f"{day}T11:00:00").replace(tzinfo=SHANGHAI),
         record_type=record_type,
         record_subtype=record_subtype,
-        currency="USD",
+        currency=currency,
         note="",
         from_ticker="" if incoming else "usd",
         from_amount=None if incoming else Decimal(amount),
@@ -92,7 +99,7 @@ def _add_investment(session, model, *, account_id, record_id, record_type="fundi
         to_amount=Decimal(amount) if incoming else None,
         commission=None,
         commission_asset="",
-        source_type="broker_statement",
+        source_type=source_type,
         record_id=record_id,
         source_payload={"native_type": "funding"},
         payload={},
@@ -143,6 +150,174 @@ def test_unique_strong_candidate_is_idempotently_confirmed_and_projects_as_bank_
     assert projection.transfer_subtype == "bank_security_transfer"
     assert projection.net_amount == Decimal("0")
     assert projection.funding_relation_id == relation["id"]
+
+
+def test_unique_institution_name_candidate_allows_cross_currency_and_amount_difference(funding_runtime):
+    from sqlalchemy import select
+
+    from ft.application.cash_investment_funding_relations import CashInvestmentFundingRelationService
+
+    sessions, account, cash_model, investment_model = funding_runtime
+    with sessions.begin() as session:
+        bank, broker = session.scalars(
+            select(account).where(account.workspace_id == "funding").order_by(account.id)
+        ).all()
+        cash = _add_cash(
+            session, cash_model, account_id=bank.id, record_id="cash-ibkr",
+            amount="-10000", currency="HKD", record_type="transfer_out",
+            counterparty="Interactive Brokers LLC", day="2026-07-29",
+        )
+        investment = _add_investment(
+            session, investment_model, account_id=broker.id, record_id="investment-ibkr",
+            amount="1275.50", currency="USD", source_type="ibkr_csv", day="2026-08-04",
+        )
+
+    relation = CashInvestmentFundingRelationService(sessions, "funding").scan()[0]
+
+    assert relation["status"] == "accepted"
+    assert relation["cash_transaction_id"] == cash.id
+    assert relation["investment_event_id"] == investment.id
+    assert relation["decision_reason"] == "unique_institution_name_candidate"
+    assert relation["evidence"] == {
+        "business_day_window": 6,
+        "candidate_count": 1,
+        "cash_record_type": "transfer_out",
+        "match_keys": ["institution_name", "direction", "business_day"],
+    }
+
+
+def test_institution_name_prefers_the_unique_exact_candidate_over_generic_transfer(funding_runtime):
+    from sqlalchemy import select
+
+    from ft.application.cash_investment_funding_relations import CashInvestmentFundingRelationService
+
+    sessions, account, cash_model, investment_model = funding_runtime
+    with sessions.begin() as session:
+        bank, broker = session.scalars(
+            select(account).where(account.workspace_id == "funding").order_by(account.id)
+        ).all()
+        _add_cash(
+            session, cash_model, account_id=bank.id, record_id="cash-generic",
+            amount="-100", currency="CNY", record_type="transfer_out", counterparty="微信",
+        )
+        institution_cash = _add_cash(
+            session, cash_model, account_id=bank.id, record_id="cash-dfzq",
+            amount="-100", currency="CNY", record_type="investment_out", counterparty="银行转证券",
+        )
+        investment = _add_investment(
+            session, investment_model, account_id=broker.id, record_id="investment-dfzq",
+            amount="100", currency="CNY", source_type="dfzq_pdf",
+        )
+
+    relations = CashInvestmentFundingRelationService(sessions, "funding").scan()
+
+    assert len(relations) == 1
+    assert relations[0]["status"] == "accepted"
+    assert relations[0]["cash_transaction_id"] == institution_cash.id
+    assert relations[0]["investment_event_id"] == investment.id
+
+
+def test_institution_name_candidate_respects_directional_window(funding_runtime):
+    from sqlalchemy import select
+
+    from ft.application.cash_investment_funding_relations import CashInvestmentFundingRelationService
+
+    sessions, account, cash_model, investment_model = funding_runtime
+    with sessions.begin() as session:
+        bank, broker = session.scalars(
+            select(account).where(account.workspace_id == "funding").order_by(account.id)
+        ).all()
+        _add_cash(
+            session, cash_model, account_id=bank.id, record_id="cash-late",
+            amount="-100", record_type="transfer_out", counterparty="盈立證券有限公司",
+            day="2026-08-05",
+        )
+        _add_investment(
+            session, investment_model, account_id=broker.id, record_id="investment-usmart",
+            amount="100", source_type="usmart_hk_pdf", day="2026-08-04",
+        )
+
+    assert CashInvestmentFundingRelationService(sessions, "funding").scan() == []
+
+
+def test_institution_name_candidate_upgrades_unreviewed_system_candidate(funding_runtime):
+    from sqlalchemy import select
+
+    from ft.adapters.relational.models import CashInvestmentFundingRelationModel
+    from ft.application.cash_investment_funding_relations import CashInvestmentFundingRelationService
+
+    sessions, account, cash_model, investment_model = funding_runtime
+    with sessions.begin() as session:
+        bank, broker = session.scalars(
+            select(account).where(account.workspace_id == "funding").order_by(account.id)
+        ).all()
+        cash = _add_cash(
+            session, cash_model, account_id=bank.id, record_id="cash-legacy-ibkr",
+            amount="-10000", currency="HKD", record_type="transfer_out",
+            counterparty="Interactive Brokers LLC", day="2026-07-29",
+        )
+        investment = _add_investment(
+            session, investment_model, account_id=broker.id, record_id="investment-legacy-ibkr",
+            amount="1275.50", currency="USD", source_type="ibkr_csv", day="2026-08-04",
+        )
+        session.add(CashInvestmentFundingRelationModel(
+            workspace_id="funding", cash_transaction_id=cash.id, investment_event_id=investment.id,
+            direction="cash_to_investment", status="pending_review",
+            rule_id="cash-investment-funding-v1", created_by="system",
+            evidence={"business_day_window": 6, "candidate_count": 1},
+        ))
+
+    relation = CashInvestmentFundingRelationService(sessions, "funding").scan()[0]
+
+    assert relation["status"] == "accepted"
+    assert relation["decided_by"] == "system"
+    assert relation["decision_reason"] == "unique_institution_name_candidate"
+
+
+def test_stronger_institution_candidate_archives_legacy_generic_candidate(funding_runtime):
+    from sqlalchemy import select
+
+    from ft.adapters.relational.models import CashInvestmentFundingRelationModel
+    from ft.application.cash_investment_funding_relations import CashInvestmentFundingRelationService
+
+    sessions, account, cash_model, investment_model = funding_runtime
+    with sessions.begin() as session:
+        bank, broker = session.scalars(
+            select(account).where(account.workspace_id == "funding").order_by(account.id)
+        ).all()
+        generic_cash = _add_cash(
+            session, cash_model, account_id=bank.id, record_id="cash-legacy-generic",
+            amount="-100", currency="CNY", record_type="transfer_out", counterparty="微信",
+        )
+        institution_cash = _add_cash(
+            session, cash_model, account_id=bank.id, record_id="cash-legacy-dfzq",
+            amount="-100", currency="CNY", record_type="investment_out", counterparty="银行转证券",
+        )
+        investment = _add_investment(
+            session, investment_model, account_id=broker.id, record_id="investment-legacy-dfzq",
+            amount="100", currency="CNY", source_type="dfzq_pdf",
+        )
+        session.add_all([
+            CashInvestmentFundingRelationModel(
+                workspace_id="funding", cash_transaction_id=generic_cash.id,
+                investment_event_id=investment.id, direction="cash_to_investment",
+                status="pending_review", rule_id="cash-investment-funding-v1", created_by="system",
+                evidence={"business_day_window": 0, "candidate_count": 2},
+            ),
+            CashInvestmentFundingRelationModel(
+                workspace_id="funding", cash_transaction_id=institution_cash.id,
+                investment_event_id=investment.id, direction="cash_to_investment",
+                status="pending_review", rule_id="cash-investment-funding-v1", created_by="system",
+                evidence={"business_day_window": 0, "candidate_count": 2},
+            ),
+        ])
+
+    results = CashInvestmentFundingRelationService(sessions, "funding").scan()
+
+    by_cash_id = {relation["cash_transaction_id"]: relation for relation in results}
+    assert by_cash_id[generic_cash.id]["status"] == "rejected"
+    assert by_cash_id[generic_cash.id]["decision_reason"] == "no_longer_candidate"
+    assert by_cash_id[institution_cash.id]["status"] == "accepted"
 
 
 def test_ordinary_or_ambiguous_candidates_require_manual_decision_and_consume_endpoints_once(funding_runtime):

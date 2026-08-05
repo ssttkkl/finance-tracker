@@ -29,6 +29,7 @@ def _safe_snapshot(payload):
 
 
 _FUNDING_MATCH_KEYS = ["amount", "currency", "direction", "business_day"]
+_FUNDING_INSTITUTION_MATCH_KEYS = ["institution_name", "direction", "business_day"]
 _FUNDING_CASH_RECORD_TYPES = frozenset({
     "investment_in", "investment_out", "transfer_in", "transfer_out",
 })
@@ -47,8 +48,9 @@ def _safe_funding_evidence(payload):
     record_type = payload.get("cash_record_type")
     if record_type in _FUNDING_CASH_RECORD_TYPES:
         result["cash_record_type"] = record_type
-    if payload.get("match_keys") == _FUNDING_MATCH_KEYS:
-        result["match_keys"] = list(_FUNDING_MATCH_KEYS)
+    match_keys = payload.get("match_keys")
+    if match_keys in (_FUNDING_MATCH_KEYS, _FUNDING_INSTITUTION_MATCH_KEYS):
+        result["match_keys"] = list(match_keys)
     return result
 
 

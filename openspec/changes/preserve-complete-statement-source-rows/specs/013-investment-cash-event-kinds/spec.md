@@ -10,3 +10,16 @@
 #### Scenario: 来源动作可审计时不保留未分类调整
 - **WHEN** 原始投资账单直接提供可映射到外部出入金、投资账户内部调拨、利息或税费的原始动作
 - **THEN** 重导结果 MUST 使用相应的 `funding`、`income` 或 `expense` 语义，不得因为旧事件曾为 `deposit`、`withdraw` 或 `adjustment(unclassified)` 而保留未分类调整
+
+## ADDED Requirements
+
+### Requirement: 已知机构名称的外部出入金配对
+系统 MUST 仅为 `funding(external)` 使用受控机构名称作为资金调拨的附加确认信号。入金只可匹配发生在此前 7 个 `Asia/Shanghai` 自然日内的收支支出，出金只可匹配发生在其后 7 个自然日内的收支收入。东方证券的“银行转证券／证券转银行”、IBKR 的 `Interactive Brokers` 与盈立证券的简繁体名称可以作为受控机构名称；收款账号、本人名称、自由备注和仅金额相等不得成为该信号。机构名称命中且候选唯一时，即使金额或币种不同，系统 MUST 确认关系并仅保存受限匹配证据，不推导或拆分手续费。
+
+#### Scenario: IBKR 跨币种入金
+- **WHEN** 一笔 `ibkr_csv` 的 USD 外部入金在此前 7 日内仅有一笔 HKD `transfer_out`，且对手方包含 `Interactive Brokers`
+- **THEN** 系统 MUST 确认该银行转账与投资事件的资金调拨关系，并保存机构名称、方向和业务日窗口证据，不保存对方账号或原始备注
+
+#### Scenario: 金额相同但未命中机构名称
+- **WHEN** 一笔外部入金仅匹配到收款人为本人或普通个人的同币种同金额 `transfer_out`
+- **THEN** 系统 MUST 保留待审核候选，不得因为金额相同自动确认

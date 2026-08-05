@@ -77,24 +77,27 @@ def test_evidence_exposes_only_whitelisted_funding_relation_fields(cash_web_runt
 
     with cash_web_runtime.sessions.begin() as session:
         cash = session.get(CashTransactionModel, 1003)
-        cash.record_type = "investment_out"
-        cash.record_subtype = "not_applicable"
+        cash.amount = Decimal("-10000")
+        cash.currency = "HKD"
+        cash.counterparty = "Interactive Brokers LLC"
+        cash.record_type = "transfer_out"
+        cash.record_subtype = "ordinary_transfer"
         session.add(InvestmentEventModel(
             workspace_id=cash_web_runtime.workspace_id,
             account_id=103,
             occurred_at=datetime(2026, 7, 3, 10, tzinfo=ZoneInfo("Asia/Shanghai")),
             record_type="funding",
             record_subtype="external",
-            currency="CNY",
+            currency="USD",
             note="原始备注不应出现在关系证据中",
             from_ticker="",
             from_amount=None,
             to_ticker="cny",
-            to_amount=Decimal("12.50"),
+            to_amount=Decimal("1275.50"),
             commission=None,
             commission_asset="",
             payload={},
-            source_type="broker-statement",
+            source_type="ibkr_csv",
             record_id="investment-funding-evidence",
             source_payload={"account": "sensitive-account", "memo": "sensitive-memo"},
         ))
@@ -119,8 +122,8 @@ def test_evidence_exposes_only_whitelisted_funding_relation_fields(cash_web_runt
         "evidence": {
             "business_day_window": 0,
             "candidate_count": 1,
-            "cash_record_type": "investment_out",
-            "match_keys": ["amount", "currency", "direction", "business_day"],
+            "cash_record_type": "transfer_out",
+            "match_keys": ["institution_name", "direction", "business_day"],
         },
     }
     payload = json.dumps(evidence, default=lambda value: value.__dict__, ensure_ascii=True)

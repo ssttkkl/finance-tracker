@@ -18,6 +18,13 @@ _CANDIDATE_CASH_TYPES = {
     True: frozenset({"investment_out", "transfer_out"}),
     False: frozenset({"investment_in", "transfer_in"}),
 }
+_INSTITUTION_NAME_MARKERS = {
+    "dfzq_pdf": ("银行转证券", "证券转银行"),
+    "ibkr_csv": ("interactive brokers",),
+    "usmart_hk_pdf": ("盈立证券", "盈立證券"),
+}
+_ORDINARY_MATCH_KEYS = ["amount", "currency", "direction", "business_day"]
+_INSTITUTION_MATCH_KEYS = ["institution_name", "direction", "business_day"]
 
 
 class CashInvestmentFundingRelationService:
@@ -68,6 +75,26 @@ class CashInvestmentFundingRelationService:
     def _day(value) -> object:
         return value.astimezone(_SHANGHAI).date()
 
+    @classmethod
+    def _institution_name_matches(cls, cash, event) -> bool:
+        counterparty = (cash.counterparty or "").casefold()
+        return any(
+            marker in counterparty
+            for marker in _INSTITUTION_NAME_MARKERS.get(event.source_type or "", ())
+        )
+
+    def _directional_window(self, cash, event, incoming: bool) -> int | None:
+        cash_day = self._day(cash.occurred_at)
+        event_day = self._day(event.occurred_at)
+        window = (event_day - cash_day).days if incoming else (cash_day - event_day).days
+        return window if 0 <= window <= 7 else None
+
+    def _same_currency_amount(self, cash, event) -> bool:
+        return (
+            cash.currency == event.currency
+            and abs(Decimal(str(cash.amount))) == self._investment_amount(event)
+        )
+
     def _eligible_investments(self, session):
         from ft.adapters.relational.models import AccountModel, InvestmentEventModel
 
@@ -87,7 +114,6 @@ class CashInvestmentFundingRelationService:
     def _candidate_cash(self, session, event):
         from ft.adapters.relational.models import AccountModel, CashTransactionModel
 
-        amount = self._investment_amount(event)
         incoming = self._investment_is_incoming(event)
         expected_types = _CANDIDATE_CASH_TYPES[incoming]
         expected_negative = incoming
@@ -102,16 +128,34 @@ class CashInvestmentFundingRelationService:
                 CashTransactionModel.deleted_at.is_(None),
                 AccountModel.type == "cash",
                 CashTransactionModel.record_type.in_(expected_types),
-                CashTransactionModel.currency == event.currency,
             ).order_by(CashTransactionModel.occurred_at, CashTransactionModel.id)
         ):
             cash_amount = Decimal(str(cash.amount))
-            if (cash_amount < 0) != expected_negative or abs(cash_amount) != amount:
+            if (cash_amount < 0) != expected_negative:
                 continue
-            window = abs((self._day(cash.occurred_at) - self._day(event.occurred_at)).days)
-            if window <= 7:
-                candidates.append((cash, window))
+            window = self._directional_window(cash, event, incoming)
+            if window is None:
+                continue
+            institution_name_match = self._institution_name_matches(cash, event)
+            if self._same_currency_amount(cash, event) or institution_name_match:
+                candidates.append((cash, window, institution_name_match))
         return candidates
+
+    def _select_candidates(self, candidates, event):
+        institution_candidates = [candidate for candidate in candidates if candidate[2]]
+        if not institution_candidates:
+            return candidates
+        exact_candidates = [
+            candidate
+            for candidate in institution_candidates
+            if self._same_currency_amount(candidate[0], event)
+        ]
+        if exact_candidates:
+            nearest_window = min(candidate[1] for candidate in exact_candidates)
+            return [candidate for candidate in exact_candidates if candidate[1] == nearest_window]
+        if len(institution_candidates) == 1:
+            return institution_candidates
+        return institution_candidates
 
     def _accepted_endpoint_ids(self, session) -> tuple[set[int], set[int]]:
         from ft.adapters.relational.models import CashInvestmentFundingRelationModel
@@ -141,21 +185,62 @@ class CashInvestmentFundingRelationService:
     def _pair_is_valid(self, cash, investment) -> bool:
         if investment.record_type != "funding" or investment.record_subtype != "external":
             return False
-        amount = self._investment_amount(investment)
-        if cash.currency != investment.currency or abs(Decimal(str(cash.amount))) != amount:
-            return False
         incoming = self._investment_is_incoming(investment)
-        return (incoming and Decimal(str(cash.amount)) < 0) or (
-            not incoming and Decimal(str(cash.amount)) > 0
+        if cash.record_type not in _CANDIDATE_CASH_TYPES[incoming]:
+            return False
+        if self._directional_window(cash, investment, incoming) is None:
+            return False
+        return self._same_currency_amount(cash, investment) or self._institution_name_matches(
+            cash, investment,
         )
 
-    def _evidence(self, cash, window: int, candidate_count: int) -> dict:
+    def _evidence(
+        self, cash, window: int, candidate_count: int, *, institution_name_match: bool,
+    ) -> dict:
         return {
             "business_day_window": window,
             "candidate_count": candidate_count,
             "cash_record_type": cash.record_type,
-            "match_keys": ["amount", "currency", "direction", "business_day"],
+            "match_keys": (
+                _INSTITUTION_MATCH_KEYS if institution_name_match else _ORDINARY_MATCH_KEYS
+            ),
         }
+
+    def _auto_accept_reason(
+        self, cash, investment, window: int, candidate_count: int, institution_name_match: bool,
+    ) -> str:
+        if candidate_count != 1:
+            return ""
+        if institution_name_match:
+            return "unique_institution_name_candidate"
+        if (
+            window == 0
+            and cash.record_type == _AUTO_CASH_TYPES[self._investment_is_incoming(investment)]
+        ):
+            return "unique_strong_candidate"
+        return ""
+
+    @staticmethod
+    def _is_unreviewed_system_candidate(relation) -> bool:
+        return (
+            relation.status == "pending_review"
+            and relation.created_by == "system"
+            and not relation.decided_by
+        )
+
+    def _archive_stale_system_candidates(self, existing, investment_id: int, candidate_cash_ids: set[int], changed) -> None:
+        for relation in existing.values():
+            if (
+                relation.investment_event_id != investment_id
+                or not self._is_unreviewed_system_candidate(relation)
+                or relation.cash_transaction_id in candidate_cash_ids
+            ):
+                continue
+            relation.status = "rejected"
+            relation.decided_by = "system"
+            relation.decided_at = datetime.now(timezone.utc)
+            relation.decision_reason = "no_longer_candidate"
+            changed.append(relation)
 
     def scan(self) -> list[dict]:
         from ft.adapters.relational.models import CashInvestmentFundingRelationModel
@@ -185,23 +270,35 @@ class CashInvestmentFundingRelationService:
                     if accepted is not None:
                         changed.append(accepted)
                     continue
-                candidates = [
-                    (cash, window)
-                    for cash, window in self._candidate_cash(session, investment)
+                candidates = self._select_candidates([
+                    (cash, window, institution_name_match)
+                    for cash, window, institution_name_match in self._candidate_cash(session, investment)
                     if cash.id not in accepted_cash and not self._cash_has_accepted_cash_relation(session, cash.id)
-                ]
+                ], investment)
+                self._archive_stale_system_candidates(
+                    existing, investment.id, {cash.id for cash, _window, _match in candidates}, changed,
+                )
                 count = len(candidates)
-                for cash, window in candidates:
+                for cash, window, institution_name_match in candidates:
                     key = (cash.id, investment.id)
                     relation = existing.get(key)
-                    auto_accept = (
-                        count == 1
-                        and window == 0
-                        and cash.record_type == _AUTO_CASH_TYPES[self._investment_is_incoming(investment)]
+                    decision_reason = self._auto_accept_reason(
+                        cash, investment, window, count, institution_name_match,
+                    )
+                    evidence = self._evidence(
+                        cash, window, count, institution_name_match=institution_name_match,
                     )
                     if relation is not None:
-                        if relation.status == "pending_review" and relation.created_by == "system" and not relation.decided_by:
-                            relation.evidence = self._evidence(cash, window, count)
+                        if self._is_unreviewed_system_candidate(relation):
+                            relation.evidence = evidence
+                            if decision_reason:
+                                relation.status = "accepted"
+                                relation.decided_by = "system"
+                                relation.decided_at = datetime.now(timezone.utc)
+                                relation.decision_reason = decision_reason
+                                accepted_cash.add(cash.id)
+                                accepted_investment.add(investment.id)
+                                affected_cash_ids.add(cash.id)
                         changed.append(relation)
                         continue
                     relation = CashInvestmentFundingRelationModel(
@@ -209,19 +306,19 @@ class CashInvestmentFundingRelationService:
                         cash_transaction_id=cash.id,
                         investment_event_id=investment.id,
                         direction="cash_to_investment" if self._investment_is_incoming(investment) else "investment_to_cash",
-                        status="accepted" if auto_accept else "pending_review",
+                        status="accepted" if decision_reason else "pending_review",
                         rule_id=_RULE_ID,
-                        evidence=self._evidence(cash, window, count),
+                        evidence=evidence,
                         created_by="system",
-                        decided_by="system" if auto_accept else "",
-                        decided_at=datetime.now(timezone.utc) if auto_accept else None,
-                        decision_reason="unique_strong_candidate" if auto_accept else "",
+                        decided_by="system" if decision_reason else "",
+                        decided_at=datetime.now(timezone.utc) if decision_reason else None,
+                        decision_reason=decision_reason,
                     )
                     session.add(relation)
                     session.flush()
                     existing[key] = relation
                     changed.append(relation)
-                    if auto_accept:
+                    if decision_reason:
                         accepted_cash.add(cash.id)
                         accepted_investment.add(investment.id)
                         affected_cash_ids.add(cash.id)
