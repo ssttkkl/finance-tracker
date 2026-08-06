@@ -81,6 +81,11 @@ def _fmt(value: Decimal | int | str) -> str:
     return s or "0"
 
 
+def _source_payload_from_cells(cells: list[str]) -> dict[str, list[str]]:
+    if not cells:
+        raise ValueError("IBKR 来源行为空")
+    return {"原始文本单元": list(cells)}
+
 
 def parse_ibkr_csv(path: str | Path) -> IbkrStatement:
     """Parse IBKR Activity CSV into flows + trailing cash CHECKIN.
@@ -91,6 +96,7 @@ def parse_ibkr_csv(path: str | Path) -> IbkrStatement:
     statement = IbkrStatement()
     flow_rows: list[dict[str, Any]] = []
     max_flow_date = ""
+    ending_cash_source_payload: dict[str, list[str]] | None = None
 
     with path.open(encoding="utf-8", newline="") as fh:
         reader = csv.reader(fh)
@@ -116,6 +122,7 @@ def parse_ibkr_csv(path: str | Path) -> IbkrStatement:
                     statement.beginning_cash = _d0(field_val)
                 elif field_name == "期末现金":
                     statement.ending_cash = _d0(field_val)
+                    ending_cash_source_payload = _source_payload_from_cells(row)
                 continue
 
             if section == "Transaction History" and kind == "Data":
@@ -164,6 +171,7 @@ def parse_ibkr_csv(path: str | Path) -> IbkrStatement:
                     "fee": abs(commission) if commission is not None else Decimal("0"),
                     "ticker": _normalize_parse_ticker(code),
                     "note": description,
+                    "_source_payload": _source_payload_from_cells(row),
                 })
 
     if not flow_rows and not statement.base_currency:
@@ -174,6 +182,8 @@ def parse_ibkr_csv(path: str | Path) -> IbkrStatement:
         checkin_date = statement.when_generated[:10]
     if not checkin_date:
         checkin_date = "1970-01-01"
+    if ending_cash_source_payload is None:
+        raise ValueError("IBKR CSV missing 总结.期末现金 source row")
 
     checkin = {
         "date": checkin_date,
@@ -196,6 +206,7 @@ def parse_ibkr_csv(path: str | Path) -> IbkrStatement:
         "fee": Decimal("0"),
         "ticker": "",
         "note": "总结.期末现金",
+        "_source_payload": ending_cash_source_payload,
     }
 
     statement.transactions = flow_rows + [checkin]

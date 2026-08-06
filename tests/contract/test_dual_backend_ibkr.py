@@ -55,6 +55,21 @@ def test_ibkr_import_backend_contract(tmp_path, backend):
             snapshot = session.snapshot.load()
             session.rollback()
         assert len(events) == 39
+        funding = next(
+            event
+            for event in events
+            if event["record_type"] == "funding" and event["to_amount"] == "4757"
+        )
+        assert funding["source_payload"] == {
+            "原始文本单元": [
+                "Transaction History", "Data", "2026-07-08", "U***67228", "电子资金转账",
+                "存款", "-", "-", "-", "-", "4757.0", "-", "4757.0",
+            ],
+        }
+        assert all(
+            not ({"action", "ticker", "amount", "record_type", "record_subtype"} & set(event["source_payload"]))
+            for event in events
+        )
         assert Decimal(snapshot["accounts"]["security"]["IBKR"]["positions"]["usd"]["shares"]) == Decimal("5044.938780328453")
     finally:
         engine.dispose()

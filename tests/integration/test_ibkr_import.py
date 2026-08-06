@@ -46,6 +46,27 @@ def test_ibkr_import_sqlite_creates_auditable_events_and_is_idempotent(tmp_path)
             session.rollback()
 
         assert len(events) == 39
+        funding = next(
+            event
+            for event in events
+            if event["record_type"] == "funding" and event["to_amount"] == "4757"
+        )
+        assert funding["source_payload"] == {
+            "原始文本单元": [
+                "Transaction History", "Data", "2026-07-08", "U***67228", "电子资金转账",
+                "存款", "-", "-", "-", "-", "4757.0", "-", "4757.0",
+            ],
+        }
+        cash_snapshot = next(
+            event
+            for event in events
+            if (event["record_type"], event["record_subtype"]) == ("snapshot", "cash")
+        )
+        assert cash_snapshot["source_payload"] == {
+            "原始文本单元": ["总结", "Data", "期末现金", "5044.938780328453"],
+        }
+        prohibited = {"action", "ticker", "amount", "record_type", "record_subtype"}
+        assert all(not (prohibited & set(event["source_payload"])) for event in events)
         cash = snapshot["accounts"]["security"]["IBKR"]["positions"]["usd"]
         assert Decimal(cash["shares"]) == Decimal("5044.938780328453")
     finally:

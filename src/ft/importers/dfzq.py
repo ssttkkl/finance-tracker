@@ -55,6 +55,12 @@ _COLUMN_HEADERS = frozenset([
 ])
 
 
+def _source_payload_from_units(units: list[str]) -> dict[str, list[str]]:
+    if not units:
+        raise ValueError("东方证券来源行为空")
+    return {"原始文本单元": list(units)}
+
+
 def _is_numeric(s: str) -> bool:
     """Check if a string is purely numeric (integer or decimal)."""
     try:
@@ -161,14 +167,16 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
         if action_raw == "红股入账":
             if len(block) < 6:
                 continue
-            txns.append(_make_txn(
+            txn = _make_txn(
                 date_str, action_raw,
                 ticker=block[2], name=block[3],
                 shares=Decimal(block[4]), price=Decimal(block[5]),
                 total_amount=Decimal("0"), fee=Decimal("0"),
                 stamp_tax=Decimal("0"), transfer_fee=Decimal("0"),
                 balance=Decimal("0"),
-            ))
+            )
+            txn["_source_payload"] = _source_payload_from_units(block)
+            txns.append(txn)
             continue
 
         # 判断是否有"证券名称"列
@@ -251,21 +259,23 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
                 transfer_fee = Decimal("0")
                 balance = Decimal(block[8])
 
-        txns.append(_make_txn(
+        txn = _make_txn(
             date_str, action_raw,
             ticker=ticker, name=name,
             shares=shares, price=price,
             total_amount=total_amount, fee=fee,
             stamp_tax=stamp_tax, transfer_fee=transfer_fee,
             balance=balance,
-        ))
+        )
+        txn["_source_payload"] = _source_payload_from_units(block)
+        txns.append(txn)
 
     # 5. 排序
     txns.sort(key=lambda t: t["date"])
 
     # 6. CHECKIN from statement summary (cash + security positions with cost)
     holdings = _parse_holdings_summary(lines)
-    cash_balance = _parse_cash_balance(lines)
+    cash_balance, cash_source_payload = _parse_cash_balance(lines)
     checkin_date = txns[-1]["date"] if txns else None
     if checkin_date is None and (holdings or cash_balance is not None):
         # No flow rows but summary exists — still emit checkins with print date fallback
@@ -280,15 +290,20 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
                 if t["action"] in {"BUY", "SELL", "DEPOSIT", "WITHDRAW"}:
                     cash = t["balance"]
                     cash_note = "fallback last trade balance"
+                    cash_source_payload = t["_source_payload"]
                     break
                 if t["action"] == "DIVIDEND" and not t.get("ticker"):
                     cash = t["balance"]
                     cash_note = "fallback last cash dividend balance"
+                    cash_source_payload = t["_source_payload"]
                     break
             if cash is None:
                 cash = txns[-1]["balance"]
                 cash_note = "fallback last balance"
+                cash_source_payload = txns[-1]["_source_payload"]
         if cash is not None:
+            if cash_source_payload is None:
+                raise ValueError("东方证券现金快照缺少来源行")
             txns.append({
                 "date": checkin_date,
                 "action": "CHECKIN",
@@ -298,6 +313,7 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
                 "total_amount": cash,
                 "fee": Decimal("0"), "stamp_tax": Decimal("0"),
                 "transfer_fee": Decimal("0"), "balance": cash, "note": cash_note,
+                "_source_payload": cash_source_payload,
             })
         for h in holdings:
             txns.append({
@@ -310,15 +326,18 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
                 "fee": Decimal("0"), "stamp_tax": Decimal("0"),
                 "transfer_fee": Decimal("0"), "balance": Decimal("0"),
                 "note": f"statement holding cost; market={h.get('market_price')}",
+                "_source_payload": h["_source_payload"],
             })
     elif txns:
         last = txns[-1]
         cash = last["balance"]
+        cash_source_payload = last["_source_payload"]
         for t in reversed(txns):
             if t["action"] in {"BUY", "SELL", "DEPOSIT", "WITHDRAW"} or (
                 t["action"] == "DIVIDEND" and not t.get("ticker")
             ):
                 cash = t["balance"]
+                cash_source_payload = t["_source_payload"]
                 break
         txns.append({
             "date": last["date"],
@@ -329,6 +348,7 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
             "total_amount": cash,
             "fee": Decimal("0"), "stamp_tax": Decimal("0"),
             "transfer_fee": Decimal("0"), "balance": Decimal("0"), "note": "fallback last balance",
+            "_source_payload": cash_source_payload,
         })
 
     return txns
@@ -344,23 +364,27 @@ def _parse_print_date(lines: list[str]) -> str | None:
     return None
 
 
-def _parse_cash_balance(lines: list[str]) -> Decimal | None:
+def _parse_cash_balance(lines: list[str]) -> tuple[Decimal | None, dict[str, list[str]] | None]:
     """Parse 资金余额(RMB) from statement header."""
     for i, line in enumerate(lines[:80]):
         if "资金余额(RMB)" in line or "资金余额（RMB）" in line:
             # value may be on same line or next non-empty line
             m = re.search(r"资金余额\(?RMB\)?[:：]?\s*([0-9,]+\.\d+)", line)
             if m:
-                return Decimal(m.group(1).replace(",", ""))
+                return Decimal(m.group(1).replace(",", "")), _source_payload_from_units([
+                    line.rstrip("\r\n"),
+                ])
             for j in range(i + 1, min(i + 4, len(lines))):
                 s = lines[j].strip().replace(",", "")
                 if not s:
                     continue
                 try:
-                    return Decimal(s)
+                    return Decimal(s), _source_payload_from_units([
+                        line.rstrip("\r\n"), lines[j].rstrip("\r\n"),
+                    ])
                 except InvalidOperation:
                     break
-    return None
+    return None, None
 
 
 def _parse_holdings_summary(lines: list[str]) -> list[dict[str, Any]]:
@@ -384,26 +408,28 @@ def _parse_holdings_summary(lines: list[str]) -> list[dict[str, Any]]:
     if end is None:
         end = min(start + 80, len(lines))
 
-    section = [ln.strip() for ln in lines[start:end] if ln.strip()]
+    section = [(ln.strip(), ln.rstrip("\r\n")) for ln in lines[start:end] if ln.strip()]
     # Drop section title and column headers
     headers = {
         "汇总股票资料", "交易市场", "证券代码", "证券名称",
         "持仓数量", "市价", "成本价", "证券市值",
     }
     market_labels = {"深市A股", "沪市A股", "沪市B股", "深市B股", "港股", "美股", "场外"}
-    values = [v for v in section if v not in headers]
+    values = [v for v in section if v[0] not in headers]
 
     holdings: list[dict[str, Any]] = []
     i = 0
     while i < len(values):
         # Optional leading market label
-        if values[i] in market_labels:
+        row_start = i
+        if values[i][0] in market_labels:
             i += 1
             if i >= len(values):
                 break
         if i + 5 >= len(values):
             break
-        code, name, qty_s, mkt_s, cost_s, mv_s = values[i:i + 6]
+        parsed_values = values[i:i + 6]
+        code, name, qty_s, mkt_s, cost_s, mv_s = [value for value, _raw in parsed_values]
         if not re.fullmatch(r"\d{5,6}", code):
             i += 1
             continue
@@ -421,6 +447,9 @@ def _parse_holdings_summary(lines: list[str]) -> list[dict[str, Any]]:
                 "shares": shares,
                 "market_price": market_price,
                 "cost_price": cost_price,
+                "_source_payload": _source_payload_from_units([
+                    raw for _value, raw in values[row_start:i + 6]
+                ]),
             })
         i += 6
     return holdings

@@ -45,10 +45,18 @@ def test_usmart_hk_import_backend_contract(tmp_path, backend):
             events = session.investments.list()
             snapshot = session.snapshot.load()
             session.rollback()
+        assert all(set(event.get("source_payload") or {}) == {"原始文本单元"} for event in events)
         assert all(
             not any(str(key).startswith("_") for key in (event.get("source_payload") or {}))
             for event in events
         )
+        cash_snapshot = next(
+            event
+            for event in events
+            if (event["record_type"], event["record_subtype"], event["to_ticker"])
+            == ("snapshot", "cash", "usd")
+        )
+        assert any("期末账⼾结余" in unit for unit in cash_snapshot["source_payload"]["原始文本单元"])
         positions = snapshot["accounts"]["security"]["盈立证券"]["positions"]
         assert Decimal(positions["usd"]["shares"]) == Decimal("4750.17")
         assert Decimal(positions["hkd"]["shares"]) == Decimal("2021.09")

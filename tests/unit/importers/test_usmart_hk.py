@@ -4,6 +4,8 @@ from pathlib import Path
 import pytest
 
 from ft.importers.usmart_hk import (
+    _parse_holdings,
+    _statement_profile,
     construct_source_identity,
     map_usmart_hk_to_investment_event,
     parse_usmart_hk_text,
@@ -15,6 +17,11 @@ FIXTURE = Path("tests/fixtures/usmart_hk/monthly_sample.txt")
 
 def _rows():
     return parse_usmart_hk_text(FIXTURE.read_text(encoding="utf-8"))
+
+
+def test_statement_profile_uses_day_trading_statement_layout_not_filename():
+    assert _statement_profile("交易明细\n开仓记录\n持仓明细") == "day"
+    assert _statement_profile("交易明细\n证券提存\n持仓明细") == "margin"
 
 
 def test_trade_groups_merge_fills_and_put_fee_outside_gross_cash_leg():
@@ -50,6 +57,31 @@ def test_empty_columns_holdings_and_cash_checkins_use_native_currency():
     cash = next(row for row in rows if row["kind"] == "checkin_cash" and row["ccy"] == "HKD")
     assert map_usmart_hk_to_investment_event(holding, "盈立证券")["price"] == "0"
     assert map_usmart_hk_to_investment_event(cash, "盈立证券")["to_ticker"] == "hkd"
+
+
+def test_vertical_holdings_keep_original_source_units():
+    """纵向 PDF 文本的持仓快照必须保存原始文本单元。"""
+    source_text = "\n".join([
+        "持仓明细",
+        "00700",
+        "腾讯控股",
+        "HKD",
+        "100",
+        "0",
+        "100",
+        "200",
+        "资金出入",
+    ])
+
+    rows = _parse_holdings(source_text, source_text, "2026-06", "2026-06-30")
+
+    assert len(rows) == 1
+    assert rows[0]["ticker"] == "00700.hk"
+    assert rows[0]["_source_payload"] == {
+        "原始文本单元": [
+            "00700", "腾讯控股", "HKD", "100", "0", "100", "200",
+        ],
+    }
 
 
 def test_traded_but_absent_from_holdings_gets_zero_share_checkin():

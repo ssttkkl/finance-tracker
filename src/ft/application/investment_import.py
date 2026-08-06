@@ -6,12 +6,35 @@ with atomic transaction guarantees.
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 from typing import Any
 
 from ft.domain.application import OperationResult
 from ft.domain.investment_projection import apply_investment_event, normalize_base_tickers
 from ft.domain.investment_validation import validate_investment_snapshot
+
+
+def _require_source_payload(txn: dict[str, Any], *, source: str) -> dict[str, Any]:
+    """返回解析器提供的来源行快照；缺失时拒绝整批导入。"""
+    payload = txn.get("_source_payload")
+    if not isinstance(payload, dict) or not payload:
+        raise ValueError("投资导入器未提供完整来源行快照")
+
+    if source in {"dfzq", "ibkr", "usmart-hk", "usmart_hk"}:
+        units = payload.get("原始文本单元")
+        if set(payload) != {"原始文本单元"} or not isinstance(units, list) or not units:
+            raise ValueError("投资来源行快照必须只包含原始文本单元")
+        if not all(isinstance(unit, str) for unit in units):
+            raise ValueError("投资来源行快照包含非文本单元")
+
+    if "_source_payload" in payload:
+        raise ValueError("投资来源行快照包含编排字段")
+    try:
+        json.dumps(payload, ensure_ascii=False, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("投资来源行快照不是可持久化的 JSON 数据") from exc
+    return payload
 
 
 class InvestmentImportService:
@@ -283,8 +306,6 @@ class InvestmentImportService:
         base_tickers=None,
     ) -> int:
         """Import novel investment events by (source_type, record_id)."""
-        from decimal import Decimal as _Dec
-
         if source == "ibkr":
             from ft.importers.ibkr import (
                 construct_source_identity,
@@ -312,30 +333,13 @@ class InvestmentImportService:
         else:
             raise ValueError(f"不支持导入该投资数据源：{source}")
 
-        metadata_keys = {
-            "ibkr": {"_ibkr_base_currency", "_ibkr_ending_cash"},
-            "schwab": {"_schwab_ending_cash"},
-            "usmart-hk": {
-                "_id_seq", "_profile", "_usmart_ignored_trade_mirrors",
-                "_usmart_statement_profile",
-            },
-            "usmart_hk": {
-                "_id_seq", "_profile", "_usmart_ignored_trade_mirrors",
-                "_usmart_statement_profile",
-            },
-        }.get(source, set())
-
         record_ids = []
         payloads = []
         for txn in transactions:
             record_id = str(construct_source_identity(txn) or "").strip()
             if record_id.startswith(f"{source_type}:"):
                 record_id = record_id[len(source_type) + 1 :]
-            payload = {
-                k: (format(v, "f") if isinstance(v, _Dec) else v)
-                for k, v in txn.items()
-                if k not in metadata_keys
-            }
+            payload = _require_source_payload(txn, source=source)
             record_ids.append(record_id)
             payloads.append(payload)
 

@@ -57,7 +57,15 @@ def test_dfzq_import_backend_contract(tmp_path, backend):
             session.rollback()
         assert len(events) == 6
         funding = next(event for event in events if event["record_type"] == "funding")
-        assert funding["source_payload"]["action_raw"] == "银行转证券"
+        assert funding["source_payload"] == {
+            "原始文本单元": [
+                "20260610", "银行转证券", "CNY", "1.0000", "10000.00", "0.00", "10000.00",
+            ],
+        }
+        assert all(
+            not ({"action", "action_raw", "ticker", "amount", "record_type"} & set(event["source_payload"]))
+            for event in events
+        )
         positions = snapshot["accounts"]["security"]["东方证券"]["positions"]
         assert Decimal(positions["cny"]["shares"]) == Decimal("9447.30")
         assert Decimal(positions["600000.sh"]["shares"]) == Decimal("60")

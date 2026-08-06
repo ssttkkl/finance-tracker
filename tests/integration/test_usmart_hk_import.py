@@ -34,12 +34,33 @@ def test_usmart_hk_fixture_imports_native_cash_holdings_and_is_idempotent(tmp_pa
             events = session.investments.list()
             snapshot = session.snapshot.load()
             session.rollback()
+        assert all(set(event.get("source_payload") or {}) == {"原始文本单元"} for event in events)
         assert all(
             not any(str(key).startswith("_") for key in (event.get("source_payload") or {}))
             for event in events
         )
-        cash_event = next(event for event in events if event.get("source_payload", {}).get("flag") == "融资利息")
-        assert cash_event["source_payload"]["note"] == "融资利息"
+        cash_event = next(
+            event
+            for event in events
+            if "融资利息" in "\n".join(event["source_payload"]["原始文本单元"])
+        )
+        assert cash_event["source_payload"]["原始文本单元"] == [
+            "  融资利息                     USD                       -0.78                      2026-06-29",
+        ]
+        cash_snapshot = next(
+            event
+            for event in events
+            if (event["record_type"], event["record_subtype"]) == ("snapshot", "cash")
+            and event["to_ticker"] == "usd"
+        )
+        assert any("期末账⼾结余" in unit for unit in cash_snapshot["source_payload"]["原始文本单元"])
+        position_snapshot = next(
+            event
+            for event in events
+            if (event["record_type"], event["record_subtype"], event["to_ticker"])
+            == ("snapshot", "position", "00700.hk")
+        )
+        assert any("00700 (腾讯控股)" in unit for unit in position_snapshot["source_payload"]["原始文本单元"])
         positions = snapshot["accounts"]["security"]["盈立证券"]["positions"]
         assert Decimal(positions["usd"]["shares"]) == Decimal("4750.17")
         assert Decimal(positions["hkd"]["shares"]) == Decimal("2021.09")

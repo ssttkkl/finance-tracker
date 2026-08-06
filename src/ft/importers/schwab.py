@@ -151,6 +151,7 @@ def parse_schwab_csv(path: str | Path) -> SchwabStatement:
     flow_rows: list[dict[str, Any]] = []
     newest_balance: Decimal | None = None
     newest_date_raw = ""
+    newest_source_payload: dict[str, str] | None = None
 
     with path.open(encoding="utf-8-sig", newline="") as fh:
         reader = csv.DictReader(fh)
@@ -158,6 +159,8 @@ def parse_schwab_csv(path: str | Path) -> SchwabStatement:
             raise ValueError("Schwab CSV missing header row")
         # Map stripped header → original key
         original_keys = list(reader.fieldnames)
+        if len(set(original_keys)) != len(original_keys):
+            raise ValueError("Schwab CSV has duplicate source columns")
         stripped = _strip_headers(original_keys)
         key_map = {s: o for s, o in zip(stripped, original_keys)}
         required = ["日期", "类型", "说明", "参照号码", "杂费", "佣金", "金额", "余额"]
@@ -173,6 +176,9 @@ def parse_schwab_csv(path: str | Path) -> SchwabStatement:
             # Skip blank lines (all empty)
             if not any((v or "").strip() for v in raw.values()):
                 continue
+            if None in raw or any(value is None for value in raw.values()):
+                raise ValueError("Schwab CSV source row has a mismatched column count")
+            source_payload = dict(raw)
             type_code = cell(raw, "类型")
             if not type_code:
                 continue
@@ -191,6 +197,7 @@ def parse_schwab_csv(path: str | Path) -> SchwabStatement:
             if first_data:
                 newest_balance = balance
                 newest_date_raw = date
+                newest_source_payload = source_payload
                 first_data = False
 
             fee_total = abs(misc_fee) + abs(commission_col)
@@ -226,6 +233,7 @@ def parse_schwab_csv(path: str | Path) -> SchwabStatement:
                 "price": price,
                 "note": description,
                 "journal_kind": "",
+                "_source_payload": source_payload,
             })
 
     if not flow_rows:
@@ -233,6 +241,8 @@ def parse_schwab_csv(path: str | Path) -> SchwabStatement:
 
     if newest_balance is None:
         raise ValueError("Schwab CSV missing balance for CHECKIN")
+    if newest_source_payload is None:
+        raise ValueError("Schwab CSV missing source row for CHECKIN")
 
     statement.ending_cash = newest_balance
 
@@ -259,6 +269,7 @@ def parse_schwab_csv(path: str | Path) -> SchwabStatement:
         "price": Decimal("1"),
         "note": "newest 余额",
         "journal_kind": "",
+        "_source_payload": newest_source_payload,
     }
 
     statement.transactions = flow_rows + [checkin]

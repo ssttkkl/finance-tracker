@@ -64,6 +64,20 @@
 - [x] 10.4 完成范围、工程、安全和最终 diff 复核；运行 SQLite/PostgreSQL 契约矩阵、OpenSpec 校验、构建与受影响回归。
 - [x] 10.5 在用户授权的真实账本备份后重扫资金调拨关系，记录确认、待审核与归档统计及完整性检查。
 
+## 11. 全量账本重建复核
+
+- [x] 11.1 先增加盈立账单产品档案失败回归：以 PDF 正文的交易布局区分保证金与日内融，不得依赖文件名、账号或账单后缀。
+- [x] 11.2 修复产品档案解析后，在隔离 SQLite 从工作区、账户和账户别名重建全部现金与投资事实，运行关系扫描、资金调拨扫描、投影重建和完整性核验。
+- [x] 11.3 在用户授权的真实 `.ft` 账本创建可恢复备份，原子发布已验证的全量重建库，并记录未自动确认的出入金关系。
+
+## 12. 投资来源行快照完整性
+
+- [x] 12.1 更新 proposal、delta 规格和设计，明确四个现有投资导入器以解析器显式原始快照为唯一来源，汇总与零持仓快照只保存可归属的来源文本单元。
+- [x] 12.2 先增加 SQLite 失败回归，覆盖东方证券、IBKR、Charles Schwab 与盈立的流水、现金快照和持仓快照；断言保留完整来源行且不含标准化或编排字段。
+- [x] 12.3 重构投资导入编排为只接受 `_source_payload`，并修正四个导入器的 CSV、PDF、余额和持仓来源快照。
+- [x] 12.4 在 SQLite 与本机 PostgreSQL 运行导入、幂等和来源快照契约矩阵；用只读解析实际投资账单抽样确认快照键集合。
+- [x] 12.5 完成产品/范围、工程与安全、最终 diff 独立复核，并记录验证命令、比较基线、结果和历史快照不回写的边界。
+
 ## 审查记录
 
 - 产品/范围复核：通过。实现只保存业务行，不保存来源文件、路径或文件级元数据；`counterparty_account` 只接收来源直接提供的值，历史缺失值保持为空。
@@ -75,6 +89,10 @@
 - 机构名称资金调拨产品/范围复核：通过。关系仅连接收支现金流水与 `funding(external)` 投资事件；费用、税费和利息保持独立经济事实，金额或币种差异不生成第三个关系端点或手续费拆分。
 - 机构名称资金调拨工程与安全复核：通过。机构名称由投资导入渠道选择受控列表，未读取或持久化收款账号、本人名称或原始备注；网页证据只允许受控的匹配键，跨币种 IBKR 样例验证未泄露投资来源快照。
 - 机构名称资金调拨最终 diff 复核：通过。单向 7 日窗口、候选唯一性、端点互斥和旧系统候选归档与规格一致；未发现阻断性、严重或中等 finding。残余风险是受控机构名称扩展时必须同步增加双后端回归和真实数据核验。
+- 全量重建复核：通过。初次隔离重建发现盈立日内融账单因文本档案误判而全部路由到保证金账户，且历史工行借记卡 PDF 误用通用解析器会少 10 条。前者改为识别 PDF 正文的“交易明细／开仓记录”结构，后者在重建编排中按 PDF 正文选择 `icbc` 或 `icbc-debit`；两项均不读取文件名或账号。复跑后现金、投资、关系和投影统计回到既有基线，未发现阻断性、严重或中等 finding。
+- 投资来源快照产品/范围独立复核：通过。范围仅涵盖东方证券、IBKR、Charles Schwab 与盈立的导入事实及其汇总快照；来源 CSV 自带的同名列仍完整保留，禁止的是解析、映射或编排新增的字段。未保存来源文件、路径或文件级元数据，也未回写历史快照。
+- 投资来源快照工程与安全独立复核：修复 1 个中等 finding：真实盈立纵向持仓布局将原始文本单元列表传给仅接受字符串的快照构造函数，导致导入失败。构造函数现接受原始字符串或文本单元列表，并有回归测试。四个解析器均由编排层显式快照门禁保护；真实账单仅以临时解密文件只读解析，未写入数据库或测试夹具。
+- 投资来源快照最终 diff 独立复核：通过。实现、delta 规格和测试一致；已修正文案，明确“不得写入标准化 `amount` 等字段”不排除来源 CSV 自带的同名列。未发现 critical、major 或其他中等 finding。残余风险是本地没有 Charles Schwab 原始账单，嘉信仅由逐行来源 CSV 夹具和双后端契约覆盖。
 
 ## 验证记录
 
@@ -95,6 +113,11 @@
 - 完整 `uv run pytest -q` 在交互执行器中受性能用例和重复会话干扰，未获得可归档的最终退出码，未视为通过。补跑条件：在无前台时限、单一进程环境运行完整回归；本次受影响改动已由上述 SQLite、PostgreSQL 和真实账本矩阵覆盖。
 - 机构名称资金调拨比较基线：`e119eecc7dada466a2340cd04c3043061c404c4f`；验证时 `HEAD`：`2c959a3e0f4758a6fc8e83a784217d105ca6702f`。`FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/finance_tracker_test FT_REQUIRE_TEST_POSTGRES=1 uv run pytest -q tests/test_cash_investment_funding_relations.py`：19 passed。补充网页证据契约后，以相同本机 PostgreSQL 配置运行 `tests/test_cash_investment_funding_relations.py tests/test_relational_cash_projection_evidence.py`：23 passed；`uv run pytest -q tests/test_application_web_queries.py tests/contract/test_web_api.py`：49 passed、5 skipped。`openspec validate preserve-complete-statement-source-rows --strict`、`openspec doctor`、`uv run python -m compileall -q src`、`uv build` 和 `git diff --check`：通过。
 - 机构名称资金调拨真实账本：先校验并将 `~/.ft/backups/finance-tracker.before-institution-funding-scan-20260805T215553+0800.db` 收紧为仅所有者可读，再执行 `FT_DATABASE_URL=sqlite+pysqlite:////Users/huangwenlong/.ft/finance-tracker.db FT_WORKSPACE_ID=default uv run ft funding-relations scan`。扫描后有 39 条已确认（21 条 `unique_strong_candidate`、18 条 `unique_institution_name_candidate`）、3 条待审核、21 条 `no_longer_candidate` 已驳回；东方证券 33 条已确认，IBKR 1 条机构名称确认和 3 条待审核，盈立证券 5 条机构名称确认。已确认现金端和投资端重复数均为 0，`PRAGMA foreign_key_check` 为空且 `PRAGMA integrity_check=ok`。回滚使用该备份执行 SQLite `.restore`；本次未触发恢复。
+- 全量重建比较基线与 `HEAD`：`aaa80fcdcc615775b305d36da878a369ccc8db98`。先在隔离 SQLite 从工作区、账户和账户别名重建：现金 `11,460` 条（支付宝 `3,059`、微信 `3,331`、工行信用卡 `2,847`、工行借记卡 `1,205`、建行 `952`、工银亚洲 `66`），投资 `1,010` 条（东方证券 `497`、IBKR `36`、盈立证券 `370`、盈立证券日内融 `107`）。执行 `ft relations check`、`ft funding-relations scan` 和 `ft projections rebuild` 后，资金调拨为 `39` 条已确认与 `3` 条待审核，收支投影为 `8,196` 条、`11,460` 个成员；所有关系投资端均为 `funding(external)`，已确认端点均无重复，`foreign_key_check` 为空且 `integrity_check=ok`。
+- 全量重建自动化证据：`FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/finance_tracker_test FT_REQUIRE_TEST_POSTGRES=1 uv run pytest -q tests/unit/importers/test_usmart_hk.py tests/integration/test_usmart_hk_import.py tests/contract/test_dual_backend_usmart_hk.py tests/test_cash_investment_funding_relations.py`：`38 passed`。`uv run python -m compileall -q src`、`uv build`、`openspec validate preserve-complete-statement-source-rows --strict`、`openspec doctor` 和 `git diff --check`：通过。
+- 全量重建真实账本：创建并校验仅所有者可读的 `~/.ft/backups/finance-tracker.before-full-rebuild-20260805T223205+0800.db` 后，将已验证的 SQLite 主库原子替换为 `~/.ft/finance-tracker.db`。发布后再次运行资金调拨扫描、投影状态、外键与完整性检查，结果与隔离库一致。未自动确认的关系均为 IBKR USD 入金：`2026-06-15` `7,329`、`2026-06-23` `7,469`、`2026-07-08` `4,757`；每条都有唯一同币种同金额银行转出，但对手方为本人姓名，未命中受控机构名称，故保持待审核。回滚可使用该备份执行 SQLite `.restore`；本次未触发恢复。
+- 投资来源快照比较基线与 `HEAD`：`aaa80fcdcc615775b305d36da878a369ccc8db98`。`FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/finance_tracker_test FT_REQUIRE_TEST_POSTGRES=1 uv run pytest -q tests/integration/test_dfzq_import.py tests/integration/test_ibkr_import.py tests/integration/test_schwab_import.py tests/integration/test_usmart_hk_import.py tests/contract/test_dual_backend_dfzq.py tests/contract/test_dual_backend_ibkr.py tests/contract/test_dual_backend_schwab.py tests/contract/test_dual_backend_usmart_hk.py tests/unit/importers/test_usmart_hk.py`：`37 passed`。`uv run python -m compileall -q src`、`uv build`、`openspec validate preserve-complete-statement-source-rows --strict`、`openspec validate --all --strict`、`openspec doctor` 和 `git diff --check`：通过。
+- 投资来源快照实际账单只读抽样：以临时解密文件解析 `~/.ft/bills` 中东方证券 `1` 份、IBKR `2` 份和盈立 `16` 份账单，分别得到 `497`、`39` 和 `478` 条带快照事件；每条快照均只含 `原始文本单元` 且所有单元为非空原始字符串。盈立样本覆盖 `9` 份保证金和 `7` 份日内融布局。嘉信在该目录没有原始账单，已由夹具逐行等值断言和 SQLite/PostgreSQL 契约覆盖。该检查没有调用导入服务、没有写入 `.ft` 数据库，也没有修改既有投资事件的历史 `source_payload`。
 
 ## 发布准备与反思
 
