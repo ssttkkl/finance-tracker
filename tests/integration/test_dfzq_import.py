@@ -47,11 +47,11 @@ def test_dfzq_import_full_flow(tmp_path):
         assert all(e.get("source_type") == "dfzq_pdf" for e in events)
         assert all(str(e.get("record_id") or "").startswith("dfzq:") for e in events)
 
-        actions = [e["action"] for e in events]
-        assert actions.count("deposit") == 1
-        assert actions.count("swap") == 2
-        assert actions.count("dividend") == 2
-        assert actions.count("checkin") == 1
+        record_types = [e["record_type"] for e in events]
+        assert record_types.count("funding") == 1
+        assert record_types.count("trade") == 2
+        assert record_types.count("income") == 2
+        assert record_types.count("snapshot") == 1
 
         positions = snapshot["accounts"]["security"]["东方证券"]["positions"]
         assert Decimal(positions["cny"]["shares"]) == Decimal("9447.30")
@@ -77,6 +77,51 @@ def test_dfzq_import_writes_inline_provenance(tmp_path):
         assert len(events) == 6
         assert all(e.get("source_type") == "dfzq_pdf" for e in events)
         assert all(e.get("source_payload") for e in events)
+        funding = next(event for event in events if event["record_type"] == "funding")
+        assert funding["source_payload"] == {
+            "原始文本单元": [
+                "20260610", "银行转证券", "CNY", "1.0000", "10000.00", "0.00", "10000.00",
+            ],
+        }
+        cash_snapshot = next(
+            event
+            for event in events
+            if (event["record_type"], event["record_subtype"]) == ("snapshot", "cash")
+        )
+        assert cash_snapshot["source_payload"] == {
+            "原始文本单元": [
+                "20260620", "红利入账", "600000", "浦发银行", "0.0000", "0.0000",
+                "50.00", "0.00", "0.00", "0.00", "9447.30",
+            ],
+        }
+        prohibited = {"action", "action_raw", "ticker", "amount", "record_type", "record_subtype"}
+        assert all(not (prohibited & set(event["source_payload"])) for event in events)
+    finally:
+        engine.dispose()
+
+
+def test_dfzq_import_rejects_a_transaction_without_explicit_source_payload(tmp_path, monkeypatch):
+    engine, uow = _sqlite_uow(tmp_path)
+    try:
+        with uow as session:
+            session.accounts.add(AccountDTO("东方证券", "security", active=True))
+            session.commit()
+
+        service = InvestmentImportService(uow)
+        monkeypatch.setattr(
+            service,
+            "_parse_statement",
+            lambda *_args, **_kwargs: [{
+                "date": "2026-06-10 00:00:00", "action": "DEPOSIT", "ticker": "",
+                "amount": Decimal("100"), "balance": Decimal("100"), "shares": Decimal("0"),
+                "price": Decimal("0"), "fee": Decimal("0"), "note": "",
+            }],
+        )
+
+        result = service.import_statement("dfzq", FIXTURE, "东方证券")
+
+        assert result.ok is False
+        assert "来源行快照" in result.message
     finally:
         engine.dispose()
 

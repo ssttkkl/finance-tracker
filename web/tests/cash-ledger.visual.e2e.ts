@@ -1,7 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const account = { id: 101, name: "日常账户", type: "cash", active: true };
-const filter_options = { categories: ["餐饮"], currencies: ["CNY"] };
+const filter_options = {
+  categories: ["餐饮"],
+  currencies: ["CNY"],
+  economic_types: [{ economic_type: "expense", transfer_subtypes: [] }],
+};
 const EVIDENCE_ANIMATION_MS = 200;
 const projection = {
   projection_id: "cash:visual-001", occurred_at: "2026-07-03T09:00:00+08:00", account,

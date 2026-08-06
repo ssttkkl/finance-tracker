@@ -36,6 +36,12 @@ export type CashProjection = {
 export type CashFilterOptions = {
   categories: string[];
   currencies: string[];
+  economic_types: CashEconomicTypeFilterOption[];
+};
+
+export type CashEconomicTypeFilterOption = {
+  economic_type: string;
+  transfer_subtypes: string[];
 };
 
 export type CashMonthlyCurrencySummary = {
@@ -114,6 +120,7 @@ export type CashFilters = {
   currency?: string;
   amount_min?: string;
   amount_max?: string;
-  economic_type?: "expense" | "income" | "internal_transfer";
+  economic_type?: string;
+  transfer_subtype?: string;
   composition?: "single" | "payment_mirror" | "refund_offset" | "combined";
 };

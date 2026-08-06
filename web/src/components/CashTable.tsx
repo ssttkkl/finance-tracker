@@ -3,8 +3,13 @@ import { formatOccurredAt } from "../format";
 
 type Props = { items: CashProjection[]; monthlySummaries?: CashMonthlySummary[]; loading?: boolean; onEvidence: (projection: CashProjection, source: HTMLButtonElement) => void };
 
-function economicTypeLabel(value: CashProjection["economic_type"]): string {
-  return value === "expense" ? "消费" : value === "income" ? "收入" : value === "internal_transfer" ? "个人转账" : "未提供";
+function isBankSecurityTransfer(item: CashProjection): boolean {
+  return item.transfer_subtype === "bank_security_transfer";
+}
+
+function economicTypeLabel(item: CashProjection): string {
+  if (isBankSecurityTransfer(item)) return "银证转账";
+  return item.economic_type === "expense" ? "消费" : item.economic_type === "income" ? "收入" : item.economic_type === "internal_transfer" ? "个人转账" : "未提供";
 }
 
 function transferFor(item: CashProjection) {
@@ -48,9 +53,11 @@ function summaryAmount(kind: "income" | "expense", amount: string): string {
 }
 
 function projectionSource(item: CashProjection) {
-  if (item.member_count === 1 && item.composition.length === 0) return null;
-  return <span className="projection-source is-related" aria-label="关系投影">
-    <span className="projection-source-kind">关系投影</span>
+  const bankSecurityTransfer = isBankSecurityTransfer(item);
+  if (!bankSecurityTransfer && item.member_count === 1 && item.composition.length === 0) return null;
+  const label = bankSecurityTransfer ? "银证转账关系" : "关系投影";
+  return <span className="projection-source is-related" aria-label={label}>
+    <span className="projection-source-kind">{label}</span>
   </span>;
 }
 
@@ -90,13 +97,13 @@ export function CashTable({ items, monthlySummaries = [], loading = false, onEvi
     previousMonth = month;
     return [divider, <tr className="cash-row" data-projection-id={item.projection_id} key={item.projection_id}>
       <td className="occurred-at mono" data-label="发生时间" headers="cash-column-occurred-at">{formatOccurredAt(item.occurred_at)}</td>
-      <td className="account" data-label="账户" headers="cash-column-account">{accountLabel(item)}</td>{transactionInfo(item)}{sourceInfo(item)}<td className="economic-type" data-label="经济类型" headers="cash-column-economic-type"><span className="mobile-field-label">经济类型：</span>{economicTypeLabel(item.economic_type)}</td>
+      <td className="account" data-label="账户" headers="cash-column-account">{accountLabel(item)}</td>{transactionInfo(item)}{sourceInfo(item)}<td className="economic-type" data-label="经济类型" headers="cash-column-economic-type"><span className="mobile-field-label">经济类型：</span>{economicTypeLabel(item)}</td>
       <td className={`amount mono ${transferFor(item) ? "transfer" : item.amount.startsWith("-") ? "outflow" : "inflow"}`} data-direction={transferFor(item) ? "转账" : item.amount.startsWith("-") ? "支出" : "收入"} data-label="金额" headers="cash-column-amount"><span className="amount-value">{amountLabel(item)}</span></td>
       <td className="action" headers="cash-column-action"><button className="icon-button evidence-trigger" type="button" aria-label={`查看${item.counterparty || "该记录"}的证据详情`} onClick={(event) => onEvidence(item, event.currentTarget)}>查看</button></td>
     </tr>];
   }) : items.map((item) => <tr className="cash-row" data-projection-id={item.projection_id} key={item.projection_id}>
     <td className="occurred-at mono" data-label="发生时间" headers="cash-column-occurred-at">{formatOccurredAt(item.occurred_at)}</td>
-    <td className="account" data-label="账户" headers="cash-column-account">{accountLabel(item)}</td>{transactionInfo(item)}{sourceInfo(item)}<td className="economic-type" data-label="经济类型" headers="cash-column-economic-type"><span className="mobile-field-label">经济类型：</span>{economicTypeLabel(item.economic_type)}</td>
+    <td className="account" data-label="账户" headers="cash-column-account">{accountLabel(item)}</td>{transactionInfo(item)}{sourceInfo(item)}<td className="economic-type" data-label="经济类型" headers="cash-column-economic-type"><span className="mobile-field-label">经济类型：</span>{economicTypeLabel(item)}</td>
     <td className={`amount mono ${transferFor(item) ? "transfer" : item.amount.startsWith("-") ? "outflow" : "inflow"}`} data-direction={transferFor(item) ? "转账" : item.amount.startsWith("-") ? "支出" : "收入"} data-label="金额" headers="cash-column-amount"><span className="amount-value">{amountLabel(item)}</span></td>
     <td className="action" headers="cash-column-action"><button className="icon-button evidence-trigger" type="button" aria-label={`查看${item.counterparty || "该记录"}的证据详情`} onClick={(event) => onEvidence(item, event.currentTarget)}>查看</button></td>
   </tr>);

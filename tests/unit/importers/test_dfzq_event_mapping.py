@@ -39,8 +39,8 @@ def test_construct_source_identity_deposit():
     assert identity == "dfzq:20260610:cash:DEPOSIT:10000.00:10000.00"
 
 
-def test_map_dfzq_buy_to_swap():
-    """BUY maps to SWAP; separable 手续费 becomes commission, and cash amount is net minus fee."""
+def test_map_dfzq_buy_to_trade():
+    """BUY maps to a security trade; source action stays as the note."""
     txn = {
         "date": "2026-06-12 00:00:00",
         "action": "BUY",
@@ -50,13 +50,16 @@ def test_map_dfzq_buy_to_swap():
         # net 总发生金额 (includes fee); fee column separable
         "amount": Decimal("1251.00"),
         "fee": Decimal("1.00"),
-        "note": "过户费0.10",
+        "stamp_tax": Decimal("0"),
+        "transfer_fee": Decimal("0"),
+        "action_raw": "证券买入",
+        "note": "手续费1.00",
         "balance": Decimal("8749.00"),
     }
 
     event = map_dfzq_to_investment_event(txn, account_name="东方证券", currency="CNY")
 
-    assert event["action"] == "swap"
+    assert (event["record_type"], event["record_subtype"]) == ("trade", "security")
     assert event["from_ticker"] == "cny"
     assert event["from_amount"] == "1250.00"  # net - fee
     assert event["to_ticker"] == "600000.sh"
@@ -65,11 +68,12 @@ def test_map_dfzq_buy_to_swap():
     assert event["commission"] == "1.00"
     assert event["commission_asset"] == "cny"
     assert event["currency"] == "CNY"
+    assert event["note"] == "证券买入"
     # total cash out still net: 1250 + 1 = 1251
 
 
-def test_map_dfzq_sell_to_swap():
-    """SELL maps to SWAP; to_amount = net + fee so projection net cash in = amount."""
+def test_map_dfzq_sell_to_trade():
+    """SELL maps to a security trade; to_amount = net + fee."""
     txn = {
         "date": "2026-06-15 00:00:00",
         "action": "SELL",
@@ -84,13 +88,43 @@ def test_map_dfzq_sell_to_swap():
 
     event = map_dfzq_to_investment_event(txn, account_name="东方证券", currency="CNY")
 
-    assert event["action"] == "swap"
+    assert (event["record_type"], event["record_subtype"]) == ("trade", "security")
     assert event["from_ticker"] == "600000.sh"
     assert event["from_amount"] == "50"
     assert event["to_ticker"] == "cny"
     assert event["to_amount"] == "650.00"  # net + fee
     assert event["commission"] == "1.00"
     assert event["commission_asset"] == "cny"
+
+
+@pytest.mark.parametrize(
+    ("action", "net_amount", "cash_amount"),
+    [
+        ("BUY", "1011.53", "1000.00"),
+        ("SELL", "1011.53", "1023.06"),
+        ("BUY", "10011.53", "10000.00"),
+    ],
+)
+def test_map_dfzq_trade_splits_all_recognized_fees(action, net_amount, cash_amount):
+    """手续费、印花税和过户费都必须从净额现金部分拆出。"""
+    event = map_dfzq_to_investment_event({
+        "date": "2026-06-15 00:00:00", "action": action,
+        "action_raw": "证券买入" if action == "BUY" else "证券卖出",
+        "ticker": "600000.sh", "shares": Decimal("100"), "price": Decimal("10"),
+        "amount": Decimal(net_amount), "fee": Decimal("5.00"),
+        "stamp_tax": Decimal("6.40"), "transfer_fee": Decimal("0.13"),
+        "note": "手续费5.00 印花税6.40 过户费0.13", "balance": Decimal("0"),
+    }, account_name="东方证券", currency="CNY")
+
+    assert event["commission"] == "11.53"
+    assert event["commission_asset"] == "cny"
+    assert event["note"] in {"证券买入", "证券卖出"}
+    if action == "BUY":
+        assert event["from_amount"] == cash_amount
+        assert Decimal(event["from_amount"]) + Decimal(event["commission"]) == Decimal(net_amount)
+    else:
+        assert event["to_amount"] == cash_amount
+        assert Decimal(event["to_amount"]) - Decimal(event["commission"]) == Decimal(net_amount)
 
 
 def test_map_dfzq_buy_fee_not_separable_keeps_net():
@@ -127,10 +161,11 @@ def test_map_dfzq_buy_zero_fee():
     event = map_dfzq_to_investment_event(txn, account_name="东方证券", currency="CNY")
     assert event["from_amount"] == "1000.00"
     assert event["commission"] == "0"
+    assert event["note"] == ""
 
 
 def test_map_dfzq_deposit():
-    """DEPOSIT should map to deposit action."""
+    """DEPOSIT is an external funding event."""
     txn = {
         "date": "2026-06-10 00:00:00",
         "action": "DEPOSIT",
@@ -143,13 +178,13 @@ def test_map_dfzq_deposit():
 
     event = map_dfzq_to_investment_event(txn, account_name="东方证券", currency="CNY")
 
-    assert event["action"] == "deposit"
+    assert (event["record_type"], event["record_subtype"]) == ("funding", "external")
     assert event["to_ticker"] == "cny"
     assert event["to_amount"] == "10000.00"
 
 
 def test_map_dfzq_cash_dividend():
-    """Cash dividend should map to dividend with to_ticker=cash."""
+    """Cash dividend is investment income with to_ticker=cash."""
     txn = {
         "date": "2026-06-20 00:00:00",
         "action": "DIVIDEND",
@@ -165,14 +200,14 @@ def test_map_dfzq_cash_dividend():
 
     event = map_dfzq_to_investment_event(txn, account_name="东方证券", currency="CNY")
 
-    assert event["action"] == "dividend"
+    assert (event["record_type"], event["record_subtype"]) == ("income", "dividend_cash")
     assert event["to_ticker"] == "cny"
     assert event["to_amount"] == "50.00"
     assert event["from_ticker"] == "600000.sh"  # Source for audit
 
 
 def test_map_dfzq_stock_dividend():
-    """Stock dividend should map to dividend with to_ticker=stock."""
+    """Stock dividend is investment income with to_ticker=stock."""
     txn = {
         "date": "2026-06-25 00:00:00",
         "action": "DIVIDEND",
@@ -187,14 +222,14 @@ def test_map_dfzq_stock_dividend():
 
     event = map_dfzq_to_investment_event(txn, account_name="东方证券", currency="CNY")
 
-    assert event["action"] == "dividend"
+    assert (event["record_type"], event["record_subtype"]) == ("income", "dividend_stock")
     assert event["to_ticker"] == "600000.sh"
     assert event["to_amount"] == "10"
     assert event["from_ticker"] == "600000.sh"
 
 
 def test_map_dfzq_checkin():
-    """CHECKIN should map to checkin action."""
+    """CHECKIN is a cash snapshot."""
     txn = {
         "date": "2026-06-25 00:00:00",
         "action": "CHECKIN",
@@ -209,7 +244,7 @@ def test_map_dfzq_checkin():
 
     event = map_dfzq_to_investment_event(txn, account_name="东方证券", currency="CNY")
 
-    assert event["action"] == "checkin"
+    assert (event["record_type"], event["record_subtype"]) == ("snapshot", "cash")
     assert event["to_ticker"] == "cny"
     assert event["to_amount"] == "9447.30"
 
@@ -226,9 +261,36 @@ def test_map_dfzq_integration_with_parser():
     ]
 
     assert len(events) == 6
-    assert events[0]["action"] == "deposit"
-    assert events[1]["action"] == "swap"
-    assert events[2]["action"] == "swap"
-    assert events[3]["action"] == "dividend"
-    assert events[4]["action"] == "dividend"
-    assert events[5]["action"] == "checkin"
+    assert [(event["record_type"], event["record_subtype"]) for event in events] == [
+        ("funding", "external"),
+        ("trade", "security"),
+        ("trade", "security"),
+        ("income", "dividend_cash"),
+        ("income", "dividend_stock"),
+        ("snapshot", "cash"),
+    ]
+    assert events[-1]["note"] == ""
+
+
+@pytest.mark.parametrize(
+    ("action", "action_raw", "amount", "expected"),
+    [
+        ("DEPOSIT", "银行转证券", "100", ("funding", "external")),
+        ("WITHDRAW", "证券转银行", "100", ("funding", "external")),
+        ("DEPOSIT", "OTC资金划入", "100", ("funding", "subaccount")),
+        ("WITHDRAW", "OTC资金划出", "100", ("funding", "subaccount")),
+        ("DEPOSIT", "利息归本", "0.42", ("income", "interest")),
+        ("WITHDRAW", "股息红利差异扣税", "0.14", ("expense", "tax")),
+    ],
+)
+def test_map_dfzq_preserves_native_action_for_funding_income_and_tax(
+    action, action_raw, amount, expected,
+):
+    event = map_dfzq_to_investment_event({
+        "date": "2026-08-01 00:00:00", "action": action, "action_raw": action_raw,
+        "ticker": "", "amount": Decimal(amount), "shares": Decimal("0"),
+        "price": Decimal("0"), "fee": Decimal("0"), "note": "", "balance": Decimal("0"),
+    }, account_name="东方证券", currency="CNY")
+
+    assert (event["record_type"], event["record_subtype"]) == expected
+    assert event["note"] == action_raw

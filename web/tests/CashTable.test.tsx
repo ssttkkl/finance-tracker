@@ -59,6 +59,23 @@ it("仅为关系投影显示来源标记", () => {
   expect(screen.getByLabelText("关系投影")).toHaveTextContent("关系投影");
 });
 
+it("已确认的银证转账显示专用关系标记", () => {
+  const bankSecurityTransfer = {
+    ...projection("bank-security", "single"),
+    amount: "0",
+    currency: "USD",
+    economic_type: "internal_transfer" as const,
+    transfer_subtype: "bank_security_transfer",
+    composition: [],
+    member_count: 1,
+    accepted_relation_summary: [],
+  };
+  render(<CashTable items={[bankSecurityTransfer]} onEvidence={(_projection, _source) => undefined} />);
+
+  expect(screen.getByText("银证转账")).toBeInTheDocument();
+  expect(screen.getByLabelText("银证转账关系")).toHaveTextContent("银证转账关系");
+});
+
 it("空的交易对方和备注显示横杠", () => {
   render(<CashTable items={[{ ...projection("empty", "single"), counterparty: "", note: "" }]} onEvidence={(_projection, _source) => undefined} />);
 

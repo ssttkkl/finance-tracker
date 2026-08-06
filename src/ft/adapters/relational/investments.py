@@ -41,4 +41,4 @@ class RelationalInvestmentCommandRepository:
             except ValueError as exc:
                 uow.rollback()
                 return OperationResult(ok=False, message=str(exc))
-        return OperationResult(ok=True, message=command.action, details={"row": row})
+        return OperationResult(ok=True, message=command.record_type, details={"row": row})

@@ -278,6 +278,20 @@ def _main(argv=None):
     )
     rel_alias.add_argument("--value", required=True)
     rel_alias.add_argument("--account", required=True)
+
+    funding = sub.add_parser("funding-relations", help="扫描和审查收支账户与投资账户的外部资金调拨")
+    funding_sub = funding.add_subparsers(dest="funding_relations_cmd")
+    funding_sub.add_parser("scan", help="扫描可配对的外部出入金")
+    funding_sub.add_parser("pending", help="列出待审核的资金调拨候选")
+    funding_confirm = funding_sub.add_parser("confirm", help="确认一条待审核资金调拨候选")
+    funding_confirm.add_argument("relation_id", type=int)
+    funding_confirm.add_argument("--actor", default="cli-user")
+    funding_confirm.add_argument("--reason", default="")
+    funding_reject = funding_sub.add_parser("reject", help="驳回一条待审核资金调拨候选")
+    funding_reject.add_argument("relation_id", type=int)
+    funding_reject.add_argument("--actor", default="cli-user")
+    funding_reject.add_argument("--reason", default="rejected")
+
     fact_del = sub.add_parser("fact-delete", help="以可审计方式逻辑删除现金流水")
     fact_del.add_argument("fact_id")
     fact_del.add_argument("--actor", default="cli-user")
@@ -480,6 +494,38 @@ def _main(argv=None):
             return
         print("未知的 `relations` 子命令")
         raise SystemExit(2)
+
+    if args.cmd == "funding-relations":
+        services = _runtime_services()
+        if not args.funding_relations_cmd:
+            print("usage: ft funding-relations {scan|pending|confirm|reject}")
+            raise SystemExit(2)
+        if args.funding_relations_cmd == "scan":
+            rows = services.funding_relations.scan()
+        elif args.funding_relations_cmd == "pending":
+            rows = services.funding_relations.list_pending()
+        elif args.funding_relations_cmd == "confirm":
+            row = services.funding_relations.confirm(
+                args.relation_id, actor=args.actor, reason=args.reason,
+            )
+            print(f"{row['id']}\t{row['status']}")
+            return
+        elif args.funding_relations_cmd == "reject":
+            row = services.funding_relations.reject(
+                args.relation_id, actor=args.actor, reason=args.reason,
+            )
+            print(f"{row['id']}\t{row['status']}")
+            return
+        else:
+            print("未知的 `funding-relations` 子命令")
+            raise SystemExit(2)
+        for row in rows:
+            print(
+                f"{row['id']}\t{row['status']}\t"
+                f"{row.get('cash_transaction_id', '')}\t"
+                f"{row.get('investment_event_id', '')}\t{row.get('rule_id', '')}"
+            )
+        return
 
     if args.cmd == "fact-delete":
         services = _runtime_services()

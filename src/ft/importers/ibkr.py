@@ -81,6 +81,11 @@ def _fmt(value: Decimal | int | str) -> str:
     return s or "0"
 
 
+def _source_payload_from_cells(cells: list[str]) -> dict[str, list[str]]:
+    if not cells:
+        raise ValueError("IBKR 来源行为空")
+    return {"原始文本单元": list(cells)}
+
 
 def parse_ibkr_csv(path: str | Path) -> IbkrStatement:
     """Parse IBKR Activity CSV into flows + trailing cash CHECKIN.
@@ -91,6 +96,7 @@ def parse_ibkr_csv(path: str | Path) -> IbkrStatement:
     statement = IbkrStatement()
     flow_rows: list[dict[str, Any]] = []
     max_flow_date = ""
+    ending_cash_source_payload: dict[str, list[str]] | None = None
 
     with path.open(encoding="utf-8", newline="") as fh:
         reader = csv.reader(fh)
@@ -116,6 +122,7 @@ def parse_ibkr_csv(path: str | Path) -> IbkrStatement:
                     statement.beginning_cash = _d0(field_val)
                 elif field_name == "期末现金":
                     statement.ending_cash = _d0(field_val)
+                    ending_cash_source_payload = _source_payload_from_cells(row)
                 continue
 
             if section == "Transaction History" and kind == "Data":
@@ -164,6 +171,7 @@ def parse_ibkr_csv(path: str | Path) -> IbkrStatement:
                     "fee": abs(commission) if commission is not None else Decimal("0"),
                     "ticker": _normalize_parse_ticker(code),
                     "note": description,
+                    "_source_payload": _source_payload_from_cells(row),
                 })
 
     if not flow_rows and not statement.base_currency:
@@ -174,6 +182,8 @@ def parse_ibkr_csv(path: str | Path) -> IbkrStatement:
         checkin_date = statement.when_generated[:10]
     if not checkin_date:
         checkin_date = "1970-01-01"
+    if ending_cash_source_payload is None:
+        raise ValueError("IBKR CSV missing 总结.期末现金 source row")
 
     checkin = {
         "date": checkin_date,
@@ -196,6 +206,7 @@ def parse_ibkr_csv(path: str | Path) -> IbkrStatement:
         "fee": Decimal("0"),
         "ticker": "",
         "note": "总结.期末现金",
+        "_source_payload": ending_cash_source_payload,
     }
 
     statement.transactions = flow_rows + [checkin]
@@ -258,13 +269,13 @@ def map_ibkr_to_investment_event(
     action = txn["action"]
     cash = currency.lower()
     date = txn["date"]
-    note = txn.get("note") or txn.get("description") or ""
+    source_description = txn.get("note") or txn.get("description") or ""
 
     base = {
         "date": date,
         "account_name": account_name,
         "currency": currency.upper(),
-        "note": note,
+        "note": source_description,
     }
 
     if action == "买":
@@ -275,7 +286,7 @@ def map_ibkr_to_investment_event(
         price = abs(Decimal(str(txn.get("price") or 0)))
         return {
             **base,
-            "action": "swap",
+            "record_type": "trade", "record_subtype": "security",
             "from_ticker": cash,
             "from_amount": _fmt(gross_abs),
             "to_ticker": code,
@@ -293,7 +304,7 @@ def map_ibkr_to_investment_event(
         price = abs(Decimal(str(txn.get("price") or 0)))
         return {
             **base,
-            "action": "swap",
+            "record_type": "trade", "record_subtype": "security",
             "from_ticker": code,
             "from_amount": _fmt(qty_abs),
             "to_ticker": cash,
@@ -307,7 +318,7 @@ def map_ibkr_to_investment_event(
         net_abs = abs(Decimal(str(txn.get("net") or 0)))
         return {
             **base,
-            "action": "deposit",
+            "record_type": "funding", "record_subtype": "external",
             "to_ticker": cash,
             "to_amount": _fmt(net_abs),
             "from_ticker": "",
@@ -322,7 +333,7 @@ def map_ibkr_to_investment_event(
         code = _equity_code(txn)
         return {
             **base,
-            "action": "dividend",
+            "record_type": "income", "record_subtype": "dividend_cash",
             "from_ticker": code,
             "to_ticker": cash,
             "to_amount": _fmt(net_abs),
@@ -336,7 +347,7 @@ def map_ibkr_to_investment_event(
         net_abs = abs(Decimal(str(txn.get("net") or 0)))
         return {
             **base,
-            "action": "withdraw",
+            "record_type": "expense", "record_subtype": "tax" if action == "外国预扣税" else "interest",
             "from_ticker": cash,
             "from_amount": _fmt(net_abs),
             "to_ticker": "",
@@ -353,7 +364,8 @@ def map_ibkr_to_investment_event(
         amount = abs(Decimal(str(txn.get("amount") or txn.get("net") or 0)))
         return {
             **base,
-            "action": "checkin",
+            "note": "",
+            "record_type": "snapshot", "record_subtype": "cash",
             "from_ticker": "",
             "to_ticker": cash,
             "to_amount": _fmt(amount),
@@ -367,7 +379,7 @@ def map_ibkr_to_investment_event(
 
 
 def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
-    """Map 外汇交易组成部分 to a net cash adjustment.
+    """Map 外汇交易组成部分 to a non-funding net cash adjustment.
 
     IBKR FX rows report the **net cash impact** in 净额/总额 (usually a tiny
     spread / P&L amount), NOT the full notional sides. The full notional is only
@@ -375,8 +387,9 @@ def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
     count the currency movement that is already captured elsewhere (e.g. the
     deposit that funded the conversion).
 
-    Correct mapping: treat 净额 as a deposit (positive) or withdraw (negative)
-    on the account's base cash ticker. Commission goes to note when 净额==总额.
+    The net amount changes the account's base cash ticker but is never funding.
+    When 净额 equals 总额, the embedded commission remains available only in the
+    source row and does not become a derived note or an extra commission charge.
     """
     code = (txn.get("code") or "").strip()
     net = Decimal(str(txn.get("net") or 0))
@@ -384,24 +397,15 @@ def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
     # NUMERIC(38,18) scale (IBKR emits >18 dp noise like 2.75e-7).
     net = net.quantize(_FX_NET_QUANTUM, rounding=ROUND_HALF_UP)
     net_abs = abs(net)
-    note = base.get("note") or ""
-
-    commission_raw = txn.get("commission_raw")
-    if commission_raw is not None:
-        fee_abs = abs(Decimal(str(commission_raw)))
-        if fee_abs:
-            note = f"{note} 佣金{_fmt(fee_abs)}".strip()
-
     # Determine which currency the net amount is in.
     # For USD.HKD pair, IBKR net is denominated in the account base currency (USD).
     cash = (base.get("currency") or "USD").lower()
 
     if net_abs == 0:
-        # Zero net impact — skip as deposit 0 (harmless but clean).
+        # Zero net impact remains an auditable, non-funding adjustment.
         return {
             **base,
-            "note": note or f"FX {code} zero net",
-            "action": "deposit",
+            "record_type": "adjustment", "record_subtype": "fx_net",
             "to_ticker": cash,
             "to_amount": "0",
             "from_ticker": "",
@@ -414,8 +418,7 @@ def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
     if net > 0:
         return {
             **base,
-            "note": note or f"FX {code}",
-            "action": "deposit",
+            "record_type": "adjustment", "record_subtype": "fx_net",
             "to_ticker": cash,
             "to_amount": _fmt(net_abs),
             "from_ticker": "",
@@ -427,8 +430,7 @@ def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
     else:
         return {
             **base,
-            "note": note or f"FX {code}",
-            "action": "withdraw",
+            "record_type": "adjustment", "record_subtype": "fx_net",
             "from_ticker": cash,
             "from_amount": _fmt(net_abs),
             "to_ticker": "",

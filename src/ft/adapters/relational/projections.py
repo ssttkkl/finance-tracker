@@ -22,6 +22,7 @@ from .models import (
     CashProjectionModel,
     CashProjectionRelationModel,
     CashProjectionStateModel,
+    CashInvestmentFundingRelationModel,
     CashTransactionModel,
     TransactionRelationModel,
     WorkspaceModel,
@@ -75,11 +76,22 @@ class RelationalCashProjectionRepository:
         }
 
     def read_sources(self) -> tuple[tuple[CashProjectionFact, ...], tuple[ProjectionRelation, ...]]:
+        funding_by_cash = {
+            row.cash_transaction_id: row.id
+            for row in self._session.scalars(
+                select(CashInvestmentFundingRelationModel).where(
+                    CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
+                    CashInvestmentFundingRelationModel.status == "accepted",
+                    CashInvestmentFundingRelationModel.active_slot == "active",
+                )
+            )
+        }
         facts = tuple(
             CashProjectionFact(
                 id=row.id, account_id=row.account_id, occurred_at=row.occurred_at, amount=row.amount,
                 currency=row.currency, counterparty=row.counterparty, category=row.category, note=row.note,
                 source_type=row.source_type, record_id=row.record_id,
+                funding_relation_id=funding_by_cash.get(row.id),
             )
             for row in self._session.scalars(
                 select(CashTransactionModel).where(
@@ -150,6 +162,25 @@ class RelationalCashProjectionRepository:
                     ).order_by(TransactionRelationModel.id)
                 )
             ],
+            "funding_relations": [
+                {
+                    "id": item.id,
+                    "cash_transaction_id": item.cash_transaction_id,
+                    "investment_event_id": item.investment_event_id,
+                    "direction": item.direction,
+                    "status": item.status,
+                    "rule_id": item.rule_id,
+                    "evidence": item.evidence,
+                    "active_slot": item.active_slot,
+                }
+                for item in self._session.scalars(
+                    select(CashInvestmentFundingRelationModel).where(
+                        CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
+                        CashInvestmentFundingRelationModel.status == "accepted",
+                        CashInvestmentFundingRelationModel.active_slot == "active",
+                    ).order_by(CashInvestmentFundingRelationModel.id)
+                )
+            ],
         }
         return sha256(canonical_bytes(payload)).hexdigest()
 
@@ -210,6 +241,7 @@ class RelationalCashProjectionRepository:
                 "dataset_id": dataset_id,
                 "projection_id": projection.projection_id,
                 "root_cash_transaction_id": projection.primary_record.id,
+                "funding_relation_id": projection.funding_relation_id,
                 "economic_type": projection.economic_type.value,
                 "transfer_subtype": projection.transfer_subtype,
                 "net_amount": projection.net_amount,

@@ -1,3 +1,4 @@
+import csv
 import os
 from decimal import Decimal
 from pathlib import Path
@@ -55,6 +56,19 @@ def test_schwab_import_backend_contract(tmp_path, backend):
             snapshot = session.snapshot.load()
             session.rollback()
         assert len(events) == 37
+        with FIXTURE.open(encoding="utf-8-sig", newline="") as handle:
+            source_rows = list(csv.DictReader(handle))
+        funding_source_row = next(
+            row for row in source_rows if (row.get(" 类型") or "").strip() == "WIN"
+        )
+        funding = next(event for event in events if event["record_type"] == "funding")
+        assert funding["source_payload"] == funding_source_row
+        assert funding["note"] in funding_source_row.values()
+        assert all(
+            not ({"date", "type", "ticker", "amount", "record_type"} & set(event["source_payload"]))
+            for event in events
+        )
+        assert all(event["note"] == "" for event in events if event["record_type"] == "snapshot")
         positions = snapshot["accounts"]["security"]["嘉信"]["positions"]
         assert Decimal(positions["usd"]["shares"]) == Decimal("2865.36")
         assert Decimal(positions["avgo.us"]["shares"]) == Decimal("7")

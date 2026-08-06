@@ -15,7 +15,7 @@ class FakeInvestmentRepository:
     def execute(self, command):
         from ft.domain.application import OperationResult
         self.commands.append(command)
-        return OperationResult(ok=True, message=command.action)
+        return OperationResult(ok=True, message=command.record_type)
 
     def append_investments(self, rows):
         self.appended = [dict(row) for row in rows]
@@ -41,7 +41,7 @@ def test_all_investment_commands_build_decimal_dtos():
     service.checkin_ticker("AAPL.US", "3.5", "90", "USD", "IBKR", "", None)
     service.checkin_cash("8.75", "USD", "IBKR", "", None)
 
-    assert [command.action for command in repository.commands] == [
+    assert [command.record_type for command in repository.commands] == [
         "buy", "sell", "swap", "deposit", "withdraw", "dividend",
         "checkin_ticker", "checkin_cash",
     ]
@@ -71,7 +71,7 @@ def test_investment_projection_deducts_commission_from_cash_settlement_and_rejec
         },
     }}}}
     apply_investment_event(snapshot, {
-        "date": "2026-07-17", "action": "swap", "currency": "USD", "account_name": "IBKR",
+        "date": "2026-07-17", "record_type": "trade", "record_subtype": "security", "currency": "USD", "account_name": "IBKR",
         "from_ticker": "aapl", "to_ticker": "usd", "from_amount": "1", "to_amount": "120",
         "commission": "2", "commission_asset": "usd",
     }, default_currency="USD")
@@ -84,7 +84,7 @@ def test_investment_projection_deducts_commission_from_cash_settlement_and_rejec
     }}}}
     with pytest.raises(ValueError, match="cost currency"):
         apply_investment_event(conflict_snapshot, {
-            "date": "2026-07-17", "action": "swap", "currency": "CNY", "account_name": "IBKR",
+            "date": "2026-07-17", "record_type": "trade", "record_subtype": "security", "currency": "CNY", "account_name": "IBKR",
             "from_ticker": "cny", "to_ticker": "aapl", "from_amount": "1", "to_amount": "1",
             "commission": "0", "commission_asset": "",
         }, default_currency="USD")
@@ -104,7 +104,7 @@ def test_investment_projection_soft_start_oversell_and_numeric_overflow():
         },
     }}}}
     apply_investment_event(snapshot, {
-        "date": "2026-07-17", "action": "swap", "currency": "USD", "account_name": "IBKR",
+        "date": "2026-07-17", "record_type": "trade", "record_subtype": "security", "currency": "USD", "account_name": "IBKR",
         "from_ticker": "aapl", "to_ticker": "usd", "from_amount": "2", "to_amount": "40",
         "commission": "0", "commission_asset": "",
     }, default_currency="USD")
@@ -114,7 +114,7 @@ def test_investment_projection_soft_start_oversell_and_numeric_overflow():
 
     with pytest.raises(ValueError, match=r"NUMERIC\(38,18\)"):
         apply_investment_event({"accounts": {}}, {
-            "date": "2026-07-17", "action": "deposit", "currency": "USD", "account_name": "IBKR",
+            "date": "2026-07-17", "record_type": "funding", "record_subtype": "external", "currency": "USD", "account_name": "IBKR",
             "from_ticker": "", "to_ticker": "usd", "from_amount": "0", "to_amount": "1e100",
             "commission": "0", "commission_asset": "",
         }, default_currency="USD")

@@ -54,12 +54,12 @@ CASH_CSV_FIELDS = [
 ]
 
 CSV_FIELDS = [
-    "date", "action", "from_ticker", "to_ticker",
+    "date", "record_type", "record_subtype", "from_ticker", "to_ticker",
     "from_amount", "to_amount", "commission",
     "commission_asset", "currency", "account_name", "note",
 ]
 
-VALID_ACTIONS = {"swap", "deposit", "withdraw", "dividend", "checkin"}
+VALID_RECORD_TYPES = {"funding", "trade", "income", "expense", "reversal", "subscription", "adjustment", "snapshot"}
 
 CRYPTO_IDS = {
     "btc": "bitcoin",

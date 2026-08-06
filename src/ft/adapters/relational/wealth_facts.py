@@ -102,7 +102,7 @@ class RelationalWealthFactRepository:
             rows = session.execute(select(
                 InvestmentEventModel.workspace_id, InvestmentEventModel.id,
                 InvestmentEventModel.account_id, InvestmentEventModel.occurred_at,
-                InvestmentEventModel.action, InvestmentEventModel.currency,
+                InvestmentEventModel.record_type, InvestmentEventModel.record_subtype, InvestmentEventModel.currency,
                 InvestmentEventModel.payload,
                 InvestmentEventModel.commission, InvestmentEventModel.from_amount,
                 InvestmentEventModel.to_amount,
@@ -160,7 +160,7 @@ class RelationalWealthFactRepository:
             investment_rows = session.execute(select(
                 InvestmentEventModel.workspace_id, InvestmentEventModel.id,
                 InvestmentEventModel.account_id, InvestmentEventModel.occurred_at,
-                InvestmentEventModel.action, InvestmentEventModel.currency,
+                InvestmentEventModel.record_type, InvestmentEventModel.record_subtype, InvestmentEventModel.currency,
                 InvestmentEventModel.payload,
                 InvestmentEventModel.commission, InvestmentEventModel.from_amount,
                 InvestmentEventModel.to_amount,
@@ -204,9 +204,10 @@ class RelationalWealthFactRepository:
             } else "external_cashflow"
 
         def investment_projection(row: InvestmentFact):
-            raw = row.commission
+            kind = row.record_type.lower()
+            raw = row.commission if kind == "trade" else None
             if raw is None:
-                raw = row.to_amount if row.action.lower() in {"dividend", "deposit"} else row.from_amount
+                raw = row.to_amount if Decimal(str(row.to_amount or 0)) > 0 else row.from_amount
             if raw is None and isinstance(row.payload, dict):
                 raw = row.payload.get("amount", row.payload.get("commission"))
             if raw is None:
@@ -214,17 +215,18 @@ class RelationalWealthFactRepository:
             amount = projected_amount(Decimal(str(raw)), row.currency, row.occurred_at)
             if amount is None:
                 return None, None
-            kind = row.action.lower()
-            if kind == "dividend":
+            if kind == "income":
                 return "dividend", amount
-            if kind in {"buy", "sell", "swap"} and row.commission is not None:
+            if kind == "trade" and row.commission is not None:
                 return "fee", -abs(amount)
-            if kind == "withdraw":
-                return "investment_funding", -amount
-            if kind == "deposit":
+            if kind == "funding" and row.record_subtype == "external":
+                return "investment_funding", amount if Decimal(str(row.to_amount or 0)) > 0 else -amount
+            if kind == "reversal" and row.record_subtype == "funding_withdrawal":
                 return "investment_funding", amount
-            if kind == "fee":
-                return "fee", -abs(amount) if (row.from_amount or 0) else abs(amount)
+            if kind == "expense":
+                return "fee", -abs(amount)
+            if kind == "reversal" and row.record_subtype.startswith("expense_"):
+                return "fee", abs(amount)
             return None, None
         items = [
             WealthSourceItem("account", f"account:{row.account_id}", "account", canonical_digest({"type": row.account_type, "metadata": dict(row.metadata)}))
@@ -247,7 +249,7 @@ class RelationalWealthFactRepository:
             evidence_kind, contribution = investment_projection(row)
             items.append(WealthSourceItem(
                 "investment", f"investment:{row.fact_id}", "1", _digest_parts(
-                    row.account_id, row.occurred_at.isoformat(), row.action, canonical_digest(dict(row.payload)),
+                    row.account_id, row.occurred_at.isoformat(), row.record_type, row.record_subtype, canonical_digest(dict(row.payload)),
                 ), row.occurred_at, evidence_kind, contribution,
                 f"{row.occurred_at.astimezone(shanghai).date().isoformat()}:{evidence_kind}:{row.fact_id}",
                 None,
@@ -310,9 +312,10 @@ class RelationalWealthFactRepository:
             (row[1], row[2], row[3], row[4], row[6])
             for row in sorted(cash_rows, key=lambda item: (item[1],))
         ))
-        # investment capture: 0ws 1id 2account 3occurred 4action 5currency 6payload ...
+        # investment capture: 0ws 1id 2account 3occurred 4record_type
+        # 5record_subtype 6currency 7payload ...
         self._absorb_source_state_rows(digest, (
-            (row[1], row[2], row[3], row[4], row[6])
+            (row[1], row[2], row[3], row[4], row[5], row[7])
             for row in sorted(investment_rows, key=lambda item: (item[1],))
         ))
         return (digest.hexdigest(),)
@@ -351,7 +354,7 @@ class RelationalWealthFactRepository:
             )).yield_per(2_000))
             self._absorb_source_state_rows(digest, active_session.execute(select(
                 InvestmentEventModel.id, InvestmentEventModel.account_id,
-                InvestmentEventModel.occurred_at, InvestmentEventModel.action, InvestmentEventModel.payload,
+                InvestmentEventModel.occurred_at, InvestmentEventModel.record_type, InvestmentEventModel.record_subtype, InvestmentEventModel.payload,
             ).where(InvestmentEventModel.workspace_id == self._workspace_id).order_by(
                 InvestmentEventModel.id,
             )).yield_per(2_000))

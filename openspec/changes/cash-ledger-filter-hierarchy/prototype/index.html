@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>经济类型筛选树原型</title>
+  <style>
+    /* Hallmark · component: 分层筛选控件 · genre: modern-minimal · theme: Cobalt
+     * states: default · hover · focus · active · disabled · loading · error · success
+     * contrast: pass (46–50) · pre-emit critique: P5 H4 E5 S5 R5 V4
+     */
+    :root { --paper:#f6f8fc; --surface:#fff; --ink:#172033; --muted:#66718a; --rule:#cbd3e3; --accent:#2458c6; --accent-soft:#e8efff; --disabled:#edf0f6; --danger:#ad3535; --success:#176c50; --space:16px; }
+    * { box-sizing:border-box; }
+    html, body { min-width:0; overflow-x:clip; }
+    body { margin:0; padding:clamp(16px, 5vw, 56px); background:var(--paper); color:var(--ink); font:14px/1.5 system-ui, sans-serif; }
+    main { max-width:920px; margin:auto; }
+    header { display:flex; align-items:end; justify-content:space-between; gap:var(--space); padding-bottom:20px; border-bottom:1px solid var(--rule); }
+    h1 { margin:0; font-size:24px; letter-spacing:0; overflow-wrap:anywhere; }
+    p { margin:4px 0 0; color:var(--muted); }
+    .panel { margin-top:24px; border:1px solid var(--rule); background:var(--surface); }
+    .grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; padding:20px; }
+    label { display:grid; gap:6px; color:var(--muted); font-size:12px; }
+    select { min-width:0; min-height:44px; padding:8px; border:1px solid var(--rule); border-radius:3px; background:var(--surface); color:var(--ink); font:inherit; }
+    select:hover, select.is-hover { border-color:var(--accent); background:var(--accent-soft); }
+    select:focus-visible, select.is-focus { outline:3px solid var(--accent); outline-offset:2px; }
+    select:active, select.is-active { border-color:var(--accent); }
+    select:disabled { background:var(--disabled); color:var(--muted); cursor:not-allowed; }
+    select.is-error { border-color:var(--danger); }
+    select.is-success { border-color:var(--success); }
+    .expanded { grid-column:1/-1; }
+    .expanded select { min-height:176px; }
+    .expanded-note { margin:-2px 0 0; color:var(--muted); font-size:12px; }
+    .state { grid-column:1/-1; margin:0; font-size:12px; }
+    .error { color:var(--danger); } .success { color:var(--success); }
+    .note { padding:16px 20px; border-top:1px solid var(--rule); color:var(--muted); font-size:12px; }
+    @media (max-width:640px) { header { align-items:start; flex-direction:column; } .grid { grid-template-columns:minmax(0,1fr); } }
+  </style>
+</head>
+<body>
+  <main>
+    <header><div><h1>收支账本</h1><p>筛选</p></div><p>经济类型由当前投影数据集提供</p></header>
+    <section class="panel" aria-label="筛选原型">
+      <div class="grid">
+        <label>经济类型
+          <select aria-label="经济类型">
+            <option>全部收支</option>
+            <optgroup label="消费"><option>全部消费</option></optgroup>
+            <optgroup label="收入"><option>全部收入</option></optgroup>
+            <optgroup label="内部转账"><option>全部内部转账</option><option selected>银证转账</option><option>普通转账</option><option>购汇</option></optgroup>
+          </select>
+        </label>
+        <label class="expanded">展开的经济类型
+          <select aria-label="展开的经济类型" size="7">
+            <option>全部收支</option>
+            <optgroup label="消费"><option>全部消费</option></optgroup>
+            <optgroup label="收入"><option>全部收入</option></optgroup>
+            <optgroup label="内部转账"><option>全部内部转账</option><option selected>银证转账</option><option>普通转账</option><option>购汇</option></optgroup>
+          </select>
+          <span class="expanded-note">实际展开样式由浏览器和操作系统提供，分组、父级和子类型顺序保持一致。</span>
+        </label>
+        <label>加载中
+          <select aria-label="加载中的经济类型" disabled><option>正在读取类型…</option></select>
+        </label>
+        <label>无可用类型
+          <select aria-label="无可用经济类型" disabled><option>暂无可筛选类型</option></select>
+        </label>
+        <label>悬停
+          <select class="is-hover" aria-label="悬停的经济类型"><option>全部收支</option></select>
+        </label>
+        <label>按下
+          <select class="is-active" aria-label="按下的经济类型"><option>内部转账</option></select>
+        </label>
+        <label>键盘焦点
+          <select class="is-focus" aria-label="聚焦的经济类型"><option>全部收支</option><optgroup label="内部转账"><option>普通转账</option></optgroup></select>
+        </label>
+        <label>请求错误
+          <select class="is-error" aria-label="错误的经济类型" aria-describedby="economic-type-error" aria-invalid="true"><option>银证转账</option></select>
+        </label>
+        <label>已应用
+          <select class="is-success" aria-label="已应用的经济类型"><option>银证转账</option></select>
+        </label>
+        <p class="state error" id="economic-type-error">筛选条件有误，请检查后重试。</p>
+        <p class="state success">银证转账筛选已应用。</p>
+      </div>
+      <p class="note">选择一级类型会清除子类型；选择子类型会同时提交其父级“内部转账”。</p>
+    </section>
+  </main>
+</body>
+</html>

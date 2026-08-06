@@ -1,9 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CashLedgerPage } from "../src/pages/CashLedgerPage";
+import type { CashProjection } from "../src/api/types";
 
 const account = { id: 101, name: "日常账户", type: "cash", active: true };
-const projection = {
+const projection: CashProjection = {
   projection_id: "cash:1003", occurred_at: "2026-07-03T09:00:00+08:00", account,
   counterparty: "咖啡店", category: "餐饮", note: "午间消费", amount: "-12.50", currency: "CNY",
   economic_type: "expense" as const, transfer_subtype: null, composition: ["payment_mirror", "refund_offset"],
@@ -11,7 +12,7 @@ const projection = {
   source_type: "alipay", source_types: ["alipay", "icbc_credit"], record_id: "cash-003", visible: true, hidden_reason: null,
 };
 
-function evidenceFor(item = projection) {
+function evidenceFor(item: CashProjection = projection) {
   return {
     projection_version: 1, projection: item,
     root_record: { id: "1003", occurred_at: item.occurred_at, account: item.account, counterparty: item.counterparty, category: item.category, note: item.note, amount: "-100.00", currency: item.currency, source_type: item.source_type, record_id: item.record_id, source_snapshot: { merchant: "咖啡店" } },
@@ -114,7 +115,7 @@ describe("CashLedgerPage", () => {
 
   it("在交易信息中展示备注，保留组成方式筛选且只调用投影端点", async () => {
     const withoutNote = { ...projection, projection_id: "cash:1004", counterparty: "无备注商户", note: "", record_id: "cash-004" };
-    const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ projection_version: 1, items: [projection, withoutNote], next_cursor: null, page_size: 50, filters: {} }));
+    const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ projection_version: 1, items: [projection, withoutNote], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: ["餐饮"], currencies: ["CNY"], economic_types: [{ economic_type: "expense", transfer_subtypes: [] }] } }));
     vi.stubGlobal("fetch", fetch);
 
     render(<CashLedgerPage />);
@@ -131,7 +132,7 @@ describe("CashLedgerPage", () => {
     expect(screen.getByText("午间消费")).toBeInTheDocument();
     expect(screen.getByText("-")).toBeInTheDocument();
     expect(screen.queryByText("同笔支付关系（1）；退款冲销关系（1）")).not.toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "消费" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "全部消费" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "组合关系" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("组成方式"), { target: { value: "combined" } });
     await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("composition=combined"))).toBe(true));
@@ -168,6 +169,74 @@ describe("CashLedgerPage", () => {
     await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("category=%E5%B7%A5%E8%B5%84") && String(input).includes("currency=USD"))).toBe(true));
   });
 
+  it("使用后端类型树渲染分组选择，并规范化父级和子类型请求", async () => {
+    const initialPage = deferred<Response>();
+    let pageCalls = 0;
+    const filter_options = {
+      categories: ["餐饮", "转账"], currencies: ["CNY", "USD"],
+      economic_types: [
+        { economic_type: "expense", transfer_subtypes: [] },
+        { economic_type: "internal_transfer", transfer_subtypes: ["bank_security_transfer", "cross_currency_remittance", "unmapped_transfer"] },
+      ],
+    };
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      pageCalls += 1;
+      return pageCalls === 1
+        ? initialPage.promise
+        : json({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {}, filter_options });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<CashLedgerPage />);
+
+    const economicType = screen.getByLabelText("经济类型");
+    expect(economicType).toBeDisabled();
+    initialPage.resolve(new Response(JSON.stringify({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {}, filter_options }), { headers: { "Content-Type": "application/json" } }));
+    await screen.findByRole("option", { name: "unmapped_transfer" });
+    expect(economicType.querySelector('optgroup[label="个人转账"]')).not.toBeNull();
+    expect(within(economicType).getByRole("option", { name: "银证转账" })).toHaveValue("{\"economic_type\":\"internal_transfer\",\"transfer_subtype\":\"bank_security_transfer\"}");
+    expect(within(economicType).getByRole("option", { name: "跨币种汇款" })).toHaveValue("{\"economic_type\":\"internal_transfer\",\"transfer_subtype\":\"cross_currency_remittance\"}");
+
+    fireEvent.change(economicType, { target: { value: "{\"economic_type\":\"internal_transfer\",\"transfer_subtype\":\"bank_security_transfer\"}" } });
+    await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("economic_type=internal_transfer") && String(input).includes("transfer_subtype=bank_security_transfer"))).toBe(true));
+
+    fireEvent.change(economicType, { target: { value: "{\"economic_type\":\"internal_transfer\",\"transfer_subtype\":null}" } });
+    await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("economic_type=internal_transfer") && !String(input).includes("transfer_subtype="))).toBe(true));
+  });
+
+  it("重新读取投影时禁用经济类型筛选，但保留上次成功的类型树", async () => {
+    const refreshedPage = deferred<Response>();
+    const filter_options = {
+      categories: ["餐饮"], currencies: ["CNY"],
+      economic_types: [{ economic_type: "internal_transfer", transfer_subtypes: ["bank_security_transfer"] }],
+    };
+    let pageCalls = 0;
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      pageCalls += 1;
+      return pageCalls === 1
+        ? json({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {}, filter_options })
+        : refreshedPage.promise;
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<CashLedgerPage />);
+
+    const economicType = await screen.findByLabelText("经济类型");
+    await waitFor(() => expect(economicType).not.toBeDisabled());
+    expect(within(economicType).getByRole("option", { name: "银证转账" })).toBeInTheDocument();
+
+    fireEvent.change(economicType, { target: { value: "{\"economic_type\":\"internal_transfer\",\"transfer_subtype\":\"bank_security_transfer\"}" } });
+
+    expect(economicType).toBeDisabled();
+    expect(economicType).toHaveAccessibleDescription("正在读取可用经济类型。");
+    expect(within(economicType).getByRole("option", { name: "银证转账" })).toBeInTheDocument();
+
+    refreshedPage.resolve(new Response(JSON.stringify({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {}, filter_options }), { headers: { "Content-Type": "application/json" } }));
+    await waitFor(() => expect(economicType).not.toBeDisabled());
+  });
+
   it("展示可见的内部转账及双端账户和金额", async () => {
     const transfer = {
       ...projection, projection_id: "cash:1004", counterparty: "信用账户", category: "转账", note: "账户间转移",
@@ -186,6 +255,47 @@ describe("CashLedgerPage", () => {
     const transferRow = screen.getByRole("row", { name: /日常账户 → 信用账户/ });
     expect(transferRow).toHaveTextContent("200 CNY → 14 USD");
     expect(transferRow).toHaveTextContent("个人转账");
+  });
+
+  it("银证转账沿用双端账户和金额展示，并可作为独立条件筛选", async () => {
+    const bankSecurityTransfer: CashProjection = {
+      ...projection,
+      projection_id: "cash:1005",
+      counterparty: "Interactive Brokers",
+      category: "转账",
+      note: "",
+      amount: "0",
+      currency: "HKD",
+      economic_type: "internal_transfer",
+      transfer_subtype: "bank_security_transfer",
+      composition: [],
+      member_count: 1,
+      accepted_relation_summary: [],
+      record_id: "cash-005",
+      transfer: {
+        from_account: account,
+        from_amount: "-10000",
+        from_currency: "HKD",
+        to_account: { ...account, id: 103, name: "投资账户", type: "security" },
+        to_amount: "1275.5",
+        to_currency: "USD",
+      },
+    };
+    const fetch = vi.fn((input: string) => input.includes("/accounts")
+      ? json({ items: [account] })
+      : json({ projection_version: 1, items: [bankSecurityTransfer], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: ["转账"], currencies: ["HKD", "USD"], economic_types: [{ economic_type: "internal_transfer", transfer_subtypes: ["bank_security_transfer"] }] } }));
+    vi.stubGlobal("fetch", fetch);
+
+    render(<CashLedgerPage />);
+
+    const transferRow = await screen.findByRole("row", { name: /日常账户 → 投资账户/ });
+    expect(transferRow).toHaveTextContent("10000 HKD → 1275.5 USD");
+    expect(transferRow).toHaveTextContent("银证转账");
+    const economicType = screen.getByLabelText("经济类型");
+    expect(within(economicType).getByRole("option", { name: "银证转账" })).toHaveValue("{\"economic_type\":\"internal_transfer\",\"transfer_subtype\":\"bank_security_transfer\"}");
+    fireEvent.change(economicType, { target: { value: "{\"economic_type\":\"internal_transfer\",\"transfer_subtype\":\"bank_security_transfer\"}" } });
+    await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("economic_type=internal_transfer") && String(input).includes("transfer_subtype=bank_security_transfer"))).toBe(true));
+    expect(screen.getByText("全部账户 · 银证转账")).toBeInTheDocument();
   });
 
   it("以收支详情和关联记录服务核对，不显示审计结构", async () => {
@@ -250,6 +360,44 @@ describe("CashLedgerPage", () => {
     expect(within(dialog).queryByText(/条账本记录/)).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("region", { name: "关联记录" })).not.toBeInTheDocument();
     expect(within(dialog).queryByText("这笔收支由一条账本记录直接形成，没有关联记录。")).not.toBeInTheDocument();
+  });
+
+  it("银证资金调拨在详情中显示专用关系标记", async () => {
+    const bankSecurityTransfer = {
+      ...projection,
+      projection_id: "cash:1007",
+      counterparty: "Charles Schwab",
+      category: "转账",
+      note: "",
+      amount: "0",
+      currency: "USD",
+      economic_type: "internal_transfer" as const,
+      transfer_subtype: "bank_security_transfer",
+      composition: [],
+      member_count: 1,
+      accepted_relation_summary: [],
+      record_id: "cash-007",
+      source_type: "icbc_asia",
+      source_types: ["icbc_asia"],
+    };
+    const bankSecurityEvidence = evidenceFor(bankSecurityTransfer);
+    bankSecurityEvidence.members = [bankSecurityEvidence.members[0]];
+    bankSecurityEvidence.accepted_relations = [];
+    bankSecurityEvidence.inactive_relation_hints = [];
+    bankSecurityEvidence.refund_timeline = [];
+    vi.stubGlobal("fetch", vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/evidence/")) return json(bankSecurityEvidence);
+      return json({ projection_version: 1, items: [bankSecurityTransfer], next_cursor: null, page_size: 50, filters: {} });
+    }));
+
+    render(<CashLedgerPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "查看Charles Schwab的证据详情" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "证据详情" });
+    expect(within(dialog).getByText("银证转账")).toBeInTheDocument();
+    expect(within(dialog).getByText("银证转账关系")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("region", { name: "关联记录" })).not.toBeInTheDocument();
   });
 
   it("切换账户后保留投影合同并重新读取第一页", async () => {

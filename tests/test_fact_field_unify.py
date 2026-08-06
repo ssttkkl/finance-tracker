@@ -26,13 +26,13 @@ def _upgrade_memory():
     return engine
 
 
-def test_schema_end_state_has_note_and_action_not_legacy_names():
+def test_schema_end_state_has_note_and_record_type_not_legacy_names():
     engine = _upgrade_memory()
     insp = inspect(engine)
     cash_cols = {c["name"] for c in insp.get_columns("cash_transactions")}
     inv_cols = {c["name"] for c in insp.get_columns("investment_events")}
     assert "note" in cash_cols and "description" not in cash_cols
-    assert "action" in inv_cols and "kind" not in inv_cols
+    assert {"record_type", "record_subtype"} <= inv_cols and "action" not in inv_cols and "kind" not in inv_cols
     for col in (
         "from_ticker", "from_amount", "to_ticker", "to_amount",
         "commission", "commission_asset", "note", "source_type", "record_id",
@@ -66,7 +66,8 @@ def test_cash_and_investment_public_rows_use_catalog_names(tmp_path):
         })
         u.investments.add("security", {
             "occurred_at": "2026-07-01 11:00:00",
-            "action": "deposit",
+            "record_type": "funding",
+            "record_subtype": "external",
             "to_ticker": "usd",
             "to_amount": "10",
             "from_amount": "0",
@@ -81,7 +82,8 @@ def test_cash_and_investment_public_rows_use_catalog_names(tmp_path):
         u.commit()
     assert "note" in cash and "description" not in cash
     assert "occurred_at" in cash and "date" not in cash
-    assert inv["action"] == "deposit"
+    assert inv["record_type"] == "funding"
+    assert inv["record_subtype"] == "external"
     assert inv["note"] == "fund"
     assert inv["to_amount"] == "10"
     assert inv.get("payload") in (None, {},) or "action" not in (inv.get("payload") or {})

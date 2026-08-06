@@ -23,7 +23,7 @@ def test_hkd_usd_fx_with_account_bases_no_conflict():
     apply_investment_event(
         snap,
         {
-            "date": "2026-06-01", "action": "deposit", "currency": "HKD",
+            "date": "2026-06-01", "record_type": "funding", "record_subtype": "external", "currency": "HKD",
             "account_name": "盈立", "to_ticker": "hkd", "to_amount": "5000",
             "from_ticker": "", "from_amount": "0", "commission": "0",
         },
@@ -33,7 +33,7 @@ def test_hkd_usd_fx_with_account_bases_no_conflict():
     apply_investment_event(
         snap,
         {
-            "date": "2026-06-16", "action": "swap", "currency": "HKD",
+            "date": "2026-06-16", "record_type": "trade", "record_subtype": "fx", "currency": "HKD",
             "account_name": "盈立", "from_ticker": "hkd", "from_amount": "3161.18",
             "to_ticker": "usd", "to_amount": "402.32", "commission": "0",
         },
@@ -55,7 +55,7 @@ def test_equity_buy_accumulates_cost_in_event_currency():
     apply_investment_event(
         snap,
         {
-            "date": "2026-06-01", "action": "deposit", "currency": "USD",
+            "date": "2026-06-01", "record_type": "funding", "record_subtype": "external", "currency": "USD",
             "account_name": "IBKR", "to_ticker": "usd", "to_amount": "10000",
             "from_ticker": "", "from_amount": "0", "commission": "0",
         },
@@ -64,7 +64,7 @@ def test_equity_buy_accumulates_cost_in_event_currency():
     apply_investment_event(
         snap,
         {
-            "date": "2026-06-02", "action": "swap", "currency": "USD",
+            "date": "2026-06-02", "record_type": "trade", "record_subtype": "security", "currency": "USD",
             "account_name": "IBKR", "from_ticker": "usd", "from_amount": "1990.40",
             "to_ticker": "mrvl.us", "to_amount": "10", "commission": "3.92",
             "commission_asset": "usd",
@@ -86,7 +86,7 @@ def test_usdt_base_crypto_buy():
     apply_investment_event(
         snap,
         {
-            "date": "2026-06-01", "action": "deposit", "currency": "USDT",
+            "date": "2026-06-01", "record_type": "funding", "record_subtype": "external", "currency": "USDT",
             "account_name": "Binance", "to_ticker": "usdt", "to_amount": "5000",
             "from_ticker": "", "from_amount": "0", "commission": "0",
         },
@@ -95,7 +95,7 @@ def test_usdt_base_crypto_buy():
     apply_investment_event(
         snap,
         {
-            "date": "2026-06-02", "action": "swap", "currency": "USDT",
+            "date": "2026-06-02", "record_type": "trade", "record_subtype": "security", "currency": "USDT",
             "account_name": "Binance", "from_ticker": "usdt", "from_amount": "5000",
             "to_ticker": "btc", "to_amount": "0.1", "commission": "0",
         },
@@ -108,13 +108,13 @@ def test_usdt_base_crypto_buy():
     assert pos["btc"]["cost_currency"] == "USDT"
 
 
-def test_fee_reduces_base_cash_like_withdraw():
+def test_expense_reduces_base_cash_like_withdrawal():
     snap = _snap("A")
     bases = normalize_base_tickers(["USD"])
     apply_investment_event(
         snap,
         {
-            "date": "2026-06-01", "action": "deposit", "currency": "USD",
+            "date": "2026-06-01", "record_type": "funding", "record_subtype": "external", "currency": "USD",
             "account_name": "A", "to_ticker": "usd", "to_amount": "100",
             "from_ticker": "", "from_amount": "0", "commission": "0",
         },
@@ -123,7 +123,7 @@ def test_fee_reduces_base_cash_like_withdraw():
     apply_investment_event(
         snap,
         {
-            "date": "2026-06-02", "action": "fee", "currency": "USD",
+            "date": "2026-06-02", "record_type": "expense", "record_subtype": "interest", "currency": "USD",
             "account_name": "A", "from_ticker": "usd", "from_amount": "0.12",
             "to_ticker": "", "to_amount": "0", "commission": "0",
             "note": "融资利息",
@@ -140,7 +140,7 @@ def test_dividend_increases_cash():
     apply_investment_event(
         snap,
         {
-            "date": "2026-06-01", "action": "dividend", "currency": "USD",
+            "date": "2026-06-01", "record_type": "income", "record_subtype": "dividend_cash", "currency": "USD",
             "account_name": "A", "to_ticker": "usd", "to_amount": "12.77",
             "from_ticker": "", "from_amount": "0", "commission": "0",
             "note": "红利入账",
@@ -151,13 +151,13 @@ def test_dividend_increases_cash():
     assert Decimal(pos["usd"]["shares"]) == Decimal("12.77")
 
 
-def test_fee_refund_increases_cash():
+def test_expense_reversal_increases_cash():
     snap = _snap("A")
     bases = normalize_base_tickers(["USD"])
     apply_investment_event(
         snap,
         {
-            "date": "2026-06-01", "action": "deposit", "currency": "USD",
+            "date": "2026-06-01", "record_type": "funding", "record_subtype": "external", "currency": "USD",
             "account_name": "A", "to_ticker": "usd", "to_amount": "10",
             "from_ticker": "", "from_amount": "0", "commission": "0",
         },
@@ -166,7 +166,7 @@ def test_fee_refund_increases_cash():
     apply_investment_event(
         snap,
         {
-            "date": "2026-06-02", "action": "fee", "currency": "USD",
+            "date": "2026-06-02", "record_type": "reversal", "record_subtype": "expense_tax", "currency": "USD",
             "account_name": "A", "from_ticker": "", "from_amount": "0",
             "to_ticker": "usd", "to_amount": "0.27", "commission": "0",
             "note": "Refund tax of TQQQ.US",
@@ -177,7 +177,7 @@ def test_fee_refund_increases_cash():
     assert Decimal(pos["usd"]["shares"]) == Decimal("10.27")
 
 
-def test_ipo_debit_and_refund_are_signed_cash_like_fee():
+def test_ipo_debit_and_refund_are_signed_cash_movements():
     from ft.domain.investment_projection import apply_investment_event
 
     snap = {"accounts": {"security": {"A": {"currency": "HKD", "positions": {
@@ -185,7 +185,7 @@ def test_ipo_debit_and_refund_are_signed_cash_like_fee():
     }}}}}
     apply_investment_event(
         snap,
-        {"action": "ipo", "account_name": "A", "currency": "HKD", "date": "2026-05-29",
+        {"record_type": "subscription", "record_subtype": "ipo_debit", "account_name": "A", "currency": "HKD", "date": "2026-05-29",
          "from_ticker": "hkd", "from_amount": "5181.74", "to_ticker": "", "to_amount": "0"},
         default_currency="HKD",
         base_tickers={"hkd", "usd"},
@@ -194,7 +194,7 @@ def test_ipo_debit_and_refund_are_signed_cash_like_fee():
     assert Decimal(snap["accounts"]["security"]["A"]["positions"]["hkd"]["shares"]) == Decimal("4818.26")
     apply_investment_event(
         snap,
-        {"action": "ipo", "account_name": "A", "currency": "HKD", "date": "2026-06-01",
+        {"record_type": "subscription", "record_subtype": "ipo_refund", "account_name": "A", "currency": "HKD", "date": "2026-06-01",
          "from_ticker": "", "from_amount": "0", "to_ticker": "hkd", "to_amount": "5181.74"},
         default_currency="HKD",
         base_tickers={"hkd", "usd"},

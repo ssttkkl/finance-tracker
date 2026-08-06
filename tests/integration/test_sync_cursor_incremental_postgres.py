@@ -38,7 +38,7 @@ def test_incremental_cursor_contract_on_postgres():
             def fetch_trades(self, *, since=None):
                 self.calls.append(since)
                 return ConnectorResult([{
-                    "action": "swap", "currency": "USD",
+                    "record_type": "trade", "record_subtype": "security", "currency": "USD",
                     "occurred_at": datetime(2026, 7, 26, tzinfo=timezone.utc),
                     "from_ticker": "usd", "from_amount": "100",
                     "to_ticker": "btc", "to_amount": "1",

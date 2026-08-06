@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from calendar import monthrange
 from decimal import Decimal, InvalidOperation
+import hashlib
+import json
 import re
 import shutil
 import subprocess
@@ -24,6 +26,21 @@ def normalize_cjk(text: str) -> str:
     }))
 
 
+def _source_payload_from_text(text: str | list[str]) -> dict[str, list[str]]:
+    units = text.splitlines() if isinstance(text, str) else list(text)
+    if not units or not any(unit.strip() for unit in units):
+        raise ValueError("uSmart HK 来源文本单元为空")
+    if not all(isinstance(unit, str) for unit in units):
+        raise ValueError("uSmart HK 来源文本单元包含非文本值")
+    return {"原始文本单元": units}
+
+
+def _source_line_at(text: str, offset: int) -> str:
+    start = text.rfind("\n", 0, offset) + 1
+    end = text.find("\n", offset)
+    return text[start:] if end < 0 else text[start:end]
+
+
 
 def _normalize_equity_ticker(code: str, *, market: str = "", ccy: str = "") -> str:
     """Delegate to shared normalizer (US → ``.us``, HK → ``.hk``)."""
@@ -34,9 +51,11 @@ def _statement_profile(rendered: str) -> str:
     """Return statement product profile.
 
     - ``margin``: 保证金 月结单 (M21)
-    - ``day``: 日内融 月结单 (M61) or 日结单 (D51) — same trade/cash layout family
+    - ``day``: 日内融产品的交易布局，交易明细后包含开仓记录
     """
     head = rendered[:300]
+    if "交易明细" in rendered and "开仓记录" in rendered:
+        return "day"
     if "日内融日结单" in head or "日内融月结单" in head or "日内融" in head:
         return "day"
     return "margin"
@@ -63,8 +82,8 @@ def parse_usmart_hk_text(text: str | list[str]) -> list[dict[str, Any]]:
     - margin monthly (保证金账户 M21-style)
     - day-trading monthly (日内融 M61-style) — independent account product
     """
-    rendered = "\n".join(text) if isinstance(text, list) else text
-    rendered = normalize_cjk(rendered).replace("\r", "")
+    source_rendered = ("\n".join(text) if isinstance(text, list) else text).replace("\r", "")
+    rendered = normalize_cjk(source_rendered)
     profile = _statement_profile(rendered)
     # Daily: 结单日期 YYYY-MM-DD; Monthly: YYYY-MM (CHECKIN on month-end).
     full_day = re.search(r"结单日期\s*[：:]?\s*(\d{4})-(\d{2})-(\d{2})", rendered)
@@ -81,9 +100,11 @@ def parse_usmart_hk_text(text: str | list[str]) -> list[dict[str, Any]]:
             f"{monthrange(int(period_match.group(1)), int(period_match.group(2)))[1]:02d}"
         )
     rows: list[dict[str, Any]] = []
-    trades = _parse_trades(rendered, profile=profile)
+    trades = _parse_trades(rendered, source_rendered, profile=profile)
     rows.extend(trades)
-    cash_rows, ignored_mirrors = _parse_cash_movements(rendered, profile=profile)
+    cash_rows, ignored_mirrors = _parse_cash_movements(
+        rendered, source_rendered, profile=profile,
+    )
     ipo_codes = _infer_ipo_codes(rendered)
     if len(ipo_codes) == 1:
         for row in cash_rows:
@@ -91,11 +112,19 @@ def parse_usmart_hk_text(text: str | list[str]) -> list[dict[str, Any]]:
             if "IPO" in fl or "认购" in fl:
                 row.setdefault("ipo_code", ipo_codes[0])
     rows.extend(cash_rows)
-    rows.extend(_parse_cash_checkins(rendered, period, month_end, profile=profile))
-    holdings = _parse_holdings(rendered, period, month_end)
+    rows.extend(_parse_cash_checkins(
+        rendered, source_rendered, period, month_end, profile=profile,
+    ))
+    holdings = _parse_holdings(rendered, source_rendered, period, month_end)
     rows.extend(holdings)
     held = {str(h["ticker"]).lower() for h in holdings}
-    rows.extend(_closed_position_checkins(trades, held, period, month_end))
+    rows.extend(_closed_position_checkins(
+        trades,
+        held,
+        period,
+        month_end,
+        source_payload=_holdings_source_payload(rendered, source_rendered),
+    ))
     if rows:
         rows[0]["_usmart_ignored_trade_mirrors"] = ignored_mirrors
         rows[0]["_usmart_statement_profile"] = profile
@@ -118,105 +147,128 @@ def map_usmart_hk_to_investment_event(
     kind = txn["kind"]
     ccy = str(txn.get("ccy") or currency or "USD").upper()
     cash = ccy.lower()
+    source_note = str(txn.get("note") or "")
     base = {
         "date": txn["date"], "account_name": account_name, "currency": ccy,
-        "note": txn.get("note", ""),
+        "note": source_note,
     }
+
+    def cash_event(record_type: str, record_subtype: str) -> dict[str, Any]:
+        amount = abs(Decimal(str(txn["amount"])))
+        incoming = Decimal(str(txn["amount"])) >= 0
+        return {
+            **base,
+            "record_type": record_type,
+            "record_subtype": record_subtype,
+            "from_ticker": "" if incoming else cash,
+            "from_amount": "0" if incoming else _fmt(amount),
+            "to_ticker": cash if incoming else "",
+            "to_amount": _fmt(amount) if incoming else "0",
+            "price": "1",
+            "commission": "0",
+            "commission_asset": "",
+        }
+
     if kind == "trade":
         if txn["side"] == "BUY":
-            return {**base, "action": "swap", "from_ticker": cash,
+            return {**base, "record_type": "trade", "record_subtype": "security", "from_ticker": cash,
                     "from_amount": _fmt(txn["gross"]), "to_ticker": txn["ticker"].lower(),
                     "to_amount": _fmt(txn["qty"]), "price": _fmt(txn["gross"] / txn["qty"]),
                     "commission": _fmt(txn["commission"]), "commission_asset": cash}
-        return {**base, "action": "swap", "from_ticker": txn["ticker"].lower(),
+        return {**base, "record_type": "trade", "record_subtype": "security", "from_ticker": txn["ticker"].lower(),
                 "from_amount": _fmt(txn["qty"]), "to_ticker": cash,
                 "to_amount": _fmt(txn["gross"]), "price": _fmt(txn["gross"] / txn["qty"]),
                 "commission": _fmt(txn["commission"]), "commission_asset": cash}
     if kind == "fx":
-        return {**base, "action": "swap", "from_ticker": txn["from_ccy"].lower(),
+        return {**base, "record_type": "trade", "record_subtype": "fx", "from_ticker": txn["from_ccy"].lower(),
                 "from_amount": _fmt(txn["from_amount"]), "to_ticker": txn["to_ccy"].lower(),
                 "to_amount": _fmt(txn["to_amount"]), "price": "0", "commission": "0",
                 "commission_asset": ""}
     if kind == "cash":
         amount = abs(txn["amount"])
         flag = str(txn.get("flag_norm") or txn.get("flag") or "")
-        note = str(txn.get("note") or "")
-        text = f"{flag} {note}"
+        source_text = f"{flag} {source_note}"
         # Dividend income
         if flag == "红利入账" or flag.startswith("红利入账"):
             return {
-                **base, "action": "dividend", "from_ticker": "", "from_amount": "0",
+                **base, "record_type": "income", "record_subtype": "dividend_cash", "from_ticker": "", "from_amount": "0",
                 "to_ticker": cash, "to_amount": _fmt(amount), "price": "1",
                 "commission": "0", "commission_asset": "",
             }
-        # Fee / tax / interest family (charges and refunds of the same kind).
-        fee_flags = {
-            "融资利息", "融券罚息转出", "融券利息", "罚息转出",
-            "美股股息税", "股息代收费", "红利税费", "股息税",
-        }
-        is_fee_flag = flag in fee_flags or any(
-            k in flag for k in ("利息", "罚息", "股息税", "代收费", "税费")
-        )
-        # 资金存 + tax refund notes, or note-only tax refund rows
+        # 税费返还会以“资金存”出现，必须先于外部入金判断。
         is_tax_refund = (
-            ("税" in text or "tax" in text.lower() or "withhold" in text.lower())
-            and ("退" in text or "refund" in text.lower() or flag == "资金存")
+            ("税" in source_text or "tax" in source_text.lower() or "withhold" in source_text.lower())
+            and ("退" in source_text or "refund" in source_text.lower() or flag == "资金存")
         )
-        is_fee_refund = is_tax_refund or (
-            txn["amount"] > 0 and any(
-                k in text for k in ("利息", "罚息", "代收费", "税费", "fee", "返还", "退还")
-            ) and any(k in text for k in ("费", "税", "息", "佣金", "fee", "tax", "interest"))
-        )
-        if is_fee_flag or is_tax_refund or is_fee_refund:
-            if txn["amount"] >= 0 and (is_tax_refund or is_fee_refund or is_fee_flag and txn["amount"] > 0):
-                # Refund of fee/tax → still action=fee, cash in via to_amount
-                return {
-                    **base, "action": "fee", "from_ticker": "", "from_amount": "0",
-                    "to_ticker": cash, "to_amount": _fmt(amount), "price": "1",
-                    "commission": "0", "commission_asset": "",
-                }
-            # Charge
-            return {
-                **base, "action": "fee", "from_ticker": cash, "from_amount": _fmt(amount),
-                "to_ticker": "", "to_amount": "0", "price": "1",
-                "commission": "0", "commission_asset": "",
-            }
-        # IPO subscription lifecycle as dedicated action=ipo (not swap):
+        # IPO subscription lifecycle uses a dedicated non-funding record type:
         #   认购扣款: cash out (from_amount)
         #   认购退款: cash in  (to_amount)
         #   认购手续费: fee (not ipo)
         # Optional stock code may live in note/App only; not required for cash components.
         # Future allotment (中签) can stay a separate equity swap when it appears.
         if "IPO认购手续费" in flag or (flag.startswith("IPO") and "手续费" in flag) or (
-            "IPO" in flag and "Handling" in note
+            "IPO" in flag and "Handling" in source_note
         ):
-            return {
-                **base, "action": "fee", "from_ticker": cash, "from_amount": _fmt(amount),
-                "to_ticker": "", "to_amount": "0", "price": "1",
-                "commission": "0", "commission_asset": "",
-            }
-        if flag in {"IPO认购扣款"} or ("IPO" in flag and "扣款" in flag) or "IPO Debit" in note:
-            return {
-                **base, "action": "ipo", "from_ticker": cash, "from_amount": _fmt(amount),
-                "to_ticker": "", "to_amount": "0", "price": "1",
-                "commission": "0", "commission_asset": "",
-            }
-        if flag in {"IPO认购退款"} or ("IPO" in flag and "退款" in flag) or "IPO Refund" in note:
-            return {
-                **base, "action": "ipo", "from_ticker": "", "from_amount": "0",
-                "to_ticker": cash, "to_amount": _fmt(amount), "price": "1",
-                "commission": "0", "commission_asset": "",
-            }
-        if txn["amount"] > 0:
-            return {**base, "action": "deposit", "from_ticker": "", "from_amount": "0",
-                    "to_ticker": cash, "to_amount": _fmt(amount), "price": "1", "commission": "0", "commission_asset": ""}
-        return {**base, "action": "withdraw", "from_ticker": cash, "from_amount": _fmt(amount),
-                "to_ticker": "", "to_amount": "0", "price": "1", "commission": "0", "commission_asset": ""}
+            return cash_event("expense", "handling_fee")
+        if is_tax_refund:
+            if txn["amount"] < 0:
+                raise ValueError("税费返还必须为现金入账")
+            return cash_event("reversal", "expense_tax")
+        fee_charge_subtypes = {
+            "融资利息": "interest",
+            "融券利息": "interest",
+            "融券罚息转出": "penalty",
+            "罚息转出": "penalty",
+            "美股股息税": "tax",
+            "红利税费": "tax",
+            "股息税": "tax",
+            "股息代收费": "handling_fee",
+        }
+        if flag in fee_charge_subtypes:
+            subtype = fee_charge_subtypes[flag]
+            if txn["amount"] > 0:
+                return cash_event("reversal", f"expense_{subtype}")
+            return cash_event("expense", subtype)
+        fee_reversal_subtypes = {
+            "平台费返还": "expense_handling_fee",
+            "佣金返还": "expense_commission",
+            "手续费返还": "expense_commission",
+        }
+        if flag in fee_reversal_subtypes:
+            if txn["amount"] < 0:
+                raise ValueError("费用返还必须为现金入账")
+            return cash_event("reversal", fee_reversal_subtypes[flag])
+        if flag in {"IPO认购扣款"} or ("IPO" in flag and "扣款" in flag) or "IPO Debit" in source_note:
+            return cash_event("subscription", "ipo_debit")
+        if flag in {"IPO认购退款"} or ("IPO" in flag and "退款" in flag) or "IPO Refund" in source_note:
+            return cash_event("subscription", "ipo_refund")
+        if flag == "出金退款":
+            if txn["amount"] < 0:
+                raise ValueError("出金退款必须为现金入账")
+            return cash_event("reversal", "funding_withdrawal")
+        if flag in {"优惠券"}:
+            if txn["amount"] < 0:
+                raise ValueError("奖励必须为现金入账")
+            return cash_event("income", "reward")
+        if flag in {
+            "转入到日内融账户", "转入到保证金账户", "从保证金账户转入",
+            "从日内融账户转出", "从日内融账户转入",
+        }:
+            return cash_event(
+                "funding",
+                "subaccount",
+            )
+        if flag in {"入金", "出金", "提取", "资金存", "EDDA入金", "EDDA出金"}:
+            return cash_event(
+                "funding",
+                "external",
+            )
+        raise ValueError(f"unsupported uSmart HK cash flag for normalized funding: {flag!r}")
     if kind == "checkin_cash":
-        return {**base, "action": "checkin", "from_ticker": "", "from_amount": "0",
+        return {**base, "note": "", "record_type": "snapshot", "record_subtype": "cash", "from_ticker": "", "from_amount": "0",
                 "to_ticker": cash, "to_amount": _fmt(txn["amount"]), "price": "1", "commission": "0", "commission_asset": ""}
     if kind == "checkin_position":
-        return {**base, "action": "checkin", "from_ticker": "", "from_amount": "0",
+        return {**base, "note": "", "record_type": "snapshot", "record_subtype": "position", "from_ticker": "", "from_amount": "0",
                 "to_ticker": txn["ticker"].lower(), "to_amount": _fmt(txn["shares"]), "price": "0", "commission": "0", "commission_asset": ""}
     raise ValueError(f"unsupported uSmart HK row kind: {kind}")
 
@@ -232,10 +284,15 @@ def construct_source_identity(txn: dict[str, Any]) -> str:
             gross=_fmt(txn["gross"]), net=_fmt(txn["net"]),
             comm=_fmt(txn.get("commission") or 0), ccy=txn["ccy"])
     elif kind == "cash":
-        note = str(txn.get("note") or "").strip()
-        note_key = note.replace(" ", "")[:40] if note and note != txn.get("flag_norm") else ""
         base = f"{prefix}:cash:{txn['date']}:{txn['flag_norm']}:{txn['ccy']}:{_fmt(txn['amount'])}"
-        ident = f"{base}:{note_key}" if note_key else base
+        source_payload = txn.get("_source_payload")
+        if not isinstance(source_payload, dict) or not source_payload:
+            raise ValueError("uSmart HK 现金流水缺少来源行快照")
+        canonical = json.dumps(
+            source_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+        )
+        source_digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+        ident = f"{base}:{source_digest}"
     elif kind == "fx":
         ident = prefix + ":fx:{from_date}:{from_ccy}:{from_amount}:{to_date}:{to_ccy}:{to_amount}".format(
             from_date=txn["from_date"], from_ccy=txn["from_ccy"], from_amount=_fmt(txn["from_amount"]),
@@ -361,7 +418,9 @@ def _extract_group_ticker(block: str, fill_start: int) -> str:
     raise ValueError(f"trade group missing ticker near {lead[-120:]!r}")
 
 
-def _parse_trades(rendered: str, *, profile: str = "margin") -> list[dict[str, Any]]:
+def _parse_trades(
+    rendered: str, source_rendered: str, *, profile: str = "margin",
+) -> list[dict[str, Any]]:
     start = rendered.find("交易明细")
     # Day-margin inserts 开仓记录 between trades and 持仓明细.
     end = rendered.find("开仓记录", start)
@@ -370,11 +429,15 @@ def _parse_trades(rendered: str, *, profile: str = "margin") -> list[dict[str, A
     if start < 0 or end < 0:
         raise ValueError("uSmart HK statement is missing 交易明细 or 持仓明细")
     section = rendered[start:end]
+    source_section = source_rendered[start:end]
     # mutool -F text: 变动金额合计 and amount often on consecutive lines.
-    groups = re.split(r"变动金额合计\s*\n?\s*(-?[\d,]+(?:\.\d+)?)", section)
     rows: list[dict[str, Any]] = []
-    for index in range(1, len(groups), 2):
-        block, net_text = groups[index - 1], groups[index]
+    cursor = 0
+    for match in re.finditer(r"变动金额合计\s*\n?\s*(-?[\d,]+(?:\.\d+)?)", section):
+        block = section[cursor:match.start()]
+        source_block = source_section[cursor:match.end()]
+        net_text = match.group(1)
+        cursor = match.end()
         fills = list(_FILL.finditer(block))
         if not fills:
             continue
@@ -410,13 +473,28 @@ def _parse_trades(rendered: str, *, profile: str = "margin") -> list[dict[str, A
             "kind": "trade", "date": first.group("date"), "ticker": ticker, "side": side,
             "qty": sum((_decimal(m.group("qty")) for m in fills), Decimal("0")),
             "gross": gross, "net": net, "commission": commission,
-            "ccy": next(iter(ccys)), "note": "uSmart HK order group",
+            "ccy": next(iter(ccys)), "note": "",
+            "_source_payload": _source_payload_from_text(source_block),
         })
     # Empty is valid (e.g. day-margin month with 资金出入 only / 暂无数据).
     return rows
 
 
-def _parse_holdings(rendered: str, period: str, month_end: str) -> list[dict[str, Any]]:
+def _holdings_source_payload(
+    rendered: str, source_rendered: str,
+) -> dict[str, list[str]]:
+    start = rendered.find("持仓明细")
+    end = rendered.find("资金出入", start)
+    if end < 0:
+        end = rendered.find("市值汇总", start)
+    if start < 0 or end < 0:
+        raise ValueError("uSmart HK statement is missing 持仓明细 source text")
+    return _source_payload_from_text(source_rendered[start:end])
+
+
+def _parse_holdings(
+    rendered: str, source_rendered: str, period: str, month_end: str,
+) -> list[dict[str, Any]]:
     """Parse 持仓明细: layout (one-line) or mutool text (stacked fields)."""
     start = rendered.find("持仓明细")
     if start < 0:
@@ -427,6 +505,7 @@ def _parse_holdings(rendered: str, period: str, month_end: str) -> list[dict[str
     if end < 0:
         end = len(rendered)
     section = rendered[start:end]
+    source_section = source_rendered[start:end]
     if "暂无数据" in section and not re.search(r"\b(?:USD|HKD|CNY)\b", section):
         return []
 
@@ -443,13 +522,26 @@ def _parse_holdings(rendered: str, period: str, month_end: str) -> list[dict[str
         rows.append({
             "kind": "checkin_position", "date": month_end, "period": period,
             "ticker": ticker, "ccy": m.group("ccy"), "shares": shares,
-            "note": "period-end holdings checkin",
+            "note": "",
+            "_source_payload": _source_payload_from_text(
+                _source_line_at(source_section, m.start("code"))
+            ),
         })
     if rows:
         return rows
 
     # Vertical mutool: CODE [name lines...] \n CCY \n shares \n unsettled \n price ...
-    lines = [ln.strip() for ln in section.splitlines() if ln.strip()]
+    source_lines = source_section.splitlines()
+    normalized_lines = section.splitlines()
+    if len(source_lines) != len(normalized_lines):
+        raise ValueError("uSmart HK 持仓来源文本无法逐行对应")
+    pairs = [
+        (normalized_line.strip(), source_line)
+        for normalized_line, source_line in zip(normalized_lines, source_lines)
+        if normalized_line.strip()
+    ]
+    lines = [normalized_line for normalized_line, _source_line in pairs]
+    source_units = [source_line for _normalized_line, source_line in pairs]
     i = 0
     header_noise = {
         "持仓明细", "证券", "币种", "持有数量", "未交收数量", "收市价", "市值",
@@ -478,12 +570,16 @@ def _parse_holdings(rendered: str, period: str, month_end: str) -> list[dict[str
             j += 1
         if ccy and shares_s is not None:
             ticker = _normalize_equity_ticker(code, ccy=ccy)
+            record_end = j + 2
+            while record_end < len(lines) and not code_re.match(lines[record_end]):
+                record_end += 1
             rows.append({
                 "kind": "checkin_position", "date": month_end, "period": period,
                 "ticker": ticker, "ccy": ccy, "shares": _decimal(shares_s),
-                "note": "period-end holdings checkin",
+                "note": "",
+                "_source_payload": _source_payload_from_text(source_units[i:record_end]),
             })
-            i = j + 2
+            i = record_end
         else:
             i += 1
     return rows
@@ -494,6 +590,8 @@ def _closed_position_checkins(
     held_tickers: set[str],
     period: str,
     month_end: str,
+    *,
+    source_payload: dict[str, list[str]],
 ) -> list[dict[str, Any]]:
     """Emit 0-share CHECKIN for traded symbols missing from 持仓明细.
 
@@ -517,14 +615,15 @@ def _closed_position_checkins(
             "ticker": ticker,
             "ccy": ccy,
             "shares": Decimal("0"),
-            "note": "period-end flat (absent from 持仓明细)",
+            "note": "",
+            "_source_payload": source_payload,
         }
         for ticker, ccy in sorted(closed.items(), key=lambda item: item[0].lower())
     ]
 
 
 def _parse_cash_checkins(
-    rendered: str, period: str, month_end: str, *, profile: str = "margin",
+    rendered: str, source_rendered: str, period: str, month_end: str, *, profile: str = "margin",
 ) -> list[dict[str, Any]]:
     """Parse ending cash balances (HKD / USD / CNY columns).
 
@@ -533,46 +632,68 @@ def _parse_cash_checkins(
     - mutool ``-F text``: label and value on alternate lines (3 markets).
     """
     values: list[str] = []
+    source_payloads: list[dict[str, list[str]] | None] = []
     # Same-line multi-column form (pdftotext -layout / fixtures)
     match = re.search(r"期末账户结余(?P<line>[^\n]+)", rendered)
     if match and re.search(r"--|-?[\d,]+(?:\.\d+)?", match.group("line")):
         values = re.findall(r"--|-?[\d,]+(?:\.\d+)?", match.group("line"))
+        source_payload = _source_payload_from_text(
+            source_rendered[match.start():match.end()]
+        )
+        source_payloads = [source_payload] * len(values)
     if len(values) < 3:
         # Vertical form: each market is "期末账户结余\n<amount>"
-        stacked = re.findall(
+        stacked = list(re.finditer(
             r"期末账户结余\s*\n\s*(--|-?[\d,]+(?:\.\d+)?)",
             rendered,
-        )
+        ))
         if len(stacked) >= 3:
-            values = stacked[:3]
+            values = [entry.group(1) for entry in stacked[:3]]
+            source_payloads = [
+                _source_payload_from_text(source_rendered[entry.start():entry.end()])
+                for entry in stacked[:3]
+            ]
     if len(values) < 3 and profile == "day":
         # Day product has no 期末账户结余.
         # Prefer 期末净资产 (EOD equity proxy / cash when flat stock);
         # fall back to 变动金额汇总 only if 期末净资产 missing.
-        net_assets = re.findall(
+        net_assets = list(re.finditer(
             r"期末净资产\s*\n\s*(--|-?[\d,]+(?:\.\d+)?)",
             rendered,
-        )
+        ))
         if len(net_assets) >= 2:
-            values = [net_assets[0], net_assets[1], "--"]
+            values = [net_assets[0].group(1), net_assets[1].group(1), "--"]
+            source_payloads = [
+                _source_payload_from_text(source_rendered[entry.start():entry.end()])
+                for entry in net_assets[:2]
+            ] + [None]
         else:
-            stacked = re.findall(
+            stacked = list(re.finditer(
                 r"变动金额汇总\s*\n\s*(--|-?[\d,]+(?:\.\d+)?)",
                 rendered,
-            )
+            ))
             if len(stacked) >= 2:
-                values = [stacked[0], stacked[1], "--"]
+                values = [stacked[0].group(1), stacked[1].group(1), "--"]
+                source_payloads = [
+                    _source_payload_from_text(source_rendered[entry.start():entry.end()])
+                    for entry in stacked[:2]
+                ] + [None]
     if len(values) < 2:
         raise ValueError("uSmart HK statement is missing 期末账户结余/变动金额汇总")
     # Pad to 3 markets when day statement only has HKD/USD columns.
     while len(values) < 3:
         values.append("--")
+        source_payloads.append(None)
     rows = []
-    for ccy, value in zip(("HKD", "USD", "CNY"), values[:3]):
+    for index, (ccy, value) in enumerate(zip(("HKD", "USD", "CNY"), values[:3])):
         if value != "--":
+            source_payload = source_payloads[index]
+            if source_payload is None:
+                raise ValueError("uSmart HK 现金快照缺少来源文本单元")
             rows.append({
                 "kind": "checkin_cash", "date": month_end, "period": period,
-                "ccy": ccy, "amount": _decimal(value), "note": "period-end cash checkin",
+                "ccy": ccy, "amount": _decimal(value), "note": "",
+                "_source_payload": source_payload,
             })
     return rows
 
@@ -590,7 +711,9 @@ def _is_trade_mirror_flag(normalized: str) -> bool:
     return False
 
 
-def _parse_cash_movements(rendered: str, *, profile: str = "margin") -> tuple[list[dict[str, Any]], int]:
+def _parse_cash_movements(
+    rendered: str, source_rendered: str, *, profile: str = "margin",
+) -> tuple[list[dict[str, Any]], int]:
     start = rendered.find("资金出入")
     end = rendered.find("证券提存", start)
     if end < 0:
@@ -604,20 +727,28 @@ def _parse_cash_movements(rendered: str, *, profile: str = "margin") -> tuple[li
         # tolerate if later sections missing but 资金出入 present
         pass
     section = rendered[start:end]
-    # Join known multi-line flags broken by PDF extract (e.g. 手续费\n（综）).
-    section = re.sub(r"手续费\s*\n\s*[（(]综[）)]", "手续费(综)", section)
-    section = re.sub(r"沽空卖出股票\s*\n\s*[（(]综[）)]", "沽空卖出股票(综)", section)
+    source_section = source_rendered[start:end]
+    if len(section) != len(source_section):
+        raise ValueError("uSmart HK 资金流水来源文本无法按位置对应")
     cash_rows: list[dict[str, Any]] = []
 
     fx_legs: list[dict[str, Any]] = []
     ignored_mirrors = 0
 
-    def _consume(flag: str, ccy: str, amount: str, date: str, note: str) -> None:
+    def _consume(
+        flag: str,
+        ccy: str,
+        amount: str,
+        date: str,
+        note: str,
+        source_payload: dict[str, list[str]],
+    ) -> None:
         nonlocal ignored_mirrors
         normalized = normalize_cjk(flag)
         row = {
             "kind": "cash", "date": date, "flag": normalized, "flag_norm": normalized,
             "ccy": ccy, "amount": _decimal(amount), "note": (note or "").strip() or normalized,
+            "_source_payload": source_payload,
         }
         if normalized == "换汇":
             fx_legs.append(row)
@@ -645,7 +776,11 @@ def _parse_cash_movements(rendered: str, *, profile: str = "margin") -> tuple[li
 
     # Prefer one-line rows when present (layout fixtures); else stacked mutool text.
     line_hits = 0
-    for line in section.splitlines():
+    source_lines = source_section.splitlines()
+    normalized_lines = section.splitlines()
+    if len(source_lines) != len(normalized_lines):
+        raise ValueError("uSmart HK 资金流水来源文本无法逐行对应")
+    for line, source_line in zip(normalized_lines, source_lines):
         match = _CASH_ROW.match(line)
         if not match:
             continue
@@ -653,6 +788,7 @@ def _parse_cash_movements(rendered: str, *, profile: str = "margin") -> tuple[li
         _consume(
             match.group("flag"), match.group("ccy"), match.group("amount"),
             match.group("date"), match.group("note") or "",
+            _source_payload_from_text(source_line),
         )
     if line_hits == 0:
         for match in _CASH_STACKED.finditer(section):
@@ -663,6 +799,7 @@ def _parse_cash_movements(rendered: str, *, profile: str = "margin") -> tuple[li
             _consume(
                 match.group("flag"), match.group("ccy"), match.group("amount"),
                 match.group("date"), note,
+                _source_payload_from_text(source_section[match.start():match.end()]),
             )
 
     while fx_legs:
@@ -706,6 +843,12 @@ def _parse_cash_movements(rendered: str, *, profile: str = "margin") -> tuple[li
             "kind": "fx", "date": min(leg["date"], other["date"]),
             "from_date": out["date"], "from_ccy": out["ccy"], "from_amount": abs(out["amount"]),
             "to_date": incoming["date"], "to_ccy": incoming["ccy"], "to_amount": abs(incoming["amount"]),
-            "ccy": out["ccy"], "note": "换汇",
+            "ccy": out["ccy"], "note": out["note"],
+            "_source_payload": {
+                "原始文本单元": [
+                    *out["_source_payload"]["原始文本单元"],
+                    *incoming["_source_payload"]["原始文本单元"],
+                ],
+            },
         })
     return cash_rows, ignored_mirrors

@@ -144,9 +144,9 @@ class TestPolymarketSyncSQLite:
         assert first.ok and first.count == 2
         assert second.ok and second.count == 0
         with uow as u:
-            actions = sorted(e["action"] for e in u.investments.list())
+            actions = sorted(e["record_type"] for e in u.investments.list())
             u.rollback()
-        assert actions == ["dividend", "swap"]
+        assert actions == ["income", "trade"]
 
     def test_activity_and_pusd_checkin_commit_together_and_preserve_market_position(self, sqlite_pm_sync):
         service, uow = sqlite_pm_sync

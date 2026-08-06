@@ -8,6 +8,7 @@ from typing import AbstractSet, Iterable
 from zoneinfo import ZoneInfo
 
 from ft.domain.decimal import exact_decimal
+from ft.domain.investment_record_type import validate_investment_record_subtype
 
 _SCALE18 = Decimal("1E-18")
 
@@ -133,9 +134,11 @@ def _unit_price_from_row(row: dict, *, from_amount, to_amount) -> "Decimal":
 
 
 def _event(command, date: str, currency: str, **values) -> dict:
+    record_type = values.pop("record_type")
     row = {
         "date": date,
-        "action": values.pop("action"),
+        "record_type": record_type,
+        "record_subtype": values.pop("record_subtype", "not_applicable"),
         "from_ticker": values.pop("from_ticker", ""),
         "to_ticker": values.pop("to_ticker", ""),
         "from_amount": _text(values.pop("from_amount", Decimal("0"))),
@@ -182,9 +185,9 @@ def apply_investment_command(
     cash = _position(positions, cash_ticker, _asset_cost_currency(cash_ticker, currency, bases), bases=bases)
     cash_shares = _decimal(cash["shares"], "cash shares")
     cash_cost = _decimal(cash["total_cost"], "cash cost")
-    action = command.action
+    record_type = command.record_type
 
-    if action == "buy":
+    if record_type == "buy":
         quantity = _decimal(command.quantity, "quantity")
         price = _decimal(command.price, "price")
         commission = _decimal(command.commission, "commission", default="0")
@@ -203,10 +206,10 @@ def apply_investment_command(
             bases=bases,
             cost=_decimal(position["total_cost"], "total_cost") + total,
         )
-        row = _event(command, date, currency, action="swap", from_ticker=cash_ticker,
+        row = _event(command, date, currency, record_type="trade", record_subtype="security", from_ticker=cash_ticker,
                      to_ticker=ticker, from_amount=principal, to_amount=quantity,
                      price=price, commission=commission, commission_asset=cash_ticker)
-    elif action == "sell":
+    elif record_type == "sell":
         quantity = _decimal(command.quantity, "quantity")
         price = _decimal(command.price, "price")
         commission = _decimal(command.commission, "commission", default="0")
@@ -220,10 +223,10 @@ def apply_investment_command(
         proceeds = quantity * price - commission
         _set_qty(position, old_shares - quantity, ticker=ticker, bases=bases, cost=old_cost - released)
         _set_qty(cash, cash_shares + proceeds, ticker=cash_ticker, bases=bases, cost=cash_cost + proceeds)
-        row = _event(command, date, currency, action="swap", from_ticker=ticker,
+        row = _event(command, date, currency, record_type="trade", record_subtype="security", from_ticker=ticker,
                      to_ticker=cash_ticker, from_amount=quantity, to_amount=quantity * price,
                      price=price, commission=commission, commission_asset=cash_ticker)
-    elif action == "swap":
+    elif record_type == "swap":
         from_quantity = _decimal(command.quantity, "from_quantity")
         to_quantity = _decimal(command.to_quantity, "to_quantity")
         commission = _decimal(getattr(command, "commission", 0), "commission", default="0")
@@ -279,34 +282,46 @@ def apply_investment_command(
                     cost=_decimal(fee["total_cost"], "fee cost") - commission,
                 )
         row = _event(
-            command, date, currency, action="swap", from_ticker=from_ticker,
+            command, date, currency, record_type="trade", record_subtype="security", from_ticker=from_ticker,
             to_ticker=to_ticker, from_amount=from_quantity, to_amount=to_quantity,
             commission=commission, commission_asset=commission_asset,
         )
-    elif action in {"deposit", "withdraw", "dividend", "fee", "checkin_cash"}:
+    elif record_type in {"deposit", "withdraw", "dividend", "fee", "checkin_cash"}:
         amount = _decimal(command.amount, "amount")
-        if action != "checkin_cash" and amount < 0:
-            raise ValueError(f"{action} amount must be non-negative")
-        if action in {"deposit", "dividend"}:
+        if record_type != "checkin_cash" and amount < 0:
+            raise ValueError(f"{record_type} amount must be non-negative")
+        if record_type in {"deposit", "dividend"}:
             _set_qty(cash, cash_shares + amount, ticker=cash_ticker, bases=bases, cost=cash_cost + amount)
-        elif action in {"withdraw", "fee"}:
+        elif record_type in {"withdraw", "fee"}:
             _set_qty(cash, cash_shares - amount, ticker=cash_ticker, bases=bases, cost=cash_cost - amount)
         else:
             _set_qty(cash, amount, ticker=cash_ticker, bases=bases, cost=amount)
-        event_action = "checkin" if action == "checkin_cash" else action
+        event_record_type = {
+            "deposit": "funding",
+            "withdraw": "funding",
+            "dividend": "income",
+            "fee": "expense",
+            "checkin_cash": "snapshot",
+        }[record_type]
         row = _event(
-            command, date, currency, action=event_action,
+            command, date, currency, record_type=event_record_type,
+            record_subtype=(
+                "external" if record_type in {"deposit", "withdraw"}
+                else "dividend_cash" if record_type == "dividend"
+                else "commission" if record_type == "fee"
+                else "cash"
+            ),
             from_ticker=(
-                command.ticker.lower() if action == "dividend"
-                else cash_ticker if action in {"withdraw", "fee", "checkin_cash"}
+                command.ticker.lower() if record_type == "dividend"
+                else cash_ticker if record_type in {"withdraw", "fee", "checkin_cash"}
                 else ""
             ),
-            to_ticker=cash_ticker if action in {"deposit", "dividend"} else "",
-            from_amount=amount if action in {"withdraw", "fee"} else Decimal("0"),
-            to_amount=amount if action not in {"withdraw", "fee"} else Decimal("0"),
+            to_ticker=cash_ticker if record_type in {"deposit", "dividend"} else "",
+            from_amount=amount if record_type in {"withdraw", "fee"} else Decimal("0"),
+            to_amount=amount if record_type not in {"withdraw", "fee"} else Decimal("0"),
             price=Decimal("1"),
         )
-    elif action == "checkin_ticker":
+    elif record_type == "checkin_ticker":
         quantity = _decimal(command.quantity, "quantity")
         price = _decimal(command.price, "price")
         ticker = command.ticker.strip().lower()
@@ -315,10 +330,10 @@ def apply_investment_command(
             _set_qty(position, quantity, ticker=ticker, bases=bases)
         else:
             _set_qty(position, quantity, ticker=ticker, bases=bases, cost=quantity * price)
-        row = _event(command, date, currency, action="checkin", from_ticker=ticker,
+        row = _event(command, date, currency, record_type="snapshot", record_subtype="position", from_ticker=ticker,
                      to_amount=quantity, price=price)
     else:
-        raise ValueError(f"unsupported investment action: {action}")
+        raise ValueError(f"unsupported investment record_type: {record_type}")
 
     snapshot["updated_at"] = date[:10]
     return row
@@ -337,10 +352,13 @@ def apply_investment_event(
     currency = str(row.get("currency") or default_currency).upper()
     account_name = str(row.get("account_name") or "")
     date = str(row.get("date") or "")
+    record_type, _ = validate_investment_record_subtype(
+        row.get("record_type"),
+        row.get("record_subtype"),
+    )
     accounts = snapshot.setdefault("accounts", {}).setdefault("security", {})
     account = accounts.setdefault(account_name, {"currency": default_currency, "positions": {}})
     positions = account.setdefault("positions", {})
-    action = str(row.get("action") or "").lower()
     from_ticker = str(row.get("from_ticker") or "").lower()
     to_ticker = str(row.get("to_ticker") or "").lower()
     from_amount = _decimal(row.get("from_amount", 0), "from_amount", default="0")
@@ -348,40 +366,21 @@ def apply_investment_event(
     commission = _decimal(row.get("commission", 0), "commission", default="0")
     commission_asset = str(row.get("commission_asset") or "").lower()
 
-    if action == "deposit":
-        target_ticker = to_ticker or currency.lower()
-        target = _position(
-            positions, target_ticker, _asset_cost_currency(target_ticker, currency, bases), bases=bases,
-        )
-        new_shares = _decimal(target["shares"], "shares") + to_amount
-        _set_qty(
-            target, new_shares, ticker=target_ticker, bases=bases,
-            cost=_decimal(target["total_cost"], "cost") + to_amount,
-        )
-    elif action == "withdraw":
-        source_ticker = from_ticker or currency.lower()
-        source = _position(
-            positions, source_ticker, _asset_cost_currency(source_ticker, currency, bases), bases=bases,
-        )
-        new_shares = _decimal(source["shares"], "shares") - from_amount
-        _set_qty(
-            source, new_shares, ticker=source_ticker, bases=bases,
-            cost=_decimal(source["total_cost"], "cost") - from_amount,
-        )
-    elif action in {"fee", "ipo"}:
-        # fee: tax/interest/handling charge or refund.
-        # ipo: subscription debit (cash out) or subscription refund (cash in).
-        # Charge: from_amount > 0 reduces cash. Refund/in: to_amount > 0 increases cash.
+    if record_type in {"funding", "income", "expense", "reversal", "subscription", "adjustment"}:
         if to_amount > 0 and from_amount == 0:
             target_ticker = to_ticker or currency.lower()
             target = _position(
                 positions, target_ticker, _asset_cost_currency(target_ticker, currency, bases), bases=bases,
             )
             new_shares = _decimal(target["shares"], "shares") + to_amount
-            _set_qty(
-                target, new_shares, ticker=target_ticker, bases=bases,
-                cost=_decimal(target["total_cost"], "cost") + to_amount,
-            )
+            if _is_base(target_ticker, bases):
+                _set_qty(target, new_shares, ticker=target_ticker, bases=bases)
+            else:
+                added_cost = to_amount if target_ticker == currency.lower() else Decimal("0")
+                _set_qty(
+                    target, new_shares, ticker=target_ticker, bases=bases,
+                    cost=_decimal(target["total_cost"], "cost") + added_cost,
+                )
         else:
             source_ticker = from_ticker or currency.lower()
             source = _position(
@@ -392,7 +391,7 @@ def apply_investment_event(
                 source, new_shares, ticker=source_ticker, bases=bases,
                 cost=_decimal(source["total_cost"], "cost") - from_amount,
             )
-    elif action == "swap":
+    elif record_type == "trade":
         source = _position(
             positions, from_ticker, _asset_cost_currency(from_ticker, currency, bases), bases=bases,
         )
@@ -443,25 +442,7 @@ def apply_investment_event(
                     fee, fee_shares, ticker=commission_asset, bases=bases,
                     cost=_decimal(fee["total_cost"], "fee cost") - commission,
                 )
-    elif action == "dividend":
-        target_ticker = to_ticker or currency.lower()
-        target = _position(
-            positions, target_ticker, _asset_cost_currency(target_ticker, currency, bases), bases=bases,
-        )
-        new_shares = _decimal(target["shares"], "shares") + to_amount
-        if _is_base(target_ticker, bases):
-            _set_qty(target, new_shares, ticker=target_ticker, bases=bases)
-        else:
-            added_cost = to_amount if target_ticker == currency.lower() else Decimal("0")
-            _set_qty(
-                target, new_shares, ticker=target_ticker, bases=bases,
-                cost=_decimal(target["total_cost"], "cost") + added_cost,
-            )
-    elif action == "transfer":
-        # Internal exchange movements are auditable but do not alter this
-        # aggregate account's positions.
-        pass
-    elif action == "checkin":
+    elif record_type == "snapshot":
         ticker = to_ticker or from_ticker or currency.lower()
         target = _position(
             positions, ticker, _asset_cost_currency(ticker, currency, bases), bases=bases,
@@ -477,5 +458,5 @@ def apply_investment_event(
                 cost = Decimal("0")
             _set_qty(target, to_amount, ticker=ticker, bases=bases, cost=cost)
     else:
-        raise ValueError(f"unsupported investment event action: {action}")
+        raise ValueError(f"unsupported investment event record_type: {record_type}")
     snapshot["updated_at"] = date[:10]

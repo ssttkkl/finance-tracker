@@ -4,6 +4,8 @@ from pathlib import Path
 import pytest
 
 from ft.importers.usmart_hk import (
+    _parse_holdings,
+    _statement_profile,
     construct_source_identity,
     map_usmart_hk_to_investment_event,
     parse_usmart_hk_text,
@@ -17,6 +19,11 @@ def _rows():
     return parse_usmart_hk_text(FIXTURE.read_text(encoding="utf-8"))
 
 
+def test_statement_profile_uses_day_trading_statement_layout_not_filename():
+    assert _statement_profile("交易明细\n开仓记录\n持仓明细") == "day"
+    assert _statement_profile("交易明细\n证券提存\n持仓明细") == "margin"
+
+
 def test_trade_groups_merge_fills_and_put_fee_outside_gross_cash_leg():
     rows = _rows()
     dell = next(row for row in rows if row["kind"] == "trade" and row["ticker"].lower() == "dell.us")
@@ -26,12 +33,13 @@ def test_trade_groups_merge_fills_and_put_fee_outside_gross_cash_leg():
     assert dell["commission"] == Decimal("4.00")
 
     event = map_usmart_hk_to_investment_event(dell, "盈立证券")
-    assert event["action"] == "swap"
+    assert event["record_type"] == "trade"
     assert event["from_ticker"] == "dell.us"
     assert event["to_ticker"] == "usd"
     assert event["to_amount"] == "3699.41"
     assert event["commission"] == "4.00"
     assert event["commission_asset"] == "usd"
+    assert event["note"] == ""
 
 
 def test_trade_and_checkin_identities_are_stable_and_distinct():
@@ -43,6 +51,13 @@ def test_trade_and_checkin_identities_are_stable_and_distinct():
     assert construct_source_identity(checkin) == "usmart_hk:checkin:cash:2026-06:USD:4750.17"
 
 
+def test_cash_identity_uses_source_snapshot_not_output_note():
+    cash = next(row for row in _rows() if row["kind"] == "cash")
+    changed_display_note = {**cash, "note": "仅用于展示的改写文案"}
+
+    assert construct_source_identity(changed_display_note) == construct_source_identity(cash)
+
+
 def test_empty_columns_holdings_and_cash_checkins_use_native_currency():
     rows = _rows()
     assert not any(row["kind"] == "checkin_cash" and row["ccy"] == "CNY" for row in rows)
@@ -50,6 +65,33 @@ def test_empty_columns_holdings_and_cash_checkins_use_native_currency():
     cash = next(row for row in rows if row["kind"] == "checkin_cash" and row["ccy"] == "HKD")
     assert map_usmart_hk_to_investment_event(holding, "盈立证券")["price"] == "0"
     assert map_usmart_hk_to_investment_event(cash, "盈立证券")["to_ticker"] == "hkd"
+    assert map_usmart_hk_to_investment_event(holding, "盈立证券")["note"] == ""
+    assert map_usmart_hk_to_investment_event(cash, "盈立证券")["note"] == ""
+
+
+def test_vertical_holdings_keep_original_source_units():
+    """纵向 PDF 文本的持仓快照必须保存原始文本单元。"""
+    source_text = "\n".join([
+        "持仓明细",
+        "00700",
+        "腾讯控股",
+        "HKD",
+        "100",
+        "0",
+        "100",
+        "200",
+        "资金出入",
+    ])
+
+    rows = _parse_holdings(source_text, source_text, "2026-06", "2026-06-30")
+
+    assert len(rows) == 1
+    assert rows[0]["ticker"] == "00700.hk"
+    assert rows[0]["_source_payload"] == {
+        "原始文本单元": [
+            "00700", "腾讯控股", "HKD", "100", "0", "100", "200",
+        ],
+    }
 
 
 def test_traded_but_absent_from_holdings_gets_zero_share_checkin():
@@ -75,7 +117,7 @@ def test_traded_but_absent_from_holdings_gets_zero_share_checkin():
         if traded:
             assert code in zeros, f"expected flat CHECKIN for {code}"
             event = map_usmart_hk_to_investment_event(zeros[code], "盈立证券")
-            assert event["action"] == "checkin"
+            assert event["record_type"] == "snapshot"
             assert event["to_ticker"] == code
             assert event["to_amount"] == "0"
             assert construct_source_identity(zeros[code]).endswith(f":{code}:0")
@@ -87,8 +129,8 @@ def test_cash_flags_ignore_trade_mirrors_and_map_non_trade_rows():
     assert not any(row.get("flag") == "卖股票" for row in rows)
     refund = next(row for row in rows if row.get("flag") == "IPO认购退款")
     interest = next(row for row in rows if row.get("flag") == "融资利息")
-    assert map_usmart_hk_to_investment_event(refund, "盈立证券")["action"] == "ipo"
-    assert map_usmart_hk_to_investment_event(interest, "盈立证券")["action"] == "fee"
+    assert map_usmart_hk_to_investment_event(refund, "盈立证券")["record_type"] == "subscription"
+    assert map_usmart_hk_to_investment_event(interest, "盈立证券")["record_type"] == "expense"
 
 
 def test_fx_rows_pair_to_one_swap_and_unpaired_fails_closed():
@@ -108,7 +150,7 @@ def test_transfer_by_sign_is_not_a_transfer_action_and_unknown_flag_fails_closed
     rows = _rows()
     transfer = next(row for row in rows if row.get("flag") == "转入到日内融账户")
     event = map_usmart_hk_to_investment_event(transfer, "盈立证券")
-    assert event["action"] == "withdraw"
+    assert (event["record_type"], event["record_subtype"]) == ("funding", "subaccount")
     assert event["from_amount"] == "1781.03"
     assert "转入到日内融账户" in event["note"]
 
@@ -133,12 +175,12 @@ def test_cash_fee_and_dividend_actions():
         "kind": "cash", "date": "2026-04-01", "flag": "美股股息税", "flag_norm": "美股股息税",
         "ccy": "USD", "amount": Decimal("-1.28"), "note": "美股股息税",
     }
-    assert map_usmart_hk_to_investment_event(interest, "盈立证券")["action"] == "fee"
-    assert map_usmart_hk_to_investment_event(div, "盈立证券")["action"] == "dividend"
-    assert map_usmart_hk_to_investment_event(tax, "盈立证券")["action"] == "fee"
+    assert map_usmart_hk_to_investment_event(interest, "盈立证券")["record_type"] == "expense"
+    assert map_usmart_hk_to_investment_event(div, "盈立证券")["record_type"] == "income"
+    assert map_usmart_hk_to_investment_event(tax, "盈立证券")["record_type"] == "expense"
 
 
-def test_tax_refund_maps_to_fee_not_deposit():
+def test_tax_refund_maps_to_expense_reversal_not_funding():
     tax_refund = {
         "kind": "cash", "date": "2026-02-26", "flag": "资金存", "flag_norm": "资金存",
         "ccy": "USD", "amount": Decimal("0.27"), "note": "Refund tax of TQQQ.US",
@@ -148,11 +190,11 @@ def test_tax_refund_maps_to_fee_not_deposit():
         "ccy": "HKD", "amount": Decimal("5181.74"), "note": "IPO Refund",
     }
     ev = map_usmart_hk_to_investment_event(tax_refund, "盈立证券")
-    assert ev["action"] == "fee"
+    assert (ev["record_type"], ev["record_subtype"]) == ("reversal", "expense_tax")
     assert ev["to_amount"] == "0.27"
     assert ev["from_amount"] == "0"
     ev2 = map_usmart_hk_to_investment_event(ipo, "盈立证券")
-    assert ev2["action"] == "ipo"
+    assert ev2["record_type"] == "subscription"
     assert ev2["to_amount"] == "5181.74"
     assert ev2["from_amount"] == "0"
     debit = {
@@ -164,6 +206,28 @@ def test_tax_refund_maps_to_fee_not_deposit():
         "ccy": "HKD", "amount": Decimal("-100"), "note": "IPO Handling Fee",
     }
     ev3 = map_usmart_hk_to_investment_event(debit, "盈立证券")
-    assert ev3["action"] == "ipo"
+    assert ev3["record_type"] == "subscription"
     assert ev3["from_amount"] == "5181.74"
-    assert map_usmart_hk_to_investment_event(fee, "盈立证券")["action"] == "fee"
+    assert map_usmart_hk_to_investment_event(fee, "盈立证券")["record_type"] == "expense"
+
+
+@pytest.mark.parametrize(
+    ("flag", "amount", "note", "expected"),
+    [
+        ("资金存", "0.27", "Refund tax of TQQQ.US", ("reversal", "expense_tax")),
+        ("融券罚息转出", "-1.23", "融券罚息转出", ("expense", "penalty")),
+        ("股息代收费", "-0.66", "股息代收费", ("expense", "handling_fee")),
+        ("IPO认购手续费", "-100", "IPO Handling Fee", ("expense", "handling_fee")),
+        ("平台费返还", "0.88", "平台费返还", ("reversal", "expense_handling_fee")),
+        ("佣金返还", "0.99", "佣金返还", ("reversal", "expense_commission")),
+    ],
+)
+def test_explicit_cash_flags_use_fee_semantics_instead_of_external_funding(
+    flag, amount, note, expected,
+):
+    event = map_usmart_hk_to_investment_event({
+        "kind": "cash", "date": "2026-08-01", "flag": flag, "flag_norm": flag,
+        "ccy": "USD", "amount": Decimal(amount), "note": note,
+    }, "盈立证券")
+
+    assert (event["record_type"], event["record_subtype"]) == expected

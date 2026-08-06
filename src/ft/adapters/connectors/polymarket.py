@@ -5,7 +5,7 @@ for the SyncService batch-import pipeline.
 
 Ticker convention: ``pm:<slug>:<yes|no>`` (lowercase).
 Cash counterpart: ``usd`` (not ``usdc``).
-TRADE and REDEEM map to ``swap``; YIELD maps to ``dividend``.
+TRADE 和 REDEEM 映射为 ``trade(security)``，YIELD 映射为 ``income(interest)``。
 """
 from __future__ import annotations
 
@@ -248,11 +248,11 @@ class PolymarketConnector:
         units = self._parse_hex_int(self._rpc("eth_call", [call, hex(latest)]), "pUSD balance")
         amount = Decimal(units) / (Decimal(10) ** PUSD_DECIMALS)
         return {
-            "action": "checkin", "account": "", "currency": "USD",
+            "record_type": "snapshot", "record_subtype": "cash", "account": "", "currency": "USD",
             "occurred_at": datetime.fromtimestamp(timestamp, tz=timezone.utc),
             "from_ticker": "", "from_amount": "0", "to_ticker": "usd",
             "to_amount": _format_decimal(amount), "commission": "0", "commission_asset": "",
-            "note": "polymarket pUSD balance checkin", "record_id": f"checkin:{latest}",
+            "note": "", "record_id": f"checkin:{latest}",
             "source_payload": {"token": PUSD_TOKEN, "wallet": wallet, "balance_base_units": str(units), "block_number": latest, "block_timestamp": timestamp},
             "_timestamp_s": timestamp,
         }
@@ -410,7 +410,8 @@ class PolymarketConnector:
             to_amount = usdc_size
 
         return {
-            "action": "swap",
+            "record_type": "trade",
+            "record_subtype": "security",
             "account": "",
             "currency": "USD",
             "occurred_at": occurred_at,
@@ -420,7 +421,7 @@ class PolymarketConnector:
             "to_amount": _format_decimal(to_amount),
             "commission": "0",
             "commission_asset": "usd",
-            "note": f"polymarket tx:{tx_hash}",
+            "note": "",
             "record_id": record_id,
             "source_payload": activity,
             "_timestamp_s": int(ts),
@@ -462,7 +463,8 @@ class PolymarketConnector:
         occurred_at, timestamp = self._occurred_at(activity, "REDEEM")
         pm_ticker = f"pm:{slug}:{outcome}"
         return {
-            "action": "swap",
+            "record_type": "trade",
+            "record_subtype": "security",
             "account": "",
             "currency": "USD",
             "occurred_at": occurred_at,
@@ -472,7 +474,7 @@ class PolymarketConnector:
             "to_amount": _format_decimal(usdc_size),
             "commission": "0",
             "commission_asset": "usd",
-            "note": f"polymarket redeem tx:{tx_hash}",
+            "note": "",
             "record_id": tx_hash,
             "source_payload": activity,
             "_timestamp_s": timestamp,
@@ -483,7 +485,8 @@ class PolymarketConnector:
         tx_hash = self._transaction_hash(activity, "YIELD")
         occurred_at, timestamp = self._occurred_at(activity, "YIELD")
         return {
-            "action": "dividend",
+            "record_type": "income",
+            "record_subtype": "interest",
             "account": "",
             "currency": "USD",
             "occurred_at": occurred_at,
@@ -493,7 +496,7 @@ class PolymarketConnector:
             "to_amount": _format_decimal(usdc_size),
             "commission": "0",
             "commission_asset": "",
-            "note": f"polymarket yield tx:{tx_hash}",
+            "note": "",
             "record_id": tx_hash,
             "source_payload": activity,
             "_timestamp_s": timestamp,

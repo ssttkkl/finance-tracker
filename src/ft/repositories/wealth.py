@@ -63,7 +63,8 @@ class InvestmentFact:
     fact_id: str
     account_id: str
     occurred_at: datetime
-    action: str
+    record_type: str
+    record_subtype: str
     currency: str
     payload: Mapping[str, str]
     commission: object | None = None

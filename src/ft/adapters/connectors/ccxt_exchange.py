@@ -4,7 +4,7 @@ Maps ccxt ``fetch_my_trades`` results to standardized investment event dicts
 for the SyncService batch-import pipeline.
 
 Ticker convention: lowercase (``btc``, ``eth``, ``usdt``).
-Action: always ``swap`` (one asset for another).
+交易事件统一写为 ``trade(security)``，一项资产换取另一项资产。
 """
 from __future__ import annotations
 
@@ -335,7 +335,8 @@ class CcxtExchangeConnector:
             to_amount = cost
 
         return {
-            "action": "swap",
+            "record_type": "trade",
+            "record_subtype": "security",
             "account": "",  # filled by SyncService
             "currency": "USD",
             "occurred_at": occurred_at,
@@ -345,7 +346,7 @@ class CcxtExchangeConnector:
             "to_amount": _format_decimal(to_amount),
             "commission": _format_decimal(fee_cost),
             "commission_asset": fee_currency,
-            "note": f"{self._provider} trade {tid}",
+            "note": "",
             "record_id": tid,
             "source_payload": trade,
         }
@@ -357,16 +358,20 @@ class CcxtExchangeConnector:
         if entry_type == "trade":
             # Trade endpoint is the canonical two-legged representation.
             return []
-        action_by_type = {
-            "deposit": "deposit", "withdrawal": "withdraw",
-            "staking": "dividend", "reward": "dividend",
-            "credit": "dividend", "rollover": "dividend",
-            "transfer": "transfer",
-            "derivativescrossexchangetransfer": "transfer",
+        record_type_by_type = {
+            "deposit": ("funding", "external", True),
+            "withdrawal": ("funding", "external", False),
+            "staking": ("income", "reward", True),
+            "reward": ("income", "reward", True),
+            "credit": ("income", "reward", True),
+            "rollover": ("income", "reward", True),
+            "transfer": ("funding", "subaccount", False),
+            "derivativescrossexchangetransfer": ("funding", "subaccount", False),
         }
-        action = action_by_type.get(entry_type)
-        if action is None:
+        semantics = record_type_by_type.get(entry_type)
+        if semantics is None:
             raise ConnectorDataError(f"unsupported ledger type: {entry_type or '<missing>'}")
+        record_type, record_subtype, incoming = semantics
         entry_id = str(entry.get("id", "")).strip()
         ticker = normalize_crypto_ticker(str(entry.get("currency", "")))
         timestamp = entry.get("timestamp")
@@ -380,17 +385,18 @@ class CcxtExchangeConnector:
         except (TypeError, ValueError, OSError) as exc:
             raise ConnectorDataError(f"invalid ledger timestamp: {timestamp!r}") from exc
         event = {
-            "action": action,
+            "record_type": record_type,
+            "record_subtype": record_subtype,
             "account": "",
             "currency": "USD",
             "occurred_at": occurred_at,
-            "from_ticker": ticker if action in {"withdraw", "transfer"} else "",
-            "from_amount": _format_decimal(amount) if action in {"withdraw", "transfer"} else "0",
-            "to_ticker": ticker if action in {"deposit", "dividend"} else "",
-            "to_amount": _format_decimal(amount) if action in {"deposit", "dividend"} else "0",
+            "from_ticker": "" if incoming else ticker,
+            "from_amount": "0" if incoming else _format_decimal(amount),
+            "to_ticker": ticker if incoming else "",
+            "to_amount": _format_decimal(amount) if incoming else "0",
             "commission": "0",
             "commission_asset": "",
-            "note": f"{self._provider} ledger {entry_type} {entry_id}",
+            "note": "",
             "record_id": entry_id,
             "source_payload": entry,
         }
@@ -409,9 +415,9 @@ class CcxtExchangeConnector:
             raise ConnectorDataError("non-zero ledger fee missing currency")
         fee_event = dict(event)
         fee_event.update({
-            "action": "fee", "from_ticker": fee_ticker,
+            "record_type": "expense", "record_subtype": "commission", "from_ticker": fee_ticker,
             "from_amount": _format_decimal(fee_cost), "to_ticker": "",
             "to_amount": "0", "record_id": f"{entry_id}:fee",
-            "note": f"{self._provider} ledger fee {entry_id}",
+            "note": "",
         })
         return [event, fee_event]

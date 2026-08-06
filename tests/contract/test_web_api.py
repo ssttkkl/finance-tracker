@@ -14,7 +14,14 @@ def test_projection_api_contract_and_old_routes_are_absent(cash_web_runtime):
     assert page.status_code==200 and page.json()["projection_version"]==1
     assert page.json()["items"][0]["projection_id"]=="cash:1003" and isinstance(page.json()["items"][0]["amount"],str)
     assert page.json()["items"][0]["source_types"] == ["fixture"]
-    assert page.json()["filter_options"] == {"categories": sorted(["餐饮", "日用", "收入"]), "currencies": ["CNY"]}
+    assert page.json()["filter_options"] == {
+        "categories": sorted(["餐饮", "日用", "收入"]),
+        "currencies": ["CNY"],
+        "economic_types": [
+            {"economic_type": "expense", "transfer_subtypes": []},
+            {"economic_type": "income", "transfer_subtypes": []},
+        ],
+    }
     assert page.json()["monthly_summaries"] == [{"month": "2026-07", "currencies": [{"currency": "CNY", "income": "2000", "expense": "-112.5"}]}]
     assert [x["name"] for x in accounts.json()["items"]]==["日常账户","信用账户"]
     assert client.get("/api/v1/cash-transactions").status_code==404

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import select
 
 
 def test_postgresql_rebuild_locks_workspace_before_projection_state(postgres_cash_web_runtime):
@@ -115,6 +114,8 @@ def test_postgresql_source_digest_covers_accepted_relation_evidence(postgres_cas
     from ft.adapters.relational.projections import RelationalCashProjectionRepository
 
     with postgres_cash_web_runtime.sessions.begin() as session:
+        repository = RelationalCashProjectionRepository(session, postgres_cash_web_runtime.workspace_id)
+        before = repository.source_digest()
         session.add(TransactionRelationModel(
             workspace_id=postgres_cash_web_runtime.workspace_id,
             kind="refund_offset",
@@ -129,15 +130,6 @@ def test_postgresql_source_digest_covers_accepted_relation_evidence(postgres_cas
             status="accepted",
             rule_id="refund.fixture.v1",
         ))
-
-    with postgres_cash_web_runtime.sessions.begin() as session:
-        repository = RelationalCashProjectionRepository(session, postgres_cash_web_runtime.workspace_id)
-        before = repository.source_digest()
-        relation = session.scalar(
-            select(TransactionRelationModel).where(
-                TransactionRelationModel.workspace_id == postgres_cash_web_runtime.workspace_id,
-            )
-        )
         session.flush()
         assert repository.source_digest() != before
 

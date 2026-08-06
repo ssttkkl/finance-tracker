@@ -183,8 +183,8 @@ def test_parse_dfzq_handles_otc_securities():
     assert transactions[0]["action"] in ("DEPOSIT", "WITHDRAW")
 
 
-def test_parse_dfzq_aggregates_fees_in_note():
-    """Parser should aggregate stamp tax and transfer fee in note."""
+def test_parse_dfzq_keeps_source_action_in_note():
+    """解析器保留来源动作，费用继续保存到独立字段。"""
     lines = [
         "资金流水明细",
         "发生日期 买卖类别 证券代码 证券名称 成交数量 成交价格 总发生金额 手续费 印花税 过户费 资金余额",
@@ -203,7 +203,7 @@ def test_parse_dfzq_aggregates_fees_in_note():
 
     transactions = parse_dfzq_text(lines)
 
-    assert transactions[0]["note"] == "手续费1.00 印花税0.50 过户费0.10"
+    assert transactions[0]["note"] == "证券卖出"
     assert Decimal(transactions[0]["stamp_tax"]) == Decimal("0.50")
     assert Decimal(transactions[0]["transfer_fee"]) == Decimal("0.10")
 

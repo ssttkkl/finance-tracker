@@ -1,3 +1,4 @@
+import csv
 from decimal import Decimal
 from pathlib import Path
 
@@ -46,6 +47,22 @@ def test_schwab_import_sqlite_creates_auditable_events_and_is_idempotent(tmp_pat
             session.rollback()
 
         assert len(events) == 37
+        with FIXTURE.open(encoding="utf-8-sig", newline="") as handle:
+            source_rows = list(csv.DictReader(handle))
+        newest_source_row = source_rows[0]
+        funding_source_row = next(
+            row for row in source_rows if (row.get(" 类型") or "").strip() == "WIN"
+        )
+        funding = next(event for event in events if event["record_type"] == "funding")
+        assert funding["source_payload"] == funding_source_row
+        cash_snapshot = next(
+            event
+            for event in events
+            if (event["record_type"], event["record_subtype"]) == ("snapshot", "cash")
+        )
+        assert cash_snapshot["source_payload"] == newest_source_row
+        prohibited = {"date", "type", "ticker", "amount", "record_type", "record_subtype"}
+        assert all(not (prohibited & set(event["source_payload"])) for event in events)
         cash = snapshot["accounts"]["security"]["嘉信"]["positions"]["usd"]
         assert Decimal(cash["shares"]) == Decimal("2865.36")
         positions = snapshot["accounts"]["security"]["嘉信"]["positions"]

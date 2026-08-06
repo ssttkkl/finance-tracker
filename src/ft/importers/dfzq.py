@@ -13,6 +13,8 @@ import subprocess
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from ft.domain.decimal import exact_decimal
+
 ACTION_MAP = {
     "证券买入": "BUY", "证券卖出": "SELL",
     "银行转证券": "DEPOSIT", "证券转银行": "WITHDRAW",
@@ -51,6 +53,12 @@ _COLUMN_HEADERS = frozenset([
     "成交数量", "成交价格", "总发生金额", "手续费",
     "印花税", "过户费", "资金余额",
 ])
+
+
+def _source_payload_from_units(units: list[str]) -> dict[str, list[str]]:
+    if not units:
+        raise ValueError("东方证券来源行为空")
+    return {"原始文本单元": list(units)}
 
 
 def _is_numeric(s: str) -> bool:
@@ -159,14 +167,16 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
         if action_raw == "红股入账":
             if len(block) < 6:
                 continue
-            txns.append(_make_txn(
+            txn = _make_txn(
                 date_str, action_raw,
                 ticker=block[2], name=block[3],
                 shares=Decimal(block[4]), price=Decimal(block[5]),
                 total_amount=Decimal("0"), fee=Decimal("0"),
                 stamp_tax=Decimal("0"), transfer_fee=Decimal("0"),
                 balance=Decimal("0"),
-            ))
+            )
+            txn["_source_payload"] = _source_payload_from_units(block)
+            txns.append(txn)
             continue
 
         # 判断是否有"证券名称"列
@@ -249,21 +259,23 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
                 transfer_fee = Decimal("0")
                 balance = Decimal(block[8])
 
-        txns.append(_make_txn(
+        txn = _make_txn(
             date_str, action_raw,
             ticker=ticker, name=name,
             shares=shares, price=price,
             total_amount=total_amount, fee=fee,
             stamp_tax=stamp_tax, transfer_fee=transfer_fee,
             balance=balance,
-        ))
+        )
+        txn["_source_payload"] = _source_payload_from_units(block)
+        txns.append(txn)
 
     # 5. 排序
     txns.sort(key=lambda t: t["date"])
 
     # 6. CHECKIN from statement summary (cash + security positions with cost)
     holdings = _parse_holdings_summary(lines)
-    cash_balance = _parse_cash_balance(lines)
+    cash_balance, cash_source_payload = _parse_cash_balance(lines)
     checkin_date = txns[-1]["date"] if txns else None
     if checkin_date is None and (holdings or cash_balance is not None):
         # No flow rows but summary exists — still emit checkins with print date fallback
@@ -271,22 +283,23 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
 
     if checkin_date:
         cash = cash_balance
-        cash_note = "statement cash balance"
         if cash is None and txns:
             # Prefer last cash-affecting flow balance (skip pure stock dividend / empty)
             for t in reversed(txns):
                 if t["action"] in {"BUY", "SELL", "DEPOSIT", "WITHDRAW"}:
                     cash = t["balance"]
-                    cash_note = "fallback last trade balance"
+                    cash_source_payload = t["_source_payload"]
                     break
                 if t["action"] == "DIVIDEND" and not t.get("ticker"):
                     cash = t["balance"]
-                    cash_note = "fallback last cash dividend balance"
+                    cash_source_payload = t["_source_payload"]
                     break
             if cash is None:
                 cash = txns[-1]["balance"]
-                cash_note = "fallback last balance"
+                cash_source_payload = txns[-1]["_source_payload"]
         if cash is not None:
+            if cash_source_payload is None:
+                raise ValueError("东方证券现金快照缺少来源行")
             txns.append({
                 "date": checkin_date,
                 "action": "CHECKIN",
@@ -295,7 +308,8 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
                 "amount": cash,
                 "total_amount": cash,
                 "fee": Decimal("0"), "stamp_tax": Decimal("0"),
-                "transfer_fee": Decimal("0"), "balance": cash, "note": cash_note,
+                "transfer_fee": Decimal("0"), "balance": cash, "note": "",
+                "_source_payload": cash_source_payload,
             })
         for h in holdings:
             txns.append({
@@ -307,16 +321,19 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
                 "total_amount": h["shares"] * h["cost_price"],
                 "fee": Decimal("0"), "stamp_tax": Decimal("0"),
                 "transfer_fee": Decimal("0"), "balance": Decimal("0"),
-                "note": f"statement holding cost; market={h.get('market_price')}",
+                "note": "",
+                "_source_payload": h["_source_payload"],
             })
     elif txns:
         last = txns[-1]
         cash = last["balance"]
+        cash_source_payload = last["_source_payload"]
         for t in reversed(txns):
             if t["action"] in {"BUY", "SELL", "DEPOSIT", "WITHDRAW"} or (
                 t["action"] == "DIVIDEND" and not t.get("ticker")
             ):
                 cash = t["balance"]
+                cash_source_payload = t["_source_payload"]
                 break
         txns.append({
             "date": last["date"],
@@ -326,7 +343,8 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
             "amount": cash,
             "total_amount": cash,
             "fee": Decimal("0"), "stamp_tax": Decimal("0"),
-            "transfer_fee": Decimal("0"), "balance": Decimal("0"), "note": "fallback last balance",
+            "transfer_fee": Decimal("0"), "balance": Decimal("0"), "note": "",
+            "_source_payload": cash_source_payload,
         })
 
     return txns
@@ -342,23 +360,27 @@ def _parse_print_date(lines: list[str]) -> str | None:
     return None
 
 
-def _parse_cash_balance(lines: list[str]) -> Decimal | None:
+def _parse_cash_balance(lines: list[str]) -> tuple[Decimal | None, dict[str, list[str]] | None]:
     """Parse 资金余额(RMB) from statement header."""
     for i, line in enumerate(lines[:80]):
         if "资金余额(RMB)" in line or "资金余额（RMB）" in line:
             # value may be on same line or next non-empty line
             m = re.search(r"资金余额\(?RMB\)?[:：]?\s*([0-9,]+\.\d+)", line)
             if m:
-                return Decimal(m.group(1).replace(",", ""))
+                return Decimal(m.group(1).replace(",", "")), _source_payload_from_units([
+                    line.rstrip("\r\n"),
+                ])
             for j in range(i + 1, min(i + 4, len(lines))):
                 s = lines[j].strip().replace(",", "")
                 if not s:
                     continue
                 try:
-                    return Decimal(s)
+                    return Decimal(s), _source_payload_from_units([
+                        line.rstrip("\r\n"), lines[j].rstrip("\r\n"),
+                    ])
                 except InvalidOperation:
                     break
-    return None
+    return None, None
 
 
 def _parse_holdings_summary(lines: list[str]) -> list[dict[str, Any]]:
@@ -382,26 +404,28 @@ def _parse_holdings_summary(lines: list[str]) -> list[dict[str, Any]]:
     if end is None:
         end = min(start + 80, len(lines))
 
-    section = [ln.strip() for ln in lines[start:end] if ln.strip()]
+    section = [(ln.strip(), ln.rstrip("\r\n")) for ln in lines[start:end] if ln.strip()]
     # Drop section title and column headers
     headers = {
         "汇总股票资料", "交易市场", "证券代码", "证券名称",
         "持仓数量", "市价", "成本价", "证券市值",
     }
     market_labels = {"深市A股", "沪市A股", "沪市B股", "深市B股", "港股", "美股", "场外"}
-    values = [v for v in section if v not in headers]
+    values = [v for v in section if v[0] not in headers]
 
     holdings: list[dict[str, Any]] = []
     i = 0
     while i < len(values):
         # Optional leading market label
-        if values[i] in market_labels:
+        row_start = i
+        if values[i][0] in market_labels:
             i += 1
             if i >= len(values):
                 break
         if i + 5 >= len(values):
             break
-        code, name, qty_s, mkt_s, cost_s, mv_s = values[i:i + 6]
+        parsed_values = values[i:i + 6]
+        code, name, qty_s, mkt_s, cost_s, mv_s = [value for value, _raw in parsed_values]
         if not re.fullmatch(r"\d{5,6}", code):
             i += 1
             continue
@@ -419,6 +443,9 @@ def _parse_holdings_summary(lines: list[str]) -> list[dict[str, Any]]:
                 "shares": shares,
                 "market_price": market_price,
                 "cost_price": cost_price,
+                "_source_payload": _source_payload_from_units([
+                    raw for _value, raw in values[row_start:i + 6]
+                ]),
             })
         i += 6
     return holdings
@@ -453,20 +480,12 @@ def _make_txn(date_str, action_raw, **kw) -> dict[str, Any]:
     # 不再做 total_amount+fee；fee 仅作审计字段。
     amount = total_amount
 
-    note_parts = []
-    if fee:
-        note_parts.append(f"手续费{fee:.2f}")
-    if kw.get("stamp_tax"):
-        note_parts.append(f"印花税{kw['stamp_tax']:.2f}")
-    if kw.get("transfer_fee"):
-        note_parts.append(f"过户费{kw['transfer_fee']:.2f}")
-    note = " ".join(note_parts)
-
     date_fmt = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]} 00:00:00"
 
     return {
         "date": date_fmt,
         "action": action,
+        "action_raw": action_raw,
         "ticker": full_ticker,
         "name": name,
         "shares": shares,
@@ -477,14 +496,14 @@ def _make_txn(date_str, action_raw, **kw) -> dict[str, Any]:
         "stamp_tax": kw.get("stamp_tax", Decimal("0")),
         "transfer_fee": kw.get("transfer_fee", Decimal("0")),
         "balance": kw.get("balance", Decimal("0")),
-        "note": note,
+        "note": action_raw,
     }
 
 
 def _split_commission(
-    amount_abs: Decimal, fee_abs: Decimal, *, side: str
+    amount_abs: Decimal, total_fee_abs: Decimal, *, side: str
 ) -> tuple[Decimal, Decimal]:
-    """Split statement net cash vs 手续费 for projection.
+    """Split statement net cash versus all recognized transaction fees.
 
     DFZQ ``总发生金额`` is the **net** cash impact (already after 手续费/印花税/过户费).
     Projection applies ``from/to_amount ± commission`` when commission_asset is the cash component.
@@ -492,20 +511,20 @@ def _split_commission(
     Returns ``(cash_leg, commission)`` such that total cash impact still equals
     ``amount_abs``:
 
-    - BUY:  cash out = from_amount + commission  → from_amount = net - fee, commission = fee
-    - SELL: cash in  = to_amount - commission    → to_amount = net + fee, commission = fee
+    - BUY:  cash out = from_amount + commission  → from_amount = net - fees, commission = fees
+    - SELL: cash in  = to_amount - commission    → to_amount = net + fees, commission = fees
 
-    If fee is missing or cannot be peeled from BUY net (fee >= net), keep net and
-    commission=0 (fees stay embedded in the cash component / note).
+    If fees are missing or cannot be peeled from BUY net (fees >= net), keep net
+    and commission=0 (fees remain embedded in the cash component).
     """
-    if fee_abs <= 0:
+    if total_fee_abs <= 0:
         return amount_abs, Decimal("0")
     if side == "BUY":
-        if fee_abs >= amount_abs:
+        if total_fee_abs >= amount_abs:
             return amount_abs, Decimal("0")
-        return amount_abs - fee_abs, fee_abs
+        return amount_abs - total_fee_abs, total_fee_abs
     if side == "SELL":
-        return amount_abs + fee_abs, fee_abs
+        return amount_abs + total_fee_abs, total_fee_abs
     return amount_abs, Decimal("0")
 
 
@@ -528,12 +547,14 @@ def construct_source_identity(txn: dict[str, Any]) -> str:
 def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currency: str = "CNY") -> dict[str, Any]:
     """Map DFZQ transaction to unified investment event schema.
 
-    Converts DFZQ actions (BUY/SELL/DEPOSIT/WITHDRAW/DIVIDEND/CHECKIN) to
-    unified event format (swap/deposit/withdraw/dividend/checkin).
+    将东方证券原生动作规范化为经济事实类型与记录子类型。
 
     Constitution II: Follows data-model.md event schema specification.
     """
     action = txn["action"]
+    source_action = txn.get("action_raw")
+    action_raw = str(source_action or action)
+    source_note = str(source_action or txn.get("note") or "")
     ticker = txn.get("ticker", "")
     cash_ticker = currency.lower()
 
@@ -542,29 +563,44 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
         "date": txn["date"],
         "account_name": account_name,
         "currency": currency,
-        "note": txn.get("note", ""),
+        "note": "" if action == "CHECKIN" else source_note,
     }
 
     # DFZQ「总发生金额」(amount) is the full cash delta (net of 手续费/印花税/过户费).
     # Projection: cash changes by from/to_amount ± commission (same asset).
-    # Policy: if 手续费 is separable, put it in commission and adjust the cash component
-    # so total cash impact still equals abs(amount); otherwise keep net, commission=0.
-    # 印花税/过户费 stay inside the cash component (not always cleanly invertible).
-    amount_abs = abs(txn.get("amount") or Decimal("0"))
-    shares_abs = abs(txn.get("shares") or Decimal("0"))
-    fee_abs = abs(txn.get("fee") or Decimal("0"))
-    cash_leg, commission = _split_commission(amount_abs, fee_abs, side=action)
+    # Policy: if all source-recognized transaction fees are separable, put their
+    # total in commission and adjust the cash component so net cash remains exact.
+    # 此函数也被适配层直接调用；接受解析器提供的 Decimal 和测试/外部
+    # 适配器提供的精确文本，但在进入经济语义映射前统一校验精度。
+    def amount(field: str) -> Decimal:
+        try:
+            return exact_decimal(txn.get(field) or Decimal("0"), f"东方证券账单{field}")
+        except ValueError as exc:
+            if "at most 18 decimal places" in str(exc):
+                raise ValueError(f"东方证券账单{field}最多保留 18 位小数") from exc
+            raise
+
+    amount_abs = abs(amount("amount"))
+    shares_abs = abs(amount("shares"))
+    fee_components = tuple(amount(field) for field in ("fee", "stamp_tax", "transfer_fee"))
+    total_fee_abs = (
+        Decimal("0")
+        if any(component < 0 for component in fee_components)
+        else sum((abs(component) for component in fee_components), Decimal("0"))
+    )
+    price_abs = abs(amount("price"))
+    cash_leg, commission = _split_commission(amount_abs, total_fee_abs, side=action)
 
     if action == "BUY":
         # BUY → SWAP (cash → ticker).
         # cash_leg + commission == amount_abs (total cash out).
         event.update({
-            "action": "swap",
+            "record_type": "trade", "record_subtype": "repo" if ticker == REPO_TICKER else "security",
             "from_ticker": cash_ticker,
             "from_amount": format(cash_leg, "f"),
             "to_ticker": ticker,
             "to_amount": format(shares_abs, "f"),
-            "price": format(abs(txn["price"]), "f"),
+            "price": format(price_abs, "f"),
             "commission": format(commission, "f"),
             "commission_asset": cash_ticker if commission else "",
         })
@@ -572,60 +608,63 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
     elif action == "SELL":
         # SELL → SWAP (ticker → cash).
         # Projection does to_amount - commission when commission_asset == cash;
-        # so to_amount = net + commission, commission = fee → cash in = net.
+        # so to_amount = net + commission → cash in = net.
         event.update({
-            "action": "swap",
+            "record_type": "trade", "record_subtype": "repo" if ticker == REPO_TICKER else "security",
             "from_ticker": ticker,
             "from_amount": format(shares_abs, "f"),
             "to_ticker": cash_ticker,
             "to_amount": format(cash_leg, "f"),
-            "price": format(abs(txn["price"]), "f"),
+            "price": format(price_abs, "f"),
             "commission": format(commission, "f"),
             "commission_asset": cash_ticker if commission else "",
         })
 
-    elif action == "DEPOSIT":
-        event.update({
-            "action": "deposit",
-            "to_ticker": cash_ticker,
-            "to_amount": format(amount_abs, "f"),
-            "from_ticker": "",
-            "from_amount": "0",
-            "price": "1",
-            "commission": "0",
-            "commission_asset": "",
-        })
-
-    elif action == "WITHDRAW":
-        event.update({
-            "action": "withdraw",
-            "from_ticker": cash_ticker,
-            "from_amount": format(amount_abs, "f"),
-            "to_ticker": "",
-            "to_amount": "0",
-            "price": "1",
-            "commission": "0",
-            "commission_asset": "",
-        })
+    elif action in {"DEPOSIT", "WITHDRAW"}:
+        incoming = action == "DEPOSIT"
+        subtype = "subaccount" if action_raw in {"OTC资金划入", "OTC资金划出"} else "external"
+        if action_raw == "利息归本":
+            event.update({
+                "record_type": "income", "record_subtype": "interest",
+                "to_ticker": cash_ticker, "to_amount": format(amount_abs, "f"),
+                "from_ticker": "", "from_amount": "0", "price": "1",
+                "commission": "0", "commission_asset": "",
+            })
+        elif action_raw == "股息红利差异扣税":
+            event.update({
+                "record_type": "expense", "record_subtype": "tax",
+                "from_ticker": cash_ticker, "from_amount": format(amount_abs, "f"),
+                "to_ticker": "", "to_amount": "0", "price": "1",
+                "commission": "0", "commission_asset": "",
+            })
+        else:
+            event.update({
+                "record_type": "funding", "record_subtype": subtype,
+                "to_ticker": cash_ticker if incoming else "",
+                "to_amount": format(amount_abs, "f") if incoming else "0",
+                "from_ticker": "" if incoming else cash_ticker,
+                "from_amount": "0" if incoming else format(amount_abs, "f"),
+                "price": "1", "commission": "0", "commission_asset": "",
+            })
 
     elif action == "DIVIDEND":
         # Cash or stock dividend
         if ticker:
             # Stock dividend (送股/转增)
             event.update({
-                "action": "dividend",
+                "record_type": "income", "record_subtype": "dividend_stock",
                 "from_ticker": ticker,
                 "to_ticker": ticker,
                 "to_amount": format(shares_abs, "f"),
                 "from_amount": "0",
-                "price": format(abs(txn["price"]), "f"),
+                "price": format(price_abs, "f"),
                 "commission": "0",
                 "commission_asset": "",
             })
         else:
             # Cash dividend (红利入账)
             event.update({
-                "action": "dividend",
+                "record_type": "income", "record_subtype": "dividend_cash",
                 "from_ticker": txn.get("name", ""),
                 "to_ticker": cash_ticker,
                 "to_amount": format(amount_abs, "f"),
@@ -641,7 +680,7 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
         # Position checkin: ticker set, shares=qty, price=avg cost (cost basis).
         if ticker:
             event.update({
-                "action": "checkin",
+                "record_type": "snapshot", "record_subtype": "position",
                 "from_ticker": "",
                 "to_ticker": ticker,
                 "to_amount": format(shares_abs, "f"),
@@ -652,7 +691,7 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
             })
         else:
             event.update({
-                "action": "checkin",
+                "record_type": "snapshot", "record_subtype": "cash",
                 "from_ticker": "",
                 "to_ticker": cash_ticker,
                 "to_amount": format(amount_abs, "f"),

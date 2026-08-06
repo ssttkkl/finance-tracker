@@ -14,9 +14,11 @@ from ft.adapters.relational.uow import (
 )
 from ft.application.investment_import import InvestmentImportService
 from ft.domain.accounts import AccountDTO
+from ft.domain.investment_projection import apply_investment_event
 
 
 FIXTURE = Path("tests/fixtures/dfzq/sample_statement.txt")
+FEE_FIXTURE = Path("tests/fixtures/dfzq/fee_breakdown_statement.txt")
 
 
 def _backend_uow(tmp_path, backend):
@@ -56,9 +58,60 @@ def test_dfzq_import_backend_contract(tmp_path, backend):
             snapshot = session.snapshot.load()
             session.rollback()
         assert len(events) == 6
+        funding = next(event for event in events if event["record_type"] == "funding")
+        assert funding["source_payload"] == {
+            "原始文本单元": [
+                "20260610", "银行转证券", "CNY", "1.0000", "10000.00", "0.00", "10000.00",
+            ],
+        }
+        assert all(
+            not ({"action", "action_raw", "ticker", "amount", "record_type"} & set(event["source_payload"]))
+            for event in events
+        )
+        assert all(event["note"] == "" for event in events if event["record_type"] == "snapshot")
+        assert {event["note"] for event in events if event["record_type"] == "trade"} == {"证券买入", "证券卖出"}
         positions = snapshot["accounts"]["security"]["东方证券"]["positions"]
         assert Decimal(positions["cny"]["shares"]) == Decimal("9447.30")
         assert Decimal(positions["600000.sh"]["shares"]) == Decimal("60")
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize("backend", ["sqlite", "postgresql"])
+def test_dfzq_total_fee_and_cash_replay_backend_contract(tmp_path, backend):
+    engine, uow = _backend_uow(tmp_path, backend)
+    try:
+        with uow as session:
+            session.accounts.add(AccountDTO("东方证券", "security", active=True))
+            session.commit()
+        service = InvestmentImportService(uow)
+        first = service.import_statement("dfzq", FEE_FIXTURE, "东方证券")
+        second = service.import_statement("dfzq", FEE_FIXTURE, "东方证券")
+        assert first.ok
+        assert first.count == 4
+        assert second.ok
+        assert second.count == 0
+
+        with uow as session:
+            events = session.investments.list()
+            snapshot = session.snapshot.load()
+            session.rollback()
+
+        buy = next(event for event in events if event["note"] == "证券买入")
+        sell = next(event for event in events if event["note"] == "证券卖出")
+        assert Decimal(buy["commission"]) == Decimal("11.53")
+        assert Decimal(buy["from_amount"]) == Decimal("1000.00")
+        assert Decimal(buy["from_amount"]) + Decimal(buy["commission"]) == Decimal("1011.53")
+        assert Decimal(sell["commission"]) == Decimal("11.53")
+        assert Decimal(sell["to_amount"]) == Decimal("1000.00")
+        assert Decimal(sell["to_amount"]) - Decimal(sell["commission"]) == Decimal("988.47")
+
+        replay = {}
+        for event in events:
+            if event["record_type"] != "snapshot":
+                apply_investment_event(replay, event, default_currency="CNY")
+        assert Decimal(replay["accounts"]["security"]["东方证券"]["positions"]["cny"]["shares"]) == Decimal("9976.94")
+        assert Decimal(snapshot["accounts"]["security"]["东方证券"]["positions"]["cny"]["shares"]) == Decimal("9976.94")
     finally:
         engine.dispose()
 

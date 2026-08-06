@@ -89,12 +89,13 @@ class TestActivityMapping:
         result = connector.fetch_trades()
         assert len(result.events) == 1
         event = result.events[0]
-        assert event["action"] == "swap"
+        assert (event["record_type"], event["record_subtype"]) == ("trade", "security")
         assert event["from_ticker"] == "usd"
         assert event["to_ticker"] == "pm:will-trump-win-2024:yes"
         assert event["from_amount"] == "65"
         assert event["to_amount"] == "100"
         assert event["commission"] == "0"
+        assert event["note"] == ""
 
     def test_sell_trade(self):
         from ft.adapters.connectors.polymarket import PolymarketConnector
@@ -134,12 +135,13 @@ class TestActivityMapping:
             credentials={"proxy_wallet": "0x" + "a" * 40},
             _fetch_fn=_make_fetch_fn([[activity]]),
         ).fetch_trades()
-        assert result.events[0]["action"] == "swap"
+        assert (result.events[0]["record_type"], result.events[0]["record_subtype"]) == ("trade", "security")
         assert result.events[0]["from_ticker"] == "pm:market:yes"
         assert result.events[0]["to_ticker"] == "usd"
         assert result.events[0]["record_id"] == "redeem-hash"
+        assert result.events[0]["note"] == ""
 
-    def test_yield_maps_to_usd_dividend(self):
+    def test_yield_maps_to_usd_interest_income(self):
         from ft.adapters.connectors.polymarket import PolymarketConnector
         activity = {
             "type": "YIELD", "usdcSize": "1.25", "timestamp": 1_700_000_000,
@@ -149,10 +151,11 @@ class TestActivityMapping:
             credentials={"proxy_wallet": "0x" + "a" * 40},
             _fetch_fn=_make_fetch_fn([[activity]]),
         ).fetch_trades()
-        assert result.events[0]["action"] == "dividend"
+        assert (result.events[0]["record_type"], result.events[0]["record_subtype"]) == ("income", "interest")
         assert result.events[0]["to_ticker"] == "usd"
         assert result.events[0]["to_amount"] == "1.25"
         assert result.events[0]["record_id"] == "yield-hash"
+        assert result.events[0]["note"] == ""
 
 
 class TestPagination:
@@ -261,10 +264,11 @@ class TestPusdBalanceCheckin:
 
         result = PolymarketConnector(credentials={"proxy_wallet": _FUNDER}, _fetch_fn=_make_fetch_fn([[]]), _rpc_fetch_fn=rpc).fetch_trades()
         assert calls == ["eth_blockNumber", "eth_getBlockByNumber", "eth_call"]
-        assert result.events[0]["action"] == "checkin"
+        assert (result.events[0]["record_type"], result.events[0]["record_subtype"]) == ("snapshot", "cash")
         assert result.events[0]["to_ticker"] == "usd"
         assert result.events[0]["to_amount"] == "1.234567"
         assert result.events[0]["record_id"] == "checkin:12"
+        assert result.events[0]["note"] == ""
         assert result.events[0]["source_payload"] == {"token": "0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb", "wallet": _FUNDER, "balance_base_units": "1234567", "block_number": 12, "block_timestamp": 1_777_667_210}
 
     def test_balance_rpc_failure_returns_no_partial_result(self):

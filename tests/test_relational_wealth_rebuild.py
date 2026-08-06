@@ -91,11 +91,11 @@ def _insert_three_day_formal_fixture(sessions) -> None:
             ),
             InvestmentEventModel(
                 id=446365, workspace_id="wealth-rebuild", account_id=2, occurred_at=at(2),
-                action="deposit", currency="USD", to_amount="1", payload={},
+                record_type="funding", record_subtype="external", currency="USD", to_amount="1", payload={},
             ),
             InvestmentEventModel(
                 id=3499926, workspace_id="wealth-rebuild", account_id=2, occurred_at=at(2),
-                action="dividend", currency="USD", to_amount="1", payload={},
+                record_type="income", record_subtype="interest", currency="USD", to_amount="1", payload={},
             ),
         ))
         for day, cash, position, fx in (
@@ -319,7 +319,7 @@ def test_runtime_unsupported_investment_input_is_published_as_fail_closed_covera
         session.add(InvestmentEventModel(
             id=2909920, workspace_id="wealth-rebuild", account_id=2,
             occurred_at=datetime(2026, 7, 2, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
-            action="option_exercise", currency="USD", payload={"amount": "1"},
+            record_type="adjustment", record_subtype="unclassified", currency="USD", payload={"amount": "1"},
         ))
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
     services.wealth.rebuild(affected_from="2026-07-01")
@@ -411,7 +411,7 @@ def test_runtime_fails_closed_for_position_expected_from_formal_ownership_withou
         session.add(InvestmentEventModel(
             id=9791237, workspace_id="wealth-rebuild", account_id=2,
             occurred_at=datetime(2026, 7, 1, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
-            action="buy", currency="USD", payload={"position": "unvalued-etf", "quantity": "1"},
+            record_type="trade", record_subtype="security", currency="USD", payload={"position": "unvalued-etf", "quantity": "1"},
         ))
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
     services.wealth.rebuild(affected_from="2026-07-01")
@@ -433,6 +433,18 @@ def test_source_fence_detects_in_place_non_max_fact_correction(rebuilt_runtime) 
         row = session.get(CashTransactionModel, 2566485)
         row.category = "expense"
     assert facts.source_is_current(watermark) is False
+
+
+def test_source_fence_remains_current_for_unchanged_investment_record_subtype(rebuilt_runtime) -> None:
+    """The capture and publish fences must digest the same normalized event fields."""
+    from ft.adapters.relational.wealth_facts import RelationalWealthFactRepository
+
+    _backend, _services, sessions = rebuilt_runtime
+    _insert_three_day_formal_fixture(sessions)
+    facts = RelationalWealthFactRepository(sessions, "wealth-rebuild")
+    watermark, _items = facts.capture_source_manifest()
+
+    assert facts.source_is_current(watermark) is True
 
 
 def test_relational_publish_fence_rejects_stale_builder_on_both_backends(rebuilt_runtime) -> None:

@@ -112,10 +112,10 @@ class TestExchangeSyncPostgres:
         at = datetime(2026, 7, 26, tzinfo=timezone.utc)
         common = {"commission": "0", "commission_asset": "", "occurred_at": at, "source_payload": {}}
         events = [
-            dict(common, action="deposit", from_ticker="", from_amount="0", to_ticker="usd", to_amount="100", record_id="dep"),
-            dict(common, action="dividend", from_ticker="", from_amount="0", to_ticker="usd", to_amount="10", record_id="reward"),
-            dict(common, action="fee", from_ticker="usd", from_amount="1", to_ticker="", to_amount="0", record_id="reward:fee"),
-            dict(common, action="transfer", from_ticker="usd", from_amount="50", to_ticker="", to_amount="0", record_id="move"),
+            dict(common, record_type="funding", record_subtype="external", from_ticker="", from_amount="0", to_ticker="usd", to_amount="100", record_id="dep"),
+            dict(common, record_type="income", record_subtype="reward", from_ticker="", from_amount="0", to_ticker="usd", to_amount="10", record_id="reward"),
+            dict(common, record_type="expense", record_subtype="commission", from_ticker="usd", from_amount="1", to_ticker="", to_amount="0", record_id="reward:fee"),
+            dict(common, record_type="funding", record_subtype="subaccount", from_ticker="usd", from_amount="50", to_ticker="", to_amount="0", record_id="move"),
         ]
         class LedgerConnector:
             source_type = "binance_api"
@@ -126,7 +126,7 @@ class TestExchangeSyncPostgres:
         with uow as u:
             shares = u.snapshot.load()["accounts"]["security"]["Binance"]["positions"]["usd"]["shares"]
             u.rollback()
-        assert shares == "109"
+        assert shares == "59"
 
     def test_raw_ccxt_trade_and_ledger_are_atomic_and_idempotent(self, pg_sync):
         service, uow = pg_sync

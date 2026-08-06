@@ -51,7 +51,8 @@ def test_projection_revision_adds_only_derived_tables_and_indexes(tmp_path):
         inspector = inspect(engine)
         assert PROJECTION_TABLES <= set(inspector.get_table_names())
         assert inspector.get_columns("cash_transactions")
-        assert engine.connect().scalar(text("SELECT amount FROM cash_transactions WHERE id = 1")) == "-10"
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT amount FROM cash_transactions WHERE id = 1")) == "-10"
         member_uniques = {tuple(item["column_names"]) for item in inspector.get_unique_constraints("cash_projection_members")}
         assert ("workspace_id", "dataset_id", "cash_transaction_id") in member_uniques
         assert "ix_cash_projections_visible_list" in {item["name"] for item in inspector.get_indexes("cash_projections")}
@@ -76,7 +77,8 @@ def test_dataset_index_revision_upgrades_and_downgrades_without_touching_sources
         inspector = inspect(engine)
         assert "ix_cash_projection_members_dataset" not in {item["name"] for item in inspector.get_indexes("cash_projection_members")}
         assert "ix_cash_projection_relations_dataset" not in {item["name"] for item in inspector.get_indexes("cash_projection_relations")}
-        assert engine.connect().scalar(text("SELECT amount FROM cash_transactions WHERE id = 1")) == "-10"
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT amount FROM cash_transactions WHERE id = 1")) == "-10"
         command.upgrade(config, "head")
         _assert_dataset_indexes(engine)
     finally:
@@ -106,7 +108,8 @@ def test_dataset_index_revision_is_reversible_on_postgresql():
         inspector = inspect(engine)
         assert "ix_cash_projection_members_dataset" not in {item["name"] for item in inspector.get_indexes("cash_projection_members")}
         assert "ix_cash_projection_relations_dataset" not in {item["name"] for item in inspector.get_indexes("cash_projection_relations")}
-        assert engine.connect().scalar(text("SELECT amount FROM cash_transactions WHERE id = 1")) == -10
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT amount FROM cash_transactions WHERE id = 1")) == -10
         command.upgrade(config, "head")
         _assert_dataset_indexes(engine)
     finally:

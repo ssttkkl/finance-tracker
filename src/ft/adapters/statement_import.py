@@ -119,47 +119,15 @@ def _route_dfzq_account(command) -> tuple[str, str]:
 
 
 def _dfzq_rows(records, command):
+    from ft.importers.dfzq import map_dfzq_to_investment_event
+
     account_name, currency = _route_dfzq_account(command)
     mapped = []
     for record in records:
-        action = record["action"]
-        common = {
-            "occurred_at": record["date"], "currency": currency,
-            "account_name": account_name, "note": record.get("note", ""),
-            "commission_asset": "", "commission": "0",
-        }
-        if action == "BUY":
-            amount = abs(Decimal(str(record["amount"])))
-            row = {**common, "action": "swap", "from_ticker": currency.lower(),
-                   "to_ticker": record["ticker"], "from_amount": amount,
-                   "to_amount": record["shares"], "price": record["price"],
-                   "commission": record["fee"], "commission_asset": currency.lower()}
-        elif action == "SELL":
-            amount = abs(Decimal(str(record["amount"])))
-            row = {**common, "action": "swap", "from_ticker": record["ticker"],
-                   "to_ticker": currency.lower(), "from_amount": record["shares"],
-                   "to_amount": amount, "price": record["price"],
-                   "commission": record["fee"], "commission_asset": currency.lower()}
-        elif action == "DIVIDEND":
-            ticker = record.get("ticker", "")
-            row = {**common, "action": "dividend", "from_ticker": ticker,
-                   "to_ticker": ticker or currency.lower(), "from_amount": "0",
-                   "to_amount": record["shares"] if ticker else abs(Decimal(str(record["amount"]))),
-                   "price": "0" if ticker else "1"}
-        elif action in {"DEPOSIT", "WITHDRAW"}:
-            incoming = action == "DEPOSIT"
-            amount = abs(Decimal(str(record["amount"])))
-            row = {**common, "action": action.lower(),
-                   "from_ticker": "" if incoming else currency.lower(),
-                   "to_ticker": currency.lower() if incoming else "",
-                   "from_amount": "0" if incoming else amount,
-                   "to_amount": amount if incoming else "0", "price": "1"}
-        elif action == "CHECKIN":
-            row = {**common, "action": "checkin", "from_ticker": currency.lower(),
-                   "to_ticker": "", "from_amount": "0",
-                   "to_amount": abs(Decimal(str(record["amount"]))), "price": "1"}
-        else:
-            raise ValueError(f"不支持的东方证券业务动作：{action}")
+        row = map_dfzq_to_investment_event(record, account_name, currency)
+        row["occurred_at"] = row.pop("date")
+        # 来源行快照只保存解析到的原生字段，不混入映射后的正式字段。
+        row["source_payload"] = record
         for key in ("from_amount", "to_amount", "price", "commission"):
             row[key] = _decimal_text(row.get(key, 0))
         mapped.append(row)

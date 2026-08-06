@@ -11,16 +11,16 @@ from ft.domain.investment_projection import apply_investment_event
 def test_cash_to_cash_swap_keeps_each_fiat_pocket_in_its_native_cost_currency():
     snapshot = {"accounts": {"security": {"盈立证券": {"currency": "USD", "positions": {}}}}}
     apply_investment_event(snapshot, {
-        "date": "2026-06-01", "action": "deposit", "account_name": "盈立证券",
+        "date": "2026-06-01", "record_type": "funding", "record_subtype": "external", "account_name": "盈立证券",
         "currency": "HKD", "to_ticker": "hkd", "to_amount": "5181.74",
     }, default_currency="USD")
     apply_investment_event(snapshot, {
-        "date": "2026-06-16", "action": "swap", "account_name": "盈立证券",
+        "date": "2026-06-16", "record_type": "trade", "record_subtype": "fx", "account_name": "盈立证券",
         "currency": "HKD", "from_ticker": "hkd", "from_amount": "3161.18",
         "to_ticker": "usd", "to_amount": "402.32", "commission": "0",
     }, default_currency="USD")
     apply_investment_event(snapshot, {
-        "date": "2026-06-17", "action": "deposit", "account_name": "盈立证券",
+        "date": "2026-06-17", "record_type": "funding", "record_subtype": "external", "account_name": "盈立证券",
         "currency": "USD", "to_ticker": "usd", "to_amount": "10",
     }, default_currency="USD")
 
@@ -50,7 +50,7 @@ def test_swap_buy_cash_to_ticker():
 
     event = {
         "date": "2026-06-12 00:00:00",
-        "action": "swap",
+        "record_type": "trade", "record_subtype": "security",
         "account_name": "broker",
         "from_ticker": "cny",
         "from_amount": "1251.00",
@@ -90,7 +90,7 @@ def test_swap_sell_ticker_to_cash():
 
     event = {
         "date": "2026-06-15 00:00:00",
-        "action": "swap",
+        "record_type": "trade", "record_subtype": "security",
         "account_name": "broker",
         "from_ticker": "600000.sh",
         "from_amount": "50",
@@ -130,7 +130,7 @@ def test_swap_crypto_to_crypto():
 
     event = {
         "date": "2026-06-20 00:00:00",
-        "action": "swap",
+        "record_type": "trade", "record_subtype": "security",
         "account_name": "binance",
         "from_ticker": "btc",
         "from_amount": "0.05",
@@ -169,7 +169,7 @@ def test_swap_with_third_party_commission():
 
     event = {
         "date": "2026-06-20 00:00:00",
-        "action": "swap",
+        "record_type": "trade", "record_subtype": "security",
         "account_name": "binance",
         "from_ticker": "usdt",
         "from_amount": "5000.00",
@@ -192,8 +192,8 @@ def test_swap_with_third_party_commission():
     assert Decimal(positions["bnb"]["total_cost"]) == Decimal("2999.99")  # 3000 - 0.01
 
 
-def test_deposit_increases_cash():
-    """DEPOSIT action should increase cash position."""
+def test_external_funding_increases_cash():
+    """外部入金增加投资账户现金余额。"""
     snapshot = {
         "accounts": {
             "security": {
@@ -209,7 +209,7 @@ def test_deposit_increases_cash():
 
     event = {
         "date": "2026-06-10 00:00:00",
-        "action": "deposit",
+        "record_type": "funding", "record_subtype": "external",
         "account_name": "broker",
         "to_ticker": "cny",
         "to_amount": "10000.00",
@@ -223,8 +223,8 @@ def test_deposit_increases_cash():
     assert Decimal(positions["cny"]["total_cost"]) == Decimal("11000.00")
 
 
-def test_withdraw_decreases_cash():
-    """WITHDRAW action should decrease cash position."""
+def test_external_funding_withdrawal_decreases_cash():
+    """外部出金减少投资账户现金余额。"""
     snapshot = {
         "accounts": {
             "security": {
@@ -240,7 +240,7 @@ def test_withdraw_decreases_cash():
 
     event = {
         "date": "2026-06-15 00:00:00",
-        "action": "withdraw",
+        "record_type": "funding", "record_subtype": "external",
         "account_name": "broker",
         "from_ticker": "cny",
         "from_amount": "5000.00",
@@ -254,8 +254,8 @@ def test_withdraw_decreases_cash():
     assert Decimal(positions["cny"]["total_cost"]) == Decimal("5000.00")
 
 
-def test_dividend_increases_cash_no_cost():
-    """DIVIDEND action should increase cash but not cost for cash dividends."""
+def test_cash_dividend_increases_cash_no_cost():
+    """现金股息增加现金余额。"""
     snapshot = {
         "accounts": {
             "security": {
@@ -272,7 +272,7 @@ def test_dividend_increases_cash_no_cost():
 
     event = {
         "date": "2026-06-20 00:00:00",
-        "action": "dividend",
+        "record_type": "income", "record_subtype": "dividend_cash",
         "account_name": "broker",
         "from_ticker": "600000.sh",  # Source for audit
         "to_ticker": "cny",
@@ -290,8 +290,8 @@ def test_dividend_increases_cash_no_cost():
     assert Decimal(positions["600000.sh"]["total_cost"]) == Decimal("1251.00")
 
 
-def test_checkin_replaces_position():
-    """CHECKIN action should replace (not add to) position."""
+def test_position_snapshot_replaces_position():
+    """持仓快照替换而非累加已有数量。"""
     snapshot = {
         "accounts": {
             "security": {
@@ -308,7 +308,7 @@ def test_checkin_replaces_position():
 
     event = {
         "date": "2026-06-30 00:00:00",
-        "action": "checkin",
+        "record_type": "snapshot", "record_subtype": "position",
         "account_name": "broker",
         "to_ticker": "600000.sh",
         "to_amount": "100",
@@ -324,8 +324,8 @@ def test_checkin_replaces_position():
     assert Decimal(positions["600000.sh"]["total_cost"]) == Decimal("1250.00")  # 100 * 12.50
 
 
-def test_checkin_cash():
-    """CHECKIN for cash should replace cash balance."""
+def test_cash_snapshot_replaces_cash_balance():
+    """现金快照替换现金余额。"""
     snapshot = {
         "accounts": {
             "security": {
@@ -341,7 +341,7 @@ def test_checkin_cash():
 
     event = {
         "date": "2026-06-30 00:00:00",
-        "action": "checkin",
+        "record_type": "snapshot", "record_subtype": "cash",
         "account_name": "broker",
         "to_ticker": "cny",
         "to_amount": "9000.00",
@@ -362,7 +362,7 @@ def test_event_creates_account_if_missing():
 
     event = {
         "date": "2026-06-12 00:00:00",
-        "action": "deposit",
+        "record_type": "funding", "record_subtype": "external",
         "account_name": "new_broker",
         "to_ticker": "usd",
         "to_amount": "1000.00",
@@ -394,7 +394,7 @@ def test_swap_allows_sell_without_prior_position():
 
     event = {
         "date": "2026-06-15 00:00:00",
-        "action": "swap",
+        "record_type": "trade", "record_subtype": "security",
         "account_name": "broker",
         "from_ticker": "600000.sh",
         "from_amount": "100",  # More than available
@@ -414,7 +414,7 @@ def test_swap_zero_shares_and_zero_cost_edge():
     snapshot = {"accounts": {}}
     event = {
         "date": "2026-01-01 00:00:00",
-        "action": "swap",
+        "record_type": "trade", "record_subtype": "security",
         "account_name": "broker",
         "from_ticker": "cny",
         "from_amount": "0",
@@ -429,13 +429,13 @@ def test_swap_zero_shares_and_zero_cost_edge():
     assert Decimal(pos["cny"]["shares"]) == Decimal("0")
 
 
-def test_deposit_creates_missing_cash_position():
+def test_external_funding_creates_missing_cash_position():
     snapshot = {"accounts": {}}
     apply_investment_event(
         snapshot,
         {
             "date": "2026-01-01 00:00:00",
-            "action": "deposit",
+            "record_type": "funding", "record_subtype": "external",
             "account_name": "broker",
             "to_ticker": "usd",
             "to_amount": "100",
@@ -446,12 +446,34 @@ def test_deposit_creates_missing_cash_position():
     assert Decimal(snapshot["accounts"]["security"]["broker"]["positions"]["usd"]["shares"]) == Decimal("100")
 
 
-def test_transfer_is_auditable_noop_for_positions():
+def test_subaccount_funding_changes_the_current_investment_account():
     snapshot = {"accounts": {"security": {"exchange": {"currency": "USD", "positions": {
         "usd": {"shares": "100", "total_cost": "100", "cost_currency": "USD"},
     }}}}}
     apply_investment_event(snapshot, {
-        "date": "2026-07-26", "action": "transfer", "account_name": "exchange",
+        "date": "2026-07-26", "record_type": "funding", "record_subtype": "subaccount", "account_name": "exchange",
         "from_ticker": "usd", "from_amount": "20", "currency": "USD",
     }, default_currency="USD")
-    assert snapshot["accounts"]["security"]["exchange"]["positions"]["usd"]["shares"] == "100"
+    assert snapshot["accounts"]["security"]["exchange"]["positions"]["usd"]["shares"] == "80"
+
+
+@pytest.mark.parametrize("record_type", ["deposit", "withdraw", "swap", "dividend", "fee", "checkin"])
+def test_historical_investment_record_types_are_rejected(record_type):
+    with pytest.raises(ValueError, match="unsupported investment record_type"):
+        apply_investment_event({"accounts": {}}, {
+            "date": "2026-08-01", "record_type": record_type, "account_name": "broker",
+            "currency": "USD", "from_ticker": "usd", "from_amount": "1",
+            "to_ticker": "", "to_amount": "0",
+        }, default_currency="USD")
+
+
+def test_invalid_record_subtype_is_rejected_without_mutating_snapshot():
+    snapshot = {"accounts": {}}
+
+    with pytest.raises(ValueError, match="invalid investment record_subtype"):
+        apply_investment_event(snapshot, {
+            "date": "2026-08-01", "record_type": "funding", "record_subtype": "interest",
+            "account_name": "broker", "currency": "USD", "to_ticker": "usd", "to_amount": "1",
+        }, default_currency="USD")
+
+    assert snapshot == {"accounts": {}}

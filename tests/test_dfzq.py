@@ -70,8 +70,7 @@ class TestParseDfzqText:
         assert r["stamp_tax"] == Decimal("1.15")
         assert r["transfer_fee"] == Decimal("0.50")
         assert r["balance"] == 50000.0
-        assert "印花税" in r["note"]
-        assert "过户费" in r["note"]
+        assert r["note"] == "证券买入"
 
     def test_sell_stock(self):
         """卖出解析 + amount 计算验证"""
@@ -189,8 +188,8 @@ class TestParseDfzqText:
         assert checkin["ticker"] == ""
         assert checkin["name"] == ""
 
-    def test_stamp_tax_and_transfer_fee_in_note(self):
-        """印花税/过户费写入 note 字段"""
+    def test_source_action_in_note(self):
+        """来源动作写入 note 字段，费用仍保留在独立金额列。"""
         lines = [
             "资金流水明细(2024/07/01-2026/06/13)",
             *_trade_lines("20240701", "证券买入", "000001", "平安银行",
@@ -199,8 +198,7 @@ class TestParseDfzqText:
         ]
         records = parse_dfzq_text(lines)
         r = records[0]
-        assert "印花税1.15" in r["note"]
-        assert "过户费0.50" in r["note"]
+        assert r["note"] == "证券买入"
 
     def test_empty_input(self):
         """空输入不崩溃"""

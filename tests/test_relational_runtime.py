@@ -199,6 +199,30 @@ def test_storage_error_messages_are_sanitized():
     assert "postgresql" in message
 
 
+def test_current_runtime_schema_exposes_funding_relation_service(tmp_path):
+    from alembic import command
+    from alembic.config import Config
+
+    from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace
+    from ft.application.cash_investment_funding_relations import CashInvestmentFundingRelationService
+    from ft.config import StorageSettings
+    from ft.runtime import build_services
+
+    root = Path(__file__).parents[1]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'runtime-current.db'}"
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "migrations"))
+    config.set_main_option("sqlalchemy.url", database_url)
+    command.upgrade(config, "head")
+    engine = create_relational_engine(database_url)
+    try:
+        ensure_workspace(create_session_factory(engine), "runtime-current")
+        services = build_services(StorageSettings(database_url, "runtime-current"))
+        assert isinstance(services.funding_relations, CashInvestmentFundingRelationService)
+    finally:
+        engine.dispose()
+
+
 @pytest.mark.parametrize("code", [
     "storage.config", "storage.connect", "storage.schema", "storage.workspace",
     "storage.readonly", "storage.busy",

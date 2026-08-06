@@ -18,7 +18,7 @@ CASH_GONE = {
     "offset_group", "offset_role", "offset_strength", "offset_source",
     "offset_rule_hint", "offset_match_type", "proposed_action", "revision",
 }
-INV_REQUIRED = {"source_type", "record_id", "source_payload", "action", "from_ticker"}
+INV_REQUIRED = {"source_type", "record_id", "source_payload", "record_type", "record_subtype", "from_ticker"}
 INV_GONE = {"raw_record_id", "price", "revision"}
 
 
@@ -46,6 +46,7 @@ def test_post_upgrade_schema_drops_job_tables_and_dead_columns(tmp_path):
         assert CASH_GONE.isdisjoint(cash)
         assert INV_REQUIRED <= inv
         assert INV_GONE.isdisjoint(inv)
+        assert "action" not in inv
         # partial unique indexes present
         idx = {i["name"] for i in inspect(engine).get_indexes("cash_transactions")}
         assert "uq_cash_transactions_active_source_record" in idx
@@ -75,6 +76,7 @@ def test_post_upgrade_schema_postgresql():
             inv = {c["name"] for c in inspect(engine).get_columns("investment_events")}
             assert CASH_REQUIRED <= cash and CASH_GONE.isdisjoint(cash)
             assert INV_REQUIRED <= inv and INV_GONE.isdisjoint(inv)
+            assert "action" not in inv
         finally:
             engine.dispose()
     finally:
