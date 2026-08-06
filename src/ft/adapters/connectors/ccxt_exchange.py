@@ -346,7 +346,7 @@ class CcxtExchangeConnector:
             "to_amount": _format_decimal(to_amount),
             "commission": _format_decimal(fee_cost),
             "commission_asset": fee_currency,
-            "note": f"{self._provider} trade {tid}",
+            "note": "",
             "record_id": tid,
             "source_payload": trade,
         }
@@ -396,7 +396,7 @@ class CcxtExchangeConnector:
             "to_amount": _format_decimal(amount) if incoming else "0",
             "commission": "0",
             "commission_asset": "",
-            "note": f"{self._provider} ledger {entry_type} {entry_id}",
+            "note": "",
             "record_id": entry_id,
             "source_payload": entry,
         }
@@ -418,6 +418,6 @@ class CcxtExchangeConnector:
             "record_type": "expense", "record_subtype": "commission", "from_ticker": fee_ticker,
             "from_amount": _format_decimal(fee_cost), "to_ticker": "",
             "to_amount": "0", "record_id": f"{entry_id}:fee",
-            "note": f"{self._provider} ledger fee {entry_id}",
+            "note": "",
         })
         return [event, fee_event]

@@ -25,3 +25,20 @@
 #### Scenario: PDF 流水与汇总快照
 - **WHEN** 用户导入东方证券或盈立 PDF
 - **THEN** 每个流水事件 MUST 保存对应业务块的原始文本单元；现金、持仓和零持仓 `snapshot` MUST 保存可归属其数值或期末缺席事实的原始汇总文本单元，且不得伪造 `CHECKIN`、`action_raw`、旗标、标的、数量或日期字段
+
+### Requirement: 投资事件来源说明与交易总费用
+系统 MUST 将投资事件 `note` 限定为来源提供的、可供使用者阅读的描述、备注、动作或旗标。来源没有此类说明的 API 同步事件、交易分组事件和汇总 `snapshot` MUST 写入空字符串；`note` MUST NOT 写入 `record_id`、交易哈希、系统 `checkin` 文案或从金额字段拼接的费用摘要。导入器可以在解析阶段使用来源描述、动作或旗标归一 `record_type` 与 `record_subtype`，但映射完成后的 `note` MUST 不参与分类、关系匹配、投影计算或业务行标识生成。
+
+对东方证券以“总发生金额”表达净现金变化的交易，导入器 MUST 将可直接识别的手续费、印花税和过户费的绝对值之和作为交易总费用写入 `commission`，并使用现金币种作为 `commission_asset`。买入时 `from_amount + commission`、卖出时 `to_amount - commission` MUST 等于 `abs(总发生金额)`；因此拆分费用不得改变逐笔现金净变化。费用缺失、为负或买入时交易总费用不小于净额而无法安全拆分时，导入器 MUST 保留净额现金部分并将 `commission=0`，不得发明费用。
+
+#### Scenario: 东方证券买入拆分全部费用
+- **WHEN** 一笔东方证券买入的“总发生金额”为 `-1011.53`，手续费为 `5.00`，印花税为 `6.40`，过户费为 `0.13`
+- **THEN** 新投资事件 MUST 记录 `commission=11.53`、现金币种 `commission_asset` 和 `from_amount=1000.00`，且投影现金流出仍为 `1011.53`
+
+#### Scenario: 东方证券卖出拆分全部费用
+- **WHEN** 一笔东方证券卖出的“总发生金额”为 `1011.53`，手续费为 `5.00`，印花税为 `6.40`，过户费为 `0.13`
+- **THEN** 新投资事件 MUST 记录 `commission=11.53`、现金币种 `commission_asset` 和 `to_amount=1023.06`，且投影现金流入仍为 `1011.53`
+
+#### Scenario: 无来源说明的同步或汇总事件
+- **WHEN** CCXT、Polymarket、交易分组或账单汇总生成的投资事件没有来源提供的可读说明
+- **THEN** 该事件的 `note` MUST 为空字符串，技术标识仍由 `record_id` 和 `source_payload` 保存，且相同来源行重复导入的幂等结果不变

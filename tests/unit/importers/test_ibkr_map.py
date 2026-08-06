@@ -80,4 +80,14 @@ def test_fx_records_net_cash_impact_not_full_notional():
     assert large["record_type"] == "adjustment"
     assert large["from_ticker"] == "usd"
     assert Decimal(large["from_amount"]) == abs(Decimal("-2.030467550750018"))
-    assert "佣金2" in large["note"]
+    assert large["note"] == fx_rows[1]["note"]
+    assert "佣金" not in large["note"]
+
+
+def test_ibkr_summary_snapshot_has_no_derived_note():
+    statement, rows = _rows_by_action()
+    checkin = next(row for row in rows if row["action"] == "CHECKIN")
+
+    event = map_ibkr_to_investment_event(checkin, "IBKR", statement.base_currency)
+
+    assert event["note"] == ""

@@ -125,3 +125,12 @@ def test_positive_doi_interest_is_income_not_cash_dividend():
     }, "嘉信", "USD")
 
     assert (event["record_type"], event["record_subtype"]) == ("income", "interest")
+
+
+def test_schwab_summary_snapshot_has_no_derived_note():
+    statement, rows = _rows()
+    checkin = next(row for row in rows if row["type"] == "CHECKIN")
+
+    event = map_schwab_to_investment_event(checkin, "嘉信", "USD")
+
+    assert event["note"] == ""

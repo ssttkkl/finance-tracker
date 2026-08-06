@@ -95,6 +95,21 @@
 - [x] 14.4 为收支账本筛选加入“银证转账”，复用内部转账双端金额展示。
 - [x] 14.5 完成范围、工程与最终 diff 复核，运行受影响 SQLite/PostgreSQL、前端、生产预览、视觉与 OpenSpec 验证，并记录结果。
 
+## 15. 投资来源说明与交易总费用
+
+- [x] 15.1 更新词表、proposal、delta 规格、主规格和设计，定义 `note`、业务行标识和交易总费用的边界；真实 `.ft` 账本不在本轮写入范围。
+- [x] 15.2 先增加失败回归测试，覆盖四个账单导入器、CCXT、Polymarket 的来源说明边界，以及东方证券买入、卖出和回购的全部费用拆分。
+- [x] 15.3 收紧导入器与同步器映射：移除派生费用、快照和技术标识文案；以来源行快照确定盈立现金流水的业务行标识。
+- [x] 15.4 修正东方证券交易总费用拆分，并在 SQLite 与本机 PostgreSQL 运行导入、幂等与余额回放契约矩阵。
+- [x] 15.5 完成产品/范围、工程和最终 diff 独立复核；运行 OpenSpec 严格校验、受影响测试、构建和 `git diff --check`，记录比较基线、HEAD、命令、结果与残余风险。
+
+## 16. 已授权真实账本全量重建
+
+- [x] 16.1 在可恢复备份基础上创建隔离候选库，保留工作区、账户与别名，按外键顺序清空现金、投资、关系和派生读模型。
+- [x] 16.2 从固定的现金、投资原始账单和已上传的 Charles Schwab CSV 重导，按账单正文识别盈立产品档案。
+- [x] 16.3 在候选库重建关系与投影，核验导入统计、资金调拨、外键、完整性、东方证券总费用和来源说明边界。
+- [x] 16.4 将已验证候选库以同文件系统原子替换发布到 `~/.ft/finance-tracker.db`，重启后端并记录备份、统计、回滚位置和残余风险。
+
 ## 审查记录
 
 - 产品/范围复核：通过。实现只保存业务行，不保存来源文件、路径或文件级元数据；`counterparty_account` 只接收来源直接提供的值，历史缺失值保持为空。
@@ -117,6 +132,9 @@
 - 银证转账双端展示与筛选工程复核：通过。读取层只沿投影持久化的已确认、活跃 `funding_relation_id` 关联收支现金流水和投资事件，按关系方向组装既有 `CashTransferDTO`；未读取机构名称、账号、来源快照或自由备注，且无关证据详情不增加资金调拨读取。
 - 银证转账双端展示与筛选 UI 审计：通过。`hallmark` 可执行程序未安装，按 `hallmark audit web/src` 的 `Workbench / modern-minimal` 规则人工审查；`0 critical · 0 major · 0 minor`。新增筛选项沿用现有控件，跨币种金额沿用转账格式；生产预览在 `390 px` 核验无横向溢出。
 - 银证转账双端展示与筛选最终 diff 复核：通过。双向资金调拨、HTTP 序列化、游标绑定筛选、普通个人转账和非转账详情路径均有回归覆盖；未发现阻断性、中等或低严重度 finding。残余风险是完整 Python 回归仍受已有性能用例执行时间限制，未在本轮重跑；本轮变更已通过受影响的 SQLite/PostgreSQL 契约矩阵。
+- 投资来源说明与交易总费用产品/范围独立复核：通过。范围只收紧投资事件的来源说明并修正东方证券已来源明确的交易总费用；不新增字段、迁移、关系或真实账本写入。复核覆盖四个账单导入器与两个 API 同步器。发现 1 个低严重度问题：东方证券映射器在直接调用且缺少 `action_raw` 时会将归一化 `action` 写入 `note`；已改为仅使用来源动作或来源备注，并增加回归测试。未发现阻断性、严重或中等 finding。
+- 投资来源说明与交易总费用工程与安全独立复核：通过。费用使用 `Decimal` 逐项取绝对值相加；任一来源费用为负或买入无法安全拆分时失败保守为净额现金部分和零 `commission`。盈立现金流水幂等键使用排序 JSON 的 SHA-256 来源快照摘要，不再读取展示 `note`；同步器不再把哈希或交易 ID 写入用户说明。未发现来源快照外溢、隐私泄露或 SQLite/PostgreSQL 语义分歧。
+- 投资来源说明与交易总费用最终 diff 独立复核：通过。规格、词表、导入器、同步器、单元回归和双后端契约一致；东方证券买入、卖出和回购均覆盖全部费用与现金回放，四个账单导入器均覆盖来源说明和空快照说明。未发现阻断性、严重、中等或低严重度 finding。残余风险见验证记录。
 
 ## 验证记录
 
@@ -148,6 +166,12 @@
 - 银证转账双端展示与筛选比较基线与 `HEAD`：`194f589`。`FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/finance_tracker_test FT_REQUIRE_TEST_POSTGRES=1 uv run pytest -q tests/test_cash_investment_funding_relations.py tests/test_relational_cash_projection_evidence.py tests/test_application_web_queries.py tests/contract/test_web_api.py`：`82 passed`。`cd web && npm test`：`38 passed`；`FT_PREVIEW_WEB_PORT=5181 npm run test:preview`：`2 passed`，包括 `390 px` 跨币种双端金额；`npm run test:visual`：`10 passed`；`VITE_FT_API_ORIGIN=http://127.0.0.1:8866 npm run build`：通过。
 - 银证转账双端展示与筛选最终校验：`openspec validate preserve-complete-statement-source-rows --strict`、`openspec validate --all --strict`、`openspec doctor`、`uv run python -m compileall -q src`、`uv build` 和 `git diff --check`：通过。项目未配置独立 Python 静态类型检查器。
 - 银证转账双端展示与筛选真实账本读取：以后端只读连接 `sqlite+pysqlite:////Users/huangwenlong/.ft/finance-tracker.db` 查询 `economic_type=bank_security_transfer`，投影版本 `3` 返回 `40` 条；IBKR 示例为 `10,000 HKD → 1,275.5 USD`，嘉信示例为 `8,000 USD → 7,980 USD`，均保留 `internal_transfer(bank_security_transfer)` 与投影净额 `0`。`http://127.0.0.1:8001` 对 `http://127.0.0.1:5174` 返回 CORS 允许头；本检查未写入账本。
+- 投资来源说明与交易总费用比较基线：`e119eecc7dada466a2340cd04c3043061c404c4f`；验证时 `HEAD`：`5a17223d51a4bc17b6c093cbbf83dafa688d432a`。`FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/finance_tracker_test FT_REQUIRE_TEST_POSTGRES=1 uv run pytest -q tests/test_dfzq.py tests/unit/importers/test_dfzq_parser.py tests/unit/importers/test_dfzq_event_mapping.py tests/unit/importers/test_ibkr_map.py tests/unit/importers/test_schwab_map.py tests/unit/importers/test_usmart_hk.py tests/unit/test_ccxt_connector.py tests/unit/test_polymarket_connector.py tests/contract/test_dual_backend_dfzq.py tests/contract/test_dual_backend_ibkr.py tests/contract/test_dual_backend_schwab.py tests/contract/test_dual_backend_usmart_hk.py`：`137 passed`，覆盖 SQLite 和本机 PostgreSQL 的导入、幂等与东方证券现金回放。
+- 投资来源说明与交易总费用最终校验：`uv run pytest -q --ignore=tests/test_wealth_performance.py`：`1261 passed, 141 skipped, 1 warning`；`uv run python -m compileall -q src`、`uv build`、`openspec validate preserve-complete-statement-source-rows --strict`、`openspec validate --all --strict`、`openspec doctor` 和 `git diff --check` 均通过。项目未配置独立 Python 静态类型检查器。
+- 未通过项与残余风险：完整 SQLite 回归在 `tests/test_wealth_performance.py::test_fixed_100k_fact_rebuild_and_active_cache_meet_budgets[sqlite]` 的 10 万事实冷重建 p95 为 `6.388426 s`，高于本机 `5 s` 性能门槛；此前已通过 `1030` 项、跳过 `141` 项，失败与本轮导入器、金额口径和持久化改动无交集，未视为通过。将所有 PostgreSQL 用例在单次运行中会争用同一 `finance_tracker_test` schema，故该完整矩阵未视为通过；本轮以独立的专用 PostgreSQL 契约组证明受影响合同。真实 `~/.ft` 账本未读取或写入；需要重建历史投资事件时仍须取得用户明确授权并先创建可恢复备份。
+- 已授权真实账本全量重建：以 SQLite `.backup` 创建并校验 `/Users/huangwenlong/.ft/backups/finance-tracker.before-rebuild-20260806T171445+0800.db`（权限 `600`、完整性 `ok`）后，在隔离候选库清空现金、投资、关系和派生读模型，从 17 个账户、3 份支付宝 CSV、3 份微信 XLSX、3 份工行 PDF、2 份建行 XLS、6 份工银亚洲 CSV、1 份东方证券 PDF、2 份 IBKR CSV、1 份 Charles Schwab CSV 与 16 份盈立 PDF 重导。盈立以正文路由为 9 份保证金和 7 份日内融，未依赖文件名；候选库导入现金 `11,460` 条、投资 `1,047` 条（东方证券 `497`、IBKR `36`、嘉信 `37`、盈立证券 `370`、盈立证券日内融 `107`）。
+- 已授权真实账本全量重建验证与发布：候选库及正式库均为 revision `20260805_24`、`foreign_key_check` 为空、`integrity_check=ok`。重建关系后资金调拨为 `40` 条 `accepted`、`3` 条 `pending_review`，所有投资端均为 `funding(external)` 且已确认端点无重复；收支投影为 `8,197` 条、`11,460` 个成员。所有投资 `snapshot` 的 `note` 为空；`1,010` 条 PDF 来源快照均只含非空 `原始文本单元`；37 条嘉信来源快照精确保留 CSV 的 8 个原始字段；东方证券 440 笔交易的 `commission` 与来源手续费、印花税、过户费总和逐笔一致，合计 `1,225.84`。财富与估值读模型在重建前备份中均为空，故未生成推断估值。
+- 已授权真实账本发布与回滚：候选库经 SQLite `.backup` 生成同目录发布文件后原子替换 `/Users/huangwenlong/.ft/finance-tracker.db`，权限为 `600`。替换前的 `finance-tracker.db-wal` 和 `finance-tracker.db-shm` 已移动至 `/Users/huangwenlong/.ft/backups/finance-tracker.prepublish-20260806T172905+0800.db-wal` 与 `.db-shm`，未删除；候选目录已移入系统废纸篓。后端在 `http://127.0.0.1:8001` 监听且 `/openapi.json` 返回 `200`。回滚时先停止后端，再对正式库执行 SQLite `.restore` 使用上述 `before-rebuild` 备份。残余业务状态仅为 3 条待审核资金调拨候选，未自动确认。
 
 ## 发布准备与反思
 

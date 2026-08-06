@@ -269,13 +269,13 @@ def map_ibkr_to_investment_event(
     action = txn["action"]
     cash = currency.lower()
     date = txn["date"]
-    note = txn.get("note") or txn.get("description") or ""
+    source_description = txn.get("note") or txn.get("description") or ""
 
     base = {
         "date": date,
         "account_name": account_name,
         "currency": currency.upper(),
-        "note": note,
+        "note": source_description,
     }
 
     if action == "买":
@@ -364,6 +364,7 @@ def map_ibkr_to_investment_event(
         amount = abs(Decimal(str(txn.get("amount") or txn.get("net") or 0)))
         return {
             **base,
+            "note": "",
             "record_type": "snapshot", "record_subtype": "cash",
             "from_ticker": "",
             "to_ticker": cash,
@@ -387,7 +388,8 @@ def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
     deposit that funded the conversion).
 
     The net amount changes the account's base cash ticker but is never funding.
-    Commission goes to note when 净额==总额.
+    When 净额 equals 总额, the embedded commission remains available only in the
+    source row and does not become a derived note or an extra commission charge.
     """
     code = (txn.get("code") or "").strip()
     net = Decimal(str(txn.get("net") or 0))
@@ -395,14 +397,6 @@ def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
     # NUMERIC(38,18) scale (IBKR emits >18 dp noise like 2.75e-7).
     net = net.quantize(_FX_NET_QUANTUM, rounding=ROUND_HALF_UP)
     net_abs = abs(net)
-    note = base.get("note") or ""
-
-    commission_raw = txn.get("commission_raw")
-    if commission_raw is not None:
-        fee_abs = abs(Decimal(str(commission_raw)))
-        if fee_abs:
-            note = f"{note} 佣金{_fmt(fee_abs)}".strip()
-
     # Determine which currency the net amount is in.
     # For USD.HKD pair, IBKR net is denominated in the account base currency (USD).
     cash = (base.get("currency") or "USD").lower()
@@ -411,7 +405,6 @@ def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
         # Zero net impact remains an auditable, non-funding adjustment.
         return {
             **base,
-            "note": note or f"FX {code} zero net",
             "record_type": "adjustment", "record_subtype": "fx_net",
             "to_ticker": cash,
             "to_amount": "0",
@@ -425,7 +418,6 @@ def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
     if net > 0:
         return {
             **base,
-            "note": note or f"FX {code}",
             "record_type": "adjustment", "record_subtype": "fx_net",
             "to_ticker": cash,
             "to_amount": _fmt(net_abs),
@@ -438,7 +430,6 @@ def _map_fx(txn: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
     else:
         return {
             **base,
-            "note": note or f"FX {code}",
             "record_type": "adjustment", "record_subtype": "fx_net",
             "from_ticker": cash,
             "from_amount": _fmt(net_abs),

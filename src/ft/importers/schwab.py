@@ -255,7 +255,7 @@ def parse_schwab_csv(path: str | Path) -> SchwabStatement:
     checkin = {
         "date": checkin_date,
         "type": "CHECKIN",
-        "note": "newest 余额",
+        "note": "",
         "ref": "",
         "misc_fee": Decimal("0"),
         "commission_col": Decimal("0"),
@@ -267,7 +267,7 @@ def parse_schwab_csv(path: str | Path) -> SchwabStatement:
         "ticker": "",
         "qty": Decimal("0"),
         "price": Decimal("1"),
-        "note": "newest 余额",
+        "note": "",
         "journal_kind": "",
         "_source_payload": newest_source_payload,
     }
@@ -308,13 +308,13 @@ def map_schwab_to_investment_event(
     type_code = txn["type"]
     cash = currency.lower()
     date = txn["date"]
-    note = txn.get("note") or txn.get("description") or ""
+    source_description = txn.get("note") or txn.get("description") or ""
 
     base = {
         "date": date,
         "account_name": account_name,
         "currency": currency.upper(),
-        "note": note,
+        "note": source_description,
     }
 
     if type_code == "TRD":
@@ -338,7 +338,7 @@ def map_schwab_to_investment_event(
         amount = Decimal(str(txn.get("amount") or 0))
         amount_abs = abs(amount)
         if amount > 0:
-            subtype = "interest" if "INTEREST" in note.upper() else "dividend_cash"
+            subtype = "interest" if "INTEREST" in source_description.upper() else "dividend_cash"
             from_ticker = _guess_underlying(txn.get("description") or "")
             return {
                 **base,
@@ -367,7 +367,7 @@ def map_schwab_to_investment_event(
     if type_code == "JRN":
         amount = Decimal(str(txn.get("amount") or 0))
         amount_abs = abs(amount)
-        desc = note.upper()
+        desc = source_description.upper()
         if txn.get("journal_kind") == "withholding_tax":
             return {
                 **base,
@@ -398,6 +398,7 @@ def map_schwab_to_investment_event(
         amount = abs(Decimal(str(txn.get("amount") or 0)))
         return {
             **base,
+            "note": "",
             "record_type": "snapshot", "record_subtype": "cash",
             "from_ticker": "",
             "to_ticker": cash,

@@ -39,6 +39,7 @@ def test_trade_groups_merge_fills_and_put_fee_outside_gross_cash_leg():
     assert event["to_amount"] == "3699.41"
     assert event["commission"] == "4.00"
     assert event["commission_asset"] == "usd"
+    assert event["note"] == ""
 
 
 def test_trade_and_checkin_identities_are_stable_and_distinct():
@@ -50,6 +51,13 @@ def test_trade_and_checkin_identities_are_stable_and_distinct():
     assert construct_source_identity(checkin) == "usmart_hk:checkin:cash:2026-06:USD:4750.17"
 
 
+def test_cash_identity_uses_source_snapshot_not_output_note():
+    cash = next(row for row in _rows() if row["kind"] == "cash")
+    changed_display_note = {**cash, "note": "仅用于展示的改写文案"}
+
+    assert construct_source_identity(changed_display_note) == construct_source_identity(cash)
+
+
 def test_empty_columns_holdings_and_cash_checkins_use_native_currency():
     rows = _rows()
     assert not any(row["kind"] == "checkin_cash" and row["ccy"] == "CNY" for row in rows)
@@ -57,6 +65,8 @@ def test_empty_columns_holdings_and_cash_checkins_use_native_currency():
     cash = next(row for row in rows if row["kind"] == "checkin_cash" and row["ccy"] == "HKD")
     assert map_usmart_hk_to_investment_event(holding, "盈立证券")["price"] == "0"
     assert map_usmart_hk_to_investment_event(cash, "盈立证券")["to_ticker"] == "hkd"
+    assert map_usmart_hk_to_investment_event(holding, "盈立证券")["note"] == ""
+    assert map_usmart_hk_to_investment_event(cash, "盈立证券")["note"] == ""
 
 
 def test_vertical_holdings_keep_original_source_units():

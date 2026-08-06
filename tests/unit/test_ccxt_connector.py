@@ -249,6 +249,7 @@ class TestLedgerMapping:
         event = connector.fetch_trades().events[0]
         assert (event["record_type"], event["record_subtype"]) == semantics
         assert event["record_id"] == kind
+        assert event["note"] == ""
 
     def test_ledger_fee_becomes_child_event(self):
         entry = {"id": "reward", "timestamp": 1000, "currency": "ETH", "amount": "2", "info": {"type": "reward"}, "fee": {"cost": "0.1", "currency": "ETH"}}
@@ -257,6 +258,7 @@ class TestLedgerMapping:
             (event["record_type"], event["record_subtype"], event["record_id"])
             for event in connector.fetch_trades().events
         ] == [("income", "reward", "reward"), ("expense", "commission", "reward:fee")]
+        assert all(event["note"] == "" for event in connector.fetch_trades().events)
 
     def test_unknown_type_and_bad_fee_fail_closed(self):
         unknown = {"id": "bad", "timestamp": 1000, "currency": "USD", "amount": "1", "info": {"type": "unknown"}}

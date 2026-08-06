@@ -40,7 +40,7 @@ def test_construct_source_identity_deposit():
 
 
 def test_map_dfzq_buy_to_trade():
-    """BUY maps to a security trade; separable手续费 becomes commission."""
+    """BUY maps to a security trade; source action stays as the note."""
     txn = {
         "date": "2026-06-12 00:00:00",
         "action": "BUY",
@@ -50,7 +50,10 @@ def test_map_dfzq_buy_to_trade():
         # net 总发生金额 (includes fee); fee column separable
         "amount": Decimal("1251.00"),
         "fee": Decimal("1.00"),
-        "note": "过户费0.10",
+        "stamp_tax": Decimal("0"),
+        "transfer_fee": Decimal("0"),
+        "action_raw": "证券买入",
+        "note": "手续费1.00",
         "balance": Decimal("8749.00"),
     }
 
@@ -65,6 +68,7 @@ def test_map_dfzq_buy_to_trade():
     assert event["commission"] == "1.00"
     assert event["commission_asset"] == "cny"
     assert event["currency"] == "CNY"
+    assert event["note"] == "证券买入"
     # total cash out still net: 1250 + 1 = 1251
 
 
@@ -91,6 +95,36 @@ def test_map_dfzq_sell_to_trade():
     assert event["to_amount"] == "650.00"  # net + fee
     assert event["commission"] == "1.00"
     assert event["commission_asset"] == "cny"
+
+
+@pytest.mark.parametrize(
+    ("action", "net_amount", "cash_amount"),
+    [
+        ("BUY", "1011.53", "1000.00"),
+        ("SELL", "1011.53", "1023.06"),
+        ("BUY", "10011.53", "10000.00"),
+    ],
+)
+def test_map_dfzq_trade_splits_all_recognized_fees(action, net_amount, cash_amount):
+    """手续费、印花税和过户费都必须从净额现金部分拆出。"""
+    event = map_dfzq_to_investment_event({
+        "date": "2026-06-15 00:00:00", "action": action,
+        "action_raw": "证券买入" if action == "BUY" else "证券卖出",
+        "ticker": "600000.sh", "shares": Decimal("100"), "price": Decimal("10"),
+        "amount": Decimal(net_amount), "fee": Decimal("5.00"),
+        "stamp_tax": Decimal("6.40"), "transfer_fee": Decimal("0.13"),
+        "note": "手续费5.00 印花税6.40 过户费0.13", "balance": Decimal("0"),
+    }, account_name="东方证券", currency="CNY")
+
+    assert event["commission"] == "11.53"
+    assert event["commission_asset"] == "cny"
+    assert event["note"] in {"证券买入", "证券卖出"}
+    if action == "BUY":
+        assert event["from_amount"] == cash_amount
+        assert Decimal(event["from_amount"]) + Decimal(event["commission"]) == Decimal(net_amount)
+    else:
+        assert event["to_amount"] == cash_amount
+        assert Decimal(event["to_amount"]) - Decimal(event["commission"]) == Decimal(net_amount)
 
 
 def test_map_dfzq_buy_fee_not_separable_keeps_net():
@@ -127,6 +161,7 @@ def test_map_dfzq_buy_zero_fee():
     event = map_dfzq_to_investment_event(txn, account_name="东方证券", currency="CNY")
     assert event["from_amount"] == "1000.00"
     assert event["commission"] == "0"
+    assert event["note"] == ""
 
 
 def test_map_dfzq_deposit():
@@ -234,6 +269,7 @@ def test_map_dfzq_integration_with_parser():
         ("income", "dividend_stock"),
         ("snapshot", "cash"),
     ]
+    assert events[-1]["note"] == ""
 
 
 @pytest.mark.parametrize(
@@ -257,3 +293,4 @@ def test_map_dfzq_preserves_native_action_for_funding_income_and_tax(
     }, account_name="东方证券", currency="CNY")
 
     assert (event["record_type"], event["record_subtype"]) == expected
+    assert event["note"] == action_raw

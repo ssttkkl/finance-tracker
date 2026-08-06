@@ -283,23 +283,19 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
 
     if checkin_date:
         cash = cash_balance
-        cash_note = "statement cash balance"
         if cash is None and txns:
             # Prefer last cash-affecting flow balance (skip pure stock dividend / empty)
             for t in reversed(txns):
                 if t["action"] in {"BUY", "SELL", "DEPOSIT", "WITHDRAW"}:
                     cash = t["balance"]
-                    cash_note = "fallback last trade balance"
                     cash_source_payload = t["_source_payload"]
                     break
                 if t["action"] == "DIVIDEND" and not t.get("ticker"):
                     cash = t["balance"]
-                    cash_note = "fallback last cash dividend balance"
                     cash_source_payload = t["_source_payload"]
                     break
             if cash is None:
                 cash = txns[-1]["balance"]
-                cash_note = "fallback last balance"
                 cash_source_payload = txns[-1]["_source_payload"]
         if cash is not None:
             if cash_source_payload is None:
@@ -312,7 +308,7 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
                 "amount": cash,
                 "total_amount": cash,
                 "fee": Decimal("0"), "stamp_tax": Decimal("0"),
-                "transfer_fee": Decimal("0"), "balance": cash, "note": cash_note,
+                "transfer_fee": Decimal("0"), "balance": cash, "note": "",
                 "_source_payload": cash_source_payload,
             })
         for h in holdings:
@@ -325,7 +321,7 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
                 "total_amount": h["shares"] * h["cost_price"],
                 "fee": Decimal("0"), "stamp_tax": Decimal("0"),
                 "transfer_fee": Decimal("0"), "balance": Decimal("0"),
-                "note": f"statement holding cost; market={h.get('market_price')}",
+                "note": "",
                 "_source_payload": h["_source_payload"],
             })
     elif txns:
@@ -347,7 +343,7 @@ def parse_dfzq_text(lines: list[str]) -> list[dict[str, Any]]:
             "amount": cash,
             "total_amount": cash,
             "fee": Decimal("0"), "stamp_tax": Decimal("0"),
-            "transfer_fee": Decimal("0"), "balance": Decimal("0"), "note": "fallback last balance",
+            "transfer_fee": Decimal("0"), "balance": Decimal("0"), "note": "",
             "_source_payload": cash_source_payload,
         })
 
@@ -484,15 +480,6 @@ def _make_txn(date_str, action_raw, **kw) -> dict[str, Any]:
     # 不再做 total_amount+fee；fee 仅作审计字段。
     amount = total_amount
 
-    note_parts = []
-    if fee:
-        note_parts.append(f"手续费{fee:.2f}")
-    if kw.get("stamp_tax"):
-        note_parts.append(f"印花税{kw['stamp_tax']:.2f}")
-    if kw.get("transfer_fee"):
-        note_parts.append(f"过户费{kw['transfer_fee']:.2f}")
-    note = " ".join(note_parts)
-
     date_fmt = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]} 00:00:00"
 
     return {
@@ -509,14 +496,14 @@ def _make_txn(date_str, action_raw, **kw) -> dict[str, Any]:
         "stamp_tax": kw.get("stamp_tax", Decimal("0")),
         "transfer_fee": kw.get("transfer_fee", Decimal("0")),
         "balance": kw.get("balance", Decimal("0")),
-        "note": note,
+        "note": action_raw,
     }
 
 
 def _split_commission(
-    amount_abs: Decimal, fee_abs: Decimal, *, side: str
+    amount_abs: Decimal, total_fee_abs: Decimal, *, side: str
 ) -> tuple[Decimal, Decimal]:
-    """Split statement net cash vs 手续费 for projection.
+    """Split statement net cash versus all recognized transaction fees.
 
     DFZQ ``总发生金额`` is the **net** cash impact (already after 手续费/印花税/过户费).
     Projection applies ``from/to_amount ± commission`` when commission_asset is the cash component.
@@ -524,20 +511,20 @@ def _split_commission(
     Returns ``(cash_leg, commission)`` such that total cash impact still equals
     ``amount_abs``:
 
-    - BUY:  cash out = from_amount + commission  → from_amount = net - fee, commission = fee
-    - SELL: cash in  = to_amount - commission    → to_amount = net + fee, commission = fee
+    - BUY:  cash out = from_amount + commission  → from_amount = net - fees, commission = fees
+    - SELL: cash in  = to_amount - commission    → to_amount = net + fees, commission = fees
 
-    If fee is missing or cannot be peeled from BUY net (fee >= net), keep net and
-    commission=0 (fees stay embedded in the cash component / note).
+    If fees are missing or cannot be peeled from BUY net (fees >= net), keep net
+    and commission=0 (fees remain embedded in the cash component).
     """
-    if fee_abs <= 0:
+    if total_fee_abs <= 0:
         return amount_abs, Decimal("0")
     if side == "BUY":
-        if fee_abs >= amount_abs:
+        if total_fee_abs >= amount_abs:
             return amount_abs, Decimal("0")
-        return amount_abs - fee_abs, fee_abs
+        return amount_abs - total_fee_abs, total_fee_abs
     if side == "SELL":
-        return amount_abs + fee_abs, fee_abs
+        return amount_abs + total_fee_abs, total_fee_abs
     return amount_abs, Decimal("0")
 
 
@@ -565,7 +552,9 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
     Constitution II: Follows data-model.md event schema specification.
     """
     action = txn["action"]
-    action_raw = str(txn.get("action_raw") or action)
+    source_action = txn.get("action_raw")
+    action_raw = str(source_action or action)
+    source_note = str(source_action or txn.get("note") or "")
     ticker = txn.get("ticker", "")
     cash_ticker = currency.lower()
 
@@ -574,14 +563,13 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
         "date": txn["date"],
         "account_name": account_name,
         "currency": currency,
-        "note": txn.get("note", ""),
+        "note": "" if action == "CHECKIN" else source_note,
     }
 
     # DFZQ「总发生金额」(amount) is the full cash delta (net of 手续费/印花税/过户费).
     # Projection: cash changes by from/to_amount ± commission (same asset).
-    # Policy: if 手续费 is separable, put it in commission and adjust the cash component
-    # so total cash impact still equals abs(amount); otherwise keep net, commission=0.
-    # 印花税/过户费 stay inside the cash component (not always cleanly invertible).
+    # Policy: if all source-recognized transaction fees are separable, put their
+    # total in commission and adjust the cash component so net cash remains exact.
     # 此函数也被适配层直接调用；接受解析器提供的 Decimal 和测试/外部
     # 适配器提供的精确文本，但在进入经济语义映射前统一校验精度。
     def amount(field: str) -> Decimal:
@@ -594,9 +582,14 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
 
     amount_abs = abs(amount("amount"))
     shares_abs = abs(amount("shares"))
-    fee_abs = abs(amount("fee"))
+    fee_components = tuple(amount(field) for field in ("fee", "stamp_tax", "transfer_fee"))
+    total_fee_abs = (
+        Decimal("0")
+        if any(component < 0 for component in fee_components)
+        else sum((abs(component) for component in fee_components), Decimal("0"))
+    )
     price_abs = abs(amount("price"))
-    cash_leg, commission = _split_commission(amount_abs, fee_abs, side=action)
+    cash_leg, commission = _split_commission(amount_abs, total_fee_abs, side=action)
 
     if action == "BUY":
         # BUY → SWAP (cash → ticker).
@@ -615,7 +608,7 @@ def map_dfzq_to_investment_event(txn: dict[str, Any], account_name: str, currenc
     elif action == "SELL":
         # SELL → SWAP (ticker → cash).
         # Projection does to_amount - commission when commission_asset == cash;
-        # so to_amount = net + commission, commission = fee → cash in = net.
+        # so to_amount = net + commission → cash in = net.
         event.update({
             "record_type": "trade", "record_subtype": "repo" if ticker == REPO_TICKER else "security",
             "from_ticker": ticker,

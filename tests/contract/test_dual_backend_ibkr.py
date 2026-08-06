@@ -66,10 +66,12 @@ def test_ibkr_import_backend_contract(tmp_path, backend):
                 "存款", "-", "-", "-", "-", "4757.0", "-", "4757.0",
             ],
         }
+        assert funding["note"] == "电子资金转账"
         assert all(
             not ({"action", "ticker", "amount", "record_type", "record_subtype"} & set(event["source_payload"]))
             for event in events
         )
+        assert all(event["note"] == "" for event in events if event["record_type"] == "snapshot")
         assert Decimal(snapshot["accounts"]["security"]["IBKR"]["positions"]["usd"]["shares"]) == Decimal("5044.938780328453")
     finally:
         engine.dispose()

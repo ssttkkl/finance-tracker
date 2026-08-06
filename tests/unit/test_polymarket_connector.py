@@ -95,6 +95,7 @@ class TestActivityMapping:
         assert event["from_amount"] == "65"
         assert event["to_amount"] == "100"
         assert event["commission"] == "0"
+        assert event["note"] == ""
 
     def test_sell_trade(self):
         from ft.adapters.connectors.polymarket import PolymarketConnector
@@ -138,6 +139,7 @@ class TestActivityMapping:
         assert result.events[0]["from_ticker"] == "pm:market:yes"
         assert result.events[0]["to_ticker"] == "usd"
         assert result.events[0]["record_id"] == "redeem-hash"
+        assert result.events[0]["note"] == ""
 
     def test_yield_maps_to_usd_interest_income(self):
         from ft.adapters.connectors.polymarket import PolymarketConnector
@@ -153,6 +155,7 @@ class TestActivityMapping:
         assert result.events[0]["to_ticker"] == "usd"
         assert result.events[0]["to_amount"] == "1.25"
         assert result.events[0]["record_id"] == "yield-hash"
+        assert result.events[0]["note"] == ""
 
 
 class TestPagination:
@@ -265,6 +268,7 @@ class TestPusdBalanceCheckin:
         assert result.events[0]["to_ticker"] == "usd"
         assert result.events[0]["to_amount"] == "1.234567"
         assert result.events[0]["record_id"] == "checkin:12"
+        assert result.events[0]["note"] == ""
         assert result.events[0]["source_payload"] == {"token": "0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb", "wallet": _FUNDER, "balance_base_units": "1234567", "block_number": 12, "block_timestamp": 1_777_667_210}
 
     def test_balance_rpc_failure_returns_no_partial_result(self):

@@ -63,10 +63,12 @@ def test_schwab_import_backend_contract(tmp_path, backend):
         )
         funding = next(event for event in events if event["record_type"] == "funding")
         assert funding["source_payload"] == funding_source_row
+        assert funding["note"] in funding_source_row.values()
         assert all(
             not ({"date", "type", "ticker", "amount", "record_type"} & set(event["source_payload"]))
             for event in events
         )
+        assert all(event["note"] == "" for event in events if event["record_type"] == "snapshot")
         positions = snapshot["accounts"]["security"]["嘉信"]["positions"]
         assert Decimal(positions["usd"]["shares"]) == Decimal("2865.36")
         assert Decimal(positions["avgo.us"]["shares"]) == Decimal("7")

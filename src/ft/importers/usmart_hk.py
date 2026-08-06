@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from calendar import monthrange
 from decimal import Decimal, InvalidOperation
+import hashlib
+import json
 import re
 import shutil
 import subprocess
@@ -145,9 +147,10 @@ def map_usmart_hk_to_investment_event(
     kind = txn["kind"]
     ccy = str(txn.get("ccy") or currency or "USD").upper()
     cash = ccy.lower()
+    source_note = str(txn.get("note") or "")
     base = {
         "date": txn["date"], "account_name": account_name, "currency": ccy,
-        "note": txn.get("note", ""),
+        "note": source_note,
     }
 
     def cash_event(record_type: str, record_subtype: str) -> dict[str, Any]:
@@ -184,8 +187,7 @@ def map_usmart_hk_to_investment_event(
     if kind == "cash":
         amount = abs(txn["amount"])
         flag = str(txn.get("flag_norm") or txn.get("flag") or "")
-        note = str(txn.get("note") or "")
-        text = f"{flag} {note}"
+        source_text = f"{flag} {source_note}"
         # Dividend income
         if flag == "红利入账" or flag.startswith("红利入账"):
             return {
@@ -195,8 +197,8 @@ def map_usmart_hk_to_investment_event(
             }
         # 税费返还会以“资金存”出现，必须先于外部入金判断。
         is_tax_refund = (
-            ("税" in text or "tax" in text.lower() or "withhold" in text.lower())
-            and ("退" in text or "refund" in text.lower() or flag == "资金存")
+            ("税" in source_text or "tax" in source_text.lower() or "withhold" in source_text.lower())
+            and ("退" in source_text or "refund" in source_text.lower() or flag == "资金存")
         )
         # IPO subscription lifecycle uses a dedicated non-funding record type:
         #   认购扣款: cash out (from_amount)
@@ -205,7 +207,7 @@ def map_usmart_hk_to_investment_event(
         # Optional stock code may live in note/App only; not required for cash components.
         # Future allotment (中签) can stay a separate equity swap when it appears.
         if "IPO认购手续费" in flag or (flag.startswith("IPO") and "手续费" in flag) or (
-            "IPO" in flag and "Handling" in note
+            "IPO" in flag and "Handling" in source_note
         ):
             return cash_event("expense", "handling_fee")
         if is_tax_refund:
@@ -236,9 +238,9 @@ def map_usmart_hk_to_investment_event(
             if txn["amount"] < 0:
                 raise ValueError("费用返还必须为现金入账")
             return cash_event("reversal", fee_reversal_subtypes[flag])
-        if flag in {"IPO认购扣款"} or ("IPO" in flag and "扣款" in flag) or "IPO Debit" in note:
+        if flag in {"IPO认购扣款"} or ("IPO" in flag and "扣款" in flag) or "IPO Debit" in source_note:
             return cash_event("subscription", "ipo_debit")
-        if flag in {"IPO认购退款"} or ("IPO" in flag and "退款" in flag) or "IPO Refund" in note:
+        if flag in {"IPO认购退款"} or ("IPO" in flag and "退款" in flag) or "IPO Refund" in source_note:
             return cash_event("subscription", "ipo_refund")
         if flag == "出金退款":
             if txn["amount"] < 0:
@@ -263,10 +265,10 @@ def map_usmart_hk_to_investment_event(
             )
         raise ValueError(f"unsupported uSmart HK cash flag for normalized funding: {flag!r}")
     if kind == "checkin_cash":
-        return {**base, "record_type": "snapshot", "record_subtype": "cash", "from_ticker": "", "from_amount": "0",
+        return {**base, "note": "", "record_type": "snapshot", "record_subtype": "cash", "from_ticker": "", "from_amount": "0",
                 "to_ticker": cash, "to_amount": _fmt(txn["amount"]), "price": "1", "commission": "0", "commission_asset": ""}
     if kind == "checkin_position":
-        return {**base, "record_type": "snapshot", "record_subtype": "position", "from_ticker": "", "from_amount": "0",
+        return {**base, "note": "", "record_type": "snapshot", "record_subtype": "position", "from_ticker": "", "from_amount": "0",
                 "to_ticker": txn["ticker"].lower(), "to_amount": _fmt(txn["shares"]), "price": "0", "commission": "0", "commission_asset": ""}
     raise ValueError(f"unsupported uSmart HK row kind: {kind}")
 
@@ -282,10 +284,15 @@ def construct_source_identity(txn: dict[str, Any]) -> str:
             gross=_fmt(txn["gross"]), net=_fmt(txn["net"]),
             comm=_fmt(txn.get("commission") or 0), ccy=txn["ccy"])
     elif kind == "cash":
-        note = str(txn.get("note") or "").strip()
-        note_key = note.replace(" ", "")[:40] if note and note != txn.get("flag_norm") else ""
         base = f"{prefix}:cash:{txn['date']}:{txn['flag_norm']}:{txn['ccy']}:{_fmt(txn['amount'])}"
-        ident = f"{base}:{note_key}" if note_key else base
+        source_payload = txn.get("_source_payload")
+        if not isinstance(source_payload, dict) or not source_payload:
+            raise ValueError("uSmart HK 现金流水缺少来源行快照")
+        canonical = json.dumps(
+            source_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+        )
+        source_digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+        ident = f"{base}:{source_digest}"
     elif kind == "fx":
         ident = prefix + ":fx:{from_date}:{from_ccy}:{from_amount}:{to_date}:{to_ccy}:{to_amount}".format(
             from_date=txn["from_date"], from_ccy=txn["from_ccy"], from_amount=_fmt(txn["from_amount"]),
@@ -466,7 +473,7 @@ def _parse_trades(
             "kind": "trade", "date": first.group("date"), "ticker": ticker, "side": side,
             "qty": sum((_decimal(m.group("qty")) for m in fills), Decimal("0")),
             "gross": gross, "net": net, "commission": commission,
-            "ccy": next(iter(ccys)), "note": "uSmart HK order group",
+            "ccy": next(iter(ccys)), "note": "",
             "_source_payload": _source_payload_from_text(source_block),
         })
     # Empty is valid (e.g. day-margin month with 资金出入 only / 暂无数据).
@@ -515,7 +522,7 @@ def _parse_holdings(
         rows.append({
             "kind": "checkin_position", "date": month_end, "period": period,
             "ticker": ticker, "ccy": m.group("ccy"), "shares": shares,
-            "note": "period-end holdings checkin",
+            "note": "",
             "_source_payload": _source_payload_from_text(
                 _source_line_at(source_section, m.start("code"))
             ),
@@ -569,7 +576,7 @@ def _parse_holdings(
             rows.append({
                 "kind": "checkin_position", "date": month_end, "period": period,
                 "ticker": ticker, "ccy": ccy, "shares": _decimal(shares_s),
-                "note": "period-end holdings checkin",
+                "note": "",
                 "_source_payload": _source_payload_from_text(source_units[i:record_end]),
             })
             i = record_end
@@ -608,7 +615,7 @@ def _closed_position_checkins(
             "ticker": ticker,
             "ccy": ccy,
             "shares": Decimal("0"),
-            "note": "period-end flat (absent from 持仓明细)",
+            "note": "",
             "_source_payload": source_payload,
         }
         for ticker, ccy in sorted(closed.items(), key=lambda item: item[0].lower())
@@ -685,7 +692,7 @@ def _parse_cash_checkins(
                 raise ValueError("uSmart HK 现金快照缺少来源文本单元")
             rows.append({
                 "kind": "checkin_cash", "date": month_end, "period": period,
-                "ccy": ccy, "amount": _decimal(value), "note": "period-end cash checkin",
+                "ccy": ccy, "amount": _decimal(value), "note": "",
                 "_source_payload": source_payload,
             })
     return rows
@@ -836,7 +843,7 @@ def _parse_cash_movements(
             "kind": "fx", "date": min(leg["date"], other["date"]),
             "from_date": out["date"], "from_ccy": out["ccy"], "from_amount": abs(out["amount"]),
             "to_date": incoming["date"], "to_ccy": incoming["ccy"], "to_amount": abs(incoming["amount"]),
-            "ccy": out["ccy"], "note": "换汇",
+            "ccy": out["ccy"], "note": out["note"],
             "_source_payload": {
                 "原始文本单元": [
                     *out["_source_payload"]["原始文本单元"],
