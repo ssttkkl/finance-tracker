@@ -103,6 +103,14 @@ it("按月份插入收入和支出汇总分割行，并按币种展示", () => {
   expect(screen.getAllByRole("row")).toHaveLength(5);
 });
 
+it("按上海时间将 UTC 月末流水归入显示月份", () => {
+  const crossMonth = { ...projection("cross-month", "payment_mirror"), occurred_at: "2026-06-30T17:32:00Z" };
+  const monthlySummaries = [{ month: "2026-07", currencies: [{ currency: "CNY", income: "100", expense: "-12.50" }] }];
+  render(<CashTable items={[crossMonth]} monthlySummaries={monthlySummaries} onEvidence={(_projection, _source) => undefined} />);
+
+  expect(screen.getByRole("row", { name: /2026年7月.*收入 \+100 CNY.*支出 -12\.50 CNY/ })).toHaveAttribute("data-month", "2026-07");
+});
+
 it("同币种内部转账只显示一次金额且不显示负号", () => {
   render(<CashTable items={[transfer()]} onEvidence={(_projection, _source) => undefined} />);
 

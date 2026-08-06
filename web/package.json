@@ -6,7 +6,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "VITE_FT_API_ORIGIN=${VITE_FT_API_ORIGIN:-http://127.0.0.1:5174} vite --host 127.0.0.1 --port 5174 --strictPort",
     "build": "tsc -b && vite build",
     "start": "vite preview --host 127.0.0.1 --port 5173 --strictPort",
     "test": "vitest run",
