@@ -21,6 +21,7 @@ _CANDIDATE_CASH_TYPES = {
 _INSTITUTION_NAME_MARKERS = {
     "dfzq_pdf": ("银行转证券", "证券转银行"),
     "ibkr_csv": ("interactive brokers",),
+    "schwab_csv": ("charles schwab",),
     "usmart_hk_pdf": ("盈立证券", "盈立證券"),
 }
 _ORDINARY_MATCH_KEYS = ["amount", "currency", "direction", "business_day"]

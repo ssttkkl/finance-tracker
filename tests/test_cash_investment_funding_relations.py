@@ -186,6 +186,40 @@ def test_unique_institution_name_candidate_allows_cross_currency_and_amount_diff
     }
 
 
+def test_schwab_institution_name_candidate_allows_bank_fee_difference(funding_runtime):
+    from sqlalchemy import select
+
+    from ft.application.cash_investment_funding_relations import CashInvestmentFundingRelationService
+
+    sessions, account, cash_model, investment_model = funding_runtime
+    with sessions.begin() as session:
+        bank, broker = session.scalars(
+            select(account).where(account.workspace_id == "funding").order_by(account.id)
+        ).all()
+        cash = _add_cash(
+            session, cash_model, account_id=bank.id, record_id="cash-schwab",
+            amount="-8000", currency="USD", record_type="transfer_out",
+            counterparty="Charles Schwab Co. Inc.", day="2026-06-04",
+        )
+        investment = _add_investment(
+            session, investment_model, account_id=broker.id, record_id="investment-schwab",
+            amount="7980", currency="USD", source_type="schwab_csv", day="2026-06-04",
+        )
+
+    relation = CashInvestmentFundingRelationService(sessions, "funding").scan()[0]
+
+    assert relation["status"] == "accepted"
+    assert relation["cash_transaction_id"] == cash.id
+    assert relation["investment_event_id"] == investment.id
+    assert relation["decision_reason"] == "unique_institution_name_candidate"
+    assert relation["evidence"] == {
+        "business_day_window": 0,
+        "candidate_count": 1,
+        "cash_record_type": "transfer_out",
+        "match_keys": ["institution_name", "direction", "business_day"],
+    }
+
+
 def test_institution_name_prefers_the_unique_exact_candidate_over_generic_transfer(funding_runtime):
     from sqlalchemy import select
 

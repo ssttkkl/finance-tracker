@@ -4,10 +4,11 @@ from contextlib import contextmanager
 from decimal import Decimal
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import aliased
 from ft.adapters.relational.dialect import RelationalEngineError
-from ft.adapters.relational.models import AccountModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionModel, TransactionRelationModel
+from ft.adapters.relational.models import AccountModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionModel, InvestmentEventModel, TransactionRelationModel
 from ft.adapters.relational.runtime import StorageError, storage_error
-from ft.application.web_queries import SHANGHAI, CashAccountDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionUnavailableError, ProjectionUpdatedError, shanghai_bounds
+from ft.application.web_queries import SHANGHAI, CashAccountDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionUnavailableError, ProjectionUpdatedError, shanghai_bounds
 
 def _amount(value):
     amount = Decimal(value).normalize()
@@ -151,8 +152,6 @@ class RelationalCashLedgerQueryRepository:
             ).order_by(CashProjectionRelationModel.projection_row_id, CashProjectionRelationModel.ordinal)
         ).all()
         endpoint_ids = sorted({endpoint for _row_id, primary_id, secondary_id in relation_rows for endpoint in (primary_id, secondary_id)})
-        if not endpoint_ids:
-            return {}
         endpoint_rows = session.execute(
             select(CashTransactionModel, AccountModel).join(
                 AccountModel,
@@ -161,7 +160,7 @@ class RelationalCashLedgerQueryRepository:
                 CashTransactionModel.workspace_id == self._workspace_id,
                 CashTransactionModel.id.in_(endpoint_ids),
             )
-        ).all()
+        ).all() if endpoint_ids else []
         endpoints = {cash.id: (cash, account) for cash, account in endpoint_rows}
         transfers = {}
         for projection_row_id, primary_id, secondary_id in relation_rows:
@@ -175,18 +174,105 @@ class RelationalCashLedgerQueryRepository:
                 CashAccountDTO(secondary_account.id, secondary_account.name, secondary_account.type, secondary_account.active),
                 _amount(secondary.amount), secondary.currency,
             )
+        investment_account = aliased(AccountModel)
+        funding_rows = session.execute(
+            select(
+                CashProjectionModel.id,
+                CashInvestmentFundingRelationModel.direction,
+                CashTransactionModel,
+                AccountModel,
+                InvestmentEventModel,
+                investment_account,
+            ).join(
+                CashInvestmentFundingRelationModel,
+                and_(
+                    CashInvestmentFundingRelationModel.workspace_id == CashProjectionModel.workspace_id,
+                    CashInvestmentFundingRelationModel.id == CashProjectionModel.funding_relation_id,
+                    CashInvestmentFundingRelationModel.status == "accepted",
+                    CashInvestmentFundingRelationModel.active_slot == "active",
+                ),
+            ).join(
+                CashTransactionModel,
+                and_(
+                    CashTransactionModel.workspace_id == CashInvestmentFundingRelationModel.workspace_id,
+                    CashTransactionModel.id == CashInvestmentFundingRelationModel.cash_transaction_id,
+                ),
+            ).join(
+                AccountModel,
+                and_(
+                    AccountModel.workspace_id == CashTransactionModel.workspace_id,
+                    AccountModel.id == CashTransactionModel.account_id,
+                ),
+            ).join(
+                InvestmentEventModel,
+                and_(
+                    InvestmentEventModel.workspace_id == CashInvestmentFundingRelationModel.workspace_id,
+                    InvestmentEventModel.id == CashInvestmentFundingRelationModel.investment_event_id,
+                ),
+            ).join(
+                investment_account,
+                and_(
+                    investment_account.workspace_id == InvestmentEventModel.workspace_id,
+                    investment_account.id == InvestmentEventModel.account_id,
+                ),
+            ).where(
+                CashProjectionModel.workspace_id == self._workspace_id,
+                CashProjectionModel.dataset_id == dataset_id,
+                CashProjectionModel.id.in_(projection_row_ids),
+                CashProjectionModel.economic_type == "internal_transfer",
+                CashProjectionModel.transfer_subtype == "bank_security_transfer",
+            )
+        ).all()
+        for projection_row_id, direction, cash, cash_account, investment, investment_account_row in funding_rows:
+            if projection_row_id in transfers:
+                continue
+            investment_amount = investment.to_amount if direction == "cash_to_investment" else investment.from_amount
+            if investment_amount is None:
+                continue
+            cash_dto = CashAccountDTO(
+                cash_account.id, cash_account.name, cash_account.type, cash_account.active,
+            )
+            investment_dto = CashAccountDTO(
+                investment_account_row.id, investment_account_row.name,
+                investment_account_row.type, investment_account_row.active,
+            )
+            if direction == "cash_to_investment":
+                transfers[projection_row_id] = CashTransferDTO(
+                    cash_dto, _amount(cash.amount), cash.currency,
+                    investment_dto, _amount(investment_amount), investment.currency,
+                )
+            elif direction == "investment_to_cash":
+                transfers[projection_row_id] = CashTransferDTO(
+                    investment_dto, _amount(investment_amount), investment.currency,
+                    cash_dto, _amount(cash.amount), cash.currency,
+                )
         return transfers
     def _filter_options(self, session, dataset_id):
         values = session.execute(
-            select(CashProjectionModel.category, CashProjectionModel.currency).where(
+            select(CashProjectionModel.category, CashProjectionModel.currency, CashProjectionModel.economic_type, CashProjectionModel.transfer_subtype).where(
                 CashProjectionModel.workspace_id == self._workspace_id,
                 CashProjectionModel.dataset_id == dataset_id,
                 CashProjectionModel.visible.is_(True),
             )
         ).all()
-        categories = tuple(sorted({str(category).strip() for category, _currency in values if category and str(category).strip()}))
-        currencies = tuple(sorted({str(currency).strip().upper() for _category, currency in values if currency and str(currency).strip()}))
-        return CashFilterOptionsDTO(categories, currencies)
+        categories = tuple(sorted({str(category).strip() for category, _currency, _economic_type, _subtype in values if category and str(category).strip()}))
+        currencies = tuple(sorted({str(currency).strip().upper() for _category, currency, _economic_type, _subtype in values if currency and str(currency).strip()}))
+        economic_types = {}
+        for _category, _currency, economic_type, subtype in values:
+            economic = str(economic_type).strip() if economic_type else ""
+            if not economic:
+                continue
+            subtypes = economic_types.setdefault(economic, set())
+            if subtype and str(subtype).strip():
+                subtypes.add(str(subtype).strip())
+        return CashFilterOptionsDTO(
+            categories,
+            currencies,
+            tuple(
+                CashEconomicTypeFilterOptionDTO(economic_type, tuple(sorted(subtypes)))
+                for economic_type, subtypes in sorted(economic_types.items())
+            ),
+        )
     @staticmethod
     def _monthly_summaries(rows):
         months = set()
@@ -235,9 +321,13 @@ class RelationalCashLedgerQueryRepository:
             start,end=shanghai_bounds(filters)
             if start:filter_conditions.append(CashProjectionModel.occurred_at>=start)
             if end:filter_conditions.append(CashProjectionModel.occurred_at<end)
-            for field in ("account_id","category","currency","economic_type"):
+            for field in ("account_id","category","currency"):
                 value=getattr(filters,field)
                 if value is not None:filter_conditions.append(getattr(CashProjectionModel,field)==value)
+            if filters.economic_type is not None:
+                filter_conditions.append(CashProjectionModel.economic_type == filters.economic_type)
+            if filters.transfer_subtype is not None:
+                filter_conditions.append(CashProjectionModel.transfer_subtype == filters.transfer_subtype)
             if filters.counterparty:
                 filter_conditions.append(or_(
                     CashProjectionModel.counterparty.contains(filters.counterparty),
@@ -363,6 +453,7 @@ class RelationalCashLedgerQueryRepository:
             transfer = (
                 self._transfer_details(s, state.active_dataset_id, [row.id]).get(row.id)
                 if any(relation.kind == "transfer_pair" for relation in rels)
+                or row.transfer_subtype == "bank_security_transfer"
                 else None
             )
             funding_relation = None

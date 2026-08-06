@@ -78,6 +78,23 @@
 - [x] 12.4 在 SQLite 与本机 PostgreSQL 运行导入、幂等和来源快照契约矩阵；用只读解析实际投资账单抽样确认快照键集合。
 - [x] 12.5 完成产品/范围、工程与安全、最终 diff 独立复核，并记录验证命令、比较基线、结果和历史快照不回写的边界。
 
+## 13. Charles Schwab 机构名称资金调拨确认
+
+- [x] 13.1 更新 proposal、delta 规格、主规格和设计，纳入 Charles Schwab 的受控机构名称、手续费差额边界和银证转账列表标记。
+- [x] 13.2 先增加 SQLite/PostgreSQL 失败回归，覆盖 USD `8,000` 银行转出与 USD `7,980` 嘉信外部入金。
+- [x] 13.3 为 `schwab_csv` 实现受控机构名称候选，不读取或写死收款账号。
+- [x] 13.4 增加收支账本列表和收支详情失败回归，确认单成员的 `bank_security_transfer` 显示“银证转账”和“银证转账关系”。
+- [x] 13.5 完成范围、工程、安全和最终 diff 复核，并运行 SQLite/PostgreSQL 契约矩阵、OpenSpec 校验、前端构建与受影响回归。
+- [x] 13.6 在用户授权的真实 `.ft` 账本创建可恢复备份，重扫资金调拨关系并核验投影、外键和完整性。
+
+## 14. 银证转账双端展示与筛选
+
+- [x] 14.1 更新 proposal、design、主规格和词表，明确银证转账的双端金额和 `transfer_subtype` 筛选合同；不新增数据库字段或经济类型。
+- [x] 14.2 先增加 SQLite/PostgreSQL 失败回归，覆盖现金入金与投资出金两个方向、列表/详情 DTO 和 HTTP 序列化。
+- [x] 14.3 在关系型读取层复用 `CashTransferDTO` 返回已确认资金调拨的两端账户、金额和币种，并实现专用筛选。
+- [x] 14.4 为收支账本筛选加入“银证转账”，复用内部转账双端金额展示。
+- [x] 14.5 完成范围、工程与最终 diff 复核，运行受影响 SQLite/PostgreSQL、前端、生产预览、视觉与 OpenSpec 验证，并记录结果。
+
 ## 审查记录
 
 - 产品/范围复核：通过。实现只保存业务行，不保存来源文件、路径或文件级元数据；`counterparty_account` 只接收来源直接提供的值，历史缺失值保持为空。
@@ -93,6 +110,13 @@
 - 投资来源快照产品/范围独立复核：通过。范围仅涵盖东方证券、IBKR、Charles Schwab 与盈立的导入事实及其汇总快照；来源 CSV 自带的同名列仍完整保留，禁止的是解析、映射或编排新增的字段。未保存来源文件、路径或文件级元数据，也未回写历史快照。
 - 投资来源快照工程与安全独立复核：修复 1 个中等 finding：真实盈立纵向持仓布局将原始文本单元列表传给仅接受字符串的快照构造函数，导致导入失败。构造函数现接受原始字符串或文本单元列表，并有回归测试。四个解析器均由编排层显式快照门禁保护；真实账单仅以临时解密文件只读解析，未写入数据库或测试夹具。
 - 投资来源快照最终 diff 独立复核：通过。实现、delta 规格和测试一致；已修正文案，明确“不得写入标准化 `amount` 等字段”不排除来源 CSV 自带的同名列。未发现 critical、major 或其他中等 finding。残余风险是本地没有 Charles Schwab 原始账单，嘉信仅由逐行来源 CSV 夹具和双后端契约覆盖。
+- Charles Schwab 机构名称资金调拨产品/范围复核：通过。关系只连接 `funding(external)` 与方向、业务日窗口唯一的收支转账；USD `20` 差额不产生手续费关系或额外端点。列表和收支详情只读取持久化的 `transfer_subtype=bank_security_transfer`，不会按机构名称、账号、备注或金额在浏览器中重判。
+- Charles Schwab 机构名称资金调拨工程与安全复核：通过。`schwab_csv` 的受控名称为 `Charles Schwab`，与既有 IBKR、东方证券和盈立规则隔离；候选证据不含对方账号、来源行快照或自由备注。单成员投影在列表和详情一致显示专用标记，普通内部转账仍显示“个人转账”。
+- Charles Schwab 机构名称资金调拨最终 diff 复核：通过。先前端失败回归后实施，SQLite/PostgreSQL、生产预览、全量前端和多视口视觉回归均通过；未发现 critical、major 或 minor finding。`hallmark` 可执行程序未安装，按其 `audit` 规则人工审查 `Workbench / Ledger Grid` 的列表和详情变更，未发现紫色渐变、卡片嵌套、悬停专属关键操作、令牌漂移、可点击文本换行或响应式溢出。残余风险是实际嘉信账单在本机没有原始文件，仍由上传 CSV、真实 SQLite 和双后端夹具覆盖。
+- 银证转账双端展示与筛选产品/范围复核：通过。银证转账仍是 `internal_transfer(bank_security_transfer)`，不改变投影净额、收支汇总或个人转账行为；筛选只收窄到该子类型，不新增第四种经济类型或数据库字段。
+- 银证转账双端展示与筛选工程复核：通过。读取层只沿投影持久化的已确认、活跃 `funding_relation_id` 关联收支现金流水和投资事件，按关系方向组装既有 `CashTransferDTO`；未读取机构名称、账号、来源快照或自由备注，且无关证据详情不增加资金调拨读取。
+- 银证转账双端展示与筛选 UI 审计：通过。`hallmark` 可执行程序未安装，按 `hallmark audit web/src` 的 `Workbench / modern-minimal` 规则人工审查；`0 critical · 0 major · 0 minor`。新增筛选项沿用现有控件，跨币种金额沿用转账格式；生产预览在 `390 px` 核验无横向溢出。
+- 银证转账双端展示与筛选最终 diff 复核：通过。双向资金调拨、HTTP 序列化、游标绑定筛选、普通个人转账和非转账详情路径均有回归覆盖；未发现阻断性、中等或低严重度 finding。残余风险是完整 Python 回归仍受已有性能用例执行时间限制，未在本轮重跑；本轮变更已通过受影响的 SQLite/PostgreSQL 契约矩阵。
 
 ## 验证记录
 
@@ -118,6 +142,12 @@
 - 全量重建真实账本：创建并校验仅所有者可读的 `~/.ft/backups/finance-tracker.before-full-rebuild-20260805T223205+0800.db` 后，将已验证的 SQLite 主库原子替换为 `~/.ft/finance-tracker.db`。发布后再次运行资金调拨扫描、投影状态、外键与完整性检查，结果与隔离库一致。未自动确认的关系均为 IBKR USD 入金：`2026-06-15` `7,329`、`2026-06-23` `7,469`、`2026-07-08` `4,757`；每条都有唯一同币种同金额银行转出，但对手方为本人姓名，未命中受控机构名称，故保持待审核。回滚可使用该备份执行 SQLite `.restore`；本次未触发恢复。
 - 投资来源快照比较基线与 `HEAD`：`aaa80fcdcc615775b305d36da878a369ccc8db98`。`FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/finance_tracker_test FT_REQUIRE_TEST_POSTGRES=1 uv run pytest -q tests/integration/test_dfzq_import.py tests/integration/test_ibkr_import.py tests/integration/test_schwab_import.py tests/integration/test_usmart_hk_import.py tests/contract/test_dual_backend_dfzq.py tests/contract/test_dual_backend_ibkr.py tests/contract/test_dual_backend_schwab.py tests/contract/test_dual_backend_usmart_hk.py tests/unit/importers/test_usmart_hk.py`：`37 passed`。`uv run python -m compileall -q src`、`uv build`、`openspec validate preserve-complete-statement-source-rows --strict`、`openspec validate --all --strict`、`openspec doctor` 和 `git diff --check`：通过。
 - 投资来源快照实际账单只读抽样：以临时解密文件解析 `~/.ft/bills` 中东方证券 `1` 份、IBKR `2` 份和盈立 `16` 份账单，分别得到 `497`、`39` 和 `478` 条带快照事件；每条快照均只含 `原始文本单元` 且所有单元为非空原始字符串。盈立样本覆盖 `9` 份保证金和 `7` 份日内融布局。嘉信在该目录没有原始账单，已由夹具逐行等值断言和 SQLite/PostgreSQL 契约覆盖。该检查没有调用导入服务、没有写入 `.ft` 数据库，也没有修改既有投资事件的历史 `source_payload`。
+- Charles Schwab 机构名称资金调拨比较基线与 `HEAD`：`194f589`。`FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/finance_tracker_test FT_REQUIRE_TEST_POSTGRES=1 uv run pytest -q tests/test_cash_investment_funding_relations.py tests/test_relational_cash_projection_evidence.py`：`25 passed`。`cd web && npm test`：`37 passed`；`VITE_FT_API_ORIGIN=http://127.0.0.1:8866 npm run build`：通过；`FT_PREVIEW_WEB_PORT=5181 npm run test:preview`：`1 passed`；`npm run test:visual`：`10 passed`，覆盖 `1440`、`1024`、`768` 和 `390 px` 视口。
+- Charles Schwab 机构名称资金调拨最终校验：`openspec validate preserve-complete-statement-source-rows --strict`、`openspec validate --all --strict`、`openspec doctor`、`uv run python -m compileall -q src`、`uv build` 和 `git diff --check`：通过。项目未配置独立 Python 静态类型检查器。
+- Charles Schwab 机构名称资金调拨真实账本：在用户授权下先创建并校验权限为 `600` 的 `~/.ft/backups/finance-tracker.before-schwab-funding-scan-20260806T131553+0800.db`，再重扫真实 SQLite。现金流水 `11443`（USD `-8,000`）与嘉信投资事件 `1011`（USD `7,980`、`funding(external)`）已确认为关系 `43`，原因为 `unique_institution_name_candidate`；当前激活投影为 `internal_transfer(bank_security_transfer)`、净额 `0 USD`。当前共有 `40` 条已确认、`3` 条待审核关系；`PRAGMA foreign_key_check` 为空且 `PRAGMA integrity_check=ok`。回滚可用 SQLite `.restore` 还原上述备份；本次未触发恢复。
+- 银证转账双端展示与筛选比较基线与 `HEAD`：`194f589`。`FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/finance_tracker_test FT_REQUIRE_TEST_POSTGRES=1 uv run pytest -q tests/test_cash_investment_funding_relations.py tests/test_relational_cash_projection_evidence.py tests/test_application_web_queries.py tests/contract/test_web_api.py`：`82 passed`。`cd web && npm test`：`38 passed`；`FT_PREVIEW_WEB_PORT=5181 npm run test:preview`：`2 passed`，包括 `390 px` 跨币种双端金额；`npm run test:visual`：`10 passed`；`VITE_FT_API_ORIGIN=http://127.0.0.1:8866 npm run build`：通过。
+- 银证转账双端展示与筛选最终校验：`openspec validate preserve-complete-statement-source-rows --strict`、`openspec validate --all --strict`、`openspec doctor`、`uv run python -m compileall -q src`、`uv build` 和 `git diff --check`：通过。项目未配置独立 Python 静态类型检查器。
+- 银证转账双端展示与筛选真实账本读取：以后端只读连接 `sqlite+pysqlite:////Users/huangwenlong/.ft/finance-tracker.db` 查询 `economic_type=bank_security_transfer`，投影版本 `3` 返回 `40` 条；IBKR 示例为 `10,000 HKD → 1,275.5 USD`，嘉信示例为 `8,000 USD → 7,980 USD`，均保留 `internal_transfer(bank_security_transfer)` 与投影净额 `0`。`http://127.0.0.1:8001` 对 `http://127.0.0.1:5174` 返回 CORS 允许头；本检查未写入账本。
 
 ## 发布准备与反思
 

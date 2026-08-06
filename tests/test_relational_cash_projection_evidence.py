@@ -64,7 +64,27 @@ def test_evidence_only_exposes_cash_inactive_relation_hints(cash_web_runtime):
     assert hint["secondary_record"]["id"] == "1002"
 
 
-def test_evidence_exposes_only_whitelisted_funding_relation_fields(cash_web_runtime):
+@pytest.mark.parametrize(
+    (
+        "cash_amount", "cash_record_type", "from_ticker", "from_amount", "to_ticker",
+        "to_amount", "expected_direction", "expected_from", "expected_to",
+    ),
+    [
+        (
+            "-10000", "transfer_out", "", None, "usd", "1275.50",
+            "cash_to_investment", ("日常账户", "-10000", "HKD"), ("投资账户", "1275.5", "USD"),
+        ),
+        (
+            "10000", "transfer_in", "usd", "1275.50", "", None,
+            "investment_to_cash", ("投资账户", "1275.5", "USD"), ("日常账户", "10000", "HKD"),
+        ),
+    ],
+)
+@pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_evidence_exposes_only_whitelisted_funding_relation_fields(
+    request, runtime_name, cash_amount, cash_record_type, from_ticker, from_amount,
+    to_ticker, to_amount, expected_direction, expected_from, expected_to,
+):
     import json
     from datetime import datetime
     from decimal import Decimal
@@ -74,13 +94,16 @@ def test_evidence_exposes_only_whitelisted_funding_relation_fields(cash_web_runt
     from ft.application.cash_investment_funding_relations import CashInvestmentFundingRelationService
     from ft.application.cash_projections import CashProjectionService
     from ft.application.web_queries import CashLedgerQueryService
+    from ft.web.app import create_app
+    from fastapi.testclient import TestClient
 
+    cash_web_runtime = request.getfixturevalue(runtime_name)
     with cash_web_runtime.sessions.begin() as session:
         cash = session.get(CashTransactionModel, 1003)
-        cash.amount = Decimal("-10000")
+        cash.amount = Decimal(cash_amount)
         cash.currency = "HKD"
         cash.counterparty = "Interactive Brokers LLC"
-        cash.record_type = "transfer_out"
+        cash.record_type = cash_record_type
         cash.record_subtype = "ordinary_transfer"
         session.add(InvestmentEventModel(
             workspace_id=cash_web_runtime.workspace_id,
@@ -90,10 +113,10 @@ def test_evidence_exposes_only_whitelisted_funding_relation_fields(cash_web_runt
             record_subtype="external",
             currency="USD",
             note="原始备注不应出现在关系证据中",
-            from_ticker="",
-            from_amount=None,
-            to_ticker="cny",
-            to_amount=Decimal("1275.50"),
+            from_ticker=from_ticker,
+            from_amount=Decimal(from_amount) if from_amount is not None else None,
+            to_ticker=to_ticker,
+            to_amount=Decimal(to_amount) if to_amount is not None else None,
             commission=None,
             commission_asset="",
             payload={},
@@ -108,23 +131,56 @@ def test_evidence_exposes_only_whitelisted_funding_relation_fields(cash_web_runt
     assert relation["status"] == "accepted"
     CashProjectionService(cash_web_runtime.sessions, cash_web_runtime.workspace_id).rebuild()
 
-    evidence = CashLedgerQueryService(
+    service = CashLedgerQueryService(
         cash_web_runtime.sessions, cash_web_runtime.workspace_id,
-    ).get_projection_evidence("cash:1003")
+    )
+    evidence = service.get_projection_evidence("cash:1003")
 
     assert evidence["projection"].transfer_subtype == "bank_security_transfer"
+    assert evidence["projection"].transfer is not None
+    assert (
+        evidence["projection"].transfer.from_account.name,
+        evidence["projection"].transfer.from_amount,
+        evidence["projection"].transfer.from_currency,
+    ) == expected_from
+    assert (
+        evidence["projection"].transfer.to_account.name,
+        evidence["projection"].transfer.to_amount,
+        evidence["projection"].transfer.to_currency,
+    ) == expected_to
     assert evidence["funding_relation"] == {
         "id": str(relation["id"]),
         "investment_event_id": str(relation["investment_event_id"]),
-        "direction": "cash_to_investment",
+        "direction": expected_direction,
         "status": "accepted",
         "rule_id": "cash-investment-funding-v1",
         "evidence": {
             "business_day_window": 0,
             "candidate_count": 1,
-            "cash_record_type": "transfer_out",
+            "cash_record_type": cash_record_type,
             "match_keys": ["institution_name", "direction", "business_day"],
         },
+    }
+    page = service.list_cash_projections(economic_type="bank_security_transfer")
+    assert [item.projection_id for item in page.items] == ["cash:1003"]
+    assert page.items[0].transfer == evidence["projection"].transfer
+
+    response = TestClient(create_app(service)).get(
+        "/api/v1/cash-projections", params={"economic_type": "bank_security_transfer"},
+    )
+    assert response.status_code == 200
+    def account_payload(name):
+        return {
+            "id": 101 if name == "日常账户" else 103,
+            "name": name,
+            "type": "cash" if name == "日常账户" else "security",
+            "active": True,
+        }
+    assert response.json()["items"][0]["transfer"] == {
+        "from_account": account_payload(expected_from[0]),
+        "from_amount": expected_from[1], "from_currency": expected_from[2],
+        "to_account": account_payload(expected_to[0]),
+        "to_amount": expected_to[1], "to_currency": expected_to[2],
     }
     payload = json.dumps(evidence, default=lambda value: value.__dict__, ensure_ascii=True)
     assert "sensitive-account" not in payload

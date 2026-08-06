@@ -24,8 +24,9 @@ const requestErrorMessages: Record<string, string> = {
 export function CashLedgerPage() {
   const [filters, setFilters] = useState<CashFilters>({});
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [filterOptions, setFilterOptions] = useState<CashFilterOptions>({ categories: [], currencies: [] });
+  const [filterOptions, setFilterOptions] = useState<CashFilterOptions>({ categories: [], currencies: [], economic_types: [] });
   const [filterOptionsReady, setFilterOptionsReady] = useState(false);
+  const [filterOptionsLoading, setFilterOptionsLoading] = useState(true);
   const [monthlySummaries, setMonthlySummaries] = useState<CashMonthlySummary[]>([]);
   const [accountsError, setAccountsError] = useState(false);
   const [items, setItems] = useState<CashProjection[]>([]);
@@ -57,10 +58,10 @@ export function CashLedgerPage() {
     appendingCursor.current = null;
     const controller = new AbortController(); pageAbortController.current = controller;
     const requestId = ++pageRequestId.current;
-    setStatus("loading"); setErrorMessage(undefined); setAppendError(undefined); setAppendLoading(false); setItems([]); setNextCursor(null); setMonthlySummaries([]);
+    setStatus("loading"); setErrorMessage(undefined); setAppendError(undefined); setAppendLoading(false); setFilterOptionsLoading(true); setItems([]); setNextCursor(null); setMonthlySummaries([]);
     fetchCashPage(filters, null, controller.signal).then((value) => {
       if (requestId !== pageRequestId.current) return;
-      setItems(value.items); setNextCursor(value.next_cursor); setMonthlySummaries(value.monthly_summaries ?? []); setFilterOptions(value.filter_options ?? { categories: [], currencies: [] }); setFilterOptionsReady(true); setAmountFilterState(filters.amount_min || filters.amount_max ? "success" : undefined); setStatus(value.items.length ? "ready" : "empty");
+      setItems(value.items); setNextCursor(value.next_cursor); setMonthlySummaries(value.monthly_summaries ?? []); setFilterOptions(value.filter_options ?? { categories: [], currencies: [], economic_types: [] }); setFilterOptionsReady(true); setFilterOptionsLoading(false); setAmountFilterState(filters.amount_min || filters.amount_max ? "success" : undefined); setStatus(value.items.length ? "ready" : "empty");
     }).catch((error: unknown) => {
       if (controller.signal.aborted || requestId !== pageRequestId.current) return;
       if (error instanceof Error && error.message === "projection.updated") {
@@ -68,7 +69,7 @@ export function CashLedgerPage() {
       }
       const code = error instanceof Error ? error.message : "api_request_failed";
       setAmountFilterState(code === "invalid_filter" ? "error" : undefined);
-      setErrorMessage(requestErrorMessages[code] ?? requestErrorMessages.api_request_failed); setStatus("error");
+      setFilterOptionsLoading(false); setErrorMessage(requestErrorMessages[code] ?? requestErrorMessages.api_request_failed); setStatus("error");
     });
   };
 
@@ -93,7 +94,7 @@ export function CashLedgerPage() {
   const retryMore = () => { setAppendError(undefined); loadMoreRef.current(true); };
   const loadAccounts = () => { accountsAbortController.current?.abort(); const controller = new AbortController(); accountsAbortController.current = controller; const requestId = ++accountsRequestId.current; fetchCashAccounts(controller.signal).then((value) => { if (requestId === accountsRequestId.current) { setAccounts(value); setAccountsError(false); } }).catch(() => { if (!controller.signal.aborted && requestId === accountsRequestId.current) setAccountsError(true); }); };
   useEffect(() => { loadAccounts(); return () => accountsAbortController.current?.abort(); }, []);
-  useEffect(() => { resetAndLoad(); return () => pageAbortController.current?.abort(); }, [filters.date_from, filters.date_to, filters.account_id, filters.counterparty, filters.category, filters.currency, filters.amount_min, filters.amount_max, filters.economic_type, filters.composition, refreshGeneration]);
+  useEffect(() => { resetAndLoad(); return () => pageAbortController.current?.abort(); }, [filters.date_from, filters.date_to, filters.account_id, filters.counterparty, filters.category, filters.currency, filters.amount_min, filters.amount_max, filters.economic_type, filters.transfer_subtype, filters.composition, refreshGeneration]);
   useEffect(() => { if (selected || !restoreEvidenceFocus.current) return; restoreEvidenceFocus.current = false; opener.current?.focus(); }, [selected]);
   useEffect(() => { if (projectionUpdated && status === "ready") updateConfirmation.current?.focus(); }, [projectionUpdated, status]);
   const confirmUpdatedList = () => { setProjectionUpdated(false); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(".cash-row .icon-button")?.focus()); };
@@ -102,5 +103,5 @@ export function CashLedgerPage() {
   const openEvidence = (projection: CashProjection, source: HTMLButtonElement) => { evidenceAbortController.current?.abort(); const controller = new AbortController(); evidenceAbortController.current = controller; const requestId = ++evidenceRequestId.current; opener.current = source; setSelected(projection); setEvidence(null); setEvidenceState("loading"); fetchEvidence(projection.projection_id, controller.signal).then((value) => { if (requestId === evidenceRequestId.current) { setEvidence(value); setEvidenceState("ready"); } }).catch(() => { if (!controller.signal.aborted && requestId === evidenceRequestId.current) setEvidenceState("error"); }); };
   const closeEvidence = () => { evidenceAbortController.current?.abort(); evidenceRequestId.current += 1; restoreEvidenceFocus.current = true; setSelected(null); setEvidence(null); };
 
-  return <div className="page-layout"><main className="app-shell" inert={Boolean(selected) || undefined}><aside className="sidebar"><strong>Finance Tracker</strong><nav aria-label="主要导航"><a aria-current="page" href="#cash-ledger">收支账本</a></nav></aside><section className="ledger ledger-workbench" id="cash-ledger" aria-label="收支账本工作台"><header className="page-header"><div><h1>收支账本</h1></div></header>{accountsError ? <div className="status-view status-error" data-status-kind="error" role="alert"><p>无法读取账户目录。请检查本机 API 后重试。</p><button type="button" onClick={loadAccounts}>重试账户目录</button></div> : null}<CashFiltersBar filters={filters} accounts={accounts} filterOptions={filterOptions} filterOptionsReady={filterOptionsReady} amountFilterState={amountFilterState} onChange={updateFilters} onAmountFilterChange={clearAmountFilterState} />{status === "loading" ? <><CashTable items={[]} loading onEvidence={openEvidence} /><StatusView kind="loading" message={projectionUpdated ? "账本已更新，正在刷新记录。" : undefined} /></> : null}{status === "empty" ? <StatusView kind="empty" /> : null}{status === "error" ? <StatusView kind="error" message={errorMessage} onRetry={resetAndLoad} /> : null}{status === "ready" ? <>{projectionUpdated ? <div className="update-notice" role="status"><p>账本已更新，已刷新记录。</p><button ref={updateConfirmation} type="button" onClick={confirmUpdatedList}>查看更新后的列表</button></div> : null}<CashTable items={items} monthlySummaries={monthlySummaries} onEvidence={openEvidence} /><LoadMoreControl hasMore={Boolean(nextCursor)} loading={appendLoading} error={appendError} onLoadMore={appendError ? retryMore : loadMore} /></> : null}</section></main>{selected ? <EvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} onClose={closeEvidence} onRetry={() => openEvidence(selected, opener.current ?? document.createElement("button"))} /> : null}</div>;
+  return <div className="page-layout"><main className="app-shell" inert={Boolean(selected) || undefined}><aside className="sidebar"><strong>Finance Tracker</strong><nav aria-label="主要导航"><a aria-current="page" href="#cash-ledger">收支账本</a></nav></aside><section className="ledger ledger-workbench" id="cash-ledger" aria-label="收支账本工作台"><header className="page-header"><div><h1>收支账本</h1></div></header>{accountsError ? <div className="status-view status-error" data-status-kind="error" role="alert"><p>无法读取账户目录。请检查本机 API 后重试。</p><button type="button" onClick={loadAccounts}>重试账户目录</button></div> : null}<CashFiltersBar filters={filters} accounts={accounts} filterOptions={filterOptions} filterOptionsReady={filterOptionsReady} filterOptionsLoading={filterOptionsLoading} amountFilterState={amountFilterState} onChange={updateFilters} onAmountFilterChange={clearAmountFilterState} />{status === "loading" ? <><CashTable items={[]} loading onEvidence={openEvidence} /><StatusView kind="loading" message={projectionUpdated ? "账本已更新，正在刷新记录。" : undefined} /></> : null}{status === "empty" ? <StatusView kind="empty" /> : null}{status === "error" ? <StatusView kind="error" message={errorMessage} onRetry={resetAndLoad} /> : null}{status === "ready" ? <>{projectionUpdated ? <div className="update-notice" role="status"><p>账本已更新，已刷新记录。</p><button ref={updateConfirmation} type="button" onClick={confirmUpdatedList}>查看更新后的列表</button></div> : null}<CashTable items={items} monthlySummaries={monthlySummaries} onEvidence={openEvidence} /><LoadMoreControl hasMore={Boolean(nextCursor)} loading={appendLoading} error={appendError} onLoadMore={appendError ? retryMore : loadMore} /></> : null}</section></main>{selected ? <EvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} onClose={closeEvidence} onRetry={() => openEvidence(selected, opener.current ?? document.createElement("button"))} /> : null}</div>;
 }

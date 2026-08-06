@@ -124,6 +124,61 @@ def test_projection_filter_options_exclude_hidden_and_blank_values(cash_web_runt
     assert options.currencies == ("CNY", "USD")
 
 
+@pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_projection_filter_options_and_subtype_filter_follow_active_visible_data(request, runtime_name):
+    from ft.adapters.relational.models import CashProjectionModel, CashProjectionStateModel
+    from sqlalchemy import select
+
+    runtime = request.getfixturevalue(runtime_name)
+    service = _service(runtime)
+    with runtime.sessions.begin() as session:
+        state = session.scalar(select(CashProjectionStateModel).where(CashProjectionStateModel.workspace_id == runtime.workspace_id))
+        session.add_all((
+            CashProjectionModel(
+                workspace_id=runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:ordinary-transfer",
+                root_cash_transaction_id=1001, economic_type="internal_transfer", transfer_subtype="ordinary_transfer",
+                net_amount=Decimal("0"), currency="CNY", occurred_at=datetime(2026, 7, 5, 9, tzinfo=ZoneInfo("Asia/Shanghai")),
+                account_id=101, counterparty="本人账户", category="转账", note="", source_type="fixture", record_id="ordinary-transfer",
+                visible=True, hidden_reason=None, member_count=2, accepted_relation_count=1, built_projection_version=1,
+            ),
+            CashProjectionModel(
+                workspace_id=runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:bank-security-new",
+                root_cash_transaction_id=1001, economic_type="internal_transfer", transfer_subtype="bank_security_transfer",
+                net_amount=Decimal("0"), currency="USD", occurred_at=datetime(2026, 7, 6, 9, tzinfo=ZoneInfo("Asia/Shanghai")),
+                account_id=101, counterparty="券商", category="转账", note="", source_type="fixture", record_id="bank-security-new",
+                visible=True, hidden_reason=None, member_count=1, accepted_relation_count=1, built_projection_version=1,
+            ),
+            CashProjectionModel(
+                workspace_id=runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:bank-security-old",
+                root_cash_transaction_id=1001, economic_type="internal_transfer", transfer_subtype="bank_security_transfer",
+                net_amount=Decimal("0"), currency="USD", occurred_at=datetime(2026, 7, 4, 9, tzinfo=ZoneInfo("Asia/Shanghai")),
+                account_id=101, counterparty="券商", category="转账", note="", source_type="fixture", record_id="bank-security-old",
+                visible=True, hidden_reason=None, member_count=1, accepted_relation_count=1, built_projection_version=1,
+            ),
+            CashProjectionModel(
+                workspace_id=runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:hidden-adjustment",
+                root_cash_transaction_id=1001, economic_type="internal_transfer", transfer_subtype="balance_adjustment",
+                net_amount=Decimal("0"), currency="USD", occurred_at=datetime(2026, 7, 3, 9, tzinfo=ZoneInfo("Asia/Shanghai")),
+                account_id=101, counterparty="", category="", note="", source_type="fixture", record_id="hidden-adjustment",
+                visible=False, hidden_reason="balance_adjustment", member_count=1, accepted_relation_count=0, built_projection_version=1,
+            ),
+        ))
+
+    page = service.list_cash_projections(limit=1)
+    selected = service.list_cash_projections(transfer_subtype="bank_security_transfer", limit=1)
+
+    assert [(item.economic_type, item.transfer_subtypes) for item in page.filter_options.economic_types] == [
+        ("expense", ()), ("income", ()), ("internal_transfer", ("bank_security_transfer", "ordinary_transfer")),
+    ]
+    assert [item.projection_id for item in selected.items] == ["cash:bank-security-new"]
+    assert selected.filters["economic_type"] == "internal_transfer"
+    assert selected.filters["transfer_subtype"] == "bank_security_transfer"
+    with pytest.raises(ValueError, match="invalid_filter"):
+        service.list_cash_projections(economic_type="expense", transfer_subtype="bank_security_transfer")
+    with pytest.raises(ValueError, match="invalid_cursor"):
+        service.list_cash_projections(transfer_subtype="ordinary_transfer", cursor=selected.next_cursor)
+
+
 def test_projection_page_includes_visible_internal_transfer_and_filter_option(cash_web_runtime):
     from ft.adapters.relational.models import CashProjectionModel, CashProjectionStateModel
     from sqlalchemy import select

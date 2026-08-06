@@ -30,9 +30,15 @@ class ProjectionDTO:
     member_count: int; accepted_relation_summary: tuple[dict, ...]; source_type: str | None; source_types: tuple[str, ...]; record_id: str
     visible: bool = True; hidden_reason: str | None = None; transfer: CashTransferDTO | None = None
 @dataclass(frozen=True)
+class CashEconomicTypeFilterOptionDTO:
+    economic_type: str
+    transfer_subtypes: tuple[str, ...]
+
+@dataclass(frozen=True)
 class CashFilterOptionsDTO:
     categories: tuple[str, ...]
     currencies: tuple[str, ...]
+    economic_types: tuple[CashEconomicTypeFilterOptionDTO, ...]
 @dataclass(frozen=True)
 class CashMonthlyCurrencySummaryDTO:
     currency: str
@@ -50,7 +56,7 @@ class ProjectionPageDTO:
 class ProjectionFilters:
     date_from: str | None = None; date_to: str | None = None; account_id: int | None = None; counterparty: str | None = None
     category: str | None = None; currency: str | None = None; amount_min: str | None = None; amount_max: str | None = None
-    economic_type: str | None = None; composition: str | None = None
+    economic_type: str | None = None; transfer_subtype: str | None = None; composition: str | None = None
     def as_cursor_data(self):
         return {key: (str(value) if value is not None else None) for key, value in self.__dict__.items()}
 
@@ -76,11 +82,23 @@ def normalize_filters(**values: Any) -> ProjectionFilters:
     minimum, maximum = decimal("amount_min"), decimal("amount_max")
     if minimum is not None and maximum is not None and Decimal(minimum) > Decimal(maximum): raise ValueError("invalid_filter")
     economic = values.get("economic_type") or None
+    subtype = values.get("transfer_subtype") or None
     composition = values.get("composition") or None
+    if not isinstance(economic, str) and economic is not None: raise ValueError("invalid_filter")
+    if not isinstance(subtype, str) and subtype is not None: raise ValueError("invalid_filter")
+    if subtype is not None:
+        subtype = subtype.strip()
+        if not subtype or len(subtype) > 32: raise ValueError("invalid_filter")
+    if economic == "bank_security_transfer":
+        if subtype not in (None, "bank_security_transfer"): raise ValueError("invalid_filter")
+        economic, subtype = "internal_transfer", "bank_security_transfer"
     if economic not in {None, "expense", "income", "internal_transfer"} or composition not in {None, "single", "payment_mirror", "refund_offset", "combined"}: raise ValueError("invalid_filter")
+    if subtype is not None:
+        if economic is None: economic = "internal_transfer"
+        elif economic != "internal_transfer": raise ValueError("invalid_filter")
     currency = values.get("currency") or None
     if currency and (len(currency) != 3 or not currency.isalpha()): raise ValueError("invalid_filter")
-    return ProjectionFilters(start.isoformat() if start else None, end.isoformat() if end else None, account_id, (values.get("counterparty") or "").strip() or None, (values.get("category") or "").strip() or None, currency.upper() if currency else None, minimum, maximum, economic, composition)
+    return ProjectionFilters(start.isoformat() if start else None, end.isoformat() if end else None, account_id, (values.get("counterparty") or "").strip() or None, (values.get("category") or "").strip() or None, currency.upper() if currency else None, minimum, maximum, economic, subtype, composition)
 
 def shanghai_bounds(filters):
     return (datetime.combine(date.fromisoformat(filters.date_from), time.min, SHANGHAI) if filters.date_from else None, datetime.combine(date.fromisoformat(filters.date_to) + timedelta(days=1), time.min, SHANGHAI) if filters.date_to else None)

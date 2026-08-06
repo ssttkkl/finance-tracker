@@ -5,12 +5,17 @@ import { formatOccurredAt } from "../format";
 type Props = { evidence: Evidence | null; loading: boolean; error: boolean; onClose: () => void; onRetry: () => void };
 const CLOSE_ANIMATION_MS = 160;
 
-function isRelatedProjection(projection: Evidence["projection"]): boolean {
-  return projection.member_count !== 1 || projection.composition.length > 0;
+function isBankSecurityTransfer(projection: Evidence["projection"]): boolean {
+  return projection.transfer_subtype === "bank_security_transfer";
 }
 
-function economicTypeLabel(type: Evidence["projection"]["economic_type"]): string {
-  return type === "expense" ? "消费" : type === "income" ? "收入" : type === "internal_transfer" ? "个人转账" : "未提供";
+function isRelatedProjection(projection: Evidence["projection"]): boolean {
+  return isBankSecurityTransfer(projection) || projection.member_count !== 1 || projection.composition.length > 0;
+}
+
+function economicTypeLabel(projection: Evidence["projection"]): string {
+  if (isBankSecurityTransfer(projection)) return "银证转账";
+  return projection.economic_type === "expense" ? "消费" : projection.economic_type === "income" ? "收入" : projection.economic_type === "internal_transfer" ? "个人转账" : "未提供";
 }
 
 function relatedRecordLabel(member: EvidenceMember): string {
@@ -41,6 +46,10 @@ function projectionSourceLabel(evidence: Evidence): string {
     evidence.members.flatMap((member) => member.source_type ? [member.source_type] : []),
   ));
   return sourceTypes.length ? sourceTypes.join("、") : "-";
+}
+
+function projectionRelationLabel(projection: Evidence["projection"]): string {
+  return isBankSecurityTransfer(projection) ? "银证转账关系" : "关系投影";
 }
 
 export function EvidenceDetail({ evidence, loading, error, onClose, onRetry }: Props) {
@@ -84,8 +93,8 @@ export function EvidenceDetail({ evidence, loading, error, onClose, onRetry }: P
       {root && evidence ? <div className="evidence-content">
         <section className="evidence-section evidence-summary" aria-label="收支详情">
           <p className={`evidence-amount ${evidence.projection.economic_type === "income" ? "inflow" : "outflow"}`}>{evidence.projection.amount} <span>{evidence.projection.currency}</span></p>
-          <p className="evidence-economic-type">{economicTypeLabel(evidence.projection.economic_type)}</p>
-          {isRelatedProjection(evidence.projection) ? <p className="projection-source-detail">关系投影</p> : null}
+          <p className="evidence-economic-type">{economicTypeLabel(evidence.projection)}</p>
+          {isRelatedProjection(evidence.projection) ? <p className="projection-source-detail">{projectionRelationLabel(evidence.projection)}</p> : null}
           <dl><dt>交易对方</dt><dd>{root.counterparty || "-"}</dd><dt>发生时间</dt><dd className="mono">{formatOccurredAt(root.occurred_at)}</dd><dt>账户</dt><dd>{root.account.name}</dd><dt>分类</dt><dd>{root.category || "未分类"}</dd><dt>备注</dt><dd>{root.note || "-"}</dd><dt>来源</dt><dd>{projectionSourceLabel(evidence)}</dd></dl>
         </section>
         {relatedMembers.length ? <section className="evidence-section evidence-related" aria-label="关联记录">

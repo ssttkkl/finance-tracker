@@ -1,7 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const account = { id: 101, name: "日常账户", type: "cash", active: true };
-const filter_options = { categories: ["餐饮", "日用", "收入"], currencies: ["CNY", "USD"] };
+const filter_options = {
+  categories: ["餐饮", "日用", "收入"],
+  currencies: ["CNY", "USD"],
+  economic_types: [{ economic_type: "expense", transfer_subtypes: [] }],
+};
 const item = (id: string, counterparty: string) => ({ projection_id: `cash:${id}`, occurred_at: "2026-07-03T09:00:00+08:00", account, counterparty, category: "餐饮", amount: "-12.5", currency: "CNY", note: `备注${id}`, source_type: "fixture", source_types: ["fixture"], record_id: `cash-${id}`, economic_type: "expense", transfer_subtype: null, composition: ["payment_mirror"], member_count: 2, accepted_relation_summary: [{ kind: "payment_mirror", subtype: "", count: 1 }], visible: true, hidden_reason: null });
 
 async function mockLedger(page: Page, failOnce = false) {
