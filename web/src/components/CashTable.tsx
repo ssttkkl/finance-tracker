@@ -3,6 +3,8 @@ import { formatOccurredAt } from "../format";
 
 type Props = { items: CashProjection[]; monthlySummaries?: CashMonthlySummary[]; loading?: boolean; onEvidence: (projection: CashProjection, source: HTMLButtonElement) => void };
 
+const monthKeyFormatter = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit", timeZone: "Asia/Shanghai" });
+
 function isBankSecurityTransfer(item: CashProjection): boolean {
   return item.transfer_subtype === "bank_security_transfer";
 }
@@ -39,7 +41,10 @@ function amountLabel(item: CashProjection): string {
 }
 
 function monthKey(item: CashProjection): string {
-  return item.occurred_at.slice(0, 7);
+  const parts = monthKeyFormatter.formatToParts(new Date(item.occurred_at));
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  return year && month ? `${year}-${month}` : "";
 }
 
 function monthLabel(month: string): string {
@@ -109,6 +114,15 @@ export function CashTable({ items, monthlySummaries = [], loading = false, onEvi
   </tr>);
   return <div className="table-wrap"><table className="cash-table">
     <caption className="sr-only">收支账本中的收支记录</caption>
+    <colgroup>
+      <col className="occurred-at-column" />
+      <col className="account-column" />
+      <col className="transaction-info-column" />
+      <col className="source-column" />
+      <col className="economic-type-column" />
+      <col className="amount-column" />
+      <col className="action-column" />
+    </colgroup>
     <thead className="table-head"><tr><th id="cash-column-occurred-at" scope="col">发生时间</th><th id="cash-column-account" scope="col">账户</th><th id="cash-column-transaction-info" scope="col">交易信息</th><th id="cash-column-source" scope="col">来源</th><th id="cash-column-economic-type" scope="col">经济类型</th><th id="cash-column-amount" scope="col" className="amount">金额</th><th id="cash-column-action" scope="col"><span className="sr-only">操作</span></th></tr></thead>
     <tbody>{loading ? Array.from({ length: 3 }, (_value, index) => <tr className="loading-row" data-testid="现金流水骨架行" key={index}>
       {Array.from({ length: 7 }, (_cell, cellIndex) => <td key={cellIndex}><span className="skeleton-cell" aria-hidden="true" /></td>)}

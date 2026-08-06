@@ -25,4 +25,15 @@ describe("独立 Node 运行时", () => {
     expect(packageJson.scripts.start).toContain("--port 5173");
     expect(packageJson.scripts.start).toContain("--strictPort");
   });
+
+  it("本地开发默认使用同源 API 代理", () => {
+    const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), "package.json"), "utf8"));
+    const viteConfig = readFileSync(resolve(process.cwd(), "vite.config.ts"), "utf8");
+
+    expect(packageJson.scripts.dev).toContain("VITE_FT_API_ORIGIN=${VITE_FT_API_ORIGIN:-http://127.0.0.1:5174}");
+    expect(packageJson.scripts.dev).toContain("--host 127.0.0.1");
+    expect(packageJson.scripts.dev).toContain("--port 5174");
+    expect(packageJson.scripts.dev).toContain("--strictPort");
+    expect(viteConfig).toContain('"/api": "http://127.0.0.1:8000"');
+  });
 });

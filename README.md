@@ -199,7 +199,6 @@ uv run ft sync --source binance --account 币安 --full   # 忽略游标，全�
 ```bash
 export FT_DATABASE_URL='sqlite+pysqlite:////absolute/path/finance-tracker.db'
 export FT_WORKSPACE_ID='default'
-export FT_WEB_ORIGIN='http://127.0.0.1:5173'
 uv run ft web
 ```
 
@@ -208,8 +207,13 @@ uv run ft web
 ```bash
 cd web
 npm install
-VITE_FT_API_ORIGIN='http://127.0.0.1:8000' npm run dev
+npm run dev
 ```
+
+`npm run dev` 固定在 `http://127.0.0.1:5174`，并将同源 `/api` 请求转发到本机 API
+`http://127.0.0.1:8000`。因此，本地开发不需要手动设置 `VITE_FT_API_ORIGIN` 或匹配 API 的 CORS
+端口；Python API 仍须先独立运行。端到端测试或其他明确指定的本机 API 可继续在启动前设置
+`VITE_FT_API_ORIGIN` 覆盖默认值。
 
 生产预览必须在构建时注入 API 来源，再启动预览服务器：
 
