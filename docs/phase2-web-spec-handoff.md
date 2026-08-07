@@ -1,11 +1,11 @@
 # Phase 2 只读账本 Web：单一 Spec 新会话交接
 
 > 状态：已于 2026-07-29 被正式规格拆分决策取代。本文保留为历史交接输入，不能覆盖
-> `020-cash-ledger-browser-web` 与 `022-investment-ledger-browser-web` 的正式 artifacts。
+> `cash-ledger-browser` 主规格与 `investment-ledger-browser` active change 的正式 artifacts。
 >
 > 本文不是需求、技术方案或任务的事实源。历史中的 `020-transaction-browser-web` 路径和“单一
-> feature”约束均已失效；新会话必须以 `020-cash-ledger-browser-web` 和
-> `022-investment-ledger-browser-web` 的正式 artifacts 为准。
+> feature”约束均已失效；新会话必须以 `openspec/specs/cash-ledger-browser/spec.md` 和
+> `openspec/changes/investment-ledger-browser/` 为准。后文编号只表示历史决策过程。
 
 ## 1. 用户已经确认的产品决策
 
@@ -15,9 +15,9 @@
 020-transaction-browser-web
 ```
 
-该决定已被用户撤销。当前正式拆分为：`020-cash-ledger-browser-web` 交付现金账本浏览与最小 Web/API
-运行形态；`022-investment-ledger-browser-web` 在 020 完成后交付投资事件、持仓和持仓估值浏览。两个
-feature 不创建独立的 Web 基础设施 feature；021 复用 020 已交付的运行形态。
+该决定已被用户撤销。当前正式拆分为：`cash-ledger-browser` 已交付现金账本浏览与最小 Web/API
+运行形态；`investment-ledger-browser` active change 规划投资事件、持仓和持仓估值浏览。两项能力
+复用同一 Web 基础设施，不创建独立的基础设施 capability。
 
 实施方式是沿完整用户链路逐步建立能力：
 
@@ -49,7 +49,7 @@ Phase 2 是可信、可追溯的本地账本浏览器，不是财富分析大屏
 本文写入时的基线已包含 019 的产品代码，但 OpenSpec 状态仍需单独核对和关账。新会话不得默认 019
 已经在 artifacts 层完成，应先检查：
 
-- `openspec/specs/019-portfolio-quote-orchestration/spec.md` 的状态；
+- `openspec/specs/portfolio-valuation/spec.md` 的当前合同，以及 `openspec/MIGRATION.md` 中旧 019 的归档映射；
 - `tasks.md`、收敛结果与验证证据；
 - `openspec list` 的活跃 feature 指针；
 - 是否已有 019 关账分支或 PR，避免重复提交。
