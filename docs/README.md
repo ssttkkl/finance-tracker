@@ -7,15 +7,15 @@ SQLite 遇到繁忙、读写权限或 schema 错误时会直接报告，不会�
 
 ## 当前基线
 
-- **现金 / 导入 / 关系**：`002`–`008`
-- **投资文件导入与 schema 收口**：`009`–`016`（含行幂等、内联溯源、bigint PK）
-- **估值**：`017-asset-valuation-quote`
-- **连接器同步**：`018-investment-connector-sync`
+- **运行时 / 账户 / 账本**：`runtime-database`、`multi-currency-accounts`、`ledger-records`
+- **现金导入 / 分类 / 关系**：`statement-import`、`cash-record-classification`、`transaction-relations`
+- **投资事件 / 文件导入**：`investment-event-model`、`investment-statement-import`
+- **估值 / 连接器同步**：`portfolio-valuation`、`investment-connector-sync`
 - **Alembic / `SCHEMA_REVISION` head**：`20260729_11`
-- **财富归因内核**（Phase 3 内核，已落地）：`003-wealth-attribution-core`（无专用 CLI/Web）
-- **收支账本 Web**：`020-cash-ledger-browser-web`（收支投影、稳定分页和证据详情）
+- **财富归因内核**（Phase 3 内核，已落地）：`wealth-attribution`（无专用 CLI/Web）
+- **收支账本 Web**：`cash-ledger-browser`（收支投影、稳定分页和证据详情）
 
-active change 通过 `openspec list` 查看。`020-cash-ledger-browser-web` 只包含收支账本；投资账本视图、持仓和持仓估值留给 `022-investment-ledger-browser-web`。
+active change 通过 `openspec list` 查看。`cash-ledger-browser` 只包含收支账本；投资事件、持仓和估值的 Web 展示规划见 `investment-ledger-browser` active change，完成归档前不属于当前主规格。
 
 收支账本的生产预览需在 `npm run build` 时设置 `VITE_FT_API_ORIGIN`，随后才运行 `npm run start`；预览
 服务器不会重新读取该变量。具体命令见 [项目说明](../README.md#收支账本-web)。
@@ -25,7 +25,8 @@ active change 通过 `openspec list` 查看。`020-cash-ledger-browser-web` 只�
 | 文档 | 说明 |
 |---|---|
 | [项目说明](../README.md) | 安装、CLI、导入、同步、验证 |
-| [收支账本 Web 规格](../openspec/specs/020-cash-ledger-browser-web/spec.md) | 只读收支投影浏览与本机双进程运行形态 |
+| [收支账本 Web 规格](../openspec/specs/cash-ledger-browser/spec.md) | 只读收支投影浏览与本机双进程运行形态 |
+| [投资账本 active change](../openspec/changes/investment-ledger-browser/proposal.md) | 尚未实现的投资事件与持仓浏览规划 |
 | [导入 / 关系 / 同步流程](import-flow.md) | 事务语义与命令（015 后） |
 | [显式 CSV 导出格式](export-csv-format.md) | 只读预览，非账本 |
 | [数据库表结构](database-schema.md) | ORM + Alembic 速查（含 `sync_cursors`） |
@@ -44,12 +45,12 @@ active change 通过 `openspec list` 查看。`020-cash-ledger-browser-web` 只�
 `openspec/specs/` 保存当前能力主规格，`openspec/changes/` 保存 active change，完成后归档到
 `openspec/changes/archive/`。迁移清单和每个旧 feature 的完整产物见 [`openspec/MIGRATION.md`](../openspec/MIGRATION.md)。约定见 [`openspec/project-context.md`](../openspec/project-context.md) 与根目录 [AGENTS.md](../AGENTS.md)。
 
-已完成 Phase 1 相关（节选）：
+已完成能力（节选）：
 
-- [001](../openspec/specs/001-postgres-only-storage/spec.md) … [016](../openspec/specs/016-bigint-surrogate-ids/spec.md) schema/导入链
-- [017-asset-valuation-quote](../openspec/specs/017-asset-valuation-quote/spec.md)
-- [018-investment-connector-sync](../openspec/specs/018-investment-connector-sync/spec.md)
-- [003-wealth-attribution-core](../openspec/specs/003-wealth-attribution-core/spec.md)（Phase 3 内核）
+- [运行时数据库](../openspec/specs/runtime-database/spec.md)、[账本记录](../openspec/specs/ledger-records/spec.md)
+- [账单导入](../openspec/specs/statement-import/spec.md)、[交易关系](../openspec/specs/transaction-relations/spec.md)
+- [投资事件模型](../openspec/specs/investment-event-model/spec.md)、[投资组合估值](../openspec/specs/portfolio-valuation/spec.md)
+- [财富归因](../openspec/specs/wealth-attribution/spec.md)、[收支账本浏览](../openspec/specs/cash-ledger-browser/spec.md)
 
 完整列表以 `openspec/` 目录和 `openspec list --specs` 为准；本索引不维护平行任务清单。
 

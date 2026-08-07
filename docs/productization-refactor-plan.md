@@ -11,7 +11,7 @@
 本文只回答“产品往哪里走、为什么按这个顺序走”，不是可直接实施的 feature spec。
 
 - `openspec/project-context.md` 定义不可妥协的工程原则。
-- `openspec/specs/<capability>/spec.md` 定义该变更做什么和为什么。
+- `openspec/specs/<capability>/spec.md` 定义当前能力行为；`openspec/changes/<name>/proposal.md` 定义未完成变更做什么和为什么。
 - `design.md` 定义技术方案、数据模型和 contracts。
 - `tasks.md` 定义测试先行的执行顺序和完成状态，并位于对应的 OpenSpec change 中。
 - gstack 产品或架构评审结论必须回写上述 artifacts，不能在 `docs/` 独立演进。
@@ -20,10 +20,10 @@
 
 - [项目 README](../README.md)：运行时、CLI、导入与同步。
 - [文档索引](README.md)
-- [001-postgres-only-storage](../openspec/specs/001-postgres-only-storage/spec.md)：历史 PostgreSQL-only 收口（后由 002 双后端叙事覆盖）。
-- [002-dual-database-runtime](../openspec/specs/002-dual-database-runtime/spec.md)：双数据库运行时（Phase 1 现金链起点）。
-- [017-asset-valuation-quote](../openspec/specs/017-asset-valuation-quote/spec.md) / [018-investment-connector-sync](../openspec/specs/018-investment-connector-sync/spec.md)：估值与连接器（Phase 1 已 Complete）。
-- [database-schema.md](database-schema.md)：015+016+018 落地态结构速查（Alembic `20260726_10`）。
+- [运行时数据库](../openspec/specs/runtime-database/spec.md)：PostgreSQL 与 SQLite 的显式选择和等价行为。
+- [投资组合估值](../openspec/specs/portfolio-valuation/spec.md) / [投资连接器同步](../openspec/specs/investment-connector-sync/spec.md)：估值与连接器当前合同。
+- [OpenSpec 迁移清单](../openspec/MIGRATION.md)：旧编号 feature、当前 capability 和历史归档的映射。
+- [database-schema.md](database-schema.md)：账本记录、来源行溯源与连接器游标的落地态结构速查（Alembic `20260726_10`）。
 - [财富解释与趋势对比设计](productization-wealth-report-design.md)：已批准、但非实施权威的产品决策输入。
 
 ## 2. 产品定位
@@ -55,7 +55,7 @@ Finance Tracker 面向同时使用银行、支付平台、券商和交易所的�
 - Phase 2 同时交付了 local/postgres 选择、迁移和 shadow comparison；这些是实验性过渡产物，
   不再代表目标架构。
 
-### 已完成：001-postgres-only-storage
+### 历史阶段：PostgreSQL-only 收口
 
 新产品能力开始前的存储收口已经完成：
 
@@ -65,25 +65,24 @@ Finance Tracker 面向同时使用银行、支付平台、券商和交易所的�
 - 当前数据可丢弃；应用不得读取、迁移或自动删除用户目录中的旧账本。
 - 财务语义、来源审计、精确金额、幂等和事务原子性必须保留。
 
-具体范围和验证证据见 `openspec/specs/001-postgres-only-storage/` 及其归档 change。README、CLI help 和当前操作文档已经同步为
-PostgreSQL-only；旧文件账本、迁移、shadow comparison、Connector sync 和文件 reconcile 已从产品表面删除。
+该阶段的范围和验证证据只保存在历史归档；旧编号到当前能力的映射见 `openspec/MIGRATION.md`。PostgreSQL-only 已被后续双后端运行时取代，不是当前操作合同；旧文件账本、自动回退、双写和 shadow comparison 仍不属于产品运行时。
 
-### 已完成：PostgreSQL 与 SQLite 双数据库运行时（`002`）
+### 已完成：PostgreSQL 与 SQLite 双数据库运行时（`runtime-database`）
 
 PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_URL` 显式选择。
 两个后端共享 Application Service、CLI 契约、财务语义、审计关系和 schema 迁移入口；不提供自动回退、
 双写或隐式跨后端迁移。SQLite 使用 WAL、外键和有界写锁等待；既有权限过宽的文件只给出修复建议，
-不会自动 chmod。`001-postgres-only-storage` 保留为已完成的历史收口记录，不回写新需求。
+不会自动 chmod。PostgreSQL-only 只保留为历史收口记录，不回写新需求。
 
-### 当前基线（`refactor/web` @ 018 后）
+### 当前基线（`refactor/web`）
 
-- **现金链** `002`–`008`：双 DB、mapping/开放币种、多币种账户、关系、导入与 kind 解耦 — **Complete**。
-- **投资文件导入与账本收口** `009`–`016`：多券商文件导入（DFZQ/IBKR/Schwab/uSmart 等）、行级幂等、成本币种与 cash-like actions、事实字段统一、内联溯源、**整数代理主键** — **Complete**。
-- **估值** `017-asset-valuation-quote`：统一 `ValuationService` + 组合计价币种市值/折算市值与 `quote_status` — **Complete**（已合入）。
-- **连接器同步** `018-investment-connector-sync`：ccxt（binance/kraken/okx）+ Polymarket Activity/pUSD checkin、`ft sync`、行级幂等与 `sync_cursors` — **Complete**（2026-07-28 全量双后端回归绿）。
+- **现金链**：`runtime-database`、`multi-currency-accounts`、`statement-import`、`cash-record-classification`、`transaction-relations` 与 `cash-ledger-browser` — **Complete**。
+- **投资文件导入与账本收口**：`investment-statement-import`、`investment-event-model` 与 `ledger-records` — **Complete**。
+- **估值**：`portfolio-valuation` 的 `ValuationService`、计价币种市值、折算市值与 `quote_status` — **Complete**。
+- **连接器同步**：`investment-connector-sync` 的 ccxt、Polymarket、行级幂等与 `sync_cursors` — **Complete**。
 - **Alembic / `SCHEMA_REVISION` head**：`20260726_10`。
-- **编号漂移（重要）**：仓库 `011`–`016` 已用于 uSmart/成本/字段/provenance/bigint。路线图旧名 `011-asset-valuation-quote` → **`017`**；旧 `012` connector-sync → **`018`**。账单 Web 落地时用新序号。
-- 活跃指针：Phase 1 关账后无强制活跃 feature；下一产品方向为 Phase 2 `transaction-browser-web`（新序号）。
+- **编号已退役**：当前主规格只使用稳定 capability 名称；旧 feature 对应关系见 `openspec/MIGRATION.md`。
+- 活跃指针通过 `openspec list` 查看；未实现的投资账本规划为 `investment-ledger-browser`。
 
 ## 4. 产品与架构原则
 
@@ -99,59 +98,52 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
 
 ## 5. Feature 路线
 
-### 5.1 `001-postgres-only-storage`：存储收口（完成）
-
-项目未上线，开发数据可丢弃，因此直接完成破坏性替换而没有兼容或迁移阶段。
+### 5.1 `runtime-database`：运行时存储收口（完成）
 
 已满足的退出条件：
 
-- 不存在可执行 local backend 或隐式回退；
+- PostgreSQL 与文件型 SQLite 都是正式后端，由 `FT_DATABASE_URL` 显式选择；
+- 不存在文件账本、隐式回退、双写或自动跨后端迁移；
 - 当前受支持入口绑定明确 workspace；
 - 写入使用数据库事务且失败不发布部分事实；
 - 导入记录可通过 `source_type + record_id` 识别，并可通过行内 `source_payload` 追溯来源；
-- 文档、CLI help 和测试不再承诺旧运行方式。
+- 两个后端通过同一 Application Service 和契约矩阵保持用户可见等价。
 
 ### 5.2 Phase 1：数据模型与数据导入（基座）
 
 本阶段目标：建立可信的现金与投资事实读模型，使账单条目可独立展示与审计。
 
-#### 现金/消费链（按序收敛）
+#### 现金/消费链
 
-- `002-dual-database-runtime`：PostgreSQL 与 SQLite 双运行时等价。
-- `004-mapping-import-open-currency`：mapping 导入 + 开放币种。
-- `005-multi-currency-accounts`：多币种账户建模。
-- `006-transaction-relations`：关系（去重/退款核销/转账配对/投影）。
-- `007-closed-trade-refund-import`：导入 no-skip + 原始 payload + 统一关系扫描。
-- `008-relations-kind-decouple`：关系识别 kind 竖切解耦。
+- `runtime-database`：PostgreSQL 与 SQLite 双运行时等价。
+- `multi-currency-accounts`：多币种账户与账单路由。
+- `statement-import`：导入 no-skip、业务行幂等和完整来源行快照。
+- `cash-record-classification`：现金流水标准记录类型与子类型。
+- `transaction-relations`：同笔支付、退款、转账和还款关系。
+- `cash-ledger-browser`：关系处理后的收支投影、筛选和证据浏览。
 
 #### 投资链与账本收口
 
-- **`009-investment-account-import`**（**Complete**）：投资事件领域模型与文件/手动导入（DFZQ/IBKR/Schwab 等）。
-  非目标：Connector 自动同步（历史路线图编号 `012` / 能力名 connector-sync）；行情/估值（能力名 asset-valuation-quote）。
+- **`investment-event-model` 与 `investment-statement-import`（Complete）**：投资事件领域模型与 DFZQ、IBKR、Schwab、uSmart 等文件导入。
 
-- **`010-row-idempotent-import`**（**Complete**）：消费与投资导入 **业务行幂等 + 重叠文件可增量**
-  （`record_id` × `source_type`；015 后无独立 import/raw 作业表）。
+- **`ledger-records`（Complete）**：消费与投资导入的业务行身份、内联溯源、公共字段和关系引用完整性。
 
-- **后续已合入（强化导入/schema，不替代估值门槛）**：
-  `011-usmart-hk-import`、`012-investment-base-currency-cost`、`013-investment-cash-event-kinds`、
-  `014-fact-field-unify`、`015-inline-row-provenance`、`016-bigint-surrogate-ids` — 均为 **Complete**。
-
-- **`017-asset-valuation-quote`（Complete；历史路线图名 asset-valuation-quote / 旧编号 011）**：
+- **`portfolio-valuation`（Complete）**：
   组合持仓 **计价币种估值**（分币种不折算）与可选 **`display_currency` 只读 FX 折算**；统一 `ValuationService`（security/crypto/pm/cash）与 **complete/stale/partial/unsupported**。
   非目标：历史时间序列、期初/期末边界估值、收益率归因（归 Phase 3）。
 
-- **`018-investment-connector-sync`（Complete；历史路线图编号 `012` / 能力名 investment-connector-sync）**：
+- **`investment-connector-sync`（Complete）**：
   手动 `ft sync`：ccxt 交易所（binance/kraken/okx）私有成交+ledger、Polymarket Activity（含 REDEEM/YIELD）与当前 pUSD `balanceOf` → USD checkin；
   `source_type`×`record_id` 幂等、`sync_cursors` 增量、`~/.ft/credentials.yaml` 本地凭据；有界 `ft stock list` 渲染。
-  非目标：定时 Worker、Web、secret vault、通用 Connector 平台、行情/FX 自动更新（017）。
+  非目标：定时 Worker、Web、secret vault、通用 Connector 平台、行情/FX 自动更新（由 `portfolio-valuation` 约束）。
 
 #### Phase 1 完成门槛
 
-- `002`–`008` 全部收敛；✅
-- `009` 落地（投资事件可导入，多券商解析可用）；✅
-- `010` 落地（现金/投资导入行级幂等与重叠增量）；✅
-- **实时估值 + 组合市值**落地（`017`：计价币种/展示币种 + coverage 状态）；✅
-- **Connector 同步**落地（`018`：交易所/Polymarket API → 统一投资事件）；✅
+- 现金链 capability 全部收敛；✅
+- `investment-event-model` 与 `investment-statement-import` 落地；✅
+- `ledger-records` 提供现金/投资导入行级幂等与内联溯源；✅
+- **实时估值 + 组合市值**落地（`portfolio-valuation`：计价币种/展示币种 + coverage 状态）；✅
+- **Connector 同步**落地（`investment-connector-sync`：交易所/Polymarket API → 统一投资事件）；✅
   （原「可延后不阻塞 Phase 2」仍成立；现已交付并关账。）
 
 ### 5.3 Phase 2：账单浏览 Web（只读）
@@ -174,12 +166,12 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
 
 依赖：Phase 1 完成（投资事实与估值基础就绪）。
 
-- **`003-wealth-attribution-core`**：财富归因内核。
+- **`wealth-attribution`**：财富归因内核。
   财富变化恒等式与符号；期初/期末估值、外部现金流、投资收益、FX、负债重估和差额；
   每日原子桶与日/周/月聚合；投资市场收益率、coverage、partial/stale/unsupported；
   component、evidence 和 canonical DTO；PostgreSQL/SQLite 等价 contract、性能基线和重建测试。
   非目标：Web、认证、关系审查列表、Connector、AI 和 MCP。
-  实现交接以 [`003-wealth-attribution-core`](../openspec/specs/003-wealth-attribution-core/spec.md) 的
+  实现交接以 [`wealth-attribution`](../openspec/specs/wealth-attribution/spec.md) 的
   OpenSpec artifacts 为唯一事实源。内核保持 transport-neutral：Web/API 适配和展示 URL 不属于该
   feature；正式估值、账户生命周期和不可变 generation/evidence 是 PostgreSQL 与 SQLite 共享的
   可重建输入/读模型边界。
