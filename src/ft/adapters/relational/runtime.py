@@ -2,7 +2,6 @@
 from datetime import date, datetime, timedelta, timezone
 import json
 from decimal import Decimal
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -34,6 +33,10 @@ from .wealth_facts import RelationalWealthFactRepository
 from .wealth_read_model import RelationalWealthReadModel
 from .investments import RelationalInvestmentCommandRepository
 from ft.adapters.statement_import import StatementParser
+
+
+def _utc_today():
+    return datetime.now(timezone.utc).date()
 
 
 SCHEMA_REVISION = "20260805_24"
@@ -140,21 +143,20 @@ def build_relational_services(settings) -> ServiceBundle:
 
             accounts, valuations, cashflows, investments, lifecycle = wealth_facts.captured_build_inputs(source_watermark)
             start = date.fromisoformat(affected_from)
-            end = date.today()
+            end = _utc_today()
             rows = []
             components_to_store = []
             evidence_to_store = []
             coverage_to_store = []
             selection_by_component = {}
             daily_points = []
-            shanghai = ZoneInfo("Asia/Shanghai")
             fx_by_day = {
-                (value.as_of.astimezone(shanghai).date(), value.identity): value.value
+                (value.as_of.astimezone(timezone.utc).date(), value.identity): value.value
                 for value in valuations if value.identity_kind == "fx"
             }
 
             def local_day(value):
-                return value.astimezone(shanghai).date()
+                return value.astimezone(timezone.utc).date()
 
             # Coverage is keyed by its formal owner, never a ticker/name prefix.
             # Shared FX is support input, not a coverage identity.
@@ -240,7 +242,7 @@ def build_relational_services(settings) -> ServiceBundle:
                     asset_kind = "security"
                 else:
                     asset_kind = "cash"
-                boundary_at = datetime.combine(boundary, datetime.min.time(), tzinfo=shanghai)
+                boundary_at = datetime.combine(boundary, datetime.min.time(), tzinfo=timezone.utc)
                 return valuation_freshness(value.observed_at, boundary_at, asset_kind=asset_kind)
 
             by_identity_day = {
@@ -343,7 +345,7 @@ def build_relational_services(settings) -> ServiceBundle:
                     funding_by_day_currency.setdefault(
                         (occurred, value.currency), []
                     ).append((signed_local, flow_rate))
-                    day_start_at = datetime.combine(occurred, datetime.min.time(), tzinfo=shanghai)
+                    day_start_at = datetime.combine(occurred, datetime.min.time(), tzinfo=timezone.utc)
                     day_end_at = day_start_at + timedelta(days=1)
                     dietz_funding_by_day_currency.setdefault(
                         (occurred, value.currency), []
@@ -356,7 +358,7 @@ def build_relational_services(settings) -> ServiceBundle:
             while current <= end:
                 fx_evidence = []
                 ownership_evidence = []
-                day_boundary = datetime.combine(current, datetime.min.time(), tzinfo=shanghai)
+                day_boundary = datetime.combine(current, datetime.min.time(), tzinfo=timezone.utc)
                 day_missing = {
                     identity for identity in ownership_missing_identities
                 }

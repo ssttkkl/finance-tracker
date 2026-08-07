@@ -12,8 +12,8 @@ import re
 
 from ft.domain.relations.core.geometry import (
     _abs_decimal, _as_decimal, _parse_dt, _same_calendar_day, _text_blob, _time_delta_seconds,
-    business_day_shanghai, extract_card_tails, fact_is_bank_date_only,
-    main_style_cross_verify, same_business_day_shanghai,
+    business_day_utc, extract_card_tails, fact_is_bank_date_only,
+    main_style_cross_verify, same_business_day_utc,
 )
 from ft.domain.relations.core.routing import source_group
 from ft.domain.relations.core.mirror_graph import (
@@ -41,7 +41,7 @@ def _mirror_channel(fact: FactView) -> str:
 def _mirror_group_key(fact: FactView) -> tuple[str, str, str, Decimal, int, date] | None:
     """返回同笔支付确定性配对使用的完整匹配字段。"""
     try:
-        day = business_day_shanghai(fact)
+        day = business_day_utc(fact)
     except ValueError:
         return None
     if day is None or fact.signed_amount == 0:
@@ -335,7 +335,7 @@ def evaluate_payment_mirror(
             continue
         platform_not_after_bank = lag_bank_minus_platform >= 0
         same_account = True  # gated above
-        biz_same_day = same_business_day_shanghai(seed, cand)
+        biz_same_day = same_business_day_utc(seed, cand)
         bank_date_only = (
             (seed_group == "bank" and fact_is_bank_date_only(seed))
             or (cand_group == "bank" and fact_is_bank_date_only(cand))

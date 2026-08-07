@@ -1,11 +1,10 @@
 """Exact-Decimal investment event projection with no persistence concerns."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal, localcontext, ROUND_HALF_UP
 from functools import wraps
 from typing import AbstractSet, Iterable
-from zoneinfo import ZoneInfo
 
 from ft.domain.decimal import exact_decimal
 from ft.domain.investment_record_type import validate_investment_record_subtype
@@ -36,9 +35,6 @@ def _div(numerator: Decimal, denominator: Decimal) -> Decimal:
         ctx.prec = 40
         result = numerator / denominator
     return result.quantize(_SCALE18, rounding=ROUND_HALF_UP)
-
-
-WORKSPACE_TIMEZONE = ZoneInfo("Asia/Shanghai")
 
 
 def _decimal(value, name: str, *, default: str | None = None) -> Decimal:
@@ -176,7 +172,7 @@ def apply_investment_command(
     currency = (command.currency or default_currency or "").upper()
     if len(currency) < 3 or not currency.isalnum():
         raise ValueError("currency is required")
-    date = command.date or datetime.now(WORKSPACE_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
+    date = command.date or datetime.now(timezone.utc).isoformat()
     accounts = snapshot.setdefault("accounts", {}).setdefault("security", {})
     account = accounts.setdefault(command.account, {"currency": default_currency, "positions": {}})
     account["currency"] = account.get("currency") or default_currency

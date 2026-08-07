@@ -60,7 +60,7 @@ def _seed_base(sessions, *, with_fee=True) -> None:
         AccountLifecycleEventModel, AccountModel, CashTransactionModel, InvestmentEventModel, ValuationObservationModel,
     )
 
-    tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+    tz = __import__("zoneinfo").ZoneInfo("UTC")
     at = lambda day, hour=0: datetime(2026, 7, day, hour, tzinfo=tz)
     with sessions.begin() as session:
         session.add_all((
@@ -128,7 +128,7 @@ def test_runtime_boundary_formula_and_flow_weighted_fx(runtime_golden, monkeypat
 
     _backend, services, sessions = runtime_golden
     _seed_base(sessions)
-    monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
+    monkeypatch.setattr(relational_runtime, "_utc_today", lambda: FixedDate(2026, 7, 3))
     services.wealth.rebuild(affected_from="2026-07-01")
     day2 = json.loads(RelationalWealthReadModel(sessions, "wealth-runtime-golden").active_daily_payload("2026-07-02"))
     components = {item["kind"]: item["amount"] for item in day2["components"]}
@@ -152,8 +152,8 @@ def test_runtime_modified_dietz_is_linked_and_excludes_fx(runtime_golden, monkey
     _backend, services, sessions = runtime_golden
     _seed_base(sessions, with_fee=False)
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
-    # Day-2 deposit at 10:00 Asia/Shanghai: remaining day fraction is the Dietz weight.
-    tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+    # Day-2 deposit at 10:00 UTC: remaining day fraction is the Dietz weight.
+    tz = __import__("zoneinfo").ZoneInfo("UTC")
     day2_start = datetime(2026, 7, 2, 0, 0, tzinfo=tz)
     day2_end = datetime(2026, 7, 3, 0, 0, tzinfo=tz)
     day2_weight = dietz_time_weight(datetime(2026, 7, 2, 10, 0, tzinfo=tz), day2_start, day2_end)
@@ -205,7 +205,7 @@ def test_runtime_crypto_freshness_uses_crypto_age_bands(runtime_golden, monkeypa
             return cls(2026, 7, 3)
 
     _backend, services, sessions = runtime_golden
-    tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+    tz = __import__("zoneinfo").ZoneInfo("UTC")
     at = lambda day, hour=0: datetime(2026, 7, day, hour, tzinfo=tz)
     with sessions.begin() as session:
         session.add(AccountModel(
@@ -263,7 +263,7 @@ def test_runtime_foreign_cash_midday_flow_uses_flow_weighted_fx(runtime_golden, 
             return cls(2026, 7, 3)
 
     _backend, services, sessions = runtime_golden
-    tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+    tz = __import__("zoneinfo").ZoneInfo("UTC")
     at = lambda day, hour=0: datetime(2026, 7, day, hour, tzinfo=tz)
     with sessions.begin() as session:
         session.add(AccountModel(
@@ -320,7 +320,7 @@ def test_period_external_evidence_includes_investment_funding(runtime_golden, mo
 
     _backend, services, sessions = runtime_golden
     _seed_base(sessions)
-    monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
+    monkeypatch.setattr(relational_runtime, "_utc_today", lambda: FixedDate(2026, 7, 3))
     services.wealth.rebuild(affected_from="2026-07-01")
     week = services.wealth.series(WealthSeriesQuery(date(2026, 7, 1), date(2026, 7, 4), "week"))
     external = next(item for item in week.points[0].component_refs if item.kind is ComponentKind.EXTERNAL_CASHFLOW)
@@ -350,11 +350,11 @@ def test_runtime_missing_fx_stale_and_unsupported_fail_closed(runtime_golden, mo
     with sessions.begin() as session:
         # Maximum usable age exceeded => partial, not complete zero.
         session.get(ValuationObservationModel, "broker:global-etf:4").observed_at = datetime(
-            2026, 5, 1, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+            2026, 5, 1, tzinfo=__import__("zoneinfo").ZoneInfo("UTC")
         )
         session.add(InvestmentEventModel(
             id=1073575, workspace_id="wealth-runtime-golden", account_id=2,
-            occurred_at=datetime(2026, 7, 2, 15, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
+            occurred_at=datetime(2026, 7, 2, 15, tzinfo=__import__("zoneinfo").ZoneInfo("UTC")),
             record_type="adjustment", record_subtype="unclassified", currency="USD", payload={"amount": "1"},
         ))
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)

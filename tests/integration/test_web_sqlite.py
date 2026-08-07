@@ -75,7 +75,7 @@ def test_file_sqlite_evidence_read_uses_one_projection_snapshot(cash_web_runtime
             id=1004,
             workspace_id=runtime.workspace_id,
             account_id=101,
-            occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("Asia/Shanghai")),
+            occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("UTC")),
             amount=Decimal("2.50"),
             currency="CNY",
             counterparty="咖啡店",

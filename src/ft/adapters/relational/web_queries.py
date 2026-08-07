@@ -1,6 +1,7 @@
 """收支投影的关系型只读查询。"""
 from __future__ import annotations
 from contextlib import contextmanager
+from datetime import timezone
 from decimal import Decimal
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
@@ -8,7 +9,7 @@ from sqlalchemy.orm import aliased
 from ft.adapters.relational.dialect import RelationalEngineError
 from ft.adapters.relational.models import AccountModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionModel, InvestmentEventModel, TransactionRelationModel
 from ft.adapters.relational.runtime import StorageError, storage_error
-from ft.application.web_queries import SHANGHAI, CashAccountDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionUnavailableError, ProjectionUpdatedError, shanghai_bounds
+from ft.application.web_queries import CashAccountDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionUnavailableError, ProjectionUpdatedError, local_bounds
 
 def _amount(value):
     amount = Decimal(value).normalize()
@@ -274,13 +275,16 @@ class RelationalCashLedgerQueryRepository:
             ),
         )
     @staticmethod
-    def _monthly_summaries(rows):
+    def _monthly_summaries(rows, timezone_name):
+        from zoneinfo import ZoneInfo
+
+        zone = ZoneInfo(timezone_name)
         months = set()
         totals = {}
         for occurred_at, economic_type, amount, currency in rows:
             if occurred_at is None:
                 continue
-            local_time = occurred_at.astimezone(SHANGHAI) if occurred_at.tzinfo else occurred_at
+            local_time = occurred_at.astimezone(zone) if occurred_at.tzinfo else occurred_at.replace(tzinfo=timezone.utc).astimezone(zone)
             month = local_time.strftime("%Y-%m")
             months.add(month)
             if economic_type not in ("expense", "income") or not currency:
@@ -318,7 +322,7 @@ class RelationalCashLedgerQueryRepository:
                 CashProjectionModel.workspace_id==self._workspace_id,
                 CashProjectionModel.visible.is_(True),
             ]
-            start,end=shanghai_bounds(filters)
+            start,end=local_bounds(filters)
             if start:filter_conditions.append(CashProjectionModel.occurred_at>=start)
             if end:filter_conditions.append(CashProjectionModel.occurred_at<end)
             for field in ("account_id","category","currency"):
@@ -390,7 +394,7 @@ class RelationalCashLedgerQueryRepository:
                     *filter_conditions,
                 )
             ).all()
-            monthly_summaries = self._monthly_summaries(summary_rows)
+            monthly_summaries = self._monthly_summaries(summary_rows, filters.timezone)
             rows=[]; by={}
             for _,_,_,row,account,relation in result:
                 if row is None: continue

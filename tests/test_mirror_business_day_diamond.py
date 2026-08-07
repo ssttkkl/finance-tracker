@@ -10,7 +10,7 @@ from ft.domain.relations import (
     RelationKind,
     evaluate_payment_mirror,
     match_diamond_bank_refunds,
-    business_day_shanghai,
+    business_day_utc,
     fact_is_bank_date_only,
     RULE_PAYMENT_MIRROR_BANK_DATE_ONLY_V1,
     RULE_PAYMENT_MIRROR_REFUND_DUAL_SOURCE_V1,
@@ -55,7 +55,7 @@ def test_business_day_from_raw_date_only():
                occurred=datetime(2023, 6, 26, 16, 0, 0, tzinfo=timezone.utc),
                raw_date="2023-06-27")
     assert fact_is_bank_date_only(bank)
-    assert str(business_day_shanghai(bank)) == "2023-06-27"
+    assert str(business_day_utc(bank)) == "2023-06-27"
 
 
 def test_bank_date_only_mirror_accepts():

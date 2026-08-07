@@ -9,7 +9,7 @@ from ft.repositories.wealth import AccountFact, ValuationFact, WealthSourceItem
 
 class FakeWealthFacts:
     def __init__(self) -> None:
-        tz = ZoneInfo("Asia/Shanghai")
+        tz = ZoneInfo("UTC")
         self._valuations = (
             ValuationFact("w", "o1", "cash_account", "cash", "boundary_checkin", Decimal("100"), "CNY", "currency", datetime(2026, 7, 1, tzinfo=tz), datetime(2026, 7, 1, tzinfo=tz), "m:1", "r1", "trusted_checkin"),
             ValuationFact("w", "o2", "cash_account", "cash", "boundary_checkin", Decimal("125"), "CNY", "currency", datetime(2026, 8, 1, tzinfo=tz), datetime(2026, 8, 1, tzinfo=tz), "m:2", "r2", "trusted_checkin"),

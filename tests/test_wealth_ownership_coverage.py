@@ -82,7 +82,7 @@ def test_same_ticker_two_accounts_and_missing_owner_fail_closed(ownership_runtim
             return cls(2026, 7, 2)
 
     _backend, services, sessions = ownership_runtime
-    tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+    tz = __import__("zoneinfo").ZoneInfo("UTC")
     at = lambda day: datetime(2026, 7, day, tzinfo=tz)
     with sessions.begin() as session:
         session.add_all((
@@ -135,7 +135,7 @@ def test_account_close_and_reactivation_change_applicability_not_by_name(ownersh
             return cls(2026, 7, 3)
 
     _backend, services, sessions = ownership_runtime
-    tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+    tz = __import__("zoneinfo").ZoneInfo("UTC")
     at = lambda day: datetime(2026, 7, day, tzinfo=tz)
     with sessions.begin() as session:
         session.add(AccountModel(id=1, workspace_id="wealth-ownership", name="Cash", type="cash"))
@@ -194,7 +194,7 @@ def test_rebuild_persists_owned_coverage_dispositions_per_result(ownership_runti
             return cls(2026, 7, 2)
 
     _backend, services, sessions = ownership_runtime
-    tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+    tz = __import__("zoneinfo").ZoneInfo("UTC")
     at = lambda day: datetime(2026, 7, day, tzinfo=tz)
     with sessions.begin() as session:
         session.add_all((
@@ -285,7 +285,7 @@ def test_ownership_conflict_valuation_vs_formal_fact_is_unsupported_with_evidenc
             return cls(2026, 7, 2)
 
     _backend, services, sessions = ownership_runtime
-    tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+    tz = __import__("zoneinfo").ZoneInfo("UTC")
     at = lambda day: datetime(2026, 7, day, tzinfo=tz)
     with sessions.begin() as session:
         session.add_all((
@@ -365,7 +365,7 @@ def test_ownership_missing_owner_is_unsupported_with_evidence(ownership_runtime,
             return cls(2026, 7, 2)
 
     _backend, services, sessions = ownership_runtime
-    tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+    tz = __import__("zoneinfo").ZoneInfo("UTC")
     at = lambda day: datetime(2026, 7, day, tzinfo=tz)
     with sessions.begin() as session:
         session.add(AccountModel(id=8361574, workspace_id="wealth-ownership", name="A1", type="security"))

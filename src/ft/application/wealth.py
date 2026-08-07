@@ -2,16 +2,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
-from zoneinfo import ZoneInfo
 
 from ft.domain.wealth import AttributionComponent, CoverageDisposition, WealthChangeQuery, WealthError, WealthStatus
 from ft.domain.wealth_calculation import AggregatedPoint, WealthIdentity, aggregate_daily_points, calculate_identity, evaluate_coverage, is_supported_wealth_input, page_evidence
 from ft.domain.wealth import canonical_digest
-
-
-SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 @dataclass(frozen=True)
@@ -71,8 +67,8 @@ class WealthChangeService:
 
     def breakdown(self, query: WealthChangeQuery) -> WealthChangeBreakdown:
         year, month = map(int, query.month.split("-"))
-        start = datetime(year, month, 1, tzinfo=SHANGHAI)
-        end = datetime(year + 1, 1, 1, tzinfo=SHANGHAI) if month == 12 else datetime(year, month + 1, 1, tzinfo=SHANGHAI)
+        start = datetime(year, month, 1, tzinfo=timezone.utc)
+        end = datetime(year + 1, 1, 1, tzinfo=timezone.utc) if month == 12 else datetime(year, month + 1, 1, tzinfo=timezone.utc)
         # The published daily projection is the sole report algorithm.  A
         # natural-month breakdown aggregates exactly those immutable points;
         # the legacy typed-fact path below remains only for callers that have

@@ -70,7 +70,7 @@ def _fixture_digest() -> str:
 
 def _seed_formal_workload(sessions) -> None:
     from ft.adapters.relational.models import AccountLifecycleEventModel, AccountModel, CashTransactionModel, InvestmentEventModel, ValuationObservationModel
-    tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+    tz = __import__("zoneinfo").ZoneInfo("UTC")
     def at(day: date) -> datetime: return datetime(day.year, day.month, day.day, tzinfo=tz)
     accounts = [{"id": i + 1, "workspace_id": WORKSPACE, "name": f"Account {i:02d}", "type": "cash" if i < 5 else "security", "active": True, "metadata_json": {}} for i in range(ACCOUNT_COUNT)]
     lifecycle = [{"event_id": f"opened-{i:02d}", "workspace_id": WORKSPACE, "account_id": i + 1, "event_kind": "opened", "effective_at": at(START), "source_identity": f"seed:opened:{i}", "source_revision": f"opened-{i:02d}", "reason": "performance fixture"} for i in range(ACCOUNT_COUNT)]

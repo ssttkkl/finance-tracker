@@ -40,7 +40,7 @@ def test_projection_api_returns_member_sources_in_member_order_without_duplicate
     with runtime.sessions.begin() as session:
         session.add(CashTransactionModel(
             id=1004, workspace_id=runtime.workspace_id, account_id=101,
-            occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("Asia/Shanghai")), amount=Decimal("3"),
+            occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("UTC")), amount=Decimal("3"),
             currency="CNY", counterparty="咖啡店", category="退款", source_type="bank", record_id="cash-004",
         ))
         session.add(TransactionRelationModel(
@@ -151,7 +151,7 @@ def _add_projection_rows(runtime, count=3):
                 id=identifier,
                 workspace_id=runtime.workspace_id,
                 account_id=101,
-                occurred_at=datetime(2026, 7, 4, 9, tzinfo=ZoneInfo("Asia/Shanghai")) + timedelta(days=offset),
+            occurred_at=datetime(2026, 7, 4, 9, tzinfo=ZoneInfo("UTC")) + timedelta(days=offset),
                 amount=Decimal("-10.00") - offset,
                 currency="CNY",
                 counterparty=f"分页商户{offset}",
@@ -214,7 +214,7 @@ def test_projection_api_counterparty_filter_matches_note(request, runtime_name):
     with runtime.sessions.begin() as session:
         session.add(CashTransactionModel(
             id=1300, workspace_id=runtime.workspace_id, account_id=101,
-            occurred_at=datetime(2026, 7, 6, 9, tzinfo=ZoneInfo("Asia/Shanghai")), amount=Decimal("-8"),
+            occurred_at=datetime(2026, 7, 6, 9, tzinfo=ZoneInfo("UTC")), amount=Decimal("-8"),
             currency="CNY", counterparty="其他商户", note="备注命中交易信息筛选", category="餐饮",
             source_type="fixture", record_id="cash-note-filter",
         ))
@@ -227,7 +227,7 @@ def test_projection_api_counterparty_filter_matches_note(request, runtime_name):
 
 
 @pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
-def test_projection_api_uses_shanghai_day_boundaries_and_rejects_old_cursor(request, runtime_name):
+def test_projection_api_uses_utc_day_boundaries_and_rejects_old_cursor(request, runtime_name):
     from datetime import datetime
     from decimal import Decimal
     from zoneinfo import ZoneInfo
@@ -240,13 +240,13 @@ def test_projection_api_uses_shanghai_day_boundaries_and_rejects_old_cursor(requ
         session.add_all((
             CashTransactionModel(
                 id=1200, workspace_id=runtime.workspace_id, account_id=101,
-                occurred_at=datetime(2026, 7, 1, 0, 0, tzinfo=ZoneInfo("Asia/Shanghai")),
+                occurred_at=datetime(2026, 7, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
                 amount=Decimal("-1.20"), currency="CNY", counterparty="边界开始",
                 category="餐饮", source_type="fixture", record_id="cash-boundary-start",
             ),
             CashTransactionModel(
                 id=1201, workspace_id=runtime.workspace_id, account_id=101,
-                occurred_at=datetime(2026, 7, 1, 23, 59, 59, tzinfo=ZoneInfo("Asia/Shanghai")),
+                occurred_at=datetime(2026, 7, 1, 23, 59, 59, tzinfo=ZoneInfo("UTC")),
                 amount=Decimal("-1.30"), currency="CNY", counterparty="边界结束",
                 category="餐饮", source_type="fixture", record_id="cash-boundary-end",
             ),

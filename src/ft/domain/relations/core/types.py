@@ -3,14 +3,13 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta, date
-from zoneinfo import ZoneInfo
 from decimal import Decimal
 from enum import Enum
 from typing import Any, Iterable, Mapping, Protocol, Sequence, runtime_checkable
 import bisect
 import re
 
-from ft.domain.relations.core.geometry import _abs_decimal, _as_decimal, _parse_dt, _text_blob, business_day_shanghai
+from ft.domain.relations.core.geometry import _abs_decimal, _as_decimal, _parse_dt, _text_blob, business_day_utc
 from ft.domain.relations.core.record_types import (
     is_payment_mirror_expense,
     is_payment_mirror_refund,
@@ -97,7 +96,6 @@ RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1 = (
 )
 RULE_PAYMENT_MIRROR_REFUND_DUAL_SOURCE_V1 = "payment_mirror.refund_dual_source.v1"
 RULE_REFUND_DIAMOND_V1 = "refund_offset.diamond_via_platform.v1"
-WORKSPACE_TZ = ZoneInfo("Asia/Shanghai")
 RULE_TRANSFER_PAIR_STRONG_V1 = "transfer_pair.normalized.same_currency.time10.v1"
 RULE_PERSONAL_FX_EXCHANGE_V1 = "transfer_pair.currency_exchange.time60.v1"
 RULE_INTERNAL_ACCOUNT_TRANSFER_V1 = "transfer_pair.internal_account_transfer.v1"

@@ -1,8 +1,7 @@
 """Read adapters used by storage-independent application query services."""
 from __future__ import annotations
 
-from datetime import datetime
-from zoneinfo import ZoneInfo
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 
@@ -41,9 +40,7 @@ class RelationalTransactionQueryRepository:
                 .where(CashTransactionModel.workspace_id == self._workspace_id)
             )
             if month:
-                start_local = datetime.strptime(month, "%Y-%m").replace(
-                    day=1, tzinfo=ZoneInfo("Asia/Shanghai")
-                )
+                start_local = datetime.strptime(month, "%Y-%m").replace(day=1, tzinfo=timezone.utc)
                 if start_local.month == 12:
                     end_local = start_local.replace(year=start_local.year + 1, month=1)
                 else:

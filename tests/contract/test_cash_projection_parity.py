@@ -74,7 +74,7 @@ def test_transfer_pair_endpoint_invariants_are_identical_on_both_backends(
             counterparty = CashTransactionModel(
                 workspace_id=runtime.workspace_id,
                 account_id=102,
-                occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("Asia/Shanghai")),
+                occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("UTC")),
                 amount=Decimal(amount),
                 currency=currency,
                 counterparty="转账对侧",
@@ -131,7 +131,7 @@ def test_cross_currency_transfer_pair_is_visible_on_both_backends(
             counterparty = CashTransactionModel(
                 workspace_id=runtime.workspace_id,
                 account_id=102,
-                occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("Asia/Shanghai")),
+                occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("UTC")),
                 amount=Decimal("14"),
                 currency="USD",
                 counterparty="跨币种转账对侧",
@@ -212,7 +212,7 @@ def test_currency_exchange_endpoint_invariants_are_identical_on_both_backends(
             counterparty = CashTransactionModel(
                 workspace_id=runtime.workspace_id,
                 account_id=102,
-                occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("Asia/Shanghai")),
+                occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("UTC")),
                 amount=Decimal(amount),
                 currency=currency,
                 counterparty="换汇对侧",
@@ -288,7 +288,7 @@ def test_zero_amount_refund_contract_is_identical_on_both_backends(
             refund = CashTransactionModel(
                 workspace_id=runtime.workspace_id,
                 account_id=102,
-                occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("Asia/Shanghai")),
+                occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("UTC")),
                 amount=Decimal(refund_amount),
                 currency=refund_currency,
                 counterparty="零金额退款对侧",
@@ -369,7 +369,7 @@ def test_relation_kind_conflict_is_pending_for_auto_scan_but_rejected_on_confirm
             refund = CashTransactionModel(
                 workspace_id=runtime.workspace_id,
                 account_id=101,
-                occurred_at=datetime(2026, 7, 4, 9, tzinfo=ZoneInfo("Asia/Shanghai")),
+                occurred_at=datetime(2026, 7, 4, 9, tzinfo=ZoneInfo("UTC")),
                 amount=Decimal("12.50"),
                 currency="CNY",
                 counterparty="退款",
@@ -380,7 +380,7 @@ def test_relation_kind_conflict_is_pending_for_auto_scan_but_rejected_on_confirm
             mirrored_refund = CashTransactionModel(
                 workspace_id=runtime.workspace_id,
                 account_id=101,
-                occurred_at=datetime(2026, 7, 4, 9, 1, tzinfo=ZoneInfo("Asia/Shanghai")),
+                occurred_at=datetime(2026, 7, 4, 9, 1, tzinfo=ZoneInfo("UTC")),
                 amount=Decimal("12.50"),
                 currency="CNY",
                 counterparty="退款",
@@ -391,7 +391,7 @@ def test_relation_kind_conflict_is_pending_for_auto_scan_but_rejected_on_confirm
             transfer = CashTransactionModel(
                 workspace_id=runtime.workspace_id,
                 account_id=102,
-                occurred_at=datetime(2026, 7, 4, 9, 2, tzinfo=ZoneInfo("Asia/Shanghai")),
+                occurred_at=datetime(2026, 7, 4, 9, 2, tzinfo=ZoneInfo("UTC")),
                 amount=Decimal("-12.50"),
                 currency="CNY",
                 counterparty="转出",

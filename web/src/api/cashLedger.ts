@@ -21,6 +21,7 @@ async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
 export function fetchCashPage(filters: CashFilters, cursor?: string | null, signal?: AbortSignal): Promise<CashPage> {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); });
+  params.set("timezone", Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   if (cursor) params.set("cursor", cursor);
   const query = params.toString();
   return request<CashPage>(`/api/v1/cash-projections${query ? `?${query}` : ""}`, signal);

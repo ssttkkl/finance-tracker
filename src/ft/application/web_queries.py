@@ -4,12 +4,12 @@ from __future__ import annotations
 import base64
 import json
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-SHANGHAI = ZoneInfo("Asia/Shanghai")
+DEFAULT_TIMEZONE = "UTC"
 
 class ProjectionUnavailableError(RuntimeError):
     code = "projection.unavailable"
@@ -57,6 +57,7 @@ class ProjectionFilters:
     date_from: str | None = None; date_to: str | None = None; account_id: int | None = None; counterparty: str | None = None
     category: str | None = None; currency: str | None = None; amount_min: str | None = None; amount_max: str | None = None
     economic_type: str | None = None; transfer_subtype: str | None = None; composition: str | None = None
+    timezone: str = DEFAULT_TIMEZONE
     def as_cursor_data(self):
         return {key: (str(value) if value is not None else None) for key, value in self.__dict__.items()}
 
@@ -68,6 +69,14 @@ def normalize_filters(**values: Any) -> ProjectionFilters:
         except ValueError as exc: raise ValueError("invalid_filter") from exc
     start, end = day("date_from"), day("date_to")
     if start and end and start > end: raise ValueError("invalid_filter")
+    timezone_name = values.get("timezone") or DEFAULT_TIMEZONE
+    if not isinstance(timezone_name, str) or not timezone_name.strip():
+        raise ValueError("invalid_filter")
+    timezone_name = timezone_name.strip()
+    try:
+        ZoneInfo(timezone_name)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ValueError("invalid_filter") from exc
     try: account_id = int(values["account_id"]) if values.get("account_id") not in (None, "") else None
     except (ValueError, TypeError) as exc: raise ValueError("invalid_filter") from exc
     if account_id is not None and account_id <= 0: raise ValueError("invalid_filter")
@@ -98,10 +107,16 @@ def normalize_filters(**values: Any) -> ProjectionFilters:
         elif economic != "internal_transfer": raise ValueError("invalid_filter")
     currency = values.get("currency") or None
     if currency and (len(currency) != 3 or not currency.isalpha()): raise ValueError("invalid_filter")
-    return ProjectionFilters(start.isoformat() if start else None, end.isoformat() if end else None, account_id, (values.get("counterparty") or "").strip() or None, (values.get("category") or "").strip() or None, currency.upper() if currency else None, minimum, maximum, economic, subtype, composition)
+    return ProjectionFilters(start.isoformat() if start else None, end.isoformat() if end else None, account_id, (values.get("counterparty") or "").strip() or None, (values.get("category") or "").strip() or None, currency.upper() if currency else None, minimum, maximum, economic, subtype, composition, timezone_name)
 
-def shanghai_bounds(filters):
-    return (datetime.combine(date.fromisoformat(filters.date_from), time.min, SHANGHAI) if filters.date_from else None, datetime.combine(date.fromisoformat(filters.date_to) + timedelta(days=1), time.min, SHANGHAI) if filters.date_to else None)
+def local_bounds(filters):
+    zone = ZoneInfo(filters.timezone)
+    start = datetime.combine(date.fromisoformat(filters.date_from), time.min, zone) if filters.date_from else None
+    end = datetime.combine(date.fromisoformat(filters.date_to) + timedelta(days=1), time.min, zone) if filters.date_to else None
+    return (
+        start.astimezone(timezone.utc) if start else None,
+        end.astimezone(timezone.utc) if end else None,
+    )
 
 def _encode(workspace, version, filters, occurred_at, projection_id):
     raw = json.dumps({"v": 1, "workspace": workspace, "version": version, "filters": filters.as_cursor_data(), "occurred_at": occurred_at, "projection_id": projection_id}, sort_keys=True, separators=(",", ":")).encode()

@@ -1,11 +1,11 @@
 """Unit tests for FX mid-rate helper (no network)."""
 from decimal import Decimal
 
-from ft.adapters.fx_rates import business_day_shanghai, rate_error, get_mid_rate, clear_rate_cache
+from ft.adapters.fx_rates import business_day_utc, rate_error, get_mid_rate, clear_rate_cache
 
 
-def test_business_day_shanghai_from_naive_string():
-    assert business_day_shanghai("2025-12-19 06:30:57") == "2025-12-19"
+def test_business_day_utc_from_naive_string():
+    assert business_day_utc("2025-12-19 06:30:57") == "2025-12-19"
 
 
 def test_rate_error_close_match():

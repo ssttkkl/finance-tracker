@@ -17,7 +17,7 @@ def test_evidence_whitelists_snapshot_and_keeps_hidden_projection_readable(reque
     with cash_web_runtime.sessions.begin() as session:
         session.add(CashTransactionModel(
             id=1004, workspace_id=cash_web_runtime.workspace_id, account_id=101,
-            occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("Asia/Shanghai")), amount=Decimal("12.50"),
+            occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("UTC")), amount=Decimal("12.50"),
             currency="CNY", counterparty="咖啡店", category="退款", source_type="fixture", record_id="cash-004",
         ))
         session.add(TransactionRelationModel(
@@ -35,7 +35,7 @@ def test_evidence_whitelists_snapshot_and_keeps_hidden_projection_readable(reque
     assert "name" not in evidence["root_record"]["source_snapshot"]
     assert [member["id"] for member in evidence["members"]] == ["1003", "1004"]
     assert evidence["refund_timeline"] == [{
-        "record_id": "cash-004", "occurred_at": "2026-07-03T16:00:00+00:00", "amount": "12.5", "currency": "CNY", "source_type": "fixture",
+        "record_id": "cash-004", "occurred_at": "2026-07-04T00:00:00+00:00", "amount": "12.5", "currency": "CNY", "source_type": "fixture",
     }]
 
 
@@ -108,7 +108,7 @@ def test_evidence_exposes_only_whitelisted_funding_relation_fields(
         session.add(InvestmentEventModel(
             workspace_id=cash_web_runtime.workspace_id,
             account_id=103,
-            occurred_at=datetime(2026, 7, 3, 10, tzinfo=ZoneInfo("Asia/Shanghai")),
+            occurred_at=datetime(2026, 7, 3, 10, tzinfo=ZoneInfo("UTC")),
             record_type="funding",
             record_subtype="external",
             currency="USD",

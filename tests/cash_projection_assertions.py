@@ -7,7 +7,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 
-_SHANGHAI = ZoneInfo("Asia/Shanghai")
+_UTC = ZoneInfo("UTC")
 
 
 @dataclass(frozen=True)
@@ -46,7 +46,7 @@ def projection_scenarios() -> dict[str, ProjectionScenario]:
         return ProjectionFact(
             id=identifier,
             account_id=account_id,
-            occurred_at=datetime(2026, 1, day, 9, tzinfo=_SHANGHAI),
+            occurred_at=datetime(2026, 1, day, 9, tzinfo=_UTC),
             amount=Decimal(amount),
             record_id=f"cash-{identifier}",
         )

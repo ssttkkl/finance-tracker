@@ -68,7 +68,7 @@ def _insert_three_day_formal_fixture(sessions) -> None:
         ValuationObservationModel,
     )
 
-    tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+    tz = __import__("zoneinfo").ZoneInfo("UTC")
     at = lambda day: datetime(2026, 7, day, tzinfo=tz)
     with sessions.begin() as session:
         session.add_all((
@@ -243,7 +243,7 @@ def test_runtime_rebuild_uses_one_frozen_snapshot_and_rejects_mid_build_arrival(
     with sessions.begin() as session:
         session.add(CashTransactionModel(
             id=4484864, workspace_id="wealth-rebuild", account_id=1,
-            occurred_at=datetime(2026, 7, 1, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
+            occurred_at=datetime(2026, 7, 1, tzinfo=__import__("zoneinfo").ZoneInfo("UTC")),
             amount=Decimal("1"), currency="CNY", record_id="pre-build-cash", category="salary",
         ))
     runtime_facts = services.wealth._facts
@@ -253,7 +253,7 @@ def test_runtime_rebuild_uses_one_frozen_snapshot_and_rejects_mid_build_arrival(
         with sessions.begin() as session:
             session.add(CashTransactionModel(
                 id=7973818, workspace_id="wealth-rebuild", account_id=1,
-                occurred_at=datetime(2026, 7, 2, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
+                occurred_at=datetime(2026, 7, 2, tzinfo=__import__("zoneinfo").ZoneInfo("UTC")),
                 amount=Decimal("1"), currency="CNY", record_id="late-cash", category="salary",
             ))
         return original_build(source_watermark, affected_from)
@@ -289,7 +289,7 @@ def test_runtime_rebuild_excludes_closed_account_after_lifecycle_boundary(rebuil
 
     _backend, services, sessions = rebuilt_runtime
     _insert_three_day_formal_fixture(sessions)
-    tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+    tz = __import__("zoneinfo").ZoneInfo("UTC")
     with sessions.begin() as session:
         session.add(AccountLifecycleEventModel(
             event_id="cash-closed", workspace_id="wealth-rebuild", account_id=1, event_kind="closed",
@@ -318,7 +318,7 @@ def test_runtime_unsupported_investment_input_is_published_as_fail_closed_covera
     with sessions.begin() as session:
         session.add(InvestmentEventModel(
             id=2909920, workspace_id="wealth-rebuild", account_id=2,
-            occurred_at=datetime(2026, 7, 2, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
+            occurred_at=datetime(2026, 7, 2, tzinfo=__import__("zoneinfo").ZoneInfo("UTC")),
             record_type="adjustment", record_subtype="unclassified", currency="USD", payload={"amount": "1"},
         ))
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
@@ -343,7 +343,7 @@ def test_runtime_preserves_usable_stale_valuations_but_marks_the_daily_point_sta
     _insert_three_day_formal_fixture(sessions)
     with sessions.begin() as session:
         session.get(ValuationObservationModel, "broker:global-etf:4").observed_at = datetime(
-            2026, 6, 20, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+            2026, 6, 20, tzinfo=__import__("zoneinfo").ZoneInfo("UTC")
         )
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
     services.wealth.rebuild(affected_from="2026-07-01")
@@ -365,7 +365,7 @@ def test_runtime_keeps_same_ticker_positions_distinct_by_formal_owner(rebuilt_ru
 
     _backend, services, sessions = rebuilt_runtime
     _insert_three_day_formal_fixture(sessions)
-    tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+    tz = __import__("zoneinfo").ZoneInfo("UTC")
     with sessions.begin() as session:
         session.add(AccountModel(id=3248207, workspace_id="wealth-rebuild", name="Broker 2", type="security"))
         session.flush()
@@ -410,7 +410,7 @@ def test_runtime_fails_closed_for_position_expected_from_formal_ownership_withou
     with sessions.begin() as session:
         session.add(InvestmentEventModel(
             id=9791237, workspace_id="wealth-rebuild", account_id=2,
-            occurred_at=datetime(2026, 7, 1, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")),
+            occurred_at=datetime(2026, 7, 1, tzinfo=__import__("zoneinfo").ZoneInfo("UTC")),
             record_type="trade", record_subtype="security", currency="USD", payload={"position": "unvalued-etf", "quantity": "1"},
         ))
     monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)

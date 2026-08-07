@@ -3,13 +3,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import or_, select
 
 
 _RULE_ID = "cash-investment-funding-v1"
-_SHANGHAI = ZoneInfo("Asia/Shanghai")
 _AUTO_CASH_TYPES = {
     True: "investment_out",
     False: "investment_in",
@@ -74,7 +72,7 @@ class CashInvestmentFundingRelationService:
 
     @staticmethod
     def _day(value) -> object:
-        return value.astimezone(_SHANGHAI).date()
+        return value.astimezone(timezone.utc).date()
 
     @classmethod
     def _institution_name_matches(cls, cash, event) -> bool:
