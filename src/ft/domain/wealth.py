@@ -14,7 +14,7 @@ from typing import Any, Literal
 
 CALCULATION_VERSION = "wealth-attribution-v0.1"
 BASE_CURRENCY = "CNY"
-TIMEZONE = "Asia/Shanghai"
+TIMEZONE = "UTC"
 _MONTH = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
 

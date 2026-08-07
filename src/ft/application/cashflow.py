@@ -1,9 +1,8 @@
 """Application services for manual cashflow writes."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
-from zoneinfo import ZoneInfo
 
 from ft.domain.cashflow import CashflowResult
 from ft.domain.accounts import normalize_currency
@@ -11,15 +10,19 @@ from ft.domain.decimal import exact_decimal
 from ft.repositories import UnitOfWork
 from ft.schema import CURRENCY_SYMBOLS
 
-WORKSPACE_TIMEZONE = ZoneInfo("Asia/Shanghai")
-
-
 def _exact_decimal(value, field: str) -> Decimal:
     return exact_decimal(value, field)
 
 
 def _decimal_text(value, field: str) -> str:
     return format(_exact_decimal(value, field), "f")
+
+
+def _parse_utc_datetime(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 class CashflowService:
@@ -35,7 +38,7 @@ class CashflowService:
             operation_currency = normalize_currency(currency or "")
         except ValueError:
             return CashflowResult.fail("cashflow.currency_required", "必须显式提供有效的 3 位币种码")
-        date_str = date or datetime.now(WORKSPACE_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
+        date_str = date or datetime.now(timezone.utc).isoformat()
         with self._uow as uow:
             account = uow.accounts.find(account_name)
             if account is None:
@@ -82,7 +85,7 @@ class CashflowService:
             return CashflowResult.fail("cashflow.currency_required", "必须显式提供有效的 3 位币种码")
         date_str = (
             f"{date} 00:00:00" if date
-            else datetime.now(WORKSPACE_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
+            else datetime.now(timezone.utc).isoformat()
         )
         day = date_str[:10]
         with self._uow as uow:
@@ -112,7 +115,7 @@ class CashflowService:
             }
             fact_id = uow.cashflows.add(account.type, row)
             if hasattr(uow, "wealth_facts"):
-                observed_at = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=WORKSPACE_TIMEZONE)
+                observed_at = _parse_utc_datetime(date_str)
                 uow.wealth_facts.record_cash_checkin(
                     account_name=account_name, currency=operation_currency, balance=balance, occurred_at=observed_at,
                 )
@@ -143,9 +146,9 @@ class TransferService:
         if amount <= 0 or (to_amount is not None and to_amount <= 0):
             return CashflowResult.fail("transfer.invalid_amount", "转账金额必须大于零")
         if not date:
-            date = datetime.now(WORKSPACE_TIMEZONE).strftime("%Y-%m-%d")
+            date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         if not time_str:
-            time_str = datetime.now(WORKSPACE_TIMEZONE).strftime("%H:%M:%S")
+            time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
         date_str = f"{date} {time_str}"
 
         try:

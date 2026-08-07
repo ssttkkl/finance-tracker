@@ -4,7 +4,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
-from zoneinfo import ZoneInfo
 from sqlalchemy import func, insert, or_, select, text, update
 
 from ft.domain.wealth import canonical_bytes, canonical_digest
@@ -783,8 +782,8 @@ class RelationalWealthReadModel:
             direct = ()
             selection = json.loads(manifest.selection_payload)
             if manifest.source_manifest_id and selection.get("kinds") and (selection.get("local_date") or selection.get("date_from")):
-                day_start = datetime.fromisoformat(selection.get("date_from", selection.get("local_date"))).replace(tzinfo=ZoneInfo("Asia/Shanghai"))
-                day_end = datetime.fromisoformat(selection.get("date_to", "")).replace(tzinfo=ZoneInfo("Asia/Shanghai")) if selection.get("date_to") else day_start + timedelta(days=1)
+                day_start = datetime.fromisoformat(selection.get("date_from", selection.get("local_date"))).replace(tzinfo=timezone.utc)
+                day_end = datetime.fromisoformat(selection.get("date_to", "")).replace(tzinfo=timezone.utc) if selection.get("date_to") else day_start + timedelta(days=1)
                 direct_rows = session.scalars(select(WealthSourceManifestItemModel).where(
                     WealthSourceManifestItemModel.workspace_id == self._workspace_id,
                     WealthSourceManifestItemModel.manifest_id == manifest.source_manifest_id,

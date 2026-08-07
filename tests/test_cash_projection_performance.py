@@ -128,11 +128,11 @@ def _fixture_digest() -> str:
 def _seed_cash_projection_workload(sessions) -> None:
     from ft.adapters.relational.models import AccountModel, CashTransactionModel, TransactionRelationModel
 
-    shanghai = ZoneInfo("Asia/Shanghai")
+    utc = ZoneInfo("UTC")
 
     def occurred_at(number: int) -> datetime:
         day = START + timedelta(days=number % 365)
-        return datetime(day.year, day.month, day.day, number % 23, tzinfo=shanghai)
+        return datetime(day.year, day.month, day.day, number % 23, tzinfo=utc)
 
     transactions: list[dict] = []
     relations: list[dict] = []

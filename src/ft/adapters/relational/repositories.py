@@ -5,7 +5,6 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from uuid import uuid4
 from decimal import Decimal
-from zoneinfo import ZoneInfo
 import re
 
 from sqlalchemy import func, select
@@ -30,9 +29,6 @@ from ft.domain.relations import (
     is_open_leg_relation,
     ordered_fact_pair,
 )
-
-
-WORKSPACE_TIMEZONE = ZoneInfo("Asia/Shanghai")
 
 
 _SOURCE_PAYLOAD_FIELD_ALIASES = {
@@ -68,12 +64,12 @@ def _parse_timestamp(value) -> datetime:
         except ValueError as exc:
             raise ValueError(f"invalid transaction date: {text}") from exc
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=WORKSPACE_TIMEZONE)
+        parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
 
 
 def _format_timestamp(value: datetime) -> str:
-    return value.astimezone(WORKSPACE_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
+    return value.astimezone(timezone.utc).isoformat()
 
 
 def _validate_currency(value: str) -> str:

@@ -3,14 +3,11 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta, date
-from zoneinfo import ZoneInfo
 from decimal import Decimal
 from enum import Enum
 from typing import Any, Callable, Iterable, Mapping, Sequence
 import bisect
 import re
-
-WORKSPACE_TZ = ZoneInfo("Asia/Shanghai")
 
 def _as_decimal(value) -> Decimal:
     if isinstance(value, Decimal):
@@ -83,8 +80,8 @@ def is_date_only_business_string(text: str) -> bool:
     return False
 
 
-def business_day_shanghai(fact: "FactView") -> date | None:
-    """Calendar day in Asia/Shanghai for pairing (FR-052)."""
+def business_day_utc(fact: "FactView") -> date | None:
+    """Calendar day in UTC for pairing (FR-052)."""
     raw = _business_raw_date_string(fact)
     if not raw:
         return None
@@ -108,12 +105,12 @@ def business_day_shanghai(fact: "FactView") -> date | None:
     except ValueError:
         try:
             dt = _parse_dt(raw)
-            return dt.astimezone(WORKSPACE_TZ).date()
+            return dt.astimezone(timezone.utc).date()
         except Exception:
             return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=WORKSPACE_TZ)
-    return dt.astimezone(WORKSPACE_TZ).date()
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).date()
 
 
 def fact_is_bank_date_only(fact: "FactView") -> bool:
@@ -149,8 +146,8 @@ def fact_is_bank_date_only(fact: "FactView") -> bool:
     return "16:00:00" in s or s.endswith("00:00:00") or "T16:00:00" in s
 
 
-def same_business_day_shanghai(a: "FactView", b: "FactView") -> bool:
-    da, db = business_day_shanghai(a), business_day_shanghai(b)
+def same_business_day_utc(a: "FactView", b: "FactView") -> bool:
+    da, db = business_day_utc(a), business_day_utc(b)
     return da is not None and db is not None and da == db
 
 
@@ -195,5 +192,4 @@ def main_style_cross_verify(left: Mapping[str, Any] | str | object, right: Mappi
     if da and db and (da in db or db in da):
         return True
     return False
-
 

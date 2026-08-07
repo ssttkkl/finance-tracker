@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 def test_daily_projection_uses_formal_boundary_valuations_and_fails_closed_on_gap():
     from ft.domain.wealth import WealthStatus
     from ft.domain.wealth_calculation import project_daily_point
-    tz = ZoneInfo("Asia/Shanghai")
+    tz = ZoneInfo("UTC")
     complete = project_daily_point(
         local_date="2026-07-01", source_revision="s", boundaries={"cash": (Decimal("100"), Decimal("110"))},
         cashflows=(Decimal("10"),), valuations=(), lifecycle=(),

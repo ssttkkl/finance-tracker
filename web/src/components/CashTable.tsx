@@ -3,7 +3,7 @@ import { formatOccurredAt } from "../format";
 
 type Props = { items: CashProjection[]; monthlySummaries?: CashMonthlySummary[]; loading?: boolean; onEvidence: (projection: CashProjection, source: HTMLButtonElement) => void };
 
-const monthKeyFormatter = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit", timeZone: "Asia/Shanghai" });
+const monthKeyFormatter = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit" });
 
 function isBankSecurityTransfer(item: CashProjection): boolean {
   return item.transfer_subtype === "bank_security_transfer";

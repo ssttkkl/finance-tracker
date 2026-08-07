@@ -186,17 +186,17 @@ def test_shared_runtime_workflow_preserves_account_cash_transfer_and_investment_
         uow.commit()
 
 
-def test_shared_runtime_preserves_exact_decimal_utc_and_shanghai_month(relational_runtime):
+def test_shared_runtime_preserves_exact_decimal_utc_and_month(relational_runtime):
     services = relational_runtime.services
     assert services.accounts.create_account("Cash", "cash", "CNY").ok
     assert services.cashflow.add_manual_transaction(
         amount=Decimal("1.230000000000000001"), counterparty="Exact", account_name="Cash",
-        currency="CNY", date="2026-07-01T00:30:00+08:00",
+        currency="CNY", date="2026-07-01T00:30:00+00:00",
     ).ok
     rows = services.queries.list_transactions(month="2026-07", limit=10).items
     assert len(rows) == 1
     assert rows[0].amount == Decimal("1.230000000000000001")
-    assert rows[0].occurred_at == "2026-07-01 00:30:00"
+    assert rows[0].occurred_at == "2026-07-01T00:30:00+00:00"
 
     with pytest.raises(ValueError, match="18 decimal places"):
         services.cashflow.add_manual_transaction(

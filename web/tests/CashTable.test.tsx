@@ -1,8 +1,18 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { CashTable } from "../src/components/CashTable";
 
 afterEach(cleanup);
+
+it("发生时间和月份键不固定地区时区", () => {
+  const formatSource = readFileSync(resolve(process.cwd(), "src/format.ts"), "utf8");
+  const tableSource = readFileSync(resolve(process.cwd(), "src/components/CashTable.tsx"), "utf8");
+
+  expect(formatSource).not.toContain('timeZone: "Asia/Shanghai"');
+  expect(tableSource).not.toContain('timeZone: "Asia/Shanghai"');
+});
 
 const projection = (projection_id: string, kind: string, note = "") => ({
   projection_id, occurred_at: "2026-07-03T09:00:00+08:00", account: { id: 101, name: "日常账户", type: "cash", active: true },
@@ -103,7 +113,7 @@ it("按月份插入收入和支出汇总分割行，并按币种展示", () => {
   expect(screen.getAllByRole("row")).toHaveLength(5);
 });
 
-it("按上海时间将 UTC 月末流水归入显示月份", () => {
+it("按浏览器本地时间将 UTC 月末流水归入显示月份", () => {
   const crossMonth = { ...projection("cross-month", "payment_mirror"), occurred_at: "2026-06-30T17:32:00Z" };
   const monthlySummaries = [{ month: "2026-07", currencies: [{ currency: "CNY", income: "100", expense: "-12.50" }] }];
   render(<CashTable items={[crossMonth]} monthlySummaries={monthlySummaries} onEvidence={(_projection, _source) => undefined} />);

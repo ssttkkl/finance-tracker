@@ -187,7 +187,7 @@ def cash_web_runtime(tmp_path):
     workspace_id = "cash-web-workspace"
     ensure_workspace(sessions, workspace_id)
     ensure_workspace(sessions, "other-workspace")
-    shanghai = ZoneInfo("Asia/Shanghai")
+    utc = ZoneInfo("UTC")
     with sessions.begin() as session:
         session.add_all((
             AccountModel(id=101, workspace_id=workspace_id, name="日常账户", type="cash"),
@@ -198,7 +198,7 @@ def cash_web_runtime(tmp_path):
         session.add_all((
             CashTransactionModel(
                 id=1003, workspace_id=workspace_id, account_id=101,
-                occurred_at=datetime(2026, 7, 3, 9, tzinfo=shanghai), amount=Decimal("-12.50"),
+                occurred_at=datetime(2026, 7, 3, 9, tzinfo=utc), amount=Decimal("-12.50"),
                 currency="CNY", counterparty="咖啡店", category="餐饮", source_type="fixture",
                 record_id="cash-003", source_payload={
                     "merchant": "咖啡店", "name": "不应展示", "account": "1234",
@@ -207,12 +207,12 @@ def cash_web_runtime(tmp_path):
             ),
             CashTransactionModel(
                 id=1002, workspace_id=workspace_id, account_id=102,
-                occurred_at=datetime(2026, 7, 2, 12, tzinfo=shanghai), amount=Decimal("-100"),
+                occurred_at=datetime(2026, 7, 2, 12, tzinfo=utc), amount=Decimal("-100"),
                 currency="CNY", counterparty="超市", category="日用", source_type="fixture", record_id="cash-002",
             ),
             CashTransactionModel(
                 id=1001, workspace_id=workspace_id, account_id=101,
-                occurred_at=datetime(2026, 7, 1, 8, tzinfo=shanghai), amount=Decimal("2000"),
+                occurred_at=datetime(2026, 7, 1, 8, tzinfo=utc), amount=Decimal("2000"),
                 currency="CNY", counterparty="工资", category="收入", source_type="fixture", record_id="cash-001",
             ),
         ))
@@ -243,7 +243,7 @@ def postgres_cash_web_runtime():
     workspace_id = "cash-web-postgres-workspace"
     ensure_workspace(sessions, workspace_id)
     ensure_workspace(sessions, "other-postgres-workspace")
-    shanghai = ZoneInfo("Asia/Shanghai")
+    utc = ZoneInfo("UTC")
     with sessions.begin() as session:
         session.add_all((
             AccountModel(id=101, workspace_id=workspace_id, name="日常账户", type="cash"),
@@ -254,7 +254,7 @@ def postgres_cash_web_runtime():
         session.add_all((
             CashTransactionModel(
                 id=1003, workspace_id=workspace_id, account_id=101,
-                occurred_at=datetime(2026, 7, 3, 9, tzinfo=shanghai), amount=Decimal("-12.50"),
+                occurred_at=datetime(2026, 7, 3, 9, tzinfo=utc), amount=Decimal("-12.50"),
                 currency="CNY", counterparty="咖啡店", category="餐饮", source_type="fixture",
                 record_id="cash-003", source_payload={
                     "merchant": "咖啡店", "name": "不应展示", "account": "1234",
@@ -263,12 +263,12 @@ def postgres_cash_web_runtime():
             ),
             CashTransactionModel(
                 id=1002, workspace_id=workspace_id, account_id=102,
-                occurred_at=datetime(2026, 7, 2, 12, tzinfo=shanghai), amount=Decimal("-100"),
+                occurred_at=datetime(2026, 7, 2, 12, tzinfo=utc), amount=Decimal("-100"),
                 currency="CNY", counterparty="超市", category="日用", source_type="fixture", record_id="cash-002",
             ),
             CashTransactionModel(
                 id=1001, workspace_id=workspace_id, account_id=101,
-                occurred_at=datetime(2026, 7, 1, 8, tzinfo=shanghai), amount=Decimal("2000"),
+                occurred_at=datetime(2026, 7, 1, 8, tzinfo=utc), amount=Decimal("2000"),
                 currency="CNY", counterparty="工资", category="收入", source_type="fixture", record_id="cash-001",
             ),
         ))

@@ -13,7 +13,7 @@ from conftest import (
 )
 
 
-SHANGHAI = ZoneInfo("Asia/Shanghai")
+UTC = ZoneInfo("UTC")
 
 
 def _runtime(tmp_path, backend):
@@ -63,7 +63,7 @@ def _add_cash(
     row = model(
         workspace_id=workspace_id,
         account_id=account_id,
-        occurred_at=datetime.fromisoformat(f"{day}T10:00:00").replace(tzinfo=SHANGHAI),
+        occurred_at=datetime.fromisoformat(f"{day}T10:00:00").replace(tzinfo=UTC),
         amount=Decimal(amount),
         currency=currency,
         counterparty=counterparty,
@@ -88,7 +88,7 @@ def _add_investment(
     row = model(
         workspace_id=workspace_id,
         account_id=account_id,
-        occurred_at=datetime.fromisoformat(f"{day}T11:00:00").replace(tzinfo=SHANGHAI),
+        occurred_at=datetime.fromisoformat(f"{day}T11:00:00").replace(tzinfo=UTC),
         record_type=record_type,
         record_subtype=record_subtype,
         currency=currency,

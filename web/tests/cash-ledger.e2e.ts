@@ -138,3 +138,19 @@ test("超长账户和跨币种金额在宽屏表格内换行且不覆盖查看�
   expect(layout.amountStaysBeforeAction).toBe(true);
   expect(layout.evidenceButtonInActionCell).toBe(true);
 });
+
+test.describe("浏览器本地时区", () => {
+  test.use({ timezoneId: "America/Los_Angeles" });
+
+  test("列表请求发送浏览器 IANA 时区", async ({ page }) => {
+    const requests: string[] = [];
+    page.on("request", (request) => requests.push(request.url()));
+    await mockLedger(page);
+    await page.goto("/");
+    await expect(page.getByText("第一笔")).toBeVisible();
+
+    const projectionRequest = requests.find((url) => url.includes("/cash-projections"));
+    expect(projectionRequest).toBeDefined();
+    expect(new URL(projectionRequest!).searchParams.get("timezone")).toBe("America/Los_Angeles");
+  });
+});

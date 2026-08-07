@@ -65,7 +65,7 @@ def _insert_golden_formal_fixture(sessions) -> None:
         ValuationObservationModel,
     )
 
-    tz = __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+    tz = __import__("zoneinfo").ZoneInfo("UTC")
     at = lambda day, hour=0: datetime(2026, 7, day, hour, tzinfo=tz)
     with sessions.begin() as session:
         session.add_all((
@@ -143,7 +143,7 @@ def test_month_day_week_share_one_canonical_attribution_algorithm(golden_runtime
 
     backend, services, sessions = golden_runtime
     _insert_golden_formal_fixture(sessions)
-    monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
+    monkeypatch.setattr(relational_runtime, "_utc_today", lambda: FixedDate(2026, 7, 3))
     services.wealth.rebuild(affected_from="2026-07-01")
 
     day_series = services.wealth.series(WealthSeriesQuery(date(2026, 7, 1), date(2026, 7, 4), "day"))

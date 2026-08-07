@@ -100,7 +100,7 @@ def test_cashflow_service_contract_persists_decimal_snapshot():
         entered.commit()
     assert rows == [{
         "record_id": "",
-        "occurred_at": "2026-07-17 09:00:00",
+            "occurred_at": "2026-07-17T09:00:00+00:00",
         "amount": Decimal("-12.34"),
         "currency": "CNY",
         "counterparty": "Coffee",
@@ -335,7 +335,7 @@ def test_numeric_38_18_maximum_value_is_accepted_exactly():
     assert exact_decimal(value) == Decimal(value)
 
 
-def test_naive_statement_time_is_stored_as_utc_and_returned_in_workspace_time():
+def test_naive_statement_time_is_stored_as_utc():
     from sqlalchemy import select
 
     from ft.adapters.relational.models import CashTransactionModel
@@ -352,10 +352,10 @@ def test_naive_statement_time_is_stored_as_utc_and_returned_in_workspace_time():
     with sessions() as session:
         occurred_at = session.scalar(select(CashTransactionModel.occurred_at))
     assert occurred_at.tzinfo is not None
-    assert occurred_at.astimezone(timezone.utc).hour == 1
+    assert occurred_at.astimezone(timezone.utc).hour == 9
 
     with unit_of_work(sessions, "workspace-a") as uow:
-        assert uow.cashflows.list()[0]["occurred_at"] == "2026-07-17 09:00:00"
+        assert uow.cashflows.list()[0]["occurred_at"] == "2026-07-17T09:00:00+00:00"
         uow.commit()
 
 

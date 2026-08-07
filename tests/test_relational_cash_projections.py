@@ -59,7 +59,7 @@ def test_replace_dataset_bulk_writes_restricted_parent_mapping_and_preserves_rol
             id=1004,
             workspace_id=cash_web_runtime.workspace_id,
             account_id=101,
-            occurred_at=datetime(2026, 7, 4, 8, tzinfo=ZoneInfo("Asia/Shanghai")),
+            occurred_at=datetime(2026, 7, 4, 8, tzinfo=ZoneInfo("UTC")),
             amount=Decimal("-12.50"),
             currency="CNY",
             counterparty="咖啡店镜像",
@@ -204,7 +204,7 @@ def test_replace_dataset_uses_the_real_901_projection_sqlite_boundary(cash_web_r
     assert projection_adapter.PROJECTION_WRITE_BATCH_SIZE == 900
     with cash_web_runtime.sessions.begin() as session:
         repository = RelationalCashProjectionRepository(session, cash_web_runtime.workspace_id)
-        occurred_at = datetime(2026, 7, 5, 8, tzinfo=ZoneInfo("Asia/Shanghai"))
+        occurred_at = datetime(2026, 7, 5, 8, tzinfo=ZoneInfo("UTC"))
         facts = tuple(
             CashProjectionFact(
                 id=2_000 + offset,

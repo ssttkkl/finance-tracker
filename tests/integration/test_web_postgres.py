@@ -28,7 +28,7 @@ def test_postgres_cash_contract_ignores_investment_relation_endpoint_id_collisio
     with postgres_cash_web_runtime.sessions.begin() as session:
         session.add(InvestmentEventModel(
             id=1003, workspace_id=postgres_cash_web_runtime.workspace_id, account_id=103,
-            occurred_at=datetime(2026, 7, 3, 9, tzinfo=ZoneInfo("Asia/Shanghai")),
+            occurred_at=datetime(2026, 7, 3, 9, tzinfo=ZoneInfo("UTC")),
             record_type="trade", record_subtype="security", currency="CNY", payload={}, record_id="investment-1003",
         ))
 
@@ -101,7 +101,7 @@ def test_postgres_evidence_read_uses_one_projection_snapshot(postgres_cash_web_r
             id=1004,
             workspace_id=runtime.workspace_id,
             account_id=101,
-            occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("Asia/Shanghai")),
+            occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("UTC")),
             amount=Decimal("2.50"),
             currency="CNY",
             counterparty="咖啡店",

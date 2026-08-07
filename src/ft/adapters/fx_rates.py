@@ -4,7 +4,7 @@ Not a ledger authority: rates never rewrite formal fact amounts.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 import json
 import os
@@ -12,9 +12,6 @@ from typing import Callable
 from urllib.parse import quote
 import urllib.request
 
-from zoneinfo import ZoneInfo
-
-_SHANGHAI = ZoneInfo("Asia/Shanghai")
 _DEFAULT_TIMEOUT = 8
 
 # (day_iso, base, quote) -> Decimal quote-per-base, or None if miss
@@ -29,26 +26,26 @@ def _decimal(value) -> Decimal | None:
     return result if result.is_finite() and result > 0 else None
 
 
-def business_day_shanghai(occurred_at) -> str:
-    """Return Asia/Shanghai calendar day YYYY-MM-DD for an occurred_at value."""
+def business_day_utc(occurred_at) -> str:
+    """Return the UTC calendar day YYYY-MM-DD for an occurred_at value."""
     if isinstance(occurred_at, datetime):
         dt = occurred_at
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=_SHANGHAI)
-        return dt.astimezone(_SHANGHAI).date().isoformat()
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc).date().isoformat()
     text = str(occurred_at or "").strip()
     if not text:
-        return date.today().isoformat()
+        return datetime.now(timezone.utc).date().isoformat()
     # Prefer leading date portion
     if len(text) >= 10 and text[4] == "-" and text[7] == "-":
         return text[:10]
     try:
         dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=_SHANGHAI)
-        return dt.astimezone(_SHANGHAI).date().isoformat()
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc).date().isoformat()
     except ValueError:
-        return text[:10] if len(text) >= 10 else date.today().isoformat()
+        return text[:10] if len(text) >= 10 else datetime.now(timezone.utc).date().isoformat()
 
 
 def _json_get(url: str):
@@ -130,7 +127,7 @@ class FxRateProvider:
         self._fetcher = fetcher
 
     def get_mid(self, base: str, quote: str, *, day: str | None = None) -> Decimal | None:
-        day_s = day or date.today().isoformat()
+        day_s = day or datetime.now(timezone.utc).date().isoformat()
         return get_mid_rate(day_s, base, quote, fetcher=self._fetcher)
 
 

@@ -1,10 +1,9 @@
 """Workspace-bound typed formal facts for the wealth application service."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 from decimal import Decimal
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select, text
 
@@ -182,17 +181,16 @@ class RelationalWealthFactRepository:
         lifecycle = tuple(LifecycleFact(*row) for row in lifecycle_rows)
         cashflows = tuple(CashflowFact(*row) for row in cash_rows)
         investments = tuple(InvestmentFact(*row) for row in investment_rows)
-        shanghai = ZoneInfo("Asia/Shanghai")
         fx_by_day = {
-            (value.as_of.astimezone(shanghai).date(), value.identity): value.value
+            (value.as_of.astimezone(timezone.utc).date(), value.identity): value.value
             for value in valuations if value.identity_kind == "fx"
         }
 
         def projected_amount(amount, currency: str, occurred_at: datetime) -> Decimal | None:
             if currency == "CNY":
                 return amount.normalize()
-            return (amount * fx_by_day[(occurred_at.astimezone(shanghai).date(), f"{currency}/CNY")]).normalize() if (
-                occurred_at.astimezone(shanghai).date(), f"{currency}/CNY"
+            return (amount * fx_by_day[(occurred_at.astimezone(timezone.utc).date(), f"{currency}/CNY")]).normalize() if (
+                occurred_at.astimezone(timezone.utc).date(), f"{currency}/CNY"
             ) in fx_by_day else None
 
         def cash_kind(row: CashflowFact) -> str:
@@ -242,7 +240,7 @@ class RelationalWealthFactRepository:
             "cashflow", f"cashflow:{row.fact_id}", "1", _digest_parts(
                 row.account_id, row.occurred_at.isoformat(), row.amount, row.category,
             ), row.occurred_at, cash_kind(row), projected_amount(row.amount, row.currency, row.occurred_at),
-            f"{row.occurred_at.astimezone(shanghai).date().isoformat()}:{cash_kind(row)}:{row.fact_id}",
+            f"{row.occurred_at.astimezone(timezone.utc).date().isoformat()}:{cash_kind(row)}:{row.fact_id}",
             None,
         ) for row in cashflows)
         for row in investments:
@@ -251,7 +249,7 @@ class RelationalWealthFactRepository:
                 "investment", f"investment:{row.fact_id}", "1", _digest_parts(
                     row.account_id, row.occurred_at.isoformat(), row.record_type, row.record_subtype, canonical_digest(dict(row.payload)),
                 ), row.occurred_at, evidence_kind, contribution,
-                f"{row.occurred_at.astimezone(shanghai).date().isoformat()}:{evidence_kind}:{row.fact_id}",
+            f"{row.occurred_at.astimezone(timezone.utc).date().isoformat()}:{evidence_kind}:{row.fact_id}",
                 None,
             ))
         ordered = tuple(sorted(items, key=lambda item: (item.item_kind, item.identity, item.revision)))

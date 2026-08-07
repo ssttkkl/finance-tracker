@@ -46,6 +46,8 @@ describe("CashLedgerPage", () => {
     vi.stubGlobal("fetch", fetch);
     render(<CashLedgerPage />);
     await screen.findByText("咖啡店");
+    const projectionRequest = fetch.mock.calls.find(([input]) => String(input).includes("/cash-projections"));
+    expect(new URL(String(projectionRequest?.[0])).searchParams.get("timezone")).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
     expect(screen.getByRole("group", { name: "账本筛选工具" })).not.toHaveAttribute("open");
     fireEvent.click(screen.getByRole("button", { name: "加载更多" }));
     await screen.findByText("第二笔");
