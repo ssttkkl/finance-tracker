@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-08-07
+goal: 在项目内固定 grill-me 技能来源，并要求实施前完成需求范围与具体内容澄清
+skip_specs: true
