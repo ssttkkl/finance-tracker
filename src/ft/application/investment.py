@@ -1,9 +1,12 @@
 """Investment write and portfolio query application services."""
 from collections import defaultdict
+from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 import time
 from decimal import Decimal
 from queue import Empty, Queue
 from threading import Thread
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ft.application.valuation import ValuationService
 from ft.domain.decimal import exact_decimal
@@ -12,6 +15,13 @@ from ft.domain.investment import (
     PortfolioAccountDTO,
     PortfolioDTO,
     PortfolioPositionDTO,
+)
+from ft.domain.investment_performance import (
+    InstrumentFlow,
+    PeriodFlow,
+    calculate_instrument_period_pnl,
+    calculate_period_return,
+    calculate_total_period_pnl,
 )
 from ft.domain.valuation import (
     AssetKind,
@@ -26,6 +36,70 @@ from ft.domain.valuation import (
 
 def _finite_decimal(value, field):
     return exact_decimal(value, field)
+
+
+def _event_at(event):
+    value = event.get("occurred_at")
+    if isinstance(value, datetime):
+        result = value
+    else:
+        result = datetime.fromisoformat(str(value))
+    if result.tzinfo is None:
+        raise ValueError("investment event timestamp must be timezone-aware")
+    return result
+
+
+def _period_bounds(now: datetime, period: str, timezone_name: str | None = None):
+    local_now = now
+    if timezone_name:
+        try:
+            local_now = now.astimezone(ZoneInfo(timezone_name))
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError("invalid investment timezone") from exc
+    if period == "24h":
+        return now - timedelta(hours=24), now
+    if period == "30d":
+        return now - timedelta(days=30), now
+    if period == "90d":
+        return now - timedelta(days=90), now
+    if period == "365d":
+        return now - timedelta(days=365), now
+    if period == "week_to_date":
+        start = (local_now - timedelta(days=local_now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        return start, now
+    if period == "month_to_date":
+        return local_now.replace(day=1, hour=0, minute=0, second=0, microsecond=0), now
+    if period == "year_to_date":
+        return local_now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0), now
+    raise ValueError("invalid investment period")
+
+
+def _is_current_cash(current, account: str, ticker: str, cash_keys=()) -> bool:
+    position = current.get((account, ticker.lower()))
+    return bool((position is not None and position.is_cash) or (account, ticker.lower()) in cash_keys)
+
+
+def _instrument_flows(events, account_name: str, ticker: str, current, cash_keys=()):
+    trade_flows = []
+    income = Decimal("0")
+    costs = Decimal("0")
+    for event in events:
+        if str(event.get("account") or event.get("account_name") or "") != account_name:
+            continue
+        event_ticker_from = str(event.get("from_ticker") or "").lower()
+        event_ticker_to = str(event.get("to_ticker") or "").lower()
+        record_type = event.get("record_type")
+        if record_type == "trade":
+            commission = _finite_decimal(event.get("commission") or 0, "commission")
+            if event_ticker_to == ticker and _is_current_cash(current, account_name, event_ticker_from, cash_keys):
+                trade_flows.append(InstrumentFlow(_event_at(event), _finite_decimal(event.get("from_amount") or 0, "from_amount")))
+                costs += commission
+            elif event_ticker_from == ticker and _is_current_cash(current, account_name, event_ticker_to, cash_keys):
+                trade_flows.append(InstrumentFlow(_event_at(event), -_finite_decimal(event.get("to_amount") or 0, "to_amount")))
+                costs += commission
+        elif record_type == "income" and event_ticker_from == ticker:
+            income += _finite_decimal(event.get("to_amount") or 0, "to_amount")
+    return tuple(trade_flows), income, costs
 
 
 class InvestmentService:
@@ -108,16 +182,23 @@ class PortfolioQueryService:
 
     def __init__(
         self, repository, valuation: ValuationService, *, fx_rates=None,
-        query_deadline_seconds: float = 4.0, monotonic=None,
+        query_deadline_seconds: float = 4.0, monotonic=None, clock=None,
     ):
         self._repository = repository
         self._valuation = valuation
         self._fx_rates = fx_rates
         self._query_deadline_seconds = query_deadline_seconds
         self._monotonic = monotonic or time.monotonic
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
 
-    def get_portfolio(self, *, display_currency: str | None = None) -> PortfolioDTO:
+    def get_portfolio(
+        self, *, display_currency: str | None = None, period: str = "24h", timezone: str | None = None,
+    ) -> PortfolioDTO:
         display = validate_display_currency(display_currency)
+        clock_now = self._clock()
+        if clock_now.tzinfo is None:
+            raise ValueError("portfolio clock must be timezone-aware")
+        _period_bounds(clock_now, period, timezone)
         raw = self._repository.load_portfolio()
         configured = {item.upper() for item in raw.get("configured_currencies", ())}
         deadline = self._monotonic() + self._query_deadline_seconds
@@ -228,7 +309,198 @@ class PortfolioQueryService:
                     fx_reason=fx_reason,
                 ))
             accounts.append(PortfolioAccountDTO(name, currency, tuple(items)))
-        return PortfolioDTO(tuple(accounts))
+        period_positions, period_profit, period_rate = self._period_performance(
+            raw, accounts, period=period, timezone=timezone,
+        )
+        accounts = tuple(
+            PortfolioAccountDTO(
+                account.name,
+                account.currency,
+                tuple(
+                    replace(
+                        position,
+                        period_profit=period_positions.get((account.name, position.ticker.lower()), (None, None))[0],
+                        period_profit_rate=period_positions.get((account.name, position.ticker.lower()), (None, None))[1],
+                    )
+                    for position in account.positions
+                ),
+            )
+            for account in accounts
+        )
+        total_market_value, total_profit, total_profit_rate = self._current_totals(
+            accounts, display_currency=display,
+        )
+        return PortfolioDTO(
+            accounts=accounts,
+            total_market_value=total_market_value,
+            total_profit=total_profit,
+            total_profit_rate=total_profit_rate,
+            period_profit=period_profit,
+            period_profit_rate=period_rate,
+        )
+
+    def _period_performance(self, raw, accounts, *, period: str, timezone: str | None = None):
+        events = tuple(raw.get("investment_events", ()))
+        now = self._clock()
+        if now.tzinfo is None:
+            raise ValueError("portfolio clock must be timezone-aware")
+        period_start, period_end = _period_bounds(now, period, timezone)
+        events = tuple(
+            event for event in events
+            if period_start <= _event_at(event) < period_end
+        )
+        current = {
+            (account.name, position.ticker.lower()): position
+            for account in accounts for position in account.positions
+        }
+        cash_keys = set()
+        for account_name, account in raw.get("accounts", {}).items():
+            base_currencies = raw.get("base_currencies", {}).get(account_name, ())
+            if not base_currencies:
+                base_currencies = (account.get("currency") or "",)
+            for ticker in base_currencies:
+                if ticker:
+                    cash_keys.add((account_name, str(ticker).lower()))
+        net_changes = defaultdict(lambda: Decimal("0"))
+        for event in events:
+            account = str(event.get("account") or event.get("account_name") or "")
+            from_ticker = str(event.get("from_ticker") or "").lower()
+            to_ticker = str(event.get("to_ticker") or "").lower()
+            from_amount = _finite_decimal(event.get("from_amount") or 0, "from_amount")
+            to_amount = _finite_decimal(event.get("to_amount") or 0, "to_amount")
+            record_type = event.get("record_type")
+            if record_type == "trade":
+                if from_ticker:
+                    net_changes[(account, from_ticker)] -= from_amount
+                if to_ticker:
+                    net_changes[(account, to_ticker)] += to_amount
+                commission = _finite_decimal(event.get("commission") or 0, "commission")
+                commission_asset = str(event.get("commission_asset") or "").lower()
+                if commission and commission_asset:
+                    net_changes[(account, commission_asset)] -= commission
+            elif record_type == "income":
+                # Dividend source tickers identify the income, but the source
+                # position itself is not reduced by the cash amount.
+                if to_ticker:
+                    net_changes[(account, to_ticker)] += to_amount
+            elif record_type in {"funding", "expense", "reversal", "subscription", "adjustment"}:
+                if from_ticker:
+                    net_changes[(account, from_ticker)] -= from_amount
+                if to_ticker:
+                    net_changes[(account, to_ticker)] += to_amount
+
+        keys = set(current) | set(net_changes)
+        opening_assets = Decimal("0")
+        closing_assets = Decimal("0")
+        external_flows = []
+        period_positions = {}
+        complete = True
+        for key in sorted(keys):
+            account_name, ticker = key
+            position = current.get(key)
+            q1 = position.shares if position is not None else Decimal("0")
+            q0 = q1 - net_changes.get(key, Decimal("0"))
+            if position is not None and position.market_value is not None:
+                closing_assets += position.market_value
+            if _is_current_cash(current, account_name, ticker, cash_keys):
+                opening_assets += q0
+                continue
+            if q0 < 0:
+                complete = False
+                continue
+            opening_value = Decimal("0")
+            if q0 != 0:
+                historical = self._historical_value(ticker, q0, position, period_start)
+                if historical is None:
+                    complete = False
+                    continue
+                opening_value = historical
+            opening_assets += opening_value
+            if position is None:
+                continue
+            trade_flows, income, costs = _instrument_flows(events, account_name, ticker, current, cash_keys)
+            if position.market_value is None:
+                complete = False
+                continue
+            pnl = calculate_instrument_period_pnl(
+                opening_market_value=opening_value,
+                closing_market_value=position.market_value,
+                trade_flows=trade_flows,
+                investment_income=income,
+                costs=costs,
+            )
+            rate = calculate_period_return(
+                pnl=pnl,
+                opening_assets=opening_value,
+                flows=tuple(PeriodFlow(flow.occurred_at, flow.capital_change) for flow in trade_flows),
+                period_start=period_start,
+                period_end=period_end,
+            )
+            period_positions[key] = (pnl, rate)
+
+        for event in events:
+            if event.get("record_type") != "funding":
+                continue
+            amount = _finite_decimal(
+                event.get("to_amount") if _finite_decimal(event.get("to_amount") or 0, "to_amount") > 0
+                else -_finite_decimal(event.get("from_amount") or 0, "from_amount"),
+                "external_flow",
+            )
+            external_flows.append(PeriodFlow(_event_at(event), amount))
+
+        if not complete:
+            return period_positions, None, None
+        total_pnl = calculate_total_period_pnl(
+            opening_assets=opening_assets,
+            closing_assets=closing_assets,
+            external_flows=tuple(flow.amount for flow in external_flows),
+        )
+        total_rate = calculate_period_return(
+            pnl=total_pnl, opening_assets=opening_assets, flows=tuple(external_flows),
+            period_start=period_start, period_end=period_end,
+        )
+        return period_positions, total_pnl, total_rate
+
+    def _historical_value(self, ticker, quantity, position, period_start):
+        kind = infer_asset_kind(ticker, cash_tickers=set(), configured_currencies=set())
+        if kind is None:
+            return None
+        try:
+            result = self._valuation.quote_at(
+                AssetRef(identity=ticker, kind=kind, quantity=quantity), at=period_start,
+            )
+        except (AttributeError, ValuationError):
+            return None
+        if result.status is not QuoteStatus.COMPLETE or result.market_value is None:
+            return None
+        if position is not None and position.cost_currency and result.quote_currency:
+            if position.cost_currency.upper() != result.quote_currency.upper():
+                return None
+        return result.market_value
+
+    @staticmethod
+    def _current_totals(accounts, *, display_currency):
+        values = []
+        profits = []
+        currencies = set()
+        for account in accounts:
+            for position in account.positions:
+                value = position.display_market_value if display_currency else position.market_value
+                if value is None:
+                    return None, None, None
+                values.append(value)
+                currencies.add((position.display_currency if display_currency else position.quote_currency) or position.cost_currency)
+                if not position.is_cash and position.profit is not None:
+                    if display_currency and position.display_market_value is not None and position.market_value:
+                        profits.append(position.profit * (position.display_market_value / position.market_value))
+                    else:
+                        profits.append(position.profit)
+        if not values or len(currencies) > 1:
+            return None, None, None
+        total_market = sum(values, Decimal("0"))
+        total_profit = sum(profits, Decimal("0"))
+        rate = None if total_market == 0 else total_profit / total_market
+        return total_market, total_profit, rate
 
     def _quote_requests(self, requests, deadline: float):
         grouped = defaultdict(list)

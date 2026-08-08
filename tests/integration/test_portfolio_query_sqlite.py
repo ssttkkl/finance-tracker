@@ -115,3 +115,31 @@ def test_sqlite_portfolio_quote_contract_deduplicates_and_preserves_display_valu
         assert positions[("One", "missing.us")].display_market_value is None
     finally:
         engine.dispose()
+
+
+def test_sqlite_portfolio_repository_exposes_workspace_bound_investment_events(tmp_path):
+    from ft.adapters.relational.models import InvestmentEventModel
+
+    engine = create_relational_engine(f"sqlite+pysqlite:///{tmp_path / 'portfolio-events.db'}")
+    try:
+        create_schema(engine)
+        sessions = create_session_factory(engine)
+        ensure_workspace(sessions, "portfolio-events")
+        uow = RelationalUnitOfWork(sessions, "portfolio-events")
+        assert AccountService(uow).create_account("IBKR", "security", "USD").ok
+        with sessions.begin() as session:
+            account_id = session.query(__import__("ft.adapters.relational.models", fromlist=["AccountModel"]).AccountModel).filter_by(name="IBKR").one().id
+            session.add(InvestmentEventModel(
+                id=99, workspace_id="portfolio-events", account_id=account_id,
+                source_type="test", record_id="trade-99", occurred_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+                record_type="trade", record_subtype="security", currency="USD", note="",
+                from_ticker="usd", from_amount=Decimal("100"), to_ticker="aapl.us", to_amount=Decimal("1"),
+                commission=Decimal("0"), commission_asset="usd", payload={}, source_payload={},
+            ))
+
+        raw = RelationalPortfolioRepository(sessions, "portfolio-events").load_portfolio()
+
+        assert len(raw["investment_events"]) == 1
+        assert raw["investment_events"][0]["to_ticker"] == "aapl.us"
+    finally:
+        engine.dispose()

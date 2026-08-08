@@ -30,7 +30,7 @@ const transfer = (crossCurrency = false) => ({
   },
 });
 
-it("在交易信息中展示交易对方、备注和关系投影标记，在来源列展示渠道", () => {
+it("在交易信息中展示交易对方、备注和相关记录标记，在来源列展示渠道", () => {
   render(<CashTable items={[projection("1", "payment_mirror", "午间消费"), projection("2", "refund_offset"), projection("3", "unknown_kind")]} onEvidence={(_projection, _source) => undefined} />);
 
   expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "来源", "经济类型", "金额", "操作"]);
@@ -43,11 +43,11 @@ it("在交易信息中展示交易对方、备注和关系投影标记，在来�
   expect(screen.getByText("午间消费")).toBeInTheDocument();
   expect(screen.getAllByText("fixture")).toHaveLength(3);
   expect(screen.queryByText(/同笔支付关系|退款冲销关系|未识别的关系类型/)).not.toBeInTheDocument();
-  expect(screen.getAllByText("关系投影")).toHaveLength(3);
+  expect(screen.getAllByText("相关记录")).toHaveLength(3);
   expect(screen.queryByText(/条账本记录/)).not.toBeInTheDocument();
 });
 
-it("关系投影在来源列展示所有成员来源并去重，单源投影回退为自身来源", () => {
+it("相关记录在来源列展示所有成员来源并去重，单条记录回退为自身来源", () => {
   const single = { ...projection("single", "single"), composition: [], member_count: 1, accepted_relation_summary: [], source_types: ["支付宝"] };
   const related = { ...projection("related", "refund_offset"), source_types: ["支付宝", "工商银行"] };
   const missing = { ...projection("missing", "single"), composition: [], member_count: 1, accepted_relation_summary: [], source_type: null, source_types: [] };
@@ -56,17 +56,17 @@ it("关系投影在来源列展示所有成员来源并去重，单源投影回�
   expect(screen.getByRole("cell", { name: "支付宝" })).toHaveAttribute("headers", "cash-column-source");
   expect(screen.getByRole("cell", { name: "支付宝、工商银行" })).toHaveAttribute("headers", "cash-column-source");
   expect(screen.getByRole("cell", { name: "-" })).toHaveAttribute("headers", "cash-column-source");
-  expect(screen.getByRole("row", { name: /交易对方related/ })).toHaveTextContent("关系投影");
+  expect(screen.getByRole("row", { name: /交易对方related/ })).toHaveTextContent("相关记录");
 });
 
-it("仅为关系投影显示来源标记", () => {
+it("仅为相关记录显示来源标记", () => {
   const single = { ...projection("single", "single"), composition: [], member_count: 1, accepted_relation_summary: [] };
   const related = { ...projection("related", "refund_offset"), member_count: 3 };
   render(<CashTable items={[single, related]} onEvidence={(_projection, _source) => undefined} />);
 
   expect(screen.queryByText("单源投影")).not.toBeInTheDocument();
   expect(screen.queryByText(/条账本记录/)).not.toBeInTheDocument();
-  expect(screen.getByLabelText("关系投影")).toHaveTextContent("关系投影");
+  expect(screen.getByLabelText("相关记录")).toHaveTextContent("相关记录");
 });
 
 it("已确认的银证转账显示专用关系标记", () => {
@@ -82,8 +82,8 @@ it("已确认的银证转账显示专用关系标记", () => {
   };
   render(<CashTable items={[bankSecurityTransfer]} onEvidence={(_projection, _source) => undefined} />);
 
-  expect(screen.getByText("银证转账")).toBeInTheDocument();
-  expect(screen.getByLabelText("银证转账关系")).toHaveTextContent("银证转账关系");
+  expect(screen.getAllByText("银证转账", { exact: true })).toHaveLength(2);
+  expect(screen.getByLabelText("银证转账")).toHaveTextContent("银证转账");
 });
 
 it("空的交易对方和备注显示横杠", () => {

@@ -72,10 +72,10 @@ describe("CashLedgerPage", () => {
     render(<CashLedgerPage />);
 
     await screen.findByText("咖啡店");
-    const retry = await screen.findByRole("button", { name: "重试账户目录" });
-    expect(screen.getByText("无法读取账户目录。请检查本机 API 后重试。")).toBeInTheDocument();
+    const retry = await screen.findByRole("button", { name: "重试" });
+    expect(screen.getByText("暂时无法读取账户，请重试。")).toBeInTheDocument();
     fireEvent.click(retry);
-    await waitFor(() => expect(screen.queryByText("无法读取账户目录。请检查本机 API 后重试。")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText("暂时无法读取账户，请重试。")).not.toBeInTheDocument());
     expect(screen.getByRole("option", { name: "日常账户" })).toBeInTheDocument();
     expect(screen.getByText("咖啡店")).toBeInTheDocument();
     expect(fetch.mock.calls.filter(([input]) => String(input).includes("/accounts"))).toHaveLength(2);
@@ -309,12 +309,12 @@ describe("CashLedgerPage", () => {
 
     render(<CashLedgerPage />);
     await screen.findByText("咖啡店");
-    fireEvent.click(screen.getByRole("button", { name: "查看咖啡店的证据详情" }));
+    fireEvent.click(screen.getByRole("button", { name: "查看咖啡店的详情" }));
 
-    const dialog = await screen.findByRole("dialog", { name: "证据详情" });
+    const dialog = await screen.findByRole("dialog", { name: "记录详情" });
     expect(within(dialog).getByRole("region", { name: "收支详情" })).toHaveClass("evidence-section");
     expect(within(dialog).getByRole("region", { name: "关联记录" })).toHaveClass("evidence-section");
-    expect(within(dialog).getByText("关系投影")).toBeInTheDocument();
+    expect(within(dialog).getByText("相关记录")).toBeInTheDocument();
     expect(within(dialog).queryByText(/条账本记录/)).not.toBeInTheDocument();
     expect(within(dialog).getByText("午间消费")).toBeInTheDocument();
     expect(within(dialog).getByText("alipay、icbc_credit")).toBeInTheDocument();
@@ -353,12 +353,12 @@ describe("CashLedgerPage", () => {
     }));
 
     render(<CashLedgerPage />);
-    fireEvent.click(await screen.findByRole("button", { name: "查看咖啡店的证据详情" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看咖啡店的详情" }));
 
-    const dialog = await screen.findByRole("dialog", { name: "证据详情" });
+    const dialog = await screen.findByRole("dialog", { name: "记录详情" });
     expect(within(dialog).queryByText("单源投影")).not.toBeInTheDocument();
     expect(within(dialog).getByText("alipay")).toBeInTheDocument();
-    expect(within(dialog).queryByText("关系投影")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("相关记录")).not.toBeInTheDocument();
     expect(within(dialog).queryByText(/条账本记录/)).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("region", { name: "关联记录" })).not.toBeInTheDocument();
     expect(within(dialog).queryByText("这笔收支由一条账本记录直接形成，没有关联记录。")).not.toBeInTheDocument();
@@ -394,11 +394,10 @@ describe("CashLedgerPage", () => {
     }));
 
     render(<CashLedgerPage />);
-    fireEvent.click(await screen.findByRole("button", { name: "查看Charles Schwab的证据详情" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看Charles Schwab的详情" }));
 
-    const dialog = await screen.findByRole("dialog", { name: "证据详情" });
-    expect(within(dialog).getByText("银证转账")).toBeInTheDocument();
-    expect(within(dialog).getByText("银证转账关系")).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog", { name: "记录详情" });
+    expect(within(dialog).getAllByText("银证转账", { exact: true })).toHaveLength(2);
     expect(within(dialog).queryByRole("region", { name: "关联记录" })).not.toBeInTheDocument();
   });
 
@@ -443,18 +442,18 @@ describe("CashLedgerPage", () => {
   it("在投影不可用和存储忙碌时显示脱敏的重试状态", async () => {
     vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ error: { code: "projection.unavailable" } }, 503)));
     const { rerender } = render(<CashLedgerPage />);
-    expect(await screen.findByText("收支投影暂不可用，请先完成重建。")).toBeInTheDocument();
+    expect(await screen.findByText("暂时无法读取账本，请稍后重试。")).toBeInTheDocument();
 
     vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ error: { code: "storage.busy", message: "database is locked /private/ledger.db" } }, 503)));
     rerender(<CashLedgerPage key="busy" />);
-    expect(await screen.findByText("账本正被其他操作占用，请稍后重试。")).toBeInTheDocument();
+    expect(await screen.findByText("账本正忙，请稍后重试。")).toBeInTheDocument();
     expect(screen.queryByText(/ledger\.db/)).not.toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveAttribute("data-status-kind", "error");
   });
 
   it.each([
-    ["invalid_filter", "请修正标记的金额筛选条件后重试。"],
-    ["invalid_cursor", "加载位置已失效，请重新读取记录。"],
+    ["invalid_filter", "金额筛选有误，请检查后重试。"],
+    ["invalid_cursor", "记录已更新，请重新加载。"],
     ["unmapped_failure", "请求失败，请稍后重试。"],
   ])("为 %s 显示可修正的请求错误", async (code, message) => {
     vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/accounts")
@@ -479,20 +478,20 @@ describe("CashLedgerPage", () => {
     }));
 
     render(<CashLedgerPage />);
-    const trigger = await screen.findByRole("button", { name: "查看咖啡店的证据详情" });
+    const trigger = await screen.findByRole("button", { name: "查看咖啡店的详情" });
     fireEvent.click(trigger);
-    await screen.findByRole("dialog", { name: "证据详情" });
+    await screen.findByRole("dialog", { name: "记录详情" });
     fireEvent.change(screen.getByLabelText("分类"), { target: { value: "餐饮" } });
 
     await screen.findByText("账本已更新，正在刷新记录。")
-    expect(screen.queryByRole("dialog", { name: "证据详情" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "记录详情" })).not.toBeInTheDocument();
 
     refreshed.resolve(json({ projection_version: 2, items: [{ ...projection, projection_id: "cash:2001", counterparty: "刷新后的投影" }], next_cursor: null, page_size: 50, filters: {} }));
     await screen.findByText("刷新后的投影");
     const confirmation = screen.getByRole("button", { name: "查看更新后的列表" });
     expect(confirmation).toHaveFocus();
     fireEvent.click(confirmation);
-    await waitFor(() => expect(screen.getByRole("button", { name: "查看刷新后的投影的证据详情" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("button", { name: "查看刷新后的投影的详情" })).toHaveFocus());
     expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("category=%E9%A4%90%E9%A5%AE"), expect.anything());
     expect(fetch).toHaveBeenLastCalledWith(expect.not.stringContaining("cursor=old-page"), expect.anything());
   });
@@ -505,9 +504,9 @@ describe("CashLedgerPage", () => {
     }));
 
     render(<CashLedgerPage />);
-    fireEvent.click(await screen.findByRole("button", { name: "查看咖啡店的证据详情" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看咖啡店的详情" }));
 
-    expect(await screen.findByText("证据详情不完整，请重试或检查收支投影。")).toBeInTheDocument();
+    expect(await screen.findByText("详情不完整，请重试。")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
   });
 
@@ -525,9 +524,9 @@ describe("CashLedgerPage", () => {
     }));
 
     render(<CashLedgerPage />);
-    fireEvent.click(await screen.findByRole("button", { name: "查看咖啡店的证据详情" }));
-    await screen.findByRole("dialog", { name: "证据详情" });
-    fireEvent.click(screen.getByRole("button", { name: "关闭证据详情" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看咖啡店的详情" }));
+    await screen.findByRole("dialog", { name: "记录详情" });
+    fireEvent.click(screen.getByRole("button", { name: "关闭详情" }));
     fireEvent.change(screen.getByLabelText("分类"), { target: { value: "旧筛选" } });
     fireEvent.change(screen.getByLabelText("分类"), { target: { value: "当前筛选" } });
 
@@ -535,8 +534,8 @@ describe("CashLedgerPage", () => {
     staleEvidence.resolve(json(evidenceFor()));
     stalePage.resolve(json({ projection_version: 1, items: [{ ...projection, projection_id: "cash:3001", counterparty: "过期筛选结果" }], next_cursor: null, page_size: 50, filters: {} }));
     await waitFor(() => expect(screen.queryByText("过期筛选结果")).not.toBeInTheDocument());
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "证据详情" })).not.toBeInTheDocument());
-    expect(screen.queryByRole("dialog", { name: "证据详情" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "记录详情" })).not.toBeInTheDocument());
+    expect(screen.queryByRole("dialog", { name: "记录详情" })).not.toBeInTheDocument();
   });
 
   it("将交易信息和金额范围传递到收支投影筛选", async () => {

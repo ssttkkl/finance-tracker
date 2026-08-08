@@ -39,6 +39,8 @@ class PortfolioPositionDTO:
     fx_rate: Decimal | None = None
     fx_status: str | None = None
     fx_reason: str | None = None
+    period_profit: Decimal | None = None
+    period_profit_rate: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -51,3 +53,8 @@ class PortfolioAccountDTO:
 @dataclass(frozen=True)
 class PortfolioDTO:
     accounts: tuple[PortfolioAccountDTO, ...]
+    total_market_value: Decimal | None = None
+    total_profit: Decimal | None = None
+    total_profit_rate: Decimal | None = None
+    period_profit: Decimal | None = None
+    period_profit_rate: Decimal | None = None

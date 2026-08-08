@@ -8,16 +8,16 @@ import { LoadMoreControl } from "../components/Pagination";
 import { StatusView } from "../components/StatusView";
 
 const requestErrorMessages: Record<string, string> = {
-  api_origin_invalid: "前端 API 地址无效。请设置 VITE_FT_API_ORIGIN 后重启。",
-  "storage.busy": "账本正被其他操作占用，请稍后重试。",
-  "storage.readonly": "账本当前不可读取，请检查本机 API 配置后重试。",
-  "storage.connect": "无法连接本机账本，请检查 API 和数据库连接后重试。",
-  "storage.schema": "账本结构不可用，请检查本机 API 配置后重试。",
-  "storage.workspace": "当前工作区不可用，请检查本机 API 配置后重试。",
-  "storage.config": "账本配置无效，请检查本机 API 配置后重试。",
-  "projection.unavailable": "收支投影暂不可用，请先完成重建。",
-  invalid_filter: "请修正标记的金额筛选条件后重试。",
-  invalid_cursor: "加载位置已失效，请重新读取记录。",
+  api_origin_invalid: "暂时无法连接账本，请稍后重试。",
+  "storage.busy": "账本正忙，请稍后重试。",
+  "storage.readonly": "暂时无法读取账本，请稍后重试。",
+  "storage.connect": "暂时无法连接账本，请稍后重试。",
+  "storage.schema": "账本暂时无法读取，请稍后重试。",
+  "storage.workspace": "暂时无法打开账本，请稍后重试。",
+  "storage.config": "账本暂时无法使用，请稍后重试。",
+  "projection.unavailable": "暂时无法读取账本，请稍后重试。",
+  invalid_filter: "金额筛选有误，请检查后重试。",
+  invalid_cursor: "记录已更新，请重新加载。",
   api_request_failed: "请求失败，请稍后重试。",
 };
 
@@ -103,5 +103,5 @@ export function CashLedgerPage() {
   const openEvidence = (projection: CashProjection, source: HTMLButtonElement) => { evidenceAbortController.current?.abort(); const controller = new AbortController(); evidenceAbortController.current = controller; const requestId = ++evidenceRequestId.current; opener.current = source; setSelected(projection); setEvidence(null); setEvidenceState("loading"); fetchEvidence(projection.projection_id, controller.signal).then((value) => { if (requestId === evidenceRequestId.current) { setEvidence(value); setEvidenceState("ready"); } }).catch(() => { if (!controller.signal.aborted && requestId === evidenceRequestId.current) setEvidenceState("error"); }); };
   const closeEvidence = () => { evidenceAbortController.current?.abort(); evidenceRequestId.current += 1; restoreEvidenceFocus.current = true; setSelected(null); setEvidence(null); };
 
-  return <div className="page-layout"><main className="app-shell" inert={Boolean(selected) || undefined}><aside className="sidebar"><strong>Finance Tracker</strong><nav aria-label="主要导航"><a aria-current="page" href="#cash-ledger">收支账本</a></nav></aside><section className="ledger ledger-workbench" id="cash-ledger" aria-label="收支账本工作台"><header className="page-header"><div><h1>收支账本</h1></div></header>{accountsError ? <div className="status-view status-error" data-status-kind="error" role="alert"><p>无法读取账户目录。请检查本机 API 后重试。</p><button type="button" onClick={loadAccounts}>重试账户目录</button></div> : null}<CashFiltersBar filters={filters} accounts={accounts} filterOptions={filterOptions} filterOptionsReady={filterOptionsReady} filterOptionsLoading={filterOptionsLoading} amountFilterState={amountFilterState} onChange={updateFilters} onAmountFilterChange={clearAmountFilterState} />{status === "loading" ? <><CashTable items={[]} loading onEvidence={openEvidence} /><StatusView kind="loading" message={projectionUpdated ? "账本已更新，正在刷新记录。" : undefined} /></> : null}{status === "empty" ? <StatusView kind="empty" /> : null}{status === "error" ? <StatusView kind="error" message={errorMessage} onRetry={resetAndLoad} /> : null}{status === "ready" ? <>{projectionUpdated ? <div className="update-notice" role="status"><p>账本已更新，已刷新记录。</p><button ref={updateConfirmation} type="button" onClick={confirmUpdatedList}>查看更新后的列表</button></div> : null}<CashTable items={items} monthlySummaries={monthlySummaries} onEvidence={openEvidence} /><LoadMoreControl hasMore={Boolean(nextCursor)} loading={appendLoading} error={appendError} onLoadMore={appendError ? retryMore : loadMore} /></> : null}</section></main>{selected ? <EvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} onClose={closeEvidence} onRetry={() => openEvidence(selected, opener.current ?? document.createElement("button"))} /> : null}</div>;
+  return <div className="page-layout"><main className="app-shell" inert={Boolean(selected) || undefined}><aside className="sidebar"><strong>Finance Tracker</strong><nav aria-label="主要导航"><a aria-current="page" href="#cash-ledger">收支账本</a></nav></aside><section className="ledger ledger-workbench" id="cash-ledger" aria-label="收支账本工作台"><header className="page-header"><div><h1>收支账本</h1></div></header>{accountsError ? <div className="status-view status-error" data-status-kind="error" role="alert"><p>暂时无法读取账户，请重试。</p><button type="button" onClick={loadAccounts}>重试</button></div> : null}<CashFiltersBar filters={filters} accounts={accounts} filterOptions={filterOptions} filterOptionsReady={filterOptionsReady} filterOptionsLoading={filterOptionsLoading} amountFilterState={amountFilterState} onChange={updateFilters} onAmountFilterChange={clearAmountFilterState} />{status === "loading" ? <><CashTable items={[]} loading onEvidence={openEvidence} /><StatusView kind="loading" message={projectionUpdated ? "账本已更新，正在刷新记录。" : undefined} /></> : null}{status === "empty" ? <StatusView kind="empty" /> : null}{status === "error" ? <StatusView kind="error" message={errorMessage} onRetry={resetAndLoad} /> : null}{status === "ready" ? <>{projectionUpdated ? <div className="update-notice" role="status"><p>账本已更新，已刷新记录。</p><button ref={updateConfirmation} type="button" onClick={confirmUpdatedList}>查看更新后的列表</button></div> : null}<CashTable items={items} monthlySummaries={monthlySummaries} onEvidence={openEvidence} /><LoadMoreControl hasMore={Boolean(nextCursor)} loading={appendLoading} error={appendError} onLoadMore={appendError ? retryMore : loadMore} /></> : null}</section></main>{selected ? <EvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} onClose={closeEvidence} onRetry={() => openEvidence(selected, opener.current ?? document.createElement("button"))} /> : null}</div>;
 }

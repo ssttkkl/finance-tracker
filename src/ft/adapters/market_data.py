@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 import json
 import logging
@@ -76,8 +76,9 @@ class CashQuoteProvider:
 
 
 class SecurityQuoteProvider:
-    def __init__(self, download=None, *, clock=None):
+    def __init__(self, download=None, *, download_history=None, clock=None):
         self._download = download
+        self._download_history = download_history
         self._clock = clock or _now
 
     def raw_quote(self, identity: str, kind: AssetKind) -> ProviderTick | None:
@@ -95,6 +96,26 @@ class SecurityQuoteProvider:
             quote_currency=quote_currency_for_security_symbol(symbol),
             observed_at=self._clock(),
             provider="yfinance",
+        )
+
+    def raw_quote_at(self, identity: str, kind: AssetKind, *, at: datetime) -> ProviderTick | None:
+        if kind is not AssetKind.SECURITY:
+            raise UnsupportedQuote(identity)
+        symbol = map_security_symbol(identity)
+        if at.tzinfo is None:
+            raise ValueError("historical quote boundary must be timezone-aware")
+        if self._download_history is not None:
+            price = self._download_history(symbol, at=at)
+        else:
+            price = self._yfinance_price_at(symbol, at)
+        price = _decimal(price)
+        if price is None:
+            return None
+        return ProviderTick(
+            price=price,
+            quote_currency=quote_currency_for_security_symbol(symbol),
+            observed_at=at,
+            provider="yfinance-history",
         )
 
     def raw_quote_many(self, refs, *, timeout: float | None = None):
@@ -163,6 +184,42 @@ class SecurityQuoteProvider:
         except Exception:
             return None
 
+    @staticmethod
+    def _yfinance_price_at(symbol: str, at: datetime) -> Decimal | None:
+        try:
+            import yfinance as yf  # type: ignore[import-untyped]
+        except ImportError:
+            return None
+        logger = logging.getLogger("yfinance")
+        previous_disabled = logger.disabled
+        logger.disabled = True
+        try:
+            start = (at - timedelta(days=3)).isoformat()
+            end = (at + timedelta(days=1)).isoformat()
+            data = yf.download(
+                symbol, start=start, end=end, interval="1h", progress=False,
+                auto_adjust=False, timeout=_QUOTE_TIMEOUT_SECONDS,
+            )
+        except Exception:
+            return None
+        finally:
+            logger.disabled = previous_disabled
+        if data is None or getattr(data, "empty", False):
+            return None
+        try:
+            close = data["Close"]
+            series = close if not hasattr(close, "columns") else (
+                close[symbol] if symbol in close.columns else close.iloc[:, 0]
+            )
+            index = getattr(series, "index", ())
+            candidates = [
+                (timestamp.to_pydatetime() if hasattr(timestamp, "to_pydatetime") else timestamp, value)
+                for timestamp, value in zip(index, series, strict=True)
+                if (timestamp.to_pydatetime() if hasattr(timestamp, "to_pydatetime") else timestamp) <= at
+            ]
+            return _decimal(candidates[-1][1]) if candidates else _decimal(series.iloc[0])
+        except Exception:
+            return None
     @staticmethod
     def _yfinance_prices(symbols: list[str], *, timeout: float | None) -> dict[str, Decimal | None]:
         try:
@@ -427,6 +484,19 @@ class CompositeQuoteProvider:
         if kind is AssetKind.PREDICTION_MARKET:
             return self._pm.raw_quote(identity, kind)
         raise UnsupportedQuote(identity)
+
+    def raw_quote_at(self, identity: str, kind: AssetKind, *, at: datetime) -> ProviderTick | None:
+        if kind is AssetKind.CASH:
+            return self._cash.raw_quote(identity, kind)
+        provider = {
+            AssetKind.SECURITY: self._security,
+            AssetKind.CRYPTO: self._crypto,
+            AssetKind.PREDICTION_MARKET: self._pm,
+        }.get(kind)
+        method = getattr(provider, "raw_quote_at", None)
+        if not callable(method):
+            raise UnsupportedQuote(identity)
+        return method(identity, kind, at=at)
 
     def raw_quote_many(self, refs, *, timeout: float | None = None):
         by_kind = defaultdict(list)

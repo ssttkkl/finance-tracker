@@ -6,15 +6,15 @@
 
 ## 需求澄清门禁
 
-- 每项变更在开始实施前，都必须使用项目内的 `grill-me` 技能运行 `/grilling`，持续进行需求澄清，直到目标、范围、非目标、具体内容、验收标准、边界条件和关键风险明确。
+- 每项变更在开始实施前，都必须调用项目内的 `grill-me` 技能，进入其 `/grilling` session，持续进行需求澄清，直到目标、范围、非目标、具体内容、验收标准、边界条件和关键风险明确。`/grilling` 是技能 session 名称，不是 shell 命令。
 - 该门禁适用于代码、测试、规格、文档、配置、技能、依赖和迁移等所有仓库变更；仅阅读、查询状态和运行只读验证不属于实施变更。
 - 澄清结论必须写入对应的 OpenSpec `proposal.md`、`design.md`、`tasks.md` 或其他正式变更记录。若仍存在会改变范围、语义或验收标准的歧义，必须暂停实施并请求用户决策。
-- `grill-me` 默认禁止隐式调用，代理必须显式运行 `/grilling`，不能以自行推测或简短确认替代需求澄清。
+- `grill-me` 默认禁止隐式调用，代理必须显式调用该技能并进入 `/grilling` session，不能以自行推测或简短确认替代需求澄清。
 
 ## 工具边界
 
 - 环境必须提供 OpenSpec CLI `1.7.0+` 与 Node.js `20.19.0+`；初始化或升级后以 `openspec --version` 确认。OpenSpec CLI 在终端运行，`$openspec-*` 必须按 Codex Skill 调用，不能作为 shell 子命令。
-- 项目不依赖 gstack 或其他仓库外 Skill。唯一例外是 Hallmark：A 类 UI 原型使用 `$hallmark`，任何等级的 UI 审查使用 `$hallmark audit`。
+- 项目不依赖 gstack 或其他仓库外 Skill。唯一例外是 Hallmark：A 类 UI 原型调用 `$hallmark` 技能，任何等级的 UI 审查调用 Hallmark 的 `audit` 技能动作（通常写作 `$hallmark audit`）；这些都是技能调用，不是 shell 命令。
 - Web QA 使用仓库实际提供的 Vitest、Playwright、生产预览和适用浏览器工具；缺少某个浏览器 Skill 时，改用可用工具完成同等检查。
 - 必须提交 `openspec/`、`.agents/skills/openspec-*`、`openspec/specs/` 与 `openspec/changes/`；运行缓存、凭据、浏览器状态与真实财务数据留在仓库外。
 
@@ -60,7 +60,7 @@
 
 - 产品/范围复核检查用户、优先级、范围和成功标准；工程复核检查边界、数据流、失败模式、兼容、回滚、测试和复杂度；设计复核检查核心任务、信息架构、状态、无障碍和响应式；开发者体验复核检查 API/CLI/SDK 的可发现性、一致性、错误、示例和迁移成本；安全复核检查资产、信任边界、权限、输入、日志、依赖和外部回调。最终 diff 复核检查 artifact 偏离、遗漏测试和回归。
 - 审查由独立复核上下文、人工或可用辅助工具完成。每次在正式 artifact 记录范围、覆盖风险、按严重级别排序的 finding、采纳/拒绝或延期理由及回写位置；阻断性 finding 修复后重新复核。
-- UI 改动在最终 UI 形成后必须运行 `$hallmark audit <target>`；在 `tasks.md` 记录目标、输出、finding 和结论。所有 critical 与 major finding 修复后重新 audit；无 finding 同样记录范围和结论。
+- UI 改动在最终 UI 形成后必须调用 Hallmark 的 `audit` 技能动作审查 `<target>`；在 `tasks.md` 记录目标、输出、finding 和结论。所有 critical 与 major finding 修复后重新调用 audit；无 finding 同样记录范围和结论。
 - 执行变更的 AI 从 artifacts、改动和当前项目命令确定适用检查。存储行为变更以同一 Application Service 和用户合同在 SQLite、真实 PostgreSQL 运行契约矩阵；Web 行为或交互变更运行 Vitest、构建、Playwright 和生产预览，覆盖主流程、错误/空状态、键盘和相关响应式宽度；性能与安全风险运行专项检查。
 - 在 `tasks.md` 记录实际命令、结果、当前 `HEAD`、比较基线、执行时间、未解决风险和审查结论。未运行项必须记录不适用原因、残余风险与准确补跑条件；`HEAD`、目标分支或依赖变化后重跑受影响验证。
 

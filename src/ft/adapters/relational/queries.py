@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 
 from ft.domain.accounts import AccountDTO
-from .models import AccountModel, CashTransactionModel
+from .models import AccountModel, CashTransactionModel, InvestmentEventModel
 from .repositories import RelationalCashflowRepository, RelationalSnapshotRepository, _parse_timestamp
 
 
@@ -84,6 +84,14 @@ class RelationalPortfolioRepository:
                 AccountModel.type.in_(("security", "crypto")),
             )))
             payload = RelationalSnapshotRepository(session, self._workspace_id).load()
+            event_rows = session.execute(
+                select(InvestmentEventModel, AccountModel)
+                .join(AccountModel, (
+                    AccountModel.workspace_id == InvestmentEventModel.workspace_id
+                ) & (AccountModel.id == InvestmentEventModel.account_id))
+                .where(InvestmentEventModel.workspace_id == self._workspace_id)
+                .order_by(InvestmentEventModel.occurred_at, InvestmentEventModel.id)
+            ).all()
         # Snapshot may key investment books by name or legacy UUID; collect bases from DB.
         bases_by_name = {
             account.name: tuple(sorted({
@@ -128,4 +136,17 @@ class RelationalPortfolioRepository:
             "accounts": labeled if labeled else books,
             "base_currencies": base_currencies,
             "configured_currencies": tuple(configured),
+            "investment_events": tuple({
+                "occurred_at": event.occurred_at,
+                "account": account.name,
+                "record_type": event.record_type,
+                "record_subtype": event.record_subtype,
+                "currency": event.currency,
+                "from_ticker": event.from_ticker,
+                "from_amount": event.from_amount,
+                "to_ticker": event.to_ticker,
+                "to_amount": event.to_amount,
+                "commission": event.commission,
+                "commission_asset": event.commission_asset,
+            } for event, account in event_rows),
         }

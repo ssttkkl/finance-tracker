@@ -64,7 +64,7 @@ test("筛选后从首批重新读取，且所有规定视口无横向溢出", as
   await mockLedger(page);
   for (const viewport of [{ width: 320, height: 844 }, { width: 375, height: 844 }, { width: 414, height: 844 }, { width: 768, height: 1024 }, { width: 1024, height: 768 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport); await page.goto("/"); await expect(page.getByText("第一笔")).toBeVisible();
-    await expect(page.getByLabel("关系投影").first()).toBeVisible();
+    await expect(page.getByLabel("相关记录").first()).toBeVisible();
     await openFilters(page); await page.getByLabel("分类").selectOption("餐饮");
     await expect(page.getByText("第一笔")).toBeVisible();
     expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
@@ -107,7 +107,7 @@ test("超长账户和跨币种金额在宽屏表格内换行且不覆盖查看�
   const accountCell = page.locator("td.account").first();
   const amountCell = page.locator("td.amount").first();
   const amountValue = amountCell.locator(".amount-value");
-  const evidenceButton = page.getByRole("button", { name: "查看跨币种内部转账的证据详情" });
+  const evidenceButton = page.getByRole("button", { name: "查看跨币种内部转账的详情" });
   await expect(accountCell).toContainText(longAccountName);
   await expect(evidenceButton).toBeVisible();
 

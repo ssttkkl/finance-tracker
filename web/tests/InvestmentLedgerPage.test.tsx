@@ -1,0 +1,188 @@
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { InvestmentLedgerPage } from "../src/pages/InvestmentLedgerPage";
+import type { InvestmentEvent, InvestmentEvidence, Portfolio } from "../src/api/types";
+
+const account = { id: 103, name: "投资账户", type: "security", active: true };
+const event: InvestmentEvent = {
+  event_id: "fixture:investment-003", occurred_at: "2026-08-07T01:22:00+00:00", account,
+  record_type: "trade", record_subtype: "security", currency: "USD", note: "买入订单",
+  from_asset: { ticker: "USD", amount: "1011.530000000000000000" }, to_asset: { ticker: "AAPL.US", amount: "10.000000000000000001" },
+  commission: { asset: "USD", amount: "11.530000000000000000" },
+  source_type: "fixture", record_id: "investment-003", relations: [],
+};
+
+const portfolio: Portfolio = { total_market_value: null, total_profit: null, total_profit_rate: null, period_profit: null, period_profit_rate: null, accounts: [{ name: "投资账户", currency: "USD", positions: [{
+  ticker: "AAPL.US", shares: "10", total_cost: "1000.00", cost_currency: "USD", is_cash: false,
+  current_price: "101.25", market_value: "1012.50", profit: "12.50", quote_status: "complete", quote_reason: "ok",
+  quote_currency: "USD", display_currency: null, display_market_value: null, fx_rate: null, fx_status: null, fx_reason: null,
+  period_profit: null, period_profit_rate: null,
+}] }] };
+const evidence: InvestmentEvidence = { data_version: 1, event, source_snapshot: { action: "BUY" }, relations: [] };
+
+function json(value: unknown, status = 200) {
+  return Promise.resolve(new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } }));
+}
+
+beforeEach(() => vi.stubEnv("VITE_FT_API_ORIGIN", "http://127.0.0.1:8000"));
+afterEach(() => { cleanup(); window.localStorage.clear(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+
+describe("InvestmentLedgerPage", () => {
+  it("独立读取事件和持仓，并保留精确十进制与估值状态", async () => {
+    const partial = { ...portfolio.accounts[0].positions[0], ticker: "BTC", quote_status: "partial" as const, quote_reason: "query_deadline_exceeded", current_price: null, market_value: null };
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/investment-portfolio")) return json({ accounts: [{ ...portfolio.accounts[0], positions: [portfolio.accounts[0].positions[0], partial] }] });
+      return json({ data_version: 1, items: [event], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage view="events" />);
+
+    expect(screen.getByText("正在读取投资事件…")).toBeInTheDocument();
+    await screen.findByText("买入订单");
+    expect(screen.getByText(/1011\.530000000000000000 USD/)).toBeInTheDocument();
+    expect(screen.queryByText("已估值")).not.toBeInTheDocument();
+    expect(screen.queryByText("价格不完整")).not.toBeInTheDocument();
+    expect(fetch.mock.calls.some(([input]) => String(input).includes("/investment-events"))).toBe(true);
+    expect(fetch.mock.calls.some(([input]) => String(input).includes("/investment-portfolio"))).toBe(false);
+  });
+
+  it("支持筛选、证据抽屉焦点和关系/来源详情", async () => {
+    const related = { kind: "cash_investment_funding", status: "accepted", direction: "cash_to_investment", rule_id: "cash-investment-funding-v1", cash_account: { id: 101, name: "日常账户", type: "cash", active: true }, cash_amount: "-1000.00", cash_currency: "USD", cash_occurred_at: event.occurred_at, cash_counterparty: "银行", cash_note: "转证券", cash_source_type: "fixture", cash_record_id: "cash-1", evidence: {} };
+    const withRelation = { ...event, relations: [related] };
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/evidence/")) return json({ ...evidence, event: withRelation, relations: [related] });
+      if (input.includes("/investment-portfolio")) return json(portfolio);
+      return json({ data_version: 1, items: [withRelation], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage view="events" />);
+    const trigger = await screen.findByRole("button", { name: "查看买入订单的详情" });
+    fireEvent.click(trigger);
+    const close = await screen.findByRole("button", { name: "关闭" });
+    expect(close).toHaveFocus();
+    expect(screen.getByRole("dialog", { name: "投资详情" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "投资详情" });
+    expect(within(screen.getByRole("region", { name: "投资信息" })).getByText("买入", { exact: true })).toBeInTheDocument();
+    expect(within(dialog).getByText("资金流向")).toBeInTheDocument();
+    fireEvent.keyDown(close, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "投资详情" })).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+
+    fireEvent.change(screen.getByLabelText("事件类型"), { target: { value: "trade" } });
+    await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("record_type=trade"))).toBe(true));
+  });
+
+  it("事件列表失败时不影响独立的持仓页面", async () => {
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      return json({ error: { code: "storage.busy" } }, 503);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage view="events" />);
+
+    expect(await screen.findByText("账本正忙，请稍后重试。")).toBeInTheDocument();
+    expect(screen.queryByText("AAPL.US")).not.toBeInTheDocument();
+  });
+
+  it("没有匹配事件时显示空状态而不隐藏持仓", async () => {
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage view="events" />);
+
+    expect(await screen.findByText("当前筛选没有匹配的投资事件。"))
+      .toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "当前持仓" })).not.toBeInTheDocument();
+  });
+
+  it("按选择的周期读取持仓，并用表格显示摘要和持仓表现", async () => {
+    const richPortfolio: Portfolio = {
+      total_market_value: "8231.71", total_profit: "179.45", total_profit_rate: "0.0218",
+      period_profit: "86.40", period_profit_rate: "0.0061",
+      accounts: [{ name: "投资账户", currency: "USD", positions: [{
+        ...portfolio.accounts[0].positions[0], period_profit: "8.04", period_profit_rate: "0.0080",
+      }] }],
+    };
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/investment-portfolio")) return json(richPortfolio);
+      return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage />);
+    await screen.findByText("AAPL.US");
+
+    expect(screen.getByRole("table", { name: "当前持仓" })).toBeInTheDocument();
+    expect(screen.getByText("总浮盈亏")).toBeInTheDocument();
+    expect(screen.getByText("近 24 小时浮盈亏")).toBeInTheDocument();
+    expect(screen.getByText("当前总市值")).toBeInTheDocument();
+    expect(screen.queryByText("已估值")).not.toBeInTheDocument();
+    expect(screen.queryByText("价格不完整")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("时间范围"), { target: { value: "30d" } });
+    await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("period=30d"))).toBe(true));
+  });
+
+  it("持仓页每 10 秒轮询，事件页不启动持仓轮询", async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/investment-portfolio")) return json(portfolio);
+      return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage />);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    const before = fetch.mock.calls.filter(([input]) => String(input).includes("/investment-portfolio")).length;
+    await act(async () => { vi.advanceTimersByTime(10000); await Promise.resolve(); await Promise.resolve(); });
+    expect(fetch.mock.calls.filter(([input]) => String(input).includes("/investment-portfolio")).length).toBeGreaterThan(before);
+
+    cleanup();
+    fetch.mockClear();
+    render(<InvestmentLedgerPage view="events" />);
+    await act(async () => { vi.advanceTimersByTime(10000); await Promise.resolve(); });
+    expect(fetch.mock.calls.some(([input]) => String(input).includes("/investment-portfolio"))).toBe(false);
+  });
+
+  it("合并同标的时按成本币种分组，并支持负成本的盈亏率方向", async () => {
+    const secondAccount = { id: 104, name: "第二账户", type: "security", active: true };
+    const thirdAccount = { id: 105, name: "欧元账户", type: "security", active: true };
+    const position = (accountCurrency: string, shares: string, cost: string, value: string) => ({
+      ...portfolio.accounts[0].positions[0], quote_currency: accountCurrency, cost_currency: accountCurrency,
+      shares, total_cost: cost, market_value: value, profit: String(Number(value) - Number(cost)),
+    });
+    const mergedPortfolio: Portfolio = {
+      total_market_value: null, total_profit: null, total_profit_rate: null, period_profit: null, period_profit_rate: null,
+      accounts: [
+        { name: "投资账户", currency: "USD", positions: [position("USD", "2", "-100", "200")] },
+        { name: "第二账户", currency: "USD", positions: [position("USD", "3", "150", "300")] },
+        { name: "欧元账户", currency: "EUR", positions: [position("EUR", "4", "200", "400")] },
+      ],
+    };
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account, secondAccount, thirdAccount] });
+      if (input.includes("/investment-portfolio")) return json(mergedPortfolio);
+      return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage />);
+    await waitFor(() => expect(screen.getAllByText("AAPL.US")).toHaveLength(3));
+    fireEvent.change(screen.getByLabelText("同一标的"), { target: { value: "merge" } });
+
+    expect(screen.getAllByText("AAPL.US")).toHaveLength(2);
+    expect(screen.getAllByText("多个账户", { exact: false }).length).toBeGreaterThan(0);
+    expect(screen.getByText("+450 USD")).toBeInTheDocument();
+    expect(screen.getByText("+900%")).toBeInTheDocument();
+  });
+});

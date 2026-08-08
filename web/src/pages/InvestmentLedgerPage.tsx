@@ -1,0 +1,194 @@
+import { useEffect, useRef, useState } from "react";
+import { fetchInvestmentAccounts, fetchInvestmentEvidence, fetchInvestmentPage, fetchInvestmentPortfolio } from "../api/investmentLedger";
+import type { Account, InvestmentEvent, InvestmentEvidence, InvestmentFilters, Portfolio } from "../api/types";
+import { InvestmentEvidenceDetail } from "../components/InvestmentEvidenceDetail";
+import { InvestmentFiltersBar } from "../components/InvestmentFilters";
+import { InvestmentHoldings, type HoldingDisplayOptions } from "../components/InvestmentHoldings";
+import { InvestmentStatusView } from "../components/InvestmentStatusView";
+import { InvestmentTable } from "../components/InvestmentTable";
+import { LoadMoreControl } from "../components/Pagination";
+
+const errorMessages: Record<string, string> = {
+  api_origin_invalid: "暂时无法连接账本，请稍后重试。",
+  "storage.busy": "账本正忙，请稍后重试。",
+  "storage.readonly": "暂时无法读取账本，请稍后重试。",
+  "storage.connect": "暂时无法连接账本，请稍后重试。",
+  "storage.schema": "账本暂时无法读取，请稍后重试。",
+  "storage.workspace": "暂时无法打开账本，请稍后重试。",
+  "storage.config": "账本暂时无法使用，请稍后重试。",
+  invalid_filter: "筛选条件有误，请检查后重试。",
+  invalid_cursor: "记录已更新，请重新加载。",
+  "investment.updated": "投资账本已更新，请重新加载。",
+  "valuation.invalid_display_currency": "币种暂不可用，请换一个币种。",
+  api_request_failed: "请求失败，请稍后重试。",
+};
+
+function messageFor(error: unknown) {
+  const code = error instanceof Error ? error.message : "api_request_failed";
+  return errorMessages[code] ?? errorMessages.api_request_failed;
+}
+
+const displayOptionsKey = "finance-tracker:investment-holdings-display";
+const defaultDisplayOptions: HoldingDisplayOptions = {
+  accountId: "", sort: "market_value_desc", grouping: "split", currency: "", period: "24h",
+};
+
+function readDisplayOptions(): HoldingDisplayOptions {
+  try {
+    const raw = window.localStorage.getItem(displayOptionsKey);
+    if (!raw) return defaultDisplayOptions;
+    const value = JSON.parse(raw) as Partial<HoldingDisplayOptions>;
+    return {
+      accountId: typeof value.accountId === "string" ? value.accountId : defaultDisplayOptions.accountId,
+      sort: value.sort === "profit_desc" || value.sort === "ticker_asc" ? value.sort : defaultDisplayOptions.sort,
+      grouping: value.grouping === "merge" ? "merge" : "split",
+      currency: typeof value.currency === "string" && /^[A-Z]{3}$/.test(value.currency) ? value.currency : "",
+      period: value.period && Object.hasOwn({ "24h": 1, week_to_date: 1, month_to_date: 1, "30d": 1, "90d": 1, year_to_date: 1, "365d": 1 }, value.period) ? value.period : "24h",
+    } as HoldingDisplayOptions;
+  } catch (_error) {
+    return defaultDisplayOptions;
+  }
+}
+
+export function InvestmentLedgerPage({ view = "holdings" }: { view?: "holdings" | "events" }) {
+  const isEvents = view === "events";
+  const [filters, setFilters] = useState<InvestmentFilters>({});
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountsError, setAccountsError] = useState(false);
+  const [items, setItems] = useState<InvestmentEvent[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [eventStatus, setEventStatus] = useState<"loading" | "ready" | "empty" | "error">("loading");
+  const [eventError, setEventError] = useState<string | undefined>();
+  const [appendLoading, setAppendLoading] = useState(false);
+  const [appendError, setAppendError] = useState<string | undefined>();
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [portfolioStatus, setPortfolioStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [portfolioError, setPortfolioError] = useState<string | undefined>();
+  const [displayOptions, setDisplayOptions] = useState<HoldingDisplayOptions>(readDisplayOptions);
+  const [portfolioRefreshing, setPortfolioRefreshing] = useState(false);
+  const [portfolioRefresh, setPortfolioRefresh] = useState(0);
+  const [selected, setSelected] = useState<InvestmentEvent | null>(null);
+  const [evidence, setEvidence] = useState<InvestmentEvidence | null>(null);
+  const [evidenceState, setEvidenceState] = useState<"loading" | "ready" | "error">("loading");
+  const pageAbortController = useRef<AbortController | null>(null);
+  const portfolioAbortController = useRef<AbortController | null>(null);
+  const evidenceAbortController = useRef<AbortController | null>(null);
+  const opener = useRef<HTMLButtonElement | null>(null);
+  const restoreFocus = useRef(false);
+  const pageRequestId = useRef(0);
+  const portfolioRequestId = useRef(0);
+  const evidenceRequestId = useRef(0);
+  const appendCursor = useRef<string | null>(null);
+  const loadMoreRef = useRef<(retry?: boolean) => void>(() => undefined);
+  const lastGoodCurrency = useRef(displayOptions.currency);
+
+  const loadAccounts = () => {
+    const controller = new AbortController();
+    fetchInvestmentAccounts(controller.signal).then((value) => { setAccounts(value); setAccountsError(false); }).catch((error: unknown) => { if (!controller.signal.aborted) setAccountsError(true); });
+    return () => controller.abort();
+  };
+
+  const resetAndLoad = () => {
+    pageAbortController.current?.abort();
+    const controller = new AbortController(); pageAbortController.current = controller;
+    const requestId = ++pageRequestId.current;
+    appendCursor.current = null;
+    setItems([]); setNextCursor(null); setAppendError(undefined); setAppendLoading(false); setEventStatus("loading"); setEventError(undefined);
+    fetchInvestmentPage(filters, null, controller.signal).then((page) => {
+      if (requestId !== pageRequestId.current) return;
+      setItems(page.items); setNextCursor(page.next_cursor); setEventStatus(page.items.length ? "ready" : "empty");
+    }).catch((error: unknown) => {
+      if (!controller.signal.aborted && requestId === pageRequestId.current) { setEventError(messageFor(error)); setEventStatus("error"); }
+    });
+  };
+
+  const loadMore = (retry = false) => {
+    const cursor = nextCursor;
+    if (!cursor || appendLoading || (!retry && appendError) || appendCursor.current === cursor) return;
+    appendCursor.current = cursor;
+    const controller = new AbortController(); pageAbortController.current = controller;
+    setAppendLoading(true); setAppendError(undefined);
+    fetchInvestmentPage(filters, cursor, controller.signal).then((page) => {
+      setItems((current) => [...current, ...page.items.filter((item) => !current.some((old) => old.event_id === item.event_id))]);
+      setNextCursor(page.next_cursor); setAppendLoading(false); appendCursor.current = null;
+    }).catch((error: unknown) => {
+      if (!controller.signal.aborted) { setAppendError(messageFor(error)); setAppendLoading(false); appendCursor.current = null; }
+    });
+  };
+  loadMoreRef.current = loadMore;
+
+  useEffect(() => loadAccounts(), []);
+  useEffect(() => {
+    if (!isEvents) return undefined;
+    resetAndLoad();
+    return () => pageAbortController.current?.abort();
+  }, [isEvents, filters.date_from, filters.date_to, filters.account_id, filters.record_type, filters.ticker]);
+  useEffect(() => {
+    if (isEvents) return undefined;
+    portfolioAbortController.current?.abort();
+    const controller = new AbortController(); portfolioAbortController.current = controller;
+    const requestId = ++portfolioRequestId.current;
+    setPortfolioRefreshing(true); setPortfolioError(undefined);
+    if (!portfolio) setPortfolioStatus("loading");
+    fetchInvestmentPortfolio(displayOptions.currency || undefined, displayOptions.period, controller.signal).then((value) => {
+      if (requestId === portfolioRequestId.current) {
+        lastGoodCurrency.current = displayOptions.currency;
+        setPortfolio(value); setPortfolioStatus("ready"); setPortfolioRefreshing(false);
+        try { window.localStorage.setItem(displayOptionsKey, JSON.stringify(displayOptions)); } catch (_error) { /* 浏览器存储不可用时仍保留当前页偏好。 */ }
+      }
+    }).catch((error: unknown) => {
+      if (!controller.signal.aborted && requestId === portfolioRequestId.current) {
+        setPortfolioError(messageFor(error)); setPortfolioStatus("error"); setPortfolioRefreshing(false);
+        if (error instanceof Error && error.message === "valuation.invalid_display_currency") {
+          setDisplayOptions((current) => ({ ...current, currency: lastGoodCurrency.current }));
+        }
+      }
+    });
+    return () => controller.abort();
+  }, [isEvents, displayOptions.currency, displayOptions.period, portfolioRefresh]);
+  useEffect(() => {
+    if (isEvents) return undefined;
+    let timer: number | undefined;
+    const stop = () => { if (timer !== undefined) window.clearInterval(timer); timer = undefined; };
+    const start = () => {
+      stop();
+      if (document.visibilityState === "visible") {
+        timer = window.setInterval(() => setPortfolioRefresh((value) => value + 1), 10000);
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") setPortfolioRefresh((value) => value + 1);
+      start();
+    };
+    start();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => { stop(); document.removeEventListener("visibilitychange", onVisibilityChange); };
+  }, [isEvents]);
+  useEffect(() => {
+    if (isEvents) return undefined;
+    try {
+      window.localStorage.setItem(displayOptionsKey, JSON.stringify({
+        ...displayOptions,
+        currency: displayOptions.currency === lastGoodCurrency.current ? displayOptions.currency : lastGoodCurrency.current,
+      }));
+    } catch (_error) {
+      // 浏览器存储不可用时仍保留当前页偏好。
+    }
+    return undefined;
+  }, [isEvents, displayOptions.accountId, displayOptions.sort, displayOptions.grouping]);
+  useEffect(() => { if (!selected && restoreFocus.current) { restoreFocus.current = false; opener.current?.focus(); } }, [selected]);
+
+  const openEvidence = (event: InvestmentEvent, source: HTMLButtonElement) => {
+    evidenceAbortController.current?.abort();
+    const controller = new AbortController(); evidenceAbortController.current = controller;
+    const requestId = ++evidenceRequestId.current;
+    opener.current = source; setSelected(event); setEvidence(null); setEvidenceState("loading");
+    fetchInvestmentEvidence(event.event_id, controller.signal).then((value) => { if (requestId === evidenceRequestId.current) { setEvidence(value); setEvidenceState("ready"); } }).catch((error: unknown) => { if (!controller.signal.aborted && requestId === evidenceRequestId.current) setEvidenceState("error"); });
+  };
+  const closeEvidence = () => { evidenceAbortController.current?.abort(); evidenceRequestId.current += 1; restoreFocus.current = true; setSelected(null); setEvidence(null); };
+  const retryEvidence = () => { if (selected && opener.current) openEvidence(selected, opener.current); };
+  const retryMore = () => loadMoreRef.current(true);
+
+  const currentHash = isEvents ? "#investment-events" : "#investment-holdings";
+  return <div className="page-layout investment-page"><main className="app-shell" inert={Boolean(selected) || undefined}><aside className="sidebar"><strong>Finance Tracker</strong><nav aria-label="主要导航"><a href="#cash-ledger">收支账本</a><div className="nav-group"><a className="nav-parent" aria-current="page" href="#investment-holdings">投资账本</a><div className="nav-subnav" aria-label="投资账本页面"><a className="subnav-link" aria-current={currentHash === "#investment-holdings" ? "page" : undefined} href="#investment-holdings">当前持仓</a><a className="subnav-link" aria-current={currentHash === "#investment-events" ? "page" : undefined} href="#investment-events">投资事件</a></div></div></nav></aside><section className="ledger investment-workbench" id={isEvents ? "investment-events" : "investment-holdings"} aria-label={isEvents ? "投资事件" : "当前持仓"}><header className="page-header"><div><h1>{isEvents ? "投资事件" : "当前持仓"}</h1></div></header>{accountsError ? <div className="status-view status-error" role="alert"><p>暂时无法读取账户，请重试。</p><button type="button" onClick={loadAccounts}>重试</button></div> : null}{isEvents ? <><InvestmentFiltersBar filters={filters} accounts={accounts} onChange={setFilters} /><section className="investment-section" aria-labelledby="investment-events-title"><div className="section-head"><div><h2 id="investment-events-title">投资事件</h2></div><p>{eventStatus === "ready" ? `已加载 ${items.length} 条` : "按筛选读取"}</p></div>{eventStatus === "loading" ? <><InvestmentTable items={[]} loading onEvidence={openEvidence} /><InvestmentStatusView kind="loading" /></> : null}{eventStatus === "empty" ? <InvestmentStatusView kind="empty" /> : null}{eventStatus === "error" ? <InvestmentStatusView kind="error" message={eventError} onRetry={resetAndLoad} /> : null}{eventStatus === "ready" ? <><InvestmentTable items={items} onEvidence={openEvidence} /><LoadMoreControl hasMore={Boolean(nextCursor)} loading={appendLoading} error={appendError} onLoadMore={appendError ? retryMore : loadMore} /></> : null}</section></> : <InvestmentHoldings portfolio={portfolio} accounts={accounts} loading={portfolioStatus === "loading"} refreshing={portfolioRefreshing} error={portfolioError} options={displayOptions} onOptionsChange={setDisplayOptions} onRetry={() => setPortfolioRefresh((value) => value + 1)} />}</section></main>{selected ? <InvestmentEvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} onClose={closeEvidence} onRetry={retryEvidence} /> : null}</div>;
+}

@@ -43,8 +43,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 1024, height: 768
     await page.goto("/");
     await expect(page.getByText("视觉核对商户")).toBeVisible();
     await expect(page).toHaveScreenshot(`cash-ledger-${viewport.width}x${viewport.height}.png`, { fullPage: true, animations: "disabled" });
-    await page.getByRole("button", { name: "查看视觉核对商户的证据详情" }).click();
-    await expect(page.getByRole("dialog", { name: "证据详情" })).toBeVisible();
+    await page.getByRole("button", { name: "查看视觉核对商户的详情" }).click();
+    await expect(page.getByRole("dialog", { name: "记录详情" })).toBeVisible();
     await page.waitForTimeout(EVIDENCE_ANIMATION_MS);
     await expect(page).toHaveScreenshot(`cash-ledger-evidence-${viewport.width}x${viewport.height}.png`, { fullPage: true, animations: "disabled" });
   });
@@ -104,12 +104,12 @@ test("模态证据抽屉点击遮罩关闭", async ({ page }) => {
   await mockLedger(page);
   await page.goto("/");
   await expect(page.getByText("视觉核对商户")).toBeVisible();
-  await page.getByRole("button", { name: "查看视觉核对商户的证据详情" }).click();
-  await expect(page.getByRole("dialog", { name: "证据详情" })).toBeVisible();
-  await page.getByRole("dialog", { name: "证据详情" }).click();
-  await expect(page.getByRole("dialog", { name: "证据详情" })).toBeVisible();
+  await page.getByRole("button", { name: "查看视觉核对商户的详情" }).click();
+  await expect(page.getByRole("dialog", { name: "记录详情" })).toBeVisible();
+  await page.getByRole("dialog", { name: "记录详情" }).click();
+  await expect(page.getByRole("dialog", { name: "记录详情" })).toBeVisible();
   await page.locator(".evidence-backdrop").click();
-  await expect(page.getByRole("dialog", { name: "证据详情" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "记录详情" })).toHaveCount(0);
 });
 
 test("modal backdrop remains transparent while hovered", async ({ page }) => {
@@ -117,8 +117,8 @@ test("modal backdrop remains transparent while hovered", async ({ page }) => {
   await mockLedger(page);
   await page.goto("/");
   await expect(page.getByText("视觉核对商户")).toBeVisible();
-  await page.getByRole("button", { name: "查看视觉核对商户的证据详情" }).click();
-  await expect(page.getByRole("dialog", { name: "证据详情" })).toBeVisible();
+  await page.getByRole("button", { name: "查看视觉核对商户的详情" }).click();
+  await expect(page.getByRole("dialog", { name: "记录详情" })).toBeVisible();
 
   const backdrop = page.locator(".evidence-backdrop");
   await expect.poll(() => backdrop.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgba(0, 0, 0, 0)");

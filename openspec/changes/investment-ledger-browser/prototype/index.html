@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>当前持仓原型</title>
+    <style>
+      /* Hallmark · macrostructure: Workbench / Ledger Grid · tone: technical · anchor hue: cobalt · pre-emit critique: P5 H5 E5 S4 R5 V4 */
+      :root {
+        --color-paper: oklch(.965 .008 250);
+        --color-paper-raised: oklch(.995 .004 250);
+        --color-paper-muted: oklch(.975 .007 250);
+        --color-ink: oklch(.25 .02 250);
+        --color-ink-muted: oklch(.48 .018 250);
+        --color-ink-faint: oklch(.59 .014 250);
+        --color-rule: oklch(.87 .012 250);
+        --color-rule-strong: oklch(.74 .02 250);
+        --color-accent: oklch(.48 .16 252);
+        --color-accent-ink: oklch(.99 .004 250);
+        --color-accent-soft: oklch(.94 .03 252);
+        --color-income: oklch(.45 .12 155);
+        --color-danger: oklch(.5 .17 28);
+        --color-sidebar: oklch(.25 .02 250);
+        --color-sidebar-raised: oklch(.31 .025 250);
+        --color-sidebar-link: oklch(.86 .02 250);
+        --color-sidebar-current-rule: oklch(.72 .13 252);
+        --color-detail-backdrop: oklch(.18 .02 250 / .48);
+        --color-detail-shadow: oklch(.25 .02 250 / .12);
+        --font-body: "Noto Sans SC", system-ui, sans-serif;
+        --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 20px;
+        --space-6: 24px;
+        --space-8: 32px;
+        --radius-1: 3px;
+        --rule-1: 1px;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { min-width: 0; overflow-x: clip; }
+      body { margin: 0; color: var(--color-ink); background: var(--color-paper); font-family: var(--font-body); }
+      button, input, select { font: inherit; }
+      button { min-height: 44px; border: var(--rule-1) solid var(--color-rule-strong); border-radius: var(--radius-1); background: var(--color-paper-raised); color: var(--color-ink); white-space: nowrap; }
+      button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--color-accent); outline-offset: 2px; }
+      .app { display: grid; grid-template-columns: 224px minmax(0, 1fr); min-height: 100vh; }
+      .sidebar { display: flex; flex-direction: column; gap: var(--space-5); padding: 28px 18px; color: var(--color-accent-ink); background: var(--color-sidebar); }
+      .brand { font: 600 13px/1 var(--font-mono); letter-spacing: .1em; }
+      .nav-link { display: block; padding: 11px 12px; border-left: 2px solid transparent; color: var(--color-sidebar-link); text-decoration: none; }
+      .nav-link[aria-current] { border-color: var(--color-sidebar-current-rule); background: var(--color-sidebar-raised); color: var(--color-accent-ink); }
+      .nav-group { display: grid; gap: 4px; }
+      .nav-parent { color: var(--color-accent-ink); font-weight: 650; }
+      .nav-subnav { display: grid; gap: 2px; margin-left: 12px; padding-left: 12px; border-left: var(--rule-1) solid var(--color-sidebar-raised); }
+      .subnav-link { display: block; padding: 8px 10px; color: var(--color-sidebar-link); font-size: 12px; text-decoration: none; }
+      .subnav-link[aria-current] { background: var(--color-sidebar-raised); color: var(--color-accent-ink); }
+      main { display: flex; flex-direction: column; width: 100%; max-width: 1660px; margin: auto; padding: 42px clamp(24px, 4vw, 68px) 52px; }
+      .page-header { display: flex; align-items: end; justify-content: space-between; gap: var(--space-4); margin-bottom: 22px; padding-bottom: 22px; border-bottom: var(--rule-1) solid var(--color-rule-strong); }
+      h1, h2, h3 { margin: 0; font-style: normal; }
+      h1 { font-size: 32px; line-height: 1.2; letter-spacing: -.04em; }
+      .header-note { margin: 0; color: var(--color-ink-muted); font-size: 12px; }
+      .filters { margin-bottom: 22px; border: var(--rule-1) solid var(--color-rule); background: var(--color-paper-raised); }
+      .filters summary { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 12px var(--space-4); cursor: pointer; list-style: none; }
+      .filters summary::-webkit-details-marker { display: none; }
+      .filter-mark { display: grid; place-items: center; width: 27px; height: 27px; border: var(--rule-1) solid var(--color-rule-strong); color: var(--color-accent); font-family: var(--font-mono); }
+      .summary-copy strong, .summary-copy small { display: block; }
+      .summary-copy small { margin-top: 2px; color: var(--color-ink-muted); font-size: 12px; }
+      .filter-toggle { margin-left: auto; color: var(--color-accent); font-size: 12px; }
+      .filter-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-3); padding: var(--space-4); border-top: var(--rule-1) solid var(--color-rule); }
+      .filter-grid label { display: grid; gap: var(--space-1); color: var(--color-ink-muted); font-size: 12px; }
+      .filter-grid input, .filter-grid select { width: 100%; min-height: 44px; padding: 6px var(--space-2); border: var(--rule-1) solid var(--color-rule); border-radius: 2px; background: var(--color-paper-raised); color: var(--color-ink); }
+      .section { margin-top: 28px; }
+      .section-head { display: block; margin-bottom: 12px; }
+      .section-head h2 { font-size: 20px; letter-spacing: -.025em; }
+      .section-head > p { margin: 8px 0 0; color: var(--color-ink-muted); font-size: 12px; }
+      .section-head p { margin: 0; color: var(--color-ink-muted); font-size: 12px; }
+      .table-wrap { overflow: auto; border: var(--rule-1) solid var(--color-rule-strong); background: var(--color-paper-raised); }
+      table { width: 100%; min-width: 1000px; border-collapse: collapse; font-size: 12px; }
+      th, td { padding: 13px var(--space-3); border-bottom: var(--rule-1) solid var(--color-rule); text-align: left; vertical-align: middle; white-space: nowrap; }
+      th { background: var(--color-sidebar); color: var(--color-sidebar-link); font: 500 10px/1.2 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+      tr:last-child td { border-bottom: 0; }
+      .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+      .event-type { color: var(--color-accent); font-weight: 650; }
+      .event-note { max-width: 180px; overflow-wrap: anywhere; color: var(--color-ink-muted); white-space: normal; }
+      .asset { display: grid; gap: 2px; }
+      .asset small { color: var(--color-ink-faint); font-size: 10px; }
+      .positive { color: var(--color-income); }
+      .muted { color: var(--color-ink-faint); }
+      .link-button { min-height: 36px; padding: 0 10px; border-color: transparent; color: var(--color-accent); background: transparent; font-size: 12px; }
+      .link-button:hover { border-color: var(--color-accent); background: var(--color-accent-soft); }
+      .section-head-row { display: flex; align-items: end; justify-content: space-between; gap: var(--space-4); }
+      .refresh-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 11px; color: var(--color-accent); }
+      .refresh-button span { font-size: 12px; }
+      .refresh-ring { display: inline-grid; place-items: center; width: 16px; height: 16px; font: 600 16px/1 var(--font-mono); transform-origin: center; }
+      .refresh-button[aria-busy="true"] .refresh-ring { animation: refresh-spin 700ms linear infinite; }
+      @keyframes refresh-spin { to { transform: rotate(360deg); } }
+      .display-options { margin-bottom: var(--space-3); border: var(--rule-1) solid var(--color-rule); background: var(--color-paper-raised); }
+      .display-options summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; min-height: 48px; padding: 8px 12px; cursor: pointer; list-style: none; }
+      .display-options summary::-webkit-details-marker { display: none; }
+      .display-options summary strong { color: var(--color-ink); }
+      .display-summary { color: var(--color-ink-muted); font-size: 12px; }
+      .display-toggle { margin-left: auto; color: var(--color-accent); font-size: 12px; }
+      .option-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-3); padding: var(--space-3); border-top: var(--rule-1) solid var(--color-rule); }
+      .option-grid label { display: grid; gap: var(--space-1); color: var(--color-ink-muted); font-size: 12px; }
+      .option-grid select, .option-grid input { width: 100%; min-height: 40px; padding: 5px var(--space-2); border: var(--rule-1) solid var(--color-rule); border-radius: 2px; background: var(--color-paper-raised); color: var(--color-ink); }
+      .field-error { color: var(--color-danger); font-size: 11px; }
+      .overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); margin-bottom: var(--space-3); }
+      .metric { min-width: 0; padding: var(--space-3); border: var(--rule-1) solid var(--color-rule); background: var(--color-paper-raised); }
+      .metric-label { display: block; color: var(--color-ink-muted); font-size: 11px; }
+      .metric-value { display: block; margin-top: 6px; font: 600 18px/1.2 var(--font-mono); letter-spacing: -.04em; overflow-wrap: anywhere; }
+      .metric small { display: block; margin-top: 4px; color: var(--color-ink-muted); font-size: 11px; }
+      .holdings-table-wrap { overflow: auto; border: var(--rule-1) solid var(--color-rule-strong); background: var(--color-paper-raised); }
+      .holdings-table { min-width: 1080px; table-layout: fixed; }
+      .holdings-table col:nth-child(1) { width: 190px; }
+      .holdings-table col:nth-child(2) { width: 124px; }
+      .holdings-table col:nth-child(3) { width: 80px; }
+      .holdings-table col:nth-child(4) { width: 140px; }
+      .holdings-table col:nth-child(5) { width: 78px; }
+      .holdings-table col:nth-child(6) { width: 120px; }
+      .holdings-table col:nth-child(7) { width: 92px; }
+      .holdings-table col:nth-child(8) { width: 138px; }
+      .holdings-table col:nth-child(9) { width: 126px; }
+      .holdings-table th, .holdings-table td { text-align: right; font-size: 12px; }
+      .holdings-table th:first-child, .holdings-table td:first-child { text-align: left; }
+      .holdings-table th { font-family: var(--font-body); font-size: 11px; letter-spacing: 0; text-transform: none; }
+      .holdings-table td { height: 72px; }
+      .holding-symbol { display: grid; gap: 4px; }
+      .holding-symbol strong { font-size: 14px; }
+      .holding-symbol small { color: var(--color-ink-muted); font-size: 11px; }
+      .holdings-table .holding-market, .holdings-table .holding-position { font-weight: 600; }
+      .holdings-table .holding-pnl, .holdings-table .holding-pnl-rate { font-weight: 700; }
+      .holdings-table .holding-period { color: var(--color-ink-muted); }
+      .holdings-table .holding-period-rate { font-weight: 600; }
+      .mobile-label { display: none; }
+      .state-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+      .state-label { color: var(--color-ink-faint); font: 500 10px var(--font-mono); letter-spacing: .08em; }
+      .holdings-section { order: 3; }
+      .events-section { order: 4; }
+      .state-example { order: 5; }
+      .state { display: grid; min-height: 180px; place-content: center; gap: var(--space-3); padding: var(--space-5); border: var(--rule-1) solid var(--color-rule); background: var(--color-paper-raised); color: var(--color-ink-muted); text-align: center; }
+      .state p { margin: 0; }
+      .error { border-color: var(--color-danger); color: var(--color-danger); }
+      .drawer-demo { position: fixed; inset: 0; display: flex; justify-content: flex-end; background: var(--color-detail-backdrop); }
+      .drawer-demo[hidden] { display: none; }
+      .drawer { width: min(480px, 100vw); overflow: auto; padding: 28px 26px; border-left: var(--rule-1) solid var(--color-rule-strong); background: var(--color-paper-raised); box-shadow: -16px 0 40px var(--color-detail-shadow); }
+      .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-bottom: var(--space-3); border-bottom: var(--rule-1) solid var(--color-rule-strong); }
+      .drawer-head h2 { font-size: 18px; }
+      .drawer section { margin-top: var(--space-4); padding: var(--space-3); border: var(--rule-1) solid var(--color-rule); }
+      .drawer dl { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(0, 2fr); gap: var(--space-2) var(--space-3); margin: 0; font-size: 12px; }
+      .drawer dt { color: var(--color-ink-muted); }
+      .drawer dd { margin: 0; overflow-wrap: anywhere; }
+      .drawer .evidence-title { margin-bottom: 12px; color: var(--color-accent); font-size: 12px; }
+      @media (max-width: 1023px) {
+        .app { display: block; }
+        .sidebar { gap: var(--space-3); padding: var(--space-3) var(--space-4); }
+        .sidebar nav { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 4px; }
+        .nav-link { border-left: 0; padding: 8px 10px; }
+        .nav-group { min-width: 0; }
+        .nav-subnav { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-left: 0; padding-left: 0; border-left: 0; }
+        .subnav-link { min-width: 0; padding: 8px; }
+        main { padding: var(--space-6) var(--space-4) 40px; }
+        .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .option-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .metric-period { grid-column: 1 / -1; }
+      }
+      @media (max-width: 820px) {
+        .holdings-table-wrap { overflow: visible; border: 0; background: transparent; }
+        .holdings-table { display: block; min-width: 0; }
+        .holdings-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+        .holdings-table tbody { display: grid; gap: var(--space-3); }
+        .holdings-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--space-4); padding: var(--space-4); border: var(--rule-1) solid var(--color-rule); background: var(--color-paper-raised); }
+        .holdings-table td { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2); align-items: baseline; min-width: 0; height: auto; padding: 8px 0; border: 0; white-space: normal; text-align: right; }
+        .holdings-table td::before { content: attr(data-label); color: var(--color-ink-muted); font-size: 11px; text-align: left; }
+        .holdings-table td:first-child { display: block; grid-column: 1 / -1; padding-top: 0; padding-bottom: var(--space-3); border-bottom: var(--rule-1) solid var(--color-rule); text-align: left; }
+        .holdings-table td:first-child::before { display: none; }
+        .holdings-table .holding-symbol strong, .holdings-table .holding-symbol small { display: block; }
+        .holdings-table .holding-symbol small { margin-top: 4px; }
+        .holdings-table td:nth-child(8), .holdings-table td:nth-child(9) { font-weight: 600; }
+        .holdings-table .holding-pnl, .holdings-table .holding-pnl-rate { font-weight: 700; }
+        .state-grid { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 480px) {
+        .filter-grid { grid-template-columns: minmax(0, 1fr); }
+        .option-grid { grid-template-columns: minmax(0, 1fr); }
+        .overview { grid-template-columns: minmax(0, 1fr); }
+        .metric-period { grid-column: auto; }
+        h1 { font-size: 28px; }
+        .page-header, .section-head-row { align-items: start; flex-direction: column; }
+        .sidebar nav { grid-template-columns: minmax(0, 1fr); }
+        .nav-group { display: grid; grid-template-columns: minmax(0, 1fr); }
+        .refresh-button { align-self: stretch; }
+        .display-toggle { margin-left: auto; }
+        .drawer { padding: var(--space-4); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .refresh-button[aria-busy="true"] .refresh-ring { animation: none; opacity: .55; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <strong class="brand">FINANCE TRACKER</strong>
+        <nav aria-label="主要导航"><a class="nav-link" href="#cash">收支账本</a><div class="nav-group"><a class="nav-link nav-parent" href="index.html">投资账本</a><div class="nav-subnav" aria-label="投资账本页面"><a class="subnav-link" aria-current="page" href="index.html">当前持仓</a><a class="subnav-link" href="events.html">投资事件</a></div></div></nav>
+      </aside>
+      <main id="holdings">
+        <header class="page-header"><div><h1>当前持仓</h1></div><p class="header-note mono">演示数据</p></header>
+        <section class="section holdings-section" aria-labelledby="holdings-title"><div class="section-head section-head-row"><div><h2 id="holdings-title">持仓总览</h2></div><button class="refresh-button" type="button" aria-label="刷新持仓" aria-busy="false" data-refresh><span class="refresh-ring" aria-hidden="true">↻</span><span>刷新</span></button></div>
+          <details class="display-options" open><summary><strong>显示</strong><span class="display-toggle">收起</span></summary><div class="option-grid"><label>账户<select><option>全部账户</option><option>盈立证券</option><option>交易所</option></select></label><label>排序<select><option>市值倒序</option><option>浮盈亏倒序</option><option>标的名称</option></select></label><label>同一标的<select><option>分开显示</option><option>合并显示</option></select></label><label>币种<input type="text" inputmode="text" autocomplete="off" placeholder="原币种" aria-label="换算币种，留空显示原币种" data-currency /><span class="field-error" data-currency-error hidden>币种不可用</span></label><label>时间范围<select><option>近 24 小时</option><option>本周至今</option><option>本月至今</option><option>近 30 天</option><option>近 90 天</option><option>年初至今</option><option>近 365 天</option></select></label></div></details>
+          <div class="overview"><article class="metric"><span class="metric-label">总浮盈亏</span><strong class="metric-value positive">+179.45 USD</strong><small>+2.18%</small></article><article class="metric metric-period"><span class="metric-label">近 24 小时浮盈亏</span><strong class="metric-value positive">+86.40 USD</strong><small>+0.61%</small></article><article class="metric"><span class="metric-label">当前总市值</span><strong class="metric-value mono">8,231.71 USD</strong></article></div>
+          <div class="holdings-table-wrap"><table class="holdings-table" aria-label="当前持仓"><colgroup><col /><col /><col /><col /><col /><col /><col /><col /><col /></colgroup><thead><tr><th scope="col">标的 / 账户</th><th scope="col">当前单价</th><th scope="col">数量</th><th scope="col">当前市值</th><th scope="col">仓位</th><th scope="col">浮盈亏</th><th scope="col">浮盈亏率</th><th scope="col">近 24 小时盈亏</th><th scope="col">近 24 小时盈亏率</th></tr></thead><tbody>
+              <tr><td class="holding-symbol" data-label="标的 / 账户"><strong>AAPL.US</strong><small>盈立证券 · USD</small></td><td class="mono" data-label="当前单价">101.25 USD</td><td class="mono" data-label="数量">10</td><td class="mono holding-market" data-label="当前市值">1,012.50 USD</td><td class="mono holding-position" data-label="仓位">12.3%</td><td class="mono holding-pnl positive" data-label="浮盈亏">+12.50 USD</td><td class="mono holding-pnl-rate positive" data-label="浮盈亏率">+1.25%</td><td class="mono holding-period muted" data-label="近 24 小时盈亏">—</td><td class="mono holding-period-rate positive" data-label="近 24 小时盈亏率">+0.80%</td></tr>
+              <tr><td class="holding-symbol" data-label="标的 / 账户"><strong>VWRA.L</strong><small>盈立证券 · USD</small></td><td class="mono" data-label="当前单价">124.3842 USD</td><td class="mono" data-label="数量">50</td><td class="mono holding-market" data-label="当前市值">6,219.21 USD</td><td class="mono holding-position" data-label="仓位">75.6%</td><td class="mono holding-pnl positive" data-label="浮盈亏">+166.95 USD</td><td class="mono holding-pnl-rate positive" data-label="浮盈亏率">+2.76%</td><td class="mono holding-period muted" data-label="近 24 小时盈亏">—</td><td class="mono holding-period-rate positive" data-label="近 24 小时盈亏率">+0.42%</td></tr>
+            </tbody></table></div>
+        </section>
+        <section class="section state-example" aria-label="持仓状态示例"><div class="section-head"><h2>状态示例</h2></div><div class="state-grid"><div class="state"><span class="state-label">读取成功</span><p>当前持仓已更新。</p></div><div class="state error"><span class="state-label">读取失败</span><p>暂时无法更新持仓。</p><button class="refresh-button">重试</button></div></div></section>
+      </main>
+    </div>
+    <style>.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}</style>
+    <script>
+      const refreshButton = document.querySelector('[data-refresh]');
+      const runRefresh = () => {
+        if (refreshButton.getAttribute('aria-busy') === 'true') return;
+        refreshButton.setAttribute('aria-busy', 'true');
+        window.setTimeout(() => refreshButton.setAttribute('aria-busy', 'false'), 900);
+      };
+      refreshButton.addEventListener('click', runRefresh);
+      window.setInterval(runRefresh, 10000);
+
+      const currencyInput = document.querySelector('[data-currency]');
+      const currencyError = document.querySelector('[data-currency-error]');
+      currencyInput.addEventListener('input', () => {
+        const value = currencyInput.value.trim().toUpperCase();
+        const valid = value === '' || /^[A-Z]{3}$/.test(value);
+        currencyInput.setAttribute('aria-invalid', String(!valid));
+        currencyError.hidden = valid;
+      });
+      currencyInput.addEventListener('blur', () => {
+        currencyInput.value = currencyInput.value.trim().toUpperCase();
+      });
+
+      const displayOptions = document.querySelector('.display-options');
+      const displayToggle = document.querySelector('.display-toggle');
+      displayOptions.addEventListener('toggle', () => {
+        displayToggle.textContent = displayOptions.open ? '收起' : '展开';
+      });
+    </script>
+  </body>
+</html>

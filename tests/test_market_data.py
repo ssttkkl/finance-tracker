@@ -59,6 +59,27 @@ def test_security_batch_downloads_multiple_symbols_once_and_keeps_missing_items(
     assert results["missing.us"] is None
 
 
+def test_security_provider_reads_a_historical_price_at_the_requested_boundary():
+    requested = []
+    boundary = datetime(2026, 7, 24, 12, tzinfo=timezone.utc)
+
+    def download_history(symbol, *, at):
+        requested.append((symbol, at))
+        return Decimal("99.5")
+
+    provider = SecurityQuoteProvider(
+        download_history=download_history,
+        clock=lambda: datetime(2026, 7, 25, 12, tzinfo=timezone.utc),
+    )
+
+    tick = provider.raw_quote_at("aapl.us", AssetKind.SECURITY, at=boundary)
+
+    assert tick is not None
+    assert tick.price == Decimal("99.5")
+    assert tick.observed_at == boundary
+    assert requested == [("AAPL", boundary)]
+
+
 def test_security_batch_with_ten_symbols_uses_fewer_than_ten_downloads():
     calls = []
 

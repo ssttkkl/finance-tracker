@@ -30,7 +30,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 describe("现金账本无障碍", () => {
   it("为筛选提供显式标签，以键盘将焦点带入详情并在关闭后返回记录", async () => {
     render(<CashLedgerPage />);
-    const trigger = await screen.findByRole("button", { name: "查看咖啡店的证据详情" });
+    const trigger = await screen.findByRole("button", { name: "查看咖啡店的详情" });
     expect(screen.getByLabelText("账户")).toBeInTheDocument();
     expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "来源", "经济类型", "金额", "操作"]);
     expect(screen.getAllByRole("columnheader").map((header) => header.getAttribute("scope"))).toEqual(["col", "col", "col", "col", "col", "col", "col"]);
@@ -40,10 +40,10 @@ describe("现金账本无障碍", () => {
     expect(screen.queryByRole("columnheader", { name: "组成方式" })).not.toBeInTheDocument();
 
     fireEvent.click(trigger);
-    const close = await screen.findByRole("button", { name: "关闭证据详情" });
+    const close = await screen.findByRole("button", { name: "关闭详情" });
     expect(close).toHaveFocus();
-    expect(screen.getByRole("dialog", { name: "证据详情" })).toHaveAttribute("data-focus-trap", "active");
-    expect(screen.getByRole("dialog", { name: "证据详情" })).toHaveAttribute("data-state", "open");
+    expect(screen.getByRole("dialog", { name: "记录详情" })).toHaveAttribute("data-focus-trap", "active");
+    expect(screen.getByRole("dialog", { name: "记录详情" })).toHaveAttribute("data-state", "open");
     expect(document.querySelector("main.app-shell")).toHaveAttribute("inert");
     fireEvent.click(close);
     await waitFor(() => expect(trigger).toHaveFocus());
@@ -51,35 +51,35 @@ describe("现金账本无障碍", () => {
 
   it("以键盘关闭详情并将 Tab 焦点限制在详情内", async () => {
     render(<CashLedgerPage />);
-    const trigger = await screen.findByRole("button", { name: "查看咖啡店的证据详情" });
+    const trigger = await screen.findByRole("button", { name: "查看咖啡店的详情" });
 
     fireEvent.click(trigger);
-    const close = await screen.findByRole("button", { name: "关闭证据详情" });
+    const close = await screen.findByRole("button", { name: "关闭详情" });
     fireEvent.keyDown(close, { key: "Tab" });
     expect(close).toHaveFocus();
     fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
     expect(close).toHaveFocus();
     fireEvent.keyDown(close, { key: "Escape" });
 
-    expect(screen.getByRole("dialog", { name: "证据详情" })).toHaveAttribute("data-state", "closing");
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "证据详情" })).not.toBeInTheDocument());
+    expect(screen.getByRole("dialog", { name: "记录详情" })).toHaveAttribute("data-state", "closing");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "记录详情" })).not.toBeInTheDocument());
     expect(trigger).toHaveFocus();
   });
 
   it("点击遮罩关闭模态抽屉，但点击抽屉内容不会关闭", async () => {
     render(<CashLedgerPage />);
-    const trigger = await screen.findByRole("button", { name: "查看咖啡店的证据详情" });
+    const trigger = await screen.findByRole("button", { name: "查看咖啡店的详情" });
 
     fireEvent.click(trigger);
-    const dialog = await screen.findByRole("dialog", { name: "证据详情" });
+    const dialog = await screen.findByRole("dialog", { name: "记录详情" });
     fireEvent.click(dialog);
-    expect(screen.getByRole("dialog", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "记录详情" })).toBeInTheDocument();
 
     const backdrop = document.querySelector<HTMLElement>(".evidence-backdrop");
     expect(backdrop).not.toBeNull();
     fireEvent.click(backdrop!);
-    expect(screen.getByRole("dialog", { name: "证据详情" })).toHaveAttribute("data-state", "closing");
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "证据详情" })).not.toBeInTheDocument());
+    expect(screen.getByRole("dialog", { name: "记录详情" })).toHaveAttribute("data-state", "closing");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "记录详情" })).not.toBeInTheDocument());
     expect(trigger).toHaveFocus();
   });
 
@@ -111,7 +111,7 @@ describe("现金账本无障碍", () => {
 
   it("以语义化标识保留非颜色唯一的收支含义和可见焦点目标", async () => {
     render(<CashLedgerPage />);
-    const trigger = await screen.findByRole("button", { name: "查看咖啡店的证据详情" });
+    const trigger = await screen.findByRole("button", { name: "查看咖啡店的详情" });
 
     expect(screen.getByRole("cell", { name: "-12.5 CNY" })).toHaveAttribute("data-direction", "支出");
     expect(trigger).toHaveClass("evidence-trigger");

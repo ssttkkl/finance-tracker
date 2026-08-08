@@ -46,6 +46,64 @@ class ValuationService:
         asset = ref if ref is not None else make_asset_ref(identity, kind, quantity)
         return self._quote_one(asset)
 
+    def quote_at(self, ref: AssetRef, *, at: datetime) -> QuoteResult:
+        """Read a quote at a historical boundary without falling back to now."""
+        if not isinstance(ref, AssetRef):
+            raise ValuationError("valuation.invalid_ref")
+        if at.tzinfo is None:
+            raise ValuationError("valuation.invalid_observed_at")
+        make_asset_ref(ref.identity, ref.kind, ref.quantity)
+        if identity_kind_mismatch(ref.identity, ref.kind):
+            return QuoteResult(
+                identity=ref.identity, kind=ref.kind, status=QuoteStatus.UNSUPPORTED,
+                quantity=ref.quantity, reason="identity_kind_mismatch",
+            )
+        if ref.kind is AssetKind.CASH:
+            market_value = compute_market_value(Decimal("1"), ref.quantity) if ref.quantity is not None else None
+            return QuoteResult(
+                identity=ref.identity, kind=ref.kind, status=QuoteStatus.COMPLETE,
+                unit_price=Decimal("1"), quote_currency=ref.identity.upper(),
+                observed_at=at, market_value=market_value,
+                quantity=ref.quantity, reason="ok", provider="cash",
+            )
+        raw_quote_at = getattr(self._provider, "raw_quote_at", None)
+        if not callable(raw_quote_at):
+            return QuoteResult(
+                identity=ref.identity, kind=ref.kind, status=QuoteStatus.PARTIAL,
+                quantity=ref.quantity, reason="historical_quote_unavailable",
+            )
+        try:
+            outcome = raw_quote_at(ref.identity, ref.kind, at=at)
+        except UnsupportedQuote:
+            return QuoteResult(
+                identity=ref.identity, kind=ref.kind, status=QuoteStatus.UNSUPPORTED,
+                quantity=ref.quantity, reason="unsupported_identity",
+            )
+        except Exception:
+            return QuoteResult(
+                identity=ref.identity, kind=ref.kind, status=QuoteStatus.PARTIAL,
+                quantity=ref.quantity, reason="historical_provider_error",
+            )
+        if outcome is None:
+            return QuoteResult(
+                identity=ref.identity, kind=ref.kind, status=QuoteStatus.PARTIAL,
+                quantity=ref.quantity, reason="historical_quote_unavailable",
+            )
+        price = Decimal(str(outcome.price))
+        if not price.is_finite():
+            return QuoteResult(
+                identity=ref.identity, kind=ref.kind, status=QuoteStatus.PARTIAL,
+                quantity=ref.quantity, reason="non_finite_price", provider=outcome.provider,
+            )
+        market_value = compute_market_value(price, ref.quantity) if ref.quantity is not None else None
+        return QuoteResult(
+            identity=ref.identity, kind=ref.kind, status=QuoteStatus.COMPLETE,
+            unit_price=price, quote_currency=(outcome.quote_currency or "").upper() or None,
+            observed_at=outcome.observed_at or at,
+            market_value=market_value, quantity=ref.quantity,
+            reason="ok", provider=outcome.provider,
+        )
+
     def quote_many(
         self, refs: Sequence[AssetRef], *, timeout: float | None = None,
     ) -> QuoteBatchResult:

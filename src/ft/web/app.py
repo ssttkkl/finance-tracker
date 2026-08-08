@@ -50,7 +50,7 @@ def validate_local_origin(origin: str) -> str:
     return origin.rstrip("/")
 
 
-def create_app(service, allowed_origin: str = DEFAULT_WEB_ORIGIN, lifespan=None) -> FastAPI:
+def create_app(service, allowed_origin: str = DEFAULT_WEB_ORIGIN, lifespan=None, *, investment_service=None, portfolio_service=None) -> FastAPI:
     from ft.web.routes import cash_router
 
     allowed_origin = validate_local_origin(allowed_origin)
@@ -81,7 +81,7 @@ def create_app(service, allowed_origin: str = DEFAULT_WEB_ORIGIN, lifespan=None)
     def engine_failure(request, exc: RelationalEngineError):
         return storage_failure(request, StorageError(exc.code))
 
-    app.include_router(cash_router(service))
+    app.include_router(cash_router(service, investment_service, portfolio_service))
     return app
 
 
@@ -97,7 +97,21 @@ def create_runtime_app():
         engine = create_web_readonly_engine(settings.database_url)
         validate_runtime(engine, settings.workspace_id, settings.database_url)
         origin = validate_local_origin(__import__("os").environ.get("FT_WEB_ORIGIN", DEFAULT_WEB_ORIGIN))
-        service = CashLedgerQueryService(create_session_factory(engine), settings.workspace_id)
+        sessions = create_session_factory(engine)
+        service = CashLedgerQueryService(sessions, settings.workspace_id)
+        from ft.adapters.fx_rates import FxRateProvider
+        from ft.adapters.market_data import CompositeQuoteProvider
+        from ft.adapters.relational.queries import RelationalPortfolioRepository
+        from ft.application.investment import PortfolioQueryService
+        from ft.application.investment_web_queries import InvestmentLedgerQueryService
+        from ft.application.valuation import ValuationService
+        quote_provider = CompositeQuoteProvider()
+        investment_service = InvestmentLedgerQueryService(sessions, settings.workspace_id)
+        portfolio_service = PortfolioQueryService(
+            RelationalPortfolioRepository(sessions, settings.workspace_id),
+            ValuationService(quote_provider),
+            fx_rates=FxRateProvider(),
+        )
 
         @asynccontextmanager
         async def release_engine(_app):
@@ -106,7 +120,7 @@ def create_runtime_app():
             finally:
                 engine.dispose()
 
-        app = create_app(service, origin, lifespan=release_engine)
+        app = create_app(service, origin, lifespan=release_engine, investment_service=investment_service, portfolio_service=portfolio_service)
     except StorageConfigurationError as exc:
         raise StorageError("storage.config") from exc
     except RelationalEngineError as exc:

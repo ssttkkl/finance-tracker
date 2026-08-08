@@ -49,7 +49,7 @@ function projectionSourceLabel(evidence: Evidence): string {
 }
 
 function projectionRelationLabel(projection: Evidence["projection"]): string {
-  return isBankSecurityTransfer(projection) ? "银证转账关系" : "关系投影";
+  return isBankSecurityTransfer(projection) ? "银证转账" : "相关记录";
 }
 
 export function EvidenceDetail({ evidence, loading, error, onClose, onRetry }: Props) {
@@ -84,12 +84,12 @@ export function EvidenceDetail({ evidence, loading, error, onClose, onRetry }: P
   const relatedMembers = evidence?.members?.filter((member) => member.id !== root?.id) ?? [];
 
   return <div className={`evidence-layer${closing ? " is-closing" : ""}`}>
-    <button type="button" className="evidence-backdrop" aria-label="点击遮罩关闭证据详情" tabIndex={-1} onPointerDown={(event) => event.preventDefault()} onClick={requestClose} />
-    <aside ref={dialog} className="evidence evidence-panel" data-focus-trap="active" data-state={closing ? "closing" : "open"} role="dialog" aria-modal="true" aria-label="证据详情">
-      <header><div><p className="evidence-eyebrow">收支账本</p><h2>收支详情</h2></div><button ref={closeButton} type="button" aria-label="关闭证据详情" onClick={requestClose}>关闭</button></header>
-      {loading ? <p className="evidence-state" role="status">正在读取收支详情…</p> : null}
-      {error ? <div className="evidence-state evidence-state-error" role="alert"><p>无法读取收支详情。</p><button type="button" onClick={onRetry}>重试</button></div> : null}
-      {evidence && !root ? <div className="evidence-state evidence-state-error" role="alert"><p>证据详情不完整，请重试或检查收支投影。</p><button type="button" onClick={onRetry}>重试</button></div> : null}
+    <button type="button" className="evidence-backdrop" aria-label="点击遮罩关闭详情" tabIndex={-1} onPointerDown={(event) => event.preventDefault()} onClick={requestClose} />
+    <aside ref={dialog} className="evidence evidence-panel" data-focus-trap="active" data-state={closing ? "closing" : "open"} role="dialog" aria-modal="true" aria-label="记录详情">
+      <header><div><h2>收支详情</h2></div><button ref={closeButton} type="button" aria-label="关闭详情" onClick={requestClose}>关闭</button></header>
+      {loading ? <p className="evidence-state" role="status">正在读取详情…</p> : null}
+      {error ? <div className="evidence-state evidence-state-error" role="alert"><p>无法读取详情。</p><button type="button" onClick={onRetry}>重试</button></div> : null}
+      {evidence && !root ? <div className="evidence-state evidence-state-error" role="alert"><p>详情不完整，请重试。</p><button type="button" onClick={onRetry}>重试</button></div> : null}
       {root && evidence ? <div className="evidence-content">
         <section className="evidence-section evidence-summary" aria-label="收支详情">
           <p className={`evidence-amount ${evidence.projection.economic_type === "income" ? "inflow" : "outflow"}`}>{evidence.projection.amount} <span>{evidence.projection.currency}</span></p>
