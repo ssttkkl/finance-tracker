@@ -32,6 +32,9 @@ def test_evidence_whitelists_snapshot_and_keeps_hidden_projection_readable(reque
     assert evidence["projection"].visible is False
     assert evidence["projection"].hidden_reason == "full_refund"
     assert evidence["root_record"]["source_snapshot"] == {"merchant": "咖啡店"}
+    assert evidence["root_record"]["record_type"] == "other"
+    assert evidence["root_record"]["record_subtype"] == "not_applicable"
+    assert evidence["root_record"]["account_name"] == "日常账户"
     assert "name" not in evidence["root_record"]["source_snapshot"]
     assert [member["id"] for member in evidence["members"]] == ["1003", "1004"]
     assert evidence["refund_timeline"] == [{

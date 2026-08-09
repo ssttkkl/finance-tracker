@@ -2,16 +2,19 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.engine import make_url
 
 from ft.adapters.relational.dialect import RelationalEngineError
 from ft.adapters.relational.runtime import StorageError, storage_error
 from ft.application.web_queries import CashLedgerQueryService
+from ft.application.cash_ledger import CashLedgerCommandService
 from ft.config import StorageSettings
 from ft.web.serialization import error_payload
 
@@ -50,7 +53,7 @@ def validate_local_origin(origin: str) -> str:
     return origin.rstrip("/")
 
 
-def create_app(service, allowed_origin: str = DEFAULT_WEB_ORIGIN, lifespan=None) -> FastAPI:
+def create_app(service, allowed_origin: str = DEFAULT_WEB_ORIGIN, lifespan=None, mutation_service=None) -> FastAPI:
     from ft.web.routes import cash_router
 
     allowed_origin = validate_local_origin(allowed_origin)
@@ -64,7 +67,7 @@ def create_app(service, allowed_origin: str = DEFAULT_WEB_ORIGIN, lifespan=None)
         CORSMiddleware,
         allow_origins=[allowed_origin],
         allow_credentials=False,
-        allow_methods=["GET"],
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["Accept", "Content-Type"],
     )
 
@@ -81,12 +84,12 @@ def create_app(service, allowed_origin: str = DEFAULT_WEB_ORIGIN, lifespan=None)
     def engine_failure(request, exc: RelationalEngineError):
         return storage_failure(request, StorageError(exc.code))
 
-    app.include_router(cash_router(service))
+    app.include_router(cash_router(service, mutation_service=mutation_service))
     return app
 
 
 def create_runtime_app():
-    from ft.adapters.relational import create_session_factory, create_web_readonly_engine
+    from ft.adapters.relational import create_relational_engine, create_session_factory
     from ft.adapters.relational.dialect import RelationalEngineError
     from ft.adapters.relational.runtime import StorageError, validate_runtime
     from ft.config import StorageConfigurationError
@@ -94,10 +97,23 @@ def create_runtime_app():
     engine = None
     try:
         settings = StorageSettings.load()
-        engine = create_web_readonly_engine(settings.database_url)
+        selected_url = make_url(settings.database_url)
+        if selected_url.get_backend_name() == "sqlite" and selected_url.database not in {None, ":memory:"}:
+            selected_path = Path(selected_url.database)
+            if selected_path.exists() and selected_path.stat().st_size == 0:
+                raise StorageError("storage.schema", settings.database_url)
+        engine = create_relational_engine(settings.database_url)
         validate_runtime(engine, settings.workspace_id, settings.database_url)
         origin = validate_local_origin(__import__("os").environ.get("FT_WEB_ORIGIN", DEFAULT_WEB_ORIGIN))
-        service = CashLedgerQueryService(create_session_factory(engine), settings.workspace_id)
+        sessions = create_session_factory(engine)
+        service = CashLedgerQueryService(sessions, settings.workspace_id)
+        from ft.application.relations import RelationService
+        from ft.adapters.relational.uow import RelationalUnitOfWork
+        write_uow = RelationalUnitOfWork(sessions, settings.workspace_id)
+        mutation_service = CashLedgerCommandService(
+            sessions, settings.workspace_id,
+            relation_service=RelationService(write_uow),
+        )
 
         @asynccontextmanager
         async def release_engine(_app):
@@ -106,7 +122,7 @@ def create_runtime_app():
             finally:
                 engine.dispose()
 
-        app = create_app(service, origin, lifespan=release_engine)
+        app = create_app(service, origin, lifespan=release_engine, mutation_service=mutation_service)
     except StorageConfigurationError as exc:
         raise StorageError("storage.config") from exc
     except RelationalEngineError as exc:

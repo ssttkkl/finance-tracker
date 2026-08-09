@@ -45,11 +45,18 @@ def _create_active_identity_index() -> None:
 
 def upgrade() -> None:
     recreate = "always" if op.get_bind().dialect.name == "sqlite" else "auto"
-    with op.batch_alter_table("cash_transactions", recreate=recreate) as batch:
-        batch.add_column(sa.Column(
-            "record_subtype", sa.String(length=32), nullable=False,
-            server_default=sa.text("'not_applicable'"),
-        ))
+    bind = op.get_bind()
+    if bind.dialect.name == "sqlite":
+        bind.exec_driver_sql("PRAGMA foreign_keys=OFF")
+    try:
+        with op.batch_alter_table("cash_transactions", recreate=recreate) as batch:
+            batch.add_column(sa.Column(
+                "record_subtype", sa.String(length=32), nullable=False,
+                server_default=sa.text("'not_applicable'"),
+            ))
+    finally:
+        if bind.dialect.name == "sqlite":
+            bind.exec_driver_sql("PRAGMA foreign_keys=ON")
     op.execute(
         "UPDATE cash_transactions SET record_subtype = CASE "
         "WHEN record_type IN ('transfer_in', 'transfer_out') THEN 'ordinary_transfer' "

@@ -7,10 +7,10 @@ from ft.domain.investment_validation import validate_investment_snapshot
 
 
 def _base_tickers_for_account(uow, account_name: str):
-    """Load account metadata.base_currencies for projection."""
+    """Load account currencies for investment projection."""
     for row in uow.accounts.list_raw():
         if row.get("name") == account_name:
-            return normalize_base_tickers(row.get("base_currencies"))
+            return normalize_base_tickers(row.get("currencies"))
     return normalize_base_tickers(None)
 
 

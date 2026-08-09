@@ -9,7 +9,7 @@ from sqlalchemy.orm import aliased
 from ft.adapters.relational.dialect import RelationalEngineError
 from ft.adapters.relational.models import AccountModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionModel, InvestmentEventModel, TransactionRelationModel
 from ft.adapters.relational.runtime import StorageError, storage_error
-from ft.application.web_queries import CashAccountDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionUnavailableError, ProjectionUpdatedError, local_bounds
+from ft.application.web_queries import CashAccountDTO, CashAccountSummaryDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionUnavailableError, ProjectionUpdatedError, local_bounds
 
 def _amount(value):
     amount = Decimal(value).normalize()
@@ -62,9 +62,13 @@ def _record_summary(row, account):
     return {
         "id": str(row.id), "occurred_at": row.occurred_at.isoformat(),
         "account": {"id": account.id, "name": account.name, "type": account.type, "active": account.active},
+        "account_name": account.name, "account_id": account.id, "account_type": account.type,
         "counterparty": row.counterparty, "category": row.category, "note": row.note,
         "amount": _amount(row.amount), "currency": row.currency,
         "source_type": row.source_type, "record_id": row.record_id,
+        "counterparty_account": row.counterparty_account or "",
+        "counterparty_account_attrs": list(row.counterparty_account_attrs or []),
+        "record_type": row.record_type, "record_subtype": row.record_subtype or "not_applicable",
     }
 
 
@@ -97,7 +101,10 @@ class RelationalCashLedgerQueryRepository:
             raise self._storage_error(exc) from exc
     def list_accounts(self):
         with self._session() as s: rows=s.scalars(select(AccountModel).where(AccountModel.workspace_id==self._workspace_id, AccountModel.type.in_(("cash","loan","lend"))).order_by(AccountModel.id)).all()
-        return tuple(CashAccountDTO(x.id,x.name,x.type,x.active) for x in rows)
+        return tuple(
+            CashAccountDTO(x.id, x.name, x.type, x.active, tuple(x.currencies or ()))
+            for x in rows
+        )
     def _active(self, s):
         state=s.scalar(select(CashProjectionStateModel).where(CashProjectionStateModel.workspace_id==self._workspace_id))
         if state is None or state.availability != "ready" or not state.active_dataset_id: raise ProjectionUnavailableError()
@@ -106,7 +113,7 @@ class RelationalCashLedgerQueryRepository:
         with self._session() as s: return self._active(s).projection_version
     def _dto(self, row, account, relations, source_types=(), transfer=None):
         kinds=tuple(sorted({r.kind for r in relations})); summary=tuple({"kind":kind,"subtype":subtype,"count":sum(r.kind==kind and r.subtype==subtype for r in relations)} for kind,subtype in sorted({(r.kind,r.subtype) for r in relations}))
-        return ProjectionDTO(row.projection_id,row.occurred_at.isoformat(),CashAccountDTO(account.id,account.name,account.type,account.active),row.counterparty,row.category,row.note,_amount(row.net_amount),row.currency,row.economic_type,row.transfer_subtype,kinds,row.member_count,summary,row.source_type,tuple(source_types),row.record_id,row.visible,row.hidden_reason,transfer)
+        return ProjectionDTO(row.projection_id,row.occurred_at.isoformat(),CashAccountSummaryDTO(account.id,account.name,account.type,account.active),row.counterparty,row.category,row.note,_amount(row.net_amount),row.currency,row.economic_type,row.transfer_subtype,kinds,row.member_count,summary,row.source_type,tuple(source_types),row.record_id,row.visible,row.hidden_reason,transfer)
     def _member_source_types(self, session, dataset_id, projection_row_ids):
         projection_row_ids = tuple(projection_row_ids)
         source_types = {projection_row_id: [] for projection_row_id in projection_row_ids}
@@ -170,9 +177,9 @@ class RelationalCashLedgerQueryRepository:
             primary, primary_account = endpoints[primary_id]
             secondary, secondary_account = endpoints[secondary_id]
             transfers[projection_row_id] = CashTransferDTO(
-                CashAccountDTO(primary_account.id, primary_account.name, primary_account.type, primary_account.active),
+                CashAccountSummaryDTO(primary_account.id, primary_account.name, primary_account.type, primary_account.active),
                 _amount(primary.amount), primary.currency,
-                CashAccountDTO(secondary_account.id, secondary_account.name, secondary_account.type, secondary_account.active),
+                CashAccountSummaryDTO(secondary_account.id, secondary_account.name, secondary_account.type, secondary_account.active),
                 _amount(secondary.amount), secondary.currency,
             )
         investment_account = aliased(AccountModel)
@@ -230,10 +237,10 @@ class RelationalCashLedgerQueryRepository:
             investment_amount = investment.to_amount if direction == "cash_to_investment" else investment.from_amount
             if investment_amount is None:
                 continue
-            cash_dto = CashAccountDTO(
+            cash_dto = CashAccountSummaryDTO(
                 cash_account.id, cash_account.name, cash_account.type, cash_account.active,
             )
-            investment_dto = CashAccountDTO(
+            investment_dto = CashAccountSummaryDTO(
                 investment_account_row.id, investment_account_row.name,
                 investment_account_row.type, investment_account_row.active,
             )
