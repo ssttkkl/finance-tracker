@@ -1,4 +1,8 @@
-export type Account = { id: number; name: string; type: string; active: boolean };
+export type Account = { id: number; name: string; type: string; active: boolean; currencies?: string[] };
+
+export type RecordTypeOption = { value: string; label: string; subtypes: { value: string; label: string }[] };
+export type RelationTypeOption = { value: string; label: string };
+export type LedgerOptions = { record_types: RecordTypeOption[]; relation_types: RelationTypeOption[] };
 
 export type AcceptedRelationSummary = { kind: string; subtype: string; count: number };
 
@@ -69,13 +73,20 @@ export type EvidenceRecord = {
   id: string;
   occurred_at: string;
   account: Account;
+  account_name?: string;
+  account_id?: number;
+  account_type?: string;
   counterparty: string;
+  counterparty_account?: string;
+  counterparty_account_attrs?: string[];
   category: string;
   note: string;
   amount: string;
   currency: string;
   source_type: string | null;
   record_id: string;
+  record_type?: string;
+  record_subtype?: string;
 };
 
 export type EvidenceMember = EvidenceRecord & { roles: string[] };
@@ -109,6 +120,65 @@ export type Evidence = {
   accepted_relations: AcceptedEvidenceRelation[];
   inactive_relation_hints: InactiveRelationHint[];
   refund_timeline: RefundTimelineItem[];
+};
+
+export type CashRecord = {
+  id: string;
+  occurred_at: string;
+  amount: string;
+  currency: string;
+  counterparty: string;
+  counterparty_account: string;
+  counterparty_account_attrs: string[];
+  note: string;
+  category: string;
+  record_type: string;
+  record_subtype: string;
+  account_name: string;
+  account_id: number;
+  account_type: string;
+  source_type: string;
+  record_id: string;
+};
+
+export type CashRelation = {
+  id: string;
+  kind: string;
+  label: string;
+  subtype: string;
+  status: "pending_review" | "accepted" | "rejected" | "superseded";
+  primary_record: CashRecord | null;
+  secondary_record: CashRecord | null;
+};
+
+export type CashRecordDetail = {
+  record: CashRecord;
+  relations: CashRelation[];
+  options: LedgerOptions;
+};
+
+export type CashRecordPage = {
+  items: CashRecord[];
+  next_cursor: string | null;
+};
+
+export type ImportPreviewItem = {
+  record_id: string;
+  occurred_at: string;
+  counterparty: string;
+  amount: string;
+  currency: string;
+  account_name: string;
+  category: string;
+  channel: string;
+  status: "new" | "existing" | "unsupported" | "error";
+  message: string;
+};
+
+export type ImportPreview = {
+  channel: string;
+  items: ImportPreviewItem[];
+  summary: Record<string, number>;
 };
 
 export type CashFilters = {

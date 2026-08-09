@@ -13,7 +13,7 @@ describe("独立 Node 运行时", () => {
 
     render(<CashLedgerPage />);
 
-    expect(await screen.findByText("前端 API 地址无效。请设置 VITE_FT_API_ORIGIN 后重启。"))
+    expect(await screen.findByText("账本暂不可用，请稍后重试。"))
       .toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();
   });

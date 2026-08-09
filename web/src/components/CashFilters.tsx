@@ -1,4 +1,5 @@
 import type { Account, CashFilterOptions, CashFilters } from "../api/types";
+import { UiIcon } from "./UiIcon";
 
 type AmountFilterState = "error" | "success" | undefined;
 
@@ -69,9 +70,9 @@ export function CashFiltersBar({ filters, accounts, filterOptions, filterOptions
   const economicTypes = filterOptions.economic_types ?? [];
   const economicSelection = normalizedEconomicTypeSelection(filters);
   const economicTypeDescription = filterOptionsLoading
-    ? "正在读取可用经济类型。"
+    ? "正在读取可用流水类型。"
     : !filterOptionsReady || economicTypes.length === 0
-      ? "当前账本没有可筛选的经济类型。"
+      ? "当前账本没有可筛选的流水类型。"
       : undefined;
   const onEconomicTypeChange = (value: string) => {
     if (!value) {
@@ -82,7 +83,7 @@ export function CashFiltersBar({ filters, accounts, filterOptions, filterOptions
     onChange({ ...filters, economic_type: selection.economic_type ?? undefined, transfer_subtype: selection.transfer_subtype ?? undefined });
   };
   return <details className="filters" aria-label="账本筛选工具" data-layout="filter-grid">
-    <summary><span className="filter-mark" aria-hidden="true">⌕</span><span><strong>筛选</strong><small>{filterSummary(filters, accounts)}</small></span><span className="filter-toggle">展开</span></summary>
+    <summary><span className="filter-mark" aria-hidden="true"><UiIcon name="sliders" /></span><span><strong>筛选</strong><small>{filterSummary(filters, accounts)}</small></span><span className="filter-toggle" aria-hidden="true"><UiIcon name="chevron-down" /></span></summary>
     <div className="filter-grid">
       <label>开始日期<input aria-label="开始日期" type="date" value={filters.date_from ?? ""} onChange={(e) => update("date_from", e.target.value)} /></label>
       <label>结束日期<input aria-label="结束日期" type="date" value={filters.date_to ?? ""} onChange={(e) => update("date_to", e.target.value)} /></label>
@@ -94,8 +95,8 @@ export function CashFiltersBar({ filters, accounts, filterOptions, filterOptions
       <label>最高金额<input aria-label="最高金额" aria-invalid={amountFilterState === "error" || undefined} aria-describedby={amountDescription} className={amountState} inputMode="decimal" value={filters.amount_max ?? ""} onChange={(e) => updateAmount("amount_max", e.target.value)} /></label>
       {amountError ? <p className="filter-error" id="amount-filter-error" role="alert">{amountError}</p> : null}
       {amountSuccess ? <p className="filter-success" id="amount-filter-success" role="status">{amountSuccess}</p> : null}
-      <label>经济类型<select className="economic-type-select" aria-label="经济类型" aria-describedby={economicTypeDescription ? "economic-type-description" : undefined} value={selectionValue(economicSelection)} disabled={filterOptionsLoading || !filterOptionsReady || economicTypes.length === 0} onChange={(e) => onEconomicTypeChange(e.target.value)}><option value="">全部收支</option>{economicTypes.map((item) => <optgroup label={labelForEconomicType(item.economic_type)} key={item.economic_type}><option value={selectionValue({ economic_type: item.economic_type, transfer_subtype: null })}>全部{labelForEconomicType(item.economic_type)}</option>{item.transfer_subtypes.map((subtype) => <option value={selectionValue({ economic_type: item.economic_type, transfer_subtype: subtype })} key={subtype}>{labelForTransferSubtype(subtype)}</option>)}</optgroup>)}</select>{economicTypeDescription ? <span className="sr-only" id="economic-type-description">{economicTypeDescription}</span> : null}</label>
-      <label>组成方式<select aria-label="组成方式" value={filters.composition ?? ""} onChange={(e) => update("composition", e.target.value)}><option value="">全部</option><option value="single">单成员</option><option value="payment_mirror">同笔支付</option><option value="refund_offset">退款冲销</option><option value="combined">组合关系</option></select></label>
+      <label>流水类型<select className="economic-type-select" aria-label="流水类型" aria-describedby={economicTypeDescription ? "economic-type-description" : undefined} value={selectionValue(economicSelection)} disabled={filterOptionsLoading || !filterOptionsReady || economicTypes.length === 0} onChange={(e) => onEconomicTypeChange(e.target.value)}><option value="">全部收支</option>{economicTypes.map((item) => <optgroup label={labelForEconomicType(item.economic_type)} key={item.economic_type}><option value={selectionValue({ economic_type: item.economic_type, transfer_subtype: null })}>全部{labelForEconomicType(item.economic_type)}</option>{item.transfer_subtypes.map((subtype) => <option value={selectionValue({ economic_type: item.economic_type, transfer_subtype: subtype })} key={subtype}>{labelForTransferSubtype(subtype)}</option>)}</optgroup>)}</select>{economicTypeDescription ? <span className="sr-only" id="economic-type-description">{economicTypeDescription}</span> : null}</label>
+      <label>关联记录<select aria-label="关联记录" value={filters.composition ?? ""} onChange={(e) => update("composition", e.target.value)}><option value="">全部</option><option value="single">未关联</option><option value="payment_mirror">同笔支付</option><option value="refund_offset">退款冲销</option><option value="combined">其他关联</option></select></label>
     </div>
   </details>;
 }
