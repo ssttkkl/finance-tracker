@@ -494,7 +494,10 @@ class CashLedgerCommandService:
             if kind == RelationKind.TRANSFER_PAIR.value and not subtype:
                 subtype = "ordinary_transfer"
             primary = int(relation["primary_fact_id"])
-            secondary = int(relation["secondary_fact_id"])
+            secondary_value = relation.get("secondary_fact_id")
+            if secondary_value in (None, "") and kind == RelationKind.PAYMENT_MIRROR.value:
+                raise ValueError("同笔支付需要两条流水记录")
+            secondary = int(secondary_value) if secondary_value not in (None, "") else None
             left, right = ordered_fact_pair(primary, secondary)
             conflict = session.query(TransactionRelationModel).filter(
                 TransactionRelationModel.workspace_id == self._workspace_id,

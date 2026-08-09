@@ -257,6 +257,35 @@ def test_pending_relation_type_can_be_updated_without_creating_history(cash_web_
     assert current["status"] == "pending_review"
 
 
+def test_open_relation_cannot_be_changed_to_bilateral_payment_mirror(cash_web_runtime):
+    from ft.domain.relations import RelationKind, RelationStatus
+
+    _enable_cny(cash_web_runtime, "日常账户")
+    service = _service(cash_web_runtime)
+    record = service.create_record(_payload())
+    with service._uow as uow:
+        relation_id = uow.relations.add({
+            "kind": RelationKind.REFUND_OFFSET.value,
+            "primary_fact_id": int(record["record"]["id"]),
+            "secondary_fact_id": None,
+            "primary_fact_type": "cash",
+            "secondary_fact_type": None,
+            "anchor_fact_id": int(record["record"]["id"]),
+            "status": RelationStatus.PENDING_REVIEW.value,
+            "rule_id": "refund_offset.open_leg",
+            "created_by": "system",
+        })
+        uow.commit()
+
+    with pytest.raises(ValueError, match="两条流水"):
+        service.update_relation(relation_id, {"kind": RelationKind.PAYMENT_MIRROR.value})
+
+    with service._uow as uow:
+        current = uow.relations.get(relation_id)
+        uow.commit()
+    assert current["kind"] == RelationKind.REFUND_OFFSET.value
+
+
 def test_cash_write_api_uses_fact_ids_and_keeps_internal_calibration_private(cash_web_runtime):
     from fastapi.testclient import TestClient
     from ft.application.web_queries import CashLedgerQueryService
