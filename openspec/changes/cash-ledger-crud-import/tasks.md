@@ -91,7 +91,7 @@
 - [x] 本轮 Hallmark audit：复核生产组件、原型和 390 / 768 / 1024 / 1440 px 快照，未发现图标混用、Emoji、歧义关键动作、命中区域或响应式问题；`0 critical · 0 major · 0 minor`。
 - [x] 对重做后的关联添加组件运行 Hallmark audit，复核入口关联性、状态完整性、键盘操作和 320 / 375 / 414 / 768 px 单列布局。
 - [x] 对本轮分页器、时间范围和整行选中态运行 Hallmark audit，复核自解释性、键盘操作、加载 / 错误状态和 320 / 375 / 414 / 768 px 布局；仓库未提供 `hallmark` 可执行文件，按 `references/verbs/audit.md` 手工复核，`0 critical · 0 major · 0 minor`。
-- [ ] 独立复核上下文或人工复核：当前已完成本代理的范围化 diff 复核，但尚未有第二复核者签核；归档前必须补充范围、finding、采纳 / 延期理由和回写位置。
+- [x] 独立复核上下文：使用只读 `codex review --base origin/refactor/web` 复核 SQL / 数据安全、幂等、关系约束、API 和测试覆盖；发现待确认开放关联改成同笔支付时会触发双边约束并返回 500（`src/ft/application/cash_ledger.py`），已在 `96c164b` 增加服务层校验、回归测试并重新验证。
 
 ## 6. 测试与 QA
 
@@ -126,8 +126,8 @@
 
 ## 探索阶段证据
 
-- **当前 HEAD**：`c66a66f747ca4d4ddcd7f92af78f046b86483029`（工作树未提交，实施完成后的验证基线）。
-- **比较基线**：当前分支 `refactor/web`，基线 HEAD 为上述值；本轮保留所有改动在工作树，未提交、推送或部署。
+- **当前 HEAD**：`96c164b092c4a063e4ffdd0b753b786d3e8f987c`（已推送的 PR 分支 `codex/cash-ledger-crud-import`）。
+- **比较基线**：目标分支 `refactor/web`，基线 HEAD 为 `4953f972fe873c87dad219930e804dd3fd58003e`；当前功能提交已推送，未合并或部署。
 - **已运行**：`openspec --version`（1.7.0）、`openspec list --json`、`openspec status --change cash-ledger-crud-import --json`、项目上下文和代码 / 规格读取。
 - **本轮已验证**：2026-08-08 CST，`openspec validate --all --strict`（33 passed）、`openspec doctor`（Root ok）、`git diff --check`（通过）、Python `compileall`（通过）和原型内联脚本语法检查（通过）。
 - **UI 原型验证**：2026-08-07 CST，临时本地静态服务 `127.0.0.1:8765` 上运行 Playwright 内联检查；已确认的 C 工作台复用既有 480 px 信息抽屉，查看态 / 编辑态、金额原位编辑、零金额保存后在 17 种流水类型中改选、数据库账户币种下拉、导入未支持币种处理、来源只读、关联记录查看 / 编辑流水 / 更改类型 / 添加 / 取消、已有流水检索、时间范围、分页器、删除影响、六类渠道和导入预览均通过。页面不展示字段修改状态、账单原值、自动扫描候选、内部拒绝决定、内部零金额兼容类型或恢复操作；320、375、414、768、1280、1440 px 的页面宽度分别等于视口宽度，按钮无折行。
@@ -153,4 +153,5 @@
 - **本轮真实 `.ft` SQLite 浏览器 QA**：2026-08-09 CST，重启 `FT_DATABASE_URL=sqlite+pysqlite:////Users/huangwenlong/.ft/finance-tracker.db` 的 8766 后端后，以 1440 × 900 和 390 × 844 复核主列表上一页 / 下一页、筛选回第一页、关联默认日期按浏览器本地日期前后三天计算、扩大日期后的关联候选分页、整行选中态和无横向溢出；请求正确包含 `date_from` / `date_to` / `timezone` / `cursor`，无 radio 输入，选中行带 `is-selected`，控制台错误为 0。
 - **此前时区边界回归**：新增 SQLite / PostgreSQL 共享契约，验证 UTC 时间跨越本地午夜时，关联日期范围按请求的 `Asia/Shanghai` 日历边界筛选；首次执行时 SQLite 通过，PostgreSQL 因尚未配置 `FT_TEST_POSTGRES_URL` 跳过，后续已在本地 Docker PostgreSQL 门禁中补跑。
 - **本轮 PostgreSQL 门禁验证**：2026-08-09 CST，使用本地 Docker 容器 `finance-tracker-postgres-test` 的专用数据库 `finance_tracker_test`（`127.0.0.1:55432`），临时配置 `FT_TEST_POSTGRES_URL` 且不写入仓库；收支管理、投影、Web API、记录类型和关系定向矩阵为 `71 passed`，强制要求 PostgreSQL 的完整 `uv run pytest -q` 为 `1441 passed, 10 skipped, 1 warning`。未输出或持久化数据库凭据。
-- **未解决 / 后续**：独立第二复核者、性能基线、发布后的重复导入比例 / 待确认数量 / 删除观察项尚未执行；本次在共享工作树实施而未建立独立 worktree；主规格同步和 change 归档尚未执行。上述事项不在未授权连接真实账本或部署时擅自执行。未来统一操作日志仍作为独立变更，不在本变更加入审计表。
+- **本轮修复后完整回归**：2026-08-09 CST，修复开放关联类型变更边界后强制 PostgreSQL 的 `uv run pytest -q` 为 `1442 passed, 10 skipped, 1 warning`；受影响关系测试为 `29 passed, 11 skipped, 1 warning`。独立复核 finding 已关闭。
+- **未解决 / 后续**：性能基线、发布后的重复导入比例 / 待确认数量 / 删除观察项尚未执行；本次在共享工作树实施而未建立独立 worktree；主规格同步和 change 归档尚未执行。上述事项不在未授权连接真实账本或部署时擅自执行。未来统一操作日志仍作为独立变更，不在本变更加入审计表。
