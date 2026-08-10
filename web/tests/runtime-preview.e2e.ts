@@ -40,6 +40,37 @@ test("生产预览读取投资事件和关系证据", async ({ page }) => {
   await page.getByRole("button", { name: "关闭", exact: true }).click();
 });
 
+test("生产预览的三个账本路由共用同一棵侧边导航", async ({ page }) => {
+  await page.goto("/#cash-ledger");
+  const navigation = page.getByRole("navigation", { name: "主要导航" });
+  await expect(navigation.getByRole("link")).toHaveText(["收支账本", "投资账本", "当前持仓", "投资事件"]);
+  await expect(navigation.getByRole("link", { name: "收支账本" })).toHaveAttribute("aria-current", "page");
+  await expect(navigation.getByRole("link", { name: "当前持仓" })).not.toHaveAttribute("aria-current");
+
+  await navigation.getByRole("link", { name: "投资事件" }).click();
+  await expect(page.getByRole("heading", { name: "投资事件", level: 1 })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "主要导航" }).getByRole("link")).toHaveText(["收支账本", "投资账本", "当前持仓", "投资事件"]);
+  await expect(page.getByRole("navigation", { name: "主要导航" }).getByRole("link", { name: "投资事件" })).toHaveAttribute("aria-current", "page");
+
+  await page.getByRole("link", { name: "收支账本" }).click();
+  await expect(page.getByRole("heading", { name: "收支账本", level: 1 })).toBeVisible();
+});
+
+test("生产预览移动端折叠菜单可展开并在选路由后收起", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#cash-ledger");
+
+  const menu = page.getByRole("button", { name: "打开菜单" });
+  await expect(menu).toBeVisible();
+  await menu.click();
+  await expect(page.getByRole("button", { name: "关闭菜单" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "投资事件" })).toBeVisible();
+
+  await page.getByRole("link", { name: "投资事件" }).click();
+  await expect(page.getByRole("heading", { name: "投资事件", level: 1 })).toBeVisible();
+  await expect(page.getByRole("button", { name: "打开菜单" })).toBeVisible();
+});
+
 test("生产预览在 320/375/414/768 px 无页面级横向滚动", async ({ page }) => {
   for (const width of [320, 375, 414, 768]) {
     await page.setViewportSize({ width, height: 900 });

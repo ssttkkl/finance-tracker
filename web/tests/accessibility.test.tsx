@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CashLedgerPage } from "../src/pages/CashLedgerPage";
+import { App } from "../src/main";
 
 const transaction = {
   projection_id: "cash:1003", occurred_at: "2026-07-03T09:00:00+08:00",
@@ -18,6 +19,7 @@ function evidence() {
 }
 
 beforeEach(() => {
+  window.location.hash = "#cash-ledger";
   vi.stubEnv("VITE_FT_API_ORIGIN", "http://127.0.0.1:8000");
   vi.stubGlobal("fetch", vi.fn((input: string) => {
     if (input.includes("/accounts")) return Promise.resolve(new Response(JSON.stringify({ items: [transaction.account] })));
@@ -29,7 +31,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("现金账本无障碍", () => {
   it("为筛选提供显式标签，以键盘将焦点带入详情并在关闭后返回记录", async () => {
-    render(<CashLedgerPage />);
+    render(<App />);
     const trigger = await screen.findByRole("button", { name: "查看咖啡店的详情" });
     expect(screen.getByLabelText("账户")).toBeInTheDocument();
     expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "来源", "经济类型", "金额", "操作"]);

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { fetchInvestmentAccounts, fetchInvestmentEvidence, fetchInvestmentPage, fetchInvestmentPortfolio } from "../api/investmentLedger";
 import type { Account, InvestmentEvent, InvestmentEvidence, InvestmentFilters, Portfolio } from "../api/types";
 import { InvestmentEvidenceDetail } from "../components/InvestmentEvidenceDetail";
@@ -50,7 +51,7 @@ function readDisplayOptions(): HoldingDisplayOptions {
   }
 }
 
-export function InvestmentLedgerPage({ view = "holdings" }: { view?: "holdings" | "events" }) {
+export function InvestmentLedgerPage({ view = "holdings", onModalStateChange }: { view?: "holdings" | "events"; onModalStateChange?: (open: boolean) => void }) {
   const isEvents = view === "events";
   const [filters, setFilters] = useState<InvestmentFilters>({});
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -177,6 +178,10 @@ export function InvestmentLedgerPage({ view = "holdings" }: { view?: "holdings" 
     return undefined;
   }, [isEvents, displayOptions.accountId, displayOptions.sort, displayOptions.grouping]);
   useEffect(() => { if (!selected && restoreFocus.current) { restoreFocus.current = false; opener.current?.focus(); } }, [selected]);
+  useEffect(() => {
+    onModalStateChange?.(Boolean(selected));
+    return () => onModalStateChange?.(false);
+  }, [onModalStateChange, selected]);
 
   const openEvidence = (event: InvestmentEvent, source: HTMLButtonElement) => {
     evidenceAbortController.current?.abort();
@@ -189,6 +194,5 @@ export function InvestmentLedgerPage({ view = "holdings" }: { view?: "holdings" 
   const retryEvidence = () => { if (selected && opener.current) openEvidence(selected, opener.current); };
   const retryMore = () => loadMoreRef.current(true);
 
-  const currentHash = isEvents ? "#investment-events" : "#investment-holdings";
-  return <div className="page-layout investment-page"><main className="app-shell" inert={Boolean(selected) || undefined}><aside className="sidebar"><strong>Finance Tracker</strong><nav aria-label="主要导航"><a href="#cash-ledger">收支账本</a><div className="nav-group"><a className="nav-parent" aria-current="page" href="#investment-holdings">投资账本</a><div className="nav-subnav" aria-label="投资账本页面"><a className="subnav-link" aria-current={currentHash === "#investment-holdings" ? "page" : undefined} href="#investment-holdings">当前持仓</a><a className="subnav-link" aria-current={currentHash === "#investment-events" ? "page" : undefined} href="#investment-events">投资事件</a></div></div></nav></aside><section className="ledger investment-workbench" id={isEvents ? "investment-events" : "investment-holdings"} aria-label={isEvents ? "投资事件" : "当前持仓"}><header className="page-header"><div><h1>{isEvents ? "投资事件" : "当前持仓"}</h1></div></header>{accountsError ? <div className="status-view status-error" role="alert"><p>暂时无法读取账户，请重试。</p><button type="button" onClick={loadAccounts}>重试</button></div> : null}{isEvents ? <><InvestmentFiltersBar filters={filters} accounts={accounts} onChange={setFilters} /><section className="investment-section" aria-labelledby="investment-events-title"><div className="section-head"><div><h2 id="investment-events-title">投资事件</h2></div><p>{eventStatus === "ready" ? `已加载 ${items.length} 条` : "按筛选读取"}</p></div>{eventStatus === "loading" ? <><InvestmentTable items={[]} loading onEvidence={openEvidence} /><InvestmentStatusView kind="loading" /></> : null}{eventStatus === "empty" ? <InvestmentStatusView kind="empty" /> : null}{eventStatus === "error" ? <InvestmentStatusView kind="error" message={eventError} onRetry={resetAndLoad} /> : null}{eventStatus === "ready" ? <><InvestmentTable items={items} onEvidence={openEvidence} /><LoadMoreControl hasMore={Boolean(nextCursor)} loading={appendLoading} error={appendError} onLoadMore={appendError ? retryMore : loadMore} /></> : null}</section></> : <InvestmentHoldings portfolio={portfolio} accounts={accounts} loading={portfolioStatus === "loading"} refreshing={portfolioRefreshing} error={portfolioError} options={displayOptions} onOptionsChange={setDisplayOptions} onRetry={() => setPortfolioRefresh((value) => value + 1)} />}</section></main>{selected ? <InvestmentEvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} onClose={closeEvidence} onRetry={retryEvidence} /> : null}</div>;
+  return <><section className="ledger investment-workbench" id={isEvents ? "investment-events" : "investment-holdings"} aria-label={isEvents ? "投资事件" : "当前持仓"}><header className="page-header"><div><h1>{isEvents ? "投资事件" : "当前持仓"}</h1></div></header>{accountsError ? <div className="status-view status-error" role="alert"><p>暂时无法读取账户，请重试。</p><button type="button" onClick={loadAccounts}>重试</button></div> : null}{isEvents ? <><InvestmentFiltersBar filters={filters} accounts={accounts} onChange={setFilters} /><section className="investment-section" aria-labelledby="investment-events-title"><div className="section-head"><div><h2 id="investment-events-title">投资事件</h2></div><p>{eventStatus === "ready" ? `已加载 ${items.length} 条` : "按筛选读取"}</p></div>{eventStatus === "loading" ? <><InvestmentTable items={[]} loading onEvidence={openEvidence} /><InvestmentStatusView kind="loading" /></> : null}{eventStatus === "empty" ? <InvestmentStatusView kind="empty" /> : null}{eventStatus === "error" ? <InvestmentStatusView kind="error" message={eventError} onRetry={resetAndLoad} /> : null}{eventStatus === "ready" ? <><InvestmentTable items={items} onEvidence={openEvidence} /><LoadMoreControl hasMore={Boolean(nextCursor)} loading={appendLoading} error={appendError} onLoadMore={appendError ? retryMore : loadMore} /></> : null}</section></> : <InvestmentHoldings portfolio={portfolio} accounts={accounts} loading={portfolioStatus === "loading"} refreshing={portfolioRefreshing} error={portfolioError} options={displayOptions} onOptionsChange={setDisplayOptions} onRetry={() => setPortfolioRefresh((value) => value + 1)} />}</section>{selected ? createPortal(<InvestmentEvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} onClose={closeEvidence} onRetry={retryEvidence} />, document.body) : null}</>;
 }
