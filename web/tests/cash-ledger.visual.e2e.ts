@@ -36,9 +36,17 @@ async function mockLedger(page: Page) {
   });
 }
 
+async function disableAutoAppend(page: Page) {
+  await page.addInitScript(() => {
+    const browserWindow = window as unknown as { IntersectionObserver?: unknown };
+    delete browserWindow.IntersectionObserver;
+  });
+}
+
 for (const viewport of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 768, height: 1024 }, { width: 390, height: 844 }]) {
   test(`固定去标识化账本快照 ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize(viewport);
+    await disableAutoAppend(page);
     await mockLedger(page);
     await page.goto("/");
     await expect(page.getByText("视觉核对商户")).toBeVisible();
@@ -67,11 +75,12 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       return route.fulfill({ json: { projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {}, filter_options } });
     });
     await page.setViewportSize(viewport);
+    await disableAutoAppend(page);
     await page.goto("/");
     await page.getByRole("button", { name: "查看视觉核对商户的收支详情" }).click();
     await page.getByRole("dialog", { name: "收支详情" }).getByRole("button", { name: "添加关联" }).click();
-    const editor = page.getByRole("dialog", { name: "编辑流水" });
-    await expect(editor.getByText("关联记录")).toBeVisible();
+    const editor = page.getByRole("dialog", { name: "编辑收支详情" });
+    await expect(editor.getByText("关联流水")).toBeVisible();
     await expect(editor.getByRole("searchbox", { name: "搜索流水" })).toBeVisible();
     await expect(editor.getByLabel("开始日期")).toHaveValue("2026-06-30");
     await expect(editor.getByLabel("结束日期")).toHaveValue("2026-07-06");
@@ -82,38 +91,40 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
   });
 }
 
-test("分页器候选快照", async ({ page }) => {
+test("主列表追加快照", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
+  await disableAutoAppend(page);
   await mockLedger(page); await page.goto("/");
   await expect(page.getByText("视觉核对商户")).toBeVisible();
   await expect(page).toHaveScreenshot("cash-ledger-default-collapsed.png", { fullPage: true, animations: "disabled" });
   await page.locator("details.filters > summary").click();
   await expect(page).toHaveScreenshot("cash-ledger-filters-expanded.png", { fullPage: true, animations: "disabled" });
-  await expect(page.getByText("第 1 页")).toBeVisible();
-  await expect(page.getByRole("button", { name: "下一页" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "加载更多" })).toBeVisible();
   await expect(page).toHaveScreenshot("cash-ledger-all-loaded.png", { fullPage: true, animations: "disabled" });
 });
 
-test("翻页中和失败候选快照", async ({ page }) => {
+test("主列表追加中和失败快照", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
+  await disableAutoAppend(page);
   await mockLedger(page); await page.goto("/");
   await page.locator("details.filters > summary").click();
   await page.getByLabel("交易信息").fill("append-loading");
   await expect(page.getByText("视觉核对商户")).toBeVisible();
-  await page.getByRole("button", { name: "下一页" }).click();
-  await expect(page.getByText("正在切换…")).toBeVisible();
+  await page.getByRole("button", { name: "加载更多" }).click();
+  await expect(page.getByRole("button", { name: "正在加载更多…" })).toBeVisible();
   await expect(page).toHaveScreenshot("cash-ledger-append-loading.png", { fullPage: true, animations: "disabled" });
   await page.reload();
   await page.locator("details.filters > summary").click();
   await page.getByLabel("交易信息").fill("append-error");
   await expect(page.getByText("视觉核对商户")).toBeVisible();
-  await page.getByRole("button", { name: "下一页" }).click();
-  await expect(page.getByRole("button", { name: "重试当前页" })).toBeVisible();
+  await page.getByRole("button", { name: "加载更多" }).click();
+  await expect(page.getByRole("button", { name: "重试加载更多" })).toBeVisible();
   await expect(page).toHaveScreenshot("cash-ledger-append-error.png", { fullPage: true, animations: "disabled" });
 });
 
 test("390 px 流水类型字段候选快照", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await disableAutoAppend(page);
   await mockLedger(page); await page.goto("/");
   await expect(page.getByText("流水类型：消费")).toBeVisible();
   await expect(page.getByText("导入渠道：fixture")).toHaveCount(0);

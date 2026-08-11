@@ -6,7 +6,7 @@
   <title>收支账本 · 流水维护原型</title>
   <link rel="stylesheet" href="./tokens.css">
   <style>
-    /* Hallmark · macrostructure: Workbench · genre: modern-minimal · theme: Cobalt · nav: N9 · footer: Ft2 · enrichment: none · audience: 个人账单核对者 · use: 校准流水与管理关联记录 · tone: utilitarian · pre-emit critique: P5 H5 E5 S5 R5 V5 · contrast: pass (40–41) · slop: pass (42–45) · honest: pass (46) · chrome: pass (47) · tokens: pass (48) · responsive: pass (49) · icons: pass (30) · mobile: pass (34, 49, 50–57) */
+    /* Hallmark · macrostructure: Workbench · genre: modern-minimal · theme: Cobalt · nav: N9 · footer: Ft2 · enrichment: none · audience: 个人账单核对者 · use: 校准流水与管理关联流水 · tone: utilitarian · pre-emit critique: P5 H5 E5 S5 R5 V5 · contrast: pass (40–41) · slop: pass (42–45) · honest: pass (46) · chrome: pass (47) · tokens: pass (48) · responsive: pass (49) · icons: pass (30) · mobile: pass (34, 49, 50–57) */
     *, *::before, *::after { box-sizing: border-box; }
     html, body { min-width: 0; overflow-x: clip; }
     body { margin: 0; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-body); font-size: var(--text-md); }
@@ -106,6 +106,9 @@
     .page-navigation { display: flex; align-items: center; justify-content: center; gap: var(--space-3); min-height: 64px; padding: var(--space-3) 0; border-top: var(--rule-1) solid var(--color-rule-strong); color: var(--color-ink-muted); font-size: var(--text-xs); }
     .page-navigation span { min-width: 72px; text-align: center; color: var(--color-ink); font-family: var(--font-mono); }
     .page-navigation button { min-width: 72px; min-height: 40px; }
+    .load-more-control { display: grid; justify-items: center; gap: var(--space-2); padding: var(--space-3) 0; border-top: var(--rule-1) solid var(--color-rule-strong); color: var(--color-ink-muted); font-size: var(--text-xs); }
+    .load-more-control button { min-height: 44px; }
+    .load-more-control::before { width: 5px; height: 5px; border-radius: 50%; background: var(--color-rule-strong); content: ""; }
     .foot-line { padding: var(--space-5) var(--space-4); border-top: var(--rule-1) solid var(--color-rule-strong); color: var(--color-ink-muted); font-size: var(--text-xs); }
     .foot-line p { max-width: 1080px; margin: 0 auto; }
     .mobile-actions { position: fixed; z-index: 2; inset: auto 0 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); padding: var(--space-3) var(--space-4) max(var(--space-3), env(safe-area-inset-bottom)); border-top: var(--rule-1) solid var(--color-rule-strong); background: var(--color-paper-raised); }
@@ -172,6 +175,7 @@
     .related-card dt { color: var(--color-ink-muted); font-size: var(--text-xs); }
     .related-card dd { margin: 0; font-size: var(--text-sm); overflow-wrap: anywhere; }
     .related-actions { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-3); padding-top: var(--space-2); border-top: var(--rule-1) solid var(--color-rule); }
+    .section-actions { display: inline-flex; align-items: center; gap: var(--space-2); }
     .related-empty { margin: 0; padding: var(--space-4); border: var(--rule-1) solid var(--color-rule); color: var(--color-ink-muted); }
     .relation-builder { padding-top: var(--space-5); }
     .relation-builder h3 { margin: 0 0 var(--space-4); font-size: 15px; }
@@ -212,6 +216,7 @@
     .modal p { margin: var(--space-3) 0 0; color: var(--color-ink-muted); line-height: 1.65; }
     .impact-line { margin-top: var(--space-4); padding: var(--space-3); border: var(--rule-1) solid var(--color-danger); background: var(--color-danger-soft); color: var(--color-ink); }
     .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-6); }
+    .delete-choices { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
     .import-form { display: grid; gap: var(--space-3); margin-top: var(--space-5); }
     .import-form label { display: grid; gap: var(--space-1); color: var(--color-ink-muted); }
     .import-preview { margin-top: var(--space-4); border-top: var(--rule-1) solid var(--color-rule); }
@@ -295,11 +300,19 @@
           <span class="amount neutral">500.00 CNY</span>
         </button>
       </div>
-      <nav class="page-navigation" aria-label="流水分页">
-        <button type="button" data-page-previous disabled>上一页</button>
-        <span aria-current="page">第 1 页</span>
-        <button type="button" data-page-next>下一页</button>
-      </nav>
+      <div class="ledger-feed" data-extra-feed hidden>
+        <button class="feed-row" type="button" data-record="refund">
+          <span><strong>退款到账</strong><small>8 月 6 日 · 工行信用卡 · 退款</small><span class="feed-type">退款</span></span>
+          <span class="amount income">30.00 CNY</span>
+        </button>
+        <button class="feed-row" type="button" data-record="transfer-in">
+          <span><strong>日常账户转入</strong><small>8 月 6 日 · 工行借记卡 · 普通转账</small><span class="feed-type">转账入账</span></span>
+          <span class="amount income">500.00 CNY</span>
+        </button>
+      </div>
+      <div class="load-more-control">
+        <button type="button" data-load-more>加载更多</button>
+      </div>
     </section>
   </main>
 
@@ -328,11 +341,12 @@
         <div id="view-mode">
           <section class="drawer-summary" aria-label="流水摘要">
             <p class="drawer-amount" id="view-amount"><span id="view-amount-number">−33.80</span> <span class="currency" id="view-currency">CNY</span></p>
-            <div class="summary-tags"><span class="tag" id="view-record-type">消费</span><span class="tag tag-related" id="view-related-tag">关联记录合并</span></div>
+            <div class="summary-tags"><span class="tag" id="view-record-type">消费</span><span class="tag tag-related" id="view-related-tag">关联流水 2</span></div>
           </section>
 
           <dl class="record-details">
             <dt>交易对方</dt><dd id="view-counterparty">满座儿餐饮服务（北京）有限公司</dd>
+            <dt id="view-counterparty-account-label">对方账号</dt><dd id="view-counterparty-account">尾号 0821</dd>
             <dt>发生时间</dt><dd id="view-occurred">2026年8月7日 18:17</dd>
             <dt>账户</dt><dd id="view-account">工行信用卡(1200)</dd>
             <dt>流水类型</dt><dd id="view-type-detail">消费</dd>
@@ -343,7 +357,7 @@
           </dl>
 
           <section class="drawer-related" id="related-section" aria-labelledby="related-heading">
-            <div class="section-title"><h3 id="related-heading">关联记录</h3><button class="icon-only-button icon-quiet-button" id="add-related" type="button" aria-label="添加关联" title="添加关联"><svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button></div>
+            <div class="section-title"><h3 id="related-heading">关联流水</h3><div class="section-actions"><button class="button-link" id="dissolve-related" type="button" hidden>解散关联</button><button class="icon-only-button icon-quiet-button" id="add-related" type="button" aria-label="添加关联流水" title="添加关联流水"><svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button></div></div>
             <div class="related-list" id="related-list">
               <article class="related-card" id="related-card">
                 <div class="related-card-head"><strong id="related-kind">同一笔支付</strong><span class="mono">−33.80 CNY</span></div>
@@ -351,31 +365,33 @@
                   <dt>发生时间</dt><dd>2026年8月7日 18:17</dd>
                   <dt>账户</dt><dd>微信支付</dd>
                   <dt>交易对方</dt><dd>满座儿餐饮服务（北京）有限公司</dd>
+                  <dt>对方账号</dt><dd>尾号 0821</dd>
                   <dt>流水类型</dt><dd>消费</dd>
                   <dt>来源</dt><dd>微信账单</dd>
                 </dl>
                 <div class="related-actions">
                   <button class="icon-only-button icon-quiet-button" id="view-related" type="button" aria-label="查看流水" title="查看流水"><svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.06 12.35a1 1 0 0 1 0-.7C3.5 7.58 7.35 5 12 5s8.5 2.58 9.94 6.65a1 1 0 0 1 0 .7C20.5 16.42 16.65 19 12 19s-8.5-2.58-9.94-6.65Z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
-                  <button class="icon-only-button icon-quiet-button" id="edit-related" type="button" aria-label="编辑流水" title="编辑流水"><svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></button>
+                  <button class="icon-only-button icon-quiet-button" id="edit-related" type="button" aria-label="编辑关联流水" title="编辑关联流水"><svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></button>
                   <button class="button-link" id="edit-relation" type="button">更改类型</button>
                   <button class="button-link" id="unlink-related" type="button">取消关联</button>
                 </div>
               </article>
-              <p class="related-empty" id="related-empty" hidden>暂无关联记录</p>
+              <p class="related-empty" id="related-empty" hidden>暂无关联流水</p>
             </div>
           </section>
 
-          <div class="drawer-actions"><button class="button-danger" id="delete-record" type="button">删除记录</button></div>
+          <div class="drawer-actions"><button class="button-danger" id="delete-record" type="button">删除流水</button></div>
         </div>
 
         <form id="edit-mode" hidden novalidate>
-          <section class="drawer-summary" aria-label="编辑流水摘要">
+          <section class="drawer-summary" aria-label="编辑收支详情摘要">
             <div class="summary-edit"><input class="mono" id="edit-amount" inputmode="decimal" value="-33.80" aria-describedby="amount-error" required><select id="edit-currency" aria-label="币种"></select></div>
             <p class="field-error" id="amount-error" role="alert"></p>
           </section>
 
           <div class="edit-fields">
             <div class="edit-row"><label for="edit-counterparty">交易对方</label><input id="edit-counterparty" value="满座儿餐饮服务（北京）有限公司"></div>
+            <div class="edit-row"><label for="edit-counterparty-account">对方账号</label><input id="edit-counterparty-account" value="尾号 0821"></div>
             <div class="edit-row"><label for="edit-date">发生时间</label><div class="date-time"><input id="edit-date" type="date" value="2026-08-07" aria-label="发生日期"><input id="edit-time" type="time" value="18:17" aria-label="发生时间"></div></div>
             <div class="edit-row"><label for="edit-account">账户</label><select id="edit-account"><option>工行信用卡(1200)</option><option>微信支付</option><option>工行借记卡</option><option>日常账户</option></select></div>
             <div class="edit-row"><label for="edit-type">流水类型</label><select id="edit-type">
@@ -391,7 +407,7 @@
       </section>
 
       <section class="relation-builder" id="relation-screen" hidden aria-labelledby="relation-title">
-        <h3 id="relation-title">添加关联</h3>
+        <h3 id="relation-title">添加关联流水</h3>
         <div class="builder-field"><label for="relation-type">关联类型</label><select id="relation-type"><option>同一笔支付</option><option>退款</option><option>个人转账</option><option>银证转账</option></select></div>
         <div id="existing-source">
           <fieldset class="relation-date-range"><legend>时间范围</legend><label for="relation-date-from">从<input id="relation-date-from" type="date" value="2026-08-04"></label><label for="relation-date-to">到<input id="relation-date-to" type="date" value="2026-08-10"></label></fieldset>
@@ -408,15 +424,15 @@
   </dialog>
 
   <dialog class="modal" id="unlink-dialog" aria-labelledby="unlink-title">
-    <div class="modal-content"><h2 id="unlink-title">取消这条关联？</h2><p>两条流水都会保留，并重新单独计入账本。</p><div class="modal-actions"><button type="button" data-close-dialog="unlink-dialog">返回</button><button class="button-danger" id="confirm-unlink" type="button">取消关联</button></div></div>
+    <div class="modal-content"><h2 id="unlink-title">取消这条关联？</h2><p>关联流水会保留，被移出的流水将作为独立条目。</p><div class="modal-actions"><button type="button" data-close-dialog="unlink-dialog">返回</button><button class="button-danger" id="confirm-unlink" type="button">取消关联</button></div></div>
   </dialog>
 
   <dialog class="modal" id="delete-dialog" aria-labelledby="delete-title">
-    <div class="modal-content"><h2 id="delete-title">删除这条流水？</h2><p>删除后无法恢复。</p><div class="impact-line" id="delete-impact">将自动取消 1 个关联；其他流水会保留，并重新单独计入账本。</div><div class="modal-actions"><button type="button" data-close-dialog="delete-dialog">返回</button><button class="button-danger" id="confirm-delete" type="button">删除流水</button></div></div>
+    <div class="modal-content"><h2 id="delete-title">删除这笔收支？</h2><p>删除后无法恢复。</p><div class="impact-line" id="delete-impact">请选择删除范围。</div><div class="delete-choices" id="delete-choices" hidden><button class="button-danger" id="delete-all" type="button">删除全部流水</button><button class="button-quiet" id="delete-current" type="button">只删除当前流水并解散关联</button></div><div class="modal-actions"><button type="button" data-close-dialog="delete-dialog">返回</button><button class="button-danger" id="confirm-delete" type="button">删除流水</button></div></div>
   </dialog>
 
   <dialog class="modal" id="edit-impact-dialog" aria-labelledby="edit-impact-title">
-    <div class="modal-content"><h2 id="edit-impact-title">保存这次修改？</h2><p>修改后的金额不再符合当前关联。</p><div class="impact-line">保存时将自动取消 1 个关联；另一条流水会保留。</div><div class="modal-actions"><button type="button" data-close-dialog="edit-impact-dialog">继续编辑</button><button class="button-primary" id="confirm-edit-impact" type="button">保存并取消关联</button></div></div>
+    <div class="modal-content"><h2 id="edit-impact-title">保存这次修改？</h2><p>修改后的内容不再符合当前关联。</p><div class="impact-line">保存后当前关联流水会拆开，其他流水会保留。</div><div class="modal-actions"><button type="button" data-close-dialog="edit-impact-dialog">继续编辑</button><button class="button-primary" id="confirm-edit-impact" type="button">保存并拆开</button></div></div>
   </dialog>
 
   <dialog class="modal" id="import-dialog" aria-labelledby="import-title">
@@ -428,11 +444,13 @@
 
   <script>
     const records = {
-      main: { amount: "-33.80", currency: "CNY", counterparty: "满座儿餐饮服务（北京）有限公司", occurred: "2026年8月7日 18:17", date: "2026-08-07", time: "18:17", account: "工行信用卡(1200)", type: "consumption", typeLabel: "消费", subtype: "", subtypeLabel: "", category: "餐饮", note: "智盘消费-A翘脚牛肉", source: "微信支付，工行信用卡账单", related: true },
-      related: { amount: "-33.80", currency: "CNY", counterparty: "满座儿餐饮服务（北京）有限公司", occurred: "2026年8月7日 18:17", date: "2026-08-07", time: "18:17", account: "微信支付", type: "consumption", typeLabel: "消费", subtype: "", subtypeLabel: "", category: "餐饮", note: "财付通-满座儿餐饮服务", source: "微信账单", related: true },
-      zero: { amount: "0.00", currency: "CNY", counterparty: "账户确认记录", occurred: "2026年8月7日 08:30", date: "2026-08-07", time: "08:30", account: "工行借记卡", type: "consumption", typeLabel: "消费", subtype: "", subtypeLabel: "", category: "账户维护", note: "月初账户确认", source: "手工记录", related: false },
-      income: { amount: "12800.00", currency: "CNY", counterparty: "八月工资", occurred: "2026年8月7日 09:10", date: "2026-08-07", time: "09:10", account: "工行借记卡", type: "income", typeLabel: "收入", subtype: "", subtypeLabel: "", category: "工资", note: "八月工资", source: "工行借记卡账单", related: false },
-      transfer: { amount: "-500.00", currency: "CNY", counterparty: "本人账户", occurred: "2026年8月7日 08:12", date: "2026-08-07", time: "08:12", account: "工行借记卡", type: "transfer_out", typeLabel: "转账出账", subtype: "ordinary_transfer", subtypeLabel: "普通转账", category: "转账", note: "转账至日常账户", source: "工行借记卡账单", related: true }
+      main: { amount: "-33.80", currency: "CNY", counterparty: "满座儿餐饮服务（北京）有限公司", counterpartyAccount: "尾号 0821", occurred: "2026年8月7日 18:17", date: "2026-08-07", time: "18:17", account: "工行信用卡(1200)", type: "consumption", typeLabel: "消费", subtype: "", subtypeLabel: "", category: "餐饮", note: "智盘消费-A翘脚牛肉", source: "微信支付，工行信用卡账单", related: true },
+      related: { amount: "-33.80", currency: "CNY", counterparty: "满座儿餐饮服务（北京）有限公司", counterpartyAccount: "尾号 0821", occurred: "2026年8月7日 18:17", date: "2026-08-07", time: "18:17", account: "微信支付", type: "consumption", typeLabel: "消费", subtype: "", subtypeLabel: "", category: "餐饮", note: "财付通-满座儿餐饮服务", source: "微信账单", related: true },
+      zero: { amount: "0.00", currency: "CNY", counterparty: "账户确认记录", counterpartyAccount: "", occurred: "2026年8月7日 08:30", date: "2026-08-07", time: "08:30", account: "工行借记卡", type: "consumption", typeLabel: "消费", subtype: "", subtypeLabel: "", category: "账户维护", note: "月初账户确认", source: "手工记录", related: false },
+      income: { amount: "12800.00", currency: "CNY", counterparty: "八月工资", counterpartyAccount: "", occurred: "2026年8月7日 09:10", date: "2026-08-07", time: "09:10", account: "工行借记卡", type: "income", typeLabel: "收入", subtype: "", subtypeLabel: "", category: "工资", note: "八月工资", source: "工行借记卡账单", related: false },
+      transfer: { amount: "-500.00", currency: "CNY", counterparty: "本人账户", counterpartyAccount: "尾号 1200", occurred: "2026年8月7日 08:12", date: "2026-08-07", time: "08:12", account: "工行借记卡", type: "transfer_out", typeLabel: "转账出账", subtype: "ordinary_transfer", subtypeLabel: "普通转账", category: "转账", note: "转账至日常账户", source: "工行借记卡账单", related: true },
+      refund: { amount: "30.00", currency: "CNY", counterparty: "退款到账", counterpartyAccount: "", occurred: "2026年8月6日 15:20", date: "2026-08-06", time: "15:20", account: "工行信用卡", type: "refund", typeLabel: "退款", subtype: "", subtypeLabel: "", category: "退款", note: "退款到账", source: "工行信用卡账单", related: false },
+      "transfer-in": { amount: "500.00", currency: "CNY", counterparty: "日常账户转入", counterpartyAccount: "", occurred: "2026年8月6日 08:12", date: "2026-08-06", time: "08:12", account: "工行借记卡", type: "transfer_in", typeLabel: "转账入账", subtype: "ordinary_transfer", subtypeLabel: "普通转账", category: "转账", note: "日常账户转入", source: "工行借记卡账单", related: false }
     };
 
     const subtypeOptions = {
@@ -496,6 +514,11 @@
       document.getElementById("view-amount-number").textContent = formatAmount(record.amount);
       document.getElementById("view-currency").textContent = record.currency;
       document.getElementById("view-counterparty").textContent = record.counterparty;
+      const counterpartyAccount = document.getElementById("view-counterparty-account");
+      const counterpartyAccountLabel = document.getElementById("view-counterparty-account-label");
+      counterpartyAccount.textContent = record.counterpartyAccount || "";
+      counterpartyAccount.hidden = !record.counterpartyAccount;
+      counterpartyAccountLabel.hidden = !record.counterpartyAccount;
       document.getElementById("view-occurred").textContent = record.occurred;
       document.getElementById("view-account").textContent = record.account;
       document.getElementById("view-record-type").textContent = record.typeLabel;
@@ -504,9 +527,11 @@
       document.getElementById("view-note").textContent = record.note || "-";
       document.getElementById("view-source").textContent = record.source;
       document.getElementById("view-related-tag").hidden = !record.related;
+      document.getElementById("view-related-tag").textContent = record.related ? "关联流水 2" : "";
       document.getElementById("related-section").hidden = false;
       document.getElementById("related-card").hidden = !record.related;
       document.getElementById("related-empty").hidden = record.related;
+      document.getElementById("dissolve-related").hidden = !record.related;
       document.getElementById("related-kind").textContent = relationKind;
       document.getElementById("view-subtype-label").hidden = !record.subtype;
       document.getElementById("view-subtype").hidden = !record.subtype;
@@ -519,6 +544,7 @@
     function fillForm(record) {
       document.getElementById("edit-amount").value = record.amount;
       document.getElementById("edit-counterparty").value = record.counterparty;
+      document.getElementById("edit-counterparty-account").value = record.counterpartyAccount || "";
       document.getElementById("edit-date").value = record.date;
       document.getElementById("edit-time").value = record.time;
       document.getElementById("edit-account").value = record.account;
@@ -549,7 +575,7 @@
       editMode.hidden = !editing;
       drawerEdit.hidden = editing || building;
       drawerBack.hidden = building ? false : !previousRecord;
-      drawerTitle.textContent = building ? "添加关联记录" : editing ? "编辑流水" : "收支详情";
+      drawerTitle.textContent = building ? "添加关联流水" : editing ? "编辑收支详情" : "收支详情";
       if (editing) window.setTimeout(() => document.getElementById("edit-amount").focus(), 0);
       if (building) window.setTimeout(() => document.getElementById("relation-type").focus(), 0);
     }
@@ -568,7 +594,7 @@
       document.getElementById("existing-source").hidden = editing;
       document.getElementById("confirm-relation").textContent = editing ? "保存修改" : "添加关联";
       setScreen("relation");
-      drawerTitle.textContent = editing ? "编辑关联" : "添加关联记录";
+      drawerTitle.textContent = editing ? "编辑关联流水" : "添加关联流水";
     }
 
     function commitEdit(cancelRelation) {
@@ -577,6 +603,7 @@
       record.amount = document.getElementById("edit-amount").value;
       record.currency = document.getElementById("edit-currency").value;
       record.counterparty = document.getElementById("edit-counterparty").value;
+      record.counterpartyAccount = document.getElementById("edit-counterparty-account").value;
       record.date = document.getElementById("edit-date").value;
       record.time = document.getElementById("edit-time").value;
       record.occurred = record.date.replaceAll("-", "年").replace(/年(\d{2})年(\d{2})$/, "年$1月$2日") + " " + record.time;
@@ -611,8 +638,8 @@
     });
     document.getElementById("confirm-edit-impact").addEventListener("click", () => { document.getElementById("edit-impact-dialog").close(); commitEdit(true); });
 
-    document.getElementById("view-related").addEventListener("click", () => { previousRecord = currentRecord; renderRecord("related"); announce("已打开关联记录。") });
-    document.getElementById("edit-related").addEventListener("click", () => { previousRecord = currentRecord; renderRecord("related"); setScreen("edit"); announce("已打开关联记录编辑。") });
+    document.getElementById("view-related").addEventListener("click", () => { previousRecord = currentRecord; renderRecord("related"); announce("已打开关联流水。") });
+    document.getElementById("edit-related").addEventListener("click", () => { previousRecord = currentRecord; renderRecord("related"); setScreen("edit"); announce("已打开关联流水编辑。") });
     drawerBack.addEventListener("click", () => { if (!relationScreen.hidden) { setScreen("view"); return; } if (previousRecord) { const target = previousRecord; previousRecord = null; renderRecord(target); } });
     document.getElementById("add-related").addEventListener("click", () => openRelationBuilder("add"));
     document.getElementById("edit-relation").addEventListener("click", () => openRelationBuilder("edit"));
@@ -627,30 +654,28 @@
       announce(relationScreen.dataset.mode === "edit" ? "关联类型已更新。" : "已添加关联，账本已更新。");
     });
     document.getElementById("unlink-related").addEventListener("click", () => document.getElementById("unlink-dialog").showModal());
-    document.getElementById("confirm-unlink").addEventListener("click", () => { document.getElementById("unlink-dialog").close(); records[currentRecord].related = false; renderRecord(currentRecord); announce("已取消关联，两条流水均已保留。"); });
+    document.getElementById("confirm-unlink").addEventListener("click", () => { document.getElementById("unlink-dialog").close(); records[currentRecord].related = false; renderRecord(currentRecord); announce("已取消关联，其他流水已保留。"); });
+    document.getElementById("dissolve-related").addEventListener("click", () => { records[currentRecord].related = false; renderRecord(currentRecord); announce("已解散关联，其他流水已作为独立条目保留。"); });
     document.getElementById("delete-record").addEventListener("click", () => {
-      document.getElementById("delete-impact").textContent = records[currentRecord].related ? "将自动取消 1 个关联；其他流水会保留，并重新单独计入账本。" : "这条流水没有关联记录。";
+      const related = records[currentRecord].related;
+      document.getElementById("delete-impact").textContent = related ? "请选择删除全部流水，或只删除当前流水并解散关联。" : "这条流水没有关联流水。";
+      document.getElementById("delete-choices").hidden = !related;
+      document.getElementById("confirm-delete").hidden = related;
       document.getElementById("delete-dialog").showModal();
     });
-    document.getElementById("confirm-delete").addEventListener("click", event => { event.currentTarget.disabled = true; event.currentTarget.dataset.state = "loading"; event.currentTarget.textContent = "正在删除…"; window.setTimeout(() => { document.getElementById("delete-dialog").close(); drawerDialog.close(); event.currentTarget.disabled = false; event.currentTarget.dataset.state = "success"; event.currentTarget.textContent = "删除流水"; showToast("流水已删除，其他记录已保留。"); }, 360); });
+    function finishDelete(button, message) { button.disabled = true; button.dataset.state = "loading"; button.textContent = "正在删除…"; window.setTimeout(() => { document.getElementById("delete-dialog").close(); drawerDialog.close(); button.disabled = false; button.dataset.state = "success"; button.textContent = button.id === "delete-all" ? "删除全部流水" : "只删除当前流水并解散关联"; showToast(message); }, 360); }
+    document.getElementById("confirm-delete").addEventListener("click", event => finishDelete(event.currentTarget, "流水已删除。"));
+    document.getElementById("delete-all").addEventListener("click", event => finishDelete(event.currentTarget, "全部流水已删除。"));
+    document.getElementById("delete-current").addEventListener("click", event => finishDelete(event.currentTarget, "当前流水已删除，其他流水已拆开保留。"));
     document.querySelectorAll("[data-close-dialog]").forEach(button => button.addEventListener("click", () => document.getElementById(button.dataset.closeDialog).close()));
     document.getElementById("preview-import").addEventListener("click", event => { document.getElementById("import-preview").hidden = false; event.currentTarget.textContent = "导入账单"; announce("预览完成：1 条新记录，1 条已有记录，1 条需要处理。"); });
     updateEditCurrencyOptions(records.main.currency);
 
-    document.querySelector("[data-page-next]").addEventListener("click", event => {
-      const button = event.currentTarget;
-      button.disabled = true;
-      button.previousElementSibling.textContent = "第 2 页";
-      button.previousElementSibling.setAttribute("aria-current", "page");
-      button.parentElement.querySelector("[data-page-previous]").disabled = false;
-      announce("已切换到第 2 页流水。");
-    });
-    document.querySelector("[data-page-previous]").addEventListener("click", event => {
-      const button = event.currentTarget;
-      button.disabled = true;
-      button.nextElementSibling.textContent = "第 1 页";
-      button.parentElement.querySelector("[data-page-next]").disabled = false;
-      announce("已切换到第 1 页流水。");
+    document.querySelector("[data-load-more]").addEventListener("click", event => {
+      document.querySelector("[data-extra-feed]").hidden = false;
+      event.currentTarget.disabled = true;
+      event.currentTarget.textContent = "已显示全部记录";
+      announce("已加载更多流水。");
     });
 
     const params = new URLSearchParams(window.location.search);

@@ -6,7 +6,7 @@ from hashlib import sha256
 import json
 from uuid import uuid4
 
-from sqlalchemy import delete, insert, select
+from sqlalchemy import and_, delete, insert, or_, select
 
 from ft.domain.cash_projection import (
     CashProjectionBuild,
@@ -66,6 +66,10 @@ class RelationalCashProjectionRepository:
                 "rules_version": RULES_VERSION, "last_build_status": "never", "active_dataset_id": None,
                 "projection_count": 0, "member_count": 0, "last_error_code": None, "last_error_summary": None,
             }
+        return self._status_for_state(state)
+
+    @staticmethod
+    def _status_for_state(state: CashProjectionStateModel) -> dict:
         return {
             "availability": state.availability, "projection_version": state.projection_version,
             "source_revision": state.source_revision, "rules_version": state.rules_version,
@@ -76,15 +80,70 @@ class RelationalCashProjectionRepository:
         }
 
     def read_sources(self) -> tuple[tuple[CashProjectionFact, ...], tuple[ProjectionRelation, ...]]:
+        return self.read_sources_for_facts(None)
+
+    def accepted_relation_component_ids(self, fact_ids: set[int]) -> set[int]:
+        """Expand a set of cash facts to its current accepted relation component."""
+        members = {int(item) for item in fact_ids if item is not None}
+        if not members:
+            return members
+        while True:
+            rows = self._session.execute(
+                select(
+                    TransactionRelationModel.primary_fact_id,
+                    TransactionRelationModel.secondary_fact_id,
+                ).where(
+                    TransactionRelationModel.workspace_id == self._workspace_id,
+                    TransactionRelationModel.status == "accepted",
+                    TransactionRelationModel.primary_fact_type == "cash",
+                    TransactionRelationModel.secondary_fact_type == "cash",
+                    TransactionRelationModel.secondary_fact_id.is_not(None),
+                    or_(
+                        TransactionRelationModel.primary_fact_id.in_(members),
+                        TransactionRelationModel.secondary_fact_id.in_(members),
+                    ),
+                )
+            ).all()
+            expanded = set(members)
+            for primary_fact_id, secondary_fact_id in rows:
+                expanded.add(int(primary_fact_id))
+                expanded.add(int(secondary_fact_id))
+            if expanded == members:
+                return members
+            members = expanded
+
+    def read_sources_for_facts(
+        self, fact_ids: set[int] | None,
+    ) -> tuple[tuple[CashProjectionFact, ...], tuple[ProjectionRelation, ...]]:
+        requested_ids = None if fact_ids is None else {int(item) for item in fact_ids}
+        funding_filter = [
+            CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
+            CashInvestmentFundingRelationModel.status == "accepted",
+            CashInvestmentFundingRelationModel.active_slot == "active",
+        ]
+        fact_filter = [
+            CashTransactionModel.workspace_id == self._workspace_id,
+            CashTransactionModel.deleted_at.is_(None),
+        ]
+        relation_filter = [
+            TransactionRelationModel.workspace_id == self._workspace_id,
+            TransactionRelationModel.status == "accepted",
+            TransactionRelationModel.primary_fact_type == "cash",
+            TransactionRelationModel.secondary_fact_type == "cash",
+            TransactionRelationModel.secondary_fact_id.is_not(None),
+        ]
+        if requested_ids is not None:
+            if not requested_ids:
+                return (), ()
+            funding_filter.append(CashInvestmentFundingRelationModel.cash_transaction_id.in_(requested_ids))
+            fact_filter.append(CashTransactionModel.id.in_(requested_ids))
+            relation_filter.append(and_(
+                TransactionRelationModel.primary_fact_id.in_(requested_ids),
+                TransactionRelationModel.secondary_fact_id.in_(requested_ids),
+            ))
         funding_by_cash = {
             row.cash_transaction_id: row.id
-            for row in self._session.scalars(
-                select(CashInvestmentFundingRelationModel).where(
-                    CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
-                    CashInvestmentFundingRelationModel.status == "accepted",
-                    CashInvestmentFundingRelationModel.active_slot == "active",
-                )
-            )
+            for row in self._session.scalars(select(CashInvestmentFundingRelationModel).where(*funding_filter))
         }
         facts = tuple(
             CashProjectionFact(
@@ -94,10 +153,7 @@ class RelationalCashProjectionRepository:
                 funding_relation_id=funding_by_cash.get(row.id),
             )
             for row in self._session.scalars(
-                select(CashTransactionModel).where(
-                    CashTransactionModel.workspace_id == self._workspace_id,
-                    CashTransactionModel.deleted_at.is_(None),
-                ).order_by(CashTransactionModel.id)
+                select(CashTransactionModel).where(*fact_filter).order_by(CashTransactionModel.id)
             )
         )
         relations = tuple(
@@ -106,13 +162,7 @@ class RelationalCashProjectionRepository:
                 secondary_fact_id=row.secondary_fact_id, status=row.status, subtype=row.subtype,
             )
             for row in self._session.scalars(
-                select(TransactionRelationModel).where(
-                    TransactionRelationModel.workspace_id == self._workspace_id,
-                    TransactionRelationModel.status == "accepted",
-                    TransactionRelationModel.primary_fact_type == "cash",
-                    TransactionRelationModel.secondary_fact_type == "cash",
-                    TransactionRelationModel.secondary_fact_id.is_not(None),
-                ).order_by(TransactionRelationModel.id)
+                select(TransactionRelationModel).where(*relation_filter).order_by(TransactionRelationModel.id)
             )
         )
         return facts, relations
@@ -317,35 +367,31 @@ class RelationalCashProjectionRepository:
         for batch in self._batches(mappings):
             self._session.execute(statement, batch)
 
-    def replace_active_components(self, build: CashProjectionBuild, affected_fact_ids: set[int]) -> dict:
-        state = self.require_ready_state_lock()
+    def replace_active_components(
+        self, build: CashProjectionBuild, affected_fact_ids: set[int], *, state=None,
+    ) -> dict:
+        state = state or self.require_ready_state_lock()
         dataset_id = state.active_dataset_id
         old_rows = self._session.scalars(
             select(CashProjectionModel)
             .join(CashProjectionMemberModel, CashProjectionMemberModel.projection_row_id == CashProjectionModel.id)
-            .where(CashProjectionModel.dataset_id == dataset_id, CashProjectionMemberModel.cash_transaction_id.in_(affected_fact_ids))
-        ).all()
-        stale_rows = self._session.scalars(
-            select(CashProjectionModel)
-            .join(CashProjectionMemberModel, CashProjectionMemberModel.projection_row_id == CashProjectionModel.id)
-            .join(
-                CashTransactionModel,
-                (CashTransactionModel.workspace_id == CashProjectionMemberModel.workspace_id)
-                & (CashTransactionModel.id == CashProjectionMemberModel.cash_transaction_id),
-            )
             .where(
+                CashProjectionModel.workspace_id == self._workspace_id,
                 CashProjectionModel.dataset_id == dataset_id,
-                CashTransactionModel.deleted_at.is_not(None),
+                CashProjectionMemberModel.workspace_id == self._workspace_id,
+                CashProjectionMemberModel.cash_transaction_id.in_(affected_fact_ids),
             )
         ).all()
-        old_ids = sorted({row.id for row in (*old_rows, *stale_rows)})
+        old_ids = sorted({row.id for row in old_rows})
         replaced_member_ids = set(affected_fact_ids)
+        old_member_ids: set[int] = set()
         if old_ids:
-            replaced_member_ids.update(self._session.scalars(
+            old_member_ids = set(self._session.scalars(
                 select(CashProjectionMemberModel.cash_transaction_id).where(
                     CashProjectionMemberModel.projection_row_id.in_(old_ids),
                 )
             ).all())
+            replaced_member_ids.update(old_member_ids)
         if old_ids:
             self._session.execute(delete(CashProjectionRelationModel).where(CashProjectionRelationModel.projection_row_id.in_(old_ids)))
             self._session.execute(delete(CashProjectionMemberModel).where(CashProjectionMemberModel.projection_row_id.in_(old_ids)))
@@ -356,18 +402,46 @@ class RelationalCashProjectionRepository:
             if replaced_member_ids.intersection(projection.member_ids)
         )
         self._insert_projections(dataset_id, replacement_projections, next_version)
-        source_count = len(self.read_sources()[0])
-        member_count = len(self._session.scalars(select(CashProjectionMemberModel).where(CashProjectionMemberModel.dataset_id == dataset_id)).all())
-        if source_count != member_count:
+        replacement_member_ids = {
+            member.id
+            for projection in replacement_projections
+            for member, _roles in projection.members
+        }
+        if len(replacement_member_ids) != sum(len(projection.members) for projection in replacement_projections):
             raise RuntimeError("projection.incomplete")
         state.projection_version = next_version
         state.source_revision += 1
         state.last_build_status = "succeeded"
         state.last_error_code = None
         state.last_error_summary = None
-        state.projection_count = len(self._session.scalars(select(CashProjectionModel).where(CashProjectionModel.dataset_id == dataset_id)).all())
-        state.member_count = member_count
-        return self.status()
+        state.projection_count = state.projection_count - len(old_ids) + len(replacement_projections)
+        state.member_count = state.member_count - len(old_member_ids) + len(replacement_member_ids)
+        return self._status_for_state(state)
+
+    def refresh_display_fields(
+        self, fact_id: int, *, counterparty: str, category: str, note: str, state=None,
+    ) -> dict:
+        """Refresh a root record's denormalized display fields without rebuilding its group."""
+        state = state or self.require_ready_state_lock()
+        self._session.execute(
+            CashProjectionModel.__table__.update().where(
+                CashProjectionModel.workspace_id == self._workspace_id,
+                CashProjectionModel.dataset_id == state.active_dataset_id,
+                CashProjectionModel.root_cash_transaction_id == int(fact_id),
+            ).values(
+                counterparty=counterparty,
+                category=category,
+                note=note,
+                updated_at=_now(),
+                built_projection_version=state.projection_version + 1,
+            )
+        )
+        state.projection_version += 1
+        state.source_revision += 1
+        state.last_build_status = "succeeded"
+        state.last_error_code = None
+        state.last_error_summary = None
+        return self._status_for_state(state)
 
     def publish_dataset(self, dataset_id: str, *, source_digest: str, rules_version: str) -> dict:
         state = self._state(create=True, lock=True)

@@ -82,8 +82,8 @@ export function updateCashRecord(id: string, body: Record<string, unknown>, sign
   return write<CashRecordDetail>(`/api/v1/cash-records/${encodeURIComponent(id)}`, "PUT", body, signal);
 }
 
-export function deleteCashRecord(id: string, signal?: AbortSignal): Promise<{ deleted: boolean; related_count: number }> {
-  return write<{ deleted: boolean; related_count: number }>(`/api/v1/cash-records/${encodeURIComponent(id)}`, "DELETE", {}, signal);
+export function deleteCashRecord(id: string, mode: "delete_all" | "delete_current_dissolve", signal?: AbortSignal): Promise<{ deleted: boolean; related_count: number; deleted_fact_ids: string[] }> {
+  return write<{ deleted: boolean; related_count: number; deleted_fact_ids: string[] }>(`/api/v1/cash-records/${encodeURIComponent(id)}`, "DELETE", { mode }, signal);
 }
 
 export function createCashRelation(body: Record<string, unknown>, signal?: AbortSignal): Promise<CashRecordDetail> {
@@ -96,6 +96,10 @@ export function updateCashRelation(id: string, body: Record<string, unknown>, si
 
 export function cancelCashRelation(id: string, signal?: AbortSignal): Promise<unknown> {
   return write<unknown>(`/api/v1/cash-relations/${encodeURIComponent(id)}`, "DELETE", {}, signal);
+}
+
+export function dissolveCashRelations(factId: string, signal?: AbortSignal): Promise<CashRecordDetail> {
+  return write<CashRecordDetail>("/api/v1/cash-relations/dissolve", "POST", { fact_id: factId }, signal);
 }
 
 const importChannelLabels: Record<string, string> = {

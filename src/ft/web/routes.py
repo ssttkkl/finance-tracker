@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from ft.application.web_queries import ProjectionUnavailableError, ProjectionUpdatedError
+from ft.domain.application import RelationImpactRequired
 from ft.web.serialization import error_payload, json_value
 
 def cash_router(service, mutation_service=None):
@@ -62,20 +63,38 @@ def cash_router(service, mutation_service=None):
         async def update_cash_record(fact_id: str, request: Request):
             try:
                 return json_value(mutation_service.update_record(fact_id, await request.json()))
+            except RelationImpactRequired as exc:
+                return JSONResponse(error_payload(exc.code, str(exc)), 409)
             except ValueError as exc:
                 return JSONResponse(error_payload("invalid_record", str(exc)), 400)
 
         @router.delete("/cash-records/{fact_id}")
-        def delete_cash_record(fact_id: str):
+        async def delete_cash_record(fact_id: str, request: Request):
             try:
-                return json_value(mutation_service.delete_record(fact_id))
+                try:
+                    payload = await request.json()
+                except ValueError:
+                    payload = {}
+                return json_value(mutation_service.delete_record(
+                    fact_id, mode=str(payload.get("mode") or "delete_current_dissolve"),
+                ))
             except ValueError as exc:
                 return JSONResponse(error_payload("invalid_record", str(exc)), 400)
 
         @router.post("/cash-relations")
         async def create_cash_relation(request: Request):
             try:
-                return json_value(mutation_service.add_relation(await request.json()))
+                payload = await request.json()
+                payload["status"] = "accepted"
+                return json_value(mutation_service.add_relation(payload))
+            except ValueError as exc:
+                return JSONResponse(error_payload("invalid_relation", str(exc)), 400)
+
+        @router.post("/cash-relations/dissolve")
+        async def dissolve_cash_relations(request: Request):
+            try:
+                payload = await request.json()
+                return json_value(mutation_service.dissolve_relations(str(payload.get("fact_id") or "")))
             except ValueError as exc:
                 return JSONResponse(error_payload("invalid_relation", str(exc)), 400)
 
@@ -108,6 +127,8 @@ def cash_router(service, mutation_service=None):
                 return json_value(mutation_service.commit_import(
                     await request.body(), source=source, currency=currency, filename=filename,
                 ))
+            except RelationImpactRequired as exc:
+                return JSONResponse(error_payload(exc.code, str(exc)), 409)
             except ValueError as exc:
                 return JSONResponse(error_payload("invalid_import", str(exc)), 400)
     return router

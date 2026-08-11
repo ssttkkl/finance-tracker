@@ -65,9 +65,8 @@ def _record_summary(row, account):
         "account_name": account.name, "account_id": account.id, "account_type": account.type,
         "counterparty": row.counterparty, "category": row.category, "note": row.note,
         "amount": _amount(row.amount), "currency": row.currency,
-        "source_type": row.source_type, "record_id": row.record_id,
+        "source_type": row.source_type,
         "counterparty_account": row.counterparty_account or "",
-        "counterparty_account_attrs": list(row.counterparty_account_attrs or []),
         "record_type": row.record_type, "record_subtype": row.record_subtype or "not_applicable",
     }
 
@@ -457,7 +456,6 @@ class RelationalCashLedgerQueryRepository:
             endpoint_rows = {cash.id: (cash, endpoint_account) for cash, endpoint_account in endpoints}
             root_record = _record_summary(root, root_account)
             assert root_record is not None
-            root_record["source_snapshot"] = _safe_snapshot(root.source_payload)
             source_types = tuple(dict.fromkeys(
                 cash.source_type for _member, cash, _member_account in members if cash.source_type
             ))

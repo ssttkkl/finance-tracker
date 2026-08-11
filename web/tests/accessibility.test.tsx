@@ -130,8 +130,7 @@ describe("现金账本无障碍", () => {
     expect(screen.getByRole("cell", { name: "-12.5 CNY" })).toHaveAttribute("data-direction", "支出");
     expect(trigger).toHaveClass("evidence-trigger");
     expect(screen.getByRole("group", { name: "账本筛选工具" })).toHaveAttribute("data-layout", "filter-grid");
-    expect(screen.getByRole("navigation", { name: "流水分页" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "上一页" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "下一页" })).toBeEnabled();
+    expect(screen.queryByRole("navigation", { name: "流水分页" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "加载更多" })).toBeEnabled();
   });
 });

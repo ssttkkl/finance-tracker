@@ -26,7 +26,11 @@ export function ImportDrawer({ onClose, onDone }: Props) {
     if (!file) return;
     setBusy(true); setError(undefined);
     try { const result = await commitCashImport(file, source); setDone(`已新增 ${result.new_rows} 条，更新 ${result.updated_rows} 条`); onDone(); }
-    catch { setError("导入失败，请检查未支持的币种或账单内容。" ); }
+    catch (cause) {
+      setError(cause instanceof Error && cause.message === "relation_impact_required"
+        ? "这次导入会影响已合并的流水，请先在收支详情中处理关联后再导入。"
+        : "导入失败，请检查未支持的币种或账单内容。" );
+    }
     finally { setBusy(false); }
   };
   const statusLabel = (status: string) => status === "new" ? "待新增" : status === "existing" ? "已存在" : status === "unsupported" ? "暂不支持" : "需处理";

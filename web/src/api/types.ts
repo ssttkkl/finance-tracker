@@ -78,13 +78,12 @@ export type EvidenceRecord = {
   account_type?: string;
   counterparty: string;
   counterparty_account?: string;
-  counterparty_account_attrs?: string[];
   category: string;
   note: string;
   amount: string;
   currency: string;
   source_type: string | null;
-  record_id: string;
+  record_id?: string;
   record_type?: string;
   record_subtype?: string;
 };
@@ -115,7 +114,7 @@ export type RefundTimelineItem = {
 export type Evidence = {
   projection_version: number;
   projection: CashProjection;
-  root_record: EvidenceRecord & { source_snapshot: Record<string, string | number | boolean> | null };
+  root_record: EvidenceRecord & { source_snapshot?: Record<string, string | number | boolean> | null };
   members: EvidenceMember[];
   accepted_relations: AcceptedEvidenceRelation[];
   inactive_relation_hints: InactiveRelationHint[];
@@ -129,7 +128,6 @@ export type CashRecord = {
   currency: string;
   counterparty: string;
   counterparty_account: string;
-  counterparty_account_attrs: string[];
   note: string;
   category: string;
   record_type: string;
@@ -137,8 +135,7 @@ export type CashRecord = {
   account_name: string;
   account_id: number;
   account_type: string;
-  source_type: string;
-  record_id: string;
+  source_type: string | null;
 };
 
 export type CashRelation = {
@@ -163,7 +160,7 @@ export type CashRecordPage = {
 };
 
 export type ImportPreviewItem = {
-  record_id: string;
+  record_id?: string;
   occurred_at: string;
   counterparty: string;
   amount: string;

@@ -21,6 +21,8 @@ from ft.adapters.relational.uow import RelationalUnitOfWork
 from ft.adapters.statement_import import StatementParser
 from ft.application.cash_projections import CashProjectionService
 from ft.application.statement_import import StatementImportService, _row_record_id
+from ft.domain.application import RelationImpactRequired
+from ft.domain.cash_projection import CashProjectionError
 from ft.domain.imports import StatementImportCommand
 from ft.domain.record_type import (
     CashRecordType,
@@ -179,6 +181,84 @@ class CashLedgerCommandService:
         snapshot["updated_at"] = (new or old or {}).get("occurred_at", "")
         uow.snapshot.save(snapshot)
 
+    @staticmethod
+    def _relation_endpoints(relation: dict) -> set[int]:
+        return {
+            int(value)
+            for value in (relation.get("primary_fact_id"), relation.get("secondary_fact_id"))
+            if value not in (None, "")
+        }
+
+    def _accepted_relation_component(self, uow, fact_id: str | int) -> tuple[set[int], list[dict]]:
+        """Return the accepted relation component containing one cash fact."""
+        target = int(fact_id)
+        from ft.adapters.relational.projections import RelationalCashProjectionRepository
+
+        members = RelationalCashProjectionRepository(
+            uow._state().session, uow.workspace_id,
+        ).accepted_relation_component_ids({target})
+        relations = [
+            relation for relation in uow.relations.list_for_facts(sorted(members), active_only=True)
+            if relation.get("status") == RelationStatus.ACCEPTED.value
+            and relation.get("primary_fact_type") == "cash"
+            and relation.get("secondary_fact_type") in {"cash", None}
+            and relation.get("secondary_fact_id") not in (None, "")
+            and self._relation_endpoints(relation) <= members
+        ]
+        return members, relations
+
+    @staticmethod
+    def _same_edit_value(field: str, old, new) -> bool:
+        if field == "amount":
+            try:
+                return exact_decimal(old, name="amount") == exact_decimal(new, name="amount")
+            except ValueError:
+                return False
+        if field == "occurred_at":
+            try:
+                left = datetime.fromisoformat(str(old))
+                right = datetime.fromisoformat(str(new))
+                if left.tzinfo is None:
+                    left = left.replace(tzinfo=timezone.utc)
+                if right.tzinfo is None:
+                    right = right.replace(tzinfo=timezone.utc)
+                return left.astimezone(timezone.utc) == right.astimezone(timezone.utc)
+            except ValueError:
+                return False
+        if field == "currency":
+            return str(old or "").upper() == str(new or "").upper()
+        return str(old or "") == str(new or "")
+
+    def _validate_projection_graph(self, uow, fact_ids: set[int]) -> None:
+        from ft.adapters.relational.projections import RelationalCashProjectionRepository
+        from ft.domain.cash_projection import CashProjectionError, build_cash_projections
+
+        facts, relations = RelationalCashProjectionRepository(
+            uow._state().session, uow.workspace_id,
+        ).read_sources_for_facts(fact_ids)
+        component = {int(item) for item in fact_ids}
+        facts = tuple(item for item in facts if item.id in component)
+        relations = tuple(
+            item for item in relations
+            if item.primary_fact_id in component and item.secondary_fact_id in component
+        )
+        try:
+            build_cash_projections(facts, relations)
+        except CashProjectionError as exc:
+            raise RelationImpactRequired(
+                "这次修改会影响已关联的流水，请确认后保存并拆开。",
+                fact_ids=tuple(sorted(str(item) for item in fact_ids)),
+            ) from exc
+
+    def _reject_relations(self, uow, relations: list[dict], *, reason: str) -> None:
+        for relation in relations:
+            uow.relations.update_status(
+                relation["id"],
+                status=RelationStatus.REJECTED.value,
+                decided_by="web",
+                decision_reason=reason,
+            )
+
     def create_record(self, payload: dict) -> dict:
         with self._uow as uow:
             account = self._account(uow._state().session, payload.get("account_name"))
@@ -224,46 +304,104 @@ class CashLedgerCommandService:
             values = {key: payload[key] for key in EDITABLE_FIELDS if key in payload}
             values["account_name"] = account.name
             values["source_values"] = payload.get("source_values") or {}
-            updated = uow.cashflows.update(int(fact_id), values)
-            self._snapshot_delta(uow, updated.pop("previous"), updated)
-            CashProjectionService.maintain_if_ready_in_session(
-                uow._state().session, uow.workspace_id, {int(fact_id)},
+            key_fields = ("amount", "currency", "account_name", "occurred_at", "record_type", "record_subtype")
+            key_changed = any(
+                field in values and not self._same_edit_value(field, current.get(field), values[field])
+                for field in key_fields
             )
+            component_ids: set[int] = {int(fact_id)}
+            component_relations: list[dict] = []
+            if key_changed:
+                component_ids, component_relations = self._accepted_relation_component(uow, fact_id)
+            updated = uow.cashflows.update(int(fact_id), values)
+            if component_relations and key_changed:
+                try:
+                    self._validate_projection_graph(uow, component_ids)
+                except RelationImpactRequired:
+                    if payload.get("confirm_relation_impact") is not True:
+                        raise
+                    self._reject_relations(
+                        uow,
+                        component_relations,
+                        reason="user_unlinked_by_edit",
+                    )
+            self._snapshot_delta(uow, updated.pop("previous"), updated)
+            if key_changed:
+                CashProjectionService.maintain_if_ready_in_session(
+                    uow._state().session, uow.workspace_id, {int(fact_id)},
+                )
+            else:
+                CashProjectionService.refresh_display_fields_if_ready_in_session(
+                    uow._state().session,
+                    uow.workspace_id,
+                    int(fact_id),
+                    counterparty=str(updated.get("counterparty") or ""),
+                    category=str(updated.get("category") or ""),
+                    note=str(updated.get("note") or ""),
+                )
             uow.commit()
-        return self.get_record(fact_id)
+            return self._record_detail_in_uow(uow, fact_id)
 
-    def delete_record(self, fact_id: str, *, actor: str = "web") -> dict:
+    def delete_record(
+        self,
+        fact_id: str,
+        *,
+        mode: str = "delete_current_dissolve",
+        actor: str = "web",
+    ) -> dict:
         with self._uow as uow:
             session = uow._state().session
             current = uow.cashflows.get(int(fact_id))
             if current is None or current.get("deleted"):
                 raise ValueError("找不到这条流水记录")
-            relation_rows = uow.relations.list_for_facts([fact_id], active_only=True)
-            funding_rows = session.query(CashInvestmentFundingRelationModel).filter(
-                CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
-                CashInvestmentFundingRelationModel.cash_transaction_id == int(fact_id),
-            ).all()
+            if mode not in {"delete_all", "delete_current_dissolve"}:
+                raise ValueError("无效的删除方式")
+            component_ids, _accepted_relations = self._accepted_relation_component(uow, fact_id)
+            target_ids = component_ids if mode == "delete_all" else {int(fact_id)}
+            relation_rows = uow.relations.list_for_facts(
+                list(component_ids), active_only=False,
+            ) if component_ids else []
+            models = []
+            previous_rows = []
+            for target_id in sorted(target_ids):
+                model = session.get(CashTransactionModel, target_id)
+                if model is None or model.deleted_at is not None:
+                    continue
+                row = uow.cashflows.get(target_id)
+                if row is not None:
+                    previous_rows.append(row)
+                models.append(model)
+            if not models:
+                raise ValueError("找不到这条流水记录")
             for relation in relation_rows:
                 relation_model = session.get(TransactionRelationModel, int(relation["id"]))
                 if relation_model is not None:
                     session.delete(relation_model)
+            funding_rows = session.query(CashInvestmentFundingRelationModel).filter(
+                CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
+                CashInvestmentFundingRelationModel.cash_transaction_id.in_(sorted(target_ids)),
+            ).all()
             for relation in funding_rows:
                 session.delete(relation)
-            model = session.get(CashTransactionModel, int(fact_id))
-            if model is None:
-                raise ValueError("找不到这条流水记录")
-            model.deleted_at = datetime.now(timezone.utc)
+            for model in models:
+                model.deleted_at = datetime.now(timezone.utc)
+                model.deleted_by = actor
+                model.delete_reason = mode
             session.flush()
             CashProjectionService.maintain_if_ready_in_session(
-                session, uow.workspace_id, {int(fact_id)},
+                session, uow.workspace_id, set(target_ids) | component_ids,
             )
-            self._snapshot_delta(uow, current, None)
-            session.delete(model)
+            for row in previous_rows:
+                self._snapshot_delta(uow, row, None)
+            for model in models:
+                session.delete(model)
             uow.commit()
         return {
             "deleted": True,
             "fact_id": str(fact_id),
-            "related_count": len(relation_rows),
+            "mode": mode,
+            "related_count": len(component_ids - {int(fact_id)}),
+            "deleted_fact_ids": [str(model.id) for model in models],
             "related_fact_ids": sorted({
                 str(endpoint)
                 for relation in relation_rows
@@ -276,41 +414,55 @@ class CashLedgerCommandService:
     def _record_wire(record: dict | None) -> dict | None:
         if record is None:
             return None
-        safe = dict(record)
-        safe.pop("raw_payload", None)
-        safe.pop("manual_overrides", None)
-        safe.pop("source_payload", None)
-        safe.pop("source_fingerprint", None)
-        return _wire(safe)
+        fields = (
+            "id", "occurred_at", "amount", "currency", "counterparty",
+            "counterparty_account", "note", "category", "record_type",
+            "record_subtype", "account_name", "account_type", "source_type",
+        )
+        return _wire({field: record.get(field) for field in fields if field in record})
+
+    def _record_detail_in_uow(self, uow, fact_id: str | int) -> dict:
+        target_id = int(fact_id)
+        relations = [
+            relation for relation in uow.relations.list_for_facts([fact_id], active_only=True)
+            if relation.get("status") == RelationStatus.ACCEPTED.value
+        ]
+        endpoint_ids = {
+            int(endpoint)
+            for relation in relations
+            for endpoint in (relation.get("primary_fact_id"), relation.get("secondary_fact_id"))
+            if endpoint not in (None, "")
+        }
+        records_by_id = uow.cashflows.get_many(endpoint_ids | {target_id})
+        record = records_by_id.get(target_id)
+        if record is None or record.get("deleted"):
+            raise ValueError("找不到这条流水记录")
+        relation_wire = []
+        for relation in relations:
+            endpoints = []
+            for endpoint in (relation.get("primary_fact_id"), relation.get("secondary_fact_id")):
+                if endpoint in (None, ""):
+                    endpoints.append(None)
+                else:
+                    endpoints.append(self._record_wire(records_by_id.get(int(endpoint))))
+            relation_wire.append({
+                "id": str(relation["id"]),
+                "kind": relation["kind"],
+                "label": RELATION_LABELS.get(relation["kind"], relation["kind"]),
+                "subtype": relation.get("subtype") or "",
+                "status": relation["status"],
+                "primary_record": endpoints[0],
+                "secondary_record": endpoints[1],
+            })
+        return {
+            "record": self._record_wire(record),
+            "relations": relation_wire,
+            "options": self.options(),
+        }
 
     def get_record(self, fact_id: str) -> dict:
         with self._uow as uow:
-            record = uow.cashflows.get(int(fact_id))
-            if record is None or record.get("deleted"):
-                raise ValueError("找不到这条流水记录")
-            relations = uow.relations.list_for_facts([fact_id], active_only=True)
-            relation_wire = []
-            for relation in relations:
-                endpoints = []
-                for endpoint in (relation.get("primary_fact_id"), relation.get("secondary_fact_id")):
-                    if endpoint in (None, ""):
-                        endpoints.append(None)
-                    else:
-                        endpoints.append(self._record_wire(uow.cashflows.get(endpoint)))
-                relation_wire.append({
-                    "id": str(relation["id"]),
-                    "kind": relation["kind"],
-                    "label": RELATION_LABELS.get(relation["kind"], relation["kind"]),
-                    "subtype": relation.get("subtype") or "",
-                    "status": relation["status"],
-                    "primary_record": endpoints[0],
-                    "secondary_record": endpoints[1],
-                })
-            result = {
-                "record": self._record_wire(record),
-                "relations": relation_wire,
-                "options": self.options(),
-            }
+            result = self._record_detail_in_uow(uow, fact_id)
             uow.commit()
             return result
 
@@ -415,9 +567,6 @@ class CashLedgerCommandService:
                     self._relation_service._validate_transfer_endpoint_availability(
                         uow, [int(primary), int(secondary)], str(relation_id),
                     )
-                    self._relation_service._validate_projection_acceptance(
-                        uow, existing, other_fact_id=None,
-                    )
                 relation = uow.relations.update_status(
                     relation_id,
                     status=status,
@@ -439,7 +588,16 @@ class CashLedgerCommandService:
                     "rule_id": "manual.web.v1",
                     "created_by": "web",
                 })
-                relation = uow.relations.get(relation_id)
+                relation = {
+                    "id": relation_id,
+                    "kind": kind,
+                    "subtype": subtype,
+                    "primary_fact_id": int(primary),
+                    "secondary_fact_id": int(secondary),
+                    "primary_fact_type": "cash",
+                    "secondary_fact_type": "cash",
+                    "status": status,
+                }
             if status == RelationStatus.ACCEPTED.value:
                 # Build the candidate projection before commit so an illegal
                 # relation rolls back instead of leaving a half-state.
@@ -448,14 +606,18 @@ class CashLedgerCommandService:
                         self._relation_service._validate_transfer_endpoint_availability(
                             uow, [int(primary), int(secondary)], str(relation_id),
                         )
-                        self._relation_service._validate_projection_acceptance(
-                            uow, relation, other_fact_id=None,
-                        )
-                CashProjectionService.maintain_if_ready_in_session(
-                    uow._state().session, uow.workspace_id, {int(primary), int(secondary)},
-                )
+                try:
+                    projection_status = CashProjectionService.maintain_if_ready_in_session(
+                        uow._state().session, uow.workspace_id, {int(primary), int(secondary)},
+                    )
+                except CashProjectionError as exc:
+                    raise ValueError("该关系无法形成有效收支投影") from exc
+                if projection_status is None and self._relation_service is not None:
+                    self._relation_service._validate_projection_acceptance(
+                        uow, relation, other_fact_id=None,
+                    )
             uow.commit()
-        return self.get_record(primary)
+            return self._record_detail_in_uow(uow, primary)
 
     def cancel_relation(self, relation_id: str) -> dict:
         with self._uow as uow:
@@ -477,6 +639,33 @@ class CashLedgerCommandService:
             )
             uow.commit()
         return _wire(changed)
+
+    def dissolve_relations(self, fact_id: str) -> dict:
+        with self._uow as uow:
+            direct_relations = [
+                relation for relation in uow.relations.list_for_facts([fact_id], active_only=True)
+                if relation.get("status") == RelationStatus.ACCEPTED.value
+            ]
+            if len(direct_relations) == 1:
+                component_ids = self._relation_endpoints(direct_relations[0])
+                relations = [
+                    relation for relation in uow.relations.list_for_facts(
+                        sorted(component_ids), active_only=True,
+                    )
+                    if relation.get("status") == RelationStatus.ACCEPTED.value
+                ]
+                if len(relations) != 1:
+                    component_ids, relations = self._accepted_relation_component(uow, fact_id)
+            else:
+                component_ids, relations = self._accepted_relation_component(uow, fact_id)
+            if not relations:
+                raise ValueError("这条流水没有可解散的关联")
+            self._reject_relations(uow, relations, reason="user_dissolved")
+            CashProjectionService.maintain_if_ready_in_session(
+                uow._state().session, uow.workspace_id, component_ids,
+            )
+            uow.commit()
+            return self._record_detail_in_uow(uow, fact_id)
 
     def update_relation(self, relation_id: str, payload: dict) -> dict:
         """Change the current user-facing relation type without creating history."""
@@ -524,14 +713,18 @@ class CashLedgerCommandService:
                     self._relation_service._validate_transfer_endpoint_availability(
                         uow, [primary, secondary], str(relation_id),
                     )
+                try:
+                    projection_status = CashProjectionService.maintain_if_ready_in_session(
+                        session, uow.workspace_id, {primary, secondary},
+                    )
+                except CashProjectionError as exc:
+                    raise ValueError("该关系无法形成有效收支投影") from exc
+                if projection_status is None and self._relation_service is not None:
                     self._relation_service._validate_projection_acceptance(
                         uow, {**relation, "kind": kind, "subtype": subtype}, other_fact_id=None,
                     )
-                CashProjectionService.maintain_if_ready_in_session(
-                    session, uow.workspace_id, {primary, secondary},
-                )
             uow.commit()
-        return self.get_record(str(primary))
+            return self._record_detail_in_uow(uow, str(primary))
 
     def preview_import(self, content: bytes, *, source: str, currency: str | None, filename: str) -> dict:
         rows, channel = self._parse_rows(content, source=source, currency=currency, filename=filename)

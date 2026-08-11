@@ -341,22 +341,28 @@ class RelationService:
         from ft.adapters.relational.projections import RelationalCashProjectionRepository
         from ft.domain.cash_projection import CashProjectionError, ProjectionRelation, build_cash_projections
 
-        facts, accepted = RelationalCashProjectionRepository(
-            uow._state().session, uow.workspace_id,
-        ).read_sources()
+        repository = RelationalCashProjectionRepository(uow._state().session, uow.workspace_id)
         primary_id = int(relation["primary_fact_id"])
         secondary_id = int(other_fact_id or relation.get("secondary_fact_id") or 0)
         if not secondary_id:
             raise ValueError("关系缺少对侧流水，无法形成有效收支投影")
         if is_open_leg_relation(relation) and relation["kind"] == RelationKind.REFUND_OFFSET.value:
             primary_id, secondary_id = secondary_id, primary_id
+        component_ids = repository.accepted_relation_component_ids({primary_id, secondary_id})
+        facts, accepted = repository.read_sources_for_facts(component_ids)
         candidate = ProjectionRelation(
             id=int(relation["id"]), kind=relation["kind"], primary_fact_id=primary_id,
             secondary_fact_id=secondary_id, status=RelationStatus.ACCEPTED.value,
             subtype=relation.get("subtype") or "",
         )
         try:
-            build_cash_projections(facts, (*accepted, candidate))
+            # A web relation is inserted before this validation.  Do not add
+            # the same edge twice: mirror chains are directed and a duplicate
+            # edge would look like a cycle even though the user's graph is valid.
+            accepted_without_candidate = tuple(
+                item for item in accepted if int(item.id) != int(candidate.id)
+            )
+            build_cash_projections(facts, (*accepted_without_candidate, candidate))
         except CashProjectionError as exc:
             raise ValueError("该关系无法形成有效收支投影") from exc
 
@@ -824,7 +830,9 @@ class RelationService:
     def _validate_transfer_endpoint_availability(self, uow, fact_ids: Sequence[str], relation_id: str) -> None:
         """一条已确认内部转账不得复用另一条已确认转账端点。"""
         endpoints = {str(fact_id) for fact_id in fact_ids if fact_id not in (None, "")}
-        for relation in uow.relations.list_active(kind=RelationKind.TRANSFER_PAIR.value):
+        for relation in uow.relations.list_for_facts(list(endpoints), active_only=True):
+            if relation["kind"] != RelationKind.TRANSFER_PAIR.value:
+                continue
             if relation["status"] != RelationStatus.ACCEPTED.value or str(relation["id"]) == str(relation_id):
                 continue
             occupied = {str(relation.get("primary_fact_id") or ""), str(relation.get("secondary_fact_id") or "")}

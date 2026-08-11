@@ -4,7 +4,7 @@ import type { Account, CashFilterOptions, CashFilters, CashMonthlySummary, CashP
 import { CashFiltersBar } from "../components/CashFilters";
 import { CashTable } from "../components/CashTable";
 import { EvidenceDetail } from "../components/EvidenceDetail";
-import { PageNavigation } from "../components/Pagination";
+import { LoadMoreControl } from "../components/Pagination";
 import { StatusView } from "../components/StatusView";
 import { RecordDrawer } from "../components/RecordDrawer";
 import { ImportDrawer } from "../components/ImportDrawer";
@@ -45,7 +45,6 @@ function cashRecordFromEvidence(record: EvidenceRecord, projection: CashProjecti
     currency: record.currency,
     counterparty: record.counterparty,
     counterparty_account: record.counterparty_account ?? "",
-    counterparty_account_attrs: record.counterparty_account_attrs ?? [],
     note: record.note,
     category: record.category,
     record_type: fallbackRecordType(record, projection),
@@ -54,7 +53,6 @@ function cashRecordFromEvidence(record: EvidenceRecord, projection: CashProjecti
     account_id: record.account_id ?? record.account.id,
     account_type: record.account_type ?? record.account.type,
     source_type: record.source_type ?? "",
-    record_id: record.record_id,
   };
 }
 
@@ -92,12 +90,8 @@ export function CashLedgerPage() {
   const [items, setItems] = useState<CashProjection[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error">("loading");
-  const [pageLoading, setPageLoading] = useState(false);
-  const [pageError, setPageError] = useState<string | undefined>();
-  const [pageNumber, setPageNumber] = useState(1);
-  const [pageStarts, setPageStarts] = useState<(string | null)[]>([null]);
-  const [pageErrorPage, setPageErrorPage] = useState<number | null>(null);
-  const [pageErrorCursor, setPageErrorCursor] = useState<string | null>(null);
+  const [appendLoading, setAppendLoading] = useState(false);
+  const [appendError, setAppendError] = useState<string | undefined>();
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [amountFilterState, setAmountFilterState] = useState<"error" | "success" | undefined>();
   const [projectionUpdated, setProjectionUpdated] = useState(false);
@@ -122,32 +116,50 @@ export function CashLedgerPage() {
   const evidenceRequestId = useRef(0);
   const accountsRequestId = useRef(0);
   const updateConfirmation = useRef<HTMLButtonElement | null>(null);
+  const loadMoreRef = useRef<(retry?: boolean) => void>(() => undefined);
+  const appendingCursor = useRef<string | null>(null);
 
-  const loadPage = (targetPage: number, cursor: string | null, reset = false) => {
+  const resetAndLoad = () => {
     pageAbortController.current?.abort();
+    appendingCursor.current = null;
     const controller = new AbortController(); pageAbortController.current = controller;
     const requestId = ++pageRequestId.current;
-    setPageLoading(true); setPageError(undefined); setPageErrorPage(null); setPageErrorCursor(null); setErrorMessage(undefined);
-    if (reset) {
-      setStatus("loading"); setFilterOptionsLoading(true); setItems([]); setNextCursor(null); setPageNumber(1); setPageStarts([null]); setMonthlySummaries([]);
-    }
-    fetchCashPage(filters, cursor, controller.signal).then((value) => {
+    setStatus("loading"); setFilterOptionsLoading(true); setItems([]); setNextCursor(null); setMonthlySummaries([]); setErrorMessage(undefined); setAppendError(undefined); setAppendLoading(false);
+    fetchCashPage(filters, null, controller.signal).then((value) => {
       if (requestId !== pageRequestId.current) return;
-      setItems(value.items); setNextCursor(value.next_cursor); setPageNumber(targetPage); setPageStarts((current) => { const starts = current.slice(0, targetPage); starts[targetPage] = value.next_cursor; return starts; }); setMonthlySummaries(value.monthly_summaries ?? []); setFilterOptions(value.filter_options ?? { categories: [], currencies: [], economic_types: [] }); setFilterOptionsReady(true); setFilterOptionsLoading(false); setAmountFilterState(filters.amount_min || filters.amount_max ? "success" : undefined); setPageLoading(false); setPageErrorPage(null); setPageErrorCursor(null); setStatus(value.items.length ? "ready" : "empty");
+      setItems(value.items); setNextCursor(value.next_cursor); setMonthlySummaries(value.monthly_summaries ?? []); setFilterOptions(value.filter_options ?? { categories: [], currencies: [], economic_types: [] }); setFilterOptionsReady(true); setFilterOptionsLoading(false); setAmountFilterState(filters.amount_min || filters.amount_max ? "success" : undefined); setStatus(value.items.length ? "ready" : "empty");
     }).catch((error: unknown) => {
       if (controller.signal.aborted || requestId !== pageRequestId.current) return;
       if (error instanceof Error && error.message === "projection.updated") {
-        setPageLoading(false); closeEvidence(); setProjectionUpdated(true); setRefreshGeneration((value) => value + 1); return;
+        closeEvidence(); setProjectionUpdated(true); setRefreshGeneration((value) => value + 1); return;
       }
       const code = error instanceof Error ? error.message : "api_request_failed";
       setAmountFilterState(code === "invalid_filter" ? "error" : undefined);
-      setPageLoading(false); setFilterOptionsLoading(false); if (reset) { setErrorMessage(requestErrorMessages[code] ?? requestErrorMessages.api_request_failed); setStatus("error"); } else { setPageError(requestErrorMessages[code] ?? requestErrorMessages.api_request_failed); setPageErrorPage(targetPage); setPageErrorCursor(cursor); }
+      setFilterOptionsLoading(false); setErrorMessage(requestErrorMessages[code] ?? requestErrorMessages.api_request_failed); setStatus("error");
     });
   };
-  const resetAndLoad = () => loadPage(1, null, true);
-  const goToNextPage = () => { if (!pageLoading && !pageError && nextCursor) loadPage(pageNumber + 1, nextCursor); };
-  const goToPreviousPage = () => { if (!pageLoading && pageNumber > 1) loadPage(pageNumber - 1, pageStarts[pageNumber - 2] ?? null); };
-  const retryPage = () => { if (pageError) loadPage(pageErrorPage ?? pageNumber, pageErrorCursor ?? (pageNumber === 1 ? null : pageStarts[pageNumber - 1] ?? null)); };
+  const loadMore = (retry = false) => {
+    const cursor = nextCursor;
+    if (!cursor || appendLoading || (!retry && appendError) || appendingCursor.current === cursor) return;
+    appendingCursor.current = cursor;
+    const controller = new AbortController(); pageAbortController.current = controller;
+    const requestId = ++pageRequestId.current;
+    setAppendLoading(true); if (retry) setAppendError(undefined);
+    fetchCashPage(filters, cursor, controller.signal).then((value) => {
+      if (requestId !== pageRequestId.current) return;
+      setItems((current) => [...current, ...value.items.filter((item) => !current.some((old) => old.projection_id === item.projection_id))]);
+      setNextCursor(value.next_cursor); if (value.monthly_summaries) setMonthlySummaries(value.monthly_summaries); setAppendLoading(false); setAppendError(undefined); appendingCursor.current = null;
+    }).catch((error: unknown) => {
+      if (controller.signal.aborted || requestId !== pageRequestId.current) return;
+      if (error instanceof Error && error.message === "projection.updated") {
+        setAppendLoading(false); appendingCursor.current = null; closeEvidence(); setProjectionUpdated(true); setRefreshGeneration((value) => value + 1); return;
+      }
+      const code = error instanceof Error ? error.message : "api_request_failed";
+      setAppendError(requestErrorMessages[code] ?? requestErrorMessages.api_request_failed); setAppendLoading(false); appendingCursor.current = null;
+    });
+  };
+  loadMoreRef.current = loadMore;
+  const retryMore = () => { setAppendError(undefined); loadMoreRef.current(true); };
   const loadAccounts = () => { accountsAbortController.current?.abort(); const controller = new AbortController(); accountsAbortController.current = controller; const requestId = ++accountsRequestId.current; fetchCashAccounts(controller.signal).then((value) => { if (requestId === accountsRequestId.current) { setAccounts(value); setAccountsError(false); } }).catch(() => { if (!controller.signal.aborted && requestId === accountsRequestId.current) setAccountsError(true); }); };
   useEffect(() => { loadAccounts(); return () => accountsAbortController.current?.abort(); }, []);
   useEffect(() => { resetAndLoad(); return () => pageAbortController.current?.abort(); }, [filters.date_from, filters.date_to, filters.account_id, filters.counterparty, filters.category, filters.currency, filters.amount_min, filters.amount_max, filters.economic_type, filters.transfer_subtype, filters.composition, refreshGeneration]);
@@ -157,7 +169,7 @@ export function CashLedgerPage() {
   const updateFilters = (value: CashFilters) => setFilters(value);
   const clearAmountFilterState = () => setAmountFilterState(undefined);
   const openEvidence = (projection: CashProjection, source: HTMLButtonElement) => { evidenceAbortController.current?.abort(); const controller = new AbortController(); evidenceAbortController.current = controller; const requestId = ++evidenceRequestId.current; opener.current = source; setSelected(projection); setEvidence(null); setRecordDetail(null); setEvidenceState("loading"); fetchEvidence(projection.projection_id, controller.signal).then((value) => { if (requestId === evidenceRequestId.current) { setEvidence(value); setEvidenceState("ready"); } }).catch(() => { if (!controller.signal.aborted && requestId === evidenceRequestId.current) setEvidenceState("error"); }); };
-  const closeEvidence = () => { evidenceAbortController.current?.abort(); evidenceRequestId.current += 1; restoreEvidenceFocus.current = true; setSelected(null); setEvidence(null); setRecordDetail(null); setRecordLoading(false); setRecordLoadError(false); };
+  const closeEvidence = () => { evidenceAbortController.current?.abort(); evidenceRequestId.current += 1; restoreEvidenceFocus.current = true; opener.current?.focus(); setSelected(null); setEvidence(null); setRecordDetail(null); setRecordLoading(false); setRecordLoadError(false); };
   const loadEditor = (id: string | null, openRelation = false) => {
     const evidenceCached = id && evidence ? detailFromEvidence(evidence, id, ledgerOptions) : null;
     const stateCached = id && recordDetail?.record.id === id ? recordDetail : null;
@@ -182,5 +194,5 @@ export function CashLedgerPage() {
 
   const drawerOpen = Boolean(selected || editingId || creating || importing);
   const editingSelected = Boolean(selected && (editingId || creating));
-  return <div className="page-layout"><main className="app-shell" inert={drawerOpen || undefined}><aside className="sidebar"><strong>Finance Tracker</strong><nav aria-label="主要导航"><a aria-current="page" href="#cash-ledger">收支账本</a></nav></aside><section className="ledger ledger-workbench" id="cash-ledger" aria-label="收支账本"><header className="page-header"><div><h1>收支账本</h1></div><div className="page-header-actions"><button type="button" className="button-secondary" onClick={openNew}>新建流水</button><button type="button" className="button-primary" onClick={() => setImporting(true)}>导入账单</button></div></header>{accountsError ? <div className="status-view status-error" data-status-kind="error" role="alert"><p>无法读取账户，请稍后重试。</p><button type="button" onClick={loadAccounts}>重试账户</button></div> : null}<CashFiltersBar filters={filters} accounts={accounts} filterOptions={filterOptions} filterOptionsReady={filterOptionsReady} filterOptionsLoading={filterOptionsLoading} amountFilterState={amountFilterState} onChange={updateFilters} onAmountFilterChange={clearAmountFilterState} />{status === "loading" ? <><CashTable items={[]} loading onEvidence={openEvidence} /><StatusView kind="loading" message={projectionUpdated ? "账本已更新，正在刷新记录。" : undefined} /></> : null}{status === "empty" ? <StatusView kind="empty" /> : null}{status === "error" ? <StatusView kind="error" message={errorMessage} onRetry={resetAndLoad} /> : null}{status === "ready" ? <>{projectionUpdated ? <div className="update-notice" role="status"><p>账本已更新，已刷新记录。</p><button ref={updateConfirmation} type="button" onClick={confirmUpdatedList}>查看更新后的列表</button></div> : null}<CashTable items={items} monthlySummaries={monthlySummaries} onEvidence={openEvidence} /><PageNavigation page={pageNumber} hasPrevious={pageNumber > 1} hasNext={Boolean(nextCursor)} loading={pageLoading} error={pageError} onPrevious={goToPreviousPage} onNext={goToNextPage} onRetry={retryPage} /></> : null}</section></main>{selected ? <EvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} editing={editingSelected} editMode={creating ? "new" : "edit"} editDetail={recordDetail} editAccounts={accounts} editOptions={ledgerOptions} editRelationOpen={relationComposerOpen} editLoading={recordLoading} editLoadError={recordLoadError} onClose={editingSelected ? returnToEvidence : closeEvidence} onRetry={() => openEvidence(selected, opener.current ?? document.createElement("button"))} onEditRetry={retryEditor} onEditRecord={openEditor} onAddRelation={openRelationEditor} onCancelRelation={handleCancelRelation} onRecordSaved={handleRecordSaved} onRecordDeleted={handleRecordDeleted} /> : null}{!selected && (editingId || creating) ? <RecordDrawer mode={creating ? "new" : "edit"} detail={recordDetail} accounts={accounts} options={ledgerOptions} loading={recordLoading} loadError={recordLoadError} onRetry={retryEditor} onClose={() => { setEditingId(null); setCreating(false); setRelationComposerOpen(false); setRecordDetail(null); setRecordLoading(false); setRecordLoadError(false); }} onSaved={handleRecordSaved} onDeleted={handleRecordDeleted} /> : null}{importing ? <ImportDrawer onClose={() => { setImporting(false); }} onDone={() => { setImporting(false); setRefreshGeneration((current) => current + 1); }} /> : null}</div>;
+  return <div className="page-layout"><main className="app-shell" inert={drawerOpen || undefined}><aside className="sidebar"><strong>Finance Tracker</strong><nav aria-label="主要导航"><a aria-current="page" href="#cash-ledger">收支账本</a></nav></aside><section className="ledger ledger-workbench" id="cash-ledger" aria-label="收支账本"><header className="page-header"><div><h1>收支账本</h1></div><div className="page-header-actions"><button type="button" className="button-secondary" onClick={openNew}>新建流水</button><button type="button" className="button-primary" onClick={() => setImporting(true)}>导入账单</button></div></header>{accountsError ? <div className="status-view status-error" data-status-kind="error" role="alert"><p>无法读取账户，请稍后重试。</p><button type="button" onClick={loadAccounts}>重试账户</button></div> : null}<CashFiltersBar filters={filters} accounts={accounts} filterOptions={filterOptions} filterOptionsReady={filterOptionsReady} filterOptionsLoading={filterOptionsLoading} amountFilterState={amountFilterState} onChange={updateFilters} onAmountFilterChange={clearAmountFilterState} />{status === "loading" ? <><CashTable items={[]} loading onEvidence={openEvidence} /><StatusView kind="loading" message={projectionUpdated ? "账本已更新，正在刷新记录。" : undefined} /></> : null}{status === "empty" ? <StatusView kind="empty" /> : null}{status === "error" ? <StatusView kind="error" message={errorMessage} onRetry={resetAndLoad} /> : null}{status === "ready" ? <>{projectionUpdated ? <div className="update-notice" role="status"><p>账本已更新，已刷新记录。</p><button ref={updateConfirmation} type="button" onClick={confirmUpdatedList}>查看更新后的列表</button></div> : null}<CashTable items={items} monthlySummaries={monthlySummaries} onEvidence={openEvidence} /><LoadMoreControl hasMore={Boolean(nextCursor)} loading={appendLoading} error={appendError} onLoadMore={appendError ? retryMore : loadMore} /></> : null}</section></main>{selected ? <EvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} editing={editingSelected} editMode={creating ? "new" : "edit"} editDetail={recordDetail} editAccounts={accounts} editOptions={ledgerOptions} editRelationOpen={relationComposerOpen} editLoading={recordLoading} editLoadError={recordLoadError} onClose={editingSelected ? returnToEvidence : closeEvidence} onRetry={() => openEvidence(selected, opener.current ?? document.createElement("button"))} onEditRetry={retryEditor} onRecordSaved={handleRecordSaved} onEditRecord={openEditor} onAddRelation={openRelationEditor} onCancelRelation={handleCancelRelation} onRecordDeleted={handleRecordDeleted} /> : null}{!selected && (editingId || creating) ? <RecordDrawer mode={creating ? "new" : "edit"} detail={recordDetail} accounts={accounts} options={ledgerOptions} loading={recordLoading} loadError={recordLoadError} onRetry={retryEditor} onClose={() => { setEditingId(null); setCreating(false); setRelationComposerOpen(false); setRecordDetail(null); setRecordLoading(false); setRecordLoadError(false); }} onSaved={handleRecordSaved} onDeleted={handleRecordDeleted} /> : null}{importing ? <ImportDrawer onClose={() => { setImporting(false); }} onDone={() => { setImporting(false); setRefreshGeneration((current) => current + 1); }} /> : null}</div>;
 }

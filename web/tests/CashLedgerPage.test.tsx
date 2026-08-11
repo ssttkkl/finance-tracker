@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CashLedgerPage } from "../src/pages/CashLedgerPage";
 import type { CashProjection } from "../src/api/types";
+import { formatOccurredAt } from "../src/format";
 
 const account = { id: 101, name: "日常账户", type: "cash", active: true };
 const projection: CashProjection = {
@@ -40,7 +41,7 @@ beforeEach(() => vi.stubEnv("VITE_FT_API_ORIGIN", "http://127.0.0.1:8000"));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("CashLedgerPage", () => {
-  it("默认折叠筛选，并通过分页器切换页面且只展示当前页", async () => {
+  it("默认折叠筛选，主列表追加加载并保留已加载流水", async () => {
     const second = { ...projection, projection_id: "cash:1004", counterparty: "第二笔" };
     const third = { ...projection, projection_id: "cash:1005", counterparty: "第三笔" };
     const fetch = vi.fn((input: string) => input.includes("/accounts")
@@ -56,16 +57,14 @@ describe("CashLedgerPage", () => {
     const projectionRequest = fetch.mock.calls.find(([input]) => String(input).includes("/cash-projections"));
     expect(new URL(String(projectionRequest?.[0])).searchParams.get("timezone")).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
     expect(screen.getByRole("group", { name: "账本筛选工具" })).not.toHaveAttribute("open");
-    expect(screen.getByText("第 1 页")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    expect(screen.queryByRole("navigation", { name: "流水分页" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "加载更多" }));
     await screen.findByText("第二笔");
-    expect(screen.queryByText("咖啡店")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    expect(screen.getByText("咖啡店")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "加载更多" }));
     await screen.findByText("第三笔");
-    expect(screen.queryByText("第二笔")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "上一页" }));
-    await screen.findByText("第二笔");
-    expect(fetch.mock.calls.filter(([input]) => String(input).includes("cursor=next"))).toHaveLength(2);
+    expect(screen.getByText("第二笔")).toBeInTheDocument();
+    expect(fetch.mock.calls.filter(([input]) => String(input).includes("cursor=next"))).toHaveLength(1);
     expect(fetch.mock.calls.filter(([input]) => String(input).includes("cursor=last"))).toHaveLength(1);
   });
 
@@ -94,7 +93,7 @@ describe("CashLedgerPage", () => {
     expect(fetch.mock.calls.filter(([input]) => String(input).includes("/accounts"))).toHaveLength(2);
   });
 
-  it("翻页失败时保留当前页，并允许重试", async () => {
+  it("追加失败时保留当前列表，并允许重试", async () => {
     let pageAttempts = 0;
     const fetch = vi.fn((input: string) => {
       if (input.includes("/accounts")) return json({ items: [account] });
@@ -105,25 +104,25 @@ describe("CashLedgerPage", () => {
     vi.stubGlobal("fetch", fetch);
     render(<CashLedgerPage />);
     await screen.findByText("咖啡店");
-    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
-    expect(await screen.findByRole("button", { name: "重试当前页" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "加载更多" }));
+    expect(await screen.findByRole("button", { name: "重试加载更多" })).toBeInTheDocument();
     expect(screen.getByText("咖啡店")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "重试当前页" }));
+    fireEvent.click(screen.getByRole("button", { name: "重试加载更多" }));
     await screen.findByText("重试后的记录");
   });
 
-  it("筛选变更会取消翻页并从首批重新读取", async () => {
+  it("筛选变更会取消追加并从首批重新读取", async () => {
     const pendingPage = deferred<Promise<Response>>();
     const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : input.includes("cursor=next") ? pendingPage.promise : json({ projection_version: 1, items: [{ ...projection, counterparty: new URL(input).searchParams.get("category") === "餐饮" ? "新筛选记录" : "咖啡店" }], next_cursor: "next", page_size: 50, filters: {}, filter_options: { categories: ["餐饮"], currencies: ["CNY"] } }));
     vi.stubGlobal("fetch", fetch);
     render(<CashLedgerPage />);
     await screen.findByText("咖啡店");
-    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    fireEvent.click(screen.getByRole("button", { name: "加载更多" }));
     fireEvent.change(screen.getByLabelText("分类"), { target: { value: "餐饮" } });
     await screen.findByText("新筛选记录");
     expect(screen.getByText("全部账户 · 分类：餐饮 · 全部收支")).toBeInTheDocument();
-    pendingPage.resolve(json({ projection_version: 1, items: [{ ...projection, counterparty: "过期翻页" }], next_cursor: null, page_size: 50, filters: {} }));
-    await waitFor(() => expect(screen.queryByText("过期翻页")).not.toBeInTheDocument());
+    pendingPage.resolve(json({ projection_version: 1, items: [{ ...projection, counterparty: "过期追加" }], next_cursor: null, page_size: 50, filters: {} }));
+    await waitFor(() => expect(screen.queryByText("过期追加")).not.toBeInTheDocument());
   });
 
 
@@ -147,8 +146,8 @@ describe("CashLedgerPage", () => {
     expect(screen.getByText("-")).toBeInTheDocument();
     expect(screen.queryByText("同笔支付关系（1）；退款冲销关系（1）")).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: "全部消费" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "其他关联" })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("关联记录"), { target: { value: "combined" } });
+    expect(screen.getByRole("option", { name: "其他合并" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("合并状态"), { target: { value: "combined" } });
     await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("composition=combined"))).toBe(true));
     expect(fetch.mock.calls.some(([input]) => String(input).includes("/cash-transactions"))).toBe(false);
     expect(fetch.mock.calls.some(([input]) => String(input).includes("/cash-projections"))).toBe(true);
@@ -208,7 +207,7 @@ describe("CashLedgerPage", () => {
     expect(economicType).toBeDisabled();
     initialPage.resolve(new Response(JSON.stringify({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {}, filter_options }), { headers: { "Content-Type": "application/json" } }));
     await screen.findByRole("option", { name: "unmapped_transfer" });
-    expect(economicType.querySelector('optgroup[label="个人转账"]')).not.toBeNull();
+    expect(economicType.querySelector('optgroup[label="资金转移"]')).not.toBeNull();
     expect(within(economicType).getByRole("option", { name: "银证转账" })).toHaveValue("{\"economic_type\":\"internal_transfer\",\"transfer_subtype\":\"bank_security_transfer\"}");
     expect(within(economicType).getByRole("option", { name: "跨币种汇款" })).toHaveValue("{\"economic_type\":\"internal_transfer\",\"transfer_subtype\":\"cross_currency_remittance\"}");
 
@@ -268,7 +267,7 @@ describe("CashLedgerPage", () => {
     await screen.findByText("咖啡店");
     const transferRow = screen.getByRole("row", { name: /日常账户 → 信用账户/ });
     expect(transferRow).toHaveTextContent("200 CNY → 14 USD");
-    expect(transferRow).toHaveTextContent("个人转账");
+    expect(transferRow).toHaveTextContent("已合并");
   });
 
   it("银证转账沿用双端账户和金额展示，并可作为独立条件筛选", async () => {
@@ -312,7 +311,7 @@ describe("CashLedgerPage", () => {
     expect(screen.getByText("全部账户 · 银证转账")).toBeInTheDocument();
   });
 
-  it("以收支详情和关联记录服务核对，不显示审计结构", async () => {
+  it("以收支详情和关联流水服务核对，不显示审计结构", async () => {
     vi.stubGlobal("fetch", vi.fn((input: string) => {
       if (input.includes("/accounts")) return json({ items: [account] });
       if (input.includes("/evidence/cash-projections/cash%3A1003")) return json(evidenceFor());
@@ -325,12 +324,12 @@ describe("CashLedgerPage", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "收支详情" });
     expect(within(dialog).getByRole("region", { name: "收支详情" })).toHaveClass("evidence-section");
-    expect(within(dialog).getByRole("region", { name: "关联记录" })).toHaveClass("evidence-section");
-    expect(within(dialog).getByText("关联记录合并")).toBeInTheDocument();
+    expect(within(dialog).getByRole("region", { name: "关联流水" })).toHaveClass("evidence-section");
+    expect(within(dialog).getByText("已合并")).toBeInTheDocument();
     expect(within(dialog).queryByText(/条账本记录/)).not.toBeInTheDocument();
     expect(within(dialog).getByText("午间消费")).toBeInTheDocument();
     expect(within(dialog).getByText("alipay、icbc_credit")).toBeInTheDocument();
-    const relatedRecord = within(within(dialog).getByRole("region", { name: "关联记录" })).getByRole("listitem");
+    const relatedRecord = within(within(dialog).getByRole("region", { name: "关联流水" })).getByRole("listitem");
     expect(within(relatedRecord).getByText("关联类型")).toBeInTheDocument();
     expect(within(relatedRecord).getAllByText("退款")).toHaveLength(2);
     expect(within(relatedRecord).getByText("+30.00 CNY")).toBeInTheDocument();
@@ -343,7 +342,7 @@ describe("CashLedgerPage", () => {
     expect(within(dialog).queryByText(/30.00 CNY，fixture/)).not.toBeInTheDocument();
   });
 
-  it("单源投影显示自身来源，不显示关系标记或关联记录", async () => {
+  it("单源流水显示自身来源，不显示合并标记或关联流水", async () => {
     const single = {
       ...projection,
       projection_id: "cash:1006",
@@ -372,9 +371,9 @@ describe("CashLedgerPage", () => {
     expect(within(dialog).getByText("alipay")).toBeInTheDocument();
     expect(within(dialog).queryByText("关系投影")).not.toBeInTheDocument();
     expect(within(dialog).queryByText(/条账本记录/)).not.toBeInTheDocument();
-    expect(within(dialog).getByRole("region", { name: "关联记录" })).toBeInTheDocument();
-    expect(within(dialog).getByText("暂无关联记录")).toBeInTheDocument();
-    expect(within(dialog).queryByText("这笔收支由一条账本记录直接形成，没有关联记录。")).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("region", { name: "关联流水" })).toBeInTheDocument();
+    expect(within(dialog).getByText("暂无关联流水")).toBeInTheDocument();
+    expect(within(dialog).queryByText("这笔收支由一条账本记录直接形成，没有关联流水。")).not.toBeInTheDocument();
   });
 
   it("银证资金调拨在详情中显示专用关系标记", async () => {
@@ -411,8 +410,8 @@ describe("CashLedgerPage", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "收支详情" });
     expect(within(dialog).getAllByText("银证转账")).toHaveLength(2);
-    expect(within(dialog).getByRole("region", { name: "关联记录" })).toBeInTheDocument();
-    expect(within(dialog).getByText("暂无关联记录")).toBeInTheDocument();
+    expect(within(dialog).getByRole("region", { name: "关联流水" })).toBeInTheDocument();
+    expect(within(dialog).getByText("暂无关联流水")).toBeInTheDocument();
   });
 
   it("切换账户后保留投影合同并重新读取第一页", async () => {
@@ -602,7 +601,7 @@ describe("CashLedgerPage", () => {
 
     fireEvent.click(within(detail).getByRole("button", { name: "添加关联" }));
 
-    const editor = await screen.findByRole("dialog", { name: "编辑流水" });
+    const editor = await screen.findByRole("dialog", { name: "编辑收支详情" });
     const search = await within(editor).findByRole("searchbox", { name: "搜索流水" });
     await waitFor(() => expect(fetch.mock.calls.some(([input]) => {
       const url = new URL(String(input));
@@ -612,6 +611,7 @@ describe("CashLedgerPage", () => {
     expect(within(editor).queryByText("稍后确认")).not.toBeInTheDocument();
     expect(within(editor).getByLabelText("开始日期")).toHaveValue("2026-06-30");
     expect(within(editor).getByLabelText("结束日期")).toHaveValue("2026-07-06");
+    expect(editor.textContent).toContain(`日常账户 · ${formatOccurredAt(candidate.occurred_at)}`);
     expect(within(editor).queryByRole("button", { name: "新建流水" })).not.toBeInTheDocument();
     expect(editor.querySelectorAll('input[type="radio"]')).toHaveLength(0);
     fireEvent.click(within(editor).getByRole("button", { name: "下一页" }));

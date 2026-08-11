@@ -12,7 +12,7 @@ function isBankSecurityTransfer(item: CashProjection): boolean {
 
 function economicTypeLabel(item: CashProjection): string {
   if (isBankSecurityTransfer(item)) return "银证转账";
-  return item.economic_type === "expense" ? "消费" : item.economic_type === "income" ? "收入" : item.economic_type === "internal_transfer" ? "个人转账" : "未提供";
+  return item.economic_type === "expense" ? "消费" : item.economic_type === "income" ? "收入" : item.economic_type === "internal_transfer" ? "已合并" : "未提供";
 }
 
 function transferFor(item: CashProjection) {
@@ -61,7 +61,7 @@ function summaryAmount(kind: "income" | "expense", amount: string): string {
 function projectionSource(item: CashProjection) {
   const bankSecurityTransfer = isBankSecurityTransfer(item);
   if (!bankSecurityTransfer && item.member_count === 1 && item.composition.length === 0) return null;
-  const label = bankSecurityTransfer ? "银证转账" : "关联记录合并";
+  const label = bankSecurityTransfer ? "银证转账" : "已合并";
   return <span className="projection-source is-related" aria-label={label}>
     <span className="projection-source-kind">{label}</span>
   </span>;

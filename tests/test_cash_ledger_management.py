@@ -124,7 +124,7 @@ def test_delete_record_removes_relation_and_keeps_other_endpoint(cash_web_runtim
     })
     assert relation["relations"]
 
-    result = service.delete_record(outgoing["record"]["id"])
+    result = service.delete_record(outgoing["record"]["id"], mode="delete_current_dissolve")
     assert result["deleted"] is True
     assert result["related_count"] == 1
     assert service.get_record(incoming["record"]["id"])["record"]["id"] == incoming["record"]["id"]
@@ -214,6 +214,59 @@ def test_import_is_row_idempotent_updates_snapshot_and_allows_republish_after_de
     assert republished_row["record_id"] == "row-1"
 
 
+def test_import_key_change_does_not_silently_break_accepted_relation(cash_web_runtime, tmp_path):
+    from ft.adapters.relational.uow import RelationalUnitOfWork
+    from ft.application.statement_import import StatementImportService
+    from ft.domain.application import RelationImpactRequired
+    from ft.domain.imports import StatementImportCommand
+
+    _enable_cny(cash_web_runtime, "日常账户")
+    rows = [
+        _payload(
+            amount="-10.00", counterparty="渠道一", source_type="fixture", bill_source="fixture",
+            record_id="relation-row-1", source_payload={"merchant": "渠道一", "amount": "-10.00"},
+        ),
+        _payload(
+            amount="-10.00", counterparty="渠道二", source_type="fixture", bill_source="fixture",
+            record_id="relation-row-2", source_payload={"merchant": "渠道二", "amount": "-10.00"},
+        ),
+    ]
+    parser = _RowsParser(rows)
+    path = Path(tmp_path) / "relation.csv"
+    path.write_bytes(b"fixture")
+    importer = StatementImportService(
+        RelationalUnitOfWork(cash_web_runtime.sessions, cash_web_runtime.workspace_id),
+        parser,
+        enforce_account_currencies=True,
+    )
+    command = StatementImportCommand(source_path=str(path), source="fixture", currency="CNY")
+    importer.import_statement(command)
+    command_service = _service(cash_web_runtime)
+    with RelationalUnitOfWork(cash_web_runtime.sessions, cash_web_runtime.workspace_id) as uow:
+        first = uow.cashflows.find_active_by_source_identity("fixture", "relation-row-1")
+        second = uow.cashflows.find_active_by_source_identity("fixture", "relation-row-2")
+        uow.commit()
+    relation = command_service.add_relation({
+        "primary_fact_id": first["id"], "secondary_fact_id": second["id"],
+        "kind": "payment_mirror", "status": "accepted",
+    })
+    assert relation["relations"]
+
+    rows[1] = {
+        **rows[1], "amount": "-11.00",
+        "source_payload": {"merchant": "渠道二", "amount": "-11.00"},
+    }
+    with pytest.raises(RelationImpactRequired):
+        importer.import_statement(command)
+
+    with RelationalUnitOfWork(cash_web_runtime.sessions, cash_web_runtime.workspace_id) as uow:
+        current = uow.cashflows.find_active_by_source_identity("fixture", "relation-row-2")
+        relation_rows = uow.relations.list_for_facts([first["id"], second["id"]], active_only=True)
+        uow.commit()
+    assert current["amount"] == Decimal("-10.00")
+    assert relation_rows[0]["status"] == "accepted"
+
+
 def test_cancelled_relation_blocks_auto_slot_but_manual_relink_reuses_it(cash_web_runtime):
     _enable_cny(cash_web_runtime, "日常账户", "信用账户")
     service = _service(cash_web_runtime)
@@ -227,14 +280,19 @@ def test_cancelled_relation_blocks_auto_slot_but_manual_relink_reuses_it(cash_we
         "primary_fact_id": outgoing["record"]["id"], "secondary_fact_id": incoming["record"]["id"],
         "kind": "transfer_pair", "subtype": "ordinary_transfer", "status": "pending_review",
     })
-    assert relation["relations"][0]["status"] == "pending_review"
-    cancelled = service.cancel_relation(relation["relations"][0]["id"])
+    with service._uow as uow:
+        pending_id = str(uow.relations.list_for_facts([outgoing["record"]["id"]], active_only=True)[0]["id"])
+        uow.commit()
+    cancelled = service.cancel_relation(pending_id)
     assert cancelled["status"] == "rejected"
     relinked = service.add_relation({
         "primary_fact_id": outgoing["record"]["id"], "secondary_fact_id": incoming["record"]["id"],
         "kind": "transfer_pair", "subtype": "ordinary_transfer", "status": "pending_review",
     })
-    assert relinked["relations"][0]["status"] == "pending_review"
+    with service._uow as uow:
+        relinked_row = uow.relations.list_for_facts([outgoing["record"]["id"]], active_only=True)[0]
+        uow.commit()
+    assert relinked_row["status"] == "pending_review"
 
 
 def test_pending_relation_type_can_be_updated_without_creating_history(cash_web_runtime):
@@ -248,11 +306,15 @@ def test_pending_relation_type_can_be_updated_without_creating_history(cash_web_
         "kind": "payment_mirror",
         "status": "pending_review",
     })
-    relation_id = relation["relations"][0]["id"]
+    with service._uow as uow:
+        relation_id = str(uow.relations.list_for_facts([first["record"]["id"]], active_only=True)[0]["id"])
+        uow.commit()
 
     updated = service.update_relation(relation_id, {"kind": "refund_offset"})
 
-    current = next(item for item in updated["relations"] if item["id"] == relation_id)
+    with service._uow as uow:
+        current = uow.relations.get(relation_id)
+        uow.commit()
     assert current["kind"] == "refund_offset"
     assert current["status"] == "pending_review"
 
@@ -310,6 +372,181 @@ def test_cash_write_api_uses_fact_ids_and_keeps_internal_calibration_private(cas
     )
     assert invalid.status_code == 400
     assert "暂不支持" in invalid.json()["error"]["message"]
+
+
+def test_cash_web_routes_keep_relation_actions_user_safe(cash_web_runtime):
+    from fastapi.testclient import TestClient
+    from ft.application.web_queries import CashLedgerQueryService
+    from ft.web.app import create_app
+
+    _enable_cny(cash_web_runtime, "日常账户", "信用账户")
+    mutation = _service(cash_web_runtime)
+    client = TestClient(create_app(
+        CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id),
+        mutation_service=mutation,
+    ))
+
+    first = mutation.create_record(_payload(
+        account_name="日常账户", amount="-100", record_type="transfer_out",
+        record_subtype="ordinary_transfer", counterparty="信用账户",
+    ))["record"]
+    second = mutation.create_record(_payload(
+        account_name="信用账户", amount="100", record_type="transfer_in",
+        record_subtype="ordinary_transfer", counterparty="日常账户",
+    ))["record"]
+    relation_body = {
+        "primary_fact_id": first["id"], "secondary_fact_id": second["id"],
+        "kind": "transfer_pair", "subtype": "ordinary_transfer", "status": "pending_review",
+    }
+    created = client.post("/api/v1/cash-relations", json=relation_body)
+    assert created.status_code == 200
+    assert created.json()["relations"][0]["status"] == "accepted"
+
+    dissolved = client.post("/api/v1/cash-relations/dissolve", json={"fact_id": first["id"]})
+    assert dissolved.status_code == 200
+    assert dissolved.json()["relations"] == []
+
+    third = mutation.create_record(_payload(
+        account_name="日常账户", amount="-100", record_type="transfer_out",
+        record_subtype="ordinary_transfer", counterparty="信用账户",
+    ))["record"]
+    fourth = mutation.create_record(_payload(
+        account_name="信用账户", amount="100", record_type="transfer_in",
+        record_subtype="ordinary_transfer", counterparty="日常账户",
+    ))["record"]
+    client.post("/api/v1/cash-relations", json={
+        **relation_body, "primary_fact_id": third["id"], "secondary_fact_id": fourth["id"],
+    })
+    blocked = client.put(
+        f"/api/v1/cash-records/{third['id']}",
+        json=_payload(
+            account_name="日常账户", amount="-101", record_type="transfer_out",
+            record_subtype="ordinary_transfer", counterparty="信用账户",
+        ),
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["error"]["code"] == "relation_impact_required"
+    confirmed = client.put(
+        f"/api/v1/cash-records/{third['id']}",
+        json=_payload(
+            account_name="日常账户", amount="-101", record_type="transfer_out",
+            record_subtype="ordinary_transfer", counterparty="信用账户",
+            confirm_relation_impact=True,
+        ),
+    )
+    assert confirmed.status_code == 200
+    assert confirmed.json()["relations"] == []
+
+    fifth = mutation.create_record(_payload(counterparty="删除一"))["record"]
+    sixth = mutation.create_record(_payload(counterparty="删除二"))["record"]
+    client.post("/api/v1/cash-relations", json={
+        "primary_fact_id": fifth["id"], "secondary_fact_id": sixth["id"],
+        "kind": "payment_mirror", "status": "accepted",
+    })
+    deleted = client.request(
+        "DELETE", f"/api/v1/cash-records/{fifth['id']}", json={"mode": "delete_all"},
+    )
+    assert deleted.status_code == 200
+    assert set(deleted.json()["deleted_fact_ids"]) == {str(fifth["id"]), str(sixth["id"])}
+
+
+def test_cash_detail_contract_hides_import_and_delete_internals(cash_web_runtime):
+    _enable_cny(cash_web_runtime, "日常账户")
+    service = _service(cash_web_runtime)
+    created = service.create_record(_payload(
+        source_type="fixture", record_id="private-row",
+        source_payload={"merchant": "来源商户"},
+    ))
+
+    record = created["record"]
+    assert {"id", "amount", "currency", "occurred_at", "account_name", "counterparty",
+            "counterparty_account", "record_type", "record_subtype", "category", "note",
+            "source_type"}.issubset(record)
+    assert not {
+        "record_id", "created_at", "source_payload", "source_fingerprint", "manual_overrides",
+        "deleted_at", "deleted_by", "delete_reason", "counterparty_account_attrs",
+    } & record.keys()
+
+
+def test_key_field_change_requires_explicit_split_and_keeps_relation_on_cancel(cash_web_runtime):
+    _enable_cny(cash_web_runtime, "日常账户", "信用账户")
+    service = _service(cash_web_runtime)
+    outgoing = service.create_record(_payload(
+        account_name="日常账户", amount="-100", record_type="transfer_out", counterparty="信用账户",
+    ))
+    incoming = service.create_record(_payload(
+        account_name="信用账户", amount="100", record_type="transfer_in", counterparty="日常账户",
+    ))
+    relation = service.add_relation({
+        "primary_fact_id": outgoing["record"]["id"], "secondary_fact_id": incoming["record"]["id"],
+        "kind": "transfer_pair", "subtype": "ordinary_transfer", "status": "accepted",
+    })
+    relation_id = relation["relations"][0]["id"]
+
+    from ft.domain.application import RelationImpactRequired
+
+    with pytest.raises(RelationImpactRequired):
+        service.update_record(outgoing["record"]["id"], _payload(
+            amount="-101", record_type="transfer_out", record_subtype="ordinary_transfer", counterparty="信用账户",
+        ))
+
+    assert service.get_record(outgoing["record"]["id"])["record"]["amount"] == "-100"
+    assert service.get_record(outgoing["record"]["id"])["relations"][0]["id"] == relation_id
+
+    updated = service.update_record(outgoing["record"]["id"], _payload(
+        amount="-101", record_type="transfer_out", record_subtype="ordinary_transfer", counterparty="信用账户",
+        confirm_relation_impact=True,
+    ))
+    assert updated["record"]["amount"] == "-101"
+    assert updated["relations"] == []
+    assert service.get_record(incoming["record"]["id"])["record"]["amount"] == "100"
+
+
+def test_dissolve_relation_group_keeps_all_member_records_independent(cash_web_runtime):
+    _enable_cny(cash_web_runtime, "日常账户")
+    service = _service(cash_web_runtime)
+    records = [service.create_record(_payload(
+        amount="-20", counterparty=f"同笔渠道 {index}", source_type="fixture", record_id=f"group-{index}",
+    ))["record"] for index in range(3)]
+    for left, right in zip(records, records[1:]):
+        service.add_relation({
+            "primary_fact_id": left["id"], "secondary_fact_id": right["id"],
+            "kind": "payment_mirror", "status": "accepted",
+        })
+
+    dissolved = service.dissolve_relations(records[1]["id"])
+
+    assert dissolved["record"]["id"] == records[1]["id"]
+    assert dissolved["relations"] == []
+    assert service.get_record(records[0]["id"])["relations"] == []
+    assert service.get_record(records[2]["id"])["relations"] == []
+
+
+def test_delete_related_record_supports_delete_all_or_current_and_dissolve(cash_web_runtime):
+    _enable_cny(cash_web_runtime, "日常账户")
+    service = _service(cash_web_runtime)
+    first = service.create_record(_payload(amount="-20", counterparty="渠道一"))["record"]
+    second = service.create_record(_payload(amount="-20", counterparty="渠道二"))["record"]
+    service.add_relation({
+        "primary_fact_id": first["id"], "secondary_fact_id": second["id"],
+        "kind": "payment_mirror", "status": "accepted",
+    })
+
+    result = service.delete_record(first["id"], mode="delete_current_dissolve")
+    assert result["deleted"] is True
+    assert result["deleted_fact_ids"] == [str(first["id"])]
+    assert service.get_record(second["id"])["relations"] == []
+
+    third = service.create_record(_payload(amount="-20", counterparty="渠道三"))["record"]
+    fourth = service.create_record(_payload(amount="-20", counterparty="渠道四"))["record"]
+    service.add_relation({
+        "primary_fact_id": third["id"], "secondary_fact_id": fourth["id"],
+        "kind": "payment_mirror", "status": "accepted",
+    })
+    result = service.delete_record(third["id"], mode="delete_all")
+    assert set(result["deleted_fact_ids"]) == {str(third["id"]), str(fourth["id"])}
+    with pytest.raises(ValueError, match="找不到"):
+        service.get_record(fourth["id"])
 
 
 @pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])

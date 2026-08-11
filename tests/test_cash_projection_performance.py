@@ -26,6 +26,12 @@ TRANSFER_PAIR_COUNT = 250
 WARMUPS = 3
 SAMPLES = 20
 P95_BUDGET_NS = 10_000_000_000
+EDIT_P95_BUDGET_NS = 100_000_000
+EDIT_WARMUPS = 2
+EDIT_SAMPLES = 3
+RELATION_P95_BUDGET_NS = 100_000_000
+RELATION_WARMUPS = 3
+RELATION_SAMPLES = 20
 
 
 def _backends() -> list[object]:
@@ -205,8 +211,8 @@ def _seed_cash_projection_workload(sessions) -> None:
     assert len(relations) == PAYMENT_MIRROR_COUNT + REFUND_OFFSET_COUNT + TRANSFER_PAIR_COUNT
     with sessions.begin() as session:
         session.execute(insert(AccountModel), [
-            {"id": 1, "workspace_id": WORKSPACE, "name": "性能现金账户 A", "type": "cash", "active": True, "metadata_json": {}},
-            {"id": 2, "workspace_id": WORKSPACE, "name": "性能现金账户 B", "type": "cash", "active": True, "metadata_json": {}},
+            {"id": 1, "workspace_id": WORKSPACE, "name": "性能现金账户 A", "type": "cash", "active": True, "currencies": ["CNY"], "metadata_json": {}},
+            {"id": 2, "workspace_id": WORKSPACE, "name": "性能现金账户 B", "type": "cash", "active": True, "currencies": ["CNY"], "metadata_json": {}},
         ])
         for start in range(0, len(transactions), 2_000):
             session.execute(insert(CashTransactionModel), transactions[start:start + 2_000])
@@ -235,6 +241,13 @@ def test_fixed_10k_cash_projection_rebuild_meets_budget(performance_runtime) -> 
 
     for _ in range(WARMUPS):
         service.rebuild()
+    for sample in range(EDIT_WARMUPS):
+        service.update_record("1", {
+            "account_name": "性能现金账户 A",
+            "currency": "CNY",
+            "counterparty": f"性能预热-{sample}",
+        })
+
     samples = []
     for _ in range(SAMPLES):
         started = time.perf_counter_ns()
@@ -255,3 +268,131 @@ def test_fixed_10k_cash_projection_rebuild_meets_budget(performance_runtime) -> 
     assert result["member_count"] == FACT_COUNT
     assert result["projection_count"] == 8_500
     assert p95 <= P95_BUDGET_NS
+
+
+def test_fixed_10k_cash_record_edit_meets_100ms_budget(performance_runtime) -> None:
+    """普通字段保存只应维护受影响的收支详情，而不是全量重建账本。"""
+    from ft.adapters.relational.uow import RelationalUnitOfWork
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.relations import RelationService
+
+    backend, sessions = performance_runtime
+    _seed_cash_projection_workload(sessions)
+    CashProjectionService(sessions, WORKSPACE).rebuild()
+    service = CashLedgerCommandService(
+        sessions,
+        WORKSPACE,
+        relation_service=RelationService(RelationalUnitOfWork(sessions, WORKSPACE)),
+    )
+    for sample in range(EDIT_WARMUPS):
+        service.update_record("1", {
+            "account_name": "性能现金账户 A",
+            "currency": "CNY",
+            "counterparty": f"性能预热-{sample}",
+        })
+
+    samples = []
+    for sample in range(EDIT_SAMPLES):
+        started = time.perf_counter_ns()
+        result = service.update_record("1", {
+            "account_name": "性能现金账户 A",
+            "currency": "CNY",
+            "counterparty": f"性能编辑-{sample}",
+        })
+        samples.append(time.perf_counter_ns() - started)
+
+    p95 = _p95(samples)
+    print({
+        "backend": backend,
+        "fixture_digest": _fixture_digest(),
+        "warmups": EDIT_WARMUPS,
+        "samples": EDIT_SAMPLES,
+        "edit_samples_ns": samples,
+        "edit_p95_ns": p95,
+        "python": sys.version.split(".")[0:2],
+        "platform": platform.platform(),
+    })
+    assert result["record"]["counterparty"] == f"性能编辑-{EDIT_SAMPLES - 1}"
+    assert p95 <= EDIT_P95_BUDGET_NS
+
+
+def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime) -> None:
+    """关联流水的新增、修改、取消和解散都只维护受影响的小组。"""
+    from ft.adapters.relational.uow import RelationalUnitOfWork
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.relations import RelationService
+
+    backend, sessions = performance_runtime
+    _seed_cash_projection_workload(sessions)
+    CashProjectionService(sessions, WORKSPACE).rebuild()
+    service = CashLedgerCommandService(
+        sessions,
+        WORKSPACE,
+        relation_service=RelationService(RelationalUnitOfWork(sessions, WORKSPACE)),
+    )
+    def pair(index: int) -> tuple[str, str]:
+        primary = 1 + index * 2
+        return str(primary), str(primary + 1)
+
+    def add_payload(index: int) -> dict:
+        primary, secondary = pair(index)
+        return {
+            "primary_fact_id": primary,
+            "secondary_fact_id": secondary,
+            "kind": "transfer_pair",
+            "subtype": "ordinary_transfer",
+            "status": "accepted",
+        }
+
+    def relation_id(detail: dict) -> str:
+        return str(detail["relations"][0]["id"])
+
+    for warmup in range(RELATION_WARMUPS):
+        detail = service.add_relation(add_payload(warmup * 2))
+        current_relation_id = relation_id(detail)
+        service.update_relation(current_relation_id, {"kind": "transfer_pair", "subtype": "cross_currency_remittance"})
+        service.cancel_relation(current_relation_id)
+        service.add_relation(add_payload(warmup * 2 + 1))
+        service.dissolve_relations(pair(warmup * 2 + 1)[0])
+
+    samples: dict[str, list[int]] = {"add": [], "update": [], "cancel": [], "dissolve": []}
+    for sample in range(RELATION_SAMPLES):
+        base = 100 + sample * 2
+
+        started = time.perf_counter_ns()
+        detail = service.add_relation(add_payload(base))
+        samples["add"].append(time.perf_counter_ns() - started)
+        current_relation_id = relation_id(detail)
+
+        started = time.perf_counter_ns()
+        service.update_relation(current_relation_id, {
+            "kind": "transfer_pair",
+            "subtype": "cross_currency_remittance",
+        })
+        samples["update"].append(time.perf_counter_ns() - started)
+
+        started = time.perf_counter_ns()
+        service.cancel_relation(current_relation_id)
+        samples["cancel"].append(time.perf_counter_ns() - started)
+
+        dissolve_detail = service.add_relation(add_payload(base + 1))
+        dissolve_relation_id = relation_id(dissolve_detail)
+        assert dissolve_relation_id
+        started = time.perf_counter_ns()
+        service.dissolve_relations(pair(base + 1)[0])
+        samples["dissolve"].append(time.perf_counter_ns() - started)
+
+    p95 = {operation: _p95(values) for operation, values in samples.items()}
+    print({
+        "backend": backend,
+        "fixture_digest": _fixture_digest(),
+        "warmups": RELATION_WARMUPS,
+        "samples": RELATION_SAMPLES,
+        "relation_samples_ns": samples,
+        "relation_p95_ns": p95,
+        "python": sys.version.split(".")[0:2],
+        "platform": platform.platform(),
+    })
+    assert all(value <= RELATION_P95_BUDGET_NS for value in p95.values())

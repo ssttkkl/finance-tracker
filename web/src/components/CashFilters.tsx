@@ -22,7 +22,7 @@ type EconomicTypeSelection = {
 const economicTypeLabels: Record<string, string> = {
   expense: "消费",
   income: "收入",
-  internal_transfer: "个人转账",
+  internal_transfer: "资金转移",
 };
 
 const transferSubtypeLabels: Record<string, string> = {
@@ -96,7 +96,7 @@ export function CashFiltersBar({ filters, accounts, filterOptions, filterOptions
       {amountError ? <p className="filter-error" id="amount-filter-error" role="alert">{amountError}</p> : null}
       {amountSuccess ? <p className="filter-success" id="amount-filter-success" role="status">{amountSuccess}</p> : null}
       <label>流水类型<select className="economic-type-select" aria-label="流水类型" aria-describedby={economicTypeDescription ? "economic-type-description" : undefined} value={selectionValue(economicSelection)} disabled={filterOptionsLoading || !filterOptionsReady || economicTypes.length === 0} onChange={(e) => onEconomicTypeChange(e.target.value)}><option value="">全部收支</option>{economicTypes.map((item) => <optgroup label={labelForEconomicType(item.economic_type)} key={item.economic_type}><option value={selectionValue({ economic_type: item.economic_type, transfer_subtype: null })}>全部{labelForEconomicType(item.economic_type)}</option>{item.transfer_subtypes.map((subtype) => <option value={selectionValue({ economic_type: item.economic_type, transfer_subtype: subtype })} key={subtype}>{labelForTransferSubtype(subtype)}</option>)}</optgroup>)}</select>{economicTypeDescription ? <span className="sr-only" id="economic-type-description">{economicTypeDescription}</span> : null}</label>
-      <label>关联记录<select aria-label="关联记录" value={filters.composition ?? ""} onChange={(e) => update("composition", e.target.value)}><option value="">全部</option><option value="single">未关联</option><option value="payment_mirror">同笔支付</option><option value="refund_offset">退款冲销</option><option value="combined">其他关联</option></select></label>
+      <label>合并状态<select aria-label="合并状态" value={filters.composition ?? ""} onChange={(e) => update("composition", e.target.value)}><option value="">全部</option><option value="single">未合并</option><option value="payment_mirror">同笔支付</option><option value="refund_offset">退款冲销</option><option value="combined">其他合并</option></select></label>
     </div>
   </details>;
 }

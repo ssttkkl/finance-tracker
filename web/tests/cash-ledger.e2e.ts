@@ -35,28 +35,25 @@ async function mockLedger(page: Page, failOnce = false, firstCounterparty = "第
 
 async function openFilters(page: Page) { await page.locator("details.filters > summary").click(); }
 
-test("默认折叠筛选，通过分页器切换三页且只展示当前页", async ({ page }) => {
+test("默认折叠筛选，主列表追加三批且保留已加载流水", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await mockLedger(page); await page.goto("/");
   const filters = page.locator("details.filters");
   await expect(filters).not.toHaveAttribute("open", "");
   await expect(page.getByText("第一笔")).toBeVisible();
-  await expect(page.getByText("第 1 页")).toBeVisible();
-  await page.getByRole("button", { name: "下一页" }).click();
   await expect(page.getByText("第二笔")).toBeVisible();
-  await expect(page.getByText("第一笔")).toHaveCount(0);
-  await page.getByRole("button", { name: "下一页" }).click();
+  await expect(page.getByText("第一笔")).toBeVisible();
   await expect(page.getByText("第三笔")).toBeVisible();
-  await expect(page.getByText("第二笔")).toHaveCount(0);
-  await page.getByRole("button", { name: "上一页" }).click();
   await expect(page.getByText("第二笔")).toBeVisible();
+  await expect(page.getByText("第一笔")).toBeVisible();
 });
 
-test("翻页失败保留当前页，并通过键盘重试", async ({ page }) => {
+test("追加失败保留当前列表，并通过键盘重试", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockLedger(page, true); await page.goto("/");
-  await page.getByRole("button", { name: "下一页" }).click();
-  const retry = page.getByRole("button", { name: "重试当前页" });
+  await page.locator(".load-more-control").scrollIntoViewIfNeeded();
+  const retry = page.getByRole("button", { name: "重试加载更多" });
+  if (await retry.count() === 0) await page.getByRole("button", { name: "加载更多" }).click();
   await expect(retry).toBeVisible();
   await expect(page.getByText("第一笔")).toBeVisible();
   await retry.focus(); await page.keyboard.press("Enter");
@@ -70,7 +67,7 @@ test("筛选后从首批重新读取，且所有规定视口无横向溢出", as
   await mockLedger(page);
   for (const viewport of [{ width: 320, height: 844 }, { width: 375, height: 844 }, { width: 414, height: 844 }, { width: 768, height: 1024 }, { width: 1024, height: 768 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport); await page.goto("/"); await expect(page.getByText("第一笔")).toBeVisible();
-    await expect(page.getByLabel("关联记录合并").first()).toBeVisible();
+    await expect(page.getByLabel("已合并").first()).toBeVisible();
     await openFilters(page); await page.getByLabel("分类").selectOption("餐饮");
     await expect(page.getByText("第一笔")).toBeVisible();
     expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
@@ -183,19 +180,19 @@ test("新建流水沿用信息抽屉，不提供收入支出切换并保留零�
   expect(createdBody).toMatchObject({ amount: "0", currency: "CNY", record_type: "expense" });
 });
 
-test("详情切换编辑、维护关联记录并在删除前展示影响确认", async ({ page }) => {
+test("详情切换编辑、维护关联流水并在删除前展示影响确认", async ({ page }) => {
   const options = {
     record_types: [{ value: "expense", label: "消费", subtypes: [{ value: "not_applicable", label: "—" }] }],
     relation_types: [{ value: "payment_mirror", label: "同笔支付" }, { value: "refund_offset", label: "退款冲销" }],
   };
   const root = { id: "1001", occurred_at: "2026-07-03T09:00:00+08:00", account, counterparty: "咖啡店", category: "餐饮", note: "午间消费", amount: "-12.50", currency: "CNY", source_type: "alipay", record_id: "cash-1", source_snapshot: null };
   const related = { ...root, id: "1002", counterparty: "咖啡店", amount: "-12.50", source_type: "wechat", record_id: "cash-2" };
-  const detail = { record: { ...root, account_name: account.name, account_id: account.id, account_type: account.type, record_type: "expense", record_subtype: "not_applicable", counterparty_account: "", counterparty_account_attrs: [] }, relations: [{ id: "relation-1", kind: "payment_mirror", label: "同笔支付", subtype: "", status: "pending_review", primary_record: { ...root, account_name: account.name, account_id: account.id, account_type: account.type, record_type: "expense", record_subtype: "not_applicable", counterparty_account: "", counterparty_account_attrs: [] }, secondary_record: { ...related, account_name: account.name, account_id: account.id, account_type: account.type, record_type: "expense", record_subtype: "not_applicable", counterparty_account: "", counterparty_account_attrs: [] } }], options };
+  const detail = { record: { ...root, account_name: account.name, account_id: account.id, account_type: account.type, record_type: "expense", record_subtype: "not_applicable", counterparty_account: "", counterparty_account_attrs: [] }, relations: [{ id: "relation-1", kind: "payment_mirror", label: "同笔支付", subtype: "", status: "accepted", primary_record: { ...root, account_name: account.name, account_id: account.id, account_type: account.type, record_type: "expense", record_subtype: "not_applicable", counterparty_account: "", counterparty_account_attrs: [] }, secondary_record: { ...related, account_name: account.name, account_id: account.id, account_type: account.type, record_type: "expense", record_subtype: "not_applicable", counterparty_account: "", counterparty_account_attrs: [] } }], options };
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [{ ...account, currencies: ["CNY"] }] } });
-    if (url.pathname.includes("/evidence/")) return route.fulfill({ json: { projection_version: 1, projection: { ...item("1", "咖啡店"), composition: ["payment_mirror"], member_count: 2, source_types: ["alipay", "wechat"] }, root_record: root, members: [{ ...root, roles: ["root"] }, { ...related, roles: ["mirror"] }], accepted_relations: [], inactive_relation_hints: [{ id: "relation-1", kind: "payment_mirror", subtype: "", status: "pending_review", primary_record: detail.relations[0].primary_record, secondary_record: detail.relations[0].secondary_record }], refund_timeline: [] } });
+    if (url.pathname.includes("/evidence/")) return route.fulfill({ json: { projection_version: 1, projection: { ...item("1", "咖啡店"), composition: ["payment_mirror"], member_count: 2, source_types: ["alipay", "wechat"] }, root_record: root, members: [{ ...root, roles: ["root"] }, { ...related, roles: ["mirror"] }], accepted_relations: [detail.relations[0]], inactive_relation_hints: [], refund_timeline: [] } });
     if (url.pathname.endsWith("/cash-ledger/options")) return route.fulfill({ json: options });
     if (url.pathname.endsWith("/cash-records") && request.method() === "GET") return route.fulfill({ json: url.searchParams.has("exclude_id") ? { items: [detail.record] } : detail });
     if (url.pathname.endsWith("/cash-records/1001") && request.method() === "GET") return route.fulfill({ json: detail });
@@ -207,9 +204,9 @@ test("详情切换编辑、维护关联记录并在删除前展示影响确认",
   await page.goto("/");
   await page.getByRole("button", { name: "查看咖啡店的收支详情" }).click();
   const evidence = page.getByRole("dialog", { name: "收支详情" });
-  await expect(evidence).toContainText("关联记录合并");
+  await expect(evidence).toContainText("已合并");
   await evidence.getByRole("button", { name: "编辑", exact: true }).click();
-  const drawer = page.getByRole("dialog", { name: "编辑流水" });
+  const drawer = page.getByRole("dialog", { name: "编辑收支详情" });
   await expect(drawer).toBeVisible();
   await expect(drawer).toContainText("同笔支付");
   await drawer.getByRole("button", { name: "更改类型" }).click();
@@ -218,10 +215,10 @@ test("详情切换编辑、维护关联记录并在删除前展示影响确认",
   await relation.getByRole("button", { name: "保存" }).click();
   await expect(page.getByRole("dialog", { name: "收支详情" })).toBeVisible();
   await page.getByRole("dialog", { name: "收支详情" }).getByRole("button", { name: "编辑", exact: true }).click();
-  await page.getByRole("dialog", { name: "编辑流水" }).getByRole("button", { name: "删除记录" }).click();
+  await page.getByRole("dialog", { name: "编辑收支详情" }).getByRole("button", { name: "删除流水" }).click();
   const confirmation = page.getByRole("alertdialog", { name: "删除流水确认" });
-  await expect(confirmation).toContainText("有 1 条关联");
-  await confirmation.getByRole("button", { name: "确认删除" }).click();
+  await expect(confirmation).toContainText("已添加关联流水");
+  await confirmation.getByRole("button", { name: "只删除当前流水并解散关联" }).click();
   await expect(page.getByRole("dialog", { name: "收支详情" })).toHaveCount(0);
 });
 
@@ -251,18 +248,18 @@ test("查看抽屉原位切换编辑，不重复读取当前流水并立即显�
   const evidence = page.getByRole("dialog", { name: "收支详情" });
   await evidence.getByRole("button", { name: "编辑", exact: true }).click();
   const dialog = page.locator(".evidence-panel");
-  await expect(dialog).toHaveAttribute("aria-label", "编辑流水");
+  await expect(dialog).toHaveAttribute("aria-label", "编辑收支详情");
   await dialog.evaluate((node) => node.setAttribute("data-dialog-identity", "cash-record"));
-  await expect(page.locator('[data-dialog-identity="cash-record"]')).toHaveAttribute("aria-label", "编辑流水");
-  await expect(page.getByRole("dialog", { name: "编辑流水" }).getByLabel("交易对方")).toHaveValue("咖啡店");
+  await expect(page.locator('[data-dialog-identity="cash-record"]')).toHaveAttribute("aria-label", "编辑收支详情");
+  await expect(page.getByRole("dialog", { name: "编辑收支详情" }).getByLabel("交易对方")).toHaveValue("咖啡店");
   await expect(page.getByRole("dialog", { name: "新建流水" })).toHaveCount(0);
   expect(detailRequests).toBe(0);
-  const editor = page.getByRole("dialog", { name: "编辑流水" });
+  const editor = page.getByRole("dialog", { name: "编辑收支详情" });
   await editor.getByRole("button", { name: "返回", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "收支详情" })).toBeVisible();
 });
 
-test("关联记录从统一入口搜索已有流水并直接确认", async ({ page }) => {
+test("关联流水从统一入口搜索已有流水并直接确认", async ({ page }) => {
   const options = {
     record_types: [{ value: "expense", label: "消费", subtypes: [{ value: "not_applicable", label: "—" }] }],
     relation_types: [{ value: "payment_mirror", label: "同笔支付" }],
@@ -299,7 +296,7 @@ test("关联记录从统一入口搜索已有流水并直接确认", async ({ pa
 
   await detail.getByRole("button", { name: "添加关联" }).click();
 
-  const editor = page.getByRole("dialog", { name: "编辑流水" });
+  const editor = page.getByRole("dialog", { name: "编辑收支详情" });
   await expect(editor.getByRole("searchbox", { name: "搜索流水" })).toBeVisible();
   await expect.poll(() => candidateRequests.length).toBe(1);
   expect(new URL(candidateRequests[0]).searchParams.get("limit")).toBe("20");
@@ -310,6 +307,8 @@ test("关联记录从统一入口搜索已有流水并直接确认", async ({ pa
   await expect(editor.getByText("稍后确认")).toHaveCount(0);
   await expect(editor.getByRole("button", { name: "新建流水" })).toHaveCount(0);
   await expect(editor.locator('input[type="radio"]')).toHaveCount(0);
+  const expectedLocalTime = await page.evaluate((value) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)), candidate("2001", "工资转入一").occurred_at);
+  await expect(editor.getByRole("radio", { name: /工资转入一/ })).toContainText(expectedLocalTime);
   const search = editor.getByRole("searchbox", { name: "搜索流水" });
   await search.fill("工资");
   await expect.poll(() => candidateRequests.some((value) => new URL(value).searchParams.get("query") === "工资")).toBe(true);

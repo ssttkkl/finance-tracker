@@ -351,6 +351,25 @@ class RelationalCashflowRepository:
         model, account = row
         return self._to_row(model, account)
 
+    def get_many(self, fact_ids) -> dict[int, dict]:
+        ids = sorted({_as_int_id(fact_id) for fact_id in fact_ids if fact_id not in (None, "")})
+        if not ids:
+            return {}
+        rows = self._session.execute(
+            select(CashTransactionModel, AccountModel)
+            .join(AccountModel, (
+                AccountModel.workspace_id == CashTransactionModel.workspace_id
+            ) & (AccountModel.id == CashTransactionModel.account_id))
+            .where(
+                CashTransactionModel.workspace_id == self._workspace_id,
+                CashTransactionModel.id.in_(ids),
+            )
+        )
+        return {
+            int(model.id): self._to_row(model, account)
+            for model, account in rows
+        }
+
     def find_active_by_source_identity(self, source_type: str, record_id: str) -> dict | None:
         """Return the current fact for one import identity, if it is still active."""
         model = self._session.scalar(select(CashTransactionModel).where(
@@ -497,7 +516,11 @@ class RelationalCashflowRepository:
         validate_cash_record_subtype(record_type, record_subtype)
         payload = row.source_payload if isinstance(row.source_payload, dict) else None
         counterparty_account = str(values.get("counterparty_account") or "")
-        attrs = values.get("counterparty_account_attrs") or []
+        attrs = (
+            values["counterparty_account_attrs"]
+            if "counterparty_account_attrs" in values
+            else list(row.counterparty_account_attrs or [])
+        )
         validate_counterparty_account_for_write(
             counterparty_account, attrs, values.get("_counterparty_account_reconstruction_proof"),
             source_type=row.source_type or "", source_payload=payload,
@@ -591,6 +614,35 @@ class RelationalCashflowRepository:
         values["account_name"] = account.name
         values["source_values"] = source_values
         self.update(existing.id, values, manual=False)
+        if existing.source_type:
+            from ft.adapters.relational.projections import RelationalCashProjectionRepository
+            from ft.domain.application import RelationImpactRequired
+            from ft.domain.cash_projection import CashProjectionError, build_cash_projections
+
+            relation_rows = RelationalRelationRepository(
+                self._session, self._workspace_id,
+            ).list_for_facts([existing.id], active_only=True)
+            accepted_relation_rows = [
+                item for item in relation_rows
+                if item.get("status") == "accepted"
+            ]
+            if accepted_relation_rows:
+                facts, relations = RelationalCashProjectionRepository(
+                    self._session, self._workspace_id,
+                ).read_sources()
+                try:
+                    build_cash_projections(facts, relations)
+                except CashProjectionError as exc:
+                    related_ids = {
+                        endpoint
+                        for item in accepted_relation_rows
+                        for endpoint in (item.get("primary_fact_id"), item.get("secondary_fact_id"))
+                        if endpoint not in (None, "")
+                    }
+                    raise RelationImpactRequired(
+                        "这次导入会影响已关联的流水，请先在收支详情中处理关联后再导入。",
+                        fact_ids=tuple(sorted(str(item) for item in related_ids)),
+                    ) from exc
         existing.source_payload = incoming_payload
         existing.source_fingerprint = incoming_fingerprint
         existing.manual_overrides = overrides

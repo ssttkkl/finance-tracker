@@ -4,11 +4,13 @@ import {
   createCashRecord,
   createCashRelation,
   deleteCashRecord,
+  dissolveCashRelations,
   fetchCashRecords,
   updateCashRelation,
   updateCashRecord,
 } from "../api/cashLedger";
 import type { Account, CashRecord, CashRecordDetail, LedgerOptions } from "../api/types";
+import { formatOccurredAt } from "../format";
 import { UiIcon } from "./UiIcon";
 import { PageNavigation } from "./Pagination";
 
@@ -57,6 +59,7 @@ function initialForm(record: CashRecord | null | undefined, defaultAccount?: Acc
     currency: record?.currency ?? defaultAccount?.currencies?.[0] ?? "",
     occurred_at: record?.occurred_at ? record.occurred_at.slice(0, 16) : "",
     counterparty: record?.counterparty ?? "",
+    counterparty_account: record?.counterparty_account ?? "",
     category: record?.category ?? "",
     record_type: record?.record_type ?? defaultRecordType ?? "",
     record_subtype: record?.record_subtype ?? "not_applicable",
@@ -71,6 +74,7 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [relationImpactOpen, setRelationImpactOpen] = useState(false);
   const [relationOpen, setRelationOpen] = useState(initialRelationOpen);
   const [relationQuery, setRelationQuery] = useState("");
   const [relationDateFrom, setRelationDateFrom] = useState(() => relationDateRange(record).from);
@@ -90,7 +94,10 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
   const [editingRelationId, setEditingRelationId] = useState<string>();
   const [editingRelationKind, setEditingRelationKind] = useState<string>();
 
-  useEffect(() => setForm(initialForm(record, accounts[0], options.record_types[0]?.value)), [record?.id]);
+  useEffect(() => {
+    setForm(initialForm(record, accounts[0], options.record_types[0]?.value));
+    setRelationImpactOpen(false);
+  }, [record?.id]);
   useEffect(() => {
     setRelationOpen(initialRelationOpen);
     setRelationQuery("");
@@ -157,14 +164,23 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
     setForm((current) => ({ ...current, record_type: value, record_subtype: type?.subtypes[0]?.value ?? "not_applicable" }));
   };
 
-  const save = async () => {
+  const save = async (confirmRelationImpact = false) => {
     setSaving(true); setError(undefined);
     try {
-      const body = { ...form, amount: form.amount || "0", record_subtype: form.record_subtype || "not_applicable" };
+      const body = {
+        ...form,
+        amount: form.amount || "0",
+        record_subtype: form.record_subtype || "not_applicable",
+        ...(confirmRelationImpact ? { confirm_relation_impact: true } : {}),
+      };
       const value = isNew ? await createCashRecord(body) : await updateCashRecord(record!.id, body);
       onSaved(value, isNew);
     } catch (cause) {
-      setError(cause instanceof Error && cause.message === "invalid_record" ? "请检查标记的字段。" : "保存失败，请稍后重试。" );
+      if (cause instanceof Error && cause.message === "relation_impact_required") {
+        setRelationImpactOpen(true);
+      } else {
+        setError(cause instanceof Error && cause.message === "invalid_record" ? "请检查标记的字段。" : "保存失败，请稍后重试。" );
+      }
     } finally { setSaving(false); }
   };
 
@@ -248,6 +264,16 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
     finally { setRelationSaving(false); }
   };
 
+  const dissolve = async () => {
+    if (!record) return;
+    setRelationSaving(true); setError(undefined);
+    try {
+      const value = await dissolveCashRelations(record.id);
+      onSaved(value, false);
+    } catch { setError("解散关联失败，请稍后重试。" ); }
+    finally { setRelationSaving(false); }
+  };
+
   const saveRelationType = async (relationId: string) => {
     if (!editingRelationKind) return;
     setRelationSaving(true); setError(undefined);
@@ -260,30 +286,31 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
     finally { setRelationSaving(false); }
   };
 
-  const confirmDelete = async () => {
+  const confirmDelete = async (mode: "delete_all" | "delete_current_dissolve") => {
     if (!record) return;
     setSaving(true); setError(undefined);
-    try { await deleteCashRecord(record.id); onDeleted(record.id); }
+    try { await deleteCashRecord(record.id, mode); onDeleted(record.id); }
     catch { setError("删除失败，请稍后重试。" ); setSaving(false); }
   };
 
-  const relations = detail?.relations.filter((item) => item.status !== "superseded") ?? [];
-  const activeRelationCount = detail?.relations.filter((item) => item.status === "accepted" || item.status === "pending_review").length ?? 0;
+  const relations = detail?.relations.filter((item) => item.status === "accepted") ?? [];
+  const activeRelationCount = relations.length;
 
   const drawerContent = <>
       <header>
-        <div><p className="evidence-eyebrow">收支账本</p><h2>{isNew ? "新建流水" : "编辑流水"}</h2></div>
+        <div><p className="evidence-eyebrow">收支账本</p><h2>{isNew ? "新建流水" : "编辑收支详情"}</h2></div>
         <button type="button" className="icon-only-button" aria-label={embedded ? "返回" : "关闭"} title={embedded ? "返回" : "关闭"} autoFocus={embedded} onClick={onClose}><UiIcon name={embedded ? "arrow-left" : "x"} /></button>
       </header>
       <div className="evidence-content">
         {!isNew && !record ? <p className="evidence-state" role={loadError ? "alert" : "status"}>{loadError ? <>无法读取流水，请重试。<br /><button type="button" onClick={onRetry}>重试</button></> : loading ? "正在读取流水…" : "正在准备流水…"}</p> : <>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <section className="evidence-section record-form-section" aria-label="编辑流水">
+        <section className="evidence-section record-form-section" aria-label="编辑收支详情">
           <div className="drawer-summary record-edit-summary" aria-label="金额">
             <div className="summary-edit"><input aria-label="金额" className="mono" inputMode="decimal" value={form.amount} onChange={(event) => set("amount", event.target.value)} /><select aria-label="币种" value={form.currency} onChange={(event) => set("currency", event.target.value)} disabled={!currencies.length}>{currencies.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
           </div>
           <div className="edit-fields">
             <div className="edit-row"><label htmlFor="record-counterparty">交易对方</label><input id="record-counterparty" value={form.counterparty} onChange={(event) => set("counterparty", event.target.value)} /></div>
+            <div className="edit-row"><label htmlFor="record-counterparty-account">对方账号</label><input id="record-counterparty-account" value={form.counterparty_account} onChange={(event) => set("counterparty_account", event.target.value)} /></div>
             <div className="edit-row"><label htmlFor="record-occurred-at">发生时间</label><input id="record-occurred-at" type="datetime-local" value={form.occurred_at} onChange={(event) => set("occurred_at", event.target.value)} /></div>
             <div className="edit-row"><label htmlFor="record-account">账户</label><select id="record-account" value={form.account_name} onChange={(event) => selectAccount(event.target.value)}>{accounts.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></div>
             <div className="edit-row"><label htmlFor="record-type">流水类型</label><select id="record-type" value={form.record_type} onChange={(event) => selectType(event.target.value)}>{options.record_types.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
@@ -293,18 +320,18 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
             {!isNew && record?.source_type ? <div className="edit-row"><span>来源</span><div className="readonly-value">{record.source_type}</div></div> : null}
           </div>
           {!currencies.length ? <p className="field-hint">该账户暂未配置可用币种。</p> : null}
-          <div className="drawer-actions"><button type="button" className="button-primary" disabled={saving || !form.account_name || !form.currency} onClick={save}>{saving ? "保存中…" : "保存"}</button>{!isNew ? <button type="button" className="button-danger" onClick={() => setDeleteOpen(true)}>删除记录</button> : null}</div>
+          <div className="drawer-actions"><button type="button" className="button-primary" disabled={saving || !form.account_name || !form.currency} onClick={() => save()}>{saving ? "保存中…" : "保存"}</button>{!isNew ? <button type="button" className="button-danger" onClick={() => setDeleteOpen(true)}>删除流水</button> : null}</div>
         </section>
-        {!isNew && record ? <section className="evidence-section evidence-related relation-manager" aria-label="关联记录">
-          <div className="section-heading"><h3>关联记录</h3>{!relationOpen ? <button type="button" className="icon-only-button icon-quiet-button" aria-label="添加关联" title="添加关联" aria-expanded="false" onClick={() => setRelationOpen(true)}><UiIcon name="plus" /></button> : null}</div>
+        {!isNew && record ? <section className="evidence-section evidence-related relation-manager" aria-label="关联流水">
+          <div className="section-heading"><h3>关联流水</h3><div className="section-heading-actions">{relations.length > 0 ? <button type="button" className="text-button" disabled={relationSaving} onClick={dissolve}>解散关联</button> : null}{!relationOpen ? <button type="button" className="icon-only-button icon-quiet-button" aria-label="添加关联" title="添加关联" aria-expanded="false" onClick={() => setRelationOpen(true)}><UiIcon name="plus" /></button> : null}</div></div>
           {relations.length ? <ul className="evidence-record-list">{relations.map((item) => {
             const related = item.primary_record?.id === record.id ? item.secondary_record : item.primary_record;
             return <li className="evidence-record" key={item.id}>
               <div className="related-record-title"><strong>{item.label}</strong>{item.status === "pending_review" ? <span className="status-chip">待确认</span> : item.status === "rejected" ? <span className="status-chip muted">已取消</span> : null}</div>
-              <dl><dt>金额</dt><dd>{related?.amount ?? "-"} {related?.currency ?? ""}</dd><dt>发生时间</dt><dd>{related?.occurred_at?.replace("T", " ").slice(0, 16) ?? "-"}</dd><dt>账户</dt><dd>{related?.account_name ?? "-"}</dd><dt>交易对方</dt><dd>{related?.counterparty || "-"}</dd></dl>
+              <dl><dt>金额</dt><dd>{related?.amount ?? "-"} {related?.currency ?? ""}</dd><dt>发生时间</dt><dd>{related?.occurred_at ? formatOccurredAt(related.occurred_at) : "-"}</dd><dt>账户</dt><dd>{related?.account_name ?? "-"}</dd><dt>交易对方</dt><dd>{related?.counterparty || "-"}</dd></dl>
               {editingRelationId === item.id ? <div className="relation-edit-actions"><select aria-label="更改关联类型" value={editingRelationKind ?? item.kind} onChange={(event) => setEditingRelationKind(event.target.value)}>{options.relation_types.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><button type="button" className="text-button" disabled={relationSaving} onClick={() => saveRelationType(item.id)}>保存</button><button type="button" className="text-button" disabled={relationSaving} onClick={() => { setEditingRelationId(undefined); setEditingRelationKind(undefined); }}>取消</button></div> : <div className="related-actions">{item.status !== "rejected" ? <button type="button" className="text-button" disabled={relationSaving} onClick={() => { setEditingRelationId(item.id); setEditingRelationKind(item.kind); }}>更改类型</button> : null}{item.status !== "rejected" ? <button type="button" className="text-button" disabled={relationSaving} onClick={() => unlink(item.id)}>取消关联</button> : null}</div>}
             </li>;
-          })}</ul> : !relationOpen ? <p className="empty-related">暂无关联记录</p> : null}
+          })}</ul> : !relationOpen ? <p className="empty-related">暂无关联流水</p> : null}
           {relationOpen ? <div className="relation-composer">
             <label className="relation-type-field" htmlFor="new-relation-kind">关联类型<select id="new-relation-kind" value={relationKind} onChange={(event) => setRelationKind(event.target.value)}>{options.relation_types.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
             <fieldset className="relation-date-range">
@@ -315,7 +342,7 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
             <label className="relation-search-field" htmlFor="relation-search">搜索流水<input id="relation-search" type="search" placeholder="交易对方、账户或金额" value={relationQuery} onChange={(event) => { setRelationQuery(event.target.value); setRelationTarget(""); }} /></label>
             {relationLoading ? <div className="relation-search-state" role="status">正在搜索…</div> : null}
             {relationLoadError && !relationCandidates.length ? <div className="relation-search-state is-error" role="alert"><span>无法读取流水。</span><button type="button" className="text-button" onClick={() => setRelationReload((value) => value + 1)}>重试</button></div> : null}
-            {!relationLoading && !relationLoadError && relationCandidates.length ? <div className="relation-candidate-list" role="radiogroup" aria-label="选择已有流水">{relationCandidates.map((item) => <button type="button" role="radio" aria-checked={relationTarget === item.id} className={`relation-candidate${relationTarget === item.id ? " is-selected" : ""}`} key={item.id} onClick={() => setRelationTarget(item.id)}><span className="relation-candidate-main"><strong>{item.counterparty || "未填写交易对方"}</strong><small>{item.account_name} · {item.occurred_at.replace("T", " ").slice(0, 16)}</small></span><span className="relation-candidate-amount mono">{item.amount} {item.currency}</span></button>)}</div> : null}
+            {!relationLoading && !relationLoadError && relationCandidates.length ? <div className="relation-candidate-list" role="radiogroup" aria-label="选择已有流水">{relationCandidates.map((item) => <button type="button" role="radio" aria-checked={relationTarget === item.id} className={`relation-candidate${relationTarget === item.id ? " is-selected" : ""}`} key={item.id} onClick={() => setRelationTarget(item.id)}><span className="relation-candidate-main"><strong>{item.counterparty || "未填写交易对方"}</strong><small>{item.account_name} · {formatOccurredAt(item.occurred_at)}</small></span><span className="relation-candidate-amount mono">{item.amount} {item.currency}</span></button>)}</div> : null}
             {!relationLoading && !relationLoadError && !relationCandidates.length ? <p className="relation-search-state">没有找到流水</p> : null}
             {relationCandidates.length ? <PageNavigation ariaLabel="关联流水分页" page={relationPageNumber} hasPrevious={relationPageNumber > 1} hasNext={Boolean(relationNextCursor)} loading={relationLoading} error={relationLoadError ? "无法读取流水，请重试。" : undefined} onPrevious={loadPreviousRelationPage} onNext={loadNextRelationPage} onRetry={retryRelationPage} /> : null}
             <div className="drawer-actions relation-composer-actions"><button type="button" className="button-secondary" onClick={closeRelationComposer}>取消</button><button type="button" className="button-primary" disabled={!relationTarget || relationSaving} onClick={addRelation}>{relationSaving ? "正在添加…" : "添加关联"}</button></div>
@@ -323,13 +350,14 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
         </section> : null}
         </>}
       </div>
-      {deleteOpen && record ? <div className="confirm-layer" role="alertdialog" aria-label="删除流水确认"><div className="confirm-card"><h3>删除这条流水？</h3>{activeRelationCount ? <p>这条流水有 {activeRelationCount} 条关联，删除后会一并取消关联。</p> : <p>删除后将从账本中移除。</p>}<div className="drawer-actions"><button type="button" onClick={() => setDeleteOpen(false)}>取消</button><button type="button" className="button-danger" disabled={saving} onClick={confirmDelete}>确认删除</button></div></div></div> : null}
+      {relationImpactOpen && record ? <div className="confirm-layer" role="alertdialog" aria-label="保存关联影响确认"><div className="confirm-card"><h3>保存并拆开关联流水？</h3><p>当前修改会让这组关联流水分开显示。</p><div className="drawer-actions"><button type="button" onClick={() => setRelationImpactOpen(false)}>取消</button><button type="button" className="button-primary" disabled={saving} onClick={() => { setRelationImpactOpen(false); void save(true); }}>保存并拆开</button></div></div></div> : null}
+      {deleteOpen && record ? <div className="confirm-layer" role="alertdialog" aria-label="删除流水确认"><div className="confirm-card"><h3>删除这条流水？</h3>{activeRelationCount ? <><p>这条流水已添加关联流水，请选择处理方式。</p><div className="drawer-actions delete-choice-actions"><button type="button" onClick={() => setDeleteOpen(false)}>取消</button><button type="button" className="button-danger" disabled={saving} onClick={() => void confirmDelete("delete_current_dissolve")}>只删除当前流水并解散关联</button><button type="button" className="button-danger" disabled={saving} onClick={() => void confirmDelete("delete_all")}>删除全部流水</button></div></> : <><p>删除后将从账本中移除。</p><div className="drawer-actions"><button type="button" onClick={() => setDeleteOpen(false)}>取消</button><button type="button" className="button-danger" disabled={saving} onClick={() => void confirmDelete("delete_current_dissolve")}>确认删除</button></div></>}</div></div> : null}
     </>;
 
   if (embedded) return drawerContent;
   return <div className="evidence-layer">
     <button type="button" className="evidence-backdrop" aria-label="点击遮罩关闭流水抽屉" onClick={onClose} />
-    <aside className="evidence evidence-panel record-drawer" role="dialog" aria-modal="true" aria-label={isNew ? "新建流水" : "编辑流水"}>
+    <aside className="evidence evidence-panel record-drawer" role="dialog" aria-modal="true" aria-label={isNew ? "新建流水" : "编辑收支详情"}>
       {drawerContent}
     </aside>
   </div>;
