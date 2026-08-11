@@ -17,7 +17,7 @@ function summary(filters: InvestmentFilters, accounts: Account[]) {
 export function InvestmentFiltersBar({ filters, accounts, onChange }: Props) {
   const update = (key: keyof InvestmentFilters, value: string) => onChange({ ...filters, [key]: value || undefined });
   return <details className="filters investment-filters" open>
-    <summary aria-label="投资账本筛选工具"><span className="filter-mark" aria-hidden="true">⌕</span><span><strong>筛选</strong><small>{summary(filters, accounts)}</small></span><span className="filter-toggle">展开</span></summary>
+    <summary aria-label="投资账本筛选工具"><span className="filter-mark" aria-hidden="true"><svg className="ui-icon" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4" /></svg></span><span className="summary-copy"><strong>筛选</strong><small>{summary(filters, accounts)}</small></span><span className="filter-toggle" aria-hidden="true"><svg className="ui-icon" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg></span></summary>
     <div className="filter-grid">
       <label>开始日期<input aria-label="开始日期" type="date" value={filters.date_from ?? ""} onChange={(event) => update("date_from", event.target.value)} /></label>
       <label>结束日期<input aria-label="结束日期" type="date" value={filters.date_to ?? ""} onChange={(event) => update("date_to", event.target.value)} /></label>

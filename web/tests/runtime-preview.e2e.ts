@@ -33,11 +33,25 @@ test("生产预览读取投资事件和关系证据", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "投资事件", level: 1 })).toBeVisible();
   await expect(page.getByText("预览买入")).toBeVisible();
-  await expect(page.getByText("10000.000000000000000001 USD")).toBeVisible();
+  await expect(page.getByText("-10,000 USD")).toBeVisible();
+  await expect(page.getByText("+100 AAPL.US")).toBeVisible();
   await expect(page.getByText("价格不完整", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".evidence-trigger .ui-icon")).toBeVisible();
   await page.getByRole("button", { name: "查看预览买入的详情" }).click();
-  await expect(page.getByRole("dialog", { name: "投资详情" })).toContainText("资金流向");
+  const detail = page.getByRole("dialog", { name: "买入" });
+  await expect(detail).toContainText("资产变动");
+  await expect(detail).toContainText("-10,000 USD");
+  await expect.poll(async () => detail.evaluate((node) => node.getBoundingClientRect().left)).toBeLessThan(await page.evaluate(() => window.innerWidth));
+  await expect(detail).not.toContainText("资金流向");
   await page.getByRole("button", { name: "关闭", exact: true }).click();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  const firstRow = page.locator(".investment-table tbody tr.investment-row").first();
+  await expect(firstRow).toBeVisible();
+  await expect(firstRow.locator(".evidence-trigger .ui-icon")).toBeHidden();
+  await firstRow.click({ position: { x: 180, y: 50 } });
+  await expect(page.getByRole("dialog", { name: "买入" })).toBeVisible();
 });
 
 test("生产预览的三个账本路由共用同一棵侧边导航", async ({ page }) => {

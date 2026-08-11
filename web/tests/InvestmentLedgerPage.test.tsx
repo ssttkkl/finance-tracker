@@ -19,6 +19,28 @@ const portfolio: Portfolio = { total_market_value: null, total_profit: null, tot
   period_profit: null, period_profit_rate: null,
 }] }] };
 const evidence: InvestmentEvidence = { data_version: 1, event, source_snapshot: { action: "BUY" }, relations: [] };
+const snapshotEvent: InvestmentEvent = {
+  ...event,
+  event_id: "fixture:investment-snapshot",
+  occurred_at: "2026-08-06T01:22:00+00:00",
+  record_type: "snapshot",
+  record_subtype: "cash",
+  note: "余额记录",
+  from_asset: { ticker: null, amount: "0.000000000000000000" },
+  to_asset: { ticker: "USD", amount: "2865.360000000000000000" },
+  commission: { asset: null, amount: "0.000000000000000000" },
+};
+const incomeEvent: InvestmentEvent = {
+  ...event,
+  event_id: "fixture:investment-income",
+  occurred_at: "2026-08-05T01:22:00+00:00",
+  record_type: "income",
+  record_subtype: "dividend_cash",
+  note: "现金股息",
+  from_asset: { ticker: null, amount: "0.000000000000000000" },
+  to_asset: { ticker: "USD", amount: "4.200000000000000000" },
+  commission: { asset: null, amount: "0.000000000000000000" },
+};
 
 function json(value: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } }));
@@ -41,7 +63,7 @@ describe("InvestmentLedgerPage", () => {
 
     expect(screen.getByText("正在读取投资事件…")).toBeInTheDocument();
     await screen.findByText("买入订单");
-    expect(screen.getByText(/1011\.530000000000000000 USD/)).toBeInTheDocument();
+    expect(screen.getByText("-1,011.53 USD")).toBeInTheDocument();
     expect(screen.queryByText("已估值")).not.toBeInTheDocument();
     expect(screen.queryByText("价格不完整")).not.toBeInTheDocument();
     expect(fetch.mock.calls.some(([input]) => String(input).includes("/investment-events"))).toBe(true);
@@ -64,16 +86,42 @@ describe("InvestmentLedgerPage", () => {
     fireEvent.click(trigger);
     const close = await screen.findByRole("button", { name: "关闭" });
     expect(close).toHaveFocus();
-    expect(screen.getByRole("dialog", { name: "投资详情" })).toBeInTheDocument();
-    const dialog = screen.getByRole("dialog", { name: "投资详情" });
-    expect(within(screen.getByRole("region", { name: "投资信息" })).getByText("买入", { exact: true })).toBeInTheDocument();
-    expect(within(dialog).getByText("资金流向")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "买入" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "买入" });
+    expect(within(dialog).getByText("资产变动", { exact: true })).toBeInTheDocument();
+    expect(within(dialog).getByText("现金账户", { exact: true })).toBeInTheDocument();
+    expect(within(dialog).queryByText("资金流向", { exact: true })).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("更多信息", { exact: true })).not.toBeInTheDocument();
     fireEvent.keyDown(close, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "投资详情" })).not.toBeInTheDocument());
     expect(trigger).toHaveFocus();
 
     fireEvent.change(screen.getByLabelText("事件类型"), { target: { value: "trade" } });
     await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("record_type=trade"))).toBe(true));
+  });
+
+  it("按经济效果展示带符号资产，并让详情入口保持简洁", async () => {
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      return json({ data_version: 1, items: [event, snapshotEvent, incomeEvent], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage view="events" />);
+    await screen.findByText("+10 AAPL.US");
+
+    expect(screen.getByRole("columnheader", { name: "事件" })).toBeInTheDocument();
+    expect(screen.getByText("-1,011.53 USD")).toBeInTheDocument();
+    expect(screen.getByText("+10 AAPL.US")).toBeInTheDocument();
+    expect(screen.getByText("余额")).toBeInTheDocument();
+    expect(screen.getByText("2,865.36 USD")).toBeInTheDocument();
+    expect(screen.getByText("+4.2 USD")).toBeInTheDocument();
+    expect(screen.queryByText("付出", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText("换入", { exact: true })).not.toBeInTheDocument();
+
+    const trigger = screen.getByRole("button", { name: "查看买入订单的详情" });
+    expect(trigger.querySelector("svg")).toBeInTheDocument();
+    expect(trigger).not.toHaveTextContent("查看详情");
   });
 
   it("事件列表失败时不影响独立的持仓页面", async () => {
