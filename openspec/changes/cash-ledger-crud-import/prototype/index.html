@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>收支账本 · 流水维护原型</title>
+  <link rel="stylesheet" href="./tokens.css">
+  <style>
+    /* Hallmark · macrostructure: Workbench · genre: modern-minimal · theme: Cobalt · nav: N9 · footer: Ft2 · enrichment: none · audience: 个人账单核对者 · use: 校准流水与管理关联流水 · tone: utilitarian · pre-emit critique: P5 H5 E5 S5 R5 V5 · contrast: pass (40–41) · slop: pass (42–45) · honest: pass (46) · chrome: pass (47) · tokens: pass (48) · responsive: pass (49) · icons: pass (30) · mobile: pass (34, 49, 50–57) */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { min-width: 0; overflow-x: clip; }
+    body { margin: 0; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-body); font-size: var(--text-md); }
+    button, input, select, textarea { font: inherit; }
+    button, .button {
+      min-height: 44px;
+      padding-inline: var(--space-3);
+      border: var(--rule-1) solid var(--color-rule-strong);
+      border-radius: var(--radius-1);
+      background: var(--color-paper-raised);
+      color: var(--color-ink);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+    }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+      outline: 2px solid var(--color-focus);
+      outline-offset: 1px;
+    }
+    button:active:not(:disabled) { transform: translateY(1px); }
+    button:disabled, input:disabled, select:disabled, textarea:disabled { cursor: not-allowed; opacity: .55; }
+    button[data-state="loading"] { cursor: wait; opacity: .7; }
+    button[data-state="error"] { border-color: var(--color-danger); color: var(--color-danger); }
+    button[data-state="success"] { border-color: var(--color-success); color: var(--color-success); }
+    .button-primary { border-color: var(--color-accent); background: var(--color-accent); color: var(--color-accent-ink); }
+    .button-danger { border-color: var(--color-danger); color: var(--color-danger); }
+    .button-quiet { border-color: transparent; background: transparent; color: var(--color-ink-muted); }
+    .button-link { min-height: 36px; padding-inline: var(--space-2); border-color: transparent; background: transparent; color: var(--color-accent); font-size: var(--text-sm); font-weight: 650; }
+    .ui-icon { display: block; flex: none; }
+    .icon-only-button { display: inline-grid; width: 44px; min-width: 44px; min-height: 44px; padding: 0; place-items: center; }
+    .icon-quiet-button { border-color: transparent; background: transparent; color: var(--color-accent); }
+    input, select, textarea {
+      width: 100%;
+      min-height: 44px;
+      padding: var(--space-2) var(--space-3);
+      border: var(--rule-1) solid var(--color-rule-strong);
+      border-radius: var(--radius-1);
+      outline: 2px solid transparent;
+      outline-offset: 1px;
+      background: var(--color-paper-raised);
+      color: var(--color-ink);
+      transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+    }
+    textarea { min-height: 88px; resize: vertical; }
+    input[aria-invalid="true"] { border-color: var(--color-danger); background: var(--color-danger-soft); }
+    input:active:not(:disabled), select:active:not(:disabled), textarea:active:not(:disabled) { border-color: var(--color-accent); }
+    .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); white-space: nowrap; }
+    [hidden] { display: none !important; }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      min-height: 64px;
+      padding: var(--space-3) var(--space-4);
+      border-bottom: var(--rule-1) solid var(--color-rule-strong);
+      background: var(--color-paper-raised);
+    }
+    .brand { font-family: var(--font-mono); font-size: 13px; font-weight: 650; letter-spacing: .06em; }
+    .top-actions { display: flex; gap: var(--space-2); }
+    .desktop-action { display: none; }
+    .ledger { width: 100%; max-width: 1080px; margin-inline: auto; padding: var(--space-8) var(--space-4) 104px; }
+    .ledger-head { display: grid; gap: var(--space-4); margin-bottom: var(--space-6); padding-bottom: var(--space-5); border-bottom: var(--rule-1) solid var(--color-rule-strong); }
+    .ledger-title h1 { margin: 0; font-size: var(--text-title); line-height: 1.2; letter-spacing: -.04em; overflow-wrap: anywhere; min-width: 0; }
+    .ledger-title p { margin: var(--space-2) 0 0; color: var(--color-ink-muted); }
+    .summary-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: var(--rule-1) solid var(--color-rule); background: var(--color-paper-raised); }
+    .summary-strip div { padding: var(--space-3); }
+    .summary-strip div + div { border-left: var(--rule-1) solid var(--color-rule); }
+    .summary-strip small { display: block; color: var(--color-ink-muted); font-size: var(--text-xs); }
+    .summary-strip strong { display: block; margin-top: var(--space-1); font-family: var(--font-mono); }
+    .month-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); }
+    .month-heading h2 { margin: 0; font-size: var(--text-lg); }
+    .month-heading span { color: var(--color-ink-muted); font-size: var(--text-sm); }
+    .ledger-feed { border-top: var(--rule-1) solid var(--color-rule-strong); }
+    .feed-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--space-2) var(--space-4);
+      width: 100%;
+      min-height: 92px;
+      padding: var(--space-4) 0;
+      border: 0;
+      border-bottom: var(--rule-1) solid var(--color-rule);
+      border-radius: 0;
+      background: transparent;
+      text-align: left;
+    }
+    .feed-row strong { display: block; overflow-wrap: anywhere; }
+    .feed-row small { display: block; margin-top: var(--space-1); color: var(--color-ink-muted); line-height: 1.5; }
+    .feed-row .amount { align-self: start; color: var(--color-expense); font-family: var(--font-mono); font-weight: 650; }
+    .feed-row .amount.income { color: var(--color-income); }
+    .feed-row .amount.neutral { color: var(--color-ink-muted); }
+    .feed-type { display: inline-block; margin-top: var(--space-2); padding: var(--space-1) var(--space-2); border: var(--rule-1) solid var(--color-rule-strong); color: var(--color-ink-muted); font-size: var(--text-xs); }
+    .feed-related { margin-left: var(--space-2); color: var(--color-accent); font-size: var(--text-xs); font-weight: 650; }
+    .page-navigation { display: flex; align-items: center; justify-content: center; gap: var(--space-3); min-height: 64px; padding: var(--space-3) 0; border-top: var(--rule-1) solid var(--color-rule-strong); color: var(--color-ink-muted); font-size: var(--text-xs); }
+    .page-navigation span { min-width: 72px; text-align: center; color: var(--color-ink); font-family: var(--font-mono); }
+    .page-navigation button { min-width: 72px; min-height: 40px; }
+    .load-more-control { display: grid; justify-items: center; gap: var(--space-2); padding: var(--space-3) 0; border-top: var(--rule-1) solid var(--color-rule-strong); color: var(--color-ink-muted); font-size: var(--text-xs); }
+    .load-more-control button { min-height: 44px; }
+    .load-more-control::before { width: 5px; height: 5px; border-radius: 50%; background: var(--color-rule-strong); content: ""; }
+    .foot-line { padding: var(--space-5) var(--space-4); border-top: var(--rule-1) solid var(--color-rule-strong); color: var(--color-ink-muted); font-size: var(--text-xs); }
+    .foot-line p { max-width: 1080px; margin: 0 auto; }
+    .mobile-actions { position: fixed; z-index: 2; inset: auto 0 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); padding: var(--space-3) var(--space-4) max(var(--space-3), env(safe-area-inset-bottom)); border-top: var(--rule-1) solid var(--color-rule-strong); background: var(--color-paper-raised); }
+
+    dialog { color: var(--color-ink); }
+    .drawer-layer {
+      width: 100%;
+      max-width: none;
+      height: 100%;
+      max-height: none;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: var(--color-backdrop);
+      overflow: hidden;
+    }
+    .drawer-layer[open] { display: flex; justify-content: flex-end; }
+    .drawer-layer::backdrop { background: transparent; }
+    .drawer {
+      position: relative;
+      width: 100%;
+      height: 100dvh;
+      overflow-y: auto;
+      padding: var(--space-6) var(--space-4) max(var(--space-7), env(safe-area-inset-bottom));
+      border-left: var(--rule-1) solid var(--color-rule-strong);
+      background: var(--color-paper-raised);
+      box-shadow: -16px 0 40px var(--color-shadow);
+    }
+    .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-bottom: var(--space-4); border-bottom: var(--rule-1) solid var(--color-rule-strong); }
+    .drawer-heading { min-width: 0; }
+    .drawer-eyebrow { margin: 0 0 var(--space-1); color: var(--color-ink-faint); font-family: var(--font-mono); font-size: 10px; }
+    .drawer-head h2 { margin: 0; font-size: var(--text-lg); overflow-wrap: anywhere; }
+    .drawer-head-actions { display: flex; gap: var(--space-2); }
+    .drawer-summary { padding: var(--space-8) 0 var(--space-5); border-bottom: var(--rule-1) solid var(--color-rule-strong); }
+    .drawer-amount { margin: 0; color: var(--color-expense); font-family: var(--font-mono); font-size: var(--text-xl); font-weight: 650; line-height: 1.15; }
+    .drawer-amount.income { color: var(--color-income); }
+    .drawer-amount.neutral { color: var(--color-ink-muted); }
+    .drawer-amount .currency { font-size: 15px; font-weight: 500; }
+    .summary-edit { display: grid; grid-template-columns: minmax(0, 1fr) 96px; gap: var(--space-2); }
+    .summary-edit input { color: var(--color-expense); font-family: var(--font-mono); font-size: 22px; font-weight: 650; }
+    .summary-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+    .tag { display: inline-block; padding: var(--space-1) var(--space-2); border: var(--rule-1) solid var(--color-rule-strong); color: var(--color-ink-muted); font-size: var(--text-xs); }
+    .tag-related { border-color: var(--color-accent); color: var(--color-accent); font-weight: 650; }
+    .record-details { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1); margin: var(--space-5) 0 0; }
+    .record-details dt { color: var(--color-ink-muted); }
+    .record-details dd { margin: 0 0 var(--space-3); overflow-wrap: anywhere; }
+    .edit-fields { display: grid; gap: var(--space-3); margin-top: var(--space-5); }
+    .edit-row { display: grid; gap: var(--space-1); }
+    .edit-row label { color: var(--color-ink-muted); }
+    .date-time { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .72fr); gap: var(--space-2); }
+    .readonly-value { min-height: 44px; padding: var(--space-3) 0; color: var(--color-ink-muted); overflow-wrap: anywhere; }
+    .field-error { min-height: 1lh; margin: var(--space-1) 0 0; color: var(--color-danger); font-size: var(--text-xs); }
+    .drawer-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-6); padding-top: var(--space-4); border-top: var(--rule-1) solid var(--color-rule); }
+    .drawer-actions .button-danger { margin-left: auto; }
+    .drawer-related { margin-top: var(--space-6); padding-top: var(--space-5); border-top: var(--rule-1) solid var(--color-rule-strong); }
+    .section-title { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
+    .section-title h3 { margin: 0; font-size: 15px; }
+    .related-list { display: grid; gap: var(--space-3); }
+    .related-card { padding: var(--space-4); border: var(--rule-1) solid var(--color-rule-strong); background: var(--color-paper-muted); }
+    .related-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+    .related-card-head strong { overflow-wrap: anywhere; }
+    .related-card-head .mono { color: var(--color-expense); }
+    .related-card dl { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: var(--space-1) var(--space-3); margin: var(--space-3) 0 0; }
+    .related-card dt { color: var(--color-ink-muted); font-size: var(--text-xs); }
+    .related-card dd { margin: 0; font-size: var(--text-sm); overflow-wrap: anywhere; }
+    .related-actions { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-3); padding-top: var(--space-2); border-top: var(--rule-1) solid var(--color-rule); }
+    .section-actions { display: inline-flex; align-items: center; gap: var(--space-2); }
+    .related-empty { margin: 0; padding: var(--space-4); border: var(--rule-1) solid var(--color-rule); color: var(--color-ink-muted); }
+    .relation-builder { padding-top: var(--space-5); }
+    .relation-builder h3 { margin: 0 0 var(--space-4); font-size: 15px; }
+    .builder-field { display: grid; gap: var(--space-1); margin-bottom: var(--space-4); }
+    .builder-field label { color: var(--color-ink-muted); }
+    .candidate-list { display: grid; gap: var(--space-2); }
+    .candidate-option strong { display: block; }
+    .candidate-option small { display: block; margin-top: var(--space-1); color: var(--color-ink-muted); }
+    .builder-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-6); padding-top: var(--space-4); border-top: var(--rule-1) solid var(--color-rule-strong); }
+    .relation-date-range { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); margin: 0 0 var(--space-4); padding: 0; border: 0; }
+    .relation-date-range legend { grid-column: 1 / -1; padding: 0; color: var(--color-ink-muted); }
+    .relation-date-range label { display: grid; gap: var(--space-1); color: var(--color-ink-muted); }
+    .candidate-option { grid-template-columns: minmax(0, 1fr) auto; width: 100%; min-height: 72px; border: 0; border-bottom: var(--rule-1) solid var(--color-rule); border-left: 3px solid transparent; border-radius: 0; text-align: left; }
+    .candidate-option:hover { border-left-color: var(--color-rule-strong); background: var(--color-paper-muted); }
+    .candidate-option.is-selected { border-left-color: var(--color-accent); background: var(--color-paper-muted); }
+    .candidate-option:focus-visible { outline: 3px solid var(--color-accent); outline-offset: -3px; }
+    .candidate-option span:first-of-type { padding-left: var(--space-2); }
+    .candidate-option span:last-of-type { padding-right: var(--space-2); }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      width: min(430px, calc(100% - 32px));
+      max-width: 430px;
+      height: fit-content;
+      max-height: min(80dvh, 640px);
+      margin: auto;
+      padding: 0;
+      overflow: auto;
+      border: var(--rule-1) solid var(--color-rule-strong);
+      border-radius: var(--radius-2);
+      background: var(--color-paper-raised);
+      box-shadow: 0 20px 60px var(--color-shadow);
+    }
+    .modal::backdrop { background: var(--color-backdrop); }
+    .modal-content { padding: var(--space-6); }
+    .modal h2 { margin: 0; font-size: var(--text-lg); }
+    .modal p { margin: var(--space-3) 0 0; color: var(--color-ink-muted); line-height: 1.65; }
+    .impact-line { margin-top: var(--space-4); padding: var(--space-3); border: var(--rule-1) solid var(--color-danger); background: var(--color-danger-soft); color: var(--color-ink); }
+    .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-6); }
+    .delete-choices { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
+    .import-form { display: grid; gap: var(--space-3); margin-top: var(--space-5); }
+    .import-form label { display: grid; gap: var(--space-1); color: var(--color-ink-muted); }
+    .import-preview { margin-top: var(--space-4); border-top: var(--rule-1) solid var(--color-rule); }
+    .import-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: var(--rule-1) solid var(--color-rule); }
+    .import-row small { display: block; color: var(--color-ink-muted); }
+    .import-status { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1); }
+    .status-new { color: var(--color-success); }
+    .status-existing { color: var(--color-accent); }
+    .status-error { color: var(--color-danger); }
+    .toast { position: fixed; z-index: 20; inset: auto var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom)); max-width: 360px; padding: var(--space-3) var(--space-4); border: var(--rule-1) solid var(--color-success); background: var(--color-sidebar); color: var(--color-accent-ink); opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity var(--dur-panel) var(--ease-out), transform var(--dur-panel) var(--ease-out); }
+    .toast.is-visible { opacity: 1; transform: translateY(0); }
+
+    @media (hover: hover) and (pointer: fine) {
+      button:hover:not(:disabled) { border-color: var(--color-accent); background: var(--color-accent-soft); }
+      .button-primary:hover:not(:disabled) { background: var(--color-accent); color: var(--color-accent-ink); filter: brightness(.94); }
+      .feed-row:hover { background: var(--color-paper-selected); }
+      input:hover:not(:disabled), select:hover:not(:disabled), textarea:hover:not(:disabled) { background: var(--color-paper-muted); }
+    }
+    @media (min-width: 40rem) {
+      .ledger { padding-inline: var(--space-8); }
+      .ledger-head { grid-template-columns: minmax(0, 1fr) minmax(280px, .7fr); align-items: end; }
+      .record-details { grid-template-columns: minmax(104px, .8fr) minmax(0, 2fr); gap: var(--space-3); }
+      .record-details dd { margin-bottom: 0; }
+      .edit-row { grid-template-columns: 112px minmax(0, 1fr); align-items: start; gap: var(--space-3); }
+      .edit-row label { padding-top: var(--space-3); }
+    }
+    @media (min-width: 60rem) {
+      .topbar { padding-inline: var(--space-8); }
+      .desktop-action { display: inline-flex; }
+      .ledger { padding: var(--space-10) var(--space-8) var(--space-12); }
+      .drawer { width: 480px; padding: var(--space-7) var(--space-7) var(--space-9); }
+      .mobile-actions { display: none; }
+      .foot-line { padding-inline: var(--space-8); }
+    }
+    @media (pointer: coarse) {
+      button, input, select, textarea { min-height: 48px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; animation-duration: 0s !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar" id="app-header">
+    <div class="brand">FINANCE TRACKER</div>
+    <div class="top-actions">
+      <button class="desktop-action" type="button" data-open-import>导入账单</button>
+      <button class="button-primary desktop-action" type="button" data-new-record>新建流水</button>
+    </div>
+  </header>
+
+  <main class="ledger" id="app-content">
+    <section class="ledger-head" aria-labelledby="ledger-title">
+      <div class="ledger-title">
+        <h1 id="ledger-title">收支账本</h1>
+        <p>2026 年 8 月</p>
+      </div>
+      <div class="summary-strip" aria-label="本月收支">
+        <div><small>收入</small><strong>12,800.00 CNY</strong></div>
+        <div><small>支出</small><strong>−4,286.40 CNY</strong></div>
+      </div>
+    </section>
+
+    <section aria-labelledby="month-heading">
+      <div class="month-heading"><h2 id="month-heading">8 月 7 日</h2><span>4 条流水</span></div>
+      <div class="ledger-feed">
+        <button class="feed-row" type="button" data-record="main">
+          <span><strong>满座儿餐饮服务（北京）有限公司</strong><small>18:17 · 工行信用卡(1200) · 餐饮</small><span class="feed-type">消费</span><span class="feed-related">已关联</span></span>
+          <span class="amount">−33.80 CNY</span>
+        </button>
+        <button class="feed-row" type="button" data-record="income">
+          <span><strong>八月工资</strong><small>09:10 · 工行借记卡 · 工资</small><span class="feed-type">收入</span></span>
+          <span class="amount income">12,800.00 CNY</span>
+        </button>
+        <button class="feed-row" type="button" data-record="zero">
+          <span><strong>账户确认记录</strong><small>08:30 · 工行借记卡 · 账户维护</small><span class="feed-type">消费</span></span>
+          <span class="amount neutral">0.00 CNY</span>
+        </button>
+        <button class="feed-row" type="button" data-record="transfer">
+          <span><strong>转账至日常账户</strong><small>08:12 · 工行借记卡 · 普通转账</small><span class="feed-type">转账出账</span><span class="feed-related">已关联</span></span>
+          <span class="amount neutral">500.00 CNY</span>
+        </button>
+      </div>
+      <div class="ledger-feed" data-extra-feed hidden>
+        <button class="feed-row" type="button" data-record="refund">
+          <span><strong>退款到账</strong><small>8 月 6 日 · 工行信用卡 · 退款</small><span class="feed-type">退款</span></span>
+          <span class="amount income">30.00 CNY</span>
+        </button>
+        <button class="feed-row" type="button" data-record="transfer-in">
+          <span><strong>日常账户转入</strong><small>8 月 6 日 · 工行借记卡 · 普通转账</small><span class="feed-type">转账入账</span></span>
+          <span class="amount income">500.00 CNY</span>
+        </button>
+      </div>
+      <div class="load-more-control">
+        <button type="button" data-load-more>加载更多</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot-line"><p>收支账本原型 · 本地演示，不连接真实账单</p></footer>
+
+  <div class="mobile-actions" aria-label="账本操作">
+    <button class="button-primary" type="button" data-new-record>新建流水</button>
+    <button type="button" data-open-import>导入</button>
+  </div>
+
+  <dialog class="drawer-layer" id="drawer-dialog" aria-labelledby="drawer-title">
+    <aside class="drawer">
+      <header class="drawer-head">
+        <div class="drawer-heading">
+          <p class="drawer-eyebrow">收支账本</p>
+          <h2 id="drawer-title">收支详情</h2>
+        </div>
+        <div class="drawer-head-actions">
+          <button class="icon-only-button" id="drawer-back" type="button" aria-label="返回" title="返回" hidden><svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg></button>
+          <button class="button-primary icon-only-button" id="drawer-edit" type="button" aria-label="编辑" title="编辑"><svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></button>
+          <button class="icon-only-button" id="drawer-close" type="button" aria-label="关闭" title="关闭"><svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+        </div>
+      </header>
+
+      <section id="record-screen">
+        <div id="view-mode">
+          <section class="drawer-summary" aria-label="流水摘要">
+            <p class="drawer-amount" id="view-amount"><span id="view-amount-number">−33.80</span> <span class="currency" id="view-currency">CNY</span></p>
+            <div class="summary-tags"><span class="tag" id="view-record-type">消费</span><span class="tag tag-related" id="view-related-tag">关联流水 2</span></div>
+          </section>
+
+          <dl class="record-details">
+            <dt>交易对方</dt><dd id="view-counterparty">满座儿餐饮服务（北京）有限公司</dd>
+            <dt id="view-counterparty-account-label">对方账号</dt><dd id="view-counterparty-account">尾号 0821</dd>
+            <dt>发生时间</dt><dd id="view-occurred">2026年8月7日 18:17</dd>
+            <dt>账户</dt><dd id="view-account">工行信用卡(1200)</dd>
+            <dt>流水类型</dt><dd id="view-type-detail">消费</dd>
+            <dt id="view-subtype-label" hidden>业务细分</dt><dd id="view-subtype" hidden>普通转账</dd>
+            <dt>分类</dt><dd id="view-category">餐饮</dd>
+            <dt>备注</dt><dd id="view-note">智盘消费-A翘脚牛肉</dd>
+            <dt>来源</dt><dd id="view-source">微信支付，工行信用卡账单</dd>
+          </dl>
+
+          <section class="drawer-related" id="related-section" aria-labelledby="related-heading">
+            <div class="section-title"><h3 id="related-heading">关联流水</h3><div class="section-actions"><button class="button-link" id="dissolve-related" type="button" hidden>解散关联</button><button class="icon-only-button icon-quiet-button" id="add-related" type="button" aria-label="添加关联流水" title="添加关联流水"><svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button></div></div>
+            <div class="related-list" id="related-list">
+              <article class="related-card" id="related-card">
+                <div class="related-card-head"><strong id="related-kind">同一笔支付</strong><span class="mono">−33.80 CNY</span></div>
+                <dl>
+                  <dt>发生时间</dt><dd>2026年8月7日 18:17</dd>
+                  <dt>账户</dt><dd>微信支付</dd>
+                  <dt>交易对方</dt><dd>满座儿餐饮服务（北京）有限公司</dd>
+                  <dt>对方账号</dt><dd>尾号 0821</dd>
+                  <dt>流水类型</dt><dd>消费</dd>
+                  <dt>来源</dt><dd>微信账单</dd>
+                </dl>
+                <div class="related-actions">
+                  <button class="icon-only-button icon-quiet-button" id="view-related" type="button" aria-label="查看流水" title="查看流水"><svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.06 12.35a1 1 0 0 1 0-.7C3.5 7.58 7.35 5 12 5s8.5 2.58 9.94 6.65a1 1 0 0 1 0 .7C20.5 16.42 16.65 19 12 19s-8.5-2.58-9.94-6.65Z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
+                  <button class="icon-only-button icon-quiet-button" id="edit-related" type="button" aria-label="编辑关联流水" title="编辑关联流水"><svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></button>
+                  <button class="button-link" id="edit-relation" type="button">更改类型</button>
+                  <button class="button-link" id="unlink-related" type="button">取消关联</button>
+                </div>
+              </article>
+              <p class="related-empty" id="related-empty" hidden>暂无关联流水</p>
+            </div>
+          </section>
+
+          <div class="drawer-actions"><button class="button-danger" id="delete-record" type="button">删除流水</button></div>
+        </div>
+
+        <form id="edit-mode" hidden novalidate>
+          <section class="drawer-summary" aria-label="编辑收支详情摘要">
+            <div class="summary-edit"><input class="mono" id="edit-amount" inputmode="decimal" value="-33.80" aria-describedby="amount-error" required><select id="edit-currency" aria-label="币种"></select></div>
+            <p class="field-error" id="amount-error" role="alert"></p>
+          </section>
+
+          <div class="edit-fields">
+            <div class="edit-row"><label for="edit-counterparty">交易对方</label><input id="edit-counterparty" value="满座儿餐饮服务（北京）有限公司"></div>
+            <div class="edit-row"><label for="edit-counterparty-account">对方账号</label><input id="edit-counterparty-account" value="尾号 0821"></div>
+            <div class="edit-row"><label for="edit-date">发生时间</label><div class="date-time"><input id="edit-date" type="date" value="2026-08-07" aria-label="发生日期"><input id="edit-time" type="time" value="18:17" aria-label="发生时间"></div></div>
+            <div class="edit-row"><label for="edit-account">账户</label><select id="edit-account"><option>工行信用卡(1200)</option><option>微信支付</option><option>工行借记卡</option><option>日常账户</option></select></div>
+            <div class="edit-row"><label for="edit-type">流水类型</label><select id="edit-type">
+              <option value="consumption">消费</option><option value="refund">消费退款</option><option value="reversal">撤销／冲正</option><option value="transfer_reversal">转账退回</option><option value="withdrawal_in">提现入账</option><option value="withdrawal_out">提现出账</option><option value="transfer_in">转账入账</option><option value="transfer_out">转账出账</option><option value="repayment">还款</option><option value="income">收入</option><option value="investment_in">投资入账</option><option value="investment_out">投资出账</option><option value="interest">利息</option><option value="fee">手续费</option><option value="fx_in">换汇入账</option><option value="fx_out">换汇出账</option><option value="other">其他</option>
+            </select></div>
+            <div class="edit-row" id="edit-subtype-row" hidden><label for="edit-subtype">业务细分</label><select id="edit-subtype"></select></div>
+            <div class="edit-row"><label for="edit-category">分类</label><input id="edit-category" value="餐饮"></div>
+            <div class="edit-row"><label for="edit-note">备注</label><textarea id="edit-note">智盘消费-A翘脚牛肉</textarea></div>
+            <div class="edit-row"><span>来源</span><div class="readonly-value" id="edit-source">微信支付，工行信用卡账单</div></div>
+          </div>
+          <div class="drawer-actions"><button class="button-primary" id="save-record" type="submit">保存</button><button class="button-quiet" id="cancel-edit" type="button">取消</button></div>
+        </form>
+      </section>
+
+      <section class="relation-builder" id="relation-screen" hidden aria-labelledby="relation-title">
+        <h3 id="relation-title">添加关联流水</h3>
+        <div class="builder-field"><label for="relation-type">关联类型</label><select id="relation-type"><option>同一笔支付</option><option>退款</option><option>个人转账</option><option>银证转账</option></select></div>
+        <div id="existing-source">
+          <fieldset class="relation-date-range"><legend>时间范围</legend><label for="relation-date-from">从<input id="relation-date-from" type="date" value="2026-08-04"></label><label for="relation-date-to">到<input id="relation-date-to" type="date" value="2026-08-10"></label></fieldset>
+          <div class="builder-field"><label for="candidate-search">搜索流水</label><input id="candidate-search" type="search" placeholder="交易对方、账户或金额"></div>
+          <div class="candidate-list" role="radiogroup" aria-label="选择已有流水">
+            <button class="candidate-option is-selected" type="button" role="radio" aria-checked="true"><span><strong>满座儿餐饮服务</strong><small>微信支付 · 2026年8月7日 18:17</small></span><span class="mono">−33.80 CNY</span></button>
+            <button class="candidate-option" type="button" role="radio" aria-checked="false"><span><strong>满座儿退款</strong><small>工行信用卡(1200) · 2026年8月9日</small></span><span class="mono">33.80 CNY</span></button>
+          </div>
+          <nav class="page-navigation" aria-label="关联流水分页"><button type="button" disabled>上一页</button><span aria-current="page">第 1 页</span><button type="button">下一页</button></nav>
+        </div>
+        <div class="builder-actions"><button class="button-quiet" id="cancel-builder" type="button">取消</button><button class="button-primary" id="confirm-relation" type="button">添加关联</button></div>
+      </section>
+    </aside>
+  </dialog>
+
+  <dialog class="modal" id="unlink-dialog" aria-labelledby="unlink-title">
+    <div class="modal-content"><h2 id="unlink-title">取消这条关联？</h2><p>关联流水会保留，被移出的流水将作为独立条目。</p><div class="modal-actions"><button type="button" data-close-dialog="unlink-dialog">返回</button><button class="button-danger" id="confirm-unlink" type="button">取消关联</button></div></div>
+  </dialog>
+
+  <dialog class="modal" id="delete-dialog" aria-labelledby="delete-title">
+    <div class="modal-content"><h2 id="delete-title">删除这笔收支？</h2><p>删除后无法恢复。</p><div class="impact-line" id="delete-impact">请选择删除范围。</div><div class="delete-choices" id="delete-choices" hidden><button class="button-danger" id="delete-all" type="button">删除全部流水</button><button class="button-quiet" id="delete-current" type="button">只删除当前流水并解散关联</button></div><div class="modal-actions"><button type="button" data-close-dialog="delete-dialog">返回</button><button class="button-danger" id="confirm-delete" type="button">删除流水</button></div></div>
+  </dialog>
+
+  <dialog class="modal" id="edit-impact-dialog" aria-labelledby="edit-impact-title">
+    <div class="modal-content"><h2 id="edit-impact-title">保存这次修改？</h2><p>修改后的内容不再符合当前关联。</p><div class="impact-line">保存后当前关联流水会拆开，其他流水会保留。</div><div class="modal-actions"><button type="button" data-close-dialog="edit-impact-dialog">继续编辑</button><button class="button-primary" id="confirm-edit-impact" type="button">保存并拆开</button></div></div>
+  </dialog>
+
+  <dialog class="modal" id="import-dialog" aria-labelledby="import-title">
+    <div class="modal-content"><h2 id="import-title">导入账单</h2><p>选择账单来源并预览记录。</p><div class="import-form"><label for="import-source">账单来源<select id="import-source"><option>支付宝</option><option>微信</option><option>工行信用卡</option><option>工行借记卡</option><option>建行借记卡</option><option>工银亚洲</option></select></label><label for="import-file">账单文件<input id="import-file" type="file"></label></div><div class="import-preview" id="import-preview" hidden><div class="import-row"><div><strong>咖啡店</strong><small>2026年8月6日 · −12.50 CNY</small></div><span class="status-new">新记录</span></div><div class="import-row"><div><strong>超市</strong><small>2026年8月5日 · −86.00 CNY</small></div><span class="status-existing">已有记录</span></div><div class="import-row"><div><strong>海外电商</strong><small>2026年8月4日 · −120.00 JPY · 工行借记卡</small></div><div class="import-status"><span class="status-error">暂不支持</span><small>请更新账户配置后重新导入</small></div></div></div><div class="modal-actions"><button type="button" data-close-dialog="import-dialog">关闭</button><button class="button-primary" id="preview-import" type="button">预览账单</button></div></div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">已保存，账本已更新。</div>
+  <div class="sr-only" id="live" aria-live="polite"></div>
+
+  <script>
+    const records = {
+      main: { amount: "-33.80", currency: "CNY", counterparty: "满座儿餐饮服务（北京）有限公司", counterpartyAccount: "尾号 0821", occurred: "2026年8月7日 18:17", date: "2026-08-07", time: "18:17", account: "工行信用卡(1200)", type: "consumption", typeLabel: "消费", subtype: "", subtypeLabel: "", category: "餐饮", note: "智盘消费-A翘脚牛肉", source: "微信支付，工行信用卡账单", related: true },
+      related: { amount: "-33.80", currency: "CNY", counterparty: "满座儿餐饮服务（北京）有限公司", counterpartyAccount: "尾号 0821", occurred: "2026年8月7日 18:17", date: "2026-08-07", time: "18:17", account: "微信支付", type: "consumption", typeLabel: "消费", subtype: "", subtypeLabel: "", category: "餐饮", note: "财付通-满座儿餐饮服务", source: "微信账单", related: true },
+      zero: { amount: "0.00", currency: "CNY", counterparty: "账户确认记录", counterpartyAccount: "", occurred: "2026年8月7日 08:30", date: "2026-08-07", time: "08:30", account: "工行借记卡", type: "consumption", typeLabel: "消费", subtype: "", subtypeLabel: "", category: "账户维护", note: "月初账户确认", source: "手工记录", related: false },
+      income: { amount: "12800.00", currency: "CNY", counterparty: "八月工资", counterpartyAccount: "", occurred: "2026年8月7日 09:10", date: "2026-08-07", time: "09:10", account: "工行借记卡", type: "income", typeLabel: "收入", subtype: "", subtypeLabel: "", category: "工资", note: "八月工资", source: "工行借记卡账单", related: false },
+      transfer: { amount: "-500.00", currency: "CNY", counterparty: "本人账户", counterpartyAccount: "尾号 1200", occurred: "2026年8月7日 08:12", date: "2026-08-07", time: "08:12", account: "工行借记卡", type: "transfer_out", typeLabel: "转账出账", subtype: "ordinary_transfer", subtypeLabel: "普通转账", category: "转账", note: "转账至日常账户", source: "工行借记卡账单", related: true },
+      refund: { amount: "30.00", currency: "CNY", counterparty: "退款到账", counterpartyAccount: "", occurred: "2026年8月6日 15:20", date: "2026-08-06", time: "15:20", account: "工行信用卡", type: "refund", typeLabel: "退款", subtype: "", subtypeLabel: "", category: "退款", note: "退款到账", source: "工行信用卡账单", related: false },
+      "transfer-in": { amount: "500.00", currency: "CNY", counterparty: "日常账户转入", counterpartyAccount: "", occurred: "2026年8月6日 08:12", date: "2026-08-06", time: "08:12", account: "工行借记卡", type: "transfer_in", typeLabel: "转账入账", subtype: "ordinary_transfer", subtypeLabel: "普通转账", category: "转账", note: "日常账户转入", source: "工行借记卡账单", related: false }
+    };
+
+    const subtypeOptions = {
+      transfer_in: [["ordinary_transfer", "普通转账"], ["cross_border_remittance", "跨境汇款"], ["internal_account_transfer", "内部账户调拨"]],
+      transfer_out: [["ordinary_transfer", "普通转账"], ["cross_border_remittance", "跨境汇款"], ["internal_account_transfer", "内部账户调拨"]],
+      fx_in: [["currency_exchange", "货币兑换"]], fx_out: [["currency_exchange", "货币兑换"]],
+      repayment: [["credit_repayment", "信用还款"]],
+      withdrawal_in: [["withdraw_to_bank", "提现到银行卡"]], withdrawal_out: [["withdraw_to_bank", "提现到银行卡"]]
+    };
+    const accountCurrencies = {
+      "工行信用卡(1200)": ["CNY", "USD"],
+      "微信支付": ["CNY"],
+      "工行借记卡": ["CNY", "JPY", "HKD"],
+      "日常账户": ["CNY"]
+    };
+    const drawerDialog = document.getElementById("drawer-dialog");
+    const drawerTitle = document.getElementById("drawer-title");
+    const drawerBack = document.getElementById("drawer-back");
+    const drawerEdit = document.getElementById("drawer-edit");
+    const recordScreen = document.getElementById("record-screen");
+    const relationScreen = document.getElementById("relation-screen");
+    const viewMode = document.getElementById("view-mode");
+    const editMode = document.getElementById("edit-mode");
+    const live = document.getElementById("live");
+    const toast = document.getElementById("toast");
+    let currentRecord = "main";
+    let previousRecord = null;
+    let originalAmount = records.main.amount;
+    let relationKind = "同一笔支付";
+
+    function announce(message) { live.textContent = message; }
+    function showToast(message) { toast.textContent = message; toast.classList.add("is-visible"); window.setTimeout(() => toast.classList.remove("is-visible"), 2200); }
+    function formatAmount(value) { const number = Number(value); if (number < 0) return "−" + Math.abs(number).toFixed(2); return number.toFixed(2); }
+    function amountClass(value) { const number = Number(value); return number < 0 ? "" : number > 0 ? "income" : "neutral"; }
+
+    function fillCurrencySelect(select, accountName, selected = "") {
+      const supported = accountCurrencies[accountName] || [];
+      select.innerHTML = "";
+      supported.forEach(code => {
+        const option = document.createElement("option");
+        option.value = code;
+        option.textContent = code;
+        option.selected = code === selected;
+        select.append(option);
+      });
+      if (supported.length && !supported.includes(selected)) select.value = supported[0];
+      select.disabled = supported.length === 0;
+    }
+
+    function updateEditCurrencyOptions(preferred = "") {
+      const account = document.getElementById("edit-account").value;
+      fillCurrencySelect(document.getElementById("edit-currency"), account, preferred || document.getElementById("edit-currency").value);
+    }
+
+    function renderRecord(key) {
+      const record = records[key];
+      currentRecord = key;
+      originalAmount = record.amount;
+      const amount = document.getElementById("view-amount");
+      amount.className = "drawer-amount " + amountClass(record.amount);
+      document.getElementById("view-amount-number").textContent = formatAmount(record.amount);
+      document.getElementById("view-currency").textContent = record.currency;
+      document.getElementById("view-counterparty").textContent = record.counterparty;
+      const counterpartyAccount = document.getElementById("view-counterparty-account");
+      const counterpartyAccountLabel = document.getElementById("view-counterparty-account-label");
+      counterpartyAccount.textContent = record.counterpartyAccount || "";
+      counterpartyAccount.hidden = !record.counterpartyAccount;
+      counterpartyAccountLabel.hidden = !record.counterpartyAccount;
+      document.getElementById("view-occurred").textContent = record.occurred;
+      document.getElementById("view-account").textContent = record.account;
+      document.getElementById("view-record-type").textContent = record.typeLabel;
+      document.getElementById("view-type-detail").textContent = record.typeLabel;
+      document.getElementById("view-category").textContent = record.category;
+      document.getElementById("view-note").textContent = record.note || "-";
+      document.getElementById("view-source").textContent = record.source;
+      document.getElementById("view-related-tag").hidden = !record.related;
+      document.getElementById("view-related-tag").textContent = record.related ? "关联流水 2" : "";
+      document.getElementById("related-section").hidden = false;
+      document.getElementById("related-card").hidden = !record.related;
+      document.getElementById("related-empty").hidden = record.related;
+      document.getElementById("dissolve-related").hidden = !record.related;
+      document.getElementById("related-kind").textContent = relationKind;
+      document.getElementById("view-subtype-label").hidden = !record.subtype;
+      document.getElementById("view-subtype").hidden = !record.subtype;
+      document.getElementById("view-subtype").textContent = record.subtypeLabel;
+      drawerBack.hidden = !previousRecord;
+      fillForm(record);
+      setScreen("view");
+    }
+
+    function fillForm(record) {
+      document.getElementById("edit-amount").value = record.amount;
+      document.getElementById("edit-counterparty").value = record.counterparty;
+      document.getElementById("edit-counterparty-account").value = record.counterpartyAccount || "";
+      document.getElementById("edit-date").value = record.date;
+      document.getElementById("edit-time").value = record.time;
+      document.getElementById("edit-account").value = record.account;
+      updateEditCurrencyOptions(record.currency);
+      document.getElementById("edit-type").value = record.type;
+      document.getElementById("edit-category").value = record.category;
+      document.getElementById("edit-note").value = record.note;
+      document.getElementById("edit-source").textContent = record.source;
+      updateSubtype(record.subtype);
+    }
+
+    function updateSubtype(selected = "") {
+      const type = document.getElementById("edit-type").value;
+      const row = document.getElementById("edit-subtype-row");
+      const select = document.getElementById("edit-subtype");
+      const options = subtypeOptions[type] || [];
+      row.hidden = options.length === 0;
+      select.innerHTML = "";
+      options.forEach(([value, label]) => { const option = document.createElement("option"); option.value = value; option.textContent = label; option.selected = value === selected; select.append(option); });
+    }
+
+    function setScreen(screen) {
+      const editing = screen === "edit";
+      const building = screen === "relation";
+      recordScreen.hidden = building;
+      relationScreen.hidden = !building;
+      viewMode.hidden = editing;
+      editMode.hidden = !editing;
+      drawerEdit.hidden = editing || building;
+      drawerBack.hidden = building ? false : !previousRecord;
+      drawerTitle.textContent = building ? "添加关联流水" : editing ? "编辑收支详情" : "收支详情";
+      if (editing) window.setTimeout(() => document.getElementById("edit-amount").focus(), 0);
+      if (building) window.setTimeout(() => document.getElementById("relation-type").focus(), 0);
+    }
+
+    function openDrawer(key = "main", screen = "view") {
+      previousRecord = null;
+      renderRecord(key);
+      if (!drawerDialog.open) drawerDialog.showModal();
+      if (screen !== "view") setScreen(screen);
+    }
+
+    function openRelationBuilder(mode = "add") {
+      const editing = mode === "edit";
+      relationScreen.dataset.mode = mode;
+      document.getElementById("relation-title").textContent = editing ? "更改关联类型" : "添加关联";
+      document.getElementById("existing-source").hidden = editing;
+      document.getElementById("confirm-relation").textContent = editing ? "保存修改" : "添加关联";
+      setScreen("relation");
+      drawerTitle.textContent = editing ? "编辑关联流水" : "添加关联流水";
+    }
+
+    function commitEdit(cancelRelation) {
+      const record = records[currentRecord];
+      const typeSelect = document.getElementById("edit-type");
+      record.amount = document.getElementById("edit-amount").value;
+      record.currency = document.getElementById("edit-currency").value;
+      record.counterparty = document.getElementById("edit-counterparty").value;
+      record.counterpartyAccount = document.getElementById("edit-counterparty-account").value;
+      record.date = document.getElementById("edit-date").value;
+      record.time = document.getElementById("edit-time").value;
+      record.occurred = record.date.replaceAll("-", "年").replace(/年(\d{2})年(\d{2})$/, "年$1月$2日") + " " + record.time;
+      record.account = document.getElementById("edit-account").value;
+      record.type = typeSelect.value;
+      record.typeLabel = typeSelect.options[typeSelect.selectedIndex].textContent;
+      record.subtype = document.getElementById("edit-subtype-row").hidden ? "" : document.getElementById("edit-subtype").value;
+      record.subtypeLabel = document.getElementById("edit-subtype-row").hidden ? "" : document.getElementById("edit-subtype").selectedOptions[0].textContent;
+      record.category = document.getElementById("edit-category").value;
+      record.note = document.getElementById("edit-note").value;
+      if (cancelRelation) record.related = false;
+      renderRecord(currentRecord);
+      announce(cancelRelation ? "已保存并取消关联。" : "已保存，账本已更新。");
+    }
+
+    document.querySelectorAll("[data-record]").forEach(button => button.addEventListener("click", () => openDrawer(button.dataset.record)));
+    document.querySelectorAll("[data-new-record]").forEach(button => button.addEventListener("click", () => { openDrawer("zero", "edit"); document.getElementById("edit-counterparty").value = ""; document.getElementById("edit-note").value = ""; announce("已打开新建流水。") }));
+    document.querySelectorAll("[data-open-import]").forEach(button => button.addEventListener("click", () => document.getElementById("import-dialog").showModal()));
+    document.getElementById("drawer-close").addEventListener("click", () => drawerDialog.close());
+    drawerDialog.addEventListener("click", event => { if (event.target === drawerDialog) drawerDialog.close(); });
+    document.getElementById("drawer-edit").addEventListener("click", () => setScreen("edit"));
+    document.getElementById("cancel-edit").addEventListener("click", () => { fillForm(records[currentRecord]); setScreen("view"); });
+    document.getElementById("edit-account").addEventListener("change", () => updateEditCurrencyOptions());
+    document.getElementById("edit-type").addEventListener("change", () => updateSubtype());
+    editMode.addEventListener("submit", event => {
+      event.preventDefault();
+      const field = document.getElementById("edit-amount");
+      const error = document.getElementById("amount-error");
+      if (!/^-?\d+(\.\d+)?$/.test(field.value)) { field.setAttribute("aria-invalid", "true"); error.textContent = "金额格式无效，请输入十进制金额。"; field.focus(); return; }
+      field.removeAttribute("aria-invalid"); error.textContent = "";
+      if (records[currentRecord].related && field.value !== originalAmount) document.getElementById("edit-impact-dialog").showModal(); else commitEdit(false);
+    });
+    document.getElementById("confirm-edit-impact").addEventListener("click", () => { document.getElementById("edit-impact-dialog").close(); commitEdit(true); });
+
+    document.getElementById("view-related").addEventListener("click", () => { previousRecord = currentRecord; renderRecord("related"); announce("已打开关联流水。") });
+    document.getElementById("edit-related").addEventListener("click", () => { previousRecord = currentRecord; renderRecord("related"); setScreen("edit"); announce("已打开关联流水编辑。") });
+    drawerBack.addEventListener("click", () => { if (!relationScreen.hidden) { setScreen("view"); return; } if (previousRecord) { const target = previousRecord; previousRecord = null; renderRecord(target); } });
+    document.getElementById("add-related").addEventListener("click", () => openRelationBuilder("add"));
+    document.getElementById("edit-relation").addEventListener("click", () => openRelationBuilder("edit"));
+    document.getElementById("cancel-builder").addEventListener("click", () => setScreen("view"));
+    document.querySelectorAll(".candidate-option").forEach(button => button.addEventListener("click", () => {
+      document.querySelectorAll(".candidate-option").forEach(item => { item.classList.toggle("is-selected", item === button); item.setAttribute("aria-checked", String(item === button)); });
+    }));
+    document.getElementById("confirm-relation").addEventListener("click", () => {
+      relationKind = document.getElementById("relation-type").value;
+      records[currentRecord].related = true;
+      renderRecord(currentRecord);
+      announce(relationScreen.dataset.mode === "edit" ? "关联类型已更新。" : "已添加关联，账本已更新。");
+    });
+    document.getElementById("unlink-related").addEventListener("click", () => document.getElementById("unlink-dialog").showModal());
+    document.getElementById("confirm-unlink").addEventListener("click", () => { document.getElementById("unlink-dialog").close(); records[currentRecord].related = false; renderRecord(currentRecord); announce("已取消关联，其他流水已保留。"); });
+    document.getElementById("dissolve-related").addEventListener("click", () => { records[currentRecord].related = false; renderRecord(currentRecord); announce("已解散关联，其他流水已作为独立条目保留。"); });
+    document.getElementById("delete-record").addEventListener("click", () => {
+      const related = records[currentRecord].related;
+      document.getElementById("delete-impact").textContent = related ? "请选择删除全部流水，或只删除当前流水并解散关联。" : "这条流水没有关联流水。";
+      document.getElementById("delete-choices").hidden = !related;
+      document.getElementById("confirm-delete").hidden = related;
+      document.getElementById("delete-dialog").showModal();
+    });
+    function finishDelete(button, message) { button.disabled = true; button.dataset.state = "loading"; button.textContent = "正在删除…"; window.setTimeout(() => { document.getElementById("delete-dialog").close(); drawerDialog.close(); button.disabled = false; button.dataset.state = "success"; button.textContent = button.id === "delete-all" ? "删除全部流水" : "只删除当前流水并解散关联"; showToast(message); }, 360); }
+    document.getElementById("confirm-delete").addEventListener("click", event => finishDelete(event.currentTarget, "流水已删除。"));
+    document.getElementById("delete-all").addEventListener("click", event => finishDelete(event.currentTarget, "全部流水已删除。"));
+    document.getElementById("delete-current").addEventListener("click", event => finishDelete(event.currentTarget, "当前流水已删除，其他流水已拆开保留。"));
+    document.querySelectorAll("[data-close-dialog]").forEach(button => button.addEventListener("click", () => document.getElementById(button.dataset.closeDialog).close()));
+    document.getElementById("preview-import").addEventListener("click", event => { document.getElementById("import-preview").hidden = false; event.currentTarget.textContent = "导入账单"; announce("预览完成：1 条新记录，1 条已有记录，1 条需要处理。"); });
+    updateEditCurrencyOptions(records.main.currency);
+
+    document.querySelector("[data-load-more]").addEventListener("click", event => {
+      document.querySelector("[data-extra-feed]").hidden = false;
+      event.currentTarget.disabled = true;
+      event.currentTarget.textContent = "已显示全部记录";
+      announce("已加载更多流水。");
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    const initial = params.get("screen") || "view";
+    if (initial === "zero") openDrawer("zero");
+    else if (initial === "edit") openDrawer("main", "edit");
+    else if (initial === "relation") { openDrawer("main"); openRelationBuilder("add"); }
+    else if (initial === "related") { openDrawer("main"); previousRecord = "main"; renderRecord("related"); }
+    else if (initial === "import") { openDrawer("main"); document.getElementById("import-dialog").showModal(); }
+    else { openDrawer("main"); if (initial === "delete") window.setTimeout(() => document.getElementById("delete-record").click(), 0); }
+  </script>
+</body>
+</html>

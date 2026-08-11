@@ -51,10 +51,11 @@ def _row_record_id(row: dict, occurrences: dict[str, int]) -> str:
 
 
 class StatementImportService:
-    def __init__(self, unit_of_work, parser, relation_service=None):
+    def __init__(self, unit_of_work, parser, relation_service=None, *, enforce_account_currencies: bool = False):
         self._uow = unit_of_work
         self._parser = parser
         self._relations = relation_service
+        self._enforce_account_currencies = enforce_account_currencies
 
     def import_statement(self, command) -> OperationResult:
         path = Path(command.source_path)
@@ -132,6 +133,10 @@ class StatementImportService:
                 account = uow.accounts.find(row["account_name"])
                 if account is None:
                     raise ValueError(f"找不到账户：{row['account_name']}")
+                if self._enforce_account_currencies and str(row["currency"]).upper() not in set(account.currencies):
+                    raise ValueError(
+                        f"账户 {account.name} 暂不支持 {row['currency']}，请更新账户配置后重新导入"
+                    )
                 account_cache[key] = account
 
             occurrences: dict[str, int] = {}
@@ -152,13 +157,9 @@ class StatementImportService:
                         "该账单记录已导入其他账户，不能更改归属"
                     )
 
-            snapshot = uow.snapshot.load(lock=True)
-            imported_count = 0
-            by_account: Counter[str] = Counter()
-            new_cash_fact_ids: list[str] = []
+            formal_rows: list[tuple[dict, str, object, dict]] = []
+            cash_items: list[tuple[str, dict]] = []
             for row, record_id in prepared:
-                if record_id in existing_targets:
-                    continue
                 account = account_cache[row["account_name"]]
                 payload = row.get("source_payload")
                 if account.type in {"cash", "loan", "lend"} and (
@@ -173,28 +174,78 @@ class StatementImportService:
                     "record_id": record_id,
                     "source_payload": _json_safe(payload),
                 }
+                formal_rows.append((row, record_id, account, formal))
                 if account.type in {"cash", "loan", "lend"}:
-                    fact_id = uow.cashflows.add(account.type, formal)
-                    new_cash_fact_ids.append(fact_id)
-                    if row.get("category") not in {"transfer", "transfer_in", "transfer_out"}:
+                    cash_items.append((account.type, formal))
+
+            snapshot = uow.snapshot.load(lock=True)
+            imported_count = 0
+            updated_count = 0
+            by_account: Counter[str] = Counter()
+            new_cash_fact_ids: list[str] = []
+            created_cash_fact_ids: list[str] = []
+            cash_results = iter(uow.cashflows.merge_import_batch(cash_items))
+            cash_result_by_formal_id = {}
+            for _account_type, formal in cash_items:
+                cash_result_by_formal_id[id(formal)] = next(cash_results)
+
+            for row, record_id, account, formal in formal_rows:
+                if account.type in {"cash", "loan", "lend"}:
+                    result = cash_result_by_formal_id[id(formal)]
+                    fact_id = result["fact_id"]
+                    created = result["created"]
+                    source_changed = result["source_changed"]
+                    previous = result["previous"]
+                    current = result["current"]
+                    if created:
+                        imported_count += 1
+                    if source_changed:
+                        new_cash_fact_ids.append(fact_id)
+                    if created:
+                        created_cash_fact_ids.append(fact_id)
+                    if not created and source_changed:
+                        updated_count += 1
+                    if created and row.get("category") not in {"transfer", "transfer_in", "transfer_out"}:
                         uow.snapshot.update_balance(
                             snapshot, account.name, account.type, row["currency"], row["amount"]
                         )
+                    elif not created and source_changed and current is not None:
+                        if previous and previous.get("category") not in {"transfer", "transfer_in", "transfer_out"}:
+                            uow.snapshot.update_balance(
+                                snapshot,
+                                previous["account_name"],
+                                previous.get("account_type") or account.type,
+                                previous["currency"],
+                                -previous["amount"],
+                            )
+                        if row.get("category") not in {"transfer", "transfer_in", "transfer_out"}:
+                            uow.snapshot.update_balance(
+                                snapshot,
+                                current["account_name"],
+                                current.get("account_type") or account.type,
+                                current["currency"],
+                                current["amount"],
+                            )
                 elif account.type in {"security", "crypto"}:
+                    if record_id in existing_targets:
+                        continue
                     apply_investment_event(snapshot, formal, default_currency=row["currency"])
                     uow.investments.add(account.type, formal)
+                    imported_count += 1
                 else:
                     raise ValueError(f"不支持导入到 {account.type} 类型的账户")
                 existing_targets[record_id] = (row["account_name"], row["currency"])
-                imported_count += 1
                 by_account[account.name] += 1
-            if imported_count:
+            if imported_count or updated_count:
                 snapshot["updated_at"] = max(str(row.get("date", "")) for row in rows)
             uow.snapshot.save(snapshot)
             if new_cash_fact_ids:
                 from ft.application.cash_projections import CashProjectionService
                 CashProjectionService.maintain_if_ready_in_session(
-                    uow._state().session, uow.workspace_id, {int(item) for item in new_cash_fact_ids},
+                    uow._state().session,
+                    uow.workspace_id,
+                    {int(item) for item in new_cash_fact_ids},
+                    new_fact_ids={int(item) for item in created_cash_fact_ids},
                 )
             uow.commit()
             saved_imported_count = imported_count
@@ -236,6 +287,7 @@ class StatementImportService:
                 "batch_id": None,
                 "duplicate": no_new,
                 "new_rows": saved_imported_count,
+                "updated_rows": updated_count,
                 "by_account": saved_by_account,
                 "new_cash_fact_ids": saved_new_cash_fact_ids,
                 "acceptance": acceptance,

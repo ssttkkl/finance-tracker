@@ -30,20 +30,20 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 describe("现金账本无障碍", () => {
   it("为筛选提供显式标签，以键盘将焦点带入详情并在关闭后返回记录", async () => {
     render(<CashLedgerPage />);
-    const trigger = await screen.findByRole("button", { name: "查看咖啡店的证据详情" });
+    const trigger = await screen.findByRole("button", { name: "查看咖啡店的收支详情" });
     expect(screen.getByLabelText("账户")).toBeInTheDocument();
-    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "来源", "经济类型", "金额", "操作"]);
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "来源", "流水类型", "金额", "操作"]);
     expect(screen.getAllByRole("columnheader").map((header) => header.getAttribute("scope"))).toEqual(["col", "col", "col", "col", "col", "col", "col"]);
     expect(screen.getByRole("columnheader", { name: "交易信息" })).toHaveAttribute("id", "cash-column-transaction-info");
     expect(screen.getByRole("cell", { name: /咖啡店/ })).toHaveAttribute("headers", "cash-column-transaction-info");
     expect(screen.getByRole("table", { name: "收支账本中的收支记录" })).toHaveClass("cash-table");
-    expect(screen.queryByRole("columnheader", { name: "组成方式" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "关联记录" })).not.toBeInTheDocument();
 
     fireEvent.click(trigger);
-    const close = await screen.findByRole("button", { name: "关闭证据详情" });
+    const close = await screen.findByRole("button", { name: "关闭收支详情" });
     expect(close).toHaveFocus();
-    expect(screen.getByRole("dialog", { name: "证据详情" })).toHaveAttribute("data-focus-trap", "active");
-    expect(screen.getByRole("dialog", { name: "证据详情" })).toHaveAttribute("data-state", "open");
+    expect(screen.getByRole("dialog", { name: "收支详情" })).toHaveAttribute("data-focus-trap", "active");
+    expect(screen.getByRole("dialog", { name: "收支详情" })).toHaveAttribute("data-state", "open");
     expect(document.querySelector("main.app-shell")).toHaveAttribute("inert");
     fireEvent.click(close);
     await waitFor(() => expect(trigger).toHaveFocus());
@@ -51,35 +51,35 @@ describe("现金账本无障碍", () => {
 
   it("以键盘关闭详情并将 Tab 焦点限制在详情内", async () => {
     render(<CashLedgerPage />);
-    const trigger = await screen.findByRole("button", { name: "查看咖啡店的证据详情" });
+    const trigger = await screen.findByRole("button", { name: "查看咖啡店的收支详情" });
 
     fireEvent.click(trigger);
-    const close = await screen.findByRole("button", { name: "关闭证据详情" });
+    const close = await screen.findByRole("button", { name: "关闭收支详情" });
     fireEvent.keyDown(close, { key: "Tab" });
     expect(close).toHaveFocus();
     fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
     expect(close).toHaveFocus();
     fireEvent.keyDown(close, { key: "Escape" });
 
-    expect(screen.getByRole("dialog", { name: "证据详情" })).toHaveAttribute("data-state", "closing");
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "证据详情" })).not.toBeInTheDocument());
+    expect(screen.getByRole("dialog", { name: "收支详情" })).toHaveAttribute("data-state", "closing");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "收支详情" })).not.toBeInTheDocument());
     expect(trigger).toHaveFocus();
   });
 
   it("点击遮罩关闭模态抽屉，但点击抽屉内容不会关闭", async () => {
     render(<CashLedgerPage />);
-    const trigger = await screen.findByRole("button", { name: "查看咖啡店的证据详情" });
+    const trigger = await screen.findByRole("button", { name: "查看咖啡店的收支详情" });
 
     fireEvent.click(trigger);
-    const dialog = await screen.findByRole("dialog", { name: "证据详情" });
+    const dialog = await screen.findByRole("dialog", { name: "收支详情" });
     fireEvent.click(dialog);
-    expect(screen.getByRole("dialog", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "收支详情" })).toBeInTheDocument();
 
     const backdrop = document.querySelector<HTMLElement>(".evidence-backdrop");
     expect(backdrop).not.toBeNull();
     fireEvent.click(backdrop!);
-    expect(screen.getByRole("dialog", { name: "证据详情" })).toHaveAttribute("data-state", "closing");
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "证据详情" })).not.toBeInTheDocument());
+    expect(screen.getByRole("dialog", { name: "收支详情" })).toHaveAttribute("data-state", "closing");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "收支详情" })).not.toBeInTheDocument());
     expect(trigger).toHaveFocus();
   });
 
@@ -92,12 +92,26 @@ describe("现金账本无障碍", () => {
     expect(summary).not.toBeNull();
     expect(summary).toHaveTextContent("筛选");
     expect(summary).toHaveTextContent("全部账户 · 全部收支");
+    expect(summary).not.toHaveTextContent("展开");
+    expect(summary?.querySelectorAll("svg")).toHaveLength(2);
 
     const styles = readFileSync(resolve(import.meta.dirname, "../src/styles.css"), "utf8");
     expect(styles.split(/\r?\n/, 1)[0]).toContain("Hallmark");
     expect(styles).toContain("macrostructure: Workbench");
     expect(styles).toContain("genre: modern-minimal");
     expect(styles).toContain("theme: Cobalt");
+  });
+
+  it("为抽屉图标按钮保留名称并移除重复可见文字", async () => {
+    render(<CashLedgerPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "查看咖啡店的收支详情" }));
+
+    const edit = await screen.findByRole("button", { name: "编辑" });
+    const close = screen.getByRole("button", { name: "关闭收支详情" });
+    expect(edit).not.toHaveTextContent("编辑");
+    expect(close).not.toHaveTextContent("关闭");
+    expect(edit.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(close.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
 
   it("以文字表达加载、空结果和错误状态", async () => {
@@ -111,12 +125,12 @@ describe("现金账本无障碍", () => {
 
   it("以语义化标识保留非颜色唯一的收支含义和可见焦点目标", async () => {
     render(<CashLedgerPage />);
-    const trigger = await screen.findByRole("button", { name: "查看咖啡店的证据详情" });
+    const trigger = await screen.findByRole("button", { name: "查看咖啡店的收支详情" });
 
     expect(screen.getByRole("cell", { name: "-12.5 CNY" })).toHaveAttribute("data-direction", "支出");
     expect(trigger).toHaveClass("evidence-trigger");
     expect(screen.getByRole("group", { name: "账本筛选工具" })).toHaveAttribute("data-layout", "filter-grid");
-    expect(screen.getByRole("button", { name: "加载更多" })).toHaveAttribute("aria-describedby", "load-more-instructions");
-    expect(screen.getByText("可继续加载更多记录。")).toHaveAttribute("role", "status");
+    expect(screen.queryByRole("navigation", { name: "流水分页" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "加载更多" })).toBeEnabled();
   });
 });

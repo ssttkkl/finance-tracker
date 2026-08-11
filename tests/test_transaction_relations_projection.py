@@ -75,7 +75,7 @@ def test_personal_fx_relation_check_replaces_income_and_expense_projections(rela
     evidence = CashLedgerQueryService(
         relation_runtime.sessions, "relations-workspace",
     ).get_projection_evidence(projection.projection_id)
-    assert {member["record_id"] for member in evidence["members"]} == {"fx-out", "fx-in"}
+    assert {member["id"] for member in evidence["members"]} == {str(out_id), str(in_id)}
     assert projection.projection_id == f"cash:{out_id}"
     assert f"cash:{in_id}" not in {item.projection_id for item in page.items}
 

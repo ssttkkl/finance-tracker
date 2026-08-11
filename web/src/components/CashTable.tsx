@@ -1,5 +1,6 @@
 import type { CashMonthlySummary, CashProjection } from "../api/types";
 import { formatOccurredAt } from "../format";
+import { UiIcon } from "./UiIcon";
 
 type Props = { items: CashProjection[]; monthlySummaries?: CashMonthlySummary[]; loading?: boolean; onEvidence: (projection: CashProjection, source: HTMLButtonElement) => void };
 
@@ -11,7 +12,7 @@ function isBankSecurityTransfer(item: CashProjection): boolean {
 
 function economicTypeLabel(item: CashProjection): string {
   if (isBankSecurityTransfer(item)) return "银证转账";
-  return item.economic_type === "expense" ? "消费" : item.economic_type === "income" ? "收入" : item.economic_type === "internal_transfer" ? "个人转账" : "未提供";
+  return item.economic_type === "expense" ? "消费" : item.economic_type === "income" ? "收入" : item.economic_type === "internal_transfer" ? "已合并" : "未提供";
 }
 
 function transferFor(item: CashProjection) {
@@ -60,7 +61,7 @@ function summaryAmount(kind: "income" | "expense", amount: string): string {
 function projectionSource(item: CashProjection) {
   const bankSecurityTransfer = isBankSecurityTransfer(item);
   if (!bankSecurityTransfer && item.member_count === 1 && item.composition.length === 0) return null;
-  const label = bankSecurityTransfer ? "银证转账关系" : "关系投影";
+  const label = bankSecurityTransfer ? "银证转账" : "已合并";
   return <span className="projection-source is-related" aria-label={label}>
     <span className="projection-source-kind">{label}</span>
   </span>;
@@ -102,15 +103,15 @@ export function CashTable({ items, monthlySummaries = [], loading = false, onEvi
     previousMonth = month;
     return [divider, <tr className="cash-row" data-projection-id={item.projection_id} key={item.projection_id}>
       <td className="occurred-at mono" data-label="发生时间" headers="cash-column-occurred-at">{formatOccurredAt(item.occurred_at)}</td>
-      <td className="account" data-label="账户" headers="cash-column-account">{accountLabel(item)}</td>{transactionInfo(item)}{sourceInfo(item)}<td className="economic-type" data-label="经济类型" headers="cash-column-economic-type"><span className="mobile-field-label">经济类型：</span>{economicTypeLabel(item)}</td>
+      <td className="account" data-label="账户" headers="cash-column-account">{accountLabel(item)}</td>{transactionInfo(item)}{sourceInfo(item)}<td className="economic-type" data-label="流水类型" headers="cash-column-economic-type"><span className="mobile-field-label">流水类型：</span>{economicTypeLabel(item)}</td>
       <td className={`amount mono ${transferFor(item) ? "transfer" : item.amount.startsWith("-") ? "outflow" : "inflow"}`} data-direction={transferFor(item) ? "转账" : item.amount.startsWith("-") ? "支出" : "收入"} data-label="金额" headers="cash-column-amount"><span className="amount-value">{amountLabel(item)}</span></td>
-      <td className="action" headers="cash-column-action"><button className="icon-button evidence-trigger" type="button" aria-label={`查看${item.counterparty || "该记录"}的证据详情`} onClick={(event) => onEvidence(item, event.currentTarget)}>查看</button></td>
+      <td className="action" headers="cash-column-action"><button className="icon-button icon-only-button evidence-trigger" type="button" aria-label={`查看${item.counterparty || "该记录"}的收支详情`} title="查看详情" onClick={(event) => onEvidence(item, event.currentTarget)}><UiIcon name="eye" /></button></td>
     </tr>];
   }) : items.map((item) => <tr className="cash-row" data-projection-id={item.projection_id} key={item.projection_id}>
     <td className="occurred-at mono" data-label="发生时间" headers="cash-column-occurred-at">{formatOccurredAt(item.occurred_at)}</td>
-    <td className="account" data-label="账户" headers="cash-column-account">{accountLabel(item)}</td>{transactionInfo(item)}{sourceInfo(item)}<td className="economic-type" data-label="经济类型" headers="cash-column-economic-type"><span className="mobile-field-label">经济类型：</span>{economicTypeLabel(item)}</td>
+    <td className="account" data-label="账户" headers="cash-column-account">{accountLabel(item)}</td>{transactionInfo(item)}{sourceInfo(item)}<td className="economic-type" data-label="流水类型" headers="cash-column-economic-type"><span className="mobile-field-label">流水类型：</span>{economicTypeLabel(item)}</td>
     <td className={`amount mono ${transferFor(item) ? "transfer" : item.amount.startsWith("-") ? "outflow" : "inflow"}`} data-direction={transferFor(item) ? "转账" : item.amount.startsWith("-") ? "支出" : "收入"} data-label="金额" headers="cash-column-amount"><span className="amount-value">{amountLabel(item)}</span></td>
-    <td className="action" headers="cash-column-action"><button className="icon-button evidence-trigger" type="button" aria-label={`查看${item.counterparty || "该记录"}的证据详情`} onClick={(event) => onEvidence(item, event.currentTarget)}>查看</button></td>
+    <td className="action" headers="cash-column-action"><button className="icon-button icon-only-button evidence-trigger" type="button" aria-label={`查看${item.counterparty || "该记录"}的收支详情`} title="查看详情" onClick={(event) => onEvidence(item, event.currentTarget)}><UiIcon name="eye" /></button></td>
   </tr>);
   return <div className="table-wrap"><table className="cash-table">
     <caption className="sr-only">收支账本中的收支记录</caption>
@@ -123,7 +124,7 @@ export function CashTable({ items, monthlySummaries = [], loading = false, onEvi
       <col className="amount-column" />
       <col className="action-column" />
     </colgroup>
-    <thead className="table-head"><tr><th id="cash-column-occurred-at" scope="col">发生时间</th><th id="cash-column-account" scope="col">账户</th><th id="cash-column-transaction-info" scope="col">交易信息</th><th id="cash-column-source" scope="col">来源</th><th id="cash-column-economic-type" scope="col">经济类型</th><th id="cash-column-amount" scope="col" className="amount">金额</th><th id="cash-column-action" scope="col"><span className="sr-only">操作</span></th></tr></thead>
+    <thead className="table-head"><tr><th id="cash-column-occurred-at" scope="col">发生时间</th><th id="cash-column-account" scope="col">账户</th><th id="cash-column-transaction-info" scope="col">交易信息</th><th id="cash-column-source" scope="col">来源</th><th id="cash-column-economic-type" scope="col">流水类型</th><th id="cash-column-amount" scope="col" className="amount">金额</th><th id="cash-column-action" scope="col"><span className="sr-only">操作</span></th></tr></thead>
     <tbody>{loading ? Array.from({ length: 3 }, (_value, index) => <tr className="loading-row" data-testid="现金流水骨架行" key={index}>
       {Array.from({ length: 7 }, (_cell, cellIndex) => <td key={cellIndex}><span className="skeleton-cell" aria-hidden="true" /></td>)}
     </tr>) : tableRows}</tbody>

@@ -143,12 +143,12 @@ class FinanceQueryService:
         security = accounts.get("security", {}).get(account.name, {})
         positions = security.get("positions", {}) if isinstance(security, dict) else {}
         quote_currency = str(
-            security.get("currency") or next(iter(getattr(account, "metadata", {}).get("base_currencies", ())), "CNY")
+            security.get("currency") or next(iter(getattr(account, "currencies", ())), "CNY")
         ).upper()
         currency_ticker = quote_currency.lower()
         base_currencies = {
             str(item).upper()
-            for item in getattr(account, "metadata", {}).get("base_currencies", ()) or ()
+            for item in getattr(account, "currencies", ()) or ()
         }
         if quote_currency:
             base_currencies.add(quote_currency)

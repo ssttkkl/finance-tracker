@@ -22,7 +22,13 @@ class RelationalAccountQueryRepository:
                 .where(AccountModel.workspace_id == self._workspace_id)
                 .order_by(AccountModel.created_at, AccountModel.id)
             )
-            return [AccountDTO(row.name, row.type, row.active) for row in rows]
+            return [
+                AccountDTO(
+                    row.name, row.type, row.active,
+                    tuple(str(item).upper() for item in (row.currencies or ()) if item),
+                )
+                for row in rows
+            ]
 
 
 class RelationalTransactionQueryRepository:
@@ -84,11 +90,12 @@ class RelationalPortfolioRepository:
                 AccountModel.type.in_(("security", "crypto")),
             )))
             payload = RelationalSnapshotRepository(session, self._workspace_id).load()
-        # Snapshot may key investment books by name or legacy UUID; collect bases from DB.
+        # Snapshot may key investment books by name or legacy UUID; collect
+        # configured currencies from the account column.
         bases_by_name = {
             account.name: tuple(sorted({
                 str(item).upper()
-                for item in (account.metadata_json or {}).get("base_currencies", ())
+                for item in (account.currencies or ())
             }))
             for account in accounts
         }

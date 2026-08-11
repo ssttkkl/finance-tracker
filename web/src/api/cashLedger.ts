@@ -1,4 +1,4 @@
-import type { Account, CashFilters, CashPage, Evidence } from "./types";
+import type { Account, CashFilters, CashPage, CashRecordDetail, CashRecordPage, Evidence, ImportPreview, LedgerOptions } from "./types";
 
 function apiOrigin(): string {
   const origin = import.meta.env.VITE_FT_API_ORIGIN;
@@ -13,6 +13,21 @@ async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: { code?: unknown }; code?: unknown } | null;
     const code = payload?.error?.code ?? payload?.code;
+    throw new Error(typeof code === "string" ? code : "api_request_failed");
+  }
+  return response.json() as Promise<T>;
+}
+
+async function write<T>(path: string, method: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(`${apiOrigin()}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { error?: { code?: unknown; message?: unknown } } | null;
+    const code = payload?.error?.code;
     throw new Error(typeof code === "string" ? code : "api_request_failed");
   }
   return response.json() as Promise<T>;
@@ -34,4 +49,83 @@ export async function fetchCashAccounts(signal?: AbortSignal): Promise<Account[]
 
 export function fetchEvidence(id: string, signal?: AbortSignal): Promise<Evidence> {
   return request<Evidence>(`/api/v1/evidence/cash-projections/${encodeURIComponent(id)}`, signal);
+}
+
+export function fetchLedgerOptions(signal?: AbortSignal): Promise<LedgerOptions> {
+  return request<LedgerOptions>("/api/v1/cash-ledger/options", signal);
+}
+
+export function fetchCashRecord(id: string, signal?: AbortSignal): Promise<CashRecordDetail> {
+  return request<CashRecordDetail>(`/api/v1/cash-records/${encodeURIComponent(id)}`, signal);
+}
+
+export function fetchCashRecords(
+  values: { query?: string; excludeId?: string; dateFrom?: string; dateTo?: string; timezone?: string; cursor?: string | null; limit?: number } = {},
+  signal?: AbortSignal,
+): Promise<CashRecordPage> {
+  const params = new URLSearchParams();
+  if (values.query) params.set("query", values.query);
+  if (values.excludeId) params.set("exclude_id", values.excludeId);
+  if (values.dateFrom) params.set("date_from", values.dateFrom);
+  if (values.dateTo) params.set("date_to", values.dateTo);
+  if (values.timezone) params.set("timezone", values.timezone);
+  if (values.cursor) params.set("cursor", values.cursor);
+  params.set("limit", String(values.limit ?? 20));
+  return request<CashRecordPage>(`/api/v1/cash-records?${params.toString()}`, signal);
+}
+
+export function createCashRecord(body: Record<string, unknown>, signal?: AbortSignal): Promise<CashRecordDetail> {
+  return write<CashRecordDetail>("/api/v1/cash-records", "POST", body, signal);
+}
+
+export function updateCashRecord(id: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<CashRecordDetail> {
+  return write<CashRecordDetail>(`/api/v1/cash-records/${encodeURIComponent(id)}`, "PUT", body, signal);
+}
+
+export function deleteCashRecord(id: string, mode: "delete_all" | "delete_current_dissolve", signal?: AbortSignal): Promise<{ deleted: boolean; related_count: number; deleted_fact_ids: string[] }> {
+  return write<{ deleted: boolean; related_count: number; deleted_fact_ids: string[] }>(`/api/v1/cash-records/${encodeURIComponent(id)}`, "DELETE", { mode }, signal);
+}
+
+export function createCashRelation(body: Record<string, unknown>, signal?: AbortSignal): Promise<CashRecordDetail> {
+  return write<CashRecordDetail>("/api/v1/cash-relations", "POST", body, signal);
+}
+
+export function updateCashRelation(id: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<CashRecordDetail> {
+  return write<CashRecordDetail>(`/api/v1/cash-relations/${encodeURIComponent(id)}`, "PUT", body, signal);
+}
+
+export function cancelCashRelation(id: string, signal?: AbortSignal): Promise<unknown> {
+  return write<unknown>(`/api/v1/cash-relations/${encodeURIComponent(id)}`, "DELETE", {}, signal);
+}
+
+export function dissolveCashRelations(factId: string, signal?: AbortSignal): Promise<CashRecordDetail> {
+  return write<CashRecordDetail>("/api/v1/cash-relations/dissolve", "POST", { fact_id: factId }, signal);
+}
+
+const importChannelLabels: Record<string, string> = {
+  alipay: "支付宝", wechat: "微信", icbc: "工行信用卡", "icbc-debit": "工行借记卡",
+  "ccb-debit": "建行借记卡", "icbc-asia": "工银亚洲",
+};
+export { importChannelLabels };
+
+async function importRequest<T>(path: string, file: File, source: string, currency?: string): Promise<T> {
+  const params = new URLSearchParams({ source, filename: file.name });
+  if (currency) params.set("currency", currency);
+  const response = await fetch(`${apiOrigin()}${path}?${params.toString()}`, {
+    method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file,
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { error?: { code?: unknown } } | null;
+    const code = payload?.error?.code;
+    throw new Error(typeof code === "string" ? code : "api_request_failed");
+  }
+  return response.json() as Promise<T>;
+}
+
+export function previewCashImport(file: File, source: string, currency?: string): Promise<ImportPreview> {
+  return importRequest<ImportPreview>("/api/v1/cash-import/preview", file, source, currency);
+}
+
+export function commitCashImport(file: File, source: string, currency?: string): Promise<{ message: string; new_rows: number; updated_rows: number }> {
+  return importRequest<{ message: string; new_rows: number; updated_rows: number }>("/api/v1/cash-import/commit", file, source, currency);
 }

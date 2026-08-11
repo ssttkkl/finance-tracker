@@ -35,6 +35,18 @@ def _assert_dataset_indexes(engine) -> None:
     assert "ix_cash_projection_relations_dataset" in {
         item["name"] for item in inspector.get_indexes("cash_projection_relations")
     }
+    assert "ix_cash_projection_members_page_lookup" in {
+        item["name"] for item in inspector.get_indexes("cash_projection_members")
+    }
+    assert "ix_cash_projection_relations_page_lookup" in {
+        item["name"] for item in inspector.get_indexes("cash_projection_relations")
+    }
+    assert "ix_transaction_relations_component_primary" in {
+        item["name"] for item in inspector.get_indexes("transaction_relations")
+    }
+    assert "ix_transaction_relations_component_secondary" in {
+        item["name"] for item in inspector.get_indexes("transaction_relations")
+    }
 
 
 def test_projection_revision_adds_only_derived_tables_and_indexes(tmp_path):
@@ -77,6 +89,10 @@ def test_dataset_index_revision_upgrades_and_downgrades_without_touching_sources
         inspector = inspect(engine)
         assert "ix_cash_projection_members_dataset" not in {item["name"] for item in inspector.get_indexes("cash_projection_members")}
         assert "ix_cash_projection_relations_dataset" not in {item["name"] for item in inspector.get_indexes("cash_projection_relations")}
+        assert "ix_cash_projection_members_page_lookup" not in {item["name"] for item in inspector.get_indexes("cash_projection_members")}
+        assert "ix_cash_projection_relations_page_lookup" not in {item["name"] for item in inspector.get_indexes("cash_projection_relations")}
+        assert "ix_transaction_relations_component_primary" not in {item["name"] for item in inspector.get_indexes("transaction_relations")}
+        assert "ix_transaction_relations_component_secondary" not in {item["name"] for item in inspector.get_indexes("transaction_relations")}
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT amount FROM cash_transactions WHERE id = 1")) == "-10"
         command.upgrade(config, "head")
@@ -108,6 +124,10 @@ def test_dataset_index_revision_is_reversible_on_postgresql():
         inspector = inspect(engine)
         assert "ix_cash_projection_members_dataset" not in {item["name"] for item in inspector.get_indexes("cash_projection_members")}
         assert "ix_cash_projection_relations_dataset" not in {item["name"] for item in inspector.get_indexes("cash_projection_relations")}
+        assert "ix_cash_projection_members_page_lookup" not in {item["name"] for item in inspector.get_indexes("cash_projection_members")}
+        assert "ix_cash_projection_relations_page_lookup" not in {item["name"] for item in inspector.get_indexes("cash_projection_relations")}
+        assert "ix_transaction_relations_component_primary" not in {item["name"] for item in inspector.get_indexes("transaction_relations")}
+        assert "ix_transaction_relations_component_secondary" not in {item["name"] for item in inspector.get_indexes("transaction_relations")}
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT amount FROM cash_transactions WHERE id = 1")) == -10
         command.upgrade(config, "head")

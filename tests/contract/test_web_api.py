@@ -116,8 +116,10 @@ def test_projection_evidence_api_returns_the_projection_envelope(cash_web_runtim
     assert response.status_code == 200
     payload = response.json()
     assert payload["projection"]["projection_id"] == "cash:1003"
-    assert payload["root_record"]["record_id"] == "cash-003"
-    assert payload["root_record"]["source_snapshot"] == {"merchant": "咖啡店"}
+    assert payload["root_record"]["id"] == "1003"
+    assert payload["root_record"]["counterparty"] == "咖啡店"
+    assert "record_id" not in payload["root_record"]
+    assert "source_snapshot" not in payload["root_record"]
     assert payload["members"][0]["roles"] == ["root"]
     assert payload["accepted_relations"] == []
     assert payload["inactive_relation_hints"] == []
@@ -134,7 +136,7 @@ def test_projection_evidence_api_has_not_found_unavailable_and_missing_snapshot_
     client = _client(cash_web_runtime)
     assert client.get("/api/v1/evidence/cash-projections/cash:999").json()["error"]["code"] == "not_found"
     payload = client.get("/api/v1/evidence/cash-projections/cash:1002").json()
-    assert payload["root_record"]["source_snapshot"] is None
+    assert "source_snapshot" not in payload["root_record"]
 
 
 def _add_projection_rows(runtime, count=3):

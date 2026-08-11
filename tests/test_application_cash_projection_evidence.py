@@ -13,9 +13,9 @@ def test_evidence_returns_root_members_and_explicit_absence(cash_web_runtime):
     evidence = _service(cash_web_runtime).get_projection_evidence("cash:1003")
 
     assert evidence["projection"].projection_id == "cash:1003"
-    assert evidence["root_record"]["record_id"] == "cash-003"
+    assert evidence["root_record"]["id"] == "1003"
     assert evidence["root_record"]["account"]["name"] == "日常账户"
-    assert evidence["root_record"]["source_snapshot"] == {"merchant": "咖啡店"}
+    assert "source_snapshot" not in evidence["root_record"]
     assert [member["id"] for member in evidence["members"]] == ["1003"]
     assert evidence["members"][0]["roles"] == ["root"]
     assert evidence["accepted_relations"] == []

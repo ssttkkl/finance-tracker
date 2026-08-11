@@ -36,37 +36,81 @@ async function mockLedger(page: Page) {
   });
 }
 
+async function disableAutoAppend(page: Page) {
+  await page.addInitScript(() => {
+    const browserWindow = window as unknown as { IntersectionObserver?: unknown };
+    delete browserWindow.IntersectionObserver;
+  });
+}
+
 for (const viewport of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 768, height: 1024 }, { width: 390, height: 844 }]) {
   test(`固定去标识化账本快照 ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize(viewport);
+    await disableAutoAppend(page);
     await mockLedger(page);
     await page.goto("/");
     await expect(page.getByText("视觉核对商户")).toBeVisible();
     await expect(page).toHaveScreenshot(`cash-ledger-${viewport.width}x${viewport.height}.png`, { fullPage: true, animations: "disabled" });
-    await page.getByRole("button", { name: "查看视觉核对商户的证据详情" }).click();
-    await expect(page.getByRole("dialog", { name: "证据详情" })).toBeVisible();
+    await page.getByRole("button", { name: "查看视觉核对商户的收支详情" }).click();
+    await expect(page.getByRole("dialog", { name: "收支详情" })).toBeVisible();
     await page.waitForTimeout(EVIDENCE_ANIMATION_MS);
     await expect(page).toHaveScreenshot(`cash-ledger-evidence-${viewport.width}x${viewport.height}.png`, { fullPage: true, animations: "disabled" });
   });
 }
 
-test("连续加载状态候选快照", async ({ page }) => {
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test(`统一关联添加流程快照 ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    const options = {
+      record_types: [{ value: "expense", label: "消费", subtypes: [{ value: "not_applicable", label: "—" }] }],
+      relation_types: [{ value: "payment_mirror", label: "同笔支付" }, { value: "refund_offset", label: "退款冲销" }],
+    };
+    const root = { id: "visual-001", occurred_at: projection.occurred_at, account, counterparty: projection.counterparty, category: projection.category, note: projection.note, amount: projection.amount, currency: projection.currency, source_type: "wallet", record_id: "cash-visual-001", account_name: account.name, account_id: account.id, account_type: account.type, record_type: "expense", record_subtype: "not_applicable", counterparty_account: "", counterparty_account_attrs: [] };
+    await page.route("**/api/v1/**", async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [{ ...account, currencies: ["CNY"] }] } });
+      if (url.pathname.includes("/evidence/")) return route.fulfill({ json: { ...evidence(), root_record: root, members: [{ ...root, roles: ["root"] }], accepted_relations: [], inactive_relation_hints: [] } });
+      if (url.pathname.endsWith("/cash-ledger/options")) return route.fulfill({ json: options });
+      if (url.pathname.endsWith("/cash-records") && request.method() === "GET") return route.fulfill({ json: { items: [{ ...root, id: "visual-003", counterparty: "可选择流水", amount: "12.50", record_type: "income" }], next_cursor: null } });
+      return route.fulfill({ json: { projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {}, filter_options } });
+    });
+    await page.setViewportSize(viewport);
+    await disableAutoAppend(page);
+    await page.goto("/");
+    await page.getByRole("button", { name: "查看视觉核对商户的收支详情" }).click();
+    await page.getByRole("dialog", { name: "收支详情" }).getByRole("button", { name: "添加关联" }).click();
+    const editor = page.getByRole("dialog", { name: "编辑收支详情" });
+    await expect(editor.getByText("关联流水")).toBeVisible();
+    await expect(editor.getByRole("searchbox", { name: "搜索流水" })).toBeVisible();
+    await expect(editor.getByLabel("开始日期")).toHaveValue("2026-06-30");
+    await expect(editor.getByLabel("结束日期")).toHaveValue("2026-07-06");
+    await expect(editor.locator('input[type="radio"]')).toHaveCount(0);
+    await expect(editor.getByRole("button", { name: "新建流水" })).toHaveCount(0);
+    await expect(editor.getByText("可选择流水")).toBeVisible();
+    await expect(page).toHaveScreenshot(`cash-ledger-relation-add-${viewport.width}x${viewport.height}.png`, { fullPage: true, animations: "disabled" });
+  });
+}
+
+test("主列表追加快照", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
+  await disableAutoAppend(page);
   await mockLedger(page); await page.goto("/");
   await expect(page.getByText("视觉核对商户")).toBeVisible();
   await expect(page).toHaveScreenshot("cash-ledger-default-collapsed.png", { fullPage: true, animations: "disabled" });
   await page.locator("details.filters > summary").click();
   await expect(page).toHaveScreenshot("cash-ledger-filters-expanded.png", { fullPage: true, animations: "disabled" });
-  await expect(page.getByText("已显示全部记录。")).toBeVisible();
+  await expect(page.getByRole("button", { name: "加载更多" })).toBeVisible();
   await expect(page).toHaveScreenshot("cash-ledger-all-loaded.png", { fullPage: true, animations: "disabled" });
 });
 
-test("追加加载中和失败候选快照", async ({ page }) => {
+test("主列表追加中和失败快照", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
+  await disableAutoAppend(page);
   await mockLedger(page); await page.goto("/");
   await page.locator("details.filters > summary").click();
   await page.getByLabel("交易信息").fill("append-loading");
   await expect(page.getByText("视觉核对商户")).toBeVisible();
+  await page.getByRole("button", { name: "加载更多" }).click();
   await expect(page.getByRole("button", { name: "正在加载更多…" })).toBeVisible();
   await expect(page).toHaveScreenshot("cash-ledger-append-loading.png", { fullPage: true, animations: "disabled" });
   await page.reload();
@@ -78,10 +122,11 @@ test("追加加载中和失败候选快照", async ({ page }) => {
   await expect(page).toHaveScreenshot("cash-ledger-append-error.png", { fullPage: true, animations: "disabled" });
 });
 
-test("390 px 经济类型字段候选快照", async ({ page }) => {
+test("390 px 流水类型字段候选快照", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await disableAutoAppend(page);
   await mockLedger(page); await page.goto("/");
-  await expect(page.getByText("经济类型：消费")).toBeVisible();
+  await expect(page.getByText("流水类型：消费")).toBeVisible();
   await expect(page.getByText("导入渠道：fixture")).toHaveCount(0);
   await expect(page).toHaveScreenshot("cash-ledger-mobile-fields.png", { fullPage: true, animations: "disabled" });
 });
@@ -104,12 +149,12 @@ test("模态证据抽屉点击遮罩关闭", async ({ page }) => {
   await mockLedger(page);
   await page.goto("/");
   await expect(page.getByText("视觉核对商户")).toBeVisible();
-  await page.getByRole("button", { name: "查看视觉核对商户的证据详情" }).click();
-  await expect(page.getByRole("dialog", { name: "证据详情" })).toBeVisible();
-  await page.getByRole("dialog", { name: "证据详情" }).click();
-  await expect(page.getByRole("dialog", { name: "证据详情" })).toBeVisible();
+  await page.getByRole("button", { name: "查看视觉核对商户的收支详情" }).click();
+  await expect(page.getByRole("dialog", { name: "收支详情" })).toBeVisible();
+  await page.getByRole("dialog", { name: "收支详情" }).click();
+  await expect(page.getByRole("dialog", { name: "收支详情" })).toBeVisible();
   await page.locator(".evidence-backdrop").click();
-  await expect(page.getByRole("dialog", { name: "证据详情" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "收支详情" })).toHaveCount(0);
 });
 
 test("modal backdrop remains transparent while hovered", async ({ page }) => {
@@ -117,8 +162,8 @@ test("modal backdrop remains transparent while hovered", async ({ page }) => {
   await mockLedger(page);
   await page.goto("/");
   await expect(page.getByText("视觉核对商户")).toBeVisible();
-  await page.getByRole("button", { name: "查看视觉核对商户的证据详情" }).click();
-  await expect(page.getByRole("dialog", { name: "证据详情" })).toBeVisible();
+  await page.getByRole("button", { name: "查看视觉核对商户的收支详情" }).click();
+  await expect(page.getByRole("dialog", { name: "收支详情" })).toBeVisible();
 
   const backdrop = page.locator(".evidence-backdrop");
   await expect.poll(() => backdrop.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
