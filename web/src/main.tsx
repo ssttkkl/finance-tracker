@@ -3,9 +3,13 @@ import "@fontsource/noto-sans-sc/chinese-simplified-600.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "./styles.css";
 import { createRoot } from "react-dom/client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { CashLedgerPage } from "./pages/CashLedgerPage";
-import { InvestmentLedgerPage } from "./pages/InvestmentLedgerPage";
+
+const InvestmentLedgerPage = lazy(async () => {
+  const module = await import("./pages/InvestmentLedgerPage");
+  return { default: module.InvestmentLedgerPage };
+});
 
 export function App() {
   const [hash, setHash] = useState(window.location.hash);
@@ -51,7 +55,7 @@ export function App() {
           </div>
         </nav>
       </aside>
-      {isInvestment ? <InvestmentLedgerPage view={isEvents ? "events" : "holdings"} onModalStateChange={onModalStateChange} /> : <CashLedgerPage onModalStateChange={onModalStateChange} />}
+      {isInvestment ? <Suspense fallback={<section className="ledger" aria-label="投资账本"><div className="status-view" role="status"><p>正在打开账本…</p></div></section>}><InvestmentLedgerPage view={isEvents ? "events" : "holdings"} onModalStateChange={onModalStateChange} /></Suspense> : <CashLedgerPage onModalStateChange={onModalStateChange} />}
     </main>
   </div>;
 }

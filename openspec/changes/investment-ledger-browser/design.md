@@ -46,7 +46,7 @@ delta capability 为 `investment-ledger-browser`。完成实现、审查、验�
 
 浏览器性能以 `origin/refactor/web` 的同一收支路由为基线，并对当前投资持仓路由做绝对预算检查：FCP < 1.8s、DOM 完成 < 2.5s、JS < 500KB、CSS < 100KB、请求数 < 50。相对比较沿用 benchmark 规则，计时增加超过 50% 或 500ms 视为回归，bundle 增加超过 25% 视为回归，请求数增加超过 30% 视为回归；10% 以上的 bundle 增长仅作为 warning。LCP 若浏览器没有 buffered entry 必须标为未采集，不以估算替代。
 
-本次实测投资页 FCP 68ms、DOM 完成 29.3ms、7 个请求、JS 76,558B、CSS 8,467B，均通过绝对预算；相对基线只增加投资页面代码，未触发 timing、bundle 或 request regression。当前约 2.40MB 的总传输量主要由基线已有的两份 Noto Sans SC 字体构成，基线同样超过 benchmark 示例的 2MB 提示。为保持 PR #42 的视觉基准，本 change 不在投资页范围内替换全局字体；字体子集化或系统字体回退作为后续独立性能变更，不混入本次 UI 语义和信息架构变更。
+路由拆分后的实测投资页冷加载 FCP 44ms、DOM 完成 26.8ms、9 个请求、JS 总计 79,735B（主包 69,991B，投资 chunk 9,744B）、CSS 总计 9,164B（全局 6,157B，投资 chunk 3,007B），均通过绝对预算；收支页为 7 个请求、FCP 52ms、DOM 完成 24.6ms，JS/CSS 仅比基线增加 1.6%/4.6%。投资页面的代码和样式在进入投资路由时懒加载，不增加收支页首屏负担。两条路由的总传输量仍约 2.40MB，主要由基线已有的两份 Noto Sans SC 字体构成，基线同样超过 benchmark 示例的 2MB 提示。为保持 PR #42 的视觉基准，本 change 不在投资页范围内替换全局字体；字体子集化或系统字体回退作为后续独立性能变更，不混入本次 UI 语义和信息架构变更。
 
 ### 4. 证据详情实施最小披露
 

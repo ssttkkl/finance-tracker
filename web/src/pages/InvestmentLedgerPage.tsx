@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import "../investment.css";
 import { fetchInvestmentAccounts, fetchInvestmentEvidence, fetchInvestmentPage, fetchInvestmentPortfolio } from "../api/investmentLedger";
 import type { Account, InvestmentEvent, InvestmentEvidence, InvestmentFilters, Portfolio } from "../api/types";
 import { InvestmentEvidenceDetail } from "../components/InvestmentEvidenceDetail";
