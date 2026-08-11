@@ -39,7 +39,7 @@ def _utc_today():
     return datetime.now(timezone.utc).date()
 
 
-SCHEMA_REVISION = "20260805_24"
+SCHEMA_REVISION = "20260811_26"
 REQUIRED_TABLES = {
     "workspaces", "accounts", "cash_transactions", "investment_events",
     "ledger_snapshots",
@@ -779,7 +779,10 @@ def build_relational_services(settings) -> ServiceBundle:
         investments=InvestmentService(
             repository=RelationalInvestmentCommandRepository(uow)
         ),
-        statement_import=StatementImportService(uow, StatementParser(), relation_service=relations),
+        statement_import=StatementImportService(
+            uow, StatementParser(), relation_service=relations,
+            enforce_account_currencies=True,
+        ),
         relations=relations,
         funding_relations=funding_relations,
         wealth=WealthChangeService(WealthRuntime()),

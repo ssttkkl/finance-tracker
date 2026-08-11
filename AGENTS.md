@@ -16,6 +16,7 @@
 - 环境必须提供 OpenSpec CLI `1.7.0+` 与 Node.js `20.19.0+`；初始化或升级后以 `openspec --version` 确认。OpenSpec CLI 在终端运行，`$openspec-*` 必须按 Codex Skill 调用，不能作为 shell 子命令。
 - 项目不依赖 gstack 或其他仓库外 Skill。唯一例外是 Hallmark：A 类 UI 原型调用 `$hallmark` 技能，任何等级的 UI 审查调用 Hallmark 的 `audit` 技能动作（通常写作 `$hallmark audit`）；这些都是技能调用，不是 shell 命令。
 - Web QA 使用仓库实际提供的 Vitest、Playwright、生产预览和适用浏览器工具；缺少某个浏览器 Skill 时，改用可用工具完成同等检查。
+- PostgreSQL 双后端验证属于交付前门禁，不由测试代码自动发现或自动启动数据库。完成开发和 SQLite 回归后，执行者必须在本机准备专用测试库：优先使用本地 Docker PostgreSQL 或本机 `psql` 可连接的数据库，将连接配置到 `FT_TEST_POSTGRES_URL` 后补跑同一契约矩阵；数据库名必须以 `_test` 结尾。未配置时只能记录为未完成，不能把跳过项计入完整验证。
 - 必须提交 `openspec/`、`.agents/skills/openspec-*`、`openspec/specs/` 与 `openspec/changes/`；运行缓存、凭据、浏览器状态与真实财务数据留在仓库外。
 
 ## 中文术语与文案

@@ -18,14 +18,27 @@ class ProjectionUpdatedError(RuntimeError):
     code = "projection.updated"
 
 @dataclass(frozen=True)
-class CashAccountDTO: id: int; name: str; type: str; active: bool
+class CashAccountDTO:
+    id: int
+    name: str
+    type: str
+    active: bool
+    currencies: tuple[str, ...] = ()
+
+@dataclass(frozen=True)
+class CashAccountSummaryDTO:
+    id: int
+    name: str
+    type: str
+    active: bool
+
 @dataclass(frozen=True)
 class CashTransferDTO:
-    from_account: CashAccountDTO; from_amount: str; from_currency: str
-    to_account: CashAccountDTO; to_amount: str; to_currency: str
+    from_account: CashAccountSummaryDTO; from_amount: str; from_currency: str
+    to_account: CashAccountSummaryDTO; to_amount: str; to_currency: str
 @dataclass(frozen=True)
 class ProjectionDTO:
-    projection_id: str; occurred_at: str; account: CashAccountDTO; counterparty: str; category: str; note: str
+    projection_id: str; occurred_at: str; account: CashAccountSummaryDTO; counterparty: str; category: str; note: str
     amount: str; currency: str; economic_type: str; transfer_subtype: str | None; composition: tuple[str, ...]
     member_count: int; accepted_relation_summary: tuple[dict, ...]; source_type: str | None; source_types: tuple[str, ...]; record_id: str
     visible: bool = True; hidden_reason: str | None = None; transfer: CashTransferDTO | None = None

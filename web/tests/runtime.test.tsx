@@ -13,7 +13,7 @@ describe("独立 Node 运行时", () => {
 
     render(<CashLedgerPage />);
 
-    expect(await screen.findByText("暂时无法连接账本，请稍后重试。"))
+    expect(await screen.findByText("账本暂不可用，请稍后重试。"))
       .toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();
   });

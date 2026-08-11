@@ -33,6 +33,7 @@ class AccountDTO:
     name: str
     type: str
     active: bool = True
+    currencies: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

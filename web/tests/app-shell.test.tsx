@@ -53,9 +53,9 @@ describe("统一账本外壳", () => {
   it("打开详情抽屉时让统一外壳背景不可交互", async () => {
     render(<App />);
 
-    const trigger = await screen.findByRole("button", { name: "查看咖啡店的详情" });
+    const trigger = await screen.findByRole("button", { name: "查看咖啡店的收支详情" });
     trigger.click();
-    await screen.findByRole("dialog", { name: "记录详情" });
+    await screen.findByRole("dialog", { name: "收支详情" });
     expect(document.querySelector("main.app-shell")).toHaveAttribute("inert");
   });
 

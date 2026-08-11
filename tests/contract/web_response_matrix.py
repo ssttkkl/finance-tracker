@@ -32,7 +32,7 @@ def assert_cash_response_contract(client, runtime, _app_factory) -> None:
     assert [item["projection_id"] for item in currency.json()["items"]] == [
         "cash:1003", "cash:1002", "cash:1001",
     ]
-    assert evidence.json()["root_record"]["source_snapshot"] == {"merchant": "咖啡店"}
+    assert "source_snapshot" not in evidence.json()["root_record"]
     assert evidence.json()["members"][0]["id"] == "1003"
     assert invalid.status_code == invalid_limit.status_code == 400
     assert invalid.json()["error"]["code"] == "invalid_cursor"

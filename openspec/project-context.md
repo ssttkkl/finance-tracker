@@ -23,6 +23,7 @@
 - PostgreSQL 与 SQLite 都是正式支持的运行时事实源；调用方必须通过 `FT_DATABASE_URL` 显式选择一个后端。
 - 不得自动探测、静默回退、双写或隐式跨后端迁移。相同 Application Service、CLI 合同、财务语义、精度、幂等、审计和工作区隔离必须产生等价的用户可见结果。
 - 所有持久化、schema 或查询变更必须同时提供 SQLite 自动化集成证据和真实 PostgreSQL 集成证据；方言差异只能存在于 persistence adapter。
+- 上述“不得自动探测”适用于运行时和应用代码；测试代码不得自动启动、探测或切换数据库。完成开发和 SQLite 回归后，执行者必须人工准备本地专用 PostgreSQL 测试库，优先使用 Docker PostgreSQL 或本机 `psql` 可连接的数据库，并通过 `FT_TEST_POSTGRES_URL` 显式配置。测试库名称必须以 `_test` 结尾；未配置或不可连接时，PostgreSQL 矩阵属于未完成，不得宣称双后端验证通过。
 
 ### 边界、安全与最小复杂度
 

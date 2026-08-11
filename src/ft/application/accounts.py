@@ -37,6 +37,7 @@ class AccountService:
             name=normalized_name,
             type=type_,
             active=True,
+            currencies=(seed_currency,) if seed_currency is not None else (),
         )
         with self._uow as uow:
             accounts = uow.accounts.list()
@@ -59,9 +60,8 @@ class AccountService:
                     f"账户已存在: {normalized_name}",
                     name=normalized_name,
                 )
-            # Investment accounts store optional base_currencies in metadata so portfolio
-            # cash positions (e.g. usd after deposit) are marked is_cash. Cash/loan/lend
-            # only seed a zero balance entry on the snapshot.
+            # Account currencies are stored on the account itself. Cash/loan/lend
+            # also seed a zero balance entry on the legacy snapshot read model.
             if seed_currency is not None and type_ in {"security", "crypto"}:
                 try:
                     uow.accounts.add(account, seed_currency=seed_currency)

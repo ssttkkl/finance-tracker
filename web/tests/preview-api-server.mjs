@@ -1,12 +1,12 @@
 import { createServer } from "node:http";
 
-const account = { id: 901, name: "预览账户", type: "cash", active: true };
+const account = { id: 901, name: "预览账户", type: "cash", active: true, currencies: ["CNY", "HKD", "USD"] };
 const investmentAccount = { id: 902, name: "预览投资账户", type: "security", active: true };
 const port = Number(process.env.FT_PREVIEW_API_PORT ?? "8766");
 const allowedOrigin = process.env.FT_PREVIEW_WEB_ORIGIN ?? "http://127.0.0.1:5173";
 const previewProjection = {
   projection_id: "cash:preview-001", occurred_at: "2026-07-03T09:00:00+08:00", account,
-  counterparty: "自包含预览投影", category: "测试", amount: "1", currency: "CNY",
+  counterparty: "示例商户", category: "测试", amount: "1", currency: "CNY",
   note: "", source_type: "preview", source_types: ["preview"], record_id: "preview-001",
   economic_type: "income", transfer_subtype: null, composition: [], member_count: 1,
   accepted_relation_summary: [], visible: true, hidden_reason: null,
@@ -37,31 +37,40 @@ const page = {
     ],
   },
 };
-const cashInvestmentRelation = {
-  kind: "cash_investment_funding", status: "accepted", direction: "cash_to_investment",
-  rule_id: "cash-investment-funding-v1", cash_account: account, cash_amount: "-10000",
-  cash_currency: "USD", cash_occurred_at: "2026-07-02T09:00:00+08:00", cash_counterparty: "银行",
-  cash_note: "转证券", cash_source_type: "preview", cash_record_id: "cash-preview-002",
-  evidence: { business_day_window: 0, candidate_count: 1, cash_record_type: "transfer_out", match_keys: ["amount", "currency"] },
+const ledgerOptions = {
+  record_types: [
+    { value: "consumption", label: "消费", subtypes: [{ value: "not_applicable", label: "" }] },
+    { value: "income", label: "收入", subtypes: [{ value: "not_applicable", label: "" }] },
+    { value: "other", label: "其他", subtypes: [{ value: "not_applicable", label: "" }] },
+    { value: "transfer_in", label: "转账入账", subtypes: [{ value: "ordinary_transfer", label: "普通转账" }] },
+  ],
+  relation_types: [
+    { value: "payment_mirror", label: "同笔支付" },
+    { value: "transfer_pair", label: "个人转账" },
+    { value: "refund_offset", label: "退款冲销" },
+  ],
 };
-const investmentEvent = {
-  event_id: "preview:investment-001", occurred_at: "2026-07-02T01:00:00+00:00", account: investmentAccount,
-  record_type: "trade", record_subtype: "security", currency: "USD", note: "预览买入",
-  from_asset: { ticker: "USD", amount: "10000.000000000000000001" },
-  to_asset: { ticker: "AAPL.US", amount: "100.000000000000000001" },
-  commission: { asset: "USD", amount: "10.000000000000000000" }, source_type: "preview",
-  record_id: "investment-001", relations: [cashInvestmentRelation],
+const records = new Map();
+const manualRecord = {
+  id: "preview-manual-001", occurred_at: "2026-07-01T09:00:00+00:00", account_name: account.name,
+  account_id: account.id, account_type: account.type, amount: "0", currency: "CNY",
+  counterparty: "预览手工记录", counterparty_account: "", counterparty_account_attrs: [],
+  note: "", category: "测试", record_type: "other", record_subtype: "not_applicable",
+  source_type: "", record_id: "", source_snapshot: null,
 };
-const investmentPage = { data_version: 1, items: [investmentEvent], next_cursor: null, page_size: 50, filters: {} };
-const investmentPortfolio = {
-  total_market_value: "10125.00", total_profit: "125.00", total_profit_rate: "0.012345679012345679",
-  period_profit: "86.40", period_profit_rate: "0.0061",
-  accounts: [{ name: "预览投资账户", currency: "USD", positions: [
-    { ticker: "AAPL.US", shares: "100.000000000000000001", total_cost: "10000.00", cost_currency: "USD", is_cash: false, current_price: "101.25", market_value: "10125.00", profit: "125.00", quote_status: "complete", quote_reason: "ok", quote_currency: "USD", display_currency: null, display_market_value: null, fx_rate: null, fx_status: null, fx_reason: null, period_profit: "86.40", period_profit_rate: "0.0086" },
-  ] }],
-};
-function investmentEvidence() {
-  return { data_version: 1, event: investmentEvent, source_snapshot: { action: "BUY" }, relations: [cashInvestmentRelation] };
+records.set(manualRecord.id, { record: manualRecord, relations: [], options: ledgerOptions });
+
+function readBody(request) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    request.on("data", (chunk) => chunks.push(chunk));
+    request.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+  });
+}
+
+function send(response, value, status = 200) {
+  response.statusCode = status;
+  response.end(JSON.stringify(value));
 }
 function evidenceFor(projection) {
   return {
@@ -75,28 +84,94 @@ function evidenceFor(projection) {
   };
 }
 
-const server = createServer((request, response) => {
+const server = createServer(async (request, response) => {
   response.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+  response.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
   response.setHeader("Content-Type", "application/json");
+  if (request.method === "OPTIONS") {
+    response.statusCode = 204;
+    response.end();
+    return;
+  }
   if (request.url === "/health") {
     response.end(JSON.stringify({ status: "ok" }));
     return;
   }
-  const requestUrl = new URL(request.url ?? "/", `http://127.0.0.1:${port}`);
-  if (requestUrl.pathname === "/api/v1/accounts") {
-    response.end(JSON.stringify({ items: requestUrl.searchParams.get("view") === "investment" ? [investmentAccount] : [account] }));
+  if (request.url?.startsWith("/api/v1/accounts")) {
+    send(response, { items: [account] });
     return;
   }
-  if (requestUrl.pathname === "/api/v1/investment-portfolio") {
-    response.end(JSON.stringify(investmentPortfolio));
+  if (request.url === "/api/v1/cash-ledger/options") {
+    send(response, ledgerOptions);
     return;
   }
-  if (requestUrl.pathname.startsWith("/api/v1/evidence/investment-events/")) {
-    response.end(JSON.stringify(investmentEvidence()));
+  if (request.url?.startsWith("/api/v1/cash-records") && request.method === "GET") {
+    const id = request.url.match(/^\/api\/v1\/cash-records\/([^?]+)/)?.[1];
+    if (id) {
+      const detail = records.get(decodeURIComponent(id));
+      if (detail) send(response, detail);
+      else {
+        const projection = [previewProjection, bankSecurityProjection].find((item) => item.record_id === decodeURIComponent(id));
+        if (!projection) { send(response, { error: { code: "not_found" } }, 404); return; }
+        send(response, {
+          record: {
+            id: projection.record_id,
+            occurred_at: projection.occurred_at,
+            account_name: projection.account.name,
+            account_id: projection.account.id,
+            account_type: projection.account.type,
+            amount: projection.amount,
+            currency: projection.currency,
+            counterparty: projection.counterparty,
+            counterparty_account: "",
+            counterparty_account_attrs: [],
+            note: projection.note,
+            category: projection.category,
+            record_type: projection.economic_type === "income" ? "income" : "other",
+            record_subtype: "not_applicable",
+            source_type: projection.source_type,
+            record_id: projection.record_id,
+            source_snapshot: { merchant: projection.counterparty },
+          },
+          relations: [],
+          options: ledgerOptions,
+        });
+      }
+      return;
+    }
+    send(response, { items: [...records.values()].map((value) => value.record) });
     return;
   }
-  if (requestUrl.pathname === "/api/v1/investment-events") {
-    response.end(JSON.stringify(investmentPage));
+  if (request.url === "/api/v1/cash-records" && request.method === "POST") {
+    const body = JSON.parse(await readBody(request) || "{}");
+    const record = { ...manualRecord, ...body, id: `preview-manual-${records.size + 1}`, record_id: `manual-${records.size + 1}`, account_id: account.id, account_type: account.type, source_type: "" };
+    const detail = { record, relations: [], options: ledgerOptions };
+    records.set(record.id, detail);
+    send(response, detail, 201);
+    return;
+  }
+  if (request.url?.startsWith("/api/v1/cash-records/") && request.method === "PUT") {
+    const id = decodeURIComponent(request.url.split("/").pop());
+    const detail = records.get(id);
+    if (!detail) { send(response, { error: { code: "not_found" } }, 404); return; }
+    const body = JSON.parse(await readBody(request) || "{}");
+    detail.record = { ...detail.record, ...body };
+    send(response, detail);
+    return;
+  }
+  if (request.url?.startsWith("/api/v1/cash-records/") && request.method === "DELETE") {
+    const id = decodeURIComponent(request.url.split("/").pop());
+    records.delete(id);
+    send(response, { deleted: true, related_count: 0 });
+    return;
+  }
+  if (request.url?.startsWith("/api/v1/cash-import/preview")) {
+    send(response, { channel: "preview", items: [{ record_id: "preview-import-1", occurred_at: "2026-07-03T09:00", counterparty: "预览导入记录", amount: "-1", currency: "CNY", account_name: account.name, category: "测试", channel: "preview", status: "new", message: "" }], summary: { new: 1, existing: 0, unsupported: 0, error: 0 } });
+    return;
+  }
+  if (request.url?.startsWith("/api/v1/cash-import/commit")) {
+    send(response, { message: "已导入预览记录", new_rows: 1, updated_rows: 0 });
     return;
   }
   if (request.url?.startsWith("/api/v1/evidence/cash-projections/")) {
@@ -109,8 +184,7 @@ const server = createServer((request, response) => {
     response.end(JSON.stringify(page));
     return;
   }
-  response.statusCode = 404;
-  response.end(JSON.stringify({ code: "not_found" }));
+  send(response, { code: "not_found" }, 404);
 });
 
 server.listen(port, "127.0.0.1");
