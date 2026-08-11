@@ -295,6 +295,7 @@ class CashProjectionMemberModel(Base):
         UniqueConstraint("workspace_id", "dataset_id", "cash_transaction_id", name="uq_cash_projection_members_dataset_cash"),
         UniqueConstraint("projection_row_id", "ordinal", name="uq_cash_projection_members_ordinal"),
         Index("ix_cash_projection_members_dataset", "dataset_id"),
+        Index("ix_cash_projection_members_page_lookup", "workspace_id", "dataset_id", "projection_row_id", "ordinal"),
     )
 
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
@@ -314,6 +315,7 @@ class CashProjectionRelationModel(Base):
         UniqueConstraint("workspace_id", "dataset_id", "transaction_relation_id", name="uq_cash_projection_relations_dataset_relation"),
         UniqueConstraint("projection_row_id", "ordinal", name="uq_cash_projection_relations_ordinal"),
         Index("ix_cash_projection_relations_dataset", "dataset_id"),
+        Index("ix_cash_projection_relations_page_lookup", "workspace_id", "dataset_id", "projection_row_id", "kind", "ordinal"),
     )
 
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
@@ -707,6 +709,8 @@ class TransactionRelationModel(Base):
         Index("ix_transaction_relations_workspace_kind", "workspace_id", "kind"),
         Index("ix_transaction_relations_primary", "workspace_id", "primary_fact_id"),
         Index("ix_transaction_relations_secondary", "workspace_id", "secondary_fact_id"),
+        Index("ix_transaction_relations_component_primary", "workspace_id", "status", "primary_fact_id"),
+        Index("ix_transaction_relations_component_secondary", "workspace_id", "status", "secondary_fact_id"),
         Index("ix_transaction_relations_anchor", "workspace_id", "anchor_fact_id"),
         # Partial unique for unpaired relation active occupancy (PG + SQLite 3.8+).
         Index(

@@ -157,11 +157,8 @@ class StatementImportService:
                         "该账单记录已导入其他账户，不能更改归属"
                     )
 
-            snapshot = uow.snapshot.load(lock=True)
-            imported_count = 0
-            updated_count = 0
-            by_account: Counter[str] = Counter()
-            new_cash_fact_ids: list[str] = []
+            formal_rows: list[tuple[dict, str, object, dict]] = []
+            cash_items: list[tuple[str, dict]] = []
             for row, record_id in prepared:
                 account = account_cache[row["account_name"]]
                 payload = row.get("source_payload")
@@ -177,19 +174,35 @@ class StatementImportService:
                     "record_id": record_id,
                     "source_payload": _json_safe(payload),
                 }
+                formal_rows.append((row, record_id, account, formal))
                 if account.type in {"cash", "loan", "lend"}:
-                    previous = uow.cashflows.find_active_by_source_identity(source_type, record_id)
-                    fact_id, created = uow.cashflows.merge_import(account.type, formal)
+                    cash_items.append((account.type, formal))
+
+            snapshot = uow.snapshot.load(lock=True)
+            imported_count = 0
+            updated_count = 0
+            by_account: Counter[str] = Counter()
+            new_cash_fact_ids: list[str] = []
+            created_cash_fact_ids: list[str] = []
+            cash_results = iter(uow.cashflows.merge_import_batch(cash_items))
+            cash_result_by_formal_id = {}
+            for _account_type, formal in cash_items:
+                cash_result_by_formal_id[id(formal)] = next(cash_results)
+
+            for row, record_id, account, formal in formal_rows:
+                if account.type in {"cash", "loan", "lend"}:
+                    result = cash_result_by_formal_id[id(formal)]
+                    fact_id = result["fact_id"]
+                    created = result["created"]
+                    source_changed = result["source_changed"]
+                    previous = result["previous"]
+                    current = result["current"]
                     if created:
                         imported_count += 1
-                    current = uow.cashflows.get(fact_id)
-                    source_changed = (
-                        created
-                        or previous is None
-                        or previous.get("source_fingerprint") != (current or {}).get("source_fingerprint")
-                    )
                     if source_changed:
                         new_cash_fact_ids.append(fact_id)
+                    if created:
+                        created_cash_fact_ids.append(fact_id)
                     if not created and source_changed:
                         updated_count += 1
                     if created and row.get("category") not in {"transfer", "transfer_in", "transfer_out"}:
@@ -229,7 +242,10 @@ class StatementImportService:
             if new_cash_fact_ids:
                 from ft.application.cash_projections import CashProjectionService
                 CashProjectionService.maintain_if_ready_in_session(
-                    uow._state().session, uow.workspace_id, {int(item) for item in new_cash_fact_ids},
+                    uow._state().session,
+                    uow.workspace_id,
+                    {int(item) for item in new_cash_fact_ids},
+                    new_fact_ids={int(item) for item in created_cash_fact_ids},
                 )
             uow.commit()
             saved_imported_count = imported_count

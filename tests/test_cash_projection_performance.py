@@ -7,13 +7,14 @@ from hashlib import sha256
 import json
 import os
 import platform
+import resource
 import sys
 import time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
-from sqlalchemy import func, insert, select
+from sqlalchemy import func, insert, select, text
 
 
 WORKSPACE = "cash-projection-performance"
@@ -27,11 +28,21 @@ WARMUPS = 3
 SAMPLES = 20
 P95_BUDGET_NS = 10_000_000_000
 EDIT_P95_BUDGET_NS = 100_000_000
-EDIT_WARMUPS = 2
-EDIT_SAMPLES = 3
+EDIT_WARMUPS = 3
+EDIT_SAMPLES = 20
 RELATION_P95_BUDGET_NS = 100_000_000
 RELATION_WARMUPS = 3
 RELATION_SAMPLES = 20
+WRITE_WARMUPS = 3
+WRITE_SAMPLES = 20
+READ_P95_BUDGET_NS = 100_000_000
+READ_WARMUPS = 3
+READ_SAMPLES = 20
+IMPORT_ROWS = 1_000
+IMPORT_PREVIEW_BUDGET_NS = 5_000_000_000
+IMPORT_COMMIT_BUDGET_NS = 15_000_000_000
+IMPORT_MAX_RSS_BYTES = 256 * 1024 * 1024
+READ_TEN_PAGE_BUDGET_NS = 1_000_000_000
 
 
 def _backends() -> list[object]:
@@ -131,6 +142,53 @@ def _fixture_digest() -> str:
     return sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def _cash_command_service(sessions):
+    from ft.adapters.relational.uow import RelationalUnitOfWork
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from ft.application.relations import RelationService
+
+    return CashLedgerCommandService(
+        sessions,
+        WORKSPACE,
+        relation_service=RelationService(RelationalUnitOfWork(sessions, WORKSPACE)),
+    )
+
+
+class _PerformanceStatementParser:
+    def __init__(self, rows: list[dict]) -> None:
+        self.rows = rows
+
+    def parse(self, _command) -> list[dict]:
+        return [dict(row) for row in self.rows]
+
+
+def _performance_import_rows(count: int, *, source_type: str = "performance_import") -> list[dict]:
+    return [
+        {
+            "record_id": f"performance-import-{index:05d}",
+            "occurred_at": f"2026-01-{index % 28 + 1:02d}T{index % 24:02d}:00:00+00:00",
+            "amount": "-1.00",
+            "currency": "CNY",
+            "counterparty": f"性能导入对方-{index:05d}",
+            "counterparty_account": "",
+            "note": "固定导入性能夹具",
+            "category": "日常",
+            "record_type": "consumption",
+            "record_subtype": "not_applicable",
+            "account_name": "性能现金账户 A",
+            "source_type": source_type,
+            "bill_source": source_type,
+            "source_payload": {"row": index, "source": source_type},
+        }
+        for index in range(count)
+    ]
+
+
+def _process_peak_rss_bytes() -> int:
+    value = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return int(value if sys.platform == "darwin" else value * 1024)
+
+
 def _seed_cash_projection_workload(sessions) -> None:
     from ft.adapters.relational.models import AccountModel, CashTransactionModel, TransactionRelationModel
 
@@ -217,6 +275,12 @@ def _seed_cash_projection_workload(sessions) -> None:
         for start in range(0, len(transactions), 2_000):
             session.execute(insert(CashTransactionModel), transactions[start:start + 2_000])
         session.execute(insert(TransactionRelationModel), relations)
+        if session.bind.dialect.name == "postgresql":
+            session.execute(text(
+                "SELECT setval("
+                "pg_get_serial_sequence('cash_transactions', 'id'), "
+                "COALESCE((SELECT MAX(id) FROM cash_transactions), 1), true)"
+            ))
 
 
 def _p95(samples: list[int]) -> int:
@@ -238,11 +302,12 @@ def test_fixed_10k_cash_projection_rebuild_meets_budget(performance_runtime) -> 
         == FACT_COUNT
     )
     service = CashProjectionService(sessions, WORKSPACE)
+    command_service = _cash_command_service(sessions)
 
     for _ in range(WARMUPS):
         service.rebuild()
     for sample in range(EDIT_WARMUPS):
-        service.update_record("1", {
+        command_service.update_record("1", {
             "account_name": "性能现金账户 A",
             "currency": "CNY",
             "counterparty": f"性能预热-{sample}",
@@ -396,3 +461,552 @@ def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime
         "platform": platform.platform(),
     })
     assert all(value <= RELATION_P95_BUDGET_NS for value in p95.values())
+
+
+def test_fixed_10k_cash_create_key_edit_and_unrelated_delete_meet_100ms_budget(performance_runtime) -> None:
+    """新建、关键字段保存和无关联删除都必须完成事务与返回结果。"""
+    from ft.application.cash_projections import CashProjectionService
+
+    backend, sessions = performance_runtime
+    _seed_cash_projection_workload(sessions)
+    CashProjectionService(sessions, WORKSPACE).rebuild()
+    service = _cash_command_service(sessions)
+
+    for sample in range(WRITE_WARMUPS):
+        created = service.create_record({
+            "account_name": "性能现金账户 A",
+            "amount": "-1.00",
+            "currency": "CNY",
+            "occurred_at": f"2026-02-0{sample + 1}T09:00:00+00:00",
+            "counterparty": "性能预热",
+            "category": "日常",
+            "record_type": "consumption",
+            "record_subtype": "not_applicable",
+            "note": "性能预热",
+        })
+        service.delete_record(created["record"]["id"])
+        service.update_record("1", {
+            "account_name": "性能现金账户 A",
+            "amount": f"-{11 + sample}.00",
+            "currency": "CNY",
+            "occurred_at": "2025-07-01T00:00:00+00:00",
+            "record_type": "consumption",
+            "record_subtype": "not_applicable",
+        })
+
+    samples: dict[str, list[int]] = {"create": [], "key_edit": [], "delete": []}
+    for sample in range(WRITE_SAMPLES):
+        started = time.perf_counter_ns()
+        created = service.create_record({
+            "account_name": "性能现金账户 A",
+            "amount": "-1.00",
+            "currency": "CNY",
+            "occurred_at": f"2026-03-{sample + 1:02d}T09:00:00+00:00",
+            "counterparty": f"性能新建-{sample}",
+            "category": "日常",
+            "record_type": "consumption",
+            "record_subtype": "not_applicable",
+            "note": "性能新建",
+        })
+        samples["create"].append(time.perf_counter_ns() - started)
+        created_id = created["record"]["id"]
+
+        started = time.perf_counter_ns()
+        edited = service.update_record("1", {
+            "account_name": "性能现金账户 A",
+            "amount": f"-{20 + sample}.00",
+            "currency": "CNY",
+            "occurred_at": "2025-07-01T00:00:00+00:00",
+            "record_type": "consumption",
+            "record_subtype": "not_applicable",
+        })
+        samples["key_edit"].append(time.perf_counter_ns() - started)
+
+        started = time.perf_counter_ns()
+        deleted = service.delete_record(created_id)
+        samples["delete"].append(time.perf_counter_ns() - started)
+        assert deleted["deleted"] is True
+        assert Decimal(str(edited["record"]["amount"])) == Decimal(f"-{20 + sample}.00")
+
+    p95 = {operation: _p95(values) for operation, values in samples.items()}
+    print({
+        "backend": backend,
+        "fixture_digest": _fixture_digest(),
+        "warmups": WRITE_WARMUPS,
+        "samples": WRITE_SAMPLES,
+        "write_p95_ns": p95,
+        "write_max_ns": {operation: max(values) for operation, values in samples.items()},
+        "python": sys.version.split(".")[0:2],
+        "platform": platform.platform(),
+    })
+    assert all(value <= EDIT_P95_BUDGET_NS for value in p95.values())
+
+
+def test_fixed_10k_cash_related_delete_modes_meet_100ms_budget(performance_runtime) -> None:
+    """有关联流水的两种删除结果都必须在同一事务内完成。"""
+    from ft.application.cash_projections import CashProjectionService
+
+    backend, sessions = performance_runtime
+    _seed_cash_projection_workload(sessions)
+    CashProjectionService(sessions, WORKSPACE).rebuild()
+    service = _cash_command_service(sessions)
+
+    def pair(index: int) -> tuple[str, str]:
+        outgoing = service.create_record({
+            "account_name": "性能现金账户 A",
+            "amount": f"-{100 + index}.00",
+            "currency": "CNY",
+            "occurred_at": "2026-04-01T09:00:00+00:00",
+            "counterparty": "性能关联对侧",
+            "category": "转账",
+            "record_type": "transfer_out",
+            "record_subtype": "ordinary_transfer",
+            "note": "性能关联",
+        })
+        incoming = service.create_record({
+            "account_name": "性能现金账户 B",
+            "amount": f"{100 + index}.00",
+            "currency": "CNY",
+            "occurred_at": "2026-04-01T09:01:00+00:00",
+            "counterparty": "性能关联对侧",
+            "category": "转账",
+            "record_type": "transfer_in",
+            "record_subtype": "ordinary_transfer",
+            "note": "性能关联",
+        })
+        service.add_relation({
+            "primary_fact_id": outgoing["record"]["id"],
+            "secondary_fact_id": incoming["record"]["id"],
+            "kind": "transfer_pair",
+            "subtype": "ordinary_transfer",
+            "status": "accepted",
+        })
+        return outgoing["record"]["id"], incoming["record"]["id"]
+
+    for warmup in range(WRITE_WARMUPS):
+        outgoing, incoming = pair(warmup)
+        service.delete_record(outgoing, mode="delete_current_dissolve")
+        service.delete_record(incoming)
+        outgoing, _incoming = pair(100 + warmup)
+        service.delete_record(outgoing, mode="delete_all")
+
+    samples: dict[str, list[int]] = {
+        "related_key_edit": [],
+        "delete_current_dissolve": [],
+        "delete_all": [],
+    }
+    for sample in range(WRITE_SAMPLES):
+        outgoing, incoming = pair(200 + sample)
+        started = time.perf_counter_ns()
+        edited = service.update_record(outgoing, {
+            "account_name": "性能现金账户 A",
+            "amount": f"-{150 + sample}.00",
+            "currency": "CNY",
+            "occurred_at": "2026-04-01T09:00:00+00:00",
+            "counterparty": "性能关联对侧",
+            "category": "转账",
+            "record_type": "transfer_out",
+            "record_subtype": "ordinary_transfer",
+            "note": "性能关联",
+            "confirm_relation_impact": True,
+        })
+        samples["related_key_edit"].append(time.perf_counter_ns() - started)
+        assert edited["relations"] == []
+        service.delete_record(outgoing)
+        service.delete_record(incoming)
+
+        outgoing, incoming = pair(300 + sample)
+        started = time.perf_counter_ns()
+        result = service.delete_record(outgoing, mode="delete_current_dissolve")
+        samples["delete_current_dissolve"].append(time.perf_counter_ns() - started)
+        assert result["deleted"] is True
+        service.delete_record(incoming)
+
+        outgoing, _incoming = pair(400 + sample)
+        started = time.perf_counter_ns()
+        result = service.delete_record(outgoing, mode="delete_all")
+        samples["delete_all"].append(time.perf_counter_ns() - started)
+        assert result["deleted"] is True
+
+    p95 = {operation: _p95(values) for operation, values in samples.items()}
+    print({
+        "backend": backend,
+        "fixture_digest": _fixture_digest(),
+        "warmups": WRITE_WARMUPS,
+        "samples": WRITE_SAMPLES,
+        "delete_p95_ns": p95,
+        "delete_max_ns": {operation: max(values) for operation, values in samples.items()},
+        "python": sys.version.split(".")[0:2],
+        "platform": platform.platform(),
+    })
+    assert all(value <= EDIT_P95_BUDGET_NS for value in p95.values())
+
+
+def test_fixed_10k_cash_read_paths_meet_100ms_budget(performance_runtime) -> None:
+    """主账单、候选搜索和收支详情读取不能因账本总量增长而退化。"""
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.web_queries import CashLedgerQueryService
+
+    backend, sessions = performance_runtime
+    _seed_cash_projection_workload(sessions)
+    CashProjectionService(sessions, WORKSPACE).rebuild()
+    query = CashLedgerQueryService(sessions, WORKSPACE)
+    candidate_service = CashLedgerCommandService(sessions, WORKSPACE)
+
+    first = query.list_cash_projections(limit=50)
+    assert first.next_cursor
+
+    def warmup() -> None:
+        query.list_cash_projections(limit=50)
+        query.list_cash_projections(limit=50, cursor=first.next_cursor)
+        query.list_cash_projections(
+            counterparty="去标识化",
+            date_from="2025-07-01",
+            date_to="2026-06-30",
+            timezone="Asia/Shanghai",
+            limit=50,
+        )
+        query.get_projection_evidence("cash:1")
+
+    for _ in range(READ_WARMUPS):
+        warmup()
+
+    samples: dict[str, list[int]] = {
+        "ledger_first": [],
+        "ledger_cursor": [],
+        "ledger_filtered": [],
+        "candidate_search": [],
+        "candidate_cursor": [],
+        "evidence": [],
+        "ten_ledger_pages": [],
+    }
+    for _ in range(READ_SAMPLES):
+        started = time.perf_counter_ns()
+        page = query.list_cash_projections(limit=50)
+        samples["ledger_first"].append(time.perf_counter_ns() - started)
+        assert page.items
+
+        started = time.perf_counter_ns()
+        page = query.list_cash_projections(limit=50, cursor=first.next_cursor)
+        samples["ledger_cursor"].append(time.perf_counter_ns() - started)
+        assert page.items
+
+        started = time.perf_counter_ns()
+        page = query.list_cash_projections(
+            counterparty="去标识化",
+            date_from="2025-07-01",
+            date_to="2026-06-30",
+            timezone="Asia/Shanghai",
+            limit=50,
+        )
+        samples["ledger_filtered"].append(time.perf_counter_ns() - started)
+        assert page.items
+
+        started = time.perf_counter_ns()
+        candidate_page = candidate_service.list_records(
+            query="去标识化",
+            date_from="2025-07-01",
+            date_to="2026-06-30",
+            timezone_name="Asia/Shanghai",
+            limit=20,
+        )
+        samples["candidate_search"].append(time.perf_counter_ns() - started)
+        assert candidate_page["items"]
+
+        started = time.perf_counter_ns()
+        candidate_cursor_page = candidate_service.list_records(
+            query="去标识化",
+            date_from="2025-07-01",
+            date_to="2026-06-30",
+            timezone_name="Asia/Shanghai",
+            cursor=candidate_page["next_cursor"],
+            limit=20,
+        )
+        samples["candidate_cursor"].append(time.perf_counter_ns() - started)
+        assert candidate_cursor_page["items"]
+
+        started = time.perf_counter_ns()
+        evidence = query.get_projection_evidence("cash:1")
+        samples["evidence"].append(time.perf_counter_ns() - started)
+        assert evidence["projection"]
+
+        started = time.perf_counter_ns()
+        cursor = None
+        for _page_number in range(10):
+            page = query.list_cash_projections(limit=50, cursor=cursor)
+            cursor = page.next_cursor
+            if not cursor:
+                break
+        samples["ten_ledger_pages"].append(time.perf_counter_ns() - started)
+        assert cursor
+
+    p95 = {operation: _p95(values) for operation, values in samples.items()}
+    print({
+        "backend": backend,
+        "fixture_digest": _fixture_digest(),
+        "warmups": READ_WARMUPS,
+        "samples": READ_SAMPLES,
+        "read_p95_ns": p95,
+        "read_max_ns": {operation: max(values) for operation, values in samples.items()},
+        "python": sys.version.split(".")[0:2],
+        "platform": platform.platform(),
+    })
+    assert all(value <= READ_P95_BUDGET_NS for operation, value in p95.items() if operation != "ten_ledger_pages")
+    assert p95["ten_ledger_pages"] <= READ_TEN_PAGE_BUDGET_NS
+
+
+def test_fixed_10k_cash_page_lookup_plans_use_pagination_indexes(performance_runtime) -> None:
+    """分页附属查询必须命中针对当前数据集和投影行的复合索引。"""
+    from ft.adapters.relational.models import CashProjectionStateModel
+    from ft.application.cash_projections import CashProjectionService
+
+    backend, sessions = performance_runtime
+    _seed_cash_projection_workload(sessions)
+    CashProjectionService(sessions, WORKSPACE).rebuild()
+    with sessions.begin() as session:
+        dataset_id = session.scalar(select(CashProjectionStateModel.active_dataset_id).where(
+            CashProjectionStateModel.workspace_id == WORKSPACE,
+        ))
+        assert dataset_id
+        params = {"workspace_id": WORKSPACE, "dataset_id": dataset_id}
+        if session.bind.dialect.name == "sqlite":
+            explain = "EXPLAIN QUERY PLAN "
+        else:
+            explain = "EXPLAIN (FORMAT JSON) "
+            for table in (
+                "cash_projection_members",
+                "cash_projection_relations",
+                "transaction_relations",
+            ):
+                session.execute(text(f"ANALYZE {table}"))
+        plans = []
+        for statement in (
+            "SELECT cash_transaction_id FROM cash_projection_members "
+            "WHERE workspace_id = :workspace_id AND dataset_id = :dataset_id "
+            "AND projection_row_id IN (SELECT id FROM cash_projections "
+            "WHERE workspace_id = :workspace_id AND dataset_id = :dataset_id "
+            "AND visible = TRUE ORDER BY occurred_at DESC, projection_id DESC LIMIT 50)",
+            "SELECT transaction_relation_id FROM cash_projection_relations "
+            "WHERE workspace_id = :workspace_id AND dataset_id = :dataset_id "
+            "AND projection_row_id IN (SELECT id FROM cash_projections "
+            "WHERE workspace_id = :workspace_id AND dataset_id = :dataset_id "
+            "AND visible = TRUE ORDER BY occurred_at DESC, projection_id DESC LIMIT 50)",
+            "SELECT id FROM transaction_relations "
+                "WHERE workspace_id = :workspace_id AND status = 'accepted' "
+                "AND primary_fact_id IN (7001, 7003, 7005)",
+            "SELECT id FROM transaction_relations "
+                "WHERE workspace_id = :workspace_id AND status = 'accepted' "
+                "AND secondary_fact_id IN (7002, 7004, 7006)",
+        ):
+            result = session.execute(text(explain + statement), params)
+            if session.bind.dialect.name == "sqlite":
+                plans.extend(str(row) for row in result.all())
+            else:
+                plans.extend(str(plan) for plan in result.scalars())
+    plan_text = " ".join(plans)
+    print({"backend": backend, "fixture_digest": _fixture_digest(), "query_plans": plan_text})
+    if backend == "sqlite":
+        assert "ix_cash_projection_members_page_lookup" in plan_text
+        assert "ix_cash_projection_relations_page_lookup" in plan_text
+    else:
+        # PostgreSQL may choose the equivalent unique projection-row index for
+        # a single projection-row lookup; both plans remain bounded by the
+        # projection row rather than scanning the dataset.
+        assert (
+            "ix_cash_projection_members_page_lookup" in plan_text
+            or "uq_cash_projection_members_ordinal" in plan_text
+        )
+        assert (
+            "ix_cash_projection_relations_page_lookup" in plan_text
+            or "uq_cash_projection_relations_ordinal" in plan_text
+        )
+    assert "ix_transaction_relations_component_primary" in plan_text
+    assert "ix_transaction_relations_component_secondary" in plan_text
+
+
+def test_cash_relation_group_mutations_scale_with_affected_group_size(performance_runtime) -> None:
+    """关联取消和解散必须记录组规模，并保持近似按组规模增长。"""
+    from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
+    from ft.application.cash_projections import CashProjectionService
+
+    backend, sessions = performance_runtime
+    _seed_cash_projection_workload(sessions)
+    group_sizes = (2, 10, 100, 1_000)
+    extra_transactions = []
+    relation_rows = []
+    next_fact_id = FACT_COUNT + 1
+    bases: dict[str, dict[int, int]] = {"cancel": {}, "dissolve": {}}
+    utc = ZoneInfo("UTC")
+    for size in group_sizes:
+        for operation in ("cancel", "dissolve"):
+            base = next_fact_id
+            bases[operation][size] = base
+            extra_transactions.extend({
+                "id": base + offset,
+                "workspace_id": WORKSPACE,
+                "account_id": 1,
+                "record_id": f"cash-relation-group-{operation}-{size}-{offset}",
+                "source_type": "relation_group_performance",
+                "occurred_at": datetime(2026, 7, 1, 9, 0, tzinfo=utc) + timedelta(minutes=offset),
+                "amount": Decimal("-10.00"),
+                "currency": "CNY",
+                "counterparty": "关联规模性能夹具",
+                "note": "固定关联规模性能夹具",
+                "category": "日常",
+            } for offset in range(size))
+            relation_rows.extend({
+                "workspace_id": WORKSPACE,
+                "kind": "payment_mirror",
+                "subtype": "",
+                "primary_fact_id": base + offset,
+                "secondary_fact_id": base + offset + 1,
+                "primary_fact_type": "cash",
+                "secondary_fact_type": "cash",
+                "ordered_fact_a": base + offset,
+                "ordered_fact_b": base + offset + 1,
+                "status": "accepted",
+                "rule_id": "relation_group_performance",
+                "candidate_fact_ids": [],
+                "created_by": "performance",
+                "decided_by": "performance",
+                "decision_reason": "",
+                "anchor_fact_id": base + offset,
+            } for offset in range(size - 1))
+            next_fact_id += size
+    with sessions.begin() as session:
+        session.execute(insert(CashTransactionModel), extra_transactions)
+        session.execute(insert(TransactionRelationModel), relation_rows)
+    CashProjectionService(sessions, WORKSPACE).rebuild()
+    service = _cash_command_service(sessions)
+    metrics = {}
+    for size in group_sizes:
+        cancel_base = bases["cancel"][size]
+        dissolve_base = bases["dissolve"][size]
+        with sessions.begin() as session:
+            cancel_relation_id = session.scalar(select(TransactionRelationModel.id).where(
+                TransactionRelationModel.workspace_id == WORKSPACE,
+                TransactionRelationModel.primary_fact_id == cancel_base,
+                TransactionRelationModel.secondary_fact_id == cancel_base + 1,
+                TransactionRelationModel.status == "accepted",
+            ))
+        assert cancel_relation_id
+        started = time.perf_counter_ns()
+        cancelled = service.cancel_relation(str(cancel_relation_id))
+        cancel_ns = time.perf_counter_ns() - started
+        assert cancelled["status"] == "rejected"
+
+        started = time.perf_counter_ns()
+        dissolved = service.dissolve_relations(str(dissolve_base))
+        dissolve_ns = time.perf_counter_ns() - started
+        assert dissolved["relations"] == []
+        metrics[size] = {
+            "members": size,
+            "cancel_ns": cancel_ns,
+            "dissolve_ns": dissolve_ns,
+        }
+    print({
+        "backend": backend,
+        "fixture_digest": _fixture_digest(),
+        "relation_group_metrics": metrics,
+        "python": sys.version.split(".")[0:2],
+        "platform": platform.platform(),
+    })
+    for operation in ("cancel_ns", "dissolve_ns"):
+        for previous_size, current_size in zip(group_sizes, group_sizes[1:]):
+            previous_per_member = metrics[previous_size][operation] / previous_size
+            current_per_member = metrics[current_size][operation] / current_size
+            assert current_per_member <= previous_per_member * 5
+
+
+def test_fixed_1k_cash_import_preview_and_idempotency_have_bounded_cost(performance_runtime) -> None:
+    """预览、首次导入、重复导入和来源变化合并都必须有固定批量基线。"""
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.cash_ledger import CashLedgerCommandService
+
+    backend, sessions = performance_runtime
+    _seed_cash_projection_workload(sessions)
+    CashProjectionService(sessions, WORKSPACE).rebuild()
+    rows = _performance_import_rows(IMPORT_ROWS)
+    parser = _PerformanceStatementParser(rows)
+    service = CashLedgerCommandService(sessions, WORKSPACE, parser=parser)
+
+    def measure(operation):
+        started = time.perf_counter_ns()
+        result = operation()
+        elapsed = time.perf_counter_ns() - started
+        return result, elapsed, _process_peak_rss_bytes()
+
+    preview, preview_ns, preview_peak = measure(lambda: service.preview_import(
+        b"performance-fixture", source="performance_import", currency="CNY", filename="statement.csv",
+    ))
+    first, first_ns, first_peak = measure(lambda: service.commit_import(
+        b"performance-fixture", source="performance_import", currency="CNY", filename="statement.csv",
+    ))
+    duplicate, duplicate_ns, duplicate_peak = measure(lambda: service.commit_import(
+        b"performance-fixture", source="performance_import", currency="CNY", filename="statement.csv",
+    ))
+
+    for row in rows:
+        row["source_payload"] = {**row["source_payload"], "revision": 2}
+        row["counterparty"] = f"性能导入更新-{row['record_id']}"
+    updated, updated_ns, updated_peak = measure(lambda: service.commit_import(
+        b"performance-fixture", source="performance_import", currency="CNY", filename="statement.csv",
+    ))
+
+    metrics = {
+        "preview": {"ns": preview_ns, "peak_bytes": preview_peak, "rows_per_second": IMPORT_ROWS / (preview_ns / 1_000_000_000)},
+        "first_import": {"ns": first_ns, "peak_bytes": first_peak, "rows_per_second": IMPORT_ROWS / (first_ns / 1_000_000_000)},
+        "duplicate_import": {"ns": duplicate_ns, "peak_bytes": duplicate_peak, "rows_per_second": IMPORT_ROWS / (duplicate_ns / 1_000_000_000)},
+        "source_update": {"ns": updated_ns, "peak_bytes": updated_peak, "rows_per_second": IMPORT_ROWS / (updated_ns / 1_000_000_000)},
+    }
+    print({
+        "backend": backend,
+        "fixture_digest": _fixture_digest(),
+        "rows": IMPORT_ROWS,
+        "import_metrics": metrics,
+        "python": sys.version.split(".")[0:2],
+        "platform": platform.platform(),
+    })
+    assert preview["summary"]["new"] == IMPORT_ROWS
+    assert first["new_rows"] == IMPORT_ROWS
+    assert duplicate["new_rows"] == 0
+    assert updated["updated_rows"] == IMPORT_ROWS
+    assert preview_ns <= IMPORT_PREVIEW_BUDGET_NS
+    assert first_ns <= IMPORT_COMMIT_BUDGET_NS
+    assert duplicate_ns <= IMPORT_COMMIT_BUDGET_NS
+    assert updated_ns <= IMPORT_COMMIT_BUDGET_NS
+    assert max(item["peak_bytes"] for item in metrics.values()) <= IMPORT_MAX_RSS_BYTES
+
+
+def test_fixed_10k_cash_import_preview_scales_with_batch_size(performance_runtime) -> None:
+    """10,000 行预览保留明确的批量耗时、吞吐和内存观测。"""
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from ft.application.cash_projections import CashProjectionService
+
+    backend, sessions = performance_runtime
+    _seed_cash_projection_workload(sessions)
+    CashProjectionService(sessions, WORKSPACE).rebuild()
+    rows = _performance_import_rows(10_000, source_type="performance_import_10k")
+    service = CashLedgerCommandService(
+        sessions, WORKSPACE, parser=_PerformanceStatementParser(rows),
+    )
+    started = time.perf_counter_ns()
+    result = service.preview_import(
+        b"performance-fixture", source="performance_import_10k", currency="CNY", filename="statement.csv",
+    )
+    elapsed = time.perf_counter_ns() - started
+    peak = _process_peak_rss_bytes()
+    print({
+        "backend": backend,
+        "fixture_digest": _fixture_digest(),
+        "rows": len(rows),
+        "preview_ns": elapsed,
+        "rows_per_second": len(rows) / (elapsed / 1_000_000_000),
+        "peak_bytes": peak,
+        "python": sys.version.split(".")[0:2],
+        "platform": platform.platform(),
+    })
+    assert result["summary"]["new"] == len(rows)
+    assert elapsed <= IMPORT_PREVIEW_BUDGET_NS
+    assert peak <= IMPORT_MAX_RSS_BYTES

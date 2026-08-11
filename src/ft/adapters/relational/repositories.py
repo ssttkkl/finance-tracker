@@ -10,7 +10,7 @@ import hashlib
 import json
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import String, cast, func, or_, select
+from sqlalchemy import String, cast, func, or_, select, update
 
 from ft.domain.accounts import AccountDTO
 from ft.schema import CASH_CSV_FIELDS, DEFAULT_SNAPSHOT
@@ -408,7 +408,13 @@ class RelationalCashflowRepository:
             "_record_type": row.get("_record_type") or row.get("account_type") or "cash",
         }
 
-    def add(self, account_type: str, row: dict) -> str:
+    def _build_cash_model(
+        self,
+        account_type: str,
+        row: dict,
+        *,
+        account: AccountModel | None = None,
+    ) -> tuple[CashTransactionModel, AccountModel]:
         from ft.domain.record_type import (
             default_cash_record_subtype,
             validate_cash_record_subtype,
@@ -424,13 +430,16 @@ class RelationalCashflowRepository:
         if not normalized.get("note"):
             normalized["note"] = row.get("note") or row.get("description") or ""
         currency = _validate_currency(normalized["currency"])
-        account = self._session.scalar(select(AccountModel).where(
-            AccountModel.workspace_id == self._workspace_id,
-            AccountModel.name == str(normalized["account_name"]),
-            AccountModel.type == account_type,
-        ))
+        if account is None:
+            account = self._session.scalar(select(AccountModel).where(
+                AccountModel.workspace_id == self._workspace_id,
+                AccountModel.name == str(normalized["account_name"]),
+                AccountModel.type == account_type,
+            ))
         if account is None:
             raise ValueError(f"account not found in workspace: {normalized['account_name']}")
+        if account.type != account_type:
+            raise ValueError("cashflow repository only supports cash, loan, and lend records")
         payload = row.get("source_payload")
         if payload is not None and not isinstance(payload, dict):
             payload = dict(payload) if payload else None
@@ -475,8 +484,21 @@ class RelationalCashflowRepository:
             record_type=record_type,
             record_subtype=record_subtype,
         )
+        return model, account
+
+    def add(
+        self,
+        account_type: str,
+        row: dict,
+        *,
+        account: AccountModel | None = None,
+        return_model: bool = False,
+    ):
+        model, account = self._build_cash_model(account_type, row, account=account)
         self._session.add(model)
         self._session.flush()
+        if return_model:
+            return model, account
         return model.id
 
     def get_model(self, fact_id: int) -> CashTransactionModel | None:
@@ -485,7 +507,16 @@ class RelationalCashflowRepository:
             CashTransactionModel.id == _as_int_id(fact_id),
         ))
 
-    def update(self, fact_id: int, values: dict, *, manual: bool = True) -> dict:
+    def update(
+        self,
+        fact_id: int,
+        values: dict,
+        *,
+        manual: bool = True,
+        _row: CashTransactionModel | None = None,
+        _account: AccountModel | None = None,
+        _flush: bool = True,
+    ) -> dict:
         """Update one current cash fact and preserve import calibration privately."""
         from ft.domain.record_type import (
             default_cash_record_subtype,
@@ -493,14 +524,16 @@ class RelationalCashflowRepository:
             validate_counterparty_account_for_write,
         )
 
-        row = self.get_model(fact_id)
+        row = _row if _row is not None else self.get_model(fact_id)
         if row is None or row.deleted_at is not None:
             raise ValueError(f"cash fact not found: {fact_id}")
         account_name = str(values.get("account_name") or "").strip()
-        account = self._session.scalar(select(AccountModel).where(
-            AccountModel.workspace_id == self._workspace_id,
-            AccountModel.name == account_name,
-        ))
+        account = _account
+        if account is None:
+            account = self._session.scalar(select(AccountModel).where(
+                AccountModel.workspace_id == self._workspace_id,
+                AccountModel.name == account_name,
+            ))
         if account is None:
             raise ValueError(f"account not found in workspace: {account_name}")
         if account.type not in {"cash", "loan", "lend"}:
@@ -568,24 +601,37 @@ class RelationalCashflowRepository:
         row.account_id = account.id
         row.manual_overrides = overrides
         row.source_fingerprint = _source_fingerprint(row.source_type or "", row.record_id, row.source_payload)
-        self._session.flush()
+        if _flush:
+            self._session.flush()
         current = self._to_row(row, account)
         current["previous"] = previous
         return current
 
-    def merge_import(self, account_type: str, row: dict) -> tuple[int, bool]:
-        """Upsert one imported cash row while retaining calibrated fields."""
+    def _merge_import_model(
+        self,
+        account_type: str,
+        row: dict,
+        *,
+        existing: CashTransactionModel | None,
+        account: AccountModel | None,
+    ) -> dict:
+        """Merge one row without querying or flushing when callers provide context."""
         source_type = str(row.get("source_type") or "").strip()
         record_id = str(row.get("record_id") or "").strip()
-        existing = self._session.scalar(select(CashTransactionModel).where(
-            CashTransactionModel.workspace_id == self._workspace_id,
-            CashTransactionModel.source_type == source_type,
-            CashTransactionModel.record_id == record_id,
-            CashTransactionModel.deleted_at.is_(None),
-        ))
         if existing is None:
-            return self.add(account_type, row), True
-        account = self._session.get(AccountModel, existing.account_id)
+            model, account = self._build_cash_model(account_type, row, account=account)
+            self._session.add(model)
+            return {
+                "fact_id": None,
+                "created": True,
+                "source_changed": True,
+                "previous": None,
+                "current": None,
+                "_model": model,
+                "_account": account,
+            }
+        if account is None:
+            account = self._session.get(AccountModel, existing.account_id)
         if account is None:
             raise ValueError(f"account not found for cash fact: {existing.id}")
         if account.name != row.get("account_name") or existing.currency != str(row.get("currency") or "").upper():
@@ -593,7 +639,15 @@ class RelationalCashflowRepository:
         incoming_payload = _json_safe(row.get("source_payload") or {})
         incoming_fingerprint = _source_fingerprint(source_type, record_id, incoming_payload)
         if existing.source_fingerprint == incoming_fingerprint:
-            return existing.id, False
+            return {
+                "fact_id": existing.id,
+                "created": False,
+                "source_changed": False,
+                "previous": None,
+                "current": self._to_row(existing, account),
+                "_model": existing,
+                "_account": account,
+            }
         source_values = {
             field: row[field]
             for field in (
@@ -613,41 +667,148 @@ class RelationalCashflowRepository:
                 override["source_value"] = _json_safe(source_value)
         values["account_name"] = account.name
         values["source_values"] = source_values
-        self.update(existing.id, values, manual=False)
-        if existing.source_type:
-            from ft.adapters.relational.projections import RelationalCashProjectionRepository
-            from ft.domain.application import RelationImpactRequired
-            from ft.domain.cash_projection import CashProjectionError, build_cash_projections
-
-            relation_rows = RelationalRelationRepository(
-                self._session, self._workspace_id,
-            ).list_for_facts([existing.id], active_only=True)
-            accepted_relation_rows = [
-                item for item in relation_rows
-                if item.get("status") == "accepted"
-            ]
-            if accepted_relation_rows:
-                facts, relations = RelationalCashProjectionRepository(
-                    self._session, self._workspace_id,
-                ).read_sources()
-                try:
-                    build_cash_projections(facts, relations)
-                except CashProjectionError as exc:
-                    related_ids = {
-                        endpoint
-                        for item in accepted_relation_rows
-                        for endpoint in (item.get("primary_fact_id"), item.get("secondary_fact_id"))
-                        if endpoint not in (None, "")
-                    }
-                    raise RelationImpactRequired(
-                        "这次导入会影响已关联的流水，请先在收支详情中处理关联后再导入。",
-                        fact_ids=tuple(sorted(str(item) for item in related_ids)),
-                    ) from exc
+        previous = self._to_row(existing, account)
+        self.update(
+            existing.id,
+            values,
+            manual=False,
+            _row=existing,
+            _account=account,
+            _flush=False,
+        )
         existing.source_payload = incoming_payload
         existing.source_fingerprint = incoming_fingerprint
         existing.manual_overrides = overrides
+        return {
+            "fact_id": existing.id,
+            "created": False,
+            "source_changed": True,
+            "previous": previous,
+            "current": self._to_row(existing, account),
+            "_model": existing,
+            "_account": account,
+        }
+
+    def _validate_import_relation_impact(self, changed_fact_ids: list[int]) -> None:
+        if not changed_fact_ids:
+            return
+        from ft.adapters.relational.projections import RelationalCashProjectionRepository
+        from ft.domain.application import RelationImpactRequired
+        from ft.domain.cash_projection import CashProjectionError, build_cash_projections
+
+        relation_rows = RelationalRelationRepository(
+            self._session, self._workspace_id,
+        ).list_for_facts(changed_fact_ids, active_only=True)
+        accepted_relation_rows = [
+            item for item in relation_rows
+            if item.get("status") == "accepted"
+        ]
+        if not accepted_relation_rows:
+            return
+        facts, relations = RelationalCashProjectionRepository(
+            self._session, self._workspace_id,
+        ).read_sources()
+        try:
+            build_cash_projections(facts, relations)
+        except CashProjectionError as exc:
+            related_ids = {
+                endpoint
+                for item in accepted_relation_rows
+                for endpoint in (item.get("primary_fact_id"), item.get("secondary_fact_id"))
+                if endpoint not in (None, "")
+            }
+            raise RelationImpactRequired(
+                "这次导入会影响已关联的流水，请先在收支详情中处理关联后再导入。",
+                fact_ids=tuple(sorted(str(item) for item in related_ids)),
+            ) from exc
+
+    def merge_import_batch(self, items: list[tuple[str, dict]]) -> list[dict]:
+        """Merge cash rows with batched identity/account reads and one flush."""
+        if not items:
+            return []
+        keys = [
+            (str(row.get("source_type") or "").strip(), str(row.get("record_id") or "").strip())
+            for _account_type, row in items
+        ]
+        source_types = sorted({source_type for source_type, _record_id in keys})
+        record_ids = sorted({record_id for _source_type, record_id in keys})
+        existing_by_key: dict[tuple[str, str], CashTransactionModel] = {}
+        if source_types and record_ids:
+            active_rows = self._session.scalars(select(CashTransactionModel).where(
+                CashTransactionModel.workspace_id == self._workspace_id,
+                CashTransactionModel.source_type.in_(source_types),
+                CashTransactionModel.record_id.in_(record_ids),
+                CashTransactionModel.deleted_at.is_(None),
+            )).all()
+            existing_by_key = {
+                (str(model.source_type or ""), str(model.record_id or "")): model
+                for model in active_rows
+            }
+
+        account_names = sorted({
+            str(row.get("account_name") or "")
+            for _account_type, row in items
+            if str(row.get("account_name") or "")
+        })
+        existing_account_ids = {
+            model.account_id for model in existing_by_key.values()
+            if model.account_id is not None
+        }
+        account_conditions = []
+        if account_names:
+            account_conditions.append(AccountModel.name.in_(account_names))
+        if existing_account_ids:
+            account_conditions.append(AccountModel.id.in_(existing_account_ids))
+        accounts = []
+        if account_conditions:
+            accounts = list(self._session.scalars(select(AccountModel).where(
+                AccountModel.workspace_id == self._workspace_id,
+                or_(*account_conditions),
+            )))
+        accounts_by_id = {account.id: account for account in accounts}
+        accounts_by_name_type = {
+            (account.name, account.type): account for account in accounts
+        }
+
+        results = []
+        changed_existing_ids: list[int] = []
+        with self._session.no_autoflush:
+            for account_type, row in items:
+                key = (
+                    str(row.get("source_type") or "").strip(),
+                    str(row.get("record_id") or "").strip(),
+                )
+                existing = existing_by_key.get(key)
+                account = (
+                    accounts_by_id.get(existing.account_id)
+                    if existing is not None
+                    else accounts_by_name_type.get((str(row.get("account_name") or ""), account_type))
+                )
+                result = self._merge_import_model(
+                    account_type,
+                    row,
+                    existing=existing,
+                    account=account,
+                )
+                results.append(result)
+                if result["created"]:
+                    existing_by_key[key] = result["_model"]
+                elif result["source_changed"]:
+                    changed_existing_ids.append(int(result["_model"].id))
+
         self._session.flush()
-        return existing.id, False
+        for result in results:
+            model = result.pop("_model")
+            account = result.pop("_account")
+            result["fact_id"] = model.id
+            result["current"] = self._to_row(model, account)
+        self._validate_import_relation_impact(changed_existing_ids)
+        return results
+
+    def merge_import(self, account_type: str, row: dict) -> tuple[int, bool]:
+        """Compatibility wrapper for the batched cash import merge."""
+        result = self.merge_import_batch([(account_type, row)])[0]
+        return result["fact_id"], result["created"]
 
     @staticmethod
     def _to_row(row: CashTransactionModel, account: AccountModel) -> dict:
@@ -811,11 +972,14 @@ class RelationalSnapshotRepository:
         self._session = session
         self._workspace_id = workspace_id
         self._loaded: dict | None = None
+        self._accounts: list[AccountModel] | None = None
 
     def _account_models(self) -> list[AccountModel]:
-        return list(self._session.scalars(select(AccountModel).where(
-            AccountModel.workspace_id == self._workspace_id
-        )))
+        if self._accounts is None:
+            self._accounts = list(self._session.scalars(select(AccountModel).where(
+                AccountModel.workspace_id == self._workspace_id
+            )))
+        return self._accounts
 
     def _to_names(self, payload: dict) -> dict:
         result = deepcopy(payload)
@@ -862,14 +1026,31 @@ class RelationalSnapshotRepository:
 
     def load(self, *, lock: bool = False) -> dict:
         if self._loaded is None:
-            if lock:
-                self._session.scalar(select(WorkspaceModel.id).where(
-                    WorkspaceModel.id == self._workspace_id
-                ).with_for_update())
             statement = select(LedgerSnapshotModel).where(
                 LedgerSnapshotModel.workspace_id == self._workspace_id
             )
-            model = self._session.scalar(statement.with_for_update() if lock else statement)
+            if lock and self._session.bind.dialect.name == "postgresql":
+                # Lock the workspace and snapshot row together when the
+                # snapshot already exists. Keep the fallback for first-write
+                # initialization where no snapshot row can be locked yet.
+                model = self._session.scalar(
+                    statement.join(
+                        WorkspaceModel,
+                        WorkspaceModel.id == LedgerSnapshotModel.workspace_id,
+                    ).with_for_update(of=(LedgerSnapshotModel, WorkspaceModel))
+                )
+                if model is None:
+                    self._session.execute(
+                        select(WorkspaceModel.id)
+                        .where(WorkspaceModel.id == self._workspace_id)
+                        .with_for_update()
+                    ).one()
+            else:
+                if lock:
+                    self._session.scalar(select(WorkspaceModel.id).where(
+                        WorkspaceModel.id == self._workspace_id
+                    ).with_for_update())
+                model = self._session.scalar(statement.with_for_update() if lock else statement)
             stored = model.payload if model is not None else DEFAULT_SNAPSHOT
             self._loaded = self._to_names(stored)
         return self._loaded
@@ -1160,6 +1341,34 @@ class RelationalRelationRepository:
             row.superseded_by_id = _as_int_id(superseded_by_id)
         self._session.flush()
         return self._to_dict(row)
+
+    def update_status_batch(
+        self, relation_ids: list, *, status: str, decided_by: str = "", decision_reason: str = "",
+    ) -> None:
+        """Update a relation group in one statement within the caller's transaction."""
+        ids = [_as_int_id(item) for item in relation_ids]
+        if not ids:
+            return
+        values = {
+            "status": status,
+            "active_slot": "active" if status != RelationStatus.SUPERSEDED.value else None,
+        }
+        if status == RelationStatus.SUPERSEDED.value:
+            # Superseded rows need a per-row slot; this batch helper is only
+            # intended for current-group decisions and must not be used for it.
+            raise ValueError("批量更新不支持失效关系")
+        if status != RelationStatus.PENDING_REVIEW.value:
+            values["candidate_fact_ids"] = []
+        if decided_by:
+            values["decided_by"] = decided_by
+            values["decided_at"] = datetime.now(timezone.utc)
+        if decision_reason:
+            values["decision_reason"] = decision_reason
+        self._session.execute(update(TransactionRelationModel).where(
+            TransactionRelationModel.workspace_id == self._workspace_id,
+            TransactionRelationModel.id.in_(ids),
+        ).values(**values))
+        self._session.flush()
 
 
 

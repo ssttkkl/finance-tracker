@@ -827,10 +827,22 @@ class RelationService:
         return by_id[fact_id]
 
 
-    def _validate_transfer_endpoint_availability(self, uow, fact_ids: Sequence[str], relation_id: str) -> None:
+    def _validate_transfer_endpoint_availability(
+        self,
+        uow,
+        fact_ids: Sequence[str],
+        relation_id: str,
+        *,
+        relations: Sequence[dict] | None = None,
+    ) -> None:
         """一条已确认内部转账不得复用另一条已确认转账端点。"""
         endpoints = {str(fact_id) for fact_id in fact_ids if fact_id not in (None, "")}
-        for relation in uow.relations.list_for_facts(list(endpoints), active_only=True):
+        candidates = relations
+        if candidates is None:
+            candidates = uow.relations.list_for_facts(list(endpoints), active_only=True)
+        for relation in candidates:
+            if relation.get("status") == RelationStatus.SUPERSEDED.value:
+                continue
             if relation["kind"] != RelationKind.TRANSFER_PAIR.value:
                 continue
             if relation["status"] != RelationStatus.ACCEPTED.value or str(relation["id"]) == str(relation_id):

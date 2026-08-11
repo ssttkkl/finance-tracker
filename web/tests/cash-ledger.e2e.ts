@@ -231,13 +231,14 @@ test("查看抽屉原位切换编辑，不重复读取当前流水并立即显�
   const record = { ...root, account_name: account.name, account_id: account.id, account_type: account.type, record_type: "expense", record_subtype: "not_applicable", counterparty_account: "", counterparty_account_attrs: [] };
   const detail = { record, relations: [], options };
   let detailRequests = 0;
+  let optionsRequests = 0;
 
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [{ ...account, currencies: ["CNY"] }] } });
     if (url.pathname.includes("/evidence/")) return route.fulfill({ json: { projection_version: 1, projection: { ...item("1", "咖啡店"), member_count: 1, composition: [], source_types: ["alipay"] }, root_record: root, members: [{ ...root, roles: ["root"] }], accepted_relations: [], inactive_relation_hints: [], refund_timeline: [] } });
-    if (url.pathname.endsWith("/cash-ledger/options")) return route.fulfill({ json: options });
+    if (url.pathname.endsWith("/cash-ledger/options")) { optionsRequests += 1; return route.fulfill({ json: options }); }
     if (url.pathname.endsWith("/cash-records/1001") && request.method() === "GET") { detailRequests += 1; return route.fulfill({ json: detail }); }
     if (url.pathname.endsWith("/cash-records") && request.method() === "GET") return route.fulfill({ json: { items: [] } });
     return route.fulfill({ json: { projection_version: 1, items: [item("1", "咖啡店")], next_cursor: null, page_size: 50, filters: {}, filter_options } });
@@ -255,8 +256,12 @@ test("查看抽屉原位切换编辑，不重复读取当前流水并立即显�
   await expect(page.getByRole("dialog", { name: "新建流水" })).toHaveCount(0);
   expect(detailRequests).toBe(0);
   const editor = page.getByRole("dialog", { name: "编辑收支详情" });
+  expect(optionsRequests).toBe(1);
   await editor.getByRole("button", { name: "返回", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "收支详情" })).toBeVisible();
+  await page.getByRole("button", { name: "编辑", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "编辑收支详情" })).toBeVisible();
+  expect(optionsRequests).toBe(1);
 });
 
 test("关联流水从统一入口搜索已有流水并直接确认", async ({ page }) => {

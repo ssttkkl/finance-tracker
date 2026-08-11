@@ -35,6 +35,7 @@ def test_repository_has_clean_linear_revisions():
         "20260804_23_cash_investment_funding_relations.py",
             "20260805_24_investment_event_fee_reversal_semantics.py",
             "20260807_25_cash_ledger_management.py",
+            "20260811_26_cash_projection_lookup_indexes.py",
         ]
 
 

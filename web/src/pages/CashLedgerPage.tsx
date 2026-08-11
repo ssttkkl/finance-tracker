@@ -175,7 +175,9 @@ export function CashLedgerPage() {
     const stateCached = id && recordDetail?.record.id === id ? recordDetail : null;
     const cached = stateCached ?? evidenceCached;
     setEditingId(id); setCreating(id === null); setRelationComposerOpen(openRelation); setRecordDetail(cached); setRecordLoading(Boolean(id && !cached)); setRecordLoadError(false);
-    fetchLedgerOptions().then((value) => { if (value.record_types && value.relation_types) setLedgerOptions(value); }).catch(() => undefined);
+    if (!ledgerOptions.record_types.length || !ledgerOptions.relation_types.length) {
+      fetchLedgerOptions().then((value) => { if (value.record_types && value.relation_types) setLedgerOptions(value); }).catch(() => undefined);
+    }
     if (id && !cached) fetchCashRecord(id).then((value) => { setRecordDetail(value); setRecordLoading(false); }).catch(() => { setRecordLoadError(true); setRecordLoading(false); });
   };
   const openEditor = (id: string) => { loadEditor(id); };

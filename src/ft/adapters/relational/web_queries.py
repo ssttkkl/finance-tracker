@@ -72,7 +72,10 @@ def _record_summary(row, account):
 
 
 class RelationalCashLedgerQueryRepository:
-    def __init__(self, sessions, workspace_id): self._sessions, self._workspace_id = sessions, workspace_id
+    def __init__(self, sessions, workspace_id):
+        self._sessions, self._workspace_id = sessions, workspace_id
+        self._filter_options_cache = {}
+        self._monthly_summary_cache = {}
 
     def _storage_error(self, exc):
         if isinstance(exc, RelationalEngineError):
@@ -254,13 +257,17 @@ class RelationalCashLedgerQueryRepository:
                     cash_dto, _amount(cash.amount), cash.currency,
                 )
         return transfers
-    def _filter_options(self, session, dataset_id):
+    def _filter_options(self, session, dataset_id, *, version=None):
+        cache_key = (dataset_id, version)
+        cached = self._filter_options_cache.get(cache_key)
+        if cached is not None:
+            return cached
         values = session.execute(
             select(CashProjectionModel.category, CashProjectionModel.currency, CashProjectionModel.economic_type, CashProjectionModel.transfer_subtype).where(
                 CashProjectionModel.workspace_id == self._workspace_id,
                 CashProjectionModel.dataset_id == dataset_id,
                 CashProjectionModel.visible.is_(True),
-            )
+            ).distinct()
         ).all()
         categories = tuple(sorted({str(category).strip() for category, _currency, _economic_type, _subtype in values if category and str(category).strip()}))
         currencies = tuple(sorted({str(currency).strip().upper() for _category, currency, _economic_type, _subtype in values if currency and str(currency).strip()}))
@@ -272,7 +279,7 @@ class RelationalCashLedgerQueryRepository:
             subtypes = economic_types.setdefault(economic, set())
             if subtype and str(subtype).strip():
                 subtypes.add(str(subtype).strip())
-        return CashFilterOptionsDTO(
+        result = CashFilterOptionsDTO(
             categories,
             currencies,
             tuple(
@@ -280,6 +287,10 @@ class RelationalCashLedgerQueryRepository:
                 for economic_type, subtypes in sorted(economic_types.items())
             ),
         )
+        self._filter_options_cache[cache_key] = result
+        if len(self._filter_options_cache) > 16:
+            self._filter_options_cache.pop(next(iter(self._filter_options_cache)))
+        return result
     @staticmethod
     def _monthly_summaries(rows, timezone_name):
         from zoneinfo import ZoneInfo
@@ -394,13 +405,23 @@ class RelationalCashLedgerQueryRepository:
             version,dataset_id,availability,_,_,_=result[0]
             if availability != "ready" or not dataset_id: raise ProjectionUnavailableError()
             if cursor_version is not None and cursor_version != version: raise ProjectionUpdatedError()
-            summary_rows = s.execute(
-                select(CashProjectionModel.occurred_at, CashProjectionModel.economic_type, CashProjectionModel.net_amount, CashProjectionModel.currency).where(
-                    CashProjectionModel.dataset_id == dataset_id,
-                    *filter_conditions,
-                )
-            ).all()
-            monthly_summaries = self._monthly_summaries(summary_rows, filters.timezone)
+            summary_key = (
+                dataset_id,
+                version,
+                tuple(sorted(filters.as_cursor_data().items())),
+            )
+            monthly_summaries = self._monthly_summary_cache.get(summary_key)
+            if monthly_summaries is None:
+                summary_rows = s.execute(
+                    select(CashProjectionModel.occurred_at, CashProjectionModel.economic_type, CashProjectionModel.net_amount, CashProjectionModel.currency).where(
+                        CashProjectionModel.dataset_id == dataset_id,
+                        *filter_conditions,
+                    )
+                ).all()
+                monthly_summaries = self._monthly_summaries(summary_rows, filters.timezone)
+                self._monthly_summary_cache[summary_key] = monthly_summaries
+                if len(self._monthly_summary_cache) > 16:
+                    self._monthly_summary_cache.pop(next(iter(self._monthly_summary_cache)))
             rows=[]; by={}
             for _,_,_,row,account,relation in result:
                 if row is None: continue
@@ -408,9 +429,19 @@ class RelationalCashLedgerQueryRepository:
                     rows.append((row,account))
                     by[row.id]=[]
                 if relation is not None: by[row.id].append(relation)
-            transfer_details = self._transfer_details(s, dataset_id, [row.id for row, _account in rows])
-            source_types = self._member_source_types(s, dataset_id, [row.id for row, _account in rows])
-            return version, [self._dto(row,account,by[row.id],source_types[row.id],transfer_details.get(row.id)) for row,account in rows], self._filter_options(s, dataset_id), monthly_summaries
+            transfer_row_ids = [
+                row.id for row, _account in rows
+                if row.has_transfer_pair or row.funding_relation_id is not None
+            ]
+            transfer_details = self._transfer_details(s, dataset_id, transfer_row_ids) if transfer_row_ids else {}
+            source_types = {
+                row.id: ([row.source_type] if row.member_count == 1 and row.source_type else [])
+                for row, _account in rows
+            }
+            member_row_ids = [row.id for row, _account in rows if row.member_count != 1]
+            if member_row_ids:
+                source_types.update(self._member_source_types(s, dataset_id, member_row_ids))
+            return version, [self._dto(row,account,by[row.id],source_types[row.id],transfer_details.get(row.id)) for row,account in rows], self._filter_options(s, dataset_id, version=version), monthly_summaries
     def get_evidence(self, projection_id):
         with self._evidence_snapshot() as s:
             state=self._active(s); row=s.scalar(select(CashProjectionModel).where(CashProjectionModel.workspace_id==self._workspace_id,CashProjectionModel.dataset_id==state.active_dataset_id,CashProjectionModel.projection_id==projection_id))

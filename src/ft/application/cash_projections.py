@@ -107,17 +107,65 @@ class CashProjectionService:
         return repository.replace_active_components(build, component_ids, state=state)
 
     @staticmethod
-    def maintain_if_ready_in_session(session, workspace_id: str, affected_fact_ids: set[int]) -> dict | None:
+    def maintain_if_ready_in_session(
+        session,
+        workspace_id: str,
+        affected_fact_ids: set[int],
+        *,
+        new_fact_ids: set[int] | None = None,
+        known_component_ids: set[int] | None = None,
+    ) -> dict | None:
         from ft.adapters.relational.projections import RelationalCashProjectionRepository
 
         repository = RelationalCashProjectionRepository(session, workspace_id)
         state = repository.ready_state_lock_or_none()
         if state is None:
             return None
-        component_ids = repository.accepted_relation_component_ids(affected_fact_ids)
+        component_ids = (
+            {int(item) for item in known_component_ids}
+            if known_component_ids is not None
+            else repository.accepted_relation_component_ids(affected_fact_ids)
+        )
         facts, relations = repository.read_sources_for_facts(component_ids)
         build = build_cash_projections(facts, relations)
-        return repository.replace_active_components(build, component_ids, state=state)
+        return repository.replace_active_components(
+            build,
+            component_ids,
+            state=state,
+            known_new_fact_ids=new_fact_ids,
+        )
+
+    @staticmethod
+    def maintain_standalone_fact_if_ready_in_session(
+        session, workspace_id: str, row,
+    ) -> dict | None:
+        """Maintain a newly created standalone cash fact with no source rereads."""
+        from ft.adapters.relational.projections import RelationalCashProjectionRepository
+
+        repository = RelationalCashProjectionRepository(session, workspace_id)
+        state = repository.ready_state_lock_or_none()
+        if state is None:
+            return None
+        build = build_cash_projections((repository._fact_from_model(row),), ())
+        return repository.replace_active_components(
+            build,
+            {int(row.id)},
+            state=state,
+            known_new_fact_ids={int(row.id)},
+        )
+
+    @staticmethod
+    def replace_standalone_fact_if_ready_in_session(
+        session, workspace_id: str, row,
+    ) -> dict | None:
+        """Refresh one standalone projection from the already-loaded source row."""
+        from ft.adapters.relational.projections import RelationalCashProjectionRepository
+
+        repository = RelationalCashProjectionRepository(session, workspace_id)
+        state = repository.ready_state_lock_or_none()
+        if state is None:
+            return None
+        return repository.replace_standalone_fact(row, state=state)
 
     @staticmethod
     def refresh_display_fields_if_ready_in_session(
@@ -136,3 +184,14 @@ class CashProjectionService:
             note=note,
             state=state,
         )
+
+    @staticmethod
+    def remove_if_ready_in_session(session, workspace_id: str, affected_fact_ids: set[int]) -> dict | None:
+        """Remove standalone derived rows before deleting their source fact."""
+        from ft.adapters.relational.projections import RelationalCashProjectionRepository
+
+        repository = RelationalCashProjectionRepository(session, workspace_id)
+        state = repository.ready_state_lock_or_none()
+        if state is None:
+            return None
+        return repository.remove_active_components(affected_fact_ids, state=state)

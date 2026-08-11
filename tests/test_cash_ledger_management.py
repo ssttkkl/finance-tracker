@@ -104,6 +104,49 @@ def test_import_merge_keeps_manual_field_and_refreshes_other_fields(cash_web_run
     assert current["note"] == "来源新备注"
 
 
+def test_cash_import_batch_preserves_idempotency_and_calibration(cash_web_runtime):
+    _enable_cny(cash_web_runtime, "日常账户")
+    from ft.adapters.relational.uow import RelationalUnitOfWork
+
+    rows = [
+        _payload(
+            amount="-10.00", counterparty="来源一", note="备注一",
+            source_type="fixture", record_id="batch-1",
+            source_payload={"merchant": "来源一", "amount": "-10.00"},
+        ),
+        _payload(
+            amount="-20.00", counterparty="来源二", note="备注二",
+            source_type="fixture", record_id="batch-2",
+            source_payload={"merchant": "来源二", "amount": "-20.00"},
+        ),
+    ]
+    with RelationalUnitOfWork(cash_web_runtime.sessions, cash_web_runtime.workspace_id) as uow:
+        first = uow.cashflows.merge_import_batch([("cash", row) for row in rows])
+        uow.commit()
+
+    assert [item["created"] for item in first] == [True, True]
+    ids = [item["fact_id"] for item in first]
+
+    service = _service(cash_web_runtime)
+    service.update_record(ids[0], _payload(
+        amount="-10.00", counterparty="人工校准", note="备注一",
+    ))
+    rows = [
+        {**rows[0], "amount": "-11.00", "counterparty": "来源一新",
+         "source_payload": {"merchant": "来源一新", "amount": "-11.00"}},
+        rows[1],
+    ]
+    with RelationalUnitOfWork(cash_web_runtime.sessions, cash_web_runtime.workspace_id) as uow:
+        second = uow.cashflows.merge_import_batch([("cash", row) for row in rows])
+        uow.commit()
+
+    assert [item["created"] for item in second] == [False, False]
+    assert [item["source_changed"] for item in second] == [True, False]
+    current = service.get_record(ids[0])["record"]
+    assert current["amount"] == "-11.00"
+    assert current["counterparty"] == "人工校准"
+
+
 def test_delete_record_removes_relation_and_keeps_other_endpoint(cash_web_runtime):
     _enable_cny(cash_web_runtime, "日常账户", "信用账户")
     service = _service(cash_web_runtime)
@@ -547,6 +590,28 @@ def test_delete_related_record_supports_delete_all_or_current_and_dissolve(cash_
     assert set(result["deleted_fact_ids"]) == {str(third["id"]), str(fourth["id"])}
     with pytest.raises(ValueError, match="找不到"):
         service.get_record(fourth["id"])
+
+
+def test_delete_transfer_related_record_clears_projection_relation_before_fact(cash_web_runtime):
+    _enable_cny(cash_web_runtime, "日常账户", "信用账户")
+    service = _service(cash_web_runtime)
+    outgoing = service.create_record(_payload(
+        account_name="日常账户", amount="-20", record_type="transfer_out",
+        record_subtype="ordinary_transfer", counterparty="信用账户",
+    ))["record"]
+    incoming = service.create_record(_payload(
+        account_name="信用账户", amount="20", record_type="transfer_in",
+        record_subtype="ordinary_transfer", counterparty="日常账户",
+    ))["record"]
+    service.add_relation({
+        "primary_fact_id": outgoing["id"], "secondary_fact_id": incoming["id"],
+        "kind": "transfer_pair", "subtype": "ordinary_transfer", "status": "accepted",
+    })
+
+    deleted = service.delete_record(outgoing["id"], mode="delete_current_dissolve")
+
+    assert deleted["deleted"] is True
+    assert service.get_record(incoming["id"])["relations"] == []
 
 
 @pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
