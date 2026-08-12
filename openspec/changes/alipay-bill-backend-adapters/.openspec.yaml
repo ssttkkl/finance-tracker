@@ -1,4 +1,0 @@
-schema: spec-driven
-created: 2026-08-12
-goal: 将支付宝交易流水证明导出 Skill 拆分为平台无关核心流程与可替换设备后端
-skip_specs: true

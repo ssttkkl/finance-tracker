@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-08-12
+goal: 将微信和支付宝账单导出合并为按渠道路由的统一技能，并分离业务流程与设备控制后端
+skip_specs: true
