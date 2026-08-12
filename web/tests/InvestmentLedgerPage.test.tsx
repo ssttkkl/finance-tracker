@@ -168,6 +168,31 @@ describe("InvestmentLedgerPage", () => {
     expect(within(table).getByText("+100%")).toBeInTheDocument();
   });
 
+  it("标的单元格以名称和代号/账户两行展示，不重复币种", async () => {
+    const namedPortfolio = {
+      ...portfolio,
+      accounts: [{ ...portfolio.accounts[0], positions: [{
+        ...portfolio.accounts[0].positions[0],
+        display_name: "Apple Inc.",
+      }] }],
+    } as Portfolio;
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/investment-portfolio")) return json(namedPortfolio);
+      return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage />);
+
+    const table = await screen.findByRole("table", { name: "当前持仓" });
+    const name = within(table).getByText("Apple Inc.");
+    const symbolCell = name.closest("td");
+    expect(symbolCell).not.toBeNull();
+    expect(symbolCell).toHaveTextContent("AAPL.US · 投资账户");
+    expect(symbolCell).not.toHaveTextContent("USD");
+  });
+
   it("仓位使用可用的 USD 市值计算，现金货币行置顶且只展示标的和当前市值", async () => {
     const cash: Portfolio["accounts"][number]["positions"][number] = {
       ticker: "CNY", shares: "23049.72", total_cost: "23049.72", cost_currency: "CNY", is_cash: true,
@@ -193,7 +218,8 @@ describe("InvestmentLedgerPage", () => {
     const rows = table.querySelectorAll("tbody tr");
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveClass("holding-cash-row");
-    expect(within(rows[0] as HTMLElement).getByText("CNY")).toBeInTheDocument();
+    expect(within(rows[0] as HTMLElement).getByText("人民币")).toBeInTheDocument();
+    expect(within(rows[0] as HTMLElement).getByText("CNY · 投资账户")).toBeInTheDocument();
     expect(within(rows[0] as HTMLElement).getByText("23,049.72 CNY")).toBeInTheDocument();
     expect(rows[0].querySelectorAll("td")).toHaveLength(4);
     expect(rows[0].querySelector('[data-label="仓位"]')).toBeNull();

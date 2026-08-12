@@ -247,6 +247,7 @@ export type InvestmentEvidence = {
 
 export type PortfolioPosition = {
   ticker: string;
+  display_name?: string | null;
   shares: string;
   total_cost: string;
   cost_currency: string;

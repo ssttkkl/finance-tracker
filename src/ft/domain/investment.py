@@ -55,6 +55,9 @@ class PortfolioPositionDTO:
     period_profit: Decimal | None = None
     period_profit_rate: Decimal | None = None
     period_baselines: tuple[PortfolioPeriodBaselineDTO, ...] = ()
+    # Optional instrument name sourced from imported statement metadata. This is
+    # presentation-only and never participates in ledger or valuation math.
+    display_name: str | None = None
 
 
 @dataclass(frozen=True)

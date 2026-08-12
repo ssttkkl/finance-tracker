@@ -313,6 +313,7 @@ class PortfolioQueryService:
                     total_cost=total_cost,
                     cost_currency=cost_currency,
                     is_cash=ticker_currency in allowed_cash,
+                    display_name=position.get("display_name"),
                 ))
             accounts.append(PortfolioAccountDTO(name, currency, tuple(positions)))
         return PortfolioDTO(accounts=tuple(accounts))
@@ -366,6 +367,7 @@ class PortfolioQueryService:
 
                 pending_positions.append((
                     ticker, shares, total_cost, cost_currency, is_cash, kind, request_key,
+                    position.get("display_name"),
                 ))
             pending_accounts.append((name, currency, pending_positions))
 
@@ -414,7 +416,7 @@ class PortfolioQueryService:
         accounts = []
         for name, currency, pending_positions in pending_accounts:
             items = []
-            for ticker, shares, total_cost, cost_currency, is_cash, kind, request_key in pending_positions:
+            for ticker, shares, total_cost, cost_currency, is_cash, kind, request_key, display_name in pending_positions:
                 quote_status = None
                 quote_reason = None
                 quote_currency = None
@@ -486,6 +488,7 @@ class PortfolioQueryService:
                     fx_rate=fx_rate,
                     fx_status=fx_status,
                     fx_reason=fx_reason,
+                    display_name=display_name,
                 ))
             accounts.append(PortfolioAccountDTO(name, currency, tuple(items)))
         total_market_value, total_profit, total_profit_rate = self._current_totals(
@@ -551,7 +554,7 @@ class PortfolioQueryService:
                         cost_currency=cost_currency,
                         is_cash=is_cash,
                     )
-                    for ticker, shares, total_cost, cost_currency, is_cash, _, _ in pending_positions
+                    for ticker, shares, total_cost, cost_currency, is_cash, _, _, display_name in pending_positions
                 ),
             )
             for name, currency, pending_positions in pending_accounts

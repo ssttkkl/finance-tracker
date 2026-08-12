@@ -111,6 +111,53 @@ class RelationalPortfolioRepository:
         crypto_payload = payload.get("accounts", {}).get("crypto", {})
         # Merge security + crypto books for portfolio (crypto under same structure if present)
         books = {**security_payload, **crypto_payload}
+        cash_tickers = {
+            str(currency).strip().lower()
+            for currencies in bases_by_name.values()
+            for currency in currencies
+            if str(currency).strip()
+        }
+        instrument_names: dict[str, str] = {}
+        for event, _account in event_rows:
+            source = event.source_payload if isinstance(event.source_payload, dict) else {}
+            source_ticker = str(source.get("ticker") or "").strip().lower()
+            candidate_tickers = [source_ticker] if source_ticker else []
+            candidate_tickers.extend(
+                str(ticker).strip().lower()
+                for ticker in (event.from_ticker, event.to_ticker)
+                if str(ticker or "").strip()
+            )
+            display_name = next(
+                (
+                    str(source.get(key) or "").strip()
+                    for key in ("display_name", "name", "instrument_name", "security_name")
+                    if str(source.get(key) or "").strip()
+                ),
+                str(source.get("note") or "").strip()
+                if event.source_type in {"ibkr_csv", "dfzq_pdf"}
+                else "",
+            )
+            if not display_name:
+                continue
+            # A source row can carry a ticker in either direction for a trade;
+            # only attach its human label to non-cash instruments.
+            for ticker in candidate_tickers:
+                if ticker and ticker not in cash_tickers and ticker not in instrument_names:
+                    instrument_names[ticker] = " ".join(display_name.split())
+
+        decorated_books = {}
+        for key, book in books.items():
+            entry = dict(book) if isinstance(book, dict) else {"positions": {}}
+            positions = entry.get("positions") if isinstance(entry.get("positions"), dict) else {}
+            entry["positions"] = {
+                ticker: {
+                    **(position if isinstance(position, dict) else {}),
+                    **({"display_name": instrument_names[str(ticker).strip().lower()]} if instrument_names.get(str(ticker).strip().lower()) else {}),
+                }
+                for ticker, position in positions.items()
+            }
+            decorated_books[key] = entry
+        books = decorated_books
         # Map snapshot keys → display name when possible (name match or single-account heuristics)
         name_by_key = {}
         for key in books:

@@ -60,7 +60,7 @@ class FakePortfolioRepo:
                     "currency": "USD",
                     "positions": {
                         "usd": {"shares": 10, "total_cost": 10, "cost_currency": "USD"},
-                        "aapl.us": {"shares": 2, "total_cost": 6, "cost_currency": "USD"},
+                        "aapl.us": {"shares": 2, "total_cost": 6, "cost_currency": "USD", "display_name": "Apple Inc."},
                         "0700.hk": {"shares": 1, "total_cost": 100, "cost_currency": "HKD"},
                         "unknown.xyz": {"shares": 1, "total_cost": 1, "cost_currency": "USD"},
                     },
@@ -220,6 +220,7 @@ def test_portfolio_holdings_phase_skips_blocking_quote_provider_and_returns_base
     assert by_ticker["aapl.us"].shares == Decimal("2")
     assert by_ticker["aapl.us"].current_price is None
     assert by_ticker["aapl.us"].market_value is None
+    assert by_ticker["aapl.us"].display_name == "Apple Inc."
     assert result.total_market_value is None
     assert result.period_profit is None
 

@@ -127,6 +127,15 @@ def test_sqlite_portfolio_repository_exposes_workspace_bound_investment_events(t
         ensure_workspace(sessions, "portfolio-events")
         uow = RelationalUnitOfWork(sessions, "portfolio-events")
         assert AccountService(uow).create_account("IBKR", "security", "USD").ok
+        with uow as entered:
+            snapshot = entered.snapshot.load()
+            apply_investment_event(snapshot, {
+                "date": "2026-08-01", "record_type": "snapshot", "record_subtype": "position",
+                "account_name": "IBKR", "currency": "USD", "to_ticker": "aapl.us",
+                "to_amount": "1", "price": "100",
+            }, default_currency="USD")
+            entered.snapshot.save(snapshot)
+            entered.commit()
         with sessions.begin() as session:
             account_id = session.query(__import__("ft.adapters.relational.models", fromlist=["AccountModel"]).AccountModel).filter_by(name="IBKR").one().id
             session.add(InvestmentEventModel(
@@ -134,12 +143,14 @@ def test_sqlite_portfolio_repository_exposes_workspace_bound_investment_events(t
                 source_type="test", record_id="trade-99", occurred_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
                 record_type="trade", record_subtype="security", currency="USD", note="",
                 from_ticker="usd", from_amount=Decimal("100"), to_ticker="aapl.us", to_amount=Decimal("1"),
-                commission=Decimal("0"), commission_asset="usd", payload={}, source_payload={},
+                commission=Decimal("0"), commission_asset="usd", payload={},
+                source_payload={"ticker": "aapl.us", "name": "Apple Inc."},
             ))
 
         raw = RelationalPortfolioRepository(sessions, "portfolio-events").load_portfolio()
 
         assert len(raw["investment_events"]) == 1
         assert raw["investment_events"][0]["to_ticker"] == "aapl.us"
+        assert raw["accounts"]["IBKR"]["positions"]["aapl.us"]["display_name"] == "Apple Inc."
     finally:
         engine.dispose()
