@@ -53,7 +53,7 @@
 - [x] 7.1 运行受影响 Python 测试、Web Vitest、生产构建、Playwright 主流程 / 响应式和生产预览
 - [x] 7.2 运行 `openspec validate --all --strict`、`openspec doctor`、`git diff --check`、Python compileall 和 TypeScript 构建检查
 - [x] 7.3 记录实际验证证据如下；完整 Python 回归首次发现两项旧性能门禁被关系扫描拖慢，已通过仅在 Web `RelationService` 组合路径启用预览扫描修复，并重跑受影响性能矩阵通过
-- [x] 7.4 发布准备：无迁移；回滚入口为恢复 `CashLedgerPage` 对 `ImportDrawer` 的调用；观察识别失败、确认失败、重复导入和待手动数量；未执行提交、推送、部署
+- [x] 7.4 发布准备：无迁移；回滚入口为恢复 `CashLedgerPage` 对 `ImportDrawer` 的调用；观察识别失败、确认失败、重复导入和待手动数量；已按用户授权提交并推送到 `bill-import-multistep-flow`，PR #44 保持 Draft，未部署
 
 ## 8. 反思
 
@@ -61,7 +61,7 @@
 
 ## Verification evidence
 
-- Baseline: implementation started at `04caf0c9c412e1cc72963290a1b34968965d2515`; latest `origin/refactor/web` was later merged as `77712be548101d3fb7ee1020c3bc313cd4a4f12a` before final verification. Working tree remains uncommitted.
+- Baseline: implementation started at `04caf0c9c412e1cc72963290a1b34968965d2515`; current `HEAD` includes the latest `origin/refactor/web` ancestor `a622bf2ede142672ac2e94f3ea75a3dddb4fca26` and the pushed wizard commits through `746a0e7f38cb56eedfe16727de0bb1aba2db03e8`.
 - OpenSpec: `openspec validate --all --strict` → 20 passed, 0 failed; `openspec doctor` → root and OpenSpec root ok.
 - Backend: `uv run pytest -q tests/test_cash_import_wizard.py` → 7 passed; affected import / ledger / relation suite → 33 passed, 4 skipped; SQLite + PostgreSQL targeted matrix with `FT_TEST_POSTGRES_URL=postgresql+psycopg://.../finance_tracker_test` → 6 passed; `git diff --check` and `uv run python -m compileall -q src tests/test_cash_import_wizard.py` passed.
 - Web: `npm ci`; `npm test -- --run` → 47 passed; `npm run build` passed; full `npm run test:e2e` → 12 passed; `npm run test:preview -- --grep "独立导入处理页面|生产预览在窄屏"` → 2 passed; responsive import test covered 320/375/414/768 px.
@@ -74,3 +74,4 @@
 - Prototype v6 browser verification: reject click changed the row to `rejected`, `已拒绝`, disabled its row selects, changed the accessible action to `撤销拒绝`, and reduced the `待处理` count from 52 to 51; restore returned the saved pre-rejection state. The reject / restore action remains visible for automatic, pending and accepted rows; non-automatic rows expose an inline type select while automatic rows remain read-only. Real viewports 320 / 375 / 390 / 414 / 768 / 1440 px all reported no page-level horizontal overflow. `hallmark audit openspec/changes/cash-import-wizard/prototype/index.html` remains unavailable because the repository environment has no `hallmark` executable.
 - Hallmark: `hallmark audit openspec/changes/cash-import-wizard/prototype/index.html` was attempted but the repository environment has no `hallmark` executable (`command not found`); manual screenshot review plus the Playwright checks above found no critical, major, or minor UI issue. The prototype was subsequently confirmed by the user and its interaction contract was synchronized to production; final production review is recorded in item 6.5 and the evidence below.
 - Production UI follow-up: `uv run pytest -q tests/test_cash_import_wizard.py` → 8 passed; `npm test -- --run` → 49 passed; `npm run build` → passed; import E2E → 2 passed; preview E2E → 1 passed; temporary visual audit → 1 passed. Screenshots: `/tmp/cash-import-production-relations-1440.png`, `/tmp/cash-import-production-rejected-1440.png`, `/tmp/cash-import-production-relations-390.png`. `hallmark audit web/src/pages/CashImportPage.tsx` remained unavailable (`command not found`), so manual review covered copy density, table state, focusable controls, rejection styling and page-level overflow.
+- Top action bar follow-up: `npm test -- --run` → 76 passed; `npm run build` → passed; `FT_E2E_WEB_PORT=5175 npm run test:e2e -- --grep "独立导入处理页面|导入处理页面在四个目标宽度"` → 2 passed; `FT_E2E_WEB_PORT=5176 npm run test:e2e -- --grep "独立导入处理页面自动识别渠道并完成三步确认"` → 1 passed with real bounding-box ordering; `FT_PREVIEW_WEB_PORT=5178 npm run test:preview -- --grep "生产预览可打开流水编辑和独立导入处理页面|当前持仓在目标响应式宽度保持可见且无横向溢出"` → 2 passed; `openspec validate --all --strict` → 20 passed; `openspec doctor` → ok; `git diff --check` → passed. 第二、三步顶部操作栏均早于长内容，底部无重复操作栏；本地服务仍运行于 `127.0.0.1:8000` 和 `127.0.0.1:5174`。
