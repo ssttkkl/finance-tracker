@@ -47,6 +47,7 @@
 .holding-price-current.below-cost{color:var(--color-income)}
 .holding-price-session{flex-shrink:0;color:var(--color-ink-muted);font:11px/1.35 var(--font-body)}
 .holding-price-average{margin-top:4px;color:var(--color-ink);font-size:12px;line-height:1.35;white-space:nowrap}
+.holding-price-mobile-label{display:none;color:var(--color-ink-muted);font:11px/1.35 var(--font-body)}
 .holding-price .holding-quote-meta{color:var(--color-ink-muted);font:11px/1.35 var(--font-body);white-space:normal}
 .holding-cash-row .holding-cash-gap,.holding-cash-row .holding-cash-tail{padding-top:13px;padding-bottom:13px;background:transparent}
 .holding-cash-row .holding-cash-market{font-weight:600}
@@ -62,6 +63,7 @@
 @media(max-width:820px){.holding-cash-row .holding-cash-gap,.holding-cash-row .holding-cash-tail{display:none}.holding-cash-row .holding-cash-market{display:grid;grid-column:2}.holding-cash-row .holding-cash-market::before{content:attr(data-label);color:var(--color-ink-muted);font-size:11px;text-align:left}}
 @media(max-width:820px){.holdings-table td:not(:first-child)>span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.holdings-table td:not(:first-child)>small{grid-column:2;min-width:0;text-align:right;white-space:normal}.holdings-table td.holding-price>.holding-price-current-line,.holdings-table td.holding-price>.holding-price-average,.holdings-table td.holding-price>.holding-quote-meta{grid-column:2;min-width:0}.holdings-table td.holding-price>.holding-price-current-line{overflow:hidden}.holdings-table td.holding-price>.holding-price-average{overflow:hidden;text-overflow:ellipsis}}
 @media(max-width:820px){.holdings-table td.holding-price{display:block;grid-column:1/-1;text-align:right}.holdings-table td.holding-price::before{display:none}.holdings-table td.holding-price>.holding-price-current-line,.holdings-table td.holding-price>.holding-price-average,.holdings-table td.holding-price>.holding-quote-meta{display:block;min-width:0;width:100%;overflow:visible}.holdings-table td.holding-price>.holding-price-current-line{display:flex;justify-content:flex-end;overflow:visible}.holdings-table td.holding-price>.holding-price-average{white-space:nowrap;text-overflow:clip}}
+@media(max-width:820px){.holding-price-mobile-label{display:inline-block;margin-right:var(--space-2);font-size:11px}.holdings-table td.holding-price>.holding-price-average{display:flex;align-items:baseline;justify-content:flex-end;gap:var(--space-2)}}
 @media(max-width:480px){.option-grid{grid-template-columns:minmax(0,1fr)}.overview{grid-template-columns:minmax(0,1fr)}.metric-period{grid-column:auto}.investment-page .refresh-button{align-self:stretch}.investment-page .holdings-table tbody{gap:var(--space-2)}}
 
 

@@ -161,7 +161,9 @@ describe("InvestmentLedgerPage", () => {
     expect(within(table).queryByText("平均成本", { exact: true })).not.toBeInTheDocument();
     expect(within(table).getByText("101.25 USD")).toHaveClass("holding-price-current", "above-cost");
     expect(within(table).getByText("101.25 USD").closest(".holding-price-current-line")).toHaveTextContent("夜盘");
-    expect(within(table).getByText("100 USD")).toHaveClass("holding-price-average");
+    expect(within(table).getByText("现价", { exact: true })).toHaveClass("holding-price-mobile-label");
+    expect(within(table).getByText("成本价", { exact: true })).toHaveClass("holding-price-mobile-label");
+    expect(within(table).getByText("100 USD").closest(".holding-price-average")).not.toBeNull();
     expect(within(table).getByText("报价于 3h 4m 5s 前")).toBeInTheDocument();
     expect(within(table).getByText("+100%")).toBeInTheDocument();
   });
