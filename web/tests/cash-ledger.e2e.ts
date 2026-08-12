@@ -351,7 +351,15 @@ test("独立导入处理页面自动识别渠道并完成三步确认", async ({
   await page.getByRole("button", { name: "核对流水", exact: true }).click();
   await expect(page.getByRole("heading", { name: "核对流水" })).toBeVisible();
   await expect(page.getByText("全部", { exact: true })).toBeVisible();
+  const previewActions = page.locator(".import-preview-stage .stage-actions-top");
+  await expect(previewActions).toBeVisible();
+  expect((await previewActions.boundingBox())!.y).toBeLessThan((await page.locator(".standard-table-wrap").boundingBox())!.y);
+  await expect(page.locator(".import-preview-stage .stage-actions")).toHaveCount(0);
   await page.getByRole("button", { name: "下一步", exact: true }).click();
+  const relationActions = page.locator("[aria-labelledby=import-relations-heading] .stage-actions-top");
+  await expect(relationActions).toBeVisible();
+  expect((await relationActions.boundingBox())!.y).toBeLessThan((await page.locator(".import-empty-state").boundingBox())!.y);
+  await expect(page.locator("[aria-labelledby=import-relations-heading] .stage-actions")).toHaveCount(0);
   await page.getByRole("button", { name: "确认导入" }).click();
   await expect.poll(() => committed).toBe(true);
   await expect(page.getByRole("heading", { name: "导入完成" })).toBeVisible();

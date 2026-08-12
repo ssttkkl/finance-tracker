@@ -313,6 +313,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
 
           {stage === "preview" && preview ? <section className="import-stage import-preview-stage" aria-labelledby="import-preview-heading">
             <div className="import-stage-heading"><h2 id="import-preview-heading">核对流水</h2><span className="channel-badge">{preview.channel_label}</span></div>
+            <div className="stage-actions-top"><button type="button" className="button-secondary" onClick={() => setStage("select")}>上一步</button><button type="button" className="button-primary" disabled={busy} onClick={openRelations}>下一步</button></div>
             <div className="import-summary-cards">{[
               { label: "全部", value: preview.summary.total, tone: "total" },
               { label: "待新增", value: preview.summary.new, tone: "new" },
@@ -323,11 +324,11 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
               <table className="standard-import-table"><caption className="sr-only">账单流水</caption><thead><tr>{preview.columns.map((column) => <th key={column} scope="col">{columnLabels[column] ?? column}</th>)}</tr></thead><tbody>{preview.items.map((item) => <tr key={item.record_id}>{preview.columns.map((column) => <td key={column} data-label={columnLabels[column] ?? column}>{column === "status" ? <span className={`import-status ${item.status}`}>{({ new: "待新增", existing: "已存在", unsupported: "暂不支持" } as const)[item.status]}</span> : displayValue(item, column)}</td>)}</tr>)}</tbody></table>
             </div>
             {preview.summary.unsupported > 0 ? <p className="import-stage-warning" role="status">有流水暂不支持。</p> : null}
-            <div className="stage-actions"><button type="button" className="button-secondary" onClick={() => setStage("select")}>上一步</button><button type="button" className="button-primary" disabled={busy} onClick={openRelations}>下一步</button></div>
           </section> : null}
 
           {stage === "relations" && preview ? <section className="import-stage" aria-labelledby="import-relations-heading">
-            <h2 id="import-relations-heading">配对</h2>
+            <div className="import-stage-heading"><h2 id="import-relations-heading">配对</h2></div>
+            <div className="stage-actions-top"><button type="button" className="button-secondary" onClick={() => setStage("preview")}>上一步</button><button type="button" className="button-primary" disabled={busy || preview.summary.unsupported > 0} onClick={() => void confirmImport()}>{busy ? "导入中…" : "确认导入"}</button></div>
             {relationItems.length === 0 ? <div className="import-empty-state"><strong>没有配对</strong></div> : <>
               <div className="relation-toolbar"><div className="relation-filters" role="group" aria-label="配对筛选">
                 {[
@@ -353,7 +354,6 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
               </tbody></table></div>
               <div className="relation-pager" aria-label="配对分页"><button type="button" className="button-secondary" disabled={currentPage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>上一页</button><span aria-live="polite">第 {currentPage} / {pageTotal} 页</span><button type="button" className="button-secondary" disabled={currentPage === pageTotal} onClick={() => setPage((value) => Math.min(pageTotal, value + 1))}>下一页</button></div>
             </>}
-            <div className="stage-actions"><button type="button" className="button-secondary" onClick={() => setStage("preview")}>上一步</button><button type="button" className="button-primary" disabled={busy || preview.summary.unsupported > 0} onClick={() => void confirmImport()}>{busy ? "导入中…" : "确认导入"}</button></div>
           </section> : null}
 
           {stage === "success" && result ? <section className="import-stage import-success-stage" aria-labelledby="import-success-heading"><div className="success-mark">✓</div><h2 id="import-success-heading">导入完成</h2><div className="import-success-stats"><span><strong>{result.new_rows}</strong>待新增</span><span><strong>{result.updated_rows}</strong>已更新</span><span><strong>{preview?.summary.existing ?? 0}</strong>已存在</span></div><div className="stage-actions"><button type="button" className="button-primary" onClick={onBack}>返回收支账本</button></div></section> : null}

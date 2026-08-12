@@ -172,6 +172,8 @@
 
     .actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); margin-top: var(--space-xl); padding-block: var(--space-md); background: var(--color-paper); border-top: var(--rule) solid var(--color-rule-strong); }
     .actions .right { display: flex; gap: var(--space-sm); margin-inline-start: auto; }
+    .top-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); margin: 0 0 var(--space-lg); padding-bottom: var(--space-sm); border-bottom: var(--rule) solid var(--color-rule-strong); }
+    .top-actions .right { display: flex; gap: var(--space-sm); margin-inline-start: auto; }
     .success { max-width: 42rem; padding-block: var(--space-xl); }
     .success-mark { width: 40px; height: 40px; display: grid; place-items: center; margin-bottom: var(--space-lg); border: var(--rule) solid var(--color-success); color: var(--color-success); font-weight: 700; }
     .success h2 { margin-bottom: var(--space-lg); font-size: var(--text-xl); letter-spacing: -.035em; }
@@ -217,6 +219,9 @@
       .actions { align-items: stretch; flex-direction: column-reverse; }
       .actions .right { width: 100%; margin: 0; }
       .actions button { flex: 1; }
+      .top-actions { align-items: stretch; flex-direction: column-reverse; }
+      .top-actions .right { width: 100%; margin: 0; }
+      .top-actions button { flex: 1; }
       .relation-toolbar { align-items: stretch; flex-direction: column; }
       .relation-filters { width: 100%; overflow-x: auto; }
       .relation-filter { flex: 1 0 auto; }
@@ -279,6 +284,7 @@
       </section>
 
       <section class="stage" data-stage="preview" aria-label="核对流水">
+        <div class="top-actions"><button class="secondary" type="button" data-back="select">上一步</button><div class="right"><button class="primary" type="button" id="to-relations">下一步</button></div></div>
         <dl class="summary" aria-label="导入数量">
           <div><dt>全部</dt><dd id="count-total">126</dd></div>
           <div class="is-new"><dt>待新增</dt><dd>116</dd></div>
@@ -297,10 +303,10 @@
         </div>
         <div class="empty-state" id="preview-empty" hidden>没有可导入的流水</div>
         <div class="error-state" id="unsupported-error" role="alert" hidden>1 条流水暂不支持，当前无法继续。</div>
-        <div class="actions"><button class="secondary" type="button" data-back="select">上一步</button><div class="right"><button class="primary" type="button" id="to-relations">查看配对</button></div></div>
       </section>
 
       <section class="stage" data-stage="relations" aria-label="配对">
+        <div class="top-actions"><button class="secondary" type="button" data-back="preview">上一步</button><div class="right"><button class="primary" id="confirm" type="button">确认导入</button></div></div>
         <div class="relation-toolbar">
           <div class="relation-filters" role="group" aria-label="配对筛选">
             <button class="relation-filter" type="button" data-relation-filter="all" aria-pressed="true">全部 <b>1,248</b></button>
@@ -324,7 +330,6 @@
         <div class="relation-empty" id="relation-empty" hidden>没有符合条件的配对</div>
         <div class="relation-pager" aria-label="配对分页"><button class="quiet" id="relation-prev" type="button" disabled>上一页</button><span class="relation-page-label" id="relation-page-label" aria-live="polite">第 1 / 63 页</span><button class="quiet" id="relation-next" type="button">下一页</button></div>
 
-        <div class="actions"><button class="secondary" type="button" data-back="preview">上一步</button><div class="right"><button class="primary" id="confirm" type="button">确认导入</button></div></div>
       </section>
 
       <section class="stage" data-stage="success" aria-labelledby="success-title">

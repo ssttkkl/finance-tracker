@@ -66,10 +66,20 @@ describe("CashImportPage", () => {
     expect(screen.getByText("交易对方")).toBeInTheDocument();
     expect(screen.queryByText("交易对方原始列")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "上一步" })).toBeInTheDocument();
+    const previewStage = screen.getByRole("heading", { name: "核对流水" }).closest("section")!;
+    const previewActions = previewStage.querySelector(".stage-actions-top")!;
+    const previewTable = previewStage.querySelector(".standard-table-wrap")!;
+    expect(previewActions.compareDocumentPosition(previewTable) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(previewStage.querySelectorAll(".stage-actions")).toHaveLength(0);
 
     fireEvent.click(screen.getByRole("button", { name: /^下一步$/ }));
     expect(screen.getAllByText("待处理").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "上一步" })).toBeInTheDocument();
+    const relationsStage = screen.getByRole("heading", { name: "配对" }).closest("section")!;
+    const relationsActions = relationsStage.querySelector(".stage-actions-top")!;
+    const relationToolbar = relationsStage.querySelector(".relation-toolbar")!;
+    expect(relationsActions.compareDocumentPosition(relationToolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(relationsStage.querySelectorAll(".stage-actions")).toHaveLength(0);
     fireEvent.change(screen.getAllByRole("combobox")[1], { target: { value: "skip" } });
     fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
     expect(await screen.findByRole("heading", { name: "导入完成" })).toBeInTheDocument();
@@ -98,6 +108,11 @@ describe("CashImportPage", () => {
     expect(screen.getAllByRole("button", { name: "拒绝配对" })).toHaveLength(20);
     expect(screen.getByText("第 1 / 2 页")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "上一步" })).toBeInTheDocument();
+    const relationsStage = screen.getByRole("heading", { name: "配对" }).closest("section")!;
+    const relationsActions = relationsStage.querySelector(".stage-actions-top")!;
+    const relationTable = relationsStage.querySelector(".relation-table-wrap")!;
+    expect(relationsActions.compareDocumentPosition(relationTable) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(relationsStage.querySelectorAll(".stage-actions")).toHaveLength(0);
 
     const typeSelect = screen.getAllByRole("combobox")[1];
     fireEvent.change(typeSelect, { target: { value: "refund_offset" } });
