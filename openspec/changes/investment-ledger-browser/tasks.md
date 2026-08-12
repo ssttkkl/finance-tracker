@@ -68,6 +68,8 @@
 - [x] 3.22 为 SSE 首份估值快照建立失败回归：周期起点预取不得先于当前行情批次占用 upstream；当前单价、市值和浮盈亏先推送，周期盈亏在后续完整快照补齐。
 - [x] 3.23 为报价元数据建立失败回归：yfinance/备用源保留来源报价时间；盘前、盘中、盘后、夜盘映射正确；缺失时间/时段不猜测；刷新失败同时保留价格、时间和时段；API 与 Web 文案透传。
 - [x] 3.24 为 USD 统一仓位建立失败回归：后端为 USD、非 USD 和现金返回 USD 市值，缺少汇率保持未知；API 序列化该字段；前端混合币种合并后以 USD 总分母计算相同百分比，并覆盖展示币种切换。
+- [x] 3.25 为本地动态端口与增量快照建立失败回归：CORS 只允许配置来源和完整回环主机动态端口，伪造回环后缀被拒绝；SSE 在当前行情完整但 USD 仓位或周期字段为空时保留上一份有效字段。
+- [x] 3.26 为平均成本共列建立失败回归：桌面表头显示“当前单价 / 平均成本”，同一单元格内分别标注当前单价与平均成本；平均成本按总成本除数量，展示币种切换时与当前单价使用同一汇率，移动卡片不产生横向溢出。
 
 ## 4. 构建
 
@@ -100,6 +102,8 @@
 - [x] 4.26 在 3.21 的失败回归后，实现证券当前报价的有界备用源链，并在运行时装配无密钥与可选密钥源；不改变历史报价或前端合同。
 - [x] 4.27 在 3.22 的失败回归后，令 SSE 刷新路径在首份当前估值快照后再启动周期起点预取；保留完整 JSON 兼容读取的并行语义和既有周期公式。
 - [x] 4.29 在 USD 归一化仓位失败回归后，为每个持仓及现金增加 USD 市值读模型字段；按币种缓存汇率，SSE 局部失败保留上一份有效字段，Web 分开展示和合并展示都以 USD 总市值计算仓位。
+- [x] 4.30 在 3.25 的失败回归后，允许严格锚定的本地回环动态端口访问只读 API/SSE，并按 USD 市值、周期盈亏和周期盈亏率独立合并增量快照；不改变非本地来源信任边界或财务计算。
+- [x] 4.31 在 3.26 的失败回归后，将平均成本计算和展示加入当前单价单元格；不新增后端字段、不增加表格列数，并同步生产 UI 与持仓原型。
 
 ## 5. 审查
 
@@ -131,6 +135,8 @@
 - [x] 5.25 复核 SSE 事件边界、缓存不写账本、版本/重连、线程生命周期、外部源超时与退避、失败关闭及单进程假设；对最终持仓页执行 Hallmark `audit`，确认没有新增技术状态、更新时间或响应式回归。
 - [x] 5.27 复核报价时间与交易时段的 UI 层级、未知状态、盘前/盘后/夜盘标签、现金行边界和 320/375/414/768 px 响应式；Hallmark `audit` 最终结果为 0 critical、0 major、0 minor。
 - [x] 5.28 复核 USD 仓位分母覆盖现金、混合币种汇率缺失时不伪造比例、展示币种切换不改变比例，以及原生表格列轨道和窄屏布局；真实浏览器 QA 无 critical/major/minor finding。
+- [x] 5.29 复核动态本地 CORS 的完整主机锚定、非回环拒绝、凭据关闭和 SSE/API 共用边界；复核增量快照不会因局部空字段清除仓位或周期表现，未发现阻断性 finding。
+- [x] 5.30 对平均成本共列执行 Hallmark `audit`，覆盖标签层次、报价小字、桌面列轨道、移动端卡片和 320/375/414/768 px；结果 **0 critical、0 major、0 minor**。
 
 ## 6. 测试与 QA
 
@@ -162,6 +168,8 @@
 - [x] 6.25 运行 SSE 后端/API/生命周期、前端 Vitest、生产构建与 preview Playwright；验证基础行 1 秒内可见、无浏览器定时估值请求、SSE 重连/手动刷新/口径切换、刷新不闪空，以及 SQLite/真实 PostgreSQL 契约矩阵、性能门禁、OpenSpec 严格校验和 `git diff --check`。
 - [x] 6.27 运行报价时间/时段回归、完整 Web Vitest、生产构建、OpenSpec 严格校验、`openspec doctor` 与 `git diff --check`；PostgreSQL 未因本轮只读 DTO/行情适配变更而新增矩阵，沿用既有专用 `_test` 证据。
 - [x] 6.28 运行 USD 仓位后端/API 回归、完整 Python/Web 测试、生产构建与预览；真实 SQLite 浏览器检查混合币种、现金分母、展示币种切换、桌面列对齐和 375 px；本轮 `FT_TEST_POSTGRES_URL` 未配置，记录专用 `_test` 数据库补跑条件。
+- [x] 6.29 运行 CORS 动态端口契约、SSE 增量合并回归、完整 Web 测试、生产构建、真实启动浏览器 QA、OpenSpec 严格校验、`openspec doctor` 与 `git diff --check`；记录 1280/375 px 字段、权重、周期盈亏和控制台错误证据。
+- [x] 6.30 运行平均成本 Web 回归、完整 Web 测试、构建、生产预览和真实浏览器 QA；验证第二列仍与表头对齐、当前单价与平均成本值均保留两位展示精度、展示币种切换和 375 px 无横向溢出。
 
 ## 7. 发布准备
 
@@ -172,6 +180,7 @@
 - [x] 7.5 记录标的片段筛选的回滚方式、验证证据、残余 PostgreSQL 条件与未经授权的外部写边界。
 - [x] 7.6 记录 SSE 交付证据、进程内缓存和单进程部署假设、回滚到 JSON 完整估值读取的方式，以及未经授权的外部写边界。
 - [x] 7.7 记录报价时间字段的兼容回滚：移除 `quote_observed_at`/`quote_session` 展示与透传即可恢复旧 UI；不影响账本、数据库、价格或盈亏公式。未提交、未推送、未部署。
+- [x] 7.8 记录本轮回滚与交付边界：移除动态本地 CORS 正则即可恢复严格单来源配置；移除客户端独立字段保留逻辑即可恢复旧合并行为；不触碰账本或行情数据。未提交、未推送、未部署。
 
 ## 8. 反思
 
@@ -179,6 +188,8 @@
 - [x] 8.2 在最终 UI 通过后沉淀“用户界面只显示结果与动作、精确口径留在规格/无障碍语义”的文案规则，并记录防止内部术语和解释句回归的测试位置。
 - [x] 8.3 沉淀标的片段筛选的字面量转义与稳定分页规则，防止未来把用户输入重新解释为数据库通配符。
 - [x] 8.4 沉淀行情刷新规则：SSE 不是行情源，必须由刷新器、最后成功快照、版本化事件和浏览器重连共同保证渐进展示；多实例需要独立 change 的共享发布机制。
+- [x] 8.5 沉淀本地开发规则：前端开发/预览端口可动态变化，API 应以完整回环主机匹配适配端口变化，同时保持非回环来源拒绝；增量读模型应按字段保留最后可信值。
+- [x] 8.6 沉淀持仓表格规则：平均成本是持仓单价的核对信息，与当前单价共用同一列并由标签区分，不为单个辅助指标扩张桌面表格轨道。
 
 ## 执行记录与审查结论
 
@@ -296,3 +307,10 @@
 - **USD 统一仓位（2026-08-12，Asia/Shanghai）**：用户明确仓位不得按原币种分别计算，必须先把持仓和现金市值换算为 USD，再以 USD 总市值为分母。先加入后端 USD 归一化字段失败回归，旧 DTO 缺少字段而失败；实现后由组合查询按币种缓存汇率并填充 usd_market_value，SSE 合并在局部行情失败时保留上一份有效 USD 值，前端分开展示和合并展示均使用 USD 字段计算仓位；原币种/统一展示金额仍遵循既有总览口径，缺少汇率时仓位保持未知。
 - **本轮验证**：`uv run pytest -q tests/unit/application/test_portfolio_valuation.py tests/contract/test_investment_web_api.py tests/test_portfolio_refresh.py` → **29 passed、3 skipped**；`npm --prefix web test -- --run` → **66 passed**；`npm --prefix web run build` → 通过。真实 SQLite 服务重启后执行浏览器 QA，原币种与 CNY 展示下仓位百分比保持一致，现金已计入 USD 分母；桌面 9 列表头/单元格轨道一致，375 px 无横向溢出，控制台无错误。`npm --prefix web run test:preview` → **6 passed**；`uv run pytest -q` → **1347 passed、161 skipped、1 个既有 Starlette/httpx deprecation warning**（307.11s）；`openspec validate --all --strict` → **18 passed、0 failed**；`openspec doctor` → **root ok**；`git diff --check` → 通过。`FT_TEST_POSTGRES_URL` 未配置，真实 PostgreSQL 契约矩阵未运行；补跑条件为设置指向名称以 `_test` 结尾的专用数据库后重跑受影响契约。服务进程已停止，未提交、未推送、未部署。
 - **本轮 UI audit**：Hallmark 复核 `InvestmentHoldings`、`investment.css` 与真实预览，覆盖 USD 仓位数值层级、桌面列对齐、现金/混合币种状态、320/375/414/768 px 响应式和无横向滚动；结果 **0 critical、0 major、0 minor**。
+
+- **动态端口与增量快照修复（2026-08-12，Asia/Shanghai）**：真实 QA 复现的持仓空字段根因是后端固定 `FT_WEB_ORIGIN=http://127.0.0.1:4173`，浏览器实际运行在 `127.0.0.1:5181`，导致账户、基础持仓和 SSE 请求全部被浏览器 CORS 拦截；增加完整锚定的 `localhost`/`127.0.0.1` 动态端口允许规则，并拒绝 `127.0.0.1.evil`。另一条回归是 SSE 新快照在当前行情完整、`usd_market_value`/周期字段暂缺时清除了上一份有效仓位和 24 小时盈亏；客户端现按字段独立保留最后有效值。
+- **本轮验证证据（HEAD `eb161344c61418c4689f8b11fa84934c85cfe14b`，基线 `origin/investment-account-page` 同值，工作树未提交）**：`uv run pytest -q tests/contract/test_web_api.py tests/contract/test_investment_web_api.py tests/unit/application/test_portfolio_valuation.py tests/test_portfolio_refresh.py` → **53 passed、7 skipped、1 个既有 Starlette/httpx warning**；`npm --prefix web test -- --run` → **67 passed**；`VITE_FT_API_ORIGIN=http://127.0.0.1:8000 npm --prefix web run build` → 通过；`npm --prefix web run test:preview` → **6 passed**；`openspec validate --all --strict` → **18 passed、0 failed**；`openspec doctor` → **root ok**；`git diff --check` → 通过。
+- **真实启动浏览器 QA**：本机 SQLite 后端 `8000` 与 Vite 预览 `5181` 使用真实数据访问 `#/investment-holdings`，账户、SSE 和基础持仓请求均返回 200；桌面 1280 px 的 9 个表头与首行 9 个单元格 `x/width` 轨道完全一致，7 个持仓均显示当前单价、当前市值、USD 仓位、浮盈亏和近 24 小时盈亏；375 px 下 `body.scrollWidth=375`、无页面级横向溢出，清空控制台后无错误。网络证据包含 `GET /api/v1/investment-portfolio/stream?...` 200；未写入账本，未提交、未推送、未创建 PR、未部署。
+- **平均成本共列修复（2026-08-12，Asia/Shanghai）**：用户反馈当前单价后缺少平均成本；前端现以总成本 ÷ 数量计算平均成本，将“当前单价”和“平均成本”放在同一列的两行标签值中，展示币种切换时同步折算；未新增 API 字段或桌面列轨道。原型同步为同一结构，报价时间小字仍位于两行数值之后。
+- **平均成本验证证据**：先加入失败回归后旧实现按预期失败；实现后 `npm --prefix web test -- --run tests/InvestmentLedgerPage.test.tsx` → **19 passed**。新增规格、设计、任务与原型已同步，生产构建和真实浏览器 QA 已在下方完成记录。
+- **平均成本最终 QA（2026-08-12，Asia/Shanghai）**：完整 Web Vitest → **68 passed**；生产构建 → 通过；预览 Playwright → **6 passed**；真实 SQLite + Vite `5181` 浏览器检查显示 7 个持仓的第二列表头为“当前单价 / 平均成本”，首行同时显示当前单价、平均成本与报价小字，1280 px 表格仍为 9 列且第二列轨道对齐，375 px `body.scrollWidth=375` 且无控制台错误；`openspec validate --all --strict` → **18 passed、0 failed**；`openspec doctor` → **root ok**；`git diff --check` → 通过。Hallmark UI audit 复核标签层次、数值密度、报价小字和 320/375/414/768 px 响应式，结果 **0 critical、0 major、0 minor**。

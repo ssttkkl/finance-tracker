@@ -76,7 +76,7 @@ function retainLastKnownValuation(previous: Portfolio, incoming: Portfolio): Por
     ...account,
     positions: account.positions.map((position) => {
       const previousPosition = previousPositions.get(positionKey(account.name, position));
-      return previousPosition && !hasCompleteMarketValue(position) ? {
+      const retainedPosition = previousPosition && !hasCompleteMarketValue(position) ? {
         ...position,
         current_price: previousPosition.current_price,
         market_value: previousPosition.market_value,
@@ -94,6 +94,13 @@ function retainLastKnownValuation(previous: Portfolio, incoming: Portfolio): Por
         period_profit: position.period_profit ?? previousPosition.period_profit,
         period_profit_rate: position.period_profit_rate ?? previousPosition.period_profit_rate,
       } : position;
+      if (!previousPosition) return retainedPosition;
+      return {
+        ...retainedPosition,
+        usd_market_value: retainedPosition.usd_market_value ?? previousPosition.usd_market_value,
+        period_profit: retainedPosition.period_profit ?? previousPosition.period_profit,
+        period_profit_rate: retainedPosition.period_profit_rate ?? previousPosition.period_profit_rate,
+      };
     }),
   }));
   return {

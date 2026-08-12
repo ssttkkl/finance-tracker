@@ -109,7 +109,7 @@ describe("InvestmentLedgerPage", () => {
     expect(styles).toContain(".evidence .investment-detail-changes dl,.evidence .investment-detail-supplement{display:block");
     expect(styles).toContain(".investment-detail-line,.investment-detail-fact{display:grid;grid-template-columns:88px minmax(0,1fr)");
     expect(styles).toContain(".holding-symbol,.holding-price{display:table-cell;white-space:normal!important}");
-    expect(styles).toContain(".holding-symbol strong,.holding-symbol small,.holding-price>span,.holding-price>small{display:block}");
+    expect(styles).toContain(".holding-symbol strong,.holding-symbol small,.holding-price>small{display:block}");
     expect(styles).toContain("@media(prefers-reduced-motion:reduce){.refresh-button[aria-busy=\"true\"] .refresh-ring{animation:none}}");
     expect(prototype).toContain('placeholder="如 AAPL 或 .US"');
   });
@@ -132,6 +132,24 @@ describe("InvestmentLedgerPage", () => {
     expect(screen.queryByText("价格不完整")).not.toBeInTheDocument();
     expect(fetch.mock.calls.some(([input]) => String(input).includes("/investment-events"))).toBe(true);
     expect(fetch.mock.calls.some(([input]) => String(input).includes("/investment-portfolio"))).toBe(false);
+  });
+
+  it("当前单价列同时显示平均成本", async () => {
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/investment-portfolio")) return json(portfolio);
+      return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage />);
+
+    const table = await screen.findByRole("table", { name: "当前持仓" });
+    expect(within(table).getByRole("columnheader", { name: "当前单价 / 平均成本" })).toBeInTheDocument();
+    expect(within(table).getByText("当前单价", { exact: true })).toBeInTheDocument();
+    expect(within(table).getByText("平均成本", { exact: true })).toBeInTheDocument();
+    expect(within(table).getByText("101.25 USD")).toBeInTheDocument();
+    expect(within(table).getByText("100 USD")).toBeInTheDocument();
   });
 
   it.each([
@@ -392,6 +410,41 @@ describe("InvestmentLedgerPage", () => {
     expect(screen.getByText("报价于2分5秒前 · 盘后")).toBeInTheDocument();
     expect(screen.getAllByText("+12.50 USD")).toHaveLength(2);
     expect(screen.getAllByText("1,012.50 USD")).toHaveLength(2);
+  });
+
+  it("SSE 当前行情完整但 USD 仓位或周期暂缺时保留上一份有效字段", async () => {
+    const complete: Portfolio = {
+      total_market_value: "1012.50", total_profit: "12.50", total_profit_rate: "0.0125",
+      period_profit: "8.04", period_profit_rate: "0.0080",
+      accounts: [{ name: "投资账户", currency: "USD", positions: [{
+        ...portfolio.accounts[0].positions[0], usd_market_value: "1012.50", period_profit: "8.04", period_profit_rate: "0.0080",
+      }] }],
+    };
+    const sparse: Portfolio = {
+      ...complete,
+      total_market_value: "1012.50", total_profit: "12.50", total_profit_rate: "0.0125",
+      period_profit: null, period_profit_rate: null,
+      accounts: [{ name: "投资账户", currency: "USD", positions: [{
+        ...complete.accounts[0].positions[0], usd_market_value: null, period_profit: null, period_profit_rate: null,
+      }] }],
+    };
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/investment-portfolio") && input.includes("phase=holdings")) return json(holdingsOnly(complete));
+      return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage />);
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    const stream = MockEventSource.instances[0];
+    await act(async () => { stream.emit("portfolio", { version: 1, portfolio: complete }); });
+    expect(await screen.findByText("+100%")).toBeInTheDocument();
+    expect(screen.getAllByText("+8.04 USD")).toHaveLength(2);
+
+    await act(async () => { stream.emit("portfolio", { version: 2, portfolio: sparse }); });
+    expect(screen.getByText("+100%")).toBeInTheDocument();
+    expect(screen.getAllByText("+8.04 USD")).toHaveLength(2);
   });
 
   it("持仓页使用 SSE 而不启动定时估值轮询，事件页也不连接持仓流", async () => {

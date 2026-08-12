@@ -20,6 +20,7 @@ from ft.web.serialization import error_payload
 
 
 DEFAULT_WEB_ORIGIN = "http://127.0.0.1:5173"
+LOCAL_WEB_ORIGIN_REGEX = r"^http://(?:127\.0\.0\.1|localhost):[0-9]+$"
 _STORAGE_ERROR_CODES = frozenset({
     "storage.config",
     "storage.connect",
@@ -75,6 +76,10 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[allowed_origin],
+        # The local Vite/preview port may move when another process occupies the
+        # default port. Keep the trust boundary local while allowing that port
+        # change without making the user manually restart the API.
+        allow_origin_regex=LOCAL_WEB_ORIGIN_REGEX,
         allow_credentials=False,
         allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["Accept", "Content-Type"],

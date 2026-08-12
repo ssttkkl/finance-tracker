@@ -8,6 +8,31 @@ def _client(runtime):
     CashProjectionService(runtime.sessions,runtime.workspace_id).rebuild()
     return TestClient(create_app(CashLedgerQueryService(runtime.sessions,runtime.workspace_id)))
 
+
+def test_local_frontend_dynamic_port_is_allowed_by_cors(cash_web_runtime):
+    from ft.application.web_queries import CashLedgerQueryService
+    from ft.web.app import create_app
+
+    app = create_app(
+        CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id),
+        allowed_origin="http://127.0.0.1:4173",
+    )
+    client = TestClient(app)
+
+    response = client.get(
+        "/api/v1/accounts?view=cash",
+        headers={"Origin": "http://127.0.0.1:5181"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5181"
+    denied = client.get(
+        "/api/v1/accounts?view=cash",
+        headers={"Origin": "http://127.0.0.1.evil:5181"},
+    )
+    assert "access-control-allow-origin" not in denied.headers
+
+
 def test_projection_api_contract_and_old_routes_are_absent(cash_web_runtime):
     client=_client(cash_web_runtime)
     page=client.get("/api/v1/cash-projections?limit=2"); accounts=client.get("/api/v1/accounts?view=cash")
