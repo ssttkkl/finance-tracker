@@ -347,21 +347,21 @@ test("独立导入处理页面自动识别渠道并完成三步确认", async ({
   await page.getByRole("button", { name: "导入账单" }).click();
   await expect(page).toHaveURL(/\/cash-import$/);
   await page.locator('input[type="file"]').setInputFiles({ name: "statement.csv", mimeType: "text/csv", buffer: Buffer.from("fixture") });
-  await expect(page.getByText("已识别为工银亚洲账单")).toBeVisible();
-  await page.getByRole("button", { name: "继续查看预览 →" }).click();
-  await expect(page.getByRole("heading", { name: "导入预览" })).toBeVisible();
-  await expect(page.getByText("总记录数")).toBeVisible();
-  await page.getByRole("button", { name: "下一步：查看配对 →" }).click();
+  await expect(page.getByText("工银亚洲账单")).toBeVisible();
+  await page.getByRole("button", { name: "核对流水", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "核对流水" })).toBeVisible();
+  await expect(page.getByText("全部", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
   await page.getByRole("button", { name: "确认导入" }).click();
   await expect.poll(() => committed).toBe(true);
-  await expect(page.getByRole("heading", { name: "导入已完成" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "导入完成" })).toBeVisible();
 });
 
 test("导入处理页面在四个目标宽度不产生页面级横向滚动", async ({ page }) => {
   for (const width of [320, 375, 414, 768]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/cash-import");
-    await expect(page.getByRole("heading", { name: "选择账单文件" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "选择文件" })).toBeVisible();
     expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
   }
 });

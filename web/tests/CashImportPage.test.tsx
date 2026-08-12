@@ -20,6 +20,25 @@ const preview = {
   }],
 };
 
+const automaticRelation = {
+  id: "relation-auto", kind: "payment_mirror", label: "同笔支付", subtype: "", status: "accepted" as const,
+  automatic: true, rule_id: "mirror.v1", reason: "唯一匹配",
+  primary: { ...item, record_id: "row-auto", preview: true },
+  secondary: { ...item, record_id: "existing-auto", preview: false, fact_id: 43 },
+  candidates: [],
+};
+
+function previewWithRelations(count = 2) {
+  return {
+    ...preview,
+    relations: [automaticRelation, ...Array.from({ length: Math.max(0, count - 1) }, (_, index) => ({
+      ...preview.relations[0],
+      id: `relation-manual-${index + 1}`,
+      primary: { ...item, record_id: `row-manual-${index + 1}`, preview: true },
+    }))],
+  };
+}
+
 function response(value: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } }));
 }
@@ -40,21 +59,81 @@ describe("CashImportPage", () => {
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     const file = new File(["standardized"], "statement.csv", { type: "text/csv" });
     fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
-    expect(await screen.findByText("已识别为支付宝账单")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "继续查看预览 →" }));
-    expect(await screen.findByRole("heading", { name: "导入预览" })).toBeInTheDocument();
-    expect(screen.getByText("总记录数")).toBeInTheDocument();
+    expect(await screen.findByText("支付宝账单")).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /^核对流水$/ }));
+    expect(await screen.findByRole("heading", { name: "核对流水" })).toBeInTheDocument();
+    expect(screen.getByText("全部")).toBeInTheDocument();
     expect(screen.getByText("交易对方")).toBeInTheDocument();
     expect(screen.queryByText("交易对方原始列")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "上一步" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "下一步：查看配对 →" }));
-    expect(await screen.findByText("待手动配对")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "暂不处理" }));
+    fireEvent.click(screen.getByRole("button", { name: /^下一步$/ }));
+    expect(screen.getAllByText("待处理").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "上一步" })).toBeInTheDocument();
+    fireEvent.change(screen.getAllByRole("combobox")[1], { target: { value: "skip" } });
     fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
-    expect(await screen.findByRole("heading", { name: "导入已完成" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "导入完成" })).toBeInTheDocument();
     await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("/cash-import/commit"))).toBe(true));
     const commitRequest = fetch.mock.calls.find(([input]) => String(input).includes("/cash-import/commit"));
     expect(String(commitRequest?.[0])).toContain("preview_digest=digest-1");
     expect(String(commitRequest?.[0])).toContain("relations=%5B%5D");
+  });
+
+  it("分页展示关系、允许修改非自动类型，并能拒绝后撤销", async () => {
+    const relationPreview = previewWithRelations(21);
+    const fetch = vi.fn((input: string) => input.includes("/detect")
+      ? response({ channel: "alipay", channel_label: "支付宝", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", row_count: 1 })
+      : input.includes("/preview")
+        ? response(relationPreview)
+        : response({ message: "导入完成", new_rows: 1, updated_rows: 0, channel: "alipay", digest: "digest-1" }));
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    const file = new File(["standardized"], "statement.csv", { type: "text/csv" });
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
+    await screen.findByText("支付宝账单");
+    fireEvent.click(screen.getByRole("button", { name: /^核对流水$/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^下一步$/ }));
+
+    expect(screen.getAllByRole("button", { name: "拒绝配对" })).toHaveLength(20);
+    expect(screen.getByText("第 1 / 2 页")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "上一步" })).toBeInTheDocument();
+
+    const typeSelect = screen.getAllByRole("combobox")[1];
+    fireEvent.change(typeSelect, { target: { value: "refund_offset" } });
+    expect(typeSelect).toHaveValue("refund_offset");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "拒绝配对" })[0]);
+    expect(screen.getAllByRole("button", { name: "撤销拒绝" })).toHaveLength(1);
+    expect(screen.getByText("已拒绝")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "撤销拒绝" }));
+    expect(screen.getAllByRole("button", { name: "拒绝配对" })).toHaveLength(20);
+
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    expect(screen.getByText("第 2 / 2 页")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "拒绝配对" })).toHaveLength(1);
+  });
+
+  it("确认时提交已拒绝的关系决定", async () => {
+    const relationPreview = previewWithRelations(1);
+    const fetch = vi.fn((input: string) => input.includes("/detect")
+      ? response({ channel: "alipay", channel_label: "支付宝", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", row_count: 1 })
+      : input.includes("/preview")
+        ? response(relationPreview)
+        : response({ message: "导入完成", new_rows: 1, updated_rows: 0, channel: "alipay", digest: "digest-1" }));
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    const file = new File(["standardized"], "statement.csv", { type: "text/csv" });
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
+    await screen.findByText("支付宝账单");
+    fireEvent.click(screen.getByRole("button", { name: /^核对流水$/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^下一步$/ }));
+    fireEvent.click(screen.getAllByRole("button", { name: "拒绝配对" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
+    await screen.findByRole("heading", { name: "导入完成" });
+
+    const commitRequest = fetch.mock.calls.find(([input]) => String(input).includes("/cash-import/commit"));
+    expect(String(commitRequest?.[0])).toContain(encodeURIComponent('"status":"rejected"'));
   });
 });

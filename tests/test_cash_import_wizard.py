@@ -240,3 +240,27 @@ def test_cash_import_confirm_persists_selected_relation_in_same_transaction(tmp_
         relation = session.query(TransactionRelationModel).one()
         assert relation.status == "accepted"
         assert relation.created_by == "web"
+
+
+def test_cash_import_rejected_relation_does_not_create_relation_or_block_import(tmp_path):
+    from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
+
+    source = tmp_path / "statement.csv"
+    source.write_bytes(b"test statement")
+    sessions, service = _service(tmp_path, {"alipay": [_row()]})
+
+    result = service.commit_import(
+        source.read_bytes(), source="alipay", currency=None, filename=source.name,
+        preview_digest=hashlib.sha256(source.read_bytes()).hexdigest(),
+        preview_channel="alipay",
+        relation_decisions=[{
+            "kind": "payment_mirror",
+            "primary_record_id": "row-1",
+            "status": "rejected",
+        }],
+    )
+
+    assert result["new_rows"] == 1
+    with sessions() as session:
+        assert session.query(CashTransactionModel).count() == 1
+        assert session.query(TransactionRelationModel).count() == 0

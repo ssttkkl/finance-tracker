@@ -81,7 +81,10 @@ class StatementImportService:
                 raise ValueError("导入关系引用的流水不存在") from exc
 
         for decision in decisions:
-            if not isinstance(decision, dict) or str(decision.get("status") or "accepted") in {"skipped", "ignored"}:
+            if not isinstance(decision, dict):
+                raise ValueError("导入关系决策格式无效")
+            decision_status = str(decision.get("status") or "accepted")
+            if decision_status in {"skipped", "ignored"}:
                 continue
             kind = str(decision.get("kind") or "")
             if kind not in {item.value for item in RelationKind}:
@@ -90,16 +93,23 @@ class StatementImportService:
                 decision.get("primary_fact_id") or decision.get("primary_record_id")
             )
             secondary = resolve(
-                decision.get("secondary_fact_id") or decision.get("secondary_record_id")
+                decision.get("secondary_fact_id") or decision.get("secondary_record_id"),
+                required=decision_status != "rejected",
             )
             if primary == secondary:
                 raise ValueError("导入关系不能关联同一条流水")
-            records = uow.cashflows.get_many([primary, secondary])
+            record_ids = [primary] + ([secondary] if secondary is not None else [])
+            records = uow.cashflows.get_many(record_ids)
             if any(
                 records.get(item) is None or records[item].get("deleted")
-                for item in (primary, secondary)
+                for item in record_ids
             ):
                 raise ValueError("导入关系引用的流水不存在")
+            if decision_status == "rejected":
+                # 拒绝只记录本次导入会话的决定，不创建或确认关系。
+                continue
+            if decision_status != "accepted":
+                raise ValueError("导入关系状态无效")
             subtype = str(decision.get("subtype") or "")
             if kind == RelationKind.TRANSFER_PAIR.value and not subtype:
                 subtype = "ordinary_transfer"
