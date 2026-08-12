@@ -37,15 +37,18 @@
 
 ## 7. 发布
 
-- [x] 7.1 记录本地验证证据；保留工作树变更，不执行提交、推送、PR、合并、部署或第三方写入。
+- [x] 7.1 记录本地验证证据；已提交并推送 Skill 变更，进入到 `refactor/web` 的 PR 发布流程，不执行合并、部署或第三方写入。
 
 ### 验证证据
 
-- 执行时间：`2026-08-12 16:48:49 +0800`。
-- 当前 `HEAD` 与比较基线：`4404782652421fcd3ae723c5dfd6997dd60667e1`。
+- 执行时间：`2026-08-12 17:10:00 +0800`。
+- 提交前验证基线：`4404782652421fcd3ae723c5dfd6997dd60667e1`；Skill 提交：`06bb1d0`。
 - `quick_validate.py`：`Skill is valid!`。
 - YAML 解析：通过。
-- `git diff --check`：通过。
+- `openspec validate --all --strict`：19 项通过，0 项失败；`openspec doctor`：通过。
+- `git diff --cached --check`：通过。
+- Web Vitest：4 个测试文件、46 个测试通过。
+- `uv run pytest -q`：1,294 通过、155 跳过、2 个既有性能失败；失败均为 SQLite 导入测试的进程内存峰值超过既有阈值，与本次 Skill 文档变更无关，按用户决定记录为非阻断。
 - `/grilling`：本机无可执行 `grilling` 命令；已将用户确认结论写入 proposal、design 和核心 Skill。
 
 ## 8. 反思
