@@ -1,4 +1,4 @@
-import type { Account, CashFilters, CashPage, CashRecordDetail, CashRecordPage, Evidence, ImportPreview, LedgerOptions } from "./types";
+import type { Account, CashFilters, CashPage, CashRecordDetail, CashRecordPage, Evidence, ImportCommitResult, ImportDetection, ImportPreview, LedgerOptions } from "./types";
 
 function apiOrigin(): string {
   const origin = import.meta.env.VITE_FT_API_ORIGIN;
@@ -108,9 +108,12 @@ const importChannelLabels: Record<string, string> = {
 };
 export { importChannelLabels };
 
-async function importRequest<T>(path: string, file: File, source: string, currency?: string): Promise<T> {
-  const params = new URLSearchParams({ source, filename: file.name });
-  if (currency) params.set("currency", currency);
+async function importRequest<T>(path: string, file: File, values: { source?: string; currency?: string; previewDigest?: string; previewChannel?: string; relations?: string } = {}): Promise<T> {
+  const params = new URLSearchParams({ source: values.source ?? "", filename: file.name });
+  if (values.currency) params.set("currency", values.currency);
+  if (values.previewDigest) params.set("preview_digest", values.previewDigest);
+  if (values.previewChannel) params.set("preview_channel", values.previewChannel);
+  if (values.relations) params.set("relations", values.relations);
   const response = await fetch(`${apiOrigin()}${path}?${params.toString()}`, {
     method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file,
   });
@@ -122,10 +125,25 @@ async function importRequest<T>(path: string, file: File, source: string, curren
   return response.json() as Promise<T>;
 }
 
-export function previewCashImport(file: File, source: string, currency?: string): Promise<ImportPreview> {
-  return importRequest<ImportPreview>("/api/v1/cash-import/preview", file, source, currency);
+export function detectCashImport(file: File, currency?: string): Promise<ImportDetection> {
+  return importRequest<ImportDetection>("/api/v1/cash-import/detect", file, { currency });
 }
 
-export function commitCashImport(file: File, source: string, currency?: string): Promise<{ message: string; new_rows: number; updated_rows: number }> {
-  return importRequest<{ message: string; new_rows: number; updated_rows: number }>("/api/v1/cash-import/commit", file, source, currency);
+export function previewCashImport(file: File, source = "", currency?: string): Promise<ImportPreview> {
+  return importRequest<ImportPreview>("/api/v1/cash-import/preview", file, { source, currency });
+}
+
+export function commitCashImport(
+  file: File,
+  source = "",
+  currency?: string,
+  options: { previewDigest?: string; previewChannel?: string; relations?: Record<string, unknown>[] } = {},
+): Promise<ImportCommitResult> {
+  return importRequest<ImportCommitResult>("/api/v1/cash-import/commit", file, {
+    source,
+    currency,
+    previewDigest: options.previewDigest,
+    previewChannel: options.previewChannel,
+    relations: options.relations ? JSON.stringify(options.relations) : undefined,
+  });
 }

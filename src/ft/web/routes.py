@@ -1,4 +1,6 @@
 """收支账本投影 API 路由。"""
+import json
+
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from ft.application.web_queries import ProjectionUnavailableError, ProjectionUpdatedError
@@ -112,8 +114,17 @@ def cash_router(service, mutation_service=None):
             except ValueError as exc:
                 return JSONResponse(error_payload("invalid_relation", str(exc)), 400)
 
+        @router.post("/cash-import/detect")
+        async def detect_cash_import(request: Request, currency: str | None = None, filename: str = "statement"):
+            try:
+                return json_value(mutation_service.detect_import(
+                    await request.body(), filename=filename, currency=currency,
+                ))
+            except ValueError as exc:
+                return JSONResponse(error_payload("invalid_import", str(exc)), 400)
+
         @router.post("/cash-import/preview")
-        async def preview_cash_import(request: Request, source: str, currency: str | None = None, filename: str = "statement"):
+        async def preview_cash_import(request: Request, source: str = "", currency: str | None = None, filename: str = "statement"):
             try:
                 return json_value(mutation_service.preview_import(
                     await request.body(), source=source, currency=currency, filename=filename,
@@ -122,10 +133,29 @@ def cash_router(service, mutation_service=None):
                 return JSONResponse(error_payload("invalid_import", str(exc)), 400)
 
         @router.post("/cash-import/commit")
-        async def commit_cash_import(request: Request, source: str, currency: str | None = None, filename: str = "statement"):
+        async def commit_cash_import(
+            request: Request,
+            source: str = "",
+            currency: str | None = None,
+            filename: str = "statement",
+            preview_digest: str | None = None,
+            preview_channel: str | None = None,
+            relations: str | None = None,
+        ):
             try:
+                relation_decisions = None
+                if relations:
+                    relation_decisions = json.loads(relations)
+                    if not isinstance(relation_decisions, list):
+                        raise ValueError("导入关系决策格式无效")
                 return json_value(mutation_service.commit_import(
-                    await request.body(), source=source, currency=currency, filename=filename,
+                    await request.body(),
+                    source=source,
+                    currency=currency,
+                    filename=filename,
+                    preview_digest=preview_digest,
+                    preview_channel=preview_channel,
+                    relation_decisions=relation_decisions,
                 ))
             except RelationImpactRequired as exc:
                 return JSONResponse(error_payload(exc.code, str(exc)), 409)

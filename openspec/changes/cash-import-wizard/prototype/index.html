@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>导入账单 · 原型</title>
+  <style>
+    /* Hallmark · macrostructure: Narrative Workflow · genre: modern-minimal · theme: Cobalt inherited · nav: N9 · footer: Ft2 · enrichment: none · audience: 个人账单核对者 · use: 在确认前核对账单与关系 · tone: precise · pre-emit critique: P5 H5 E5 S5 R5 V5 · contrast: pass · responsive: pass target 320/375/414/768 */
+    :root {
+      --paper: oklch(.965 .008 250);
+      --paper-raised: oklch(.995 .004 250);
+      --paper-muted: oklch(.94 .012 250);
+      --ink: oklch(.25 .02 250);
+      --ink-muted: oklch(.48 .018 250);
+      --ink-faint: oklch(.59 .014 250);
+      --rule: oklch(.87 .012 250);
+      --rule-strong: oklch(.74 .02 250);
+      --accent: oklch(.48 .16 252);
+      --accent-ink: oklch(.99 .004 250);
+      --accent-soft: oklch(.94 .03 252);
+      --income: oklch(.45 .12 155);
+      --danger: oklch(.5 .17 28);
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+      --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+      --mono: "IBM Plex Mono", ui-monospace, monospace;
+      --sans: "Noto Sans SC", ui-sans-serif, sans-serif;
+      --ease: cubic-bezier(.16, 1, .3, 1);
+    }
+    * { box-sizing: border-box; }
+    html, body { min-width: 0; overflow-x: clip; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.55 var(--sans); }
+    button, input, select { font: inherit; }
+    button { min-height: 44px; border: 1px solid var(--rule-strong); border-radius: 4px; background: var(--paper-raised); color: var(--ink); cursor: pointer; padding: 0 var(--space-4); }
+    button:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    button:disabled { cursor: not-allowed; opacity: .5; }
+    .shell { min-height: 100vh; display: grid; grid-template-columns: 224px minmax(0, 1fr); }
+    .rail { display: flex; flex-direction: column; gap: var(--space-8); padding: 28px 18px; background: var(--ink); color: var(--accent-ink); }
+    .rail strong { font: 600 13px/1 var(--mono); letter-spacing: .08em; }
+    .rail a { color: var(--accent-ink); text-decoration: none; opacity: .72; }
+    .rail a[aria-current] { opacity: 1; }
+    .main { width: min(1240px, 100%); margin: 0 auto; padding: 48px clamp(24px, 5vw, 72px) 64px; }
+    .topline { display: flex; align-items: start; justify-content: space-between; gap: var(--space-6); padding-bottom: var(--space-6); border-bottom: 1px solid var(--rule-strong); }
+    .eyebrow, .stage-index, .table-label { color: var(--accent); font: 600 11px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { max-width: 650px; margin-top: 7px; font-size: clamp(28px, 4vw, 48px); line-height: 1.08; letter-spacing: -.045em; overflow-wrap: anywhere; }
+    .lede { max-width: 360px; color: var(--ink-muted); }
+    .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin: var(--space-6) 0 var(--space-10); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+    .step { display: grid; gap: 4px; min-height: 72px; padding: 15px 16px; border: 0; border-radius: 0; border-left: 1px solid var(--rule); text-align: left; }
+    .step:first-child { border-left: 0; }
+    .step[aria-current] { background: var(--accent-soft); color: var(--ink); }
+    .step small { color: var(--ink-muted); }
+    .workflow { max-width: 960px; }
+    .stage { display: none; }
+    .stage.is-active { display: block; }
+    .stage-heading { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: var(--space-5); align-items: start; margin-bottom: var(--space-6); }
+    .stage-heading h2 { font-size: clamp(22px, 3vw, 32px); line-height: 1.15; letter-spacing: -.03em; }
+    .stage-heading p { margin-top: 7px; color: var(--ink-muted); }
+    .stage-index { padding-top: 6px; }
+    .file-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-6); align-items: center; padding: var(--space-6); border: 1px solid var(--rule-strong); background: var(--paper-raised); }
+    .file-card h3 { font-size: 17px; }
+    .file-card p { margin-top: 5px; color: var(--ink-muted); }
+    .file-input { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 650; cursor: pointer; }
+    .file-input:hover { background: var(--ink); }
+    .file-input input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    .recognition { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-top: var(--space-4); padding: var(--space-4); border-left: 3px solid var(--income); background: color-mix(in oklch, var(--income) 8%, var(--paper-raised)); }
+    .recognition strong { color: var(--income); }
+    .recognition small { color: var(--ink-muted); }
+    .recognition-error { border-left-color: var(--danger); background: color-mix(in oklch, var(--danger) 8%, var(--paper-raised)); }
+    .recognition-error strong { color: var(--danger); }
+    .stage-actions { display: flex; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-6); }
+    .stage-actions-end { justify-content: flex-end; }
+    .button-primary { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 650; }
+    .button-primary:hover:not(:disabled) { background: var(--ink); color: var(--accent-ink); }
+    .button-text { border-color: transparent; background: transparent; color: var(--accent); }
+    .button-text:hover:not(:disabled) { background: transparent; text-decoration: underline; }
+    .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); margin-bottom: var(--space-5); }
+    .summary-card { padding: 14px; border: 1px solid var(--rule); background: var(--paper-raised); }
+    .summary-card small { display: block; color: var(--ink-muted); }
+    .summary-card strong { display: block; margin-top: 4px; font: 600 24px/1 var(--mono); }
+    .summary-card.is-accent { border-color: var(--accent); background: var(--accent-soft); }
+    .summary-card.is-danger strong { color: var(--danger); }
+    .table-label { margin-bottom: var(--space-2); }
+    .table-wrap { overflow: auto; border: 1px solid var(--rule-strong); background: var(--paper-raised); }
+    table { width: 100%; min-width: 920px; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid var(--rule); text-align: left; white-space: nowrap; vertical-align: top; }
+    th { background: var(--ink); color: var(--accent-ink); font: 500 10px/1.3 var(--mono); letter-spacing: .05em; }
+    tbody tr:last-child td { border-bottom: 0; }
+    td.amount { text-align: right; font-family: var(--mono); }
+    td.muted { color: var(--ink-muted); }
+    .status { display: inline-flex; padding: 3px 7px; border: 1px solid var(--rule-strong); color: var(--ink-muted); font-size: 11px; }
+    .status.new { border-color: var(--income); color: var(--income); }
+    .status.unsupported { border-color: var(--danger); color: var(--danger); }
+    .status.pending { border-color: var(--accent); color: var(--accent); }
+    .relation-list { display: grid; gap: var(--space-3); }
+    .relation-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-5); padding: var(--space-5); border: 1px solid var(--rule-strong); background: var(--paper-raised); }
+    .relation-card h3 { font-size: 16px; }
+    .relation-meta { margin-top: 4px; color: var(--ink-muted); font-size: 12px; }
+    .relation-pair { display: grid; grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr); gap: var(--space-2); align-items: center; margin-top: var(--space-4); }
+    .record-chip { min-width: 0; padding: 10px; border: 1px solid var(--rule); background: var(--paper-muted); }
+    .record-chip strong, .record-chip small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .record-chip small { margin-top: 2px; color: var(--ink-muted); }
+    .pair-arrow { color: var(--accent); text-align: center; font-family: var(--mono); }
+    .relation-card select { min-height: 44px; width: 100%; margin-top: var(--space-3); }
+    .relation-side { display: grid; align-content: center; justify-items: end; gap: var(--space-2); min-width: 136px; }
+    .relation-side small { color: var(--ink-muted); text-align: right; }
+    .empty { padding: var(--space-8); border: 1px dashed var(--rule-strong); color: var(--ink-muted); text-align: center; }
+    .success { padding: var(--space-8); border: 1px solid var(--income); background: color-mix(in oklch, var(--income) 7%, var(--paper-raised)); }
+    .success h2 { color: var(--income); }
+    .success p { margin-top: 8px; color: var(--ink-muted); }
+    .success-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); margin-top: var(--space-5); }
+    .success-grid div { padding: 12px; border-top: 1px solid color-mix(in oklch, var(--income) 35%, var(--paper-raised)); }
+    .success-grid small { display: block; color: var(--ink-muted); }
+    .success-grid strong { display: block; margin-top: 4px; font: 600 20px/1 var(--mono); }
+    .live-region { min-height: 1.4em; margin-top: var(--space-3); color: var(--danger); }
+    .footer-note { margin-top: var(--space-10); padding-top: var(--space-4); border-top: 1px solid var(--rule); color: var(--ink-muted); font-size: 12px; }
+    @media (max-width: 960px) {
+      .shell { display: block; }
+      .rail { flex-direction: row; align-items: center; justify-content: space-between; padding: 15px 18px; }
+      .main { padding: 32px 24px 48px; }
+    }
+    @media (max-width: 680px) {
+      .topline, .file-card, .relation-card { grid-template-columns: 1fr; display: grid; }
+      .topline { gap: var(--space-3); }
+      .lede { max-width: none; }
+      .steps { grid-template-columns: 1fr; }
+      .step, .step:first-child { min-height: 52px; border-left: 0; border-top: 1px solid var(--rule); }
+      .step:first-child { border-top: 0; }
+      .stage-heading { grid-template-columns: 58px minmax(0, 1fr); gap: var(--space-3); }
+      .summary, .success-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .file-card .file-input { width: 100%; }
+      .recognition { align-items: start; flex-direction: column; }
+      .relation-side { justify-items: stretch; }
+      .relation-side small { text-align: left; }
+      .relation-pair { grid-template-columns: 1fr; }
+      .pair-arrow { transform: rotate(90deg); }
+    }
+    @media (max-width: 380px) {
+      .main { padding-inline: 16px; }
+      .summary, .success-grid { grid-template-columns: 1fr 1fr; }
+      .summary-card { padding: 11px 9px; }
+      .summary-card strong { font-size: 20px; }
+      .stage-actions { flex-wrap: wrap; }
+      .stage-actions button { flex: 1 1 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail"><strong>FINANCE TRACKER</strong><a href="#cash-ledger">收支账本</a></aside>
+    <main class="main" aria-labelledby="page-title">
+      <header class="topline">
+        <div><p class="eyebrow">收支账本 / 导入处理</p><h1 id="page-title">把账单核对清楚，再写入账本。</h1></div>
+        <p class="lede">文件识别、标准化预览和关系配对都在确认前完成。未确认前不会改变账本。</p>
+      </header>
+      <nav class="steps" aria-label="导入步骤">
+        <button class="step" type="button" data-step="select" aria-current="step"><span class="stage-index">01 · 选择</span><strong>选择文件</strong><small>自动识别渠道</small></button>
+        <button class="step" type="button" data-step="preview" disabled><span class="stage-index">02 · 核对</span><strong>导入预览</strong><small>查看标准化字段</small></button>
+        <button class="step" type="button" data-step="relations" disabled><span class="stage-index">03 · 配对</span><strong>关系配对</strong><small>确认或暂不处理</small></button>
+      </nav>
+      <div class="workflow">
+        <section class="stage is-active" data-stage="select" aria-labelledby="select-title">
+          <div class="stage-heading"><span class="stage-index">01</span><div><h2 id="select-title">选择一份账单文件</h2><p>系统会从文件结构中识别支付宝、微信、银行卡等现金导入渠道。</p></div></div>
+          <div class="file-card">
+            <div><h3 id="file-name">还没有选择文件</h3><p id="file-help">支持已声明的 CSV、XLS、XLSX 和 PDF 账单。</p></div>
+            <label class="file-input">选择文件<input id="file" type="file" accept=".csv,.xls,.xlsx,.pdf"></label>
+          </div>
+          <div class="recognition" id="recognition" hidden><div><strong id="recognition-title">已识别：支付宝</strong><small id="recognition-detail">标准化字段已准备好，可以继续预览。</small></div><span class="status new">识别成功</span></div>
+          <p class="live-region" id="select-error" role="alert"></p>
+          <div class="stage-actions stage-actions-end"><button class="button-primary" id="to-preview" type="button" disabled>进入导入预览 →</button></div>
+        </section>
+
+        <section class="stage" data-stage="preview" aria-labelledby="preview-title">
+          <div class="stage-heading"><span class="stage-index">02</span><div><h2 id="preview-title">逐行核对标准化账单</h2><p>这里展示系统准备写入的字段，不展示来源账单原始列。</p></div></div>
+          <div class="summary" aria-label="导入数量摘要"><div class="summary-card is-accent"><small>总记录数</small><strong>128</strong></div><div class="summary-card"><small>待新增</small><strong>116</strong></div><div class="summary-card"><small>已存在</small><strong>10</strong></div><div class="summary-card is-danger"><small>暂不支持</small><strong>2</strong></div></div>
+          <p class="table-label">标准化字段 / 共 128 条</p>
+          <div class="table-wrap" tabindex="0" role="region" aria-label="账单标准化字段表格，可横向滚动">
+            <table><thead><tr><th>发生时间</th><th>金额</th><th>币种</th><th>账户</th><th>交易对方</th><th>流水类型</th><th>业务细分</th><th>分类</th><th>导入渠道</th><th>状态</th></tr></thead><tbody>
+              <tr><td>2026-08-12 09:24</td><td class="amount">−86.00</td><td>CNY</td><td>微信零钱</td><td>超市</td><td>消费</td><td class="muted">—</td><td>日常消费</td><td>微信</td><td><span class="status new">待新增</span></td></tr>
+              <tr><td>2026-08-11 18:06</td><td class="amount">−12.50</td><td>CNY</td><td>支付宝余额</td><td>咖啡店</td><td>消费</td><td class="muted">—</td><td>餐饮</td><td>支付宝</td><td><span class="status">已存在</span></td></tr>
+              <tr><td>2026-08-10 13:40</td><td class="amount">+120.00</td><td>JPY</td><td>工行借记卡</td><td>海外电商</td><td>收入</td><td class="muted">—</td><td>其他</td><td>工行借记卡</td><td><span class="status unsupported">暂不支持</span></td></tr>
+            </tbody></table>
+          </div>
+          <p class="live-region" aria-live="polite">还有 2 条记录因账户币种配置暂不支持，确认时不会写入。</p>
+          <div class="stage-actions"><button class="button-text" type="button" data-back="select">← 更换文件</button><button class="button-primary" type="button" data-next="relations">查看关系配对 →</button></div>
+        </section>
+
+        <section class="stage" data-stage="relations" aria-labelledby="relations-title">
+          <div class="stage-heading"><span class="stage-index">03</span><div><h2 id="relations-title">确认自动配对，处理待审核关系</h2><p>自动配对已经通过唯一性校验；待手动配对可以选择对侧流水，也可以暂不处理。</p></div></div>
+          <div class="relation-list">
+            <article class="relation-card"><div><span class="status new">自动配对</span><h3>同笔支付</h3><p class="relation-meta">金额、币种、日期和对方账号一致 · 唯一候选</p><div class="relation-pair"><div class="record-chip"><strong>美团</strong><small>−86.00 CNY · 微信 · 08-12 09:24</small></div><span class="pair-arrow">↔</span><div class="record-chip"><strong>美团</strong><small>−86.00 CNY · 工行借记卡 · 08-12 09:24</small></div></div></div><div class="relation-side"><small>确认导入后自动保存</small><span class="status">已锁定</span></div></article>
+            <article class="relation-card"><div><span class="status pending">待手动配对</span><h3>个人转账</h3><p class="relation-meta">发现 2 个合法对侧候选，请选择一个；也可以稍后处理。</p><div class="relation-pair"><div class="record-chip"><strong>转账</strong><small>−500.00 CNY · 微信 · 08-11 15:20</small></div><span class="pair-arrow">→</span><label><span class="table-label">选择对侧流水</span><select aria-label="选择个人转账对侧流水"><option>选择一个候选</option><option>银行卡 · +500.00 CNY · 08-11 15:20</option><option>现金账户 · +500.00 CNY · 08-11 15:22</option></select></label></div></div><div class="relation-side"><small>未选择时保留待审核</small><button class="button-text" type="button" data-skip>暂不处理</button></div></article>
+          </div>
+          <div class="stage-actions"><button class="button-text" type="button" data-back="preview">← 返回预览</button><button class="button-primary" id="confirm" type="button">确认导入</button></div>
+        </section>
+
+        <section class="stage" data-stage="success" aria-labelledby="success-title">
+          <div class="success"><span class="eyebrow">确认完成</span><h2 id="success-title">账单已导入</h2><p>116 条新流水已写入收支账本，已存在的记录没有重复创建；暂不支持的 2 条记录未写入。</p><div class="success-grid"><div><small>待新增</small><strong>116</strong></div><div><small>已存在</small><strong>10</strong></div><div><small>暂不支持</small><strong>2</strong></div><div><small>待手动配对</small><strong>1</strong></div></div></div>
+          <div class="stage-actions stage-actions-end"><button class="button-primary" type="button" data-return>返回收支账本</button></div>
+        </section>
+      </div>
+      <p class="footer-note">导入会话不会保存原始文件；未点击「确认导入」前，账本、关系和收支结果都不会改变。</p>
+    </main>
+  </div>
+  <script>
+    const stages = [...document.querySelectorAll("[data-stage]")];
+    const nav = [...document.querySelectorAll("[data-step]")];
+    const file = document.querySelector("#file");
+    const name = document.querySelector("#file-name");
+    const help = document.querySelector("#file-help");
+    const recognition = document.querySelector("#recognition");
+    const error = document.querySelector("#select-error");
+    const next = document.querySelector("#to-preview");
+    const setStage = (target) => {
+      stages.forEach((stage) => stage.classList.toggle("is-active", stage.dataset.stage === target));
+      const order = ["select", "preview", "relations", "success"];
+      nav.forEach((item) => {
+        const itemIndex = order.indexOf(item.dataset.step);
+        const targetIndex = order.indexOf(target);
+        item.disabled = item.dataset.step !== "select" && itemIndex > targetIndex;
+        if (item.dataset.step === target) item.setAttribute("aria-current", "step"); else item.removeAttribute("aria-current");
+      });
+      document.querySelector(`[data-stage="${target}"] h2`)?.focus?.({ preventScroll: true });
+    };
+    file.addEventListener("change", () => {
+      const selected = file.files?.[0];
+      error.textContent = "";
+      if (!selected) return;
+      name.textContent = selected.name;
+      help.textContent = `${Math.max(1, Math.round(selected.size / 1024))} KB · 等待识别账单渠道`;
+      recognition.hidden = true;
+      next.disabled = true;
+      setTimeout(() => {
+        recognition.hidden = false;
+        document.querySelector("#recognition-title").textContent = "已识别：支付宝";
+        document.querySelector("#recognition-detail").textContent = "已按标准字段解析 128 条记录，可以继续预览。";
+        next.disabled = false;
+      }, 350);
+    });
+    next.addEventListener("click", () => setStage("preview"));
+    document.querySelectorAll("[data-next]").forEach((button) => button.addEventListener("click", () => setStage(button.dataset.next)));
+    document.querySelectorAll("[data-back]").forEach((button) => button.addEventListener("click", () => setStage(button.dataset.back)));
+    nav.forEach((button) => button.addEventListener("click", () => { if (!button.disabled) setStage(button.dataset.step); }));
+    document.querySelector("#confirm").addEventListener("click", (event) => { event.currentTarget.disabled = true; event.currentTarget.textContent = "正在导入…"; setTimeout(() => setStage("success"), 650); });
+    document.querySelector("[data-return]").addEventListener("click", () => setStage("select"));
+    document.querySelector("[data-skip]").addEventListener("click", (event) => { event.currentTarget.textContent = "已暂不处理"; event.currentTarget.disabled = true; });
+  </script>
+</body>
+</html>

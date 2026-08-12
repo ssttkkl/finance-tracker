@@ -28,7 +28,7 @@ test("生产预览在窄屏保持银证转账双端金额可见", async ({ page 
   expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
-test("生产预览可打开流水编辑和六渠道导入入口", async ({ page }) => {
+test("生产预览可打开流水编辑和独立导入处理页面", async ({ page }) => {
   await page.goto("/");
 
   await page.getByRole("button", { name: "新建流水" }).click();
@@ -39,6 +39,7 @@ test("生产预览可打开流水编辑和六渠道导入入口", async ({ page 
   await recordDrawer.locator("header button").click();
 
   await page.getByRole("button", { name: "导入账单" }).click();
-  const importDrawer = page.getByRole("dialog", { name: "导入账单" });
-  await expect(importDrawer.getByLabel("账单渠道").locator("option")).toHaveCount(6);
+  await expect(page).toHaveURL(/\/cash-import$/);
+  await expect(page.getByRole("heading", { name: "选择账单文件" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "导入预览" })).toHaveCount(0);
 });
