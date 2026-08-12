@@ -1,5 +1,6 @@
 """Investment command and portfolio DTOs."""
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 
 
@@ -22,6 +23,13 @@ class InvestmentCommandDTO:
 
 
 @dataclass(frozen=True)
+class PortfolioPeriodBaselineDTO:
+    account: str
+    ticker: str
+    occurred_at: datetime
+
+
+@dataclass(frozen=True)
 class PortfolioPositionDTO:
     ticker: str
     shares: Decimal
@@ -41,6 +49,7 @@ class PortfolioPositionDTO:
     fx_reason: str | None = None
     period_profit: Decimal | None = None
     period_profit_rate: Decimal | None = None
+    period_baselines: tuple[PortfolioPeriodBaselineDTO, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -58,3 +67,4 @@ class PortfolioDTO:
     total_profit_rate: Decimal | None = None
     period_profit: Decimal | None = None
     period_profit_rate: Decimal | None = None
+    period_baselines: tuple[PortfolioPeriodBaselineDTO, ...] = ()

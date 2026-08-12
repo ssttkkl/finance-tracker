@@ -1,6 +1,6 @@
 """Investment write and portfolio query application services."""
 from collections import defaultdict
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 import time
 from decimal import Decimal
@@ -14,6 +14,7 @@ from ft.domain.investment import (
     InvestmentCommandDTO,
     PortfolioAccountDTO,
     PortfolioDTO,
+    PortfolioPeriodBaselineDTO,
     PortfolioPositionDTO,
 )
 from ft.domain.investment_performance import (
@@ -49,6 +50,10 @@ def _event_at(event):
     return result
 
 
+def _event_marker(event):
+    return _event_at(event), int(event.get("_period_sequence", 0))
+
+
 def _period_bounds(now: datetime, period: str, timezone_name: str | None = None):
     local_now = now
     if timezone_name:
@@ -79,12 +84,14 @@ def _is_current_cash(current, account: str, ticker: str, cash_keys=()) -> bool:
     return bool((position is not None and position.is_cash) or (account, ticker.lower()) in cash_keys)
 
 
-def _instrument_flows(events, account_name: str, ticker: str, current, cash_keys=()):
+def _instrument_flows(events, account_name: str, ticker: str, current, cash_keys=(), *, after=None):
     trade_flows = []
     income = Decimal("0")
     costs = Decimal("0")
     for event in events:
         if str(event.get("account") or event.get("account_name") or "") != account_name:
+            continue
+        if after is not None and _event_marker(event) <= after:
             continue
         event_ticker_from = str(event.get("from_ticker") or "").lower()
         event_ticker_to = str(event.get("to_ticker") or "").lower()
@@ -100,6 +107,92 @@ def _instrument_flows(events, account_name: str, ticker: str, current, cash_keys
         elif record_type == "income" and event_ticker_from == ticker:
             income += _finite_decimal(event.get("to_amount") or 0, "to_amount")
     return tuple(trade_flows), income, costs
+
+
+@dataclass(frozen=True)
+class _PeriodPerformanceContext:
+    events: tuple
+    period_start: datetime
+    period_end: datetime
+    cash_keys: set
+    net_changes: dict
+    snapshots: dict
+
+
+@dataclass(frozen=True)
+class _SnapshotBaseline:
+    marker: tuple[datetime, int]
+    quantity: Decimal
+
+    @property
+    def occurred_at(self):
+        return self.marker[0]
+
+
+@dataclass(frozen=True)
+class _HistoricalQuoteRequest:
+    key: tuple[str, str]
+    ticker: str
+    quantity: Decimal
+    quote_at: datetime
+
+
+class _HistoricalQuotePrefetch:
+    """Bounded historical quote fan-out for one portfolio query."""
+
+    MAX_WORKERS = 8
+
+    def __init__(self, valuation, requests, *, deadline: float | None, monotonic):
+        requests = tuple(requests)
+        self._valuation = valuation
+        self._deadline = deadline
+        self._monotonic = monotonic
+        self._expected = {request.key for request in requests}
+        self._results = {}
+        self._completed = Queue()
+        self._pending = Queue()
+        for request in requests:
+            self._pending.put(request)
+        for _ in range(min(self.MAX_WORKERS, len(requests))):
+            Thread(target=self._read_next, daemon=True).start()
+
+    def _read_next(self):
+        while True:
+            try:
+                request = self._pending.get_nowait()
+            except Empty:
+                return
+            try:
+                if self._deadline is not None and self._monotonic() >= self._deadline:
+                    result = None
+                else:
+                    kind = infer_asset_kind(request.ticker, cash_tickers=set(), configured_currencies=set())
+                    result = None if kind is None else self._valuation.quote_at(
+                        AssetRef(identity=request.ticker, kind=kind, quantity=request.quantity),
+                        at=request.quote_at,
+                    )
+            except Exception:
+                result = None
+            finally:
+                self._pending.task_done()
+            self._completed.put((request.key, result))
+
+    def result_for(self, key, deadline: float | None):
+        if key not in self._expected:
+            return None
+        while key not in self._results:
+            if deadline is None:
+                request_key, result = self._completed.get()
+            else:
+                remaining = deadline - self._monotonic()
+                if remaining <= 0:
+                    return None
+                try:
+                    request_key, result = self._completed.get(timeout=remaining)
+                except Empty:
+                    return None
+            self._results[request_key] = result
+        return self._results[key]
 
 
 class InvestmentService:
@@ -182,7 +275,7 @@ class PortfolioQueryService:
 
     def __init__(
         self, repository, valuation: ValuationService, *, fx_rates=None,
-        query_deadline_seconds: float = 4.0, monotonic=None, clock=None,
+        query_deadline_seconds: float = 2.0, monotonic=None, clock=None,
     ):
         self._repository = repository
         self._valuation = valuation
@@ -190,6 +283,39 @@ class PortfolioQueryService:
         self._query_deadline_seconds = query_deadline_seconds
         self._monotonic = monotonic or time.monotonic
         self._clock = clock or (lambda: datetime.now(timezone.utc))
+
+    def get_holdings(self) -> PortfolioDTO:
+        """Return the local portfolio snapshot without contacting valuation sources."""
+        raw = self._repository.load_portfolio()
+        configured = {item.upper() for item in raw.get("configured_currencies", ())}
+        accounts = []
+        for name, account in raw.get("accounts", {}).items():
+            currency = (account.get("currency") or "").upper()
+            allowed_cash = {
+                item.upper() for item in raw.get("base_currencies", {}).get(name, ())
+            }
+            if not allowed_cash:
+                allowed_cash = set(configured)
+            positions = []
+            for ticker, position in account.get("positions", {}).items():
+                shares = _finite_decimal(position.get("shares", 0), "shares")
+                if shares == 0:
+                    continue
+                total_cost = _finite_decimal(position.get("total_cost", 0), "total_cost")
+                ticker_currency = ticker.upper()
+                cost_currency = (
+                    ticker_currency if ticker_currency in configured
+                    else (position.get("cost_currency") or currency).upper()
+                )
+                positions.append(PortfolioPositionDTO(
+                    ticker=ticker,
+                    shares=shares,
+                    total_cost=total_cost,
+                    cost_currency=cost_currency,
+                    is_cash=ticker_currency in allowed_cash,
+                ))
+            accounts.append(PortfolioAccountDTO(name, currency, tuple(positions)))
+        return PortfolioDTO(accounts=tuple(accounts))
 
     def get_portfolio(
         self, *, display_currency: str | None = None, period: str = "24h", timezone: str | None = None,
@@ -199,9 +325,9 @@ class PortfolioQueryService:
         if clock_now.tzinfo is None:
             raise ValueError("portfolio clock must be timezone-aware")
         _period_bounds(clock_now, period, timezone)
+        deadline = self._monotonic() + self._query_deadline_seconds
         raw = self._repository.load_portfolio()
         configured = {item.upper() for item in raw.get("configured_currencies", ())}
-        deadline = self._monotonic() + self._query_deadline_seconds
         pending_accounts = []
         requests = {}
         for name, account in raw.get("accounts", {}).items():
@@ -242,6 +368,17 @@ class PortfolioQueryService:
                 ))
             pending_accounts.append((name, currency, pending_positions))
 
+        base_accounts = self._base_accounts(pending_accounts)
+        period_context = self._period_context(
+            raw, period=period, timezone=timezone, now=clock_now,
+        )
+        historical_quotes = _HistoricalQuotePrefetch(
+            self._valuation,
+            self._historical_quote_requests(period_context, base_accounts)
+            if self._monotonic() < deadline else (),
+            deadline=deadline,
+            monotonic=self._monotonic,
+        )
         quote_results = self._quote_requests(requests, deadline)
         accounts = []
         for name, currency, pending_positions in pending_accounts:
@@ -287,7 +424,7 @@ class PortfolioQueryService:
                 if display is not None:
                     display_ccy = display
                     display_mv, fx_rate, fx_status, fx_reason = self._convert_display(
-                        market_value, quote_currency, display
+                        market_value, quote_currency, display, deadline=deadline,
                     )
 
                 items.append(PortfolioPositionDTO(
@@ -309,8 +446,8 @@ class PortfolioQueryService:
                     fx_reason=fx_reason,
                 ))
             accounts.append(PortfolioAccountDTO(name, currency, tuple(items)))
-        period_positions, period_profit, period_rate = self._period_performance(
-            raw, accounts, period=period, timezone=timezone,
+        period_positions, period_profit, period_rate, period_baselines = self._period_performance(
+            accounts, context=period_context, historical_quotes=historical_quotes, deadline=deadline,
         )
         accounts = tuple(
             PortfolioAccountDTO(
@@ -319,8 +456,9 @@ class PortfolioQueryService:
                 tuple(
                     replace(
                         position,
-                        period_profit=period_positions.get((account.name, position.ticker.lower()), (None, None))[0],
-                        period_profit_rate=period_positions.get((account.name, position.ticker.lower()), (None, None))[1],
+                        period_profit=period_positions.get((account.name, position.ticker.lower()), (None, None, ()))[0],
+                        period_profit_rate=period_positions.get((account.name, position.ticker.lower()), (None, None, ()))[1],
+                        period_baselines=period_positions.get((account.name, position.ticker.lower()), (None, None, ()))[2],
                     )
                     for position in account.positions
                 ),
@@ -337,22 +475,41 @@ class PortfolioQueryService:
             total_profit_rate=total_profit_rate,
             period_profit=period_profit,
             period_profit_rate=period_rate,
+            period_baselines=period_baselines,
         )
 
-    def _period_performance(self, raw, accounts, *, period: str, timezone: str | None = None):
-        events = tuple(raw.get("investment_events", ()))
-        now = self._clock()
+    @staticmethod
+    def _base_accounts(pending_accounts):
+        return tuple(
+            PortfolioAccountDTO(
+                name,
+                currency,
+                tuple(
+                    PortfolioPositionDTO(
+                        ticker=ticker,
+                        shares=shares,
+                        total_cost=total_cost,
+                        cost_currency=cost_currency,
+                        is_cash=is_cash,
+                    )
+                    for ticker, shares, total_cost, cost_currency, is_cash, _, _ in pending_positions
+                ),
+            )
+            for name, currency, pending_positions in pending_accounts
+        )
+
+    def _period_context(self, raw, *, period: str, timezone: str | None, now: datetime):
+        all_events = tuple(raw.get("investment_events", ()))
         if now.tzinfo is None:
             raise ValueError("portfolio clock must be timezone-aware")
         period_start, period_end = _period_bounds(now, period, timezone)
         events = tuple(
-            event for event in events
-            if period_start <= _event_at(event) < period_end
+            dict(event, _period_sequence=sequence)
+            for sequence, event in enumerate(sorted(
+                (event for event in all_events if period_start <= _event_at(event) < period_end),
+                key=_event_at,
+            ))
         )
-        current = {
-            (account.name, position.ticker.lower()): position
-            for account in accounts for position in account.positions
-        }
         cash_keys = set()
         for account_name, account in raw.get("accounts", {}).items():
             base_currencies = raw.get("base_currencies", {}).get(account_name, ())
@@ -362,6 +519,7 @@ class PortfolioQueryService:
                 if ticker:
                     cash_keys.add((account_name, str(ticker).lower()))
         net_changes = defaultdict(lambda: Decimal("0"))
+        snapshots = {}
         for event in events:
             account = str(event.get("account") or event.get("account_name") or "")
             from_ticker = str(event.get("from_ticker") or "").lower()
@@ -369,7 +527,13 @@ class PortfolioQueryService:
             from_amount = _finite_decimal(event.get("from_amount") or 0, "from_amount")
             to_amount = _finite_decimal(event.get("to_amount") or 0, "to_amount")
             record_type = event.get("record_type")
-            if record_type == "trade":
+            if record_type == "snapshot":
+                ticker = to_ticker or from_ticker or str(event.get("currency") or "").lower()
+                if ticker:
+                    snapshots[(account, ticker)] = _SnapshotBaseline(
+                        marker=_event_marker(event), quantity=to_amount,
+                    )
+            elif record_type == "trade":
                 if from_ticker:
                     net_changes[(account, from_ticker)] -= from_amount
                 if to_ticker:
@@ -389,17 +553,70 @@ class PortfolioQueryService:
                 if to_ticker:
                     net_changes[(account, to_ticker)] += to_amount
 
-        keys = set(current) | set(net_changes)
+        return _PeriodPerformanceContext(
+            events=events,
+            period_start=period_start,
+            period_end=period_end,
+            cash_keys=cash_keys,
+            net_changes=dict(net_changes),
+            snapshots=snapshots,
+        )
+
+    @staticmethod
+    def _historical_quote_requests(context, accounts):
+        current = {
+            (account.name, position.ticker.lower()): position
+            for account in accounts for position in account.positions
+        }
+        requests = []
+        for key in sorted(set(current) | set(context.net_changes) | set(context.snapshots)):
+            account_name, ticker = key
+            position = current.get(key)
+            q1 = position.shares if position is not None else Decimal("0")
+            baseline = context.snapshots.get(key)
+            q0 = baseline.quantity if baseline is not None else q1 - context.net_changes.get(key, Decimal("0"))
+            if q0 <= 0 or _is_current_cash(current, account_name, ticker, context.cash_keys):
+                continue
+            requests.append(_HistoricalQuoteRequest(
+                key=key,
+                ticker=ticker,
+                quantity=q0,
+                quote_at=baseline.occurred_at if baseline is not None else context.period_start,
+            ))
+        return tuple(requests)
+
+    def _period_performance(self, accounts, *, context, historical_quotes, deadline: float | None = None):
+        events = context.events
+        period_start = context.period_start
+        period_end = context.period_end
+        cash_keys = context.cash_keys
+        net_changes = context.net_changes
+        current = {
+            (account.name, position.ticker.lower()): position
+            for account in accounts for position in account.positions
+        }
+
+        keys = set(current) | set(net_changes) | set(context.snapshots)
         opening_assets = Decimal("0")
         closing_assets = Decimal("0")
         external_flows = []
         period_positions = {}
+        period_baselines = []
         complete = True
         for key in sorted(keys):
+            if deadline is not None and self._monotonic() >= deadline:
+                complete = False
+                break
             account_name, ticker = key
             position = current.get(key)
             q1 = position.shares if position is not None else Decimal("0")
-            q0 = q1 - net_changes.get(key, Decimal("0"))
+            baseline = context.snapshots.get(key)
+            q0 = baseline.quantity if baseline is not None else q1 - net_changes.get(key, Decimal("0"))
+            baseline_dto = None if baseline is None else PortfolioPeriodBaselineDTO(
+                account=account_name, ticker=ticker, occurred_at=baseline.occurred_at,
+            )
+            if baseline_dto is not None:
+                period_baselines.append(baseline_dto)
             if position is not None and position.market_value is not None:
                 closing_assets += position.market_value
             if _is_current_cash(current, account_name, ticker, cash_keys):
@@ -410,7 +627,9 @@ class PortfolioQueryService:
                 continue
             opening_value = Decimal("0")
             if q0 != 0:
-                historical = self._historical_value(ticker, q0, position, period_start)
+                historical = self._historical_result_value(
+                    historical_quotes.result_for(key, deadline), position,
+                )
                 if historical is None:
                     complete = False
                     continue
@@ -418,7 +637,10 @@ class PortfolioQueryService:
             opening_assets += opening_value
             if position is None:
                 continue
-            trade_flows, income, costs = _instrument_flows(events, account_name, ticker, current, cash_keys)
+            trade_flows, income, costs = _instrument_flows(
+                events, account_name, ticker, current, cash_keys,
+                after=baseline.marker if baseline is not None else None,
+            )
             if position.market_value is None:
                 complete = False
                 continue
@@ -433,10 +655,10 @@ class PortfolioQueryService:
                 pnl=pnl,
                 opening_assets=opening_value,
                 flows=tuple(PeriodFlow(flow.occurred_at, flow.capital_change) for flow in trade_flows),
-                period_start=period_start,
+                period_start=baseline.occurred_at if baseline is not None else period_start,
                 period_end=period_end,
             )
-            period_positions[key] = (pnl, rate)
+            period_positions[key] = (pnl, rate, () if baseline_dto is None else (baseline_dto,))
 
         for event in events:
             if event.get("record_type") != "funding":
@@ -449,27 +671,21 @@ class PortfolioQueryService:
             external_flows.append(PeriodFlow(_event_at(event), amount))
 
         if not complete:
-            return period_positions, None, None
+            return period_positions, None, None, tuple(period_baselines)
         total_pnl = calculate_total_period_pnl(
             opening_assets=opening_assets,
             closing_assets=closing_assets,
             external_flows=tuple(flow.amount for flow in external_flows),
         )
-        total_rate = calculate_period_return(
+        total_rate = None if period_baselines else calculate_period_return(
             pnl=total_pnl, opening_assets=opening_assets, flows=tuple(external_flows),
             period_start=period_start, period_end=period_end,
         )
-        return period_positions, total_pnl, total_rate
+        return period_positions, total_pnl, total_rate, tuple(period_baselines)
 
-    def _historical_value(self, ticker, quantity, position, period_start):
-        kind = infer_asset_kind(ticker, cash_tickers=set(), configured_currencies=set())
-        if kind is None:
-            return None
-        try:
-            result = self._valuation.quote_at(
-                AssetRef(identity=ticker, kind=kind, quantity=quantity), at=period_start,
-            )
-        except (AttributeError, ValuationError):
+    @staticmethod
+    def _historical_result_value(result, position):
+        if result is None:
             return None
         if result.status is not QuoteStatus.COMPLETE or result.market_value is None:
             return None
@@ -563,7 +779,7 @@ class PortfolioQueryService:
             quantity=ref.quantity, reason="provider_error",
         )
 
-    def _convert_display(self, market_value, quote_currency, display: str):
+    def _convert_display(self, market_value, quote_currency, display: str, *, deadline: float | None = None):
         if market_value is None or not quote_currency:
             return None, None, FxStatus.NOT_APPLICABLE.value, "currency_unspecified"
         base = str(quote_currency).upper()
@@ -571,7 +787,9 @@ class PortfolioQueryService:
             return market_value, Decimal("1"), FxStatus.COMPLETE.value, "ok"
         if self._fx_rates is None:
             return None, None, FxStatus.PARTIAL.value, "fx_unavailable"
-        rate = self._fx_rates.get_mid(base, display)
+        rate = self._run_until_deadline(
+            lambda: self._fx_rates.get_mid(base, display), deadline,
+        )
         if rate is None:
             return None, None, FxStatus.PARTIAL.value, "fx_unavailable"
         try:
@@ -581,3 +799,26 @@ class PortfolioQueryService:
         if rate_d <= 0:
             return None, None, FxStatus.PARTIAL.value, "fx_unavailable"
         return market_value * rate_d, rate_d, FxStatus.COMPLETE.value, "ok"
+
+    def _run_until_deadline(self, operation, deadline: float | None):
+        if deadline is None:
+            try:
+                return operation()
+            except (AttributeError, ValuationError):
+                return None
+        remaining = deadline - self._monotonic()
+        if remaining <= 0:
+            return None
+        completed = Queue(maxsize=1)
+
+        def run():
+            try:
+                completed.put(operation())
+            except Exception:
+                completed.put(None)
+
+        Thread(target=run, daemon=True).start()
+        try:
+            return completed.get(timeout=remaining)
+        except Empty:
+            return None

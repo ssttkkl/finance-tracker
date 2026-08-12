@@ -40,8 +40,8 @@ export function fetchInvestmentEvidence(eventId: string, signal?: AbortSignal): 
   return request<InvestmentEvidence>(`/api/v1/evidence/investment-events/${encodeURIComponent(eventId)}`, signal);
 }
 
-export function fetchInvestmentPortfolio(displayCurrency?: string, period: PortfolioPeriod = "24h", signal?: AbortSignal): Promise<Portfolio> {
+export function fetchInvestmentPortfolio(displayCurrency?: string, period: PortfolioPeriod = "24h", signal?: AbortSignal, phase: "holdings" | "valuation" = "valuation"): Promise<Portfolio> {
   const query = paramsFor({}, null, displayCurrency);
-  const withPeriod = query ? `${query}&period=${encodeURIComponent(period)}` : `period=${encodeURIComponent(period)}`;
+  const withPeriod = query ? `${query}&period=${encodeURIComponent(period)}&phase=${phase}` : `period=${encodeURIComponent(period)}&phase=${phase}`;
   return request<Portfolio>(`/api/v1/investment-portfolio?${withPeriod}`, signal);
 }

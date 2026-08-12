@@ -72,9 +72,14 @@ def test_investment_api_rejects_cursor_from_an_older_data_version(cash_web_runti
 
 
 def test_investment_portfolio_api_keeps_decimal_values_and_partial_status(cash_web_runtime):
+    from datetime import datetime, timezone
     from decimal import Decimal
 
-    from ft.domain.investment import PortfolioAccountDTO, PortfolioDTO, PortfolioPositionDTO
+    from ft.domain.investment import PortfolioAccountDTO, PortfolioDTO, PortfolioPeriodBaselineDTO, PortfolioPositionDTO
+
+    baseline = PortfolioPeriodBaselineDTO(
+        account="投资账户", ticker="BTC", occurred_at=datetime(2026, 8, 12, 9, 30, tzinfo=timezone.utc),
+    )
 
     class PortfolioStub:
         def get_portfolio(self, *, display_currency=None, period="24h", timezone=None):
@@ -84,8 +89,9 @@ def test_investment_portfolio_api_keeps_decimal_values_and_partial_status(cash_w
                     ticker="BTC", shares=Decimal("10.000000000000000001"), total_cost=Decimal("1000.00"),
                     cost_currency="USD", is_cash=False, quote_status="partial",
                     quote_reason="query_deadline_exceeded",
+                    period_baselines=(baseline,),
                 ),
-            )),))
+            )),), period_baselines=(baseline,))
 
     client = _client(cash_web_runtime, PortfolioStub())
 
@@ -97,6 +103,10 @@ def test_investment_portfolio_api_keeps_decimal_values_and_partial_status(cash_w
     assert position["quote_status"] == "partial"
     assert position["current_price"] is None
     assert position["market_value"] is None
+    assert position["period_baselines"] == [{
+        "account": "投资账户", "ticker": "BTC", "occurred_at": "2026-08-12T09:30:00+00:00",
+    }]
+    assert response.json()["period_baselines"] == position["period_baselines"]
 
 
 def test_investment_portfolio_api_forwards_selected_period(cash_web_runtime):
@@ -114,3 +124,30 @@ def test_investment_portfolio_api_forwards_selected_period(cash_web_runtime):
     response = client.get("/api/v1/investment-portfolio", params={"display_currency": "USD", "period": "30d", "timezone": "Asia/Shanghai"})
 
     assert response.status_code == 200
+
+
+def test_investment_portfolio_holdings_phase_skips_valuation_service(cash_web_runtime):
+    from ft.domain.investment import PortfolioAccountDTO, PortfolioDTO, PortfolioPositionDTO
+    from decimal import Decimal
+
+    class PortfolioStub:
+        def get_holdings(self):
+            return PortfolioDTO((PortfolioAccountDTO("投资账户", "USD", (
+                PortfolioPositionDTO(
+                    ticker="AAPL.US", shares=Decimal("10"), total_cost=Decimal("1000"),
+                    cost_currency="USD", is_cash=False,
+                ),
+            )),))
+
+        def get_portfolio(self, **_kwargs):
+            raise AssertionError("holdings phase must not request a valuation")
+
+    client = _client(cash_web_runtime, PortfolioStub())
+
+    response = client.get("/api/v1/investment-portfolio", params={"phase": "holdings"})
+
+    assert response.status_code == 200
+    position = response.json()["accounts"][0]["positions"][0]
+    assert position["ticker"] == "AAPL.US"
+    assert position["shares"] == "10"
+    assert position["current_price"] is None

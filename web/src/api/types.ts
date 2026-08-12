@@ -264,7 +264,9 @@ export type PortfolioPosition = {
   fx_reason: string | null;
   period_profit: string | null;
   period_profit_rate: string | null;
+  period_baselines?: PortfolioPeriodBaseline[];
 };
+export type PortfolioPeriodBaseline = { account: string; ticker: string; occurred_at: string };
 export type PortfolioAccount = { name: string; currency: string; positions: PortfolioPosition[] };
 export type PortfolioPeriod = "24h" | "week_to_date" | "month_to_date" | "30d" | "90d" | "year_to_date" | "365d";
 export type Portfolio = {
@@ -274,4 +276,5 @@ export type Portfolio = {
   total_profit_rate: string | null;
   period_profit: string | null;
   period_profit_rate: string | null;
+  period_baselines?: PortfolioPeriodBaseline[];
 };

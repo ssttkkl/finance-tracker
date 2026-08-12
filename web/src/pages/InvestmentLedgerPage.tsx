@@ -52,6 +52,44 @@ function readDisplayOptions(): HoldingDisplayOptions {
   }
 }
 
+function portfolioScope(currency: string, period: HoldingDisplayOptions["period"]) {
+  return `${currency}:${period}`;
+}
+
+function positionKey(accountName: string, position: Portfolio["accounts"][number]["positions"][number]) {
+  return `${accountName}:${position.ticker.toLowerCase()}:${position.cost_currency.toUpperCase()}`;
+}
+
+function hasCompleteMarketValue(position: Portfolio["accounts"][number]["positions"][number]) {
+  return position.is_cash || (
+    position.current_price !== null
+    && position.market_value !== null
+    && (position.display_currency === null || position.display_market_value !== null)
+  );
+}
+
+function retainLastKnownValuation(previous: Portfolio, incoming: Portfolio): Portfolio {
+  const previousPositions = new Map(
+    previous.accounts.flatMap((account) => account.positions.map((position) => [positionKey(account.name, position), position])),
+  );
+  const accounts = incoming.accounts.map((account) => ({
+    ...account,
+    positions: account.positions.map((position) => {
+      const previousPosition = previousPositions.get(positionKey(account.name, position));
+      return previousPosition && !hasCompleteMarketValue(position) ? previousPosition : position;
+    }),
+  }));
+  return {
+    ...incoming,
+    accounts,
+    total_market_value: incoming.total_market_value ?? previous.total_market_value,
+    total_profit: incoming.total_profit ?? previous.total_profit,
+    total_profit_rate: incoming.total_profit_rate ?? previous.total_profit_rate,
+    period_profit: incoming.period_profit ?? previous.period_profit,
+    period_profit_rate: incoming.period_profit_rate ?? previous.period_profit_rate,
+  };
+}
+
 export function InvestmentLedgerPage({ view = "holdings", onModalStateChange }: { view?: "holdings" | "events"; onModalStateChange?: (open: boolean) => void }) {
   const isEvents = view === "events";
   const [filters, setFilters] = useState<InvestmentFilters>({});
@@ -64,6 +102,7 @@ export function InvestmentLedgerPage({ view = "holdings", onModalStateChange }: 
   const [appendLoading, setAppendLoading] = useState(false);
   const [appendError, setAppendError] = useState<string | undefined>();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [holdings, setHoldings] = useState<Portfolio | null>(null);
   const [portfolioStatus, setPortfolioStatus] = useState<"loading" | "ready" | "error">("loading");
   const [portfolioError, setPortfolioError] = useState<string | undefined>();
   const [displayOptions, setDisplayOptions] = useState<HoldingDisplayOptions>(readDisplayOptions);
@@ -83,6 +122,7 @@ export function InvestmentLedgerPage({ view = "holdings", onModalStateChange }: 
   const appendCursor = useRef<string | null>(null);
   const loadMoreRef = useRef<(retry?: boolean) => void>(() => undefined);
   const lastGoodCurrency = useRef(displayOptions.currency);
+  const lastPortfolioScope = useRef<string | null>(null);
 
   const loadAccounts = () => {
     const controller = new AbortController();
@@ -130,17 +170,39 @@ export function InvestmentLedgerPage({ view = "holdings", onModalStateChange }: 
     portfolioAbortController.current?.abort();
     const controller = new AbortController(); portfolioAbortController.current = controller;
     const requestId = ++portfolioRequestId.current;
+    const scope = portfolioScope(displayOptions.currency, displayOptions.period);
+    const hasCompatiblePortfolio = lastPortfolioScope.current === scope && portfolio !== null;
+    let holdingsReady = false;
+    if (!hasCompatiblePortfolio) {
+      lastPortfolioScope.current = null;
+      setPortfolio(null);
+      setHoldings(null);
+      setPortfolioStatus("loading");
+    }
     setPortfolioRefreshing(true); setPortfolioError(undefined);
-    if (!portfolio) setPortfolioStatus("loading");
+    fetchInvestmentPortfolio(displayOptions.currency || undefined, displayOptions.period, controller.signal, "holdings").then((value) => {
+      if (requestId === portfolioRequestId.current) {
+        holdingsReady = true;
+        setHoldings(value);
+        if (!hasCompatiblePortfolio) setPortfolioStatus("ready");
+      }
+    }).catch((error: unknown) => {
+      if (!controller.signal.aborted && requestId === portfolioRequestId.current && !hasCompatiblePortfolio) {
+        setPortfolioError(messageFor(error));
+      }
+    });
     fetchInvestmentPortfolio(displayOptions.currency || undefined, displayOptions.period, controller.signal).then((value) => {
       if (requestId === portfolioRequestId.current) {
         lastGoodCurrency.current = displayOptions.currency;
-        setPortfolio(value); setPortfolioStatus("ready"); setPortfolioRefreshing(false);
+        const shouldRetain = lastPortfolioScope.current === scope;
+        lastPortfolioScope.current = scope;
+        setPortfolio((previous) => shouldRetain && previous ? retainLastKnownValuation(previous, value) : value);
+        setPortfolioStatus("ready"); setPortfolioRefreshing(false);
         try { window.localStorage.setItem(displayOptionsKey, JSON.stringify(displayOptions)); } catch (_error) { /* 浏览器存储不可用时仍保留当前页偏好。 */ }
       }
     }).catch((error: unknown) => {
       if (!controller.signal.aborted && requestId === portfolioRequestId.current) {
-        setPortfolioError(messageFor(error)); setPortfolioStatus("error"); setPortfolioRefreshing(false);
+        setPortfolioError(messageFor(error)); setPortfolioStatus(hasCompatiblePortfolio || holdingsReady ? "ready" : "error"); setPortfolioRefreshing(false);
         if (error instanceof Error && error.message === "valuation.invalid_display_currency") {
           setDisplayOptions((current) => ({ ...current, currency: lastGoodCurrency.current }));
         }
@@ -195,5 +257,6 @@ export function InvestmentLedgerPage({ view = "holdings", onModalStateChange }: 
   const retryEvidence = () => { if (selected && opener.current) openEvidence(selected, opener.current); };
   const retryMore = () => loadMoreRef.current(true);
 
-  return <><section className="ledger investment-workbench" id={isEvents ? "investment-events" : "investment-holdings"} aria-label={isEvents ? "投资事件" : "当前持仓"}><header className="page-header"><div><h1>{isEvents ? "投资事件" : "当前持仓"}</h1></div></header>{accountsError ? <div className="status-view status-error" role="alert"><p>暂时无法读取账户，请重试。</p><button type="button" onClick={loadAccounts}>重试</button></div> : null}{isEvents ? <><InvestmentFiltersBar filters={filters} accounts={accounts} onChange={setFilters} /><section className="investment-section" aria-labelledby="investment-events-title"><div className="section-head"><div><h2 id="investment-events-title">投资事件</h2></div><p>{eventStatus === "ready" ? `已加载 ${items.length} 条` : "按筛选读取"}</p></div>{eventStatus === "loading" ? <><InvestmentTable items={[]} loading onEvidence={openEvidence} /><InvestmentStatusView kind="loading" /></> : null}{eventStatus === "empty" ? <InvestmentStatusView kind="empty" /> : null}{eventStatus === "error" ? <InvestmentStatusView kind="error" message={eventError} onRetry={resetAndLoad} /> : null}{eventStatus === "ready" ? <><InvestmentTable items={items} onEvidence={openEvidence} /><LoadMoreControl hasMore={Boolean(nextCursor)} loading={appendLoading} error={appendError} onLoadMore={appendError ? retryMore : loadMore} /></> : null}</section></> : <InvestmentHoldings portfolio={portfolio} accounts={accounts} loading={portfolioStatus === "loading"} refreshing={portfolioRefreshing} error={portfolioError} options={displayOptions} onOptionsChange={setDisplayOptions} onRetry={() => setPortfolioRefresh((value) => value + 1)} />}</section>{selected ? createPortal(<InvestmentEvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} onClose={closeEvidence} onRetry={retryEvidence} />, document.body) : null}</>;
+  const displayedPortfolio = portfolio ?? holdings;
+  return <><section className="ledger investment-workbench" id={isEvents ? "investment-events" : "investment-holdings"} aria-label={isEvents ? "投资事件" : "当前持仓"}><header className="page-header"><div><h1>{isEvents ? "投资事件" : "当前持仓"}</h1></div></header>{accountsError ? <div className="status-view status-error" role="alert"><p>暂时无法读取账户，请重试。</p><button type="button" onClick={loadAccounts}>重试</button></div> : null}{isEvents ? <><InvestmentFiltersBar filters={filters} accounts={accounts} onChange={setFilters} /><section className="investment-section" aria-labelledby="investment-events-title"><div className="section-head"><div><h2 id="investment-events-title">投资事件</h2></div><p>{eventStatus === "ready" ? `已加载 ${items.length} 条` : "按筛选读取"}</p></div>{eventStatus === "loading" ? <><InvestmentTable items={[]} loading onEvidence={openEvidence} /><InvestmentStatusView kind="loading" /></> : null}{eventStatus === "empty" ? <InvestmentStatusView kind="empty" /> : null}{eventStatus === "error" ? <InvestmentStatusView kind="error" message={eventError} onRetry={resetAndLoad} /> : null}{eventStatus === "ready" ? <><InvestmentTable items={items} onEvidence={openEvidence} /><LoadMoreControl hasMore={Boolean(nextCursor)} loading={appendLoading} error={appendError} onLoadMore={appendError ? retryMore : loadMore} /></> : null}</section></> : <InvestmentHoldings portfolio={displayedPortfolio} accounts={accounts} loading={portfolioStatus === "loading" && !displayedPortfolio} refreshing={portfolioRefreshing} error={portfolioError} options={displayOptions} onOptionsChange={setDisplayOptions} onRetry={() => setPortfolioRefresh((value) => value + 1)} />}</section>{selected ? createPortal(<InvestmentEvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} onClose={closeEvidence} onRetry={retryEvidence} />, document.body) : null}</>;
 }

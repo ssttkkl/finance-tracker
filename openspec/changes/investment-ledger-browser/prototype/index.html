@@ -91,7 +91,9 @@
       .metric { min-width: 0; padding: var(--space-3); border: var(--rule-1) solid var(--color-rule); background: var(--color-paper-raised); }
       .metric-label { display: block; color: var(--color-ink-muted); font-size: 11px; }
       .metric-value { display: block; margin-top: 6px; font: 600 18px/1.2 var(--font-mono); letter-spacing: -.04em; overflow-wrap: anywhere; }
+      .metric-value.is-pending, .holdings-table .is-pending { color: var(--color-ink-faint); }
       .metric small { display: block; margin-top: 4px; color: var(--color-ink-muted); font-size: 11px; }
+      .metric .metric-note { margin: var(--space-2) 0 0; color: var(--color-ink-muted); font-size: 11px; line-height: 1.45; }
       .holdings-table-wrap { overflow: auto; border: var(--rule-1) solid var(--color-rule-strong); background: var(--color-paper-raised); box-shadow: 0 8px 24px var(--color-shadow); }
       .holdings-table { min-width: 1080px; table-layout: fixed; }
       .holdings-table col:nth-child(1) { width: 190px; }
@@ -200,10 +202,10 @@
         <header class="page-header"><div><h1>当前持仓</h1></div></header>
         <section class="section holdings-section" aria-labelledby="holdings-title"><div class="section-head section-head-row"><div><h2 id="holdings-title">持仓总览</h2></div><button class="refresh-button" type="button" aria-label="刷新持仓" aria-busy="false" data-refresh><span class="refresh-ring" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24"><use href="#icon-refresh" /></svg></span><span>刷新</span></button></div>
           <details class="display-options"><summary><span class="display-mark" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24"><use href="#icon-sliders" /></svg></span><span class="display-copy"><strong>显示</strong><small>全部账户 · 市值倒序 · 分开显示 · 原币种 · 近 24 小时</small></span><span class="display-toggle" aria-hidden="true"><svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24"><use href="#icon-chevron-down" /></svg></span></summary><div class="option-grid"><label>账户<select><option>全部账户</option><option>盈立证券</option><option>交易所</option></select></label><label>排序<select><option>市值倒序</option><option>浮盈亏倒序</option><option>标的名称</option></select></label><label>同一标的<select><option>分开显示</option><option>合并显示</option></select></label><label>币种<input type="text" inputmode="text" autocomplete="off" placeholder="原币种" aria-label="换算币种，留空显示原币种" data-currency /><span class="field-error" data-currency-error hidden>币种不可用</span></label><label>时间范围<select><option>近 24 小时</option><option>本周至今</option><option>本月至今</option><option>近 30 天</option><option>近 90 天</option><option>年初至今</option><option>近 365 天</option></select></label></div></details>
-          <div class="overview"><article class="metric"><span class="metric-label">总浮盈亏</span><strong class="metric-value positive">+179.45 USD</strong><small>+2.18%</small></article><article class="metric metric-period"><span class="metric-label">近 24 小时浮盈亏</span><strong class="metric-value positive">+86.40 USD</strong><small>+0.61%</small></article><article class="metric"><span class="metric-label">当前总市值</span><strong class="metric-value mono">8,231.71 USD</strong></article></div>
+          <div class="overview" aria-live="polite"><article class="metric"><span class="metric-label">总浮盈亏</span><strong class="metric-value is-pending" data-valuation>—</strong><small data-valuation-rate>—</small></article><article class="metric metric-period"><span class="metric-label">近 24 小时浮盈亏</span><strong class="metric-value is-pending" data-valuation>—</strong><small data-valuation-rate>—</small><p class="metric-note">以 2026年8月12日 09:30 的记录为基准，可能无法反映真实盈亏。</p></article><article class="metric"><span class="metric-label">当前总市值</span><strong class="metric-value mono is-pending" data-valuation>—</strong></article></div>
           <div class="holdings-table-wrap"><table class="holdings-table" aria-label="当前持仓"><colgroup><col /><col /><col /><col /><col /><col /><col /><col /><col /></colgroup><thead><tr><th scope="col">标的 / 账户</th><th scope="col">当前单价</th><th scope="col">数量</th><th scope="col">当前市值</th><th scope="col">仓位</th><th scope="col">浮盈亏</th><th scope="col">浮盈亏率</th><th scope="col">近 24 小时盈亏</th><th scope="col">近 24 小时盈亏率</th></tr></thead><tbody>
-              <tr><td class="holding-symbol" data-label="标的 / 账户"><strong>AAPL.US</strong><small>盈立证券 · USD</small></td><td class="mono" data-label="当前单价">101.25 USD</td><td class="mono" data-label="数量">10</td><td class="mono holding-market" data-label="当前市值">1,012.50 USD</td><td class="mono holding-position" data-label="仓位">12.3%</td><td class="mono holding-pnl positive" data-label="浮盈亏">+12.50 USD</td><td class="mono holding-pnl-rate positive" data-label="浮盈亏率">+1.25%</td><td class="mono holding-period muted" data-label="近 24 小时盈亏">—</td><td class="mono holding-period-rate positive" data-label="近 24 小时盈亏率">+0.80%</td></tr>
-              <tr><td class="holding-symbol" data-label="标的 / 账户"><strong>VWRA.L</strong><small>盈立证券 · USD</small></td><td class="mono" data-label="当前单价">124.3842 USD</td><td class="mono" data-label="数量">50</td><td class="mono holding-market" data-label="当前市值">6,219.21 USD</td><td class="mono holding-position" data-label="仓位">75.6%</td><td class="mono holding-pnl positive" data-label="浮盈亏">+166.95 USD</td><td class="mono holding-pnl-rate positive" data-label="浮盈亏率">+2.76%</td><td class="mono holding-period muted" data-label="近 24 小时盈亏">—</td><td class="mono holding-period-rate positive" data-label="近 24 小时盈亏率">+0.42%</td></tr>
+              <tr><td class="holding-symbol" data-label="标的 / 账户"><strong>AAPL.US</strong><small>盈立证券 · USD</small></td><td class="mono is-pending" data-label="当前单价" data-valuation>—</td><td class="mono" data-label="数量">10</td><td class="mono holding-market is-pending" data-label="当前市值" data-valuation>—</td><td class="mono holding-position is-pending" data-label="仓位" data-valuation>—</td><td class="mono holding-pnl is-pending" data-label="浮盈亏" data-valuation>—</td><td class="mono holding-pnl-rate is-pending" data-label="浮盈亏率" data-valuation>—</td><td class="mono holding-period is-pending" data-label="近 24 小时盈亏" data-valuation>—</td><td class="mono holding-period-rate is-pending" data-label="近 24 小时盈亏率" data-valuation>—</td></tr>
+              <tr><td class="holding-symbol" data-label="标的 / 账户"><strong>VWRA.L</strong><small>盈立证券 · USD</small></td><td class="mono is-pending" data-label="当前单价" data-valuation>—</td><td class="mono" data-label="数量">50</td><td class="mono holding-market is-pending" data-label="当前市值" data-valuation>—</td><td class="mono holding-position is-pending" data-label="仓位" data-valuation>—</td><td class="mono holding-pnl is-pending" data-label="浮盈亏" data-valuation>—</td><td class="mono holding-pnl-rate is-pending" data-label="浮盈亏率" data-valuation>—</td><td class="mono holding-period is-pending" data-label="近 24 小时盈亏" data-valuation>—</td><td class="mono holding-period-rate is-pending" data-label="近 24 小时盈亏率" data-valuation>—</td></tr>
             </tbody></table></div>
         </section>
         <section class="section state-example" aria-label="持仓状态示例"><div class="section-head"><h2>状态示例</h2></div><div class="state-grid"><div class="state"><span class="state-label">读取成功</span><p>当前持仓已更新。</p></div><div class="state error"><span class="state-label">读取失败</span><p>暂时无法更新持仓。</p><button class="refresh-button">重试</button></div></div></section>
@@ -212,12 +214,30 @@
     <style>.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}</style>
     <script>
       const refreshButton = document.querySelector('[data-refresh]');
+      const valuationValues = [
+        "+179.45 USD", "+86.40 USD", "8,231.71 USD",
+        "101.25 USD", "1,012.50 USD", "12.3%", "+12.50 USD", "+1.25%", "—", "+0.80%",
+        "124.3842 USD", "6,219.21 USD", "75.6%", "+166.95 USD", "+2.76%", "—", "+0.42%",
+      ];
+      const settleValuation = () => {
+        document.querySelectorAll('[data-valuation]').forEach((node, index) => {
+          node.textContent = valuationValues[index] || "—";
+          node.classList.remove('is-pending');
+        });
+        document.querySelectorAll('[data-valuation-rate]').forEach((node, index) => {
+          node.textContent = index === 0 ? "+2.18%" : "+0.61%";
+        });
+      };
       const runRefresh = () => {
         if (refreshButton.getAttribute('aria-busy') === 'true') return;
         refreshButton.setAttribute('aria-busy', 'true');
-        window.setTimeout(() => refreshButton.setAttribute('aria-busy', 'false'), 900);
+        window.setTimeout(() => {
+          settleValuation();
+          refreshButton.setAttribute('aria-busy', 'false');
+        }, 900);
       };
       refreshButton.addEventListener('click', runRefresh);
+      window.setTimeout(settleValuation, 1200);
       window.setInterval(runRefresh, 10000);
 
       const currencyInput = document.querySelector('[data-currency]');

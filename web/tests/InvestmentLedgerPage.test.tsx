@@ -1,4 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InvestmentLedgerPage } from "../src/pages/InvestmentLedgerPage";
 import type { InvestmentEvent, InvestmentEvidence, Portfolio } from "../src/api/types";
@@ -46,10 +48,52 @@ function json(value: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } }));
 }
 
+function holdingsOnly(value: Portfolio): Portfolio {
+  return {
+    ...value,
+    total_market_value: null,
+    total_profit: null,
+    total_profit_rate: null,
+    period_profit: null,
+    period_profit_rate: null,
+    accounts: value.accounts.map((portfolioAccount) => ({
+      ...portfolioAccount,
+      positions: portfolioAccount.positions.map((position) => ({
+        ...position,
+        current_price: null,
+        market_value: null,
+        profit: null,
+        quote_status: null,
+        quote_reason: null,
+        quote_currency: null,
+        display_currency: null,
+        display_market_value: null,
+        fx_rate: null,
+        fx_status: null,
+        fx_reason: null,
+        period_profit: null,
+        period_profit_rate: null,
+      })),
+    })),
+  };
+}
+
 beforeEach(() => vi.stubEnv("VITE_FT_API_ORIGIN", "http://127.0.0.1:8000"));
 afterEach(() => { cleanup(); window.localStorage.clear(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("InvestmentLedgerPage", () => {
+  it("将事件表和详情事实行固定为已确认原型的布局契约", () => {
+    const styles = readFileSync(resolve(import.meta.dirname, "../src/investment.css"), "utf8");
+
+    expect(styles).toContain(".investment-table{width:100%;min-width:1040px;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:12px}");
+    expect(styles).toContain(".investment-table th,.investment-table td{padding:13px var(--space-3);border-bottom:0;text-align:left;vertical-align:middle;white-space:nowrap}");
+    expect(styles).toContain(".investment-table tbody tr{border-bottom:var(--rule-1) solid var(--color-rule);transition:background-color var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard)}");
+    expect(styles).toContain("@media(min-width:821px){.investment-table tbody tr:last-child{border-bottom:0}}");
+    expect(styles).toContain(".investment-section .section-head{display:block;margin-bottom:var(--space-3)}");
+    expect(styles).toContain(".evidence .investment-detail-changes dl,.evidence .investment-detail-supplement{display:block");
+    expect(styles).toContain(".investment-detail-line,.investment-detail-fact{display:grid;grid-template-columns:88px minmax(0,1fr)");
+  });
+
   it("独立读取事件和持仓，并保留精确十进制与估值状态", async () => {
     const partial = { ...portfolio.accounts[0].positions[0], ticker: "BTC", quote_status: "partial" as const, quote_reason: "query_deadline_exceeded", current_price: null, market_value: null };
     const fetch = vi.fn((input: string) => {
@@ -178,6 +222,98 @@ describe("InvestmentLedgerPage", () => {
 
     fireEvent.change(screen.getByLabelText("时间范围"), { target: { value: "30d" } });
     await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("period=30d"))).toBe(true));
+  });
+
+  it("记录基准显示准确时间，并提醒周期结果可能不完整", async () => {
+    const baselineAt = "2026-08-12T09:30:00+00:00";
+    const baselineDate = new Date(baselineAt);
+    const baselineTime = `${baselineDate.getFullYear()}年${baselineDate.getMonth() + 1}月${baselineDate.getDate()}日 ${String(baselineDate.getHours()).padStart(2, "0")}:${String(baselineDate.getMinutes()).padStart(2, "0")}`;
+    const baselinedPortfolio = {
+      total_market_value: "1600", total_profit: "100", total_profit_rate: "0.0625",
+      period_profit: "100", period_profit_rate: null,
+      period_baselines: [{ account: "投资账户", ticker: "AAPL.US", occurred_at: baselineAt }],
+      accounts: [{ name: "投资账户", currency: "USD", positions: [{
+        ...portfolio.accounts[0].positions[0], period_profit: "100", period_profit_rate: "0.1",
+        period_baselines: [{ account: "投资账户", ticker: "AAPL.US", occurred_at: baselineAt }],
+      }] }],
+    } as Portfolio;
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/investment-portfolio")) return json(baselinedPortfolio);
+      return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage />);
+
+    expect(await screen.findByText(`以 ${baselineTime} 的记录为基准，可能无法反映真实盈亏。`)).toBeInTheDocument();
+    expect(screen.getByText(`以 ${baselineTime} 的记录为基准`)).toBeInTheDocument();
+  });
+
+  it("先显示基础持仓，再原位补齐行情、估值和总览", async () => {
+    const complete: Portfolio = {
+      total_market_value: "1012.50", total_profit: "12.50", total_profit_rate: "0.0125",
+      period_profit: "8.04", period_profit_rate: "0.0080",
+      accounts: [{ name: "投资账户", currency: "USD", positions: [{
+        ...portfolio.accounts[0].positions[0], period_profit: "8.04", period_profit_rate: "0.0080",
+      }] }],
+    };
+    let resolveHoldings!: (response: Response) => void;
+    let resolveValuation!: (response: Response) => void;
+    const holdingsResponse = new Promise<Response>((resolve) => { resolveHoldings = resolve; });
+    const valuationResponse = new Promise<Response>((resolve) => { resolveValuation = resolve; });
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/investment-portfolio") && input.includes("phase=holdings")) return holdingsResponse;
+      if (input.includes("/investment-portfolio")) return valuationResponse;
+      return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage />);
+
+    await waitFor(() => expect(fetch.mock.calls.filter(([input]) => String(input).includes("/investment-portfolio"))).toHaveLength(2));
+    await act(async () => { resolveHoldings(await json(holdingsOnly(complete))); });
+    const table = await screen.findByRole("table", { name: "当前持仓" });
+    expect(within(table).getByText("AAPL.US")).toBeInTheDocument();
+    expect(within(table).getByText("10")).toBeInTheDocument();
+    expect(within(table).queryByText("101.25 USD")).not.toBeInTheDocument();
+
+    await act(async () => { resolveValuation(await json(complete)); });
+    expect(await screen.findByText("101.25 USD")).toBeInTheDocument();
+    expect(screen.getAllByText("+12.50 USD")).toHaveLength(2);
+    expect(screen.getAllByText("1,012.50 USD")).toHaveLength(2);
+  });
+
+  it("刷新返回未知行情时保留当前展示的行情、估值和总览", async () => {
+    const complete: Portfolio = {
+      total_market_value: "1012.50", total_profit: "12.50", total_profit_rate: "0.0125",
+      period_profit: "8.04", period_profit_rate: "0.0080",
+      accounts: [{ name: "投资账户", currency: "USD", positions: [{
+        ...portfolio.accounts[0].positions[0], period_profit: "8.04", period_profit_rate: "0.0080",
+      }] }],
+    };
+    let valuationCall = 0;
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/investment-portfolio") && input.includes("phase=holdings")) return json(holdingsOnly(complete));
+      if (input.includes("/investment-portfolio")) {
+        valuationCall += 1;
+        return json(valuationCall === 1 ? complete : holdingsOnly(complete));
+      }
+      return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage />);
+    expect(await screen.findByText("101.25 USD")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "刷新持仓" }));
+    await waitFor(() => expect(valuationCall).toBe(2));
+
+    expect(screen.getByText("101.25 USD")).toBeInTheDocument();
+    expect(screen.getAllByText("+12.50 USD")).toHaveLength(2);
+    expect(screen.getAllByText("1,012.50 USD")).toHaveLength(2);
   });
 
   it("持仓页每 10 秒轮询，事件页不启动持仓轮询", async () => {

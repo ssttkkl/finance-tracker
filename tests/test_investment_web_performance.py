@@ -20,7 +20,8 @@ WARMUPS = 2
 SAMPLES = 12
 LIST_P95_BUDGET_NS = 750_000_000
 EVIDENCE_P95_BUDGET_NS = 500_000_000
-PORTFOLIO_P95_BUDGET_NS = 3_000_000_000
+PORTFOLIO_P95_BUDGET_NS = 2_000_000_000
+HOLDINGS_P95_BUDGET_NS = 1_000_000_000
 UTC = timezone.utc
 EVENT_ID = f"investment-{EVENT_COUNT:05d}"
 
@@ -251,6 +252,9 @@ def test_portfolio_query_with_investment_history_meets_p95_budget(performance_ru
                 for ref in refs
             }
 
+        def raw_quote_at(self, identity, kind, *, at):
+            return ProviderTick(Decimal("101"), "USD", at, "fixture")
+
     backend, sessions = performance_runtime
     _seed_workload(sessions)
     portfolio = PortfolioQueryService(
@@ -261,25 +265,36 @@ def test_portfolio_query_with_investment_history_meets_p95_budget(performance_ru
     )
 
     for _ in range(WARMUPS):
+        holdings = portfolio.get_holdings()
         result = portfolio.get_portfolio()
+        assert len(holdings.accounts) == 4
         assert len(result.accounts) == 4
 
-    samples = []
+    holdings_samples = []
+    valuation_samples = []
     for _ in range(SAMPLES):
         started = time.perf_counter_ns()
+        holdings = portfolio.get_holdings()
+        holdings_samples.append(time.perf_counter_ns() - started)
+        started = time.perf_counter_ns()
         result = portfolio.get_portfolio()
-        samples.append(time.perf_counter_ns() - started)
+        valuation_samples.append(time.perf_counter_ns() - started)
+        assert len(holdings.accounts) == 4
+        assert sum(len(account.positions) for account in holdings.accounts) == 4 * POSITION_COUNT
         assert len(result.accounts) == 4
         assert sum(len(account.positions) for account in result.accounts) == 4 * POSITION_COUNT
+        assert result.period_profit == Decimal("0")
 
-    p95 = _p95(samples)
+    holdings_p95, valuation_p95 = _p95(holdings_samples), _p95(valuation_samples)
     print({
         "backend": backend,
         "events": EVENT_COUNT,
         "positions": 4 * POSITION_COUNT,
         "samples": SAMPLES,
-        "portfolio_p95_ns": p95,
+        "holdings_p95_ns": holdings_p95,
+        "valuation_p95_ns": valuation_p95,
         "python": sys.version.split()[0],
         "platform": platform.platform(),
     })
-    assert p95 <= PORTFOLIO_P95_BUDGET_NS
+    assert holdings_p95 <= HOLDINGS_P95_BUDGET_NS
+    assert valuation_p95 <= PORTFOLIO_P95_BUDGET_NS

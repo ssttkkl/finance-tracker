@@ -28,6 +28,33 @@ test("生产预览在窄屏保持银证转账双端金额可见", async ({ page 
   expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
+test("生产预览在性能预算内分阶段展示当前持仓", async ({ page }) => {
+  const started = Date.now();
+  await page.goto("/#investment-holdings");
+
+  await expect(page.getByRole("cell", { name: "AAPL.US" })).toBeVisible({ timeout: 1_000 });
+  const holdingsElapsed = Date.now() - started;
+  await expect(page.getByRole("cell", { name: "101.25 USD" })).toBeVisible({ timeout: 2_000 });
+  await expect(page.getByText("当前总市值").locator("..").getByText("1,012.50 USD")).toBeVisible();
+  await expect(page.getByText("近 24 小时浮盈亏").locator("..").getByText("+8.04 USD")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "+8.04 USD" })).toBeVisible();
+  const valuationElapsed = Date.now() - started;
+
+  expect(holdingsElapsed).toBeLessThan(1_000);
+  expect(valuationElapsed).toBeLessThan(2_000);
+  await page.getByRole("button", { name: "刷新持仓" }).click();
+  await expect(page.getByRole("cell", { name: "101.25 USD" })).toBeVisible();
+});
+
+test("当前持仓在目标响应式宽度保持可见且无横向溢出", async ({ page }) => {
+  for (const width of [320, 375, 414, 768]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/#investment-holdings");
+    await expect(page.getByText("AAPL.US", { exact: true })).toBeVisible();
+    expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+});
+
 test("生产预览可打开流水编辑和六渠道导入入口", async ({ page }) => {
   await page.goto("/");
 

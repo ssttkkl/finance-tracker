@@ -46,10 +46,14 @@ def cash_router(service, mutation_service=None, investment_service=None, portfol
         except LookupError:
             return JSONResponse(error_payload("not_found","当前工作区中找不到该投资事件。"),404)
     @router.get("/investment-portfolio")
-    def investment_portfolio(display_currency:str|None=None, period:str="24h", timezone:str|None=None):
+    def investment_portfolio(display_currency:str|None=None, period:str="24h", timezone:str|None=None, phase:str="valuation"):
         if portfolio_service is None:
             return JSONResponse(error_payload("portfolio.unavailable","当前 Web 未启用持仓估值。"),503)
+        if phase not in {"holdings", "valuation"}:
+            return JSONResponse(error_payload("invalid_filter", "持仓估值参数无效。"),400)
         try:
+            if phase == "holdings":
+                return json_value(portfolio_service.get_holdings())
             return json_value(portfolio_service.get_portfolio(display_currency=display_currency, period=period, timezone=timezone))
         except ValueError as exc:
             code = getattr(exc, "code", "invalid_filter")
