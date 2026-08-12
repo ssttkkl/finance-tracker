@@ -261,6 +261,7 @@ export type PortfolioPosition = {
   quote_session: "pre_market" | "regular" | "post_market" | "overnight" | "unknown" | null;
   display_currency: string | null;
   display_market_value: string | null;
+  usd_market_value?: string | null;
   fx_rate: string | null;
   fx_status: string | null;
   fx_reason: string | null;

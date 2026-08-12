@@ -282,6 +282,8 @@ def _merge_position(previous: PortfolioPositionDTO | None, incoming: PortfolioPo
                 "fx_status": previous.fx_status,
                 "fx_reason": previous.fx_reason,
             })
+    if incoming.usd_market_value is None:
+        values["usd_market_value"] = previous.usd_market_value
     if incoming.period_profit is None:
         values["period_profit"] = previous.period_profit
         values["period_profit_rate"] = previous.period_profit_rate

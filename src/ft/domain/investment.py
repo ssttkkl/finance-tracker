@@ -46,6 +46,9 @@ class PortfolioPositionDTO:
     quote_session: str | None = None
     display_currency: str | None = None
     display_market_value: Decimal | None = None
+    # USD-normalized market value used for cross-currency position weights.
+    # This is a read-model field; the ledger's native market value is unchanged.
+    usd_market_value: Decimal | None = None
     fx_rate: Decimal | None = None
     fx_status: str | None = None
     fx_reason: str | None = None

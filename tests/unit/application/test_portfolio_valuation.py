@@ -103,9 +103,24 @@ def test_native_portfolio_multi_currency_and_status():
     assert by["aapl.us"].quote_currency == "USD"
     assert by["0700.hk"].market_value == Decimal("300")
     assert by["0700.hk"].quote_currency == "HKD"
+    assert by["0700.hk"].usd_market_value is None
     assert by["unknown.xyz"].market_value is None
     assert by["unknown.xyz"].quote_status == QuoteStatus.UNSUPPORTED.value
     assert by["aapl.us"].display_market_value is None
+
+
+def test_native_portfolio_exposes_usd_market_value_for_weighting():
+    valuation = ValuationService(
+        FakeProvider(), clock=lambda: datetime(2026, 7, 25, tzinfo=timezone.utc)
+    )
+    fx = FakeFx({("HKD", "USD"): Decimal("0.125")})
+    service = PortfolioQueryService(FakePortfolioRepo(), valuation, fx_rates=fx)
+    result = service.get_portfolio()
+    by = {p.ticker: p for p in result.accounts[0].positions}
+    assert by["usd"].usd_market_value == Decimal("10")
+    assert by["aapl.us"].usd_market_value == Decimal("10")
+    assert by["0700.hk"].usd_market_value == Decimal("37.5")
+    assert by["unknown.xyz"].usd_market_value is None
 
 
 def test_portfolio_position_exposes_quote_timestamp_and_session_from_provider():

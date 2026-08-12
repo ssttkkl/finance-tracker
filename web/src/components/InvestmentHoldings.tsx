@@ -170,6 +170,39 @@ function accountProfit(account: PortfolioAccount) {
   }, "0");
 }
 
+function usdTotalMarketValue(accounts: PortfolioAccount[]) {
+  return accounts.reduce<string | null>((total, account) => account.positions.reduce<string | null>((accountTotal, position) => {
+    if (position.usd_market_value === null || position.usd_market_value === undefined) return null;
+    return accountTotal === null ? null : decimalAdd(accountTotal, position.usd_market_value);
+  }, total), "0");
+}
+
+type CurrencyTotals = { marketValue: string | null; profit: string | null };
+
+function totalsByCurrency(accounts: PortfolioAccount[]) {
+  const totals = new Map<string, CurrencyTotals>();
+  for (const account of accounts) {
+    for (const position of account.positions) {
+      const currency = (position.quote_currency ?? position.cost_currency).toUpperCase();
+      const current = totals.get(currency) ?? { marketValue: "0", profit: "0" };
+      totals.set(currency, {
+        marketValue: position.market_value === null || current.marketValue === null
+          ? null : decimalAdd(current.marketValue, position.market_value),
+        profit: position.is_cash ? current.profit : position.profit === null || current.profit === null
+          ? null : decimalAdd(current.profit, position.profit),
+      });
+    }
+  }
+  return totals;
+}
+
+function currencyBreakdown(totals: Map<string, CurrencyTotals>, field: keyof CurrencyTotals, signed = false) {
+  return [...totals.entries()].map(([currency, values]) => {
+    const value = values[field];
+    return `${currency} ${value === null ? "—" : signed ? signedValue(value) : displayValue(value)}`;
+  }).join(" · ");
+}
+
 function formatBaselineTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -183,10 +216,18 @@ const quoteSessionLabels: Record<NonNullable<PortfolioPosition["quote_session"]>
 
 function formatQuoteTime(value: string | null) {
   if (!value) return "报价时间未知";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "报价时间未知";
-  const pad = (part: number) => String(part).padStart(2, "0");
-  return `报价于 ${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  const observedAt = new Date(value).getTime();
+  if (Number.isNaN(observedAt)) return "报价时间未知";
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - observedAt) / 1000));
+  const hours = Math.floor(elapsedSeconds / 3600);
+  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+  const seconds = elapsedSeconds % 60;
+  const parts = [
+    hours ? `${hours}小时` : "",
+    minutes ? `${minutes}分` : "",
+    seconds || (!hours && !minutes) ? `${seconds}秒` : "",
+  ].join("");
+  return `报价于${parts}前`;
 }
 
 function quoteSessionLabel(value: PortfolioPosition["quote_session"]) {
@@ -224,6 +265,9 @@ function mergePositions(rows: HoldingRow[]): HoldingRow[] {
       ? null : decimalAdd(first.market_value, next.market_value);
     const displayMarketValue = first.display_market_value === null || next.display_market_value === null
       ? null : decimalAdd(first.display_market_value, next.display_market_value);
+    const usdMarketValue = first.usd_market_value === null || first.usd_market_value === undefined
+      || next.usd_market_value === null || next.usd_market_value === undefined
+      ? null : decimalAdd(first.usd_market_value, next.usd_market_value);
     const profit = first.profit === null || next.profit === null ? null : decimalAdd(first.profit, next.profit);
     const periodProfit = first.period_profit === null || next.period_profit === null
       ? null : decimalAdd(first.period_profit, next.period_profit);
@@ -259,6 +303,7 @@ function mergePositions(rows: HoldingRow[]): HoldingRow[] {
         current_price: weightedPrice,
         market_value: marketValue,
         display_market_value: displayMarketValue,
+        usd_market_value: usdMarketValue,
         profit,
         period_profit: periodProfit,
         period_profit_rate: periodRate,
@@ -298,20 +343,24 @@ export function InvestmentHoldings({ portfolio, accounts, options, loading, refr
       return decimalCompare(bValue, aValue) ?? 0;
     });
   }, [baseRows, options.grouping, options.sort, options.currency]);
+  const usdTotal = usdTotalMarketValue(visibleAccounts);
 
   const currency = options.currency;
+  const currencyTotals = useMemo(() => totalsByCurrency(visibleAccounts), [visibleAccounts]);
+  const rawCurrencyMode = !currency;
+  const singleRawCurrency = rawCurrencyMode && currencyTotals.size === 1 ? [...currencyTotals.values()][0] : null;
   const totalMarketValue = selectedAccount
     ? visibleAccounts.reduce<string | null>((total, account) => {
         const value = accountValue(account, currency);
         return total === null || value === null ? null : decimalAdd(total, value);
       }, "0")
-    : portfolio?.total_market_value ?? null;
+    : portfolio?.total_market_value ?? singleRawCurrency?.marketValue ?? null;
   const totalProfit = selectedAccount
     ? visibleAccounts.reduce<string | null>((total, account) => {
         const value = accountProfit(account);
         return total === null || value === null ? null : decimalAdd(total, value);
       }, "0")
-    : portfolio?.total_profit ?? null;
+    : portfolio?.total_profit ?? singleRawCurrency?.profit ?? null;
   const totalProfitRate = selectedAccount
     ? (() => {
         return decimalDivide(totalProfit, totalMarketValue);
@@ -324,6 +373,10 @@ export function InvestmentHoldings({ portfolio, accounts, options, loading, refr
   const visibleBaselines = (portfolio?.period_baselines ?? []).filter((baseline) => !selectedAccount || baseline.account === selectedAccount);
   const periodBaselineNotice = baselineNotice(visibleBaselines);
   const totalCurrency = metricCurrency(portfolio, rows, currency);
+  const rawMarketBreakdown = rawCurrencyMode && currencyTotals.size > 1
+    ? currencyBreakdown(currencyTotals, "marketValue") : null;
+  const rawProfitBreakdown = rawCurrencyMode && currencyTotals.size > 1
+    ? currencyBreakdown(currencyTotals, "profit", true) : null;
 
   const update = <K extends keyof HoldingDisplayOptions>(key: K, value: HoldingDisplayOptions[K]) => {
     onOptionsChange({ ...options, [key]: value });
@@ -347,9 +400,9 @@ export function InvestmentHoldings({ portfolio, accounts, options, loading, refr
       </div>
     </details>
     <div className="overview">
-      <article className="metric"><span className="metric-label">总浮盈亏</span><strong className={`metric-value ${decimalSign(totalProfit) === null ? "" : decimalSign(totalProfit)! < 0 ? "negative" : "positive"}`}>{signedValue(totalProfit, totalCurrency)}</strong><small>{percentage(totalProfitRate)}</small></article>
+      <article className="metric"><span className="metric-label">总浮盈亏</span><strong className={`metric-value ${rawProfitBreakdown ? "" : decimalSign(totalProfit) === null ? "" : decimalSign(totalProfit)! < 0 ? "negative" : "positive"}`}>{rawProfitBreakdown ?? signedValue(totalProfit, totalCurrency)}</strong><small>{rawProfitBreakdown ? [...currencyTotals.entries()].map(([key, values]) => `${key} ${percentage(decimalDivide(values.profit, values.marketValue))}`).join(" · ") : percentage(totalProfitRate)}</small></article>
       <article className="metric metric-period"><span className="metric-label">{periodLabels[options.period]}浮盈亏</span><strong className={`metric-value ${decimalSign(periodProfit) === null ? "" : decimalSign(periodProfit)! < 0 ? "negative" : "positive"}`}>{signedValue(periodProfit, totalCurrency)}</strong><small>{percentage(periodProfitRate)}</small>{periodBaselineNotice ? <p className="metric-note">{periodBaselineNotice}</p> : null}</article>
-      <article className="metric"><span className="metric-label">当前总市值</span><strong className="metric-value mono">{totalMarketValue === null ? "—" : `${displayValue(totalMarketValue)} ${totalCurrency}`}</strong></article>
+      <article className="metric"><span className="metric-label">当前总市值</span><strong className="metric-value mono">{rawMarketBreakdown ?? (totalMarketValue === null ? "—" : `${displayValue(totalMarketValue)} ${totalCurrency}`)}</strong></article>
     </div>
     {loading ? <div className="holdings-table-wrap holding-loading"><span className="skeleton-cell" /><span className="skeleton-cell" /><span className="skeleton-cell" /></div> : null}
     {error && !portfolio ? <div className="status-view status-error" role="alert"><p>{error}</p><button type="button" onClick={onRetry}>重试</button></div> : null}
@@ -357,8 +410,8 @@ export function InvestmentHoldings({ portfolio, accounts, options, loading, refr
     {!loading && !error && portfolio && rows.length === 0 ? <div className="status-view" role="status"><p>当前没有持仓。</p></div> : null}
     {!loading && portfolio && rows.length ? <div className="holdings-table-wrap"><table className="holdings-table" aria-label="当前持仓"><caption className="sr-only">当前持仓</caption><thead><tr><th scope="col">标的 / 账户</th><th scope="col">当前单价</th><th scope="col">数量</th><th scope="col">当前市值</th><th scope="col">仓位</th><th scope="col">浮盈亏</th><th scope="col">浮盈亏率</th><th scope="col">{periodLabels[options.period]}盈亏</th><th scope="col">{periodLabels[options.period]}盈亏率</th></tr></thead><tbody>{rows.map(({ accountName, position, merged }) => {
       const value = rowMarketValue(position, currency); const rate = rateFromProfit(position.profit, position.total_cost); const period = position.period_profit;
-      const weight = decimalDivide(value, totalMarketValue);
       const rowCurrency = currency || position.quote_currency || position.cost_currency;
+      const weight = decimalDivide(position.usd_market_value ?? null, usdTotal);
       const currentPrice = currency && position.current_price !== null
         ? decimalMultiply(position.current_price, position.fx_rate)
         : position.current_price;

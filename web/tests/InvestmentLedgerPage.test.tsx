@@ -108,6 +108,8 @@ describe("InvestmentLedgerPage", () => {
     expect(styles).toContain(".investment-section .section-head{display:block;margin-bottom:var(--space-3)}");
     expect(styles).toContain(".evidence .investment-detail-changes dl,.evidence .investment-detail-supplement{display:block");
     expect(styles).toContain(".investment-detail-line,.investment-detail-fact{display:grid;grid-template-columns:88px minmax(0,1fr)");
+    expect(styles).toContain(".holding-symbol,.holding-price{display:table-cell;white-space:normal!important}");
+    expect(styles).toContain(".holding-symbol strong,.holding-symbol small,.holding-price>span,.holding-price>small{display:block}");
     expect(styles).toContain("@media(prefers-reduced-motion:reduce){.refresh-button[aria-busy=\"true\"] .refresh-ring{animation:none}}");
     expect(prototype).toContain('placeholder="如 AAPL 或 .US"');
   });
@@ -132,17 +134,27 @@ describe("InvestmentLedgerPage", () => {
     expect(fetch.mock.calls.some(([input]) => String(input).includes("/investment-portfolio"))).toBe(false);
   });
 
-  it("在当前单价下显示本地化报价时间和盘后时段", async () => {
+  it.each([
+    ["秒", "2026-08-12T13:00:35+00:00", "报价于30秒前 · 盘后"],
+    ["分钟和秒", "2026-08-12T12:59:00+00:00", "报价于2分5秒前 · 盘后"],
+    ["小时、分钟和秒", "2026-08-12T09:57:00+00:00", "报价于3小时4分5秒前 · 盘后"],
+  ])("在当前单价下显示相对报价时间（%s）和盘后时段", async (_unit, quoteObservedAt, expected) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-12T13:01:05+00:00"));
+    const quotedPortfolio = {
+      ...portfolio,
+      accounts: [{ ...portfolio.accounts[0], positions: [{ ...portfolio.accounts[0].positions[0], quote_observed_at: quoteObservedAt }] }],
+    };
     const fetch = vi.fn((input: string) => {
       if (input.includes("/accounts")) return json({ items: [account] });
-      if (input.includes("/investment-portfolio")) return json(portfolio);
+      if (input.includes("/investment-portfolio")) return json(quotedPortfolio);
       return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
     });
     vi.stubGlobal("fetch", fetch);
 
     render(<InvestmentLedgerPage />);
 
-    await screen.findByText("报价于 8月12日 21:00 · 盘后");
+    await screen.findByText(expected);
   });
 
   it("支持筛选、证据抽屉焦点和关系/来源详情", async () => {
@@ -349,6 +361,8 @@ describe("InvestmentLedgerPage", () => {
   });
 
   it("手动刷新只触发服务端刷新，并在 SSE 未知结果中保留当前行情、估值和总览", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-12T13:02:05+00:00"));
     const complete: Portfolio = {
       total_market_value: "1012.50", total_profit: "12.50", total_profit_rate: "0.0125",
       period_profit: "8.04", period_profit_rate: "0.0080",
@@ -375,7 +389,7 @@ describe("InvestmentLedgerPage", () => {
     await act(async () => { stream.emit("portfolio", { version: 2, portfolio: holdingsOnly(complete) }); });
 
     expect(screen.getByText("101.25 USD")).toBeInTheDocument();
-    expect(screen.getByText("报价于 8月12日 21:00 · 盘后")).toBeInTheDocument();
+    expect(screen.getByText("报价于2分5秒前 · 盘后")).toBeInTheDocument();
     expect(screen.getAllByText("+12.50 USD")).toHaveLength(2);
     expect(screen.getAllByText("1,012.50 USD")).toHaveLength(2);
   });
@@ -429,16 +443,16 @@ describe("InvestmentLedgerPage", () => {
   it("合并同标的时按成本币种分组，并支持负成本的盈亏率方向", async () => {
     const secondAccount = { id: 104, name: "第二账户", type: "security", active: true };
     const thirdAccount = { id: 105, name: "欧元账户", type: "security", active: true };
-    const position = (accountCurrency: string, shares: string, cost: string, value: string) => ({
+    const position = (accountCurrency: string, shares: string, cost: string, value: string, usdValue: string) => ({
       ...portfolio.accounts[0].positions[0], quote_currency: accountCurrency, cost_currency: accountCurrency,
-      shares, total_cost: cost, market_value: value, profit: String(Number(value) - Number(cost)),
+      shares, total_cost: cost, market_value: value, usd_market_value: usdValue, profit: String(Number(value) - Number(cost)),
     });
     const mergedPortfolio: Portfolio = {
       total_market_value: null, total_profit: null, total_profit_rate: null, period_profit: null, period_profit_rate: null,
       accounts: [
-        { name: "投资账户", currency: "USD", positions: [position("USD", "2", "-100", "200")] },
-        { name: "第二账户", currency: "USD", positions: [position("USD", "3", "150", "300")] },
-        { name: "欧元账户", currency: "EUR", positions: [position("EUR", "4", "200", "400")] },
+        { name: "投资账户", currency: "USD", positions: [position("USD", "2", "-100", "200", "200")] },
+        { name: "第二账户", currency: "USD", positions: [position("USD", "3", "150", "300", "300")] },
+        { name: "欧元账户", currency: "EUR", positions: [position("EUR", "4", "200", "400", "500")] },
       ],
     };
     const fetch = vi.fn((input: string) => {
@@ -454,6 +468,9 @@ describe("InvestmentLedgerPage", () => {
 
     expect(screen.getAllByText("AAPL.US")).toHaveLength(2);
     expect(screen.getAllByText("多个账户", { exact: false }).length).toBeGreaterThan(0);
+    expect(screen.getByText("USD +450 · EUR +200")).toBeInTheDocument();
+    expect(screen.getByText("USD 500 · EUR 400")).toBeInTheDocument();
+    expect(Array.from(screen.getByRole("table", { name: "当前持仓" }).querySelectorAll('td[data-label="仓位"]')).map((cell) => cell.textContent)).toEqual(["+50%", "+50%"]);
     expect(screen.getByText("+450 USD")).toBeInTheDocument();
     expect(screen.getByText("+900%")).toBeInTheDocument();
   });

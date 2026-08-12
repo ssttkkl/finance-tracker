@@ -385,6 +385,32 @@ class PortfolioQueryService:
             monotonic=self._monotonic,
         )
         quote_results = self._quote_requests(requests, deadline)
+        usd_rate_cache = {}
+
+        def usd_market_value(market_value, quote_currency):
+            if market_value is None or not quote_currency:
+                return None
+            base = str(quote_currency).upper()
+            if base == "USD":
+                return market_value
+            if base in usd_rate_cache:
+                rate = usd_rate_cache[base]
+            elif self._fx_rates is None:
+                rate = None
+                usd_rate_cache[base] = rate
+            else:
+                raw_rate = self._run_until_deadline(
+                    lambda: self._fx_rates.get_mid(base, "USD"), deadline,
+                )
+                try:
+                    rate = exact_decimal(raw_rate, "fx_rate") if raw_rate is not None else None
+                except ValueError:
+                    rate = None
+                if rate is not None and rate <= 0:
+                    rate = None
+                usd_rate_cache[base] = rate
+            return None if rate is None else market_value * rate
+
         accounts = []
         for name, currency, pending_positions in pending_accounts:
             items = []
@@ -436,6 +462,10 @@ class PortfolioQueryService:
                         market_value, quote_currency, display, deadline=deadline,
                     )
 
+                usd_mv = display_mv if display == "USD" and display_mv is not None else usd_market_value(
+                    market_value, quote_currency,
+                )
+
                 items.append(PortfolioPositionDTO(
                     ticker=ticker,
                     shares=shares,
@@ -452,6 +482,7 @@ class PortfolioQueryService:
                     quote_session=quote_session,
                     display_currency=display_ccy,
                     display_market_value=display_mv,
+                    usd_market_value=usd_mv,
                     fx_rate=fx_rate,
                     fx_status=fx_status,
                     fx_reason=fx_reason,

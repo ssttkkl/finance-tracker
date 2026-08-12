@@ -35,10 +35,11 @@
 .holdings-table th{background:var(--color-sidebar);color:var(--color-sidebar-link);font-family:var(--font-body);font-size:11px;font-weight:500;letter-spacing:0;text-transform:none}
 .holdings-table tbody tr:last-child td{border-bottom:0}
 .holdings-table tbody tr:hover{background:var(--color-accent-soft)}
-.holding-symbol{display:grid;gap:4px}
+.holding-symbol,.holding-price{display:table-cell;white-space:normal!important}
+.holding-symbol strong,.holding-symbol small,.holding-price>span,.holding-price>small{display:block}
+.holding-symbol small,.holding-price small{margin-top:4px}
 .holding-symbol strong{font-size:14px}
 .holding-symbol small{color:var(--color-ink-muted);font-size:11px}
-.holding-price{display:grid;gap:4px;white-space:normal!important}
 .holding-price small{color:var(--color-ink-muted);font:11px/1.35 var(--font-body);white-space:normal}
 .holdings-table .holding-market,.holdings-table .holding-position{font-weight:600}
 .holdings-table .holding-pnl,.holdings-table .holding-pnl-rate{font-weight:700}

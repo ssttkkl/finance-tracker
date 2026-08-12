@@ -134,6 +134,7 @@ def test_investment_portfolio_api_serializes_quote_time_and_session(cash_web_run
                     ticker="AAPL.US", shares=Decimal("1"), total_cost=Decimal("10"),
                     cost_currency="USD", is_cash=False, current_price=Decimal("11"),
                     market_value=Decimal("11"), quote_currency="USD",
+                    usd_market_value=Decimal("11"),
                     quote_observed_at=datetime(2026, 8, 12, 13, 0, tzinfo=timezone.utc),
                     quote_session="post_market",
                 ),
@@ -145,6 +146,7 @@ def test_investment_portfolio_api_serializes_quote_time_and_session(cash_web_run
     position = response.json()["accounts"][0]["positions"][0]
     assert position["quote_observed_at"] == "2026-08-12T13:00:00+00:00"
     assert position["quote_session"] == "post_market"
+    assert position["usd_market_value"] == "11"
 
 
 def test_investment_portfolio_api_forwards_selected_period(cash_web_runtime):

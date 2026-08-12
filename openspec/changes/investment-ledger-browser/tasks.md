@@ -67,6 +67,7 @@
 - [x] 3.21 为证券行情备用源建立失败回归：首选批量源缺失时按优先级补齐单标的；首选成功不调用备用源；前一备用源异常时继续下一源；所有备用源失败保持空值；无密钥时不访问 Finnhub；并发和单源超时有界。
 - [x] 3.22 为 SSE 首份估值快照建立失败回归：周期起点预取不得先于当前行情批次占用 upstream；当前单价、市值和浮盈亏先推送，周期盈亏在后续完整快照补齐。
 - [x] 3.23 为报价元数据建立失败回归：yfinance/备用源保留来源报价时间；盘前、盘中、盘后、夜盘映射正确；缺失时间/时段不猜测；刷新失败同时保留价格、时间和时段；API 与 Web 文案透传。
+- [x] 3.24 为 USD 统一仓位建立失败回归：后端为 USD、非 USD 和现金返回 USD 市值，缺少汇率保持未知；API 序列化该字段；前端混合币种合并后以 USD 总分母计算相同百分比，并覆盖展示币种切换。
 
 ## 4. 构建
 
@@ -98,6 +99,7 @@
 - [x] 4.25 在 3.20 的失败回归后，实现进程内常驻行情刷新器、同口径最后成功快照合并、SSE 流和优先刷新触发；将现有 2 秒请求总截止时间从生产 Web 临界路径移除，保留单次外部源超时、退避和精确十进制合同。更新前端为 `EventSource` 消费快照并移除 `setInterval` 轮询。
 - [x] 4.26 在 3.21 的失败回归后，实现证券当前报价的有界备用源链，并在运行时装配无密钥与可选密钥源；不改变历史报价或前端合同。
 - [x] 4.27 在 3.22 的失败回归后，令 SSE 刷新路径在首份当前估值快照后再启动周期起点预取；保留完整 JSON 兼容读取的并行语义和既有周期公式。
+- [x] 4.29 在 USD 归一化仓位失败回归后，为每个持仓及现金增加 USD 市值读模型字段；按币种缓存汇率，SSE 局部失败保留上一份有效字段，Web 分开展示和合并展示都以 USD 总市值计算仓位。
 
 ## 5. 审查
 
@@ -128,6 +130,7 @@
 - [x] 5.24 复核标的片段筛选的范围、大小写归一化、通配符转义、游标绑定、双后端 SQL 语义和最小前端文案；对最终筛选控件执行 Hallmark `audit`，记录 finding 和结论。
 - [x] 5.25 复核 SSE 事件边界、缓存不写账本、版本/重连、线程生命周期、外部源超时与退避、失败关闭及单进程假设；对最终持仓页执行 Hallmark `audit`，确认没有新增技术状态、更新时间或响应式回归。
 - [x] 5.27 复核报价时间与交易时段的 UI 层级、未知状态、盘前/盘后/夜盘标签、现金行边界和 320/375/414/768 px 响应式；Hallmark `audit` 最终结果为 0 critical、0 major、0 minor。
+- [x] 5.28 复核 USD 仓位分母覆盖现金、混合币种汇率缺失时不伪造比例、展示币种切换不改变比例，以及原生表格列轨道和窄屏布局；真实浏览器 QA 无 critical/major/minor finding。
 
 ## 6. 测试与 QA
 
@@ -158,6 +161,7 @@
 - [x] 6.24 运行新增标的片段筛选的 SQLite/API/Web 回归、相称构建、OpenSpec 严格校验与 `git diff --check`；在配置 `FT_TEST_POSTGRES_URL` 时补跑同一契约矩阵，否则记录准确补跑条件。
 - [x] 6.25 运行 SSE 后端/API/生命周期、前端 Vitest、生产构建与 preview Playwright；验证基础行 1 秒内可见、无浏览器定时估值请求、SSE 重连/手动刷新/口径切换、刷新不闪空，以及 SQLite/真实 PostgreSQL 契约矩阵、性能门禁、OpenSpec 严格校验和 `git diff --check`。
 - [x] 6.27 运行报价时间/时段回归、完整 Web Vitest、生产构建、OpenSpec 严格校验、`openspec doctor` 与 `git diff --check`；PostgreSQL 未因本轮只读 DTO/行情适配变更而新增矩阵，沿用既有专用 `_test` 证据。
+- [x] 6.28 运行 USD 仓位后端/API 回归、完整 Python/Web 测试、生产构建与预览；真实 SQLite 浏览器检查混合币种、现金分母、展示币种切换、桌面列对齐和 375 px；本轮 `FT_TEST_POSTGRES_URL` 未配置，记录专用 `_test` 数据库补跑条件。
 
 ## 7. 发布准备
 
@@ -282,3 +286,13 @@
 - **持仓数值展示精度（2026-08-12，Asia/Shanghai）**：用户要求解决当前单价、数量、市值、浮盈亏和总览金额的小数位过长问题。通过 `/grilling` 结论将范围限定为展示层：使用现有精确十进制字符串算法在渲染时按第 3 位四舍五入，最多保留 2 位小数并保留千分位；API、前端状态、排序、周期表现和账务计算仍使用原始精度，整数不强制补 `.00`。先加入高精度持仓页面失败回归，再让 `displayValue` 统一应用展示四舍五入；不修改投资事件金额格式或任何后端数据。
 - **本轮 Hallmark audit**：目标为 `web/src/components/InvestmentHoldings.tsx`、`web/src/investment.css` 与真实生产预览的持仓表格，检查数值层级、负号/颜色语义、桌面长值、移动卡片截断、320/375/414/768 px 响应式与 token 使用。仅为展示精度收敛，没有发现 anti-pattern；结论 **0 critical、0 major、0 minor**。
 - **本轮验证（2026-08-12，Asia/Shanghai）**：`npm --prefix web test -- --run` → **64 passed**；`npm --prefix web run build` → 通过；`npm --prefix web run test:preview` → **6 passed**；生产构建通过后以真实 SQLite `~/.ft/finance-tracker.db` 启动后端和 Vite preview，浏览器访问 `#/investment-holdings`，真实页面显示 `0.60 CNY`、`422.06 USD`、`56,739.20 CNY`、`-620.14 CNY` 等最多两位小数，控制台无错误。预览服务已停止；`openspec validate --all --strict` → **18 passed、0 failed**；`openspec doctor` → **root ok**；`git diff --check` → **通过**。未提交、未推送、未部署。
+
+- **相对报价时间（2026-08-12，Asia/Shanghai）**：用户要求将当前单价下的绝对报价时间改为前端相对时间。实现使用浏览器 `Date.now()` 减数据源 `quote_observed_at`，按实际非零单位显示 `报价于30秒前`、`报价于2分5秒前` 或 `报价于3小时4分5秒前`，同时保留独立的交易时段标签；缺失或无效时间继续显示“报价时间未知”，未改后端字段、行情时段或财务计算。新增秒、分钟/秒、小时/分钟/秒边界回归及 SSE 手动刷新回归；Hallmark 复核 `InvestmentHoldings` 价格小字和响应式层级为 **0 critical、0 major、0 minor**。`npm --prefix web test -- --run` → **66 passed**；`npm --prefix web run build` → 通过；`npm --prefix web run test:preview` → **6 passed**；OpenSpec 全量校验 → **18 passed、0 failed**；`openspec doctor` → **root ok**；`git diff --check` → 通过。真实本机 SQLite 浏览器 QA 显示 7 个持仓均为相对时间（例如 `报价于13小时18分41秒前 · 盘中`），清空历史控制台后无错误；本地服务已停止。当前改动未提交、未推送、未部署。
+
+- **持仓字段错位与原币种汇总（2026-08-12，Asia/Shanghai）**：真实截图根因是 `.holding-symbol` 和 `.holding-price` 直接把 `<td>` 改成 `display:grid`，脱离原生表格单元格布局，造成当前单价占用第一列、后续列整体左移；已恢复两者为 `display:table-cell`，仅让内部值与报价小字块级排列。另发现原币种模式同时存在 CNY/USD 时，后端按合同返回标的市值但不会跨币种相加，前端却用空总市值作为总览值；现按币种分别汇总总览，未知值不伪造为 0。仓位分母不在此处按原币种拆分，改由后续 USD 归一化字段统一计算。
+- **本轮 Hallmark 与真实浏览器复核**：复核桌面表格 9 个表头与 9 个单元格的 `x/width` 轨道完全一致，原币种总览显示 `CNY 79,788.92 · USD 29,279.68`，持仓行显示 `+71.11%`、`+28.83%` 等按币种仓位；375 px 下 `body.scrollWidth === 375`、7 张持仓卡片保留全部字段，清空控制台后无错误。视觉/响应式审查结果 **0 critical、0 major、0 minor**。
+- **本轮验证**：失败优先的布局契约先失败后转绿；`npm --prefix web test -- --run` → **66 passed**；`VITE_FT_API_ORIGIN=http://127.0.0.1:8000 npm --prefix web run build` → 通过；`npm --prefix web run test:preview` → **6 passed**；`openspec validate --all --strict` → **18 passed、0 failed**；`openspec doctor` → **root ok**；`git diff --check` → 通过。真实 SQLite 后端 `8000` 与生产预览 `4173` 已停止，当前改动未提交、未推送、未部署。
+
+- **USD 统一仓位（2026-08-12，Asia/Shanghai）**：用户明确仓位不得按原币种分别计算，必须先把持仓和现金市值换算为 USD，再以 USD 总市值为分母。先加入后端 USD 归一化字段失败回归，旧 DTO 缺少字段而失败；实现后由组合查询按币种缓存汇率并填充 usd_market_value，SSE 合并在局部行情失败时保留上一份有效 USD 值，前端分开展示和合并展示均使用 USD 字段计算仓位；原币种/统一展示金额仍遵循既有总览口径，缺少汇率时仓位保持未知。
+- **本轮验证**：`uv run pytest -q tests/unit/application/test_portfolio_valuation.py tests/contract/test_investment_web_api.py tests/test_portfolio_refresh.py` → **29 passed、3 skipped**；`npm --prefix web test -- --run` → **66 passed**；`npm --prefix web run build` → 通过。真实 SQLite 服务重启后执行浏览器 QA，原币种与 CNY 展示下仓位百分比保持一致，现金已计入 USD 分母；桌面 9 列表头/单元格轨道一致，375 px 无横向溢出，控制台无错误。`npm --prefix web run test:preview` → **6 passed**；`uv run pytest -q` → **1347 passed、161 skipped、1 个既有 Starlette/httpx deprecation warning**（307.11s）；`openspec validate --all --strict` → **18 passed、0 failed**；`openspec doctor` → **root ok**；`git diff --check` → 通过。`FT_TEST_POSTGRES_URL` 未配置，真实 PostgreSQL 契约矩阵未运行；补跑条件为设置指向名称以 `_test` 结尾的专用数据库后重跑受影响契约。服务进程已停止，未提交、未推送、未部署。
+- **本轮 UI audit**：Hallmark 复核 `InvestmentHoldings`、`investment.css` 与真实预览，覆盖 USD 仓位数值层级、桌面列对齐、现金/混合币种状态、320/375/414/768 px 响应式和无横向滚动；结果 **0 critical、0 major、0 minor**。
