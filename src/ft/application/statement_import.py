@@ -58,7 +58,14 @@ class StatementImportService:
         self._relations = relation_service
         self._enforce_account_currencies = enforce_account_currencies
 
-    def _apply_relation_decisions(self, uow, decisions, *, fact_id_by_record_id: dict[str, int]) -> list[str]:
+    def _apply_relation_decisions(
+        self,
+        uow,
+        decisions,
+        *,
+        fact_id_by_record_id: dict[str, int],
+        new_fact_ids: set[int] | None = None,
+    ) -> list[str]:
         if not decisions:
             return []
         if not isinstance(decisions, list):
@@ -105,6 +112,16 @@ class StatementImportService:
                 for item in record_ids
             ):
                 raise ValueError("导入关系引用的流水不存在")
+            # A repeated import may submit stale automatic decisions from an
+            # older preview. Existing facts and their relations are already
+            # authoritative; re-applying such a decision can create a second
+            # graph edge and invalidate the cash projection. Relation choices
+            # are actionable here only when at least one endpoint is a fact
+            # created by this import confirmation.
+            if new_fact_ids is not None and not any(
+                item in new_fact_ids for item in record_ids
+            ):
+                continue
             if decision_status == "rejected":
                 # 拒绝只记录本次导入会话的决定，不创建或确认关系。
                 continue
@@ -363,6 +380,7 @@ class StatementImportService:
                 uow,
                 relation_decisions,
                 fact_id_by_record_id=fact_id_by_record_id,
+                new_fact_ids={int(item) for item in created_cash_fact_ids},
             )
             if imported_count or updated_count:
                 snapshot["updated_at"] = max(str(row.get("date", "")) for row in rows)

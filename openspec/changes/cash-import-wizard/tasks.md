@@ -27,6 +27,7 @@
 - [x] 4.3 实现不落库的关系建议计算，复用正式关系规则、候选排序、精确 Decimal 和工作区边界
 - [x] 4.4 实现确认请求的摘要校验、手动配对决定校验和单事务导入 / 关系 / 投影刷新
 - [x] 4.5 增加 `/detect`、预览和确认路由参数及 Web API 序列化；主流程 Playwright 覆盖三条请求
+- [x] 4.6 修复关系预览的事实归一化：已存在业务行使用真实数据库事实，只有待新增业务行作为关系扫描种子；确认时忽略不包含本次新建流水的关系决定
 
 ## 5. Web 页面实现
 
@@ -58,6 +59,7 @@
 ## 8. 反思
 
 - [x] 8.1 将导入会话的摘要校验、标准字段 DTO、内存关系适配层和确认事务边界沉淀到 `design.md` 与测试合同
+- [x] 8.2 沉淀重复导入关系回归：纯已存在账单不得生成重复关系建议或触发投影重建，新增流水与既有流水的关系仍可确认
 
 ## Verification evidence
 
@@ -75,3 +77,4 @@
 - Hallmark: `hallmark audit openspec/changes/cash-import-wizard/prototype/index.html` was attempted but the repository environment has no `hallmark` executable (`command not found`); manual screenshot review plus the Playwright checks above found no critical, major, or minor UI issue. The prototype was subsequently confirmed by the user and its interaction contract was synchronized to production; final production review is recorded in item 6.5 and the evidence below.
 - Production UI follow-up: `uv run pytest -q tests/test_cash_import_wizard.py` → 8 passed; `npm test -- --run` → 49 passed; `npm run build` → passed; import E2E → 2 passed; preview E2E → 1 passed; temporary visual audit → 1 passed. Screenshots: `/tmp/cash-import-production-relations-1440.png`, `/tmp/cash-import-production-rejected-1440.png`, `/tmp/cash-import-production-relations-390.png`. `hallmark audit web/src/pages/CashImportPage.tsx` remained unavailable (`command not found`), so manual review covered copy density, table state, focusable controls, rejection styling and page-level overflow.
 - Top action bar follow-up: `npm test -- --run` → 76 passed; `npm run build` → passed; `FT_E2E_WEB_PORT=5175 npm run test:e2e -- --grep "独立导入处理页面|导入处理页面在四个目标宽度"` → 2 passed; `FT_E2E_WEB_PORT=5176 npm run test:e2e -- --grep "独立导入处理页面自动识别渠道并完成三步确认"` → 1 passed with real bounding-box ordering; `FT_PREVIEW_WEB_PORT=5178 npm run test:preview -- --grep "生产预览可打开流水编辑和独立导入处理页面|当前持仓在目标响应式宽度保持可见且无横向溢出"` → 2 passed; `openspec validate --all --strict` → 20 passed; `openspec doctor` → ok; `git diff --check` → passed. 第二、三步顶部操作栏均早于长内容，底部无重复操作栏；本地服务仍运行于 `127.0.0.1:8000` 和 `127.0.0.1:5174`。
+- Import repeat regression follow-up: `pytest -q tests/test_cash_import_wizard.py tests/test_cash_ledger_management.py tests/test_transaction_relations_payment_mirror.py tests/test_transaction_relations_refund.py` → 100 passed, 6 skipped; `npm test -- --run` → 76 passed; `npm run build` → passed; `git diff --check`、Python compileall、`openspec validate --all --strict` → 20 passed、`openspec doctor` → ok. Three real WeChat XLSX files were replayed against a temporary SQLite copy of `/Users/huangwenlong/.ft/finance-tracker.db`: all three completed with `new_rows=0`, `preview_relations=0`, `submitted_decisions=0`; the original database mtime and size were unchanged. `FT_TEST_POSTGRES_URL` was not configured, so PostgreSQL evidence remains to be rerun with the explicit `_test` database URL.

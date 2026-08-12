@@ -264,3 +264,111 @@ def test_cash_import_rejected_relation_does_not_create_relation_or_block_import(
     with sessions() as session:
         assert session.query(CashTransactionModel).count() == 1
         assert session.query(TransactionRelationModel).count() == 0
+
+
+def test_cash_import_preview_does_not_duplicate_existing_facts_for_relation_matching(tmp_path):
+    from ft.application.relations import RelationService
+
+    source = tmp_path / "statement.csv"
+    source.write_bytes(b"test statement")
+    rows = [
+        _row(record_id="expense-1", counterparty="咖啡店", amount="-10", note="消费"),
+        _row(
+            record_id="refund-1", counterparty="咖啡店", amount="5",
+            record_type="refund", category="income", note="退款",
+        ),
+    ]
+    sessions, service = _service(tmp_path, {"alipay": rows})
+    service.commit_import(
+        source.read_bytes(), source="alipay", currency=None, filename=source.name,
+    )
+    service._relation_service = RelationService(service._uow)
+
+    preview = service.preview_import(
+        source.read_bytes(), source="alipay", currency=None, filename=source.name,
+    )
+
+    assert preview["summary"] == {"total": 2, "new": 0, "existing": 2, "unsupported": 0}
+    assert preview["relations"] == []
+
+
+def test_cash_import_repeat_does_not_apply_relation_decisions_for_existing_facts(tmp_path):
+    from ft.adapters.relational.models import TransactionRelationModel
+
+    source = tmp_path / "statement.csv"
+    source.write_bytes(b"test statement")
+    rows = [
+        _row(record_id="expense-1", counterparty="咖啡店", amount="-10", note="消费"),
+        _row(
+            record_id="refund-1", counterparty="咖啡店", amount="5",
+            record_type="refund", category="income", note="退款",
+        ),
+    ]
+    sessions, service = _service(tmp_path, {"alipay": rows})
+    service.commit_import(
+        source.read_bytes(), source="alipay", currency=None, filename=source.name,
+    )
+
+    result = service.commit_import(
+        source.read_bytes(), source="alipay", currency=None, filename=source.name,
+        preview_digest=hashlib.sha256(source.read_bytes()).hexdigest(),
+        preview_channel="alipay",
+        relation_decisions=[{
+            "kind": "refund_offset",
+            "primary_record_id": "expense-1",
+            "secondary_record_id": "refund-1",
+            "status": "accepted",
+        }],
+    )
+
+    assert result["new_rows"] == 0
+    with sessions() as session:
+        assert session.query(TransactionRelationModel).count() == 0
+
+
+def test_cash_import_mixed_batch_can_pair_new_fact_with_existing_fact(tmp_path):
+    from ft.adapters.relational.models import TransactionRelationModel
+
+    source = tmp_path / "statement.csv"
+    source.write_bytes(b"test statement")
+    sessions, service = _service(tmp_path, {"alipay": [_row(account_name="建行储蓄")]})
+    with service._uow as uow:
+        uow.accounts.add_raw({"name": "建行储蓄", "type": "cash", "currency": "CNY"})
+        uow.commit()
+    existing = service.create_record({
+        "occurred_at": "2026-08-12T09:24:03+08:00",
+        "amount": "-12.50",
+        "currency": "CNY",
+        "account_name": "建行储蓄",
+        "counterparty": "咖啡店",
+        "counterparty_account": "",
+        "note": "快捷支付",
+        "category": "餐饮",
+        "record_type": "consumption",
+        "record_subtype": "not_applicable",
+    })
+    from ft.application.relations import RelationService
+    service._relation_service = RelationService(service._uow)
+
+    preview = service.preview_import(
+        source.read_bytes(), source="alipay", currency=None, filename=source.name,
+    )
+    assert preview["summary"]["new"] == 1
+    assert preview["relations"]
+
+    relation = preview["relations"][0]
+    result = service.commit_import(
+        source.read_bytes(), source="alipay", currency=None, filename=source.name,
+        preview_digest=hashlib.sha256(source.read_bytes()).hexdigest(),
+        preview_channel="alipay",
+        relation_decisions=[{
+            "kind": relation["kind"],
+            "primary_record_id": relation["primary"]["record_id"],
+            "secondary_fact_id": existing["record"]["id"],
+            "status": "accepted",
+        }],
+    )
+
+    assert result["new_rows"] == 1
+    with sessions() as session:
+        assert session.query(TransactionRelationModel).count() == 1

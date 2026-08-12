@@ -1119,11 +1119,25 @@ class CashLedgerCommandService:
         existing_rows = RelationalCashflowRepository(
             session, self._workspace_id,
         ).list_detailed(include_deleted=False)
+        existing_by_identity = {
+            (
+                str(row.get("source_type") or row.get("bill_source") or "").strip(),
+                str(row.get("record_id") or "").strip(),
+            ): row
+            for row in existing_rows
+            if str(row.get("record_id") or "").strip()
+        }
         preview_rows = []
         preview_ids: list[str] = []
         for row, record_id in prepared:
             account = accounts_by_name.get(row.get("account_name"))
             if account is None:
+                continue
+            # A repeated import row is already represented by its persisted
+            # fact in existing_rows. Do not add a second synthetic fact for
+            # the same source identity, otherwise relation matching can build
+            # a new edge between two copies of the same business row.
+            if (channel, str(record_id).strip()) in existing_by_identity:
                 continue
             synthetic = {
                 **row,
