@@ -134,10 +134,21 @@ describe("InvestmentLedgerPage", () => {
     expect(fetch.mock.calls.some(([input]) => String(input).includes("/investment-portfolio"))).toBe(false);
   });
 
-  it("当前单价列同时显示平均成本", async () => {
+  it("当前单价列以三行显示当前单价、平均成本和报价时间，并显示仓位", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-12T13:01:05+00:00"));
+    const quotedPortfolio = {
+      ...portfolio,
+      accounts: [{ ...portfolio.accounts[0], positions: [{
+        ...portfolio.accounts[0].positions[0],
+        quote_session: "overnight" as const,
+        quote_observed_at: "2026-08-12T09:57:00+00:00",
+        usd_market_value: "1012.50",
+      }] }],
+    };
     const fetch = vi.fn((input: string) => {
       if (input.includes("/accounts")) return json({ items: [account] });
-      if (input.includes("/investment-portfolio")) return json(portfolio);
+      if (input.includes("/investment-portfolio")) return json(quotedPortfolio);
       return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
     });
     vi.stubGlobal("fetch", fetch);
@@ -146,17 +157,52 @@ describe("InvestmentLedgerPage", () => {
 
     const table = await screen.findByRole("table", { name: "当前持仓" });
     expect(within(table).getByRole("columnheader", { name: "当前单价 / 平均成本" })).toBeInTheDocument();
-    expect(within(table).getByText("当前单价", { exact: true })).toBeInTheDocument();
-    expect(within(table).getByText("平均成本", { exact: true })).toBeInTheDocument();
-    expect(within(table).getByText("101.25 USD")).toBeInTheDocument();
-    expect(within(table).getByText("100 USD")).toBeInTheDocument();
+    expect(within(table).queryByText("当前单价", { exact: true })).not.toBeInTheDocument();
+    expect(within(table).queryByText("平均成本", { exact: true })).not.toBeInTheDocument();
+    expect(within(table).getByText("101.25 USD")).toHaveClass("holding-price-current", "above-cost");
+    expect(within(table).getByText("101.25 USD").closest(".holding-price-current-line")).toHaveTextContent("夜盘");
+    expect(within(table).getByText("100 USD")).toHaveClass("holding-price-average");
+    expect(within(table).getByText("报价于 3h 4m 5s 前")).toBeInTheDocument();
+    expect(within(table).getByText("+100%")).toBeInTheDocument();
+  });
+
+  it("仓位使用可用的 USD 市值计算，现金货币行置顶且只展示标的和当前市值", async () => {
+    const cash: Portfolio["accounts"][number]["positions"][number] = {
+      ticker: "CNY", shares: "23049.72", total_cost: "23049.72", cost_currency: "CNY", is_cash: true,
+      current_price: "1", market_value: "23049.72", profit: "0", quote_status: "complete", quote_reason: "ok",
+      quote_currency: "CNY", display_currency: null, display_market_value: null, fx_rate: null, fx_status: null, fx_reason: null,
+      quote_observed_at: null, quote_session: null, period_profit: null, period_profit_rate: null,
+      usd_market_value: null,
+    };
+    const valued = {
+      ...portfolio,
+      accounts: [{ ...portfolio.accounts[0], positions: [cash, { ...portfolio.accounts[0].positions[0], usd_market_value: null }] }],
+    };
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/investment-portfolio")) return json(valued);
+      return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage />);
+
+    const table = await screen.findByRole("table", { name: "当前持仓" });
+    const rows = table.querySelectorAll("tbody tr");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveClass("holding-cash-row");
+    expect(within(rows[0] as HTMLElement).getByText("CNY")).toBeInTheDocument();
+    expect(within(rows[0] as HTMLElement).getByText("23,049.72 CNY")).toBeInTheDocument();
+    expect(rows[0].querySelectorAll("td")).toHaveLength(4);
+    expect(rows[0].querySelector('[data-label="仓位"]')).toBeNull();
+    expect(within(rows[1] as HTMLElement).getByText("+100%")).toBeInTheDocument();
   });
 
   it.each([
-    ["秒", "2026-08-12T13:00:35+00:00", "报价于30秒前 · 盘后"],
-    ["分钟和秒", "2026-08-12T12:59:00+00:00", "报价于2分5秒前 · 盘后"],
-    ["小时、分钟和秒", "2026-08-12T09:57:00+00:00", "报价于3小时4分5秒前 · 盘后"],
-  ])("在当前单价下显示相对报价时间（%s）和盘后时段", async (_unit, quoteObservedAt, expected) => {
+    ["秒", "2026-08-12T13:00:35+00:00", "报价于 30s 前"],
+    ["分钟和秒", "2026-08-12T12:59:00+00:00", "报价于 2m 5s 前"],
+    ["小时、分钟和秒", "2026-08-12T09:57:00+00:00", "报价于 3h 4m 5s 前"],
+  ])("在持仓单价下显示紧凑的相对报价时间（%s）", async (_unit, quoteObservedAt, expected) => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-08-12T13:01:05+00:00"));
     const quotedPortfolio = {
@@ -173,6 +219,36 @@ describe("InvestmentLedgerPage", () => {
     render(<InvestmentLedgerPage />);
 
     await screen.findByText(expected);
+    expect(screen.getByText(expected).closest(".holding-price")).toHaveTextContent("盘后");
+  });
+
+  it.each([
+    ["高于", "101.25", "1000", "above-cost"],
+    ["低于", "98.75", "1000", "below-cost"],
+    ["相等", "100", "1000", ""],
+  ])("当前单价%s平均成本时使用对应颜色", async (_caseName, currentPrice, totalCost, tone) => {
+    const quotedPortfolio = {
+      ...portfolio,
+      accounts: [{ ...portfolio.accounts[0], positions: [{
+        ...portfolio.accounts[0].positions[0],
+        current_price: currentPrice,
+        total_cost: totalCost,
+        usd_market_value: "1012.50",
+      }] }],
+    };
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/investment-portfolio")) return json(quotedPortfolio);
+      return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage />);
+
+    const current = (await screen.findAllByText(`${currentPrice} USD`)).find((element) => element.classList.contains("holding-price-current"))!;
+    expect(current).toHaveClass("holding-price-current");
+    if (tone) expect(current).toHaveClass(tone);
+    else expect(current).not.toHaveClass("above-cost", "below-cost");
   });
 
   it("支持筛选、证据抽屉焦点和关系/来源详情", async () => {
@@ -407,7 +483,7 @@ describe("InvestmentLedgerPage", () => {
     await act(async () => { stream.emit("portfolio", { version: 2, portfolio: holdingsOnly(complete) }); });
 
     expect(screen.getByText("101.25 USD")).toBeInTheDocument();
-    expect(screen.getByText("报价于2分5秒前 · 盘后")).toBeInTheDocument();
+    expect(screen.getByText("报价于 2m 5s 前")).toBeInTheDocument();
     expect(screen.getAllByText("+12.50 USD")).toHaveLength(2);
     expect(screen.getAllByText("1,012.50 USD")).toHaveLength(2);
   });

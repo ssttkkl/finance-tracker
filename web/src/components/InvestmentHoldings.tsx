@@ -151,8 +151,21 @@ function rateFromProfit(profit: string | null, cost: string | null) {
   return decimalDivide(profit, decimalAbs(cost));
 }
 
+function priceTone(currentPrice: string | null, averageCost: string | null, currentCurrency: string, averageCostCurrency: string) {
+  if (!currentPrice || !averageCost || !currentCurrency || currentCurrency !== averageCostCurrency) return "";
+  const comparison = decimalCompare(currentPrice, averageCost);
+  return comparison === null || comparison === 0 ? "" : comparison > 0 ? "above-cost" : "below-cost";
+}
+
 function rowMarketValue(position: PortfolioPosition, currency: string) {
   return currency ? position.display_market_value : position.market_value;
+}
+
+function usdMarketValue(position: PortfolioPosition) {
+  if (position.usd_market_value !== null && position.usd_market_value !== undefined) return position.usd_market_value;
+  if (position.display_currency?.toUpperCase() === "USD" && position.display_market_value !== null) return position.display_market_value;
+  const quoteCurrency = (position.quote_currency ?? position.cost_currency).toUpperCase();
+  return quoteCurrency === "USD" ? position.market_value : null;
 }
 
 function accountValue(account: PortfolioAccount, currency: string) {
@@ -171,10 +184,17 @@ function accountProfit(account: PortfolioAccount) {
 }
 
 function usdTotalMarketValue(accounts: PortfolioAccount[]) {
-  return accounts.reduce<string | null>((total, account) => account.positions.reduce<string | null>((accountTotal, position) => {
-    if (position.usd_market_value === null || position.usd_market_value === undefined) return null;
-    return accountTotal === null ? null : decimalAdd(accountTotal, position.usd_market_value);
-  }, total), "0");
+  let total = "0";
+  let hasValue = false;
+  for (const account of accounts) {
+    for (const position of account.positions) {
+      const value = usdMarketValue(position);
+      if (value === null || value === undefined) continue;
+      total = decimalAdd(total, value);
+      hasValue = true;
+    }
+  }
+  return hasValue ? total : null;
 }
 
 type CurrencyTotals = { marketValue: string | null; profit: string | null };
@@ -223,11 +243,11 @@ function formatQuoteTime(value: string | null) {
   const minutes = Math.floor((elapsedSeconds % 3600) / 60);
   const seconds = elapsedSeconds % 60;
   const parts = [
-    hours ? `${hours}小时` : "",
-    minutes ? `${minutes}分` : "",
-    seconds || (!hours && !minutes) ? `${seconds}秒` : "",
-  ].join("");
-  return `报价于${parts}前`;
+    hours ? `${hours}h` : "",
+    minutes ? `${minutes}m` : "",
+    seconds || (!hours && !minutes) ? `${seconds}s` : "",
+  ].filter(Boolean).join(" ");
+  return `报价于 ${parts} 前`;
 }
 
 function quoteSessionLabel(value: PortfolioPosition["quote_session"]) {
@@ -330,10 +350,13 @@ export function InvestmentHoldings({ portfolio, accounts, options, loading, refr
     ? portfolio?.accounts.filter((account) => account.name === selectedAccount) ?? []
     : portfolio?.accounts ?? [];
   const baseRows = visibleAccounts.flatMap((account) => account.positions
-    .filter((position) => !position.is_cash)
     .map((position) => ({ accountName: account.name, position, merged: false })));
+  const cashRows = useMemo(() => baseRows
+    .filter(({ position }) => position.is_cash)
+    .sort((a, b) => `${a.position.ticker}:${a.accountName}`.localeCompare(`${b.position.ticker}:${b.accountName}`)), [baseRows]);
   const rows = useMemo(() => {
-    const result = options.grouping === "merge" ? mergePositions(baseRows) : baseRows;
+    const assetRows = baseRows.filter(({ position }) => !position.is_cash);
+    const result = options.grouping === "merge" ? mergePositions(assetRows) : assetRows;
     return result.sort((a, b) => {
       if (options.sort === "ticker_asc") return a.position.ticker.localeCompare(b.position.ticker);
       const aValue = options.sort === "profit_desc" ? a.position.profit : rowMarketValue(a.position, options.currency);
@@ -407,11 +430,16 @@ export function InvestmentHoldings({ portfolio, accounts, options, loading, refr
     {loading ? <div className="holdings-table-wrap holding-loading"><span className="skeleton-cell" /><span className="skeleton-cell" /><span className="skeleton-cell" /></div> : null}
     {error && !portfolio ? <div className="status-view status-error" role="alert"><p>{error}</p><button type="button" onClick={onRetry}>重试</button></div> : null}
     {error && portfolio ? <div className="status-view status-error holdings-refresh-error" role="alert"><p>{error}</p><button type="button" onClick={onRetry}>重试</button></div> : null}
-    {!loading && !error && portfolio && rows.length === 0 ? <div className="status-view" role="status"><p>当前没有持仓。</p></div> : null}
-    {!loading && portfolio && rows.length ? <div className="holdings-table-wrap"><table className="holdings-table" aria-label="当前持仓"><caption className="sr-only">当前持仓</caption><thead><tr><th scope="col">标的 / 账户</th><th scope="col">当前单价 / 平均成本</th><th scope="col">数量</th><th scope="col">当前市值</th><th scope="col">仓位</th><th scope="col">浮盈亏</th><th scope="col">浮盈亏率</th><th scope="col">{periodLabels[options.period]}盈亏</th><th scope="col">{periodLabels[options.period]}盈亏率</th></tr></thead><tbody>{rows.map(({ accountName, position, merged }) => {
+    {!loading && !error && portfolio && cashRows.length === 0 && rows.length === 0 ? <div className="status-view" role="status"><p>当前没有持仓。</p></div> : null}
+    {!loading && portfolio && (cashRows.length || rows.length) ? <div className="holdings-table-wrap"><table className="holdings-table" aria-label="当前持仓"><caption className="sr-only">当前持仓</caption><thead><tr><th scope="col">标的 / 账户</th><th scope="col">当前单价 / 平均成本</th><th scope="col">数量</th><th scope="col">当前市值</th><th scope="col">仓位</th><th scope="col">浮盈亏</th><th scope="col">浮盈亏率</th><th scope="col">{periodLabels[options.period]}盈亏</th><th scope="col">{periodLabels[options.period]}盈亏率</th></tr></thead><tbody>{cashRows.map(({ accountName, position }) => {
+      const value = rowMarketValue(position, currency);
+      const rowCurrency = currency || position.quote_currency || position.cost_currency;
+      return <tr className="holding-cash-row" key={`${accountName}:${position.ticker}:${position.cost_currency}`}><td className="holding-symbol" data-label="标的 / 账户"><strong>{position.ticker}</strong><small>{accountName} · {position.quote_currency ?? position.cost_currency}</small></td><td className="holding-cash-gap" colSpan={2} aria-hidden="true" /><td className="mono holding-market holding-cash-market" data-label="当前市值">{value === null || value === undefined ? "—" : `${displayValue(value)} ${rowCurrency}`}</td><td className="holding-cash-tail" colSpan={5} aria-hidden="true" /></tr>;
+    })}{rows.map(({ accountName, position, merged }) => {
       const value = rowMarketValue(position, currency); const rate = rateFromProfit(position.profit, position.total_cost); const period = position.period_profit;
       const rowCurrency = currency || position.quote_currency || position.cost_currency;
-      const weight = decimalDivide(position.usd_market_value ?? null, usdTotal);
+      const usdValue = usdMarketValue(position);
+      const weight = decimalDivide(usdValue, usdTotal);
       const currentPrice = currency && position.current_price !== null
         ? decimalMultiply(position.current_price, position.fx_rate)
         : position.current_price;
@@ -429,7 +457,9 @@ export function InvestmentHoldings({ portfolio, accounts, options, loading, refr
         : period;
       const pnlCurrency = currency || position.cost_currency;
       const positionBaselineLabel = baselineLabel(position.period_baselines ?? []);
-      return <tr key={`${accountName}:${position.ticker}:${position.cost_currency}`}><td className="holding-symbol" data-label="标的 / 账户"><strong>{position.ticker}</strong><small>{merged ? "多个账户" : accountName} · {position.quote_currency ?? position.cost_currency}</small></td><td className="mono holding-price" data-label="当前单价 / 平均成本"><div className="holding-price-line"><span className="holding-price-label">当前单价</span><span>{currentPrice === null ? "—" : `${displayValue(currentPrice)} ${priceCurrency}`}</span></div><div className="holding-price-line"><span className="holding-price-label">平均成本</span><span>{averageCost === null ? "—" : `${displayValue(averageCost)} ${averageCostCurrency}`}</span></div>{!position.is_cash ? <small className="holding-quote-meta">{formatQuoteTime(position.quote_observed_at)} · {quoteSessionLabel(position.quote_session)}</small> : null}</td><td className="mono" data-label="数量">{displayValue(position.shares)}</td><td className="mono holding-market" data-label="当前市值">{value === null || value === undefined ? "—" : `${displayValue(value)} ${rowCurrency}`}</td><td className="mono holding-position" data-label="仓位">{percentage(weight)}</td><td className={`mono holding-pnl ${decimalSign(displayedProfit) !== null && decimalSign(displayedProfit)! < 0 ? "negative" : "positive"}`} data-label="浮盈亏">{signedValue(displayedProfit, pnlCurrency)}</td><td className={`mono holding-pnl-rate ${decimalSign(rate) !== null && decimalSign(rate)! < 0 ? "negative" : "positive"}`} data-label="浮盈亏率">{percentage(rate)}</td><td className={`mono holding-period ${decimalSign(displayedPeriod) !== null && decimalSign(displayedPeriod)! < 0 ? "negative" : "positive"}`} data-label={`${periodLabels[options.period]}盈亏`}><span>{signedValue(displayedPeriod, rowCurrency)}</span>{positionBaselineLabel ? <small className="holding-period-note">{positionBaselineLabel}</small> : null}</td><td className={`mono holding-period-rate ${decimalSign(position.period_profit_rate) !== null && decimalSign(position.period_profit_rate)! < 0 ? "negative" : "positive"}`} data-label={`${periodLabels[options.period]}盈亏率`}>{percentage(position.period_profit_rate)}</td></tr>;
+      const currentPriceTone = priceTone(currentPrice, averageCost, priceCurrency, averageCostCurrency);
+      const quoteSession = position.quote_session ? quoteSessionLabel(position.quote_session) : null;
+      return <tr key={`${accountName}:${position.ticker}:${position.cost_currency}`}><td className="holding-symbol" data-label="标的 / 账户"><strong>{position.ticker}</strong><small>{merged ? "多个账户" : accountName} · {position.quote_currency ?? position.cost_currency}</small></td><td className="mono holding-price" data-label="当前单价 / 平均成本"><div className="holding-price-current-line"><span className={`holding-price-current ${currentPriceTone}`}>{currentPrice === null ? "—" : `${displayValue(currentPrice)} ${priceCurrency}`}</span>{quoteSession ? <span className="holding-price-session">{quoteSession}</span> : null}</div><div className="holding-price-average">{averageCost === null ? "—" : `${displayValue(averageCost)} ${averageCostCurrency}`}</div><small className="holding-quote-meta">{formatQuoteTime(position.quote_observed_at)}</small></td><td className="mono" data-label="数量">{displayValue(position.shares)}</td><td className="mono holding-market" data-label="当前市值">{value === null || value === undefined ? "—" : `${displayValue(value)} ${rowCurrency}`}</td><td className="mono holding-position" data-label="仓位">{percentage(weight)}</td><td className={`mono holding-pnl ${decimalSign(displayedProfit) !== null && decimalSign(displayedProfit)! < 0 ? "negative" : "positive"}`} data-label="浮盈亏">{signedValue(displayedProfit, pnlCurrency)}</td><td className={`mono holding-pnl-rate ${decimalSign(rate) !== null && decimalSign(rate)! < 0 ? "negative" : "positive"}`} data-label="浮盈亏率">{percentage(rate)}</td><td className={`mono holding-period ${decimalSign(displayedPeriod) !== null && decimalSign(displayedPeriod)! < 0 ? "negative" : "positive"}`} data-label={`${periodLabels[options.period]}盈亏`}><span>{signedValue(displayedPeriod, rowCurrency)}</span>{positionBaselineLabel ? <small className="holding-period-note">{positionBaselineLabel}</small> : null}</td><td className={`mono holding-period-rate ${decimalSign(position.period_profit_rate) !== null && decimalSign(position.period_profit_rate)! < 0 ? "negative" : "positive"}`} data-label={`${periodLabels[options.period]}盈亏率`}>{percentage(position.period_profit_rate)}</td></tr>;
     })}</tbody></table></div> : null}
   </section>;
 }
