@@ -54,6 +54,7 @@ class QuoteResult:
     unit_price: Decimal | None = None
     quote_currency: str | None = None
     observed_at: datetime | None = None
+    quote_session: str | None = None
     market_value: Decimal | None = None
     quantity: Decimal | None = None
     reason: str = "ok"
@@ -81,8 +82,9 @@ class QuoteBatchResult:
 class ProviderTick:
     price: Decimal
     quote_currency: str
-    observed_at: datetime
+    observed_at: datetime | None
     provider: str
+    quote_session: str = "unknown"
 
 
 def parse_asset_kind(value: str | AssetKind) -> AssetKind:
@@ -210,7 +212,7 @@ def infer_asset_kind(
 def identity_kind_mismatch(identity: str, kind: AssetKind) -> bool:
     lower = identity.strip().lower()
     if kind is AssetKind.CASH:
-        return lower.startswith("pm:") or ("." in lower and lower.split(".")[-1] in {"us", "hk", "sh", "sz"})
+        return lower.startswith("pm:") or ("." in lower and lower.split(".")[-1] in {"us", "hk", "sh", "sz", "tw", "jp", "t", "ks", "kq"})
     if kind is AssetKind.PREDICTION_MARKET:
         return not lower.startswith("pm:")
     if kind is AssetKind.CRYPTO:
@@ -247,6 +249,14 @@ def ledger_security_to_yfinance(identity: str) -> str | None:
             return f"{head.upper()}.SZ"
         if tail in {"ss", "sz", "hk"}:
             return f"{head.upper()}.{tail.upper()}"
+        if tail in {"tw", "two"}:
+            return f"{head.upper()}.TW"
+        if tail in {"jp", "t"}:
+            return f"{head.upper()}.T"
+        if tail in {"kr", "ks"}:
+            return f"{head.upper()}.KS"
+        if tail == "kq":
+            return f"{head.upper()}.KQ"
     # bare code: treat as US
     if lower.isalpha() or (lower.isalnum() and not lower.isdigit()):
         return token.upper()

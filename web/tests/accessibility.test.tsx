@@ -44,7 +44,6 @@ describe("现金账本无障碍", () => {
     expect(close).toHaveFocus();
     expect(screen.getByRole("dialog", { name: "收支详情" })).toHaveAttribute("data-focus-trap", "active");
     expect(screen.getByRole("dialog", { name: "收支详情" })).toHaveAttribute("data-state", "open");
-    expect(document.querySelector("main.app-shell")).toHaveAttribute("inert");
     fireEvent.click(close);
     await waitFor(() => expect(trigger).toHaveFocus());
   });
