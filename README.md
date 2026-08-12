@@ -282,3 +282,4 @@ AI 接入新账单源或券商对账单时，优先用项目 skill：
 
 - `.agents/skills/statement-source-onboarding` — 现金账单 + 关系扫描
 - `.agents/skills/investment-statement-importer-onboarding` — 投资对账单 → 事件
+- `.agents/skills/bill-export` — 按渠道路由，申请、等待、下载并保存微信或支付宝账单文件
