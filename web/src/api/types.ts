@@ -257,6 +257,8 @@ export type PortfolioPosition = {
   quote_status: "complete" | "stale" | "partial" | "unsupported" | null;
   quote_reason: string | null;
   quote_currency: string | null;
+  quote_observed_at: string | null;
+  quote_session: "pre_market" | "regular" | "post_market" | "overnight" | "unknown" | null;
   display_currency: string | null;
   display_market_value: string | null;
   fx_rate: string | null;

@@ -108,6 +108,26 @@ def test_native_portfolio_multi_currency_and_status():
     assert by["aapl.us"].display_market_value is None
 
 
+def test_portfolio_position_exposes_quote_timestamp_and_session_from_provider():
+    class SessionProvider(FakeProvider):
+        def raw_quote(self, identity, kind):
+            if identity == "aapl.us":
+                return ProviderTick(
+                    Decimal("5"), "USD", datetime(2026, 7, 25, 13, 0, tzinfo=timezone.utc),
+                    "fake", "post_market",
+                )
+            return super().raw_quote(identity, kind)
+
+    result = PortfolioQueryService(
+        FakePortfolioRepo(),
+        ValuationService(SessionProvider(), clock=lambda: datetime(2026, 7, 25, tzinfo=timezone.utc)),
+    ).get_portfolio()
+
+    position = next(item for item in result.accounts[0].positions if item.ticker == "aapl.us")
+    assert position.quote_observed_at == datetime(2026, 7, 25, 13, 0, tzinfo=timezone.utc)
+    assert position.quote_session == "post_market"
+
+
 def test_display_currency_fx_and_fail_closed():
     valuation = ValuationService(
         FakeProvider(), clock=lambda: datetime(2026, 7, 25, tzinfo=timezone.utc)
@@ -283,6 +303,46 @@ def test_portfolio_fetches_opening_quote_alongside_current_quote():
     position = portfolio.accounts[0].positions[0]
     assert position.market_value == Decimal("1200")
     assert position.period_profit == Decimal("200")
+    assert portfolio.period_profit == Decimal("200")
+
+
+def test_portfolio_progressive_snapshot_fetches_current_quotes_before_history():
+    class Repo:
+        def load_portfolio(self):
+            return {
+                "accounts": {"Broker": {"currency": "USD", "positions": {
+                    "aapl.us": {"shares": "10", "total_cost": "1000", "cost_currency": "USD"},
+                }}},
+                "base_currencies": {"Broker": ("USD",)},
+                "configured_currencies": ("USD",),
+            }
+
+    class CurrentMustWin:
+        def __init__(self):
+            self.history_started = Event()
+
+        def raw_quote_many(self, refs, *, timeout=None):
+            assert not self.history_started.wait(0.05)
+            return {
+                ref.identity: ProviderTick(
+                    Decimal("120"), "USD", datetime(2026, 7, 25, tzinfo=timezone.utc), "fake",
+                )
+                for ref in refs
+            }
+
+        def raw_quote_at(self, identity, kind, *, at):
+            self.history_started.set()
+            return ProviderTick(Decimal("100"), "USD", at, "fake")
+
+    snapshots = []
+    portfolio = PortfolioQueryService(
+        Repo(),
+        ValuationService(CurrentMustWin(), clock=lambda: datetime(2026, 7, 25, tzinfo=timezone.utc)),
+        clock=lambda: datetime(2026, 7, 25, tzinfo=timezone.utc),
+    ).get_portfolio(on_update=snapshots.append)
+
+    assert snapshots[0].accounts[0].positions[0].market_value == Decimal("1200")
+    assert snapshots[0].period_profit is None
     assert portfolio.period_profit == Decimal("200")
 
 

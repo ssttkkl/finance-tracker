@@ -259,6 +259,8 @@ def _merge_position(previous: PortfolioPositionDTO | None, incoming: PortfolioPo
             "quote_status": previous.quote_status,
             "quote_reason": previous.quote_reason,
             "quote_currency": quote_currency,
+            "quote_observed_at": incoming.quote_observed_at or previous.quote_observed_at,
+            "quote_session": incoming.quote_session or previous.quote_session,
         })
         if quote_currency and incoming.cost_currency.upper() == quote_currency.upper() and market_value is not None:
             values["profit"] = market_value - incoming.total_cost

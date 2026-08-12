@@ -42,6 +42,8 @@ class PortfolioPositionDTO:
     quote_status: str | None = None
     quote_reason: str | None = None
     quote_currency: str | None = None
+    quote_observed_at: datetime | None = None
+    quote_session: str | None = None
     display_currency: str | None = None
     display_market_value: Decimal | None = None
     fx_rate: Decimal | None = None

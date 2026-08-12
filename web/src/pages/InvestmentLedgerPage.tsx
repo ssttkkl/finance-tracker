@@ -84,6 +84,8 @@ function retainLastKnownValuation(previous: Portfolio, incoming: Portfolio): Por
         quote_status: previousPosition.quote_status,
         quote_reason: previousPosition.quote_reason,
         quote_currency: previousPosition.quote_currency,
+        quote_observed_at: previousPosition.quote_observed_at,
+        quote_session: previousPosition.quote_session,
         display_currency: previousPosition.display_currency,
         display_market_value: previousPosition.display_market_value,
         fx_rate: previousPosition.fx_rate,

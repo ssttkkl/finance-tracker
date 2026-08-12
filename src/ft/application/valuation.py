@@ -102,6 +102,7 @@ class ValuationService:
             observed_at=outcome.observed_at or at,
             market_value=market_value, quantity=ref.quantity,
             reason="ok", provider=outcome.provider,
+            quote_session=outcome.quote_session or "unknown",
         )
 
     def quote_many(
@@ -229,7 +230,11 @@ class ValuationService:
                 reason="non_finite_price",
                 provider=tick.provider,
             )
-        status = quote_freshness(tick.observed_at, now=self._clock(), kind=ref.kind)
+        status = (
+            QuoteStatus.COMPLETE
+            if tick.observed_at is None
+            else quote_freshness(tick.observed_at, now=self._clock(), kind=ref.kind)
+        )
         if status is QuoteStatus.PARTIAL:
             return QuoteResult(
                 identity=identity,
@@ -239,8 +244,9 @@ class ValuationService:
                 reason="stale_quote",
                 provider=tick.provider,
                 observed_at=tick.observed_at,
+                quote_session=tick.quote_session or "unknown",
             )
-        reason = "stale_quote" if status is QuoteStatus.STALE else "ok"
+        reason = "quote_time_unknown" if tick.observed_at is None else "stale_quote" if status is QuoteStatus.STALE else "ok"
         market_value = compute_market_value(price, quantity) if quantity is not None else None
         return QuoteResult(
             identity=identity,
@@ -253,6 +259,7 @@ class ValuationService:
             quantity=quantity,
             reason=reason,
             provider=tick.provider,
+            quote_session=tick.quote_session or "unknown",
         )
 
     @staticmethod

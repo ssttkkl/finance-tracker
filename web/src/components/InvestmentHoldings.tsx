@@ -127,7 +127,8 @@ function decimalRound(value: string, scale: number) {
 
 function displayValue(value: string | null | undefined, empty = "—") {
   if (value === null || value === undefined) return empty;
-  const [whole, fraction] = value.split(".");
+  const rounded = decimalRound(value, 2);
+  const [whole, fraction] = rounded.split(".");
   const formattedWhole = whole.replace(/^-?\d+/, (part) => part.replace(/\B(?=(\d{3})+(?!\d))/g, ","));
   return fraction ? `${formattedWhole}.${fraction}` : formattedWhole;
 }
@@ -176,6 +177,22 @@ function formatBaselineTime(value: string) {
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+const quoteSessionLabels: Record<NonNullable<PortfolioPosition["quote_session"]>, string> = {
+  pre_market: "盘前", regular: "盘中", post_market: "盘后", overnight: "夜盘", unknown: "时段未知",
+};
+
+function formatQuoteTime(value: string | null) {
+  if (!value) return "报价时间未知";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "报价时间未知";
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `报价于 ${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function quoteSessionLabel(value: PortfolioPosition["quote_session"]) {
+  return quoteSessionLabels[value ?? "unknown"];
+}
+
 function baselineTimes(baselines: PortfolioPeriodBaseline[]) {
   return [...new Set(baselines.map((baseline) => formatBaselineTime(baseline.occurred_at)))];
 }
@@ -217,6 +234,11 @@ function mergePositions(rows: HoldingRow[]): HoldingRow[] {
         )
       : null;
     const periodBaselines = [...(first.period_baselines ?? []), ...(next.period_baselines ?? [])];
+    const quoteSamples = [first, next].filter((item) => item.quote_observed_at !== null);
+    const latestQuote = quoteSamples.reduce<PortfolioPosition | null>((latest, item) => (
+      latest === null || new Date(item.quote_observed_at!).getTime() > new Date(latest.quote_observed_at!).getTime()
+        ? item : latest
+    ), null);
     const periodRate = periodBaselines.length ? null : first.period_profit_rate && next.period_profit_rate
       ? (() => {
           const av = decimalSign(first.period_profit_rate) !== 0
@@ -241,6 +263,8 @@ function mergePositions(rows: HoldingRow[]): HoldingRow[] {
         period_profit: periodProfit,
         period_profit_rate: periodRate,
         period_baselines: periodBaselines,
+        quote_observed_at: latestQuote?.quote_observed_at ?? null,
+        quote_session: latestQuote?.quote_session ?? (first.quote_session === next.quote_session ? first.quote_session : "unknown"),
       },
     });
   }
@@ -347,7 +371,7 @@ export function InvestmentHoldings({ portfolio, accounts, options, loading, refr
         : period;
       const pnlCurrency = currency || position.cost_currency;
       const positionBaselineLabel = baselineLabel(position.period_baselines ?? []);
-      return <tr key={`${accountName}:${position.ticker}:${position.cost_currency}`}><td className="holding-symbol" data-label="标的 / 账户"><strong>{position.ticker}</strong><small>{merged ? "多个账户" : accountName} · {position.quote_currency ?? position.cost_currency}</small></td><td className="mono" data-label="当前单价">{currentPrice === null ? "—" : `${displayValue(currentPrice)} ${priceCurrency}`}</td><td className="mono" data-label="数量">{displayValue(position.shares)}</td><td className="mono holding-market" data-label="当前市值">{value === null || value === undefined ? "—" : `${displayValue(value)} ${rowCurrency}`}</td><td className="mono holding-position" data-label="仓位">{percentage(weight)}</td><td className={`mono holding-pnl ${decimalSign(displayedProfit) !== null && decimalSign(displayedProfit)! < 0 ? "negative" : "positive"}`} data-label="浮盈亏">{signedValue(displayedProfit, pnlCurrency)}</td><td className={`mono holding-pnl-rate ${decimalSign(rate) !== null && decimalSign(rate)! < 0 ? "negative" : "positive"}`} data-label="浮盈亏率">{percentage(rate)}</td><td className={`mono holding-period ${decimalSign(displayedPeriod) !== null && decimalSign(displayedPeriod)! < 0 ? "negative" : "positive"}`} data-label={`${periodLabels[options.period]}盈亏`}><span>{signedValue(displayedPeriod, rowCurrency)}</span>{positionBaselineLabel ? <small className="holding-period-note">{positionBaselineLabel}</small> : null}</td><td className={`mono holding-period-rate ${decimalSign(position.period_profit_rate) !== null && decimalSign(position.period_profit_rate)! < 0 ? "negative" : "positive"}`} data-label={`${periodLabels[options.period]}盈亏率`}>{percentage(position.period_profit_rate)}</td></tr>;
+      return <tr key={`${accountName}:${position.ticker}:${position.cost_currency}`}><td className="holding-symbol" data-label="标的 / 账户"><strong>{position.ticker}</strong><small>{merged ? "多个账户" : accountName} · {position.quote_currency ?? position.cost_currency}</small></td><td className="mono holding-price" data-label="当前单价"><span>{currentPrice === null ? "—" : `${displayValue(currentPrice)} ${priceCurrency}`}</span>{!position.is_cash ? <small>{formatQuoteTime(position.quote_observed_at)} · {quoteSessionLabel(position.quote_session)}</small> : null}</td><td className="mono" data-label="数量">{displayValue(position.shares)}</td><td className="mono holding-market" data-label="当前市值">{value === null || value === undefined ? "—" : `${displayValue(value)} ${rowCurrency}`}</td><td className="mono holding-position" data-label="仓位">{percentage(weight)}</td><td className={`mono holding-pnl ${decimalSign(displayedProfit) !== null && decimalSign(displayedProfit)! < 0 ? "negative" : "positive"}`} data-label="浮盈亏">{signedValue(displayedProfit, pnlCurrency)}</td><td className={`mono holding-pnl-rate ${decimalSign(rate) !== null && decimalSign(rate)! < 0 ? "negative" : "positive"}`} data-label="浮盈亏率">{percentage(rate)}</td><td className={`mono holding-period ${decimalSign(displayedPeriod) !== null && decimalSign(displayedPeriod)! < 0 ? "negative" : "positive"}`} data-label={`${periodLabels[options.period]}盈亏`}><span>{signedValue(displayedPeriod, rowCurrency)}</span>{positionBaselineLabel ? <small className="holding-period-note">{positionBaselineLabel}</small> : null}</td><td className={`mono holding-period-rate ${decimalSign(position.period_profit_rate) !== null && decimalSign(position.period_profit_rate)! < 0 ? "negative" : "positive"}`} data-label={`${periodLabels[options.period]}盈亏率`}>{percentage(position.period_profit_rate)}</td></tr>;
     })}</tbody></table></div> : null}
   </section>;
 }

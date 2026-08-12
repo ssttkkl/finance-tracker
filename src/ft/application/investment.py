@@ -373,10 +373,14 @@ class PortfolioQueryService:
         period_context = self._period_context(
             raw, period=period, timezone=timezone, now=clock_now,
         )
-        historical_quotes = _HistoricalQuotePrefetch(
+        historical_requests = self._historical_quote_requests(period_context, base_accounts)
+        # The legacy complete-query path retains concurrent historical prefetch.
+        # The progressive SSE path deliberately lets current quotes claim the
+        # shared upstream client first, then starts historical reads after it
+        # has emitted a usable current-valuation snapshot.
+        historical_quotes = None if callable(on_update) else _HistoricalQuotePrefetch(
             self._valuation,
-            self._historical_quote_requests(period_context, base_accounts)
-            if deadline is None or self._monotonic() < deadline else (),
+            historical_requests if deadline is None or self._monotonic() < deadline else (),
             deadline=deadline,
             monotonic=self._monotonic,
         )
@@ -388,6 +392,8 @@ class PortfolioQueryService:
                 quote_status = None
                 quote_reason = None
                 quote_currency = None
+                quote_observed_at = None
+                quote_session = None
                 current_price = None
                 market_value = None
                 if kind is None:
@@ -404,6 +410,8 @@ class PortfolioQueryService:
                     quote_status = result.status.value
                     quote_reason = result.reason
                     quote_currency = result.quote_currency
+                    quote_observed_at = result.observed_at
+                    quote_session = result.quote_session
                     if result.status in {QuoteStatus.COMPLETE, QuoteStatus.STALE}:
                         current_price = result.unit_price
                         market_value = result.unit_price * shares if result.unit_price is not None else None
@@ -440,6 +448,8 @@ class PortfolioQueryService:
                     quote_status=quote_status,
                     quote_reason=quote_reason,
                     quote_currency=quote_currency,
+                    quote_observed_at=quote_observed_at,
+                    quote_session=quote_session,
                     display_currency=display_ccy,
                     display_market_value=display_mv,
                     fx_rate=fx_rate,
@@ -460,6 +470,13 @@ class PortfolioQueryService:
                 ))
             except Exception:
                 pass
+        if historical_quotes is None:
+            historical_quotes = _HistoricalQuotePrefetch(
+                self._valuation,
+                historical_requests if deadline is None or self._monotonic() < deadline else (),
+                deadline=deadline,
+                monotonic=self._monotonic,
+            )
         period_positions, period_profit, period_rate, period_baselines = self._period_performance(
             accounts, context=period_context, historical_quotes=historical_quotes, deadline=deadline,
         )

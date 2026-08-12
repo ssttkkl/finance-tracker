@@ -122,6 +122,31 @@ def test_investment_portfolio_api_keeps_decimal_values_and_partial_status(cash_w
     assert response.json()["period_baselines"] == position["period_baselines"]
 
 
+def test_investment_portfolio_api_serializes_quote_time_and_session(cash_web_runtime):
+    from datetime import datetime, timezone
+    from decimal import Decimal
+    from ft.domain.investment import PortfolioAccountDTO, PortfolioDTO, PortfolioPositionDTO
+
+    class PortfolioStub:
+        def get_portfolio(self, **_kwargs):
+            return PortfolioDTO((PortfolioAccountDTO("投资账户", "USD", (
+                PortfolioPositionDTO(
+                    ticker="AAPL.US", shares=Decimal("1"), total_cost=Decimal("10"),
+                    cost_currency="USD", is_cash=False, current_price=Decimal("11"),
+                    market_value=Decimal("11"), quote_currency="USD",
+                    quote_observed_at=datetime(2026, 8, 12, 13, 0, tzinfo=timezone.utc),
+                    quote_session="post_market",
+                ),
+            )),))
+
+    response = _client(cash_web_runtime, PortfolioStub()).get("/api/v1/investment-portfolio")
+
+    assert response.status_code == 200
+    position = response.json()["accounts"][0]["positions"][0]
+    assert position["quote_observed_at"] == "2026-08-12T13:00:00+00:00"
+    assert position["quote_session"] == "post_market"
+
+
 def test_investment_portfolio_api_forwards_selected_period(cash_web_runtime):
     from ft.domain.investment import PortfolioDTO
 

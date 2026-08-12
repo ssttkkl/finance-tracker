@@ -18,6 +18,7 @@ const portfolio: Portfolio = { total_market_value: null, total_profit: null, tot
   ticker: "AAPL.US", shares: "10", total_cost: "1000.00", cost_currency: "USD", is_cash: false,
   current_price: "101.25", market_value: "1012.50", profit: "12.50", quote_status: "complete", quote_reason: "ok",
   quote_currency: "USD", display_currency: null, display_market_value: null, fx_rate: null, fx_status: null, fx_reason: null,
+  quote_observed_at: "2026-08-12T13:00:00+00:00", quote_session: "post_market",
   period_profit: null, period_profit_rate: null,
 }] }] };
 const evidence: InvestmentEvidence = { data_version: 1, event, source_snapshot: { action: "BUY" }, relations: [] };
@@ -78,6 +79,8 @@ function holdingsOnly(value: Portfolio): Portfolio {
         quote_status: null,
         quote_reason: null,
         quote_currency: null,
+        quote_observed_at: null,
+        quote_session: null,
         display_currency: null,
         display_market_value: null,
         fx_rate: null,
@@ -127,6 +130,19 @@ describe("InvestmentLedgerPage", () => {
     expect(screen.queryByText("价格不完整")).not.toBeInTheDocument();
     expect(fetch.mock.calls.some(([input]) => String(input).includes("/investment-events"))).toBe(true);
     expect(fetch.mock.calls.some(([input]) => String(input).includes("/investment-portfolio"))).toBe(false);
+  });
+
+  it("在当前单价下显示本地化报价时间和盘后时段", async () => {
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/investment-portfolio")) return json(portfolio);
+      return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage />);
+
+    await screen.findByText("报价于 8月12日 21:00 · 盘后");
   });
 
   it("支持筛选、证据抽屉焦点和关系/来源详情", async () => {
@@ -244,6 +260,32 @@ describe("InvestmentLedgerPage", () => {
     await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("period=30d"))).toBe(true));
   });
 
+  it("仅在展示层将持仓高精度数值四舍五入到两位", async () => {
+    const precisePortfolio: Portfolio = {
+      total_market_value: "12345.6789", total_profit: "-12.3456", total_profit_rate: "-0.001",
+      period_profit: "0.0051", period_profit_rate: "0.0001",
+      accounts: [{ name: "投资账户", currency: "USD", positions: [{
+        ...portfolio.accounts[0].positions[0], shares: "1.23456", current_price: "123.4567",
+        market_value: "12345.6789", profit: "-12.3456", period_profit: "0.0051", period_profit_rate: "0.0001",
+      }] }],
+    };
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/investment-portfolio")) return json(precisePortfolio);
+      return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<InvestmentLedgerPage />);
+    await screen.findByText("AAPL.US");
+
+    expect(screen.getByText("123.46 USD")).toBeInTheDocument();
+    expect(screen.getByText("1.23")).toBeInTheDocument();
+    expect(screen.getAllByText("12,345.68 USD")).toHaveLength(2);
+    expect(screen.getAllByText("-12.35 USD")).toHaveLength(2);
+    expect(screen.queryByText(/123\.4567|12345\.6789|12\.3456/)).not.toBeInTheDocument();
+  });
+
   it("记录基准显示准确时间，并提醒周期结果可能不完整", async () => {
     const baselineAt = "2026-08-12T09:30:00+00:00";
     const baselineDate = new Date(baselineAt);
@@ -333,6 +375,7 @@ describe("InvestmentLedgerPage", () => {
     await act(async () => { stream.emit("portfolio", { version: 2, portfolio: holdingsOnly(complete) }); });
 
     expect(screen.getByText("101.25 USD")).toBeInTheDocument();
+    expect(screen.getByText("报价于 8月12日 21:00 · 盘后")).toBeInTheDocument();
     expect(screen.getAllByText("+12.50 USD")).toHaveLength(2);
     expect(screen.getAllByText("1,012.50 USD")).toHaveLength(2);
   });
