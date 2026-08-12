@@ -55,6 +55,16 @@ test("当前持仓在目标响应式宽度保持可见且无横向溢出", async
   }
 });
 
+test("生产预览使用标的片段筛选投资事件", async ({ page }) => {
+  await page.goto("/#investment-events");
+
+  await expect(page.getByText("预览买入")).toBeVisible();
+  const filtered = page.waitForRequest((request) => request.url().includes("/api/v1/investment-events") && request.url().includes("ticker=apl"));
+  await page.getByLabel("标的").fill("apl");
+  await filtered;
+  await expect(page.getByText("+10 AAPL.US", { exact: true })).toBeVisible();
+});
+
 test("生产预览可打开流水编辑和六渠道导入入口", async ({ page }) => {
   await page.goto("/");
 

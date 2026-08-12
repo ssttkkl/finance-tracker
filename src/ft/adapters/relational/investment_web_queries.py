@@ -40,6 +40,7 @@ _SAFE_SNAPSHOT_KEYS = frozenset({
     "amount", "currency", "commission", "commission_asset", "fee", "fees", "record_type",
     "record_subtype", "description", "transaction_type", "type", "原始文本单元",
 })
+_LIKE_ESCAPE = "\\"
 
 
 def _decimal_string(value, *, scale: int | None = None) -> str | None:
@@ -91,6 +92,12 @@ def _safe_relation_evidence(payload: object) -> dict[str, Any]:
 
 def _event_identity(row: InvestmentEventModel) -> str:
     return f"{row.source_type or 'ledger'}:{row.record_id}"
+
+
+def _literal_contains_pattern(value: str) -> str:
+    escaped = value.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2)
+    escaped = escaped.replace("%", f"{_LIKE_ESCAPE}%").replace("_", f"{_LIKE_ESCAPE}_")
+    return f"%{escaped}%"
 
 
 class RelationalInvestmentLedgerQueryRepository:
@@ -148,10 +155,10 @@ class RelationalInvestmentLedgerQueryRepository:
         if filters.record_type is not None:
             conditions.append(InvestmentEventModel.record_type == filters.record_type)
         if filters.ticker is not None:
-            ticker = filters.ticker
+            ticker = _literal_contains_pattern(filters.ticker)
             conditions.append(or_(
-                func.lower(InvestmentEventModel.from_ticker) == ticker,
-                func.lower(InvestmentEventModel.to_ticker) == ticker,
+                func.lower(InvestmentEventModel.from_ticker).like(ticker, escape=_LIKE_ESCAPE),
+                func.lower(InvestmentEventModel.to_ticker).like(ticker, escape=_LIKE_ESCAPE),
             ))
         return conditions
 

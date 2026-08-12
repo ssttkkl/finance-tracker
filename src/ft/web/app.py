@@ -61,6 +61,7 @@ def create_app(
     *,
     investment_service=None,
     portfolio_service=None,
+    portfolio_refresh=None,
 ) -> FastAPI:
     from ft.web.routes import cash_router
 
@@ -97,6 +98,7 @@ def create_app(
         mutation_service=mutation_service,
         investment_service=investment_service,
         portfolio_service=portfolio_service,
+        portfolio_refresh=portfolio_refresh,
     ))
     return app
 
@@ -124,6 +126,7 @@ def create_runtime_app():
         from ft.adapters.market_data import CompositeQuoteProvider
         from ft.adapters.relational.queries import RelationalPortfolioRepository
         from ft.application.investment import PortfolioQueryService
+        from ft.application.portfolio_refresh import PortfolioRefreshCoordinator
         from ft.application.investment_web_queries import InvestmentLedgerQueryService
         from ft.application.valuation import ValuationService
         from ft.application.relations import RelationService
@@ -139,13 +142,17 @@ def create_runtime_app():
             RelationalPortfolioRepository(sessions, settings.workspace_id),
             ValuationService(quote_provider),
             fx_rates=FxRateProvider(),
+            query_deadline_seconds=None,
         )
+        portfolio_refresh = PortfolioRefreshCoordinator(portfolio_service)
 
         @asynccontextmanager
         async def release_engine(_app):
+            portfolio_refresh.start()
             try:
                 yield
             finally:
+                portfolio_refresh.stop()
                 engine.dispose()
 
         app = create_app(
@@ -155,6 +162,7 @@ def create_runtime_app():
             mutation_service=mutation_service,
             investment_service=investment_service,
             portfolio_service=portfolio_service,
+            portfolio_refresh=portfolio_refresh,
         )
     except StorageConfigurationError as exc:
         raise StorageError("storage.config") from exc

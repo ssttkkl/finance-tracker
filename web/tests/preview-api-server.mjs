@@ -13,6 +13,12 @@ const portfolio = {
   total_market_value: "1012.50", total_profit: "12.50", total_profit_rate: "0.0125",
   period_profit: "8.04", period_profit_rate: "0.0080",
 };
+const investmentEvent = {
+  event_id: "preview:investment-001", occurred_at: "2026-07-03T09:00:00+00:00", account: investmentAccount,
+  record_type: "trade", record_subtype: "security", currency: "USD", note: "预览买入",
+  from_asset: { ticker: "USD", amount: "1000" }, to_asset: { ticker: "AAPL.US", amount: "10" },
+  commission: { amount: "0", asset: "USD" }, source_type: "preview", record_id: "investment-001", relations: [],
+};
 const holdings = {
   ...portfolio,
   total_market_value: null, total_profit: null, total_profit_rate: null, period_profit: null, period_profit_rate: null,
@@ -72,6 +78,7 @@ const ledgerOptions = {
   ],
 };
 const records = new Map();
+let portfolioStreamVersion = 0;
 const manualRecord = {
   id: "preview-manual-001", occurred_at: "2026-07-01T09:00:00+00:00", account_name: account.name,
   account_id: account.id, account_type: account.type, amount: "0", currency: "CNY",
@@ -126,10 +133,35 @@ const server = createServer(async (request, response) => {
     send(response, { items: request.url.includes("view=investment") ? [investmentAccount] : [account] });
     return;
   }
+  if (request.url?.startsWith("/api/v1/investment-portfolio/stream")) {
+    response.writeHead(200, {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+    const timer = setTimeout(() => {
+      portfolioStreamVersion += 1;
+      response.write(`id: ${portfolioStreamVersion}\nevent: portfolio\ndata: ${JSON.stringify({ version: portfolioStreamVersion, portfolio })}\n\n`);
+    }, 120);
+    request.on("close", () => { clearTimeout(timer); response.end(); });
+    return;
+  }
+  if (request.url?.startsWith("/api/v1/investment-portfolio/refresh") && request.method === "POST") {
+    send(response, { accepted: true }, 202);
+    return;
+  }
   if (request.url?.startsWith("/api/v1/investment-portfolio")) {
     const isHoldingsPhase = new URL(request.url, "http://127.0.0.1").searchParams.get("phase") === "holdings";
     await wait(isHoldingsPhase ? 80 : 180);
     send(response, isHoldingsPhase ? holdings : portfolio);
+    return;
+  }
+  if (request.url?.startsWith("/api/v1/investment-events")) {
+    const ticker = new URL(request.url, "http://127.0.0.1").searchParams.get("ticker")?.toLowerCase() ?? "";
+    const matches = !ticker || [investmentEvent.from_asset.ticker, investmentEvent.to_asset.ticker]
+      .some((symbol) => symbol.toLowerCase().includes(ticker));
+    send(response, { data_version: 1, items: matches ? [investmentEvent] : [], next_cursor: null, page_size: 50, filters: {} });
     return;
   }
   if (request.url === "/api/v1/cash-ledger/options") {

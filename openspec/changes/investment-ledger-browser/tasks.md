@@ -8,6 +8,8 @@
 - [x] 0.4 在开始代码前完成 proposal、spec、design、tasks 与原型的相互核对；原始 change 满足了实现前核对，本轮生产页面回流已先将“原型对齐修复”的目标、范围、验收和风险回写 `design.md`，再开始实现。
 - [x] 0.5 调用 `grill-me` 技能的 `/grilling` 动作，澄清轮询、手动刷新、均摊成本、负成本、周期表现、买卖与出入金口径、合并规则、总览分母和浏览器偏好，并将结论回写 proposal、spec、design、tasks 与词表。
 - [x] 0.6 调用 `grill-me` 技能的 `/grilling` 动作确认删除边界：不单独展示已卖出部分的盈亏，不预留独立“已实现盈亏”界面字段；周期合计仍包含浮盈亏与期间已实现盈亏。
+- [x] 0.7 调用 `grill-me` 的 `/grilling` session 确认标的筛选改为大小写不敏感的字面量包含匹配：覆盖付出与换入资产，空值不筛选，`%`、`_` 和反斜杠不是通配符；不新增全文搜索、索引、账本写入或持仓筛选。
+- [x] 0.8 调用 `grill-me` 的 `/grilling` session 确认持仓估值改为 SSE：浏览器移除定时轮询，基础持仓仍在 1 秒内读取；服务端常驻行情刷新器按手动刷新优先、活跃订阅次之连续批量刷新并推送最新快照。范围限本机单进程运行时、易失缓存与断线重连；不写入账本或新增多实例基础设施。
 
 ## 1. 思考
 
@@ -35,6 +37,8 @@
 - [x] 2.16 使用 Hallmark 更新 `prototype/index.html` 的分阶段加载状态：基础持仓先出现，行情/总览原位补齐，刷新保持已显示数值；在实现前复核 320、375、414、768 px。
 - [x] 2.17 调用 `grill-me` 的 `/grilling` session 确认近 24 小时盈亏为空是完整阶段的既有回归：恢复同一 2 秒预算内的历史行情可用性，不改变周期盈亏公式、展示口径、基础阶段或刷新保留语义。
 - [x] 2.18 调用 `grill-me` 的 `/grilling` session 确认投资快照不可倒放：每个账户/标的使用期间最后一条投资快照为记录基准，展示准确时间与“可能无法反映真实盈亏”；不修改原始投资事件、持仓、买卖或出入金事实。
+- [x] 2.19 将标的片段筛选的目标、非目标、字面量边界、游标一致性、SQLite/PostgreSQL 等价和回滚方式回写 proposal、delta spec、design、tasks 与词表；同步原型与生产筛选输入的片段示例，不改信息架构或布局。
+- [x] 2.20 使用 Hallmark 更新 `prototype/index.html` 的持仓刷新交互：基础持仓先出现，SSE 快照原位补齐，手动刷新只触发服务端优先刷新，不展示内部行情状态或更新时间；移除原型中的定时轮询，并复核 320、375、414、768 px。
 
 ## 3. 任务拆分与一致性
 
@@ -56,6 +60,8 @@
 - [x] 3.16 为两阶段持仓性能契约建立失败回归：后端验证 `phase=holdings` 不触发行情且在 1 秒内返回，完整查询以 2 秒共享行情预算完成；API 验证阶段参数；前端验证两个请求并行、基础行先见、完整字段补齐、同一口径刷新不以空值覆盖已有报价，改变币种/周期不复用旧金额。
 - [x] 3.17 为近 24 小时盈亏回归建立失败测试：让当前行情与周期起点行情单独均可在同一 2 秒窗口内完成、串行则超时，断言完整响应仍返回标的和总览的周期盈亏，并保持一个共享截止时间。
 - [x] 3.18 为记录基准建立失败回归：快照后的买入与涨跌只能从该快照时间和确认数量计算；断言 API 返回账户、标的和时间，组合周期率为空，Web 在总览和受影响持仓显示准确的提示。
+- [x] 3.19 为标的片段筛选建立失败回归：API 在 SQLite 与 PostgreSQL 均验证付出/换入资产的大小写不敏感包含匹配、游标绑定规范化片段，以及 `%`、`_`、反斜杠的字面量边界；前端验证输入提示和查询参数保持一致；固定 20,000 条事件性能门禁使用 `.us` 片段查询。
+- [x] 3.20 为 SSE 持仓刷新建立失败回归：后端验证连接先收到最新快照、刷新器将新估值推送到既有订阅、手动刷新优先、慢行情不阻塞订阅、最后成功值不被未知结果清空，以及 lifespan 停止 worker；API 验证事件格式、版本与参数。前端验证不使用定时轮询、基础持仓先见、SSE 增量补齐、断线重连、手动刷新与展示口径切换。
 
 ## 4. 构建
 
@@ -82,6 +88,8 @@
 - [x] 4.21 先让 3.16 的后端、API 与 Web 回归失败，再实现 `phase=holdings` 快速组合读取、2 秒完整查询预算、并行客户端编排，以及按展示口径保留最后有效行情/估值/总览的合并逻辑。
 - [x] 4.22 在 3.17 的失败回归后，以有界守护 worker 并行预取周期起点行情；复用现有周期资产流量公式和单一 2 秒截止时间，不改前端响应合同或把未知值改为 `0`。
 - [x] 4.23 在 3.18 的失败回归后，实现按账户/标的的最后投资快照记录基准、基准后流量和基准时间 API；总周期率在存在记录基准时保持未知，并按原型显示小字提示。
+- [x] 4.24 在 3.19 的失败回归后，以最小查询适配器改动实现安全的标的片段筛选，并更新筛选输入提示；不改变 API 字段、稳定排序、分页、持仓、账本事实或数据库结构。
+- [x] 4.25 在 3.20 的失败回归后，实现进程内常驻行情刷新器、同口径最后成功快照合并、SSE 流和优先刷新触发；将现有 2 秒请求总截止时间从生产 Web 临界路径移除，保留单次外部源超时、退避和精确十进制合同。更新前端为 `EventSource` 消费快照并移除 `setInterval` 轮询。
 
 ## 5. 审查
 
@@ -108,6 +116,8 @@
 - [x] 5.21 对分阶段加载后的生产当前持仓页调用 Hallmark `audit` 技能动作，覆盖首屏层级、刷新期间的稳定性、加载/错误状态、键盘与 320、375、414、768 px；修复全部 critical 和 major finding 后复审。
 - [x] 5.22 复核周期行情并发修复的范围、共享截止时间、完全卖出标的、局部未知和线程退出行为；确认没有改变周期盈亏口径或 Web 响应契约。
 - [x] 5.23 复核记录基准的快照选择、零数量、快照后资产流量、组合局限提示和 API 兼容性；确认未倒放快照或改变账本事实。
+- [x] 5.24 复核标的片段筛选的范围、大小写归一化、通配符转义、游标绑定、双后端 SQL 语义和最小前端文案；对最终筛选控件执行 Hallmark `audit`，记录 finding 和结论。
+- [x] 5.25 复核 SSE 事件边界、缓存不写账本、版本/重连、线程生命周期、外部源超时与退避、失败关闭及单进程假设；对最终持仓页执行 Hallmark `audit`，确认没有新增技术状态、更新时间或响应式回归。
 
 ## 6. 测试与 QA
 
@@ -134,6 +144,8 @@
 - [x] 6.21 运行两阶段持仓的失败/成功回归、完整相关 Python/Web 契约、性能夹具与生产预览：记录基础清单和完整估值的实测时间、刷新保持旧值的证据，以及 SQLite/真实 PostgreSQL 执行状态、当前 `HEAD` 与残余外部行情风险。
 - [x] 6.22 运行新增的周期行情并发失败/成功回归、受影响 Python 契约与固定负载性能门禁；确认近 24 小时盈亏在预算内返回，记录 SQLite/真实 PostgreSQL 状态与共享截止时间证据。
 - [x] 6.23 运行记录基准的后端/API/Web 回归、相称构建、生产预览、OpenSpec、`git diff --check` 和适用 SQLite/PostgreSQL 契约矩阵；记录结果与残余风险。
+- [x] 6.24 运行新增标的片段筛选的 SQLite/API/Web 回归、相称构建、OpenSpec 严格校验与 `git diff --check`；在配置 `FT_TEST_POSTGRES_URL` 时补跑同一契约矩阵，否则记录准确补跑条件。
+- [x] 6.25 运行 SSE 后端/API/生命周期、前端 Vitest、生产构建与 preview Playwright；验证基础行 1 秒内可见、无浏览器定时估值请求、SSE 重连/手动刷新/口径切换、刷新不闪空，以及 SQLite/真实 PostgreSQL 契约矩阵、性能门禁、OpenSpec 严格校验和 `git diff --check`。
 
 ## 7. 发布准备
 
@@ -141,13 +153,21 @@
 - [x] 7.2 完成交付交接记录：列出改动文件、验证命令、基线、残余风险、未执行项、下一步 archive 条件和外部写授权边界。
 - [x] 7.3 发布准备时记录浏览器偏好键兼容与回滚方式、轮询失败观察项，以及移除旧占位字段或文案的兼容检查。
 - [x] 7.4 交付性能证据：保留 `.gstack/benchmark-reports/2026-08-11-investment-ledger-browser.json` 与 `.md` 及基线文件，记录实际命令、当前 `HEAD`、比较基线、Docker 阻断条件、残余风险和补跑 PostgreSQL 的准确条件。
+- [x] 7.5 记录标的片段筛选的回滚方式、验证证据、残余 PostgreSQL 条件与未经授权的外部写边界。
+- [x] 7.6 记录 SSE 交付证据、进程内缓存和单进程部署假设、回滚到 JSON 完整估值读取的方式，以及未经授权的外部写边界。
 
 ## 8. 反思
 
 - [ ] 8.1 归档前同步 delta；沉淀投资浏览查询、证据安全、局部失败和 UI 验证中的可复用规则（已完成规则沉淀；主规格同步与 archive 待用户确认）。
 - [x] 8.2 在最终 UI 通过后沉淀“用户界面只显示结果与动作、精确口径留在规格/无障碍语义”的文案规则，并记录防止内部术语和解释句回归的测试位置。
+- [x] 8.3 沉淀标的片段筛选的字面量转义与稳定分页规则，防止未来把用户输入重新解释为数据库通配符。
+- [x] 8.4 沉淀行情刷新规则：SSE 不是行情源，必须由刷新器、最后成功快照、版本化事件和浏览器重连共同保证渐进展示；多实例需要独立 change 的共享发布机制。
 
 ## 执行记录与审查结论
+
+- **标的片段筛选（2026-08-12，Asia/Shanghai）**：范围限定为投资事件页面的“标的”筛选框；空白输入不筛选，非空输入按不区分大小写的包含关系匹配 `from_ticker` 或 `to_ticker`。`%`、`_` 和 `\\` 均按字面量解释，不引入全文检索、索引、schema、数据或迁移改动，也不改变当前持仓筛选。输入示例同步为“如 AAPL 或 .US”。回滚方式为恢复原有等值比较。
+- **测试先行、工程审查与 UI 审查**：实现前，`uv run pytest -q tests/test_application_investment_web_queries.py -k ticker` 因精确匹配未返回 `Pl.Us` 而失败；`npm test -- --run tests/InvestmentLedgerPage.test.tsx` 因旧示例文案而失败。实现采用数据库侧 `LOWER(...) LIKE :pattern ESCAPE '\\'`，模式参数化绑定且先转义 LIKE 元字符；现有游标的筛选指纹仍使用归一化后的 `ticker`，不会跨筛选条件复用。工程复核确认没有前端二次过滤、字符串拼接 SQL 或持久化影响。按 Hallmark `audit` 手工审查 `web/src/components/InvestmentFilters.tsx`、相关查询实现、样式和 `prototype/events.html`：0 critical、0 major、0 minor；输入保留可见焦点态、标签与响应式网格。
+- **本轮验证（HEAD `d8d618da3fe551be2dbe1dfada69f2ce566833d1`，比较基线相同）**：初始 SQLite 回归 `uv run pytest -q tests/test_application_investment_web_queries.py tests/contract/test_investment_web_api.py` 通过（11 passed、3 skipped）；`uv run pytest -q -s tests/test_investment_web_performance.py` 通过（2 passed、2 skipped，20K 事件片段筛选 `list_p95_ns=2519792`）；`uv run pytest -q` 通过（1327 passed、160 skipped、1 warning，300.03s）；`npm test -- --run` 通过（61 passed）；`npm run build` 通过；`npm run test:preview` 通过（6 passed）；`openspec validate --all --strict` 通过（18 passed），`openspec doctor` 根目录检查通过，`git diff --check` 通过。用户授权后，复用 Docker 专用容器 `finance-tracker-postgres-test` 的 `finance_tracker_test` 库（端口 55432）注入 `FT_TEST_POSTGRES_URL`：查询/API 双后端契约矩阵通过（14 passed、1 warning）；20K 事件片段筛选性能门禁的 SQLite/PostgreSQL 两项通过（2 passed、2 deselected），PostgreSQL 列表 p95 为 120.445ms，低于 750ms 预算。无残余 PostgreSQL 验证项。本轮未提交、未推送、未创建 PR、未部署。
 
 - **原型对齐修复（2026-08-12，Asia/Shanghai）**：用户反馈生产投资事件页的表格层级弱于已确认的 `prototype/events.html`，且打开详情后资产数值逐字换行。根因是生产事件表没有实现原型的完整表格基础规则，投资详情内层 `dl` 又被共享 `.evidence dl` 的双列网格规则覆盖，导致多条资产事实被排进半宽格。修复仅修改 `web/src/investment.css`：恢复深色表头、7 列宽度、行距、截断与数值对齐，并将详情资产/补充 `dl` 显式设为单列容器。没有修改 React 结构、API、事件事实、金额/时间格式或账务数据。
 - **原型对齐审查**：Hallmark `audit` 目标为 `web/src/investment.css`、`web/src/components/InvestmentTable.tsx`、`web/src/components/InvestmentEvidenceDetail.tsx` 与真实生产页面。审查表格层级、连续事实行、数据密度、响应式、token、图标和交互；无渐变、临时颜色、混用图标、重复卡片或结构漂移。结果为 **0 critical、0 major、0 minor**。
@@ -233,3 +253,9 @@
 - **记录基准与不可倒放快照（2026-08-12，Asia/Shanghai）**：用户确认在所选周期内遇到投资快照时，展示必须说明“以什么时候的记录为基准，可能无法反映真实盈亏”。完成 `/grilling` 后，将 `snapshot` 定义为不可倒放的记录基准：每个账户/标的选择期间最后一条快照，使用其确认数量和发生时间读取起点行情，并只累计该记录之后的买卖、投资收入和手续费；快照本身不改写原始事件、持仓、买卖或外部出入金。组合响应与受影响持仓均返回账户、标的和明确发生时间；存在任何记录基准时，组合周期盈亏率返回未知，避免跨资产混合起点生成假精确百分比。总览以小字显示“以 {记录时间} 的记录为基准，可能无法反映真实盈亏”，受影响持仓的周期盈亏单元格显示自己的记录时间；API 时间携带 offset，前端按浏览器本地时区格式化。
 - **测试先行、范围复核和 Hallmark 审计**：先新增回归，旧实现将快照后的示例持仓盈亏从正确的 `100` 错算为 `150`，且完全没有提示文案；修复后测试覆盖两条快照选取最后一条、记录后买入、记录时点历史报价、组合周期率为空、API ISO 时间序列化、总览与持仓行的本地时间提示。范围复核发现备注字体引用未定义 token，已改用既有 `--font-body`。Hallmark `audit` 目标为 `web/src/components/InvestmentHoldings.tsx`、`web/src/investment.css` 和 `prototype/index.html`，覆盖信息层级、桌面表格、窄屏持仓卡片、自然换行、可访问语义与 320/375/414/768 px；结论为 **0 critical、0 major、0 minor**。
 - **本轮验证（2026-08-12，Asia/Shanghai）**：`uv run pytest -q tests/test_application_investment.py tests/contract/test_investment_web_api.py tests/integration/test_portfolio_query_sqlite.py tests/test_investment_web_performance.py` → **30 passed、3 skipped**（1 个既有 Starlette/httpx warning）；`npm test -- --run` → **61 passed**；`npm run build` → 通过；`npm run test:preview` → **5 passed**，覆盖生产预览与 320、375、414、768 px。`uv run pytest -q` → **1325 passed、158 skipped、1 个既有 Starlette/httpx warning**，耗时 **301.64s**。`openspec validate --all --strict` → **18 passed、0 failed**；`openspec doctor` → **root ok**；`git diff --check` → 通过。`FT_TEST_POSTGRES_URL` 未配置，真实 PostgreSQL 契约/性能矩阵本轮未运行；补跑条件是将该变量设置为专用、名称以 `_test` 结尾的数据库后，重跑本轮受影响 Python 命令。当前 `HEAD` 为 `4a588e2908f37df0cd32c9516459e181ad9deac1`，比较基线为 `04caf0c9c412e1cc72963290a1b34968965d2515`；未提交、未推送、未创建 PR、未部署。
+
+- **SSE 常驻行情刷新器（2026-08-12，Asia/Shanghai）**：浏览器保留 `phase=holdings` 的本地持仓读取，并在页面可见时建立 `GET /api/v1/investment-portfolio/stream`。服务端 `PortfolioRefreshCoordinator` 仅在本机单进程内保存同一展示币种、时间范围和时区的最后成功快照与单调版本号；手动 `POST /api/v1/investment-portfolio/refresh` 优先于活跃订阅的常规刷新。后台使用既有批量行情、历史行情与汇率调用的单源超时；生产 Web 路径不再使用 2 秒整页总截止时间。数据源短暂未知、超时或失败时，刷新器和浏览器都只以可用字段合并最新快照，已显示行情、估值和总览不会闪为 `—`。页面隐藏/卸载关闭流，重新可见时重新连接并提交一次优先刷新；不再使用 `setInterval` 或定时 HTTP 完整估值请求。SSE 不是行情源，也不写账本；多实例部署需另建 change 引入共享刷新与发布机制。
+- **SSE 工程与 UI 审查**：复核了事件帧（`id`、事件名、精确十进制 JSON）、`Last-Event-ID` 重连、心跳、worker stop、手动优先级、退避、易失缓存、异常隔离与单进程边界。Hallmark `audit` 覆盖 `web/src/pages/InvestmentLedgerPage.tsx`、`web/src/components/InvestmentHoldings.tsx`、`web/src/investment.css` 和 `prototype/index.html`：首轮发现 1 个 minor——减少动态效果时刷新符号仍旋转；已加入静态忙碌状态并复核。最终 **0 critical、0 major、0 minor**；没有新增技术状态、更新时间或响应式溢出。
+- **SSE 验证与交付准备（HEAD `d8d618da3fe551be2dbe1dfada69f2ce566833d1`，比较基线相同）**：新增刷新器/API/前端回归覆盖快照重放、手动优先、慢提供方心跳与 worker 退出、最后成功值合并、SSE 帧、页面可见性重连、手动刷新及无定时轮询。SQLite 受影响矩阵 `uv run pytest -q tests/test_application_investment.py tests/unit/application/test_portfolio_valuation.py tests/integration/test_portfolio_query_sqlite.py tests/test_investment_web_performance.py tests/test_portfolio_refresh.py tests/contract/test_investment_web_api.py -k 'not postgres'` → **47 passed、5 deselected**；SSE 定向矩阵后续为 **12 passed、3 deselected**。专用 Docker `finance-tracker-postgres-test` 的 `finance_tracker_test` 库（端口 55432）设置 `FT_TEST_POSTGRES_URL` 后，`-k postgres` 契约矩阵 → **6 passed、26 deselected**。完整 Python `uv run pytest -q` → **1332 passed、161 skipped、1 个既有 warning**，耗时 **301.02s**。完整 Web Vitest → **62 passed**；`npm run build` 通过；`npm run test:preview` → **6 passed**，其中 SSE 分阶段用例在 2 秒内呈现本地持仓、行情、总览和周期盈亏，且 320/375/414/768 px 无横向溢出；`openspec validate investment-ledger-browser --strict` 与 `git diff --check` 均通过。Docker 测试容器已停止。回滚方式为移除 coordinator/两条 SSE 路由并恢复前端完整 JSON 估值读取；不影响账本、数据库或投资事件。未提交、未推送、未创建 PR、未部署，也未归档 change，仍等待用户明确授权。
+
+- **SSE 最终复核（HEAD `d8d618da3fe551be2dbe1dfada69f2ce566833d1`，比较基线 `04caf0c9c412e1cc72963290a1b34968965d2515`）**：发现生命周期关闭时若只等待 0.5 秒，刷新线程可能仍在使用查询服务而 Web runtime 已释放数据库引擎；已改为先等待当前刷新有序退出再释放引擎。`uv run pytest -q tests/test_portfolio_refresh.py` → **4 passed**；随后完整 `uv run pytest -q` → **1332 passed、161 skipped、1 个既有 warning**（301.19s）。Docker 专用 `_test` 库的 PostgreSQL 矩阵再次通过（**6 passed、26 deselected**）；完整 `npm --prefix web test -- --run` → **62 passed**，`npm --prefix web run build` → 通过，`npm --prefix web run test:preview` → **6 passed**。`openspec validate --all --strict` → **18 passed、0 failed**，`openspec doctor` → root ok，`git diff --check` → 通过；Docker 测试容器已停止。最终范围化 diff 复核无阻断性 finding，未提交、未推送、未创建 PR、未部署。

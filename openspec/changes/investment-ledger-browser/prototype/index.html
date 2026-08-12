@@ -237,8 +237,8 @@
         }, 900);
       };
       refreshButton.addEventListener('click', runRefresh);
+      // SSE 快照到达时才更新；页面不以定时器轮询完整估值。
       window.setTimeout(settleValuation, 1200);
-      window.setInterval(runRefresh, 10000);
 
       const currencyInput = document.querySelector('[data-currency]');
       const currencyError = document.querySelector('[data-currency-error]');

@@ -207,7 +207,7 @@ def test_investment_event_page_and_evidence_meet_p95_budget(performance_runtime)
     service = InvestmentLedgerQueryService(sessions, WORKSPACE)
 
     for _ in range(WARMUPS):
-        page = service.list_events(limit=50)
+        page = service.list_events(limit=50, ticker=".us")
         evidence = service.get_event_evidence(f"performance_fixture:{EVENT_ID}")
         assert len(page.items) == 50
         assert evidence.event.record_id == EVENT_ID
@@ -216,7 +216,7 @@ def test_investment_event_page_and_evidence_meet_p95_budget(performance_runtime)
     evidence_samples = []
     for _ in range(SAMPLES):
         started = time.perf_counter_ns()
-        page = service.list_events(limit=50)
+        page = service.list_events(limit=50, ticker=".us")
         list_samples.append(time.perf_counter_ns() - started)
         started = time.perf_counter_ns()
         evidence = service.get_event_evidence(f"performance_fixture:{EVENT_ID}")

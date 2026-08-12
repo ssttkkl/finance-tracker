@@ -23,7 +23,7 @@ export function InvestmentFiltersBar({ filters, accounts, onChange }: Props) {
       <label>结束日期<input aria-label="结束日期" type="date" value={filters.date_to ?? ""} onChange={(event) => update("date_to", event.target.value)} /></label>
       <label>投资账户<select aria-label="投资账户" value={filters.account_id ?? ""} onChange={(event) => update("account_id", event.target.value)}><option value="">全部账户</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
       <label>事件类型<select aria-label="事件类型" value={filters.record_type ?? ""} onChange={(event) => update("record_type", event.target.value)}><option value="">全部事件类型</option>{Object.entries(recordTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-      <label>标的<input aria-label="标的" value={filters.ticker ?? ""} placeholder="如 AAPL.US" onChange={(event) => update("ticker", event.target.value)} /></label>
+      <label>标的<input aria-label="标的" value={filters.ticker ?? ""} placeholder="如 AAPL 或 .US" onChange={(event) => update("ticker", event.target.value)} /></label>
     </div>
   </details>;
 }

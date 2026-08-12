@@ -8,8 +8,8 @@ function apiOrigin(): string {
   return origin;
 }
 
-async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`${apiOrigin()}${path}`, { signal });
+async function request<T>(path: string, signal?: AbortSignal, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${apiOrigin()}${path}`, { ...init, signal });
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: { code?: unknown }; code?: unknown } | null;
     const code = payload?.error?.code ?? payload?.code;
@@ -41,7 +41,41 @@ export function fetchInvestmentEvidence(eventId: string, signal?: AbortSignal): 
 }
 
 export function fetchInvestmentPortfolio(displayCurrency?: string, period: PortfolioPeriod = "24h", signal?: AbortSignal, phase: "holdings" | "valuation" = "valuation"): Promise<Portfolio> {
+  return request<Portfolio>(`/api/v1/investment-portfolio?${portfolioParams(displayCurrency, period, phase)}`, signal);
+}
+
+type PortfolioStreamPayload = { version: number; portfolio?: Portfolio };
+
+function portfolioParams(displayCurrency?: string, period: PortfolioPeriod = "24h", phase?: "holdings" | "valuation") {
   const query = paramsFor({}, null, displayCurrency);
-  const withPeriod = query ? `${query}&period=${encodeURIComponent(period)}&phase=${phase}` : `period=${encodeURIComponent(period)}&phase=${phase}`;
-  return request<Portfolio>(`/api/v1/investment-portfolio?${withPeriod}`, signal);
+  const params = new URLSearchParams(query);
+  params.set("period", period);
+  if (phase) params.set("phase", phase);
+  return params.toString();
+}
+
+export function openInvestmentPortfolioStream(
+  displayCurrency: string | undefined,
+  period: PortfolioPeriod,
+  handlers: { onPortfolio: (portfolio: Portfolio) => void; onRefreshError: () => void },
+): EventSource {
+  const source = new EventSource(`${apiOrigin()}/api/v1/investment-portfolio/stream?${portfolioParams(displayCurrency, period)}`);
+  source.addEventListener("portfolio", (event) => {
+    try {
+      const payload = JSON.parse((event as MessageEvent<string>).data) as PortfolioStreamPayload;
+      if (payload.portfolio) handlers.onPortfolio(payload.portfolio);
+    } catch (_error) {
+      handlers.onRefreshError();
+    }
+  });
+  source.addEventListener("refresh_error", handlers.onRefreshError);
+  return source;
+}
+
+export function requestInvestmentPortfolioRefresh(displayCurrency?: string, period: PortfolioPeriod = "24h"): Promise<void> {
+  return request<{ accepted: boolean }>(
+    `/api/v1/investment-portfolio/refresh?${portfolioParams(displayCurrency, period)}`,
+    undefined,
+    { method: "POST" },
+  ).then(() => undefined);
 }

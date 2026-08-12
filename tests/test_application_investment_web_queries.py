@@ -135,6 +135,48 @@ def test_investment_events_filter_and_cursor_preserve_decimal_values(cash_web_ru
         service.list_events(cursor=all_first.next_cursor)
 
 
+@pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_investment_events_filter_ticker_by_case_insensitive_literal_fragment(request, runtime_name):
+    from ft.adapters.relational.models import InvestmentEventModel
+
+    runtime = request.getfixturevalue(runtime_name)
+    _add_investment_events(runtime)
+    with runtime.sessions.begin() as session:
+        session.add(InvestmentEventModel(
+            id=2004,
+            workspace_id=runtime.workspace_id,
+            account_id=103,
+            source_type="fixture",
+            record_id="investment-004",
+            source_payload={"action": "BUY"},
+            occurred_at=datetime(2026, 7, 4, 9, tzinfo=ZoneInfo("UTC")),
+            record_type="trade",
+            record_subtype="security",
+            currency="USD",
+            note="反斜杠标的",
+            from_ticker="USD",
+            from_amount=Decimal("1"),
+            to_ticker=r"AAPL\US",
+            to_amount=Decimal("1"),
+            commission=Decimal("0"),
+            commission_asset="",
+            payload={},
+        ))
+    service = _service(runtime)
+
+    matched = service.list_events(ticker="Pl.Us")
+
+    assert [item.record_id for item in matched.items] == ["investment-003"]
+    assert service.list_events(ticker="AAPL%").items == ()
+    assert service.list_events(ticker="AAPL_").items == ()
+    assert [item.record_id for item in service.list_events(ticker=r"pl\u").items] == ["investment-004"]
+
+    first = service.list_events(ticker="USD", limit=1)
+    assert first.next_cursor is not None
+    with pytest.raises(ValueError, match="invalid_cursor"):
+        service.list_events(ticker="sd", cursor=first.next_cursor)
+
+
 def test_investment_events_include_batch_funding_relation_summary(cash_web_runtime):
     _add_investment_events(cash_web_runtime)
 

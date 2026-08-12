@@ -21,6 +21,18 @@ const portfolio: Portfolio = { total_market_value: null, total_profit: null, tot
   period_profit: null, period_profit_rate: null,
 }] }] };
 const evidence: InvestmentEvidence = { data_version: 1, event, source_snapshot: { action: "BUY" }, relations: [] };
+
+class MockEventSource {
+  static instances: MockEventSource[] = [];
+  readonly listeners = new Map<string, Array<(event: MessageEvent<string>) => void>>();
+  readonly url: string;
+  closed = false;
+  onerror: (() => void) | null = null;
+  constructor(url: string) { this.url = url; MockEventSource.instances.push(this); }
+  addEventListener(type: string, listener: (event: MessageEvent<string>) => void) { this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]); }
+  close() { this.closed = true; }
+  emit(type: string, value: unknown) { for (const listener of this.listeners.get(type) ?? []) listener(new MessageEvent(type, { data: JSON.stringify(value) })); }
+}
 const snapshotEvent: InvestmentEvent = {
   ...event,
   event_id: "fixture:investment-snapshot",
@@ -78,12 +90,13 @@ function holdingsOnly(value: Portfolio): Portfolio {
   };
 }
 
-beforeEach(() => vi.stubEnv("VITE_FT_API_ORIGIN", "http://127.0.0.1:8000"));
+beforeEach(() => { vi.stubEnv("VITE_FT_API_ORIGIN", "http://127.0.0.1:8000"); MockEventSource.instances = []; vi.stubGlobal("EventSource", MockEventSource); });
 afterEach(() => { cleanup(); window.localStorage.clear(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("InvestmentLedgerPage", () => {
   it("将事件表和详情事实行固定为已确认原型的布局契约", () => {
     const styles = readFileSync(resolve(import.meta.dirname, "../src/investment.css"), "utf8");
+    const prototype = readFileSync(resolve(import.meta.dirname, "../../openspec/changes/investment-ledger-browser/prototype/events.html"), "utf8");
 
     expect(styles).toContain(".investment-table{width:100%;min-width:1040px;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:12px}");
     expect(styles).toContain(".investment-table th,.investment-table td{padding:13px var(--space-3);border-bottom:0;text-align:left;vertical-align:middle;white-space:nowrap}");
@@ -92,6 +105,8 @@ describe("InvestmentLedgerPage", () => {
     expect(styles).toContain(".investment-section .section-head{display:block;margin-bottom:var(--space-3)}");
     expect(styles).toContain(".evidence .investment-detail-changes dl,.evidence .investment-detail-supplement{display:block");
     expect(styles).toContain(".investment-detail-line,.investment-detail-fact{display:grid;grid-template-columns:88px minmax(0,1fr)");
+    expect(styles).toContain("@media(prefers-reduced-motion:reduce){.refresh-button[aria-busy=\"true\"] .refresh-ring{animation:none}}");
+    expect(prototype).toContain('placeholder="如 AAPL 或 .US"');
   });
 
   it("独立读取事件和持仓，并保留精确十进制与估值状态", async () => {
@@ -142,6 +157,11 @@ describe("InvestmentLedgerPage", () => {
 
     fireEvent.change(screen.getByLabelText("事件类型"), { target: { value: "trade" } });
     await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("record_type=trade"))).toBe(true));
+
+    const ticker = screen.getByLabelText("标的");
+    expect(ticker).toHaveAttribute("placeholder", "如 AAPL 或 .US");
+    fireEvent.change(ticker, { target: { value: "apl" } });
+    await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("ticker=apl"))).toBe(true));
   });
 
   it("按经济效果展示带符号资产，并让详情入口保持简洁", async () => {
@@ -250,7 +270,7 @@ describe("InvestmentLedgerPage", () => {
     expect(screen.getByText(`以 ${baselineTime} 的记录为基准`)).toBeInTheDocument();
   });
 
-  it("先显示基础持仓，再原位补齐行情、估值和总览", async () => {
+  it("先显示基础持仓，再通过 SSE 原位补齐行情、估值和总览", async () => {
     const complete: Portfolio = {
       total_market_value: "1012.50", total_profit: "12.50", total_profit_rate: "0.0125",
       period_profit: "8.04", period_profit_rate: "0.0080",
@@ -259,33 +279,34 @@ describe("InvestmentLedgerPage", () => {
       }] }],
     };
     let resolveHoldings!: (response: Response) => void;
-    let resolveValuation!: (response: Response) => void;
     const holdingsResponse = new Promise<Response>((resolve) => { resolveHoldings = resolve; });
-    const valuationResponse = new Promise<Response>((resolve) => { resolveValuation = resolve; });
     const fetch = vi.fn((input: string) => {
       if (input.includes("/accounts")) return json({ items: [account] });
       if (input.includes("/investment-portfolio") && input.includes("phase=holdings")) return holdingsResponse;
-      if (input.includes("/investment-portfolio")) return valuationResponse;
       return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
     });
     vi.stubGlobal("fetch", fetch);
 
     render(<InvestmentLedgerPage />);
 
-    await waitFor(() => expect(fetch.mock.calls.filter(([input]) => String(input).includes("/investment-portfolio"))).toHaveLength(2));
+    await waitFor(() => expect(fetch.mock.calls.filter(([input]) => String(input).includes("/investment-portfolio"))).toHaveLength(1));
     await act(async () => { resolveHoldings(await json(holdingsOnly(complete))); });
     const table = await screen.findByRole("table", { name: "当前持仓" });
     expect(within(table).getByText("AAPL.US")).toBeInTheDocument();
     expect(within(table).getByText("10")).toBeInTheDocument();
     expect(within(table).queryByText("101.25 USD")).not.toBeInTheDocument();
 
-    await act(async () => { resolveValuation(await json(complete)); });
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    const stream = MockEventSource.instances[0];
+    expect(new URL(stream.url).pathname).toBe("/api/v1/investment-portfolio/stream");
+    expect(new URL(stream.url).searchParams.get("period")).toBe("24h");
+    await act(async () => { stream.emit("portfolio", { version: 1, portfolio: complete }); });
     expect(await screen.findByText("101.25 USD")).toBeInTheDocument();
     expect(screen.getAllByText("+12.50 USD")).toHaveLength(2);
     expect(screen.getAllByText("1,012.50 USD")).toHaveLength(2);
   });
 
-  it("刷新返回未知行情时保留当前展示的行情、估值和总览", async () => {
+  it("手动刷新只触发服务端刷新，并在 SSE 未知结果中保留当前行情、估值和总览", async () => {
     const complete: Portfolio = {
       total_market_value: "1012.50", total_profit: "12.50", total_profit_rate: "0.0125",
       period_profit: "8.04", period_profit_rate: "0.0080",
@@ -293,30 +314,30 @@ describe("InvestmentLedgerPage", () => {
         ...portfolio.accounts[0].positions[0], period_profit: "8.04", period_profit_rate: "0.0080",
       }] }],
     };
-    let valuationCall = 0;
     const fetch = vi.fn((input: string) => {
       if (input.includes("/accounts")) return json({ items: [account] });
       if (input.includes("/investment-portfolio") && input.includes("phase=holdings")) return json(holdingsOnly(complete));
-      if (input.includes("/investment-portfolio")) {
-        valuationCall += 1;
-        return json(valuationCall === 1 ? complete : holdingsOnly(complete));
-      }
+      if (input.includes("/investment-portfolio/refresh")) return json({ accepted: true }, 202);
       return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
     });
     vi.stubGlobal("fetch", fetch);
 
     render(<InvestmentLedgerPage />);
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    const stream = MockEventSource.instances[0];
+    await act(async () => { stream.emit("portfolio", { version: 1, portfolio: complete }); });
     expect(await screen.findByText("101.25 USD")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "刷新持仓" }));
-    await waitFor(() => expect(valuationCall).toBe(2));
+    await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("/investment-portfolio/refresh"))).toBe(true));
+    await act(async () => { stream.emit("portfolio", { version: 2, portfolio: holdingsOnly(complete) }); });
 
     expect(screen.getByText("101.25 USD")).toBeInTheDocument();
     expect(screen.getAllByText("+12.50 USD")).toHaveLength(2);
     expect(screen.getAllByText("1,012.50 USD")).toHaveLength(2);
   });
 
-  it("持仓页每 10 秒轮询，事件页不启动持仓轮询", async () => {
+  it("持仓页使用 SSE 而不启动定时估值轮询，事件页也不连接持仓流", async () => {
     vi.useFakeTimers();
     const fetch = vi.fn((input: string) => {
       if (input.includes("/accounts")) return json({ items: [account] });
@@ -328,14 +349,38 @@ describe("InvestmentLedgerPage", () => {
     render(<InvestmentLedgerPage />);
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
     const before = fetch.mock.calls.filter(([input]) => String(input).includes("/investment-portfolio")).length;
-    await act(async () => { vi.advanceTimersByTime(10000); await Promise.resolve(); await Promise.resolve(); });
-    expect(fetch.mock.calls.filter(([input]) => String(input).includes("/investment-portfolio")).length).toBeGreaterThan(before);
+    await act(async () => { vi.advanceTimersByTime(30000); await Promise.resolve(); await Promise.resolve(); });
+    expect(fetch.mock.calls.filter(([input]) => String(input).includes("/investment-portfolio")).length).toBe(before);
+    expect(MockEventSource.instances).toHaveLength(1);
 
     cleanup();
     fetch.mockClear();
     render(<InvestmentLedgerPage view="events" />);
-    await act(async () => { vi.advanceTimersByTime(10000); await Promise.resolve(); });
+    await act(async () => { vi.advanceTimersByTime(30000); await Promise.resolve(); });
     expect(fetch.mock.calls.some(([input]) => String(input).includes("/investment-portfolio"))).toBe(false);
+    expect(MockEventSource.instances).toHaveLength(1);
+  });
+
+  it("页面重新可见时重连 SSE，并向服务端请求一次优先刷新", async () => {
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/investment-portfolio/refresh")) return json({ accepted: true }, 202);
+      if (input.includes("/investment-portfolio")) return json(holdingsOnly(portfolio));
+      return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+
+    render(<InvestmentLedgerPage />);
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    fireEvent(document, new Event("visibilitychange"));
+    expect(MockEventSource.instances[0].closed).toBe(true);
+
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    fireEvent(document, new Event("visibilitychange"));
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(2));
+    await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("/investment-portfolio/refresh"))).toBe(true));
   });
 
   it("合并同标的时按成本币种分组，并支持负成本的盈亏率方向", async () => {

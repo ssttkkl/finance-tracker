@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "../investment.css";
-import { fetchInvestmentAccounts, fetchInvestmentEvidence, fetchInvestmentPage, fetchInvestmentPortfolio } from "../api/investmentLedger";
+import { fetchInvestmentAccounts, fetchInvestmentEvidence, fetchInvestmentPage, fetchInvestmentPortfolio, openInvestmentPortfolioStream, requestInvestmentPortfolioRefresh } from "../api/investmentLedger";
 import type { Account, InvestmentEvent, InvestmentEvidence, InvestmentFilters, Portfolio } from "../api/types";
 import { InvestmentEvidenceDetail } from "../components/InvestmentEvidenceDetail";
 import { InvestmentFiltersBar } from "../components/InvestmentFilters";
@@ -76,7 +76,22 @@ function retainLastKnownValuation(previous: Portfolio, incoming: Portfolio): Por
     ...account,
     positions: account.positions.map((position) => {
       const previousPosition = previousPositions.get(positionKey(account.name, position));
-      return previousPosition && !hasCompleteMarketValue(position) ? previousPosition : position;
+      return previousPosition && !hasCompleteMarketValue(position) ? {
+        ...position,
+        current_price: previousPosition.current_price,
+        market_value: previousPosition.market_value,
+        profit: previousPosition.profit,
+        quote_status: previousPosition.quote_status,
+        quote_reason: previousPosition.quote_reason,
+        quote_currency: previousPosition.quote_currency,
+        display_currency: previousPosition.display_currency,
+        display_market_value: previousPosition.display_market_value,
+        fx_rate: previousPosition.fx_rate,
+        fx_status: previousPosition.fx_status,
+        fx_reason: previousPosition.fx_reason,
+        period_profit: position.period_profit ?? previousPosition.period_profit,
+        period_profit_rate: position.period_profit_rate ?? previousPosition.period_profit_rate,
+      } : position;
     }),
   }));
   return {
@@ -107,7 +122,7 @@ export function InvestmentLedgerPage({ view = "holdings", onModalStateChange }: 
   const [portfolioError, setPortfolioError] = useState<string | undefined>();
   const [displayOptions, setDisplayOptions] = useState<HoldingDisplayOptions>(readDisplayOptions);
   const [portfolioRefreshing, setPortfolioRefreshing] = useState(false);
-  const [portfolioRefresh, setPortfolioRefresh] = useState(0);
+  const [portfolioPageVisible, setPortfolioPageVisible] = useState(() => document.visibilityState !== "hidden");
   const [selected, setSelected] = useState<InvestmentEvent | null>(null);
   const [evidence, setEvidence] = useState<InvestmentEvidence | null>(null);
   const [evidenceState, setEvidenceState] = useState<"loading" | "ready" | "error">("loading");
@@ -158,6 +173,13 @@ export function InvestmentLedgerPage({ view = "holdings", onModalStateChange }: 
     });
   };
   loadMoreRef.current = loadMore;
+  const refreshPortfolio = () => {
+    if (isEvents) return;
+    setPortfolioRefreshing(true); setPortfolioError(undefined);
+    requestInvestmentPortfolioRefresh(displayOptions.currency || undefined, displayOptions.period).catch((error: unknown) => {
+      setPortfolioError(messageFor(error)); setPortfolioRefreshing(false);
+    });
+  };
 
   useEffect(() => loadAccounts(), []);
   useEffect(() => {
@@ -166,7 +188,7 @@ export function InvestmentLedgerPage({ view = "holdings", onModalStateChange }: 
     return () => pageAbortController.current?.abort();
   }, [isEvents, filters.date_from, filters.date_to, filters.account_id, filters.record_type, filters.ticker]);
   useEffect(() => {
-    if (isEvents) return undefined;
+    if (isEvents || !portfolioPageVisible) return undefined;
     portfolioAbortController.current?.abort();
     const controller = new AbortController(); portfolioAbortController.current = controller;
     const requestId = ++portfolioRequestId.current;
@@ -180,6 +202,23 @@ export function InvestmentLedgerPage({ view = "holdings", onModalStateChange }: 
       setPortfolioStatus("loading");
     }
     setPortfolioRefreshing(true); setPortfolioError(undefined);
+    const stream = openInvestmentPortfolioStream(displayOptions.currency || undefined, displayOptions.period, {
+      onPortfolio: (value) => {
+        if (requestId !== portfolioRequestId.current) return;
+        lastGoodCurrency.current = displayOptions.currency;
+        const shouldRetain = lastPortfolioScope.current === scope;
+        lastPortfolioScope.current = scope;
+        setPortfolio((previous) => shouldRetain && previous ? retainLastKnownValuation(previous, value) : value);
+        setPortfolioStatus("ready"); setPortfolioRefreshing(false); setPortfolioError(undefined);
+        try { window.localStorage.setItem(displayOptionsKey, JSON.stringify(displayOptions)); } catch (_error) { /* 浏览器存储不可用时仍保留当前页偏好。 */ }
+      },
+      onRefreshError: () => {
+        if (requestId !== portfolioRequestId.current) return;
+        setPortfolioError(messageFor(new Error("api_request_failed")));
+        setPortfolioStatus(hasCompatiblePortfolio || holdingsReady ? "ready" : "error");
+        setPortfolioRefreshing(false);
+      },
+    });
     fetchInvestmentPortfolio(displayOptions.currency || undefined, displayOptions.period, controller.signal, "holdings").then((value) => {
       if (requestId === portfolioRequestId.current) {
         holdingsReady = true;
@@ -191,43 +230,22 @@ export function InvestmentLedgerPage({ view = "holdings", onModalStateChange }: 
         setPortfolioError(messageFor(error));
       }
     });
-    fetchInvestmentPortfolio(displayOptions.currency || undefined, displayOptions.period, controller.signal).then((value) => {
-      if (requestId === portfolioRequestId.current) {
-        lastGoodCurrency.current = displayOptions.currency;
-        const shouldRetain = lastPortfolioScope.current === scope;
-        lastPortfolioScope.current = scope;
-        setPortfolio((previous) => shouldRetain && previous ? retainLastKnownValuation(previous, value) : value);
-        setPortfolioStatus("ready"); setPortfolioRefreshing(false);
-        try { window.localStorage.setItem(displayOptionsKey, JSON.stringify(displayOptions)); } catch (_error) { /* 浏览器存储不可用时仍保留当前页偏好。 */ }
-      }
-    }).catch((error: unknown) => {
-      if (!controller.signal.aborted && requestId === portfolioRequestId.current) {
-        setPortfolioError(messageFor(error)); setPortfolioStatus(hasCompatiblePortfolio || holdingsReady ? "ready" : "error"); setPortfolioRefreshing(false);
-        if (error instanceof Error && error.message === "valuation.invalid_display_currency") {
-          setDisplayOptions((current) => ({ ...current, currency: lastGoodCurrency.current }));
-        }
-      }
-    });
-    return () => controller.abort();
-  }, [isEvents, displayOptions.currency, displayOptions.period, portfolioRefresh]);
+    return () => { controller.abort(); stream.close(); };
+  }, [isEvents, portfolioPageVisible, displayOptions.currency, displayOptions.period]);
   useEffect(() => {
     if (isEvents) return undefined;
-    let timer: number | undefined;
-    const stop = () => { if (timer !== undefined) window.clearInterval(timer); timer = undefined; };
-    const start = () => {
-      stop();
-      if (document.visibilityState === "visible") {
-        timer = window.setInterval(() => setPortfolioRefresh((value) => value + 1), 10000);
+    const onVisibilityChange = () => {
+      const visible = document.visibilityState !== "hidden";
+      setPortfolioPageVisible(visible);
+      if (!visible) {
+        setPortfolioRefreshing(false);
+      } else {
+        refreshPortfolio();
       }
     };
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") setPortfolioRefresh((value) => value + 1);
-      start();
-    };
-    start();
     document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => { stop(); document.removeEventListener("visibilitychange", onVisibilityChange); };
-  }, [isEvents]);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [isEvents, displayOptions.currency, displayOptions.period]);
   useEffect(() => {
     if (isEvents) return undefined;
     try {
@@ -258,5 +276,5 @@ export function InvestmentLedgerPage({ view = "holdings", onModalStateChange }: 
   const retryMore = () => loadMoreRef.current(true);
 
   const displayedPortfolio = portfolio ?? holdings;
-  return <><section className="ledger investment-workbench" id={isEvents ? "investment-events" : "investment-holdings"} aria-label={isEvents ? "投资事件" : "当前持仓"}><header className="page-header"><div><h1>{isEvents ? "投资事件" : "当前持仓"}</h1></div></header>{accountsError ? <div className="status-view status-error" role="alert"><p>暂时无法读取账户，请重试。</p><button type="button" onClick={loadAccounts}>重试</button></div> : null}{isEvents ? <><InvestmentFiltersBar filters={filters} accounts={accounts} onChange={setFilters} /><section className="investment-section" aria-labelledby="investment-events-title"><div className="section-head"><div><h2 id="investment-events-title">投资事件</h2></div><p>{eventStatus === "ready" ? `已加载 ${items.length} 条` : "按筛选读取"}</p></div>{eventStatus === "loading" ? <><InvestmentTable items={[]} loading onEvidence={openEvidence} /><InvestmentStatusView kind="loading" /></> : null}{eventStatus === "empty" ? <InvestmentStatusView kind="empty" /> : null}{eventStatus === "error" ? <InvestmentStatusView kind="error" message={eventError} onRetry={resetAndLoad} /> : null}{eventStatus === "ready" ? <><InvestmentTable items={items} onEvidence={openEvidence} /><LoadMoreControl hasMore={Boolean(nextCursor)} loading={appendLoading} error={appendError} onLoadMore={appendError ? retryMore : loadMore} /></> : null}</section></> : <InvestmentHoldings portfolio={displayedPortfolio} accounts={accounts} loading={portfolioStatus === "loading" && !displayedPortfolio} refreshing={portfolioRefreshing} error={portfolioError} options={displayOptions} onOptionsChange={setDisplayOptions} onRetry={() => setPortfolioRefresh((value) => value + 1)} />}</section>{selected ? createPortal(<InvestmentEvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} onClose={closeEvidence} onRetry={retryEvidence} />, document.body) : null}</>;
+  return <><section className="ledger investment-workbench" id={isEvents ? "investment-events" : "investment-holdings"} aria-label={isEvents ? "投资事件" : "当前持仓"}><header className="page-header"><div><h1>{isEvents ? "投资事件" : "当前持仓"}</h1></div></header>{accountsError ? <div className="status-view status-error" role="alert"><p>暂时无法读取账户，请重试。</p><button type="button" onClick={loadAccounts}>重试</button></div> : null}{isEvents ? <><InvestmentFiltersBar filters={filters} accounts={accounts} onChange={setFilters} /><section className="investment-section" aria-labelledby="investment-events-title"><div className="section-head"><div><h2 id="investment-events-title">投资事件</h2></div><p>{eventStatus === "ready" ? `已加载 ${items.length} 条` : "按筛选读取"}</p></div>{eventStatus === "loading" ? <><InvestmentTable items={[]} loading onEvidence={openEvidence} /><InvestmentStatusView kind="loading" /></> : null}{eventStatus === "empty" ? <InvestmentStatusView kind="empty" /> : null}{eventStatus === "error" ? <InvestmentStatusView kind="error" message={eventError} onRetry={resetAndLoad} /> : null}{eventStatus === "ready" ? <><InvestmentTable items={items} onEvidence={openEvidence} /><LoadMoreControl hasMore={Boolean(nextCursor)} loading={appendLoading} error={appendError} onLoadMore={appendError ? retryMore : loadMore} /></> : null}</section></> : <InvestmentHoldings portfolio={displayedPortfolio} accounts={accounts} loading={portfolioStatus === "loading" && !displayedPortfolio} refreshing={portfolioRefreshing} error={portfolioError} options={displayOptions} onOptionsChange={setDisplayOptions} onRetry={refreshPortfolio} />}</section>{selected ? createPortal(<InvestmentEvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} onClose={closeEvidence} onRetry={retryEvidence} />, document.body) : null}</>;
 }

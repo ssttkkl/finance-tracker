@@ -9,6 +9,7 @@
 .refresh-ring{display:inline-grid;place-items:center;width:16px;height:16px;font:600 16px/1 var(--font-mono);transform-origin:center}
 .refresh-button[aria-busy="true"] .refresh-ring{animation:refresh-spin 700ms linear infinite}
 @keyframes refresh-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.refresh-button[aria-busy="true"] .refresh-ring{animation:none}}
 .display-options{margin-bottom:var(--space-3);border:var(--rule-1) solid var(--color-rule);background:var(--color-paper-raised)}
 .display-options summary{display:flex;align-items:center;min-height:48px;padding:8px 12px;cursor:pointer;list-style:none}
 .display-options summary::-webkit-details-marker{display:none}

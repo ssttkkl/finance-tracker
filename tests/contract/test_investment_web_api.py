@@ -10,7 +10,7 @@ def _add_events(runtime):
     _add_investment_events(runtime)
 
 
-def _client(runtime, portfolio_service=None):
+def _client(runtime, portfolio_service=None, portfolio_refresh=None):
     from ft.application.investment_web_queries import InvestmentLedgerQueryService
     from ft.application.web_queries import CashLedgerQueryService
     from ft.web.app import create_app
@@ -19,6 +19,7 @@ def _client(runtime, portfolio_service=None):
         CashLedgerQueryService(runtime.sessions, runtime.workspace_id),
         investment_service=InvestmentLedgerQueryService(runtime.sessions, runtime.workspace_id),
         portfolio_service=portfolio_service,
+        portfolio_refresh=portfolio_refresh,
     ))
 
 
@@ -50,6 +51,18 @@ def test_investment_api_does_not_leak_cross_workspace_event(cash_web_runtime):
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "not_found"
     assert "investment-003" not in response.text
+
+
+@pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_investment_api_filters_ticker_by_case_insensitive_literal_fragment(request, runtime_name):
+    runtime = request.getfixturevalue(runtime_name)
+    _add_events(runtime)
+    client = _client(runtime)
+
+    response = client.get("/api/v1/investment-events", params={"ticker": "Pl.Us"})
+
+    assert response.status_code == 200
+    assert [item["record_id"] for item in response.json()["items"]] == ["investment-003"]
 
 
 def test_investment_api_rejects_cursor_from_an_older_data_version(cash_web_runtime):
@@ -151,3 +164,42 @@ def test_investment_portfolio_holdings_phase_skips_valuation_service(cash_web_ru
     assert position["ticker"] == "AAPL.US"
     assert position["shares"] == "10"
     assert position["current_price"] is None
+
+
+@pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_investment_portfolio_refresh_api_queues_the_selected_scope_and_sse_frames_decimal_portfolio(request, runtime_name):
+    from decimal import Decimal
+
+    from ft.application.portfolio_refresh import PortfolioStreamUpdate
+    from ft.domain.investment import PortfolioAccountDTO, PortfolioDTO, PortfolioPositionDTO
+    from ft.web.routes import portfolio_sse_frame
+
+    class PortfolioRefreshStub:
+        def __init__(self):
+            self.requested = None
+
+        def request_refresh(self, **kwargs):
+            self.requested = kwargs
+
+    refresh = PortfolioRefreshStub()
+    client = _client(request.getfixturevalue(runtime_name), portfolio_refresh=refresh)
+
+    response = client.post("/api/v1/investment-portfolio/refresh", params={
+        "display_currency": "cny", "period": "30d", "timezone": "Asia/Shanghai",
+    })
+    snapshot = PortfolioDTO((PortfolioAccountDTO("投资账户", "USD", (
+        PortfolioPositionDTO(
+            ticker="AAPL.US", shares=Decimal("2"), total_cost=Decimal("10"), cost_currency="USD",
+            is_cash=False, current_price=Decimal("11"), market_value=Decimal("22"), profit=Decimal("12"),
+        ),
+    )),), total_market_value=Decimal("22"))
+    frame = portfolio_sse_frame(PortfolioStreamUpdate(7, "portfolio", snapshot))
+
+    assert response.status_code == 202
+    assert response.json() == {"accepted": True}
+    assert refresh.requested == {
+        "display_currency": "cny", "period": "30d", "timezone": "Asia/Shanghai",
+    }
+    assert frame.startswith("id: 7\nevent: portfolio\ndata: ")
+    assert '"market_value":"22"' in frame
+    assert frame.endswith("\n\n")

@@ -1,12 +1,28 @@
 """收支账本投影 API 路由。"""
+import json
+
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from ft.application.web_queries import ProjectionUnavailableError, ProjectionUpdatedError
 from ft.application.investment_web_queries import InvestmentCursorUpdatedError
 from ft.domain.application import RelationImpactRequired
 from ft.web.serialization import error_payload, json_value
 
-def cash_router(service, mutation_service=None, investment_service=None, portfolio_service=None):
+
+def portfolio_sse_frame(update) -> str:
+    """Serialize one coordinator update using the SSE event framing contract."""
+    if update.kind == "heartbeat":
+        return ": keepalive\n\n"
+    payload = {"version": update.version}
+    if update.portfolio is not None:
+        payload["portfolio"] = json_value(update.portfolio)
+    return (
+        f"id: {update.version}\n"
+        f"event: {update.kind}\n"
+        f"data: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}\n\n"
+    )
+
+def cash_router(service, mutation_service=None, investment_service=None, portfolio_service=None, portfolio_refresh=None):
     router=APIRouter(prefix="/api/v1")
     @router.get("/accounts")
     def accounts(view: str="cash"):
@@ -58,6 +74,31 @@ def cash_router(service, mutation_service=None, investment_service=None, portfol
         except ValueError as exc:
             code = getattr(exc, "code", "invalid_filter")
             return JSONResponse(error_payload(code, "展示币种无效。" if code == "valuation.invalid_display_currency" else "持仓估值参数无效。"),400)
+    @router.get("/investment-portfolio/stream")
+    def investment_portfolio_stream(request: Request, display_currency:str|None=None, period:str="24h", timezone:str|None=None):
+        if portfolio_refresh is None:
+            return JSONResponse(error_payload("portfolio.unavailable", "当前 Web 未启用持仓实时更新。"), 503)
+        try:
+            last_version = int(request.headers.get("last-event-id", ""))
+        except ValueError:
+            last_version = None
+
+        def events():
+            for update in portfolio_refresh.subscribe(
+                display_currency=display_currency, period=period, timezone=timezone, last_version=last_version,
+            ):
+                yield portfolio_sse_frame(update)
+
+        return StreamingResponse(
+            events(), media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+    @router.post("/investment-portfolio/refresh", status_code=202)
+    def refresh_investment_portfolio(display_currency:str|None=None, period:str="24h", timezone:str|None=None):
+        if portfolio_refresh is None:
+            return JSONResponse(error_payload("portfolio.unavailable", "当前 Web 未启用持仓实时更新。"), 503)
+        portfolio_refresh.request_refresh(display_currency=display_currency, period=period, timezone=timezone)
+        return {"accepted": True}
     if mutation_service is not None:
         @router.get("/cash-ledger/options")
         def options():

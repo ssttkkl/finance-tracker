@@ -275,7 +275,7 @@ class PortfolioQueryService:
 
     def __init__(
         self, repository, valuation: ValuationService, *, fx_rates=None,
-        query_deadline_seconds: float = 2.0, monotonic=None, clock=None,
+        query_deadline_seconds: float | None = 2.0, monotonic=None, clock=None,
     ):
         self._repository = repository
         self._valuation = valuation
@@ -319,13 +319,14 @@ class PortfolioQueryService:
 
     def get_portfolio(
         self, *, display_currency: str | None = None, period: str = "24h", timezone: str | None = None,
+        on_update=None,
     ) -> PortfolioDTO:
         display = validate_display_currency(display_currency)
         clock_now = self._clock()
         if clock_now.tzinfo is None:
             raise ValueError("portfolio clock must be timezone-aware")
         _period_bounds(clock_now, period, timezone)
-        deadline = self._monotonic() + self._query_deadline_seconds
+        deadline = None if self._query_deadline_seconds is None else self._monotonic() + self._query_deadline_seconds
         raw = self._repository.load_portfolio()
         configured = {item.upper() for item in raw.get("configured_currencies", ())}
         pending_accounts = []
@@ -375,7 +376,7 @@ class PortfolioQueryService:
         historical_quotes = _HistoricalQuotePrefetch(
             self._valuation,
             self._historical_quote_requests(period_context, base_accounts)
-            if self._monotonic() < deadline else (),
+            if deadline is None or self._monotonic() < deadline else (),
             deadline=deadline,
             monotonic=self._monotonic,
         )
@@ -446,6 +447,19 @@ class PortfolioQueryService:
                     fx_reason=fx_reason,
                 ))
             accounts.append(PortfolioAccountDTO(name, currency, tuple(items)))
+        total_market_value, total_profit, total_profit_rate = self._current_totals(
+            accounts, display_currency=display,
+        )
+        if callable(on_update):
+            try:
+                on_update(PortfolioDTO(
+                    accounts=tuple(accounts),
+                    total_market_value=total_market_value,
+                    total_profit=total_profit,
+                    total_profit_rate=total_profit_rate,
+                ))
+            except Exception:
+                pass
         period_positions, period_profit, period_rate, period_baselines = self._period_performance(
             accounts, context=period_context, historical_quotes=historical_quotes, deadline=deadline,
         )
@@ -464,9 +478,6 @@ class PortfolioQueryService:
                 ),
             )
             for account in accounts
-        )
-        total_market_value, total_profit, total_profit_rate = self._current_totals(
-            accounts, display_currency=display,
         )
         return PortfolioDTO(
             accounts=accounts,
@@ -718,7 +729,7 @@ class PortfolioQueryService:
         rate = None if total_market == 0 else total_profit / total_market
         return total_market, total_profit, rate
 
-    def _quote_requests(self, requests, deadline: float):
+    def _quote_requests(self, requests, deadline: float | None):
         grouped = defaultdict(list)
         for request_key, ref in requests.items():
             grouped[request_key[0]].append((request_key, ref))
@@ -733,20 +744,20 @@ class PortfolioQueryService:
             try:
                 batch = self._valuation.quote_many(
                     [ref for _, ref in grouped_items],
-                    timeout=max(deadline - self._monotonic(), 0),
+                    timeout=None if deadline is None else max(deadline - self._monotonic(), 0),
                 )
             except Exception:
                 batch = None
             completed.put((grouped_items, batch))
 
-        while pending and deadline > self._monotonic():
+        while pending and (deadline is None or deadline > self._monotonic()):
             grouped_items = pending.pop(0)
             Thread(target=read_group, args=(grouped_items,), daemon=True).start()
 
         in_flight = len(grouped) - len(pending)
         while in_flight:
-            remaining = max(deadline - self._monotonic(), 0)
-            if remaining <= 0:
+            remaining = None if deadline is None else max(deadline - self._monotonic(), 0)
+            if remaining is not None and remaining <= 0:
                 break
             try:
                 grouped_items, batch = completed.get(timeout=remaining)
