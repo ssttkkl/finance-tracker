@@ -1,5 +1,6 @@
 """Investment command and portfolio DTOs."""
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 
 
@@ -22,6 +23,13 @@ class InvestmentCommandDTO:
 
 
 @dataclass(frozen=True)
+class PortfolioPeriodBaselineDTO:
+    account: str
+    ticker: str
+    occurred_at: datetime
+
+
+@dataclass(frozen=True)
 class PortfolioPositionDTO:
     ticker: str
     shares: Decimal
@@ -34,11 +42,22 @@ class PortfolioPositionDTO:
     quote_status: str | None = None
     quote_reason: str | None = None
     quote_currency: str | None = None
+    quote_observed_at: datetime | None = None
+    quote_session: str | None = None
     display_currency: str | None = None
     display_market_value: Decimal | None = None
+    # USD-normalized market value used for cross-currency position weights.
+    # This is a read-model field; the ledger's native market value is unchanged.
+    usd_market_value: Decimal | None = None
     fx_rate: Decimal | None = None
     fx_status: str | None = None
     fx_reason: str | None = None
+    period_profit: Decimal | None = None
+    period_profit_rate: Decimal | None = None
+    period_baselines: tuple[PortfolioPeriodBaselineDTO, ...] = ()
+    # Optional instrument name sourced from imported statement metadata. This is
+    # presentation-only and never participates in ledger or valuation math.
+    display_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -51,3 +70,9 @@ class PortfolioAccountDTO:
 @dataclass(frozen=True)
 class PortfolioDTO:
     accounts: tuple[PortfolioAccountDTO, ...]
+    total_market_value: Decimal | None = None
+    total_profit: Decimal | None = None
+    total_profit_rate: Decimal | None = None
+    period_profit: Decimal | None = None
+    period_profit_rate: Decimal | None = None
+    period_baselines: tuple[PortfolioPeriodBaselineDTO, ...] = ()
