@@ -1,0 +1,6 @@
+interface:
+  display_name: "支付宝账单导出"
+  short_description: "按时间范围申请并保存支付宝交易流水证明"
+  default_prompt: "使用 $alipay-bill 导出支付宝交易流水证明，时间范围默认最近三个月，不执行转交。"
+policy:
+  allow_implicit_invocation: true
