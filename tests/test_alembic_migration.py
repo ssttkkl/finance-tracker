@@ -37,6 +37,8 @@ def test_repository_has_clean_linear_revisions():
             "20260807_25_cash_ledger_management.py",
             "20260811_26_cash_projection_lookup_indexes.py",
             "20260812_27_cash_categories.py",
+            "20260813_28_cash_category_lookup_index.py",
+            "20260813_29_cash_category_path_index.py",
         ]
 
 

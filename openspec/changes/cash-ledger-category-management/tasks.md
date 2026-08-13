@@ -17,6 +17,7 @@
 - [x] 3.2 先增加失败测试，覆盖旧 `category` 隐式依赖、一次性数据重建、其他财务字段保留、`manual_overrides` 清理、来源快照保留和投影重建。
 - [x] 3.3 建立 SQLite 与真实 PostgreSQL 共享契约夹具，覆盖 5 层树、同级规范化重名、移动子树、工作区隔离、删除并发、关系冲突和批量版本失效。
 - [x] 3.4 为 Web 建立失败测试与可访问性断言，覆盖树键盘操作、按需错误、删除确认、父分类筛选、详情修改、显式选择、筛选清空选择和批量失败。
+- [x] 3.5 将新增分类目录、分类筛选、删除影响、单笔 / 批量分类及 Web API 的性能边界映射到固定规模夹具、查询次数、P95 响应时间和 RSS 增量门禁。
 
 ## 4. 构建（测试先行）
 
@@ -30,6 +31,7 @@
 - [x] 4.8 实现分类目录、删除影响、单笔 / 批量分类和父分类后代筛选 API；移除旧自由文本分类请求、响应和筛选兼容路径。
 - [x] 4.9 以已批准原型实现 `/cash-categories` 和一级导航，复用现有 Web token 与组件，不新增依赖；支持桌面树 + 编辑区和移动列表 + 编辑抽屉。
 - [x] 4.10 在收支账本实现分类列、树筛选、详情分类、显式行选择和只包含“修改分类 / 取消选择”的批量栏，并保证用户正常状态无实现说明。
+- [x] 4.11 在失败性能测试之后，消除分类目录列表的节点级 N+1，并确保分类筛选、删除影响和批量分类使用集合查询 / 写入；同时补充分类引用与投影路径索引。
 
 ## 5. 审查
 
@@ -47,6 +49,8 @@
 - [x] 6.5 运行 Web Vitest、类型检查、生产构建、实现术语静态搜索和 `git diff --check`。
 - [x] 6.6 运行生产预览与 Playwright，覆盖主流程、错误 / 空 / 加载、删除并发、批量版本失效、键盘、焦点恢复及 320、375、390、414、768、1440 px。
 - [x] 6.7 运行 `openspec validate --all --strict`、`openspec doctor` 和适用性能 / 安全检查，并记录当前 `HEAD`、比较基线、实际命令、结果和残余风险。
+- [x] 6.8 运行固定规模性能门禁：1,000 个分类节点、10,000 条流水、100 个批量投影和 10,000 条删除影响引用；SQLite 与真实 PostgreSQL 均验证查询次数、P95 响应时间和 RSS 增量。
+- [x] 6.9 对每个新增分类 API 运行路由层性能门禁，并在发现查询退化、超时或内存超预算时回写 design、修复后重跑双后端矩阵。
 
 ### 当前规划与原型证据
 
@@ -82,3 +86,17 @@
 - OpenSpec / 工程卫生：`openspec validate --all --strict`：20 passed；`openspec doctor`：通过；`git diff --check`：通过；生产代码可见文案实现术语静态搜索：0 命中。当前 `HEAD` 与比较基线均为 `77712be548101d3fb7ee1020c3bc313cd4a4f12a`。
 - PostgreSQL 双后端：已完成。使用临时 `postgres:16-alpine` 容器和数据库 `finance_tracker_test`，通过 `FT_TEST_POSTGRES_URL` 与 `FT_REQUIRE_TEST_POSTGRES=1` 显式运行迁移、分类 Application Service、分类 API、投影 parity、Web API、关系、PostgreSQL adapter 和 statement import 矩阵：194 passed、1 个既有 `httpx` / Starlette 弃用警告；验证后已停止并移除临时容器，不接触其他 PostgreSQL 容器或真实账本。
 - 发布清单复核：已完成。未执行提交、推送、PR、合并、部署、真实数据库迁移或真实账本写入；当前工作树保留全部实现和验证证据，等待用户明确授权后再进入交付动作。
+
+### 性能门禁证据（2026-08-13）
+
+- 失败先行：新增性能测试先观察到 1,000 个分类目录触发 1,004 条 SQL，随后复用单次目录读取修复节点级 N+1；索引测试先观察到流水分类索引和投影路径索引缺失，随后分别加入 `20260813_28`、`20260813_29` 迁移。
+- 固定夹具：1,000 个分类节点、10,000 条流水 / 投影、最多 5 层树、100 个批量投影、10,000 条直接分类引用；仅使用去标识化合成数据和临时工作区。
+- SQLite：`uv run pytest -q tests/test_cash_category_performance.py`：10 passed、10 skipped；分类目录、删除影响、确认删除、父分类筛选、批量分类、分类管理 API、分类筛选 / evidence / 单笔 / 批量 API 均通过查询次数、P95 响应时间和适用 RSS 门禁。
+- PostgreSQL：使用临时 `postgres:16-alpine` 和数据库 `finance_tracker_test`，配置 `FT_TEST_POSTGRES_URL`、`FT_REQUIRE_TEST_POSTGRES=1` 后运行同一命令：20 passed、1 个既有 `httpx` / Starlette 弃用警告；验证后已停止并移除临时容器，不接触其他 PostgreSQL 容器或真实账本。
+- 代码与迁移：`CashCategoryService.list()` 从每节点查询降为一次目录读取；新增 `cash_transactions(workspace_id, category_id)` 和 `cash_projections(workspace_id, dataset_id, category_path)` 索引，SQLite / PostgreSQL 迁移等价。
+- 额外回归修复：新增 `20260813_28`、`20260813_29` 后同步运行时 `SCHEMA_REVISION` 到 `20260813_29`，并更新迁移线性版本测试；否则显式迁移后的运行时会被安全地判定为 schema 过期。
+- 最终 Python 受影响回归：`uv run pytest -q tests/test_cash_category_performance.py tests/test_cash_category_management.py tests/test_cash_category_api.py tests/test_cash_category_migration.py tests/test_alembic_migration.py`：34 passed、12 skipped、1 个既有 `httpx` / Starlette 弃用警告。
+- 最终完整 Python 回归：首次运行 `1320 passed、165 skipped、1 failed`，唯一失败为既有 100,000 条财富 SQLite P95 在机器抖动下为 5.241 s，重跑同一测试为 `cold_p95_ns=4.187s` 且通过；未发现分类相关失败。
+- 最终 Web 回归：Vitest 53 passed；生产构建通过；Playwright E2E 11 passed；视觉 12 passed；生产预览 3 passed。
+- 最终 OpenSpec / 工程卫生：`openspec validate --all --strict`：20 passed；`openspec doctor`：通过；`git diff --check`：通过。
+- 本轮比较基线：`0ace75c feat: add cash category management and batch classification`；性能补丁未改变用户可见分类交互和接口字段合同。

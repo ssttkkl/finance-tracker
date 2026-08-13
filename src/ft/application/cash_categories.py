@@ -76,11 +76,21 @@ class CashCategoryService:
             current = categories.get(current.parent_id) if current.parent_id else None
         return list(reversed(result))
 
-    def _item(self, session, category: CashCategoryModel, *, revision: int | None = None) -> dict:
-        all_categories = {
-            row.id: row
-            for row in session.scalars(select(CashCategoryModel).where(CashCategoryModel.workspace_id == self._workspace_id)).all()
-        }
+    def _item(
+        self,
+        session,
+        category: CashCategoryModel,
+        *,
+        revision: int | None = None,
+        all_categories: dict[str, CashCategoryModel] | None = None,
+    ) -> dict:
+        if all_categories is None:
+            all_categories = {
+                row.id: row
+                for row in session.scalars(select(CashCategoryModel).where(
+                    CashCategoryModel.workspace_id == self._workspace_id,
+                )).all()
+            }
         return {
             "id": category.id,
             "parent_id": category.parent_id,
@@ -108,7 +118,14 @@ class CashCategoryService:
                     ordered.append(row)
                     visit(row.id)
             visit(None)
-            return {"revision": int(state.revision), "items": [self._item(session, row, revision=state.revision) for row in ordered]}
+            all_categories = {row.id: row for row in rows}
+            return {
+                "revision": int(state.revision),
+                "items": [
+                    self._item(session, row, revision=state.revision, all_categories=all_categories)
+                    for row in ordered
+                ],
+            }
 
     def create(self, *, name: str, parent_id: str | None = None, description: str | None = None, expected_revision: int | None = None) -> dict:
         normalized_name, normalized = _normalize_name(name)

@@ -206,6 +206,7 @@ class CashTransactionModel(Base):
         ),
         Index("ix_cash_transactions_workspace_date", "workspace_id", "occurred_at"),
         Index("ix_cash_transactions_workspace_account", "workspace_id", "account_id"),
+        Index("ix_cash_transactions_workspace_category", "workspace_id", "category_id"),
         Index("ix_cash_transactions_workspace_source_record", "workspace_id", "source_type", "record_id"),
     )
 
@@ -299,6 +300,7 @@ class CashProjectionModel(Base):
         Index("ix_cash_projections_currency", "workspace_id", "dataset_id", "currency"),
         Index("ix_cash_projections_economic_type", "workspace_id", "dataset_id", "economic_type"),
         Index("ix_cash_projections_category_id", "workspace_id", "dataset_id", "category_id"),
+        Index("ix_cash_projections_category_path", "workspace_id", "dataset_id", "category_path"),
         Index("ix_cash_projections_root", "workspace_id", "dataset_id", "root_cash_transaction_id"),
     )
 
