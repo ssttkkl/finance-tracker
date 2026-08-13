@@ -88,9 +88,11 @@ class AccessService:
             if row: session.delete(row)
 
     def state(self, token: str | None) -> dict:
-        _, user, session = self._session(token)
-        try: return self._state_for(user, session)
-        finally: _.close()
+        db, user, session = self._session(token)
+        try:
+            return self._state_for(user, session, db)
+        finally:
+            db.close()
 
     def select_workspace(self, token: str | None, workspace_id: str) -> dict:
         db, user, login = self._session(token)
@@ -105,33 +107,47 @@ class AccessService:
     def create_workspace(self, token: str | None, name: str) -> dict:
         name = name.strip()
         if not name or len(name) > 255: raise AccessError("invalid_workspace")
-        db, user, _ = self._session(token); db.close()
+        db, user, _ = self._session(token)
+        try:
+            user_id = user.id
+        finally:
+            db.close()
         workspace_id = str(uuid4())
         with self._sessions.begin() as session:
             session.add(WorkspaceModel(id=workspace_id, name=name))
-            session.add(WorkspaceMembershipModel(workspace_id=workspace_id, user_id=user.id, role="admin"))
-            session.scalar(select(UserSessionModel).where(UserSessionModel.token_digest == _digest(token))).active_workspace_id = workspace_id
+            session.flush()
+            session.add(WorkspaceMembershipModel(workspace_id=workspace_id, user_id=user_id, role="admin"))
+            session.flush()
+            session.scalar(
+                select(UserSessionModel).where(UserSessionModel.token_digest == _digest(token))
+            ).active_workspace_id = workspace_id
         return self.state(token)
 
     def create_invitation(self, token: str | None, role: str) -> dict:
         db, user, login = self._session(token)
-        try: workspace_id = self._active_membership(db, user.id, login, {"admin"}).workspace_id
+        try:
+            workspace_id = self._active_membership(db, user.id, login, {"admin"}).workspace_id
+            user_id = user.id
         finally: db.close()
         if role not in {"editor", "viewer"}: raise AccessError("invalid_role")
         raw = token_urlsafe(32)
         with self._sessions.begin() as session:
-            session.add(WorkspaceInvitationModel(workspace_id=workspace_id, role=role, token_digest=_digest(raw), expires_at=_now()+timedelta(days=7), created_by_user_id=user.id))
+            session.add(WorkspaceInvitationModel(workspace_id=workspace_id, role=role, token_digest=_digest(raw), expires_at=_now()+timedelta(days=7), created_by_user_id=user_id))
         return {"token": raw, "role": role, "expires_in_days": 7}
 
     def accept_invitation(self, token: str | None, invitation_token: str) -> dict:
-        db, user, _ = self._session(token); db.close()
+        db, user, _ = self._session(token)
+        try:
+            user_id = user.id
+        finally:
+            db.close()
         with self._sessions.begin() as session:
             invitation = session.scalar(select(WorkspaceInvitationModel).where(WorkspaceInvitationModel.token_digest == _digest(invitation_token)))
             if invitation is None or invitation.accepted_at is not None or invitation.expires_at <= _now():
                 raise AccessError("invalid_invitation")
-            membership = session.get(WorkspaceMembershipModel, {"workspace_id": invitation.workspace_id, "user_id": user.id})
+            membership = session.get(WorkspaceMembershipModel, {"workspace_id": invitation.workspace_id, "user_id": user_id})
             if membership is None:
-                session.add(WorkspaceMembershipModel(workspace_id=invitation.workspace_id, user_id=user.id, role=invitation.role))
+                session.add(WorkspaceMembershipModel(workspace_id=invitation.workspace_id, user_id=user_id, role=invitation.role))
             invitation.accepted_at = _now()
             session.scalar(select(UserSessionModel).where(UserSessionModel.token_digest == _digest(token))).active_workspace_id = invitation.workspace_id
         return self.state(token)

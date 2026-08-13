@@ -19,6 +19,7 @@
 - 角色内部值采用 `admin`、`editor`、`viewer`，面向使用者分别展示为「管理员」、「可编辑」、「仅可查看」。可有多个 `admin`；第一版不允许通过 API 降级或移除最后一个 admin，防止工作区失管。
 - 邀请表仅保存 SHA-256 token 摘要，链接 token 使用 URL-safe 随机值；有效期 7 天、只可接受一次。邀请角色仅限 `editor` 或 `viewer`，admin 只能由其他 admin 升级成员角色。
 - 新增 React 的认证壳与工作区选择；账本 UI 复用既有视觉 token。用户已确认登录、接受邀请、创建工作区和成员管理四个独立原型页面；原型入口为 `prototype/index.html`，实现不将它们堆叠为一个页面。邀请页只展示创建时冻结的角色，不提供角色选择。
+- 性能门禁通过 FastAPI HTTP 边界运行固定、去标识化样本。注册和登录包含 Argon2 哈希/校验，单独采用较宽 p95 预算；已登录的会话、工作区、邀请和成员接口采用较紧的 p95 预算。每项操作有预热和多次样本，输出 backend、样本和 p95，SQLite 默认执行，只有显式 `FT_TEST_POSTGRES_URL` 才运行 PostgreSQL。
 
 ## Risks / Trade-offs
 

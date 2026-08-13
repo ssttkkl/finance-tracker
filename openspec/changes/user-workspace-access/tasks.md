@@ -20,12 +20,14 @@
 - [x] 4.4 将账本 Web 服务按会话成员工作区动态装配，并施加角色写入授权。
 - [x] 4.5 实现认证壳、登录注册、工作区切换和成员邀请界面。
 - [x] 4.6 更新部署和环境配置文档。
+- [x] 4.7 为认证、工作区、邀请和成员 HTTP 接口新增 SQLite/PostgreSQL 固定负载 p95 性能门禁。
 
 ## 5. 审查
 
 - [x] 5.1 独立完成产品范围、工程和安全复核并记录 finding、采纳与结论。
   - 产品范围：确认四个流程保持独立页面，邀请角色仅在创建时指定；无阻断 finding。
   - 工程：发现 runtime schema revision 未升级、迁移清单缺新 revision，已更新为 `20260813_27`；发现邀请页角色被硬编码，已新增 invitation preview 合同并由 UI 使用。
+  - 工程（性能门禁）：固定负载 HTTP 测试先暴露 `AccessService` 在关闭 ORM session 后继续读取绑定用户，以及创建工作区时工作区/成员记录尚未 flush 即更新活动工作区的 SQLite 外键错误；已改为在有效 session 内构造状态、在写入会话前 flush 工作区和成员记录，并以双后端矩阵复核。
   - 安全：发现跨 Render Service 的 API origin 仅允许 localhost、账本 fetch 未携带 Cookie，已改为精确 HTTPS origin + credentials；会话仅保存 token 摘要，Cookie 为 HttpOnly / Secure（HTTPS）/ SameSite=Lax。残余风险：第一版无邮箱验证、找回密码或 CSRF token，生产扩大使用前需评估。
 - [x] 5.2 对最终 UI 运行 Hallmark audit；修复所有 critical 与 major finding 后重新审计。
   - 目标：`web/src/AccessApp.tsx`、`web/src/styles.css`。结论：0 critical、0 major、0 minor；补充统一的通用 SVG 图标，并移除了 access 页面不必要的渐变背景。预检标记与响应式、对比度检查结果保留在 CSS 顶部。
@@ -39,6 +41,7 @@
 - [x] 6.2 运行 OpenSpec 严格校验、完整回归和真实 PostgreSQL 契约矩阵；缺少 `FT_TEST_POSTGRES_URL` 时记录准确补跑条件。
   - `openspec validate user-workspace-access --strict`：通过。`openspec validate --all --strict` 受仓库既有空目录 `openspec/changes/cloudflare-access-web-deployment/` 阻断，不属于本变更。
   - SQLite 覆盖已通过。未设置 `FT_TEST_POSTGRES_URL`，PostgreSQL 矩阵未完成；补跑条件：提供可连接且数据库名以 `_test` 结尾的 URL，例如 `postgresql+psycopg://…/finance_tracker_test`，再运行 `FT_REQUIRE_TEST_POSTGRES=1 uv run pytest`。
+  - 性能门禁：使用固定 2 次预热、8 个有效样本的 FastAPI HTTP 矩阵，认证 p95 预算为 1.5 s，其余新增接口为 250 ms。以本机 `psql` 专用 `finance_tracker_test` 临时配置 `FT_TEST_POSTGRES_URL` 后，`uv run pytest tests/test_user_workspace_access_performance.py -q -s`：2 passed、1 warning。SQLite p95：注册 44.7 ms、登录 47.0 ms、其余接口 1.4–3.0 ms；PostgreSQL p95：注册 41.4 ms、登录 40.6 ms、其余接口 2.1–5.8 ms。随后 `uv run pytest tests/test_user_workspace_access.py tests/test_user_workspace_access_performance.py -q`：12 passed、1 warning。
 
 ## 7. 发布
 

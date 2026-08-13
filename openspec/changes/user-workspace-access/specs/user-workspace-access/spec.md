@@ -54,3 +54,17 @@
 
 - **WHEN** `admin@ssttkkl.fun` 首次完成注册，且 `default` 工作区存在
 - **THEN** 系统 MUST 原子地创建或保留其 `default` 工作区的 `admin` 成员关系
+
+### Requirement: 用户与工作区接口具有可重复的性能门禁
+
+系统 MUST 对注册、登录、会话读取、创建/切换工作区、邀请创建/预览/接受以及成员读取/角色更新/移除运行固定负载的 HTTP 性能门禁。认证操作 MUST 单独计入 Argon2 成本；同一矩阵 MUST 在 SQLite 和显式配置的 PostgreSQL `_test` 数据库上运行。
+
+#### Scenario: 持续集成运行 SQLite 性能门禁
+
+- **WHEN** 在未配置 `FT_TEST_POSTGRES_URL` 的环境运行性能测试
+- **THEN** 系统 MUST 运行 SQLite 固定样本并报告每项操作的 p95，PostgreSQL 项 MUST 明确标记为跳过而非回退到其他数据库
+
+#### Scenario: 配置 PostgreSQL 测试库后运行性能门禁
+
+- **WHEN** `FT_TEST_POSTGRES_URL` 指向名称以 `_test` 结尾的专用数据库
+- **THEN** 系统 MUST 在该数据库运行与 SQLite 相同的性能矩阵，并应用相同的接口预算合同
