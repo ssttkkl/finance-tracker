@@ -18,8 +18,10 @@ def upgrade() -> None:
         # This must be the first statement on the SQLite connection.  SQLite
         # ignores changes to foreign_keys while a transaction is active.
         bind.exec_driver_sql("PRAGMA foreign_keys=OFF")
-    op.create_table(
-        "cash_categories",
+    inspector = sa.inspect(bind)
+    if "cash_categories" not in inspector.get_table_names():
+        op.create_table(
+            "cash_categories",
         sa.Column("id", sa.String(64), primary_key=True),
         sa.Column("workspace_id", sa.String(64), nullable=False),
         sa.Column("parent_id", sa.String(64), nullable=True),
@@ -47,24 +49,25 @@ def upgrade() -> None:
         sa.CheckConstraint("depth BETWEEN 1 AND 5", name="ck_cash_categories_depth"),
         sa.CheckConstraint("length(name) BETWEEN 1 AND 40", name="ck_cash_categories_name_length"),
         sa.CheckConstraint("length(category_path) > 2", name="ck_cash_categories_path"),
-    )
-    op.create_index(
-        "ix_cash_categories_workspace_parent_order", "cash_categories",
-        ["workspace_id", "parent_scope_key", "sort_order", "id"],
-    )
-    op.create_index(
-        "ix_cash_categories_workspace_path", "cash_categories",
-        ["workspace_id", "category_path"],
-    )
-    op.create_table(
-        "cash_category_states",
+        )
+        op.create_index(
+            "ix_cash_categories_workspace_parent_order", "cash_categories",
+            ["workspace_id", "parent_scope_key", "sort_order", "id"],
+        )
+        op.create_index(
+            "ix_cash_categories_workspace_path", "cash_categories",
+            ["workspace_id", "category_path"],
+        )
+    if "cash_category_states" not in inspector.get_table_names():
+        op.create_table(
+            "cash_category_states",
         sa.Column("workspace_id", sa.String(64), primary_key=True),
         sa.Column("revision", sa.BigInteger, nullable=False, server_default="0"),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
-    )
+        )
     bind.execute(sa.text(
-        "INSERT INTO cash_category_states (workspace_id, revision, updated_at) "
+        "INSERT OR IGNORE INTO cash_category_states (workspace_id, revision, updated_at) "
         "SELECT id, 0, CURRENT_TIMESTAMP FROM workspaces"
     ))
 

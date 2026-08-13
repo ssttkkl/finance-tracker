@@ -45,7 +45,12 @@ def run_migrations_online() -> None:
     database_url = os.environ.get("FT_DATABASE_URL") or config.get_main_option("sqlalchemy.url")
     connectable = create_relational_engine(database_url)
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+            transactional_ddl=connection.dialect.name != "sqlite",
+        )
         with context.begin_transaction():
             context.run_migrations()
 
