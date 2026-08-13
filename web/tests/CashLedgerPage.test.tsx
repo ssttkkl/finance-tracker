@@ -5,9 +5,13 @@ import type { CashProjection } from "../src/api/types";
 import { formatOccurredAt } from "../src/format";
 
 const account = { id: 101, name: "日常账户", type: "cash", active: true };
+const foodCategory = { id: "food", parent_id: null, name: "餐饮", description: null, path: [{ id: "food", name: "餐饮" }], depth: 1, sort_order: 0, revision: 1 };
+const dailyCategory = { id: "daily", parent_id: null, name: "日用", description: null, path: [{ id: "daily", name: "日用" }], depth: 1, sort_order: 1, revision: 1 };
+const salaryCategory = { id: "salary", parent_id: null, name: "工资", description: null, path: [{ id: "salary", name: "工资" }], depth: 1, sort_order: 2, revision: 1 };
+const transferCategory = { id: "transfer", parent_id: null, name: "转账", description: null, path: [{ id: "transfer", name: "转账" }], depth: 1, sort_order: 3, revision: 1 };
 const projection: CashProjection = {
   projection_id: "cash:1003", occurred_at: "2026-07-03T09:00:00+08:00", account,
-  counterparty: "咖啡店", category: "餐饮", note: "午间消费", amount: "-12.50", currency: "CNY",
+  counterparty: "咖啡店", category: foodCategory, note: "午间消费", amount: "-12.50", currency: "CNY",
   economic_type: "expense" as const, transfer_subtype: null, composition: ["payment_mirror", "refund_offset"],
   member_count: 3, accepted_relation_summary: [{ kind: "payment_mirror", subtype: "", count: 1 }, { kind: "refund_offset", subtype: "", count: 1 }],
   source_type: "alipay", source_types: ["alipay", "icbc_credit"], record_id: "cash-003", visible: true, hidden_reason: null,
@@ -16,10 +20,10 @@ const projection: CashProjection = {
 function evidenceFor(item: CashProjection = projection) {
   return {
     projection_version: 1, projection: item,
-    root_record: { id: "1003", occurred_at: item.occurred_at, account: item.account, counterparty: item.counterparty, category: item.category, note: item.note, amount: "-100.00", currency: item.currency, source_type: item.source_type, record_id: item.record_id, source_snapshot: { merchant: "咖啡店" } },
+    root_record: { id: "1003", occurred_at: item.occurred_at, account: item.account, counterparty: item.counterparty, category: item.category, note: item.note, amount: "-100.00", currency: item.currency, source_type: item.source_type, record_id: item.record_id, record_type: "consumption", source_snapshot: { merchant: "咖啡店" } },
     members: [
       { id: "1003", occurred_at: item.occurred_at, account: item.account, counterparty: item.counterparty, category: item.category, note: item.note, amount: "-100.00", currency: item.currency, source_type: item.source_type, record_id: item.record_id, roles: ["root"] },
-      { id: "1004", occurred_at: "2026-07-04T09:00:00+08:00", account: item.account, counterparty: "咖啡店", category: "退款", note: "", amount: "30.00", currency: item.currency, source_type: "icbc_credit", record_id: "cash-004", roles: ["refund"] },
+      { id: "1004", occurred_at: "2026-07-04T09:00:00+08:00", account: item.account, counterparty: "咖啡店", category: item.category, note: "", amount: "30.00", currency: item.currency, source_type: "icbc_credit", record_id: "cash-004", record_type: "refund", roles: ["refund"] },
     ],
     accepted_relations: [{ id: "7", kind: "refund_offset", subtype: "", rule_id: "refund.amount.v1", confidence: "strong", evidence: { amount_match: true }, primary_record: null, secondary_record: null }],
     inactive_relation_hints: [{ id: "8", kind: "payment_mirror", subtype: "", status: "pending_review", primary_record: { id: "1003", occurred_at: item.occurred_at, account: item.account, counterparty: item.counterparty, category: item.category, note: item.note, amount: "-100.00", currency: item.currency, source_type: item.source_type, record_id: item.record_id }, secondary_record: null }],
@@ -113,14 +117,14 @@ describe("CashLedgerPage", () => {
 
   it("筛选变更会取消追加并从首批重新读取", async () => {
     const pendingPage = deferred<Promise<Response>>();
-    const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : input.includes("cursor=next") ? pendingPage.promise : json({ projection_version: 1, items: [{ ...projection, counterparty: new URL(input).searchParams.get("category") === "餐饮" ? "新筛选记录" : "咖啡店" }], next_cursor: "next", page_size: 50, filters: {}, filter_options: { categories: ["餐饮"], currencies: ["CNY"] } }));
+    const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : input.includes("cursor=next") ? pendingPage.promise : json({ projection_version: 1, items: [{ ...projection, counterparty: new URL(input).searchParams.get("category_id") === "food" ? "新筛选记录" : "咖啡店" }], next_cursor: "next", page_size: 50, filters: {}, filter_options: { categories: [foodCategory], currencies: ["CNY"] } }));
     vi.stubGlobal("fetch", fetch);
     render(<CashLedgerPage />);
     await screen.findByText("咖啡店");
     fireEvent.click(screen.getByRole("button", { name: "加载更多" }));
-    fireEvent.change(screen.getByLabelText("分类"), { target: { value: "餐饮" } });
+    fireEvent.change(screen.getByLabelText("分类"), { target: { value: "food" } });
     await screen.findByText("新筛选记录");
-    expect(screen.getByText("全部账户 · 分类：餐饮 · 全部收支")).toBeInTheDocument();
+    expect(screen.getByText("全部账户 · 已筛选分类 · 全部收支")).toBeInTheDocument();
     pendingPage.resolve(json({ projection_version: 1, items: [{ ...projection, counterparty: "过期追加" }], next_cursor: null, page_size: 50, filters: {} }));
     await waitFor(() => expect(screen.queryByText("过期追加")).not.toBeInTheDocument());
   });
@@ -128,7 +132,7 @@ describe("CashLedgerPage", () => {
 
   it("在交易信息中展示备注，保留组成方式筛选且只调用投影端点", async () => {
     const withoutNote = { ...projection, projection_id: "cash:1004", counterparty: "无备注商户", note: "", record_id: "cash-004" };
-    const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ projection_version: 1, items: [projection, withoutNote], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: ["餐饮"], currencies: ["CNY"], economic_types: [{ economic_type: "expense", transfer_subtypes: [] }] } }));
+    const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ projection_version: 1, items: [projection, withoutNote], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: [foodCategory], currencies: ["CNY"], economic_types: [{ economic_type: "expense", transfer_subtypes: [] }] } }));
     vi.stubGlobal("fetch", fetch);
 
     render(<CashLedgerPage />);
@@ -140,7 +144,7 @@ describe("CashLedgerPage", () => {
     expect(screen.getByRole("group", { name: "账本筛选工具" })).not.toHaveAttribute("open");
     expect(screen.queryByText("本机账本")).not.toBeInTheDocument();
     expect(screen.queryByText("按主记录发生时间查看收支投影")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "来源", "流水类型", "金额", "操作"]);
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["选择", "发生时间", "账户", "交易信息", "来源", "流水类型", "分类", "金额", "操作"]);
     expect(screen.queryByRole("columnheader", { name: "关联记录" })).not.toBeInTheDocument();
     expect(screen.getByText("午间消费")).toBeInTheDocument();
     expect(screen.getByText("-")).toBeInTheDocument();
@@ -154,7 +158,7 @@ describe("CashLedgerPage", () => {
   });
 
   it("使用后端全量聚合的分类和币种下拉选项", async () => {
-    const filter_options = { categories: ["餐饮", "日用", "工资"], currencies: ["CNY", "USD"] };
+    const filter_options = { categories: [foodCategory, dailyCategory, salaryCategory], currencies: ["CNY", "USD"] };
     const fetch = vi.fn((input: string) => input.includes("/accounts")
       ? json({ items: [account] })
       : json({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {}, filter_options }));
@@ -177,16 +181,16 @@ describe("CashLedgerPage", () => {
     expect(category).not.toBeDisabled();
     expect(currency).not.toBeDisabled();
 
-    fireEvent.change(category, { target: { value: "工资" } });
+    fireEvent.change(category, { target: { value: "salary" } });
     fireEvent.change(currency, { target: { value: "USD" } });
-    await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("category=%E5%B7%A5%E8%B5%84") && String(input).includes("currency=USD"))).toBe(true));
+    await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("category_id=salary") && String(input).includes("currency=USD"))).toBe(true));
   });
 
   it("使用后端类型树渲染分组选择，并规范化父级和子类型请求", async () => {
     const initialPage = deferred<Response>();
     let pageCalls = 0;
     const filter_options = {
-      categories: ["餐饮", "转账"], currencies: ["CNY", "USD"],
+      categories: [foodCategory, transferCategory], currencies: ["CNY", "USD"],
       economic_types: [
         { economic_type: "expense", transfer_subtypes: [] },
         { economic_type: "internal_transfer", transfer_subtypes: ["bank_security_transfer", "cross_currency_remittance", "unmapped_transfer"] },
@@ -221,7 +225,7 @@ describe("CashLedgerPage", () => {
   it("重新读取投影时禁用经济类型筛选，但保留上次成功的类型树", async () => {
     const refreshedPage = deferred<Response>();
     const filter_options = {
-      categories: ["餐饮"], currencies: ["CNY"],
+      categories: [foodCategory], currencies: ["CNY"],
       economic_types: [{ economic_type: "internal_transfer", transfer_subtypes: ["bank_security_transfer"] }],
     };
     let pageCalls = 0;
@@ -252,7 +256,7 @@ describe("CashLedgerPage", () => {
 
   it("展示可见的内部转账及双端账户和金额", async () => {
     const transfer = {
-      ...projection, projection_id: "cash:1004", counterparty: "信用账户", category: "转账", note: "账户间转移",
+      ...projection, projection_id: "cash:1004", counterparty: "信用账户", note: "账户间转移",
       amount: "0", currency: "USD", economic_type: "internal_transfer" as const, transfer_subtype: "ordinary_transfer",
       composition: ["transfer_pair"], visible: true, hidden_reason: null,
       transfer: {
@@ -260,7 +264,7 @@ describe("CashLedgerPage", () => {
         to_account: { ...account, id: 102, name: "信用账户", type: "loan" }, to_amount: "14", to_currency: "USD",
       },
     };
-    vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ projection_version: 1, items: [projection, transfer], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: ["餐饮", "转账"], currencies: ["CNY", "USD"] } })));
+    vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ projection_version: 1, items: [projection, transfer], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: [foodCategory, transferCategory], currencies: ["CNY", "USD"] } })));
 
     render(<CashLedgerPage />);
 
@@ -275,7 +279,7 @@ describe("CashLedgerPage", () => {
       ...projection,
       projection_id: "cash:1005",
       counterparty: "Interactive Brokers",
-      category: "转账",
+      category: foodCategory,
       note: "",
       amount: "0",
       currency: "HKD",
@@ -296,7 +300,7 @@ describe("CashLedgerPage", () => {
     };
     const fetch = vi.fn((input: string) => input.includes("/accounts")
       ? json({ items: [account] })
-      : json({ projection_version: 1, items: [bankSecurityTransfer], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: ["转账"], currencies: ["HKD", "USD"], economic_types: [{ economic_type: "internal_transfer", transfer_subtypes: ["bank_security_transfer"] }] } }));
+      : json({ projection_version: 1, items: [bankSecurityTransfer], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: [transferCategory], currencies: ["HKD", "USD"], economic_types: [{ economic_type: "internal_transfer", transfer_subtypes: ["bank_security_transfer"] }] } }));
     vi.stubGlobal("fetch", fetch);
 
     render(<CashLedgerPage />);
@@ -381,7 +385,7 @@ describe("CashLedgerPage", () => {
       ...projection,
       projection_id: "cash:1007",
       counterparty: "Charles Schwab",
-      category: "转账",
+      category: foodCategory,
       note: "",
       amount: "0",
       currency: "USD",
@@ -486,7 +490,7 @@ describe("CashLedgerPage", () => {
       if (input.includes("/evidence/")) return json(evidenceFor());
       if (input.includes("/cash-records/")) return json(evidenceFor().root_record);
       pageCalls += 1;
-      if (pageCalls === 1) return json({ projection_version: 1, items: [projection], next_cursor: "old-page", page_size: 50, filters: {}, filter_options: { categories: ["餐饮"], currencies: ["CNY"] } });
+      if (pageCalls === 1) return json({ projection_version: 1, items: [projection], next_cursor: "old-page", page_size: 50, filters: {}, filter_options: { categories: [foodCategory], currencies: ["CNY"] } });
       if (pageCalls === 2) return json({ error: { code: "projection.updated" } }, 409);
       return refreshed.promise;
     }));
@@ -495,7 +499,7 @@ describe("CashLedgerPage", () => {
     const trigger = await screen.findByRole("button", { name: "查看咖啡店的收支详情" });
     fireEvent.click(trigger);
     await screen.findByRole("dialog", { name: "收支详情" });
-    fireEvent.change(screen.getByLabelText("分类"), { target: { value: "餐饮" } });
+    fireEvent.change(screen.getByLabelText("分类"), { target: { value: "food" } });
 
     await screen.findByText("账本已更新，正在刷新记录。")
     expect(screen.queryByRole("dialog", { name: "收支详情" })).not.toBeInTheDocument();
@@ -506,7 +510,7 @@ describe("CashLedgerPage", () => {
     await waitFor(() => expect(confirmation).toHaveFocus());
     fireEvent.click(confirmation);
     await waitFor(() => expect(screen.getByRole("button", { name: "查看刷新后的投影的收支详情" })).toHaveFocus());
-    expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("category=%E9%A4%90%E9%A5%AE"), expect.anything());
+    expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("category_id=food"), expect.anything());
     expect(fetch).toHaveBeenLastCalledWith(expect.not.stringContaining("cursor=old-page"), expect.anything());
   });
 
@@ -532,7 +536,7 @@ describe("CashLedgerPage", () => {
       if (input.includes("/accounts")) return json({ items: [account] });
       if (input.includes("/evidence/")) return staleEvidence.promise;
       pageCalls += 1;
-      if (pageCalls === 1) return json({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: ["餐饮", "旧筛选", "当前筛选"], currencies: ["CNY"] } });
+      if (pageCalls === 1) return json({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: [foodCategory, { ...foodCategory, id: "old", name: "旧筛选", path: [{ id: "old", name: "旧筛选" }] }, { ...foodCategory, id: "current", name: "当前筛选", path: [{ id: "current", name: "当前筛选" }] }], currencies: ["CNY"] } });
       if (pageCalls === 2) return stalePage.promise;
       return json({ projection_version: 1, items: [{ ...projection, projection_id: "cash:3002", counterparty: "当前筛选结果" }], next_cursor: null, page_size: 50, filters: {} });
     }));
@@ -541,8 +545,8 @@ describe("CashLedgerPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "查看咖啡店的收支详情" }));
     await screen.findByRole("dialog", { name: "收支详情" });
     fireEvent.click(screen.getByRole("button", { name: "关闭收支详情" }));
-    fireEvent.change(screen.getByLabelText("分类"), { target: { value: "旧筛选" } });
-    fireEvent.change(screen.getByLabelText("分类"), { target: { value: "当前筛选" } });
+    fireEvent.change(screen.getByLabelText("分类"), { target: { value: "old" } });
+    fireEvent.change(screen.getByLabelText("分类"), { target: { value: "current" } });
 
     await screen.findByText("当前筛选结果");
     staleEvidence.resolve(json(evidenceFor()));
@@ -550,6 +554,89 @@ describe("CashLedgerPage", () => {
     await waitFor(() => expect(screen.queryByText("过期筛选结果")).not.toBeInTheDocument());
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "收支详情" })).not.toBeInTheDocument());
     expect(screen.queryByRole("dialog", { name: "收支详情" })).not.toBeInTheDocument();
+  });
+
+  it("只选择当前已加载记录，并在筛选变更后清空选择", async () => {
+    const second = { ...projection, projection_id: "cash:1004", counterparty: "第二笔" };
+    const category = foodCategory;
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/cash-categories")) return json({ revision: 1, items: [category] });
+      return json({ projection_version: 1, items: [projection, second], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: [category], currencies: ["CNY"], economic_types: [] } });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<CashLedgerPage />);
+    await screen.findByText("咖啡店");
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择当前已加载记录" }));
+    expect(screen.getByRole("toolbar", { name: "批量操作" })).toBeInTheDocument();
+    expect(screen.getByText("已选 2 项")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("开始日期"), { target: { value: "2026-07-01" } });
+    await waitFor(() => expect(screen.queryByRole("toolbar", { name: "批量操作" })).not.toBeInTheDocument());
+  });
+
+  it("批量修改分类后刷新账本并清空选择", async () => {
+    const second = { ...projection, projection_id: "cash:1004", counterparty: "第二笔" };
+    const category = foodCategory;
+    const updated = { ...projection, category, projection_id: "cash:1003" };
+    const bodies: unknown[] = [];
+    let pageCalls = 0;
+    const fetch = vi.fn((input: string, init?: RequestInit) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/cash-categories")) return json({ revision: 1, items: [category] });
+      if (input.includes("/cash-projections/categories") && init?.method === "PUT") {
+        bodies.push(JSON.parse(String(init.body)));
+        return json({ projection_version: 2, projection_count: 2, updated_transaction_count: 2, category_id: "food" });
+      }
+      pageCalls += 1;
+      return json({ projection_version: pageCalls === 1 ? 1 : 2, items: pageCalls === 1 ? [projection, second] : [updated, { ...second, category }], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: [category], currencies: ["CNY"], economic_types: [] } });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<CashLedgerPage />);
+    await screen.findByText("咖啡店");
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择当前已加载记录" }));
+    fireEvent.click(screen.getByRole("button", { name: "修改分类" }));
+    const dialog = screen.getByRole("dialog", { name: "修改分类" });
+    fireEvent.change(within(dialog).getByLabelText("分类"), { target: { value: "food" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
+
+    await waitFor(() => expect(bodies).toEqual([{ projection_ids: ["cash:1003", "cash:1004"], projection_version: 1, category_id: "food" }]));
+    await waitFor(() => expect(screen.getAllByRole("cell", { name: "餐饮" })).toHaveLength(2));
+    expect(screen.queryByRole("toolbar", { name: "批量操作" })).not.toBeInTheDocument();
+    expect(pageCalls).toBe(2);
+  });
+
+  it("批量分类遇到版本冲突时整批失败并要求重新选择", async () => {
+    const second = { ...projection, projection_id: "cash:1004", counterparty: "第二笔" };
+    const category = foodCategory;
+    const bodies: unknown[] = [];
+    let pageCalls = 0;
+    const fetch = vi.fn((input: string, init?: RequestInit) => {
+      if (input.includes("/accounts")) return json({ items: [account] });
+      if (input.includes("/cash-categories")) return json({ revision: 1, items: [category] });
+      if (input.includes("/cash-projections/categories") && init?.method === "PUT") {
+        bodies.push(JSON.parse(String(init.body)));
+        return json({ error: { code: "projection.version_conflict" } }, 409);
+      }
+      pageCalls += 1;
+      return json({ projection_version: pageCalls === 1 ? 1 : 2, items: [projection, second], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: [category], currencies: ["CNY"], economic_types: [] } });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<CashLedgerPage />);
+    await screen.findByText("咖啡店");
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择当前已加载记录" }));
+    fireEvent.click(screen.getByRole("button", { name: "修改分类" }));
+    const dialog = screen.getByRole("dialog", { name: "修改分类" });
+    fireEvent.change(within(dialog).getByLabelText("分类"), { target: { value: "food" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("列表已更新，请重新选择记录。");
+    expect(bodies).toEqual([{ projection_ids: ["cash:1003", "cash:1004"], projection_version: 1, category_id: "food" }]);
+    expect(screen.queryByRole("toolbar", { name: "批量操作" })).not.toBeInTheDocument();
+    expect(pageCalls).toBe(2);
   });
 
   it("将交易信息和金额范围传递到收支投影筛选", async () => {
@@ -568,7 +655,7 @@ describe("CashLedgerPage", () => {
   it("从统一入口按页搜索已有流水，并固定确认为关联", async () => {
     const candidate = {
       id: "2001", occurred_at: "2026-07-02T08:30:00+08:00", account_name: "日常账户",
-      account_id: 101, account_type: "cash", counterparty: "工资转入", category: "工资",
+      account_id: 101, account_type: "cash", counterparty: "工资转入", category: salaryCategory,
       note: "七月工资", amount: "12000.00", currency: "CNY", source_type: "bank",
       record_id: "cash-2001", record_type: "income", record_subtype: "not_applicable",
       counterparty_account: "", counterparty_account_attrs: [],

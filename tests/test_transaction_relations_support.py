@@ -19,7 +19,7 @@ def add_cash_fact(
     date: str,
     counterparty: str = "",
     description: str = "",
-    category: str = "expense",
+    category: str | None = None,
     bill_source: str = "",
     source: str = "",
     record_id: str = "",
@@ -27,6 +27,7 @@ def add_cash_fact(
 ) -> str:
     note = description or ""
     source_type = bill_source or source or ""
+    del category
     result = services.cashflow.add_manual_transaction(
         amount=Decimal(str(amount)),
         counterparty=counterparty,
@@ -34,7 +35,6 @@ def add_cash_fact(
         currency=currency,
         date=date,
         note=note,
-        category=category,
         source=source_type,
         bill_source=source_type,
         record_id=record_id,

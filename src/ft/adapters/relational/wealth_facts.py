@@ -89,7 +89,7 @@ class RelationalWealthFactRepository:
                 CashTransactionModel.workspace_id, CashTransactionModel.id,
                 CashTransactionModel.account_id, CashTransactionModel.occurred_at,
                 CashTransactionModel.amount, CashTransactionModel.currency,
-                CashTransactionModel.category,
+                CashTransactionModel.record_type,
             ).where(
                 CashTransactionModel.workspace_id == self._workspace_id,
                 CashTransactionModel.deleted_at.is_(None),
@@ -149,7 +149,7 @@ class RelationalWealthFactRepository:
                 CashTransactionModel.workspace_id, CashTransactionModel.id,
                 CashTransactionModel.account_id, CashTransactionModel.occurred_at,
                 CashTransactionModel.amount, CashTransactionModel.currency,
-                CashTransactionModel.category,
+                CashTransactionModel.record_type,
             ).where(
                 CashTransactionModel.workspace_id == self._workspace_id,
                 CashTransactionModel.deleted_at.is_(None),
@@ -194,7 +194,7 @@ class RelationalWealthFactRepository:
             ) in fx_by_day else None
 
         def cash_kind(row: CashflowFact) -> str:
-            cat = (row.category or "").lower()
+            cat = (row.record_type or "").lower()
             if cat in {"transfer", "transfer_in", "transfer_out"}:
                 return "transfer"
             return cat if cat in {
@@ -238,7 +238,7 @@ class RelationalWealthFactRepository:
         )) for row in lifecycle)
         items.extend(WealthSourceItem(
             "cashflow", f"cashflow:{row.fact_id}", "1", _digest_parts(
-                row.account_id, row.occurred_at.isoformat(), row.amount, row.category,
+                row.account_id, row.occurred_at.isoformat(), row.amount, row.record_type,
             ), row.occurred_at, cash_kind(row), projected_amount(row.amount, row.currency, row.occurred_at),
             f"{row.occurred_at.astimezone(timezone.utc).date().isoformat()}:{cash_kind(row)}:{row.fact_id}",
             None,
@@ -343,7 +343,7 @@ class RelationalWealthFactRepository:
             )).yield_per(2_000))
             self._absorb_source_state_rows(digest, active_session.execute(select(
                 CashTransactionModel.id, CashTransactionModel.account_id,
-                CashTransactionModel.occurred_at, CashTransactionModel.amount, CashTransactionModel.category,
+                CashTransactionModel.occurred_at, CashTransactionModel.amount, CashTransactionModel.record_type,
             ).where(
                 CashTransactionModel.workspace_id == self._workspace_id,
                 CashTransactionModel.deleted_at.is_(None),

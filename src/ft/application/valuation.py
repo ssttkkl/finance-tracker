@@ -46,6 +46,65 @@ class ValuationService:
         asset = ref if ref is not None else make_asset_ref(identity, kind, quantity)
         return self._quote_one(asset)
 
+    def quote_at(self, ref: AssetRef, *, at: datetime) -> QuoteResult:
+        """Read a quote at a historical boundary without falling back to now."""
+        if not isinstance(ref, AssetRef):
+            raise ValuationError("valuation.invalid_ref")
+        if at.tzinfo is None:
+            raise ValuationError("valuation.invalid_observed_at")
+        make_asset_ref(ref.identity, ref.kind, ref.quantity)
+        if identity_kind_mismatch(ref.identity, ref.kind):
+            return QuoteResult(
+                identity=ref.identity, kind=ref.kind, status=QuoteStatus.UNSUPPORTED,
+                quantity=ref.quantity, reason="identity_kind_mismatch",
+            )
+        if ref.kind is AssetKind.CASH:
+            market_value = compute_market_value(Decimal("1"), ref.quantity) if ref.quantity is not None else None
+            return QuoteResult(
+                identity=ref.identity, kind=ref.kind, status=QuoteStatus.COMPLETE,
+                unit_price=Decimal("1"), quote_currency=ref.identity.upper(),
+                observed_at=at, market_value=market_value,
+                quantity=ref.quantity, reason="ok", provider="cash",
+            )
+        raw_quote_at = getattr(self._provider, "raw_quote_at", None)
+        if not callable(raw_quote_at):
+            return QuoteResult(
+                identity=ref.identity, kind=ref.kind, status=QuoteStatus.PARTIAL,
+                quantity=ref.quantity, reason="historical_quote_unavailable",
+            )
+        try:
+            outcome = raw_quote_at(ref.identity, ref.kind, at=at)
+        except UnsupportedQuote:
+            return QuoteResult(
+                identity=ref.identity, kind=ref.kind, status=QuoteStatus.UNSUPPORTED,
+                quantity=ref.quantity, reason="unsupported_identity",
+            )
+        except Exception:
+            return QuoteResult(
+                identity=ref.identity, kind=ref.kind, status=QuoteStatus.PARTIAL,
+                quantity=ref.quantity, reason="historical_provider_error",
+            )
+        if outcome is None:
+            return QuoteResult(
+                identity=ref.identity, kind=ref.kind, status=QuoteStatus.PARTIAL,
+                quantity=ref.quantity, reason="historical_quote_unavailable",
+            )
+        price = Decimal(str(outcome.price))
+        if not price.is_finite():
+            return QuoteResult(
+                identity=ref.identity, kind=ref.kind, status=QuoteStatus.PARTIAL,
+                quantity=ref.quantity, reason="non_finite_price", provider=outcome.provider,
+            )
+        market_value = compute_market_value(price, ref.quantity) if ref.quantity is not None else None
+        return QuoteResult(
+            identity=ref.identity, kind=ref.kind, status=QuoteStatus.COMPLETE,
+            unit_price=price, quote_currency=(outcome.quote_currency or "").upper() or None,
+            observed_at=outcome.observed_at or at,
+            market_value=market_value, quantity=ref.quantity,
+            reason="ok", provider=outcome.provider,
+            quote_session=outcome.quote_session or "unknown",
+        )
+
     def quote_many(
         self, refs: Sequence[AssetRef], *, timeout: float | None = None,
     ) -> QuoteBatchResult:
@@ -171,7 +230,11 @@ class ValuationService:
                 reason="non_finite_price",
                 provider=tick.provider,
             )
-        status = quote_freshness(tick.observed_at, now=self._clock(), kind=ref.kind)
+        status = (
+            QuoteStatus.COMPLETE
+            if tick.observed_at is None
+            else quote_freshness(tick.observed_at, now=self._clock(), kind=ref.kind)
+        )
         if status is QuoteStatus.PARTIAL:
             return QuoteResult(
                 identity=identity,
@@ -181,8 +244,9 @@ class ValuationService:
                 reason="stale_quote",
                 provider=tick.provider,
                 observed_at=tick.observed_at,
+                quote_session=tick.quote_session or "unknown",
             )
-        reason = "stale_quote" if status is QuoteStatus.STALE else "ok"
+        reason = "quote_time_unknown" if tick.observed_at is None else "stale_quote" if status is QuoteStatus.STALE else "ok"
         market_value = compute_market_value(price, quantity) if quantity is not None else None
         return QuoteResult(
             identity=identity,
@@ -195,6 +259,7 @@ class ValuationService:
             quantity=quantity,
             reason=reason,
             provider=tick.provider,
+            quote_session=tick.quote_session or "unknown",
         )
 
     @staticmethod

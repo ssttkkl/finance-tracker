@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>收支分类 · Finance Tracker UI 原型</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <svg class="sr-only" aria-hidden="true">
+    <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+    <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m7 9 5 5 5-5"/></symbol>
+    <symbol id="icon-edit" viewBox="0 0 24 24"><path d="m4 20 4.2-1 10-10-3.2-3.2-10 10L4 20Z"/><path d="m13.8 7 3.2 3.2"/></symbol>
+    <symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="icon-up" viewBox="0 0 24 24"><path d="m7 14 5-5 5 5"/></symbol>
+    <symbol id="icon-down" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
+    <symbol id="icon-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+  </svg>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div>
+        <strong class="brand">FINANCE TRACKER</strong>
+      </div>
+      <nav aria-label="主要导航">
+        <a class="nav-link" href="#cash-ledger" data-page-link="ledger">收支账本</a>
+        <a class="nav-link" href="#cash-categories" data-page-link="categories" aria-current="page">分类管理</a>
+      </nav>
+    </aside>
+
+    <div class="workspace">
+      <main>
+        <section class="page" id="cash-categories" data-page="categories" aria-labelledby="category-page-title">
+          <header class="page-header">
+            <div>
+              <h1 id="category-page-title">分类管理</h1>
+            </div>
+          </header>
+
+          <div class="ready-content" data-ready-for="categories">
+            <div class="category-layout">
+              <section class="panel category-panel" aria-labelledby="directory-title">
+                <header class="panel-header">
+                  <div>
+                    <h2 id="directory-title">分类目录</h2>
+                    <p><span id="category-count">8</span> 个分类</p>
+                  </div>
+                  <div class="panel-tools">
+                    <label class="search-field">
+                      <span class="sr-only">搜索分类</span>
+                      <svg class="icon" aria-hidden="true"><use href="#icon-search"/></svg>
+                      <input id="category-search" type="search" placeholder="搜索名称或描述">
+                    </label>
+                  </div>
+                </header>
+                <div class="tree-head" aria-hidden="true"><span>分类</span><span>操作</span></div>
+                <ul class="category-tree" id="category-tree" role="tree" aria-label="收支分类目录">
+                  <li class="tree-item" role="treeitem" aria-level="1" aria-expanded="true" aria-selected="false" data-category="food" data-parent="" data-expanded="true" style="--depth:1">
+                    <div class="tree-primary">
+                      <button class="tree-toggle" type="button" aria-label="折叠餐饮"><svg class="icon" aria-hidden="true"><use href="#icon-chevron"/></svg></button>
+                      <button class="tree-select" type="button"><strong>餐饮</strong></button>
+                    </div>
+                    <span class="tree-actions"><button type="button" data-add-category="food" aria-label="在餐饮下新增子分类"><svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg></button><button type="button" data-edit-category="food" aria-label="编辑餐饮"><svg class="icon" aria-hidden="true"><use href="#icon-edit"/></svg></button></span>
+                  </li>
+                  <li class="tree-item" role="treeitem" aria-level="2" aria-selected="true" data-category="work-meal" data-parent="food" style="--depth:2">
+                    <div class="tree-primary">
+                      <button class="tree-toggle leaf" type="button" tabindex="-1" aria-hidden="true"></button>
+                      <button class="tree-select" type="button"><strong>工作餐</strong></button>
+                    </div>
+                    <span class="tree-actions"><button type="button" data-add-category="work-meal" aria-label="在工作餐下新增子分类"><svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg></button><button type="button" data-edit-category="work-meal" aria-label="编辑工作餐"><svg class="icon" aria-hidden="true"><use href="#icon-edit"/></svg></button></span>
+                  </li>
+                  <li class="tree-item" role="treeitem" aria-level="2" aria-selected="false" data-category="gathering" data-parent="food" style="--depth:2">
+                    <div class="tree-primary">
+                      <button class="tree-toggle leaf" type="button" tabindex="-1" aria-hidden="true"></button>
+                      <button class="tree-select" type="button"><strong>聚餐</strong></button>
+                    </div>
+                    <span class="tree-actions"><button type="button" data-add-category="gathering" aria-label="在聚餐下新增子分类"><svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg></button><button type="button" data-edit-category="gathering" aria-label="编辑聚餐"><svg class="icon" aria-hidden="true"><use href="#icon-edit"/></svg></button></span>
+                  </li>
+                  <li class="tree-item" role="treeitem" aria-level="1" aria-expanded="true" aria-selected="false" data-category="transport" data-parent="" data-expanded="true" style="--depth:1">
+                    <div class="tree-primary">
+                      <button class="tree-toggle" type="button" aria-label="折叠交通"><svg class="icon" aria-hidden="true"><use href="#icon-chevron"/></svg></button>
+                      <button class="tree-select" type="button"><strong>交通</strong></button>
+                    </div>
+                    <span class="tree-actions"><button type="button" data-add-category="transport" aria-label="在交通下新增子分类"><svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg></button><button type="button" data-edit-category="transport" aria-label="编辑交通"><svg class="icon" aria-hidden="true"><use href="#icon-edit"/></svg></button></span>
+                  </li>
+                  <li class="tree-item" role="treeitem" aria-level="2" aria-selected="false" data-category="public-transit" data-parent="transport" style="--depth:2">
+                    <div class="tree-primary">
+                      <button class="tree-toggle leaf" type="button" tabindex="-1" aria-hidden="true"></button>
+                      <button class="tree-select" type="button"><strong>公共交通</strong></button>
+                    </div>
+                    <span class="tree-actions"><button type="button" data-add-category="public-transit" aria-label="在公共交通下新增子分类"><svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg></button><button type="button" data-edit-category="public-transit" aria-label="编辑公共交通"><svg class="icon" aria-hidden="true"><use href="#icon-edit"/></svg></button></span>
+                  </li>
+                  <li class="tree-item" role="treeitem" aria-level="2" aria-selected="false" data-category="taxi" data-parent="transport" style="--depth:2">
+                    <div class="tree-primary">
+                      <button class="tree-toggle leaf" type="button" tabindex="-1" aria-hidden="true"></button>
+                      <button class="tree-select" type="button"><strong>打车</strong></button>
+                    </div>
+                    <span class="tree-actions"><button type="button" data-add-category="taxi" aria-label="在打车下新增子分类"><svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg></button><button type="button" data-edit-category="taxi" aria-label="编辑打车"><svg class="icon" aria-hidden="true"><use href="#icon-edit"/></svg></button></span>
+                  </li>
+                  <li class="tree-item" role="treeitem" aria-level="1" aria-expanded="true" aria-selected="false" data-category="home" data-parent="" data-expanded="true" style="--depth:1">
+                    <div class="tree-primary">
+                      <button class="tree-toggle" type="button" aria-label="折叠居住"><svg class="icon" aria-hidden="true"><use href="#icon-chevron"/></svg></button>
+                      <button class="tree-select" type="button"><strong>居住</strong></button>
+                    </div>
+                    <span class="tree-actions"><button type="button" data-add-category="home" aria-label="在居住下新增子分类"><svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg></button><button type="button" data-edit-category="home" aria-label="编辑居住"><svg class="icon" aria-hidden="true"><use href="#icon-edit"/></svg></button></span>
+                  </li>
+                  <li class="tree-item" role="treeitem" aria-level="2" aria-selected="false" data-category="utilities" data-parent="home" style="--depth:2">
+                    <div class="tree-primary">
+                      <button class="tree-toggle leaf" type="button" tabindex="-1" aria-hidden="true"></button>
+                      <button class="tree-select" type="button"><strong>水电燃气</strong></button>
+                    </div>
+                    <span class="tree-actions"><button type="button" data-add-category="utilities" aria-label="在水电燃气下新增子分类"><svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg></button><button type="button" data-edit-category="utilities" aria-label="编辑水电燃气"><svg class="icon" aria-hidden="true"><use href="#icon-edit"/></svg></button></span>
+                  </li>
+                  <li class="tree-add-root">
+                    <button type="button" data-add-category="root" aria-label="新建一级分类">
+                      <svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg>
+                      <span>新建一级分类</span>
+                    </button>
+                  </li>
+                </ul>
+              </section>
+
+              <aside class="panel inspector" id="category-inspector" aria-labelledby="inspector-title">
+                <header class="inspector-header">
+                  <div><span class="sr-only" id="inspector-mode">编辑分类</span><h2 id="inspector-title">工作餐</h2></div>
+                  <button class="icon-button quiet-button inspector-close" id="close-inspector" type="button" aria-label="关闭分类编辑"><svg class="icon" aria-hidden="true"><use href="#icon-close"/></svg></button>
+                </header>
+                <form class="inspector-form" id="category-form">
+                  <label class="field"><span>分类名称</span><input id="category-name" name="name" maxlength="40" value="工作餐" aria-describedby="category-name-error" required><small class="field-error" id="category-name-error" aria-hidden="true">请输入分类名称</small></label>
+                  <label class="field"><span>上级分类</span><select id="category-parent" name="parent"><option value="">无（一级分类）</option><option value="food" selected>餐饮</option><option value="transport">交通</option><option value="home">居住</option></select></label>
+                  <label class="field"><span>分类描述</span><textarea id="category-description" name="description" maxlength="500">工作日期间的早午晚餐，包含公司附近堂食与外卖。</textarea></label>
+                  <div class="field"><span>同级位置</span><div class="order-controls"><button type="button" id="move-up"><svg class="icon" aria-hidden="true"><use href="#icon-up"/></svg> 上移</button><button type="button" id="move-down"><svg class="icon" aria-hidden="true"><use href="#icon-down"/></svg> 下移</button></div></div>
+                  <div class="form-actions"><button class="danger-button" id="delete-category" type="button">删除</button><button class="primary-button" id="save-category" type="submit">保存修改</button></div>
+                </form>
+              </aside>
+            </div>
+          </div>
+
+          <div class="state-view hidden" data-state-for="categories" data-state="loading" role="status" aria-label="正在加载分类目录"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><p>正在读取分类目录…</p></div>
+          <div class="state-view hidden" data-state-for="categories" data-state="empty"><h2>还没有收支分类</h2><p>先建立一个一级分类，再在需要时逐级细分。未分类的既有流水会继续显示为“无分类”。</p><button class="primary-button" type="button" data-add-category="root">新增第一个分类</button></div>
+          <div class="state-view state-error hidden" data-state-for="categories" data-state="error" role="alert"><h2>无法读取分类目录</h2><p>网络或服务暂时不可用。当前页面没有保存任何修改。</p><button type="button" data-retry>重试</button></div>
+
+        </section>
+
+        <section class="page" id="cash-ledger" data-page="ledger" aria-labelledby="ledger-page-title" hidden>
+          <header class="page-header">
+            <div>
+              <h1 id="ledger-page-title">收支账本</h1>
+            </div>
+            <div class="header-actions"><button type="button">新建流水</button><button class="primary-button" type="button">导入账单</button></div>
+          </header>
+
+          <div class="ready-content" data-ready-for="ledger">
+            <details class="filter-bar" open>
+              <summary><svg class="icon" aria-hidden="true"><use href="#icon-filter"/></svg><span class="filter-summary-copy"><strong>筛选收支详情</strong><small id="filter-summary">2026 年 8 月 · 全部账户 · 全部分类</small></span><svg class="icon filter-chevron" aria-hidden="true"><use href="#icon-chevron"/></svg></summary>
+              <div class="filter-grid">
+                <label><span>月份</span><select><option>2026 年 8 月</option><option>2026 年 7 月</option></select></label>
+                <label><span>账户</span><select><option>全部账户</option><option>支付宝</option><option>招商银行</option></select></label>
+                <label><span>流水类型</span><select><option>全部类型</option><option>支出</option><option>收入</option><option>转账</option></select></label>
+                <label><span>收支分类</span>
+                  <details class="category-filter" id="category-filter">
+                    <summary><span id="category-filter-label">全部分类</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron"/></svg></summary>
+                    <div class="filter-popover" role="radiogroup" aria-label="按收支分类筛选">
+                      <label class="category-choice" style="--level:0"><input type="radio" name="filter-category" value="全部分类" checked><span>全部分类</span></label>
+                      <label class="category-choice" style="--level:0"><input type="radio" name="filter-category" value="无分类"><span>无分类</span></label>
+                      <label class="category-choice" style="--level:0"><input type="radio" name="filter-category" value="餐饮及下级"><span>餐饮及下级</span></label>
+                      <label class="category-choice" style="--level:1"><input type="radio" name="filter-category" value="工作餐"><span>工作餐<small>餐饮 / 工作餐</small></span></label>
+                      <label class="category-choice" style="--level:1"><input type="radio" name="filter-category" value="聚餐"><span>聚餐<small>餐饮 / 聚餐</small></span></label>
+                      <label class="category-choice" style="--level:0"><input type="radio" name="filter-category" value="交通及下级"><span>交通及下级</span></label>
+                    </div>
+                  </details>
+                </label>
+              </div>
+            </details>
+
+            <div class="table-wrap">
+              <table class="ledger-table">
+                <caption class="sr-only">收支账本中的收支详情</caption>
+                <thead><tr><th class="select-cell"><input id="select-loaded" type="checkbox" aria-label="选择当前已加载条目"></th><th>发生时间</th><th>账户</th><th>交易信息</th><th>流水类型</th><th>收支分类</th><th class="amount">金额</th><th>操作</th></tr></thead>
+                <tbody>
+                  <tr data-ledger-row="r1"><td class="select-cell"><input class="row-select" type="checkbox" aria-label="选择云吞面馆 48 元支出"></td><td class="occurred mono">08-12 12:36</td><td class="account-cell">支付宝</td><td class="transaction-cell"><span class="transaction-title">云吞面馆</span><span class="transaction-note">午餐</span></td><td class="type-cell">支出</td><td class="category-cell"><button class="category-link" type="button" data-single-category="r1"><span class="row-category-name">工作餐</span><small class="row-category-path">餐饮 / 工作餐</small></button></td><td class="amount outflow">−48.00 CNY</td><td class="action-cell"><button class="quiet-button" type="button" data-open-detail="r1">详情</button></td></tr>
+                  <tr data-ledger-row="r2"><td class="select-cell"><input class="row-select" type="checkbox" aria-label="选择网约车 32.60 元支出"></td><td class="occurred mono">08-12 09:18</td><td class="account-cell">招商银行</td><td class="transaction-cell"><span class="transaction-title">网约车出行</span><span class="transaction-note">公司至客户现场</span></td><td class="type-cell">支出</td><td class="category-cell"><button class="category-link" type="button" data-single-category="r2"><span class="row-category-name">打车</span><small class="row-category-path">交通 / 打车</small></button></td><td class="amount outflow">−32.60 CNY</td><td class="action-cell"><button class="quiet-button" type="button" data-open-detail="r2">详情</button></td></tr>
+                  <tr data-ledger-row="r3"><td class="select-cell"><input class="row-select" type="checkbox" aria-label="选择工资 28000 元收入"></td><td class="occurred mono">08-10 18:02</td><td class="account-cell">招商银行</td><td class="transaction-cell"><span class="transaction-title">工资入账</span><span class="transaction-note">2026 年 8 月工资</span></td><td class="type-cell">收入</td><td class="category-cell"><button class="category-link" type="button" data-single-category="r3"><span class="row-category-name muted">无分类</span><small class="row-category-path">—</small></button></td><td class="amount inflow">+28,000.00 CNY</td><td class="action-cell"><button class="quiet-button" type="button" data-open-detail="r3">详情</button></td></tr>
+                  <tr data-ledger-row="r4"><td class="select-cell"><input class="row-select" type="checkbox" aria-label="选择电费 168.42 元支出"></td><td class="occurred mono">08-08 07:42</td><td class="account-cell">支付宝</td><td class="transaction-cell"><span class="transaction-title">南方电网</span><span class="transaction-note">7 月电费</span></td><td class="type-cell">支出</td><td class="category-cell"><button class="category-link" type="button" data-single-category="r4"><span class="row-category-name">水电燃气</span><small class="row-category-path">居住 / 水电燃气</small></button></td><td class="amount outflow">−168.42 CNY</td><td class="action-cell"><button class="quiet-button" type="button" data-open-detail="r4">详情</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="load-more"><span>4 条记录</span><button type="button" id="load-more">加载更多</button></div>
+          </div>
+
+          <div class="state-view hidden" data-state-for="ledger" data-state="loading" role="status"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><p>正在读取收支详情…</p></div>
+          <div class="state-view hidden" data-state-for="ledger" data-state="empty"><h2>没有符合条件的收支详情</h2><p>可以清除分类筛选，或选择其他月份和账户。</p><button type="button" data-retry>清除筛选</button></div>
+          <div class="state-view state-error hidden" data-state-for="ledger" data-state="error" role="alert"><h2>无法读取收支账本</h2><p>当前筛选和勾选状态没有提交。请稍后重试。</p><button type="button" data-retry>重试</button></div>
+
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <aside class="batch-bar" id="batch-bar" aria-live="polite" hidden>
+    <p class="batch-count">已选择 <span id="selected-count">0</span> 条</p>
+    <div class="batch-actions"><button class="quiet-button" id="clear-selection" type="button">取消选择</button><button class="primary-button" id="batch-category" type="button">修改分类</button></div>
+  </aside>
+
+  <div class="drawer-layer" id="detail-layer" hidden>
+    <button class="drawer-backdrop" type="button" aria-label="关闭收支详情" data-close-detail></button>
+    <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+      <header><div><h2 id="detail-title">收支详情</h2></div><button class="icon-button" type="button" aria-label="关闭收支详情" data-close-detail><svg class="icon" aria-hidden="true"><use href="#icon-close"/></svg></button></header>
+      <section class="detail-summary"><p class="detail-amount">−48.00 <span>CNY</span></p><p class="detail-title">云吞面馆</p><p class="muted">2026-08-12 12:36 · 支出</p></section>
+      <section class="detail-section"><div class="section-heading"><h3>收支分类</h3><button class="quiet-button" id="detail-edit-category" type="button">修改</button></div><p class="category-display"><strong id="detail-category-name">工作餐</strong><small id="detail-category-path">餐饮 / 工作餐</small></p></section>
+      <details class="detail-section detail-disclosure"><summary>来源与关联</summary><dl class="detail-list"><dt>账户</dt><dd>支付宝</dd><dt>来源</dt><dd>支付宝账单导入</dd><dt>备注</dt><dd>午餐</dd><dt>关联流水</dt><dd>1 条现金流水</dd></dl></details>
+    </aside>
+  </div>
+
+  <dialog id="category-picker" aria-labelledby="picker-title">
+    <header class="dialog-header"><div><span class="sr-only" id="picker-eyebrow">批量操作</span><h2 id="picker-title">修改分类</h2></div><button class="icon-button" type="button" aria-label="关闭分类选择" data-close-picker><svg class="icon" aria-hidden="true"><use href="#icon-close"/></svg></button></header>
+    <div class="dialog-body"><span class="sr-only" id="picker-description">选择收支分类</span><div class="picker-list" role="radiogroup" aria-label="选择收支分类">
+      <label class="picker-choice" style="--level:0"><input type="radio" name="picker-category" value="uncategorized"><span><strong>无分类</strong><small>清除现有分类</small></span></label>
+      <label class="picker-choice" style="--level:0"><input type="radio" name="picker-category" value="food"><span><strong>餐饮</strong></span></label>
+      <label class="picker-choice" style="--level:1"><input type="radio" name="picker-category" value="work-meal" checked><span><strong>工作餐</strong><small>餐饮 / 工作餐</small></span></label>
+      <label class="picker-choice" style="--level:1"><input type="radio" name="picker-category" value="gathering"><span><strong>聚餐</strong><small>餐饮 / 聚餐</small></span></label>
+      <label class="picker-choice" style="--level:0"><input type="radio" name="picker-category" value="transport"><span><strong>交通</strong></span></label>
+      <label class="picker-choice" style="--level:1"><input type="radio" name="picker-category" value="taxi"><span><strong>打车</strong><small>交通 / 打车</small></span></label>
+      <label class="picker-choice" style="--level:1"><input type="radio" name="picker-category" value="public-transit"><span><strong>公共交通</strong><small>交通 / 公共交通</small></span></label>
+      <label class="picker-choice" style="--level:1"><input type="radio" name="picker-category" value="utilities"><span><strong>水电燃气</strong><small>居住 / 水电燃气</small></span></label>
+    </div></div>
+    <footer class="dialog-actions"><button type="button" data-close-picker>取消</button><button class="primary-button" id="apply-category" type="button">确认修改</button></footer>
+  </dialog>
+
+  <dialog id="delete-dialog" aria-labelledby="delete-title">
+    <header class="dialog-header"><div><h2 id="delete-title">删除“工作餐”？</h2></div><button class="icon-button" type="button" aria-label="关闭删除确认" data-close-delete><svg class="icon" aria-hidden="true"><use href="#icon-close"/></svg></button></header>
+    <div class="dialog-body"><p class="delete-impact">当前有 <strong id="delete-impact-count">12</strong> 笔现金流水直接使用这个分类。删除后，这些流水会被改为“无分类”。</p></div>
+    <footer class="dialog-actions"><button type="button" data-close-delete>取消</button><button class="danger-button" id="confirm-delete" type="button">删除并改为无分类</button></footer>
+  </dialog>
+
+</body>
+</html>

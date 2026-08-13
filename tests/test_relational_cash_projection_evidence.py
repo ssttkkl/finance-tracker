@@ -18,7 +18,7 @@ def test_evidence_whitelists_snapshot_and_keeps_hidden_projection_readable(reque
         session.add(CashTransactionModel(
             id=1004, workspace_id=cash_web_runtime.workspace_id, account_id=101,
             occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("UTC")), amount=Decimal("12.50"),
-            currency="CNY", counterparty="咖啡店", category="退款", source_type="fixture", record_id="cash-004",
+            currency="CNY", counterparty="咖啡店", category_id=None, source_type="fixture", record_id="cash-004",
         ))
         session.add(TransactionRelationModel(
             workspace_id=cash_web_runtime.workspace_id, kind="refund_offset", subtype="",

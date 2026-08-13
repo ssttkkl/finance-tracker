@@ -84,23 +84,26 @@ class FinanceQueryService:
                     continue
                 rows.sort(key=lambda row: row.get("occurred_at") or row.get("date") or "")
                 last_checkin = max(
-                    (index for index, row in enumerate(rows) if row.get("category") == "checkin"),
+                    (
+                        index for index, row in enumerate(rows)
+                        if self._is_balance_boundary(row)
+                    ),
                     default=-1,
                 )
                 for row in rows[last_checkin + 1:]:
-                    if row.get("category") == "expense":
+                    if self._is_external_expense(row):
                         expenses[key[1]] += abs(_decimal(row.get("amount")))
 
             income = defaultdict(lambda: Decimal("0"))
             for row in month_rows:
-                if row.get("category") == "income":
+                if self._is_external_income(row):
                     income[row.get("currency", "CNY") or "CNY"] += _decimal(row.get("amount"))
 
         grouped_flows: dict[tuple[str, str], Decimal] = defaultdict(lambda: Decimal("0"))
         for row in all_rows:
-            if row.get("category") not in {"transfer", "transfer_in", "transfer_out"}:
+            if row.get("record_type") not in {"transfer_in", "transfer_out"}:
                 continue
-            if row.get("category") == "transfer_in":
+            if row.get("record_type") == "transfer_in":
                 continue
             note = row.get("note", "")
             currency = row.get("currency", "CNY") or "CNY"
@@ -123,11 +126,11 @@ class FinanceQueryService:
         *,
         month: str | None = None,
         account: str | None = None,
-        category: str | None = None,
+        category_id: str | None = None,
         limit: int = 30,
     ) -> TransactionPageDTO:
         rows = self._transactions.list_transactions(
-            month=month, account=account, category=category, limit=limit
+            month=month, account=account, category_id=category_id, limit=limit
         )
         items = tuple(self._transaction_dto(row) for row in rows)
         return TransactionPageDTO(items)
@@ -215,9 +218,33 @@ class FinanceQueryService:
             occurred_at=row.get("occurred_at", ""),
             account_name=row.get("account_name", ""),
             currency=row.get("currency", "CNY") or "CNY",
-            category=row.get("category", ""),
             amount=_decimal(row.get("amount")),
+            category_id=row.get("category_id"),
+            record_type=row.get("record_type", "other"),
+            record_subtype=row.get("record_subtype", "not_applicable"),
             note=row.get("note", ""),
             counterparty=row.get("counterparty", ""),
             transfer_account="",
+        )
+
+    @staticmethod
+    def _is_balance_boundary(row: dict) -> bool:
+        return (
+            str(row.get("record_type") or "other") == "other"
+            and _decimal(row.get("amount")) == 0
+            and "余额校准" in str(row.get("note") or "")
+        )
+
+    @staticmethod
+    def _is_external_expense(row: dict) -> bool:
+        return (
+            str(row.get("record_type") or "") in {"consumption", "fee"}
+            and _decimal(row.get("amount")) < 0
+        )
+
+    @staticmethod
+    def _is_external_income(row: dict) -> bool:
+        return (
+            str(row.get("record_type") or "") in {"income", "refund", "interest"}
+            and _decimal(row.get("amount")) > 0
         )

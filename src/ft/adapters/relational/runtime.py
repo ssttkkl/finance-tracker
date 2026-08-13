@@ -39,7 +39,7 @@ def _utc_today():
     return datetime.now(timezone.utc).date()
 
 
-SCHEMA_REVISION = "20260813_27"
+SCHEMA_REVISION = "20260813_29"
 REQUIRED_TABLES = {
     "workspaces", "accounts", "cash_transactions", "investment_events",
     "ledger_snapshots",
@@ -54,6 +54,7 @@ REQUIRED_TABLES = {
     "cash_projection_members", "cash_projection_relations",
     "cash_investment_funding_relations",
     "users", "workspace_memberships", "user_sessions", "workspace_invitations",
+    "cash_categories", "cash_category_states",
 }
 
 
@@ -276,7 +277,7 @@ def build_relational_services(settings) -> ServiceBundle:
                     amount = decimal_value((local_amount * rate).normalize())
                     flow_rate = decimal_value(rate)
                 flows_by_day.setdefault(occurred, []).append(amount)
-                cat = (value.category or "").lower()
+                cat = (value.record_type or "").lower()
                 if cat in {"transfer", "transfer_in", "transfer_out"}:
                     event_kind = "transfer"
                 elif cat in {"salary", "expense", "refund", "interest", "liability_interest"}:

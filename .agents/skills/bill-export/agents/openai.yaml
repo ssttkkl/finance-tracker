@@ -1,0 +1,6 @@
+interface:
+  display_name: "支付账单导出"
+  short_description: "统一导出微信、支付宝及其他支付渠道的账单文件"
+  default_prompt: "使用 $bill-export 导出我指定支付平台最近三个月的账单，并保存到设备本地。"
+policy:
+  allow_implicit_invocation: true

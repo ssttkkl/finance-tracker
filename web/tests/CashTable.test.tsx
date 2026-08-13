@@ -16,13 +16,13 @@ it("发生时间和月份键不固定地区时区", () => {
 
 const projection = (projection_id: string, kind: string, note = "") => ({
   projection_id, occurred_at: "2026-07-03T09:00:00+08:00", account: { id: 101, name: "日常账户", type: "cash", active: true },
-  counterparty: `交易对方${projection_id}`, category: "餐饮", amount: "-12.50", currency: "CNY", note, economic_type: "expense" as const,
+  counterparty: `交易对方${projection_id}`, category: { id: "food", parent_id: null, name: "餐饮", description: null, path: [{ id: "food", name: "餐饮" }], depth: 1, sort_order: 0, revision: 1 }, amount: "-12.50", currency: "CNY", note, economic_type: "expense" as const,
   transfer_subtype: null, composition: [kind], member_count: 2, accepted_relation_summary: [{ kind, subtype: "", count: 1 }], source_type: "fixture", source_types: ["fixture"], record_id: `cash-${projection_id}`, visible: true, hidden_reason: null,
 });
 
 const transfer = (crossCurrency = false) => ({
   ...projection("transfer", "transfer_pair", "账户间转移"),
-  counterparty: "信用账户", category: "转账", amount: "0", currency: "CNY",
+  counterparty: "信用账户", amount: "0", currency: "CNY",
   economic_type: "internal_transfer" as const, transfer_subtype: "ordinary_transfer",
   transfer: {
     from_account: { id: 101, name: "日常账户", type: "cash", active: true }, from_amount: "-200", from_currency: "CNY",
@@ -33,7 +33,7 @@ const transfer = (crossCurrency = false) => ({
 it("在交易信息中展示交易对方、备注和已合并标记，在来源列展示渠道", () => {
   render(<CashTable items={[projection("1", "payment_mirror", "午间消费"), projection("2", "refund_offset"), projection("3", "unknown_kind")]} onEvidence={(_projection, _source) => undefined} />);
 
-  expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "来源", "流水类型", "金额", "操作"]);
+  expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "来源", "流水类型", "分类", "金额", "操作"]);
   expect(screen.getByRole("table")).toHaveClass("cash-table");
   expect(screen.getByRole("cell", { name: /交易对方1/ })).toHaveAttribute("headers", "cash-column-transaction-info");
   expect(screen.getAllByRole("cell", { name: "-12.50 CNY" })[0]).toHaveAttribute("data-direction", "支出");
@@ -141,4 +141,14 @@ it("跨币种内部转账显示两端金额且不显示负号", () => {
   render(<CashTable items={[transfer(true)]} onEvidence={(_projection, _source) => undefined} />);
 
   expect(screen.getByText("200 CNY → 14 USD")).toBeInTheDocument();
+});
+
+it("选择模式展示分类列和当前已加载条目复选框", () => {
+  const category = { id: "food", parent_id: null, name: "餐饮", description: null, path: [{ id: "food", name: "餐饮" }], depth: 1, sort_order: 1, revision: 1 };
+  render(<CashTable items={[{ ...projection("selectable", "single"), category }]} selectable selectedIds={new Set()} onToggleSelection={() => undefined} onToggleAll={() => undefined} onEvidence={(_projection, _source) => undefined} />);
+
+  expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["选择", "发生时间", "账户", "交易信息", "来源", "流水类型", "分类", "金额", "操作"]);
+  expect(screen.getByRole("checkbox", { name: "选择交易对方selectable" })).toBeInTheDocument();
+  expect(screen.getByRole("checkbox", { name: "选择当前已加载记录" })).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "餐饮" })).toHaveAttribute("headers", "cash-column-category");
 });

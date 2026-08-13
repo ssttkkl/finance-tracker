@@ -78,7 +78,7 @@ def test_transfer_pair_endpoint_invariants_are_identical_on_both_backends(
                 amount=Decimal(amount),
                 currency=currency,
                 counterparty="转账对侧",
-                category="转账",
+                category_id=None,
                 source_type="fixture",
                 record_id=f"invalid-transfer-{amount}-{currency}",
             )
@@ -135,7 +135,7 @@ def test_cross_currency_transfer_pair_is_visible_on_both_backends(
                 amount=Decimal("14"),
                 currency="USD",
                 counterparty="跨币种转账对侧",
-                category="转账",
+                category_id=None,
                 source_type="fixture",
                 record_id=f"cross-currency-{subtype}",
             )
@@ -216,7 +216,7 @@ def test_currency_exchange_endpoint_invariants_are_identical_on_both_backends(
                 amount=Decimal(amount),
                 currency=currency,
                 counterparty="换汇对侧",
-                category="转账",
+                category_id=None,
                 source_type="fixture",
                 record_id=f"currency-exchange-{amount}-{currency}",
             )
@@ -292,7 +292,7 @@ def test_zero_amount_refund_contract_is_identical_on_both_backends(
                 amount=Decimal(refund_amount),
                 currency=refund_currency,
                 counterparty="零金额退款对侧",
-                category="退款",
+                category_id=None,
                 source_type="fixture",
                 record_id=f"zero-refund-{expense_amount}-{expense_currency}-{refund_amount}-{refund_currency}",
             )
@@ -373,7 +373,7 @@ def test_relation_kind_conflict_is_pending_for_auto_scan_but_rejected_on_confirm
                 amount=Decimal("12.50"),
                 currency="CNY",
                 counterparty="退款",
-                category="退款",
+                category_id=None,
                 source_type="fixture",
                 record_id="kind-conflict-refund",
             )
@@ -384,7 +384,7 @@ def test_relation_kind_conflict_is_pending_for_auto_scan_but_rejected_on_confirm
                 amount=Decimal("12.50"),
                 currency="CNY",
                 counterparty="退款",
-                category="退款",
+                category_id=None,
                 source_type="fixture",
                 record_id="kind-conflict-refund-mirror",
             )
@@ -395,7 +395,7 @@ def test_relation_kind_conflict_is_pending_for_auto_scan_but_rejected_on_confirm
                 amount=Decimal("-12.50"),
                 currency="CNY",
                 counterparty="转出",
-                category="转账",
+                category_id=None,
                 source_type="fixture",
                 record_id="kind-conflict-transfer",
             )

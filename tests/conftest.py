@@ -174,7 +174,7 @@ def cash_web_runtime(tmp_path):
     from alembic import command
     from alembic.config import Config
     from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace
-    from ft.adapters.relational.models import AccountModel, CashTransactionModel
+    from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashTransactionModel
 
     root = Path(__file__).parents[1]
     database_url = f"sqlite+pysqlite:///{tmp_path / 'cash-web.db'}"
@@ -196,10 +196,32 @@ def cash_web_runtime(tmp_path):
             AccountModel(id=104, workspace_id="other-workspace", name="其他账户", type="cash"),
         ))
         session.add_all((
+            CashCategoryModel(
+                id="category-food", workspace_id=workspace_id, parent_id=None,
+                parent_scope_key="__root__", name="餐饮", normalized_name="餐饮",
+                category_path="/category-food/", depth=1, sort_order=1,
+            ),
+            CashCategoryModel(
+                id="category-daily", workspace_id=workspace_id, parent_id=None,
+                parent_scope_key="__root__", name="日用", normalized_name="日用",
+                category_path="/category-daily/", depth=1, sort_order=2,
+            ),
+            CashCategoryModel(
+                id="category-income", workspace_id=workspace_id, parent_id=None,
+                parent_scope_key="__root__", name="收入", normalized_name="收入",
+                category_path="/category-income/", depth=1, sort_order=3,
+            ),
+            CashCategoryModel(
+                id="category-transfer", workspace_id=workspace_id, parent_id=None,
+                parent_scope_key="__root__", name="转账", normalized_name="转账",
+                category_path="/category-transfer/", depth=1, sort_order=4,
+            ),
+        ))
+        session.add_all((
             CashTransactionModel(
                 id=1003, workspace_id=workspace_id, account_id=101,
                 occurred_at=datetime(2026, 7, 3, 9, tzinfo=utc), amount=Decimal("-12.50"),
-                currency="CNY", counterparty="咖啡店", category="餐饮", source_type="fixture",
+                currency="CNY", counterparty="咖啡店", category_id="category-food", source_type="fixture",
                 record_id="cash-003", source_payload={
                     "merchant": "咖啡店", "name": "不应展示", "account": "1234",
                     "memo": "张三 6222-0000 token=secret /private/statement.csv",
@@ -208,12 +230,12 @@ def cash_web_runtime(tmp_path):
             CashTransactionModel(
                 id=1002, workspace_id=workspace_id, account_id=102,
                 occurred_at=datetime(2026, 7, 2, 12, tzinfo=utc), amount=Decimal("-100"),
-                currency="CNY", counterparty="超市", category="日用", source_type="fixture", record_id="cash-002",
+                currency="CNY", counterparty="超市", category_id="category-daily", source_type="fixture", record_id="cash-002",
             ),
             CashTransactionModel(
                 id=1001, workspace_id=workspace_id, account_id=101,
                 occurred_at=datetime(2026, 7, 1, 8, tzinfo=utc), amount=Decimal("2000"),
-                currency="CNY", counterparty="工资", category="收入", source_type="fixture", record_id="cash-001",
+                currency="CNY", counterparty="工资", category_id="category-income", source_type="fixture", record_id="cash-001",
             ),
         ))
     try:
@@ -232,7 +254,7 @@ def postgres_cash_web_runtime():
     from alembic import command
     from alembic.config import Config
     from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace
-    from ft.adapters.relational.models import AccountModel, CashTransactionModel
+    from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashTransactionModel
 
     database_url = require_test_postgres_url()
     if database_url is None:
@@ -252,10 +274,32 @@ def postgres_cash_web_runtime():
             AccountModel(id=104, workspace_id="other-postgres-workspace", name="其他账户", type="cash"),
         ))
         session.add_all((
+            CashCategoryModel(
+                id="category-food", workspace_id=workspace_id, parent_id=None,
+                parent_scope_key="__root__", name="餐饮", normalized_name="餐饮",
+                category_path="/category-food/", depth=1, sort_order=1,
+            ),
+            CashCategoryModel(
+                id="category-daily", workspace_id=workspace_id, parent_id=None,
+                parent_scope_key="__root__", name="日用", normalized_name="日用",
+                category_path="/category-daily/", depth=1, sort_order=2,
+            ),
+            CashCategoryModel(
+                id="category-income", workspace_id=workspace_id, parent_id=None,
+                parent_scope_key="__root__", name="收入", normalized_name="收入",
+                category_path="/category-income/", depth=1, sort_order=3,
+            ),
+            CashCategoryModel(
+                id="category-transfer", workspace_id=workspace_id, parent_id=None,
+                parent_scope_key="__root__", name="转账", normalized_name="转账",
+                category_path="/category-transfer/", depth=1, sort_order=4,
+            ),
+        ))
+        session.add_all((
             CashTransactionModel(
                 id=1003, workspace_id=workspace_id, account_id=101,
                 occurred_at=datetime(2026, 7, 3, 9, tzinfo=utc), amount=Decimal("-12.50"),
-                currency="CNY", counterparty="咖啡店", category="餐饮", source_type="fixture",
+                currency="CNY", counterparty="咖啡店", category_id="category-food", source_type="fixture",
                 record_id="cash-003", source_payload={
                     "merchant": "咖啡店", "name": "不应展示", "account": "1234",
                     "memo": "张三 6222-0000 token=secret /private/statement.csv",
@@ -264,12 +308,12 @@ def postgres_cash_web_runtime():
             CashTransactionModel(
                 id=1002, workspace_id=workspace_id, account_id=102,
                 occurred_at=datetime(2026, 7, 2, 12, tzinfo=utc), amount=Decimal("-100"),
-                currency="CNY", counterparty="超市", category="日用", source_type="fixture", record_id="cash-002",
+                currency="CNY", counterparty="超市", category_id="category-daily", source_type="fixture", record_id="cash-002",
             ),
             CashTransactionModel(
                 id=1001, workspace_id=workspace_id, account_id=101,
                 occurred_at=datetime(2026, 7, 1, 8, tzinfo=utc), amount=Decimal("2000"),
-                currency="CNY", counterparty="工资", category="收入", source_type="fixture", record_id="cash-001",
+                currency="CNY", counterparty="工资", category_id="category-income", source_type="fixture", record_id="cash-001",
             ),
         ))
     try:

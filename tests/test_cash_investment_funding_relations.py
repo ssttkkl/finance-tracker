@@ -67,7 +67,7 @@ def _add_cash(
         amount=Decimal(amount),
         currency=currency,
         counterparty=counterparty,
-        category="transfer",
+        category_id=None,
         record_type=record_type,
         record_subtype="ordinary_transfer" if record_type.startswith("transfer_") else "not_applicable",
         source_type="bank_statement",

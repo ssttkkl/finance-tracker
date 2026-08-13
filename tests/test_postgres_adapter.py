@@ -107,7 +107,7 @@ def test_cashflow_service_contract_persists_decimal_snapshot():
         "counterparty_account": "",
         "counterparty_account_attrs": [],
         "note": "",
-            "category": "expense",
+            "category_id": None,
             "record_type": "other",
             "record_subtype": "not_applicable",
             "account_name": "Cash",

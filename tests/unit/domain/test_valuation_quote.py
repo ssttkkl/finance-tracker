@@ -42,6 +42,9 @@ def test_symbol_map_and_kind_infer():
     assert ledger_security_to_yfinance("aapl.us") == "AAPL"
     assert ledger_security_to_yfinance("00700.hk") == "0700.HK"
     assert ledger_security_to_yfinance("600519.sh") == "600519.SS"
+    assert ledger_security_to_yfinance("2330.tw") == "2330.TW"
+    assert ledger_security_to_yfinance("7203.jp") == "7203.T"
+    assert ledger_security_to_yfinance("005930.ks") == "005930.KS"
     assert infer_asset_kind("usd", cash_tickers={"USD"}) is AssetKind.CASH
     assert infer_asset_kind("btc") is AssetKind.CRYPTO
     assert infer_asset_kind("pm:election:yes") is AssetKind.PREDICTION_MARKET

@@ -180,6 +180,191 @@ def test_portfolio_query_uses_valuation_and_never_prices_configured_currency():
     assert by_ticker["usdt"].quote_status == "unsupported"
 
 
+def test_portfolio_query_total_profit_rate_uses_cash_in_the_denominator():
+    from datetime import datetime, timezone
+    from ft.application.investment import PortfolioQueryService
+    from ft.application.valuation import ValuationService
+    from ft.domain.valuation import ProviderTick
+
+    class Repository:
+        def load_portfolio(self):
+            return {
+                "accounts": {"IBKR": {"currency": "USD", "positions": {
+                    "usd": {"shares": "10", "total_cost": "10", "cost_currency": "USD"},
+                    "aapl.us": {"shares": "2", "total_cost": "6", "cost_currency": "USD"},
+                }}},
+                "base_currencies": {"IBKR": ("USD",)},
+                "configured_currencies": ("USD",),
+            }
+
+    class Provider:
+        def raw_quote(self, identity, kind):
+            return ProviderTick(Decimal("5"), "USD", datetime(2026, 7, 25, tzinfo=timezone.utc), "fake")
+
+    result = PortfolioQueryService(
+        Repository(), ValuationService(Provider(), clock=lambda: datetime(2026, 7, 25, tzinfo=timezone.utc)),
+    ).get_portfolio()
+
+    assert result.total_market_value == Decimal("20")
+    assert result.total_profit == Decimal("4")
+    assert result.total_profit_rate == Decimal("0.2")
+
+
+def test_portfolio_query_includes_realized_and_floating_period_pnl():
+    from datetime import datetime, timedelta, timezone
+    from ft.application.investment import PortfolioQueryService
+    from ft.application.valuation import ValuationService
+    from ft.domain.valuation import AssetKind, AssetRef, ProviderTick
+
+    start = datetime(2026, 8, 1, tzinfo=timezone.utc)
+    now = start + timedelta(hours=24)
+
+    class Repository(FakePortfolioRepository):
+        def load_portfolio(self):
+            result = super().load_portfolio()
+            result["accounts"]["IBKR"]["positions"] = {
+                "usd": {"shares": "400", "total_cost": "400", "cost_currency": "USD"},
+                "aapl.us": {"shares": "11", "total_cost": "1118.333333333333333333", "cost_currency": "USD"},
+            }
+            result["investment_events"] = (
+                {"occurred_at": start + timedelta(hours=4), "account": "IBKR", "record_type": "trade", "currency": "USD", "from_ticker": "usd", "from_amount": "220", "to_ticker": "aapl.us", "to_amount": "2", "commission": "0", "commission_asset": "usd"},
+                {"occurred_at": start + timedelta(hours=16), "account": "IBKR", "record_type": "trade", "currency": "USD", "from_ticker": "aapl.us", "from_amount": "1", "to_ticker": "usd", "to_amount": "120", "commission": "0", "commission_asset": "usd"},
+            )
+            return result
+
+    class Provider:
+        def raw_quote(self, identity, kind):
+            return ProviderTick(Decimal("120"), "USD", now, "current")
+
+        def raw_quote_at(self, identity, kind, *, at):
+            return ProviderTick(Decimal("100"), "USD", at, "history")
+
+    result = PortfolioQueryService(
+        Repository(), ValuationService(Provider(), clock=lambda: now), clock=lambda: now,
+    ).get_portfolio(period="24h")
+
+    position = next(item for item in result.accounts[0].positions if item.ticker == "aapl.us")
+    assert position.period_profit == Decimal("220")
+    assert result.period_profit == Decimal("220")
+    expected_capital = Decimal("1000") + Decimal("220") * Decimal("20") / Decimal("24") - Decimal("120") * Decimal("8") / Decimal("24")
+    assert position.period_profit_rate == Decimal("220") / expected_capital
+
+
+def test_portfolio_query_uses_latest_snapshot_as_non_reversible_period_baseline():
+    from datetime import datetime, timedelta, timezone
+    from ft.application.investment import PortfolioQueryService
+    from ft.application.valuation import ValuationService
+    from ft.domain.valuation import ProviderTick
+
+    start = datetime(2026, 8, 1, tzinfo=timezone.utc)
+    baseline_at = start + timedelta(hours=12)
+    now = start + timedelta(hours=24)
+
+    class Repository(FakePortfolioRepository):
+        def load_portfolio(self):
+            result = super().load_portfolio()
+            result["accounts"]["IBKR"]["positions"] = {
+                "usd": {"shares": "500", "total_cost": "500", "cost_currency": "USD"},
+                "aapl.us": {"shares": "10", "total_cost": "1000", "cost_currency": "USD"},
+            }
+            result["investment_events"] = (
+                {"occurred_at": start + timedelta(hours=6), "account": "IBKR", "record_type": "snapshot", "record_subtype": "position", "currency": "USD", "from_ticker": "aapl.us", "from_amount": "0", "to_ticker": "aapl.us", "to_amount": "2", "commission": "0", "commission_asset": ""},
+                {"occurred_at": baseline_at, "account": "IBKR", "record_type": "snapshot", "record_subtype": "position", "currency": "USD", "from_ticker": "aapl.us", "from_amount": "0", "to_ticker": "aapl.us", "to_amount": "5", "commission": "0", "commission_asset": ""},
+                {"occurred_at": start + timedelta(hours=18), "account": "IBKR", "record_type": "trade", "currency": "USD", "from_ticker": "usd", "from_amount": "500", "to_ticker": "aapl.us", "to_amount": "5", "commission": "0", "commission_asset": "usd"},
+            )
+            return result
+
+    class Provider:
+        def raw_quote(self, identity, kind):
+            return ProviderTick(Decimal("110"), "USD", now, "current")
+
+        def raw_quote_at(self, identity, kind, *, at):
+            price = Decimal("100") if at == baseline_at else Decimal("90")
+            return ProviderTick(price, "USD", at, "history")
+
+    result = PortfolioQueryService(
+        Repository(), ValuationService(Provider(), clock=lambda: now), clock=lambda: now,
+    ).get_portfolio(period="24h")
+
+    position = next(item for item in result.accounts[0].positions if item.ticker == "aapl.us")
+    assert position.period_profit == Decimal("100")
+    assert result.period_profit == Decimal("100")
+    assert result.period_profit_rate is None
+    assert position.period_baselines[0].occurred_at == baseline_at
+    assert result.period_baselines == position.period_baselines
+
+
+def test_portfolio_query_excludes_external_funding_and_counts_income_in_period_pnl():
+    from datetime import datetime, timedelta, timezone
+    from ft.application.investment import PortfolioQueryService
+    from ft.application.valuation import ValuationService
+    from ft.domain.valuation import ProviderTick
+
+    start = datetime(2026, 8, 1, tzinfo=timezone.utc)
+    now = start + timedelta(hours=24)
+
+    class Repository(FakePortfolioRepository):
+        def load_portfolio(self):
+            result = super().load_portfolio()
+            result["accounts"]["IBKR"]["positions"] = {
+                "usd": {"shares": "1600", "total_cost": "1600", "cost_currency": "USD"},
+                "aapl.us": {"shares": "10", "total_cost": "1000", "cost_currency": "USD"},
+            }
+            result["investment_events"] = (
+                {"occurred_at": start + timedelta(hours=8), "account": "IBKR", "record_type": "funding", "record_subtype": "external", "currency": "USD", "from_ticker": "", "from_amount": "0", "to_ticker": "usd", "to_amount": "500", "commission": "0", "commission_asset": ""},
+            )
+            return result
+
+    class Provider:
+        def raw_quote(self, identity, kind):
+            return ProviderTick(Decimal("100"), "USD", now, "current")
+
+        def raw_quote_at(self, identity, kind, *, at):
+            return ProviderTick(Decimal("100"), "USD", at, "history")
+
+    result = PortfolioQueryService(
+        Repository(), ValuationService(Provider(), clock=lambda: now), clock=lambda: now,
+    ).get_portfolio(period="24h")
+
+    assert result.period_profit == Decimal("0")
+
+
+def test_portfolio_query_counts_profit_from_a_position_sold_during_period():
+    from datetime import datetime, timedelta, timezone
+    from ft.application.investment import PortfolioQueryService
+    from ft.application.valuation import ValuationService
+    from ft.domain.valuation import ProviderTick
+
+    start = datetime(2026, 8, 1, tzinfo=timezone.utc)
+    now = start + timedelta(hours=24)
+
+    class Repository(FakePortfolioRepository):
+        def load_portfolio(self):
+            result = super().load_portfolio()
+            result["accounts"]["IBKR"]["positions"] = {
+                "usd": {"shares": "1120", "total_cost": "1120", "cost_currency": "USD"},
+            }
+            result["investment_events"] = (
+                {"occurred_at": start + timedelta(hours=4), "account": "IBKR", "record_type": "trade", "currency": "USD", "from_ticker": "usd", "from_amount": "100", "to_ticker": "aapl.us", "to_amount": "1", "commission": "0", "commission_asset": ""},
+                {"occurred_at": start + timedelta(hours=16), "account": "IBKR", "record_type": "trade", "currency": "USD", "from_ticker": "aapl.us", "from_amount": "1", "to_ticker": "usd", "to_amount": "120", "commission": "0", "commission_asset": ""},
+            )
+            return result
+
+    class Provider:
+        def raw_quote(self, identity, kind):
+            return ProviderTick(Decimal("1"), "USD", now, "current")
+
+        def raw_quote_at(self, identity, kind, *, at):
+            return ProviderTick(Decimal("1"), "USD", at, "history")
+
+    result = PortfolioQueryService(
+        Repository(), ValuationService(Provider(), clock=lambda: now), clock=lambda: now,
+    ).get_portfolio(period="24h")
+
+    assert result.period_profit == Decimal("20")
+    assert all(position.ticker != "aapl.us" for position in result.accounts[0].positions)
+
+
 def test_investment_application_imports_do_not_touch_home(monkeypatch):
     def fail_home():
         raise AssertionError("investment application import touched home")

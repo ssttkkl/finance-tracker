@@ -26,6 +26,7 @@ def _fv(**kwargs):
         bill_source=default, source=default,
     )
     base.update(kwargs)
+    base.pop("category", None)
     if "record_type" not in base:
         amount = Decimal(str(base.get("amount") or 0))
         note_text = str(base.get("note") or "")

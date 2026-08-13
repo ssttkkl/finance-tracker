@@ -31,9 +31,10 @@ class CashflowService:
 
     def add_manual_transaction(self, *, amount: Decimal, counterparty: str, account_name: str,
                                note: str = "", source: str = "", date: str | None = None,
-                               currency: str | None = None, category: str | None = None,
+                               currency: str | None = None,
                                bill_source: str = "", record_id: str = "",
-                               record_type: str = "other", **_extra) -> CashflowResult:
+                               record_type: str = "other", category_id: str | None = None,
+                               **_extra) -> CashflowResult:
         try:
             operation_currency = normalize_currency(currency or "")
         except ValueError:
@@ -57,8 +58,8 @@ class CashflowService:
                 "currency": operation_currency,
                 "counterparty": counterparty,
                 "note": note,
-                "category": category if category is not None else ("expense" if amount < 0 else "income"),
                 "record_type": record_type or "other",
+                "category_id": category_id,
                 "account_name": account_name,
                 "source": source,
                 "source_type": bill_source or source or "",
@@ -107,7 +108,8 @@ class CashflowService:
                 "currency": operation_currency,
                 "counterparty": "",
                 "note": f"余额校准{sym}{balance:.2f}",
-                "category": "checkin",
+                "record_type": "other",
+                "record_subtype": "not_applicable",
                 "account_name": account_name,
                 "source": "手动",
                 "source_type": "",
@@ -236,7 +238,7 @@ class TransferService:
 
 
 def _transfer_row(date_str: str, amount: Decimal, currency: str, note: str,
-                  account_name: str, category: str, transfer_account: str) -> dict:
+                  account_name: str, record_type: str, transfer_account: str) -> dict:
     # 015: transfer counterpart lives in note (transfer_account column removed).
     text = note or transfer_account or ""
     return {
@@ -245,7 +247,8 @@ def _transfer_row(date_str: str, amount: Decimal, currency: str, note: str,
         "currency": currency,
         "counterparty": "",
         "note": text,
-        "category": category,
+        "record_type": record_type,
+        "record_subtype": "ordinary_transfer",
         "account_name": account_name,
         "source_type": "",
     }
@@ -254,7 +257,7 @@ def _transfer_row(date_str: str, amount: Decimal, currency: str, note: str,
 def _transfer_event(date_str: str, amount: Decimal, account, counterpart, currency: str, counterpart_currency: str, direction: str,
                     note: str) -> dict:
     if account.type not in {"security", "crypto"}:
-        category = "transfer_out" if direction == "out" else "transfer_in"
+        record_type = "transfer_out" if direction == "out" else "transfer_in"
         default_note = (
             f"购汇至{counterpart_currency}" if direction == "out" and currency != counterpart_currency
             else f"购汇自{counterpart_currency}" if direction == "in" and currency != counterpart_currency
@@ -266,7 +269,7 @@ def _transfer_event(date_str: str, amount: Decimal, account, counterpart, curren
             currency,
             note or default_note,
             account.name,
-            category,
+            record_type,
             counterpart.name,
         )
 

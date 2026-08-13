@@ -54,7 +54,7 @@ class CashflowFact:
     occurred_at: datetime
     amount: Decimal
     currency: str
-    category: str = ""
+    record_type: str = "other"
 
 
 @dataclass(frozen=True)

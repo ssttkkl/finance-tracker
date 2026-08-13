@@ -75,8 +75,8 @@ def test_zero_amount_refund_is_a_hidden_full_refund_with_its_evidence():
     from ft.domain.cash_projection import CashProjectionFact, ProjectionRelation, build_cash_projections
 
     facts = (
-        CashProjectionFact(1, 101, datetime(2026, 1, 5, tzinfo=timezone.utc), Decimal("0"), "CNY", "原消费", "餐饮", "", "fixture", "zero-expense"),
-        CashProjectionFact(2, 101, datetime(2026, 1, 6, tzinfo=timezone.utc), Decimal("0"), "CNY", "退款", "餐饮", "", "fixture", "zero-refund"),
+        CashProjectionFact(1, 101, datetime(2026, 1, 5, tzinfo=timezone.utc), Decimal("0"), "CNY", "原消费", "category-fixture", "", "fixture", "zero-expense"),
+        CashProjectionFact(2, 101, datetime(2026, 1, 6, tzinfo=timezone.utc), Decimal("0"), "CNY", "退款", "category-fixture", "", "fixture", "zero-refund"),
     )
     relation = ProjectionRelation(1, "refund_offset", 1, 2)
 
@@ -123,7 +123,7 @@ def test_mirrored_expense_and_refund_diamond_offsets_once():
     def fact(identifier, amount):
         return CashProjectionFact(
             id=identifier, account_id=101, occurred_at=datetime(2026, 1, identifier, tzinfo=timezone.utc),
-            amount=Decimal(amount), currency="CNY", counterparty="示例商户", category="日用",
+            amount=Decimal(amount), currency="CNY", counterparty="示例商户", category_id="category-fixture",
             note="", source_type="fixture", record_id=f"diamond-{identifier}",
         )
 
@@ -191,7 +191,7 @@ def test_relation_kind_invariants_fail_closed():
         build_cash_projections(transfer_facts, (ProjectionRelation(9, "transfer_pair", 40, 40),))
     with pytest.raises(CashProjectionError, match="projection.invalid_relation"):
         build_cash_projections(
-            transfer_facts + (CashProjectionFact(id=42, account_id=101, occurred_at=transfer_facts[0].occurred_at, amount=Decimal("30"), currency="CNY", counterparty="", category="", note="", source_type=None, record_id=""),),
+            transfer_facts + (CashProjectionFact(id=42, account_id=101, occurred_at=transfer_facts[0].occurred_at, amount=Decimal("30"), currency="CNY", counterparty="", category_id=None, note="", source_type=None, record_id=""),),
             (ProjectionRelation(10, "transfer_pair", 40, 41), ProjectionRelation(11, "refund_offset", 40, 42)),
         )
 
