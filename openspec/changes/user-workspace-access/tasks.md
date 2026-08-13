@@ -42,6 +42,7 @@
   - `openspec validate user-workspace-access --strict`：通过。`openspec validate --all --strict` 受仓库既有空目录 `openspec/changes/cloudflare-access-web-deployment/` 阻断，不属于本变更。
   - SQLite 覆盖已通过。未设置 `FT_TEST_POSTGRES_URL`，PostgreSQL 矩阵未完成；补跑条件：提供可连接且数据库名以 `_test` 结尾的 URL，例如 `postgresql+psycopg://…/finance_tracker_test`，再运行 `FT_REQUIRE_TEST_POSTGRES=1 uv run pytest`。
   - 性能门禁：使用固定 2 次预热、8 个有效样本的 FastAPI HTTP 矩阵，认证 p95 预算为 1.5 s，其余新增接口为 250 ms。以本机 `psql` 专用 `finance_tracker_test` 临时配置 `FT_TEST_POSTGRES_URL` 后，`uv run pytest tests/test_user_workspace_access_performance.py -q -s`：2 passed、1 warning。SQLite p95：注册 44.7 ms、登录 47.0 ms、其余接口 1.4–3.0 ms；PostgreSQL p95：注册 41.4 ms、登录 40.6 ms、其余接口 2.1–5.8 ms。随后 `uv run pytest tests/test_user_workspace_access.py tests/test_user_workspace_access_performance.py -q`：12 passed、1 warning。
+  - 真实浏览器 QA：以临时 SQLite API 和生产构建前端运行独立 Chromium 双会话流程。管理员注册、创建工作区、创建「仅可查看」邀请；成员注册并接受邀请；管理员在成员页将其更新为「可编辑」后移除。成员角色实测 `viewer → editor`，移除后成员控件消失；390 px 宽度无横向滚动。浏览器未记录页面异常或 console error。测试结束后已停止临时 API/预览服务，未写入仓库数据。
 
 ## 7. 发布
 
