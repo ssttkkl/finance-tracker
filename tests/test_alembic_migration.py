@@ -40,6 +40,7 @@ def test_repository_has_clean_linear_revisions():
             "20260813_28_cash_category_lookup_index.py",
             "20260813_29_cash_category_path_index.py",
             "20260813_27_user_workspace_access.py",
+            "20260813_30_merge_user_workspace_and_categories.py",
         ]
 
 
