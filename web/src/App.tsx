@@ -20,7 +20,7 @@ const InvestmentLedgerPage = lazy(async () => {
   return { default: module.InvestmentLedgerPage };
 });
 
-export function App({ sidebarFooter, workspacePage, onWorkspaceManagement, workspaceManagementActive = false }: { sidebarFooter?: ReactNode; workspacePage?: ReactNode; onWorkspaceManagement?: () => void; workspaceManagementActive?: boolean } = {}) {
+export function App({ sidebarFooter, mobileAccount, workspacePage, onWorkspaceManagement, workspaceManagementActive = false }: { sidebarFooter?: ReactNode; mobileAccount?: ReactNode; workspacePage?: ReactNode; onWorkspaceManagement?: () => void; workspaceManagementActive?: boolean } = {}) {
   const [path, setPath] = useState(() => normalizeRoute(window.location.pathname, window.location.hash));
   const [modalOpen, setModalOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -55,10 +55,9 @@ export function App({ sidebarFooter, workspacePage, onWorkspaceManagement, works
     <main className="app-shell" inert={modalOpen || undefined}>
       <aside className={`sidebar${mobileNavOpen ? " is-nav-open" : ""}`}>
         <div className="sidebar-head">
+          <div className="mobile-menu-slot"><button ref={mobileNavToggle} className="menu-toggle" type="button" aria-expanded={mobileNavOpen} aria-controls="primary-navigation" aria-label={mobileNavOpen ? "关闭菜单" : "打开菜单"} onClick={() => setMobileNavOpen((open) => !open)}><span className="menu-icon" aria-hidden="true">{mobileNavOpen ? "×" : "☰"}</span><span className="menu-label">菜单</span></button></div>
           <strong>Finance Tracker</strong>
-          <button ref={mobileNavToggle} className="menu-toggle" type="button" aria-expanded={mobileNavOpen} aria-controls="primary-navigation" aria-label={mobileNavOpen ? "关闭菜单" : "打开菜单"} onClick={() => setMobileNavOpen((open) => !open)}>
-            <span className="menu-icon" aria-hidden="true">{mobileNavOpen ? "×" : "☰"}</span><span>{mobileNavOpen ? "收起" : "菜单"}</span>
-          </button>
+          <div className="mobile-account">{mobileAccount}</div>
         </div>
         <nav id="primary-navigation" aria-label="主要导航" onClick={closeMobileNav}>
           <div className="nav-group"><a className="nav-parent" aria-current={isCashLedger ? "page" : undefined} href="/" onClick={(event) => { event.preventDefault(); navigate("/"); }}>收支账本</a><div className="nav-subnav" aria-label="收支账本页面"><a className="subnav-link" aria-current={isCashCategory ? "page" : undefined} href="/cash-categories" onClick={(event) => { event.preventDefault(); navigate("/cash-categories"); }}>分类管理</a></div></div>
