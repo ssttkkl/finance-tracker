@@ -244,6 +244,33 @@ test("分类管理在列表末尾创建、编辑，并阻止删除含子分类�
   expect(state.deleteBodies).toEqual([]);
 });
 
+test("分类管理使用工作台布局而不是浏览器默认控件样式", async ({ page }, testInfo) => {
+  const state = fixture();
+  await installFixture(page, state);
+  await page.goto("/cash-categories");
+
+  await expect(page.locator(".category-layout")).toBeVisible();
+  await expect(page.locator(".category-directory")).toHaveCSS("border-style", "solid");
+  await expect(page.locator(".category-tree")).toHaveCSS("list-style-type", "none");
+  await expect(page.locator(".category-editor")).toBeVisible();
+
+  const addRoot = page.getByRole("button", { name: "新建一级分类" });
+  await expect(addRoot).toHaveCSS("border-style", "none");
+  await expect(addRoot).toHaveCSS("min-height", "56px");
+  await expect(addRoot).toHaveCSS("display", "flex");
+  expect(await page.locator(".category-layout").evaluate((element) => getComputedStyle(element).display)).toBe("grid");
+  expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("cash-categories-1440.png"), fullPage: false });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/cash-categories");
+  await expect(page.locator(".category-layout")).toBeVisible();
+  await expect(page.getByRole("button", { name: "新建一级分类" })).toBeVisible();
+  await expect(page.locator(".category-editor")).toBeVisible();
+  expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("cash-categories-390.png"), fullPage: false });
+});
+
 test("分类管理确认删除已使用叶子分类时显示影响并刷新目录", async ({ page }) => {
   const state = fixture();
   await installFixture(page, state);

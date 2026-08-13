@@ -120,6 +120,16 @@
 - 回归：`cd web && npm run test:e2e -- --reporter=line tests/cash-category-management.e2e.ts`：7 passed；`npm run build`：通过；`git diff --check`：通过。
 - 完整回归补充：`cd web && npm test -- --run`：53 passed；`npm run test:e2e -- --reporter=line`：18 passed；`npm run test:visual -- --reporter=line`：12 passed；`npm run test:preview -- --reporter=line tests/runtime-preview.e2e.ts`：4 passed。首次完整 E2E 的 1 条失败是新增测试定位器同时匹配详情关闭按钮和遮罩按钮，收紧为对话框内精确按钮后转绿；不是产品回归。
 
+### 分类管理生产样式修复（2026-08-13）
+
+- 根因：`CashCategoriesPage.tsx` 使用的 `.category-*` 页面 class 没有对应生产 CSS，页面退回浏览器默认的 `ul`、`button` 和输入控件样式；因此出现列表圆点、默认按钮和编辑区缺失。
+- 失败先行：新增真实 Chromium 样式回归后，当前代码按预期在 `.category-directory` 的边框断言处失败；补齐分类工作台样式后转绿。
+- 修复：新增分类目录 + 编辑区双栏工作台、无默认列表标记、分类层级缩进、列表末尾“新建一级分类”入口、分类操作按钮、编辑表单、删除确认和 390 px 单栏响应式样式；颜色全部复用现有 Cobalt token，不引入新依赖。
+- 真实浏览器 QA：`cd web && npm run test:e2e -- --reporter=line tests/cash-category-management.e2e.ts`：10 passed；`FT_E2E_WEB_PORT=5184 npm run test:e2e -- --reporter=line`：21 passed。
+- 视觉截图：`web/test-results/cash-category-management.e2e.ts-分类管理使用工作台布局而不是浏览器默认控件样式/cash-categories-1440.png` 与 `cash-categories-390.png`；人工复核确认桌面双栏、移动单栏、列表无圆点、编辑区可见、入口仍在列表末尾且无横向溢出。
+- 其他回归：`cd web && npm test -- --run`：53 passed；`npm run test:visual -- --reporter=line`：12 passed；`npm run test:preview -- --reporter=line`：4 passed；`npm run build`：通过。
+- OpenSpec 与工程卫生：`openspec validate --all --strict`：20 passed；`openspec doctor`：通过；`git diff --check`：通过。环境无可执行 `hallmark` CLI，已按 `$hallmark audit` 门禁完成人工等价审查，0 个 critical、0 个 major、0 个未解决 minor。
+
 ### 选择框视觉统一证据（2026-08-13）
 
 - 根因：表头全选框没有复用行选择框的尺寸规则，Chromium 实测表头为 `24.9375 × 24.9375`，行选择框为 `18 × 18`；选择列单元格也没有统一居中约束。
