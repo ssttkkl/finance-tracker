@@ -371,3 +371,39 @@ test("390 px 窄屏批量操作栏保持按钮可达", async ({ page }, testInfo
   expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath(`batch-toolbar-${page.viewportSize()!.width}.png`), fullPage: false });
 });
+
+test("表头全选框与行选择框尺寸和横向位置一致", async ({ page }) => {
+  const state = fixture();
+  await installFixture(page, state);
+  await page.goto("/");
+
+  const headerCheckbox = page.getByLabel("选择当前已加载记录");
+  const rowCheckbox = page.getByLabel("选择咖啡店");
+  const headerBox = await headerCheckbox.boundingBox();
+  const rowBox = await rowCheckbox.boundingBox();
+  expect(headerBox).not.toBeNull();
+  expect(rowBox).not.toBeNull();
+  expect(headerBox!.width).toBe(rowBox!.width);
+  expect(headerBox!.height).toBe(rowBox!.height);
+  expect(Math.abs((headerBox!.x + headerBox!.width / 2) - (rowBox!.x + rowBox!.width / 2))).toBeLessThanOrEqual(1);
+});
+
+test("桌面和窄屏选择框视觉状态保持一致", async ({ page }, testInfo) => {
+  const state = fixture();
+  await installFixture(page, state);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  const rowCheckbox = page.getByLabel("选择咖啡店");
+  const rowBox = await rowCheckbox.boundingBox();
+  expect(rowBox).not.toBeNull();
+  expect(rowBox!.width).toBe(18);
+  expect(rowBox!.height).toBe(18);
+  expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByLabel("选择咖啡店").check();
+  await page.screenshot({ path: testInfo.outputPath("cash-selection-390.png"), fullPage: false });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.reload();
+  await page.getByLabel("选择咖啡店").check();
+  await page.screenshot({ path: testInfo.outputPath("cash-selection-1440.png"), fullPage: false });
+});

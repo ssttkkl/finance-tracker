@@ -119,3 +119,20 @@
 - 视觉 QA 截图：`web/test-results/cash-category-management.e2e.ts-批量操作栏在当前视口底部保持可见/batch-toolbar-1440.png` 与 `web/test-results/cash-category-management.e2e.ts-390-px-窄屏批量操作栏保持按钮可达/batch-toolbar-390.png`。人工复核确认桌面按钮完整可见、移动端无横向溢出且操作按钮位于当前视口内。
 - 回归：`cd web && npm run test:e2e -- --reporter=line tests/cash-category-management.e2e.ts`：7 passed；`npm run build`：通过；`git diff --check`：通过。
 - 完整回归补充：`cd web && npm test -- --run`：53 passed；`npm run test:e2e -- --reporter=line`：18 passed；`npm run test:visual -- --reporter=line`：12 passed；`npm run test:preview -- --reporter=line tests/runtime-preview.e2e.ts`：4 passed。首次完整 E2E 的 1 条失败是新增测试定位器同时匹配详情关闭按钮和遮罩按钮，收紧为对话框内精确按钮后转绿；不是产品回归。
+
+### 选择框视觉统一证据（2026-08-13）
+
+- 根因：表头全选框没有复用行选择框的尺寸规则，Chromium 实测表头为 `24.9375 × 24.9375`，行选择框为 `18 × 18`；选择列单元格也没有统一居中约束。
+- 失败先行：新增真实 Chromium 尺寸与水平中心线断言后按预期失败，随后统一所有账本复选框为 `18 × 18`，并统一表头 / 行选择单元格的内边距与居中对齐。
+- 视觉 QA 截图：`web/test-results/cash-category-management.e2e.ts-桌面和窄屏选择框视觉状态保持一致/cash-selection-1440.png` 与 `web/test-results/cash-category-management.e2e.ts-桌面和窄屏选择框视觉状态保持一致/cash-selection-390.png`。人工复核确认表头和行选择框尺寸、中心线一致；表头蓝底减号与行蓝底勾号属于不同选择状态。
+- 视觉快照因选择列变化更新 7 张相关账本快照；`cd web && npm run test:visual -- --reporter=line --update-snapshots`：12 passed，随后 `cd web && npm run test:visual -- --reporter=line`：12 passed，无未解释差异。
+
+### 选择框修复最终验证（2026-08-13）
+
+- 根因复核：宽屏长文本回归单独重跑 `cd web && npm run test:e2e -- --reporter=line tests/cash-ledger.e2e.ts -g '超长交易信息不会挤出宽屏表格的后续列'`：1 passed；随后完整 Chromium E2E：20 passed，未复现先前偶发失败。
+- 真实浏览器 QA：`cd web && npm run test:e2e -- --reporter=line`：20 passed；覆盖表头全选、行选择、批量操作栏、分类筛选、详情修改、版本冲突和 390 px 窄屏无横向溢出。
+- 视觉截图：`web/test-results/cash-category-management.e2e.ts-桌面和窄屏选择框视觉状态保持一致/cash-selection-1440.png`、`cash-selection-390.png`；人工复核确认表头与行复选框均为 `18 × 18`，中心线对齐，移动端无横向溢出，批量操作栏仍位于当前视口底部。
+- Web 回归：`cd web && npm test -- --run`：53 passed；`npm run test:preview -- --reporter=line`：4 passed；`npm run build`：通过。
+- OpenSpec 与工程卫生：`openspec validate --all --strict`：20 passed；`openspec doctor`：通过；`git diff --check`：通过。
+- 本轮性能门禁：`uv run pytest -q tests/test_cash_category_performance.py`：10 passed、10 skipped；SQLite 查询次数、P95 响应时间和 RSS 预算均通过。`FT_TEST_POSTGRES_URL` 未配置，因此本轮 PostgreSQL 参数按仓库规则跳过；此前同一固定夹具的 PostgreSQL 性能矩阵已记录为 20 passed。
+- Hallmark CLI：环境中无可执行 `hallmark`；按仓库门禁完成 1440 px / 390 px 截图人工等价审查，0 个 critical、0 个 major、0 个未解决 minor。
