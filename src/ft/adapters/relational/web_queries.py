@@ -7,9 +7,9 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import aliased
 from ft.adapters.relational.dialect import RelationalEngineError
-from ft.adapters.relational.models import AccountModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionModel, InvestmentEventModel, TransactionRelationModel
+from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionModel, InvestmentEventModel, TransactionRelationModel
 from ft.adapters.relational.runtime import StorageError, storage_error
-from ft.application.web_queries import CashAccountDTO, CashAccountSummaryDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionUnavailableError, ProjectionUpdatedError, local_bounds
+from ft.application.web_queries import CashAccountDTO, CashAccountSummaryDTO, CashCategoryDTO, CashCategoryPathItemDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionUnavailableError, ProjectionUpdatedError, local_bounds
 
 def _amount(value):
     amount = Decimal(value).normalize()
@@ -56,14 +56,34 @@ def _safe_funding_evidence(payload):
     return result
 
 
-def _record_summary(row, account):
+def _category_dto(categories: dict[str, CashCategoryModel], category_id: str | None):
+    if not category_id or category_id not in categories:
+        return None
+    current = categories[category_id]
+    path = []
+    while current is not None:
+        path.append(CashCategoryPathItemDTO(current.id, current.name))
+        current = categories.get(current.parent_id) if current.parent_id else None
+    path.reverse()
+    return CashCategoryDTO(categories[category_id].id, categories[category_id].name, tuple(path))
+
+
+def _category_rows(session, workspace_id: str) -> dict[str, CashCategoryModel]:
+    return {
+        row.id: row for row in session.scalars(select(CashCategoryModel).where(
+            CashCategoryModel.workspace_id == workspace_id,
+        )).all()
+    }
+
+
+def _record_summary(row, account, categories=None):
     if row is None or account is None:
         return None
     return {
         "id": str(row.id), "occurred_at": row.occurred_at.isoformat(),
         "account": {"id": account.id, "name": account.name, "type": account.type, "active": account.active},
         "account_name": account.name, "account_id": account.id, "account_type": account.type,
-        "counterparty": row.counterparty, "category": row.category, "note": row.note,
+        "counterparty": row.counterparty, "category": _category_dto(categories or {}, row.category_id), "note": row.note,
         "amount": _amount(row.amount), "currency": row.currency,
         "source_type": row.source_type,
         "counterparty_account": row.counterparty_account or "",
@@ -113,9 +133,9 @@ class RelationalCashLedgerQueryRepository:
         return state
     def active_version(self):
         with self._session() as s: return self._active(s).projection_version
-    def _dto(self, row, account, relations, source_types=(), transfer=None):
+    def _dto(self, row, account, relations, source_types=(), transfer=None, categories=None):
         kinds=tuple(sorted({r.kind for r in relations})); summary=tuple({"kind":kind,"subtype":subtype,"count":sum(r.kind==kind and r.subtype==subtype for r in relations)} for kind,subtype in sorted({(r.kind,r.subtype) for r in relations}))
-        return ProjectionDTO(row.projection_id,row.occurred_at.isoformat(),CashAccountSummaryDTO(account.id,account.name,account.type,account.active),row.counterparty,row.category,row.note,_amount(row.net_amount),row.currency,row.economic_type,row.transfer_subtype,kinds,row.member_count,summary,row.source_type,tuple(source_types),row.record_id,row.visible,row.hidden_reason,transfer)
+        return ProjectionDTO(row.projection_id,row.occurred_at.isoformat(),CashAccountSummaryDTO(account.id,account.name,account.type,account.active),row.counterparty,_category_dto(categories or {}, row.category_id),row.note,_amount(row.net_amount),row.currency,row.economic_type,row.transfer_subtype,kinds,row.member_count,summary,row.source_type,tuple(source_types),row.record_id,row.visible,row.hidden_reason,transfer)
     def _member_source_types(self, session, dataset_id, projection_row_ids):
         projection_row_ids = tuple(projection_row_ids)
         source_types = {projection_row_id: [] for projection_row_id in projection_row_ids}
@@ -257,19 +277,24 @@ class RelationalCashLedgerQueryRepository:
                     cash_dto, _amount(cash.amount), cash.currency,
                 )
         return transfers
-    def _filter_options(self, session, dataset_id, *, version=None):
+    def _filter_options(self, session, dataset_id, *, version=None, categories=None):
         cache_key = (dataset_id, version)
         cached = self._filter_options_cache.get(cache_key)
         if cached is not None:
             return cached
         values = session.execute(
-            select(CashProjectionModel.category, CashProjectionModel.currency, CashProjectionModel.economic_type, CashProjectionModel.transfer_subtype).where(
+            select(CashProjectionModel.category_id, CashProjectionModel.currency, CashProjectionModel.economic_type, CashProjectionModel.transfer_subtype).where(
                 CashProjectionModel.workspace_id == self._workspace_id,
                 CashProjectionModel.dataset_id == dataset_id,
                 CashProjectionModel.visible.is_(True),
             ).distinct()
         ).all()
-        categories = tuple(sorted({str(category).strip() for category, _currency, _economic_type, _subtype in values if category and str(category).strip()}))
+        category_rows = categories or _category_rows(session, self._workspace_id)
+        category_options = tuple(
+            _category_dto(category_rows, row.id)
+            for row in sorted(category_rows.values(), key=lambda item: (item.category_path, item.sort_order, item.id))
+        )
+        category_options = tuple(item for item in category_options if item is not None)
         currencies = tuple(sorted({str(currency).strip().upper() for _category, currency, _economic_type, _subtype in values if currency and str(currency).strip()}))
         economic_types = {}
         for _category, _currency, economic_type, subtype in values:
@@ -280,7 +305,7 @@ class RelationalCashLedgerQueryRepository:
             if subtype and str(subtype).strip():
                 subtypes.add(str(subtype).strip())
         result = CashFilterOptionsDTO(
-            categories,
+            category_options,
             currencies,
             tuple(
                 CashEconomicTypeFilterOptionDTO(economic_type, tuple(sorted(subtypes)))
@@ -342,9 +367,17 @@ class RelationalCashLedgerQueryRepository:
             start,end=local_bounds(filters)
             if start:filter_conditions.append(CashProjectionModel.occurred_at>=start)
             if end:filter_conditions.append(CashProjectionModel.occurred_at<end)
-            for field in ("account_id","category","currency"):
+            for field in ("account_id","currency"):
                 value=getattr(filters,field)
                 if value is not None:filter_conditions.append(getattr(CashProjectionModel,field)==value)
+            categories = _category_rows(s, self._workspace_id) if filters.category_id is not None else None
+            if filters.category_id is not None:
+                selected = categories.get(filters.category_id)
+                if selected is None:
+                    raise ValueError("invalid_filter")
+                filter_conditions.append(CashProjectionModel.category_path.like(f"{selected.category_path}%"))
+            elif filters.uncategorized:
+                filter_conditions.append(CashProjectionModel.category_id.is_(None))
             if filters.economic_type is not None:
                 filter_conditions.append(CashProjectionModel.economic_type == filters.economic_type)
             if filters.transfer_subtype is not None:
@@ -441,7 +474,10 @@ class RelationalCashLedgerQueryRepository:
             member_row_ids = [row.id for row, _account in rows if row.member_count != 1]
             if member_row_ids:
                 source_types.update(self._member_source_types(s, dataset_id, member_row_ids))
-            return version, [self._dto(row,account,by[row.id],source_types[row.id],transfer_details.get(row.id)) for row,account in rows], self._filter_options(s, dataset_id, version=version), monthly_summaries
+            if categories is None:
+                category_ids = {row.category_id for row, _account in rows if row.category_id}
+                categories = _category_rows(s, self._workspace_id) if category_ids else {}
+            return version, [self._dto(row,account,by[row.id],source_types[row.id],transfer_details.get(row.id),categories) for row,account in rows], self._filter_options(s, dataset_id, version=version, categories=categories), monthly_summaries
     def get_evidence(self, projection_id):
         with self._evidence_snapshot() as s:
             state=self._active(s); row=s.scalar(select(CashProjectionModel).where(CashProjectionModel.workspace_id==self._workspace_id,CashProjectionModel.dataset_id==state.active_dataset_id,CashProjectionModel.projection_id==projection_id))
@@ -485,7 +521,13 @@ class RelationalCashLedgerQueryRepository:
                 .where(CashTransactionModel.workspace_id == self._workspace_id, CashTransactionModel.id.in_(endpoint_ids))
             ).all() if endpoint_ids else []
             endpoint_rows = {cash.id: (cash, endpoint_account) for cash, endpoint_account in endpoints}
-            root_record = _record_summary(root, root_account)
+            category_ids = {
+                cash.category_id
+                for cash, _account in (*member_rows.values(), *endpoint_rows.values())
+                if cash.category_id
+            }
+            categories = _category_rows(s, self._workspace_id) if category_ids else {}
+            root_record = _record_summary(root, root_account, categories)
             assert root_record is not None
             source_types = tuple(dict.fromkeys(
                 cash.source_type for _member, cash, _member_account in members if cash.source_type
@@ -515,26 +557,26 @@ class RelationalCashLedgerQueryRepository:
                     }
             return {
                 "projection_version": state.projection_version,
-                "projection": self._dto(row, account, rels, source_types, transfer),
+                "projection": self._dto(row, account, rels, source_types, transfer, categories),
                 "root_record": root_record,
                 "members": [
-                    {**_record_summary(cash, member_account), "roles": list(member.roles_json)}
+                    {**_record_summary(cash, member_account, categories), "roles": list(member.roles_json)}
                     for member, cash, member_account in members
                 ],
                 "accepted_relations": [
                     {
                         "id": str(relation.transaction_relation_id), "kind": relation.kind, "subtype": relation.subtype,
                         "rule_id": accepted_by_id[relation.transaction_relation_id].rule_id if relation.transaction_relation_id in accepted_by_id else "",
-                        "primary_record": _record_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].primary_fact_id]) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].primary_fact_id in endpoint_rows else None,
-                        "secondary_record": _record_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].secondary_fact_id]) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_fact_id in endpoint_rows else None,
+                        "primary_record": _record_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].primary_fact_id], categories) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].primary_fact_id in endpoint_rows else None,
+                        "secondary_record": _record_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].secondary_fact_id], categories) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_fact_id in endpoint_rows else None,
                     }
                     for relation in rels
                 ],
                 "inactive_relation_hints": [
                     {
                         "id": str(relation.id), "kind": relation.kind, "subtype": relation.subtype, "status": relation.status,
-                        "primary_record": _record_summary(*endpoint_rows[relation.primary_fact_id]) if relation.primary_fact_id in endpoint_rows else None,
-                        "secondary_record": _record_summary(*endpoint_rows[relation.secondary_fact_id]) if relation.secondary_fact_id in endpoint_rows else None,
+                        "primary_record": _record_summary(*endpoint_rows[relation.primary_fact_id], categories) if relation.primary_fact_id in endpoint_rows else None,
+                        "secondary_record": _record_summary(*endpoint_rows[relation.secondary_fact_id], categories) if relation.secondary_fact_id in endpoint_rows else None,
                     }
                     for relation in inactive
                 ],

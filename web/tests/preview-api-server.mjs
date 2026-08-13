@@ -29,18 +29,22 @@ const holdings = {
     period_profit: null, period_profit_rate: null,
   }] }],
 };
+const foodCategory = { id: "preview-food", parent_id: null, name: "测试", description: null, path: [{ id: "preview-food", name: "测试" }], depth: 1, sort_order: 1, revision: 1 };
+const transferCategory = { id: "preview-transfer", parent_id: null, name: "转账", description: null, path: [{ id: "preview-transfer", name: "转账" }], depth: 1, sort_order: 2, revision: 1 };
+const categories = [foodCategory, transferCategory];
+let portfolioStreamVersion = 0;
 const port = Number(process.env.FT_PREVIEW_API_PORT ?? "8766");
 const allowedOrigin = process.env.FT_PREVIEW_WEB_ORIGIN ?? "http://127.0.0.1:5173";
 const previewProjection = {
   projection_id: "cash:preview-001", occurred_at: "2026-07-03T09:00:00+08:00", account,
-  counterparty: "示例商户", category: "测试", amount: "1", currency: "CNY",
+  counterparty: "示例商户", category: foodCategory, amount: "1", currency: "CNY",
   note: "", source_type: "preview", source_types: ["preview"], record_id: "preview-001",
   economic_type: "income", transfer_subtype: null, composition: [], member_count: 1,
   accepted_relation_summary: [], visible: true, hidden_reason: null,
 };
 const bankSecurityProjection = {
   projection_id: "cash:preview-bank-security", occurred_at: "2026-07-02T09:00:00+08:00", account,
-  counterparty: "Charles Schwab", category: "转账", amount: "0", currency: "USD",
+  counterparty: "Charles Schwab", category: transferCategory, amount: "0", currency: "USD",
   note: "", source_type: "preview", source_types: ["preview"], record_id: "preview-bank-security",
   economic_type: "internal_transfer", transfer_subtype: "bank_security_transfer", composition: [], member_count: 1,
   accepted_relation_summary: [], visible: true, hidden_reason: null,
@@ -49,14 +53,15 @@ const bankSecurityProjection = {
     to_account: investmentAccount, to_amount: "1275.5", to_currency: "USD",
   },
 };
+let projectionVersion = 1;
 const page = {
-  projection_version: 1,
+  projection_version: projectionVersion,
   items: [previewProjection, bankSecurityProjection],
   next_cursor: null,
   page_size: 50,
   filters: {},
   filter_options: {
-    categories: ["测试", "转账"],
+    categories,
     currencies: ["CNY", "HKD", "USD"],
     economic_types: [
       { economic_type: "income", transfer_subtypes: [] },
@@ -78,12 +83,11 @@ const ledgerOptions = {
   ],
 };
 const records = new Map();
-let portfolioStreamVersion = 0;
 const manualRecord = {
   id: "preview-manual-001", occurred_at: "2026-07-01T09:00:00+00:00", account_name: account.name,
   account_id: account.id, account_type: account.type, amount: "0", currency: "CNY",
   counterparty: "预览手工记录", counterparty_account: "", counterparty_account_attrs: [],
-  note: "", category: "测试", record_type: "other", record_subtype: "not_applicable",
+  note: "", category: foodCategory, category_id: foodCategory.id, record_type: "other", record_subtype: "not_applicable",
   source_type: "", record_id: "", source_snapshot: null,
 };
 records.set(manualRecord.id, { record: manualRecord, relations: [], options: ledgerOptions });
@@ -137,7 +141,7 @@ const server = createServer(async (request, response) => {
     response.writeHead(200, {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache",
-      "Connection": "keep-alive",
+      Connection: "keep-alive",
       "X-Accel-Buffering": "no",
     });
     const timer = setTimeout(() => {
@@ -168,6 +172,17 @@ const server = createServer(async (request, response) => {
     send(response, ledgerOptions);
     return;
   }
+  if (request.url === "/api/v1/cash-categories" && request.method === "GET") {
+    send(response, { revision: categories.length, items: categories });
+    return;
+  }
+  if (request.url === "/api/v1/cash-categories" && request.method === "POST") {
+    const body = JSON.parse(await readBody(request) || "{}");
+    const created = { id: "preview-created", parent_id: body.parent_id ?? null, name: body.name, description: body.description ?? null, path: [{ id: "preview-created", name: body.name }], depth: 1, sort_order: categories.length + 1, revision: 1 };
+    categories.push(created);
+    send(response, created, 201);
+    return;
+  }
   if (request.url?.startsWith("/api/v1/cash-records") && request.method === "GET") {
     const id = request.url.match(/^\/api\/v1\/cash-records\/([^?]+)/)?.[1];
     if (id) {
@@ -190,6 +205,7 @@ const server = createServer(async (request, response) => {
             counterparty_account_attrs: [],
             note: projection.note,
             category: projection.category,
+            category_id: projection.category?.id ?? null,
             record_type: projection.economic_type === "income" ? "income" : "other",
             record_subtype: "not_applicable",
             source_type: projection.source_type,
@@ -202,7 +218,7 @@ const server = createServer(async (request, response) => {
       }
       return;
     }
-    send(response, { items: [...records.values()].map((value) => value.record) });
+    send(response, { items: [...records.values()].map((value) => value.record), next_cursor: null });
     return;
   }
   if (request.url === "/api/v1/cash-records" && request.method === "POST") {
@@ -228,12 +244,8 @@ const server = createServer(async (request, response) => {
     send(response, { deleted: true, related_count: 0 });
     return;
   }
-  if (request.url?.startsWith("/api/v1/cash-import/detect")) {
-    send(response, { channel: "preview", channel_label: "预览渠道", file: { name: "statement.csv", digest: "preview-digest" }, digest: "preview-digest", row_count: 1 });
-    return;
-  }
   if (request.url?.startsWith("/api/v1/cash-import/preview")) {
-    send(response, { channel: "preview", channel_label: "预览渠道", file: { name: "statement.csv", digest: "preview-digest" }, columns: ["occurred_at", "amount", "currency", "account_name", "counterparty", "counterparty_account", "record_type", "record_subtype", "category", "note", "channel", "status"], items: [{ record_id: "preview-import-1", occurred_at: "2026-07-03T09:00", counterparty: "预览导入记录", counterparty_account: "", amount: "-1", currency: "CNY", account_name: account.name, record_type: "consumption", record_subtype: "not_applicable", category: "测试", note: "", channel: "preview", status: "new", message: "" }], summary: { total: 1, new: 1, existing: 0, unsupported: 0 }, relations: [] });
+    send(response, { channel: "preview", items: [{ record_id: "preview-import-1", occurred_at: "2026-07-03T09:00", counterparty: "预览导入记录", amount: "-1", currency: "CNY", account_name: account.name, category: "测试", channel: "preview", status: "new", message: "" }], summary: { new: 1, existing: 0, unsupported: 0, error: 0 } });
     return;
   }
   if (request.url?.startsWith("/api/v1/cash-import/commit")) {
@@ -246,7 +258,23 @@ const server = createServer(async (request, response) => {
     )));
     return;
   }
+  if (request.url === "/api/v1/cash-projections/categories" && request.method === "PUT") {
+    const body = JSON.parse(await readBody(request) || "{}");
+    const target = categories.find((item) => item.id === body.category_id) ?? null;
+    for (const item of page.items) {
+      if (body.projection_ids.includes(item.projection_id)) {
+        item.category = target;
+        item.category_id = target?.id ?? null;
+      }
+    }
+    projectionVersion += 1;
+    page.projection_version = projectionVersion;
+    send(response, { projection_version: projectionVersion, projection_count: body.projection_ids.length, updated_transaction_count: body.projection_ids.length, category_id: body.category_id });
+    return;
+  }
   if (request.url?.startsWith("/api/v1/cash-projections")) {
+    page.projection_version = projectionVersion;
+    page.filter_options.categories = categories;
     response.end(JSON.stringify(page));
     return;
   }

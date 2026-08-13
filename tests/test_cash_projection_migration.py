@@ -59,7 +59,7 @@ def test_projection_revision_adds_only_derived_tables_and_indexes(tmp_path):
             connection.execute(text("INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', CURRENT_TIMESTAMP)"))
             connection.execute(text("INSERT INTO accounts (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) VALUES (1, 'w', '现金', 'cash', 1, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
             connection.execute(text("INSERT INTO cash_transactions (id, workspace_id, account_id, record_id, occurred_at, amount, currency, counterparty, note, category, created_at) VALUES (1, 'w', 1, 'source', CURRENT_TIMESTAMP, '-10', 'CNY', '', '', '', CURRENT_TIMESTAMP)"))
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260811_26")
         inspector = inspect(engine)
         assert PROJECTION_TABLES <= set(inspector.get_table_names())
         assert inspector.get_columns("cash_transactions")
@@ -83,7 +83,7 @@ def test_dataset_index_revision_upgrades_and_downgrades_without_touching_sources
             connection.execute(text("INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', CURRENT_TIMESTAMP)"))
             connection.execute(text("INSERT INTO accounts (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) VALUES (1, 'w', '现金', 'cash', 1, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
             connection.execute(text("INSERT INTO cash_transactions (id, workspace_id, account_id, record_id, occurred_at, amount, currency, counterparty, note, category, created_at) VALUES (1, 'w', 1, 'source', CURRENT_TIMESTAMP, '-10', 'CNY', '', '', '', CURRENT_TIMESTAMP)"))
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260811_26")
         _assert_dataset_indexes(engine)
         command.downgrade(config, "20260729_11")
         inspector = inspect(engine)
@@ -95,7 +95,7 @@ def test_dataset_index_revision_upgrades_and_downgrades_without_touching_sources
         assert "ix_transaction_relations_component_secondary" not in {item["name"] for item in inspector.get_indexes("transaction_relations")}
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT amount FROM cash_transactions WHERE id = 1")) == "-10"
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260811_26")
         _assert_dataset_indexes(engine)
     finally:
         engine.dispose()
@@ -139,7 +139,7 @@ def test_dataset_index_revision_is_reversible_on_postgresql():
 def test_projection_downgrade_removes_only_derived_tables(tmp_path):
     database = tmp_path / "projection-downgrade.db"
     config = _config(database)
-    command.upgrade(config, "head")
+    command.upgrade(config, "20260811_26")
     command.downgrade(config, "20260726_10")
     engine = create_engine(f"sqlite+pysqlite:///{database}")
     try:

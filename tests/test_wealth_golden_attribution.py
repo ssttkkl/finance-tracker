@@ -84,7 +84,7 @@ def _insert_golden_formal_fixture(sessions) -> None:
             ),
             CashTransactionModel(
                 id=2566485, workspace_id="wealth-golden", account_id=1, occurred_at=at(1, 9),
-                amount=Decimal("10"), currency="CNY", record_id="fixture-salary", category="salary",
+                amount=Decimal("10"), currency="CNY", record_id="fixture-salary", category_id=None,
             ),
             # Direct external funding into the investment account (workspace external + portfolio Fi).
             InvestmentEventModel(

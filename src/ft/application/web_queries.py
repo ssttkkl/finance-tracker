@@ -36,9 +36,21 @@ class CashAccountSummaryDTO:
 class CashTransferDTO:
     from_account: CashAccountSummaryDTO; from_amount: str; from_currency: str
     to_account: CashAccountSummaryDTO; to_amount: str; to_currency: str
+
+@dataclass(frozen=True)
+class CashCategoryPathItemDTO:
+    id: str
+    name: str
+
+@dataclass(frozen=True)
+class CashCategoryDTO:
+    id: str
+    name: str
+    path: tuple[CashCategoryPathItemDTO, ...]
+
 @dataclass(frozen=True)
 class ProjectionDTO:
-    projection_id: str; occurred_at: str; account: CashAccountSummaryDTO; counterparty: str; category: str; note: str
+    projection_id: str; occurred_at: str; account: CashAccountSummaryDTO; counterparty: str; category: CashCategoryDTO | None; note: str
     amount: str; currency: str; economic_type: str; transfer_subtype: str | None; composition: tuple[str, ...]
     member_count: int; accepted_relation_summary: tuple[dict, ...]; source_type: str | None; source_types: tuple[str, ...]; record_id: str
     visible: bool = True; hidden_reason: str | None = None; transfer: CashTransferDTO | None = None
@@ -49,7 +61,7 @@ class CashEconomicTypeFilterOptionDTO:
 
 @dataclass(frozen=True)
 class CashFilterOptionsDTO:
-    categories: tuple[str, ...]
+    categories: tuple[CashCategoryDTO, ...]
     currencies: tuple[str, ...]
     economic_types: tuple[CashEconomicTypeFilterOptionDTO, ...]
 @dataclass(frozen=True)
@@ -68,11 +80,25 @@ class ProjectionPageDTO:
 @dataclass(frozen=True)
 class ProjectionFilters:
     date_from: str | None = None; date_to: str | None = None; account_id: int | None = None; counterparty: str | None = None
-    category: str | None = None; currency: str | None = None; amount_min: str | None = None; amount_max: str | None = None
+    category_id: str | None = None; uncategorized: bool = False; currency: str | None = None; amount_min: str | None = None; amount_max: str | None = None
     economic_type: str | None = None; transfer_subtype: str | None = None; composition: str | None = None
     timezone: str = DEFAULT_TIMEZONE
     def as_cursor_data(self):
         return {key: (str(value) if value is not None else None) for key, value in self.__dict__.items()}
+
+
+def _category_filter_value(values: Any) -> tuple[str | None, bool]:
+    category_id = values.get("category_id") or None
+    if category_id is not None:
+        if not isinstance(category_id, str) or not category_id.strip() or len(category_id.strip()) > 64:
+            raise ValueError("invalid_filter")
+        category_id = category_id.strip()
+    uncategorized = values.get("uncategorized", False)
+    if isinstance(uncategorized, str):
+        uncategorized = uncategorized.lower() in {"1", "true", "yes"}
+    if not isinstance(uncategorized, bool) or (category_id is not None and uncategorized):
+        raise ValueError("invalid_filter")
+    return category_id, uncategorized
 
 def normalize_filters(**values: Any) -> ProjectionFilters:
     def day(name):
@@ -118,9 +144,10 @@ def normalize_filters(**values: Any) -> ProjectionFilters:
     if subtype is not None:
         if economic is None: economic = "internal_transfer"
         elif economic != "internal_transfer": raise ValueError("invalid_filter")
+    category_id, uncategorized = _category_filter_value(values)
     currency = values.get("currency") or None
     if currency and (len(currency) != 3 or not currency.isalpha()): raise ValueError("invalid_filter")
-    return ProjectionFilters(start.isoformat() if start else None, end.isoformat() if end else None, account_id, (values.get("counterparty") or "").strip() or None, (values.get("category") or "").strip() or None, currency.upper() if currency else None, minimum, maximum, economic, subtype, composition, timezone_name)
+    return ProjectionFilters(start.isoformat() if start else None, end.isoformat() if end else None, account_id, (values.get("counterparty") or "").strip() or None, category_id, uncategorized, currency.upper() if currency else None, minimum, maximum, economic, subtype, composition, timezone_name)
 
 def local_bounds(filters):
     zone = ZoneInfo(filters.timezone)

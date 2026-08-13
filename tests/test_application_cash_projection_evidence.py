@@ -59,4 +59,4 @@ def test_evidence_reads_members_and_relations_in_fixed_batch_queries(cash_web_ru
     assert relation[0]["rule_id"] == "mirror.fixture.v1"
     assert relation[0]["primary_record"]["id"] == "1003"
     assert relation[0]["secondary_record"]["id"] == "1002"
-    assert len([statement for statement in statements if statement.lstrip().upper().startswith("SELECT")]) <= 8
+    assert len([statement for statement in statements if statement.lstrip().upper().startswith("SELECT")]) <= 9

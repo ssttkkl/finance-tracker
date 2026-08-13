@@ -98,7 +98,12 @@ def test_projection_api_contract_and_old_routes_are_absent(cash_web_runtime):
     assert page.json()["items"][0]["projection_id"]=="cash:1003" and isinstance(page.json()["items"][0]["amount"],str)
     assert page.json()["items"][0]["source_types"] == ["fixture"]
     assert page.json()["filter_options"] == {
-        "categories": sorted(["餐饮", "日用", "收入"]),
+        "categories": [
+            {"id": "category-daily", "name": "日用", "path": [{"id": "category-daily", "name": "日用"}]},
+            {"id": "category-food", "name": "餐饮", "path": [{"id": "category-food", "name": "餐饮"}]},
+            {"id": "category-income", "name": "收入", "path": [{"id": "category-income", "name": "收入"}]},
+            {"id": "category-transfer", "name": "转账", "path": [{"id": "category-transfer", "name": "转账"}]},
+        ],
         "currencies": ["CNY"],
         "economic_types": [
             {"economic_type": "expense", "transfer_subtypes": []},
@@ -124,7 +129,7 @@ def test_projection_api_returns_member_sources_in_member_order_without_duplicate
         session.add(CashTransactionModel(
             id=1004, workspace_id=runtime.workspace_id, account_id=101,
             occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("UTC")), amount=Decimal("3"),
-            currency="CNY", counterparty="咖啡店", category="退款", source_type="bank", record_id="cash-004",
+            currency="CNY", counterparty="咖啡店", category_id="category-food", source_type="bank", record_id="cash-004",
         ))
         session.add(TransactionRelationModel(
             workspace_id=runtime.workspace_id, kind="refund_offset", subtype="",
@@ -240,7 +245,7 @@ def _add_projection_rows(runtime, count=3):
                 amount=Decimal("-10.00") - offset,
                 currency="CNY",
                 counterparty=f"分页商户{offset}",
-                category="餐饮",
+                category_id="category-food",
                 source_type="fixture",
                 record_id=f"cash-page-{offset}",
             ))
@@ -259,7 +264,7 @@ def test_projection_api_binds_all_filters_and_paginates_three_pages_without_gaps
         "date_to": "2026-07-06",
         "account_id": "101",
         "counterparty": "分页商户",
-        "category": "餐饮",
+        "category_id": "category-food",
         "currency": "CNY",
         "amount_min": "-12.00",
         "amount_max": "-10.00",
@@ -282,7 +287,7 @@ def test_projection_api_binds_all_filters_and_paginates_three_pages_without_gaps
     assert all(isinstance(item["amount"], str) for item in pages)
     assert client.get(
         "/api/v1/cash-projections",
-        params={**params, "cursor": client.get("/api/v1/cash-projections", params=params).json()["next_cursor"], "category": "日用"},
+        params={**params, "cursor": client.get("/api/v1/cash-projections", params=params).json()["next_cursor"], "category_id": "category-daily"},
     ).json()["error"]["code"] == "invalid_cursor"
 
 
@@ -300,7 +305,7 @@ def test_projection_api_counterparty_filter_matches_note(request, runtime_name):
         session.add(CashTransactionModel(
             id=1300, workspace_id=runtime.workspace_id, account_id=101,
             occurred_at=datetime(2026, 7, 6, 9, tzinfo=ZoneInfo("UTC")), amount=Decimal("-8"),
-            currency="CNY", counterparty="其他商户", note="备注命中交易信息筛选", category="餐饮",
+            currency="CNY", counterparty="其他商户", note="备注命中交易信息筛选", category_id="category-food",
             source_type="fixture", record_id="cash-note-filter",
         ))
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
@@ -327,13 +332,13 @@ def test_projection_api_uses_utc_day_boundaries_and_rejects_old_cursor(request, 
                 id=1200, workspace_id=runtime.workspace_id, account_id=101,
                 occurred_at=datetime(2026, 7, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
                 amount=Decimal("-1.20"), currency="CNY", counterparty="边界开始",
-                category="餐饮", source_type="fixture", record_id="cash-boundary-start",
+                category_id="category-food", source_type="fixture", record_id="cash-boundary-start",
             ),
             CashTransactionModel(
                 id=1201, workspace_id=runtime.workspace_id, account_id=101,
                 occurred_at=datetime(2026, 7, 1, 23, 59, 59, tzinfo=ZoneInfo("UTC")),
                 amount=Decimal("-1.30"), currency="CNY", counterparty="边界结束",
-                category="餐饮", source_type="fixture", record_id="cash-boundary-end",
+                category_id="category-food", source_type="fixture", record_id="cash-boundary-end",
             ),
         ))
     client = _client(runtime)

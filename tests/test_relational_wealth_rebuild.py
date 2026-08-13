@@ -87,7 +87,7 @@ def _insert_three_day_formal_fixture(sessions) -> None:
             ),
             CashTransactionModel(
                 id=2566485, workspace_id="wealth-rebuild", account_id=1, occurred_at=at(1),
-                amount=Decimal("10"), currency="CNY", record_id="fixture-salary", category="salary",
+                amount=Decimal("10"), currency="CNY", record_id="fixture-salary", category_id=None,
             ),
             InvestmentEventModel(
                 id=446365, workspace_id="wealth-rebuild", account_id=2, occurred_at=at(2),
@@ -244,7 +244,7 @@ def test_runtime_rebuild_uses_one_frozen_snapshot_and_rejects_mid_build_arrival(
         session.add(CashTransactionModel(
             id=4484864, workspace_id="wealth-rebuild", account_id=1,
             occurred_at=datetime(2026, 7, 1, tzinfo=__import__("zoneinfo").ZoneInfo("UTC")),
-            amount=Decimal("1"), currency="CNY", record_id="pre-build-cash", category="salary",
+            amount=Decimal("1"), currency="CNY", record_id="pre-build-cash", category_id=None,
         ))
     runtime_facts = services.wealth._facts
     original_build = runtime_facts.build_daily_results
@@ -254,7 +254,7 @@ def test_runtime_rebuild_uses_one_frozen_snapshot_and_rejects_mid_build_arrival(
             session.add(CashTransactionModel(
                 id=7973818, workspace_id="wealth-rebuild", account_id=1,
                 occurred_at=datetime(2026, 7, 2, tzinfo=__import__("zoneinfo").ZoneInfo("UTC")),
-                amount=Decimal("1"), currency="CNY", record_id="late-cash", category="salary",
+                amount=Decimal("1"), currency="CNY", record_id="late-cash", category_id=None,
             ))
         return original_build(source_watermark, affected_from)
 
@@ -431,8 +431,29 @@ def test_source_fence_detects_in_place_non_max_fact_correction(rebuilt_runtime) 
     watermark, _items = facts.capture_source_manifest()
     with sessions.begin() as session:
         row = session.get(CashTransactionModel, 2566485)
-        row.category = "expense"
+        row.record_type = "fee"
     assert facts.source_is_current(watermark) is False
+
+
+def test_source_fence_ignores_user_category_correction(rebuilt_runtime) -> None:
+    """User classification is not a wealth calculation input."""
+    from ft.adapters.relational.models import CashCategoryModel, CashTransactionModel
+    from ft.adapters.relational.wealth_facts import RelationalWealthFactRepository
+
+    _backend, _services, sessions = rebuilt_runtime
+    _insert_three_day_formal_fixture(sessions)
+    with sessions.begin() as session:
+        session.add(CashCategoryModel(
+            id="category-food", workspace_id="wealth-rebuild", parent_id=None,
+            parent_scope_key="__root__", name="餐饮", normalized_name="餐饮",
+            category_path="/category-food/", depth=1, sort_order=1,
+        ))
+    facts = RelationalWealthFactRepository(sessions, "wealth-rebuild")
+    watermark, _items = facts.capture_source_manifest()
+    with sessions.begin() as session:
+        session.get(CashTransactionModel, 2566485).category_id = "category-food"
+
+    assert facts.source_is_current(watermark) is True
 
 
 def test_source_fence_remains_current_for_unchanged_investment_record_subtype(rebuilt_runtime) -> None:

@@ -1,4 +1,4 @@
-import type { Account, CashFilters, CashPage, CashRecordDetail, CashRecordPage, Evidence, ImportCommitResult, ImportDetection, ImportPreview, LedgerOptions } from "./types";
+import type { Account, CashCategory, CashCategoryDirectory, CashFilters, CashPage, CashRecordDetail, CashRecordPage, Evidence, ImportCommitResult, ImportDetection, ImportPreview, LedgerOptions } from "./types";
 
 function apiOrigin(): string {
   const origin = import.meta.env.VITE_FT_API_ORIGIN;
@@ -53,6 +53,38 @@ export function fetchEvidence(id: string, signal?: AbortSignal): Promise<Evidenc
 
 export function fetchLedgerOptions(signal?: AbortSignal): Promise<LedgerOptions> {
   return request<LedgerOptions>("/api/v1/cash-ledger/options", signal);
+}
+
+export function fetchCashCategories(signal?: AbortSignal): Promise<CashCategoryDirectory> {
+  return request<CashCategoryDirectory>("/api/v1/cash-categories", signal);
+}
+
+export function createCashCategory(body: { name: string; parent_id?: string | null; description?: string; expected_revision?: number }, signal?: AbortSignal): Promise<CashCategory> {
+  return write<CashCategory>("/api/v1/cash-categories", "POST", body, signal);
+}
+
+export function updateCashCategory(id: string, body: { name?: string; parent_id?: string | null; description?: string; expected_revision?: number }, signal?: AbortSignal): Promise<CashCategory> {
+  return write<CashCategory>(`/api/v1/cash-categories/${encodeURIComponent(id)}`, "PATCH", body, signal);
+}
+
+export function reorderCashCategory(id: string, direction: "before" | "after", expected_revision: number, signal?: AbortSignal): Promise<CashCategory> {
+  return write<CashCategory>(`/api/v1/cash-categories/${encodeURIComponent(id)}/reorder`, "POST", { direction, expected_revision }, signal);
+}
+
+export function fetchCashCategoryDeletionImpact(id: string, signal?: AbortSignal): Promise<{ category_id: string; revision: number; category_revision: number; child_count: number; direct_usage_count: number }> {
+  return request(`/api/v1/cash-categories/${encodeURIComponent(id)}/deletion-impact`, signal);
+}
+
+export function deleteCashCategory(id: string, body: { expected_revision: number; expected_category_revision: number; expected_usage_count: number; confirmed: boolean }, signal?: AbortSignal): Promise<{ category_id: string; cleared_transaction_count: number; revision: number }> {
+  return write(`/api/v1/cash-categories/${encodeURIComponent(id)}`, "DELETE", body, signal);
+}
+
+export function classifyCashProjection(id: string, projection_version: number, category_id: string | null, signal?: AbortSignal): Promise<{ projection_version: number; projection_count: number; updated_transaction_count: number; category_id: string | null }> {
+  return write("/api/v1/cash-projections/categories", "PUT", { projection_ids: [id], projection_version, category_id }, signal);
+}
+
+export function classifyCashProjections(projection_ids: string[], projection_version: number, category_id: string | null, signal?: AbortSignal): Promise<{ projection_version: number; projection_count: number; updated_transaction_count: number; category_id: string | null }> {
+  return write("/api/v1/cash-projections/categories", "PUT", { projection_ids, projection_version, category_id }, signal);
 }
 
 export function fetchCashRecord(id: string, signal?: AbortSignal): Promise<CashRecordDetail> {

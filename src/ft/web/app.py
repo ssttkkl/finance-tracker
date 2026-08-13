@@ -60,6 +60,8 @@ def create_app(
     lifespan=None,
     mutation_service=None,
     *,
+    category_service=None,
+    classification_service=None,
     investment_service=None,
     portfolio_service=None,
     portfolio_refresh=None,
@@ -101,6 +103,8 @@ def create_app(
     app.include_router(cash_router(
         service,
         mutation_service=mutation_service,
+        category_service=category_service,
+        classification_service=classification_service,
         investment_service=investment_service,
         portfolio_service=portfolio_service,
         portfolio_refresh=portfolio_refresh,
@@ -141,6 +145,10 @@ def create_runtime_app():
             sessions, settings.workspace_id,
             relation_service=RelationService(write_uow),
         )
+        from ft.application.cash_categories import CashCategoryService
+        from ft.application.cash_classification import CashClassificationService
+        category_service = CashCategoryService(sessions, settings.workspace_id)
+        classification_service = CashClassificationService(sessions, settings.workspace_id)
         quote_provider = CompositeQuoteProvider()
         investment_service = InvestmentLedgerQueryService(sessions, settings.workspace_id)
         portfolio_service = PortfolioQueryService(
@@ -161,10 +169,8 @@ def create_runtime_app():
                 engine.dispose()
 
         app = create_app(
-            service,
-            origin,
-            lifespan=release_engine,
-            mutation_service=mutation_service,
+            service, origin, lifespan=release_engine, mutation_service=mutation_service,
+            category_service=category_service, classification_service=classification_service,
             investment_service=investment_service,
             portfolio_service=portfolio_service,
             portfolio_refresh=portfolio_refresh,

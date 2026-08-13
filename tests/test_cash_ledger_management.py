@@ -503,7 +503,7 @@ def test_cash_detail_contract_hides_import_and_delete_internals(cash_web_runtime
 
     record = created["record"]
     assert {"id", "amount", "currency", "occurred_at", "account_name", "counterparty",
-            "counterparty_account", "record_type", "record_subtype", "category", "note",
+            "counterparty_account", "record_type", "record_subtype", "category_id", "note",
             "source_type"}.issubset(record)
     assert not {
         "record_id", "created_at", "source_payload", "source_fingerprint", "manual_overrides",
@@ -612,6 +612,51 @@ def test_delete_transfer_related_record_clears_projection_relation_before_fact(c
 
     assert deleted["deleted"] is True
     assert service.get_record(incoming["id"])["relations"] == []
+
+
+def test_editing_detail_category_updates_every_related_cash_record(cash_web_runtime):
+    from ft.adapters.relational.models import CashProjectionStateModel, CashTransactionModel
+    from ft.application.cash_categories import CashCategoryService
+
+    _enable_cny(cash_web_runtime, "日常账户", "信用账户")
+    categories = CashCategoryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id)
+    first_category = categories.create(name="原分类")
+    second_category = categories.create(name="新分类", expected_revision=first_category["revision"])
+    service = _service(cash_web_runtime)
+    outgoing = service.create_record(_payload(
+        account_name="日常账户", amount="-100", record_type="transfer_out",
+        record_subtype="ordinary_transfer", counterparty="信用账户",
+        category_id=first_category["id"],
+    ))["record"]
+    incoming = service.create_record(_payload(
+        account_name="信用账户", amount="100", record_type="transfer_in",
+        record_subtype="ordinary_transfer", counterparty="日常账户",
+        category_id=first_category["id"],
+    ))["record"]
+    service.add_relation({
+        "primary_fact_id": outgoing["id"], "secondary_fact_id": incoming["id"],
+        "kind": "transfer_pair", "subtype": "ordinary_transfer", "status": "accepted",
+    })
+    from ft.application.cash_projections import CashProjectionService
+    CashProjectionService(cash_web_runtime.sessions, cash_web_runtime.workspace_id).rebuild()
+
+    with cash_web_runtime.sessions() as session:
+        projection_version = session.query(CashProjectionStateModel.projection_version).filter(
+            CashProjectionStateModel.workspace_id == cash_web_runtime.workspace_id,
+        ).scalar()
+    service.update_record(outgoing["id"], _payload(
+        account_name="日常账户", amount="-100", record_type="transfer_out",
+        record_subtype="ordinary_transfer", counterparty="信用账户",
+        category_id=second_category["id"],
+        projection_version=projection_version,
+    ))
+
+    with cash_web_runtime.sessions() as session:
+        values = session.query(CashTransactionModel.category_id).filter(
+            CashTransactionModel.workspace_id == cash_web_runtime.workspace_id,
+            CashTransactionModel.id.in_((int(outgoing["id"]), int(incoming["id"]))),
+        ).order_by(CashTransactionModel.id).all()
+    assert [value[0] for value in values] == [second_category["id"], second_category["id"]]
 
 
 @pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])

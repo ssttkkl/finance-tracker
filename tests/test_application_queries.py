@@ -14,16 +14,31 @@ class FakeTransactions:
     def __init__(self, rows):
         self.rows = [dict(row) for row in rows]
 
-    def list_transactions(self, *, month=None, account=None, category=None, limit=None):
+    def list_transactions(self, *, month=None, account=None, category_id=None, limit=None):
         rows = self.rows
         if month:
             rows = [row for row in rows if row["occurred_at"].startswith(month)]
         if account:
             rows = [row for row in rows if row.get("account_name") == account]
-        if category:
-            rows = [row for row in rows if row.get("category") == category]
+        if category_id:
+            rows = [row for row in rows if row.get("category_id") == category_id]
         rows = sorted(rows, key=lambda row: row.get("occurred_at", ""), reverse=True)
         return [dict(row) for row in (rows[:limit] if limit is not None else rows)]
+
+
+class StrictCategoryIdTransactions:
+    def __init__(self, rows):
+        self.rows = [dict(row) for row in rows]
+
+    def list_transactions(self, *, month=None, account=None, category_id=None, limit=None):
+        rows = self.rows
+        if month:
+            rows = [row for row in rows if row["occurred_at"].startswith(month)]
+        if account:
+            rows = [row for row in rows if row.get("account_name") == account]
+        if category_id:
+            rows = [row for row in rows if row.get("category_id") == category_id]
+        return [dict(row) for row in rows[:limit] if limit is not None] if limit is not None else [dict(row) for row in rows]
 
 
 class FakeSnapshot:
@@ -93,11 +108,11 @@ def test_list_accounts_values_cash_and_investment_with_cost_fallback():
 
 def test_report_returns_structured_totals_and_ignores_pre_checkin_expense():
     rows = [
-        {"occurred_at": "2026-06-01 09:00:00", "account_name": "Cash", "currency": "CNY", "category": "expense", "amount": "-100", "note": "old"},
-        {"occurred_at": "2026-06-02 09:00:00", "account_name": "Cash", "currency": "CNY", "category": "checkin", "amount": "0", "note": "余额校准1000"},
-        {"occurred_at": "2026-06-03 09:00:00", "account_name": "Cash", "currency": "CNY", "category": "expense", "amount": "-12.50", "note": "meal"},
-        {"occurred_at": "2026-06-04 09:00:00", "account_name": "Cash", "currency": "CNY", "category": "income", "amount": "20", "note": "gift"},
-        {"occurred_at": "2026-05-01 09:00:00", "account_name": "Cash", "currency": "CNY", "category": "transfer_out", "amount": "-5", "note": "Broker"},
+        {"occurred_at": "2026-06-01 09:00:00", "account_name": "Cash", "currency": "CNY", "record_type": "consumption", "amount": "-100", "note": "old"},
+        {"occurred_at": "2026-06-02 09:00:00", "account_name": "Cash", "currency": "CNY", "record_type": "other", "amount": "0", "note": "余额校准1000"},
+        {"occurred_at": "2026-06-03 09:00:00", "account_name": "Cash", "currency": "CNY", "record_type": "consumption", "amount": "-12.50", "note": "meal"},
+        {"occurred_at": "2026-06-04 09:00:00", "account_name": "Cash", "currency": "CNY", "record_type": "income", "amount": "20", "note": "gift"},
+        {"occurred_at": "2026-05-01 09:00:00", "account_name": "Cash", "currency": "CNY", "record_type": "transfer_out", "amount": "-5", "note": "Broker"},
     ]
     service, _ = _service(rows)
 
@@ -110,11 +125,64 @@ def test_report_returns_structured_totals_and_ignores_pre_checkin_expense():
     assert result.accounts.accounts[0].balance == Decimal("12.34")
 
 
+def test_report_uses_record_type_instead_of_user_category():
+    rows = [
+        {
+            "occurred_at": "2026-06-01 09:00:00", "account_name": "Cash", "currency": "CNY",
+            "category_id": "income-label", "category": "expense", "record_type": "income",
+            "amount": "20", "note": "gift",
+        },
+        {
+            "occurred_at": "2026-06-02 09:00:00", "account_name": "Cash", "currency": "CNY",
+            "category_id": "expense-label", "category": "income", "record_type": "consumption",
+            "amount": "-12.50", "note": "meal",
+        },
+        {
+            "occurred_at": "2026-06-03 09:00:00", "account_name": "Cash", "currency": "CNY",
+            "category_id": "transfer-label", "category": "income", "record_type": "transfer_out",
+            "amount": "-5", "note": "Broker",
+        },
+    ]
+    from ft.application.queries import FinanceQueryService
+    from ft.domain.accounts import AccountDTO
+
+    service, _ = _service()
+    service = FinanceQueryService(
+        accounts=FakeAccounts([AccountDTO("Cash", "cash")]),
+        transactions=StrictCategoryIdTransactions(rows),
+        snapshots=FakeSnapshot({"accounts": {"cash": {"Cash": {"CNY": "0"}}}}),
+    )
+
+    result = service.report(month="2026-06")
+
+    assert result.expenses == {"CNY": Decimal("12.50")}
+    assert result.income == {"CNY": Decimal("20")}
+    assert result.flows[0].note == "Broker"
+    assert result.flows[0].amount == Decimal("5")
+
+
+def test_list_transactions_uses_category_id_repository_contract():
+    rows = [
+        {
+            "occurred_at": "2026-06-01", "account_name": "Cash", "currency": "CNY",
+            "category_id": "food", "amount": "-1", "note": "meal",
+        },
+    ]
+    from ft.application.queries import FinanceQueryService
+
+    service, _ = _service()
+    service._transactions = StrictCategoryIdTransactions(rows)
+
+    result = service.list_transactions(category_id="food")
+
+    assert [item.note for item in result.items] == ["meal"]
+
+
 def test_list_transactions_filters_sorts_and_limits_as_dtos():
     rows = [
-        {"occurred_at": "2026-06-01", "account_name": "Cash", "currency": "CNY", "category": "expense", "amount": "-1", "note": "one"},
-        {"occurred_at": "2026-06-03", "account_name": "Cash", "currency": "CNY", "category": "expense", "amount": "-3", "note": "three"},
-        {"occurred_at": "2026-06-02", "account_name": "Other", "currency": "CNY", "category": "expense", "amount": "-2", "note": "two"},
+        {"occurred_at": "2026-06-01", "account_name": "Cash", "currency": "CNY", "record_type": "consumption", "amount": "-1", "note": "one"},
+        {"occurred_at": "2026-06-03", "account_name": "Cash", "currency": "CNY", "record_type": "consumption", "amount": "-3", "note": "three"},
+        {"occurred_at": "2026-06-02", "account_name": "Other", "currency": "CNY", "record_type": "consumption", "amount": "-2", "note": "two"},
     ]
     service, _ = _service(rows)
 
@@ -157,7 +225,7 @@ def test_cli_report_and_list_enter_query_service(monkeypatch, capsys):
             calls.append(("list", kwargs))
             return TransactionPageDTO((TransactionDTO(
                 occurred_at="2026-06-03", account_name="Cash", currency="CNY",
-                category="expense", amount=Decimal("-3"), note="meal",
+                record_type="consumption", amount=Decimal("-3"), note="meal",
             ),))
 
     bundle = type("Bundle", (), {"queries": FakeService()})()
@@ -169,6 +237,6 @@ def test_cli_report_and_list_enter_query_service(monkeypatch, capsys):
 
     assert calls == [
         ("report", "2026-06"),
-        ("list", {"month": "2026-06", "account": None, "category": None, "limit": 1}),
+        ("list", {"month": "2026-06", "account": None, "category_id": None, "limit": 1}),
     ]
     assert "meal" in capsys.readouterr().out

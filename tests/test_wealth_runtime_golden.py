@@ -79,7 +79,7 @@ def _seed_base(sessions, *, with_fee=True) -> None:
             ),
             CashTransactionModel(
                 id=1636615, workspace_id="wealth-runtime-golden", account_id=1, occurred_at=at(1, 9),
-                amount=Decimal("10"), currency="CNY", record_id="salary", category="salary",
+                amount=Decimal("10"), currency="CNY", record_id="salary", category_id=None,
             ),
             InvestmentEventModel(
                 id=5003488, workspace_id="wealth-runtime-golden", account_id=2, occurred_at=at(2, 10),
@@ -280,7 +280,7 @@ def test_runtime_foreign_cash_midday_flow_uses_flow_weighted_fx(runtime_golden, 
         session.add(CashTransactionModel(
             id=5123899, workspace_id="wealth-runtime-golden", account_id=1086658,
             occurred_at=at(1, 12), amount=Decimal("20"), currency="USD", record_id="usd-inflow",
-            category="salary",
+            category_id=None,
         ))
         for day, cash, fx in ((1, "100", "7.0"), (2, "120", "7.2"), (3, "120", "7.2")):
             session.add(ValuationObservationModel(
@@ -330,7 +330,7 @@ def test_period_external_evidence_includes_investment_funding(runtime_golden, mo
     assert evidence is not None
     kinds = {item.evidence_kind for item in evidence}
     assert "investment_funding" in kinds
-    assert "salary" in kinds
+    assert "external_cashflow" in kinds
     folded = sum((item.contribution for item in evidence if item.contribution is not None), Decimal("0"))
     assert folded == external.amount
 

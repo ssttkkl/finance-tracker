@@ -55,7 +55,6 @@ def _fact_view_from_row(row: dict) -> FactView:
         ),
         payment_method=str(row.get("payment_method") or ""),
         note=str(row.get("note") or ""),
-        category=str(row.get("category") or ""),
         record_type=str(row.get("record_type") or "other"),
         record_subtype=str(row.get("record_subtype") or "not_applicable"),
         bill_source=source_type,

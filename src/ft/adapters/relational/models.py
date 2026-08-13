@@ -138,6 +138,45 @@ class AccountModel(Base):
 
 
 
+class CashCategoryModel(Base):
+    __tablename__ = "cash_categories"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "parent_id"],
+            ["cash_categories.workspace_id", "cash_categories.id"],
+            ondelete="RESTRICT", name="fk_cash_categories_workspace_parent",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_cash_categories_workspace_id"),
+        UniqueConstraint("workspace_id", "parent_scope_key", "normalized_name", name="uq_cash_categories_sibling_name"),
+        CheckConstraint("depth BETWEEN 1 AND 5", name="ck_cash_categories_depth"),
+        CheckConstraint("length(name) BETWEEN 1 AND 40", name="ck_cash_categories_name_length"),
+        CheckConstraint("length(category_path) > 2", name="ck_cash_categories_path"),
+        Index("ix_cash_categories_workspace_parent_order", "workspace_id", "parent_scope_key", "sort_order", "id"),
+        Index("ix_cash_categories_workspace_path", "workspace_id", "category_path"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    parent_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    parent_scope_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str] = mapped_column(String(40), nullable=False)
+    normalized_name: Mapped[str] = mapped_column(String(40), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    category_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    depth: Mapped[int] = mapped_column(Integer, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, onupdate=_now, nullable=False)
+
+
+class CashCategoryStateModel(Base):
+    __tablename__ = "cash_category_states"
+    workspace_id: Mapped[str] = mapped_column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), primary_key=True)
+    revision: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, onupdate=_now, nullable=False)
+
+
 class CashTransactionModel(Base):
     __tablename__ = "cash_transactions"
     __table_args__ = (
@@ -160,8 +199,14 @@ class CashTransactionModel(Base):
             ondelete="RESTRICT",
             name="fk_cash_transactions_workspace_account",
         ),
+        ForeignKeyConstraint(
+            ["workspace_id", "category_id"],
+            ["cash_categories.workspace_id", "cash_categories.id"],
+            ondelete="RESTRICT", name="fk_cash_transactions_workspace_category",
+        ),
         Index("ix_cash_transactions_workspace_date", "workspace_id", "occurred_at"),
         Index("ix_cash_transactions_workspace_account", "workspace_id", "account_id"),
+        Index("ix_cash_transactions_workspace_category", "workspace_id", "category_id"),
         Index("ix_cash_transactions_workspace_source_record", "workspace_id", "source_type", "record_id"),
     )
 
@@ -184,7 +229,7 @@ class CashTransactionModel(Base):
         JSON, default=list, nullable=False,
     )
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    category: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    category_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     record_type: Mapped[str] = mapped_column(String(32), default="other", nullable=False)
     record_subtype: Mapped[str] = mapped_column(String(32), default="not_applicable", nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
@@ -254,7 +299,8 @@ class CashProjectionModel(Base):
         Index("ix_cash_projections_account", "workspace_id", "dataset_id", "account_id"),
         Index("ix_cash_projections_currency", "workspace_id", "dataset_id", "currency"),
         Index("ix_cash_projections_economic_type", "workspace_id", "dataset_id", "economic_type"),
-        Index("ix_cash_projections_category", "workspace_id", "dataset_id", "category"),
+        Index("ix_cash_projections_category_id", "workspace_id", "dataset_id", "category_id"),
+        Index("ix_cash_projections_category_path", "workspace_id", "dataset_id", "category_path"),
         Index("ix_cash_projections_root", "workspace_id", "dataset_id", "root_cash_transaction_id"),
     )
 
@@ -271,7 +317,8 @@ class CashProjectionModel(Base):
     occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     account_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     counterparty: Mapped[str] = mapped_column(String(512), default="", nullable=False)
-    category: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    category_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    category_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     source_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     record_id: Mapped[str] = mapped_column(String(512), default="", nullable=False)

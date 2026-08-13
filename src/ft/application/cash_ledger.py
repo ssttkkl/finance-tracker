@@ -11,12 +11,14 @@ import hashlib
 import json
 import tempfile
 
-from sqlalchemy import delete as sa_delete, select as sa_select
+from sqlalchemy import delete as sa_delete, select as sa_select, update as sa_update
 
 from ft.adapters.relational.models import (
     AccountModel,
+    CashCategoryModel,
     CashInvestmentFundingRelationModel,
     CashProjectionRelationModel,
+    CashProjectionStateModel,
     CashTransactionModel,
     TransactionRelationModel,
 )
@@ -79,10 +81,6 @@ IMPORT_CHANNEL_LABELS = {
     "ccb_debit": "建行借记卡",
     "icbc_asia": "工银亚洲",
 }
-EDITABLE_FIELDS = (
-    "occurred_at", "amount", "currency", "counterparty", "counterparty_account",
-    "counterparty_account_attrs", "note", "category", "record_type", "record_subtype",
-)
 STANDARD_IMPORT_COLUMNS = (
     "occurred_at", "amount", "currency", "account_name", "counterparty",
     "counterparty_account", "record_type", "record_subtype", "category",
@@ -95,6 +93,10 @@ IMPORT_FORMAL_TO_PARSER = {
     "icbc_credit": "icbc",
     "icbc_debit": "icbc-debit",
 }
+EDITABLE_FIELDS = (
+    "occurred_at", "amount", "currency", "counterparty", "counterparty_account",
+    "counterparty_account_attrs", "note", "category_id", "record_type", "record_subtype",
+)
 
 
 def _wire(value):
@@ -374,6 +376,33 @@ class CashLedgerCommandService:
             values = {key: payload[key] for key in EDITABLE_FIELDS if key in payload}
             values["account_name"] = account.name
             values["source_values"] = payload.get("source_values") or {}
+            category_changed = (
+                "category_id" in values
+                and str(values.get("category_id") or "") != str(current.get("category_id") or "")
+            )
+            category_id = str(values.get("category_id") or "") or None
+            if category_changed:
+                projection_state = uow._state().session.scalar(sa_select(CashProjectionStateModel).where(
+                    CashProjectionStateModel.workspace_id == self._workspace_id,
+                ))
+                expected_projection_version = payload.get("projection_version")
+                if (
+                    expected_projection_version is None
+                    or projection_state is None
+                    or projection_state.availability != "ready"
+                    or int(projection_state.projection_version) != int(expected_projection_version)
+                ):
+                    raise ValueError("projection.version_conflict")
+            if category_id is not None:
+                category = uow._state().session.scalar(sa_select(CashCategoryModel).where(
+                    CashCategoryModel.workspace_id == self._workspace_id,
+                    CashCategoryModel.id == category_id,
+                ))
+                if category is None:
+                    raise ValueError("category.not_found")
+                values["category_id"] = category.id
+            elif "category_id" in values:
+                values["category_id"] = None
             key_fields = ("amount", "currency", "account_name", "occurred_at", "record_type", "record_subtype")
             key_changed = any(
                 field in values and not self._same_edit_value(field, current.get(field), values[field])
@@ -381,7 +410,7 @@ class CashLedgerCommandService:
             )
             component_ids: set[int] = {int(fact_id)}
             component_relations: list[dict] = []
-            if key_changed:
+            if key_changed or category_changed:
                 component_ids, component_relations = self._accepted_relation_component(uow, fact_id)
             updated = uow.cashflows.update(
                 int(fact_id),
@@ -389,6 +418,12 @@ class CashLedgerCommandService:
                 _row=current_model,
                 _account=account,
             )
+            if category_changed and len(component_ids) > 1:
+                uow._state().session.execute(sa_update(CashTransactionModel).where(
+                    CashTransactionModel.workspace_id == self._workspace_id,
+                    CashTransactionModel.id.in_(component_ids),
+                    CashTransactionModel.deleted_at.is_(None),
+                ).values(category_id=category_id))
             if component_relations and key_changed:
                 try:
                     self._validate_projection_graph(uow, component_ids)
@@ -401,11 +436,11 @@ class CashLedgerCommandService:
                         reason="user_unlinked_by_edit",
                     )
             self._snapshot_delta(uow, updated.pop("previous"), updated)
-            if key_changed and not component_relations:
+            if (key_changed or category_changed) and not component_relations:
                 CashProjectionService.replace_standalone_fact_if_ready_in_session(
                     uow._state().session, uow.workspace_id, current_model,
                 )
-            elif key_changed:
+            elif key_changed or category_changed:
                 CashProjectionService.maintain_if_ready_in_session(
                     uow._state().session,
                     uow.workspace_id,
@@ -418,7 +453,6 @@ class CashLedgerCommandService:
                     uow.workspace_id,
                     int(fact_id),
                     counterparty=str(updated.get("counterparty") or ""),
-                    category=str(updated.get("category") or ""),
                     note=str(updated.get("note") or ""),
                 )
             uow.commit()
@@ -580,7 +614,7 @@ class CashLedgerCommandService:
             return None
         fields = (
             "id", "occurred_at", "amount", "currency", "counterparty",
-            "counterparty_account", "note", "category", "record_type",
+            "counterparty_account", "note", "category_id", "record_type",
             "record_subtype", "account_name", "account_type", "source_type",
         )
         return _wire({field: record.get(field) for field in fields if field in record})
@@ -1061,7 +1095,7 @@ class CashLedgerCommandService:
         return rows, channel, candidate
 
     def detect_import(self, content: bytes, *, filename: str, currency: str | None = None, password: str | None = None) -> dict:
-        _rows, channel, _candidate = self._detect_import_candidate(
+        rows, channel, _candidate = self._detect_import_candidate(
             content, currency=currency, filename=filename, password=password,
         )
         digest = self._import_digest(content)
@@ -1070,26 +1104,7 @@ class CashLedgerCommandService:
             "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
             "file": {"name": filename or "statement", "digest": digest},
             "digest": digest,
-            "row_count": len(_rows),
-        }
-
-    @staticmethod
-    def _standardized_import_item(row: dict, *, record_id: str, channel: str, status: str, message: str) -> dict:
-        return {
-            "record_id": record_id,
-            "occurred_at": row.get("occurred_at") or row.get("date") or "",
-            "amount": str(row.get("amount") or "0"),
-            "currency": str(row.get("currency") or "CNY").upper(),
-            "account_name": row.get("account_name") or "",
-            "counterparty": row.get("counterparty") or "",
-            "counterparty_account": row.get("counterparty_account") or "",
-            "record_type": row.get("record_type") or "other",
-            "record_subtype": row.get("record_subtype") or "not_applicable",
-            "category": row.get("category") or "",
-            "note": row.get("note") or "",
-            "channel": channel,
-            "status": status,
-            "message": message,
+            "row_count": len(rows),
         }
 
     @staticmethod
@@ -1118,86 +1133,46 @@ class CashLedgerCommandService:
         channel: str,
         accounts_by_name: dict[str, AccountModel],
     ) -> list[dict]:
-        """Run the domain matcher in memory; this function never writes relations."""
-        # The web composition root supplies RelationService. Standalone import
-        # callers (including the large-batch performance contract) do not opt
-        # into relation scanning and must retain the import-only fast path.
+        """Run relation matching in memory; this function never writes relations."""
         if self._relation_service is None:
             return []
         from ft.application.relations import _fact_view_from_row
         from ft.adapters.relational.repositories import RelationalRelationRepository
         from ft.domain.relations import FactCandidateIndex, MatchContext, RelationEdge, run_relation_phases
 
-        existing_rows = RelationalCashflowRepository(
-            session, self._workspace_id,
-        ).list_detailed(include_deleted=False)
+        existing_rows = RelationalCashflowRepository(session, self._workspace_id).list_detailed(include_deleted=False)
         existing_by_identity = {
-            (
-                str(row.get("source_type") or row.get("bill_source") or "").strip(),
-                str(row.get("record_id") or "").strip(),
-            ): row
-            for row in existing_rows
-            if str(row.get("record_id") or "").strip()
+            (str(row.get("source_type") or row.get("bill_source") or "").strip(), str(row.get("record_id") or "").strip()): row
+            for row in existing_rows if str(row.get("record_id") or "").strip()
         }
         preview_rows = []
         preview_ids: list[str] = []
         for row, record_id in prepared:
             account = accounts_by_name.get(row.get("account_name"))
-            if account is None:
+            if account is None or (channel, str(record_id).strip()) in existing_by_identity:
                 continue
-            # A repeated import row is already represented by its persisted
-            # fact in existing_rows. Do not add a second synthetic fact for
-            # the same source identity, otherwise relation matching can build
-            # a new edge between two copies of the same business row.
-            if (channel, str(record_id).strip()) in existing_by_identity:
-                continue
-            synthetic = {
-                **row,
-                "id": f"preview:{record_id}",
-                "record_id": record_id,
-                "account_id": account.id,
-                "account_type": account.type,
-                "source_type": channel,
-                "bill_source": channel,
-            }
+            synthetic = {**row, "id": f"preview:{record_id}", "record_id": record_id, "account_id": account.id, "account_type": account.type, "source_type": channel, "bill_source": channel}
             preview_rows.append(synthetic)
             preview_ids.append(synthetic["id"])
         if not preview_rows:
             return []
-        facts = [
-            _fact_view_from_row(row)
-            for row in [*existing_rows, *preview_rows]
-        ]
+        facts = [_fact_view_from_row(row) for row in [*existing_rows, *preview_rows]]
         relation_repo = RelationalRelationRepository(session, self._workspace_id)
-        active_relations = relation_repo.list_active()
         context = MatchContext(workspace_id=self._workspace_id)
         transfer_blocked: set[str] = set()
         refund_blocked: set[str] = set()
-        for relation in active_relations:
-            primary = relation.get("primary_fact_id")
-            secondary = relation.get("secondary_fact_id")
-            if relation.get("kind") == RelationKind.PAYMENT_MIRROR.value and relation.get("status") == RelationStatus.ACCEPTED.value:
-                if primary not in (None, "") and secondary not in (None, ""):
-                    context.accepted_mirrors.append(
-                        RelationEdge(fact_a_id=str(primary), fact_b_id=str(secondary), kind=RelationKind.PAYMENT_MIRROR.value)
-                    )
-            if relation.get("kind") == RelationKind.REFUND_OFFSET.value and relation.get("status") == RelationStatus.ACCEPTED.value:
-                if primary not in (None, "") and secondary not in (None, ""):
-                    context.accepted_platform_refunds.append(
-                        RelationEdge(fact_a_id=str(primary), fact_b_id=str(secondary), kind=RelationKind.REFUND_OFFSET.value)
-                    )
-            if relation.get("kind") == RelationKind.TRANSFER_PAIR.value and relation.get("status") == RelationStatus.ACCEPTED.value:
+        for relation in relation_repo.list_active():
+            primary, secondary = relation.get("primary_fact_id"), relation.get("secondary_fact_id")
+            if relation.get("status") != RelationStatus.ACCEPTED.value:
+                continue
+            if relation.get("kind") == RelationKind.PAYMENT_MIRROR.value and primary not in (None, "") and secondary not in (None, ""):
+                context.accepted_mirrors.append(RelationEdge(fact_a_id=str(primary), fact_b_id=str(secondary), kind=RelationKind.PAYMENT_MIRROR.value))
+            if relation.get("kind") == RelationKind.REFUND_OFFSET.value and primary not in (None, "") and secondary not in (None, ""):
+                context.accepted_platform_refunds.append(RelationEdge(fact_a_id=str(primary), fact_b_id=str(secondary), kind=RelationKind.REFUND_OFFSET.value))
+            if relation.get("kind") == RelationKind.TRANSFER_PAIR.value:
                 transfer_blocked.update(str(item) for item in (primary, secondary) if item not in (None, ""))
-            if relation.get("status") == RelationStatus.ACCEPTED.value:
-                refund_blocked.update(str(item) for item in (primary, secondary) if item not in (None, ""))
-        # The domain matcher compares IDs as strings in several seed paths.
-        facts = [
-            type(fact)(**{
-                **fact.__dict__,
-                "id": str(fact.id),
-            })
-            for fact in facts
-        ]
+            refund_blocked.update(str(item) for item in (primary, secondary) if item not in (None, ""))
+        facts = [type(fact)(**{**fact.__dict__, "id": str(fact.id)}) for fact in facts]
         preview_ids = [str(item) for item in preview_ids]
         proposals = run_relation_phases(
             facts,
@@ -1220,24 +1195,7 @@ class CashLedgerCommandService:
                 return None
             if key.startswith("preview:"):
                 return dict(items_by_id.get(key.removeprefix("preview:"), {}), preview=True)
-            record = self._relation_preview_record(
-                {
-                    "id": fact.id,
-                    "record_id": fact.record_id,
-                    "occurred_at": fact.occurred_at,
-                    "amount": fact.amount,
-                    "currency": fact.currency,
-                    "account_name": fact.account_name,
-                    "counterparty": fact.counterparty,
-                    "record_type": fact.record_type,
-                    "record_subtype": fact.record_subtype,
-                    "category": fact.category,
-                    "note": fact.note,
-                    "source_type": fact.bill_source,
-                },
-                preview=False,
-                channel=fact.bill_source,
-            )
+            record = self._relation_preview_record({"id": fact.id, "record_id": fact.record_id, "occurred_at": fact.occurred_at, "amount": fact.amount, "currency": fact.currency, "account_name": fact.account_name, "counterparty": fact.counterparty, "record_type": fact.record_type, "record_subtype": fact.record_subtype, "category": getattr(fact, "category", None), "note": fact.note, "source_type": fact.bill_source}, preview=False, channel=fact.bill_source)
             record["fact_id"] = int(fact.id)
             return record
 
@@ -1245,23 +1203,18 @@ class CashLedgerCommandService:
         for index, proposal in enumerate(proposals):
             primary = wire_fact(proposal.primary_fact_id)
             secondary = wire_fact(proposal.secondary_fact_id)
-            candidate_ids = [str(item) for item in proposal.evidence.candidate_fact_ids]
-            candidates = [wire_fact(item) for item in candidate_ids]
+            candidates = [wire_fact(str(item)) for item in proposal.evidence.candidate_fact_ids]
             candidates = [item for item in candidates if item is not None]
             if primary is None or (secondary is None and not candidates):
                 continue
             result.append({
-                "id": f"preview-relation:{index}",
-                "kind": proposal.kind,
+                "id": f"preview-relation:{index}", "kind": proposal.kind,
                 "label": RELATION_LABELS.get(proposal.kind, proposal.kind),
-                "subtype": proposal.subtype or "",
-                "status": proposal.status,
+                "subtype": proposal.subtype or "", "status": proposal.status,
                 "automatic": proposal.status == RelationStatus.ACCEPTED.value and secondary is not None,
                 "rule_id": proposal.rule_id,
                 "reason": ", ".join(proposal.evidence.signals) or "标准化字段匹配",
-                "primary": primary,
-                "secondary": secondary,
-                "candidates": candidates,
+                "primary": primary, "secondary": secondary, "candidates": candidates,
             })
         return result
 
@@ -1283,7 +1236,6 @@ class CashLedgerCommandService:
                 rid = _row_record_id(row, occurrences)
                 record_ids.append(rid)
                 prepared.append((row, rid))
-            existing = RelationalCashflowRepository(session, self._workspace_id)
             from ft.adapters.relational.imports import RelationalImportRepository
             targets = RelationalImportRepository(session, self._workspace_id).existing_fact_targets(
                 source_type=channel, record_ids=record_ids,
@@ -1299,23 +1251,28 @@ class CashLedgerCommandService:
                     status, message = "unsupported", "请更新账户配置后重新导入"
                 elif rid in targets:
                     status = "existing"
-                items.append(self._standardized_import_item(
-                    row, record_id=rid, channel=channel, status=status, message=message,
-                ))
+                items.append({
+                    "record_id": rid,
+                    "occurred_at": row.get("occurred_at") or row.get("date") or "",
+                    "amount": str(row.get("amount") or "0"),
+                    "currency": row["currency"],
+                    "account_name": row.get("account_name") or "",
+                    "counterparty": row.get("counterparty") or "",
+                    "counterparty_account": row.get("counterparty_account") or "",
+                    "record_type": row.get("record_type") or "other",
+                    "record_subtype": row.get("record_subtype") or "not_applicable",
+                    "category": row.get("category") or "",
+                    "note": row.get("note") or "",
+                    "channel": channel,
+                    "status": status,
+                    "message": message,
+                })
             counts = {
                 "total": len(items),
                 "new": sum(item["status"] == "new" for item in items),
                 "existing": sum(item["status"] == "existing" for item in items),
                 "unsupported": sum(item["status"] == "unsupported" for item in items),
             }
-            items_by_id = {item["record_id"]: item for item in items}
-            relations = self._preview_relation_suggestions(
-                session,
-                prepared=prepared,
-                items_by_id=items_by_id,
-                channel=channel,
-                accounts_by_name=account_names,
-            )
             return {
                 "channel": channel,
                 "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
@@ -1323,7 +1280,10 @@ class CashLedgerCommandService:
                 "columns": list(STANDARD_IMPORT_COLUMNS),
                 "items": items,
                 "summary": counts,
-                "relations": relations,
+                "relations": self._preview_relation_suggestions(
+                    session, prepared=prepared, items_by_id={item["record_id"]: item for item in items},
+                    channel=channel, accounts_by_name=account_names,
+                ),
             }
 
     def commit_import(
@@ -1353,9 +1313,7 @@ class CashLedgerCommandService:
                 self._uow, self._parser, relation_service=self._relation_service,
                 enforce_account_currencies=True,
             ).import_statement(
-                StatementImportCommand(
-                    source_path=handle.name, source=candidate, currency=currency, password=password,
-                ),
+                StatementImportCommand(source_path=handle.name, source=candidate, currency=currency, password=password),
                 relation_decisions=relation_decisions,
             )
         if not result.ok:

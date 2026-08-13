@@ -17,6 +17,7 @@ from ft.domain.relations import (
 def _fv(**kwargs):
     base = dict(currency="CNY", account_type="cash", fact_type="cash", deleted=False)
     base.update(kwargs)
+    base.pop("category", None)
     if "record_type" not in base:
         amount = Decimal(str(base.get("amount") or 0))
         note = str(base.get("note") or "")

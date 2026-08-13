@@ -36,6 +36,9 @@ def test_repository_has_clean_linear_revisions():
             "20260805_24_investment_event_fee_reversal_semantics.py",
             "20260807_25_cash_ledger_management.py",
             "20260811_26_cash_projection_lookup_indexes.py",
+            "20260812_27_cash_categories.py",
+            "20260813_28_cash_category_lookup_index.py",
+            "20260813_29_cash_category_path_index.py",
         ]
 
 
@@ -177,7 +180,7 @@ def test_migrated_sqlite_amount_columns_use_canonical_text_and_round_trip_exactl
         with engine.begin() as connection:
             connection.execute(text("INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', CURRENT_TIMESTAMP)"))
             connection.execute(text("INSERT INTO accounts (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) VALUES (1, 'w', 'Cash', 'cash', 1, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
-            connection.execute(text("INSERT INTO cash_transactions (id, workspace_id, account_id, record_id, occurred_at, amount, currency, counterparty, note, category, created_at) VALUES (1, 'w', 1, '', CURRENT_TIMESTAMP, '1.230000000000000001', 'CNY', '', '', '', CURRENT_TIMESTAMP)"))
+            connection.execute(text("INSERT INTO cash_transactions (id, workspace_id, account_id, record_id, occurred_at, amount, currency, counterparty, note, category_id, created_at) VALUES (1, 'w', 1, '', CURRENT_TIMESTAMP, '1.230000000000000001', 'CNY', '', '', NULL, CURRENT_TIMESTAMP)"))
             assert connection.scalar(text("SELECT amount FROM cash_transactions WHERE id = 1")) == "1.230000000000000001"
     finally:
         engine.dispose()
@@ -539,14 +542,8 @@ def test_icbc_asia_source_type_migration_renames_active_business_identity(tmp_pa
             )).one()
         assert values == ("icbc_asia", "icbc_asia_abc")
 
-        command.downgrade(config, "20260804_19")
-        with engine.connect() as connection:
-            values = connection.execute(text(
-                "SELECT source_type, record_id FROM cash_transactions"
-            )).one()
-        assert values == (
-            "icbc_asia_current_account", "icbc_asia_current_account_abc",
-        )
+        with pytest.raises(NotImplementedError, match="one-shot"):
+            command.downgrade(config, "20260804_19")
     finally:
         engine.dispose()
 

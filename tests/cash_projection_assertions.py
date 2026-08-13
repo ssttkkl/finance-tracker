@@ -18,7 +18,7 @@ class ProjectionFact:
     amount: Decimal
     currency: str = "CNY"
     counterparty: str = "示例商户"
-    category: str = "日用"
+    category_id: str | None = "category-fixture"
     note: str = ""
     source_type: str = "fixture"
     record_id: str = ""

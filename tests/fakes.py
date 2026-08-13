@@ -5,14 +5,14 @@ class FakeTransactionQueryRepository:
     def __init__(self, rows=()):
         self.rows = [dict(row) for row in rows]
 
-    def list_transactions(self, *, month=None, account=None, category=None, limit=None):
+    def list_transactions(self, *, month=None, account=None, category_id=None, limit=None):
         rows = self.rows
         if month:
             rows = [row for row in rows if row.get("date", "").startswith(month)]
         if account:
             rows = [row for row in rows if row.get("account_name") == account]
-        if category:
-            rows = [row for row in rows if row.get("category") == category]
+        if category_id:
+            rows = [row for row in rows if row.get("category_id") == category_id]
         rows = sorted(rows, key=lambda row: row.get("date", ""), reverse=True)
         return [dict(row) for row in (rows[:limit] if limit is not None else rows)]
 

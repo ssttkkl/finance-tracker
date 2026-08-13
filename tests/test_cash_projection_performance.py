@@ -189,6 +189,11 @@ def _process_peak_rss_bytes() -> int:
     return int(value if sys.platform == "darwin" else value * 1024)
 
 
+def _peak_rss_delta_bytes(baseline: int) -> int:
+    """Return this scenario's peak RSS, independent of earlier pytest tests."""
+    return max(0, _process_peak_rss_bytes() - baseline)
+
+
 def _seed_cash_projection_workload(sessions) -> None:
     from ft.adapters.relational.models import AccountModel, CashTransactionModel, TransactionRelationModel
 
@@ -931,12 +936,13 @@ def test_fixed_1k_cash_import_preview_and_idempotency_have_bounded_cost(performa
     rows = _performance_import_rows(IMPORT_ROWS)
     parser = _PerformanceStatementParser(rows)
     service = CashLedgerCommandService(sessions, WORKSPACE, parser=parser)
+    rss_baseline = _process_peak_rss_bytes()
 
     def measure(operation):
         started = time.perf_counter_ns()
         result = operation()
         elapsed = time.perf_counter_ns() - started
-        return result, elapsed, _process_peak_rss_bytes()
+        return result, elapsed, _peak_rss_delta_bytes(rss_baseline)
 
     preview, preview_ns, preview_peak = measure(lambda: service.preview_import(
         b"performance-fixture", source="performance_import", currency="CNY", filename="statement.csv",
@@ -993,12 +999,13 @@ def test_fixed_10k_cash_import_preview_scales_with_batch_size(performance_runtim
     service = CashLedgerCommandService(
         sessions, WORKSPACE, parser=_PerformanceStatementParser(rows),
     )
+    rss_baseline = _process_peak_rss_bytes()
     started = time.perf_counter_ns()
     result = service.preview_import(
         b"performance-fixture", source="performance_import_10k", currency="CNY", filename="statement.csv",
     )
     elapsed = time.perf_counter_ns() - started
-    peak = _process_peak_rss_bytes()
+    peak = _peak_rss_delta_bytes(rss_baseline)
     print({
         "backend": backend,
         "fixture_digest": _fixture_digest(),

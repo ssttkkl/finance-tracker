@@ -316,7 +316,6 @@ class RelationalCashflowRepository:
             statement = statement.where(or_(
                 CashTransactionModel.counterparty.ilike(pattern, escape="\\"),
                 CashTransactionModel.note.ilike(pattern, escape="\\"),
-                CashTransactionModel.category.ilike(pattern, escape="\\"),
                 CashTransactionModel.currency.ilike(pattern, escape="\\"),
                 AccountModel.name.ilike(pattern, escape="\\"),
                 cast(CashTransactionModel.amount, String).ilike(pattern, escape="\\"),
@@ -398,7 +397,7 @@ class RelationalCashflowRepository:
             "counterparty_account": row.get("counterparty_account", ""),
             "counterparty_account_attrs": list(row.get("counterparty_account_attrs") or []),
             "note": row.get("note", ""),
-            "category": row.get("category", ""),
+            "category_id": row.get("category_id"),
             "record_type": row.get("record_type", "other"),
             "record_subtype": row.get("record_subtype", "not_applicable"),
             "account_name": row.get("account_name", ""),
@@ -480,7 +479,7 @@ class RelationalCashflowRepository:
             counterparty_account=counterparty_account,
             counterparty_account_attrs=list(counterparty_account_attrs),
             note=str(normalized["note"] or ""),
-            category=str(normalized["category"] or ""),
+            category_id=str(normalized.get("category_id") or "").strip() or None,
             record_type=record_type,
             record_subtype=record_subtype,
         )
@@ -560,7 +559,7 @@ class RelationalCashflowRepository:
         )
         editable = (
             "occurred_at", "amount", "currency", "counterparty", "counterparty_account",
-            "counterparty_account_attrs", "note", "category", "record_type", "record_subtype",
+            "counterparty_account_attrs", "note", "category_id", "record_type", "record_subtype",
         )
         previous = self._to_row(row, account)
         source_values = values.get("source_values") or {}
@@ -577,7 +576,7 @@ class RelationalCashflowRepository:
                 normalized_value = list(value or [])
             elif field in {
                 "currency", "counterparty", "counterparty_account", "note",
-                "category", "record_type", "record_subtype",
+                "category_id", "record_type", "record_subtype",
             }:
                 normalized_value = str(value or "")
             else:
@@ -652,7 +651,7 @@ class RelationalCashflowRepository:
             field: row[field]
             for field in (
                 "occurred_at", "amount", "currency", "counterparty", "counterparty_account",
-                "counterparty_account_attrs", "note", "category", "record_type", "record_subtype",
+                "counterparty_account_attrs", "note", "record_type", "record_subtype",
             )
             if field in row and row[field] is not None
         }
@@ -828,7 +827,7 @@ class RelationalCashflowRepository:
             "counterparty_account": row.counterparty_account,
             "counterparty_account_attrs": list(row.counterparty_account_attrs or []),
             "note": row.note,
-            "category": row.category,
+            "category_id": row.category_id,
             "record_type": row.record_type,
             "record_subtype": row.record_subtype,
             "account_name": account.name,

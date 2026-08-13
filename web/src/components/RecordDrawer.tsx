@@ -9,7 +9,8 @@ import {
   updateCashRelation,
   updateCashRecord,
 } from "../api/cashLedger";
-import type { Account, CashRecord, CashRecordDetail, LedgerOptions } from "../api/types";
+import type { Account, CashCategory, CashRecord, CashRecordDetail, LedgerOptions } from "../api/types";
+import { CashCategorySelect } from "./CashCategorySelect";
 import { formatOccurredAt } from "../format";
 import { UiIcon } from "./UiIcon";
 import { PageNavigation } from "./Pagination";
@@ -23,6 +24,8 @@ type Props = {
   initialRelationOpen?: boolean;
   accounts: Account[];
   options: LedgerOptions;
+  categories?: CashCategory[];
+  projectionVersion?: number | null;
   onClose: () => void;
   onRetry?: () => void;
   onSaved: (detail: CashRecordDetail, created: boolean) => void;
@@ -60,14 +63,14 @@ function initialForm(record: CashRecord | null | undefined, defaultAccount?: Acc
     occurred_at: record?.occurred_at ? record.occurred_at.slice(0, 16) : "",
     counterparty: record?.counterparty ?? "",
     counterparty_account: record?.counterparty_account ?? "",
-    category: record?.category ?? "",
+    category_id: record?.category_id ?? record?.category?.id ?? "",
     record_type: record?.record_type ?? defaultRecordType ?? "",
     record_subtype: record?.record_subtype ?? "not_applicable",
     note: record?.note ?? "",
   };
 }
 
-export function RecordDrawer({ detail, mode, embedded = false, loading = false, loadError = false, initialRelationOpen = false, accounts, options, onClose, onRetry, onSaved, onDeleted }: Props) {
+export function RecordDrawer({ detail, mode, embedded = false, loading = false, loadError = false, initialRelationOpen = false, accounts, options, categories = [], projectionVersion = null, onClose, onRetry, onSaved, onDeleted }: Props) {
   const record = detail?.record;
   const isNew = mode ? mode === "new" : !record;
   const [form, setForm] = useState(() => initialForm(record, accounts[0], options.record_types[0]?.value));
@@ -171,6 +174,7 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
         ...form,
         amount: form.amount || "0",
         record_subtype: form.record_subtype || "not_applicable",
+        ...(!isNew && form.category_id !== (record?.category_id ?? record?.category?.id ?? "") && projectionVersion !== null ? { projection_version: projectionVersion } : {}),
         ...(confirmRelationImpact ? { confirm_relation_impact: true } : {}),
       };
       const value = isNew ? await createCashRecord(body) : await updateCashRecord(record!.id, body);
@@ -315,7 +319,7 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
             <div className="edit-row"><label htmlFor="record-account">账户</label><select id="record-account" value={form.account_name} onChange={(event) => selectAccount(event.target.value)}>{accounts.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></div>
             <div className="edit-row"><label htmlFor="record-type">流水类型</label><select id="record-type" value={form.record_type} onChange={(event) => selectType(event.target.value)}>{options.record_types.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
             {subtypeOptions.length > 1 ? <div className="edit-row"><label htmlFor="record-subtype">业务细分</label><select id="record-subtype" value={form.record_subtype} onChange={(event) => set("record_subtype", event.target.value)}>{subtypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div> : null}
-            <div className="edit-row"><label htmlFor="record-category">分类</label><input id="record-category" value={form.category} onChange={(event) => set("category", event.target.value)} /></div>
+            <div className="edit-row category-edit-row"><CashCategorySelect categories={categories} value={form.category_id || null} onChange={(value) => set("category_id", value ?? "")} /></div>
             <div className="edit-row"><label htmlFor="record-note">备注</label><textarea id="record-note" value={form.note} onChange={(event) => set("note", event.target.value)} /></div>
             {!isNew && record?.source_type ? <div className="edit-row"><span>来源</span><div className="readonly-value">{record.source_type}</div></div> : null}
           </div>
