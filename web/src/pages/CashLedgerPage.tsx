@@ -8,7 +8,6 @@ import { EvidenceDetail } from "../components/EvidenceDetail";
 import { LoadMoreControl } from "../components/Pagination";
 import { StatusView } from "../components/StatusView";
 import { RecordDrawer } from "../components/RecordDrawer";
-import { ImportDrawer } from "../components/ImportDrawer";
 
 const requestErrorMessages: Record<string, string> = {
   api_origin_invalid: "账本暂不可用，请稍后重试。",
@@ -80,7 +79,7 @@ function detailFromEvidence(evidence: Evidence, recordId: string, options: Ledge
   };
 }
 
-export function CashLedgerPage({ onModalStateChange }: { onModalStateChange?: (open: boolean) => void } = {}) {
+export function CashLedgerPage({ onOpenImport, onModalStateChange }: { onOpenImport?: () => void; onModalStateChange?: (open: boolean) => void } = {}) {
   const [filters, setFilters] = useState<CashFilters>({});
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [filterOptions, setFilterOptions] = useState<CashFilterOptions>({ categories: [], currencies: [], economic_types: [] });
@@ -107,7 +106,6 @@ export function CashLedgerPage({ onModalStateChange }: { onModalStateChange?: (o
   const [relationComposerOpen, setRelationComposerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [importing, setImporting] = useState(false);
   const opener = useRef<HTMLButtonElement | null>(null);
   const pageAbortController = useRef<AbortController | null>(null);
   const evidenceAbortController = useRef<AbortController | null>(null);
@@ -195,7 +193,7 @@ export function CashLedgerPage({ onModalStateChange }: { onModalStateChange?: (o
   const handleCancelRelation = async (id: string) => { try { await cancelCashRelation(id); setRefreshGeneration((current) => current + 1); returnToEvidence(); } catch { /* drawer keeps the current state and can retry */ } };
   const handleRecordDeleted = (id: string) => { if (selected) closeEvidence(); setEditingId(null); setCreating(false); setRelationComposerOpen(false); setRecordDetail(null); setRecordLoading(false); setRecordLoadError(false); setRefreshGeneration((current) => current + 1); void id; };
 
-  const drawerOpen = Boolean(selected || editingId || creating || importing);
+  const drawerOpen = Boolean(selected || editingId || creating);
   const editingSelected = Boolean(selected && (editingId || creating));
   useEffect(() => {
     onModalStateChange?.(drawerOpen);
@@ -203,7 +201,7 @@ export function CashLedgerPage({ onModalStateChange }: { onModalStateChange?: (o
   }, [drawerOpen, onModalStateChange]);
   return <>
     <section className="ledger ledger-workbench" id="cash-ledger" aria-label="收支账本">
-      <header className="page-header"><div><h1>收支账本</h1></div><div className="page-header-actions"><button type="button" className="button-secondary" onClick={openNew}>新建流水</button><button type="button" className="button-primary" onClick={() => setImporting(true)}>导入账单</button></div></header>
+      <header className="page-header"><div><h1>收支账本</h1></div><div className="page-header-actions"><button type="button" className="button-secondary" onClick={openNew}>新建流水</button><button type="button" className="button-primary" onClick={onOpenImport ?? (() => undefined)}>导入账单</button></div></header>
       {accountsError ? <div className="status-view status-error" data-status-kind="error" role="alert"><p>无法读取账户，请稍后重试。</p><button type="button" onClick={loadAccounts}>重试账户</button></div> : null}
       <CashFiltersBar filters={filters} accounts={accounts} filterOptions={filterOptions} filterOptionsReady={filterOptionsReady} filterOptionsLoading={filterOptionsLoading} amountFilterState={amountFilterState} onChange={updateFilters} onAmountFilterChange={clearAmountFilterState} />
       {status === "loading" ? <><CashTable items={[]} loading onEvidence={openEvidence} /><StatusView kind="loading" message={projectionUpdated ? "账本已更新，正在刷新记录。" : undefined} /></> : null}
@@ -213,6 +211,5 @@ export function CashLedgerPage({ onModalStateChange }: { onModalStateChange?: (o
     </section>
     {selected ? createPortal(<EvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} editing={editingSelected} editMode={creating ? "new" : "edit"} editDetail={recordDetail} editAccounts={accounts} editOptions={ledgerOptions} editRelationOpen={relationComposerOpen} editLoading={recordLoading} editLoadError={recordLoadError} onClose={editingSelected ? returnToEvidence : closeEvidence} onRetry={() => openEvidence(selected, opener.current ?? document.createElement("button"))} onEditRetry={retryEditor} onRecordSaved={handleRecordSaved} onEditRecord={openEditor} onAddRelation={openRelationEditor} onCancelRelation={handleCancelRelation} onRecordDeleted={handleRecordDeleted} />, document.body) : null}
     {!selected && (editingId || creating) ? createPortal(<RecordDrawer mode={creating ? "new" : "edit"} detail={recordDetail} accounts={accounts} options={ledgerOptions} loading={recordLoading} loadError={recordLoadError} onRetry={retryEditor} onClose={() => { setEditingId(null); setCreating(false); setRelationComposerOpen(false); setRecordDetail(null); setRecordLoading(false); setRecordLoadError(false); }} onSaved={handleRecordSaved} onDeleted={handleRecordDeleted} />, document.body) : null}
-    {importing ? createPortal(<ImportDrawer onClose={() => { setImporting(false); }} onDone={() => { setImporting(false); setRefreshGeneration((current) => current + 1); }} />, document.body) : null}
   </>;
 }

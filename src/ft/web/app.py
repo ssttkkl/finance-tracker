@@ -82,7 +82,7 @@ def create_app(
         allow_origin_regex=LOCAL_WEB_ORIGIN_REGEX,
         allow_credentials=False,
         allow_methods=["GET", "POST", "PUT", "DELETE"],
-        allow_headers=["Accept", "Content-Type"],
+        allow_headers=["Accept", "Content-Type", "X-FT-Statement-Password"],
     )
 
     @app.exception_handler(StorageError)

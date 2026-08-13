@@ -5,6 +5,12 @@ import "./styles.css";
 import { createRoot } from "react-dom/client";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { CashLedgerPage } from "./pages/CashLedgerPage";
+import { CashImportPage } from "./pages/CashImportPage";
+
+function navigate(path: string) {
+  window.history.pushState({}, "", path);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
 
 const InvestmentLedgerPage = lazy(async () => {
   const module = await import("./pages/InvestmentLedgerPage");
@@ -13,6 +19,7 @@ const InvestmentLedgerPage = lazy(async () => {
 
 export function App() {
   const [hash, setHash] = useState(window.location.hash);
+  const [path, setPath] = useState(window.location.pathname);
   const [modalOpen, setModalOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const mobileNavToggle = useRef<HTMLButtonElement>(null);
@@ -21,8 +28,13 @@ export function App() {
       setHash(window.location.hash);
       setMobileNavOpen(false);
     };
+    const onPopState = () => setPath(window.location.pathname);
     window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("hashchange", onHashChange);
+      window.removeEventListener("popstate", onPopState);
+    };
   }, []);
   const onModalStateChange = useCallback((open: boolean) => setModalOpen(open), []);
   const closeMobileNav = () => {
@@ -33,6 +45,10 @@ export function App() {
   const isEvents = hash === "#investment-events";
   const isInvestment = isEvents || hash === "#investment-holdings" || hash === "#investment-ledger";
   const currentInvestmentHash = isInvestment ? (isEvents ? "#investment-events" : "#investment-holdings") : "";
+
+  if (path === "/cash-import") {
+    return <CashImportPage onBack={() => navigate("/")} onDone={() => undefined} />;
+  }
 
   return <div className={`page-layout${isInvestment ? " investment-page" : ""}`}>
     <main className="app-shell" inert={modalOpen || undefined}>
@@ -55,7 +71,7 @@ export function App() {
           </div>
         </nav>
       </aside>
-      {isInvestment ? <Suspense fallback={<section className="ledger" aria-label="投资账本"><div className="status-view" role="status"><p>正在打开账本…</p></div></section>}><InvestmentLedgerPage view={isEvents ? "events" : "holdings"} onModalStateChange={onModalStateChange} /></Suspense> : <CashLedgerPage onModalStateChange={onModalStateChange} />}
+      {isInvestment ? <Suspense fallback={<section className="ledger" aria-label="投资账本"><div className="status-view" role="status"><p>正在打开账本…</p></div></section>}><InvestmentLedgerPage view={isEvents ? "events" : "holdings"} onModalStateChange={onModalStateChange} /></Suspense> : <CashLedgerPage onOpenImport={() => navigate("/cash-import")} onModalStateChange={onModalStateChange} />}
     </main>
   </div>;
 }

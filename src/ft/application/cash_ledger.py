@@ -7,6 +7,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import base64
 import binascii
+import hashlib
 import json
 import tempfile
 
@@ -34,7 +35,7 @@ from ft.domain.record_type import (
     validate_cash_record_subtype,
 )
 from ft.domain.decimal import exact_decimal
-from ft.domain.relations import RelationKind, RelationStatus, ordered_fact_pair
+from ft.domain.relations import RelationKind, RelationStatus, ordered_fact_pair, source_group
 
 
 RECORD_TYPE_LABELS = {
@@ -70,10 +71,30 @@ RELATION_LABELS = {
     RelationKind.TRANSFER_PAIR.value: "个人转账",
     RelationKind.REFUND_OFFSET.value: "退款冲销",
 }
+IMPORT_CHANNEL_LABELS = {
+    "alipay": "支付宝",
+    "wechat": "微信",
+    "icbc_credit": "工行信用卡",
+    "icbc_debit": "工行借记卡",
+    "ccb_debit": "建行借记卡",
+    "icbc_asia": "工银亚洲",
+}
 EDITABLE_FIELDS = (
     "occurred_at", "amount", "currency", "counterparty", "counterparty_account",
     "counterparty_account_attrs", "note", "category", "record_type", "record_subtype",
 )
+STANDARD_IMPORT_COLUMNS = (
+    "occurred_at", "amount", "currency", "account_name", "counterparty",
+    "counterparty_account", "record_type", "record_subtype", "category",
+    "note", "channel", "status",
+)
+IMPORT_CHANNEL_CANDIDATES = (
+    "alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "icbc-asia",
+)
+IMPORT_FORMAL_TO_PARSER = {
+    "icbc_credit": "icbc",
+    "icbc_debit": "icbc-debit",
+}
 
 
 def _wire(value):
@@ -939,8 +960,316 @@ class CashLedgerCommandService:
             uow.commit()
             return result
 
-    def preview_import(self, content: bytes, *, source: str, currency: str | None, filename: str) -> dict:
-        rows, channel = self._parse_rows(content, source=source, currency=currency, filename=filename)
+    @staticmethod
+    def _import_digest(content: bytes) -> str:
+        return hashlib.sha256(content).hexdigest()
+
+    @staticmethod
+    def _clean_import_rows(rows: list[dict]) -> list[dict]:
+        cleaned = []
+        for row in rows:
+            item = dict(row)
+            item.pop("_import_meta", None)
+            cleaned.append(item)
+        return cleaned
+
+    @staticmethod
+    def _formal_import_channel(rows: list[dict], fallback: str) -> str:
+        channels = {
+            str(row.get("bill_source") or row.get("source_type") or fallback or "").strip()
+            for row in rows
+        }
+        channels.discard("")
+        if len(channels) != 1:
+            raise ValueError("无法识别账单导入渠道")
+        return next(iter(channels))
+
+    def _parse_with_candidate(
+        self,
+        content: bytes,
+        *,
+        candidate: str,
+        currency: str | None,
+        filename: str,
+        password: str | None = None,
+    ) -> tuple[list[dict], str]:
+        suffix = Path(filename or "statement").suffix
+        with tempfile.NamedTemporaryFile(prefix="ft-web-preview-", suffix=suffix, delete=True) as handle:
+            handle.write(content)
+            handle.flush()
+            command = StatementImportCommand(
+                source_path=handle.name, source=candidate, currency=currency, password=password,
+            )
+            rows = self._clean_import_rows(self._parser.parse(command))
+        if not rows:
+            raise ValueError("账单中没有可导入的记录")
+        return rows, self._formal_import_channel(rows, candidate)
+
+    def _detect_import_candidate(
+        self,
+        content: bytes,
+        *,
+        currency: str | None,
+        filename: str,
+        password: str | None = None,
+    ) -> tuple[list[dict], str, str]:
+        if len(content) > 100 * 1024 * 1024:
+            raise ValueError("账单超过 100 MiB 输入上限")
+        matches: list[tuple[list[dict], str, str]] = []
+        password_errors = []
+        from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredError
+        for candidate in IMPORT_CHANNEL_CANDIDATES:
+            try:
+                rows, channel = self._parse_with_candidate(
+                    content, candidate=candidate, currency=currency, filename=filename,
+                    password=password,
+                )
+            except (PDFPasswordRequiredError, PDFPasswordInvalidError) as exc:
+                password_errors.append(exc)
+                continue
+            except Exception:  # noqa: BLE001 - channel probing must not leak parser details.
+                continue
+            if not any(item.get("account_name") for item in rows):
+                continue
+            matches.append((rows, channel, candidate))
+        channels = {channel for _rows, channel, _candidate in matches}
+        if len(channels) != 1:
+            if not matches and password_errors:
+                raise password_errors[0]
+            raise ValueError("import_channel_unrecognized")
+        return next(match for match in matches if match[1] == next(iter(channels)))
+
+    def _resolve_import_rows(
+        self,
+        content: bytes,
+        *,
+        source: str,
+        currency: str | None,
+        filename: str,
+        password: str | None = None,
+    ) -> tuple[list[dict], str, str]:
+        requested = str(source or "").strip()
+        if not requested:
+            return self._detect_import_candidate(
+                content, currency=currency, filename=filename, password=password,
+            )
+        candidate = IMPORT_FORMAL_TO_PARSER.get(requested, requested)
+        rows, channel = self._parse_with_candidate(
+            content, candidate=candidate, currency=currency, filename=filename,
+            password=password,
+        )
+        return rows, channel, candidate
+
+    def detect_import(self, content: bytes, *, filename: str, currency: str | None = None, password: str | None = None) -> dict:
+        _rows, channel, _candidate = self._detect_import_candidate(
+            content, currency=currency, filename=filename, password=password,
+        )
+        digest = self._import_digest(content)
+        return {
+            "channel": channel,
+            "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
+            "file": {"name": filename or "statement", "digest": digest},
+            "digest": digest,
+            "row_count": len(_rows),
+        }
+
+    @staticmethod
+    def _standardized_import_item(row: dict, *, record_id: str, channel: str, status: str, message: str) -> dict:
+        return {
+            "record_id": record_id,
+            "occurred_at": row.get("occurred_at") or row.get("date") or "",
+            "amount": str(row.get("amount") or "0"),
+            "currency": str(row.get("currency") or "CNY").upper(),
+            "account_name": row.get("account_name") or "",
+            "counterparty": row.get("counterparty") or "",
+            "counterparty_account": row.get("counterparty_account") or "",
+            "record_type": row.get("record_type") or "other",
+            "record_subtype": row.get("record_subtype") or "not_applicable",
+            "category": row.get("category") or "",
+            "note": row.get("note") or "",
+            "channel": channel,
+            "status": status,
+            "message": message,
+        }
+
+    @staticmethod
+    def _relation_preview_record(row: dict, *, preview: bool, channel: str) -> dict:
+        return {
+            "record_id": str(row.get("record_id") or row.get("id") or ""),
+            "preview": preview,
+            "occurred_at": row.get("occurred_at") or row.get("date") or "",
+            "amount": str(row.get("amount") or "0"),
+            "currency": str(row.get("currency") or "CNY").upper(),
+            "account_name": row.get("account_name") or "",
+            "counterparty": row.get("counterparty") or "",
+            "record_type": row.get("record_type") or "other",
+            "record_subtype": row.get("record_subtype") or "not_applicable",
+            "category": row.get("category") or "",
+            "note": row.get("note") or "",
+            "channel": channel,
+        }
+
+    def _preview_relation_suggestions(
+        self,
+        session,
+        *,
+        prepared: list[tuple[dict, str]],
+        items_by_id: dict[str, dict],
+        channel: str,
+        accounts_by_name: dict[str, AccountModel],
+    ) -> list[dict]:
+        """Run the domain matcher in memory; this function never writes relations."""
+        # The web composition root supplies RelationService. Standalone import
+        # callers (including the large-batch performance contract) do not opt
+        # into relation scanning and must retain the import-only fast path.
+        if self._relation_service is None:
+            return []
+        from ft.application.relations import _fact_view_from_row
+        from ft.adapters.relational.repositories import RelationalRelationRepository
+        from ft.domain.relations import FactCandidateIndex, MatchContext, RelationEdge, run_relation_phases
+
+        existing_rows = RelationalCashflowRepository(
+            session, self._workspace_id,
+        ).list_detailed(include_deleted=False)
+        existing_by_identity = {
+            (
+                str(row.get("source_type") or row.get("bill_source") or "").strip(),
+                str(row.get("record_id") or "").strip(),
+            ): row
+            for row in existing_rows
+            if str(row.get("record_id") or "").strip()
+        }
+        preview_rows = []
+        preview_ids: list[str] = []
+        for row, record_id in prepared:
+            account = accounts_by_name.get(row.get("account_name"))
+            if account is None:
+                continue
+            # A repeated import row is already represented by its persisted
+            # fact in existing_rows. Do not add a second synthetic fact for
+            # the same source identity, otherwise relation matching can build
+            # a new edge between two copies of the same business row.
+            if (channel, str(record_id).strip()) in existing_by_identity:
+                continue
+            synthetic = {
+                **row,
+                "id": f"preview:{record_id}",
+                "record_id": record_id,
+                "account_id": account.id,
+                "account_type": account.type,
+                "source_type": channel,
+                "bill_source": channel,
+            }
+            preview_rows.append(synthetic)
+            preview_ids.append(synthetic["id"])
+        if not preview_rows:
+            return []
+        facts = [
+            _fact_view_from_row(row)
+            for row in [*existing_rows, *preview_rows]
+        ]
+        relation_repo = RelationalRelationRepository(session, self._workspace_id)
+        active_relations = relation_repo.list_active()
+        context = MatchContext(workspace_id=self._workspace_id)
+        transfer_blocked: set[str] = set()
+        refund_blocked: set[str] = set()
+        for relation in active_relations:
+            primary = relation.get("primary_fact_id")
+            secondary = relation.get("secondary_fact_id")
+            if relation.get("kind") == RelationKind.PAYMENT_MIRROR.value and relation.get("status") == RelationStatus.ACCEPTED.value:
+                if primary not in (None, "") and secondary not in (None, ""):
+                    context.accepted_mirrors.append(
+                        RelationEdge(fact_a_id=str(primary), fact_b_id=str(secondary), kind=RelationKind.PAYMENT_MIRROR.value)
+                    )
+            if relation.get("kind") == RelationKind.REFUND_OFFSET.value and relation.get("status") == RelationStatus.ACCEPTED.value:
+                if primary not in (None, "") and secondary not in (None, ""):
+                    context.accepted_platform_refunds.append(
+                        RelationEdge(fact_a_id=str(primary), fact_b_id=str(secondary), kind=RelationKind.REFUND_OFFSET.value)
+                    )
+            if relation.get("kind") == RelationKind.TRANSFER_PAIR.value and relation.get("status") == RelationStatus.ACCEPTED.value:
+                transfer_blocked.update(str(item) for item in (primary, secondary) if item not in (None, ""))
+            if relation.get("status") == RelationStatus.ACCEPTED.value:
+                refund_blocked.update(str(item) for item in (primary, secondary) if item not in (None, ""))
+        # The domain matcher compares IDs as strings in several seed paths.
+        facts = [
+            type(fact)(**{
+                **fact.__dict__,
+                "id": str(fact.id),
+            })
+            for fact in facts
+        ]
+        preview_ids = [str(item) for item in preview_ids]
+        proposals = run_relation_phases(
+            facts,
+            ctx=context,
+            seed_ids=preview_ids,
+            index=FactCandidateIndex(facts, source_group=source_group),
+            transfer_blocked_ids=transfer_blocked,
+            refund_blocked_ids=refund_blocked,
+            merchant_refund_seed_ids=preview_ids,
+            skip_platform_import_refund_seeds=True,
+        )
+        by_id = {str(fact.id): fact for fact in facts}
+
+        def wire_fact(fact_id: str | None) -> dict | None:
+            if fact_id in (None, ""):
+                return None
+            key = str(fact_id)
+            fact = by_id.get(key)
+            if fact is None:
+                return None
+            if key.startswith("preview:"):
+                return dict(items_by_id.get(key.removeprefix("preview:"), {}), preview=True)
+            record = self._relation_preview_record(
+                {
+                    "id": fact.id,
+                    "record_id": fact.record_id,
+                    "occurred_at": fact.occurred_at,
+                    "amount": fact.amount,
+                    "currency": fact.currency,
+                    "account_name": fact.account_name,
+                    "counterparty": fact.counterparty,
+                    "record_type": fact.record_type,
+                    "record_subtype": fact.record_subtype,
+                    "category": fact.category,
+                    "note": fact.note,
+                    "source_type": fact.bill_source,
+                },
+                preview=False,
+                channel=fact.bill_source,
+            )
+            record["fact_id"] = int(fact.id)
+            return record
+
+        result = []
+        for index, proposal in enumerate(proposals):
+            primary = wire_fact(proposal.primary_fact_id)
+            secondary = wire_fact(proposal.secondary_fact_id)
+            candidate_ids = [str(item) for item in proposal.evidence.candidate_fact_ids]
+            candidates = [wire_fact(item) for item in candidate_ids]
+            candidates = [item for item in candidates if item is not None]
+            if primary is None or (secondary is None and not candidates):
+                continue
+            result.append({
+                "id": f"preview-relation:{index}",
+                "kind": proposal.kind,
+                "label": RELATION_LABELS.get(proposal.kind, proposal.kind),
+                "subtype": proposal.subtype or "",
+                "status": proposal.status,
+                "automatic": proposal.status == RelationStatus.ACCEPTED.value and secondary is not None,
+                "rule_id": proposal.rule_id,
+                "reason": ", ".join(proposal.evidence.signals) or "标准化字段匹配",
+                "primary": primary,
+                "secondary": secondary,
+                "candidates": candidates,
+            })
+        return result
+
+    def preview_import(self, content: bytes, *, source: str, currency: str | None, filename: str, password: str | None = None) -> dict:
+        rows, channel, _candidate = self._resolve_import_rows(
+            content, source=source, currency=currency, filename=filename, password=password,
+        )
+        digest = self._import_digest(content)
         with self._sessions() as session:
             account_names = {row.name: row for row in session.query(AccountModel).filter(
                 AccountModel.workspace_id == self._workspace_id,
@@ -965,36 +1294,70 @@ class CashLedgerCommandService:
                 status = "new"
                 message = ""
                 if account is None:
-                    status, message = "error", "找不到目标账户"
+                    status, message = "unsupported", "找不到目标账户"
                 elif str(row["currency"]).upper() not in {str(item).upper() for item in (account.currencies or ())}:
                     status, message = "unsupported", "请更新账户配置后重新导入"
                 elif rid in targets:
                     status = "existing"
-                items.append({
-                    "record_id": rid,
-                    "occurred_at": row.get("occurred_at") or row.get("date") or "",
-                    "counterparty": row.get("counterparty") or "",
-                    "amount": str(row.get("amount") or "0"),
-                    "currency": row["currency"],
-                    "account_name": row.get("account_name") or "",
-                    "category": row.get("category") or "",
-                    "channel": channel,
-                    "status": status,
-                    "message": message,
-                })
-            counts = {key: sum(item["status"] == key for item in items) for key in ("new", "existing", "unsupported", "error")}
-            return {"channel": channel, "items": items, "summary": counts}
+                items.append(self._standardized_import_item(
+                    row, record_id=rid, channel=channel, status=status, message=message,
+                ))
+            counts = {
+                "total": len(items),
+                "new": sum(item["status"] == "new" for item in items),
+                "existing": sum(item["status"] == "existing" for item in items),
+                "unsupported": sum(item["status"] == "unsupported" for item in items),
+            }
+            items_by_id = {item["record_id"]: item for item in items}
+            relations = self._preview_relation_suggestions(
+                session,
+                prepared=prepared,
+                items_by_id=items_by_id,
+                channel=channel,
+                accounts_by_name=account_names,
+            )
+            return {
+                "channel": channel,
+                "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
+                "file": {"name": filename or "statement", "digest": digest},
+                "columns": list(STANDARD_IMPORT_COLUMNS),
+                "items": items,
+                "summary": counts,
+                "relations": relations,
+            }
 
-    def commit_import(self, content: bytes, *, source: str, currency: str | None, filename: str) -> dict:
+    def commit_import(
+        self,
+        content: bytes,
+        *,
+        source: str,
+        currency: str | None,
+        filename: str,
+        password: str | None = None,
+        preview_digest: str | None = None,
+        preview_channel: str | None = None,
+        relation_decisions: list[dict] | None = None,
+    ) -> dict:
+        digest = self._import_digest(content)
+        if preview_digest and preview_digest != digest:
+            raise ValueError("import_preview_stale")
+        _rows, channel, candidate = self._resolve_import_rows(
+            content, source=source, currency=currency, filename=filename, password=password,
+        )
+        if preview_channel and preview_channel != channel:
+            raise ValueError("import_preview_stale")
         with tempfile.NamedTemporaryFile(prefix="ft-web-import-", suffix=Path(filename or "statement").suffix, delete=True) as handle:
             handle.write(content)
             handle.flush()
             result = StatementImportService(
                 self._uow, self._parser, relation_service=self._relation_service,
                 enforce_account_currencies=True,
-            ).import_statement(StatementImportCommand(
-                source_path=handle.name, source=source, currency=currency,
-            ))
+            ).import_statement(
+                StatementImportCommand(
+                    source_path=handle.name, source=candidate, currency=currency, password=password,
+                ),
+                relation_decisions=relation_decisions,
+            )
         if not result.ok:
             raise ValueError(result.message or "导入失败")
         return _wire({
@@ -1002,30 +1365,12 @@ class CashLedgerCommandService:
             "new_rows": result.details.get("new_rows", result.count) if result.details else result.count,
             "updated_rows": result.details.get("updated_rows", 0) if result.details else 0,
             "by_account": result.details.get("by_account", {}) if result.details else {},
+            "channel": channel,
+            "digest": digest,
         })
 
-    def _parse_rows(self, content: bytes, *, source: str, currency: str | None, filename: str) -> tuple[list[dict], str]:
-        if len(content) > 100 * 1024 * 1024:
-            raise ValueError("账单超过 100 MiB 输入上限")
-        suffix = Path(filename or "statement").suffix
-        with tempfile.NamedTemporaryFile(prefix="ft-web-preview-", suffix=suffix, delete=True) as handle:
-            handle.write(content)
-            handle.flush()
-            command = StatementImportCommand(source_path=handle.name, source=source, currency=currency)
-            rows = [dict(row) for row in self._parser.parse(command)]
-        meta = {}
-        cleaned = []
-        for row in rows:
-            if "_import_meta" in row:
-                meta = row.pop("_import_meta") or {}
-            cleaned.append(row)
-        if not cleaned:
-            raise ValueError("账单中没有可导入的记录")
-        channels = {
-            str(row.get("bill_source") or row.get("source_type") or source or "").strip()
-            for row in cleaned
-        }
-        channels.discard("")
-        if len(channels) != 1:
-            raise ValueError("无法识别账单导入渠道")
-        return cleaned, next(iter(channels))
+    def _parse_rows(self, content: bytes, *, source: str, currency: str | None, filename: str, password: str | None = None) -> tuple[list[dict], str]:
+        rows, channel, _candidate = self._resolve_import_rows(
+            content, source=source, currency=currency, filename=filename, password=password,
+        )
+        return rows, channel

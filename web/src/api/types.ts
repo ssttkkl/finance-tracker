@@ -160,22 +160,66 @@ export type CashRecordPage = {
 };
 
 export type ImportPreviewItem = {
-  record_id?: string;
+  record_id: string;
   occurred_at: string;
-  counterparty: string;
   amount: string;
   currency: string;
   account_name: string;
+  counterparty: string;
+  counterparty_account: string;
+  record_type: string;
+  record_subtype: string;
   category: string;
+  note: string;
   channel: string;
-  status: "new" | "existing" | "unsupported" | "error";
+  status: "new" | "existing" | "unsupported";
   message: string;
+};
+
+export type ImportRelationRecord = ImportPreviewItem & {
+  preview: boolean;
+  fact_id?: number;
+};
+
+export type ImportRelation = {
+  id: string;
+  kind: string;
+  label: string;
+  subtype: string;
+  status: "accepted" | "pending_review";
+  automatic: boolean;
+  rule_id: string;
+  reason: string;
+  primary: ImportRelationRecord;
+  secondary: ImportRelationRecord | null;
+  candidates: ImportRelationRecord[];
 };
 
 export type ImportPreview = {
   channel: string;
+  channel_label: string;
+  file: { name: string; digest: string };
+  columns: string[];
   items: ImportPreviewItem[];
-  summary: Record<string, number>;
+  summary: { total: number; new: number; existing: number; unsupported: number };
+  relations: ImportRelation[];
+};
+
+export type ImportDetection = {
+  channel: string;
+  channel_label: string;
+  file: { name: string; digest: string };
+  digest: string;
+  row_count: number;
+};
+
+export type ImportCommitResult = {
+  message: string;
+  new_rows: number;
+  updated_rows: number;
+  channel: string;
+  digest: string;
+  pending_relations?: number;
 };
 
 export type CashFilters = {
