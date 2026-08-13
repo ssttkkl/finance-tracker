@@ -13,6 +13,11 @@ depends_on = None
 
 def upgrade() -> None:
     bind = op.get_bind()
+    sqlite_rebuild = bind.dialect.name == "sqlite"
+    if sqlite_rebuild:
+        # This must be the first statement on the SQLite connection.  SQLite
+        # ignores changes to foreign_keys while a transaction is active.
+        bind.exec_driver_sql("PRAGMA foreign_keys=OFF")
     op.create_table(
         "cash_categories",
         sa.Column("id", sa.String(64), primary_key=True),
@@ -63,7 +68,7 @@ def upgrade() -> None:
         "SELECT id, 0, CURRENT_TIMESTAMP FROM workspaces"
     ))
 
-    if bind.dialect.name == "sqlite":
+    if sqlite_rebuild:
         with op.batch_alter_table("cash_transactions", recreate="always") as batch_op:
             batch_op.add_column(sa.Column("category_id", sa.String(64), nullable=True))
             batch_op.drop_column("category")
@@ -90,7 +95,7 @@ def upgrade() -> None:
         )
 
     op.drop_index("ix_cash_projections_category", table_name="cash_projections")
-    if bind.dialect.name == "sqlite":
+    if sqlite_rebuild:
         with op.batch_alter_table("cash_projections", recreate="always") as batch_op:
             batch_op.add_column(sa.Column("category_id", sa.String(64), nullable=True))
             batch_op.add_column(sa.Column("category_path", sa.String(512), nullable=True))
@@ -111,6 +116,10 @@ def upgrade() -> None:
         "ix_cash_projections_category_id", "cash_projections",
         ["workspace_id", "dataset_id", "category_id"],
     )
+    if sqlite_rebuild:
+        if bind.exec_driver_sql("PRAGMA foreign_key_check").fetchone() is not None:
+            raise RuntimeError("cash category migration introduced a SQLite foreign-key violation")
+        bind.exec_driver_sql("PRAGMA foreign_keys=ON")
 
 
 def downgrade() -> None:

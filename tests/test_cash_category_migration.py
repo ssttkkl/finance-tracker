@@ -104,3 +104,33 @@ def test_category_rebuild_drops_legacy_values_and_preserves_cash_provenance(tmp_
     assert row["amount"] == "-12.50"
     assert row["note"] == "用户备注"
     assert row["category_id"] is None
+
+
+def test_category_rebuild_upgrades_when_existing_rows_reference_cash_transactions(tmp_path):
+    database = tmp_path / "cash-category-rebuild-references.db"
+    _upgrade(database, "20260811_26")
+    engine = create_engine(f"sqlite+pysqlite:///{database}")
+    occurred_at = datetime(2026, 8, 12, 8, tzinfo=timezone.utc).isoformat()
+    with engine.begin() as connection:
+        connection.execute(text(
+            "INSERT INTO workspaces (id, name, created_at) VALUES ('migration-workspace', '迁移测试', :created_at)"
+        ), {"created_at": occurred_at})
+        connection.execute(text(
+            "INSERT INTO accounts (id, workspace_id, name, type, active, currencies, metadata_json, created_at, updated_at) "
+            "VALUES (302, 'migration-workspace', '迁移账户', 'cash', 1, '[]', '{}', :created_at, :created_at)"
+        ), {"created_at": occurred_at})
+        connection.execute(text(
+            "INSERT INTO cash_transactions (id, workspace_id, account_id, occurred_at, amount, currency, counterparty, note, category, created_at) "
+            "VALUES (702, 'migration-workspace', 302, :occurred_at, '-1', 'CNY', '', '', '', :created_at)"
+        ), {"occurred_at": occurred_at, "created_at": occurred_at})
+        connection.execute(text(
+            "CREATE TABLE cash_transaction_reference ("
+            "cash_transaction_id INTEGER NOT NULL REFERENCES cash_transactions(id) ON DELETE RESTRICT)"
+        ))
+        connection.execute(text("INSERT INTO cash_transaction_reference VALUES (702)"))
+
+    _upgrade(database, "head")
+
+    with engine.connect() as connection:
+        assert connection.execute(text("PRAGMA foreign_key_check")).all() == []
+        assert connection.scalar(text("SELECT cash_transaction_id FROM cash_transaction_reference")) == 702
