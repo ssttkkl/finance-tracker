@@ -151,6 +151,61 @@ def test_cash_import_detection_does_not_leak_parser_error_details(tmp_path):
         raise AssertionError("parser details must not escape channel probing")
 
 
+def test_cash_import_password_is_required_and_forwarded_to_every_stage(tmp_path):
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from ft.adapters.relational import ensure_workspace
+    from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredError
+    from test_postgres_adapter import _database
+
+    source = tmp_path / "statement.pdf"
+    source.write_bytes(b"encrypted pdf")
+    sessions, unit_of_work = _database()
+    ensure_workspace(sessions, "wizard-password-workspace")
+    with unit_of_work(sessions, "wizard-password-workspace") as uow:
+        uow.accounts.add_raw({"name": "支付宝余额", "type": "cash", "currency": "CNY"})
+        uow.commit()
+    calls = []
+
+    class PasswordParser:
+        def parse(self, command):
+            calls.append(command.password)
+            if command.password is None:
+                raise PDFPasswordRequiredError("PDF password required")
+            if command.password != "correct-password":
+                raise PDFPasswordInvalidError("PDF password invalid")
+            return [_row()]
+
+    service = CashLedgerCommandService(
+        sessions, "wizard-password-workspace", parser=PasswordParser(),
+    )
+
+    try:
+        service.detect_import(source.read_bytes(), filename=source.name)
+    except PDFPasswordRequiredError:
+        pass
+    else:
+        raise AssertionError("encrypted PDF without a password must request one")
+
+    detected = service.detect_import(
+        source.read_bytes(), filename=source.name, password="correct-password",
+    )
+    assert detected["channel"] == "alipay"
+    preview = service.preview_import(
+        source.read_bytes(), source="", currency=None, filename=source.name,
+        password="correct-password",
+    )
+    assert preview["summary"]["new"] == 1
+    result = service.commit_import(
+        source.read_bytes(), source="alipay", currency=None, filename=source.name,
+        password="correct-password", preview_digest=detected["digest"],
+        preview_channel="alipay",
+    )
+    assert result["new_rows"] == 1
+    assert calls[:6] == [None] * 6
+    assert calls[6:]
+    assert all(value == "correct-password" for value in calls[6:])
+
+
 def test_cash_import_channel_mismatch_is_stale_and_does_not_write(tmp_path):
     from ft.adapters.relational.models import CashTransactionModel
 

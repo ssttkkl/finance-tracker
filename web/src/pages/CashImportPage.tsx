@@ -90,6 +90,13 @@ function relationDraftFor(relation: ImportRelation): RelationDraft {
   };
 }
 
+function passwordErrorMessage(cause: unknown): string | null {
+  if (!(cause instanceof Error)) return null;
+  if (cause.message === "import_password_required") return "请输入账单密码。";
+  if (cause.message === "import_password_invalid") return "账单密码错误，请重试。";
+  return null;
+}
+
 function relationDecision(
   relation: ImportRelation,
   draft: RelationDraft,
@@ -148,6 +155,21 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const [result, setResult] = useState<ImportCommitResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [password, setPassword] = useState("");
+  const [passwordRequired, setPasswordRequired] = useState(false);
+
+  const returnToPasswordEntry = (cause: unknown): boolean => {
+    const message = passwordErrorMessage(cause);
+    if (!message) return false;
+    setDetection(null);
+    setPreview(null);
+    setRelationDrafts({});
+    setPassword("");
+    setPasswordRequired(true);
+    setStage("select");
+    setError(message);
+    return true;
+  };
 
   const chooseFile = async (nextFile: File | undefined) => {
     if (!nextFile) return;
@@ -157,14 +179,39 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setRelationDrafts({});
     setResult(null);
     setError(undefined);
+    setPassword("");
+    setPasswordRequired(false);
     setStage("select");
     setBusy(true);
     try {
       setDetection(await detectCashImport(nextFile));
     } catch (cause) {
-      setError(cause instanceof Error && cause.message === "import_channel_unrecognized"
-        ? "无法识别账单渠道，请重新选择文件。"
-        : "文件识别失败，请重试。");
+      if (cause instanceof Error && cause.message === "import_password_required") {
+        setPasswordRequired(true);
+        setError(undefined);
+      } else {
+        setError(cause instanceof Error && cause.message === "import_channel_unrecognized"
+          ? "无法识别账单渠道，请重新选择文件。"
+          : "文件识别失败，请重试。");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const detectWithPassword = async () => {
+    if (!file || !password) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      setDetection(await detectCashImport(file, undefined, password));
+      setPasswordRequired(false);
+    } catch (cause) {
+      if (!returnToPasswordEntry(cause)) {
+        setError(cause instanceof Error && cause.message === "import_password_invalid"
+          ? "账单密码错误，请重试。"
+          : "文件识别失败，请重试。");
+      }
     } finally {
       setBusy(false);
     }
@@ -175,11 +222,11 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setBusy(true);
     setError(undefined);
     try {
-      setPreview(await previewCashImport(file));
+      setPreview(await previewCashImport(file, "", undefined, password));
       setRelationDrafts({});
       setStage("preview");
-    } catch {
-      setError("账单预览失败，请重试。");
+    } catch (cause) {
+      if (!returnToPasswordEntry(cause)) setError("账单预览失败，请重试。");
     } finally {
       setBusy(false);
     }
@@ -235,17 +282,22 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       const committed = await commitCashImport(file, "", undefined, {
         previewDigest: preview.file.digest,
         previewChannel: preview.channel,
+        password,
         relations: decisions,
       });
       setResult(committed);
       setStage("success");
       onDone?.();
     } catch (cause) {
-      setError(cause instanceof Error && cause.message === "import_preview_stale"
-        ? "文件内容已经变化，请重新选择文件。"
-        : cause instanceof Error && cause.message === "relation_impact_required"
-          ? "这次导入会影响已关联的流水，请先处理关联。"
-          : "确认导入失败，请重试。");
+      if (returnToPasswordEntry(cause)) {
+        // The password entry state already contains the actionable error.
+      } else {
+        setError(cause instanceof Error && cause.message === "import_preview_stale"
+          ? "文件内容已经变化，请重新选择文件。"
+          : cause instanceof Error && cause.message === "relation_impact_required"
+            ? "这次导入会影响已关联的流水，请先处理关联。"
+            : "确认导入失败，请重试。");
+      }
     } finally {
       setBusy(false);
     }
@@ -308,6 +360,13 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
               <small>CSV、XLS、XLSX、PDF</small>
             </label>
             {detection ? <div className="detection-result" role="status"><strong>{detection.channel_label}账单</strong><span className="status-chip">已识别</span></div> : null}
+            {passwordRequired ? <div className="import-password-panel">
+              <label htmlFor="cash-import-password">账单密码</label>
+              <div className="import-password-row">
+                <input id="cash-import-password" type="password" value={password} autoComplete="off" onChange={(event) => setPassword(event.target.value)} />
+                <button type="button" className="button-primary" disabled={!password || busy} onClick={() => void detectWithPassword()}>重新识别</button>
+              </div>
+            </div> : null}
             <div className="stage-actions"><button type="button" className="button-secondary" onClick={onBack}>取消</button><button type="button" className="button-primary" disabled={!detection || busy} onClick={() => void loadPreview()}>{busy ? "识别中…" : "核对流水"}</button></div>
           </section> : null}
 

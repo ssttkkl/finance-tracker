@@ -7,6 +7,22 @@ from ft.application.web_queries import ProjectionUnavailableError, ProjectionUpd
 from ft.application.investment_web_queries import InvestmentCursorUpdatedError
 from ft.domain.application import RelationImpactRequired
 from ft.web.serialization import error_payload, json_value
+from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredError
+
+
+_IMPORT_PASSWORD_ERRORS = (PDFPasswordRequiredError, PDFPasswordInvalidError)
+
+
+def _import_password_code(exc: Exception) -> str:
+    return (
+        "import_password_required"
+        if isinstance(exc, PDFPasswordRequiredError)
+        else "import_password_invalid"
+    )
+
+
+def _import_password_message(exc: Exception) -> str:
+    return "请输入账单密码。" if isinstance(exc, PDFPasswordRequiredError) else "账单密码错误，请重试。"
 
 
 def portfolio_sse_frame(update) -> str:
@@ -192,7 +208,10 @@ def cash_router(service, mutation_service=None, investment_service=None, portfol
             try:
                 return json_value(mutation_service.detect_import(
                     await request.body(), filename=filename, currency=currency,
+                    password=request.headers.get("x-ft-statement-password"),
                 ))
+            except _IMPORT_PASSWORD_ERRORS as exc:
+                return JSONResponse(error_payload(_import_password_code(exc), _import_password_message(exc)), 400)
             except ValueError as exc:
                 return JSONResponse(error_payload("invalid_import", str(exc)), 400)
 
@@ -201,7 +220,10 @@ def cash_router(service, mutation_service=None, investment_service=None, portfol
             try:
                 return json_value(mutation_service.preview_import(
                     await request.body(), source=source, currency=currency, filename=filename,
+                    password=request.headers.get("x-ft-statement-password"),
                 ))
+            except _IMPORT_PASSWORD_ERRORS as exc:
+                return JSONResponse(error_payload(_import_password_code(exc), _import_password_message(exc)), 400)
             except ValueError as exc:
                 return JSONResponse(error_payload("invalid_import", str(exc)), 400)
 
@@ -228,10 +250,13 @@ def cash_router(service, mutation_service=None, investment_service=None, portfol
                     filename=filename,
                     preview_digest=preview_digest,
                     preview_channel=preview_channel,
+                    password=request.headers.get("x-ft-statement-password"),
                     relation_decisions=relation_decisions,
                 ))
             except RelationImpactRequired as exc:
                 return JSONResponse(error_payload(exc.code, str(exc)), 409)
+            except _IMPORT_PASSWORD_ERRORS as exc:
+                return JSONResponse(error_payload(_import_password_code(exc), _import_password_message(exc)), 400)
             except ValueError as exc:
                 return JSONResponse(error_payload("invalid_import", str(exc)), 400)
     return router

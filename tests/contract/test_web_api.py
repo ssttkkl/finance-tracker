@@ -33,6 +33,64 @@ def test_local_frontend_dynamic_port_is_allowed_by_cors(cash_web_runtime):
     assert "access-control-allow-origin" not in denied.headers
 
 
+def test_cash_import_password_header_is_allowed_by_cors(cash_web_runtime):
+    from ft.application.web_queries import CashLedgerQueryService
+    from ft.web.app import create_app
+
+    app = create_app(
+        CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id),
+        allowed_origin="http://127.0.0.1:4173",
+    )
+    response = TestClient(app).options(
+        "/api/v1/cash-import/detect",
+        headers={
+            "Origin": "http://127.0.0.1:5181",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,x-ft-statement-password",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5181"
+    assert "x-ft-statement-password" in response.headers["access-control-allow-headers"].lower()
+
+
+@pytest.mark.parametrize(
+    ("exception_type", "code", "message"),
+    [
+        ("required", "import_password_required", "请输入账单密码。"),
+        ("invalid", "import_password_invalid", "账单密码错误，请重试。"),
+    ],
+)
+def test_cash_import_password_errors_are_stable_and_redacted(cash_web_runtime, exception_type, code, message):
+    from ft.application.web_queries import CashLedgerQueryService
+    from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredError
+    from ft.web.app import create_app
+
+    class PasswordFailureService:
+        def options(self):
+            return {}
+
+        def detect_import(self, *_args, **_kwargs):
+            error = PDFPasswordRequiredError if exception_type == "required" else PDFPasswordInvalidError
+            raise error("secret-password-and-statement.pdf")
+
+    client = TestClient(create_app(
+        CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id),
+        mutation_service=PasswordFailureService(),
+    ))
+    response = client.post(
+        "/api/v1/cash-import/detect?filename=locked.pdf",
+        content=b"encrypted-pdf",
+        headers={"X-FT-Statement-Password": "secret-password"},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"error": {"code": code, "message": message}}
+    assert "secret-password" not in response.text
+    assert "statement.pdf" not in response.text
+
+
 def test_projection_api_contract_and_old_routes_are_absent(cash_web_runtime):
     client=_client(cash_web_runtime)
     page=client.get("/api/v1/cash-projections?limit=2"); accounts=client.get("/api/v1/accounts?view=cash")

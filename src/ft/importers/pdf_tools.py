@@ -9,6 +9,43 @@ import tempfile
 import time
 
 
+class PDFPasswordRequiredError(ValueError):
+    """The statement is encrypted and no password was supplied."""
+
+
+class PDFPasswordInvalidError(ValueError):
+    """The supplied statement password could not unlock the PDF."""
+
+
+def pdf_requires_password(input_path, *, timeout: int = 30) -> bool:
+    """Return whether qpdf identifies the input as requiring a password."""
+    result = subprocess.run(
+        ["qpdf", "--requires-password", str(input_path)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=timeout,
+    )
+    return result.returncode == 0
+
+
+def open_pdf(input_path, *, password: str | None = None):
+    """Open a table PDF and normalize encrypted-file failures."""
+    import pdfplumber
+
+    try:
+        return pdfplumber.open(input_path, password=password)
+    except Exception as exc:  # noqa: BLE001 - normalize provider PDF errors.
+        try:
+            requires_password = pdf_requires_password(input_path)
+        except Exception:  # noqa: BLE001 - preserve a redacted parse failure.
+            requires_password = False
+        if requires_password:
+            if password is None:
+                raise PDFPasswordRequiredError("PDF password required") from exc
+            raise PDFPasswordInvalidError("PDF password invalid") from exc
+        raise ValueError("PDF parsing failed") from exc
+
+
 def decrypt_pdf(input_path, output_path, password: str | None, *, timeout: int = 30) -> None:
     """Decrypt a PDF without placing the password in process arguments."""
     output = Path(output_path)
@@ -33,6 +70,15 @@ def decrypt_pdf(input_path, output_path, password: str | None, *, timeout: int =
             argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout,
         )
         if result.returncode != 0:
+            requires_password = False
+            try:
+                requires_password = pdf_requires_password(input_path, timeout=timeout)
+            except Exception:  # noqa: BLE001 - retain the stable generic parse error.
+                pass
+            if requires_password:
+                if password is None:
+                    raise PDFPasswordRequiredError("PDF password required")
+                raise PDFPasswordInvalidError("PDF password invalid")
             raise ValueError("PDF decryption failed")
     finally:
         if password_path is not None:

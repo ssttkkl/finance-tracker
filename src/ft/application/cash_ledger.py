@@ -991,13 +991,14 @@ class CashLedgerCommandService:
         candidate: str,
         currency: str | None,
         filename: str,
+        password: str | None = None,
     ) -> tuple[list[dict], str]:
         suffix = Path(filename or "statement").suffix
         with tempfile.NamedTemporaryFile(prefix="ft-web-preview-", suffix=suffix, delete=True) as handle:
             handle.write(content)
             handle.flush()
             command = StatementImportCommand(
-                source_path=handle.name, source=candidate, currency=currency,
+                source_path=handle.name, source=candidate, currency=currency, password=password,
             )
             rows = self._clean_import_rows(self._parser.parse(command))
         if not rows:
@@ -1010,15 +1011,22 @@ class CashLedgerCommandService:
         *,
         currency: str | None,
         filename: str,
+        password: str | None = None,
     ) -> tuple[list[dict], str, str]:
         if len(content) > 100 * 1024 * 1024:
             raise ValueError("账单超过 100 MiB 输入上限")
         matches: list[tuple[list[dict], str, str]] = []
+        password_errors = []
+        from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredError
         for candidate in IMPORT_CHANNEL_CANDIDATES:
             try:
                 rows, channel = self._parse_with_candidate(
                     content, candidate=candidate, currency=currency, filename=filename,
+                    password=password,
                 )
+            except (PDFPasswordRequiredError, PDFPasswordInvalidError) as exc:
+                password_errors.append(exc)
+                continue
             except Exception:  # noqa: BLE001 - channel probing must not leak parser details.
                 continue
             if not any(item.get("account_name") for item in rows):
@@ -1026,6 +1034,8 @@ class CashLedgerCommandService:
             matches.append((rows, channel, candidate))
         channels = {channel for _rows, channel, _candidate in matches}
         if len(channels) != 1:
+            if not matches and password_errors:
+                raise password_errors[0]
             raise ValueError("import_channel_unrecognized")
         return next(match for match in matches if match[1] == next(iter(channels)))
 
@@ -1036,21 +1046,23 @@ class CashLedgerCommandService:
         source: str,
         currency: str | None,
         filename: str,
+        password: str | None = None,
     ) -> tuple[list[dict], str, str]:
         requested = str(source or "").strip()
         if not requested:
             return self._detect_import_candidate(
-                content, currency=currency, filename=filename,
+                content, currency=currency, filename=filename, password=password,
             )
         candidate = IMPORT_FORMAL_TO_PARSER.get(requested, requested)
         rows, channel = self._parse_with_candidate(
             content, candidate=candidate, currency=currency, filename=filename,
+            password=password,
         )
         return rows, channel, candidate
 
-    def detect_import(self, content: bytes, *, filename: str, currency: str | None = None) -> dict:
+    def detect_import(self, content: bytes, *, filename: str, currency: str | None = None, password: str | None = None) -> dict:
         _rows, channel, _candidate = self._detect_import_candidate(
-            content, currency=currency, filename=filename,
+            content, currency=currency, filename=filename, password=password,
         )
         digest = self._import_digest(content)
         return {
@@ -1253,9 +1265,9 @@ class CashLedgerCommandService:
             })
         return result
 
-    def preview_import(self, content: bytes, *, source: str, currency: str | None, filename: str) -> dict:
+    def preview_import(self, content: bytes, *, source: str, currency: str | None, filename: str, password: str | None = None) -> dict:
         rows, channel, _candidate = self._resolve_import_rows(
-            content, source=source, currency=currency, filename=filename,
+            content, source=source, currency=currency, filename=filename, password=password,
         )
         digest = self._import_digest(content)
         with self._sessions() as session:
@@ -1321,6 +1333,7 @@ class CashLedgerCommandService:
         source: str,
         currency: str | None,
         filename: str,
+        password: str | None = None,
         preview_digest: str | None = None,
         preview_channel: str | None = None,
         relation_decisions: list[dict] | None = None,
@@ -1329,7 +1342,7 @@ class CashLedgerCommandService:
         if preview_digest and preview_digest != digest:
             raise ValueError("import_preview_stale")
         _rows, channel, candidate = self._resolve_import_rows(
-            content, source=source, currency=currency, filename=filename,
+            content, source=source, currency=currency, filename=filename, password=password,
         )
         if preview_channel and preview_channel != channel:
             raise ValueError("import_preview_stale")
@@ -1341,7 +1354,7 @@ class CashLedgerCommandService:
                 enforce_account_currencies=True,
             ).import_statement(
                 StatementImportCommand(
-                    source_path=handle.name, source=candidate, currency=currency,
+                    source_path=handle.name, source=candidate, currency=currency, password=password,
                 ),
                 relation_decisions=relation_decisions,
             )
@@ -1356,8 +1369,8 @@ class CashLedgerCommandService:
             "digest": digest,
         })
 
-    def _parse_rows(self, content: bytes, *, source: str, currency: str | None, filename: str) -> tuple[list[dict], str]:
+    def _parse_rows(self, content: bytes, *, source: str, currency: str | None, filename: str, password: str | None = None) -> tuple[list[dict], str]:
         rows, channel, _candidate = self._resolve_import_rows(
-            content, source=source, currency=currency, filename=filename,
+            content, source=source, currency=currency, filename=filename, password=password,
         )
         return rows, channel

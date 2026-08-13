@@ -83,3 +83,6 @@ textarea{min-height:44px;padding:6px var(--space-2);border:var(--rule-1) solid v
 .stage-actions-top{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);margin:0 0 var(--space-5);padding:0 0 var(--space-3);border-bottom:var(--rule-1) solid var(--color-rule-strong)}
 .stage-actions-top .button-secondary{order:0}.stage-actions-top .button-primary{order:1}
 @media(max-width:520px){.stage-actions-top{align-items:stretch;flex-direction:column-reverse;margin-bottom:var(--space-4)}.stage-actions-top button{width:100%}}
+
+.import-password-panel{display:grid;gap:8px;margin-top:var(--space-4);padding:14px;border-left:3px solid var(--color-accent);background:var(--color-accent-soft)}.import-password-panel>label{font-size:12px;font-weight:600}.import-password-row{display:flex;align-items:center;gap:8px}.import-password-row input{min-height:40px;min-width:0;flex:1;padding:8px 10px;border:var(--rule-1) solid var(--color-rule-strong);background:var(--color-paper-raised);color:var(--color-ink)}.import-password-row button{min-height:40px}
+@media(max-width:520px){.import-password-row{align-items:stretch;flex-direction:column}.import-password-row button{width:100%}}

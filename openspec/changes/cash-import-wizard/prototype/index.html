@@ -8,7 +8,7 @@
     /* Hallmark · macrostructure: Index-First · genre: modern-minimal · theme: Cobalt inherited · enrichment: none
      * audience: 普通账本用户 · use: 核对后导入一份账单 · tone: austere utilitarian
      * pre-emit critique: P5 H5 E5 S5 R5 V4 · contrast: pass (40–41) · slop: pass (58/58)
-     * responsive: pass (320/375/414/768) · honest: pass · chrome: pass · tokens: pass · icons: pass
+     * responsive: pass (320/375/414/768) · states: password-required/password-invalid · honest: pass · chrome: pass · tokens: pass · icons: pass
      */
     :root {
       --color-paper: oklch(.965 .008 250);
@@ -108,6 +108,11 @@
     .inline-state { min-height: 44px; display: flex; align-items: center; gap: var(--space-sm); margin-top: var(--space-md); color: var(--color-ink-muted); font-size: var(--text-sm); }
     .spinner { width: 16px; height: 16px; border: 2px solid var(--color-rule); border-top-color: var(--color-accent); border-radius: 50%; animation: spin .8s linear infinite; }
     .error-state { min-height: 44px; display: flex; align-items: center; gap: var(--space-sm); margin-top: var(--space-md); padding-inline: var(--space-md); border: var(--rule) solid var(--color-danger); background: var(--color-danger-soft); color: var(--color-danger); font-size: var(--text-sm); }
+    .password-panel { display: grid; gap: var(--space-xs); margin-top: var(--space-md); padding: var(--space-md); border-inline-start: 3px solid var(--color-accent); background: var(--color-accent-soft); }
+    .password-panel label { font-size: var(--text-sm); font-weight: 600; }
+    .password-row { display: flex; align-items: center; gap: var(--space-xs); }
+    .password-row input { min-width: 0; min-height: 44px; flex: 1; padding: var(--space-xs) var(--space-sm); border: var(--rule) solid var(--color-rule-strong); background: var(--color-surface); color: var(--color-ink); }
+    .password-row button { min-height: 44px; }
 
     .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: var(--space-lg); border-block: var(--rule) solid var(--color-rule-strong); }
     .summary > div { display: grid; gap: var(--space-2xs); padding: var(--space-md) var(--space-xs); }
@@ -280,6 +285,11 @@
         </div>
         <div class="inline-state" id="detecting" aria-live="polite" hidden><span class="spinner" aria-hidden="true"></span>识别中…</div>
         <div class="error-state" id="detect-error" role="alert" hidden>未识别账单渠道。请换一份文件。</div>
+        <div class="password-panel" id="password-panel" hidden>
+          <label for="statement-password">账单密码</label>
+          <div class="password-row"><input id="statement-password" type="password" autocomplete="off"><button class="primary" id="password-retry" type="button">重新识别</button></div>
+          <div class="error-state" id="password-error" role="alert" hidden>账单密码错误，请重试。</div>
+        </div>
         <div class="actions"><span></span><div class="right"><button class="primary" id="to-preview" type="button" disabled>核对流水</button></div></div>
       </section>
 
@@ -353,6 +363,10 @@
     const fileContext = document.querySelector("#file-context");
     const detecting = document.querySelector("#detecting");
     const detectError = document.querySelector("#detect-error");
+    const passwordPanel = document.querySelector("#password-panel");
+    const passwordInput = document.querySelector("#statement-password");
+    const passwordRetry = document.querySelector("#password-retry");
+    const passwordError = document.querySelector("#password-error");
     const previewButton = document.querySelector("#to-preview");
     const relationButton = document.querySelector("#to-relations");
     const relationRows = [...document.querySelectorAll("#relation-rows tr")];
@@ -386,7 +400,7 @@
       relationEmpty.hidden = visible.length > 0;
     };
 
-    const setFile = (name = "支付宝账单.xlsx", channel = "支付宝") => {
+    const setFile = (name = "支付宝账单.xlsx", channel = "支付宝", encrypted = false, invalidPassword = false) => {
       document.querySelector("#selected-name").textContent = name;
       document.querySelector("#selected-channel").textContent = channel;
       document.querySelector("#context-file").textContent = name;
@@ -395,6 +409,9 @@
       selectedFile.hidden = false;
       fileContext.hidden = false;
       previewButton.disabled = false;
+      passwordPanel.hidden = !encrypted;
+      passwordError.hidden = !invalidPassword;
+      passwordInput.value = "";
       reached = Math.max(reached, 1);
       updateSteps("select");
     };
@@ -418,6 +435,8 @@
     const loadFile = (file) => {
       selectedFile.hidden = true;
       detectError.hidden = true;
+      passwordPanel.hidden = true;
+      passwordError.hidden = true;
       detecting.hidden = false;
       previewButton.disabled = true;
       window.setTimeout(() => {
@@ -427,7 +446,7 @@
           detectError.hidden = false;
           return;
         }
-        setFile(file.name, file.name.toLowerCase().includes("wechat") ? "微信" : "支付宝");
+        setFile(file.name, file.name.toLowerCase().endsWith(".pdf") ? "工行信用卡" : file.name.toLowerCase().includes("wechat") ? "微信" : "支付宝", file.name.toLowerCase().endsWith(".pdf"));
       }, 500);
     };
 
@@ -442,6 +461,17 @@
       if (event.dataTransfer.files?.[0]) loadFile(event.dataTransfer.files[0]);
     });
     document.querySelector("#replace-file").addEventListener("click", () => fileInput.click());
+    passwordRetry.addEventListener("click", () => {
+      if (!passwordInput.value) return;
+      if (passwordError.hidden) {
+        passwordError.hidden = false;
+        passwordInput.value = "";
+        return;
+      }
+      passwordPanel.hidden = true;
+      passwordError.hidden = true;
+      previewButton.disabled = false;
+    });
     previewButton.addEventListener("click", () => { reached = Math.max(reached, 2); showStage("preview"); });
     relationButton.addEventListener("click", () => { reached = Math.max(reached, 2); showStage("relations"); });
     document.querySelector("#confirm").addEventListener("click", (event) => {
@@ -526,6 +556,11 @@
     if (state === "error") {
       fileZone.hidden = false;
       detectError.hidden = false;
+    }
+    if (state === "pdf-password" || state === "pdf-password-error") {
+      reached = 1;
+      setFile("工行信用卡账单.pdf", "工行信用卡", true, state === "pdf-password-error");
+      showStage("select");
     }
     if (state === "unsupported") {
       setFile();

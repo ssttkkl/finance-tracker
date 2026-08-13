@@ -108,14 +108,16 @@ const importChannelLabels: Record<string, string> = {
 };
 export { importChannelLabels };
 
-async function importRequest<T>(path: string, file: File, values: { source?: string; currency?: string; previewDigest?: string; previewChannel?: string; relations?: string } = {}): Promise<T> {
+async function importRequest<T>(path: string, file: File, values: { source?: string; currency?: string; password?: string; previewDigest?: string; previewChannel?: string; relations?: string } = {}): Promise<T> {
   const params = new URLSearchParams({ source: values.source ?? "", filename: file.name });
   if (values.currency) params.set("currency", values.currency);
   if (values.previewDigest) params.set("preview_digest", values.previewDigest);
   if (values.previewChannel) params.set("preview_channel", values.previewChannel);
   if (values.relations) params.set("relations", values.relations);
+  const headers: Record<string, string> = { "Content-Type": "application/octet-stream" };
+  if (values.password) headers["X-FT-Statement-Password"] = values.password;
   const response = await fetch(`${apiOrigin()}${path}?${params.toString()}`, {
-    method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file,
+    method: "POST", headers, body: file,
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: { code?: unknown } } | null;
@@ -125,23 +127,24 @@ async function importRequest<T>(path: string, file: File, values: { source?: str
   return response.json() as Promise<T>;
 }
 
-export function detectCashImport(file: File, currency?: string): Promise<ImportDetection> {
-  return importRequest<ImportDetection>("/api/v1/cash-import/detect", file, { currency });
+export function detectCashImport(file: File, currency?: string, password?: string): Promise<ImportDetection> {
+  return importRequest<ImportDetection>("/api/v1/cash-import/detect", file, { currency, password });
 }
 
-export function previewCashImport(file: File, source = "", currency?: string): Promise<ImportPreview> {
-  return importRequest<ImportPreview>("/api/v1/cash-import/preview", file, { source, currency });
+export function previewCashImport(file: File, source = "", currency?: string, password?: string): Promise<ImportPreview> {
+  return importRequest<ImportPreview>("/api/v1/cash-import/preview", file, { source, currency, password });
 }
 
 export function commitCashImport(
   file: File,
   source = "",
   currency?: string,
-  options: { previewDigest?: string; previewChannel?: string; relations?: Record<string, unknown>[] } = {},
+  options: { password?: string; previewDigest?: string; previewChannel?: string; relations?: Record<string, unknown>[] } = {},
 ): Promise<ImportCommitResult> {
   return importRequest<ImportCommitResult>("/api/v1/cash-import/commit", file, {
     source,
     currency,
+    password: options.password,
     previewDigest: options.previewDigest,
     previewChannel: options.previewChannel,
     relations: options.relations ? JSON.stringify(options.relations) : undefined,

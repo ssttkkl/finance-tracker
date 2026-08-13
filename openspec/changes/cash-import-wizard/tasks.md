@@ -28,6 +28,7 @@
 - [x] 4.4 实现确认请求的摘要校验、手动配对决定校验和单事务导入 / 关系 / 投影刷新
 - [x] 4.5 增加 `/detect`、预览和确认路由参数及 Web API 序列化；主流程 Playwright 覆盖三条请求
 - [x] 4.6 修复关系预览的事实归一化：已存在业务行使用真实数据库事实，只有待新增业务行作为关系扫描种子；确认时忽略不包含本次新建流水的关系决定
+- [x] 4.7 支持加密 PDF 导入密码：识别、预览和确认复用密码请求头，缺少密码与密码错误返回稳定脱敏错误码
 
 ## 5. Web 页面实现
 
@@ -39,6 +40,7 @@
 - [x] 5.6 补齐键盘焦点、可访问名称、按钮命中区域和 320 / 375 / 414 / 768 px 响应式样式
 - [x] 5.7 原型确认后，将当前低文案、紧凑关系列表和分页设计同步到 `CashImportPage` 和生产样式；拒绝决定提交 `rejected` 状态，非自动关系默认待处理
 - [x] 5.8 根据长流水浏览反馈，将第二、三步操作栏移到步骤标题下方；删除这两步内容末尾的重复操作栏，选择文件和成功页保持原布局
+- [x] 5.9 在选择文件步骤增加加密 PDF 密码输入、重新识别和错误状态；预览 / 确认阶段密码失效时回到该步骤并清空密码，密码只保存在当前页面内存
 
 ## 6. 审查
 
@@ -48,6 +50,7 @@
 - [x] 6.4 最终 diff 复核确认生产入口不再引用 `ImportDrawer`，旧组件保留作为可回滚兼容物；OpenSpec、测试、API、回滚边界已回写
 - [x] 6.5 用户确认当前原型后，执行最终 UI Hallmark audit 与截图复核：`hallmark audit web/src/pages/CashImportPage.tsx` 因仓库环境缺少命令返回 `command not found`；人工审查 + Playwright 视觉测试通过，1440 / 390 px 截图为 `/tmp/cash-import-production-relations-1440.png`、`/tmp/cash-import-production-rejected-1440.png`、`/tmp/cash-import-production-relations-390.png`，0 critical / major / minor
 - [x] 6.6 顶部操作栏复核：第二、三步的操作栏均位于步骤标题和长内容之间，内容末尾无重复；移动端按钮无换行且无页面级横向溢出
+- [x] 6.7 安全复核密码边界：请求头、CORS、日志、错误响应、URL、页面状态和数据库均不泄露密码；`tests/contract/test_web_api.py` 覆盖 CORS 预检
 
 ## 7. 测试、QA 与发布准备
 
@@ -60,6 +63,7 @@
 
 - [x] 8.1 将导入会话的摘要校验、标准字段 DTO、内存关系适配层和确认事务边界沉淀到 `design.md` 与测试合同
 - [x] 8.2 沉淀重复导入关系回归：纯已存在账单不得生成重复关系建议或触发投影重建，新增流水与既有流水的关系仍可确认
+- [x] 8.3 沉淀加密 PDF 的缺少密码 / 密码错误回归和页面重试路径
 
 ## Verification evidence
 
@@ -78,3 +82,4 @@
 - Production UI follow-up: `uv run pytest -q tests/test_cash_import_wizard.py` → 8 passed; `npm test -- --run` → 49 passed; `npm run build` → passed; import E2E → 2 passed; preview E2E → 1 passed; temporary visual audit → 1 passed. Screenshots: `/tmp/cash-import-production-relations-1440.png`, `/tmp/cash-import-production-rejected-1440.png`, `/tmp/cash-import-production-relations-390.png`. `hallmark audit web/src/pages/CashImportPage.tsx` remained unavailable (`command not found`), so manual review covered copy density, table state, focusable controls, rejection styling and page-level overflow.
 - Top action bar follow-up: `npm test -- --run` → 76 passed; `npm run build` → passed; `FT_E2E_WEB_PORT=5175 npm run test:e2e -- --grep "独立导入处理页面|导入处理页面在四个目标宽度"` → 2 passed; `FT_E2E_WEB_PORT=5176 npm run test:e2e -- --grep "独立导入处理页面自动识别渠道并完成三步确认"` → 1 passed with real bounding-box ordering; `FT_PREVIEW_WEB_PORT=5178 npm run test:preview -- --grep "生产预览可打开流水编辑和独立导入处理页面|当前持仓在目标响应式宽度保持可见且无横向溢出"` → 2 passed; `openspec validate --all --strict` → 20 passed; `openspec doctor` → ok; `git diff --check` → passed. 第二、三步顶部操作栏均早于长内容，底部无重复操作栏；本地服务仍运行于 `127.0.0.1:8000` 和 `127.0.0.1:5174`。
 - Import repeat regression follow-up: `pytest -q tests/test_cash_import_wizard.py tests/test_cash_ledger_management.py tests/test_transaction_relations_payment_mirror.py tests/test_transaction_relations_refund.py` → 100 passed, 6 skipped; `npm test -- --run` → 76 passed; `npm run build` → passed; `git diff --check`、Python compileall、`openspec validate --all --strict` → 20 passed、`openspec doctor` → ok. Three real WeChat XLSX files were replayed against a temporary SQLite copy of `/Users/huangwenlong/.ft/finance-tracker.db`: all three completed with `new_rows=0`, `preview_relations=0`, `submitted_decisions=0`; the original database mtime and size were unchanged. `FT_TEST_POSTGRES_URL` was not configured, so PostgreSQL evidence remains to be rerun with the explicit `_test` database URL.
+- Encrypted PDF follow-up: `uv run pytest -q tests/test_cash_import_wizard.py tests/contract/test_web_api.py tests/test_cash_ledger_management.py tests/test_transaction_relations_payment_mirror.py tests/test_transaction_relations_refund.py` → 128 passed, 10 skipped; `cd web && npm test -- --run` → 79 passed; `cd web && npm run build` → passed; `openspec validate --all --strict` → 20 passed; `openspec doctor` → ok; `git diff --check` → passed. The password UI was checked in the prototype at 1440 px and 390 px for `pdf-password` / `pdf-password-error`: password input and retry were visible, invalid-password state cleared the value, and page-level horizontal overflow was false. Real `qpdf` 12.3.2 verification confirmed encrypted PDF behavior: no password required, wrong password failed, correct password succeeded. Hallmark audit remained unavailable because the repository environment has no `hallmark` executable; manual review plus browser checks were used. `FT_TEST_POSTGRES_URL` was not configured for this follow-up, so no new PostgreSQL run was claimed.

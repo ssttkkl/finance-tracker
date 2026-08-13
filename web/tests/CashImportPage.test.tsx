@@ -151,4 +151,87 @@ describe("CashImportPage", () => {
     const commitRequest = fetch.mock.calls.find(([input]) => String(input).includes("/cash-import/commit"));
     expect(String(commitRequest?.[0])).toContain(encodeURIComponent('"status":"rejected"'));
   });
+
+  it("加密 PDF 要求输入密码，并通过请求头重试而不放进 URL", async () => {
+    let detectCalls = 0;
+    const fetch = vi.fn((input: string, init?: RequestInit) => {
+      if (input.includes("/detect")) {
+        detectCalls += 1;
+        if (detectCalls === 1) return response({ error: { code: "import_password_required" } }, 400);
+        expect(input).not.toContain("correct-password");
+        expect((init?.headers as Record<string, string>)["X-FT-Statement-Password"]).toBe("correct-password");
+        return response({ channel: "icbc", channel_label: "工行信用卡", file: { name: "locked.pdf", digest: "digest-1" }, digest: "digest-1", row_count: 1 });
+      }
+      return response({ message: "ok", new_rows: 1, updated_rows: 0 });
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    const file = new File(["encrypted"], "locked.pdf", { type: "application/pdf" });
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
+    expect(await screen.findByLabelText("账单密码")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("账单密码"), { target: { value: "correct-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "重新识别" }));
+    expect(await screen.findByText("工行信用卡账单")).toBeInTheDocument();
+    expect(screen.queryByText("correct-password")).not.toBeInTheDocument();
+  });
+
+  it("预览阶段密码失效时回到选择文件并清空密码", async () => {
+    let detectCalls = 0;
+    const fetch = vi.fn((input: string, init?: RequestInit) => {
+      if (input.includes("/detect")) {
+        detectCalls += 1;
+        if (detectCalls === 1) return response({ error: { code: "import_password_required" } }, 400);
+        expect((init?.headers as Record<string, string>)["X-FT-Statement-Password"]).toBe("wrong-password");
+        return response({ channel: "icbc", channel_label: "工行信用卡", file: { name: "locked.pdf", digest: "digest-1" }, digest: "digest-1", row_count: 1 });
+      }
+      if (input.includes("/preview")) return response({ error: { code: "import_password_invalid" } }, 400);
+      return response({ message: "ok", new_rows: 1, updated_rows: 0 });
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    const file = new File(["encrypted"], "locked.pdf", { type: "application/pdf" });
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
+    const passwordInput = await screen.findByLabelText("账单密码");
+    fireEvent.change(passwordInput, { target: { value: "wrong-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "重新识别" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^核对流水$/ }));
+
+    expect(await screen.findByRole("heading", { name: "选择文件" })).toBeInTheDocument();
+    expect(screen.getByLabelText("账单密码")).toHaveValue("");
+    expect(screen.getByText("账单密码错误，请重试。")).toBeInTheDocument();
+    expect(screen.queryByText("账单预览失败，请重试。")).not.toBeInTheDocument();
+  });
+
+  it("确认阶段需要密码时回到选择文件并重新要求密码", async () => {
+    let detectCalls = 0;
+    const fetch = vi.fn((input: string, init?: RequestInit) => {
+      if (input.includes("/detect")) {
+        detectCalls += 1;
+        if (detectCalls === 1) return response({ error: { code: "import_password_required" } }, 400);
+        expect((init?.headers as Record<string, string>)["X-FT-Statement-Password"]).toBe("correct-password");
+        return response({ channel: "alipay", channel_label: "支付宝", file: { name: "locked.pdf", digest: "digest-1" }, digest: "digest-1", row_count: 1 });
+      }
+      if (input.includes("/preview")) return response(preview);
+      if (input.includes("/commit")) return response({ error: { code: "import_password_required" } }, 400);
+      return response({ message: "ok" });
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    const file = new File(["encrypted"], "locked.pdf", { type: "application/pdf" });
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
+    const passwordInput = await screen.findByLabelText("账单密码");
+    fireEvent.change(passwordInput, { target: { value: "correct-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "重新识别" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^核对流水$/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^下一步$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
+
+    expect(await screen.findByRole("heading", { name: "选择文件" })).toBeInTheDocument();
+    expect(screen.getByLabelText("账单密码")).toHaveValue("");
+    expect(screen.getByText("请输入账单密码。")).toBeInTheDocument();
+    expect(screen.queryByText("确认导入失败，请重试。")).not.toBeInTheDocument();
+  });
 });

@@ -1821,9 +1821,9 @@ def _pair_reversals(records: list) -> tuple[list, list]:
 
 def _read_icbc_debit_raw(path: str, password: str):
     """解析工行储蓄卡PDF（表格格式），返回 (list[dict], bill_type)"""
-    import pdfplumber as _pp
+    from ft.importers.pdf_tools import open_pdf
 
-    pdf = _pp.open(path, password=password)
+    pdf = open_pdf(path, password=password)
     records = []
 
     for page in pdf.pages:
