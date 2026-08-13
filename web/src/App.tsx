@@ -55,7 +55,7 @@ export function App({ sidebarFooter, mobileAccount, workspacePage, onWorkspaceMa
     <main className="app-shell" inert={modalOpen || undefined}>
       <aside className={`sidebar${mobileNavOpen ? " is-nav-open" : ""}`}>
         <div className="sidebar-head">
-          <div className="mobile-menu-slot"><button ref={mobileNavToggle} className="menu-toggle" type="button" aria-expanded={mobileNavOpen} aria-controls="primary-navigation" aria-label={mobileNavOpen ? "关闭菜单" : "打开菜单"} onClick={() => setMobileNavOpen((open) => !open)}><span className="menu-icon" aria-hidden="true">{mobileNavOpen ? "×" : "☰"}</span><span className="menu-label">菜单</span></button></div>
+          <div className="mobile-menu-slot"><button ref={mobileNavToggle} className="menu-toggle" type="button" aria-expanded={mobileNavOpen} aria-controls="primary-navigation" aria-label={mobileNavOpen ? "关闭菜单" : "打开菜单"} onClick={() => { setMobileNavOpen((open) => !open); window.dispatchEvent(new CustomEvent("mobile-menu-toggled")); }}><span className="menu-icon" aria-hidden="true">{mobileNavOpen ? "×" : "☰"}</span><span className="menu-label">菜单</span></button></div>
           <strong>Finance Tracker</strong>
           <div className="mobile-account">{mobileAccount}</div>
         </div>
