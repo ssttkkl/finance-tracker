@@ -171,3 +171,57 @@ def test_non_admin_cannot_manage_workspace_members(cash_web_runtime):
 
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "workspace_forbidden"
+
+
+def test_authenticated_workspace_exposes_investment_accounts_events_and_holdings(cash_web_runtime):
+    from contextvars import ContextVar
+    from sqlalchemy import select
+    from ft.adapters.fx_rates import FxRateProvider
+    from ft.adapters.market_data import CompositeQuoteProvider
+    from ft.adapters.relational.models import UserModel, UserSessionModel, WorkspaceMembershipModel
+    from ft.application.access import AccessService
+    from ft.application.valuation import ValuationService
+    from ft.web.app import WorkspaceInvestmentServices, WorkspacePortfolioRefresh, WorkspacePortfolioServices, WorkspaceServices, create_app
+    from tests.test_application_investment_web_queries import _add_investment_events
+
+    _add_investment_events(cash_web_runtime)
+    workspace = ContextVar("test_workspace_investment", default=cash_web_runtime.workspace_id)
+    services = WorkspaceServices(cash_web_runtime.sessions, workspace)
+    portfolio = WorkspacePortfolioServices(
+        cash_web_runtime.sessions, workspace, ValuationService(CompositeQuoteProvider()), FxRateProvider(),
+    )
+    refresh = WorkspacePortfolioRefresh(portfolio)
+    client = TestClient(create_app(
+        services,
+        mutation_service=services,
+        investment_service=WorkspaceInvestmentServices(cash_web_runtime.sessions, workspace),
+        portfolio_service=portfolio,
+        portfolio_refresh=refresh,
+        access_service=AccessService(cash_web_runtime.sessions),
+        workspace_context=workspace,
+    ), base_url="https://testserver")
+    assert client.post("/api/v1/auth/register", json={
+        "email": "investor@example.com", "password": "a secure password",
+    }).status_code == 200
+    with cash_web_runtime.sessions.begin() as session:
+        user = session.scalar(select(UserModel).where(UserModel.email == "investor@example.com"))
+        session.add(WorkspaceMembershipModel(
+            workspace_id=cash_web_runtime.workspace_id, user_id=user.id, role="editor",
+        ))
+        login = session.scalar(select(UserSessionModel).where(UserSessionModel.user_id == user.id))
+        login.active_workspace_id = cash_web_runtime.workspace_id
+
+    try:
+        accounts = client.get("/api/v1/accounts", params={"view": "investment"})
+        events = client.get("/api/v1/investment-events")
+        holdings = client.get("/api/v1/investment-portfolio", params={"phase": "holdings"})
+        refresh_response = client.post("/api/v1/investment-portfolio/refresh")
+
+        assert accounts.status_code == 200
+        assert accounts.json()["items"] == [{"id": 103, "name": "投资账户", "type": "security", "active": True}]
+        assert events.status_code == 200
+        assert [item["record_id"] for item in events.json()["items"]] == ["investment-003", "investment-002", "investment-001"]
+        assert holdings.status_code == 200
+        assert refresh_response.status_code == 202
+    finally:
+        refresh.stop()

@@ -87,6 +87,71 @@ class WorkspaceServices:
         raise AttributeError(name)
 
 
+class WorkspaceInvestmentServices:
+    """Resolve read-only investment event queries for the authenticated workspace."""
+    def __init__(self, sessions, workspace_var):
+        self._sessions = sessions; self._workspace_var = workspace_var
+
+    def _service(self):
+        workspace_id = self._workspace_var.get()
+        if workspace_id is None: raise AuthenticationRequired("authentication_required")
+        from ft.application.investment_web_queries import InvestmentLedgerQueryService
+        return InvestmentLedgerQueryService(self._sessions, workspace_id)
+
+    def list_accounts(self): return self._service().list_accounts()
+    def list_events(self, **kwargs): return self._service().list_events(**kwargs)
+    def get_event_evidence(self, event_id): return self._service().get_event_evidence(event_id)
+
+
+class WorkspacePortfolioServices:
+    """Bind portfolio reads to the workspace selected by the authenticated request."""
+    def __init__(self, sessions, workspace_var, valuation, fx_rates):
+        self._sessions = sessions; self._workspace_var = workspace_var
+        self._valuation = valuation; self._fx_rates = fx_rates
+
+    def _service(self):
+        workspace_id = self._workspace_var.get()
+        if workspace_id is None: raise AuthenticationRequired("authentication_required")
+        from ft.adapters.relational.queries import RelationalPortfolioRepository
+        from ft.application.investment import PortfolioQueryService
+        return PortfolioQueryService(
+            RelationalPortfolioRepository(self._sessions, workspace_id), self._valuation, fx_rates=self._fx_rates,
+        )
+
+    def get_holdings(self): return self._service().get_holdings()
+    def get_portfolio(self, **kwargs): return self._service().get_portfolio(**kwargs)
+
+
+class WorkspacePortfolioRefresh:
+    """Keep independent refresh coordinators for each workspace's portfolio service."""
+    def __init__(self, portfolio_services):
+        self._portfolio_services = portfolio_services; self._coordinators = {}
+
+    def _coordinator(self):
+        workspace_id = self._portfolio_services._workspace_var.get()
+        if workspace_id is None: raise AuthenticationRequired("authentication_required")
+        from ft.application.portfolio_refresh import PortfolioRefreshCoordinator
+        coordinator = self._coordinators.get(workspace_id)
+        if coordinator is None:
+            # Bind once, before the worker starts, so it never depends on a request ContextVar.
+            service = self._portfolio_services._service()
+            coordinator = PortfolioRefreshCoordinator(service)
+            self._coordinators[workspace_id] = coordinator
+        return coordinator
+
+    def start(self):
+        for coordinator in self._coordinators.values(): coordinator.start()
+
+    def stop(self):
+        for coordinator in self._coordinators.values(): coordinator.stop()
+
+    def request_refresh(self, **kwargs): return self._coordinator().request_refresh(**kwargs)
+    def subscribe(self, **kwargs):
+        # Resolve the request's workspace before StreamingResponse consumes the
+        # generator after request middleware has reset its ContextVar.
+        return self._coordinator().subscribe(**kwargs)
+
+
 def create_app(
     service,
     allowed_origin: str = DEFAULT_WEB_ORIGIN,
@@ -199,13 +264,18 @@ def create_runtime_app():
         sessions = create_session_factory(engine)
         workspace_var = ContextVar("web_workspace_id", default=None)
         service = WorkspaceServices(sessions, workspace_var)
+        from ft.adapters.fx_rates import FxRateProvider
+        from ft.adapters.market_data import CompositeQuoteProvider
+        from ft.application.valuation import ValuationService
         access_service = AccessService(sessions)
         mutation_service = service
         category_service = service
         classification_service = service
-        investment_service = service
-        portfolio_service = None
-        portfolio_refresh = None
+        investment_service = WorkspaceInvestmentServices(sessions, workspace_var)
+        portfolio_service = WorkspacePortfolioServices(
+            sessions, workspace_var, ValuationService(CompositeQuoteProvider()), FxRateProvider(),
+        )
+        portfolio_refresh = WorkspacePortfolioRefresh(portfolio_service)
 
         @asynccontextmanager
         async def release_engine(_app):
