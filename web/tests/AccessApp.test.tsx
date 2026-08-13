@@ -51,4 +51,20 @@ describe("AccessApp", () => {
     await waitFor(() => expect(location.search).toBe(""));
     expect(await screen.findByRole("heading", { name: "收支账本" })).toBeInTheDocument();
   });
+
+  it("在登录后的工作区壳中使用统一账本路由", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/auth/session")
+      ? json(session)
+      : input.includes("/cash-categories")
+        ? json({ items: [], revision: 0 })
+        : json({ items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} })));
+    history.replaceState({}, "", "/");
+
+    render(<AccessApp />);
+
+    fireEvent.click(await screen.findByRole("link", { name: "分类管理" }));
+    expect(await screen.findByRole("heading", { name: "分类管理" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: "投资事件" }));
+    expect(await screen.findByRole("heading", { name: "投资事件", level: 1 })).toBeInTheDocument();
+  });
 });

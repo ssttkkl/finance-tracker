@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { App } from "../src/main";
+import { App } from "../src/App";
 
 const account = { id: 103, name: "投资账户", type: "security", active: true };
 const cashItem = {

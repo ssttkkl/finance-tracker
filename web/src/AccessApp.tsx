@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { CashLedgerPage } from "./pages/CashLedgerPage";
+import { App } from "./App";
 import * as access from "./api/access";
 import type { InvitationPreview, Member, Role, Session } from "./api/access";
 
@@ -60,5 +60,5 @@ export function AccessApp() {
   if (route === "create") return <Create onSession={value => { setState(value); setRoute("ledger"); }} onBack={() => setRoute("ledger")} />;
   if (route === "members") return <Members onBack={() => setRoute("ledger")} />;
   const active = state.workspaces.find(w => w.id === state.active_workspace_id);
-  return <><div className="workspace-bar"><select aria-label="当前工作区" value={state.active_workspace_id ?? ""} onChange={async e => setState(await access.selectWorkspace(e.target.value))}>{state.workspaces.map(w => <option key={w.id} value={w.id}>{w.name} · {access.roleLabel[w.role]}</option>)}</select><button type="button" onClick={() => setRoute("create")}><Icon name="plus" />创建工作区</button>{active?.role === "admin" && <button type="button" onClick={() => setRoute("members")}><Icon name="users" />管理成员</button>}<button type="button" onClick={async () => { await access.logout(); setState(null); }}><Icon name="logout" />退出登录</button></div>{state.active_workspace_id ? <CashLedgerPage /> : <Create onSession={setState} onBack={() => setRoute("ledger")} />}</>;
+  return <><div className="workspace-bar"><select aria-label="当前工作区" value={state.active_workspace_id ?? ""} onChange={async e => setState(await access.selectWorkspace(e.target.value))}>{state.workspaces.map(w => <option key={w.id} value={w.id}>{w.name} · {access.roleLabel[w.role]}</option>)}</select><button type="button" onClick={() => setRoute("create")}><Icon name="plus" />创建工作区</button>{active?.role === "admin" && <button type="button" onClick={() => setRoute("members")}><Icon name="users" />管理成员</button>}<button type="button" onClick={async () => { await access.logout(); setState(null); }}><Icon name="logout" />退出登录</button></div>{state.active_workspace_id ? <App /> : <Create onSession={setState} onBack={() => setRoute("ledger")} />}</>;
 }
