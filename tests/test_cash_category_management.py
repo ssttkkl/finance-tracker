@@ -241,6 +241,8 @@ def test_relation_maintenance_adopts_display_root_category_for_all_members(tmp_p
     from datetime import datetime, timezone
     from decimal import Decimal
 
+    from sqlalchemy import event
+
     from ft.adapters.relational.models import (
         AccountModel, CashCategoryModel, CashTransactionModel, TransactionRelationModel,
     )
@@ -275,12 +277,23 @@ def test_relation_maintenance_adopts_display_root_category_for_all_members(tmp_p
                 ),
             ))
         CashProjectionService(sessions, "category-workspace").rebuild()
+        statements: list[str] = []
+
+        def record_statement(_connection, _cursor, statement, _parameters, _context, _many):
+            statements.append(statement)
+
+        event.listen(engine, "before_cursor_execute", record_statement)
         with sessions.begin() as session:
             CashProjectionService.maintain_if_ready_in_session(session, "category-workspace", {2101, 2102})
+        event.remove(engine, "before_cursor_execute", record_statement)
         with sessions() as session:
             rows = session.query(CashTransactionModel.category_id).filter(
                 CashTransactionModel.id.in_((2101, 2102)),
             ).order_by(CashTransactionModel.id).all()
             assert [row[0] for row in rows] == [base["id"], base["id"]]
+        assert not [
+            statement for statement in statements
+            if statement.lstrip().upper().startswith("UPDATE") and "cash_transactions" in statement
+        ]
     finally:
         engine.dispose()

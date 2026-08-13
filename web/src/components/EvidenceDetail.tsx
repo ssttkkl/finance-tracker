@@ -65,7 +65,10 @@ function sourceLabel(sourceType: string | null): string {
   return sourceType || "-";
 }
 
-function categoryLabel(category: EvidenceRecord["category"]): string { return category?.path.map((item) => item.name).join(" / ") ?? "未分类"; }
+function categoryLabel(category: EvidenceRecord["category"] | string | null | undefined): string {
+  if (typeof category === "string") return category || "未分类";
+  return category?.path?.map((item) => item.name).join(" / ") || "未分类";
+}
 
 const recordTypeLabels: Record<string, string> = {
   consumption: "消费", expense: "消费", refund: "退款", reversal: "冲正",

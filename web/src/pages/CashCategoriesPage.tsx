@@ -31,7 +31,7 @@ function errorMessage(error: unknown): string {
   return messages[code] ?? "分类无法保存，请稍后重试。";
 }
 
-export function CashCategoriesPage() {
+export function CashCategoriesPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [items, setItems] = useState<CashCategory[]>([]);
   const [revision, setRevision] = useState(0);
   const [status, setStatus] = useState<PageState>("loading");
@@ -113,7 +113,7 @@ export function CashCategoriesPage() {
     } catch (cause) { setError(errorMessage(cause)); }
   };
 
-  return <div className="page-layout"><main className="app-shell"><aside className="sidebar"><strong>Finance Tracker</strong><nav aria-label="主要导航"><a href="/">收支账本</a><a href="/cash-categories" aria-current="page">分类管理</a></nav></aside><section className="ledger category-workbench" id="cash-categories" aria-label="分类管理">
+  const content = <section className="ledger category-workbench" id="cash-categories" aria-label="分类管理">
     <header className="page-header"><div><h1>分类管理</h1></div></header>
     {status === "error" ? <div className="status-view status-error" role="alert"><p>{error}</p><button type="button" onClick={load}>重试</button></div> : null}
     {status === "loading" ? <div className="status-view" role="status"><p>正在读取分类…</p></div> : null}
@@ -122,5 +122,6 @@ export function CashCategoriesPage() {
       <li className="category-tree-add" role="treeitem"><button type="button" onClick={() => openNew(null)}><UiIcon name="plus" /><span>新建一级分类</span></button></li>
     </ul></section><section className="category-editor" aria-label="分类编辑">{editor ? <><div className="category-editor-header"><h2>{editor.id ? "编辑分类" : editor.parentId ? "新增子分类" : "新增一级分类"}</h2><button type="button" className="icon-only-button icon-quiet-button" aria-label="关闭分类编辑" onClick={() => setEditor(null)}><UiIcon name="x" /></button></div><div className="category-fields"><label>分类名称<input aria-label="分类名称" maxLength={40} value={editor.name} onChange={(event) => setEditor({ ...editor, name: event.target.value })} /></label><label>上级分类<select aria-label="上级分类" value={editor.parentId ?? ""} onChange={(event) => setEditor({ ...editor, parentId: event.target.value || null })}><option value="">无（一级分类）</option>{parentOptions.map((item) => <option value={item.id} key={item.id}>{categoryPath(item)}</option>)}</select></label><label>分类描述<textarea aria-label="分类描述" maxLength={500} value={editor.description} onChange={(event) => setEditor({ ...editor, description: event.target.value })} /></label></div>{formError ? <p className="form-error" role="alert">{formError}</p> : null}<div className="drawer-actions"><button type="button" className="button-primary" disabled={saving} onClick={() => void save()}>{saving ? "保存中…" : editor.id ? "保存" : "创建分类"}</button>{editor.id ? <button type="button" className="button-danger" onClick={() => { const category = items.find((item) => item.id === editor.id); if (category) void requestDelete(category); }}>删除</button> : null}</div></> : <p className="category-editor-empty">选择一个分类。</p>}</section></div> : null}
     {deleting && impact ? <div className="confirm-layer" role="alertdialog" aria-label="删除分类确认"><div className="confirm-card"><h3>删除「{deleting.name}」？</h3>{impact.child_count ? <p>请先处理子分类。</p> : impact.direct_usage_count ? <p>有 {impact.direct_usage_count} 笔流水会改为无分类。</p> : <p>确认删除这个分类。</p>}{deleteError ? <p className="form-error">{deleteError}</p> : null}<div className="drawer-actions"><button type="button" onClick={() => { setDeleting(null); setImpact(null); }}>取消</button><button type="button" className="button-danger" disabled={saving || Boolean(impact.child_count)} onClick={() => void confirmDelete()}>删除</button></div></div></div> : null}
-  </section></main></div>;
+  </section>;
+  return embedded ? content : <div className="page-layout"><main className="app-shell"><aside className="sidebar"><strong>Finance Tracker</strong><nav aria-label="主要导航"><a href="/">收支账本</a><a href="/cash-categories" aria-current="page">分类管理</a></nav></aside>{content}</main></div>;
 }

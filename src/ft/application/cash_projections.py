@@ -111,19 +111,36 @@ class CashProjectionService:
     @staticmethod
     def _synchronize_component_categories(session, workspace_id: str, build) -> None:
         """已确认关系使用展示基准流水分类，并同步整个现金部分。"""
-        from sqlalchemy import update
+        from sqlalchemy import or_, update
         from ft.adapters.relational.models import CashTransactionModel
 
         for projection in build.projections:
             category_id = projection.primary_record.category_id
-            member_ids = [member.id for member, _roles in projection.members]
+            member_ids = [
+                member.id
+                for member, _roles in projection.members
+                if member.category_id != category_id
+            ]
             if not member_ids:
                 continue
-            session.execute(update(CashTransactionModel).where(
-                CashTransactionModel.workspace_id == workspace_id,
-                CashTransactionModel.id.in_(member_ids),
-                CashTransactionModel.deleted_at.is_(None),
-            ).values(category_id=category_id))
+            category_mismatch = (
+                CashTransactionModel.category_id.is_not(None)
+                if category_id is None
+                else or_(
+                    CashTransactionModel.category_id.is_(None),
+                    CashTransactionModel.category_id != category_id,
+                )
+            )
+            session.execute(
+                update(CashTransactionModel)
+                .where(
+                    CashTransactionModel.workspace_id == workspace_id,
+                    CashTransactionModel.id.in_(member_ids),
+                    CashTransactionModel.deleted_at.is_(None),
+                    category_mismatch,
+                )
+                .values(category_id=category_id)
+            )
 
     @staticmethod
     def maintain_if_ready_in_session(

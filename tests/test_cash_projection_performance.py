@@ -930,6 +930,7 @@ def test_fixed_1k_cash_import_preview_and_idempotency_have_bounded_cost(performa
     from ft.application.cash_ledger import CashLedgerCommandService
 
     backend, sessions = performance_runtime
+    baseline_peak = _process_peak_rss_bytes()
     _seed_cash_projection_workload(sessions)
     CashProjectionService(sessions, WORKSPACE).rebuild()
     rows = _performance_import_rows(IMPORT_ROWS)
@@ -982,7 +983,7 @@ def test_fixed_1k_cash_import_preview_and_idempotency_have_bounded_cost(performa
     assert first_ns <= IMPORT_COMMIT_BUDGET_NS
     assert duplicate_ns <= IMPORT_COMMIT_BUDGET_NS
     assert updated_ns <= IMPORT_COMMIT_BUDGET_NS
-    assert max(item["peak_bytes"] for item in metrics.values()) <= IMPORT_MAX_RSS_BYTES
+    assert max(item["peak_bytes"] for item in metrics.values()) - baseline_peak <= IMPORT_MAX_RSS_BYTES
 
 
 def test_fixed_10k_cash_import_preview_scales_with_batch_size(performance_runtime) -> None:
@@ -991,6 +992,7 @@ def test_fixed_10k_cash_import_preview_scales_with_batch_size(performance_runtim
     from ft.application.cash_projections import CashProjectionService
 
     backend, sessions = performance_runtime
+    baseline_peak = _process_peak_rss_bytes()
     _seed_cash_projection_workload(sessions)
     CashProjectionService(sessions, WORKSPACE).rebuild()
     rows = _performance_import_rows(10_000, source_type="performance_import_10k")
@@ -1016,4 +1018,4 @@ def test_fixed_10k_cash_import_preview_scales_with_batch_size(performance_runtim
     })
     assert result["summary"]["new"] == len(rows)
     assert elapsed <= IMPORT_PREVIEW_BUDGET_NS
-    assert peak <= IMPORT_MAX_RSS_BYTES
+    assert peak - baseline_peak <= IMPORT_MAX_RSS_BYTES

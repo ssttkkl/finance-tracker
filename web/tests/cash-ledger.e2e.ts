@@ -371,28 +371,47 @@ test("关联流水从统一入口搜索已有流水并直接确认", async ({ pa
   expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
 });
 
-test("导入抽屉展示六个渠道并完成预览确认", async ({ page }) => {
+test("独立导入处理页面自动识别渠道并完成三步确认", async ({ page }) => {
   let committed = false;
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
-    if (url.pathname.endsWith("/cash-import/preview")) return route.fulfill({ json: { channel: "icbc-asia", items: [{ record_id: "row-1", occurred_at: "2026-07-03T09:00", counterparty: "咖啡店", amount: "-12.50", currency: "CNY", account_name: "日常账户", category: "餐饮", channel: "icbc-asia", status: "new", message: "" }], summary: { new: 1, existing: 0, unsupported: 0 } } });
+    if (url.pathname.endsWith("/cash-import/detect")) return route.fulfill({ json: { channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", row_count: 1 } });
+    if (url.pathname.endsWith("/cash-import/preview")) return route.fulfill({ json: { channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, columns: ["occurred_at", "amount", "currency", "account_name", "counterparty", "counterparty_account", "record_type", "record_subtype", "category", "note", "channel", "status"], items: [{ record_id: "row-1", occurred_at: "2026-07-03T09:00", counterparty: "咖啡店", counterparty_account: "", amount: "-12.50", currency: "CNY", account_name: "日常账户", record_type: "consumption", record_subtype: "not_applicable", category: "餐饮", note: "", channel: "icbc-asia", status: "new", message: "" }], summary: { total: 1, new: 1, existing: 0, unsupported: 0 }, relations: [] } });
     if (url.pathname.endsWith("/cash-import/commit")) { committed = true; return route.fulfill({ json: { message: "ok", new_rows: 1, updated_rows: 0 } }); }
     return route.fulfill({ json: { projection_version: 1, items: [item("1", "第一笔")], next_cursor: null, page_size: 50, filters: {}, filter_options } });
   });
 
   await page.goto("/");
   await page.getByRole("button", { name: "导入账单" }).click();
-  const drawer = page.getByRole("dialog", { name: "导入账单" });
-  await expect(drawer.getByLabel("账单渠道").locator("option")).toHaveCount(6);
-  await drawer.getByLabel("账单渠道").selectOption("icbc-asia");
-  await drawer.getByLabel("账单文件").setInputFiles({ name: "statement.csv", mimeType: "text/csv", buffer: Buffer.from("fixture") });
-  await drawer.getByRole("button", { name: "预览" }).click();
-  await expect(drawer.getByRole("region", { name: "导入预览" })).toContainText("待新增 1");
-  await drawer.getByRole("button", { name: "确认导入" }).click();
+  await expect(page).toHaveURL(/\/cash-import$/);
+  await page.locator('input[type="file"]').setInputFiles({ name: "statement.csv", mimeType: "text/csv", buffer: Buffer.from("fixture") });
+  await expect(page.getByText("工银亚洲账单")).toBeVisible();
+  await page.getByRole("button", { name: "核对流水", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "核对流水" })).toBeVisible();
+  await expect(page.getByText("全部", { exact: true })).toBeVisible();
+  const previewActions = page.locator(".import-preview-stage .stage-actions-top");
+  await expect(previewActions).toBeVisible();
+  expect((await previewActions.boundingBox())!.y).toBeLessThan((await page.locator(".standard-table-wrap").boundingBox())!.y);
+  await expect(page.locator(".import-preview-stage .stage-actions")).toHaveCount(0);
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
+  const relationActions = page.locator("[aria-labelledby=import-relations-heading] .stage-actions-top");
+  await expect(relationActions).toBeVisible();
+  expect((await relationActions.boundingBox())!.y).toBeLessThan((await page.locator(".import-empty-state").boundingBox())!.y);
+  await expect(page.locator("[aria-labelledby=import-relations-heading] .stage-actions")).toHaveCount(0);
+  await page.getByRole("button", { name: "确认导入" }).click();
   await expect.poll(() => committed).toBe(true);
-  await expect(page.getByRole("dialog", { name: "导入账单" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "导入完成" })).toBeVisible();
+});
+
+test("导入处理页面在四个目标宽度不产生页面级横向滚动", async ({ page }) => {
+  for (const width of [320, 375, 414, 768]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/cash-import");
+    await expect(page.getByRole("heading", { name: "选择文件" })).toBeVisible();
+    expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
+  }
 });
 
 test.describe("浏览器本地时区", () => {

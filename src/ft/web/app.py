@@ -20,6 +20,7 @@ from ft.web.serialization import error_payload
 
 
 DEFAULT_WEB_ORIGIN = "http://127.0.0.1:5173"
+LOCAL_WEB_ORIGIN_REGEX = r"^http://(?:127\.0\.0\.1|localhost):[0-9]+$"
 _STORAGE_ERROR_CODES = frozenset({
     "storage.config",
     "storage.connect",
@@ -53,7 +54,18 @@ def validate_local_origin(origin: str) -> str:
     return origin.rstrip("/")
 
 
-def create_app(service, allowed_origin: str = DEFAULT_WEB_ORIGIN, lifespan=None, mutation_service=None, category_service=None, classification_service=None) -> FastAPI:
+def create_app(
+    service,
+    allowed_origin: str = DEFAULT_WEB_ORIGIN,
+    lifespan=None,
+    mutation_service=None,
+    *,
+    category_service=None,
+    classification_service=None,
+    investment_service=None,
+    portfolio_service=None,
+    portfolio_refresh=None,
+) -> FastAPI:
     from ft.web.routes import cash_router
 
     allowed_origin = validate_local_origin(allowed_origin)
@@ -66,9 +78,13 @@ def create_app(service, allowed_origin: str = DEFAULT_WEB_ORIGIN, lifespan=None,
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[allowed_origin],
+        # The local Vite/preview port may move when another process occupies the
+        # default port. Keep the trust boundary local while allowing that port
+        # change without making the user manually restart the API.
+        allow_origin_regex=LOCAL_WEB_ORIGIN_REGEX,
         allow_credentials=False,
         allow_methods=["GET", "POST", "PUT", "DELETE"],
-        allow_headers=["Accept", "Content-Type"],
+        allow_headers=["Accept", "Content-Type", "X-FT-Statement-Password"],
     )
 
     @app.exception_handler(StorageError)
@@ -89,6 +105,9 @@ def create_app(service, allowed_origin: str = DEFAULT_WEB_ORIGIN, lifespan=None,
         mutation_service=mutation_service,
         category_service=category_service,
         classification_service=classification_service,
+        investment_service=investment_service,
+        portfolio_service=portfolio_service,
+        portfolio_refresh=portfolio_refresh,
     ))
     return app
 
@@ -112,6 +131,13 @@ def create_runtime_app():
         origin = validate_local_origin(__import__("os").environ.get("FT_WEB_ORIGIN", DEFAULT_WEB_ORIGIN))
         sessions = create_session_factory(engine)
         service = CashLedgerQueryService(sessions, settings.workspace_id)
+        from ft.adapters.fx_rates import FxRateProvider
+        from ft.adapters.market_data import CompositeQuoteProvider
+        from ft.adapters.relational.queries import RelationalPortfolioRepository
+        from ft.application.investment import PortfolioQueryService
+        from ft.application.portfolio_refresh import PortfolioRefreshCoordinator
+        from ft.application.investment_web_queries import InvestmentLedgerQueryService
+        from ft.application.valuation import ValuationService
         from ft.application.relations import RelationService
         from ft.adapters.relational.uow import RelationalUnitOfWork
         write_uow = RelationalUnitOfWork(sessions, settings.workspace_id)
@@ -123,17 +149,31 @@ def create_runtime_app():
         from ft.application.cash_classification import CashClassificationService
         category_service = CashCategoryService(sessions, settings.workspace_id)
         classification_service = CashClassificationService(sessions, settings.workspace_id)
+        quote_provider = CompositeQuoteProvider()
+        investment_service = InvestmentLedgerQueryService(sessions, settings.workspace_id)
+        portfolio_service = PortfolioQueryService(
+            RelationalPortfolioRepository(sessions, settings.workspace_id),
+            ValuationService(quote_provider),
+            fx_rates=FxRateProvider(),
+            query_deadline_seconds=None,
+        )
+        portfolio_refresh = PortfolioRefreshCoordinator(portfolio_service)
 
         @asynccontextmanager
         async def release_engine(_app):
+            portfolio_refresh.start()
             try:
                 yield
             finally:
+                portfolio_refresh.stop()
                 engine.dispose()
 
         app = create_app(
             service, origin, lifespan=release_engine, mutation_service=mutation_service,
             category_service=category_service, classification_service=classification_service,
+            investment_service=investment_service,
+            portfolio_service=portfolio_service,
+            portfolio_refresh=portfolio_refresh,
         )
     except StorageConfigurationError as exc:
         raise StorageError("storage.config") from exc

@@ -91,3 +91,14 @@ textarea{min-height:44px;padding:6px var(--space-2);border:var(--rule-1) solid v
 @media(max-width:1023px){.category-layout{grid-template-columns:minmax(0,1fr) 328px}}
 @media(max-width:820px){.category-layout{display:block}.category-directory{margin:0 -16px;border-right:0;border-left:0;box-shadow:none}.category-toolbar{align-items:stretch;flex-direction:column}.category-search{width:100%}.category-editor{position:static;margin-top:var(--space-4);box-shadow:none}.category-tree-item[aria-level="2"]{padding-left:28px}.category-tree-item[aria-level="3"]{padding-left:44px}.category-tree-item[aria-level="4"]{padding-left:60px}.category-tree-item[aria-level="5"]{padding-left:76px}}
 @media(max-width:480px){.category-tree-actions button{width:40px;min-width:40px}.category-tree-actions button[aria-label*="上移"]{display:none}.category-editor{margin-right:-16px;margin-left:-16px}.category-editor-header,.category-fields{padding-right:16px;padding-left:16px}.category-editor .form-error{margin-right:16px;margin-left:16px}.category-editor .drawer-actions{padding-right:16px;padding-left:16px}}
+
+/* Compact navigation keeps the page header separate from the optional menu. */
+.sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
+.menu-toggle{display:none;min-height:36px;padding:0 var(--space-2);font-size:12px}
+.menu-icon{font-size:16px;line-height:1}
+.nav-group+.nav-group{margin-top:var(--space-3)}
+.nav-parent{font-weight:650}
+.nav-subnav{margin-top:2px}
+.subnav-link{margin-left:var(--space-2);font-size:13px}
+@media(max-width:1023px){.sidebar-head{width:100%}.sidebar nav{display:flex;gap:var(--space-2)}.nav-group+.nav-group{margin-top:0}.nav-subnav{display:flex}.subnav-link{margin-left:0}}
+@media(max-width:620px){.sidebar{display:block;padding:var(--space-3) var(--space-4)}.menu-toggle{display:inline-flex;align-items:center;gap:5px}.sidebar nav{display:none;margin-top:var(--space-3);padding-top:var(--space-2);border-top:var(--rule-1) solid var(--color-sidebar-raised)}.sidebar.is-nav-open nav{display:block}.nav-group+.nav-group{margin-top:var(--space-2)}.nav-subnav{display:block;margin-top:0}.sidebar a{border-bottom:0;border-left:2px solid transparent;padding:9px 10px}.sidebar a[aria-current]{border-left-color:var(--color-sidebar-current-rule);border-bottom:0}.subnav-link{margin-left:var(--space-2)}}

@@ -2,9 +2,37 @@ import { createServer } from "node:http";
 
 const account = { id: 901, name: "预览账户", type: "cash", active: true, currencies: ["CNY", "HKD", "USD"] };
 const investmentAccount = { id: 902, name: "预览投资账户", type: "security", active: true };
+const portfolioPosition = {
+  ticker: "AAPL.US", shares: "10", total_cost: "1000", cost_currency: "USD", is_cash: false,
+  current_price: "101.25", market_value: "1012.50", profit: "12.50", quote_status: "complete", quote_reason: "ok",
+  quote_currency: "USD", display_currency: null, display_market_value: null, fx_rate: null, fx_status: null, fx_reason: null,
+  period_profit: "8.04", period_profit_rate: "0.0080",
+};
+const portfolio = {
+  accounts: [{ name: investmentAccount.name, currency: "USD", positions: [portfolioPosition] }],
+  total_market_value: "1012.50", total_profit: "12.50", total_profit_rate: "0.0125",
+  period_profit: "8.04", period_profit_rate: "0.0080",
+};
+const investmentEvent = {
+  event_id: "preview:investment-001", occurred_at: "2026-07-03T09:00:00+00:00", account: investmentAccount,
+  record_type: "trade", record_subtype: "security", currency: "USD", note: "预览买入",
+  from_asset: { ticker: "USD", amount: "1000" }, to_asset: { ticker: "AAPL.US", amount: "10" },
+  commission: { amount: "0", asset: "USD" }, source_type: "preview", record_id: "investment-001", relations: [],
+};
+const holdings = {
+  ...portfolio,
+  total_market_value: null, total_profit: null, total_profit_rate: null, period_profit: null, period_profit_rate: null,
+  accounts: [{ ...portfolio.accounts[0], positions: [{
+    ...portfolioPosition,
+    current_price: null, market_value: null, profit: null, quote_status: null, quote_reason: null, quote_currency: null,
+    display_currency: null, display_market_value: null, fx_rate: null, fx_status: null, fx_reason: null,
+    period_profit: null, period_profit_rate: null,
+  }] }],
+};
 const foodCategory = { id: "preview-food", parent_id: null, name: "测试", description: null, path: [{ id: "preview-food", name: "测试" }], depth: 1, sort_order: 1, revision: 1 };
 const transferCategory = { id: "preview-transfer", parent_id: null, name: "转账", description: null, path: [{ id: "preview-transfer", name: "转账" }], depth: 1, sort_order: 2, revision: 1 };
 const categories = [foodCategory, transferCategory];
+let portfolioStreamVersion = 0;
 const port = Number(process.env.FT_PREVIEW_API_PORT ?? "8766");
 const allowedOrigin = process.env.FT_PREVIEW_WEB_ORIGIN ?? "http://127.0.0.1:5173";
 const previewProjection = {
@@ -76,6 +104,9 @@ function send(response, value, status = 200) {
   response.statusCode = status;
   response.end(JSON.stringify(value));
 }
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
 function evidenceFor(projection) {
   return {
     projection_version: 1,
@@ -103,7 +134,38 @@ const server = createServer(async (request, response) => {
     return;
   }
   if (request.url?.startsWith("/api/v1/accounts")) {
-    send(response, { items: [account] });
+    send(response, { items: request.url.includes("view=investment") ? [investmentAccount] : [account] });
+    return;
+  }
+  if (request.url?.startsWith("/api/v1/investment-portfolio/stream")) {
+    response.writeHead(200, {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+    const timer = setTimeout(() => {
+      portfolioStreamVersion += 1;
+      response.write(`id: ${portfolioStreamVersion}\nevent: portfolio\ndata: ${JSON.stringify({ version: portfolioStreamVersion, portfolio })}\n\n`);
+    }, 120);
+    request.on("close", () => { clearTimeout(timer); response.end(); });
+    return;
+  }
+  if (request.url?.startsWith("/api/v1/investment-portfolio/refresh") && request.method === "POST") {
+    send(response, { accepted: true }, 202);
+    return;
+  }
+  if (request.url?.startsWith("/api/v1/investment-portfolio")) {
+    const isHoldingsPhase = new URL(request.url, "http://127.0.0.1").searchParams.get("phase") === "holdings";
+    await wait(isHoldingsPhase ? 80 : 180);
+    send(response, isHoldingsPhase ? holdings : portfolio);
+    return;
+  }
+  if (request.url?.startsWith("/api/v1/investment-events")) {
+    const ticker = new URL(request.url, "http://127.0.0.1").searchParams.get("ticker")?.toLowerCase() ?? "";
+    const matches = !ticker || [investmentEvent.from_asset.ticker, investmentEvent.to_asset.ticker]
+      .some((symbol) => symbol.toLowerCase().includes(ticker));
+    send(response, { data_version: 1, items: matches ? [investmentEvent] : [], next_cursor: null, page_size: 50, filters: {} });
     return;
   }
   if (request.url === "/api/v1/cash-ledger/options") {

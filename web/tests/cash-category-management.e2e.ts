@@ -269,6 +269,9 @@ test("分类管理使用工作台布局而不是浏览器默认控件样式", as
   await expect(page.locator(".category-editor")).toBeVisible();
   expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("cash-categories-390.png"), fullPage: false });
+
+  await page.getByRole("button", { name: "打开菜单" }).click();
+  await page.screenshot({ path: testInfo.outputPath("cash-categories-nav-390.png"), fullPage: false });
 });
 
 test("分类管理确认删除已使用叶子分类时显示影响并刷新目录", async ({ page }) => {
@@ -358,6 +361,22 @@ test("窄屏分类管理保持列表末尾入口和无横向滚动", async ({ pa
   await expect(tree.locator(":scope > li").last()).toContainText("新建一级分类");
   await tree.getByRole("treeitem").filter({ hasText: /^餐饮/ }).click();
   await expect(page.getByRole("region", { name: "分类编辑" })).toBeVisible();
+  expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test("窄屏导航默认收起，并在打开后完整展示账本层级", async ({ page }) => {
+  const state = fixture();
+  await installFixture(page, state);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/cash-categories");
+
+  const navigation = page.getByRole("navigation", { name: "主要导航" });
+  await expect(navigation).toBeHidden();
+  await page.getByRole("button", { name: "打开菜单" }).click();
+  await expect(navigation).toBeVisible();
+  await expect(navigation).toContainText("收支账本");
+  await expect(navigation).toContainText("分类管理");
+  await expect(navigation).toContainText("投资账本");
   expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
 

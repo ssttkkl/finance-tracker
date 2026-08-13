@@ -146,3 +146,17 @@
 - OpenSpec 与工程卫生：`openspec validate --all --strict`：20 passed；`openspec doctor`：通过；`git diff --check`：通过。
 - 本轮性能门禁：`uv run pytest -q tests/test_cash_category_performance.py`：10 passed、10 skipped；SQLite 查询次数、P95 响应时间和 RSS 预算均通过。`FT_TEST_POSTGRES_URL` 未配置，因此本轮 PostgreSQL 参数按仓库规则跳过；此前同一固定夹具的 PostgreSQL 性能矩阵已记录为 20 passed。
 - Hallmark CLI：环境中无可执行 `hallmark`；按仓库门禁完成 1440 px / 390 px 截图人工等价审查，0 个 critical、0 个 major、0 个未解决 minor。
+
+### 合并 refactor/web 与统一导航修复（2026-08-13）
+
+- 基线确认：当前分支 `income-category-management-batch-classify` 先前未包含 `origin/refactor/web` 的最新提交 `043a63e`；已将其合并到当前分支，保留收支账本、投资账本、账单导入和收支分类能力。
+- 导航修复：统一侧栏恢复“收支账本”和“投资账本”；“分类管理”归入收支账本子项，投资账本保留“当前持仓”和“投资事件”。分类页继续把“新建一级分类”放在分类列表最后一行。
+- 根因修复：详情抽屉原先与设置 `inert` 的 `main.app-shell` 同属一个 DOM 子树，真实 Chromium 会阻断抽屉内编辑、关联和保存点击；现金账本覆盖层改用 `createPortal` 挂到 `document.body`，保持背景不可交互且抽屉可操作。旧字符串分类夹具同时兼容为“未分类/原字符串”。
+- 生产预览修复：合并后的 `web/tests/preview-api-server.mjs` 缺少投资事件、持仓、估值流和刷新 API，补齐去标识化响应与筛选合同。
+- 导入回归修复：合并后的 `CashLedgerCommandService` 缺失 `_resolve_import_rows` 及候选渠道解析，补回密码传递、渠道识别、摘要校验和 `detect_import`，避免导入性能门禁在 1,000/10,000 行夹具中失败。
+- 本轮真实浏览器 QA：`cd web && npm run test:e2e -- --reporter=line`：22 passed；`npm run test:visual -- --reporter=line`：12 passed；`npm run test:preview -- --reporter=line`：首次因预览 API 缺失投资接口 3 failed、4 passed，修复后 7 passed。分类管理桌面/390 px 截图已直接查看，导航完整、列表入口在末行、无横向溢出。
+- 本轮性能与工程验证：`uv run pytest -q tests/test_cash_category_performance.py`：10 passed、10 skipped（PostgreSQL 未配置）；导入性能回归 1k/10k：2 passed、2 skipped；受影响 Python 矩阵其余测试通过，首次发现的 2 个导入性能失败已修复。
+- 性能回归与修复：临时 PostgreSQL 矩阵首次发现 10,000 条收支投影全量重建 P95 为 15.12 s，超过 10 s 门禁。根因为分类同步对每个收支详情无条件写入 `cash_transactions`，包括单条流水和已一致的关联成员；新增失败回归先确认第二次维护仍发出该 `UPDATE`，再改为仅批量同步分类不同的成员，并在 SQL 条件中排除已一致值。定点 PostgreSQL 性能回归（SQLite / PostgreSQL 各 1 条）：2 passed，118.01 s；完整受影响 PostgreSQL 矩阵：139 passed，1 个既有 `httpx` / Starlette 弃用警告，262.35 s。
+- 最终验证：`uv run pytest -q`：1,388 passed、171 skipped，1 个既有 `httpx` / Starlette 弃用警告，325.01 s。`cd web && npm test -- --run`：87 passed；`npm run build`：通过；`npm run test:e2e -- --reporter=line`：23 passed；`npm run test:visual -- --reporter=line --update-snapshots` 后再运行 `npm run test:visual -- --reporter=line`：12 passed。视觉快照的已确认变化仅为移动端导航从默认展开改为默认收起；1440 px、390 px 默认态和 390 px 展开态截图均已直接复核，无横向溢出。
+- 本轮 PostgreSQL 使用临时 `finance-tracker-postgres-test` 容器，连接仅绑定 `127.0.0.1:55432`，数据库为 `finance_tracker_test`；验证完成后已停止容器，未接触其他 PostgreSQL 容器或真实账本。
+- 交付前复核：修复后 `npm run test:preview -- --reporter=line`：7 passed；完整 Web 回归、构建、E2E 与视觉快照结果见上。`openspec validate --all --strict`：21 passed；`openspec doctor`：通过；`git diff --check` 与 `git diff --cached --check`：通过。静态搜索新增和修改的生产 UI 文案未发现实现术语。下一步仅剩已获授权的 merge commit、推送和 PR #45 更新。

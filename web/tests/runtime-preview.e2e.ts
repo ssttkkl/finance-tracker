@@ -28,7 +28,44 @@ test("生产预览在窄屏保持银证转账双端金额可见", async ({ page 
   expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
-test("生产预览可打开流水编辑和六渠道导入入口", async ({ page }) => {
+test("生产预览在性能预算内分阶段展示当前持仓", async ({ page }) => {
+  const started = Date.now();
+  await page.goto("/#investment-holdings");
+
+  await expect(page.getByRole("cell", { name: "AAPL.US" })).toBeVisible({ timeout: 1_000 });
+  const holdingsElapsed = Date.now() - started;
+  await expect(page.getByRole("cell", { name: "101.25 USD" })).toBeVisible({ timeout: 2_000 });
+  await expect(page.getByText("当前总市值").locator("..").getByText("1,012.50 USD")).toBeVisible();
+  await expect(page.getByText("近 24 小时浮盈亏").locator("..").getByText("+8.04 USD")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "+8.04 USD" })).toBeVisible();
+  const valuationElapsed = Date.now() - started;
+
+  expect(holdingsElapsed).toBeLessThan(1_000);
+  expect(valuationElapsed).toBeLessThan(2_000);
+  await page.getByRole("button", { name: "刷新持仓" }).click();
+  await expect(page.getByRole("cell", { name: "101.25 USD" })).toBeVisible();
+});
+
+test("当前持仓在目标响应式宽度保持可见且无横向溢出", async ({ page }) => {
+  for (const width of [320, 375, 414, 768]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/#investment-holdings");
+    await expect(page.getByText("AAPL.US", { exact: true })).toBeVisible();
+    expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+});
+
+test("生产预览使用标的片段筛选投资事件", async ({ page }) => {
+  await page.goto("/#investment-events");
+
+  await expect(page.getByText("预览买入")).toBeVisible();
+  const filtered = page.waitForRequest((request) => request.url().includes("/api/v1/investment-events") && request.url().includes("ticker=apl"));
+  await page.getByLabel("标的").fill("apl");
+  await filtered;
+  await expect(page.getByText("+10 AAPL.US", { exact: true })).toBeVisible();
+});
+
+test("生产预览可打开流水编辑和独立导入处理页面", async ({ page }) => {
   await page.goto("/");
 
   await page.getByRole("button", { name: "新建流水" }).click();
@@ -39,8 +76,9 @@ test("生产预览可打开流水编辑和六渠道导入入口", async ({ page 
   await recordDrawer.locator("header button").click();
 
   await page.getByRole("button", { name: "导入账单" }).click();
-  const importDrawer = page.getByRole("dialog", { name: "导入账单" });
-  await expect(importDrawer.getByLabel("账单渠道").locator("option")).toHaveCount(6);
+  await expect(page).toHaveURL(/\/cash-import$/);
+  await expect(page.getByRole("heading", { name: "选择文件" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "核对流水" })).toHaveCount(0);
 });
 
 test("生产预览完成分类创建和批量分类流程", async ({ page }) => {

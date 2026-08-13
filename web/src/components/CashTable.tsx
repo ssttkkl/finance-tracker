@@ -52,7 +52,10 @@ function projectionSource(item: CashProjection) {
   return <span className="projection-source is-related" aria-label={label}><span className="projection-source-kind">{label}</span></span>;
 }
 function sourceLabel(item: CashProjection): string { return item.source_types.length ? item.source_types.join("、") : item.source_type || "-"; }
-function categoryLabel(category: CashCategory | null): string { return category?.path.map((item) => item.name).join(" / ") ?? "未分类"; }
+function categoryLabel(category: CashCategory | string | null | undefined): string {
+  if (typeof category === "string") return category || "未分类";
+  return category?.path?.map((item) => item.name).join(" / ") || "未分类";
+}
 
 function MonthDivider({ month, summary, colSpan }: { month: string; summary?: CashMonthlySummary; colSpan: number }) {
   return <tr className="month-divider" data-month={month}><th colSpan={colSpan} scope="rowgroup"><span className="month-divider-content"><span className="month-divider-label">{monthLabel(month)}</span><span className="month-summary-list">{summary?.currencies.length ? summary.currencies.map((currency) => <span className="month-currency-summary" key={currency.currency}><span>收入 <strong>{summaryAmount("income", currency.income)} {currency.currency}</strong></span><span>支出 <strong>{summaryAmount("expense", currency.expense)} {currency.currency}</strong></span></span>) : <span className="month-summary-empty">无收支</span>}</span></span></th></tr>;
