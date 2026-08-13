@@ -4,6 +4,19 @@ export type RecordTypeOption = { value: string; label: string; subtypes: { value
 export type RelationTypeOption = { value: string; label: string };
 export type LedgerOptions = { record_types: RecordTypeOption[]; relation_types: RelationTypeOption[] };
 
+export type CashCategoryPathItem = { id: string; name: string };
+export type CashCategory = {
+  id: string;
+  parent_id: string | null;
+  name: string;
+  description: string | null;
+  path: CashCategoryPathItem[];
+  depth: number;
+  sort_order: number;
+  revision: number;
+};
+export type CashCategoryDirectory = { revision: number; items: CashCategory[] };
+
 export type AcceptedRelationSummary = { kind: string; subtype: string; count: number };
 
 export type CashTransfer = {
@@ -20,7 +33,7 @@ export type CashProjection = {
   occurred_at: string;
   account: Account;
   counterparty: string;
-  category: string;
+  category: CashCategory | null;
   note: string;
   amount: string;
   currency: string;
@@ -38,7 +51,7 @@ export type CashProjection = {
 };
 
 export type CashFilterOptions = {
-  categories: string[];
+  categories: CashCategory[];
   currencies: string[];
   economic_types: CashEconomicTypeFilterOption[];
 };
@@ -78,7 +91,8 @@ export type EvidenceRecord = {
   account_type?: string;
   counterparty: string;
   counterparty_account?: string;
-  category: string;
+  category: CashCategory | null;
+  category_id?: string | null;
   note: string;
   amount: string;
   currency: string;
@@ -129,7 +143,8 @@ export type CashRecord = {
   counterparty: string;
   counterparty_account: string;
   note: string;
-  category: string;
+  category: CashCategory | null;
+  category_id?: string | null;
   record_type: string;
   record_subtype: string;
   account_name: string;
@@ -183,7 +198,8 @@ export type CashFilters = {
   date_to?: string;
   account_id?: string;
   counterparty?: string;
-  category?: string;
+  category_id?: string;
+  uncategorized?: "true";
   currency?: string;
   amount_min?: string;
   amount_max?: string;

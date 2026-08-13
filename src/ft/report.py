@@ -58,14 +58,14 @@ def render_transactions(result):
         print("  📭 暂无记录")
         return
     labels = {
-        "income": "收入", "expense": "支出", "transfer": "转账",
-        "transfer_in": "转入", "transfer_out": "转出", "checkin": "📸校准",
+        "income": "收入", "consumption": "消费", "refund": "退款", "fee": "费用",
+        "transfer_in": "转入", "transfer_out": "转出", "other": "其他",
     }
     print(f"  {'日期':<21} {'账户':<16} {'币种':<5} {'类型':<6} {'金额':>12} {'说明'}")
     print("  " + "-" * 80)
     for item in result.items:
         symbol = _currency_symbol(item.currency)
-        label = labels.get(item.category, "")
+        label = labels.get(item.record_type, "")
         amount = "" if item.amount == 0 else f"{symbol}{item.amount:>+8.2f}"
         note = (item.note or item.counterparty)[:30]
         print(

@@ -45,7 +45,7 @@ class CashProjectionFact:
     amount: Decimal
     currency: str
     counterparty: str
-    category: str
+    category_id: str | None
     note: str
     source_type: str | None
     record_id: str

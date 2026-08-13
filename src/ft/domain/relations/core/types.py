@@ -369,7 +369,6 @@ class FactView:
     counterparty_account_attrs: tuple[str, ...] = ()
     payment_method: str = ""
     note: str = ""
-    category: str = ""
     record_type: str = "other"
     record_subtype: str = "not_applicable"
     bill_source: str = ""

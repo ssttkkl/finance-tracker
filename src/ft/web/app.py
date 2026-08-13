@@ -53,7 +53,7 @@ def validate_local_origin(origin: str) -> str:
     return origin.rstrip("/")
 
 
-def create_app(service, allowed_origin: str = DEFAULT_WEB_ORIGIN, lifespan=None, mutation_service=None) -> FastAPI:
+def create_app(service, allowed_origin: str = DEFAULT_WEB_ORIGIN, lifespan=None, mutation_service=None, category_service=None, classification_service=None) -> FastAPI:
     from ft.web.routes import cash_router
 
     allowed_origin = validate_local_origin(allowed_origin)
@@ -84,7 +84,12 @@ def create_app(service, allowed_origin: str = DEFAULT_WEB_ORIGIN, lifespan=None,
     def engine_failure(request, exc: RelationalEngineError):
         return storage_failure(request, StorageError(exc.code))
 
-    app.include_router(cash_router(service, mutation_service=mutation_service))
+    app.include_router(cash_router(
+        service,
+        mutation_service=mutation_service,
+        category_service=category_service,
+        classification_service=classification_service,
+    ))
     return app
 
 
@@ -114,6 +119,10 @@ def create_runtime_app():
             sessions, settings.workspace_id,
             relation_service=RelationService(write_uow),
         )
+        from ft.application.cash_categories import CashCategoryService
+        from ft.application.cash_classification import CashClassificationService
+        category_service = CashCategoryService(sessions, settings.workspace_id)
+        classification_service = CashClassificationService(sessions, settings.workspace_id)
 
         @asynccontextmanager
         async def release_engine(_app):
@@ -122,7 +131,10 @@ def create_runtime_app():
             finally:
                 engine.dispose()
 
-        app = create_app(service, origin, lifespan=release_engine, mutation_service=mutation_service)
+        app = create_app(
+            service, origin, lifespan=release_engine, mutation_service=mutation_service,
+            category_service=category_service, classification_service=classification_service,
+        )
     except StorageConfigurationError as exc:
         raise StorageError("storage.config") from exc
     except RelationalEngineError as exc:

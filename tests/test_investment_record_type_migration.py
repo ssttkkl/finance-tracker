@@ -73,7 +73,7 @@ def test_investment_action_migration_preserves_event_identity_and_provenance(tmp
                 "payload": {},
             })
 
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260811_26")
         columns = {column["name"] for column in inspect(engine).get_columns("investment_events")}
         assert "action" not in columns
         assert {"record_type", "record_subtype"} <= columns
@@ -111,7 +111,7 @@ def test_investment_action_migration_preserves_event_identity_and_provenance(tmp
         assert "record_subtype" not in downgraded_columns
         assert "action" in downgraded_columns
 
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260811_26")
     finally:
         engine.dispose()
         if backend == "postgresql":
@@ -196,7 +196,7 @@ def test_fee_reversal_migration_reclassifies_only_determinable_usmart_rows(tmp_p
                 "evidence": {},
             })
 
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260811_26")
         with engine.connect() as connection:
             actual = {
                 row["record_id"]: (row["record_type"], row["record_subtype"])

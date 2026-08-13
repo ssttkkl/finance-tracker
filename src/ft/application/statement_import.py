@@ -16,6 +16,17 @@ from ft.domain.investment_projection import apply_investment_event
 MAX_STATEMENT_BYTES = 100 * 1024 * 1024
 
 
+def _counts_toward_balance(row: dict | None) -> bool:
+    """Return whether a cash record changes the account balance snapshot.
+
+    Record type owns the financial direction semantics.  The old free-text
+    ``category`` field is intentionally ignored because it is now user data.
+    """
+    return str((row or {}).get("record_type") or "other") not in {
+        "transfer_in", "transfer_out",
+    }
+
+
 def _json_safe(value):
     if isinstance(value, Decimal):
         return format(value, "f")
@@ -205,12 +216,12 @@ class StatementImportService:
                         created_cash_fact_ids.append(fact_id)
                     if not created and source_changed:
                         updated_count += 1
-                    if created and row.get("category") not in {"transfer", "transfer_in", "transfer_out"}:
+                    if created and _counts_toward_balance(row):
                         uow.snapshot.update_balance(
                             snapshot, account.name, account.type, row["currency"], row["amount"]
                         )
                     elif not created and source_changed and current is not None:
-                        if previous and previous.get("category") not in {"transfer", "transfer_in", "transfer_out"}:
+                        if previous and _counts_toward_balance(previous):
                             uow.snapshot.update_balance(
                                 snapshot,
                                 previous["account_name"],
@@ -218,7 +229,7 @@ class StatementImportService:
                                 previous["currency"],
                                 -previous["amount"],
                             )
-                        if row.get("category") not in {"transfer", "transfer_in", "transfer_out"}:
+                        if _counts_toward_balance(current):
                             uow.snapshot.update_balance(
                                 snapshot,
                                 current["account_name"],

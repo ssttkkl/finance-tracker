@@ -105,7 +105,7 @@ def test_postgres_evidence_read_uses_one_projection_snapshot(postgres_cash_web_r
             amount=Decimal("2.50"),
             currency="CNY",
             counterparty="咖啡店",
-            category="退款",
+            category_id="category-food",
             source_type="fixture",
             record_id="cash-004",
         ))

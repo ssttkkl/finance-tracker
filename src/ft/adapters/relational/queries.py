@@ -36,7 +36,7 @@ class RelationalTransactionQueryRepository:
         self._sessions = session_factory
         self._workspace_id = workspace_id
 
-    def list_transactions(self, *, month=None, account=None, category=None, limit=None):
+    def list_transactions(self, *, month=None, account=None, category_id=None, limit=None):
         with self._sessions() as session:
             statement = (
                 select(CashTransactionModel, AccountModel)
@@ -57,8 +57,8 @@ class RelationalTransactionQueryRepository:
                 )
             if account:
                 statement = statement.where(AccountModel.name == account)
-            if category:
-                statement = statement.where(CashTransactionModel.category == category)
+            if category_id:
+                statement = statement.where(CashTransactionModel.category_id == category_id)
             statement = statement.order_by(
                 CashTransactionModel.occurred_at.desc(), CashTransactionModel.id.desc()
             )

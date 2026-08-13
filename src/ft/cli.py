@@ -112,7 +112,7 @@ def _main(argv=None):
     lst = sub.add_parser("list", help="列出交易")
     lst.add_argument("--month")
     lst.add_argument("--account")
-    lst.add_argument("--category", choices=["income", "expense", "transfer", "transfer_in", "transfer_out", "checkin"])
+    lst.add_argument("--category-id")
     lst.add_argument("--limit", type=int, default=30)
 
     # checkin
@@ -723,7 +723,7 @@ def _main(argv=None):
     if args.cmd == "list":
         result = _runtime_services().queries.list_transactions(
             month=args.month, account=args.account,
-            category=args.category, limit=args.limit,
+            category_id=args.category_id, limit=args.limit,
         )
         render_transactions(result)
         return

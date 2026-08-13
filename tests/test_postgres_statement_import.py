@@ -99,6 +99,43 @@ def test_statement_import_persists_record_type(tmp_path):
         assert fact.record_type == "repayment"
 
 
+def test_statement_import_uses_record_type_for_balance_and_preserves_category(tmp_path):
+    from ft.adapters.relational.models import CashTransactionModel
+    from ft.application.cash_categories import CashCategoryService
+
+    source = tmp_path / "transfer.csv"
+    source.write_bytes(b"statement bytes")
+    sessions, unit_of_work, service = _service([_cash_row(
+        record_id="transfer-1",
+        amount="-100.00",
+        category="用户自定义分类",
+        record_type="transfer_out",
+        record_subtype="ordinary_transfer",
+    )])
+
+    first = service.import_statement(_command(source))
+
+    assert first.count == 1
+    with sessions() as session:
+        fact = session.scalar(select(CashTransactionModel))
+        assert fact.category_id is None
+
+    category = CashCategoryService(sessions, "workspace-a").create(name="转账测试")
+    with sessions.begin() as session:
+        fact = session.scalar(select(CashTransactionModel))
+        fact.category_id = category["id"]
+
+    second = service.import_statement(_command(source))
+
+    assert second.count == 0
+    with sessions() as session:
+        fact = session.scalar(select(CashTransactionModel))
+        assert fact.category_id == category["id"]
+    with unit_of_work(sessions, "workspace-a") as uow:
+        assert uow.snapshot.load()["accounts"].get("cash", {}).get("Cash", {}).get("CNY", "0") == "0"
+        uow.commit()
+
+
 def test_icbc_import_uses_parsed_bill_source_and_refund_fields(tmp_path):
     from ft.adapters.relational.models import CashTransactionModel
     from ft.application.statement_import import StatementImportService

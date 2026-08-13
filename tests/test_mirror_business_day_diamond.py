@@ -19,7 +19,7 @@ from ft.domain.relations import (
 
 
 def _fv(id, amount, *, account, bill_source=None, note="", counterparty="",
-        occurred="", raw_date="", category="", source=None):
+        occurred="", raw_date="", source=None):
     fid = str(id)
     if bill_source is None:
         if fid.startswith("p") or "alipay" in fid or "wechat" in fid:
@@ -37,7 +37,6 @@ def _fv(id, amount, *, account, bill_source=None, note="", counterparty="",
         occurred_at=occurred or "2023-01-01 00:00:00",
         counterparty=counterparty,
         note=note,
-        category=category,
         record_type=(
             "consumption" if Decimal(str(amount)) < 0 else
             "refund" if any(token in note for token in ("退款", "退货", "冲正")) else

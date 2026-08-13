@@ -10,12 +10,14 @@ import binascii
 import json
 import tempfile
 
-from sqlalchemy import delete as sa_delete, select as sa_select
+from sqlalchemy import delete as sa_delete, select as sa_select, update as sa_update
 
 from ft.adapters.relational.models import (
     AccountModel,
+    CashCategoryModel,
     CashInvestmentFundingRelationModel,
     CashProjectionRelationModel,
+    CashProjectionStateModel,
     CashTransactionModel,
     TransactionRelationModel,
 )
@@ -72,7 +74,7 @@ RELATION_LABELS = {
 }
 EDITABLE_FIELDS = (
     "occurred_at", "amount", "currency", "counterparty", "counterparty_account",
-    "counterparty_account_attrs", "note", "category", "record_type", "record_subtype",
+    "counterparty_account_attrs", "note", "category_id", "record_type", "record_subtype",
 )
 
 
@@ -353,6 +355,33 @@ class CashLedgerCommandService:
             values = {key: payload[key] for key in EDITABLE_FIELDS if key in payload}
             values["account_name"] = account.name
             values["source_values"] = payload.get("source_values") or {}
+            category_changed = (
+                "category_id" in values
+                and str(values.get("category_id") or "") != str(current.get("category_id") or "")
+            )
+            category_id = str(values.get("category_id") or "") or None
+            if category_changed:
+                projection_state = uow._state().session.scalar(sa_select(CashProjectionStateModel).where(
+                    CashProjectionStateModel.workspace_id == self._workspace_id,
+                ))
+                expected_projection_version = payload.get("projection_version")
+                if (
+                    expected_projection_version is None
+                    or projection_state is None
+                    or projection_state.availability != "ready"
+                    or int(projection_state.projection_version) != int(expected_projection_version)
+                ):
+                    raise ValueError("projection.version_conflict")
+            if category_id is not None:
+                category = uow._state().session.scalar(sa_select(CashCategoryModel).where(
+                    CashCategoryModel.workspace_id == self._workspace_id,
+                    CashCategoryModel.id == category_id,
+                ))
+                if category is None:
+                    raise ValueError("category.not_found")
+                values["category_id"] = category.id
+            elif "category_id" in values:
+                values["category_id"] = None
             key_fields = ("amount", "currency", "account_name", "occurred_at", "record_type", "record_subtype")
             key_changed = any(
                 field in values and not self._same_edit_value(field, current.get(field), values[field])
@@ -360,7 +389,7 @@ class CashLedgerCommandService:
             )
             component_ids: set[int] = {int(fact_id)}
             component_relations: list[dict] = []
-            if key_changed:
+            if key_changed or category_changed:
                 component_ids, component_relations = self._accepted_relation_component(uow, fact_id)
             updated = uow.cashflows.update(
                 int(fact_id),
@@ -368,6 +397,12 @@ class CashLedgerCommandService:
                 _row=current_model,
                 _account=account,
             )
+            if category_changed and len(component_ids) > 1:
+                uow._state().session.execute(sa_update(CashTransactionModel).where(
+                    CashTransactionModel.workspace_id == self._workspace_id,
+                    CashTransactionModel.id.in_(component_ids),
+                    CashTransactionModel.deleted_at.is_(None),
+                ).values(category_id=category_id))
             if component_relations and key_changed:
                 try:
                     self._validate_projection_graph(uow, component_ids)
@@ -380,11 +415,11 @@ class CashLedgerCommandService:
                         reason="user_unlinked_by_edit",
                     )
             self._snapshot_delta(uow, updated.pop("previous"), updated)
-            if key_changed and not component_relations:
+            if (key_changed or category_changed) and not component_relations:
                 CashProjectionService.replace_standalone_fact_if_ready_in_session(
                     uow._state().session, uow.workspace_id, current_model,
                 )
-            elif key_changed:
+            elif key_changed or category_changed:
                 CashProjectionService.maintain_if_ready_in_session(
                     uow._state().session,
                     uow.workspace_id,
@@ -397,7 +432,6 @@ class CashLedgerCommandService:
                     uow.workspace_id,
                     int(fact_id),
                     counterparty=str(updated.get("counterparty") or ""),
-                    category=str(updated.get("category") or ""),
                     note=str(updated.get("note") or ""),
                 )
             uow.commit()
@@ -559,7 +593,7 @@ class CashLedgerCommandService:
             return None
         fields = (
             "id", "occurred_at", "amount", "currency", "counterparty",
-            "counterparty_account", "note", "category", "record_type",
+            "counterparty_account", "note", "category_id", "record_type",
             "record_subtype", "account_name", "account_type", "source_type",
         )
         return _wire({field: record.get(field) for field in fields if field in record})
@@ -977,7 +1011,7 @@ class CashLedgerCommandService:
                     "amount": str(row.get("amount") or "0"),
                     "currency": row["currency"],
                     "account_name": row.get("account_name") or "",
-                    "category": row.get("category") or "",
+                    "category_id": row.get("category_id"),
                     "channel": channel,
                     "status": status,
                     "message": message,

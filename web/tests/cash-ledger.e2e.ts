@@ -1,16 +1,56 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const account = { id: 101, name: "日常账户", type: "cash", active: true };
+const foodCategory = {
+  id: "food",
+  parent_id: null,
+  name: "餐饮",
+  description: null,
+  path: [{ id: "food", name: "餐饮" }],
+  depth: 1,
+  sort_order: 1,
+  revision: 1,
+};
+const dailyCategory = {
+  id: "daily",
+  parent_id: null,
+  name: "日用",
+  description: null,
+  path: [{ id: "daily", name: "日用" }],
+  depth: 1,
+  sort_order: 2,
+  revision: 1,
+};
+const incomeCategory = {
+  id: "income",
+  parent_id: null,
+  name: "收入",
+  description: null,
+  path: [{ id: "income", name: "收入" }],
+  depth: 1,
+  sort_order: 3,
+  revision: 1,
+};
+const transferCategory = {
+  id: "transfer",
+  parent_id: null,
+  name: "转账",
+  description: null,
+  path: [{ id: "transfer", name: "转账" }],
+  depth: 1,
+  sort_order: 4,
+  revision: 1,
+};
 const filter_options = {
-  categories: ["餐饮", "日用", "收入"],
+  categories: [foodCategory, dailyCategory, incomeCategory, transferCategory],
   currencies: ["CNY", "USD"],
   economic_types: [{ economic_type: "expense", transfer_subtypes: [] }],
 };
-const item = (id: string, counterparty: string) => ({ projection_id: `cash:${id}`, occurred_at: "2026-07-03T09:00:00+08:00", account, counterparty, category: "餐饮", amount: "-12.5", currency: "CNY", note: `备注${id}`, source_type: "fixture", source_types: ["fixture"], record_id: `cash-${id}`, economic_type: "expense", transfer_subtype: null, composition: ["payment_mirror"], member_count: 2, accepted_relation_summary: [{ kind: "payment_mirror", subtype: "", count: 1 }], visible: true, hidden_reason: null });
+const item = (id: string, counterparty: string) => ({ projection_id: `cash:${id}`, occurred_at: "2026-07-03T09:00:00+08:00", account, counterparty, category: foodCategory, category_id: foodCategory.id, amount: "-12.5", currency: "CNY", note: `备注${id}`, source_type: "fixture", source_types: ["fixture"], record_id: `cash-${id}`, economic_type: "expense", transfer_subtype: null, composition: ["payment_mirror"], member_count: 2, accepted_relation_summary: [{ kind: "payment_mirror", subtype: "", count: 1 }], visible: true, hidden_reason: null });
 
 function crossCurrencyTransfer(accountName: string) {
   return {
-    ...item("cross-currency", "跨币种内部转账"), account: { ...account, name: accountName }, category: "转账", amount: "0", economic_type: "internal_transfer", transfer_subtype: "ordinary_transfer",
+    ...item("cross-currency", "跨币种内部转账"), account: { ...account, name: accountName }, category: transferCategory, category_id: transferCategory.id, amount: "0", economic_type: "internal_transfer", transfer_subtype: "ordinary_transfer",
     transfer: {
       from_account: { ...account, name: accountName }, from_amount: "-12345678901234567890.123456", from_currency: "USD",
       to_account: { ...account, id: 102, name: "长期资产配置账户", type: "investment" }, to_amount: "98765432109876543210.654321", to_currency: "CNY",
@@ -185,7 +225,7 @@ test("详情切换编辑、维护关联流水并在删除前展示影响确认",
     record_types: [{ value: "expense", label: "消费", subtypes: [{ value: "not_applicable", label: "—" }] }],
     relation_types: [{ value: "payment_mirror", label: "同笔支付" }, { value: "refund_offset", label: "退款冲销" }],
   };
-  const root = { id: "1001", occurred_at: "2026-07-03T09:00:00+08:00", account, counterparty: "咖啡店", category: "餐饮", note: "午间消费", amount: "-12.50", currency: "CNY", source_type: "alipay", record_id: "cash-1", source_snapshot: null };
+  const root = { id: "1001", occurred_at: "2026-07-03T09:00:00+08:00", account, counterparty: "咖啡店", category: foodCategory, category_id: foodCategory.id, note: "午间消费", amount: "-12.50", currency: "CNY", source_type: "alipay", record_id: "cash-1", source_snapshot: null };
   const related = { ...root, id: "1002", counterparty: "咖啡店", amount: "-12.50", source_type: "wechat", record_id: "cash-2" };
   const detail = { record: { ...root, account_name: account.name, account_id: account.id, account_type: account.type, record_type: "expense", record_subtype: "not_applicable", counterparty_account: "", counterparty_account_attrs: [] }, relations: [{ id: "relation-1", kind: "payment_mirror", label: "同笔支付", subtype: "", status: "accepted", primary_record: { ...root, account_name: account.name, account_id: account.id, account_type: account.type, record_type: "expense", record_subtype: "not_applicable", counterparty_account: "", counterparty_account_attrs: [] }, secondary_record: { ...related, account_name: account.name, account_id: account.id, account_type: account.type, record_type: "expense", record_subtype: "not_applicable", counterparty_account: "", counterparty_account_attrs: [] } }], options };
   await page.route("**/api/v1/**", async (route) => {
@@ -227,7 +267,7 @@ test("查看抽屉原位切换编辑，不重复读取当前流水并立即显�
     record_types: [{ value: "expense", label: "消费", subtypes: [{ value: "not_applicable", label: "—" }] }],
     relation_types: [{ value: "payment_mirror", label: "同笔支付" }],
   };
-  const root = { id: "1001", occurred_at: "2026-07-03T09:00:00+08:00", account, counterparty: "咖啡店", category: "餐饮", note: "午间消费", amount: "-12.50", currency: "CNY", source_type: "alipay", record_id: "cash-1", source_snapshot: null };
+  const root = { id: "1001", occurred_at: "2026-07-03T09:00:00+08:00", account, counterparty: "咖啡店", category: foodCategory, category_id: foodCategory.id, note: "午间消费", amount: "-12.50", currency: "CNY", source_type: "alipay", record_id: "cash-1", source_snapshot: null };
   const record = { ...root, account_name: account.name, account_id: account.id, account_type: account.type, record_type: "expense", record_subtype: "not_applicable", counterparty_account: "", counterparty_account_attrs: [] };
   const detail = { record, relations: [], options };
   let detailRequests = 0;
@@ -269,7 +309,7 @@ test("关联流水从统一入口搜索已有流水并直接确认", async ({ pa
     record_types: [{ value: "expense", label: "消费", subtypes: [{ value: "not_applicable", label: "—" }] }],
     relation_types: [{ value: "payment_mirror", label: "同笔支付" }],
   };
-  const root = { id: "1001", occurred_at: "2026-07-03T09:00:00+08:00", account, counterparty: "咖啡店", category: "餐饮", note: "午间消费", amount: "-12.50", currency: "CNY", source_type: "alipay", record_id: "cash-1", source_snapshot: null };
+  const root = { id: "1001", occurred_at: "2026-07-03T09:00:00+08:00", account, counterparty: "咖啡店", category: foodCategory, category_id: foodCategory.id, note: "午间消费", amount: "-12.50", currency: "CNY", source_type: "alipay", record_id: "cash-1", source_snapshot: null };
   const candidate = (id: string, counterparty: string) => ({ ...root, id, counterparty, account_name: account.name, account_id: account.id, account_type: account.type, record_type: "income", record_subtype: "not_applicable", counterparty_account: "", counterparty_account_attrs: [] });
   const relationBodies: Record<string, unknown>[] = [];
   const candidateRequests: string[] = [];

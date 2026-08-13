@@ -1,4 +1,4 @@
-import type { Account, CashRecordDetail, Evidence, EvidenceMember, EvidenceRecord, LedgerOptions } from "../api/types";
+import type { Account, CashCategory, CashRecordDetail, Evidence, EvidenceMember, EvidenceRecord, LedgerOptions } from "../api/types";
 import { useEffect, useRef, useState } from "react";
 import { formatOccurredAt } from "../format";
 import { RecordDrawer } from "./RecordDrawer";
@@ -12,6 +12,8 @@ type Props = {
   editMode?: "new" | "edit";
   editDetail?: CashRecordDetail | null;
   editAccounts?: Account[];
+  categories?: CashCategory[];
+  projectionVersion?: number | null;
   editOptions?: LedgerOptions;
   editRelationOpen?: boolean;
   editLoading?: boolean;
@@ -25,6 +27,7 @@ type Props = {
   onRecordSaved?: (detail: CashRecordDetail, created: boolean) => void;
   onRecordDeleted?: (id: string) => void;
 };
+
 const CLOSE_ANIMATION_MS = 160;
 
 function isBankSecurityTransfer(projection: Evidence["projection"]): boolean {
@@ -62,6 +65,8 @@ function sourceLabel(sourceType: string | null): string {
   return sourceType || "-";
 }
 
+function categoryLabel(category: EvidenceRecord["category"]): string { return category?.path.map((item) => item.name).join(" / ") ?? "未分类"; }
+
 const recordTypeLabels: Record<string, string> = {
   consumption: "消费", expense: "消费", refund: "退款", reversal: "冲正",
   transfer_reversal: "转账退回", withdrawal_in: "提现入账", withdrawal_out: "提现",
@@ -95,9 +100,7 @@ function recordSubtypeLabel(record: EvidenceRecord, projection: Evidence["projec
 
 function projectionSourceLabel(evidence: Evidence): string {
   if (!isRelatedProjection(evidence.projection)) return sourceLabel(evidence.root_record.source_type);
-  const sourceTypes = Array.from(new Set(
-    evidence.members.flatMap((member) => member.source_type ? [member.source_type] : []),
-  ));
+  const sourceTypes = Array.from(new Set(evidence.members.flatMap((member) => member.source_type ? [member.source_type] : [])));
   return sourceTypes.length ? sourceTypes.join("、") : "-";
 }
 
@@ -105,7 +108,30 @@ function projectionRelationLabel(projection: Evidence["projection"]): string {
   return isBankSecurityTransfer(projection) ? "银证转账" : "已合并";
 }
 
-export function EvidenceDetail({ evidence, loading, error, editing = false, editMode = "edit", editDetail, editAccounts = [], editOptions = { record_types: [], relation_types: [] }, editRelationOpen = false, editLoading = false, editLoadError = false, onClose, onRetry, onEditRetry, onEditRecord, onAddRelation, onCancelRelation, onRecordSaved, onRecordDeleted }: Props) {
+function RelatedMember({ member, evidence, relation, onEditRecord, onCancelRelation }: { member: EvidenceMember; evidence: Evidence; relation: Evidence["accepted_relations"][number] | undefined; onEditRecord?: (id: string) => void; onCancelRelation?: (id: string) => void }) {
+  return <li className={`evidence-record${member.roles.includes("refund") ? " is-refund" : ""}`}>
+    <dl>
+      <dt>关联类型</dt><dd>{relatedRecordLabel(member)}</dd>
+      <dt>金额</dt><dd className="mono">{signedAmount(member.amount)} {member.currency}</dd>
+      <dt>发生时间</dt><dd className="mono">{formatOccurredAt(member.occurred_at)}</dd>
+      <dt>账户</dt><dd>{member.account.name}</dd>
+      <dt>交易对方</dt><dd>{member.counterparty || "-"}</dd>
+      {member.counterparty_account ? <><dt>对方账号</dt><dd>{member.counterparty_account}</dd></> : null}
+      <dt>流水类型</dt><dd>{recordTypeLabel(member, evidence.projection)}</dd>
+      {recordSubtypeLabel(member, evidence.projection) ? <><dt>业务细分</dt><dd>{recordSubtypeLabel(member, evidence.projection)}</dd></> : null}
+      <dt>分类</dt><dd>{categoryLabel(member.category)}</dd>
+      <dt>备注</dt><dd>{member.note || "-"}</dd>
+      <dt>来源</dt><dd>{sourceLabel(member.source_type)}</dd>
+      <dt>影响</dt><dd>{relatedRecordImpact(member)}</dd>
+    </dl>
+    <div className="related-actions">
+      <button type="button" className="icon-only-button icon-quiet-button" aria-label="编辑流水" title="编辑流水" onClick={() => onEditRecord?.(member.id)}><UiIcon name="pencil" /></button>
+      {relation ? <button type="button" className="text-button" onClick={() => onCancelRelation?.(relation.id)}>取消关联</button> : null}
+    </div>
+  </li>;
+}
+
+export function EvidenceDetail({ evidence, loading, error, editing = false, editMode = "edit", editDetail, editAccounts = [], categories = [], projectionVersion = null, editOptions = { record_types: [], relation_types: [] }, editRelationOpen = false, editLoading = false, editLoadError = false, onClose, onRetry, onEditRetry, onEditRecord, onAddRelation, onCancelRelation, onRecordSaved, onRecordDeleted }: Props) {
   const closeButton = useRef<HTMLButtonElement>(null);
   const dialog = useRef<HTMLElement>(null);
   const closeTimer = useRef<number | null>(null);
@@ -132,7 +158,7 @@ export function EvidenceDetail({ evidence, loading, error, editing = false, edit
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     };
     node.addEventListener("keydown", handleKeyDown);
-    return () => { node.removeEventListener("keydown", handleKeyDown); };
+    return () => node.removeEventListener("keydown", handleKeyDown);
   }, [closing, editing, onClose]);
   const root = evidence?.root_record;
   const relatedMembers = evidence?.members?.filter((member) => member.id !== root?.id) ?? [];
@@ -140,24 +166,24 @@ export function EvidenceDetail({ evidence, loading, error, editing = false, edit
   return <div className={`evidence-layer${closing ? " is-closing" : ""}`}>
     <button type="button" className="evidence-backdrop" aria-label="点击遮罩关闭收支详情" tabIndex={-1} onPointerDown={(event) => event.preventDefault()} onClick={requestClose} />
     <aside ref={dialog} className="evidence evidence-panel" data-focus-trap="active" data-state={closing ? "closing" : "open"} role="dialog" aria-modal="true" aria-label={editing ? (editMode === "new" ? "新建流水" : "编辑收支详情") : "收支详情"}>
-      {editing ? <RecordDrawer embedded mode={editMode} detail={editDetail} accounts={editAccounts} options={editOptions} initialRelationOpen={editRelationOpen} loading={editLoading} loadError={editLoadError} onRetry={onEditRetry} onClose={onClose} onSaved={onRecordSaved ?? (() => undefined)} onDeleted={onRecordDeleted ?? (() => undefined)} /> : <>
-      <header><div><p className="evidence-eyebrow">收支账本</p><h2>收支详情</h2></div><div className="drawer-header-actions">{root ? <button type="button" className="icon-only-button" aria-label="编辑" title="编辑" onClick={() => onEditRecord?.(root.id)}><UiIcon name="pencil" /></button> : null}<button ref={closeButton} type="button" className="icon-only-button" aria-label="关闭收支详情" title="关闭" onClick={requestClose}><UiIcon name="x" /></button></div></header>
-      {loading ? <p className="evidence-state" role="status">正在读取收支详情…</p> : null}
-      {error ? <div className="evidence-state evidence-state-error" role="alert"><p>无法读取收支详情。</p><button type="button" onClick={onRetry}>重试</button></div> : null}
-      {evidence && !root ? <div className="evidence-state evidence-state-error" role="alert"><p>收支详情不完整，请重试。</p><button type="button" onClick={onRetry}>重试</button></div> : null}
-      {root && evidence ? <div className="evidence-content">
-        <section className="evidence-section evidence-summary" aria-label="收支详情">
-          <p className={`evidence-amount ${evidence.projection.economic_type === "income" ? "inflow" : "outflow"}`}>{evidence.projection.amount} <span>{evidence.projection.currency}</span></p>
-          <p className="evidence-economic-type">{economicTypeLabel(evidence.projection)}</p>
-          {isRelatedProjection(evidence.projection) ? <p className="projection-source-detail">{projectionRelationLabel(evidence.projection)}</p> : null}
-          <dl><dt>交易对方</dt><dd>{root.counterparty || "-"}</dd>{root.counterparty_account ? <><dt>对方账号</dt><dd>{root.counterparty_account}</dd></> : null}<dt>发生时间</dt><dd className="mono">{formatOccurredAt(root.occurred_at)}</dd><dt>账户</dt><dd>{root.account.name}</dd><dt>流水类型</dt><dd>{recordTypeLabel(root, evidence.projection)}</dd>{recordSubtypeLabel(root, evidence.projection) ? <><dt>业务细分</dt><dd>{recordSubtypeLabel(root, evidence.projection)}</dd></> : null}<dt>分类</dt><dd>{root.category || "未分类"}</dd><dt>备注</dt><dd>{root.note || "-"}</dd><dt>来源</dt><dd>{projectionSourceLabel(evidence)}</dd></dl>
-        </section>
-        {relatedMembers.length ? <section className="evidence-section evidence-related" aria-label="关联流水">
-          <div className="section-heading"><h3>关联流水</h3>{root ? <button type="button" className="icon-only-button icon-quiet-button" aria-label="添加关联" title="添加关联" onClick={() => onAddRelation?.(root.id)}><UiIcon name="plus" /></button> : null}</div>
-          <ul className="evidence-record-list">{relatedMembers.map((member) => { const relation = evidence.accepted_relations.find((item) => item.primary_record?.id === member.id || item.secondary_record?.id === member.id); return <li className={`evidence-record${member.roles.includes("refund") ? " is-refund" : ""}`} key={member.id}><dl><dt>关联类型</dt><dd>{relatedRecordLabel(member)}</dd><dt>金额</dt><dd className="mono">{signedAmount(member.amount)} {member.currency}</dd><dt>发生时间</dt><dd className="mono">{formatOccurredAt(member.occurred_at)}</dd><dt>账户</dt><dd>{member.account.name}</dd><dt>交易对方</dt><dd>{member.counterparty || "-"}</dd>{member.counterparty_account ? <><dt>对方账号</dt><dd>{member.counterparty_account}</dd></> : null}<dt>流水类型</dt><dd>{recordTypeLabel(member, evidence.projection)}</dd>{recordSubtypeLabel(member, evidence.projection) ? <><dt>业务细分</dt><dd>{recordSubtypeLabel(member, evidence.projection)}</dd></> : null}<dt>分类</dt><dd>{member.category || "未分类"}</dd><dt>备注</dt><dd>{member.note || "-"}</dd><dt>来源</dt><dd>{sourceLabel(member.source_type)}</dd><dt>影响</dt><dd>{relatedRecordImpact(member)}</dd></dl><div className="related-actions"><button type="button" className="icon-only-button icon-quiet-button" aria-label="编辑流水" title="编辑流水" onClick={() => onEditRecord?.(member.id)}><UiIcon name="pencil" /></button>{relation ? <button type="button" className="text-button" onClick={() => onCancelRelation?.(relation.id)}>取消关联</button> : null}</div></li>; })}</ul>
-        </section> : null}
-        {!relatedMembers.length && root ? <section className="evidence-section evidence-related" aria-label="关联流水"><div className="section-heading"><h3>关联流水</h3><button type="button" className="icon-only-button icon-quiet-button" aria-label="添加关联" title="添加关联" onClick={() => onAddRelation?.(root.id)}><UiIcon name="plus" /></button></div><p className="empty-related">暂无关联流水</p></section> : null}
-      </div> : null}
+      {editing ? <RecordDrawer embedded mode={editMode} detail={editDetail} accounts={editAccounts} options={editOptions} categories={categories} projectionVersion={projectionVersion} initialRelationOpen={editRelationOpen} loading={editLoading} loadError={editLoadError} onRetry={onEditRetry} onClose={onClose} onSaved={onRecordSaved ?? (() => undefined)} onDeleted={onRecordDeleted ?? (() => undefined)} /> : <>
+        <header><div><p className="evidence-eyebrow">收支账本</p><h2>收支详情</h2></div><div className="drawer-header-actions">{root ? <button type="button" className="icon-only-button" aria-label="编辑" title="编辑" onClick={() => onEditRecord?.(root.id)}><UiIcon name="pencil" /></button> : null}<button ref={closeButton} type="button" className="icon-only-button" aria-label="关闭收支详情" title="关闭" onClick={requestClose}><UiIcon name="x" /></button></div></header>
+        {loading ? <p className="evidence-state" role="status">正在读取收支详情…</p> : null}
+        {error ? <div className="evidence-state evidence-state-error" role="alert"><p>无法读取收支详情。</p><button type="button" onClick={onRetry}>重试</button></div> : null}
+        {evidence && !root ? <div className="evidence-state evidence-state-error" role="alert"><p>收支详情不完整，请重试。</p><button type="button" onClick={onRetry}>重试</button></div> : null}
+        {root && evidence ? <div className="evidence-content">
+          <section className="evidence-section evidence-summary" aria-label="收支详情">
+            <p className={`evidence-amount ${evidence.projection.economic_type === "income" ? "inflow" : "outflow"}`}>{evidence.projection.amount} <span>{evidence.projection.currency}</span></p>
+            <p className="evidence-economic-type">{economicTypeLabel(evidence.projection)}</p>
+            {isRelatedProjection(evidence.projection) ? <p className="projection-source-detail">{projectionRelationLabel(evidence.projection)}</p> : null}
+            <dl><dt>交易对方</dt><dd>{root.counterparty || "-"}</dd>{root.counterparty_account ? <><dt>对方账号</dt><dd>{root.counterparty_account}</dd></> : null}<dt>发生时间</dt><dd className="mono">{formatOccurredAt(root.occurred_at)}</dd><dt>账户</dt><dd>{root.account.name}</dd><dt>流水类型</dt><dd>{recordTypeLabel(root, evidence.projection)}</dd>{recordSubtypeLabel(root, evidence.projection) ? <><dt>业务细分</dt><dd>{recordSubtypeLabel(root, evidence.projection)}</dd></> : null}<dt>分类</dt><dd>{categoryLabel(root.category)}</dd><dt>备注</dt><dd>{root.note || "-"}</dd><dt>来源</dt><dd>{projectionSourceLabel(evidence)}</dd></dl>
+          </section>
+          {relatedMembers.length ? <section className="evidence-section evidence-related" aria-label="关联流水">
+            <div className="section-heading"><h3>关联流水</h3>{root ? <button type="button" className="icon-only-button icon-quiet-button" aria-label="添加关联" title="添加关联" onClick={() => onAddRelation?.(root.id)}><UiIcon name="plus" /></button> : null}</div>
+            <ul className="evidence-record-list">{relatedMembers.map((member) => <RelatedMember key={member.id} member={member} evidence={evidence} relation={evidence.accepted_relations.find((item) => item.primary_record?.id === member.id || item.secondary_record?.id === member.id)} onEditRecord={onEditRecord} onCancelRelation={onCancelRelation} />)}</ul>
+          </section> : null}
+          {!relatedMembers.length && root ? <section className="evidence-section evidence-related" aria-label="关联流水"><div className="section-heading"><h3>关联流水</h3><button type="button" className="icon-only-button icon-quiet-button" aria-label="添加关联" title="添加关联" onClick={() => onAddRelation?.(root.id)}><UiIcon name="plus" /></button></div><p className="empty-related">暂无关联流水</p></section> : null}
+        </div> : null}
       </>}
     </aside>
   </div>;

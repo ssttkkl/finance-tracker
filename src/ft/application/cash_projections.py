@@ -39,9 +39,10 @@ class CashProjectionService:
                     session.connection().exec_driver_sql("BEGIN IMMEDIATE")
                 repository = RelationalCashProjectionRepository(session, self._workspace_id)
                 failure_context = repository.rebuild_failure_context()
-                digest = repository.source_digest()
                 facts, relations = repository.read_sources()
                 build = build_cash_projections(facts, relations)
+                self._synchronize_component_categories(session, self._workspace_id, build)
+                digest = repository.source_digest()
                 dataset_id = repository.create_staging_dataset(source_digest=digest, rules_version=RULES_VERSION)
                 next_version = repository.status()["projection_version"] + 1
                 repository.replace_dataset(dataset_id, build, projection_version=next_version)
@@ -104,7 +105,25 @@ class CashProjectionService:
         component_ids = repository.accepted_relation_component_ids(affected_fact_ids)
         facts, relations = repository.read_sources_for_facts(component_ids)
         build = build_cash_projections(facts, relations)
+        CashProjectionService._synchronize_component_categories(session, workspace_id, build)
         return repository.replace_active_components(build, component_ids, state=state)
+
+    @staticmethod
+    def _synchronize_component_categories(session, workspace_id: str, build) -> None:
+        """已确认关系使用展示基准流水分类，并同步整个现金部分。"""
+        from sqlalchemy import update
+        from ft.adapters.relational.models import CashTransactionModel
+
+        for projection in build.projections:
+            category_id = projection.primary_record.category_id
+            member_ids = [member.id for member, _roles in projection.members]
+            if not member_ids:
+                continue
+            session.execute(update(CashTransactionModel).where(
+                CashTransactionModel.workspace_id == workspace_id,
+                CashTransactionModel.id.in_(member_ids),
+                CashTransactionModel.deleted_at.is_(None),
+            ).values(category_id=category_id))
 
     @staticmethod
     def maintain_if_ready_in_session(
@@ -128,6 +147,7 @@ class CashProjectionService:
         )
         facts, relations = repository.read_sources_for_facts(component_ids)
         build = build_cash_projections(facts, relations)
+        CashProjectionService._synchronize_component_categories(session, workspace_id, build)
         return repository.replace_active_components(
             build,
             component_ids,
@@ -169,7 +189,7 @@ class CashProjectionService:
 
     @staticmethod
     def refresh_display_fields_if_ready_in_session(
-        session, workspace_id: str, fact_id: int, *, counterparty: str, category: str, note: str,
+        session, workspace_id: str, fact_id: int, *, counterparty: str, note: str,
     ) -> dict | None:
         from ft.adapters.relational.projections import RelationalCashProjectionRepository
 
@@ -180,7 +200,6 @@ class CashProjectionService:
         return repository.refresh_display_fields(
             fact_id,
             counterparty=counterparty,
-            category=category,
             note=note,
             state=state,
         )

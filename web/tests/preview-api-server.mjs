@@ -2,18 +2,20 @@ import { createServer } from "node:http";
 
 const account = { id: 901, name: "预览账户", type: "cash", active: true, currencies: ["CNY", "HKD", "USD"] };
 const investmentAccount = { id: 902, name: "预览投资账户", type: "security", active: true };
+const foodCategory = { id: "preview-food", parent_id: null, name: "测试", description: null, path: [{ id: "preview-food", name: "测试" }], depth: 1, sort_order: 1, revision: 1 };
+const transferCategory = { id: "preview-transfer", parent_id: null, name: "转账", description: null, path: [{ id: "preview-transfer", name: "转账" }], depth: 1, sort_order: 2, revision: 1 };
 const port = Number(process.env.FT_PREVIEW_API_PORT ?? "8766");
 const allowedOrigin = process.env.FT_PREVIEW_WEB_ORIGIN ?? "http://127.0.0.1:5173";
 const previewProjection = {
   projection_id: "cash:preview-001", occurred_at: "2026-07-03T09:00:00+08:00", account,
-  counterparty: "示例商户", category: "测试", amount: "1", currency: "CNY",
+  counterparty: "示例商户", category: foodCategory, amount: "1", currency: "CNY",
   note: "", source_type: "preview", source_types: ["preview"], record_id: "preview-001",
   economic_type: "income", transfer_subtype: null, composition: [], member_count: 1,
   accepted_relation_summary: [], visible: true, hidden_reason: null,
 };
 const bankSecurityProjection = {
   projection_id: "cash:preview-bank-security", occurred_at: "2026-07-02T09:00:00+08:00", account,
-  counterparty: "Charles Schwab", category: "转账", amount: "0", currency: "USD",
+  counterparty: "Charles Schwab", category: transferCategory, amount: "0", currency: "USD",
   note: "", source_type: "preview", source_types: ["preview"], record_id: "preview-bank-security",
   economic_type: "internal_transfer", transfer_subtype: "bank_security_transfer", composition: [], member_count: 1,
   accepted_relation_summary: [], visible: true, hidden_reason: null,
@@ -29,7 +31,7 @@ const page = {
   page_size: 50,
   filters: {},
   filter_options: {
-    categories: ["测试", "转账"],
+    categories: [foodCategory, transferCategory],
     currencies: ["CNY", "HKD", "USD"],
     economic_types: [
       { economic_type: "income", transfer_subtypes: [] },
@@ -55,7 +57,7 @@ const manualRecord = {
   id: "preview-manual-001", occurred_at: "2026-07-01T09:00:00+00:00", account_name: account.name,
   account_id: account.id, account_type: account.type, amount: "0", currency: "CNY",
   counterparty: "预览手工记录", counterparty_account: "", counterparty_account_attrs: [],
-  note: "", category: "测试", record_type: "other", record_subtype: "not_applicable",
+  note: "", category: foodCategory, category_id: foodCategory.id, record_type: "other", record_subtype: "not_applicable",
   source_type: "", record_id: "", source_snapshot: null,
 };
 records.set(manualRecord.id, { record: manualRecord, relations: [], options: ledgerOptions });
@@ -106,6 +108,10 @@ const server = createServer(async (request, response) => {
     send(response, ledgerOptions);
     return;
   }
+  if (request.url === "/api/v1/cash-categories") {
+    send(response, { revision: 1, items: [foodCategory, transferCategory] });
+    return;
+  }
   if (request.url?.startsWith("/api/v1/cash-records") && request.method === "GET") {
     const id = request.url.match(/^\/api\/v1\/cash-records\/([^?]+)/)?.[1];
     if (id) {
@@ -128,6 +134,7 @@ const server = createServer(async (request, response) => {
             counterparty_account_attrs: [],
             note: projection.note,
             category: projection.category,
+            category_id: projection.category?.id ?? null,
             record_type: projection.economic_type === "income" ? "income" : "other",
             record_subtype: "not_applicable",
             source_type: projection.source_type,
@@ -140,7 +147,7 @@ const server = createServer(async (request, response) => {
       }
       return;
     }
-    send(response, { items: [...records.values()].map((value) => value.record) });
+    send(response, { items: [...records.values()].map((value) => value.record), next_cursor: null });
     return;
   }
   if (request.url === "/api/v1/cash-records" && request.method === "POST") {

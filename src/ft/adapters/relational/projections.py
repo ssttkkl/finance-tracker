@@ -24,6 +24,7 @@ from .models import (
     CashProjectionRelationModel,
     CashProjectionStateModel,
     CashInvestmentFundingRelationModel,
+    CashCategoryModel,
     CashTransactionModel,
     TransactionRelationModel,
     WorkspaceModel,
@@ -183,7 +184,7 @@ class RelationalCashProjectionRepository:
         facts = tuple(
             CashProjectionFact(
                 id=row.id, account_id=row.account_id, occurred_at=row.occurred_at, amount=row.amount,
-                currency=row.currency, counterparty=row.counterparty, category=row.category, note=row.note,
+                currency=row.currency, counterparty=row.counterparty, category_id=row.category_id, note=row.note,
                 source_type=row.source_type, record_id=row.record_id,
                 funding_relation_id=funding_relation_id,
             )
@@ -214,7 +215,7 @@ class RelationalCashProjectionRepository:
                     "currency": item.currency,
                     "counterparty": item.counterparty,
                     "note": item.note,
-                    "category": item.category,
+                    "category_id": item.category_id,
                 }
                 for item in self._session.scalars(
                     select(CashTransactionModel).where(
@@ -384,7 +385,8 @@ class RelationalCashProjectionRepository:
             "occurred_at": projection.primary_record.occurred_at,
             "account_id": projection.primary_record.account_id,
             "counterparty": projection.primary_record.counterparty,
-            "category": projection.primary_record.category,
+            "category_id": projection.primary_record.category_id,
+            "category_path": self._category_path(projection.primary_record.category_id),
             "note": projection.primary_record.note,
             "source_type": projection.primary_record.source_type,
             "record_id": projection.primary_record.record_id,
@@ -397,6 +399,14 @@ class RelationalCashProjectionRepository:
             "accepted_relation_count": len(projection.relations),
             "built_projection_version": projection_version,
         }
+
+    def _category_path(self, category_id: str | None) -> str | None:
+        if not category_id:
+            return None
+        return self._session.scalar(select(CashCategoryModel.category_path).where(
+            CashCategoryModel.workspace_id == self._workspace_id,
+            CashCategoryModel.id == category_id,
+        ))
 
     def _batches(self, values):
         for start in range(0, len(values), PROJECTION_WRITE_BATCH_SIZE):
@@ -564,7 +574,7 @@ class RelationalCashProjectionRepository:
             amount=row.amount,
             currency=row.currency,
             counterparty=row.counterparty,
-            category=row.category,
+            category_id=row.category_id,
             note=row.note,
             source_type=row.source_type,
             record_id=row.record_id,
@@ -609,7 +619,7 @@ class RelationalCashProjectionRepository:
         return self._status_for_state(state)
 
     def refresh_display_fields(
-        self, fact_id: int, *, counterparty: str, category: str, note: str, state=None,
+        self, fact_id: int, *, counterparty: str, note: str, state=None,
     ) -> dict:
         """Refresh a root record's denormalized display fields without rebuilding its group."""
         state = state or self.require_ready_state_lock()
@@ -620,7 +630,6 @@ class RelationalCashProjectionRepository:
                 CashProjectionModel.root_cash_transaction_id == int(fact_id),
             ).values(
                 counterparty=counterparty,
-                category=category,
                 note=note,
                 updated_at=_now(),
                 built_projection_version=state.projection_version + 1,

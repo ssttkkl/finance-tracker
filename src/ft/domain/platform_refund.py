@@ -210,11 +210,10 @@ def wechat_find_expense_for_refund(
     for ei, e in enumerate(expenses):
         if ei in used:
             continue
-        if str(exp_field(e, "direction", "dir", default="支出")) not in ("支出", "expense", ""):
-            # allow category expense
-            if exp_field(e, "category") not in ("expense", "支出", ""):
-                if Decimal(str(exp_field(e, "amount", default=0) or 0)) >= 0:
-                    continue
+        if str(exp_field(e, "record_type") or "") not in {"consumption", "refund"}:
+            continue
+        if Decimal(str(exp_field(e, "amount", default=0) or 0)) >= 0:
+            continue
         mer = str(exp_field(e, "mer", "merchant_order_id"))
         txn = str(exp_field(e, "txn", "txn_id"))
         if wechat_merchant_key_match(mer, inc_txn):

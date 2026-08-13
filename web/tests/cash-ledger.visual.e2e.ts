@@ -1,15 +1,35 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const account = { id: 101, name: "日常账户", type: "cash", active: true };
+const foodCategory = {
+  id: "food",
+  parent_id: null,
+  name: "餐饮",
+  description: null,
+  path: [{ id: "food", name: "餐饮" }],
+  depth: 1,
+  sort_order: 1,
+  revision: 1,
+};
+const transferCategory = {
+  id: "transfer",
+  parent_id: null,
+  name: "转账",
+  description: null,
+  path: [{ id: "transfer", name: "转账" }],
+  depth: 1,
+  sort_order: 2,
+  revision: 1,
+};
 const filter_options = {
-  categories: ["餐饮"],
+  categories: [foodCategory, transferCategory],
   currencies: ["CNY"],
   economic_types: [{ economic_type: "expense", transfer_subtypes: [] }],
 };
 const EVIDENCE_ANIMATION_MS = 200;
 const projection = {
   projection_id: "cash:visual-001", occurred_at: "2026-07-03T09:00:00+08:00", account,
-  counterparty: "视觉核对商户", category: "餐饮", note: "固定去标识化备注", amount: "-12.50", currency: "CNY",
+  counterparty: "视觉核对商户", category: foodCategory, category_id: foodCategory.id, note: "固定去标识化备注", amount: "-12.50", currency: "CNY",
   economic_type: "expense", transfer_subtype: null, composition: ["payment_mirror"], member_count: 2,
   accepted_relation_summary: [{ kind: "payment_mirror", subtype: "", count: 1 }], source_type: "wallet", source_types: ["wallet", "bank"], record_id: "cash-visual-001", visible: true, hidden_reason: null,
 };
