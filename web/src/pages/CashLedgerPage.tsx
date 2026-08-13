@@ -126,13 +126,14 @@ export function CashLedgerPage() {
   const updateConfirmation = useRef<HTMLButtonElement | null>(null);
   const loadMoreRef = useRef<(retry?: boolean) => void>(() => undefined);
   const appendingCursor = useRef<string | null>(null);
+  const batchErrorAfterRefresh = useRef<string | undefined>(undefined);
 
   const resetAndLoad = () => {
     pageAbortController.current?.abort();
     appendingCursor.current = null;
     const controller = new AbortController(); pageAbortController.current = controller;
     const requestId = ++pageRequestId.current;
-    setStatus("loading"); setFilterOptionsLoading(true); setItems([]); setNextCursor(null); setMonthlySummaries([]); setProjectionVersion(null); setSelectedIds(new Set()); setBatchOpen(false); setBatchError(undefined); setErrorMessage(undefined); setAppendError(undefined); setAppendLoading(false);
+    setStatus("loading"); setFilterOptionsLoading(true); setItems([]); setNextCursor(null); setMonthlySummaries([]); setProjectionVersion(null); setSelectedIds(new Set()); setBatchOpen(false); setBatchError(batchErrorAfterRefresh.current); batchErrorAfterRefresh.current = undefined; setErrorMessage(undefined); setAppendError(undefined); setAppendLoading(false);
     fetchCashPage(filters, null, controller.signal).then((value) => {
       if (requestId !== pageRequestId.current) return;
       setItems(value.items); setNextCursor(value.next_cursor); setProjectionVersion(value.projection_version); setMonthlySummaries(value.monthly_summaries ?? []);
@@ -199,7 +200,7 @@ export function CashLedgerPage() {
     } catch (error) {
       setBatchSaving(false);
       if (error instanceof Error && error.message === "projection.version_conflict") {
-        setBatchOpen(false); setSelectedIds(new Set()); setBatchError("列表已更新，请重新选择记录。"); setRefreshGeneration((value) => value + 1);
+        batchErrorAfterRefresh.current = "列表已更新，请重新选择记录。"; setBatchOpen(false); setSelectedIds(new Set()); setRefreshGeneration((value) => value + 1);
       } else setBatchError("保存失败，请稍后重试。");
     }
   };

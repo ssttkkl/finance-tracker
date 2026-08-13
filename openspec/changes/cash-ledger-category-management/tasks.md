@@ -47,7 +47,7 @@
 - [x] 6.3 运行新增回归、受影响测试、完整 SQLite Application Service / 迁移 / API 契约与完整 Python 回归。
 - [x] 6.4 人工准备数据库名以 `_test` 结尾的真实 PostgreSQL，配置 `FT_TEST_POSTGRES_URL` 后运行同一迁移、Application Service、关系、查询与 API 契约矩阵。
 - [x] 6.5 运行 Web Vitest、类型检查、生产构建、实现术语静态搜索和 `git diff --check`。
-- [x] 6.6 运行生产预览与 Playwright，覆盖主流程、错误 / 空 / 加载、删除并发、批量版本失效、键盘、焦点恢复及 320、375、390、414、768、1440 px。
+- [x] 6.6 补全真实 Chromium 的分类闭环 QA：在开发服务器下使用状态化 API mock 覆盖分类管理的创建、编辑、子分类删除保护与已使用叶子删除确认，以及账本的分类筛选、详情修改、键盘多选、批量分类和版本失效；在生产预览下使用测试 HTTP API 覆盖分类管理和批量写入。检查 390 px 视口无横向滚动、抽屉焦点与失败后重新选择。
 - [x] 6.7 运行 `openspec validate --all --strict`、`openspec doctor` 和适用性能 / 安全检查，并记录当前 `HEAD`、比较基线、实际命令、结果和残余风险。
 - [x] 6.8 运行固定规模性能门禁：1,000 个分类节点、10,000 条流水、100 个批量投影和 10,000 条删除影响引用；SQLite 与真实 PostgreSQL 均验证查询次数、P95 响应时间和 RSS 增量。
 - [x] 6.9 对每个新增分类 API 运行路由层性能门禁，并在发现查询退化、超时或内存超预算时回写 design、修复后重跑双后端矩阵。
@@ -100,3 +100,13 @@
 - 最终 Web 回归：Vitest 53 passed；生产构建通过；Playwright E2E 11 passed；视觉 12 passed；生产预览 3 passed。
 - 最终 OpenSpec / 工程卫生：`openspec validate --all --strict`：20 passed；`openspec doctor`：通过；`git diff --check`：通过。
 - 本轮比较基线：`0ace75c feat: add cash category management and batch classification`；性能补丁未改变用户可见分类交互和接口字段合同。
+
+### 真实浏览器闭环 QA 证据（2026-08-13）
+
+- 失败先行：新增 `web/tests/cash-category-management.e2e.ts` 后，Chromium 先发现详情夹具缺少账户对象、桌面选择列命中区域被相邻列拦截，以及版本冲突提示在刷新时被清空；分别补齐测试夹具、调整选择 / 分类列宽并保留冲突提示后转绿。
+- 开发服务器 Chromium：`cd web && npm run test:e2e -- --reporter=line tests/cash-category-management.e2e.ts`：5 passed。覆盖分类列表末尾创建一级分类、编辑、父分类删除保护、已使用叶子删除确认、分类筛选、详情分类修改、键盘多选、批量分类、版本冲突重新选择和 390 px 无横向滚动。
+- 生产构建预览 Chromium：`cd web && npm run test:preview -- --reporter=line tests/runtime-preview.e2e.ts`：4 passed。新增状态化测试 HTTP API，覆盖 `/cash-categories` 创建与批量分类写入；原有 3 条生产预览流程同步通过。
+- 本轮修复：为桌面账本补充选择列和分类列的显式宽度，保证多选控件可点击；版本冲突刷新后保留“列表已更新，请重新选择记录。”错误提示，要求重新选择而不是静默丢失反馈。
+- 视觉回归：`cd web && npm run test:visual -- --reporter=line`：12 passed；因选择列 / 分类列布局变化更新 13 张既有账本快照后重新验证，无未解释差异。
+- 最终 Web 回归：`cd web && npm test -- --run`：53 passed；`npm run test:e2e -- --reporter=line`：16 passed；`npm run build`：通过；`openspec validate --all --strict`：20 passed；`openspec doctor`：通过；`git diff --check`：通过。
+- 最终 Hallmark 等价 audit：环境无 `hallmark` CLI，按 `$hallmark audit` 门禁人工复核生产分类页、账本表格、批量操作栏、分类选择器、错误 / 删除确认、键盘焦点与 320 / 375 / 390 / 414 / 768 / 1440 px；0 个 critical、0 个 major、0 个未解决 minor。未新增常驻帮助文案，一级分类入口仍为列表最后一行。

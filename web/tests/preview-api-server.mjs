@@ -4,6 +4,7 @@ const account = { id: 901, name: "预览账户", type: "cash", active: true, cur
 const investmentAccount = { id: 902, name: "预览投资账户", type: "security", active: true };
 const foodCategory = { id: "preview-food", parent_id: null, name: "测试", description: null, path: [{ id: "preview-food", name: "测试" }], depth: 1, sort_order: 1, revision: 1 };
 const transferCategory = { id: "preview-transfer", parent_id: null, name: "转账", description: null, path: [{ id: "preview-transfer", name: "转账" }], depth: 1, sort_order: 2, revision: 1 };
+const categories = [foodCategory, transferCategory];
 const port = Number(process.env.FT_PREVIEW_API_PORT ?? "8766");
 const allowedOrigin = process.env.FT_PREVIEW_WEB_ORIGIN ?? "http://127.0.0.1:5173";
 const previewProjection = {
@@ -24,14 +25,15 @@ const bankSecurityProjection = {
     to_account: investmentAccount, to_amount: "1275.5", to_currency: "USD",
   },
 };
+let projectionVersion = 1;
 const page = {
-  projection_version: 1,
+  projection_version: projectionVersion,
   items: [previewProjection, bankSecurityProjection],
   next_cursor: null,
   page_size: 50,
   filters: {},
   filter_options: {
-    categories: [foodCategory, transferCategory],
+    categories,
     currencies: ["CNY", "HKD", "USD"],
     economic_types: [
       { economic_type: "income", transfer_subtypes: [] },
@@ -108,8 +110,15 @@ const server = createServer(async (request, response) => {
     send(response, ledgerOptions);
     return;
   }
-  if (request.url === "/api/v1/cash-categories") {
-    send(response, { revision: 1, items: [foodCategory, transferCategory] });
+  if (request.url === "/api/v1/cash-categories" && request.method === "GET") {
+    send(response, { revision: categories.length, items: categories });
+    return;
+  }
+  if (request.url === "/api/v1/cash-categories" && request.method === "POST") {
+    const body = JSON.parse(await readBody(request) || "{}");
+    const created = { id: "preview-created", parent_id: body.parent_id ?? null, name: body.name, description: body.description ?? null, path: [{ id: "preview-created", name: body.name }], depth: 1, sort_order: categories.length + 1, revision: 1 };
+    categories.push(created);
+    send(response, created, 201);
     return;
   }
   if (request.url?.startsWith("/api/v1/cash-records") && request.method === "GET") {
@@ -187,7 +196,23 @@ const server = createServer(async (request, response) => {
     )));
     return;
   }
+  if (request.url === "/api/v1/cash-projections/categories" && request.method === "PUT") {
+    const body = JSON.parse(await readBody(request) || "{}");
+    const target = categories.find((item) => item.id === body.category_id) ?? null;
+    for (const item of page.items) {
+      if (body.projection_ids.includes(item.projection_id)) {
+        item.category = target;
+        item.category_id = target?.id ?? null;
+      }
+    }
+    projectionVersion += 1;
+    page.projection_version = projectionVersion;
+    send(response, { projection_version: projectionVersion, projection_count: body.projection_ids.length, updated_transaction_count: body.projection_ids.length, category_id: body.category_id });
+    return;
+  }
   if (request.url?.startsWith("/api/v1/cash-projections")) {
+    page.projection_version = projectionVersion;
+    page.filter_options.categories = categories;
     response.end(JSON.stringify(page));
     return;
   }

@@ -42,3 +42,29 @@ test("生产预览可打开流水编辑和六渠道导入入口", async ({ page 
   const importDrawer = page.getByRole("dialog", { name: "导入账单" });
   await expect(importDrawer.getByLabel("账单渠道").locator("option")).toHaveCount(6);
 });
+
+test("生产预览完成分类创建和批量分类流程", async ({ page }) => {
+  await page.goto("/cash-categories");
+
+  const tree = page.getByRole("tree", { name: "收支分类目录" });
+  await expect(tree.locator(":scope > li").last()).toContainText("新建一级分类");
+  await tree.getByRole("button", { name: "新建一级分类" }).click();
+  const categoryEditor = page.getByRole("region", { name: "分类编辑" });
+  await categoryEditor.getByLabel("分类名称").fill("预览分类");
+  await categoryEditor.getByRole("button", { name: "创建分类" }).click();
+  await expect(tree).toContainText("预览分类");
+  await expect(tree.locator(":scope > li").last()).toContainText("新建一级分类");
+
+  await page.goto("/");
+  await page.getByLabel("选择示例商户").check();
+  await page.getByLabel("选择Charles Schwab").check();
+  const toolbar = page.getByRole("toolbar", { name: "批量操作" });
+  await expect(toolbar).toContainText("已选 2 项");
+  await toolbar.getByRole("button", { name: "修改分类" }).click();
+  const batch = page.getByRole("dialog", { name: "修改分类" });
+  await batch.getByLabel("分类", { exact: true }).selectOption("preview-created");
+  await batch.getByRole("button", { name: "保存" }).click();
+  await expect(page.getByRole("toolbar", { name: "批量操作" })).toHaveCount(0);
+  await expect(page.getByRole("row", { name: /示例商户/ })).toContainText("预览分类");
+  await expect(page.getByRole("row", { name: /Charles Schwab/ })).toContainText("预览分类");
+});
