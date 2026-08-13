@@ -14,7 +14,7 @@
 uv sync
 export FT_DATABASE_URL='postgresql+psycopg://localhost/finance_tracker'
 export FT_WORKSPACE_ID='default'
-uv run alembic upgrade head    # head / SCHEMA_REVISION: 20260811_26
+uv run alembic upgrade head    # head / SCHEMA_REVISION: 20260813_27
 uv run python -c "
 import os
 from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace
@@ -194,7 +194,7 @@ uv run ft sync --source binance --account 币安 --full   # 忽略游标，全�
 
 ## 收支账本 Web
 
-收支账本以两个显式进程运行。Python API 只绑定本机，Node 前端只通过 HTTP 读取 API；两者都不会创建、迁移或写入账本。列表展示已确认关系处理后的收支投影，而不是原始现金流水；内部转账和全额退款保留为可审计投影，但不进入列表。
+收支账本的 Web 服务支持邮箱密码登录与工作区成员访问。用户可以创建工作区；管理员可创建限时一次性的「可编辑」或「仅可查看」邀请链接。所有账本 API 都从登录会话的当前工作区解析数据；CLI 仍使用显式 `FT_WORKSPACE_ID`。列表展示已确认关系处理后的收支投影，而不是原始现金流水；内部转账和全额退款保留为可审计投影，但不进入列表。
 
 ```bash
 export FT_DATABASE_URL='sqlite+pysqlite:////absolute/path/finance-tracker.db'
@@ -211,20 +211,45 @@ npm run dev
 ```
 
 `npm run dev` 固定在 `http://127.0.0.1:5174`，并将同源 `/api` 请求转发到本机 API
-`http://127.0.0.1:8000`。因此，本地开发不需要手动设置 `VITE_FT_API_ORIGIN` 或匹配 API 的 CORS
+`http://127.0.0.1:8000`。因此，本地开发不需要手动设置 `VITE_FT_API_ORIGIN` 或匹配 API
 端口；Python API 仍须先独立运行。端到端测试或其他明确指定的本机 API 可继续在启动前设置
 `VITE_FT_API_ORIGIN` 覆盖默认值。
 
 生产预览必须在构建时注入 API 来源，再启动预览服务器：
 
 ```bash
-VITE_FT_API_ORIGIN='http://127.0.0.1:8000' npm run build
+VITE_FT_API_ORIGIN='https://your-api.onrender.com' npm run build
 npm run start
 ```
 
-`npm run start` 只服务已经构建的产物，不会重新读取 `VITE_FT_API_ORIGIN`。`FT_WEB_ORIGIN` 与
-`VITE_FT_API_ORIGIN` 只能是带端口的 `http://127.0.0.1` 或 `http://localhost` 地址；配置无效或 API
-不可连接时，进程或页面会明确失败，不会使用其他后端或地址。
+`npm run start` 只服务已经构建的产物，不会重新读取 `VITE_FT_API_ORIGIN`。本地允许带端口的
+`http://127.0.0.1` 或 `http://localhost`；部署时 `FT_WEB_ORIGIN` 与 `VITE_FT_API_ORIGIN` 必须是完整的
+HTTPS origin（不得包含路径、查询参数或凭据）。配置无效或 API 不可连接时，进程或页面会明确失败，
+不会使用其他后端或地址。
+
+### Render 部署
+
+部署两个 Render Service 时，后端使用 Web Service，前端使用 Static Site 或 Web Service。两者必须各自有
+独立公开 URL，并通过精确 origin 配置跨域会话：
+
+```bash
+# 后端环境变量
+FT_DATABASE_URL='postgresql+psycopg://…'  # Neon URL 使用 psycopg SQLAlchemy 方言
+FT_WEB_ORIGIN='https://your-web.onrender.com'
+
+# 后端 Build Command
+uv sync --frozen
+
+# 后端 Start Command
+uv run alembic upgrade head && uv run uvicorn ft.web.app:create_runtime_app --factory --host 0.0.0.0 --port "$PORT"
+
+# 前端构建环境变量（构建时注入）
+VITE_FT_API_ORIGIN='https://your-api.onrender.com'
+```
+
+生产环境的会话 Cookie 自动使用 `HttpOnly`、`Secure`、`SameSite=Lax` 和 30 天有效期；前端请求会携带
+Cookie，后端仅允许 `FT_WEB_ORIGIN` 这一项 CORS 来源。不要把 `FT_WORKSPACE_ID` 配给 Web 后端；它只保留给
+CLI。首次注册 `admin@ssttkkl.fun` 时，如果既有 `default` 工作区存在，该用户会自动成为其管理员。
 
 当前只交付**收支账本**与**证据详情**。投资账本视图、投资事件、持仓和持仓估值属于 `022-investment-ledger-browser-web`，尚未交付。
 
@@ -233,7 +258,9 @@ npm run start
 仅接受：
 
 - `FT_DATABASE_URL` — `postgresql+…` 或文件 `sqlite+pysqlite:////…`
-- `FT_WORKSPACE_ID`
+- `FT_WORKSPACE_ID` — CLI 必填；Web 后端不使用
+- `FT_WEB_ORIGIN` — Web 后端必填的唯一前端 HTTPS origin（本地可省略）
+- `VITE_FT_API_ORIGIN` — 前端构建时注入的 API HTTPS origin（本地开发可使用默认代理）
 
 旧 backend / ledger-root 变量会被拒绝。测试专用：`FT_TEST_POSTGRES_URL`（库名须以 `_test` 结尾）、可选 `FT_REQUIRE_TEST_POSTGRES=1`。
 
@@ -241,7 +268,7 @@ npm run start
 
 ```bash
 uv run pytest
-uv run alembic heads    # 期望 20260811_26
+uv run alembic heads    # 期望 20260813_27
 uv build
 git diff --check
 ```

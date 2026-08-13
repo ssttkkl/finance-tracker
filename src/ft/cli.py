@@ -361,7 +361,7 @@ def _main(argv=None):
         return
 
     if args.cmd == "web":
-        from ft.web.app import DEFAULT_WEB_ORIGIN, create_runtime_app, validate_local_origin
+        from ft.web.app import DEFAULT_WEB_ORIGIN, create_runtime_app, validate_web_origin
         from ft.adapters.relational.runtime import StorageError
         import os
         import uvicorn
@@ -369,14 +369,14 @@ def _main(argv=None):
         if not 1 <= args.port <= 65535:
             parser.error("--port 必须在 1 到 65535 之间")
         try:
-            origin = validate_local_origin(os.environ.get("FT_WEB_ORIGIN", DEFAULT_WEB_ORIGIN))
+            origin = validate_web_origin(os.environ.get("FT_WEB_ORIGIN", DEFAULT_WEB_ORIGIN))
             app = create_runtime_app()
         except (StorageError, ValueError) as exc:
             print(f"错误：{exc}", file=__import__("sys").stderr)
             raise SystemExit(1) from exc
-        print(f"本机账本 API 已准备就绪：http://127.0.0.1:{args.port}")
+        print(f"账本 API 已准备就绪：http://127.0.0.1:{args.port}")
         print(f"允许的前端来源：{origin}")
-        uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
+        uvicorn.run(app, host=os.environ.get("FT_WEB_BIND_HOST", "127.0.0.1"), port=args.port, log_level="warning")
         return
 
     if args.cmd == "projections":

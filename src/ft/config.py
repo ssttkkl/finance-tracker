@@ -40,7 +40,7 @@ class StorageSettings:
         return make_url(self.database_url).get_backend_name()
 
     @classmethod
-    def load(cls, *, environ=None) -> "StorageSettings":
+    def load(cls, *, environ=None, require_workspace: bool = True) -> "StorageSettings":
         environment = dict(os.environ if environ is None else environ)
         for legacy_key in ("FT_STORAGE_BACKEND", "FT_DIR"):
             if legacy_key in environment:
@@ -51,6 +51,8 @@ class StorageSettings:
         workspace_id = environment.get("FT_WORKSPACE_ID", "")
         if not database_url:
             raise StorageConfigurationError("FT_DATABASE_URL is required")
-        if not workspace_id:
+        if require_workspace and not workspace_id:
             raise StorageConfigurationError("FT_WORKSPACE_ID is required")
+        if not workspace_id:
+            workspace_id = "__web_session__"
         return cls(database_url=database_url, workspace_id=workspace_id)

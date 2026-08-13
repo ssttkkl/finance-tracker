@@ -36,6 +36,7 @@ def test_repository_has_clean_linear_revisions():
             "20260805_24_investment_event_fee_reversal_semantics.py",
             "20260807_25_cash_ledger_management.py",
             "20260811_26_cash_projection_lookup_indexes.py",
+            "20260813_27_user_workspace_access.py",
         ]
 
 
@@ -61,6 +62,10 @@ def test_initial_alembic_revision_upgrades_and_downgrades(tmp_path):
         "investment_events",
         "ledger_snapshots",
         "transaction_relations",
+        "users",
+        "workspace_memberships",
+        "user_sessions",
+        "workspace_invitations",
     } <= tables
     assert not {"import_batches", "raw_files", "raw_records", "record_revisions",
                 "fact_deletion_events", "relation_check_runs"} & tables

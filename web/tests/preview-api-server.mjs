@@ -50,6 +50,11 @@ const ledgerOptions = {
     { value: "refund_offset", label: "退款冲销" },
   ],
 };
+const previewSession = {
+  user: { email: "preview@example.com" },
+  active_workspace_id: "preview-workspace",
+  workspaces: [{ id: "preview-workspace", name: "预览工作区", role: "admin" }],
+};
 const records = new Map();
 const manualRecord = {
   id: "preview-manual-001", occurred_at: "2026-07-01T09:00:00+00:00", account_name: account.name,
@@ -86,6 +91,7 @@ function evidenceFor(projection) {
 
 const server = createServer(async (request, response) => {
   response.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+  response.setHeader("Access-Control-Allow-Credentials", "true");
   response.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type");
   response.setHeader("Content-Type", "application/json");
@@ -96,6 +102,10 @@ const server = createServer(async (request, response) => {
   }
   if (request.url === "/health") {
     response.end(JSON.stringify({ status: "ok" }));
+    return;
+  }
+  if (request.url === "/api/v1/auth/session") {
+    send(response, previewSession);
     return;
   }
   if (request.url?.startsWith("/api/v1/accounts")) {
