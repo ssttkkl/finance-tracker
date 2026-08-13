@@ -21,6 +21,7 @@ test("登录后的工作区使用统一侧栏路由打开分类与投资事件",
   await expect(page.getByRole("heading", { name: "分类管理", level: 1 })).toBeVisible();
 
   await page.getByRole("link", { name: "投资事件" }).click();
+  await expect(page).toHaveURL(/\/investment-events$/);
   await expect(page.getByRole("heading", { name: "投资事件", level: 1 })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "主要导航" })).toBeVisible();
 });
