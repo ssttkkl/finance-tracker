@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { CashLedgerPage } from "./pages/CashLedgerPage";
 import { CashCategoriesPage } from "./pages/CashCategoriesPage";
 import { CashImportPage } from "./pages/CashImportPage";
@@ -20,7 +20,7 @@ const InvestmentLedgerPage = lazy(async () => {
   return { default: module.InvestmentLedgerPage };
 });
 
-export function App() {
+export function App({ sidebarFooter }: { sidebarFooter?: ReactNode } = {}) {
   const [path, setPath] = useState(() => normalizeRoute(window.location.pathname, window.location.hash));
   const [modalOpen, setModalOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -64,6 +64,7 @@ export function App() {
           <div className="nav-group"><a className="nav-parent" aria-current={isCashLedger ? "page" : undefined} href="/" onClick={(event) => { event.preventDefault(); navigate("/"); }}>收支账本</a><div className="nav-subnav" aria-label="收支账本页面"><a className="subnav-link" aria-current={isCashCategory ? "page" : undefined} href="/cash-categories" onClick={(event) => { event.preventDefault(); navigate("/cash-categories"); }}>分类管理</a></div></div>
           <div className="nav-group"><a className="nav-parent" aria-current={isInvestmentHoldings ? "page" : undefined} href="/investment-holdings" onClick={(event) => { event.preventDefault(); navigate("/investment-holdings"); }}>投资账本</a><div className="nav-subnav" aria-label="投资账本页面"><a className="subnav-link" href="/investment-holdings" onClick={(event) => { event.preventDefault(); navigate("/investment-holdings"); }}>当前持仓</a><a className="subnav-link" aria-current={isInvestmentEvents ? "page" : undefined} href="/investment-events" onClick={(event) => { event.preventDefault(); navigate("/investment-events"); }}>投资事件</a></div></div>
         </nav>
+        {sidebarFooter}
       </aside>
       {isInvestment ? <Suspense fallback={<section className="ledger" aria-label="投资账本"><div className="status-view" role="status"><p>正在打开账本…</p></div></section>}><InvestmentLedgerPage view={isInvestmentEvents ? "events" : "holdings"} onModalStateChange={onModalStateChange} /></Suspense> : isCashCategory ? <CashCategoriesPage embedded /> : <CashLedgerPage embedded onOpenImport={() => navigate("/cash-import")} onModalStateChange={onModalStateChange} />}
     </main>

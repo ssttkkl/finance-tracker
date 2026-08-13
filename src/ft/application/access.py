@@ -129,6 +129,21 @@ class AccessService:
             workspace_id = self._active_membership(db, user.id, login, {"admin"}).workspace_id
             user_id = user.id
         finally: db.close()
+
+    def update_workspace(self, token: str | None, name: str) -> dict:
+        name = name.strip()
+        if not name or len(name) > 255:
+            raise AccessError("invalid_workspace")
+        db, user, login = self._session(token)
+        try:
+            workspace_id = self._active_membership(db, user.id, login, {"admin"}).workspace_id
+        finally: db.close()
+        with self._sessions.begin() as session:
+            workspace = session.get(WorkspaceModel, workspace_id)
+            if workspace is None:
+                raise PermissionDenied("workspace_forbidden")
+            workspace.name = name
+        return self.state(token)
         if role not in {"editor", "viewer"}: raise AccessError("invalid_role")
         raw = token_urlsafe(32)
         with self._sessions.begin() as session:
@@ -178,7 +193,7 @@ class AccessService:
     def members(self, token: str | None) -> dict:
         db, user, login = self._session(token)
         try:
-            workspace_id = self._active_membership(db, user.id, login, {"admin"}).workspace_id
+            workspace_id = self._active_membership(db, user.id, login, {"admin", "editor", "viewer"}).workspace_id
             workspace = db.get(WorkspaceModel, workspace_id)
             rows = db.execute(
                 select(WorkspaceMembershipModel, UserModel)

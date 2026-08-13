@@ -60,6 +60,16 @@ def access_router(access: AccessService, *, cookie_secure: bool):
     def members(request: Request):
         try: return access.members(request.cookies.get(SESSION_COOKIE))
         except AccessError as exc: return error(exc)
+    @router.get("/workspace")
+    def workspace_details(request: Request):
+        try: return access.members(request.cookies.get(SESSION_COOKIE))
+        except AccessError as exc: return error(exc)
+    @router.put("/workspace")
+    async def update_workspace(request: Request):
+        try:
+            data = await request.json()
+            return access.update_workspace(request.cookies.get(SESSION_COOKIE), str(data.get("name", "")))
+        except AccessError as exc: return error(exc)
     @router.put("/members/{user_id}")
     async def update_member(user_id: str, request: Request):
         try:
