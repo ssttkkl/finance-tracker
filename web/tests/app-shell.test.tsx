@@ -65,6 +65,35 @@ describe("统一账本外壳", () => {
     expect(within(navigation).getByRole("link", { name: "投资账本" })).toBeInTheDocument();
   });
 
+  it("从分类管理返回收支账本时切换 pathname 并只保留一个当前项", async () => {
+    render(<App />);
+
+    const navigation = screen.getByRole("navigation", { name: "主要导航" });
+    fireEvent.click(within(navigation).getByRole("link", { name: "分类管理" }));
+    await screen.findByRole("heading", { name: "分类管理", level: 1 });
+
+    fireEvent.click(within(navigation).getByRole("link", { name: "收支账本" }));
+    await screen.findByRole("heading", { name: "收支账本", level: 1 });
+    expect(window.location.pathname).toBe("/");
+    expect(within(navigation).getByRole("link", { name: "收支账本" })).toHaveAttribute("aria-current", "page");
+    expect(within(navigation).getAllByRole("link").filter((link) => link.hasAttribute("aria-current"))).toHaveLength(1);
+  });
+
+  it("从分类管理切换到投资事件时不残留收支分类当前态", async () => {
+    render(<App />);
+
+    const navigation = screen.getByRole("navigation", { name: "主要导航" });
+    fireEvent.click(within(navigation).getByRole("link", { name: "分类管理" }));
+    await screen.findByRole("heading", { name: "分类管理", level: 1 });
+
+    fireEvent.click(within(navigation).getByRole("link", { name: "投资事件" }));
+    await screen.findByRole("heading", { name: "投资事件", level: 1 });
+    expect(within(navigation).getByRole("link", { name: "投资事件" })).toHaveAttribute("aria-current", "page");
+    expect(within(navigation).getByRole("link", { name: "分类管理" })).not.toHaveAttribute("aria-current");
+    expect(within(navigation).getByRole("link", { name: "投资账本" })).not.toHaveAttribute("aria-current");
+    expect(within(navigation).getAllByRole("link").filter((link) => link.hasAttribute("aria-current"))).toHaveLength(1);
+  });
+
   it("打开详情抽屉时让统一外壳背景不可交互", async () => {
     render(<App />);
 

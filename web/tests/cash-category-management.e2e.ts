@@ -380,6 +380,54 @@ test("窄屏导航默认收起，并在打开后完整展示账本层级", async
   expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
+test("侧栏点击路由时只保留当前页面并打开对应账本", async ({ page }) => {
+  const state = fixture();
+  await installFixture(page, state);
+  await page.goto("/cash-categories");
+
+  const navigation = page.getByRole("navigation", { name: "主要导航" });
+  await navigation.getByRole("link", { name: "收支账本" }).click();
+  await expect(page.getByRole("heading", { name: "收支账本", level: 1 })).toBeVisible();
+  await expect(navigation.getByRole("link", { name: "收支账本" })).toHaveAttribute("aria-current", "page");
+  await expect(navigation.locator("[aria-current='page']")).toHaveCount(1);
+
+  await page.goto("/cash-categories");
+  await navigation.getByRole("link", { name: "投资事件" }).click();
+  await expect(page.getByRole("heading", { name: "投资事件", level: 1 })).toBeVisible();
+  await expect(navigation.getByRole("link", { name: "投资事件" })).toHaveAttribute("aria-current", "page");
+  await expect(navigation.getByRole("link", { name: "分类管理" })).not.toHaveAttribute("aria-current");
+  await expect(navigation.locator("[aria-current='page']")).toHaveCount(1);
+});
+
+test("暗色模式下侧栏导航文字保持可读", async ({ page }, testInfo) => {
+  const state = fixture();
+  await installFixture(page, state);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/cash-categories");
+
+  const colors = await page.locator(".sidebar a, .sidebar strong, .sidebar button").evaluateAll((elements) => elements.map((element) => {
+    const color = getComputedStyle(element).color;
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (!context) return color;
+    context.fillStyle = color;
+    return context.fillStyle;
+  }));
+  expect(colors).toHaveLength(7);
+  expect(colors.every((color) => {
+    const lightness = color.match(/oklch\((\d+(?:\.\d+)?)/)?.[1];
+    return lightness !== undefined && Number(lightness) > 0.6;
+  })).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("sidebar-dark-1440.png"), fullPage: false });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/cash-categories");
+  await page.getByRole("button", { name: "打开菜单" }).click();
+  await expect(page.getByRole("navigation", { name: "主要导航" })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("sidebar-dark-390.png"), fullPage: false });
+});
+
 test("批量操作栏在当前视口底部保持可见", async ({ page }, testInfo) => {
   const state = fixture();
   await installFixture(page, state);

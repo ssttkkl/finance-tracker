@@ -160,3 +160,12 @@
 - 最终验证：`uv run pytest -q`：1,388 passed、171 skipped，1 个既有 `httpx` / Starlette 弃用警告，325.01 s。`cd web && npm test -- --run`：87 passed；`npm run build`：通过；`npm run test:e2e -- --reporter=line`：23 passed；`npm run test:visual -- --reporter=line --update-snapshots` 后再运行 `npm run test:visual -- --reporter=line`：12 passed。视觉快照的已确认变化仅为移动端导航从默认展开改为默认收起；1440 px、390 px 默认态和 390 px 展开态截图均已直接复核，无横向溢出。
 - 本轮 PostgreSQL 使用临时 `finance-tracker-postgres-test` 容器，连接仅绑定 `127.0.0.1:55432`，数据库为 `finance_tracker_test`；验证完成后已停止容器，未接触其他 PostgreSQL 容器或真实账本。
 - 交付前复核：修复后 `npm run test:preview -- --reporter=line`：7 passed；完整 Web 回归、构建、E2E 与视觉快照结果见上。`openspec validate --all --strict`：21 passed；`openspec doctor`：通过；`git diff --check` 与 `git diff --cached --check`：通过。静态搜索新增和修改的生产 UI 文案未发现实现术语。下一步仅剩已获授权的 merge commit、推送和 PR #45 更新。
+
+### 侧栏暗色、选择态与收支账本路由修复（2026-08-13）
+
+- 根因：统一外壳分别依据 `pathname` 和 `hash` 计算导航当前态；分类页保留 `/cash-categories` 时切换投资 hash 会同时命中分类和投资项。收支账本链接只修改 hash，没有离开 `/cash-categories`，所以页面内容仍是分类管理。暗色主题把全局深色 `--color-accent-ink` 复用于侧栏文字，造成低对比度。
+- 失败先行：`web/tests/app-shell.test.tsx` 新增“分类页返回收支账本”和“分类页切投资事件只保留一个当前项”回归，首次运行 2 条失败；真实 Chromium 暗色测试首次读取到侧栏文字未满足可读阈值，修复后转绿。
+- 修复：导航当前态改为互斥的现金账本 / 分类管理 / 投资持仓 / 投资事件状态；收支账本使用 `navigate("/")` 切换 pathname；投资事件只标记自身，投资账本父项只在持仓视图当前；侧栏和当前项统一使用始终可读的 `--color-sidebar-link`。
+- 真实 Chromium QA：`cd web && npm run test:e2e -- --reporter=line`：25 passed。新增侧栏点击路由回归，覆盖从分类管理打开收支账本、投资事件及单一 `[aria-current]`；暗色模式覆盖 1440 px / 390 px 截图。
+- 暗色截图：`web/test-results/cash-category-management.e2e.ts-暗色模式下侧栏导航文字保持可读/sidebar-dark-1440.png`、`sidebar-dark-390.png`；已直接查看，桌面和移动端文字清晰、分类管理仍为收支账本子项、无横向溢出。
+- 其他验证：`cd web && npm test -- --run`：89 passed；`npm run build`：通过；`npm run test:visual -- --reporter=line`：12 passed；`npm run test:preview -- --reporter=line`：7 passed；`git diff --check`：通过。
