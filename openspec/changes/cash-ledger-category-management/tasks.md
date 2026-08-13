@@ -110,3 +110,12 @@
 - 视觉回归：`cd web && npm run test:visual -- --reporter=line`：12 passed；因选择列 / 分类列布局变化更新 13 张既有账本快照后重新验证，无未解释差异。
 - 最终 Web 回归：`cd web && npm test -- --run`：53 passed；`npm run test:e2e -- --reporter=line`：16 passed；`npm run build`：通过；`openspec validate --all --strict`：20 passed；`openspec doctor`：通过；`git diff --check`：通过。
 - 最终 Hallmark 等价 audit：环境无 `hallmark` CLI，按 `$hallmark audit` 门禁人工复核生产分类页、账本表格、批量操作栏、分类选择器、错误 / 删除确认、键盘焦点与 320 / 375 / 390 / 414 / 768 / 1440 px；0 个 critical、0 个 major、0 个未解决 minor。未新增常驻帮助文案，一级分类入口仍为列表最后一行。
+
+### 批量操作栏视觉修复证据（2026-08-13）
+
+- 根因：批量栏 JSX 虽在 `selectedIds.size > 0` 时渲染，但没有 `.batch-toolbar` 样式，实际为普通文档流中的 `position: static` 元素，长列表时落在当前视口之外。
+- 失败先行：新增真实 Chromium 断言后首次运行按预期失败，读取到 `position: static`；随后只补充固定底栏样式和窄屏布局。
+- 修复：批量栏固定在视口底部；桌面端避开 224 px 侧栏，移动端左右留 16 px；账本在批量栏出现时增加底部滚动安全空间。
+- 视觉 QA 截图：`web/test-results/cash-category-management.e2e.ts-批量操作栏在当前视口底部保持可见/batch-toolbar-1440.png` 与 `web/test-results/cash-category-management.e2e.ts-390-px-窄屏批量操作栏保持按钮可达/batch-toolbar-390.png`。人工复核确认桌面按钮完整可见、移动端无横向溢出且操作按钮位于当前视口内。
+- 回归：`cd web && npm run test:e2e -- --reporter=line tests/cash-category-management.e2e.ts`：7 passed；`npm run build`：通过；`git diff --check`：通过。
+- 完整回归补充：`cd web && npm test -- --run`：53 passed；`npm run test:e2e -- --reporter=line`：18 passed；`npm run test:visual -- --reporter=line`：12 passed；`npm run test:preview -- --reporter=line tests/runtime-preview.e2e.ts`：4 passed。首次完整 E2E 的 1 条失败是新增测试定位器同时匹配详情关闭按钮和遮罩按钮，收紧为对话框内精确按钮后转绿；不是产品回归。

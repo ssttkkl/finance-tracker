@@ -280,7 +280,7 @@ test("账本在真实浏览器中按分类筛选、编辑详情分类，并以�
   await editor.getByRole("button", { name: "保存" }).click();
   await expect(page.getByRole("dialog", { name: "收支详情" })).toContainText("餐饮 / 工作餐");
   expect(state.recordBodies).toEqual([expect.objectContaining({ category_id: "lunch", projection_version: 7 })]);
-  await page.getByRole("button", { name: "关闭收支详情" }).click();
+  await page.getByRole("dialog", { name: "收支详情" }).getByRole("button", { name: "关闭收支详情", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "收支详情" })).toHaveCount(0);
 
   const coffee = page.getByLabel("选择咖啡店");
@@ -289,6 +289,11 @@ test("账本在真实浏览器中按分类筛选、编辑详情分类，并以�
   await page.getByLabel("选择午餐").check();
   const toolbar = page.getByRole("toolbar", { name: "批量操作" });
   await expect(toolbar).toContainText("已选 2 项");
+  await expect(toolbar).toBeVisible();
+  await expect.poll(async () => toolbar.evaluate((element) => getComputedStyle(element).position)).toBe("fixed");
+  const toolbarBox = await toolbar.boundingBox();
+  expect(toolbarBox).not.toBeNull();
+  expect(toolbarBox!.y + toolbarBox!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
   await toolbar.getByRole("button", { name: "修改分类" }).click();
   const batch = page.getByRole("dialog", { name: "修改分类" });
   await batch.getByLabel("分类", { exact: true }).selectOption("transit");
@@ -327,4 +332,42 @@ test("窄屏分类管理保持列表末尾入口和无横向滚动", async ({ pa
   await tree.getByRole("treeitem").filter({ hasText: /^餐饮/ }).click();
   await expect(page.getByRole("region", { name: "分类编辑" })).toBeVisible();
   expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test("批量操作栏在当前视口底部保持可见", async ({ page }, testInfo) => {
+  const state = fixture();
+  await installFixture(page, state);
+  await page.goto("/");
+  await page.getByLabel("选择咖啡店").check();
+  await page.getByLabel("选择午餐").check();
+
+  const toolbar = page.getByRole("toolbar", { name: "批量操作" });
+  await expect(toolbar).toBeVisible();
+  const box = await toolbar.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y + box!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+  expect(await toolbar.evaluate((element) => getComputedStyle(element).position)).toBe("fixed");
+  await expect(toolbar.getByRole("button", { name: "修改分类" })).toBeInViewport();
+  await expect(toolbar.getByRole("button", { name: "取消选择" })).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath(`batch-toolbar-${page.viewportSize()!.width}.png`), fullPage: false });
+});
+
+test("390 px 窄屏批量操作栏保持按钮可达", async ({ page }, testInfo) => {
+  const state = fixture();
+  await installFixture(page, state);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByLabel("选择咖啡店").check();
+  await page.getByLabel("选择午餐").check();
+
+  const toolbar = page.getByRole("toolbar", { name: "批量操作" });
+  await expect(toolbar).toBeVisible();
+  const box = await toolbar.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y + box!.height).toBeLessThanOrEqual(844);
+  expect(await toolbar.evaluate((element) => getComputedStyle(element).position)).toBe("fixed");
+  await expect(toolbar.getByRole("button", { name: "修改分类" })).toBeInViewport();
+  await expect(toolbar.getByRole("button", { name: "取消选择" })).toBeInViewport();
+  expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath(`batch-toolbar-${page.viewportSize()!.width}.png`), fullPage: false });
 });
