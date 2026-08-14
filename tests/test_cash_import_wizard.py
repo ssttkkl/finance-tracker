@@ -261,6 +261,166 @@ def test_cash_import_preview_exposes_domain_relation_suggestions_without_writing
     assert preview["relations"][0]["secondary"]["preview"] is False
 
 
+def test_wechat_preview_and_commit_use_hard_refund_plan_before_same_amount_candidates(tmp_path):
+    from ft.adapters.relational.models import TransactionRelationModel
+    from ft.application.relations import RelationService
+
+    source = tmp_path / "wechat.xlsx"
+    source.write_bytes(b"wechat fixture")
+    rows = [
+        _row(
+            record_id="wechat-origin",
+            account_name="支付宝余额",
+            bill_source="wechat",
+            source_type="wechat",
+            amount="-9.90",
+            counterparty="瑞幸",
+            occurred_at="2023-10-09T13:51:23+08:00",
+            source_payload={
+                "merchant_order_id": "M-100", "txn_id": "T-100",
+                "status": "支付成功", "txn_type": "消费",
+            },
+        ),
+        _row(
+            record_id="wechat-refund",
+            account_name="支付宝余额",
+            bill_source="wechat",
+            source_type="wechat",
+            amount="9.90",
+            counterparty="瑞幸",
+            record_type="refund",
+            occurred_at="2023-10-09T13:51:43+08:00",
+            source_payload={
+                "merchant_order_id": "M-100", "txn_id": "M-100",
+                "status": "退款成功", "txn_type": "商户退款",
+            },
+        ),
+        _row(
+            record_id="naixue",
+            account_name="支付宝余额",
+            bill_source="wechat",
+            source_type="wechat",
+            amount="-9.90",
+            counterparty="奈雪",
+            occurred_at="2023-10-08T18:40:36+08:00",
+        ),
+        _row(
+            record_id="duodianbao",
+            account_name="支付宝余额",
+            bill_source="wechat",
+            source_type="wechat",
+            amount="-9.90",
+            counterparty="多店宝网络",
+            occurred_at="2023-10-09T20:15:11+08:00",
+        ),
+    ]
+    sessions, service = _service(tmp_path, {"wechat": rows})
+    service._relation_service = RelationService(service._uow)
+
+    preview = service.preview_import(
+        source.read_bytes(), source="", currency=None, filename=source.name,
+    )
+
+    assert preview["relation_digest"]
+    refund_preview = [item for item in preview["relations"] if item["kind"] == "refund_offset"]
+    assert len(refund_preview) == 1
+    assert refund_preview[0]["primary"]["counterparty"] == "瑞幸"
+    assert refund_preview[0]["secondary"]["counterparty"] == "瑞幸"
+
+    result = service.commit_import(
+        source.read_bytes(), source="", currency=None, filename=source.name,
+        preview_digest=preview["file"]["digest"],
+        preview_relation_digest=preview["relation_digest"],
+        preview_channel=preview["channel"],
+    )
+
+    assert result["new_rows"] == 4
+    with sessions() as session:
+        relations = session.query(TransactionRelationModel).filter(
+            TransactionRelationModel.workspace_id == "wizard-workspace",
+            TransactionRelationModel.kind == "refund_offset",
+        ).all()
+        assert len(relations) == 1
+        assert relations[0].rule_id.startswith("scan.wechat")
+
+
+def test_cash_import_rejected_planned_relation_is_auditable(tmp_path):
+    from ft.adapters.relational.models import TransactionRelationModel
+    from ft.application.relations import RelationService
+
+    source = tmp_path / "alipay.xlsx"
+    source.write_bytes(b"alipay fixture")
+    rows = [
+        _row(record_id="expense-1", amount="-10.00", counterparty="咖啡店"),
+        _row(
+            record_id="refund-1", amount="5.00", counterparty="咖啡店",
+            record_type="refund", category="退款",
+        ),
+    ]
+    sessions, service = _service(tmp_path, {"alipay": rows})
+    service._relation_service = RelationService(service._uow)
+
+    preview = service.preview_import(
+        source.read_bytes(), source="", currency=None, filename=source.name,
+    )
+    assert len(preview["relations"]) == 1
+    relation = preview["relations"][0]
+
+    result = service.commit_import(
+        source.read_bytes(), source="", currency=None, filename=source.name,
+        preview_digest=preview["file"]["digest"],
+        preview_relation_digest=preview["relation_digest"],
+        preview_channel=preview["channel"],
+        relation_decisions=[{
+            "proposal_key": relation["id"],
+            "kind": relation["kind"],
+            "primary_record_id": relation["primary"]["record_id"],
+            "status": "rejected",
+        }],
+    )
+
+    assert result["new_rows"] == 2
+    with sessions() as session:
+        persisted = session.query(TransactionRelationModel).filter(
+            TransactionRelationModel.workspace_id == "wizard-workspace",
+        ).one()
+        assert persisted.status == "rejected"
+        assert persisted.decided_by == "web"
+        assert persisted.decision_reason == "import_rejected"
+
+
+def test_cash_import_relation_plan_stale_rolls_back_new_cash_rows(tmp_path):
+    from ft.adapters.relational.models import CashTransactionModel
+    from ft.application.relations import RelationService
+
+    source = tmp_path / "alipay.xlsx"
+    source.write_bytes(b"alipay fixture")
+    rows = [
+        _row(record_id="expense-1", amount="-10.00", counterparty="咖啡店"),
+        _row(
+            record_id="refund-1", amount="5.00", counterparty="咖啡店",
+            record_type="refund", category="退款",
+        ),
+    ]
+    sessions, service = _service(tmp_path, {"alipay": rows})
+    service._relation_service = RelationService(service._uow)
+    preview = service.preview_import(
+        source.read_bytes(), source="", currency=None, filename=source.name,
+    )
+
+    rows[0]["amount"] = "-11.00"
+    with pytest.raises(ValueError, match="import_relation_preview_stale"):
+        service.commit_import(
+            source.read_bytes(), source="", currency=None, filename=source.name,
+            preview_digest=preview["file"]["digest"],
+            preview_relation_digest=preview["relation_digest"],
+            preview_channel=preview["channel"],
+        )
+
+    with sessions() as session:
+        assert session.query(CashTransactionModel).count() == 0
+
+
 def test_cash_import_confirm_persists_selected_relation_in_same_transaction(tmp_path):
     from ft.adapters.relational.models import TransactionRelationModel
 

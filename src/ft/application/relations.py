@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
+import hashlib
+import json
 from typing import Any, Sequence
 
 from ft.domain.application import OperationResult
@@ -18,6 +21,7 @@ from ft.domain.relations import (
     RelationCheckTrigger,
     RelationEdge,
     RelationKind,
+    RelationProposal,
     RelationStatus,
     SUBTYPE_NONE,
     is_fx_in_record,
@@ -68,9 +72,571 @@ def _fact_view_from_row(row: dict) -> FactView:
     )
 
 
+@dataclass(frozen=True)
+class RelationPlan:
+    """Read-only relation result shared by CLI import and Web preview."""
+
+    facts: tuple[FactView, ...]
+    proposals: tuple[RelationProposal, ...]
+    context_digest: str
+
+
+def _stable_fact_ref(fact_id: str | None, facts_by_id: dict[str, FactView] | None = None) -> str:
+    key = str(fact_id or "")
+    fact = (facts_by_id or {}).get(key)
+    if fact is not None and fact.record_id:
+        return f"{fact.bill_source or fact.source}:{fact.record_id}"
+    if key.startswith("preview:"):
+        return key.removeprefix("preview:")
+    return key
+
+
+def _canonical_occurred_at(value: datetime | str) -> str:
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        text = str(value or "")
+        try:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return text
+    if parsed.tzinfo is None:
+        return parsed.isoformat()
+    return parsed.astimezone(timezone.utc).isoformat()
+
+
+def relation_proposal_key(
+    proposal: RelationProposal,
+    facts: Sequence[FactView] | None = None,
+) -> str:
+    """Return a stable, non-sensitive key for a relation decision."""
+    facts_by_id = {str(fact.id): fact for fact in (facts or ())}
+    payload = {
+        "kind": proposal.kind,
+        "subtype": proposal.subtype or "",
+        "primary": _stable_fact_ref(proposal.primary_fact_id, facts_by_id),
+        "secondary": _stable_fact_ref(proposal.secondary_fact_id, facts_by_id),
+        "anchor": _stable_fact_ref(proposal.anchor_fact_id, facts_by_id),
+        "rule_id": proposal.rule_id or "",
+        "candidates": sorted(
+            _stable_fact_ref(item, facts_by_id)
+            for item in proposal.evidence.candidate_fact_ids
+        ),
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return f"proposal:{hashlib.sha256(encoded.encode('utf-8')).hexdigest()[:32]}"
+
+
+def _fact_detail_row(fact: FactView) -> dict:
+    return {
+        "id": fact.id,
+        "record_id": fact.record_id,
+        "amount": fact.amount,
+        "currency": fact.currency,
+        "occurred_at": fact.occurred_at,
+        "counterparty": fact.counterparty,
+        "counterparty_account": fact.counterparty_account,
+        "counterparty_account_attrs": fact.counterparty_account_attrs,
+        "payment_method": fact.payment_method,
+        "note": fact.note,
+        "record_type": fact.record_type,
+        "record_subtype": fact.record_subtype,
+        "account_id": fact.account_id,
+        "account_name": fact.account_name,
+        "account_type": fact.account_type,
+        "bill_source": fact.bill_source,
+        "source_type": fact.bill_source,
+        "source": fact.source,
+        "fact_type": fact.fact_type,
+        "raw_payload": fact.raw_payload,
+    }
+
+
+def _relation_context_digest(
+    facts: Sequence[FactView],
+    relations: Sequence[dict],
+    proposals: Sequence[RelationProposal],
+) -> str:
+    facts_by_id = {str(fact.id): fact for fact in facts}
+    payload = {
+        "facts": [
+            {
+                "id": _stable_fact_ref(str(fact.id), facts_by_id),
+                "amount": format(fact.signed_amount, "f"),
+                "currency": str(fact.currency or "").upper(),
+                "account_id": str(fact.account_id or ""),
+                "occurred_at": _canonical_occurred_at(fact.occurred_at),
+                "record_type": fact.record_type,
+                "record_subtype": fact.record_subtype,
+                "source": fact.bill_source or fact.source,
+                "record_id": fact.record_id,
+                "payload": fact.raw_payload or {},
+            }
+            for fact in sorted(
+                facts,
+                key=lambda item: _stable_fact_ref(str(item.id), facts_by_id),
+            )
+        ],
+        "relations": [
+            {
+                "kind": str(item.get("kind") or ""),
+                "subtype": str(item.get("subtype") or ""),
+                "primary": _stable_fact_ref(str(item.get("primary_fact_id") or ""), facts_by_id),
+                "secondary": _stable_fact_ref(str(item.get("secondary_fact_id") or ""), facts_by_id),
+                "status": str(item.get("status") or ""),
+                "rule_id": str(item.get("rule_id") or ""),
+                "decided": bool(item.get("decided_by")),
+            }
+            for item in sorted(
+                relations,
+                key=lambda value: (
+                    str(value.get("kind") or ""),
+                    _stable_fact_ref(str(value.get("primary_fact_id") or ""), facts_by_id),
+                    _stable_fact_ref(str(value.get("secondary_fact_id") or ""), facts_by_id),
+                ),
+            )
+        ],
+        "proposals": [
+            {
+                "key": relation_proposal_key(item, facts),
+                "status": item.status,
+                "confidence": item.confidence,
+                "open_leg": item.open_leg,
+                "signals": list(item.evidence.signals),
+                "evidence": item.evidence.extras or {},
+            }
+            for item in proposals
+        ],
+        "rule_version": "relation-plan.v1",
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _enrich_platform_refund_rows(rows: Sequence[dict]) -> list[dict]:
+    """Expose structured source metadata to Phase A for persisted and preview rows."""
+    enriched: list[dict] = []
+    for source_row in rows:
+        row = dict(source_row)
+        payload = row.get("raw_payload") if isinstance(row.get("raw_payload"), dict) else {}
+        if not payload and isinstance(row.get("source_payload"), dict):
+            payload = dict(row["source_payload"])
+            row["raw_payload"] = payload
+        if payload:
+            row.setdefault("platform_status", payload.get("status") or payload.get("platform_status") or "")
+            row.setdefault("status", payload.get("status") or row.get("platform_status") or "")
+            if payload.get("txn_id"):
+                row["txn_id"] = payload.get("txn_id")
+            if payload.get("merchant_order_id"):
+                row["merchant_order_id"] = payload.get("merchant_order_id")
+            if payload.get("txn_type") or payload.get("type"):
+                row["txn_type"] = payload.get("txn_type") or payload.get("type")
+        if not row.get("txn_id") and row.get("record_id"):
+            row["txn_id"] = row.get("record_id")
+        enriched.append(row)
+    return enriched
+
+
+def _initial_remaining(
+    facts: Sequence[FactView],
+    relations: Sequence[dict],
+) -> dict[str, Decimal]:
+    remaining = {
+        str(fact.id): abs(fact.signed_amount)
+        for fact in facts
+        if fact.signed_amount < 0
+    }
+    by_id = {str(fact.id): fact for fact in facts}
+    for relation in relations:
+        if relation.get("kind") != RelationKind.REFUND_OFFSET.value:
+            continue
+        if relation.get("status") != RelationStatus.ACCEPTED.value:
+            continue
+        primary = str(relation.get("primary_fact_id") or "")
+        secondary = str(relation.get("secondary_fact_id") or "")
+        refund = by_id.get(secondary)
+        if primary in remaining and refund is not None:
+            remaining[primary] -= abs(refund.signed_amount)
+    return remaining
+
+
+def _append_relation_edge(context: MatchContext, relation: dict) -> None:
+    primary = relation.get("primary_fact_id")
+    secondary = relation.get("secondary_fact_id")
+    if not primary or not secondary:
+        return
+    kind = str(relation.get("kind") or "")
+    edge = RelationEdge(
+        fact_a_id=str(primary),
+        fact_b_id=str(secondary),
+        kind=kind,
+        subtype=str(relation.get("subtype") or ""),
+    )
+    if kind == RelationKind.PAYMENT_MIRROR.value:
+        context.accepted_mirrors.append(edge)
+    elif kind == RelationKind.REFUND_OFFSET.value:
+        context.accepted_platform_refunds.append(edge)
+
+
+def _refund_blocked_ids(
+    facts: Sequence[FactView],
+    relations: Sequence[dict],
+    remaining: dict[str, Decimal],
+) -> set[str]:
+    by_id = {str(fact.id): fact for fact in facts}
+    blocked: set[str] = set()
+    for relation in relations:
+        if relation.get("status") == RelationStatus.SUPERSEDED.value:
+            continue
+        primary = str(relation.get("primary_fact_id") or "")
+        secondary = str(relation.get("secondary_fact_id") or "")
+        refreshable_open_leg = (
+            relation.get("status") == RelationStatus.PENDING_REVIEW.value
+            and is_open_leg_relation(relation)
+            and relation.get("created_by") == "system"
+            and not relation.get("decided_by")
+            and not relation.get("candidate_fact_ids")
+        )
+        keep_expense_candidate = (
+            relation.get("status") == RelationStatus.ACCEPTED.value
+            and secondary
+            and primary in remaining
+            and remaining[primary] > 0
+            and primary in by_id
+            and by_id[primary].signed_amount < 0
+        )
+        if primary and not keep_expense_candidate and not refreshable_open_leg:
+            blocked.add(primary)
+        if secondary:
+            blocked.add(secondary)
+        anchor = str(relation.get("anchor_fact_id") or "")
+        if anchor and not refreshable_open_leg:
+            blocked.add(anchor)
+    return blocked
+
+
+def plan_relation_proposals(
+    facts: Sequence[FactView],
+    *,
+    detailed_rows: Sequence[dict] | None = None,
+    seed_ids: Sequence[str] | None = None,
+    accepted_relations: Sequence[dict] = (),
+    aliases_by_tail: dict[str, list[str]] | None = None,
+    account_identifiers_by_value: dict[str, list[str]] | None = None,
+    remaining_by_expense: dict[str, Decimal] | None = None,
+    workspace_id: str = "",
+) -> RelationPlan:
+    """Build the complete Phase A → B-D plan without persistence side effects."""
+    normalized_facts = tuple(
+        replace(fact, id=str(fact.id)) if not isinstance(fact.id, str) else fact
+        for fact in facts
+        if not fact.deleted
+    )
+    fact_by_id = {fact.id: fact for fact in normalized_facts}
+    rows = _enrich_platform_refund_rows(
+        detailed_rows or [_fact_detail_row(fact) for fact in normalized_facts]
+    )
+    active_relations = [dict(item) for item in accepted_relations]
+    linked_pairs = {
+        (str(item.get("primary_fact_id")), str(item.get("secondary_fact_id")))
+        for item in active_relations
+        if item.get("kind") == RelationKind.REFUND_OFFSET.value
+        and item.get("status") != RelationStatus.SUPERSEDED.value
+        and item.get("primary_fact_id") not in (None, "")
+        and item.get("secondary_fact_id") not in (None, "")
+    }
+    phase_a = tuple(
+        match_phase_a_platform_refunds(
+            rows,
+            facts_by_id=fact_by_id,
+            linked_pairs=linked_pairs,
+        )
+    )
+    remaining = dict(
+        remaining_by_expense
+        if remaining_by_expense is not None
+        else _initial_remaining(normalized_facts, active_relations)
+    )
+    for proposal in phase_a:
+        if proposal.status != RelationStatus.ACCEPTED.value or proposal.kind != RelationKind.REFUND_OFFSET.value:
+            continue
+        expense_id = proposal.primary_fact_id
+        expense = fact_by_id.get(str(expense_id))
+        refund = fact_by_id.get(str(proposal.secondary_fact_id or ""))
+        if expense is not None and refund is not None and expense.signed_amount < 0:
+            remaining[expense.id] = remaining.get(expense.id, abs(expense.signed_amount)) - abs(refund.signed_amount)
+
+    context = MatchContext(workspace_id=workspace_id)
+    context.remaining_by_expense = dict(remaining)
+    for relation in active_relations:
+        if relation.get("status") == RelationStatus.ACCEPTED.value:
+            _append_relation_edge(context, relation)
+    for proposal in phase_a:
+        if proposal.status == RelationStatus.ACCEPTED.value and proposal.secondary_fact_id:
+            _append_relation_edge(
+                context,
+                {
+                    "kind": proposal.kind,
+                    "subtype": proposal.subtype,
+                    "primary_fact_id": proposal.primary_fact_id,
+                    "secondary_fact_id": proposal.secondary_fact_id,
+                },
+            )
+
+    refund_blocked = _refund_blocked_ids(normalized_facts, active_relations, remaining)
+    phase_a_relations = [
+        {
+            "kind": proposal.kind,
+            "status": proposal.status,
+            "primary_fact_id": proposal.primary_fact_id,
+            "secondary_fact_id": proposal.secondary_fact_id,
+            "anchor_fact_id": proposal.anchor_fact_id,
+            "created_by": proposal.created_by,
+        }
+        for proposal in phase_a
+    ]
+    refund_blocked |= _refund_blocked_ids(normalized_facts, phase_a_relations, remaining)
+    transfer_blocked = {
+        str(fact_id)
+        for relation in active_relations
+        if relation.get("kind") == RelationKind.TRANSFER_PAIR.value
+        and relation.get("status") == RelationStatus.ACCEPTED.value
+        for fact_id in (relation.get("primary_fact_id"), relation.get("secondary_fact_id"))
+        if fact_id not in (None, "")
+    }
+    index = FactCandidateIndex(
+        normalized_facts,
+        source_group=source_group,
+        refund_gates=DefaultRefundTextGates(),
+    )
+    seeds = [str(item) for item in seed_ids] if seed_ids is not None else [fact.id for fact in normalized_facts]
+    proposals = tuple(
+        run_relation_phases(
+            normalized_facts,
+            ctx=context,
+            seed_ids=seeds,
+            index=index,
+            aliases_by_tail=aliases_by_tail,
+            account_identifiers_by_value=account_identifiers_by_value,
+            transfer_blocked_ids=transfer_blocked,
+            refund_blocked_ids=refund_blocked,
+            merchant_refund_seed_ids=seeds,
+        )
+    )
+    all_proposals = phase_a + proposals
+    return RelationPlan(
+        facts=normalized_facts,
+        proposals=all_proposals,
+        context_digest=_relation_context_digest(normalized_facts, active_relations, all_proposals),
+    )
+
+
 class RelationService:
     def __init__(self, unit_of_work):
         self._uow = unit_of_work
+
+    def plan_in_uow(
+        self,
+        uow,
+        *,
+        preview_rows: Sequence[dict] = (),
+        seed_ids: Sequence[str] | None = None,
+    ) -> RelationPlan:
+        """Build the complete relation plan against an open application UoW."""
+        existing_rows = [
+            dict(row)
+            for row in uow.cashflows.list_detailed(include_deleted=False)
+        ] if hasattr(uow.cashflows, "list_detailed") else []
+        existing_facts = self._list_active_cash_facts(uow)
+        virtual_facts: list[FactView] = []
+        virtual_rows: list[dict] = []
+        for row in preview_rows:
+            item = dict(row)
+            if not item.get("id"):
+                item["id"] = f"preview:{item.get('record_id') or len(virtual_rows)}"
+            item.setdefault("source_type", item.get("bill_source") or "")
+            item.setdefault("bill_source", item.get("source_type") or "")
+            virtual_rows.append(item)
+            virtual_facts.append(_fact_view_from_row(item))
+        facts = [*existing_facts, *virtual_facts]
+        relations = [dict(item) for item in uow.relations.list_active()]
+        aliases_by_tail, account_identifiers_by_value = self._alias_indexes(uow)
+        return plan_relation_proposals(
+            facts,
+            detailed_rows=[*existing_rows, *virtual_rows],
+            seed_ids=seed_ids,
+            accepted_relations=relations,
+            aliases_by_tail=aliases_by_tail,
+            account_identifiers_by_value=account_identifiers_by_value,
+            workspace_id=str(getattr(uow, "workspace_id", "") or ""),
+        )
+
+    @staticmethod
+    def _decision_matches(
+        proposal: RelationProposal,
+        decision: dict,
+        facts: Sequence[FactView],
+    ) -> bool:
+        proposal_key = str(decision.get("proposal_key") or "")
+        if proposal_key:
+            return proposal_key == relation_proposal_key(proposal, facts)
+        by_id = {str(fact.id): fact for fact in facts}
+
+        def ref(value) -> str:
+            text = str(value or "")
+            if text in by_id:
+                return _stable_fact_ref(text, by_id)
+            for fact in facts:
+                if str(fact.record_id or "") == text:
+                    return _stable_fact_ref(str(fact.id), by_id)
+            return text.removeprefix("preview:")
+
+        primary = decision.get("primary_fact_id") or decision.get("primary_record_id")
+        if not primary:
+            return False
+        if ref(primary) != _stable_fact_ref(str(proposal.primary_fact_id), by_id):
+            return False
+        secondary = decision.get("secondary_fact_id") or decision.get("secondary_record_id")
+        if not secondary:
+            return True
+        return ref(secondary) in {
+            _stable_fact_ref(str(proposal.secondary_fact_id or ""), by_id),
+            *{
+                _stable_fact_ref(str(item), by_id)
+                for item in proposal.evidence.candidate_fact_ids
+            },
+        }
+
+    @staticmethod
+    def _decision_primary_matches(
+        proposal: RelationProposal,
+        decision: dict,
+        facts: Sequence[FactView],
+    ) -> bool:
+        proposal_key = str(decision.get("proposal_key") or "")
+        if proposal_key:
+            return proposal_key == relation_proposal_key(proposal, facts)
+        primary = decision.get("primary_fact_id") or decision.get("primary_record_id")
+        if not primary:
+            return False
+        by_id = {str(fact.id): fact for fact in facts}
+        text = str(primary)
+        if text in by_id:
+            resolved = text
+        else:
+            resolved = next(
+                (str(fact.id) for fact in facts if str(fact.record_id or "") == text),
+                text.removeprefix("preview:"),
+            )
+        return _stable_fact_ref(resolved, by_id) == _stable_fact_ref(
+            str(proposal.primary_fact_id), by_id,
+        )
+
+    def _persist_rejected_proposal(self, uow, proposal: RelationProposal) -> dict:
+        subtype = proposal.subtype or SUBTYPE_NONE
+        existing = uow.relations.find_by_business_key(
+            kind=proposal.kind,
+            fact_a=proposal.primary_fact_id,
+            fact_b=proposal.secondary_fact_id,
+            subtype=subtype,
+        )
+        if existing is not None:
+            if existing.get("status") == RelationStatus.ACCEPTED.value:
+                return existing
+            if existing.get("decided_by"):
+                return existing
+            return uow.relations.update_status(
+                existing["id"],
+                status=RelationStatus.REJECTED.value,
+                decided_by="web",
+                decision_reason="import_rejected",
+            )
+        return uow.relations.get(
+            uow.relations.add({
+                "kind": proposal.kind,
+                "subtype": subtype,
+                "primary_fact_id": proposal.primary_fact_id,
+                "secondary_fact_id": proposal.secondary_fact_id,
+                "primary_fact_type": proposal.primary_fact_type,
+                "secondary_fact_type": proposal.secondary_fact_type,
+                "anchor_fact_id": proposal.anchor_fact_id or proposal.primary_fact_id,
+                "status": RelationStatus.REJECTED.value,
+                "rule_id": proposal.rule_id,
+                "candidate_fact_ids": list(proposal.evidence.candidate_fact_ids),
+                "created_by": "web",
+                "decided_by": "web",
+                "decision_reason": "import_rejected",
+            })
+        )
+
+    def apply_import_plan_in_uow(
+        self,
+        uow,
+        *,
+        seed_ids: Sequence[str],
+        relation_decisions: Sequence[dict] | None = None,
+        expected_digest: str | None = None,
+    ) -> tuple[list[dict], set[int]]:
+        """Apply the shared plan inside an already-open import transaction."""
+        plan = self.plan_in_uow(uow, seed_ids=[str(item) for item in seed_ids])
+        if expected_digest and expected_digest != plan.context_digest:
+            raise ValueError("import_relation_preview_stale")
+        decisions = [item for item in (relation_decisions or ()) if isinstance(item, dict)]
+        created: list[dict] = []
+        affected: set[int] = set()
+        remaining = self._refund_remaining(uow, list(plan.facts))
+        accepted_relations = [
+            dict(item)
+            for item in uow.relations.list_active()
+            if item.get("status") == RelationStatus.ACCEPTED.value
+        ]
+        for proposal in plan.proposals:
+            matched = next(
+                (
+                    decision for decision in decisions
+                    if self._decision_primary_matches(
+                        decision=decision, proposal=proposal, facts=plan.facts,
+                    )
+                ),
+                None,
+            )
+            if matched is not None:
+                status = str(matched.get("status") or "accepted")
+                if status == "accepted" and not self._decision_matches(
+                    decision=matched, proposal=proposal, facts=plan.facts,
+                ):
+                    raise ValueError("import_relation_candidate_invalid")
+                if status == "rejected":
+                    outcome = self._persist_rejected_proposal(uow, proposal)
+                    created.append(outcome)
+                    continue
+                if status in {"accepted", "skipped", "ignored"}:
+                    # Explicit accepted decisions are applied by the import service
+                    # after automatic proposals are filtered; skipped proposals stay
+                    # available for the normal pending-review persistence below.
+                    if status == "accepted":
+                        continue
+            outcome = self._persist_proposal(
+                uow,
+                proposal,
+                remaining,
+                accepted_relations=accepted_relations,
+            )
+            if outcome is None:
+                continue
+            created.append(outcome)
+            if outcome.get("status") == RelationStatus.ACCEPTED.value:
+                accepted_relations.append(outcome)
+                for fact_id in (outcome.get("primary_fact_id"), outcome.get("secondary_fact_id")):
+                    if fact_id not in (None, ""):
+                        affected.add(int(fact_id))
+                if outcome.get("kind") == RelationKind.REFUND_OFFSET.value:
+                    expense_id = str(outcome.get("primary_fact_id") or "")
+                    refund_id = str(outcome.get("secondary_fact_id") or "")
+                    refund_fact = next((fact for fact in plan.facts if str(fact.id) == refund_id), None)
+                    if expense_id and refund_fact is not None:
+                        remaining[expense_id] = remaining.get(expense_id, Decimal("0")) - abs(refund_fact.signed_amount)
+        return created, affected
 
     def check(
         self,
@@ -87,121 +653,24 @@ class RelationService:
                 seeds = self._resolve_seeds(uow, seed_fact_ids=seed_fact_ids, seed_batch_id=seed_batch_id)
                 active_facts = self._list_active_cash_facts(uow)
                 fact_by_id = {f.id: f for f in active_facts}
-                seed_views = [fact_by_id[sid] for sid in seeds if sid in fact_by_id]
-                aliases_by_tail, account_identifiers_by_value = self._alias_indexes(uow)
                 remaining = self._refund_remaining(uow, active_facts)
                 created = []
                 stats = {
                     "pending": 0, "accepted": 0, "skipped": 0, "supersessions": 0,
                     "phase_a_platform_refunds": 0,
                 }
-                # Indexed candidates: amount/currency/day buckets (FR-025, ≤60s full check).
-                index = FactCandidateIndex(
-                    active_facts,
-                    source_group=source_group,
-                    refund_gates=DefaultRefundTextGates(),
-                )
-
-                # --- Phase A: platform hard-key refunds (persist; domain proposals later if extracted) ---
-                phase_a = self._phase_a_platform_refunds(
-                    uow, active_facts=active_facts, remaining=remaining, stats=stats,
-                )
-                created.extend(phase_a)
-
-                # 008 MatchContext: preload persisted accepted edges (seed policy)
-                match_ctx = MatchContext(workspace_id=str(getattr(uow, "workspace_id", "") or ""))
-                match_ctx.remaining_by_expense = dict(remaining)
-                for rel in uow.relations.list_active(kind=RelationKind.PAYMENT_MIRROR.value):
-                    if rel.get("status") == RelationStatus.ACCEPTED.value:
-                        a, b = rel.get("primary_fact_id"), rel.get("secondary_fact_id")
-                        if a and b:
-                            match_ctx.accepted_mirrors.append(
-                                RelationEdge(fact_a_id=a, fact_b_id=b, kind=RelationKind.PAYMENT_MIRROR.value)
-                            )
-                for rel in uow.relations.list_active(kind=RelationKind.REFUND_OFFSET.value):
-                    if rel.get("status") == RelationStatus.ACCEPTED.value:
-                        a, b = rel.get("primary_fact_id"), rel.get("secondary_fact_id")
-                        if a and b:
-                            match_ctx.accepted_platform_refunds.append(
-                                RelationEdge(fact_a_id=a, fact_b_id=b, kind=RelationKind.REFUND_OFFSET.value)
-                            )
-
-                # Block sets from DB accepted + Phase A created
-                refund_blocked: set[str] = set(match_ctx.used_fact_ids)
-                for rel in uow.relations.list_active(kind=RelationKind.REFUND_OFFSET.value):
-                    if rel.get("status") == RelationStatus.SUPERSEDED.value:
-                        continue
-                    primary_id = rel.get("primary_fact_id")
-                    secondary_id = rel.get("secondary_fact_id")
-                    refreshable_open_leg = (
-                        rel.get("status") == RelationStatus.PENDING_REVIEW.value
-                        and is_open_leg_relation(rel)
-                        and rel.get("created_by") == "system"
-                        and not rel.get("decided_by")
-                        and not rel.get("candidate_fact_ids")
-                    )
-                    # A partially refunded expense remains a valid candidate for
-                    # later refund rows.  Refund legs and fully consumed expenses
-                    # stay occupied, as do all pending/open relations.
-                    keep_expense_candidate = (
-                        rel.get("status") == RelationStatus.ACCEPTED.value
-                        and secondary_id not in (None, "")
-                        and primary_id in remaining
-                        and remaining[primary_id] > 0
-                        and primary_id in fact_by_id
-                        and fact_by_id[primary_id].signed_amount < 0
-                    )
-                    if primary_id and not keep_expense_candidate and not refreshable_open_leg:
-                        refund_blocked.add(primary_id)
-                    if secondary_id:
-                        refund_blocked.add(secondary_id)
-                    if rel.get("anchor_fact_id") and not refreshable_open_leg:
-                        refund_blocked.add(rel["anchor_fact_id"])
-                for item in phase_a:
-                    primary_id = item.get("primary_fact_id")
-                    keep_expense_candidate = (
-                        item.get("status") == RelationStatus.ACCEPTED.value
-                        and item.get("secondary_fact_id") not in (None, "")
-                        and primary_id in remaining
-                        and remaining[primary_id] > 0
-                        and primary_id in fact_by_id
-                        and fact_by_id[primary_id].signed_amount < 0
-                    )
-                    if primary_id and not keep_expense_candidate:
-                        refund_blocked.add(primary_id)
-                    if item.get("secondary_fact_id"):
-                        refund_blocked.add(item["secondary_fact_id"])
-
-                transfer_blocked: set[str] = set()
-                for rel in uow.relations.list_active(kind=RelationKind.TRANSFER_PAIR.value):
-                    if rel.get("status") != RelationStatus.ACCEPTED.value:
-                        continue
-                    if rel.get("primary_fact_id"):
-                        transfer_blocked.add(rel["primary_fact_id"])
-                    if rel.get("secondary_fact_id"):
-                        transfer_blocked.add(rel["secondary_fact_id"])
-
-                # --- Phases B–D: sole domain orchestration entry (008 FR-003) ---
+                plan = self.plan_in_uow(uow, seed_ids=seeds)
+                fact_by_id = {str(fact.id): fact for fact in plan.facts}
                 accepted_relations = [
                     relation
                     for relation in uow.relations.list_active()
                     if relation.get("status") == RelationStatus.ACCEPTED.value
                 ]
-                proposals = run_relation_phases(
-                    active_facts,
-                    ctx=match_ctx,
-                    seed_ids=seeds,
-                    index=index,
-                    aliases_by_tail=aliases_by_tail,
-                    account_identifiers_by_value=account_identifiers_by_value,
-                    transfer_blocked_ids=transfer_blocked,
-                    refund_blocked_ids=refund_blocked,
-                    merchant_refund_seed_ids=seeds,
-                    skip_platform_import_refund_seeds=True,
-                )
                 stats["phase_c_transfers"] = 0
                 stats["phase_d_diamond"] = 0
-                for proposal in proposals:
+                for proposal in plan.proposals:
+                    if proposal.rule_id.startswith("scan."):
+                        stats["phase_a_platform_refunds"] += 1
                     if proposal.kind == RelationKind.TRANSFER_PAIR.value:
                         stats["phase_c_transfers"] = stats.get("phase_c_transfers", 0) + 1
                     if proposal.rule_id and "diamond" in (proposal.rule_id or ""):
@@ -424,70 +893,6 @@ class RelationService:
             details={"old_id": relation_id, "new_id": new_id},
         )
 
-
-
-    def _phase_a_platform_refunds(
-        self,
-        uow,
-        *,
-        active_facts: list,
-        remaining: dict,
-        stats: dict,
-    ) -> list[dict]:
-        """Phase A: domain hard-key match → uniform persist (008)."""
-        if not hasattr(uow.cashflows, "list_detailed"):
-            return []
-        detailed = uow.cashflows.list_detailed(include_deleted=False)
-        fact_by_id = {f.id: f for f in active_facts}
-
-        linked_pairs: set[tuple[str, str]] = set()
-        for rel in uow.relations.list_active(kind=RelationKind.REFUND_OFFSET.value):
-            if rel.get("status") == RelationStatus.SUPERSEDED.value:
-                continue
-            a, b = rel.get("primary_fact_id"), rel.get("secondary_fact_id")
-            if a and b:
-                linked_pairs.add((a, b))
-
-        # Prefer txn_id from detailed rows for order-key matching
-        # list_detailed may already expose record_id; map into rows if needed
-        for row in detailed:
-            if not row.get("txn_id") and row.get("record_id"):
-                row["txn_id"] = row.get("record_id")
-            payload = row.get("raw_payload") if isinstance(row.get("raw_payload"), dict) else {}
-            if not payload and isinstance(row.get("source_payload"), dict):
-                payload = row.get("source_payload") or {}
-            if payload:
-                row.setdefault("platform_status", payload.get("status") or payload.get("platform_status") or "")
-                row.setdefault("status", payload.get("status") or row.get("platform_status") or "")
-                if payload.get("txn_id"):
-                    row["txn_id"] = payload.get("txn_id")
-
-        proposals = match_phase_a_platform_refunds(
-            detailed,
-            facts_by_id=fact_by_id,
-            linked_pairs=linked_pairs,
-        )
-        created: list[dict] = []
-        for proposal in proposals:
-            outcome = self._persist_proposal(uow, proposal, remaining)
-            if outcome is None:
-                stats["skipped"] = stats.get("skipped", 0) + 1
-                continue
-            created.append(outcome)
-            if outcome.get("status") == RelationStatus.ACCEPTED.value:
-                stats["accepted"] = stats.get("accepted", 0) + 1
-                stats["phase_a_platform_refunds"] = stats.get("phase_a_platform_refunds", 0) + 1
-                # remaining updated inside _persist_proposal for refunds when evidence carries amount
-                exp_id = outcome.get("primary_fact_id")
-                ref_id = outcome.get("secondary_fact_id")
-                if exp_id and ref_id and exp_id in fact_by_id and ref_id in fact_by_id:
-                    refund_amt = abs(fact_by_id[ref_id].signed_amount)
-                    # prefer expense as remaining key (negative signed)
-                    exp_key = exp_id if fact_by_id[exp_id].signed_amount < 0 else ref_id
-                    remaining[exp_key] = remaining.get(
-                        exp_key, abs(fact_by_id[exp_key].signed_amount)
-                    ) - refund_amt
-        return created
 
 
     def logical_delete_cash(self, fact_id: str, *, actor: str, reason: str) -> OperationResult:

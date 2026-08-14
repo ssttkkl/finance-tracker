@@ -1305,21 +1305,18 @@ class CashLedgerCommandService:
 
     def _preview_relation_suggestions(
         self,
-        session,
+        uow,
         *,
         prepared: list[tuple[dict, str]],
         items_by_id: dict[str, dict],
         channel: str,
         accounts_by_name: dict[str, AccountModel],
-    ) -> list[dict]:
-        """Run relation matching in memory; this function never writes relations."""
+    ) -> tuple[list[dict], str]:
+        """Serialize the shared read-only relation plan for the browser."""
         if self._relation_service is None:
-            return []
-        from ft.application.relations import _fact_view_from_row
-        from ft.adapters.relational.repositories import RelationalRelationRepository
-        from ft.domain.relations import FactCandidateIndex, MatchContext, RelationEdge, run_relation_phases
+            return [], ""
 
-        existing_rows = RelationalCashflowRepository(session, self._workspace_id).list_detailed(include_deleted=False)
+        existing_rows = uow.cashflows.list_detailed(include_deleted=False)
         existing_by_identity = {
             (str(row.get("source_type") or row.get("bill_source") or "").strip(), str(row.get("record_id") or "").strip()): row
             for row in existing_rows if str(row.get("record_id") or "").strip()
@@ -1330,40 +1327,26 @@ class CashLedgerCommandService:
             account = accounts_by_name.get(row.get("account_name"))
             if account is None or (channel, str(record_id).strip()) in existing_by_identity:
                 continue
-            synthetic = {**row, "id": f"preview:{record_id}", "record_id": record_id, "account_id": getattr(account, "id", None), "account_type": account.type, "source_type": channel, "bill_source": channel}
+            synthetic = {
+                **row,
+                "id": f"preview:{record_id}",
+                "record_id": record_id,
+                "account_id": getattr(account, "id", None),
+                "account_type": account.type,
+                "source_type": channel,
+                "bill_source": channel,
+                "raw_payload": row.get("raw_payload") or row.get("source_payload"),
+            }
             preview_rows.append(synthetic)
             preview_ids.append(synthetic["id"])
         if not preview_rows:
-            return []
-        facts = [_fact_view_from_row(row) for row in [*existing_rows, *preview_rows]]
-        relation_repo = RelationalRelationRepository(session, self._workspace_id)
-        context = MatchContext(workspace_id=self._workspace_id)
-        transfer_blocked: set[str] = set()
-        refund_blocked: set[str] = set()
-        for relation in relation_repo.list_active():
-            primary, secondary = relation.get("primary_fact_id"), relation.get("secondary_fact_id")
-            if relation.get("status") != RelationStatus.ACCEPTED.value:
-                continue
-            if relation.get("kind") == RelationKind.PAYMENT_MIRROR.value and primary not in (None, "") and secondary not in (None, ""):
-                context.accepted_mirrors.append(RelationEdge(fact_a_id=str(primary), fact_b_id=str(secondary), kind=RelationKind.PAYMENT_MIRROR.value))
-            if relation.get("kind") == RelationKind.REFUND_OFFSET.value and primary not in (None, "") and secondary not in (None, ""):
-                context.accepted_platform_refunds.append(RelationEdge(fact_a_id=str(primary), fact_b_id=str(secondary), kind=RelationKind.REFUND_OFFSET.value))
-            if relation.get("kind") == RelationKind.TRANSFER_PAIR.value:
-                transfer_blocked.update(str(item) for item in (primary, secondary) if item not in (None, ""))
-            refund_blocked.update(str(item) for item in (primary, secondary) if item not in (None, ""))
-        facts = [type(fact)(**{**fact.__dict__, "id": str(fact.id)}) for fact in facts]
-        preview_ids = [str(item) for item in preview_ids]
-        proposals = run_relation_phases(
-            facts,
-            ctx=context,
-            seed_ids=preview_ids,
-            index=FactCandidateIndex(facts, source_group=source_group),
-            transfer_blocked_ids=transfer_blocked,
-            refund_blocked_ids=refund_blocked,
-            merchant_refund_seed_ids=preview_ids,
-            skip_platform_import_refund_seeds=True,
+            return [], ""
+        plan = self._relation_service.plan_in_uow(
+            uow,
+            preview_rows=preview_rows,
+            seed_ids=[str(item) for item in preview_ids],
         )
-        by_id = {str(fact.id): fact for fact in facts}
+        by_id = {str(fact.id): fact for fact in plan.facts}
 
         def wire_fact(fact_id: str | None) -> dict | None:
             if fact_id in (None, ""):
@@ -1375,11 +1358,15 @@ class CashLedgerCommandService:
             if key.startswith("preview:"):
                 return dict(items_by_id.get(key.removeprefix("preview:"), {}), preview=True)
             record = self._relation_preview_record({"id": fact.id, "record_id": fact.record_id, "occurred_at": fact.occurred_at, "amount": fact.amount, "currency": fact.currency, "account_name": fact.account_name, "counterparty": fact.counterparty, "record_type": fact.record_type, "record_subtype": fact.record_subtype, "category": getattr(fact, "category", None), "note": fact.note, "source_type": fact.bill_source}, preview=False, channel=fact.bill_source)
-            record["fact_id"] = int(fact.id)
+            try:
+                record["fact_id"] = int(fact.id)
+            except (TypeError, ValueError):
+                pass
             return record
 
         result = []
-        for index, proposal in enumerate(proposals):
+        from ft.application.relations import relation_proposal_key
+        for proposal in plan.proposals:
             primary = wire_fact(proposal.primary_fact_id)
             secondary = wire_fact(proposal.secondary_fact_id)
             candidates = [wire_fact(str(item)) for item in proposal.evidence.candidate_fact_ids]
@@ -1387,7 +1374,7 @@ class CashLedgerCommandService:
             if primary is None or (secondary is None and not candidates):
                 continue
             result.append({
-                "id": f"preview-relation:{index}", "kind": proposal.kind,
+                "id": relation_proposal_key(proposal, plan.facts), "kind": proposal.kind,
                 "label": RELATION_LABELS.get(proposal.kind, proposal.kind),
                 "subtype": proposal.subtype or "", "status": proposal.status,
                 "automatic": proposal.status == RelationStatus.ACCEPTED.value and secondary is not None,
@@ -1395,7 +1382,7 @@ class CashLedgerCommandService:
                 "reason": ", ".join(proposal.evidence.signals) or "标准化字段匹配",
                 "primary": primary, "secondary": secondary, "candidates": candidates,
             })
-        return result
+        return result, plan.context_digest
 
     def _apply_mapping_to_source_rows(self, uow, rows: list[dict], channel: str, mapping: list[dict]):
         groups = scan_source_rows(rows)
@@ -1558,8 +1545,8 @@ class CashLedgerCommandService:
                 }
                 for group in groups
             ]
-            relations = self._preview_relation_suggestions(
-                uow._state().session,
+            relations, relation_digest = self._preview_relation_suggestions(
+                uow,
                 prepared=prepared,
                 items_by_id={item["record_id"]: item for item in items},
                 channel=channel,
@@ -1570,6 +1557,7 @@ class CashLedgerCommandService:
                 "channel": channel,
                 "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
                 "file": {"name": filename or "statement", "digest": digest},
+                "relation_digest": relation_digest,
                 "columns": list(STANDARD_IMPORT_COLUMNS),
                 "items": items,
                 "summary": counts,
@@ -1587,7 +1575,8 @@ class CashLedgerCommandService:
             content, source=source, currency=currency, filename=filename, password=password,
         )
         digest = self._import_digest(content)
-        with self._sessions() as session:
+        with self._uow as uow:
+            session = uow._state().session
             account_names = {row.name: row for row in session.query(AccountModel).filter(
                 AccountModel.workspace_id == self._workspace_id,
             ).all()}
@@ -1637,17 +1626,22 @@ class CashLedgerCommandService:
                 "existing": sum(item["status"] == "existing" for item in items),
                 "unsupported": sum(item["status"] == "unsupported" for item in items),
             }
+            relations, relation_digest = self._preview_relation_suggestions(
+                uow,
+                prepared=prepared,
+                items_by_id={item["record_id"]: item for item in items},
+                channel=channel,
+                accounts_by_name=account_names,
+            )
             return {
                 "channel": channel,
                 "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
                 "file": {"name": filename or "statement", "digest": digest},
+                "relation_digest": relation_digest,
                 "columns": list(STANDARD_IMPORT_COLUMNS),
                 "items": items,
                 "summary": counts,
-                "relations": self._preview_relation_suggestions(
-                    session, prepared=prepared, items_by_id={item["record_id"]: item for item in items},
-                    channel=channel, accounts_by_name=account_names,
-                ),
+                "relations": relations,
             }
 
     def _commit_mapped_import(
@@ -1659,6 +1653,7 @@ class CashLedgerCommandService:
         filename: str,
         password: str | None,
         preview_digest: str | None,
+        preview_relation_digest: str | None,
         preview_channel: str | None,
         relation_decisions: list[dict] | None,
         mapping: list[dict],
@@ -1753,7 +1748,7 @@ class CashLedgerCommandService:
                 handle.flush()
                 result = StatementImportService(
                     _ActiveUowProxy(uow), MappedParser(), relation_service=self._relation_service,
-                    enforce_account_currencies=True, run_relation_check=False,
+                    enforce_account_currencies=True,
                 ).import_statement(
                     StatementImportCommand(
                         source_path=handle.name,
@@ -1762,6 +1757,7 @@ class CashLedgerCommandService:
                         password=password,
                     ),
                     relation_decisions=relation_decisions,
+                    relation_plan_digest=preview_relation_digest,
                 )
             if not result.ok:
                 raise ValueError(result.message or "导入失败")
@@ -1805,6 +1801,7 @@ class CashLedgerCommandService:
         filename: str,
         password: str | None = None,
         preview_digest: str | None = None,
+        preview_relation_digest: str | None = None,
         preview_channel: str | None = None,
         relation_decisions: list[dict] | None = None,
         mapping: list[dict] | None = None,
@@ -1816,6 +1813,7 @@ class CashLedgerCommandService:
             return self._commit_mapped_import(
                 content, source=source, currency=currency, filename=filename,
                 password=password, preview_digest=preview_digest,
+                preview_relation_digest=preview_relation_digest,
                 preview_channel=preview_channel, relation_decisions=relation_decisions,
                 mapping=mapping,
                 idempotency_key=idempotency_key,
@@ -1841,6 +1839,7 @@ class CashLedgerCommandService:
             ).import_statement(
                 StatementImportCommand(source_path=handle.name, source=candidate, currency=currency, password=password),
                 relation_decisions=relation_decisions,
+                relation_plan_digest=preview_relation_digest,
             )
         if not result.ok:
             raise ValueError(result.message or "导入失败")

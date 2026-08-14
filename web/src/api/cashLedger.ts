@@ -162,6 +162,7 @@ type ImportRequestValues = {
   currency?: string;
   password?: string;
   previewDigest?: string;
+  previewRelationDigest?: string;
   previewChannel?: string;
   relations?: string;
   mapping?: ImportMappingDecision[];
@@ -196,6 +197,7 @@ async function importRequest<T>(path: string, file: File, values: ImportRequestV
         source: values.source ?? "",
         currency: values.currency ?? null,
         preview_digest: values.previewDigest ?? null,
+        ...(values.previewRelationDigest ? { preview_relation_digest: values.previewRelationDigest } : {}),
         preview_channel: values.previewChannel ?? null,
         relations: values.relations ? JSON.parse(values.relations) : null,
         mapping: values.mapping ?? null,
@@ -220,6 +222,7 @@ async function importRequest<T>(path: string, file: File, values: ImportRequestV
         currency: values.currency ?? null,
         filename: file.name,
         preview_digest: values.previewDigest ?? null,
+        ...(values.previewRelationDigest ? { preview_relation_digest: values.previewRelationDigest } : {}),
         preview_channel: values.previewChannel ?? null,
         relations: values.relations ? JSON.parse(values.relations) : null,
         mapping: values.mapping ?? null,
@@ -231,6 +234,7 @@ async function importRequest<T>(path: string, file: File, values: ImportRequestV
   const params = new URLSearchParams({ source: values.source ?? "", filename: file.name });
   if (values.currency) params.set("currency", values.currency);
   if (values.previewDigest) params.set("preview_digest", values.previewDigest);
+  if (values.previewRelationDigest) params.set("preview_relation_digest", values.previewRelationDigest);
   if (values.previewChannel) params.set("preview_channel", values.previewChannel);
   if (values.relations) params.set("relations", values.relations);
   if (values.mapping) params.set("mapping", JSON.stringify(values.mapping));
@@ -259,13 +263,14 @@ export function commitCashImport(
   file: File,
   source = "",
   currency?: string,
-  options: { password?: string; previewDigest?: string; previewChannel?: string; relations?: Record<string, unknown>[]; mapping?: ImportMappingDecision[]; importToken?: string; idempotencyKey?: string } = {},
+  options: { password?: string; previewDigest?: string; previewRelationDigest?: string; previewChannel?: string; relations?: Record<string, unknown>[]; mapping?: ImportMappingDecision[]; importToken?: string; idempotencyKey?: string } = {},
 ): Promise<ImportCommitResult> {
   return importRequest<ImportCommitResult>("/api/v1/cash-import/commit", file, {
     source,
     currency,
     password: options.password,
     previewDigest: options.previewDigest,
+    previewRelationDigest: options.previewRelationDigest,
     previewChannel: options.previewChannel,
     relations: options.relations ? JSON.stringify(options.relations) : undefined,
     mapping: options.mapping,

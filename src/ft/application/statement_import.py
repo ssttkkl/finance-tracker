@@ -213,7 +213,13 @@ class StatementImportService:
             accepted_ids.append(str(relation_id))
         return accepted_ids
 
-    def import_statement(self, command, *, relation_decisions: list[dict] | None = None) -> OperationResult:
+    def import_statement(
+        self,
+        command,
+        *,
+        relation_decisions: list[dict] | None = None,
+        relation_plan_digest: str | None = None,
+    ) -> OperationResult:
         path = Path(command.source_path)
         with path.open("rb") as source:
             content = source.read(MAX_STATEMENT_BYTES + 1)
@@ -397,21 +403,54 @@ class StatementImportService:
                 for row, record_id, account, formal in formal_rows
                 if account.type in {"cash", "loan", "lend"}
             }
-            imported_relation_ids = self._apply_relation_decisions(
-                uow,
-                relation_decisions,
-                fact_id_by_record_id=fact_id_by_record_id,
-                new_fact_ids={int(item) for item in created_cash_fact_ids},
-            )
+            imported_relation_ids: list[str] = []
+            relation_affected_fact_ids: set[int] = set()
+            relation_details = None
+            if new_cash_fact_ids and self._relations is not None and self._run_relation_check:
+                created_relations, relation_affected_fact_ids = self._relations.apply_import_plan_in_uow(
+                    uow,
+                    seed_ids=[str(item) for item in new_cash_fact_ids],
+                    relation_decisions=relation_decisions,
+                    expected_digest=relation_plan_digest,
+                )
+                imported_relation_ids.extend(
+                    str(item["id"])
+                    for item in created_relations
+                    if item.get("status") == "accepted" and item.get("id") is not None
+                )
+                explicit_decisions = [
+                    item for item in (relation_decisions or ())
+                    if str(item.get("status") or "accepted") == "accepted"
+                ]
+                imported_relation_ids.extend(
+                    self._apply_relation_decisions(
+                        uow,
+                        explicit_decisions,
+                        fact_id_by_record_id=fact_id_by_record_id,
+                        new_fact_ids={int(item) for item in created_cash_fact_ids},
+                    )
+                )
+                relation_details = {
+                    "relations": created_relations,
+                    "context_digest": relation_plan_digest,
+                }
+            else:
+                imported_relation_ids = self._apply_relation_decisions(
+                    uow,
+                    relation_decisions,
+                    fact_id_by_record_id=fact_id_by_record_id,
+                    new_fact_ids={int(item) for item in created_cash_fact_ids},
+                )
             if imported_count or updated_count:
                 snapshot["updated_at"] = max(str(row.get("date", "")) for row in rows)
             uow.snapshot.save(snapshot)
-            if new_cash_fact_ids:
+            projection_fact_ids = {int(item) for item in new_cash_fact_ids} | relation_affected_fact_ids
+            if projection_fact_ids:
                 from ft.application.cash_projections import CashProjectionService
                 CashProjectionService.maintain_if_ready_in_session(
                     uow._state().session,
                     uow.workspace_id,
-                    {int(item) for item in new_cash_fact_ids},
+                    projection_fact_ids,
                     new_fact_ids={int(item) for item in created_cash_fact_ids},
                 )
             uow.commit()
@@ -420,17 +459,6 @@ class StatementImportService:
             saved_new_cash_fact_ids = list(new_cash_fact_ids)
 
         import_refund_relations = []
-        relation_details = None
-        if saved_new_cash_fact_ids and self._relations is not None and self._run_relation_check:
-            try:
-                check_result = self._relations.check(
-                    seed_fact_ids=saved_new_cash_fact_ids,
-                    trigger="import",
-                    seed_ref=",".join(saved_new_cash_fact_ids[:8]),
-                )
-                relation_details = check_result.details
-            except Exception as exc:  # noqa: BLE001
-                relation_details = {"error": str(exc), "status": "failed"}
         acceptance = import_meta.get("acceptance") or {}
         if not acceptance.get("source_lines"):
             acceptance = {

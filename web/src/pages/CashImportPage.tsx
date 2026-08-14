@@ -142,6 +142,7 @@ function relationDecision(
       : { [`${factKey === "primary_fact_id" ? "primary" : "secondary"}_record_id`]: record.record_id };
   };
   const base = {
+    proposal_key: relation.id,
     kind: draft.kind,
     subtype: relation.subtype,
     rule_id: relation.rule_id,
@@ -395,6 +396,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       if (commitKey && !idempotencyKey) setIdempotencyKey(commitKey);
       const committed = await commitCashImport(file, "", undefined, {
         previewDigest: preview.file.digest,
+        previewRelationDigest: preview.relation_digest,
         previewChannel: preview.channel,
         password,
         relations: decisions,
@@ -420,7 +422,11 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
         } else {
           setError(cause instanceof Error && cause.message === "import_preview_stale"
             ? "文件内容已经变化，请重新选择文件。"
-            : cause instanceof Error && cause.message === "relation_impact_required"
+            : cause instanceof Error && cause.message === "import_relation_preview_stale"
+              ? "配对建议已经变化，请重新预览账单。"
+              : cause instanceof Error && cause.message === "import_relation_candidate_invalid"
+                ? "关联流水已经变化，请重新预览账单。"
+              : cause instanceof Error && cause.message === "relation_impact_required"
               ? "这次导入会影响已关联的流水，请先处理关联。"
               : "确认导入失败，请重试。");
         }

@@ -49,6 +49,8 @@ def _cash_import_error(exc: ValueError) -> JSONResponse:
         "import_account_draft_invalid": "新账户信息无效，请重新填写。",
         "import_account_name_conflict": "账户名称已存在，请修改后重试。",
         "import_preview_stale": "预览已失效，请重新核对账单。",
+        "import_relation_preview_stale": "配对建议已变化，请重新预览账单。",
+        "import_relation_candidate_invalid": "关联流水已变化，请重新预览账单。",
         "import_idempotency_key_required": "确认导入请求缺少幂等键，请重新提交。",
         "import_idempotency_key_invalid": "确认导入请求的幂等键无效，请重新提交。",
         "import_idempotency_conflict": "该幂等键已用于另一份导入，请重新提交。",
@@ -418,6 +420,7 @@ def cash_router(
             currency: str | None = None,
             filename: str = "statement",
             preview_digest: str | None = None,
+            preview_relation_digest: str | None = None,
             preview_channel: str | None = None,
             relations: str | None = None,
             mapping: str | None = None,
@@ -445,6 +448,7 @@ def cash_router(
                             currency=payload.get("currency") or currency,
                             password=password,
                             preview_digest=payload.get("preview_digest") or preview_digest,
+                            preview_relation_digest=payload.get("preview_relation_digest") or preview_relation_digest,
                             preview_channel=payload.get("preview_channel") or preview_channel,
                             relation_decisions=relation_decisions or [],
                             mapping=mapping_payload,
@@ -461,6 +465,7 @@ def cash_router(
                     currency = payload.get("currency") or currency
                     filename = str(payload.get("filename") or filename)
                     preview_digest = payload.get("preview_digest") or preview_digest
+                    preview_relation_digest = payload.get("preview_relation_digest") or preview_relation_digest
                     preview_channel = payload.get("preview_channel") or preview_channel
                     relation_decisions = payload.get("relations")
                     if relation_decisions is not None and not isinstance(relation_decisions, list):
@@ -482,6 +487,7 @@ def cash_router(
                     currency=currency,
                     filename=filename,
                     preview_digest=preview_digest,
+                    preview_relation_digest=preview_relation_digest,
                     preview_channel=preview_channel,
                     password=password,
                     relation_decisions=relation_decisions, mapping=mapping_payload,
