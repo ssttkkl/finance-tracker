@@ -59,6 +59,8 @@ function WorkspaceManagement({ activeRole, onSession, onWorkspaceDeleted }: { ac
   const [deleteError, setDeleteError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const deleteInput = useRef<HTMLInputElement>(null);
+  const deleteTrigger = useRef<HTMLButtonElement>(null);
+  const deleteDialog = useRef<HTMLElement>(null);
   const admin = activeRole === "admin";
 
   const refresh = async () => {
@@ -78,11 +80,26 @@ function WorkspaceManagement({ activeRole, onSession, onWorkspaceDeleted }: { ac
   useEffect(() => {
     if (!deleteOpen) return;
     deleteInput.current?.focus();
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !deleting) setDeleteOpen(false);
+    const handleDialogKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !deleting) {
+        setDeleteOpen(false);
+        deleteTrigger.current?.focus();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(deleteDialog.current?.querySelectorAll<HTMLElement>(
+        "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]",
+      ) ?? []);
+      if (focusable.length === 0) return;
+      const currentIndex = focusable.indexOf(document.activeElement as HTMLElement);
+      const nextIndex = event.shiftKey
+        ? currentIndex <= 0 ? focusable.length - 1 : currentIndex - 1
+        : currentIndex === -1 || currentIndex === focusable.length - 1 ? 0 : currentIndex + 1;
+      event.preventDefault();
+      focusable[nextIndex].focus();
     };
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
+    document.addEventListener("keydown", handleDialogKeyDown);
+    return () => document.removeEventListener("keydown", handleDialogKeyDown);
   }, [deleteOpen, deleting]);
 
   const copy = async (value: string) => {
@@ -116,7 +133,12 @@ function WorkspaceManagement({ activeRole, onSession, onWorkspaceDeleted }: { ac
     }
   };
   const openDelete = () => { setDeleteName(""); setDeleteError(""); setDeleteOpen(true); };
-  const closeDelete = () => { if (!deleting) setDeleteOpen(false); };
+  const closeDelete = () => {
+    if (!deleting) {
+      setDeleteOpen(false);
+      deleteTrigger.current?.focus();
+    }
+  };
   const deleteCurrentWorkspace = async () => {
     if (!data || deleteName !== data.workspace.name) return;
     setDeleting(true);
@@ -144,8 +166,8 @@ function WorkspaceManagement({ activeRole, onSession, onWorkspaceDeleted }: { ac
     {error && <p className="access-error workspace-feedback" role="alert">{error}</p>}
     <section className="workspace-management-section workspace-members" aria-labelledby="workspace-members-title"><div className="workspace-section-head"><h2 id="workspace-members-title">成员</h2><span>{data.members.length} 位成员</span></div><div className="workspace-member-list">{otherMembers.length === 0 && <p className="workspace-empty">暂无其他成员</p>}{data.members.map(member => <div className="workspace-member" key={member.user_id}><div className="workspace-member-copy"><b>{member.is_self ? "你" : member.email}</b><small>{member.is_self ? member.email : ""}</small></div>{member.is_self ? <span>{access.roleLabel[member.role]}</span> : <>{admin ? <select aria-label={`${member.email}的权限`} value={member.role} onChange={event => void updateMember(member, event.target.value as Role)}><option value="admin">管理员</option><option value="editor">可编辑</option><option value="viewer">仅可查看</option></select> : <span>{access.roleLabel[member.role]}</span>}{admin && <button type="button" className="text-button workspace-remove" onClick={() => void removeMember(member)}><Icon name="trash" />移除</button>}</>}</div>)}</div></section>
     <section className="workspace-management-section workspace-invite" aria-labelledby="workspace-invite-title"><div className="workspace-section-head"><h2 id="workspace-invite-title">邀请成员</h2></div><div className="workspace-invite-form"><label className="workspace-field">权限<select aria-label="邀请权限" disabled={!admin} value={role} onChange={event => setRole(event.target.value as "editor" | "viewer")}><option value="editor">可编辑</option><option value="viewer">仅可查看</option></select></label><button type="button" className="button-primary" disabled={!admin} onClick={() => void createLink()}><Icon name="link" />创建链接</button></div>{link && <label className="workspace-link-field">邀请链接<input readOnly value={link} aria-label="邀请链接" onFocus={event => event.currentTarget.select()} onClick={event => void copy(event.currentTarget.value)} /></label>}</section>
-    {admin && <section className="workspace-management-section workspace-danger-zone" aria-labelledby="workspace-delete-title"><h2 id="workspace-delete-title">删除工作区</h2><button type="button" className="button-danger" onClick={openDelete}><Icon name="trash" />删除工作区</button></section>}
-    {deleteOpen && <div className="workspace-confirm-layer" role="alertdialog" aria-modal="true" aria-labelledby="workspace-delete-confirm-title"><section className="workspace-confirm-card"><h2 id="workspace-delete-confirm-title">删除工作区？</h2><p>将永久删除当前工作区及其全部账本数据、成员和邀请。</p><label className="workspace-field">输入工作区名称<input ref={deleteInput} aria-label="输入工作区名称" autoComplete="off" value={deleteName} onChange={event => setDeleteName(event.target.value)} /></label>{deleteError && <p className="access-error" role="alert">{deleteError}</p>}<div className="workspace-confirm-actions"><button type="button" disabled={deleting} onClick={closeDelete}>取消</button><button type="button" className="button-danger" disabled={deleting || deleteName !== data.workspace.name} onClick={() => void deleteCurrentWorkspace()}>{deleting ? "正在删除…" : "删除工作区"}</button></div></section></div>}
+    {admin && <section className="workspace-management-section workspace-danger-zone" aria-labelledby="workspace-delete-title"><h2 id="workspace-delete-title">删除工作区</h2><button ref={deleteTrigger} type="button" className="button-danger" onClick={openDelete}><Icon name="trash" />删除工作区</button></section>}
+    {deleteOpen && <div className="workspace-confirm-layer" role="alertdialog" aria-modal="true" aria-labelledby="workspace-delete-confirm-title"><section ref={deleteDialog} className="workspace-confirm-card"><h2 id="workspace-delete-confirm-title">删除工作区？</h2><p>将永久删除当前工作区及其全部账本数据、成员和邀请。</p><label className="workspace-field">输入工作区名称<input ref={deleteInput} aria-label="输入工作区名称" autoComplete="off" value={deleteName} onChange={event => setDeleteName(event.target.value)} /></label>{deleteError && <p className="access-error" role="alert">{deleteError}</p>}<div className="workspace-confirm-actions"><button type="button" disabled={deleting} onClick={closeDelete}>取消</button><button type="button" className="button-danger" disabled={deleting || deleteName !== data.workspace.name} onClick={() => void deleteCurrentWorkspace()}>{deleting ? "正在删除…" : "删除工作区"}</button></div></section></div>}
   </main>;
 }
 

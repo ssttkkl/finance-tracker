@@ -73,6 +73,12 @@ test("管理员在桌面与移动视口确认工作区名称后删除工作区",
     await page.setViewportSize({ width, height: 900 });
     await page.reload();
     await expect(page.locator("main.workspace-management-page > section h2")).toHaveText(["工作区信息", "成员", "邀请成员", "删除工作区"]);
+    if (width === 768) {
+      const nameBox = await page.locator(".workspace-identity-fields .workspace-field").nth(0).boundingBox();
+      const idBox = await page.locator(".workspace-identity-fields .workspace-field").nth(1).boundingBox();
+      if (!nameBox || !idBox) throw new Error("工作区信息字段未渲染");
+      expect(idBox.y).toBeGreaterThan(nameBox.y);
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }
 
