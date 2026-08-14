@@ -74,6 +74,12 @@ def access_router(access: AccessService):
             data = await request.json()
             return access.update_workspace(request_token(request), str(data.get("name", "")))
         except AccessError as exc: return error(exc)
+    @router.delete("/workspace")
+    async def delete_workspace(request: Request):
+        try:
+            data = await request.json()
+            return access.delete_workspace(request_token(request), str(data.get("name", "")))
+        except AccessError as exc: return error(exc)
     @router.put("/members/{user_id}")
     async def update_member(user_id: str, request: Request):
         try:

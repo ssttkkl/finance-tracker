@@ -25,3 +25,58 @@ test("登录后的工作区使用统一侧栏路由打开分类与投资事件",
   await expect(page.getByRole("heading", { name: "投资事件", level: 1 })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "主要导航" })).toBeVisible();
 });
+
+test("管理员在桌面与移动视口确认工作区名称后删除工作区", async ({ page }) => {
+  let deleted = false;
+  await page.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path.endsWith("/auth/session")) {
+      return route.fulfill({ json: {
+        user: { email: "admin@example.com" }, active_workspace_id: deleted ? "workspace-2" : "workspace-1",
+        workspaces: deleted
+          ? [{ id: "workspace-2", name: "另一个账本", role: "admin" }]
+          : [{ id: "workspace-1", name: "家庭账本", role: "admin" }, { id: "workspace-2", name: "另一个账本", role: "admin" }],
+      } });
+    }
+    if (path.endsWith("/auth/workspace") && request.method() === "GET") {
+      return route.fulfill({ json: {
+        workspace: { id: "workspace-1", name: "家庭账本" },
+        members: [{ user_id: "admin-1", email: "admin@example.com", role: "admin", is_self: true }],
+      } });
+    }
+    if (path.endsWith("/auth/workspace") && request.method() === "DELETE") {
+      expect(JSON.parse(request.postData() ?? "{}" )).toEqual({ name: "家庭账本" });
+      deleted = true;
+      return route.fulfill({ json: {
+        user: { email: "admin@example.com" }, active_workspace_id: "workspace-2",
+        workspaces: [{ id: "workspace-2", name: "另一个账本", role: "admin" }],
+      } });
+    }
+    if (path.endsWith("/accounts")) return route.fulfill({ json: { items: [] } });
+    return route.fulfill({ json: { items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} } });
+  });
+
+  await page.goto("/workspace-management");
+  await expect(page.getByRole("heading", { name: "工作区管理", level: 1 })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1440);
+  await page.screenshot({ path: "/tmp/workspace-management-delete-desktop.png", fullPage: true });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "工作区管理", level: 1 })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.getByRole("button", { name: "删除工作区" }).click();
+  await expect(page.getByRole("alertdialog", { name: "删除工作区？" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "输入工作区名称" })).toBeFocused();
+  await page.screenshot({ path: "/tmp/workspace-management-delete-mobile.png", fullPage: true });
+  await page.getByRole("button", { name: "取消" }).click();
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("button", { name: "删除工作区" }).click();
+  const dialog = page.getByRole("alertdialog", { name: "删除工作区？" });
+  await dialog.getByRole("textbox", { name: "输入工作区名称" }).fill("家庭账本");
+  await dialog.getByRole("button", { name: "删除工作区" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("link", { name: "工作区管理" })).not.toHaveAttribute("aria-current", "page");
+});

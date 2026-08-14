@@ -174,5 +174,67 @@ describe("AccessApp", () => {
     expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "创建链接" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "移除" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "删除工作区" })).not.toBeInTheDocument();
+  });
+
+  it("管理员必须输入当前工作区名称后才能删除并离开管理页", async () => {
+    const deletedSession = {
+      ...adminSession,
+      active_workspace_id: "workspace-2",
+      workspaces: [
+        { id: "workspace-2", name: "另一个账本", role: "admin" as const },
+      ],
+    };
+    const fetch = vi.fn((input: string, init?: RequestInit) => {
+      if (input.includes("/auth/session")) return json(adminSession);
+      if (input.includes("/auth/workspace") && init?.method === "DELETE") return json(deletedSession);
+      if (input.includes("/auth/workspace")) return json(workspaceDetails);
+      if (input.includes("/api/v1/accounts")) return json({ items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} });
+      return json({ items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+    history.replaceState({}, "", "/workspace-management");
+
+    render(<AccessApp />);
+
+    expect(await screen.findByRole("heading", { name: "工作区管理", level: 1 })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "删除工作区" }));
+    const dialog = screen.getByRole("alertdialog", { name: "删除工作区？" });
+    expect(dialog).toBeInTheDocument();
+    const confirm = within(dialog).getByRole("button", { name: /^删除工作区$/ });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "输入工作区名称" }), { target: { value: "家庭账本 " } });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "输入工作区名称" }), { target: { value: "家庭账本" } });
+    expect(confirm).not.toBeDisabled();
+    fireEvent.click(confirm);
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/auth/workspace"), expect.objectContaining({ method: "DELETE" })));
+    const request = fetch.mock.calls.find(([input, init]) => input.includes("/auth/workspace") && init?.method === "DELETE");
+    expect(JSON.parse(String(request?.[1]?.body))).toEqual({ name: "家庭账本" });
+    expect(location.pathname).toBe("/");
+    expect(await screen.findByRole("heading", { name: "收支账本" })).toBeInTheDocument();
+  });
+
+  it("删除唯一工作区后进入创建工作区页面", async () => {
+    const deletedSession = { ...adminSession, active_workspace_id: null, workspaces: [] };
+    const fetch = vi.fn((input: string, init?: RequestInit) => {
+      if (input.includes("/auth/session")) return json(adminSession);
+      if (input.includes("/auth/workspace") && init?.method === "DELETE") return json(deletedSession);
+      if (input.includes("/auth/workspace")) return json(workspaceDetails);
+      return json({ items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+    history.replaceState({}, "", "/workspace-management");
+
+    render(<AccessApp />);
+
+    await screen.findByRole("heading", { name: "工作区管理", level: 1 });
+    fireEvent.click(screen.getByRole("button", { name: "删除工作区" }));
+    const dialog = screen.getByRole("alertdialog", { name: "删除工作区？" });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "输入工作区名称" }), { target: { value: "家庭账本" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^删除工作区$/ }));
+
+    expect(await screen.findByRole("heading", { name: "创建工作区" })).toBeInTheDocument();
   });
 });

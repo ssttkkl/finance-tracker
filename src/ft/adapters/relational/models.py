@@ -139,7 +139,10 @@ class WorkspaceMembershipModel(Base):
 
 class UserSessionModel(Base):
     __tablename__ = "user_sessions"
-    __table_args__ = (Index("ix_user_sessions_user", "user_id"),)
+    __table_args__ = (
+        Index("ix_user_sessions_user", "user_id"),
+        Index("ix_user_sessions_active_workspace", "active_workspace_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
