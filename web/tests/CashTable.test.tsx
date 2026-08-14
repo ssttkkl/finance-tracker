@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -30,10 +30,10 @@ const transfer = (crossCurrency = false) => ({
   },
 });
 
-it("在交易信息中展示交易对方、备注和已合并标记，在来源列展示渠道", () => {
+it("在交易信息中展示交易对方、备注和已合并标记，不在列表展示来源字段", () => {
   render(<CashTable items={[projection("1", "payment_mirror", "午间消费"), projection("2", "refund_offset"), projection("3", "unknown_kind")]} onEvidence={(_projection, _source) => undefined} />);
 
-  expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "来源", "流水类型", "分类", "金额", "操作"]);
+  expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "分类", "流水类型", "金额", "操作"]);
   expect(screen.getByRole("table")).toHaveClass("cash-table");
   expect(screen.getByRole("cell", { name: /交易对方1/ })).toHaveAttribute("headers", "cash-column-transaction-info");
   expect(screen.getAllByRole("cell", { name: "-12.50 CNY" })[0]).toHaveAttribute("data-direction", "支出");
@@ -41,29 +41,33 @@ it("在交易信息中展示交易对方、备注和已合并标记，在来源�
   expect(screen.getByText("午间消费")).toHaveAttribute("data-label", "备注");
   expect(screen.queryByRole("columnheader", { name: "关联记录" })).not.toBeInTheDocument();
   expect(screen.getByText("午间消费")).toBeInTheDocument();
-  expect(screen.getAllByText("fixture")).toHaveLength(3);
+  expect(screen.queryByText("fixture")).not.toBeInTheDocument();
   expect(screen.queryByText(/同笔支付关系|退款冲销关系|未识别的关系类型/)).not.toBeInTheDocument();
   expect(screen.getAllByText("已合并")).toHaveLength(3);
   expect(screen.queryByText(/条账本记录/)).not.toBeInTheDocument();
 });
 
-it("以带可访问名称的 SVG 图标压缩重复查看操作", () => {
-  render(<CashTable items={[projection("1", "payment_mirror")]} onEvidence={(_projection, _source) => undefined} />);
+it("移动端整张卡片承担查看详情操作，桌面保留可访问的查看按钮", () => {
+  let opened = "";
+  render(<CashTable items={[projection("1", "payment_mirror")]} onEvidence={(item) => { opened = item.projection_id; }} />);
 
   const trigger = screen.getByRole("button", { name: "查看交易对方1的收支详情" });
-  expect(trigger).not.toHaveTextContent("查看");
+  expect(trigger).toHaveClass("evidence-trigger");
   expect(trigger.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  const row = screen.getByRole("row", { name: /交易对方1/ });
+  expect(row).toHaveAttribute("tabindex", "0");
+  fireEvent.click(row);
+  expect(opened).toBe("1");
 });
 
-it("已合并流水在来源列展示所有成员来源并去重，单源记录回退为自身来源", () => {
+it("列表不显示单笔或已合并流水的来源", () => {
   const single = { ...projection("single", "single"), composition: [], member_count: 1, accepted_relation_summary: [], source_types: ["支付宝"] };
   const related = { ...projection("related", "refund_offset"), source_types: ["支付宝", "工商银行"] };
   const missing = { ...projection("missing", "single"), composition: [], member_count: 1, accepted_relation_summary: [], source_type: null, source_types: [] };
   render(<CashTable items={[single, related, missing]} onEvidence={(_projection, _source) => undefined} />);
 
-  expect(screen.getByRole("cell", { name: "支付宝" })).toHaveAttribute("headers", "cash-column-source");
-  expect(screen.getByRole("cell", { name: "支付宝、工商银行" })).toHaveAttribute("headers", "cash-column-source");
-  expect(screen.getByRole("cell", { name: "-" })).toHaveAttribute("headers", "cash-column-source");
+  expect(screen.queryByText("支付宝")).not.toBeInTheDocument();
+  expect(screen.queryByText("支付宝、工商银行")).not.toBeInTheDocument();
   expect(screen.getByRole("row", { name: /交易对方related/ })).toHaveTextContent("已合并");
 });
 
@@ -147,8 +151,40 @@ it("选择模式展示分类列和当前已加载条目复选框", () => {
   const category = { id: "food", parent_id: null, name: "餐饮", description: null, path: [{ id: "food", name: "餐饮" }], depth: 1, sort_order: 1, revision: 1 };
   render(<CashTable items={[{ ...projection("selectable", "single"), category }]} selectable selectedIds={new Set()} onToggleSelection={() => undefined} onToggleAll={() => undefined} onEvidence={(_projection, _source) => undefined} />);
 
-  expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["选择", "发生时间", "账户", "交易信息", "来源", "流水类型", "分类", "金额", "操作"]);
+  expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["选择", "发生时间", "账户", "交易信息", "分类", "流水类型", "金额", "操作"]);
   expect(screen.getByRole("checkbox", { name: "选择交易对方selectable" })).toBeInTheDocument();
   expect(screen.getByRole("checkbox", { name: "选择当前已加载记录" })).toBeInTheDocument();
   expect(screen.getByRole("cell", { name: "餐饮" })).toHaveAttribute("headers", "cash-column-category");
+});
+
+it("桌面表头保持纯文字，不显示字段图标", () => {
+  render(<CashTable items={[projection("icons", "single", "备注")]} onEvidence={(_projection, _source) => undefined} />);
+
+  const headers = screen.getAllByRole("columnheader");
+  expect(headers.every((header) => header.querySelector("svg") === null)).toBe(true);
+  expect(screen.getByText("备注").querySelector("svg")).toBeNull();
+});
+
+it("移动端选择卡片以图标标识辅助字段，将分类放在左侧并固定复选框", () => {
+  const category = { id: "food", parent_id: null, name: "餐饮", description: null, path: [{ id: "food", name: "餐饮" }], depth: 1, sort_order: 1, revision: 1 };
+  let opened = "";
+  let toggled = "";
+  render(<CashTable items={[{ ...projection("mobile", "single"), category }]} selectable selectedIds={new Set()} onToggleSelection={(item) => { toggled = item.projection_id; }} onToggleAll={() => undefined} onEvidence={(item) => { opened = item.projection_id; }} />);
+
+  const row = screen.getByRole("row", { name: /交易对方mobile/ });
+  expect(row).toHaveClass("is-selectable");
+  expect(row.querySelector(".selection")).toHaveClass("selection");
+  expect(row.querySelector(".economic-type")).toHaveTextContent("消费");
+  expect(row.querySelector(".category")).toHaveTextContent("餐饮");
+  expect(row.querySelector(".source")).toBeNull();
+  expect(row.querySelectorAll(".cash-mobile-field-marker").length).toBe(3);
+  expect(row.querySelector(".occurred-at .cash-mobile-field-marker")).toBeNull();
+  expect(row.querySelectorAll(".cash-mobile-field-value").length).toBe(3);
+  expect(row.querySelectorAll(".cash-mobile-field-marker .mobile-field-label").length).toBe(0);
+  fireEvent.click(screen.getByRole("checkbox", { name: "选择交易对方mobile" }));
+  expect(row).toHaveClass("is-selectable");
+  expect(toggled).toBe("mobile");
+  expect(opened).toBe("");
+  fireEvent.keyDown(screen.getByRole("checkbox", { name: "选择交易对方mobile" }), { key: " " });
+  expect(opened).toBe("");
 });

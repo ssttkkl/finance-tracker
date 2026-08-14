@@ -114,6 +114,15 @@
 - [ ] 发布后观察重复导入结果、校准保留比例、导入失败代码、关系待审数量、账本刷新失败和实际删除结果；未授权连接真实账本或部署前不执行。
 - [ ] 变更完成且主规格同步、独立复核和适用验证项闭环后，运行 `openspec archive cash-ledger-crud-import` 归档 change；归档只整理仓库记录，不代表提交、推送或部署授权。
 
+## 12. 本轮 UI 回流：辅助字段图标与窄屏流水卡片
+
+- [x] 12.1 将用户澄清写入 delta 规格与 design：金额、交易信息（交易对方、对方账号、备注）保持核心文字层级；桌面表格表头保持纯文字；移动端账户、流水类型和分类行首只放图标，日期保持纯文字；图标与字段值按 baseline 对齐；分类、账户和流水类型在正文中各占一行；来源不进入列表，并将复选框固定在左上角。
+- [x] 12.2 更新 `prototype/index.html`，表达表单字段对齐、移动端“图标 + 字段值”的卡片正文、分类左侧、选择复选框左上角和点击卡片查看详情；在 320、375、414、768 px 检查无横向溢出。
+- [x] 12.3 先补 Web 回归断言：桌面表头不渲染 SVG；移动端辅助字段渲染对应 SVG 且不重复字段名称；金额和交易信息不渲染字段图标；分类控件与其他字段同层；列表无来源字段；选择模式窄屏卡片固定复选框且点击复选框不打开详情。
+- [x] 12.4 实现 `UiIcon` 字段图标、`RecordDrawer` 统一字段行和 `CashTable` 窄屏卡片布局；桌面保留可访问查看按钮，窄屏隐藏小眼睛并让卡片本身打开详情，保持键盘和现有保存语义。
+- [x] 12.5 2026-08-14 CST 完成最终 UI 回流验证：`npm test -- --run`（91 passed）、`npm run build`（通过）、`FT_E2E_WEB_PORT=5196 npm run test:e2e`（25 passed）、`npm run test:visual`（15 passed，覆盖 320 / 375 / 390 / 414 / 768 / 1024 / 1440 px）、`openspec validate --all --strict`（21 passed）、`openspec doctor`、`git diff --check` 和原型内联脚本检查（均通过）。范围化搜索确认窄屏卡片无来源字段、无 `mobile-field-label`、日期无卡片图标；浏览器断言确认分类、账户、流水类型依次分行且 baseline 对齐，桌面表头无字段图标，金额 / 交易信息无字段图标。
+- [x] 12.6 2026-08-14 CST 完成最终 UI Hallmark audit：仓库未提供 `hallmark` 可执行文件，按 `.agents/skills/hallmark/references/verbs/audit.md` 对生产视觉快照、DOM 交互和 320 / 375 / 390 / 414 / 768 / 1440 px 状态复核；检查图标与值的 baseline、分类 / 账户纵向顺序、日期纯文字、选择框左上角、移动端无查看按钮、桌面表头纯文字和无横向溢出。结果 `0 critical · 0 major · 0 minor`。当前 `HEAD` 为 `5e36df61cb63f223e239a488f8b41a4ff8b94187`，与 `origin/refactor/web` 的 merge-base 相同；本轮代码、测试、快照和 OpenSpec 改动均仍在未提交工作树中，未提交、推送或部署。
+
 ## 8. 反思
 
 - [ ] 将最终确定的流水校准、实际删除和关系当前状态规则同步到主规格。
@@ -213,3 +222,12 @@
 - **本轮安静宿主机最终关联 / 删除门禁**：2026-08-11 CST，按用户要求强制终止 `emulator-5554` 对应的 QEMU、crashpad 和遗留 `netsimd` 后，运行 `tests/test_cash_projection_performance.py::test_fixed_10k_cash_relation_mutations_meet_100ms_budget` 与 `test_fixed_10k_cash_related_delete_modes_meet_100ms_budget` 的 SQLite / PostgreSQL 双后端组合，结果 `4 passed`。关联新增 / 修改 / 取消 / 解散 p95：SQLite `4.0 / 3.7 / 3.2 / 4.8ms`，PostgreSQL `27.9 / 34.6 / 34.0 / 38.1ms`；有关联关键编辑 / 当前删除并解散 / 删除全部 p95：SQLite `9.7 / 11.4 / 13.7ms`，PostgreSQL `43.8 / 33.7 / 26.7ms`。
 - **本轮完整回归边界**：2026-08-11 CST，尝试运行 `uv run pytest -q`；在宿主机高负载和既有长耗时性能夹具下运行约 19 分钟后主动中止。中止前发现的非导入门禁问题为写入 p95 在当前运行中普通关键字段约 `100.2ms`、有关联删除约 `120.7–133.0ms`，仍保留 11.1 / 11.7 未完成；另发现固定投影重建性能测试误调用 `CashProjectionService.update_record`，已改为使用现金账本命令服务，需在安静宿主机单独补跑。该全量命令未作为通过证据，已使用 92 项真实 PostgreSQL 受影响业务矩阵、SQLite 定向矩阵和导入 / 读取性能门禁替代本轮功能结论。
 - **导入契约补跑**：2026-08-11 CST，使用 Homebrew PostgreSQL 专用测试库强制运行 `tests/test_postgres_statement_import.py`、幂等、映射和来源行契约集合，`50 passed`；SQLite 相关导入集合此前通过。
+
+## 13. 重新合并 `refactor/web` 与真实 QA（2026-08-14 CST）
+
+- [x] 13.1 先将本地未提交 UI 改动临时保存，再执行 `git merge --no-edit origin/refactor/web`；`5e36df6..3e68980` 快进合并完成。本地 `refactor/web` 没有额外提交，已核对 `HEAD` 与 `origin/refactor/web` 一致；恢复工作树时仅 `web/src/styles.css` 发生冲突，已保留工作区访问样式与移动端流水卡片样式并标记解决。`stash@{0}` 作为恢复前备份保留；本轮未提交、推送或部署。
+- [x] 13.2 合并后基础验证：`npm test -- --run` 为 `97 passed`；`VITE_FT_API_ORIGIN=http://127.0.0.1:8767 npm run build` 通过；后端定向矩阵 `uv run pytest tests/test_user_workspace_access.py tests/contract/test_web_api.py tests/integration/test_web_sqlite.py` 为 `42 passed, 4 skipped, 1 warning`；`openspec validate --all --strict` 为 `23 passed`，`openspec doctor` 通过，`git diff --check` 通过。
+- [x] 13.3 合并后的 Web 回归：为现有 Playwright fixture 补齐认证会话与并行渲染等待；修复长交易对方文本在桌面表格中的换行溢出。`FT_E2E_WEB_PORT=5190 npm run test:e2e` 为 `26 passed`；视觉快照按远程分支新增工作区 / 账户导航后的有意变化更新，`npm run test:visual` 为 `15 passed`。
+- [x] 13.4 使用真实浏览器连接真实 API 与生产构建预览执行 QA。为避免修改真实账本，使用原 `.ft` SQLite 的一次性副本，API 使用 `8767`，生产预览使用 `5185`；在 `1440 × 900` 与 `390 × 844` 检查账本浏览、整卡查看、桌面查看按钮、移动端无查看按钮、复选框不冒泡、工作区管理、分类管理、桌面无横向溢出，以及移动端日期无图标、分类 / 账户 / 流水类型分行。两种视口最终网络失败为空；首次登录的 `401` 与新工作区尚未构建投影时的 `503` 属于预期过渡状态，切换到已有工作区并刷新后不再出现。
+- [x] 13.5 最终 Hallmark audit：仓库未提供 `hallmark` 可执行文件，按 `references/verbs/audit.md` 对生产预览最终页面和 `/tmp/finance-tracker-real-qa-final-1440.png`、`/tmp/finance-tracker-real-qa-final-390.png` 进行人工审查；复核图标与文字基线、分类 / 账户分行、日期纯文字、桌面纯文字表头、移动端整卡查看、选择框行为、工作区导航和响应式溢出，结果为 `0 critical · 0 major · 0 minor`。
+- [ ] 13.6 本轮未重新执行 PostgreSQL 矩阵：`FT_TEST_POSTGRES_URL` 未配置；本次合并只涉及 Web / 工作区访问与展示回归，既有 PostgreSQL 业务与性能证据仍保留在前述条目，不能将本条标记为新的双后端通过。

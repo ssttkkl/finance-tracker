@@ -27,6 +27,11 @@ const filter_options = {
   economic_types: [{ economic_type: "expense", transfer_subtypes: [] }],
 };
 const EVIDENCE_ANIMATION_MS = 200;
+const authSession = {
+  user: { email: "visual@example.com" },
+  active_workspace_id: "workspace-visual",
+  workspaces: [{ id: "workspace-visual", name: "视觉账本", role: "editor" }],
+};
 const projection = {
   projection_id: "cash:visual-001", occurred_at: "2026-07-03T09:00:00+08:00", account,
   counterparty: "视觉核对商户", category: foodCategory, category_id: foodCategory.id, note: "固定去标识化备注", amount: "-12.50", currency: "CNY",
@@ -43,6 +48,7 @@ function evidence() {
 async function mockLedger(page: Page) {
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
     if (url.pathname.includes("/evidence/")) return route.fulfill({ json: evidence() });
     if (url.searchParams.get("counterparty") === "empty") return route.fulfill({ json: { projection_version: 1, items: [], next_cursor: null, page_size: 50, filters: {}, filter_options } });
@@ -63,7 +69,7 @@ async function disableAutoAppend(page: Page) {
   });
 }
 
-for (const viewport of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 768, height: 1024 }, { width: 390, height: 844 }]) {
+for (const viewport of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 768, height: 1024 }, { width: 414, height: 896 }, { width: 390, height: 844 }, { width: 375, height: 812 }, { width: 320, height: 720 }]) {
   test(`固定去标识化账本快照 ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await disableAutoAppend(page);
@@ -71,7 +77,11 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 1024, height: 768
     await page.goto("/");
     await expect(page.getByText("视觉核对商户")).toBeVisible();
     await expect(page).toHaveScreenshot(`cash-ledger-${viewport.width}x${viewport.height}.png`, { fullPage: true, animations: "disabled" });
-    await page.getByRole("button", { name: "查看视觉核对商户的收支详情" }).click();
+    const row = page.locator(".cash-row", { hasText: "视觉核对商户" });
+    if (viewport.width <= 820) {
+      await expect(page.getByRole("button", { name: "查看视觉核对商户的收支详情" })).toBeHidden();
+      await row.click();
+    } else await page.getByRole("button", { name: "查看视觉核对商户的收支详情" }).click();
     await expect(page.getByRole("dialog", { name: "收支详情" })).toBeVisible();
     await page.waitForTimeout(EVIDENCE_ANIMATION_MS);
     await expect(page).toHaveScreenshot(`cash-ledger-evidence-${viewport.width}x${viewport.height}.png`, { fullPage: true, animations: "disabled" });
@@ -88,6 +98,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await page.route("**/api/v1/**", async (route) => {
       const request = route.request();
       const url = new URL(request.url());
+      if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
       if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [{ ...account, currencies: ["CNY"] }] } });
       if (url.pathname.includes("/evidence/")) return route.fulfill({ json: { ...evidence(), root_record: root, members: [{ ...root, roles: ["root"] }], accepted_relations: [], inactive_relation_hints: [] } });
       if (url.pathname.endsWith("/cash-ledger/options")) return route.fulfill({ json: options });
@@ -97,7 +108,11 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await page.setViewportSize(viewport);
     await disableAutoAppend(page);
     await page.goto("/");
-    await page.getByRole("button", { name: "查看视觉核对商户的收支详情" }).click();
+    const row = page.locator(".cash-row", { hasText: "视觉核对商户" });
+    if (viewport.width <= 820) {
+      await expect(page.getByRole("button", { name: "查看视觉核对商户的收支详情" })).toBeHidden();
+      await row.click();
+    } else await page.getByRole("button", { name: "查看视觉核对商户的收支详情" }).click();
     await page.getByRole("dialog", { name: "收支详情" }).getByRole("button", { name: "添加关联" }).click();
     const editor = page.getByRole("dialog", { name: "编辑收支详情" });
     await expect(editor.getByText("关联流水")).toBeVisible();
@@ -146,7 +161,22 @@ test("390 px 流水类型字段候选快照", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await disableAutoAppend(page);
   await mockLedger(page); await page.goto("/");
-  await expect(page.getByText("流水类型：消费")).toBeVisible();
+  await expect(page.locator(".economic-type")).toContainText("消费");
+  await expect(page.locator(".cash-row .cash-mobile-field-marker")).toHaveCount(3);
+  await expect(page.locator(".cash-row .occurred-at .cash-mobile-field-marker")).toHaveCount(0);
+  await expect(page.locator(".cash-row .mobile-field-label")).toHaveCount(0);
+  await expect(page.locator(".cash-row .source")).toHaveCount(0);
+  await expect(page.locator(".cash-row .category")).toHaveCSS("align-items", "baseline");
+  await expect(page.locator(".cash-row .account")).toHaveCSS("align-items", "baseline");
+  await expect(page.locator(".cash-row .economic-type")).toHaveCSS("align-items", "baseline");
+  await expect(page.locator(".cash-row .cash-mobile-field-marker").first()).toHaveCSS("align-items", "baseline");
+  const fieldOrder = await page.locator(".cash-row").evaluate((row) => {
+    const top = (selector: string) => (row.querySelector(selector) as HTMLElement).getBoundingClientRect().top;
+    return { category: top(".category"), account: top(".account"), economicType: top(".economic-type") };
+  });
+  expect(fieldOrder.category).toBeLessThan(fieldOrder.account);
+  expect(fieldOrder.account).toBeLessThan(fieldOrder.economicType);
+  await expect(page.getByRole("button", { name: "查看视觉核对商户的收支详情" })).toBeHidden();
   await expect(page.getByText("导入渠道：fixture")).toHaveCount(0);
   await expect(page).toHaveScreenshot("cash-ledger-mobile-fields.png", { fullPage: true, animations: "disabled" });
 });

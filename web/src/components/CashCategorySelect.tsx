@@ -1,4 +1,5 @@
 import type { CashCategory } from "../api/types";
+import { UiIcon } from "./UiIcon";
 
 type Props = {
   categories: CashCategory[];
@@ -9,5 +10,5 @@ type Props = {
 };
 
 export function CashCategorySelect({ categories, value, onChange, label = "分类", id = "cash-category" }: Props) {
-  return <label htmlFor={id}>{label}<select id={id} aria-label={label} value={value ?? ""} onChange={(event) => onChange(event.target.value || null)}><option value="">无分类</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.path.map((item) => item.name).join(" / ")}</option>)}</select></label>;
+  return <><label className="edit-field-label" htmlFor={id}><UiIcon name="tag" /><span>{label}</span></label><select id={id} aria-label={label} value={value ?? ""} onChange={(event) => onChange(event.target.value || null)}><option value="">无分类</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.path.map((item) => item.name).join(" / ")}</option>)}</select></>;
 }

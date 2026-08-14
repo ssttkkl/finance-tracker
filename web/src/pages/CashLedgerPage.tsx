@@ -115,7 +115,7 @@ export function CashLedgerPage({ onOpenImport, onModalStateChange, embedded = fa
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
-  const opener = useRef<HTMLButtonElement | null>(null);
+  const opener = useRef<HTMLElement | null>(null);
   const pageAbortController = useRef<AbortController | null>(null);
   const evidenceAbortController = useRef<AbortController | null>(null);
   const restoreEvidenceFocus = useRef(false);
@@ -180,7 +180,7 @@ export function CashLedgerPage({ onOpenImport, onModalStateChange, embedded = fa
   useEffect(() => { resetAndLoad(); return () => pageAbortController.current?.abort(); }, [filters.date_from, filters.date_to, filters.account_id, filters.counterparty, filters.category_id, filters.uncategorized, filters.currency, filters.amount_min, filters.amount_max, filters.economic_type, filters.transfer_subtype, filters.composition, refreshGeneration]);
   useEffect(() => { if (selected || !restoreEvidenceFocus.current) return; restoreEvidenceFocus.current = false; opener.current?.focus(); }, [selected]);
   useEffect(() => { if (projectionUpdated && status === "ready") updateConfirmation.current?.focus(); }, [projectionUpdated, status]);
-  const confirmUpdatedList = () => { setProjectionUpdated(false); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(".cash-row .icon-button")?.focus()); };
+  const confirmUpdatedList = () => { setProjectionUpdated(false); requestAnimationFrame(() => document.querySelector<HTMLElement>(".cash-row")?.focus()); };
   const updateFilters = (value: CashFilters) => { setSelectedIds(new Set()); setBatchError(undefined); setFilters(value); };
   const clearAmountFilterState = () => setAmountFilterState(undefined);
   const toggleSelection = (item: CashProjection) => setSelectedIds((current) => {
@@ -204,7 +204,7 @@ export function CashLedgerPage({ onOpenImport, onModalStateChange, embedded = fa
       } else setBatchError("保存失败，请稍后重试。");
     }
   };
-  const openEvidence = (projection: CashProjection, source: HTMLButtonElement) => { evidenceAbortController.current?.abort(); const controller = new AbortController(); evidenceAbortController.current = controller; const requestId = ++evidenceRequestId.current; opener.current = source; setSelected(projection); setEvidence(null); setRecordDetail(null); setEvidenceState("loading"); fetchEvidence(projection.projection_id, controller.signal).then((value) => { if (requestId === evidenceRequestId.current) { setEvidence(value); setEvidenceState("ready"); } }).catch(() => { if (!controller.signal.aborted && requestId === evidenceRequestId.current) setEvidenceState("error"); }); };
+  const openEvidence = (projection: CashProjection, source: HTMLElement) => { evidenceAbortController.current?.abort(); const controller = new AbortController(); evidenceAbortController.current = controller; const requestId = ++evidenceRequestId.current; opener.current = source; setSelected(projection); setEvidence(null); setRecordDetail(null); setEvidenceState("loading"); fetchEvidence(projection.projection_id, controller.signal).then((value) => { if (requestId === evidenceRequestId.current) { setEvidence(value); setEvidenceState("ready"); } }).catch(() => { if (!controller.signal.aborted && requestId === evidenceRequestId.current) setEvidenceState("error"); }); };
   const closeEvidence = () => { evidenceAbortController.current?.abort(); evidenceRequestId.current += 1; restoreEvidenceFocus.current = true; opener.current?.focus(); setSelected(null); setEvidence(null); setRecordDetail(null); setRecordLoading(false); setRecordLoadError(false); };
   const loadEditor = (id: string | null, openRelation = false) => {
     const evidenceCached = id && evidence ? detailFromEvidence(evidence, id, ledgerOptions) : null;

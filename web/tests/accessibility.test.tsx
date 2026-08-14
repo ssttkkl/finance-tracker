@@ -32,8 +32,8 @@ describe("现金账本无障碍", () => {
     render(<CashLedgerPage />);
     const trigger = await screen.findByRole("button", { name: "查看咖啡店的收支详情" });
     expect(screen.getByLabelText("账户")).toBeInTheDocument();
-    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["选择", "发生时间", "账户", "交易信息", "来源", "流水类型", "分类", "金额", "操作"]);
-    expect(screen.getAllByRole("columnheader").map((header) => header.getAttribute("scope"))).toEqual(["col", "col", "col", "col", "col", "col", "col", "col", "col"]);
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["选择", "发生时间", "账户", "交易信息", "分类", "流水类型", "金额", "操作"]);
+    expect(screen.getAllByRole("columnheader").map((header) => header.getAttribute("scope"))).toEqual(["col", "col", "col", "col", "col", "col", "col", "col"]);
     expect(screen.getByRole("columnheader", { name: "交易信息" })).toHaveAttribute("id", "cash-column-transaction-info");
     expect(screen.getByRole("cell", { name: "咖啡店 -" })).toHaveAttribute("headers", "cash-column-transaction-info");
     expect(screen.getByRole("table", { name: "收支账本中的收支记录" })).toHaveClass("cash-table");
