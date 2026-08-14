@@ -434,7 +434,29 @@ class RelationalCashLedgerQueryRepository:
                 )
             ).order_by(CashProjectionModel.occurred_at.desc(),CashProjectionModel.projection_id.desc(),CashProjectionRelationModel.ordinal)
             result=s.execute(q).all()
-            if not result: raise ProjectionUnavailableError()
+            if not result:
+                # A ready dataset may legitimately contain no visible rows.
+                # The outer join has no row to carry the state in that case, so
+                # read the state explicitly instead of treating an empty
+                # workspace as an unavailable projection.
+                empty_state = s.scalar(
+                    select(CashProjectionStateModel).where(
+                        CashProjectionStateModel.workspace_id == self._workspace_id,
+                    )
+                )
+                if empty_state is None or empty_state.availability != "ready" or not empty_state.active_dataset_id:
+                    raise ProjectionUnavailableError()
+                if cursor_version is not None and cursor_version != empty_state.projection_version:
+                    raise ProjectionUpdatedError()
+                return (
+                    empty_state.projection_version,
+                    [],
+                    self._filter_options(
+                        s, empty_state.active_dataset_id,
+                        version=empty_state.projection_version, categories={},
+                    ),
+                    (),
+                )
             version,dataset_id,availability,_,_,_=result[0]
             if availability != "ready" or not dataset_id: raise ProjectionUnavailableError()
             if cursor_version is not None and cursor_version != version: raise ProjectionUpdatedError()
