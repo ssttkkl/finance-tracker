@@ -59,13 +59,29 @@ test("管理员在桌面与移动视口确认工作区名称后删除工作区",
 
   await page.goto("/workspace-management");
   await expect(page.getByRole("heading", { name: "工作区管理", level: 1 })).toBeVisible();
+  const workspacePage = page.locator("main.workspace-management-page");
+  await expect(workspacePage.locator(":scope > section h2")).toHaveText(["工作区信息", "成员", "邀请成员", "删除工作区"]);
+  const dangerSection = workspacePage.locator('[aria-labelledby="workspace-delete-title"]');
+  const dangerTitleBox = await dangerSection.getByRole("heading", { name: "删除工作区" }).boundingBox();
+  const dangerButtonBox = await dangerSection.getByRole("button", { name: "删除工作区" }).boundingBox();
+  if (!dangerTitleBox || !dangerButtonBox) throw new Error("删除工作区标题或按钮未渲染");
+  expect(dangerButtonBox.y).toBeGreaterThan(dangerTitleBox.y);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1440);
   await page.screenshot({ path: "/tmp/workspace-management-delete-desktop.png", fullPage: true });
+
+  for (const width of [320, 375, 414, 768]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.reload();
+    await expect(page.locator("main.workspace-management-page > section h2")).toHaveText(["工作区信息", "成员", "邀请成员", "删除工作区"]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await expect(page.getByRole("heading", { name: "工作区管理", level: 1 })).toBeVisible();
+  await expect(page.locator("main.workspace-management-page > section h2")).toHaveText(["工作区信息", "成员", "邀请成员", "删除工作区"]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: "/tmp/workspace-management-layout-mobile.png", fullPage: true });
   await page.getByRole("button", { name: "删除工作区" }).click();
   await expect(page.getByRole("alertdialog", { name: "删除工作区？" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "输入工作区名称" })).toBeFocused();
