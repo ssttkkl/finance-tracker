@@ -108,3 +108,21 @@
 - 设计修正：删除区在 1440/390 px 均验证为标题下方 16 px 放置描边按钮，不再采用标题右侧对齐；标题与按钮之间没有空白占位。
 - 原型状态：`?state=loading` 显示加载状态并隐藏管理板块；`?state=empty` 显示空成员；`?state=error` 显示保存错误；`?mode=viewer` 禁用写操作并隐藏删除区；创建邀请显示成功结果；点击删除入口后确认层可见且输入框自动获得焦点。控制台无错误。
 - 生产实现：`web/src/AccessApp.tsx` 将四个板块改为直接纵向 section，`web/src/styles.css` 仅保留工作区信息内部桌面双列，删除区标题下方紧跟描边按钮；成员、邀请、删除确认和权限逻辑未改变。
+
+## 12. 最终验证与交付
+
+- [x] 12.1 在最新 `refactor/web` 基线上重跑前端全量、构建、工作区 E2E 和 SQLite/PostgreSQL 工作区矩阵。
+- [x] 12.2 对最终生产 UI 运行 Hallmark `audit`，确认没有 critical、major 或 minor finding。
+- [x] 12.3 完成范围、工程、可访问性、响应式和最终 diff 复核，创建 PR 并等待合入。
+
+### 12.1–12.3 验证证据
+
+- 基线/HEAD：`origin/refactor/web`=`cd3842b6658e38213716f639790ce42741d96aa3`，最终实现=`e96b757b1823a62262daeaf9ae79ab6df78a3cb5`；PR 为 [#53](https://github.com/ssttkkl/finance-tracker/pull/53)，目标 `refactor/web`。
+- 前端：`npm test -- --run` → 10 个测试文件、104 passed；`VITE_FT_API_ORIGIN=http://127.0.0.1:8000 npm run build` → 通过。
+- 浏览器：`FT_E2E_WEB_PORT=5184 npm run test:e2e -- workspace-navigation.e2e.ts` → 2 passed；真实 Chromium 检查 320、375、390、414、768、1440 px，无横向滚动；1440 px 正常截图为 `/tmp/workspace-management-delete-desktop.png`，390 px 正常截图为 `/tmp/workspace-management-layout-mobile.png`，390 px 删除确认截图为 `/tmp/workspace-management-delete-mobile.png`；控制台无错误。
+- SQLite：`env -u FT_TEST_POSTGRES_URL uv run pytest -q` → 1410 passed、175 skipped、1 warning；最新基线上的工作区契约/性能 → 21 passed、4 skipped、1 warning。
+- PostgreSQL：`finance_tracker_test` 由本机 `psql -h 127.0.0.1 -p 55433` 验证可连接；最新基线上的工作区契约/性能 → 25 passed、1 warning；此前包含迁移矩阵的完整工作区组合 → 41 passed、1 warning。
+- OpenSpec 与格式：`openspec validate --all --strict` → 24 passed、0 failed；`git diff --check` → 通过。
+- Hallmark `audit`：审查 `web/src/AccessApp.tsx`、`web/src/styles.css`、最终 1440/390 截图和确认弹层；板块顺序、标题层级、危险操作位置、移动端单列和现有 Cobalt token 一致，结果为 0 critical、0 major、0 minor。
+- 独立复核：已提交只读 diff review 请求，范围覆盖计划、DOM/CSS、权限/删除行为、测试、OpenSpec 和发布准备；合入前按复核结果处理 finding。
+- 未运行项：无自动 GitHub checks；本次不部署、不归档 OpenSpec change，待 PR 合入后再按仓库发布流程处理。
