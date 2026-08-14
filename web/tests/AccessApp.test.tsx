@@ -8,6 +8,14 @@ const session = {
   workspaces: [{ id: "workspace-1", name: "家庭账本", role: "editor" as const }],
 };
 
+const multiWorkspaceSession = {
+  ...session,
+  workspaces: [
+    ...session.workspaces,
+    { id: "workspace-2", name: "旅行账本", role: "editor" as const },
+  ],
+};
+
 const adminSession = {
   user: { email: "admin@example.com" },
   active_workspace_id: "workspace-1",
@@ -80,6 +88,22 @@ describe("AccessApp", () => {
     expect(await screen.findByRole("heading", { name: "分类管理" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: "投资事件" }));
     expect(await screen.findByRole("heading", { name: "投资事件", level: 1 })).toBeInTheDocument();
+  });
+
+  it("切换工作区失败时保留当前账本并提供重试提示", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/auth/session")
+      ? json(multiWorkspaceSession)
+      : input.includes("/auth/workspaces/workspace-2/select")
+        ? json({ error: { code: "storage.busy" } }, 503)
+        : json({ items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} })));
+    history.replaceState({}, "", "/");
+
+    render(<AccessApp />);
+
+    const switcher = await screen.findByRole("combobox", { name: "当前工作区" });
+    fireEvent.change(switcher, { target: { value: "workspace-2" } });
+    expect(await screen.findByRole("alert")).toHaveTextContent("无法切换工作区，请稍后重试。");
+    expect(switcher).toHaveValue("workspace-1");
   });
 
   it("管理员在一级工作区管理页面完成名称、成员和邀请操作", async () => {

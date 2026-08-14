@@ -67,6 +67,24 @@ class CashProjectionService:
             raise RuntimeError("projection.failed") from exc
 
     @staticmethod
+    def initialize_in_session(session, workspace_id: str) -> dict:
+        """发布新工作区的首个数据集，且由调用方事务负责提交或回滚。"""
+        from ft.adapters.relational.projections import RelationalCashProjectionRepository
+
+        repository = RelationalCashProjectionRepository(session, workspace_id)
+        state = repository._state(create=True, lock=True)
+        assert state is not None
+        if state.availability == "ready" and state.active_dataset_id:
+            return repository.status()
+        facts, relations = repository.read_sources()
+        build = build_cash_projections(facts, relations)
+        CashProjectionService._synchronize_component_categories(session, workspace_id, build)
+        digest = repository.source_digest()
+        dataset_id = repository.create_staging_dataset(source_digest=digest, rules_version=RULES_VERSION)
+        repository.replace_dataset(dataset_id, build, projection_version=state.projection_version + 1)
+        return repository.publish_dataset(dataset_id, source_digest=digest, rules_version=RULES_VERSION)
+
+    @staticmethod
     def _failure_code(exc: Exception) -> str:
         if isinstance(exc, CashProjectionError):
             return str(exc)

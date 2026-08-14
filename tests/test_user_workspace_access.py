@@ -10,7 +10,10 @@ def _app(runtime):
     from contextvars import ContextVar
     workspace = ContextVar("test_workspace", default=runtime.workspace_id)
     service = WorkspaceServices(runtime.sessions, workspace)
-    return TestClient(create_app(service, mutation_service=service, access_service=AccessService(runtime.sessions)), base_url="https://testserver")
+    return TestClient(create_app(
+        service, mutation_service=service, access_service=AccessService(runtime.sessions),
+        workspace_context=workspace,
+    ), base_url="https://testserver")
 
 
 def _register(client: TestClient, email: str) -> object:
@@ -67,6 +70,23 @@ def test_unrelated_registration_does_not_receive_default_workspace(cash_web_runt
     response = _register(client, "member@example.com")
     assert response.status_code == 200
     assert response.json()["workspaces"] == []
+
+
+def test_new_workspace_has_a_browsable_empty_cash_ledger(cash_web_runtime):
+    client = _app(cash_web_runtime)
+    assert _register(client, "empty-workspace@example.com").status_code == 200
+
+    created = client.post("/api/v1/auth/workspaces", json={"name": "空账本"})
+
+    assert created.status_code == 200
+    assert created.json()["active_workspace_id"]
+    from ft.application.cash_projections import CashProjectionService
+    status = CashProjectionService(cash_web_runtime.sessions, created.json()["active_workspace_id"]).status()
+    assert status["availability"] == "ready", status
+    response = client.get("/api/v1/cash-projections")
+    assert response.status_code == 200, response.json()
+    assert response.json()["items"] == []
+    assert response.json()["projection_version"] >= 1
 
 
 def test_admin_invites_viewer_once_and_viewer_cannot_write(cash_web_runtime):

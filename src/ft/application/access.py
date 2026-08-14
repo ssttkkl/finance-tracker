@@ -128,6 +128,8 @@ class AccessService:
             session.flush()
             session.add(WorkspaceMembershipModel(workspace_id=workspace_id, user_id=user_id, role="admin"))
             session.flush()
+            from ft.application.cash_projections import CashProjectionService
+            CashProjectionService.initialize_in_session(session, workspace_id)
             session.scalar(
                 select(UserSessionModel).where(UserSessionModel.token_digest == _digest(token))
             ).active_workspace_id = workspace_id
