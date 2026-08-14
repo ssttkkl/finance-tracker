@@ -23,6 +23,7 @@ from ft.adapters.relational.models import (
     CashProjectionStateModel,
     CashTransactionModel,
     TransactionRelationModel,
+    WorkspaceModel,
 )
 from ft.adapters.relational.repositories import RelationalCashflowRepository
 from ft.adapters.relational.uow import RelationalUnitOfWork
@@ -1680,6 +1681,12 @@ class CashLedgerCommandService:
         with self._uow as uow:
             session = uow._state().session
             if normalized_idempotency_key:
+                # Serialize confirmation attempts for one workspace on PostgreSQL.
+                # SQLite already starts this UoW with BEGIN IMMEDIATE; the row lock
+                # closes the check-then-insert window on the shared database.
+                session.execute(sa_select(WorkspaceModel.id).where(
+                    WorkspaceModel.id == self._workspace_id,
+                ).with_for_update()).scalar_one()
                 existing = session.scalar(sa_select(CashImportCommitModel).where(
                     CashImportCommitModel.workspace_id == self._workspace_id,
                     CashImportCommitModel.idempotency_key == normalized_idempotency_key,

@@ -38,8 +38,9 @@
 
 ## 6. 验证与发布准备
 
-- [x] 6.1 运行新增单元、契约和回归测试，覆盖正常、空、错误、过期、重复和恢复路径；此前全量结果为 `1460 passed, 176 skipped, 1 warning`
-- [x] 6.2 运行 SQLite 与 `FT_TEST_POSTGRES_URL` 指向 `_test` 数据库的同一导入事务矩阵；`tests/contract/test_cash_import_dual_backend.py tests/test_alembic_migration.py` 结果为 `18 passed`
+- [x] 6.1 运行新增单元、契约和回归测试，覆盖正常、空、错误、过期、重复和恢复路径；全量结果为 `1460 passed, 177 skipped, 1 warning`
+- [x] 6.2 运行 SQLite 与 `FT_TEST_POSTGRES_URL` 指向 `_test` 数据库的同一导入事务矩阵；`tests/contract/test_cash_import_dual_backend.py tests/test_alembic_migration.py` 结果为 `19 passed`，并覆盖 PostgreSQL 同一幂等键的并发确认
 - [x] 6.3 运行 Web 测试、构建和真实浏览器 QA：`npm test` 为 `10 files / 107 passed`，`npm run build` 通过；浏览器使用 `http://127.0.0.1:5187/cash-import`，覆盖 320/375/390/414/768/1440，1440 与 390 截图分别为 `/tmp/ft-r2-shell-1440-preview.png`、`/tmp/ft-r2-shell-390-preview-viewport.png`，选择文件与配对复核截图为 `/tmp/ft-r2-shell-390-select-fixed.png`、`/tmp/ft-r2-shell-1440-relations-fixed.png`；页面无横向溢出，表格仅在自身容器内滚动，菜单、账户入口和键盘焦点可用，实际微信账单预览为 985 条、4 条自动关系
 - [x] 6.4 运行 `openspec validate --all --strict`（25 passed, 0 failed）、`openspec doctor`（root ok）、`git diff --check` 并完成范围化 diff 复核
-- [x] 6.5 验证时 `HEAD` 为 `d9a24e6f71b5f8382a90ffa5b6528fe6b448eb3c`，比较基线为 `f5b0398ddf87cc0cf497a9e816cda898f0446b95`；生产 R2 配置前提、临时对象清理和密码账单浏览器验证风险仍按 design 记录，本次提交、推送与合入按当前发布流程完成
+- [x] 6.5 验证基线 `HEAD` 为 `d9a24e6f71b5f8382a90ffa5b6528fe6b448eb3c`，比较基线为 `f5b0398ddf87cc0cf497a9e816cda898f0446b95`；生产 R2 配置前提、临时对象清理和密码账单浏览器验证风险仍按 design 记录，本次提交、推送与合入按当前发布流程完成
+- [x] 6.6 完成独立预合入审查：发现 PostgreSQL 并发确认的幂等检查存在先检查后写入窗口，已通过锁定工作区行串行化同一工作区的确认请求，并以双后端契约测试回归；无未解决的 critical finding
