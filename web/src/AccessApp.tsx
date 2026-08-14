@@ -2,6 +2,11 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { App } from "./App";
 import * as access from "./api/access";
 import type { InvitationPreview, Member, Role, Session } from "./api/access";
+import { parseWorkspacePath, workspaceChildPath, workspacePath, workspaceUrl } from "./routing";
+
+function routeForPath(pathname: string): "ledger" | "members" {
+  return workspaceChildPath(pathname) === "/workspace-management" ? "members" : "ledger";
+}
 
 function Icon({ name }: { name: "arrow-left" | "copy" | "link" | "logout" | "plus" | "save" | "trash" | "users" }) {
   const paths = {
@@ -172,17 +177,37 @@ function WorkspaceManagement({ activeRole, onSession, onWorkspaceDeleted }: { ac
 }
 
 export function AccessApp() {
-  const [state, setState] = useState<Session | null>(null); const [route, setRoute] = useState<"ledger" | "create" | "members">(() => location.pathname === "/workspace-management" ? "members" : "ledger"); const [inviteToken, setInviteToken] = useState(() => new URLSearchParams(location.search).get("invite")); const [signInForInvite, setSignInForInvite] = useState(false); const [mobileAccountOpen, setMobileAccountOpen] = useState(false); const [workspaceError, setWorkspaceError] = useState("");
-  useEffect(() => { access.session().then(setState).catch(() => undefined); const close = () => setMobileAccountOpen(false); const syncRoute = () => setRoute(location.pathname === "/workspace-management" ? "members" : "ledger"); window.addEventListener("mobile-menu-toggled", close); window.addEventListener("popstate", syncRoute); return () => { window.removeEventListener("mobile-menu-toggled", close); window.removeEventListener("popstate", syncRoute); }; }, []);
+  const [state, setState] = useState<Session | null>(null); const [route, setRoute] = useState<"ledger" | "create" | "members">(() => routeForPath(location.pathname)); const [inviteToken, setInviteToken] = useState(() => new URLSearchParams(location.search).get("invite")); const [signInForInvite, setSignInForInvite] = useState(false); const [mobileAccountOpen, setMobileAccountOpen] = useState(false); const [workspaceError, setWorkspaceError] = useState("");
+  const applySession = async (value: Session) => {
+    let next = value;
+    const requestedWorkspace = parseWorkspacePath(location.pathname)?.workspaceId;
+    if (requestedWorkspace && requestedWorkspace !== value.active_workspace_id) {
+      try {
+        next = await access.selectWorkspace(requestedWorkspace);
+        setWorkspaceError("");
+      } catch {
+        setWorkspaceError("无法打开该工作区，请检查权限后重试。");
+      }
+    }
+    setState(next);
+    setRoute(routeForPath(location.pathname));
+    setSignInForInvite(false);
+    if (next.active_workspace_id) {
+      const target = `${workspaceUrl(next.active_workspace_id, location.pathname)}${location.search}${location.hash}`;
+      const current = `${location.pathname}${location.search}${location.hash}`;
+      if (target !== current) history.replaceState({}, "", target);
+    }
+  };
+  useEffect(() => { access.session().then(value => void applySession(value)).catch(() => undefined); const close = () => setMobileAccountOpen(false); const syncRoute = () => setRoute(routeForPath(location.pathname)); window.addEventListener("mobile-menu-toggled", close); window.addEventListener("popstate", syncRoute); return () => { window.removeEventListener("mobile-menu-toggled", close); window.removeEventListener("popstate", syncRoute); }; }, []);
   const clearInvite = () => { history.replaceState({}, "", location.pathname); setInviteToken(null); setSignInForInvite(false); };
-  if (inviteToken && !signInForInvite) return <Invite token={inviteToken} session={state} onSession={value => { setState(value); setInviteToken(null); setRoute("ledger"); }} onSignIn={() => { if (state) clearInvite(); else setSignInForInvite(true); }} />;
-  if (!state) return <Auth onSession={value => { setState(value); setSignInForInvite(false); }} />;
-  if (route === "create") return <Create onSession={value => { setState(value); setRoute("ledger"); }} onBack={() => setRoute("ledger")} />;
+  if (inviteToken && !signInForInvite) return <Invite token={inviteToken} session={state} onSession={value => { setInviteToken(null); void applySession(value); }} onSignIn={() => { if (state) clearInvite(); else setSignInForInvite(true); }} />;
+  if (!state) return <Auth onSession={value => void applySession(value)} />;
+  if (route === "create") return <Create onSession={value => void applySession(value)} onBack={() => setRoute("ledger")} />;
   const active = state.workspaces.find(w => w.id === state.active_workspace_id);
-  const footer = <div className="sidebar-footer"><div className="workspace-panel"><div className="account-line"><span className="account-avatar" aria-hidden="true">{state.user.email.slice(0, 1).toUpperCase()}</span><span className="account-email">{state.user.email}</span></div><label className="workspace-switcher"><span>当前工作区</span><select aria-label="当前工作区" value={state.active_workspace_id ?? ""} onChange={async e => { if (e.target.value === "__create__") { setRoute("create"); return; } setWorkspaceError(""); try { setState(await access.selectWorkspace(e.target.value)); } catch { setWorkspaceError("无法切换工作区，请稍后重试。"); } }}>{state.workspaces.map(w => <option key={w.id} value={w.id}>{w.name} · {access.roleLabel[w.role]}</option>)}<option value="__create__">＋ 创建工作区</option></select></label>{workspaceError && <p className="access-error" role="alert">{workspaceError}</p>}<button type="button" className="logout-link" onClick={async () => { await access.logout(); setState(null); }}><Icon name="logout" />退出登录</button></div></div>;
-  const openWorkspaceManagement = () => { history.pushState({}, "", "/workspace-management"); setRoute("members"); };
+  const footer = <div className="sidebar-footer"><div className="workspace-panel"><div className="account-line"><span className="account-avatar" aria-hidden="true">{state.user.email.slice(0, 1).toUpperCase()}</span><span className="account-email">{state.user.email}</span></div><label className="workspace-switcher"><span>当前工作区</span><select aria-label="当前工作区" value={state.active_workspace_id ?? ""} onChange={async e => { if (e.target.value === "__create__") { setRoute("create"); return; } setWorkspaceError(""); try { const next = await access.selectWorkspace(e.target.value); if (!next.active_workspace_id) throw new Error("workspace_missing"); const target = workspacePath(next.active_workspace_id, workspaceChildPath(location.pathname) || "/"); history.pushState({}, "", target); setState(next); setRoute(routeForPath(target)); window.dispatchEvent(new PopStateEvent("popstate")); } catch { setWorkspaceError("无法切换工作区，请稍后重试。"); } }}>{state.workspaces.map(w => <option key={w.id} value={w.id}>{w.name} · {access.roleLabel[w.role]}</option>)}<option value="__create__">＋ 创建工作区</option></select></label>{workspaceError && <p className="access-error" role="alert">{workspaceError}</p>}<button type="button" className="logout-link" onClick={async () => { await access.logout(); setState(null); }}><Icon name="logout" />退出登录</button></div></div>;
+  const openWorkspaceManagement = () => { if (!state.active_workspace_id) return; const target = workspacePath(state.active_workspace_id, "/workspace-management"); history.pushState({}, "", target); setRoute("members"); window.dispatchEvent(new PopStateEvent("popstate")); };
   const leaveWorkspaceManagement = () => { if (route === "members") setRoute("ledger"); };
-  const workspacePage = <WorkspaceManagement activeRole={active?.role ?? "viewer"} onSession={setState} onWorkspaceDeleted={value => { history.replaceState({}, "", "/"); setRoute("ledger"); setState(value); }} />;
+  const workspacePage = <WorkspaceManagement activeRole={active?.role ?? "viewer"} onSession={value => void applySession(value)} onWorkspaceDeleted={value => { setRoute("ledger"); setState(value); if (value.active_workspace_id) { history.replaceState({}, "", workspacePath(value.active_workspace_id, "/")); window.dispatchEvent(new PopStateEvent("popstate")); } else history.replaceState({}, "", "/"); }} />;
   const mobileAccount = <div className="mobile-account-control"><button type="button" className="mobile-account-button" aria-expanded={mobileAccountOpen} aria-controls="mobile-account-panel" aria-label={`账户 ${state.user.email}`} onClick={() => { const menu = document.querySelector<HTMLButtonElement>(".menu-toggle"); if (menu?.getAttribute("aria-expanded") === "true") menu.click(); setMobileAccountOpen(open => !open); }}>{state.user.email.slice(0, 1).toUpperCase()}</button>{mobileAccountOpen && <div id="mobile-account-panel" className="mobile-account-panel"><div className="mobile-account-email">{state.user.email}</div>{footer}<button type="button" className="mobile-panel-close" onClick={() => setMobileAccountOpen(false)}>关闭</button></div>}</div>;
-  return <>{state.active_workspace_id ? <App sidebarFooter={footer} mobileAccount={mobileAccount} workspacePage={workspacePage} workspaceManagementActive={route === "members"} onWorkspaceManagement={openWorkspaceManagement} onLedgerNavigation={leaveWorkspaceManagement} /> : <Create onSession={setState} onBack={() => setRoute("ledger")} />}</>;
+  return <>{state.active_workspace_id ? <App key={state.active_workspace_id} workspaceId={state.active_workspace_id} sidebarFooter={footer} mobileAccount={mobileAccount} workspacePage={workspacePage} workspaceManagementActive={route === "members"} onWorkspaceManagement={openWorkspaceManagement} onLedgerNavigation={leaveWorkspaceManagement} /> : <Create onSession={value => void applySession(value)} onBack={() => setRoute("ledger")} />}</>;
 }

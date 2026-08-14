@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>工作区 URL 上下文原型</title>
+  <style>
+    /* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 */
+    :root {
+      --paper: oklch(97% 0.01 250);
+      --panel: oklch(100% 0 0);
+      --ink: oklch(25% 0.03 250);
+      --muted: oklch(53% 0.03 250);
+      --rule: oklch(88% 0.02 250);
+      --accent: oklch(48% 0.16 255);
+      --accent-soft: oklch(93% 0.04 255);
+      --danger: oklch(48% 0.17 25);
+      --danger-soft: oklch(95% 0.03 25);
+      --focus: oklch(68% 0.16 255);
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --radius: 12px;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Noto Sans SC", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-width: 320px; overflow-x: clip; background: var(--paper); color: var(--ink); }
+    body { padding: var(--space-8); }
+    main { max-width: 1080px; margin: 0 auto; }
+    .eyebrow { margin: 0 0 var(--space-2); color: var(--accent); font: 600 12px/1.2 ui-monospace, SFMono-Regular, monospace; letter-spacing: .08em; }
+    h1, h2, p { margin-top: 0; }
+    h1 { margin-bottom: var(--space-6); font-size: clamp(28px, 5vw, 52px); line-height: 1.05; letter-spacing: -.03em; }
+    h2 { margin-bottom: var(--space-4); font-size: 20px; }
+    .route-bar, .panel { background: var(--panel); border: 1px solid var(--rule); border-radius: var(--radius); }
+    .route-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-4); margin-bottom: var(--space-6); }
+    .route { min-width: 0; overflow-wrap: anywhere; color: var(--muted); font: 13px/1.4 ui-monospace, SFMono-Regular, monospace; }
+    label { display: grid; gap: var(--space-2); color: var(--muted); font-size: 13px; }
+    select, input, button { min-height: 40px; border: 1px solid var(--rule); border-radius: 8px; font: inherit; }
+    select, input { width: 100%; padding: 0 var(--space-3); background: var(--panel); color: var(--ink); }
+    button { padding: 0 var(--space-4); background: var(--panel); color: var(--ink); cursor: pointer; }
+    button.primary { border-color: var(--accent); background: var(--accent); color: white; }
+    button.danger { border-color: var(--danger); color: var(--danger); }
+    button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+    .panel { padding: var(--space-6); }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+    .state { display: grid; gap: var(--space-3); padding-top: var(--space-4); border-top: 1px solid var(--rule); }
+    .state:first-child { padding-top: 0; border-top: 0; }
+    .state-title { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+    .state-title strong { font-size: 15px; }
+    .state-title code { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+    .notice { padding: var(--space-3); border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-size: 13px; line-height: 1.5; }
+    .notice.error { background: var(--danger-soft); color: var(--danger); }
+    .confirm { display: grid; gap: var(--space-4); padding: var(--space-4); border: 1px solid color-mix(in oklch, var(--danger) 35%, var(--rule)); border-radius: 10px; background: var(--danger-soft); }
+    .confirm p { margin-bottom: 0; line-height: 1.6; }
+    .actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .empty { padding: var(--space-6) var(--space-4); border: 1px dashed var(--rule); border-radius: 8px; color: var(--muted); text-align: center; }
+    @media (max-width: 640px) {
+      body { padding: var(--space-4); }
+      .route-bar, .state-title { align-items: stretch; flex-direction: column; }
+      .grid { grid-template-columns: 1fr; }
+      .actions, button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">WORKSPACE CONTEXT / PROTOTYPE</p>
+    <h1>工作区上下文</h1>
+    <div class="route-bar">
+      <span class="route">/w/workspace-b/cash-import</span>
+      <label>当前工作区
+        <select aria-label="当前工作区">
+          <option>工作区 B · 管理员</option>
+          <option>工作区 A · 可编辑</option>
+        </select>
+      </label>
+    </div>
+    <div class="grid">
+      <section class="panel" aria-labelledby="normal-title">
+        <h2 id="normal-title">正常与空状态</h2>
+        <div class="state">
+          <div class="state-title"><strong>切换成功</strong><code>/w/workspace-b/</code></div>
+          <div class="notice">已切换，正在显示工作区 B 的账本。</div>
+          <div class="actions"><button class="primary">新建流水</button><button>导入账单</button></div>
+        </div>
+        <div class="state">
+          <div class="state-title"><strong>空工作区</strong><code>/w/workspace-empty/</code></div>
+          <div class="empty">暂无记录</div>
+        </div>
+        <div class="state">
+          <div class="state-title"><strong>加载中</strong><code>/w/workspace-b/investment-events</code></div>
+          <div class="notice">正在打开账本…</div>
+        </div>
+      </section>
+      <section class="panel" aria-labelledby="error-title">
+        <h2 id="error-title">错误与危险操作</h2>
+        <div class="state">
+          <div class="state-title"><strong>无权深链接</strong><code>/w/workspace-x/</code></div>
+          <div class="notice error" role="alert">无法打开该工作区，已保留当前工作区。</div>
+          <button>返回当前工作区</button>
+        </div>
+        <div class="state">
+          <div class="state-title"><strong>切换失败</strong><code>/w/workspace-a/</code></div>
+          <div class="notice error" role="alert">无法切换工作区，请稍后重试。</div>
+          <button>重试</button>
+        </div>
+        <div class="state">
+          <div class="state-title"><strong>删除确认</strong><code>/w/workspace-b/workspace-management</code></div>
+          <div class="confirm">
+            <strong>删除工作区？</strong>
+            <p>将永久删除当前工作区及其全部账本数据、成员和邀请。</p>
+            <label>输入工作区名称<input aria-label="输入工作区名称" placeholder="工作区 B"></label>
+            <div class="actions"><button>取消</button><button class="danger">删除工作区</button></div>
+          </div>
+        </div>
+        <div class="state">
+          <div class="state-title"><strong>删除失败</strong><code>/w/workspace-b/workspace-management</code></div>
+          <div class="notice error" role="alert">无法删除工作区，请检查名称后重试。</div>
+          <button>返回确认</button>
+        </div>
+        <div class="state">
+          <div class="state-title"><strong>删除成功</strong><code>/w/workspace-a/</code></div>
+          <div class="notice">工作区已删除，已返回另一个工作区。</div>
+          <button class="primary">打开当前工作区</button>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

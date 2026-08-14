@@ -8,10 +8,43 @@ from uuid import uuid4
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 
 from ft.adapters.relational.models import (
-    UserModel, UserSessionModel, WorkspaceInvitationModel, WorkspaceMembershipModel, WorkspaceModel,
+    AccountAliasModel,
+    AccountLifecycleEventModel,
+    CashCategoryModel,
+    CashCategoryStateModel,
+    CashImportCommitModel,
+    CashInvestmentFundingRelationModel,
+    CashProjectionDatasetModel,
+    CashProjectionMemberModel,
+    CashProjectionModel,
+    CashProjectionRelationModel,
+    CashProjectionStateModel,
+    CashTransactionModel,
+    InvestmentEventModel,
+    LedgerSnapshotModel,
+    StatementAccountMappingModel,
+    SyncCursorModel,
+    TransactionRelationModel,
+    UserModel,
+    UserSessionModel,
+    ValuationObservationModel,
+    WealthActiveManifestModel,
+    WealthComponentModel,
+    WealthCoverageDispositionModel,
+    WealthDailyResultModel,
+    WealthEvidenceItemModel,
+    WealthEvidenceManifestItemModel,
+    WealthEvidenceManifestModel,
+    WealthGenerationDayModel,
+    WealthGenerationModel,
+    WealthSourceManifestItemModel,
+    WealthSourceManifestModel,
+    WorkspaceInvitationModel,
+    WorkspaceMembershipModel,
+    WorkspaceModel,
 )
 
 BOOTSTRAP_ADMIN_EMAIL = "admin@ssttkkl.fun"
@@ -180,6 +213,18 @@ class AccessService:
             raise AccessError("workspace_name_mismatch")
 
         with self._sessions.begin() as session:
+            current_login = session.get(UserSessionModel, login_id)
+            current_membership = session.get(
+                WorkspaceMembershipModel,
+                {"workspace_id": workspace_id, "user_id": user_id},
+            )
+            if (
+                current_login is None
+                or current_login.active_workspace_id != workspace_id
+                or current_membership is None
+                or current_membership.role != "admin"
+            ):
+                raise PermissionDenied("workspace_forbidden")
             workspace = session.get(WorkspaceModel, workspace_id)
             if workspace is None:
                 raise PermissionDenied("workspace_forbidden")
@@ -193,6 +238,7 @@ class AccessService:
                 .where(UserSessionModel.active_workspace_id == workspace_id)
                 .values(active_workspace_id=None)
             )
+            self._delete_workspace_data(session, workspace_id)
             session.delete(workspace)
             session.flush()
             replacement = session.scalar(
@@ -200,9 +246,78 @@ class AccessService:
                 .where(WorkspaceMembershipModel.user_id == user_id)
                 .order_by(WorkspaceMembershipModel.created_at, WorkspaceMembershipModel.workspace_id)
             )
-            session.get(UserSessionModel, login_id).active_workspace_id = replacement
+            current_login.active_workspace_id = replacement
 
         return self.state(token)
+
+    def _delete_workspace_data(self, session, workspace_id: str) -> None:
+        """Remove workspace-owned rows that have restricted relationships.
+
+        Most workspace data is protected by a direct workspace cascade, but
+        ledger projections and wealth snapshots deliberately use restricted
+        composite foreign keys.  Clear those dependants explicitly in one
+        transaction so workspace deletion has the same contract on SQLite and
+        PostgreSQL.
+        """
+        # Projection rows point at cash facts, funding relations, and relation
+        # candidates.  Remove their children before either side is deleted.
+        for model in (CashProjectionMemberModel, CashProjectionRelationModel, CashProjectionModel):
+            session.execute(delete(model).where(model.workspace_id == workspace_id))
+        for model in (CashProjectionStateModel, CashProjectionDatasetModel):
+            session.execute(delete(model).where(model.workspace_id == workspace_id))
+
+        # Relation/funding rows must be gone before their cash or investment
+        # facts.  Transaction relations are also projection relation parents.
+        for model in (CashInvestmentFundingRelationModel, TransactionRelationModel):
+            session.execute(delete(model).where(model.workspace_id == workspace_id))
+        for model in (CashTransactionModel, InvestmentEventModel):
+            session.execute(delete(model).where(model.workspace_id == workspace_id))
+
+        # These records hold restricted account references.
+        for model in (
+            ValuationObservationModel,
+            AccountLifecycleEventModel,
+            WealthCoverageDispositionModel,
+        ):
+            session.execute(delete(model).where(model.workspace_id == workspace_id))
+
+        # Wealth records form two small dependency trees.  Delete leaves and
+        # restricted links before their manifests/results.
+        for model in (
+            WealthGenerationDayModel,
+            WealthActiveManifestModel,
+            WealthComponentModel,
+            WealthEvidenceManifestItemModel,
+        ):
+            session.execute(delete(model).where(model.workspace_id == workspace_id))
+        for model in (
+            WealthEvidenceManifestModel,
+            WealthEvidenceItemModel,
+            WealthGenerationModel,
+            WealthDailyResultModel,
+            WealthSourceManifestItemModel,
+            WealthSourceManifestModel,
+        ):
+            session.execute(delete(model).where(model.workspace_id == workspace_id))
+
+        # Categories have a self-restricting parent relationship.  Nulling the
+        # parent links is safe because the entire category tree is being
+        # removed, and makes the operation independent of tree depth.
+        session.execute(
+            update(CashCategoryModel)
+            .where(CashCategoryModel.workspace_id == workspace_id)
+            .values(parent_id=None)
+        )
+        for model in (
+            CashCategoryModel,
+            CashCategoryStateModel,
+            CashImportCommitModel,
+            StatementAccountMappingModel,
+            AccountAliasModel,
+            SyncCursorModel,
+            LedgerSnapshotModel,
+        ):
+            session.execute(delete(model).where(model.workspace_id == workspace_id))
 
     def accept_invitation(self, token: str | None, invitation_token: str) -> dict:
         db, user, _ = self._session(token)
