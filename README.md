@@ -88,7 +88,7 @@ uv run ft import usmart.pdf --source usmart-hk --account uSmart
 |---|---|---|---|
 | `alipay` | CSV | cash，自动路由 | 支付宝 |
 | `wechat` | XLSX | cash，自动路由 | 微信 |
-| `icbc` / `icbc-debit` | PDF | cash，自动路由 | 工行信用/借记（PDF 需 qpdf + mupdf-tools） |
+| `icbc` / `icbc-debit` | PDF | cash，自动路由 | 工行信用/借记（统一使用 `pdfplumber`，不依赖 `qpdf` / `mupdf-tools`） |
 | `ccb-debit` | XLS | cash，自动路由 | 建行借记 |
 | `icbc-asia` | UTF-16 TSV CSV | cash，自动路由 | 工银亚洲活期账户明细 |
 | `dfzq` | PDF | security，必填 `--account` | 东方证券 |

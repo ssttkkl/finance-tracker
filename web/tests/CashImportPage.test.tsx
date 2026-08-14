@@ -301,7 +301,7 @@ describe("CashImportPage", () => {
     fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
     expect(await screen.findByLabelText("账单密码")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("账单密码"), { target: { value: "correct-password" } });
-    fireEvent.click(screen.getByRole("button", { name: "重新识别" }));
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
     expect(await screen.findByRole("heading", { name: "映射账户" })).toBeInTheDocument();
     const scanRequests = fetch.mock.calls.filter(([input]) => String(input).includes("/scan"));
     expect(JSON.parse(String(scanRequests[1]?.[1]?.body))).toEqual({
@@ -335,7 +335,7 @@ describe("CashImportPage", () => {
     fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
     const passwordInput = await screen.findByLabelText("账单密码");
     fireEvent.change(passwordInput, { target: { value: "wrong-password" } });
-    fireEvent.click(screen.getByRole("button", { name: "重新识别" }));
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
     fireEvent.click(await screen.findByRole("button", { name: /^确认映射$/ }));
 
     expect(await screen.findByRole("heading", { name: "选择文件" })).toBeInTheDocument();
@@ -364,7 +364,7 @@ describe("CashImportPage", () => {
     fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
     const passwordInput = await screen.findByLabelText("账单密码");
     fireEvent.change(passwordInput, { target: { value: "correct-password" } });
-    fireEvent.click(screen.getByRole("button", { name: "重新识别" }));
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
     fireEvent.click(await screen.findByRole("button", { name: /^确认映射$/ }));
     fireEvent.click(await screen.findByRole("button", { name: /^下一步$/ }));
     fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
@@ -415,5 +415,27 @@ describe("CashImportPage", () => {
     expect(await screen.findByRole("heading", { name: "配对" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
     expect(await screen.findByRole("heading", { name: "导入完成" })).toBeInTheDocument();
+  });
+
+  it("返回选择文件时保留已识别文件，下一步直接回到账户映射且不重复扫描", async () => {
+    const fetch = vi.fn((input: string) => input.includes("/scan")
+      ? response(scan)
+      : response(preview));
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    const file = new File(["standardized"], "statement.csv", { type: "text/csv" });
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
+    await screen.findByRole("heading", { name: "映射账户" });
+    fireEvent.click(screen.getByRole("button", { name: "上一步" }));
+
+    expect(screen.getByRole("heading", { name: "选择文件" })).toBeInTheDocument();
+    expect(screen.getByText("statement.csv")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "重新识别" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "选择账单文件" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+
+    expect(await screen.findByRole("heading", { name: "映射账户" })).toBeInTheDocument();
+    expect(fetch.mock.calls.filter(([input]) => String(input).includes("/scan"))).toHaveLength(1);
   });
 });

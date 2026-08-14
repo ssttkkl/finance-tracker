@@ -713,7 +713,10 @@
           <label class="field-label" for="pdfPassword">账单密码</label>
           <input class="text-input" id="pdfPassword" type="password" autocomplete="off" aria-describedby="passwordMessage">
           <p class="field-message" id="passwordMessage">密码不正确，请重新输入。</p>
-          <button class="btn btn--primary" type="button" id="retryPassword">重新识别</button>
+        </div>
+        <div class="action-bar">
+          <button class="btn" type="button">取消</button>
+          <div class="action-bar__end"><button class="btn btn--primary" type="button" id="continueSelect">下一步</button></div>
         </div>
       </section>
 
@@ -889,6 +892,7 @@
     const mappingBlocker = document.querySelector("#mappingBlocker");
     const passwordBox = document.querySelector("#passwordBox");
     const statementFile = document.querySelector("#statementFile");
+    const continueSelect = document.querySelector("#continueSelect");
     const commitImport = document.querySelector("#commitImport");
     const draftDialog = document.querySelector("#draftDialog");
     const draftForm = document.querySelector("#draftForm");
@@ -1073,7 +1077,10 @@
       if (statementFile.files.length) showState("mapping");
     });
 
-    document.querySelector("#retryPassword").addEventListener("click", () => showState("mapping-loading"));
+    continueSelect.addEventListener("click", () => {
+      if (!statementFile.files.length && stateSelect.value !== "password") return;
+      showState("mapping-loading");
+    });
     stateSelect.addEventListener("change", () => showState(stateSelect.value));
 
     function openDraftEditor(selectedIndex = null) {
