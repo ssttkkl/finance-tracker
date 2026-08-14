@@ -76,7 +76,7 @@ test("生产预览可打开流水编辑和独立导入处理页面", async ({ pa
   await recordDrawer.locator("header button").click();
 
   await page.getByRole("button", { name: "导入账单" }).click();
-  await expect(page).toHaveURL(/\/cash-import$/);
+  await expect(page).toHaveURL(/\/w\/preview-workspace\/cash-import$/);
   await expect(page.getByRole("heading", { name: "选择文件" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "核对流水" })).toHaveCount(0);
 });

@@ -399,7 +399,7 @@ test("独立导入处理页面扫描账户并完成四步确认", async ({ page 
 
   await page.goto("/");
   await page.getByRole("button", { name: "导入账单" }).click();
-  await expect(page).toHaveURL(/\/cash-import$/);
+  await expect(page).toHaveURL(/\/w\/workspace-e2e\/cash-import$/);
   await page.locator('input[type="file"]').setInputFiles({ name: "statement.csv", mimeType: "text/csv", buffer: Buffer.from("fixture") });
   await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
   await page.screenshot({ path: "/tmp/cash-import-production-1440.png", fullPage: true });

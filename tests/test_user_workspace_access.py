@@ -280,6 +280,80 @@ def test_admin_deletes_workspace_atomically_and_switches_to_remaining_workspace(
         assert viewer_login.active_workspace_id is None
 
 
+def test_admin_deletes_workspace_with_imported_wechat_cash_and_projection(cash_web_runtime):
+    from datetime import datetime, timezone
+    from decimal import Decimal
+    from sqlalchemy import select, update
+    from ft.adapters.relational.models import (
+        CashProjectionMemberModel,
+        CashProjectionModel,
+        CashProjectionRelationModel,
+        CashProjectionDatasetModel,
+        CashTransactionModel,
+        TransactionRelationModel,
+        UserModel,
+        UserSessionModel,
+        WorkspaceMembershipModel,
+        WorkspaceModel,
+    )
+
+    target_id = cash_web_runtime.workspace_id
+    with cash_web_runtime.sessions.begin() as session:
+        session.get(WorkspaceModel, target_id).name = "微信流水工作区"
+        session.execute(
+            update(CashTransactionModel)
+            .where(CashTransactionModel.workspace_id == target_id, CashTransactionModel.id == 1003)
+            .values(source_type="wechat", record_id="wechat-imported-003")
+        )
+        session.add(CashProjectionDatasetModel(
+            id="wechat-dataset", workspace_id=target_id, state="active", source_revision=1,
+            source_digest="wechat-source", rules_version="cash-projection-v1",
+        ))
+        session.add(CashProjectionModel(
+            id=2001, workspace_id=target_id, dataset_id="wechat-dataset", projection_id="cash:1003",
+            root_cash_transaction_id=1003, economic_type="expense", net_amount=Decimal("-12.50"),
+            currency="CNY", occurred_at=datetime(2026, 7, 3, 9, tzinfo=timezone.utc), account_id=101,
+            counterparty="咖啡店", category_id="category-food", visible=True, member_count=1,
+            accepted_relation_count=0, built_projection_version=1,
+        ))
+        session.flush()
+        session.add(TransactionRelationModel(
+            id=4001, workspace_id=target_id, kind="transfer_pair", subtype="internal_transfer",
+            primary_fact_id=1003, secondary_fact_id=None, primary_fact_type="cash",
+            secondary_fact_type=None, ordered_fact_a=1003, ordered_fact_b=None,
+            active_slot="active", status="pending_review", rule_id="",
+            candidate_fact_ids=[], created_by="system", decided_by="", decision_reason="",
+            anchor_fact_id=1003,
+        ))
+        session.flush()
+        session.add(CashProjectionRelationModel(
+            id=5001, workspace_id=target_id, dataset_id="wechat-dataset", projection_row_id=2001,
+            transaction_relation_id=4001, kind="transfer_pair", subtype="internal_transfer", ordinal=0,
+        ))
+        session.add(CashProjectionMemberModel(
+            id=3001, workspace_id=target_id, dataset_id="wechat-dataset", projection_row_id=2001,
+            cash_transaction_id=1003, roles_json=["root"], ordinal=0,
+        ))
+
+    admin = _app(cash_web_runtime)
+    assert _register(admin, "delete-wechat-admin@example.com").status_code == 200
+    with cash_web_runtime.sessions.begin() as session:
+        user = session.scalar(select(UserModel).where(UserModel.email == "delete-wechat-admin@example.com"))
+        session.add(WorkspaceMembershipModel(workspace_id=target_id, user_id=user.id, role="admin"))
+        session.scalar(select(UserSessionModel).where(UserSessionModel.user_id == user.id)).active_workspace_id = target_id
+
+    response = admin.request("DELETE", "/api/v1/auth/workspace", json={"name": "微信流水工作区"})
+
+    assert response.status_code == 200, response.text
+    assert response.json()["active_workspace_id"] is None
+    with cash_web_runtime.sessions() as session:
+        assert session.get(WorkspaceModel, target_id) is None
+        assert session.scalar(select(CashTransactionModel.id).where(CashTransactionModel.workspace_id == target_id)) is None
+        assert session.scalar(select(CashProjectionModel.id).where(CashProjectionModel.workspace_id == target_id)) is None
+        assert session.scalar(select(CashProjectionDatasetModel.id).where(CashProjectionDatasetModel.workspace_id == target_id)) is None
+        assert session.scalar(select(TransactionRelationModel.id).where(TransactionRelationModel.workspace_id == target_id)) is None
+
+
 @pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
 def test_workspace_delete_endpoint_has_the_same_contract_on_both_backends(request, runtime_name):
     from sqlalchemy import select
