@@ -152,6 +152,120 @@ def test_cash_import_detection_does_not_leak_parser_error_details(tmp_path):
         raise AssertionError("parser details must not escape channel probing")
 
 
+def test_cash_import_skips_unresolved_alipay_rows_but_imports_other_rows(tmp_path):
+    from ft.adapters.relational.models import AccountModel, CashTransactionModel
+
+    source = tmp_path / "alipay.csv"
+    source.write_bytes(b"mixed composite payment")
+    sessions, service = _service(tmp_path, {"alipay": [
+        _row(
+            "ambiguous",
+            payment_method="账户余额&花呗分期(3期)",
+            amount="-3020.00",
+        ),
+        _row("valid", payment_method="账户余额"),
+    ]})
+
+    scan = service.scan_import(source.read_bytes(), filename=source.name)
+    assert scan["unresolved_count"] == 1
+    group = scan["groups"][0]
+    with sessions() as session:
+        account_id = session.query(AccountModel.id).filter_by(
+            workspace_id="wizard-workspace", name="支付宝余额",
+        ).scalar()
+
+    mapping = [{
+        "group_id": group["group_id"],
+        "account_id": account_id,
+        "mapping_revision": group["suggestion"]["mapping_revision"],
+    }]
+    preview = service.preview_import(
+        source.read_bytes(), source="", currency=None, filename=source.name,
+        mapping=mapping,
+    )
+    assert preview["summary"] == {
+        "total": 2, "new": 1, "existing": 0, "unsupported": 1, "unresolved": 1,
+    }
+    assert {item["status"] for item in preview["items"]} == {"new", "unresolved"}
+    unresolved = next(item for item in preview["items"] if item["status"] == "unresolved")
+    assert unresolved["account_name"] == ""
+    assert unresolved["record_id"] == "ambiguous"
+    assert preview["relations"] == []
+
+    result = service.commit_import(
+        source.read_bytes(), source="", currency=None, filename=source.name,
+        preview_digest=scan["digest"], preview_channel="alipay", mapping=mapping,
+    )
+    assert result["new_rows"] == 1
+    assert result["skipped_rows"] == 1
+    with sessions() as session:
+        rows = session.query(CashTransactionModel).all()
+        assert len(rows) == 1
+        assert rows[0].record_id == "valid"
+
+
+def test_cash_import_rejects_file_with_only_unresolved_alipay_rows_without_writes(tmp_path):
+    from ft.adapters.relational.models import AccountModel, CashTransactionModel, StatementAccountMappingModel
+
+    source = tmp_path / "alipay.csv"
+    source.write_bytes(b"ambiguous composite payment")
+    sessions, service = _service(tmp_path, {"alipay": [_row(
+        payment_method="账户余额&花呗分期(3期)",
+        amount="-3020.00",
+    )]})
+
+    with pytest.raises(ValueError, match="import_composite_payment_unresolved"):
+        service.scan_import(source.read_bytes(), filename=source.name)
+
+    with sessions() as session:
+        assert session.query(AccountModel).count() == 1
+        assert session.query(StatementAccountMappingModel).count() == 0
+        assert session.query(CashTransactionModel).count() == 0
+
+
+def test_cash_import_promotes_legacy_alipay_combo_mapping_to_canonical_key(tmp_path):
+    from ft.adapters.relational.models import AccountModel, StatementAccountMappingModel
+
+    source = tmp_path / "alipay.csv"
+    source.write_bytes(b"legacy combo mapping")
+    raw_method = "工商银行信用卡(1200)&工商银行立减金"
+    sessions, service = _service(tmp_path, {"alipay": [_row(payment_method=raw_method)]})
+
+    with sessions() as session:
+        account_id = session.query(AccountModel.id).filter_by(
+            workspace_id="wizard-workspace", name="支付宝余额",
+        ).scalar()
+    with service._uow as uow:
+        uow.statement_account_mappings.upsert(
+            source_type="alipay", identity_kind="payment_method",
+            source_account_key=raw_method, account_id=account_id, confirmed_by="web",
+        )
+        uow.commit()
+
+    scan = service.scan_import(source.read_bytes(), filename=source.name)
+    group = scan["groups"][0]
+    assert group["suggestion"]["account_id"] == account_id
+    assert group["suggestion"]["mapping_revision"] == 1
+
+    service.commit_import(
+        source.read_bytes(), source="", currency=None, filename=source.name,
+        preview_digest=scan["digest"], preview_channel="alipay",
+        mapping=[{
+            "group_id": group["group_id"], "account_id": account_id,
+            "mapping_revision": 1,
+        }],
+    )
+
+    with sessions() as session:
+        canonical = session.query(StatementAccountMappingModel).filter_by(
+            workspace_id="wizard-workspace",
+            source_type="alipay",
+            identity_kind="payment_method",
+            source_account_key="工商银行信用卡(1200)",
+        ).one()
+        assert canonical.account_id == account_id
+
+
 def test_cash_import_password_is_required_and_forwarded_to_every_stage(tmp_path):
     from ft.application.cash_ledger import CashLedgerCommandService
     from ft.adapters.relational import ensure_workspace

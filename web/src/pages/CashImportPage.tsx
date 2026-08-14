@@ -81,6 +81,14 @@ function displayValue(item: ImportPreviewItem, column: string): string {
   return value === undefined || value === "" ? "—" : String(value);
 }
 
+function unresolvedCount(preview: ImportPreview): number {
+  return preview.summary.unresolved ?? 0;
+}
+
+function ordinaryUnsupportedCount(preview: ImportPreview): number {
+  return Math.max(0, preview.summary.unsupported - unresolvedCount(preview));
+}
+
 function recordDate(value: string): string {
   return value.replace("T", " ").slice(0, 16);
 }
@@ -124,6 +132,7 @@ function mappingErrorMessage(cause: unknown): string | null {
     import_account_name_conflict: "账户名称已存在，请修改后重试。",
     import_account_draft_invalid: "新账户信息无效，请修改后重试。",
     import_mapping_incomplete: "请为每个来源账户选择系统账户。",
+    import_composite_payment_unresolved: "账单包含无法准确归属的组合支付，请拆分后重试。",
   };
   return messages[cause.message] ?? null;
 }
@@ -244,7 +253,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       } else {
         setError(cause instanceof Error && cause.message === "import_channel_unrecognized"
           ? "无法识别账单渠道，请重新选择文件。"
-          : "文件识别失败，请重试。");
+          : mappingErrorMessage(cause) ?? "文件识别失败，请重试。");
       }
     } finally {
       setBusy(false);
@@ -272,7 +281,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       if (!returnToPasswordEntry(cause)) {
         setError(cause instanceof Error && cause.message === "import_password_invalid"
           ? "账单密码错误，请重试。"
-          : "文件识别失败，请重试。");
+          : mappingErrorMessage(cause) ?? "文件识别失败，请重试。");
       }
     } finally {
       setBusy(false);
@@ -382,7 +391,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   };
 
   const confirmImport = async () => {
-    if (!file || !preview || preview.summary.unsupported > 0) return;
+    if (!file || !preview || ordinaryUnsupportedCount(preview) > 0) return;
     setBusy(true);
     setError(undefined);
     const decisions = preview.relations.flatMap((relation) => {
@@ -493,6 +502,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
             <div className="import-stage-heading"><h2 id="import-mapping-heading">映射账户</h2><span className="channel-badge">{scan.channel_label}</span></div>
             <div className="stage-actions-top"><button type="button" className="button-secondary" onClick={() => setStage("select")}>上一步</button><button type="button" className="button-primary" disabled={!mappingComplete || busy} onClick={() => void loadPreview()}>{busy ? "核对中…" : "确认映射"}</button></div>
             <p className="import-stage-lead">识别到 {scan.groups.length} 个来源账户</p>
+            {scan.unresolved_count ? <p className="import-stage-warning" role="status">有 {scan.unresolved_count} 条流水无法准确归属，确认导入时会跳过；其余流水可正常导入。</p> : null}
             <div className="mapping-groups">
               {scan.groups.map((group) => {
                 const draft = mappingDrafts[group.group_id] ?? { accountId: null, newAccount: null };
@@ -520,17 +530,18 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
               { label: "全部", value: preview.summary.total, tone: "total" },
               { label: "待新增", value: preview.summary.new, tone: "new" },
               { label: "已存在", value: preview.summary.existing, tone: "existing" },
-              { label: "暂不支持", value: preview.summary.unsupported, tone: "unsupported" },
+              { label: "无法识别", value: preview.summary.unresolved ?? 0, tone: "unsupported" },
             ].map((summary) => <div key={summary.label} className={`import-summary-card ${summary.tone}`}><small>{summary.label}</small><strong>{summary.value}</strong></div>)}</div>
             <div className="standard-table-wrap" role="region" aria-label="账单流水表格" tabIndex={0}>
-              <table className="standard-import-table"><caption className="sr-only">账单流水</caption><thead><tr>{preview.columns.map((column) => <th key={column} scope="col">{columnLabels[column] ?? column}</th>)}</tr></thead><tbody>{preview.items.map((item) => <tr key={item.record_id}>{preview.columns.map((column) => <td key={column} data-label={columnLabels[column] ?? column}>{column === "status" ? <span className={`import-status ${item.status}`}>{({ new: "待新增", existing: "已存在", unsupported: "暂不支持" } as const)[item.status]}</span> : displayValue(item, column)}</td>)}</tr>)}</tbody></table>
+              <table className="standard-import-table"><caption className="sr-only">账单流水</caption><thead><tr>{preview.columns.map((column) => <th key={column} scope="col">{columnLabels[column] ?? column}</th>)}</tr></thead><tbody>{preview.items.map((item) => <tr key={item.record_id}>{preview.columns.map((column) => <td key={column} data-label={columnLabels[column] ?? column}>{column === "status" ? <span className={`import-status ${item.status}`}>{({ new: "待新增", existing: "已存在", unsupported: "暂不支持", unresolved: "无法识别" } as const)[item.status]}</span> : displayValue(item, column)}</td>)}</tr>)}</tbody></table>
             </div>
-            {preview.summary.unsupported > 0 ? <p className="import-stage-warning" role="status">有流水暂不支持。</p> : null}
+            {unresolvedCount(preview) > 0 ? <p className="import-stage-warning" role="status">有 {unresolvedCount(preview)} 条流水无法准确归属，确认后将跳过；其他流水正常导入。</p> : null}
+            {ordinaryUnsupportedCount(preview) > 0 ? <p className="import-stage-warning" role="status">有流水暂不支持。</p> : null}
           </section> : null}
 
           {stage === "relations" && preview ? <section className="import-stage" aria-labelledby="import-relations-heading">
             <div className="import-stage-heading"><h2 id="import-relations-heading">配对</h2></div>
-            <div className="stage-actions-top"><button type="button" className="button-secondary" onClick={() => setStage("preview")}>上一步</button><button type="button" className="button-primary" disabled={busy || preview.summary.unsupported > 0} onClick={() => void confirmImport()}>{busy ? "导入中…" : "确认导入"}</button></div>
+            <div className="stage-actions-top"><button type="button" className="button-secondary" onClick={() => setStage("preview")}>上一步</button><button type="button" className="button-primary" disabled={busy || ordinaryUnsupportedCount(preview) > 0} onClick={() => void confirmImport()}>{busy ? "导入中…" : "确认导入"}</button></div>
             {relationItems.length === 0 ? <div className="import-empty-state"><strong>没有配对</strong></div> : <>
               <div className="relation-toolbar"><div className="relation-filters" role="group" aria-label="配对筛选">
                 {[
@@ -558,7 +569,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
             </>}
           </section> : null}
 
-          {stage === "success" && result ? <section className="import-stage import-success-stage" aria-labelledby="import-success-heading"><div className="success-mark">✓</div><h2 id="import-success-heading">导入完成</h2><div className="import-success-stats"><span><strong>{result.new_rows}</strong>待新增</span><span><strong>{result.updated_rows}</strong>已更新</span><span><strong>{preview?.summary.existing ?? 0}</strong>已存在</span></div><div className="stage-actions"><button type="button" className="button-primary" onClick={onBack}>返回收支账本</button></div></section> : null}
+          {stage === "success" && result ? <section className="import-stage import-success-stage" aria-labelledby="import-success-heading"><div className="success-mark">✓</div><h2 id="import-success-heading">导入完成</h2><div className="import-success-stats"><span><strong>{result.new_rows}</strong>待新增</span><span><strong>{result.updated_rows}</strong>已更新</span><span><strong>{preview?.summary.existing ?? 0}</strong>已存在</span>{result.skipped_rows ? <span><strong>{result.skipped_rows}</strong>无法识别</span> : null}</div><div className="stage-actions"><button type="button" className="button-primary" onClick={onBack}>返回收支账本</button></div></section> : null}
     </section>
   );
 }

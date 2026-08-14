@@ -7,6 +7,7 @@ source-account groups before an application service applies a user decision.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 import hashlib
 import json
 import re
@@ -33,6 +34,15 @@ class SourceAccountGroup:
     masked_evidence: str
     currencies: tuple[str, ...]
     row_count: int
+    legacy_source_account_keys: tuple[str, ...] = field(default=(), repr=False, compare=False)
+
+
+@dataclass(frozen=True)
+class SourceRowIssue:
+    """A source row that cannot safely participate in account mapping."""
+
+    row_index: int
+    code: str
 
 
 def _text(value) -> str:
@@ -46,6 +56,51 @@ def _card_tail(value: object) -> str:
     return digits[-4:]
 
 
+_ALIPAY_NON_FUNDING_MARKERS = (
+    "红包", "立减", "优惠", "抵扣", "福利金", "券", "骑行卡", "天天减", "每日必减",
+)
+
+
+def _alipay_amount_is_zero(row: dict) -> bool:
+    try:
+        return Decimal(str(row.get("amount") or "0")) == 0
+    except (InvalidOperation, ValueError):
+        return False
+
+
+def _normalize_alipay_payment_component(value: str) -> str:
+    component = _text(value)
+    if not component or any(marker in component for marker in _ALIPAY_NON_FUNDING_MARKERS):
+        return ""
+    # Keep the card tail in e.g. "工商银行信用卡分期(1200)" while removing
+    # the installment product marker and the optional plan count.
+    component = re.sub(r"分期\s*[（(]\s*\d+\s*期\s*[）)]", "", component)
+    component = component.replace("分期", "")
+    component = re.sub(r"\s*[（(]?\d+\s*期[）)]?", "", component)
+    return component.strip()
+
+
+def _alipay_payment_identity(row: dict) -> str:
+    raw = _text(row.get("payment_method"))
+    if not raw:
+        raise ValueError("业务行无法识别来源账户")
+    components = [
+        _normalize_alipay_payment_component(item)
+        for item in raw.split("&")
+    ]
+    funding_accounts = []
+    for component in components:
+        if component and component not in funding_accounts:
+            funding_accounts.append(component)
+    if len(funding_accounts) > 1:
+        raise ValueError("import_composite_payment_unresolved")
+    if funding_accounts:
+        return funding_accounts[0]
+    if _alipay_amount_is_zero(row):
+        return "支付宝余额"
+    raise ValueError("import_composite_payment_unresolved")
+
+
 def _identity_for_row(row: dict) -> tuple[str, str, str, str, str]:
     source_type = _text(row.get("bill_source") or row.get("source_type"))
     if source_type not in _CASH_SOURCES:
@@ -53,7 +108,11 @@ def _identity_for_row(row: dict) -> tuple[str, str, str, str, str]:
 
     display_name = _text(row.get("source_display_name"))
     if source_type in {"alipay", "wechat"}:
-        source_key = _text(row.get("payment_method"))
+        source_key = (
+            _alipay_payment_identity(row)
+            if source_type == "alipay"
+            else _text(row.get("payment_method"))
+        )
         identity_kind = "payment_method"
         if not source_key:
             raise ValueError("业务行无法识别来源账户")
@@ -91,6 +150,18 @@ def _identity_for_row(row: dict) -> tuple[str, str, str, str, str]:
     return source_type, identity_kind, source_key, display_name, evidence
 
 
+def _legacy_source_account_keys(row: dict, source_key: str) -> tuple[str, ...]:
+    if str(row.get("bill_source") or row.get("source_type") or "").strip() != "alipay":
+        return ()
+    raw = _text(row.get("payment_method"))
+    if raw and not any(
+        _normalize_alipay_payment_component(item)
+        for item in raw.split("&")
+    ):
+        return ()
+    return (raw,) if raw and raw != source_key else ()
+
+
 def source_identity_key(row: dict) -> tuple[str, str, str]:
     """Return the internal grouping key for an already parsed source row."""
     return _identity_for_row(row)[:3]
@@ -106,11 +177,20 @@ def _group_id(source_type: str, identity_kind: str, source_key: str) -> str:
     return f"group_{hashlib.sha256(payload).hexdigest()[:24]}"
 
 
-def scan_source_rows(rows: list[dict]) -> list[SourceAccountGroup]:
-    """Group parsed cash rows by their declared source-account identity."""
+def scan_source_rows_with_issues(
+    rows: list[dict],
+) -> tuple[list[SourceAccountGroup], tuple[SourceRowIssue, ...]]:
+    """Group rows while isolating known row-level source identity problems."""
     groups: dict[tuple[str, str, str], dict] = {}
-    for row in rows:
-        source_type, identity_kind, source_key, display_name, evidence = _identity_for_row(row)
+    issues: list[SourceRowIssue] = []
+    for row_index, row in enumerate(rows):
+        try:
+            source_type, identity_kind, source_key, display_name, evidence = _identity_for_row(row)
+        except ValueError as exc:
+            if str(exc) != "import_composite_payment_unresolved":
+                raise
+            issues.append(SourceRowIssue(row_index=row_index, code=str(exc)))
+            continue
         key = (source_type, identity_kind, source_key)
         entry = groups.setdefault(
             key,
@@ -119,10 +199,14 @@ def scan_source_rows(rows: list[dict]) -> list[SourceAccountGroup]:
                 "evidence": evidence,
                 "currencies": set(),
                 "row_count": 0,
+                "legacy_source_account_keys": set(),
             },
         )
         entry["currencies"].add(_text(row.get("currency") or "CNY").upper())
         entry["row_count"] += 1
+        entry["legacy_source_account_keys"].update(
+            _legacy_source_account_keys(row, source_key)
+        )
 
     return [
         SourceAccountGroup(
@@ -134,9 +218,18 @@ def scan_source_rows(rows: list[dict]) -> list[SourceAccountGroup]:
             masked_evidence=value["evidence"],
             currencies=tuple(sorted(value["currencies"])),
             row_count=value["row_count"],
+            legacy_source_account_keys=tuple(sorted(value["legacy_source_account_keys"])),
         )
         for key, value in groups.items()
-    ]
+    ], tuple(issues)
+
+
+def scan_source_rows(rows: list[dict]) -> list[SourceAccountGroup]:
+    """Group parsed cash rows, retaining the strict non-interactive contract."""
+    groups, issues = scan_source_rows_with_issues(rows)
+    if issues:
+        raise ValueError(issues[0].code)
+    return groups
 
 
 def _account_choice(account: dict | None, currencies: tuple[str, ...], *, revision=None) -> dict:
@@ -157,13 +250,30 @@ def _account_choice(account: dict | None, currencies: tuple[str, ...], *, revisi
     }
 
 
+def historical_mapping_for_group(uow, group: SourceAccountGroup) -> dict | None:
+    """Find the canonical mapping, with a deterministic legacy fallback."""
+    keys = (group.source_account_key, *group.legacy_source_account_keys)
+    found = []
+    for source_key in keys:
+        mapping = uow.statement_account_mappings.get(
+            source_type=group.source_type,
+            identity_kind=group.identity_kind,
+            source_account_key=source_key,
+        )
+        if mapping is not None:
+            found.append(mapping)
+    if not found:
+        return None
+    if found[0]["source_account_key"] == group.source_account_key:
+        return found[0]
+    if len({int(item["account_id"]) for item in found}) != 1:
+        return None
+    return found[0]
+
+
 def suggest_mapping(uow, group: SourceAccountGroup) -> dict:
     """Return a silent preselection for one group; never write a decision."""
-    historical = uow.statement_account_mappings.get(
-        source_type=group.source_type,
-        identity_kind=group.identity_kind,
-        source_account_key=group.source_account_key,
-    )
+    historical = historical_mapping_for_group(uow, group)
     if historical is not None:
         account = uow.accounts.get_by_id(historical["account_id"])
         if account is not None and account.get("active"):
