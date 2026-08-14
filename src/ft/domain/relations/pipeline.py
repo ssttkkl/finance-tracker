@@ -148,7 +148,6 @@ def run_relation_phases(
     transfer_blocked_ids: set[str] | None = None,
     refund_blocked_ids: set[str] | None = None,
     merchant_refund_seed_ids: Sequence[str] | None = None,
-    skip_platform_import_refund_seeds: bool = True,
 ) -> list[RelationProposal]:
     """Run Phase B → C → D0 diamond → D merchant/open refund matching.
 

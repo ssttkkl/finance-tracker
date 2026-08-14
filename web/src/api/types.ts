@@ -215,6 +215,7 @@ export type ImportPreview = {
   channel: string;
   channel_label: string;
   file: { name: string; digest: string };
+  relation_digest?: string;
   columns: string[];
   items: ImportPreviewItem[];
   summary: { total: number; new: number; existing: number; unsupported: number; unresolved?: number };
