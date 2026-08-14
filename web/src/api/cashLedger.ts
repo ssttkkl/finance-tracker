@@ -148,7 +148,44 @@ const importChannelLabels: Record<string, string> = {
 };
 export { importChannelLabels };
 
-async function importRequest<T>(path: string, file: File, values: { source?: string; currency?: string; password?: string; previewDigest?: string; previewChannel?: string; relations?: string; mapping?: ImportMappingDecision[] } = {}): Promise<T> {
+function base64FromBytes(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
+}
+
+async function importRequest<T>(path: string, file: File, values: { source?: string; currency?: string; password?: string; previewDigest?: string; previewChannel?: string; relations?: string; mapping?: ImportMappingDecision[]; jsonBody?: boolean } = {}): Promise<T> {
+  if (values.jsonBody) {
+    const fileBytes = typeof file.arrayBuffer === "function"
+      ? await file.arrayBuffer()
+      : await new Response(file).arrayBuffer();
+    const contentBase64 = base64FromBytes(new Uint8Array(fileBytes));
+    const headers = authHeaders({ "Content-Type": "application/json" });
+    if (values.password) headers.set("X-FT-Statement-Password", values.password);
+    const response = await fetch(`${apiOrigin()}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        content_base64: contentBase64,
+        source: values.source ?? "",
+        currency: values.currency ?? null,
+        filename: file.name,
+        preview_digest: values.previewDigest ?? null,
+        preview_channel: values.previewChannel ?? null,
+        relations: values.relations ? JSON.parse(values.relations) : null,
+        mapping: values.mapping ?? null,
+      }),
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null) as { error?: { code?: unknown } } | null;
+      const code = payload?.error?.code;
+      throw new Error(typeof code === "string" ? code : "api_request_failed");
+    }
+    return response.json() as Promise<T>;
+  }
   const params = new URLSearchParams({ source: values.source ?? "", filename: file.name });
   if (values.currency) params.set("currency", values.currency);
   if (values.previewDigest) params.set("preview_digest", values.previewDigest);
@@ -194,5 +231,6 @@ export function commitCashImport(
     previewChannel: options.previewChannel,
     relations: options.relations ? JSON.stringify(options.relations) : undefined,
     mapping: options.mapping,
+    jsonBody: true,
   });
 }

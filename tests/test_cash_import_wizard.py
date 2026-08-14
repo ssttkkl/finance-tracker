@@ -321,6 +321,82 @@ def test_cash_import_rejected_relation_does_not_create_relation_or_block_import(
         assert session.query(TransactionRelationModel).count() == 0
 
 
+def test_cash_import_mapping_and_relations_rebuild_ready_projection_once(tmp_path):
+    from ft.adapters.relational.models import AccountModel, CashTransactionModel, TransactionRelationModel
+    from ft.adapters.relational import ensure_workspace
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.relations import RelationService
+    from test_postgres_adapter import _database
+
+    class SourceParser:
+        def parse_source_rows(self, _command):
+            return [
+                {
+                    "record_id": "expense-1", "bill_source": "alipay", "source_type": "alipay",
+                    "payment_method": "账户余额", "currency": "CNY", "amount": "-10.00",
+                    "date": "2026-08-14", "counterparty": "咖啡店", "counterparty_account": "",
+                    "category": "expense", "record_type": "consumption", "record_subtype": "not_applicable",
+                    "note": "消费", "_source_payload": {"原始": "expense"},
+                },
+                {
+                    "record_id": "refund-1", "bill_source": "alipay", "source_type": "alipay",
+                    "payment_method": "账户余额", "currency": "CNY", "amount": "5.00",
+                    "date": "2026-08-15", "counterparty": "咖啡店", "counterparty_account": "",
+                    "category": "income", "record_type": "refund", "record_subtype": "not_applicable",
+                    "note": "退款", "_source_payload": {"原始": "refund"},
+                },
+            ]
+
+    sessions, unit_of_work = _database()
+    workspace_id = "ready-mapping-relation-workspace"
+    ensure_workspace(sessions, workspace_id)
+    with sessions.begin() as session:
+        CashProjectionService.initialize_in_session(session, workspace_id)
+    service = CashLedgerCommandService(
+        sessions, workspace_id, parser=SourceParser(),
+        relation_service=RelationService(unit_of_work(sessions, workspace_id)),
+    )
+
+    scan = service.scan_import(b"fixture", filename="statement.csv")
+    mapping = [{
+        "group_id": scan["groups"][0]["group_id"],
+        "mapping_revision": None,
+        "new_account": {"name": "支付宝余额", "type": "cash", "currencies": ["CNY"]},
+    }]
+    preview = service.preview_import(
+        b"fixture", source="", currency=None, filename="statement.csv", mapping=mapping,
+    )
+    assert len(preview["relations"]) == 1
+    relation = preview["relations"][0]
+    decision = {
+        "kind": relation["kind"],
+        "primary_record_id": relation["primary"]["record_id"],
+        "secondary_record_id": relation["secondary"]["record_id"],
+        "status": "accepted",
+    }
+
+    result = service.commit_import(
+        b"fixture", source="", currency=None, filename="statement.csv",
+        preview_digest=scan["digest"], preview_channel=scan["channel"],
+        mapping=mapping, relation_decisions=[decision],
+    )
+
+    assert result["new_rows"] == 2
+    with sessions() as session:
+        assert session.scalar(select(AccountModel).where(
+            AccountModel.workspace_id == workspace_id,
+            AccountModel.name == "支付宝余额",
+        )) is not None
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel).where(
+            CashTransactionModel.workspace_id == workspace_id,
+        )) == 2
+        assert session.scalar(select(func.count()).select_from(TransactionRelationModel).where(
+            TransactionRelationModel.workspace_id == workspace_id,
+            TransactionRelationModel.status == "accepted",
+        )) == 1
+
+
 def test_cash_import_preview_does_not_duplicate_existing_facts_for_relation_matching(tmp_path):
     from ft.application.relations import RelationService
 

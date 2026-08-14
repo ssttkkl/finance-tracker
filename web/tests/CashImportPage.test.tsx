@@ -98,8 +98,11 @@ describe("CashImportPage", () => {
     expect(await screen.findByRole("heading", { name: "导入完成" })).toBeInTheDocument();
     await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("/cash-import/commit"))).toBe(true));
     const commitRequest = fetch.mock.calls.find(([input]) => String(input).includes("/cash-import/commit"));
-    expect(String(commitRequest?.[0])).toContain("preview_digest=digest-1");
-    expect(String(commitRequest?.[0])).toContain("relations=%5B%5D");
+    expect(String(commitRequest?.[0])).not.toContain("relations=");
+    const commitInit = (commitRequest as unknown as [string, RequestInit?] | undefined)?.[1];
+    const commitBody = JSON.parse(String(commitInit?.body));
+    expect(commitBody.preview_digest).toBe("digest-1");
+    expect(commitBody.relations).toEqual([]);
   });
 
   it("把创建账户和币种扩充说明放在各自账户选项下，并在最终请求提交草稿", async () => {
@@ -203,7 +206,10 @@ describe("CashImportPage", () => {
     await screen.findByRole("heading", { name: "导入完成" });
 
     const commitRequest = fetch.mock.calls.find(([input]) => String(input).includes("/cash-import/commit"));
-    expect(String(commitRequest?.[0])).toContain(encodeURIComponent('"status":"rejected"'));
+    expect(String(commitRequest?.[0])).not.toContain("relations=");
+    const commitInit = (commitRequest as unknown as [string, RequestInit?] | undefined)?.[1];
+    const commitBody = JSON.parse(String(commitInit?.body));
+    expect(commitBody.relations).toEqual([expect.objectContaining({ status: "rejected" })]);
   });
 
   it("加密 PDF 要求输入密码，并通过请求头重试而不放进 URL", async () => {

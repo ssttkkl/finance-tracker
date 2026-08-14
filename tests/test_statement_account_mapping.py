@@ -68,6 +68,118 @@ def test_scan_rejects_business_row_without_a_declared_source_identity():
         scan_source_rows([_row("alipay", payment_method="")])
 
 
+def test_wechat_wallet_deposit_placeholder_is_normalized_before_account_scan(tmp_path, monkeypatch):
+    from ft.adapters.statement_import import StatementParser
+    from ft.domain.imports import StatementImportCommand
+
+    source = tmp_path / "wechat.xlsx"
+    source.write_text("fixture", encoding="utf-8")
+
+    def fake_prepare(_path, _source, _password):
+        return ([{
+            "date": "2026-08-14 10:00:00",
+            "amount": "1.00",
+            "currency": "CNY",
+            "payment_method": "/",
+            "status": "已存入零钱",
+            "platform_status": "已存入零钱",
+            "record_type": "transfer_in",
+            "counterparty": "微信",
+            "_source_payload": {"支付方式": "/", "当前状态": "已存入零钱"},
+        }], "wechat", [])
+
+    monkeypatch.setattr("ft.convert._prepare_convert_rows", fake_prepare)
+    monkeypatch.setattr(
+        "ft.convert._build_output_row",
+        lambda row, **kwargs: {
+            "date": row["date"], "amount": row["amount"], "currency": row["currency"],
+            "payment_method": row["payment_method"], "status": row["status"],
+            "platform_status": row["platform_status"], "record_type": row["record_type"],
+            "counterparty": row["counterparty"], "bill_source": "wechat", "source_type": "wechat",
+        },
+    )
+
+    rows = StatementParser().parse_source_rows(
+        StatementImportCommand(source_path=str(source), source="wechat")
+    )
+
+    assert rows[0]["payment_method"] == "零钱"
+
+
+def test_alipay_missing_payment_method_uses_explicit_wallet_group(tmp_path, monkeypatch):
+    from ft.adapters.statement_import import StatementParser
+    from ft.domain.imports import StatementImportCommand
+
+    source = tmp_path / "alipay.csv"
+    source.write_text("fixture", encoding="utf-8")
+
+    def fake_prepare(_path, _source, _password):
+        return ([{
+            "date": "2026-08-14 10:00:00",
+            "amount": "1.00",
+            "currency": "CNY",
+            "payment_method": "",
+            "record_type": "income",
+            "counterparty": "商户",
+            "_source_payload": {"收/付款方式": "", "金额": "1.00"},
+        }], "alipay", [])
+
+    monkeypatch.setattr("ft.convert._prepare_convert_rows", fake_prepare)
+    monkeypatch.setattr(
+        "ft.convert._build_output_row",
+        lambda row, **kwargs: {
+            "date": row["date"], "amount": row["amount"], "currency": row["currency"],
+            "payment_method": row["payment_method"], "record_type": row["record_type"],
+            "counterparty": row["counterparty"], "bill_source": "alipay", "source_type": "alipay",
+        },
+    )
+
+    rows = StatementParser().parse_source_rows(
+        StatementImportCommand(source_path=str(source), source="alipay")
+    )
+
+    assert rows[0]["payment_method"] == "支付宝余额"
+
+
+def test_icbc_credit_missing_card_number_is_recovered_from_source_snapshot(tmp_path, monkeypatch):
+    from ft.adapters.statement_import import StatementParser
+    from ft.domain.imports import StatementImportCommand
+
+    source = tmp_path / "icbc.pdf"
+    source.write_text("fixture", encoding="utf-8")
+
+    def fake_prepare(_path, _source, _password):
+        return ([{
+            "date": "2026-08-14 10:00:00",
+            "amount": "-1.00",
+            "currency": "CNY",
+            "card_number": "",
+            "payment_method": "银行卡",
+            "record_type": "consumption",
+            "counterparty": "商户",
+            "_source_payload": {"原始文本单元": [
+                "2026-08-14", "10:00:00", "379983032529166", "借",
+            ]},
+        }], "icbc_credit", [])
+
+    monkeypatch.setattr("ft.convert._prepare_convert_rows", fake_prepare)
+    monkeypatch.setattr(
+        "ft.convert._build_output_row",
+        lambda row, **kwargs: {
+            "date": row["date"], "amount": row["amount"], "currency": row["currency"],
+            "card_number": row["card_number"], "payment_method": row["payment_method"],
+            "record_type": row["record_type"], "counterparty": row["counterparty"],
+            "bill_source": "icbc_credit", "source_type": "icbc_credit",
+        },
+    )
+
+    rows = StatementParser().parse_source_rows(
+        StatementImportCommand(source_path=str(source), source="icbc")
+    )
+
+    assert rows[0]["card_number"] == "9166"
+
+
 def test_scan_group_id_is_opaque_and_does_not_contain_the_source_key():
     from ft.application.statement_account_mapping import scan_source_rows
 
@@ -404,8 +516,54 @@ def test_preview_applies_explicit_mapping_without_creating_accounts_or_expanding
     assert preview["mapping"][0]["missing_currencies"] == ["USD"]
     with sessions() as session:
         assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 0
+        assert session.scalar(select(func.count()).select_from(StatementAccountMappingModel)) == 0
         account = session.get(AccountModel, account_id)
         assert account.currencies == ["CNY"]
+
+
+def test_preview_new_account_draft_does_not_write_account_or_mapping(tmp_path):
+    from sqlalchemy import func, select
+
+    from ft.adapters.relational.models import AccountModel, CashTransactionModel, StatementAccountMappingModel
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from ft.adapters.relational import ensure_workspace
+    from test_postgres_adapter import _database
+
+    class SourceParser:
+        def parse_source_rows(self, _command):
+            return [{
+                "record_id": "row-new-preview", "bill_source": "alipay", "source_type": "alipay",
+                "payment_method": "花呗", "currency": "CNY", "amount": "-3.00",
+                "date": "2026-08-14", "counterparty": "商户", "counterparty_account": "",
+                "category": "expense", "record_type": "consumption", "record_subtype": "not_applicable",
+                "note": "测试", "_source_payload": {"原始": "fixture"},
+            }]
+
+    sessions, unit_of_work = _database()
+    ensure_workspace(sessions, "preview-new-account-workspace")
+    service = CashLedgerCommandService(
+        sessions, "preview-new-account-workspace", parser=SourceParser(),
+    )
+    scan = service.scan_import(b"fixture", filename="statement.csv")
+    group = scan["groups"][0]
+
+    preview = service.preview_import(
+        b"fixture", source="", currency=None, filename="statement.csv",
+        mapping=[{
+            "group_id": group["group_id"],
+            "account_id": None,
+            "mapping_revision": group["suggestion"]["mapping_revision"],
+            "new_account": {"name": "花呗", "type": "loan", "currencies": ["CNY"]},
+        }],
+    )
+
+    assert preview["mapping"][0]["new_account"] == {
+        "name": "花呗", "type": "loan", "currencies": ["CNY"],
+    }
+    with sessions() as session:
+        assert session.scalar(select(func.count()).select_from(AccountModel)) == 0
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 0
+        assert session.scalar(select(func.count()).select_from(StatementAccountMappingModel)) == 0
 
 
 def test_commit_creates_new_account_mapping_and_cash_row_in_one_final_confirmation(tmp_path):

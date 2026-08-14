@@ -1,3 +1,5 @@
+import base64
+
 from fastapi.testclient import TestClient
 import pytest
 
@@ -53,6 +55,46 @@ def test_cash_import_password_header_is_allowed_by_cors(cash_web_runtime):
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5181"
     assert "x-ft-statement-password" in response.headers["access-control-allow-headers"].lower()
+
+
+def test_cash_import_commit_accepts_large_confirmation_payload_in_json_body(cash_web_runtime):
+    from ft.application.web_queries import CashLedgerQueryService
+    from ft.web.app import create_app
+
+    class RecordingImportService:
+        def options(self):
+            return {}
+
+        def commit_import(self, content, **kwargs):
+            assert content == b"statement-bytes"
+            assert kwargs["preview_digest"] == "digest-1"
+            assert kwargs["preview_channel"] == "icbc_credit"
+            assert kwargs["password"] == "secret"
+            assert len(kwargs["relation_decisions"]) == 721
+            assert kwargs["mapping"] == [{"group_id": "group-1", "account_id": 101}]
+            return {"message": "导入完成", "new_rows": 1, "updated_rows": 0}
+
+    client = TestClient(create_app(
+        CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id),
+        mutation_service=RecordingImportService(),
+    ))
+    relations = [{"kind": "payment_mirror", "status": "accepted", "index": index} for index in range(721)]
+    response = client.post(
+        "/api/v1/cash-import/commit",
+        json={
+            "content_base64": base64.b64encode(b"statement-bytes").decode("ascii"),
+            "filename": "statement.pdf",
+            "preview_digest": "digest-1",
+            "preview_channel": "icbc_credit",
+            "relations": relations,
+            "mapping": [{"group_id": "group-1", "account_id": 101}],
+        },
+        headers={"X-FT-Statement-Password": "secret"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "导入完成"
+    assert b'"password"' not in response.request.content
 
 
 @pytest.mark.parametrize(

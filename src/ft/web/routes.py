@@ -1,4 +1,5 @@
 """收支账本投影 API 路由。"""
+import base64
 import json
 
 from fastapi import APIRouter, Request
@@ -370,20 +371,47 @@ def cash_router(
             mapping: str | None = None,
         ):
             try:
-                relation_decisions = None
-                if relations:
-                    relation_decisions = json.loads(relations)
-                    if not isinstance(relation_decisions, list):
+                password = request.headers.get("x-ft-statement-password")
+                content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                if content_type == "application/json":
+                    payload = await request.json()
+                    if not isinstance(payload, dict):
+                        raise ValueError("导入确认请求格式无效")
+                    encoded_content = payload.get("content_base64")
+                    if not isinstance(encoded_content, str) or not encoded_content:
+                        raise ValueError("导入确认请求格式无效")
+                    try:
+                        content = base64.b64decode(encoded_content, validate=True)
+                    except (ValueError, TypeError):
+                        raise ValueError("导入确认请求格式无效") from None
+                    source = str(payload.get("source") or source)
+                    currency = payload.get("currency") or currency
+                    filename = str(payload.get("filename") or filename)
+                    preview_digest = payload.get("preview_digest") or preview_digest
+                    preview_channel = payload.get("preview_channel") or preview_channel
+                    relation_decisions = payload.get("relations")
+                    if relation_decisions is not None and not isinstance(relation_decisions, list):
                         raise ValueError("导入关系决策格式无效")
+                    mapping_payload = payload.get("mapping")
+                    if mapping_payload is not None and not isinstance(mapping_payload, list):
+                        raise ValueError("import_mapping_incomplete")
+                else:
+                    content = await request.body()
+                    relation_decisions = None
+                    if relations:
+                        relation_decisions = json.loads(relations)
+                        if not isinstance(relation_decisions, list):
+                            raise ValueError("导入关系决策格式无效")
+                    mapping_payload = _import_mapping_payload(mapping)
                 return json_value(mutation_service.commit_import(
-                    await request.body(),
+                    content,
                     source=source,
                     currency=currency,
                     filename=filename,
                     preview_digest=preview_digest,
                     preview_channel=preview_channel,
-                    password=request.headers.get("x-ft-statement-password"),
-                    relation_decisions=relation_decisions, mapping=_import_mapping_payload(mapping),
+                    password=password,
+                    relation_decisions=relation_decisions, mapping=mapping_payload,
                 ))
             except RelationImpactRequired as exc:
                 return JSONResponse(error_payload(exc.code, str(exc)), 409)
