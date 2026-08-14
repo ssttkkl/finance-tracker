@@ -82,6 +82,18 @@ def _cash_import_error(exc: ValueError) -> JSONResponse:
     return JSONResponse(error_payload(code if code in messages else "invalid_import", messages.get(code, "账单无法导入，请检查后重试。")), status)
 
 
+def _cash_projection_delete_error(exc: ValueError) -> JSONResponse:
+    code = str(exc)
+    messages = {
+        "projection.delete_required": "请选择要删除的收支记录。",
+        "projection.confirmation_required": "请确认删除已选收支记录。",
+        "projection.version_conflict": "列表已更新，请重新选择记录。",
+        "projection.unavailable": "账本数据暂不可用，请先完成更新。",
+    }
+    status = 503 if code == "projection.unavailable" else 409 if code == "projection.version_conflict" else 400
+    return JSONResponse(error_payload(code if code in messages else "invalid_projection_delete", messages.get(code, "收支记录无法删除，请刷新后重试。")), status)
+
+
 def portfolio_sse_frame(update) -> str:
     """Serialize one coordinator update using the SSE event framing contract."""
     if update.kind == "heartbeat":
@@ -321,6 +333,38 @@ def cash_router(
                 ))
             except ValueError as exc:
                 return JSONResponse(error_payload("invalid_record", str(exc)), 400)
+
+        @router.post("/cash-projections/delete-impact")
+        async def preview_cash_projection_delete(request: Request):
+            try:
+                payload = await request.json()
+                if not isinstance(payload, dict):
+                    raise ValueError("projection.delete_required")
+                return json_value(mutation_service.preview_delete_projections(
+                    payload.get("projection_ids"),
+                    projection_version=payload.get("projection_version"),
+                ))
+            except ValueError as exc:
+                return _cash_projection_delete_error(exc)
+
+        @router.delete("/cash-projections")
+        async def delete_cash_projections(request: Request):
+            try:
+                payload = await request.json()
+                if not isinstance(payload, dict):
+                    raise ValueError("projection.delete_required")
+                if payload.get("confirmed") is not True:
+                    raise ValueError("projection.confirmation_required")
+                result = mutation_service.delete_projections(
+                    payload.get("projection_ids"),
+                    projection_version=payload.get("projection_version"),
+                )
+                # 删除事实 ID 只供 Application Service 内部协调和测试使用，
+                # 不把数据库代理键暴露给浏览器。
+                result.pop("deleted_fact_ids", None)
+                return json_value(result)
+            except ValueError as exc:
+                return _cash_projection_delete_error(exc)
 
         @router.post("/cash-relations")
         async def create_cash_relation(request: Request):

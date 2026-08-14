@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { cancelCashRelation, classifyCashProjections, fetchCashAccounts, fetchCashPage, fetchCashRecord, fetchEvidence, fetchLedgerOptions } from "../api/cashLedger";
-import type { Account, CashCategory, CashFilterOptions, CashFilters, CashMonthlySummary, CashProjection, CashRecord, CashRecordDetail, Evidence, EvidenceRecord, LedgerOptions } from "../api/types";
+import { cancelCashRelation, classifyCashProjection, classifyCashProjections, deleteCashProjections, fetchCashAccounts, fetchCashPage, fetchCashProjectionDeleteImpact, fetchCashRecord, fetchEvidence, fetchLedgerOptions } from "../api/cashLedger";
+import type { Account, CashCategory, CashFilterOptions, CashFilters, CashMonthlySummary, CashProjection, CashProjectionDeleteImpact, CashRecord, CashRecordDetail, Evidence, EvidenceRecord, LedgerOptions } from "../api/types";
 import { CashFiltersBar } from "../components/CashFilters";
-import { CashTable } from "../components/CashTable";
+import { CashTable, type CashRowAction } from "../components/CashTable";
 import { EvidenceDetail } from "../components/EvidenceDetail";
 import { LoadMoreControl } from "../components/Pagination";
 import { StatusView } from "../components/StatusView";
@@ -22,6 +22,7 @@ const requestErrorMessages: Record<string, string> = {
   invalid_filter: "请修正标记的金额筛选条件后重试。",
   invalid_cursor: "加载位置已失效，请重新读取记录。",
   api_request_failed: "请求失败，请稍后重试。",
+  "projection.version_conflict": "列表已更新，请重新选择记录。",
 };
 
 const relationLabels: Record<string, string> = {
@@ -96,6 +97,17 @@ export function CashLedgerPage({ onOpenImport, onModalStateChange, embedded = fa
   const [batchCategoryId, setBatchCategoryId] = useState<string | null>(null);
   const [batchSaving, setBatchSaving] = useState(false);
   const [batchError, setBatchError] = useState<string | undefined>();
+  const [singleCategoryTarget, setSingleCategoryTarget] = useState<CashProjection | null>(null);
+  const [singleCategoryId, setSingleCategoryId] = useState<string | null>(null);
+  const [singleCategorySaving, setSingleCategorySaving] = useState(false);
+  const [singleCategoryError, setSingleCategoryError] = useState<string | undefined>();
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
+  const [batchDeleteImpact, setBatchDeleteImpact] = useState<CashProjectionDeleteImpact | null>(null);
+  const [batchDeleteIds, setBatchDeleteIds] = useState<string[]>([]);
+  const [batchDeleteVersion, setBatchDeleteVersion] = useState<number | null>(null);
+  const [batchDeleteLoading, setBatchDeleteLoading] = useState(false);
+  const [batchDeleteSaving, setBatchDeleteSaving] = useState(false);
+  const [batchDeleteError, setBatchDeleteError] = useState<string | undefined>();
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error">("loading");
   const [appendLoading, setAppendLoading] = useState(false);
@@ -113,6 +125,7 @@ export function CashLedgerPage({ onOpenImport, onModalStateChange, embedded = fa
   const [recordLoadError, setRecordLoadError] = useState(false);
   const [relationComposerOpen, setRelationComposerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [initialDeleteOpen, setInitialDeleteOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const opener = useRef<HTMLElement | null>(null);
@@ -133,7 +146,7 @@ export function CashLedgerPage({ onOpenImport, onModalStateChange, embedded = fa
     appendingCursor.current = null;
     const controller = new AbortController(); pageAbortController.current = controller;
     const requestId = ++pageRequestId.current;
-    setStatus("loading"); setFilterOptionsLoading(true); setItems([]); setNextCursor(null); setMonthlySummaries([]); setProjectionVersion(null); setSelectedIds(new Set()); setBatchOpen(false); setBatchError(batchErrorAfterRefresh.current); batchErrorAfterRefresh.current = undefined; setErrorMessage(undefined); setAppendError(undefined); setAppendLoading(false);
+    setStatus("loading"); setFilterOptionsLoading(true); setItems([]); setNextCursor(null); setMonthlySummaries([]); setProjectionVersion(null); setSelectedIds(new Set()); setBatchOpen(false); setBatchDeleteOpen(false); setBatchDeleteImpact(null); setBatchDeleteError(undefined); setSingleCategoryTarget(null); setInitialDeleteOpen(false); setBatchError(batchErrorAfterRefresh.current); batchErrorAfterRefresh.current = undefined; setErrorMessage(undefined); setAppendError(undefined); setAppendLoading(false);
     fetchCashPage(filters, null, controller.signal).then((value) => {
       if (requestId !== pageRequestId.current) return;
       setItems(value.items); setNextCursor(value.next_cursor); setProjectionVersion(value.projection_version); setMonthlySummaries(value.monthly_summaries ?? []);
@@ -192,7 +205,7 @@ export function CashLedgerPage({ onOpenImport, onModalStateChange, embedded = fa
   const openBatchClassification = () => { setBatchCategoryId(null); setBatchError(undefined); setBatchOpen(true); };
   const closeBatchClassification = () => { if (!batchSaving) setBatchOpen(false); };
   const saveBatchClassification = async () => {
-    if (!projectionVersion || !selectedIds.size) return;
+    if (projectionVersion === null || !selectedIds.size) return;
     setBatchSaving(true); setBatchError(undefined);
     try {
       await classifyCashProjections(Array.from(selectedIds), projectionVersion, batchCategoryId);
@@ -204,13 +217,62 @@ export function CashLedgerPage({ onOpenImport, onModalStateChange, embedded = fa
       } else setBatchError("保存失败，请稍后重试。");
     }
   };
-  const openEvidence = (projection: CashProjection, source: HTMLElement) => { evidenceAbortController.current?.abort(); const controller = new AbortController(); evidenceAbortController.current = controller; const requestId = ++evidenceRequestId.current; opener.current = source; setSelected(projection); setEvidence(null); setRecordDetail(null); setEvidenceState("loading"); fetchEvidence(projection.projection_id, controller.signal).then((value) => { if (requestId === evidenceRequestId.current) { setEvidence(value); setEvidenceState("ready"); } }).catch(() => { if (!controller.signal.aborted && requestId === evidenceRequestId.current) setEvidenceState("error"); }); };
-  const closeEvidence = () => { evidenceAbortController.current?.abort(); evidenceRequestId.current += 1; restoreEvidenceFocus.current = true; opener.current?.focus(); setSelected(null); setEvidence(null); setRecordDetail(null); setRecordLoading(false); setRecordLoadError(false); };
-  const loadEditor = (id: string | null, openRelation = false) => {
-    const evidenceCached = id && evidence ? detailFromEvidence(evidence, id, ledgerOptions) : null;
+  const openSingleCategory = (projection: CashProjection) => { setSingleCategoryTarget(projection); setSingleCategoryId(projection.category?.id ?? null); setSingleCategoryError(undefined); };
+  const closeSingleCategory = () => { if (!singleCategorySaving) setSingleCategoryTarget(null); };
+  const saveSingleCategory = async () => {
+    if (!singleCategoryTarget || projectionVersion === null) return;
+    setSingleCategorySaving(true); setSingleCategoryError(undefined);
+    try {
+      await classifyCashProjection(singleCategoryTarget.projection_id, projectionVersion, singleCategoryId);
+      setSingleCategoryTarget(null); setSingleCategorySaving(false); setSelectedIds((current) => { const next = new Set(current); next.delete(singleCategoryTarget.projection_id); return next; }); setRefreshGeneration((value) => value + 1);
+    } catch (error) {
+      setSingleCategorySaving(false);
+      if (error instanceof Error && error.message === "projection.version_conflict") { setSingleCategoryTarget(null); setSelectedIds(new Set()); batchErrorAfterRefresh.current = "列表已更新，请重新选择记录。"; setRefreshGeneration((value) => value + 1); }
+      else setSingleCategoryError("保存失败，请稍后重试。");
+    }
+  };
+  const openBatchDelete = async () => {
+    if (projectionVersion === null || !selectedIds.size) return;
+    const ids = Array.from(selectedIds);
+    setBatchDeleteIds(ids); setBatchDeleteVersion(projectionVersion); setBatchDeleteImpact(null); setBatchDeleteError(undefined); setBatchDeleteOpen(true); setBatchDeleteLoading(true);
+    try {
+      const impact = await fetchCashProjectionDeleteImpact(ids, projectionVersion);
+      setBatchDeleteImpact(impact);
+    } catch (error) {
+      if (error instanceof Error && error.message === "projection.version_conflict") { setBatchDeleteOpen(false); setSelectedIds(new Set()); batchErrorAfterRefresh.current = "列表已更新，请重新选择记录。"; setRefreshGeneration((value) => value + 1); }
+      else {
+        const code = error instanceof Error ? error.message : "api_request_failed";
+        setBatchDeleteOpen(false); setBatchDeleteImpact(null); setBatchDeleteError(undefined); setSelectedIds(new Set());
+        setBatchError(code === "api_request_failed" ? "无法读取删除影响，请稍后重试。" : requestErrorMessages[code] ?? "无法读取删除影响，请稍后重试。");
+      }
+    } finally { setBatchDeleteLoading(false); }
+  };
+  const closeBatchDelete = () => { if (!batchDeleteSaving) setBatchDeleteOpen(false); };
+  const confirmBatchDelete = async () => {
+    if (batchDeleteVersion === null || !batchDeleteIds.length) return;
+    setBatchDeleteSaving(true); setBatchDeleteError(undefined);
+    try {
+      await deleteCashProjections(batchDeleteIds, batchDeleteVersion);
+      setBatchDeleteSaving(false); setBatchDeleteOpen(false); setBatchDeleteImpact(null); setSelectedIds(new Set()); setRefreshGeneration((value) => value + 1);
+    } catch (error) {
+      setBatchDeleteSaving(false);
+      if (error instanceof Error && error.message === "projection.version_conflict") { setBatchDeleteOpen(false); setSelectedIds(new Set()); batchErrorAfterRefresh.current = "列表已更新，请重新选择记录。"; setRefreshGeneration((value) => value + 1); }
+      else {
+        const code = error instanceof Error ? error.message : "api_request_failed";
+        setBatchDeleteError(code === "api_request_failed" ? "删除失败，请稍后重试。" : requestErrorMessages[code] ?? "删除失败，请稍后重试。");
+      }
+    }
+  };
+  const openEvidence = (projection: CashProjection, source: HTMLElement, rowAction: CashRowAction = "view") => {
+    evidenceAbortController.current?.abort(); const controller = new AbortController(); evidenceAbortController.current = controller; const requestId = ++evidenceRequestId.current; opener.current = source; setSelected(projection); setEvidence(null); setRecordDetail(null); setInitialDeleteOpen(false); setEvidenceState("loading");
+    fetchEvidence(projection.projection_id, controller.signal).then((value) => { if (requestId !== evidenceRequestId.current) return; setEvidence(value); setEvidenceState("ready"); if ((rowAction === "edit" || rowAction === "delete") && value.root_record?.id) loadEditor(value.root_record.id, false, rowAction === "delete", value); }).catch(() => { if (!controller.signal.aborted && requestId === evidenceRequestId.current) setEvidenceState("error"); });
+  };
+  const closeEvidence = () => { evidenceAbortController.current?.abort(); evidenceRequestId.current += 1; restoreEvidenceFocus.current = true; opener.current?.focus(); setInitialDeleteOpen(false); setSelected(null); setEvidence(null); setRecordDetail(null); setRecordLoading(false); setRecordLoadError(false); };
+  const loadEditor = (id: string | null, openRelation = false, openDelete = false, sourceEvidence?: Evidence) => {
+    const evidenceCached = id && (sourceEvidence ?? evidence) ? detailFromEvidence(sourceEvidence ?? evidence!, id, ledgerOptions) : null;
     const stateCached = id && recordDetail?.record.id === id ? recordDetail : null;
     const cached = stateCached ?? evidenceCached;
-    setEditingId(id); setCreating(id === null); setRelationComposerOpen(openRelation); setRecordDetail(cached); setRecordLoading(Boolean(id && !cached)); setRecordLoadError(false);
+    setEditingId(id); setCreating(id === null); setRelationComposerOpen(openRelation); setInitialDeleteOpen(openDelete); setRecordDetail(cached); setRecordLoading(Boolean(id && !cached)); setRecordLoadError(false);
     if (!ledgerOptions.record_types.length || !ledgerOptions.relation_types.length) {
       fetchLedgerOptions().then((value) => { if (value.record_types && value.relation_types) setLedgerOptions(value); }).catch(() => undefined);
     }
@@ -223,22 +285,23 @@ export function CashLedgerPage({ onOpenImport, onModalStateChange, embedded = fa
   const returnToEvidence = () => {
     if (!selected) return;
     const current = selected;
-    setEditingId(null); setCreating(false); setRelationComposerOpen(false); setRecordDetail(null); setRecordLoading(false); setRecordLoadError(false);
+    setEditingId(null); setCreating(false); setRelationComposerOpen(false); setInitialDeleteOpen(false); setRecordDetail(null); setRecordLoading(false); setRecordLoadError(false);
     openEvidence(current, opener.current ?? document.createElement("button"));
   };
   const retryEditor = () => { if (editingId) loadEditor(editingId); };
   const handleCancelRelation = async (id: string) => { try { await cancelCashRelation(id); setRefreshGeneration((current) => current + 1); returnToEvidence(); } catch { /* drawer keeps the current state and can retry */ } };
-  const handleRecordDeleted = (id: string) => { if (selected) closeEvidence(); setEditingId(null); setCreating(false); setRelationComposerOpen(false); setRecordDetail(null); setRecordLoading(false); setRecordLoadError(false); setRefreshGeneration((current) => current + 1); void id; };
+  const handleRowAction = (projection: CashProjection, action: CashRowAction, source: HTMLElement) => { if (action === "category") openSingleCategory(projection); else openEvidence(projection, source, action); };
+  const handleRecordDeleted = (id: string) => { if (selected) closeEvidence(); setEditingId(null); setCreating(false); setRelationComposerOpen(false); setInitialDeleteOpen(false); setRecordDetail(null); setRecordLoading(false); setRecordLoadError(false); setRefreshGeneration((current) => current + 1); void id; };
 
-  const drawerOpen = Boolean(selected || editingId || creating || importing);
+  const drawerOpen = Boolean(selected || editingId || creating || importing || batchOpen || singleCategoryTarget || batchDeleteOpen);
   const editingSelected = Boolean(selected && (editingId || creating));
   const availableCategories = categories.length ? categories : filterOptions.categories;
   useEffect(() => {
     onModalStateChange?.(drawerOpen);
     return () => onModalStateChange?.(false);
   }, [drawerOpen, onModalStateChange]);
-  const ledgerContent = <section className="ledger ledger-workbench" id="cash-ledger" aria-label="收支账本"><header className="page-header"><div><h1>收支账本</h1></div><div className="page-header-actions"><button type="button" className="button-secondary" onClick={openNew}>新建流水</button><button type="button" className="button-primary" onClick={onOpenImport ?? (() => setImporting(true))}>导入账单</button></div></header>{accountsError ? <div className="status-view status-error" data-status-kind="error" role="alert"><p>无法读取账户，请稍后重试。</p><button type="button" onClick={loadAccounts}>重试账户</button></div> : null}{batchError ? <div className="batch-error" role="alert">{batchError}</div> : null}<CashFiltersBar filters={filters} accounts={accounts} filterOptions={filterOptions} filterOptionsReady={filterOptionsReady} filterOptionsLoading={filterOptionsLoading} amountFilterState={amountFilterState} onChange={updateFilters} onAmountFilterChange={clearAmountFilterState} />{status === "loading" ? <><CashTable items={[]} loading onEvidence={openEvidence} /><StatusView kind="loading" message={projectionUpdated ? "账本已更新，正在刷新记录。" : undefined} /></> : null}{status === "empty" ? <StatusView kind="empty" /> : null}{status === "error" ? <StatusView kind="error" message={errorMessage} onRetry={resetAndLoad} /> : null}{status === "ready" ? <>{projectionUpdated ? <div className="update-notice" role="status"><p>账本已更新，已刷新记录。</p><button ref={updateConfirmation} type="button" onClick={confirmUpdatedList}>查看更新后的列表</button></div> : null}<CashTable items={items} monthlySummaries={monthlySummaries} selectable selectedIds={selectedIds} onToggleSelection={toggleSelection} onToggleAll={toggleAllSelection} onEvidence={openEvidence} /><LoadMoreControl hasMore={Boolean(nextCursor)} loading={appendLoading} error={appendError} onLoadMore={appendError ? retryMore : loadMore} />{selectedIds.size ? <div className="batch-toolbar" role="toolbar" aria-label="批量操作"><span>已选 {selectedIds.size} 项</span><button type="button" className="button-primary" onClick={openBatchClassification}>修改分类</button><button type="button" className="button-secondary" onClick={() => setSelectedIds(new Set())}>取消选择</button></div> : null}</> : null}</section>;
-  const overlayContent = <>{selected ? <EvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} editing={editingSelected} editMode={creating ? "new" : "edit"} editDetail={recordDetail} editAccounts={accounts} editOptions={ledgerOptions} categories={categories} projectionVersion={evidence?.projection_version ?? projectionVersion} editRelationOpen={relationComposerOpen} editLoading={recordLoading} editLoadError={recordLoadError} onClose={editingSelected ? returnToEvidence : closeEvidence} onRetry={() => openEvidence(selected, opener.current ?? document.createElement("button"))} onEditRetry={retryEditor} onRecordSaved={handleRecordSaved} onEditRecord={openEditor} onAddRelation={openRelationEditor} onCancelRelation={handleCancelRelation} onRecordDeleted={handleRecordDeleted} /> : null}{!selected && (editingId || creating) ? <RecordDrawer mode={creating ? "new" : "edit"} detail={recordDetail} accounts={accounts} options={ledgerOptions} categories={categories} projectionVersion={projectionVersion} loading={recordLoading} loadError={recordLoadError} onRetry={retryEditor} onClose={() => { setEditingId(null); setCreating(false); setRelationComposerOpen(false); setRecordDetail(null); setRecordLoading(false); setRecordLoadError(false); }} onSaved={handleRecordSaved} onDeleted={handleRecordDeleted} /> : null}{importing ? <ImportDrawer onClose={() => { setImporting(false); }} onDone={() => { setImporting(false); setRefreshGeneration((current) => current + 1); }} /> : null}{batchOpen ? <div className="evidence-layer batch-layer"><button type="button" className="evidence-backdrop" aria-label="关闭修改分类" onClick={closeBatchClassification} /><aside className="evidence batch-dialog" role="dialog" aria-modal="true" aria-label="修改分类"><header><div><h2>修改分类</h2></div><button type="button" className="icon-only-button" aria-label="关闭修改分类" onClick={closeBatchClassification}>×</button></header><div className="batch-dialog-content"><label htmlFor="batch-category">分类<select id="batch-category" aria-label="分类" value={batchCategoryId ?? ""} onChange={(event) => setBatchCategoryId(event.target.value || null)}><option value="">无分类</option>{availableCategories.map((category) => <option key={category.id} value={category.id}>{category.path.map((item) => item.name).join(" / ")}</option>)}</select></label><div className="drawer-actions"><button type="button" className="button-secondary" onClick={closeBatchClassification} disabled={batchSaving}>取消</button><button type="button" className="button-primary" onClick={() => void saveBatchClassification()} disabled={batchSaving || !projectionVersion}>{batchSaving ? "保存中…" : "保存"}</button></div></div></aside></div> : null}</>;
+  const ledgerContent = <section className="ledger ledger-workbench" id="cash-ledger" aria-label="收支账本"><header className="page-header"><div><h1>收支账本</h1></div><div className="page-header-actions"><button type="button" className="button-secondary" onClick={openNew}>新建流水</button><button type="button" className="button-primary" onClick={onOpenImport ?? (() => setImporting(true))}>导入账单</button></div></header>{accountsError ? <div className="status-view status-error" data-status-kind="error" role="alert"><p>无法读取账户，请稍后重试。</p><button type="button" onClick={loadAccounts}>重试账户</button></div> : null}{batchError ? <div className="batch-error" role="alert">{batchError}</div> : null}<CashFiltersBar filters={filters} accounts={accounts} filterOptions={filterOptions} filterOptionsReady={filterOptionsReady} filterOptionsLoading={filterOptionsLoading} amountFilterState={amountFilterState} onChange={updateFilters} onAmountFilterChange={clearAmountFilterState} />{status === "loading" ? <><CashTable items={[]} loading onEvidence={openEvidence} onAction={handleRowAction} /><StatusView kind="loading" message={projectionUpdated ? "账本已更新，正在刷新记录。" : undefined} /></> : null}{status === "empty" ? <StatusView kind="empty" /> : null}{status === "error" ? <StatusView kind="error" message={errorMessage} onRetry={resetAndLoad} /> : null}{status === "ready" ? <>{projectionUpdated ? <div className="update-notice" role="status"><p>账本已更新，已刷新记录。</p><button ref={updateConfirmation} type="button" onClick={confirmUpdatedList}>查看更新后的列表</button></div> : null}<CashTable items={items} monthlySummaries={monthlySummaries} selectable selectedIds={selectedIds} onToggleSelection={toggleSelection} onToggleAll={toggleAllSelection} onEvidence={openEvidence} onAction={handleRowAction} /><LoadMoreControl hasMore={Boolean(nextCursor)} loading={appendLoading} error={appendError} onLoadMore={appendError ? retryMore : loadMore} />{selectedIds.size ? <div className="batch-toolbar" role="toolbar" aria-label="批量操作"><span>已选 {selectedIds.size} 项</span><button type="button" className="button-primary" onClick={openBatchClassification}>修改分类</button><button type="button" className="button-danger" onClick={() => void openBatchDelete()} disabled={projectionVersion === null}>删除</button><button type="button" className="button-secondary" onClick={() => setSelectedIds(new Set())}>取消选择</button></div> : null}</> : null}</section>;
+  const overlayContent = <>{selected ? <EvidenceDetail evidence={evidence} loading={evidenceState === "loading"} error={evidenceState === "error"} editing={editingSelected} editMode={creating ? "new" : "edit"} editDetail={recordDetail} editAccounts={accounts} editOptions={ledgerOptions} categories={categories} projectionVersion={evidence?.projection_version ?? projectionVersion} editRelationOpen={relationComposerOpen} editDeleteOpen={initialDeleteOpen} editLoading={recordLoading} editLoadError={recordLoadError} onClose={editingSelected ? returnToEvidence : closeEvidence} onRetry={() => openEvidence(selected, opener.current ?? document.createElement("button"))} onEditRetry={retryEditor} onRecordSaved={handleRecordSaved} onEditRecord={openEditor} onAddRelation={openRelationEditor} onCancelRelation={handleCancelRelation} onRecordDeleted={handleRecordDeleted} /> : null}{!selected && (editingId || creating) ? <RecordDrawer mode={creating ? "new" : "edit"} detail={recordDetail} accounts={accounts} options={ledgerOptions} categories={categories} projectionVersion={projectionVersion} loading={recordLoading} loadError={recordLoadError} onRetry={retryEditor} onClose={() => { setEditingId(null); setCreating(false); setRelationComposerOpen(false); setInitialDeleteOpen(false); setRecordDetail(null); setRecordLoading(false); setRecordLoadError(false); }} onSaved={handleRecordSaved} onDeleted={handleRecordDeleted} /> : null}{importing ? <ImportDrawer onClose={() => { setImporting(false); }} onDone={() => { setImporting(false); setRefreshGeneration((current) => current + 1); }} /> : null}{batchOpen ? <div className="evidence-layer batch-layer"><button type="button" className="evidence-backdrop" aria-label="关闭修改分类" onClick={closeBatchClassification} /><aside className="evidence batch-dialog" role="dialog" aria-modal="true" aria-label="修改分类"><header><div><h2>修改分类</h2></div><button type="button" className="icon-only-button" aria-label="关闭修改分类" onClick={closeBatchClassification}>×</button></header><div className="batch-dialog-content"><label htmlFor="batch-category">分类<select id="batch-category" aria-label="分类" value={batchCategoryId ?? ""} onChange={(event) => setBatchCategoryId(event.target.value || null)}><option value="">无分类</option>{availableCategories.map((category) => <option key={category.id} value={category.id}>{category.path.map((item) => item.name).join(" / ")}</option>)}</select></label><div className="drawer-actions"><button type="button" className="button-secondary" onClick={closeBatchClassification} disabled={batchSaving}>取消</button><button type="button" className="button-primary" onClick={() => void saveBatchClassification()} disabled={batchSaving || projectionVersion === null}>{batchSaving ? "保存中…" : "保存"}</button></div></div></aside></div> : null}{singleCategoryTarget ? <div className="evidence-layer batch-layer"><button type="button" className="evidence-backdrop" aria-label="关闭修改分类" onClick={closeSingleCategory} /><aside className="evidence batch-dialog" role="dialog" aria-modal="true" aria-label="修改分类"><header><div><h2>修改分类</h2></div><button type="button" className="icon-only-button" aria-label="关闭修改分类" onClick={closeSingleCategory}>×</button></header><div className="batch-dialog-content"><p className="batch-dialog-summary">{singleCategoryTarget.counterparty || "该记录"}</p>{singleCategoryError ? <p className="form-error" role="alert">{singleCategoryError}</p> : null}<label htmlFor="single-category">分类<select id="single-category" aria-label="分类" value={singleCategoryId ?? ""} onChange={(event) => setSingleCategoryId(event.target.value || null)}><option value="">无分类</option>{availableCategories.map((category) => <option key={category.id} value={category.id}>{category.path.map((item) => item.name).join(" / ")}</option>)}</select></label><div className="drawer-actions"><button type="button" className="button-secondary" onClick={closeSingleCategory} disabled={singleCategorySaving}>取消</button><button type="button" className="button-primary" onClick={() => void saveSingleCategory()} disabled={singleCategorySaving || projectionVersion === null}>{singleCategorySaving ? "保存中…" : "保存"}</button></div></div></aside></div> : null}{batchDeleteOpen ? <div className="evidence-layer batch-layer"><button type="button" className="evidence-backdrop" aria-label="关闭删除确认" onClick={closeBatchDelete} /><aside className="evidence batch-dialog" role="dialog" aria-modal="true" aria-label="删除已选收支"><header><div><h2>删除已选收支</h2></div><button autoFocus type="button" className="icon-only-button" aria-label="关闭删除确认" onClick={closeBatchDelete}>×</button></header><div className="batch-dialog-content">{batchDeleteLoading ? <p role="status">正在读取删除影响…</p> : batchDeleteError ? <p className="form-error" role="alert">{batchDeleteError}</p> : batchDeleteImpact ? <><p>这次操作将删除以下内容：</p><dl className="batch-delete-impact"><div><dt>收支记录</dt><dd>{batchDeleteImpact.projection_count} 笔</dd></div><div><dt>流水</dt><dd>{batchDeleteImpact.transaction_count} 条</dd></div><div><dt>关联组</dt><dd>{batchDeleteImpact.relation_group_count} 组</dd></div></dl>{batchDeleteImpact.relation_group_count ? <p className="batch-dialog-warning">关联组会整体删除，不再单独拆分。</p> : null}</> : null}<div className="drawer-actions"><button type="button" className="button-secondary" onClick={closeBatchDelete} disabled={batchDeleteSaving}>取消</button><button type="button" className="button-danger" onClick={() => void confirmBatchDelete()} disabled={batchDeleteSaving || batchDeleteLoading || !batchDeleteImpact}>{batchDeleteSaving ? "删除中…" : "确认删除"}</button></div></div></aside></div> : null}</>;
   if (embedded) return <>{ledgerContent}{createPortal(overlayContent, document.body)}</>;
   return <div className="page-layout"><main className="app-shell" inert={drawerOpen || undefined}><aside className="sidebar"><strong>Finance Tracker</strong><nav aria-label="主要导航"><div className="nav-group"><a className="nav-parent" aria-current="page" href="/">收支账本</a><div className="nav-subnav" aria-label="收支账本页面"><a className="subnav-link" href="/cash-categories">分类管理</a></div></div><div className="nav-group"><a className="nav-parent" href="/investment-holdings">投资账本</a></div></nav></aside>{ledgerContent}</main>{createPortal(overlayContent, document.body)}</div>;
 }

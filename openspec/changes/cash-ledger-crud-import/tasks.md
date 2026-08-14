@@ -231,3 +231,24 @@
 - [x] 13.4 使用真实浏览器连接真实 API 与生产构建预览执行 QA。为避免修改真实账本，使用原 `.ft` SQLite 的一次性副本，API 使用 `8767`，生产预览使用 `5185`；在 `1440 × 900` 与 `390 × 844` 检查账本浏览、整卡查看、桌面查看按钮、移动端无查看按钮、复选框不冒泡、工作区管理、分类管理、桌面无横向溢出，以及移动端日期无图标、分类 / 账户 / 流水类型分行。两种视口最终网络失败为空；首次登录的 `401` 与新工作区尚未构建投影时的 `503` 属于预期过渡状态，切换到已有工作区并刷新后不再出现。
 - [x] 13.5 最终 Hallmark audit：仓库未提供 `hallmark` 可执行文件，按 `references/verbs/audit.md` 对生产预览最终页面和 `/tmp/finance-tracker-real-qa-final-1440.png`、`/tmp/finance-tracker-real-qa-final-390.png` 进行人工审查；复核图标与文字基线、分类 / 账户分行、日期纯文字、桌面纯文字表头、移动端整卡查看、选择框行为、工作区导航和响应式溢出，结果为 `0 critical · 0 major · 0 minor`。
 - [ ] 13.6 本轮未重新执行 PostgreSQL 矩阵：`FT_TEST_POSTGRES_URL` 未配置；本次合并只涉及 Web / 工作区访问与展示回归，既有 PostgreSQL 业务与性能证据仍保留在前述条目，不能将本条标记为新的双后端通过。
+
+## 14. 本轮快捷操作与多选删除
+
+- [x] 14.1 需求澄清门禁：仓库内 `grill-me` 只声明运行时 `/grilling` session，当前运行时没有可调用入口；因此沿用本轮对话中已确认的范围并写入本 change——已有单条编辑 / 删除、关联管理和批量分类保持不变；本轮新增行级快捷菜单和投影级多选删除；不做批量改账户 / 金额 / 类型、复制、撤销或全量筛选选择；批量删除整笔收支详情的语义和风险已记录。
+- [x] 14.2 已更新 proposal、delta spec、design、prototype 与本任务的验收映射；“已有能力 / 本轮新增能力”分开列明，原型覆盖行菜单、选择工具栏、影响确认、版本冲突、空选择、加载和错误状态。
+- [x] 14.3 已先补 Application Service / Web 失败回归：批量影响读取、无关联删除、含关联整组删除、混合选择、空集合、成员重叠、跨工作区 / 隐藏投影、版本冲突、确认缺失、响应脱敏和失败后完全回滚；SQLite 通过，PostgreSQL 因 `FT_TEST_POSTGRES_URL` 未配置而保留未完成项。
+- [x] 14.4 已实现投影级批量删除 Application Service：按 `projection_ids + projection_version` 解析活动成员，集合读取关系 / 账户 / 余额，在单事务内清理派生投影、关系和现金流水；返回影响摘要、删除数量和新投影版本，未逐条开启独立事务。
+- [x] 14.5 已增加批量删除影响与提交 Web API，覆盖工作区隔离、版本锁、确认字段、错误代码和响应脱敏；浏览器只提交投影选择边界，不提交事实 / 关系 ID，也不展示任何内部 ID；成功响应已移除 `deleted_fact_ids`。
+- [x] 14.6 已补 Web Vitest / Playwright 断言：行级菜单键盘可达、菜单操作不冒泡、已有能力入口映射、选择工具栏删除、影响摘要计数、确认提交、版本冲突刷新并重新选择，以及 320 / 375 / 390 / 414 / 768 / 1440 px 响应式检查。
+- [x] 14.7 已实现桌面与窄屏行级快捷菜单和多选删除工具栏；复用已有查看 / 编辑 / 单条分类 / 单条删除 / 批量分类入口；删除确认只显示收支记录数、流水数和关联组数，并明确关联组整体删除语义。
+- [x] 14.8 已更新原型与 design 的 UI 状态覆盖，并按 UI 规则完成可见文字、焦点、危险操作二次确认、操作栏遮挡和响应式手工检查；批量确认层补充背景 `inert` 与初始焦点。运行时没有可调用 Hallmark `audit` 入口，已按 audit reference 进行人工替代复核并记录 `0 critical · 0 major · 0 minor`。
+- [x] 14.9 已完成独立产品 / 工程 / 设计 / 安全与最终 diff 复核：确认删除边界为投影完整成员集合、跨工作区和版本均在服务端校验、关系先于外键事实清理、余额快照在同一事务处理、无批量部分成功路径；未发现 critical / major finding。
+- [ ] 14.10 已执行受影响 SQLite 回归、Web Vitest、生产构建、Playwright 主流程 / 视觉 QA、OpenSpec 校验、`openspec doctor`、`git diff --check` 和原型脚本检查；真实 PostgreSQL 契约矩阵因 `FT_TEST_POSTGRES_URL` 未配置未完成，故本项保留未勾选。全量 Python 回归为 `1441 passed, 179 skipped, 13 failed`（失败集中在既有测试包导入冲突、投资 / 关系测试和一条既有数据断言）；完整 e2e 为 `27 passed, 1 failed`，唯一失败是既有深色侧栏文案数量断言，详见本节验证记录。
+
+### 14.10 验证记录
+
+- 当前 `HEAD`：`921e18f0899663e6a8187e6a2e3f214aec725ab3`；与 `origin/refactor/web` 的 merge-base 相同；所有本轮代码、测试、原型和 OpenSpec 改动仍未提交、推送或部署。
+- SQLite / Application Service：`PYTHONPATH=src pytest -q tests/test_cash_ledger_management.py tests/test_application_web_queries.py` → `59 passed, 7 skipped, 1 warning`；批量删除定向矩阵 → `6 passed, 1 skipped`。全量 `PYTHONPATH=src pytest -q` → `1441 passed, 179 skipped, 13 failed`，失败均不在本轮现金账单定向文件；`FT_TEST_POSTGRES_URL` 未配置，PostgreSQL 契约矩阵未执行。
+- Web：`npm test -- --run` → `112 passed`；`npm run build` → 通过；`FT_E2E_WEB_PORT=5299 npx playwright test -c playwright.config.ts -g '行级菜单和多选删除|详情切换编辑、维护关联'` → `2 passed`（含确认层焦点断言）；`npm run test:visual` → `15 passed`（快照已按有意的操作菜单与窄屏网格变化更新）。完整 `FT_E2E_WEB_PORT=5299 npm run test:e2e` → `27 passed, 1 failed`，唯一失败为既有 `cash-category-management.e2e.ts` 深色侧栏文案数量断言（期望 7、当前页面 8），本轮未改动该导航或断言。
+- 真实浏览器 QA：生产预览静态检查覆盖 320 / 375 / 414 / 768 / 1440 / 390 px；菜单、键盘 Escape、选择工具栏、影响确认、空状态和无横向溢出通过。新增截图：`web/test-results/cash-ledger.e2e.ts-行级菜单和多选删除在桌面与窄屏保持可操作/cash-row-menu-390.png`、`web/test-results/cash-ledger.e2e.ts-行级菜单和多选删除在桌面与窄屏保持可操作/cash-batch-delete-impact-390.png`。控制台和网络错误为空。
+- 规格 / 静态检查：`openspec validate --all --strict` → `26 passed, 0 failed`；`openspec doctor` → Root ok；`git diff --check`、Python `compileall`、原型内联脚本语法检查均通过。

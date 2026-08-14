@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -58,6 +58,17 @@ it("移动端整张卡片承担查看详情操作，桌面保留可访问的查�
   expect(row).toHaveAttribute("tabindex", "0");
   fireEvent.click(row);
   expect(opened).toBe("1");
+});
+
+it("行级操作菜单复用查看、编辑、分类和删除入口", () => {
+  const actions: string[] = [];
+  render(<CashTable items={[projection("menu", "single")]} onEvidence={() => undefined} onAction={(_item, action) => actions.push(action)} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "打开交易对方menu的操作菜单" }));
+  const menu = screen.getByRole("menu", { name: "交易对方menu的操作" });
+  expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["查看详情", "编辑", "修改分类", "删除"]);
+  fireEvent.click(within(menu).getByRole("menuitem", { name: "修改分类" }));
+  expect(actions).toEqual(["category"]);
 });
 
 it("列表不显示单笔或已合并流水的来源", () => {

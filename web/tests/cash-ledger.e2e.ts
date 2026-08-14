@@ -149,6 +149,55 @@ test("超长交易信息不会挤出宽屏表格的后续列", async ({ page }) 
   expect(layout.transactionTextStaysInBounds).toBe(true);
 });
 
+test("行级菜单和多选删除在桌面与窄屏保持可操作", async ({ page }, testInfo) => {
+  const first = item("menu-1", "第一笔");
+  const second = item("menu-2", "第二笔");
+  let pageCalls = 0;
+  let deleteBody: Record<string, unknown> | undefined;
+  await page.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
+    if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
+    if (url.pathname.endsWith("/cash-projections/delete-impact") && request.method() === "POST") return route.fulfill({ json: { projection_count: 2, transaction_count: 3, relation_group_count: 1 } });
+    if (url.pathname.endsWith("/cash-projections") && request.method() === "DELETE") {
+      deleteBody = request.postDataJSON() as Record<string, unknown>;
+      return route.fulfill({ json: { deleted: true, projection_count: 2, transaction_count: 3, relation_group_count: 1, deleted_fact_ids: ["1", "2", "3"], projection_version: 2 } });
+    }
+    if (url.pathname.endsWith("/cash-projections")) {
+      pageCalls += 1;
+      return route.fulfill({ json: { projection_version: pageCalls === 1 ? 1 : 2, items: pageCalls === 1 ? [first, second] : [], next_cursor: null, page_size: 50, filters: {}, filter_options } });
+    }
+    return route.fulfill({ json: {} });
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await expect(page.getByText("第一笔")).toBeVisible();
+  await page.getByRole("button", { name: "打开第一笔的操作菜单" }).click();
+  await expect(page.getByRole("menu", { name: "第一笔的操作" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "查看详情" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "编辑" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "修改分类" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "删除" })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("cash-row-menu-390.png"), fullPage: true });
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("checkbox", { name: "选择第一笔" }).check();
+  await page.getByRole("checkbox", { name: "选择第二笔" }).check();
+  await page.getByRole("button", { name: "删除" }).click();
+  const dialog = page.getByRole("dialog", { name: "删除已选收支" });
+  await expect(dialog.getByRole("button", { name: "关闭删除确认" })).toBeFocused();
+  await expect(dialog).toContainText("2 笔");
+  await expect(dialog).toContainText("3 条");
+  await expect(dialog).toContainText("1 组");
+  await page.screenshot({ path: testInfo.outputPath("cash-batch-delete-impact-390.png"), fullPage: true });
+  await dialog.getByRole("button", { name: "确认删除" }).click();
+  await expect.poll(() => deleteBody).toEqual({ projection_ids: ["cash:menu-1", "cash:menu-2"], projection_version: 1, confirmed: true });
+  await expect(page.getByText("当前筛选没有匹配的收支记录。"), "删除后回到空状态").toBeVisible();
+  expect(pageCalls).toBe(2);
+});
+
 test("超长账户和跨币种金额在宽屏表格内换行且不覆盖查看操作", async ({ page }) => {
   const longAccountName = "汇丰银行香港特别行政区美元长期资产配置账户".repeat(3);
   await page.setViewportSize({ width: 1440, height: 900 });
