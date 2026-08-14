@@ -32,8 +32,10 @@ from ft.application.cash_projections import CashProjectionService
 from ft.application.statement_import import StatementImportService, _row_record_id
 from ft.application.statement_account_mapping import (
     SourceAccountGroup,
+    historical_mapping_for_group,
     new_account_draft,
     scan_source_rows,
+    scan_source_rows_with_issues,
     source_identity_key,
     suggest_mapping,
 )
@@ -1109,6 +1111,7 @@ class CashLedgerCommandService:
         matches: list[tuple[list[dict], str, str]] = []
         password_errors = []
         source_identity_failure = False
+        composite_payment_failure = False
         from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredError
         for candidate in IMPORT_CHANNEL_CANDIDATES:
             try:
@@ -1116,13 +1119,17 @@ class CashLedgerCommandService:
                     content, candidate=candidate, currency=currency, filename=filename,
                     password=password,
                 )
-                scan_source_rows(rows)
+                groups, issues = scan_source_rows_with_issues(rows)
+                if not groups and issues:
+                    raise ValueError(issues[0].code)
             except (PDFPasswordRequiredError, PDFPasswordInvalidError) as exc:
                 password_errors.append(exc)
                 continue
             except ValueError as exc:
                 if "来源账户" in str(exc):
                     source_identity_failure = True
+                if str(exc) == "import_composite_payment_unresolved":
+                    composite_payment_failure = True
                 continue
             except Exception:  # noqa: BLE001 - channel probing must not leak parser details.
                 continue
@@ -1131,6 +1138,8 @@ class CashLedgerCommandService:
         if len(channels) != 1:
             if not matches and password_errors:
                 raise password_errors[0]
+            if not matches and composite_payment_failure:
+                raise ValueError("import_composite_payment_unresolved")
             if not matches and source_identity_failure:
                 raise ValueError("import_source_account_unrecognized")
             raise ValueError("import_channel_unrecognized")
@@ -1155,7 +1164,9 @@ class CashLedgerCommandService:
             content, candidate=candidate, currency=currency, filename=filename,
             password=password,
         )
-        scan_source_rows(rows)
+        groups, issues = scan_source_rows_with_issues(rows)
+        if not groups and issues:
+            raise ValueError(issues[0].code)
         return rows, channel, candidate
 
     @staticmethod
@@ -1174,7 +1185,7 @@ class CashLedgerCommandService:
         rows, channel, _candidate = self._detect_source_candidate(
             content, currency=currency, filename=filename, password=password,
         )
-        groups = scan_source_rows(rows)
+        groups, issues = scan_source_rows_with_issues(rows)
         with self._uow as uow:
             suggestions = [suggest_mapping(uow, group) for group in groups]
             accounts = [
@@ -1199,6 +1210,7 @@ class CashLedgerCommandService:
             "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
             "file": {"name": filename or "statement", "digest": digest},
             "digest": digest,
+            "unresolved_count": len(issues),
             "accounts": accounts,
             "groups": [
                 {
@@ -1398,7 +1410,7 @@ class CashLedgerCommandService:
         return result
 
     def _apply_mapping_to_source_rows(self, uow, rows: list[dict], channel: str, mapping: list[dict]):
-        groups = scan_source_rows(rows)
+        groups, issues = scan_source_rows_with_issues(rows)
         by_group_id = {group.group_id: group for group in groups}
         if not isinstance(mapping, list):
             raise ValueError("import_mapping_incomplete")
@@ -1416,11 +1428,7 @@ class CashLedgerCommandService:
         resolved = {}
         for group in groups:
             decision = decisions[group.group_id]
-            current = uow.statement_account_mappings.get(
-                source_type=group.source_type,
-                identity_kind=group.identity_kind,
-                source_account_key=group.source_account_key,
-            )
+            current = historical_mapping_for_group(uow, group)
             expected_revision = decision.get("mapping_revision")
             current_revision = current["revision"] if current is not None else None
             if current_revision != expected_revision:
@@ -1440,6 +1448,11 @@ class CashLedgerCommandService:
                     "account": account,
                     "missing_currencies": missing,
                     "new_account": None,
+                    "mapping_source_account_key": (
+                        current["source_account_key"]
+                        if current is not None
+                        else group.source_account_key
+                    ),
                 }
                 continue
             draft = decision.get("new_account")
@@ -1457,41 +1470,61 @@ class CashLedgerCommandService:
                 "account": {"id": None, "name": name, "type": account_type, "active": True, "currencies": list(currencies)},
                 "missing_currencies": (),
                 "new_account": {"name": name, "type": account_type, "currencies": list(currencies)},
+                "mapping_source_account_key": (
+                    current["source_account_key"]
+                    if current is not None
+                    else group.source_account_key
+                ),
             }
 
+        issue_by_index = {issue.row_index: issue for issue in issues}
+        occurrences: dict[str, int] = {}
+        all_record_ids = [_row_record_id(row, occurrences) for row in rows]
         mapped_rows = []
-        for row in rows:
+        mapped_record_ids = []
+        unresolved_items = []
+        groups_by_identity = {
+            (group.source_type, group.identity_kind, group.source_account_key): group
+            for group in groups
+        }
+        for row_index, (row, record_id) in enumerate(zip(rows, all_record_ids, strict=True)):
+            if row_index in issue_by_index:
+                unresolved_items.append({
+                    "row_index": row_index,
+                    "row": dict(row),
+                    "record_id": record_id,
+                    "code": issue_by_index[row_index].code,
+                })
+                continue
             group_key = source_identity_key(row)
-            group = next(
-                (candidate for candidate in groups if (
-                    candidate.source_type, candidate.identity_kind, candidate.source_account_key
-                ) == group_key),
-                None,
-            )
+            group = groups_by_identity.get(group_key)
             if group is None:
                 raise ValueError("import_mapping_stale")
             target = resolved[group.group_id]["account"]
             mapped = dict(row)
+            # Preserve the ID computed over the original row sequence.  This
+            # keeps re-import idempotency stable when unresolved rows are
+            # filtered out before StatementImportService sees the data.
+            mapped["record_id"] = record_id
             mapped["account_name"] = target["name"]
             mapped["currency"] = str(mapped.get("currency") or "CNY").upper()
             if "source_payload" not in mapped and isinstance(mapped.get("_source_payload"), dict):
                 mapped["source_payload"] = mapped["_source_payload"]
             mapped_rows.append(mapped)
+            mapped_record_ids.append(record_id)
 
-        occurrences: dict[str, int] = {}
-        record_ids = [_row_record_id(row, occurrences) for row in mapped_rows]
         existing_targets = uow.imports.existing_fact_targets(
-            source_type=channel, record_ids=record_ids,
+            source_type=channel, record_ids=mapped_record_ids,
         )
         # A mapping change affects future rows only.  Existing facts are rendered
         # and re-imported against their current account so the merge cannot move
         # them to the newly selected account.
-        for row, record_id in zip(mapped_rows, record_ids, strict=True):
+        for row, record_id in zip(mapped_rows, mapped_record_ids, strict=True):
             existing_target = existing_targets.get(record_id)
             if existing_target is not None:
                 row["account_name"] = existing_target[0]
                 row["currency"] = existing_target[1]
-        return mapped_rows, groups, resolved, record_ids, existing_targets
+        return mapped_rows, groups, resolved, mapped_record_ids, existing_targets, unresolved_items
 
     def _preview_mapped_import(
         self,
@@ -1508,7 +1541,7 @@ class CashLedgerCommandService:
         )
         digest = self._import_digest(content)
         with self._uow as uow:
-            mapped_rows, groups, resolved, record_ids, existing_targets = self._apply_mapping_to_source_rows(
+            mapped_rows, groups, resolved, record_ids, existing_targets, unresolved_items = self._apply_mapping_to_source_rows(
                 uow, rows, channel, mapping,
             )
             accounts_by_name = {
@@ -1543,11 +1576,30 @@ class CashLedgerCommandService:
                     "status": status,
                     "message": "",
                 })
+            for unresolved in unresolved_items:
+                row = unresolved["row"]
+                items.append({
+                    "record_id": unresolved["record_id"],
+                    "occurred_at": row.get("occurred_at") or row.get("date") or "",
+                    "amount": str(row.get("amount") or "0"),
+                    "currency": str(row.get("currency") or currency or "CNY").upper(),
+                    "account_name": "",
+                    "counterparty": row.get("counterparty") or "",
+                    "counterparty_account": row.get("counterparty_account") or "",
+                    "record_type": row.get("record_type") or "other",
+                    "record_subtype": row.get("record_subtype") or "not_applicable",
+                    "category": row.get("category") or "",
+                    "note": row.get("note") or "",
+                    "channel": channel,
+                    "status": "unresolved",
+                    "message": "无法准确归属组合支付，确认导入时跳过",
+                })
             counts = {
                 "total": len(items),
                 "new": sum(item["status"] == "new" for item in items),
                 "existing": sum(item["status"] == "existing" for item in items),
-                "unsupported": 0,
+                "unsupported": len(unresolved_items),
+                "unresolved": len(unresolved_items),
             }
             mapping_wire = [
                 {
@@ -1700,7 +1752,7 @@ class CashLedgerCommandService:
                         raise ValueError("import_idempotency_conflict")
                     uow.rollback()
                     return dict(existing.result_json)
-            mapped_rows, groups, resolved, _record_ids, _existing_targets = self._apply_mapping_to_source_rows(
+            mapped_rows, groups, resolved, _record_ids, _existing_targets, unresolved_items = self._apply_mapping_to_source_rows(
                 uow, rows, channel, mapping,
             )
             snapshot = uow.snapshot.load(lock=True)
@@ -1767,13 +1819,20 @@ class CashLedgerCommandService:
                 raise ValueError(result.message or "导入失败")
             for group in groups:
                 decision = next(item for item in mapping if item["group_id"] == group.group_id)
+                mapping_source_key = resolved[group.group_id].get(
+                    "mapping_source_account_key", group.source_account_key,
+                )
                 uow.statement_account_mappings.upsert(
                     source_type=group.source_type,
                     identity_kind=group.identity_kind,
                     source_account_key=group.source_account_key,
                     account_id=resolved[group.group_id]["account_id"],
                     confirmed_by="web",
-                    expected_revision=decision.get("mapping_revision"),
+                    expected_revision=(
+                        decision.get("mapping_revision")
+                        if mapping_source_key == group.source_account_key
+                        else None
+                    ),
                 )
             details = result.details or {}
             wire_result = _wire({
@@ -1784,6 +1843,7 @@ class CashLedgerCommandService:
                 "channel": channel,
                 "digest": digest,
                 "mapping_saved": len(groups),
+                "skipped_rows": len(unresolved_items),
             })
             if normalized_idempotency_key:
                 session.add(CashImportCommitModel(

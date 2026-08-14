@@ -187,7 +187,7 @@ export type ImportPreviewItem = {
   category: string;
   note: string;
   channel: string;
-  status: "new" | "existing" | "unsupported";
+  status: "new" | "existing" | "unsupported" | "unresolved";
   message: string;
 };
 
@@ -217,7 +217,7 @@ export type ImportPreview = {
   file: { name: string; digest: string };
   columns: string[];
   items: ImportPreviewItem[];
-  summary: { total: number; new: number; existing: number; unsupported: number };
+  summary: { total: number; new: number; existing: number; unsupported: number; unresolved?: number };
   mapping?: ImportMappingResult[];
   relations: ImportRelation[];
 };
@@ -257,6 +257,7 @@ export type ImportScan = {
   channel_label: string;
   file: { name: string; digest: string };
   digest: string;
+  unresolved_count?: number;
   accounts: Account[];
   groups: ImportSourceGroup[];
 };
@@ -273,6 +274,7 @@ export type ImportCommitResult = {
   message: string;
   new_rows: number;
   updated_rows: number;
+  skipped_rows?: number;
   channel: string;
   digest: string;
   pending_relations?: number;

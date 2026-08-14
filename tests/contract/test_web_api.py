@@ -233,6 +233,7 @@ def test_cash_import_password_errors_are_stable_and_redacted(cash_web_runtime, e
         ("import_session_expired", 409),
         ("import_session_source_changed", 409),
         ("import_session_storage_unavailable", 503),
+        ("import_composite_payment_unresolved", 409),
         ("import_idempotency_conflict", 409),
     ],
 )

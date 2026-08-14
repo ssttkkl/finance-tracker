@@ -374,4 +374,46 @@ describe("CashImportPage", () => {
     expect(screen.getByText("请输入账单密码。")).toBeInTheDocument();
     expect(screen.queryByText("确认导入失败，请重试。")).not.toBeInTheDocument();
   });
+
+  it("组合支付无法唯一归属时只跳过问题行，其他流水仍可确认导入", async () => {
+    const unresolvedItem = {
+      ...item,
+      record_id: "unresolved-1",
+      account_name: "",
+      status: "unresolved" as const,
+      message: "无法准确归属组合支付，确认导入时跳过",
+    };
+    const partialScan = {
+      ...scan,
+      unresolved_count: 1,
+    };
+    const partialPreview = {
+      ...preview,
+      items: [item, unresolvedItem],
+      summary: { total: 2, new: 1, existing: 0, unsupported: 1, unresolved: 1 },
+      relations: [],
+    };
+    const fetch = vi.fn((input: string) => input.includes("/scan")
+      ? response(partialScan)
+      : input.includes("/preview")
+        ? response(partialPreview)
+        : response({ message: "导入完成", new_rows: 1, updated_rows: 0, skipped_rows: 1, channel: "alipay", digest: "digest-1" }));
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, {
+      target: { files: [new File(["fixture"], "alipay.csv", { type: "text/csv" })] },
+    });
+
+    expect(await screen.findByRole("heading", { name: "映射账户" })).toBeInTheDocument();
+    expect(screen.getByText("有 1 条流水无法准确归属，确认导入时会跳过；其余流水可正常导入。"))
+      .toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
+    expect(await screen.findByRole("heading", { name: "核对流水" })).toBeInTheDocument();
+    expect(screen.getAllByText("无法识别").length).toBeGreaterThanOrEqual(2);
+    fireEvent.click(screen.getByRole("button", { name: /^下一步$/ }));
+    expect(await screen.findByRole("heading", { name: "配对" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
+    expect(await screen.findByRole("heading", { name: "导入完成" })).toBeInTheDocument();
+  });
 });

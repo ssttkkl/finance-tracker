@@ -68,6 +68,100 @@ def test_scan_rejects_business_row_without_a_declared_source_identity():
         scan_source_rows([_row("alipay", payment_method="")])
 
 
+def test_scan_alipay_payment_components_share_one_underlying_account():
+    from ft.application.statement_account_mapping import scan_source_rows
+
+    card_row = _row(
+        "alipay",
+        payment_method="工商银行信用卡(1200)&工商银行立减金",
+        source_payload={"收/付款方式": "工商银行信用卡(1200)&工商银行立减金"},
+    )
+    installment_row = _row(
+        "alipay",
+        payment_method="工商银行信用卡分期(1200) 3期",
+        source_payload={"收/付款方式": "工商银行信用卡分期(1200) 3期"},
+    )
+    coupon_row = _row(
+        "alipay",
+        payment_method="工商银行信用卡(1200)&红包&到店支付立减券",
+        source_payload={"收/付款方式": "工商银行信用卡(1200)&红包&到店支付立减券"},
+    )
+    daily_discount_row = _row(
+        "alipay",
+        payment_method="工商银行信用卡(1200)&工商银行天天减",
+        source_payload={"收/付款方式": "工商银行信用卡(1200)&工商银行天天减"},
+    )
+    qianwen_discount_row = _row(
+        "alipay",
+        payment_method="工商银行信用卡(1200)&千问每日必减",
+        source_payload={"收/付款方式": "工商银行信用卡(1200)&千问每日必减"},
+    )
+    repeated_row = _row(
+        "alipay",
+        payment_method="花呗&花呗&花呗",
+        source_payload={"收/付款方式": "花呗&花呗&花呗"},
+    )
+
+    groups = scan_source_rows([
+        card_row, installment_row, coupon_row, daily_discount_row,
+        qianwen_discount_row, repeated_row,
+    ])
+
+    assert [(group.source_account_key, group.row_count) for group in groups] == [
+        ("工商银行信用卡(1200)", 5),
+        ("花呗", 1),
+    ]
+    assert card_row["payment_method"] == "工商银行信用卡(1200)&工商银行立减金"
+    assert card_row["source_payload"]["收/付款方式"] == "工商银行信用卡(1200)&工商银行立减金"
+
+
+def test_scan_alipay_multiple_funding_accounts_fails_closed():
+    from ft.application.statement_account_mapping import scan_source_rows
+
+    with pytest.raises(ValueError, match="import_composite_payment_unresolved"):
+        scan_source_rows([_row(
+            "alipay",
+            amount="-3020.00",
+            payment_method="账户余额&花呗分期(3期)",
+        )])
+
+
+def test_scan_alipay_multiple_funding_accounts_are_reported_per_row():
+    from ft.application.statement_account_mapping import (
+        SourceRowIssue,
+        scan_source_rows_with_issues,
+    )
+
+    groups, issues = scan_source_rows_with_issues([
+        _row(
+            "alipay",
+            record_id="ambiguous",
+            amount="-3020.00",
+            payment_method="账户余额&花呗分期(3期)",
+        ),
+        _row("alipay", record_id="valid", payment_method="账户余额"),
+    ])
+
+    assert [group.source_account_key for group in groups] == ["账户余额"]
+    assert issues == (
+        SourceRowIssue(row_index=0, code="import_composite_payment_unresolved"),
+    )
+
+
+def test_scan_alipay_zero_amount_non_funding_component_uses_wallet_group():
+    from ft.application.statement_account_mapping import scan_source_rows
+
+    groups = scan_source_rows([_row(
+        "alipay",
+        amount="0.00",
+        payment_method="单车骑行卡抵扣",
+    )])
+
+    assert len(groups) == 1
+    assert groups[0].source_account_key == "支付宝余额"
+    assert groups[0].legacy_source_account_keys == ()
+
+
 def test_wechat_wallet_deposit_placeholder_is_normalized_before_account_scan(tmp_path, monkeypatch):
     from ft.adapters.statement_import import StatementParser
     from ft.domain.imports import StatementImportCommand
@@ -265,6 +359,45 @@ def test_mapping_suggestion_prefers_history_over_conflicting_aliases_and_exposes
         assert suggestion["account_id"] == accounts["历史账户"]
         assert suggestion["missing_currencies"] == ("USD",)
         assert suggestion["mapping_revision"] == 1
+        uow.commit()
+
+
+def test_alipay_normalized_group_reuses_one_legacy_combo_mapping():
+    from sqlalchemy import select
+    from ft.adapters.relational.models import AccountModel
+    from ft.application.statement_account_mapping import scan_source_rows, suggest_mapping
+    from test_postgres_adapter import _database
+
+    sessions, unit_of_work = _database()
+    with unit_of_work(sessions, "workspace-a") as uow:
+        uow.accounts.add_raw({"name": "工行信用卡", "type": "cash", "currency": "CNY"})
+        uow.commit()
+    with sessions() as session:
+        account_id = session.scalar(select(AccountModel.id).where(
+            AccountModel.workspace_id == "workspace-a",
+            AccountModel.name == "工行信用卡",
+        ))
+    with unit_of_work(sessions, "workspace-a") as uow:
+        uow.statement_account_mappings.upsert(
+            source_type="alipay",
+            identity_kind="payment_method",
+            source_account_key="工商银行信用卡(1200)&工商银行立减金",
+            account_id=account_id,
+            confirmed_by="web",
+        )
+        group = scan_source_rows([_row(
+            "alipay",
+            payment_method="工商银行信用卡(1200)&工商银行立减金",
+        )])[0]
+
+        suggestion = suggest_mapping(uow, group)
+
+        assert suggestion["account_id"] == account_id
+        assert suggestion["mapping_revision"] == 1
+        assert group.source_account_key == "工商银行信用卡(1200)"
+        assert group.legacy_source_account_keys == (
+            "工商银行信用卡(1200)&工商银行立减金",
+        )
         uow.commit()
 
 

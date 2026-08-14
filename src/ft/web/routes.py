@@ -45,6 +45,7 @@ def _cash_import_error(exc: ValueError) -> JSONResponse:
         "import_mapping_incomplete": "请为每个来源账户选择系统账户。",
         "import_mapping_stale": "账单来源或账户映射已变化，请重新扫描。",
         "import_source_account_unrecognized": "无法识别账单中的来源账户，请重新选择文件。",
+        "import_composite_payment_unresolved": "账单包含无法准确归属的组合支付，请拆分后重试。",
         "import_account_unavailable": "所选账户已不可用，请重新选择。",
         "import_account_draft_invalid": "新账户信息无效，请重新填写。",
         "import_account_name_conflict": "账户名称已存在，请修改后重试。",
