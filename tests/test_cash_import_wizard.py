@@ -2,6 +2,7 @@ from decimal import Decimal
 import hashlib
 from pathlib import Path
 
+import pytest
 from sqlalchemy import func, select
 
 
@@ -395,6 +396,67 @@ def test_cash_import_mapping_and_relations_rebuild_ready_projection_once(tmp_pat
             TransactionRelationModel.workspace_id == workspace_id,
             TransactionRelationModel.status == "accepted",
         )) == 1
+
+
+def test_cash_import_commit_reuses_same_idempotency_result(tmp_path):
+    from ft.adapters.relational.models import CashTransactionModel
+    from ft.adapters.relational import ensure_workspace
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from test_postgres_adapter import _database
+
+    source = tmp_path / "statement.csv"
+    source.write_bytes(b"test statement")
+    sessions, unit_of_work = _database()
+    workspace_id = "cash-import-idempotency-workspace"
+    ensure_workspace(sessions, workspace_id)
+    with unit_of_work(sessions, workspace_id) as uow:
+        uow.accounts.add_raw({"name": "支付宝余额", "type": "cash", "currency": "CNY"})
+        uow.commit()
+
+    class SourceParser:
+        def parse_source_rows(self, _command):
+            return [{
+                "record_id": "row-1", "bill_source": "alipay", "source_type": "alipay",
+                "payment_method": "账户余额", "currency": "CNY", "amount": "-12.50",
+                "date": "2026-08-12", "counterparty": "咖啡店", "counterparty_account": "",
+                "category": "expense", "record_type": "consumption", "record_subtype": "not_applicable",
+                "note": "消费", "_source_payload": {"原始": "expense"},
+            }]
+
+    service = CashLedgerCommandService(
+        sessions,
+        workspace_id,
+        parser=SourceParser(),
+    )
+    scan = service.scan_import(source.read_bytes(), filename=source.name)
+    mapping = [{
+        "group_id": scan["groups"][0]["group_id"],
+        "mapping_revision": scan["groups"][0].get("mapping_revision"),
+        "account_id": scan["accounts"][0]["id"],
+    }]
+
+    kwargs = {
+        "source": "",
+        "currency": None,
+        "filename": source.name,
+        "preview_digest": scan["digest"],
+        "preview_channel": scan["channel"],
+        "mapping": mapping,
+        "idempotency_key": "cash-import-commit-1",
+    }
+    first = service.commit_import(source.read_bytes(), **kwargs)
+    second = service.commit_import(source.read_bytes(), **kwargs)
+
+    assert second == first
+    with sessions() as session:
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 1
+
+    with pytest.raises(ValueError, match="import_idempotency_conflict"):
+        service.commit_import(
+            b"a different source", source="", currency=None, filename=source.name,
+            preview_channel=scan["channel"], mapping=mapping,
+            idempotency_key="cash-import-commit-1",
+        )
 
 
 def test_cash_import_preview_does_not_duplicate_existing_facts_for_relation_matching(tmp_path):

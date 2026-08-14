@@ -17,7 +17,7 @@ from ft.adapters.relational.dialect import RelationalEngineError
 from ft.adapters.relational.runtime import StorageError, storage_error
 from ft.application.web_queries import CashLedgerQueryService
 from ft.application.cash_ledger import CashLedgerCommandService
-from ft.config import StorageSettings
+from ft.config import StorageSettings, build_import_staging_store
 from ft.web.serialization import error_payload
 from ft.application.access import AccessService, AuthenticationRequired, PermissionDenied, bearer_token
 
@@ -64,12 +64,19 @@ def validate_web_origin(origin: str) -> str:
 
 class WorkspaceServices:
     """Resolve legacy workspace-bound services from an authenticated request context."""
-    def __init__(self, sessions, workspace_var):
-        self._sessions = sessions; self._workspace_var = workspace_var
+    def __init__(self, sessions, workspace_var, *, user_var=None, import_staging_store=None):
+        self._sessions = sessions
+        self._workspace_var = workspace_var
+        self._user_var = user_var
+        self._import_staging_store = import_staging_store
     def _workspace(self):
         workspace_id = self._workspace_var.get()
         if workspace_id is None: raise AuthenticationRequired("authentication_required")
         return workspace_id
+
+    def _user(self):
+        return self._user_var.get() if self._user_var is not None and self._user_var.get() else "__anonymous__"
+
     def __getattr__(self, name):
         workspace_id = self._workspace()
         query = CashLedgerQueryService(self._sessions, workspace_id)
@@ -77,6 +84,17 @@ class WorkspaceServices:
         from ft.application.relations import RelationService
         from ft.adapters.relational.uow import RelationalUnitOfWork
         command = CashLedgerCommandService(self._sessions, workspace_id, relation_service=RelationService(RelationalUnitOfWork(self._sessions, workspace_id)))
+        from ft.application.cash_import_session import CashImportSessionService
+        if name in {"scan_import", "scan_import_session", "preview_import_session", "commit_import_session"}:
+            if self._import_staging_store is None:
+                raise ValueError("import_session_storage_config_missing")
+            session_service = CashImportSessionService(
+                command,
+                self._import_staging_store,
+                workspace_id=workspace_id,
+                user_id=self._user(),
+            )
+            if hasattr(session_service, name): return getattr(session_service, name)
         if hasattr(command, name): return getattr(command, name)
         from ft.application.cash_categories import CashCategoryService
         category = CashCategoryService(self._sessions, workspace_id)
@@ -165,6 +183,7 @@ def create_app(
     portfolio_refresh=None,
     access_service: AccessService | None = None,
     workspace_context=None,
+    user_context=None,
 ) -> FastAPI:
     from ft.web.routes import cash_router
 
@@ -184,7 +203,7 @@ def create_app(
         allow_origin_regex=LOCAL_WEB_ORIGIN_REGEX,
         allow_credentials=False,
         allow_methods=["GET", "POST", "PUT", "DELETE"],
-        allow_headers=["Accept", "Content-Type", "Authorization", "X-FT-Statement-Password"],
+        allow_headers=["Accept", "Content-Type", "Authorization", "X-FT-Statement-Password", "Idempotency-Key"],
     )
 
     if access_service is not None:
@@ -196,17 +215,22 @@ def create_app(
                 and request.method != "OPTIONS"
             ):
                 try:
-                    workspace_id, role = access_service.require(bearer_token(request.headers.get("Authorization")), {"admin", "editor", "viewer"})
+                    workspace_id, role, user_id = access_service.require_context(
+                        bearer_token(request.headers.get("Authorization")),
+                        {"admin", "editor", "viewer"},
+                    )
                     if request.method not in {"GET", "HEAD", "OPTIONS"} and role == "viewer":
                         return JSONResponse(error_payload("workspace_forbidden", "当前角色仅可查看账本。"), 403)
                     request.state.workspace_id = workspace_id; request.state.workspace_role = role
                     context_token = workspace_context.set(workspace_id) if workspace_context is not None else None
+                    user_token = user_context.set(user_id) if user_context is not None else None
                 except AuthenticationRequired:
                     return JSONResponse(error_payload("authentication_required", "请先登录。"), 401)
                 except PermissionDenied:
                     return JSONResponse(error_payload("workspace_forbidden", "当前用户无权访问该工作区。"), 403)
                 try: return await call_next(request)
                 finally:
+                    if user_token is not None: user_context.reset(user_token)
                     if context_token is not None: workspace_context.reset(context_token)
             return await call_next(request)
 
@@ -264,7 +288,14 @@ def create_runtime_app():
         origin = validate_web_origin(__import__("os").environ.get("FT_WEB_ORIGIN", DEFAULT_WEB_ORIGIN))
         sessions = create_session_factory(engine)
         workspace_var = ContextVar("web_workspace_id", default=None)
-        service = WorkspaceServices(sessions, workspace_var)
+        user_var = ContextVar("web_user_id", default=None)
+        import_staging_store = build_import_staging_store()
+        service = WorkspaceServices(
+            sessions,
+            workspace_var,
+            user_var=user_var,
+            import_staging_store=import_staging_store,
+        )
         from ft.adapters.fx_rates import FxRateProvider
         from ft.adapters.market_data import CompositeQuoteProvider
         from ft.application.valuation import ValuationService
@@ -297,6 +328,7 @@ def create_runtime_app():
             portfolio_refresh=portfolio_refresh,
             access_service=access_service,
             workspace_context=workspace_var,
+            user_context=user_var,
         )
     except StorageConfigurationError as exc:
         raise StorageError("storage.config") from exc

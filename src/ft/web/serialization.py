@@ -20,5 +20,5 @@ def json_value(value):
     return value
 
 
-def error_payload(code: str, message: str) -> dict:
-    return {"error": {"code": code, "message": message}}
+def error_payload(code: str, message: str, **details) -> dict:
+    return {"error": {"code": code, "message": message}, **details}

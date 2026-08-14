@@ -211,6 +211,7 @@ export type ImportRelation = {
 };
 
 export type ImportPreview = {
+  import_token?: string;
   channel: string;
   channel_label: string;
   file: { name: string; digest: string };
@@ -250,6 +251,7 @@ export type ImportSourceGroup = {
 };
 
 export type ImportScan = {
+  import_token?: string;
   contract: string;
   channel: string;
   channel_label: string;

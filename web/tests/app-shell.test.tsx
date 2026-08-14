@@ -40,7 +40,7 @@ describe("统一账本外壳", () => {
     render(<App />);
 
     const navigation = screen.getByRole("navigation", { name: "主要导航" });
-    expect(within(navigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["收支账本", "分类管理", "投资账本", "当前持仓", "投资事件"]);
+    expect(within(navigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["收支账本", "分类管理", "导入账单", "投资账本", "当前持仓", "投资事件"]);
     expect(within(navigation).getByRole("link", { name: "收支账本" })).toHaveAttribute("aria-current", "page");
     expect(within(navigation).getByRole("link", { name: "当前持仓" })).not.toHaveAttribute("aria-current");
 
@@ -48,7 +48,7 @@ describe("统一账本外壳", () => {
     window.dispatchEvent(new PopStateEvent("popstate"));
     await waitFor(() => expect(screen.getByRole("heading", { name: "投资事件", level: 1 })).toBeInTheDocument());
     const investmentNavigation = screen.getByRole("navigation", { name: "主要导航" });
-    expect(within(investmentNavigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["收支账本", "分类管理", "投资账本", "当前持仓", "投资事件"]);
+    expect(within(investmentNavigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["收支账本", "分类管理", "导入账单", "投资账本", "当前持仓", "投资事件"]);
     expect(within(investmentNavigation).getByRole("link", { name: "投资事件" })).toHaveAttribute("aria-current", "page");
     expect(within(investmentNavigation).getByRole("link", { name: "当前持仓" })).toHaveAttribute("href", "/investment-holdings");
     expect(within(investmentNavigation).getByRole("link", { name: "投资事件" })).toHaveAttribute("href", "/investment-events");
@@ -66,6 +66,20 @@ describe("统一账本外壳", () => {
     expect(screen.getByRole("navigation", { name: "主要导航" })).toBe(navigation);
     expect(within(navigation).getByRole("link", { name: "分类管理" })).toHaveAttribute("aria-current", "page");
     expect(within(navigation).getByRole("link", { name: "投资账本" })).toBeInTheDocument();
+  });
+
+  it("导入账单复用统一应用外壳、导航和移动顶栏", async () => {
+    window.history.replaceState({}, "", "/cash-import");
+    render(<App mobileAccount={<button type="button" aria-label="账户">S</button>} />);
+
+    expect(screen.getByRole("heading", { name: "导入账单", level: 1 })).toBeInTheDocument();
+    expect(screen.getByLabelText("打开菜单")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "账户" })).toBeInTheDocument();
+    const navigation = screen.getByRole("navigation", { name: "主要导航" });
+    expect(within(navigation).getByRole("link", { name: "导入账单" })).toHaveAttribute("aria-current", "page");
+    expect(within(navigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["收支账本", "分类管理", "导入账单", "投资账本", "当前持仓", "投资事件"]);
+    expect(document.querySelectorAll("main.app-shell")).toHaveLength(1);
+    expect(document.querySelectorAll("#cash-import.app-shell")).toHaveLength(0);
   });
 
   it("从分类管理返回收支账本时切换 pathname 并只保留一个当前项", async () => {

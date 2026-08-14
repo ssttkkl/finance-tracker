@@ -45,11 +45,10 @@ export function App({ sidebarFooter, mobileAccount, workspacePage, onWorkspaceMa
   };
   const isInvestmentEvents = !workspaceManagementActive && path === "/investment-events";
   const isInvestment = !workspaceManagementActive && (isInvestmentEvents || path === "/investment-holdings");
-  const isCashCategory = !workspaceManagementActive && !isInvestment && path === "/cash-categories";
-  const isCashLedger = !workspaceManagementActive && !isInvestment && !isCashCategory;
+  const isCashImport = !workspaceManagementActive && path === "/cash-import";
+  const isCashCategory = !workspaceManagementActive && !isInvestment && !isCashImport && path === "/cash-categories";
+  const isCashLedger = !workspaceManagementActive && !isInvestment && !isCashCategory && !isCashImport;
   const isInvestmentHoldings = isInvestment && !isInvestmentEvents;
-
-  if (path === "/cash-import") return <CashImportPage onBack={() => navigate("/")} onDone={() => undefined} />;
 
   return <div className={`page-layout${isInvestment ? " investment-page" : ""}`}>
     <main className="app-shell" inert={modalOpen || undefined}>
@@ -60,13 +59,13 @@ export function App({ sidebarFooter, mobileAccount, workspacePage, onWorkspaceMa
           <div className="mobile-account">{mobileAccount}</div>
         </div>
         <nav id="primary-navigation" aria-label="主要导航" onClick={closeMobileNav}>
-          <div className="nav-group"><a className="nav-parent" aria-current={isCashLedger ? "page" : undefined} href="/" onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/"); }}>收支账本</a><div className="nav-subnav" aria-label="收支账本页面"><a className="subnav-link" aria-current={isCashCategory ? "page" : undefined} href="/cash-categories" onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/cash-categories"); }}>分类管理</a></div></div>
+          <div className="nav-group"><a className="nav-parent" aria-current={isCashLedger ? "page" : undefined} href="/" onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/"); }}>收支账本</a><div className="nav-subnav" aria-label="收支账本页面"><a className="subnav-link" aria-current={isCashCategory ? "page" : undefined} href="/cash-categories" onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/cash-categories"); }}>分类管理</a><a className="subnav-link" aria-current={isCashImport ? "page" : undefined} href="/cash-import" onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/cash-import"); }}>导入账单</a></div></div>
           <div className="nav-group"><a className="nav-parent" aria-current={isInvestmentHoldings ? "page" : undefined} href="/investment-holdings" onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/investment-holdings"); }}>投资账本</a><div className="nav-subnav" aria-label="投资账本页面"><a className="subnav-link" href="/investment-holdings" onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/investment-holdings"); }}>当前持仓</a><a className="subnav-link" aria-current={isInvestmentEvents ? "page" : undefined} href="/investment-events" onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/investment-events"); }}>投资事件</a></div></div>
           {onWorkspaceManagement && <a className="nav-parent" aria-current={workspaceManagementActive ? "page" : undefined} href="/workspace-management" onClick={(event) => { event.preventDefault(); onWorkspaceManagement(); }}>工作区管理</a>}
         </nav>
         {sidebarFooter}
       </aside>
-      {workspaceManagementActive && workspacePage ? workspacePage : isInvestment ? <Suspense fallback={<section className="ledger" aria-label="投资账本"><div className="status-view" role="status"><p>正在打开账本…</p></div></section>}><InvestmentLedgerPage view={isInvestmentEvents ? "events" : "holdings"} onModalStateChange={onModalStateChange} /></Suspense> : isCashCategory ? <CashCategoriesPage embedded /> : <CashLedgerPage embedded onOpenImport={() => navigate("/cash-import")} onModalStateChange={onModalStateChange} />}
+      {workspaceManagementActive && workspacePage ? workspacePage : isInvestment ? <Suspense fallback={<section className="ledger" aria-label="投资账本"><div className="status-view" role="status"><p>正在打开账本…</p></div></section>}><InvestmentLedgerPage view={isInvestmentEvents ? "events" : "holdings"} onModalStateChange={onModalStateChange} /></Suspense> : isCashImport ? <CashImportPage onBack={() => navigate("/")} onDone={() => undefined} /> : isCashCategory ? <CashCategoriesPage embedded /> : <CashLedgerPage embedded onOpenImport={() => navigate("/cash-import")} onModalStateChange={onModalStateChange} />}
     </main>
   </div>;
 }
