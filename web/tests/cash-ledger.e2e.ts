@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const account = { id: 101, name: "日常账户", type: "cash", active: true };
+const account = { id: 101, name: "日常账户", type: "cash", active: true, currencies: ["CNY"] };
 const foodCategory = {
   id: "food",
   parent_id: null,
@@ -384,14 +384,14 @@ test("关联流水从统一入口搜索已有流水并直接确认", async ({ pa
   expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
 });
 
-test("独立导入处理页面自动识别渠道并完成三步确认", async ({ page }) => {
+test("独立导入处理页面扫描账户并完成四步确认", async ({ page }) => {
   let committed = false;
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
-    if (url.pathname.endsWith("/cash-import/detect")) return route.fulfill({ json: { channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", row_count: 1 } });
+    if (url.pathname.endsWith("/cash-import/scan")) return route.fulfill({ json: { contract: "cash-account-mapping-v1", channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", accounts: [account], groups: [{ group_id: "group-1", display_name: "工银亚洲账户", masked_evidence: "账户尾号：1234", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] } });
     if (url.pathname.endsWith("/cash-import/preview")) return route.fulfill({ json: { channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, columns: ["occurred_at", "amount", "currency", "account_name", "counterparty", "counterparty_account", "record_type", "record_subtype", "category", "note", "channel", "status"], items: [{ record_id: "row-1", occurred_at: "2026-07-03T09:00", counterparty: "咖啡店", counterparty_account: "", amount: "-12.50", currency: "CNY", account_name: "日常账户", record_type: "consumption", record_subtype: "not_applicable", category: "餐饮", note: "", channel: "icbc-asia", status: "new", message: "" }], summary: { total: 1, new: 1, existing: 0, unsupported: 0 }, relations: [] } });
     if (url.pathname.endsWith("/cash-import/commit")) { committed = true; return route.fulfill({ json: { message: "ok", new_rows: 1, updated_rows: 0 } }); }
     return route.fulfill({ json: { projection_version: 1, items: [item("1", "第一笔")], next_cursor: null, page_size: 50, filters: {}, filter_options } });
@@ -401,8 +401,12 @@ test("独立导入处理页面自动识别渠道并完成三步确认", async ({
   await page.getByRole("button", { name: "导入账单" }).click();
   await expect(page).toHaveURL(/\/cash-import$/);
   await page.locator('input[type="file"]').setInputFiles({ name: "statement.csv", mimeType: "text/csv", buffer: Buffer.from("fixture") });
-  await expect(page.getByText("工银亚洲账单")).toBeVisible();
-  await page.getByRole("button", { name: "核对流水", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
+  await page.screenshot({ path: "/tmp/cash-import-production-1440.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "/tmp/cash-import-production-390.png", fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("button", { name: "确认映射", exact: true }).click();
   await expect(page.getByRole("heading", { name: "核对流水" })).toBeVisible();
   await expect(page.getByText("全部", { exact: true })).toBeVisible();
   const previewActions = page.locator(".import-preview-stage .stage-actions-top");
@@ -420,11 +424,19 @@ test("独立导入处理页面自动识别渠道并完成三步确认", async ({
 });
 
 test("导入处理页面在四个目标宽度不产生页面级横向滚动", async ({ page }) => {
-  await page.route("**/api/v1/auth/session", async (route) => route.fulfill({ json: authSession }));
+  await page.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
+    if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
+    if (url.pathname.endsWith("/cash-import/scan")) return route.fulfill({ json: { contract: "cash-account-mapping-v1", channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", accounts: [account], groups: [{ group_id: "group-1", display_name: "工银亚洲账户", masked_evidence: "账户尾号：1234", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] } });
+    return route.fulfill({ json: { projection_version: 1, items: [], next_cursor: null, page_size: 50, filters: {}, filter_options } });
+  });
   for (const width of [320, 375, 414, 768]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/cash-import");
-    await expect(page.getByRole("heading", { name: "选择文件" })).toBeVisible();
+    await page.locator('input[type="file"]').setInputFiles({ name: "statement.csv", mimeType: "text/csv", buffer: Buffer.from("fixture") });
+    await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
     expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
   }
 });

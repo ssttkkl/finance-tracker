@@ -41,7 +41,12 @@ def _read_password_file(path: str | None) -> str | None:
 def _statement_export(command: StatementImportCommand) -> ExportPayload:
     from .adapters.statement_import import StatementParser
 
-    rows = StatementParser().parse(command)
+    parser = StatementParser()
+    if command.source in {"alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "icbc-asia"}:
+        from .application.statement_account_mapping import DatabaseMappedStatementParser
+
+        parser = DatabaseMappedStatementParser(parser, _runtime_services().uow)
+    rows = parser.parse(command)
     fields = CSV_FIELDS if command.source == "dfzq" else CASHFLOW_EXPORT_FIELDS
     return ExportPayload(tuple(rows), fieldnames=tuple(fields))
 
@@ -642,12 +647,29 @@ def _main(argv=None):
         # 原始现金账单导入。
         if args.account:
             parser.error("--account 仅适用于投资账单导入")
-        result = _runtime_services().statement_import.import_statement(StatementImportCommand(
+        bundle = _runtime_services()
+        command = StatementImportCommand(
             source_path=args.file,
             source=args.source,
             currency=args.currency,
             password=_read_password_file(args.password_file),
-        ))
+        )
+        # Small test/integration bundles may expose only the legacy
+        # statement service; the real runtime bundle always has a UoW and
+        # therefore takes the database-mapped path below.
+        if not hasattr(bundle, "uow"):
+            result = bundle.statement_import.import_statement(command)
+        else:
+            from .adapters.statement_import import StatementParser
+            from .application.statement_account_mapping import DatabaseMappedStatementParser
+            from .application.statement_import import StatementImportService
+
+            result = StatementImportService(
+                bundle.uow,
+                DatabaseMappedStatementParser(StatementParser(), bundle.uow),
+                relation_service=getattr(bundle.statement_import, "_relations", None),
+                enforce_account_currencies=True,
+            ).import_statement(command)
         if not result.ok:
             print(f"❌ {result.message}")
             raise SystemExit(1)

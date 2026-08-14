@@ -1,0 +1,16 @@
+[
+  {
+    "date": "2026-08-14",
+    "macrostructure": "Workbench / Account Mapping Grid",
+    "theme": "Cobalt",
+    "enrichment": "none",
+    "brief": "Scan source accounts and require confirmed workspace-account mappings before cash statement preview"
+  },
+  {
+    "date": "2026-08-12",
+    "macrostructure": "Index-First",
+    "theme": "Cobalt",
+    "enrichment": "none",
+    "brief": "Three-step cash statement preview and relation confirmation prototype"
+  }
+]

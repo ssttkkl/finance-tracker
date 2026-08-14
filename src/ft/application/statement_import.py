@@ -63,11 +63,20 @@ def _row_record_id(row: dict, occurrences: dict[str, int]) -> str:
 
 
 class StatementImportService:
-    def __init__(self, unit_of_work, parser, relation_service=None, *, enforce_account_currencies: bool = False):
+    def __init__(
+        self,
+        unit_of_work,
+        parser,
+        relation_service=None,
+        *,
+        enforce_account_currencies: bool = False,
+        run_relation_check: bool = True,
+    ):
         self._uow = unit_of_work
         self._parser = parser
         self._relations = relation_service
         self._enforce_account_currencies = enforce_account_currencies
+        self._run_relation_check = run_relation_check
 
     def _apply_relation_decisions(
         self,
@@ -411,7 +420,7 @@ class StatementImportService:
 
         import_refund_relations = []
         relation_details = None
-        if saved_new_cash_fact_ids and self._relations is not None:
+        if saved_new_cash_fact_ids and self._relations is not None and self._run_relation_check:
             try:
                 check_result = self._relations.check(
                     seed_fact_ids=saved_new_cash_fact_ids,

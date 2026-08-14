@@ -9,6 +9,19 @@ const item = {
   channel: "alipay", status: "new" as const, message: "",
 };
 const columns = ["occurred_at", "amount", "currency", "account_name", "counterparty", "counterparty_account", "record_type", "record_subtype", "category", "note", "channel", "status"];
+const scan = {
+  contract: "cash-account-mapping-v1",
+  channel: "alipay",
+  channel_label: "支付宝",
+  file: { name: "statement.csv", digest: "digest-1" },
+  digest: "digest-1",
+  accounts: [{ id: 101, name: "支付宝余额", type: "cash", active: true, currencies: ["CNY"] }],
+  groups: [{
+    group_id: "group-1", display_name: "支付宝余额", masked_evidence: "支付方式：支付宝余额",
+    currencies: ["CNY"], row_count: 1,
+    suggestion: { account_id: 101, account: { id: 101, name: "支付宝余额", type: "cash", active: true, currencies: ["CNY"] }, missing_currencies: [], mapping_revision: null },
+  }],
+};
 const preview = {
   channel: "alipay", channel_label: "支付宝", file: { name: "statement.csv", digest: "digest-1" }, columns,
   items: [item], summary: { total: 1, new: 1, existing: 0, unsupported: 0 },
@@ -48,8 +61,8 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("CashImportPage", () => {
   it("自动识别渠道、只展示标准字段，并允许跳过手动配对后确认", async () => {
-    const fetch = vi.fn((input: string) => input.includes("/detect")
-      ? response({ channel: "alipay", channel_label: "支付宝", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", row_count: 1 })
+    const fetch = vi.fn((input: string) => input.includes("/scan")
+      ? response(scan)
       : input.includes("/preview")
         ? response(preview)
         : response({ message: "导入完成", new_rows: 1, updated_rows: 0, channel: "alipay", digest: "digest-1" }));
@@ -59,8 +72,8 @@ describe("CashImportPage", () => {
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     const file = new File(["standardized"], "statement.csv", { type: "text/csv" });
     fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
-    expect(await screen.findByText("支付宝账单")).toBeInTheDocument();
-    fireEvent.click(await screen.findByRole("button", { name: /^核对流水$/ }));
+    expect(await screen.findByRole("heading", { name: "映射账户" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /^确认映射$/ }));
     expect(await screen.findByRole("heading", { name: "核对流水" })).toBeInTheDocument();
     expect(screen.getByText("全部")).toBeInTheDocument();
     expect(screen.getByText("交易对方")).toBeInTheDocument();
@@ -89,10 +102,51 @@ describe("CashImportPage", () => {
     expect(String(commitRequest?.[0])).toContain("relations=%5B%5D");
   });
 
+  it("把创建账户和币种扩充说明放在各自账户选项下，并在最终请求提交草稿", async () => {
+    const mappingScan = {
+      ...scan,
+      accounts: [{ ...scan.accounts[0], name: "人民币账户", currencies: ["CNY"] }],
+      groups: [
+        { ...scan.groups[0], group_id: "group-create", display_name: "花呗", suggestion: { ...scan.groups[0].suggestion, account_id: null, account: null } },
+        { ...scan.groups[0], group_id: "group-currency", display_name: "招商银行", currencies: ["USD"], suggestion: { ...scan.groups[0].suggestion, account_id: 101, account: { ...scan.accounts[0], name: "人民币账户", currencies: ["CNY"] }, missing_currencies: ["USD"], mapping_revision: 1 } },
+      ],
+    };
+    const fetch = vi.fn((input: string) => input.includes("/scan")
+      ? response(mappingScan)
+      : input.includes("/preview")
+        ? response({ ...preview, file: { ...preview.file, digest: "digest-1" } })
+        : response({ message: "导入完成", new_rows: 1, updated_rows: 0, channel: "alipay", digest: "digest-1" }));
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [new File(["fixture"], "statement.csv")] } });
+    await screen.findByRole("heading", { name: "映射账户" });
+    fireEvent.change(screen.getByLabelText("花呗系统账户"), { target: { value: "__create__" } });
+
+    const createGroup = screen.getByText("花呗").closest("article")!;
+    const currencyGroup = screen.getByText("招商银行").closest("article")!;
+    expect(createGroup).toHaveTextContent("将创建「花呗」 · 贷款账户 · CNY");
+    expect(currencyGroup).toHaveTextContent("将为「人民币账户」新增 USD");
+    const createSelect = createGroup.querySelector("select")!;
+    const createCommitment = createGroup.querySelector(".row-commitment")!;
+    const currencySelect = currencyGroup.querySelector("select")!;
+    const currencyCommitment = currencyGroup.querySelector(".row-commitment")!;
+    expect(createSelect.compareDocumentPosition(createCommitment) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(currencySelect.compareDocumentPosition(currencyCommitment) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(createGroup.querySelector("button")!);
+    fireEvent.change(screen.getByRole("dialog").querySelector("input")!, { target: { value: "花呗新账户" } });
+    fireEvent.click(screen.getByRole("button", { name: "完成" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认映射" }));
+    await screen.findByRole("heading", { name: "核对流水" });
+    const previewRequest = fetch.mock.calls.find(([input]) => String(input).includes("/cash-import/preview"));
+    expect(String(previewRequest?.[0])).toContain(encodeURIComponent('"name":"花呗新账户"'));
+  });
+
   it("分页展示关系、允许修改非自动类型，并能拒绝后撤销", async () => {
     const relationPreview = previewWithRelations(21);
-    const fetch = vi.fn((input: string) => input.includes("/detect")
-      ? response({ channel: "alipay", channel_label: "支付宝", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", row_count: 1 })
+    const fetch = vi.fn((input: string) => input.includes("/scan")
+      ? response(scan)
       : input.includes("/preview")
         ? response(relationPreview)
         : response({ message: "导入完成", new_rows: 1, updated_rows: 0, channel: "alipay", digest: "digest-1" }));
@@ -101,8 +155,8 @@ describe("CashImportPage", () => {
 
     const file = new File(["standardized"], "statement.csv", { type: "text/csv" });
     fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
-    await screen.findByText("支付宝账单");
-    fireEvent.click(screen.getByRole("button", { name: /^核对流水$/ }));
+    await screen.findByRole("heading", { name: "映射账户" });
+    fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
     fireEvent.click(await screen.findByRole("button", { name: /^下一步$/ }));
 
     expect(screen.getAllByRole("button", { name: "拒绝配对" })).toHaveLength(20);
@@ -131,8 +185,8 @@ describe("CashImportPage", () => {
 
   it("确认时提交已拒绝的关系决定", async () => {
     const relationPreview = previewWithRelations(1);
-    const fetch = vi.fn((input: string) => input.includes("/detect")
-      ? response({ channel: "alipay", channel_label: "支付宝", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", row_count: 1 })
+    const fetch = vi.fn((input: string) => input.includes("/scan")
+      ? response(scan)
       : input.includes("/preview")
         ? response(relationPreview)
         : response({ message: "导入完成", new_rows: 1, updated_rows: 0, channel: "alipay", digest: "digest-1" }));
@@ -141,8 +195,8 @@ describe("CashImportPage", () => {
 
     const file = new File(["standardized"], "statement.csv", { type: "text/csv" });
     fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
-    await screen.findByText("支付宝账单");
-    fireEvent.click(screen.getByRole("button", { name: /^核对流水$/ }));
+    await screen.findByRole("heading", { name: "映射账户" });
+    fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
     fireEvent.click(await screen.findByRole("button", { name: /^下一步$/ }));
     fireEvent.click(screen.getAllByRole("button", { name: "拒绝配对" })[0]);
     fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
@@ -155,12 +209,12 @@ describe("CashImportPage", () => {
   it("加密 PDF 要求输入密码，并通过请求头重试而不放进 URL", async () => {
     let detectCalls = 0;
     const fetch = vi.fn((input: string, init?: RequestInit) => {
-      if (input.includes("/detect")) {
+      if (input.includes("/scan")) {
         detectCalls += 1;
         if (detectCalls === 1) return response({ error: { code: "import_password_required" } }, 400);
         expect(input).not.toContain("correct-password");
         expect(new Headers(init?.headers).get("X-FT-Statement-Password")).toBe("correct-password");
-        return response({ channel: "icbc", channel_label: "工行信用卡", file: { name: "locked.pdf", digest: "digest-1" }, digest: "digest-1", row_count: 1 });
+        return response({ ...scan, channel: "icbc", channel_label: "工行信用卡", file: { name: "locked.pdf", digest: "digest-1" }, groups: [{ ...scan.groups[0], display_name: "工行信用卡" }] });
       }
       return response({ message: "ok", new_rows: 1, updated_rows: 0 });
     });
@@ -172,18 +226,18 @@ describe("CashImportPage", () => {
     expect(await screen.findByLabelText("账单密码")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("账单密码"), { target: { value: "correct-password" } });
     fireEvent.click(screen.getByRole("button", { name: "重新识别" }));
-    expect(await screen.findByText("工行信用卡账单")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "映射账户" })).toBeInTheDocument();
     expect(screen.queryByText("correct-password")).not.toBeInTheDocument();
   });
 
   it("预览阶段密码失效时回到选择文件并清空密码", async () => {
     let detectCalls = 0;
     const fetch = vi.fn((input: string, init?: RequestInit) => {
-      if (input.includes("/detect")) {
+      if (input.includes("/scan")) {
         detectCalls += 1;
         if (detectCalls === 1) return response({ error: { code: "import_password_required" } }, 400);
         expect(new Headers(init?.headers).get("X-FT-Statement-Password")).toBe("wrong-password");
-        return response({ channel: "icbc", channel_label: "工行信用卡", file: { name: "locked.pdf", digest: "digest-1" }, digest: "digest-1", row_count: 1 });
+        return response({ ...scan, channel: "icbc", channel_label: "工行信用卡", file: { name: "locked.pdf", digest: "digest-1" }, groups: [{ ...scan.groups[0], display_name: "工行信用卡" }] });
       }
       if (input.includes("/preview")) return response({ error: { code: "import_password_invalid" } }, 400);
       return response({ message: "ok", new_rows: 1, updated_rows: 0 });
@@ -196,7 +250,7 @@ describe("CashImportPage", () => {
     const passwordInput = await screen.findByLabelText("账单密码");
     fireEvent.change(passwordInput, { target: { value: "wrong-password" } });
     fireEvent.click(screen.getByRole("button", { name: "重新识别" }));
-    fireEvent.click(await screen.findByRole("button", { name: /^核对流水$/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^确认映射$/ }));
 
     expect(await screen.findByRole("heading", { name: "选择文件" })).toBeInTheDocument();
     expect(screen.getByLabelText("账单密码")).toHaveValue("");
@@ -207,11 +261,11 @@ describe("CashImportPage", () => {
   it("确认阶段需要密码时回到选择文件并重新要求密码", async () => {
     let detectCalls = 0;
     const fetch = vi.fn((input: string, init?: RequestInit) => {
-      if (input.includes("/detect")) {
+      if (input.includes("/scan")) {
         detectCalls += 1;
         if (detectCalls === 1) return response({ error: { code: "import_password_required" } }, 400);
         expect(new Headers(init?.headers).get("X-FT-Statement-Password")).toBe("correct-password");
-        return response({ channel: "alipay", channel_label: "支付宝", file: { name: "locked.pdf", digest: "digest-1" }, digest: "digest-1", row_count: 1 });
+        return response({ ...scan, file: { name: "locked.pdf", digest: "locked.pdf" } });
       }
       if (input.includes("/preview")) return response(preview);
       if (input.includes("/commit")) return response({ error: { code: "import_password_required" } }, 400);
@@ -225,7 +279,7 @@ describe("CashImportPage", () => {
     const passwordInput = await screen.findByLabelText("账单密码");
     fireEvent.change(passwordInput, { target: { value: "correct-password" } });
     fireEvent.click(screen.getByRole("button", { name: "重新识别" }));
-    fireEvent.click(await screen.findByRole("button", { name: /^核对流水$/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^确认映射$/ }));
     fireEvent.click(await screen.findByRole("button", { name: /^下一步$/ }));
     fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
 

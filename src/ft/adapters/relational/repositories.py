@@ -21,6 +21,7 @@ from .models import (
     CashTransactionModel,
     InvestmentEventModel,
     LedgerSnapshotModel,
+    StatementAccountMappingModel,
     TransactionRelationModel,
     WorkspaceModel,
     exact_decimal,
@@ -130,6 +131,21 @@ class RelationalAccountRepository:
     def find(self, name: str) -> AccountDTO | None:
         row = self._find_model(name)
         return None if row is None else self._dto(row)
+
+    def get_by_id(self, account_id: int) -> dict | None:
+        row = self._session.scalar(select(AccountModel).where(
+            AccountModel.workspace_id == self._workspace_id,
+            AccountModel.id == int(account_id),
+        ))
+        if row is None:
+            return None
+        return {
+            "id": row.id,
+            "name": row.name,
+            "type": row.type,
+            "active": row.active,
+            "currencies": [str(item).upper() for item in (row.currencies or ())],
+        }
 
     def add(self, account: AccountDTO, *, seed_currency: str | None = None) -> None:
         metadata: dict = {}
@@ -1412,6 +1428,89 @@ class RelationalAccountAliasRepository:
         self._session.add(model)
         self._session.flush()
         return model.id
+
+    def find_by_value(self, alias_type: str, alias_value: str) -> list[dict]:
+        value = str(alias_value).strip()
+        if alias_type == "account_identifier":
+            value = re.sub(r"[\s\-()（）]", "", value)
+        rows = self._session.scalars(select(AccountAliasModel).where(
+            AccountAliasModel.workspace_id == self._workspace_id,
+            AccountAliasModel.alias_type == alias_type,
+            AccountAliasModel.alias_value == value,
+        ).order_by(AccountAliasModel.created_at, AccountAliasModel.id))
+        return [self._to_dict(row) for row in rows]
+
+
+class RelationalStatementAccountMappingRepository:
+    def __init__(self, session, workspace_id: str):
+        self._session = session
+        self._workspace_id = workspace_id
+
+    @staticmethod
+    def _to_dict(row: StatementAccountMappingModel) -> dict:
+        return {
+            "id": row.id,
+            "workspace_id": row.workspace_id,
+            "source_type": row.source_type,
+            "identity_kind": row.identity_kind,
+            "source_account_key": row.source_account_key,
+            "account_id": row.account_id,
+            "confirmed_by": row.confirmed_by,
+            "revision": row.revision,
+            "created_at": row.created_at,
+            "updated_at": row.updated_at,
+        }
+
+    def _find(self, *, source_type: str, identity_kind: str, source_account_key: str):
+        return self._session.scalar(select(StatementAccountMappingModel).where(
+            StatementAccountMappingModel.workspace_id == self._workspace_id,
+            StatementAccountMappingModel.source_type == source_type,
+            StatementAccountMappingModel.identity_kind == identity_kind,
+            StatementAccountMappingModel.source_account_key == source_account_key,
+        ))
+
+    def get(self, *, source_type: str, identity_kind: str, source_account_key: str) -> dict | None:
+        row = self._find(
+            source_type=source_type, identity_kind=identity_kind,
+            source_account_key=source_account_key,
+        )
+        return None if row is None else self._to_dict(row)
+
+    def list(self) -> list[dict]:
+        rows = self._session.scalars(select(StatementAccountMappingModel).where(
+            StatementAccountMappingModel.workspace_id == self._workspace_id,
+        ).order_by(StatementAccountMappingModel.created_at, StatementAccountMappingModel.id))
+        return [self._to_dict(row) for row in rows]
+
+    def upsert(
+        self, *, source_type: str, identity_kind: str, source_account_key: str,
+        account_id: int, confirmed_by: str, expected_revision: int | None = None,
+    ) -> dict:
+        row = self._find(
+            source_type=source_type, identity_kind=identity_kind,
+            source_account_key=source_account_key,
+        )
+        if row is None:
+            if expected_revision not in (None, 0):
+                raise ValueError("statement_mapping.revision_conflict")
+            row = StatementAccountMappingModel(
+                workspace_id=self._workspace_id,
+                source_type=source_type,
+                identity_kind=identity_kind,
+                source_account_key=source_account_key,
+                account_id=int(account_id),
+                confirmed_by=str(confirmed_by or ""),
+                revision=1,
+            )
+            self._session.add(row)
+        else:
+            if expected_revision is not None and row.revision != expected_revision:
+                raise ValueError("statement_mapping.revision_conflict")
+            row.account_id = int(account_id)
+            row.confirmed_by = str(confirmed_by or "")
+            row.revision += 1
+        self._session.flush()
+        return self._to_dict(row)
 
 
 class RelationalFactDeletionRepository:

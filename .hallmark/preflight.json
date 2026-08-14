@@ -1,0 +1,10 @@
+{
+  "date": "2026-08-14",
+  "framework": "React 19 + Vite production app; standalone HTML OpenSpec prototype",
+  "fonts": ["Noto Sans SC", "IBM Plex Mono"],
+  "palette": "Cobalt OKLCH tokens inherited from the production Web UI",
+  "motion": "motion-cut; no motion library detected for the prototype",
+  "spacing": "4-point semantic scale",
+  "preserve": ["application side navigation", "cool paper", "cobalt signal color", "compact hairline layout"],
+  "introduce": ["Workbench / Account Mapping Grid", "four-step account mapping flow", "full interaction states", "Hallmark slop-test gates"]
+}

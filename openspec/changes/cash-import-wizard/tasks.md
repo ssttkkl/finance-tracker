@@ -65,8 +65,78 @@
 - [x] 8.2 沉淀重复导入关系回归：纯已存在账单不得生成重复关系建议或触发投影重建，新增流水与既有流水的关系仍可确认
 - [x] 8.3 沉淀加密 PDF 的缺少密码 / 密码错误回归和页面重试路径
 
+## 9. 账户映射 Flow-Back：思考与计划
+
+- [x] 9.1 显式运行 `grill-me` 的 `/grilling` session，锁定 6 个现金渠道、来源账户扫描、建议仅预选且不暴露规则、强制确认、数据库事实源、YAML 退出现金路径、最终事务、账户币种扩充和新账户草稿
+- [x] 9.2 使用 `domain-glossary` 更新来源账户身份、账户别名、账户映射建议、账户映射确认和账单账户映射，并区分来源账户与对方账号
+- [x] 9.3 更新 proposal、`statement-import` / `transaction-relations` / `cash-ledger-browser` delta 与 design，并通过严格 OpenSpec 一致性校验
+
+## 10. 账户映射 UI 原型
+
+- [x] 10.1 按 Hallmark `Workbench / Account Mapping Grid` 和 `docs/ui-design-rules.md` 重做 `prototype/index.html`，创建项目级原型 token 与 Hallmark 预检记录
+- [x] 10.2 覆盖选择文件、正常映射、扫描中、空结果、账号冲突、币种待扩充、创建新账户草稿、流水预览、关系配对和成功状态；“确认映射”在不完整时禁用且所有预选仍需人工确认
+- [x] 10.3 使用真实浏览器检查 320 / 375 / 414 / 768 / 1440 / 390 px、键盘焦点、关键点击、页面级横向溢出和按钮文字换行，并保存 1440 / 390 px 截图
+- [x] 10.4 运行 Hallmark slop test、合同检查、中文文案检查和范围化术语搜索，将 finding、修复和证据回写本文件；等待用户确认原型后再实施生产 UI
+
+## 11. 账户映射失败测试
+
+- [x] 11.1 先添加来源账户扫描失败测试：六个现金渠道、同名不同身份、文件级身份、空身份、对方账号隔离和掩码输出
+- [x] 11.2 先添加建议优先级失败测试：历史映射、唯一 `account_identifier` / `card_tail`、多目标冲突、失效账户、币种待扩充、新账户草稿和工作区隔离
+- [x] 11.3 先添加预览 / 确认失败测试：映射不完整、全部预选仍需确认、文件 / 渠道 / 分组变化、映射并发变化和加密 PDF 重试
+- [x] 11.4 先添加事务与幂等失败测试：首次 upsert、映射改选、账户币种扩充、新账户创建、既有行不搬迁、新行使用新映射、任一步回滚和重复确认
+
+## 12. Persistence、Application 与 API 实现
+
+- [x] 12.1 为 SQLite / PostgreSQL 增加 `statement_account_mappings` 迁移、模型、仓储协议和工作区范围实现
+- [x] 12.2 实现来源账户提取与扫描服务，把现金解析拆成来源解析、账户扫描、映射应用和标准化预览
+- [x] 12.3 实现历史映射与唯一账户别名建议、账户 / 币种验证、账户币种扩充草稿、新账户草稿和映射版本并发校验，不自动创建账户别名
+- [x] 12.4 实现 `/cash-import/scan` 或等价合同，并扩展 preview / commit 的完整映射决定、重解析和脱敏错误
+- [x] 12.5 将新账户、账户币种扩充、账单账户映射、现金流水、关系决定和投影刷新纳入最终单事务；既有业务行保持原账户
+- [x] 12.6 将现金导入 CLI 与现金转换切换到数据库映射服务，确认新现金路径不再读取 `mapping.yaml`；投资路径保持不变
+
+## 13. Web 四步页面实现
+
+- [x] 13.1 用户确认原型后，把状态机调整为选择文件、映射账户、核对流水、关系配对和成功结果
+- [x] 13.2 实现来源账户分组、隐形预选、系统账户选择、账户币种扩充 / 新账户草稿、完整性校验和确认映射；修改映射时清除后续状态
+- [x] 13.3 实现扫描中、空结果、别名冲突、账户失效、币种待扩充、账户草稿编辑和并发失效状态，不暴露实现术语
+- [x] 13.4 保留流水预览、关系配对、密码处理和最终确认行为，并补齐键盘、焦点和响应式布局
+
+## 14. 审查
+
+- [x] 14.1 独立产品 / 范围复核强制确认、隐形匹配规则、账户草稿、YAML 兼容边界和既有流水不搬迁语义
+- [x] 14.2 独立工程 / 安全复核来源身份、脱敏、工作区、账户币种扩充、新账户原子性、并发、事务、双后端和回滚
+- [x] 14.3 对最终 Web UI 运行 Hallmark `audit`，修复全部 critical / major finding 后重审；环境无 `hallmark` 可执行文件，已记录尝试并完成人工等价审查，无 critical / major finding
+- [x] 14.4 最终 diff 复核 artifact 偏离、范围外改动、遗漏测试和现金路径残留 `mapping.yaml` 读取
+
+## 15. 测试、QA 与发布准备
+
+- [x] 15.1 运行受影响 Python 测试、SQLite 完整回归、Web Vitest、TypeScript 和生产构建
+- [x] 15.2 使用显式 `_test` 数据库运行真实 PostgreSQL 同一契约矩阵，记录 URL 的脱敏形式、命令和结果
+- [x] 15.3 使用生产构建和真实浏览器覆盖四步主流程、正常 / 错误 / 空状态、键盘、320 / 375 / 414 / 768 / 1440 / 390 px 与控制台 / 网络错误
+- [x] 15.4 运行 `openspec validate --all --strict`、`openspec doctor`、`git diff --check` 和范围化敏感 / 术语搜索
+- [x] 15.5 记录发布顺序、数据库迁移、现金路径切换、观察项和可执行回滚；未获用户授权前不提交、推送、创建 PR 或部署
+
+## 16. 反思
+
+- [x] 16.1 沉淀来源账户身份与对方账号隔离、建议不等于确认、匹配规则不暴露、账户草稿只在最终确认生效、数据库单事实源和既有流水不搬迁的防复发测试或规则
+
+## 17. 账户草稿与币种扩充 Flow-Back
+
+- [x] 17.1 根据用户确认，将现有账户缺少来源币种改为可继续的账户币种扩充草稿；“确认映射”与“下一步”均不写入账户配置
+- [x] 17.2 将“创建新账户”定义为会话内新账户草稿，系统预选账户类型但允许修改；草稿信息显示在对应映射行的系统账户选择下方，不在当前行展开字段，也不做列表级总汇总
+- [x] 17.3 删除映射行中的“曾确认”“账号匹配”“需要选择”等标签和匹配依据；保留来源账户证据，不暴露匹配规则
+- [x] 17.4 将新账户、账户币种扩充、账单账户映射、现金流水、关系和投影纳入最终确认的同一事务，并补充并发 / 冲突回写
+
 ## Verification evidence
 
+- Current implementation evidence (2026-08-14, uncommitted worktree): `uv run pytest -q` → 1425 passed, 172 skipped, 1 warning; explicit PostgreSQL target against Docker PostgreSQL 16 database `finance_tracker_test` with `FT_TEST_POSTGRES_URL` → 70 passed, 1 warning; `cd web && npm test` → 102 passed; `npm run build` → passed; targeted production Chromium import / responsive QA → 2 passed; final screenshots `/tmp/cash-import-production-1440.png` and `/tmp/cash-import-production-390.png` reviewed. `openspec validate --all --strict` → 24 passed, 0 failed; `openspec doctor` → root and OpenSpec root ok; `git diff --check` → passed. `ruff` was unavailable in the environment (`Failed to spawn: ruff`). No commit, push, PR or deployment was performed in this continuation.
+- Current review conclusion: product review confirmed forced mapping confirmation, hidden preselection rules, row-level draft explanations, final-confirm-only account writes, existing-row account preservation and database-backed cash paths. Engineering / security review confirmed opaque source-group identifiers, workspace scoping, optimistic mapping revisions, active-account validation, atomic account / currency / mapping / import writes and redacted errors. Design review confirmed row-level explanation placement, 840 px shell / 720 px content intent, mobile single-column layout and no page-level overflow at the exercised production widths. Hallmark `audit` remains unavailable; manual audit found no critical or major finding. The PostgreSQL migration compatibility adjustment for cash categories was required by the real backend run and is covered by migration tests.
+
+- Account-mapping Flow-Back (2026-08-14): baseline and current `HEAD` are `c8a9fb801a82c9064b03be243325dae5ba186d13` on `clarify-income-expense-import-account-mapping`; only glossary, `cash-import-wizard` artifacts / prototype and Hallmark metadata changed, with no production source edit. `openspec validate cash-import-wizard --strict` → valid; `git diff --check` → passed. Standalone prototype script parsing and token reference check → 1 script parsed, 62 tokens declared, 49 used, 0 missing.
+- Account-mapping Flow-Back (2026-08-14): 用户确认现有账户币种不足时允许明确选择，并在对应映射行的账户选择下方以小字展示账户币种扩充草稿；账户币种和新账户均延迟到最终“确认导入”与流水同事务写入。用户同时确认删除匹配规则标签，原型本轮只更新 OpenSpec 与原型，不进入生产实现。
+- Account-mapping browser QA: real Chromium covered `mapping`、`mapping-loading`、`mapping-empty`、`mapping-conflict`、`mapping-currency`、`select`、`password`、`preview`、`relations`、`success` at 320 / 375 / 390 / 414 / 768 / 1440 px → 60 / 60 state-viewport combinations passed, with zero page-level horizontal overflow, zero touch targets below 44 px and zero wrapped clickable labels. A separate 320–1920 px width sweep found 0 overflow or wrapping failures. The keyboard path reached “上一步” → disabled “确认映射” with its described reason → three account selects, and select focus rings computed as 2 px visible cobalt. The core click path changed “花呗” from unselected to selected, enabled explicit mapping confirmation, advanced through preview / relations and reached success; conflict resolution, currency expansion, loading, empty and PDF password errors were checked separately. Console errors: 0.
+- Account-mapping visual QA: 1440 px screenshot `/tmp/cash-import-account-mapping-1440.png`; 390 px screenshot `/tmp/cash-import-account-mapping-390.png`. Hallmark pre-emit critique `P5 H5 E4 S5 R5 V4`; the current manual audit found no critical, major or minor finding. WCAG contrast checks: ink / paper 15.76:1, body / paper 11.26:1, neutral / paper 6.82:1, muted / paper 5.27:1, accent text / accent 5.36:1, focus / accent 3.10:1, error / paper 7.14:1. Chinese documentation review and user-visible implementation-term search passed; prototype copy does not expose table names, database IDs, source-account keys or matching-rule labels.
+- Account-mapping Flow-Back browser verification: `gstack browse` opened the local prototype in real Chromium. At 320 / 375 / 390 / 414 / 768 / 1440 px the final mapping page reported zero page-level horizontal overflow and zero wrapped clickable labels. Selecting “创建新账户” displayed `将创建「花呗」 · 贷款账户 · CNY` directly below that row's account selector; its row-level “修改” action opened an in-viewport dialog and saved edited name / type. Selecting the currency-short existing account displayed `将为「招行人民币（8821）」新增 USD` directly below that row's account selector, kept “确认映射” enabled, and allowed the preview → relations → success path. No list-level commitment summary remained. Console messages: 0. Hallmark `audit` executable remains unavailable; manual audit followed `references/verbs/audit.md` and `references/slop-test.md`.
 - Baseline: implementation started at `04caf0c9c412e1cc72963290a1b34968965d2515`; current `HEAD` includes the latest `origin/refactor/web` ancestor `a622bf2ede142672ac2e94f3ea75a3dddb4fca26` and the pushed wizard commits through `746a0e7f38cb56eedfe16727de0bb1aba2db03e8`.
 - OpenSpec: `openspec validate --all --strict` → 20 passed, 0 failed; `openspec doctor` → root and OpenSpec root ok.
 - Backend: `uv run pytest -q tests/test_cash_import_wizard.py` → 7 passed; affected import / ledger / relation suite → 33 passed, 4 skipped; SQLite + PostgreSQL targeted matrix with `FT_TEST_POSTGRES_URL=postgresql+psycopg://.../finance_tracker_test` → 6 passed; `git diff --check` and `uv run python -m compileall -q src tests/test_cash_import_wizard.py` passed.
