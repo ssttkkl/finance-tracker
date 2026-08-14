@@ -61,6 +61,7 @@ export const acceptInvitation = (token: string) => call<Session>(`/api/v1/auth/i
 export const members = () => call<{ workspace: { id: string; name: string }; members: Member[] }>("/api/v1/auth/members");
 export const workspaceDetails = () => call<{ workspace: { id: string; name: string }; members: Member[] }>("/api/v1/auth/workspace");
 export const updateWorkspace = (name: string) => call<Session>("/api/v1/auth/workspace", { method: "PUT", body: JSON.stringify({ name }) });
+export const deleteWorkspace = (name: string) => call<Session>("/api/v1/auth/workspace", { method: "DELETE", body: JSON.stringify({ name }) });
 export const updateMember = (id: string, role: Role) => call<unknown>(`/api/v1/auth/members/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify({ role }) });
 export const removeMember = (id: string) => call<{ ok: boolean }>(`/api/v1/auth/members/${encodeURIComponent(id)}`, { method: "DELETE" });
 export const invite = (role: "editor" | "viewer") => call<{ token: string }>("/api/v1/auth/invitations", { method: "POST", body: JSON.stringify({ role }) });

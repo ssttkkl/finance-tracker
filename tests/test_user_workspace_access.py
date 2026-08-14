@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+import pytest
 
 
 def _app(runtime):
@@ -231,6 +232,119 @@ def test_non_admin_can_view_workspace_members_but_cannot_manage_them(cash_web_ru
     assert response.json()["members"][1]["role"] == "editor"
     assert editor.put("/api/v1/auth/members/1", json={"role": "viewer"}).status_code == 403
     assert editor.post("/api/v1/auth/invitations", json={"role": "viewer"}).status_code == 403
+    delete = editor.request("DELETE", "/api/v1/auth/workspace", json={"name": "default"})
+    assert delete.status_code == 403
+    with cash_web_runtime.sessions() as session:
+        assert session.get(WorkspaceModel, "default") is not None
+
+
+def test_admin_deletes_workspace_atomically_and_switches_to_remaining_workspace(cash_web_runtime):
+    from sqlalchemy import select
+    from ft.adapters.relational.models import (
+        AccountModel, UserModel, UserSessionModel, WorkspaceMembershipModel, WorkspaceModel,
+    )
+
+    target_id = cash_web_runtime.workspace_id
+    remaining_id = "other-workspace"
+    with cash_web_runtime.sessions.begin() as session:
+        session.get(WorkspaceModel, target_id).name = "待删除账本"
+
+    admin = _app(cash_web_runtime)
+    assert _register(admin, "delete-admin@example.com").status_code == 200
+    with cash_web_runtime.sessions.begin() as session:
+        user = session.scalar(select(UserModel).where(UserModel.email == "delete-admin@example.com"))
+        session.add_all((
+            WorkspaceMembershipModel(workspace_id=target_id, user_id=user.id, role="admin"),
+            WorkspaceMembershipModel(workspace_id=remaining_id, user_id=user.id, role="admin"),
+        ))
+        login = session.scalar(select(UserSessionModel).where(UserSessionModel.user_id == user.id))
+        login.active_workspace_id = target_id
+
+    invitation = admin.post("/api/v1/auth/invitations", json={"role": "viewer"})
+    assert invitation.status_code == 200
+    viewer = _app(cash_web_runtime)
+    assert _register(viewer, "delete-viewer@example.com").status_code == 200
+    assert viewer.post(f"/api/v1/auth/invitations/{invitation.json()['token']}/accept").status_code == 200
+
+    response = admin.request("DELETE", "/api/v1/auth/workspace", json={"name": "待删除账本"})
+
+    assert response.status_code == 200
+    assert response.json()["active_workspace_id"] == remaining_id
+    assert [item["id"] for item in response.json()["workspaces"]] == [remaining_id]
+    with cash_web_runtime.sessions() as session:
+        assert session.get(WorkspaceModel, target_id) is None
+        assert session.scalar(select(AccountModel.id).where(AccountModel.workspace_id == target_id)) is None
+        assert session.scalar(select(WorkspaceMembershipModel).where(WorkspaceMembershipModel.workspace_id == target_id)) is None
+        viewer_user = session.scalar(select(UserModel).where(UserModel.email == "delete-viewer@example.com"))
+        viewer_login = session.scalar(select(UserSessionModel).where(UserSessionModel.user_id == viewer_user.id))
+        assert viewer_login.active_workspace_id is None
+
+
+@pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_workspace_delete_endpoint_has_the_same_contract_on_both_backends(request, runtime_name):
+    from sqlalchemy import select
+    from ft.adapters.relational.models import UserModel, UserSessionModel, WorkspaceMembershipModel, WorkspaceModel
+
+    runtime = request.getfixturevalue(runtime_name)
+    target_id = runtime.workspace_id
+    with runtime.sessions.begin() as session:
+        session.get(WorkspaceModel, target_id).name = "双后端删除"
+    admin = _app(runtime)
+    assert _register(admin, f"delete-{runtime_name}@example.com").status_code == 200
+    with runtime.sessions.begin() as session:
+        user = session.scalar(select(UserModel).where(UserModel.email == f"delete-{runtime_name}@example.com"))
+        session.add(WorkspaceMembershipModel(workspace_id=target_id, user_id=user.id, role="admin"))
+        session.scalar(select(UserSessionModel).where(UserSessionModel.user_id == user.id)).active_workspace_id = target_id
+
+    response = admin.request("DELETE", "/api/v1/auth/workspace", json={"name": "双后端删除"})
+
+    assert response.status_code == 200
+    assert response.json()["active_workspace_id"] is None
+    with runtime.sessions() as session:
+        assert session.get(WorkspaceModel, target_id) is None
+
+
+def test_workspace_delete_requires_exact_name_and_keeps_data_on_rejection(cash_web_runtime):
+    from sqlalchemy import select
+    from ft.adapters.relational.models import UserModel, UserSessionModel, WorkspaceMembershipModel, WorkspaceModel
+
+    target_id = cash_web_runtime.workspace_id
+    with cash_web_runtime.sessions.begin() as session:
+        session.get(WorkspaceModel, target_id).name = "精确名称"
+    admin = _app(cash_web_runtime)
+    assert _register(admin, "delete-name-admin@example.com").status_code == 200
+    with cash_web_runtime.sessions.begin() as session:
+        user = session.scalar(select(UserModel).where(UserModel.email == "delete-name-admin@example.com"))
+        session.add(WorkspaceMembershipModel(workspace_id=target_id, user_id=user.id, role="admin"))
+        session.scalar(select(UserSessionModel).where(UserSessionModel.user_id == user.id)).active_workspace_id = target_id
+
+    response = admin.request("DELETE", "/api/v1/auth/workspace", json={"name": "精确名称 "})
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "workspace_name_mismatch"
+    with cash_web_runtime.sessions() as session:
+        assert session.get(WorkspaceModel, target_id) is not None
+
+
+def test_admin_deleting_last_workspace_returns_empty_active_workspace(cash_web_runtime):
+    from sqlalchemy import select
+    from ft.adapters.relational.models import UserModel, UserSessionModel, WorkspaceMembershipModel, WorkspaceModel
+
+    target_id = cash_web_runtime.workspace_id
+    with cash_web_runtime.sessions.begin() as session:
+        session.get(WorkspaceModel, target_id).name = "最后账本"
+    admin = _app(cash_web_runtime)
+    assert _register(admin, "delete-last-admin@example.com").status_code == 200
+    with cash_web_runtime.sessions.begin() as session:
+        user = session.scalar(select(UserModel).where(UserModel.email == "delete-last-admin@example.com"))
+        session.add(WorkspaceMembershipModel(workspace_id=target_id, user_id=user.id, role="admin"))
+        session.scalar(select(UserSessionModel).where(UserSessionModel.user_id == user.id)).active_workspace_id = target_id
+
+    response = admin.request("DELETE", "/api/v1/auth/workspace", json={"name": "最后账本"})
+
+    assert response.status_code == 200
+    assert response.json()["active_workspace_id"] is None
+    assert response.json()["workspaces"] == []
 
 
 def test_authenticated_workspace_exposes_investment_accounts_events_and_holdings(cash_web_runtime):

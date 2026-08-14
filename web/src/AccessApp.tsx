@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { App } from "./App";
 import * as access from "./api/access";
 import type { InvitationPreview, Member, Role, Session } from "./api/access";
@@ -46,7 +46,7 @@ function Create({ onSession, onBack }: { onSession: (value: Session) => void; on
   return <main className="access-page"><BackButton onClick={onBack} /><p className="access-eyebrow">新工作区</p><h1>创建工作区</h1><p className="access-muted">创建后你将成为首位管理员，可以再邀请其他成员。</p><section className="access-panel"><form className="access-form" onSubmit={async e => { e.preventDefault(); setLoading(true); setError(""); try { onSession(await access.createWorkspace(name)); } catch { setError("无法创建工作区，请检查名称后重试。"); } finally { setLoading(false); } }}><label>工作区名称<input value={name} onChange={e => setName(e.target.value)} required maxLength={255} /></label><button className="button-primary" disabled={loading}>{loading ? "正在创建…" : "创建工作区"}</button>{error && <p className="access-error" role="alert">{error}</p>}</form></section></main>;
 }
 
-function WorkspaceManagement({ activeRole, onSession }: { activeRole: Role; onSession: (value: Session) => void }) {
+function WorkspaceManagement({ activeRole, onSession, onWorkspaceDeleted }: { activeRole: Role; onSession: (value: Session) => void; onWorkspaceDeleted: (value: Session) => void }) {
   const [data, setData] = useState<{ workspace: { id: string; name: string }; members: Member[] } | null>(null);
   const [role, setRole] = useState<"editor" | "viewer">("editor");
   const [link, setLink] = useState("");
@@ -54,6 +54,11 @@ function WorkspaceManagement({ activeRole, onSession }: { activeRole: Role; onSe
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [loading, setLoading] = useState(true);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteName, setDeleteName] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const deleteInput = useRef<HTMLInputElement>(null);
   const admin = activeRole === "admin";
 
   const refresh = async () => {
@@ -70,6 +75,15 @@ function WorkspaceManagement({ activeRole, onSession }: { activeRole: Role; onSe
     }
   };
   useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    if (!deleteOpen) return;
+    deleteInput.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !deleting) setDeleteOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [deleteOpen, deleting]);
 
   const copy = async (value: string) => {
     try { await navigator.clipboard.writeText(value); } catch { /* 保留只读值供手动复制 */ }
@@ -101,6 +115,19 @@ function WorkspaceManagement({ activeRole, onSession }: { activeRole: Role; onSe
       setError("无法创建邀请链接，请稍后重试。");
     }
   };
+  const openDelete = () => { setDeleteName(""); setDeleteError(""); setDeleteOpen(true); };
+  const closeDelete = () => { if (!deleting) setDeleteOpen(false); };
+  const deleteCurrentWorkspace = async () => {
+    if (!data || deleteName !== data.workspace.name) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      onWorkspaceDeleted(await access.deleteWorkspace(deleteName));
+    } catch {
+      setDeleteError("无法删除工作区，请检查名称后重试。");
+      setDeleting(false);
+    }
+  };
 
   if (loading && !data) return <main className="workspace-management-page"><p className="workspace-management-loading" role="status">正在读取工作区信息…</p></main>;
   if (!data) return <main className="workspace-management-page"><p className="access-error" role="alert">{error}</p></main>;
@@ -118,6 +145,8 @@ function WorkspaceManagement({ activeRole, onSession }: { activeRole: Role; onSe
       <section className="workspace-members" aria-labelledby="workspace-members-title"><div className="workspace-section-head"><h2 id="workspace-members-title">成员</h2><span>{data.members.length} 位成员</span></div><div className="workspace-member-list">{otherMembers.length === 0 && <p className="workspace-empty">暂无其他成员</p>}{data.members.map(member => <div className="workspace-member" key={member.user_id}><div className="workspace-member-copy"><b>{member.is_self ? "你" : member.email}</b><small>{member.is_self ? member.email : ""}</small></div>{member.is_self ? <span>{access.roleLabel[member.role]}</span> : <>{admin ? <select aria-label={`${member.email}的权限`} value={member.role} onChange={event => void updateMember(member, event.target.value as Role)}><option value="admin">管理员</option><option value="editor">可编辑</option><option value="viewer">仅可查看</option></select> : <span>{access.roleLabel[member.role]}</span>}{admin && <button type="button" className="text-button workspace-remove" onClick={() => void removeMember(member)}><Icon name="trash" />移除</button>}</>}</div>)}</div></section>
       <section className="workspace-invite" aria-labelledby="workspace-invite-title"><div className="workspace-section-head"><h2 id="workspace-invite-title">邀请成员</h2></div><div className="workspace-invite-form"><label className="workspace-field">权限<select aria-label="邀请权限" disabled={!admin} value={role} onChange={event => setRole(event.target.value as "editor" | "viewer")}><option value="editor">可编辑</option><option value="viewer">仅可查看</option></select></label><button type="button" className="button-primary" disabled={!admin} onClick={() => void createLink()}><Icon name="link" />创建链接</button></div>{link && <label className="workspace-link-field">邀请链接<input readOnly value={link} aria-label="邀请链接" onFocus={event => event.currentTarget.select()} onClick={event => void copy(event.currentTarget.value)} /></label>}</section>
     </div>
+    {admin && <section className="workspace-danger-zone" aria-labelledby="workspace-delete-title"><h2 id="workspace-delete-title">删除工作区</h2><button type="button" className="button-danger" onClick={openDelete}><Icon name="trash" />删除工作区</button></section>}
+    {deleteOpen && <div className="workspace-confirm-layer" role="alertdialog" aria-modal="true" aria-labelledby="workspace-delete-confirm-title"><section className="workspace-confirm-card"><h2 id="workspace-delete-confirm-title">删除工作区？</h2><p>将永久删除当前工作区及其全部账本数据、成员和邀请。</p><label className="workspace-field">输入工作区名称<input ref={deleteInput} aria-label="输入工作区名称" autoComplete="off" value={deleteName} onChange={event => setDeleteName(event.target.value)} /></label>{deleteError && <p className="access-error" role="alert">{deleteError}</p>}<div className="workspace-confirm-actions"><button type="button" disabled={deleting} onClick={closeDelete}>取消</button><button type="button" className="button-danger" disabled={deleting || deleteName !== data.workspace.name} onClick={() => void deleteCurrentWorkspace()}>{deleting ? "正在删除…" : "删除工作区"}</button></div></section></div>}
   </main>;
 }
 
@@ -132,7 +161,7 @@ export function AccessApp() {
   const footer = <div className="sidebar-footer"><div className="workspace-panel"><div className="account-line"><span className="account-avatar" aria-hidden="true">{state.user.email.slice(0, 1).toUpperCase()}</span><span className="account-email">{state.user.email}</span></div><label className="workspace-switcher"><span>当前工作区</span><select aria-label="当前工作区" value={state.active_workspace_id ?? ""} onChange={async e => { if (e.target.value === "__create__") { setRoute("create"); return; } setWorkspaceError(""); try { setState(await access.selectWorkspace(e.target.value)); } catch { setWorkspaceError("无法切换工作区，请稍后重试。"); } }}>{state.workspaces.map(w => <option key={w.id} value={w.id}>{w.name} · {access.roleLabel[w.role]}</option>)}<option value="__create__">＋ 创建工作区</option></select></label>{workspaceError && <p className="access-error" role="alert">{workspaceError}</p>}<button type="button" className="logout-link" onClick={async () => { await access.logout(); setState(null); }}><Icon name="logout" />退出登录</button></div></div>;
   const openWorkspaceManagement = () => { history.pushState({}, "", "/workspace-management"); setRoute("members"); };
   const leaveWorkspaceManagement = () => { if (route === "members") setRoute("ledger"); };
-  const workspacePage = <WorkspaceManagement activeRole={active?.role ?? "viewer"} onSession={setState} />;
+  const workspacePage = <WorkspaceManagement activeRole={active?.role ?? "viewer"} onSession={setState} onWorkspaceDeleted={value => { history.replaceState({}, "", "/"); setRoute("ledger"); setState(value); }} />;
   const mobileAccount = <div className="mobile-account-control"><button type="button" className="mobile-account-button" aria-expanded={mobileAccountOpen} aria-controls="mobile-account-panel" aria-label={`账户 ${state.user.email}`} onClick={() => { const menu = document.querySelector<HTMLButtonElement>(".menu-toggle"); if (menu?.getAttribute("aria-expanded") === "true") menu.click(); setMobileAccountOpen(open => !open); }}>{state.user.email.slice(0, 1).toUpperCase()}</button>{mobileAccountOpen && <div id="mobile-account-panel" className="mobile-account-panel"><div className="mobile-account-email">{state.user.email}</div>{footer}<button type="button" className="mobile-panel-close" onClick={() => setMobileAccountOpen(false)}>关闭</button></div>}</div>;
   return <>{state.active_workspace_id ? <App sidebarFooter={footer} mobileAccount={mobileAccount} workspacePage={workspacePage} workspaceManagementActive={route === "members"} onWorkspaceManagement={openWorkspaceManagement} onLedgerNavigation={leaveWorkspaceManagement} /> : <Create onSession={setState} onBack={() => setRoute("ledger")} />}</>;
 }
