@@ -30,7 +30,7 @@ test("生产预览在窄屏保持银证转账双端金额可见", async ({ page 
 
 test("生产预览在性能预算内分阶段展示当前持仓", async ({ page }) => {
   const started = Date.now();
-  await page.goto("/#investment-holdings");
+  await page.goto("/investment-holdings");
 
   await expect(page.getByRole("cell", { name: "AAPL.US" })).toBeVisible({ timeout: 1_000 });
   const holdingsElapsed = Date.now() - started;
@@ -49,14 +49,14 @@ test("生产预览在性能预算内分阶段展示当前持仓", async ({ page 
 test("当前持仓在目标响应式宽度保持可见且无横向溢出", async ({ page }) => {
   for (const width of [320, 375, 414, 768]) {
     await page.setViewportSize({ width, height: 844 });
-    await page.goto("/#investment-holdings");
+    await page.goto("/investment-holdings");
     await expect(page.getByText("AAPL.US", { exact: true })).toBeVisible();
     expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
   }
 });
 
 test("生产预览使用标的片段筛选投资事件", async ({ page }) => {
-  await page.goto("/#investment-events");
+  await page.goto("/investment-events");
 
   await expect(page.getByText("预览买入")).toBeVisible();
   const filtered = page.waitForRequest((request) => request.url().includes("/api/v1/investment-events") && request.url().includes("ticker=apl"));

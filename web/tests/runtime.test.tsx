@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { CashLedgerPage } from "../src/pages/CashLedgerPage";
+import { apiOrigin } from "../src/api/access";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
@@ -35,5 +36,11 @@ describe("独立 Node 运行时", () => {
     expect(packageJson.scripts.dev).toContain("--port 5174");
     expect(packageJson.scripts.dev).toContain("--strictPort");
     expect(viteConfig).toContain('"/api": "http://127.0.0.1:8000"');
+  });
+
+  it("接受配置的 HTTPS API 来源", () => {
+    vi.stubEnv("VITE_FT_API_ORIGIN", "https://finance-api.onrender.com");
+
+    expect(apiOrigin()).toBe("https://finance-api.onrender.com");
   });
 });

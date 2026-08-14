@@ -2,14 +2,21 @@ import type { Account, CashCategory, CashCategoryDirectory, CashFilters, CashPag
 
 function apiOrigin(): string {
   const origin = import.meta.env.VITE_FT_API_ORIGIN;
-  if (!origin || !/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(origin)) {
+  if (!origin) {
     throw new Error("api_origin_invalid");
   }
-  return origin;
+  let parsed: URL;
+  try { parsed = new URL(origin); } catch { throw new Error("api_origin_invalid"); }
+  const localHttp = parsed.protocol === "http:" && ["127.0.0.1", "localhost"].includes(parsed.hostname) && parsed.port !== "";
+  const hostedHttps = parsed.protocol === "https:" && parsed.hostname !== "";
+  if ((!localHttp && !hostedHttps) || parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+    throw new Error("api_origin_invalid");
+  }
+  return origin.replace(/\/$/, "");
 }
 
 async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`${apiOrigin()}${path}`, { signal });
+  const response = await fetch(`${apiOrigin()}${path}`, { credentials: "include", signal });
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: { code?: unknown }; code?: unknown } | null;
     const code = payload?.error?.code ?? payload?.code;
@@ -23,6 +30,7 @@ async function write<T>(path: string, method: string, body: unknown, signal?: Ab
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    credentials: "include",
     signal,
   });
   if (!response.ok) {
@@ -149,7 +157,7 @@ async function importRequest<T>(path: string, file: File, values: { source?: str
   const headers: Record<string, string> = { "Content-Type": "application/octet-stream" };
   if (values.password) headers["X-FT-Statement-Password"] = values.password;
   const response = await fetch(`${apiOrigin()}${path}?${params.toString()}`, {
-    method: "POST", headers, body: file,
+    method: "POST", headers, body: file, credentials: "include",
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: { code?: unknown } } | null;

@@ -2,14 +2,21 @@ import type { Account, InvestmentEvidence, InvestmentFilters, InvestmentPage, Po
 
 function apiOrigin(): string {
   const origin = import.meta.env.VITE_FT_API_ORIGIN;
-  if (!origin || !/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(origin)) {
+  if (!origin) {
     throw new Error("api_origin_invalid");
   }
-  return origin;
+  let parsed: URL;
+  try { parsed = new URL(origin); } catch { throw new Error("api_origin_invalid"); }
+  const localHttp = parsed.protocol === "http:" && ["127.0.0.1", "localhost"].includes(parsed.hostname) && parsed.port !== "";
+  const hostedHttps = parsed.protocol === "https:" && parsed.hostname !== "";
+  if ((!localHttp && !hostedHttps) || parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+    throw new Error("api_origin_invalid");
+  }
+  return origin.replace(/\/$/, "");
 }
 
 async function request<T>(path: string, signal?: AbortSignal, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiOrigin()}${path}`, { ...init, signal });
+  const response = await fetch(`${apiOrigin()}${path}`, { credentials: "include", ...init, signal });
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: { code?: unknown }; code?: unknown } | null;
     const code = payload?.error?.code ?? payload?.code;
@@ -59,7 +66,7 @@ export function openInvestmentPortfolioStream(
   period: PortfolioPeriod,
   handlers: { onPortfolio: (portfolio: Portfolio) => void; onRefreshError: () => void },
 ): EventSource {
-  const source = new EventSource(`${apiOrigin()}/api/v1/investment-portfolio/stream?${portfolioParams(displayCurrency, period)}`);
+  const source = new EventSource(`${apiOrigin()}/api/v1/investment-portfolio/stream?${portfolioParams(displayCurrency, period)}`, { withCredentials: true });
   source.addEventListener("portfolio", (event) => {
     try {
       const payload = JSON.parse((event as MessageEvent<string>).data) as PortfolioStreamPayload;

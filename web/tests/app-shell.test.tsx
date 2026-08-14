@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { App } from "../src/main";
+import { App } from "../src/App";
 
 const account = { id: 103, name: "投资账户", type: "security", active: true };
 const cashItem = {
@@ -19,7 +19,7 @@ const cashEvidence = {
 
 beforeEach(() => {
   window.history.pushState({}, "", "/");
-  window.location.hash = "#cash-ledger";
+  window.history.replaceState({}, "", "/");
   vi.stubEnv("VITE_FT_API_ORIGIN", "http://127.0.0.1:8000");
   vi.stubGlobal("fetch", vi.fn((input: string) => {
     if (input.includes("/accounts")) return Promise.resolve(new Response(JSON.stringify({ items: [account] })));
@@ -44,11 +44,14 @@ describe("统一账本外壳", () => {
     expect(within(navigation).getByRole("link", { name: "收支账本" })).toHaveAttribute("aria-current", "page");
     expect(within(navigation).getByRole("link", { name: "当前持仓" })).not.toHaveAttribute("aria-current");
 
-    window.location.hash = "#investment-events";
+    window.history.pushState({}, "", "/investment-events");
+    window.dispatchEvent(new PopStateEvent("popstate"));
     await waitFor(() => expect(screen.getByRole("heading", { name: "投资事件", level: 1 })).toBeInTheDocument());
     const investmentNavigation = screen.getByRole("navigation", { name: "主要导航" });
     expect(within(investmentNavigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["收支账本", "分类管理", "投资账本", "当前持仓", "投资事件"]);
     expect(within(investmentNavigation).getByRole("link", { name: "投资事件" })).toHaveAttribute("aria-current", "page");
+    expect(within(investmentNavigation).getByRole("link", { name: "当前持仓" })).toHaveAttribute("href", "/investment-holdings");
+    expect(within(investmentNavigation).getByRole("link", { name: "投资事件" })).toHaveAttribute("href", "/investment-events");
   });
 
   it("将分类管理作为收支账本的子项，并在分类页保留投资账本入口", async () => {

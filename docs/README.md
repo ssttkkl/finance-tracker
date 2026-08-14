@@ -39,6 +39,7 @@ active change 通过 `openspec list` 查看。`cash-ledger-browser` 只包含收
 | [Phase 2 Web 单一 Spec 交接](phase2-web-spec-handoff.md) | 020 创建前输入；**非实施权威** |
 | [财富解释与趋势对比设计](productization-wealth-report-design.md) | 已批准决策输入；**非**实施权威 |
 | [财富报告线框](productization-wealth-report-wireframe.html) | 线框参考 |
+| [UI 设计必须约束](ui-design-rules.md) | 所有 UI 设计、原型、实现和审查必须遵守的规则 |
 
 ## OpenSpec
 

@@ -331,8 +331,8 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
         <aside className="sidebar">
           <strong>Finance Tracker</strong>
           <nav aria-label="主要导航">
-            <a href="#cash-ledger" onClick={(event) => { event.preventDefault(); onBack(); }}>收支账本</a>
-            <a aria-current="page" href="#cash-import">导入账单</a>
+            <a href="/" onClick={(event) => { event.preventDefault(); onBack(); }}>收支账本</a>
+            <a aria-current="page" href="/cash-import">导入账单</a>
           </nav>
         </aside>
         <section className="ledger cash-import-shell" id="cash-import" aria-label="导入账单">

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -10,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.engine import make_url
+from sqlalchemy import inspect, text
 
 from ft.adapters.relational.dialect import RelationalEngineError
 from ft.adapters.relational.runtime import StorageError, storage_error
@@ -17,6 +19,7 @@ from ft.application.web_queries import CashLedgerQueryService
 from ft.application.cash_ledger import CashLedgerCommandService
 from ft.config import StorageSettings
 from ft.web.serialization import error_payload
+from ft.application.access import AccessService, AuthenticationRequired, PermissionDenied, SESSION_COOKIE
 
 
 DEFAULT_WEB_ORIGIN = "http://127.0.0.1:5173"
@@ -39,19 +42,114 @@ _STORAGE_ERROR_MESSAGES = {
 }
 
 
-def validate_local_origin(origin: str) -> str:
+def validate_web_origin(origin: str) -> str:
     try:
         parsed = urlparse(origin)
         port = parsed.port
     except ValueError as exc:
-        raise ValueError("Web 来源必须是带端口的本机 HTTP 地址。") from exc
-    if (
-        parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost"}
-        or port is None or parsed.username or parsed.password or parsed.path not in {"", "/"}
-        or parsed.query or parsed.fragment
+        raise ValueError("Web 来源必须是本机 HTTP 地址或 HTTPS 地址。") from exc
+    local_http = (
+        parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost"}
+        and port is not None
+    )
+    hosted_https = parsed.scheme == "https" and parsed.hostname is not None
+    if not (
+        (local_http or hosted_https)
+        and not parsed.username and not parsed.password and parsed.path in {"", "/"}
+        and not parsed.query and not parsed.fragment
     ):
-        raise ValueError("Web 来源必须是带端口的本机 HTTP 地址。")
+        raise ValueError("Web 来源必须是本机 HTTP 地址或 HTTPS 地址。")
     return origin.rstrip("/")
+
+
+class WorkspaceServices:
+    """Resolve legacy workspace-bound services from an authenticated request context."""
+    def __init__(self, sessions, workspace_var):
+        self._sessions = sessions; self._workspace_var = workspace_var
+    def _workspace(self):
+        workspace_id = self._workspace_var.get()
+        if workspace_id is None: raise AuthenticationRequired("authentication_required")
+        return workspace_id
+    def __getattr__(self, name):
+        workspace_id = self._workspace()
+        query = CashLedgerQueryService(self._sessions, workspace_id)
+        if hasattr(query, name): return getattr(query, name)
+        from ft.application.relations import RelationService
+        from ft.adapters.relational.uow import RelationalUnitOfWork
+        command = CashLedgerCommandService(self._sessions, workspace_id, relation_service=RelationService(RelationalUnitOfWork(self._sessions, workspace_id)))
+        if hasattr(command, name): return getattr(command, name)
+        from ft.application.cash_categories import CashCategoryService
+        category = CashCategoryService(self._sessions, workspace_id)
+        if hasattr(category, name): return getattr(category, name)
+        from ft.application.cash_classification import CashClassificationService
+        classification = CashClassificationService(self._sessions, workspace_id)
+        if hasattr(classification, name): return getattr(classification, name)
+        raise AttributeError(name)
+
+
+class WorkspaceInvestmentServices:
+    """Resolve read-only investment event queries for the authenticated workspace."""
+    def __init__(self, sessions, workspace_var):
+        self._sessions = sessions; self._workspace_var = workspace_var
+
+    def _service(self):
+        workspace_id = self._workspace_var.get()
+        if workspace_id is None: raise AuthenticationRequired("authentication_required")
+        from ft.application.investment_web_queries import InvestmentLedgerQueryService
+        return InvestmentLedgerQueryService(self._sessions, workspace_id)
+
+    def list_accounts(self): return self._service().list_accounts()
+    def list_events(self, **kwargs): return self._service().list_events(**kwargs)
+    def get_event_evidence(self, event_id): return self._service().get_event_evidence(event_id)
+
+
+class WorkspacePortfolioServices:
+    """Bind portfolio reads to the workspace selected by the authenticated request."""
+    def __init__(self, sessions, workspace_var, valuation, fx_rates):
+        self._sessions = sessions; self._workspace_var = workspace_var
+        self._valuation = valuation; self._fx_rates = fx_rates
+
+    def _service(self):
+        workspace_id = self._workspace_var.get()
+        if workspace_id is None: raise AuthenticationRequired("authentication_required")
+        from ft.adapters.relational.queries import RelationalPortfolioRepository
+        from ft.application.investment import PortfolioQueryService
+        return PortfolioQueryService(
+            RelationalPortfolioRepository(self._sessions, workspace_id), self._valuation, fx_rates=self._fx_rates,
+        )
+
+    def get_holdings(self): return self._service().get_holdings()
+    def get_portfolio(self, **kwargs): return self._service().get_portfolio(**kwargs)
+
+
+class WorkspacePortfolioRefresh:
+    """Keep independent refresh coordinators for each workspace's portfolio service."""
+    def __init__(self, portfolio_services):
+        self._portfolio_services = portfolio_services; self._coordinators = {}
+
+    def _coordinator(self):
+        workspace_id = self._portfolio_services._workspace_var.get()
+        if workspace_id is None: raise AuthenticationRequired("authentication_required")
+        from ft.application.portfolio_refresh import PortfolioRefreshCoordinator
+        coordinator = self._coordinators.get(workspace_id)
+        if coordinator is None:
+            # Bind once, before the worker starts, so it never depends on a request ContextVar.
+            service = self._portfolio_services._service()
+            coordinator = PortfolioRefreshCoordinator(service)
+            self._coordinators[workspace_id] = coordinator
+        return coordinator
+
+    def start(self):
+        for coordinator in self._coordinators.values(): coordinator.start()
+
+    def stop(self):
+        for coordinator in self._coordinators.values(): coordinator.stop()
+
+    def request_refresh(self, **kwargs): return self._coordinator().request_refresh(**kwargs)
+    def subscribe(self, **kwargs):
+        # Resolve the request's workspace before StreamingResponse consumes the
+        # generator after request middleware has reset its ContextVar.
+        return self._coordinator().subscribe(**kwargs)
 
 
 def create_app(
@@ -65,10 +163,15 @@ def create_app(
     investment_service=None,
     portfolio_service=None,
     portfolio_refresh=None,
+    access_service: AccessService | None = None,
+    workspace_context=None,
+    cookie_secure: bool | None = None,
 ) -> FastAPI:
     from ft.web.routes import cash_router
 
-    allowed_origin = validate_local_origin(allowed_origin)
+    allowed_origin = validate_web_origin(allowed_origin)
+    if cookie_secure is None:
+        cookie_secure = urlparse(allowed_origin).scheme == "https"
     app = FastAPI(
         title="Finance Tracker 本机账本浏览器",
         docs_url=None,
@@ -82,10 +185,29 @@ def create_app(
         # default port. Keep the trust boundary local while allowing that port
         # change without making the user manually restart the API.
         allow_origin_regex=LOCAL_WEB_ORIGIN_REGEX,
-        allow_credentials=False,
+        allow_credentials=access_service is not None,
         allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["Accept", "Content-Type", "X-FT-Statement-Password"],
     )
+
+    if access_service is not None:
+        @app.middleware("http")
+        async def authenticate_web_api(request, call_next):
+            if request.url.path.startswith("/api/v1") and not request.url.path.startswith("/api/v1/auth"):
+                try:
+                    workspace_id, role = access_service.require(request.cookies.get(SESSION_COOKIE), {"admin", "editor", "viewer"})
+                    if request.method not in {"GET", "HEAD", "OPTIONS"} and role == "viewer":
+                        return JSONResponse(error_payload("workspace_forbidden", "当前角色仅可查看账本。"), 403)
+                    request.state.workspace_id = workspace_id; request.state.workspace_role = role
+                    context_token = workspace_context.set(workspace_id) if workspace_context is not None else None
+                except AuthenticationRequired:
+                    return JSONResponse(error_payload("authentication_required", "请先登录。"), 401)
+                except PermissionDenied:
+                    return JSONResponse(error_payload("workspace_forbidden", "当前用户无权访问该工作区。"), 403)
+                try: return await call_next(request)
+                finally:
+                    if context_token is not None: workspace_context.reset(context_token)
+            return await call_next(request)
 
     @app.exception_handler(StorageError)
     def storage_failure(_request, exc: StorageError):
@@ -100,6 +222,9 @@ def create_app(
     def engine_failure(request, exc: RelationalEngineError):
         return storage_failure(request, StorageError(exc.code))
 
+    if access_service is not None:
+        from ft.web.access_routes import access_router
+        app.include_router(access_router(access_service, cookie_secure=cookie_secure))
     app.include_router(cash_router(
         service,
         mutation_service=mutation_service,
@@ -120,52 +245,47 @@ def create_runtime_app():
 
     engine = None
     try:
-        settings = StorageSettings.load()
+        settings = StorageSettings.load(require_workspace=False)
         selected_url = make_url(settings.database_url)
         if selected_url.get_backend_name() == "sqlite" and selected_url.database not in {None, ":memory:"}:
             selected_path = Path(selected_url.database)
             if selected_path.exists() and selected_path.stat().st_size == 0:
                 raise StorageError("storage.schema", settings.database_url)
         engine = create_relational_engine(settings.database_url)
-        validate_runtime(engine, settings.workspace_id, settings.database_url)
-        origin = validate_local_origin(__import__("os").environ.get("FT_WEB_ORIGIN", DEFAULT_WEB_ORIGIN))
+        tables = set(inspect(engine).get_table_names())
+        if "alembic_version" not in tables:
+            raise StorageError("storage.schema", settings.database_url)
+        with engine.connect() as connection:
+            revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
+        from ft.adapters.relational.runtime import SCHEMA_REVISION
+        if revision != SCHEMA_REVISION:
+            raise StorageError("storage.schema", settings.database_url)
+        origin = validate_web_origin(__import__("os").environ.get("FT_WEB_ORIGIN", DEFAULT_WEB_ORIGIN))
         sessions = create_session_factory(engine)
-        service = CashLedgerQueryService(sessions, settings.workspace_id)
+        workspace_var = ContextVar("web_workspace_id", default=None)
+        service = WorkspaceServices(sessions, workspace_var)
         from ft.adapters.fx_rates import FxRateProvider
         from ft.adapters.market_data import CompositeQuoteProvider
-        from ft.adapters.relational.queries import RelationalPortfolioRepository
-        from ft.application.investment import PortfolioQueryService
-        from ft.application.portfolio_refresh import PortfolioRefreshCoordinator
-        from ft.application.investment_web_queries import InvestmentLedgerQueryService
         from ft.application.valuation import ValuationService
-        from ft.application.relations import RelationService
-        from ft.adapters.relational.uow import RelationalUnitOfWork
-        write_uow = RelationalUnitOfWork(sessions, settings.workspace_id)
-        mutation_service = CashLedgerCommandService(
-            sessions, settings.workspace_id,
-            relation_service=RelationService(write_uow),
+        access_service = AccessService(sessions)
+        mutation_service = service
+        category_service = service
+        classification_service = service
+        investment_service = WorkspaceInvestmentServices(sessions, workspace_var)
+        portfolio_service = WorkspacePortfolioServices(
+            sessions, workspace_var, ValuationService(CompositeQuoteProvider()), FxRateProvider(),
         )
-        from ft.application.cash_categories import CashCategoryService
-        from ft.application.cash_classification import CashClassificationService
-        category_service = CashCategoryService(sessions, settings.workspace_id)
-        classification_service = CashClassificationService(sessions, settings.workspace_id)
-        quote_provider = CompositeQuoteProvider()
-        investment_service = InvestmentLedgerQueryService(sessions, settings.workspace_id)
-        portfolio_service = PortfolioQueryService(
-            RelationalPortfolioRepository(sessions, settings.workspace_id),
-            ValuationService(quote_provider),
-            fx_rates=FxRateProvider(),
-            query_deadline_seconds=None,
-        )
-        portfolio_refresh = PortfolioRefreshCoordinator(portfolio_service)
+        portfolio_refresh = WorkspacePortfolioRefresh(portfolio_service)
 
         @asynccontextmanager
         async def release_engine(_app):
-            portfolio_refresh.start()
+            if portfolio_refresh is not None:
+                portfolio_refresh.start()
             try:
                 yield
             finally:
-                portfolio_refresh.stop()
+                if portfolio_refresh is not None:
+                    portfolio_refresh.stop()
                 engine.dispose()
 
         app = create_app(
@@ -174,6 +294,8 @@ def create_runtime_app():
             investment_service=investment_service,
             portfolio_service=portfolio_service,
             portfolio_refresh=portfolio_refresh,
+            access_service=access_service,
+            workspace_context=workspace_var,
         )
     except StorageConfigurationError as exc:
         raise StorageError("storage.config") from exc
