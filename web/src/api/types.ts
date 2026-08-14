@@ -82,6 +82,17 @@ export type CashPage = {
   monthly_summaries?: CashMonthlySummary[];
 };
 
+export type CashProjectionDeleteImpact = {
+  projection_count: number;
+  transaction_count: number;
+  relation_group_count: number;
+};
+
+export type CashProjectionDeleteResult = CashProjectionDeleteImpact & {
+  deleted: boolean;
+  projection_version: number;
+};
+
 export type EvidenceRecord = {
   id: string;
   occurred_at: string;

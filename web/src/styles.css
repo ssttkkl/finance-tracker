@@ -30,6 +30,9 @@
 @media(max-width:820px){.cash-table tr.cash-row{grid-template-areas:"time amount" "counterparty amount" "account category" "action action"}}
 .cash-table .economic-type{position:relative;padding-left:24px;color:var(--color-ink-muted)}.cash-table .economic-type::before{position:absolute;top:50%;left:12px;width:5px;height:5px;border-radius:50%;background:var(--color-accent);content:"";transform:translateY(-50%)}@media(max-width:820px){.cash-table .economic-type{padding-left:0;font-size:11px}.cash-table .economic-type::before{display:none}.cash-table tr.cash-row{grid-template-areas:"time amount" "counterparty amount" "account economic-type" "action action"}}
 @media(max-width:820px){.cash-table tr.cash-row .action{display:none}}
+.cash-row-actions{position:relative;display:inline-flex;align-items:center;justify-content:flex-end;gap:2px}.cash-row-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:5;display:grid;min-width:140px;padding:4px;border:var(--rule-1) solid var(--color-rule-strong);background:var(--color-paper-raised);box-shadow:0 8px 20px var(--color-detail-shadow)}.cash-row-menu button{min-height:38px;padding:7px 12px;border:0;background:transparent;color:var(--color-ink);text-align:left;white-space:nowrap}.cash-row-menu button:hover,.cash-row-menu button:focus-visible{background:var(--color-accent-soft);color:var(--color-accent)}.cash-row-menu button.is-danger{color:var(--color-danger)}
+@media(max-width:820px){.cash-table tr.cash-row .action{display:block;text-align:right}.cash-row-actions{width:100%}.cash-row-actions .evidence-trigger{display:none}.cash-row-menu{right:0}}
+@media(min-width:821px){.cash-table td.action{padding-right:4px;padding-left:4px}.cash-row-actions .icon-button{width:34px;min-width:34px;padding:0}}
 .cash-table td.amount.transfer{color:var(--color-accent)}
 .projection-source{display:inline-flex;align-items:center;margin-top:var(--space-2);font-size:10px;font-weight:500;line-height:1.25}.projection-source-kind{padding:2px 5px;border:var(--rule-1) solid var(--color-rule-strong);border-radius:var(--radius-1);background:var(--color-paper-muted);color:var(--color-ink-muted)}.projection-source.is-related .projection-source-kind{border-color:var(--color-accent);color:var(--color-accent)}.projection-source-detail{color:var(--color-ink)}
 @media(max-width:820px){.cash-table .projection-source{display:flex;margin-top:var(--space-2)}}
@@ -84,6 +87,7 @@ textarea{min-height:44px;padding:6px var(--space-2);border:var(--rule-1) solid v
 /* Batch actions stay reachable while the selected ledger rows scroll. */
 .batch-toolbar{position:fixed;right:24px;bottom:20px;left:calc(224px + 24px);z-index:calc(var(--z-detail) - 1);display:flex;align-items:center;justify-content:flex-end;gap:var(--space-3);width:min(760px,calc(100vw - 224px - 48px));margin:0 auto;padding:var(--space-3) var(--space-4);border:var(--rule-1) solid var(--color-accent);background:var(--color-sidebar);box-shadow:0 12px 28px var(--color-detail-shadow);color:var(--color-accent-ink)}
 .batch-toolbar span{margin-right:auto;font-size:13px;font-weight:650}.batch-toolbar button{min-height:40px}
+.batch-dialog-summary{margin:0 0 var(--space-3);color:var(--color-ink-muted);font-size:13px}.batch-delete-impact{display:grid;gap:var(--space-2);margin:var(--space-3) 0}.batch-delete-impact div{display:flex;align-items:baseline;justify-content:space-between;padding:var(--space-2) 0;border-bottom:var(--rule-1) solid var(--color-rule)}.batch-delete-impact dt{color:var(--color-ink-muted)}.batch-delete-impact dd{margin:0;color:var(--color-ink);font-family:var(--font-mono);font-weight:650}.batch-dialog-warning{margin:0;color:var(--color-danger);font-size:12px}
 @media(max-width:1023px){.batch-toolbar{right:16px;left:16px;width:auto}}
 .ledger-workbench:has(.batch-toolbar){padding-bottom:112px}
 @media(max-width:820px){.ledger-workbench:has(.batch-toolbar){padding-bottom:136px}}
@@ -135,13 +139,14 @@ textarea{min-height:44px;padding:6px var(--space-2);border:var(--rule-1) solid v
 .cash-mobile-field-marker{display:none;align-items:baseline;flex:none;color:var(--color-accent)}.cash-mobile-field-marker .ui-icon{width:15px;height:15px}
 .edit-row .edit-field-label{display:flex;align-items:center;gap:7px}.edit-field-label .ui-icon{width:16px;height:16px;flex:none;color:var(--color-accent)}
 @media(max-width:820px){
-  .cash-table tr.cash-row{grid-template-areas:"time amount" "counterparty amount" "category category" "account account" "economic-type economic-type"}
-  .cash-table tr.cash-row.is-selectable{grid-template-columns:28px minmax(0,1fr) auto;grid-template-areas:"selection time amount" "selection counterparty amount" "selection category category" "selection account account" "selection economic-type economic-type"}
+  .cash-table tr.cash-row{grid-template-areas:"time amount" "counterparty amount" "category category" "account account" "economic-type economic-type" "action action"}
+  .cash-table tr.cash-row.is-selectable{grid-template-columns:28px minmax(0,1fr) auto;grid-template-areas:"selection time amount" "selection counterparty amount" "selection category category" "selection account account" "selection economic-type economic-type" "selection action action"}
   .cash-table tr.cash-row .selection{grid-area:selection;align-self:start;padding-top:1px}
   .cash-table tr.cash-row .selection input{margin:0}
   .cash-mobile-field-marker{display:inline-flex;align-items:baseline;flex:none;line-height:1}
   .cash-mobile-field-marker .ui-icon{display:block;flex:none}
   .cash-table .account,.cash-table .economic-type,.cash-table .category{display:flex;align-items:baseline;gap:6px;line-height:1.35}
+  .cash-table .economic-type{grid-area:economic-type}
   .cash-mobile-field-value{min-width:0;overflow-wrap:anywhere}
   .cash-table .action{display:none}
 }

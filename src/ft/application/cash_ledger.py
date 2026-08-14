@@ -20,6 +20,8 @@ from ft.adapters.relational.models import (
     CashImportCommitModel,
     CashInvestmentFundingRelationModel,
     CashProjectionRelationModel,
+    CashProjectionMemberModel,
+    CashProjectionModel,
     CashProjectionStateModel,
     CashTransactionModel,
     TransactionRelationModel,
@@ -171,8 +173,9 @@ class CashLedgerCommandService:
     """Application service for current facts and current relation state.
 
     This service deliberately writes facts and then refreshes the existing
-    projection read model in the same transaction. It never accepts a
-    projection id as a write target.
+    projection read model in the same transaction. Batch deletion may accept
+    projection IDs only as a versioned selection boundary, then resolves them
+    to their source facts before writing.
     """
 
     def __init__(self, sessions, workspace_id: str, *, parser=None, relation_service=None):
@@ -642,6 +645,214 @@ class CashLedgerCommandService:
                 if endpoint not in (None, "") and str(endpoint) != str(fact_id)
             }),
         }
+
+    @staticmethod
+    def _normalize_projection_ids(projection_ids) -> list[str]:
+        if not isinstance(projection_ids, (list, tuple, set)):
+            raise ValueError("projection.delete_required")
+        normalized: list[str] = []
+        for projection_id in projection_ids:
+            if not isinstance(projection_id, str) or not projection_id or len(projection_id) > 96:
+                raise ValueError("projection.version_conflict")
+            if projection_id not in normalized:
+                normalized.append(projection_id)
+        if not normalized:
+            raise ValueError("projection.delete_required")
+        return normalized
+
+    def _load_projection_delete_targets(
+        self,
+        session,
+        projection_ids,
+        projection_version,
+        *,
+        lock: bool = False,
+    ) -> dict:
+        """Resolve a visible projection selection to its complete source facts.
+
+        The selection is intentionally validated against one active dataset and
+        one projection version.  Callers use this helper both for the read-only
+        impact preview and the locked commit, keeping the two contracts aligned.
+        """
+        ids = self._normalize_projection_ids(projection_ids)
+        if isinstance(projection_version, bool) or not isinstance(projection_version, int):
+            raise ValueError("projection.version_conflict")
+
+        state_statement = sa_select(CashProjectionStateModel).where(
+            CashProjectionStateModel.workspace_id == self._workspace_id,
+        )
+        if lock:
+            state_statement = state_statement.with_for_update()
+        state = session.scalar(state_statement)
+        if state is None or state.availability != "ready" or not state.active_dataset_id:
+            raise ValueError("projection.unavailable")
+        if int(state.projection_version) != projection_version:
+            raise ValueError("projection.version_conflict")
+
+        projection_statement = sa_select(CashProjectionModel).where(
+            CashProjectionModel.workspace_id == self._workspace_id,
+            CashProjectionModel.dataset_id == state.active_dataset_id,
+            CashProjectionModel.projection_id.in_(ids),
+            CashProjectionModel.visible.is_(True),
+        )
+        if lock:
+            projection_statement = projection_statement.with_for_update()
+        projection_rows = session.scalars(projection_statement).all()
+        by_projection_id = {row.projection_id: row for row in projection_rows}
+        if len(projection_rows) != len(ids) or set(by_projection_id) != set(ids):
+            raise ValueError("projection.version_conflict")
+
+        projection_row_ids = [int(row.id) for row in projection_rows]
+        member_rows = session.scalars(
+            sa_select(CashProjectionMemberModel)
+            .where(
+                CashProjectionMemberModel.workspace_id == self._workspace_id,
+                CashProjectionMemberModel.dataset_id == state.active_dataset_id,
+                CashProjectionMemberModel.projection_row_id.in_(projection_row_ids),
+            )
+            .order_by(CashProjectionMemberModel.projection_row_id, CashProjectionMemberModel.ordinal)
+        ).all()
+        expected_member_count = sum(int(row.member_count) for row in projection_rows)
+        member_ids = [int(row.cash_transaction_id) for row in member_rows]
+        if (
+            len(member_rows) != expected_member_count
+            or not member_ids
+            or len(member_ids) != len(set(member_ids))
+        ):
+            raise ValueError("projection.version_conflict")
+
+        model_rows = session.execute(
+            sa_select(CashTransactionModel, AccountModel)
+            .join(AccountModel, (
+                AccountModel.workspace_id == CashTransactionModel.workspace_id
+            ) & (AccountModel.id == CashTransactionModel.account_id))
+            .where(
+                CashTransactionModel.workspace_id == self._workspace_id,
+                CashTransactionModel.id.in_(member_ids),
+                CashTransactionModel.deleted_at.is_(None),
+            )
+        ).all()
+        models_by_id = {int(model.id): (model, account) for model, account in model_rows}
+        if len(models_by_id) != len(member_ids):
+            raise ValueError("projection.version_conflict")
+
+        relation_rows = session.scalars(
+            sa_select(TransactionRelationModel).where(
+                TransactionRelationModel.workspace_id == self._workspace_id,
+                (
+                    TransactionRelationModel.primary_fact_id.in_(member_ids)
+                    | TransactionRelationModel.secondary_fact_id.in_(member_ids)
+                ),
+            )
+        ).all()
+        member_projection_ids = {
+            int(row.cash_transaction_id): int(row.projection_row_id)
+            for row in member_rows
+        }
+        relation_group_projection_ids = {
+            member_projection_ids[int(endpoint)]
+            for row in relation_rows
+            if row.status in {
+                RelationStatus.ACCEPTED.value,
+                RelationStatus.PENDING_REVIEW.value,
+            }
+            for endpoint in (row.primary_fact_id, row.secondary_fact_id)
+            if endpoint is not None and int(endpoint) in member_projection_ids
+        }
+        previous_rows = [
+            self._uow_cashflow_row(model, account)
+            for fact_id in member_ids
+            for model, account in (models_by_id[fact_id],)
+        ]
+        return {
+            "ids": ids,
+            "state": state,
+            "projection_rows": projection_rows,
+            "member_rows": member_rows,
+            "member_ids": member_ids,
+            "models_by_id": models_by_id,
+            "previous_rows": previous_rows,
+            "relation_rows": relation_rows,
+            "projection_count": len(projection_rows),
+            "transaction_count": len(member_ids),
+            "relation_group_count": len(relation_group_projection_ids),
+        }
+
+    @staticmethod
+    def _uow_cashflow_row(model, account) -> dict:
+        """Keep the balance snapshot input independent of a repository UoW."""
+        return RelationalCashflowRepository._to_row(model, account)
+
+    def preview_delete_projections(self, projection_ids, *, projection_version: int) -> dict:
+        """Return the impact of deleting a visible, explicitly selected set."""
+        with self._sessions() as session:
+            targets = self._load_projection_delete_targets(
+                session, projection_ids, projection_version,
+            )
+            return {
+                "projection_count": targets["projection_count"],
+                "transaction_count": targets["transaction_count"],
+                "relation_group_count": targets["relation_group_count"],
+            }
+
+    def delete_projections(
+        self,
+        projection_ids,
+        *,
+        projection_version: int,
+        actor: str = "web",
+    ) -> dict:
+        """Delete selected projections and all of their source facts atomically."""
+        with self._uow as uow:
+            session = uow._state().session
+            targets = self._load_projection_delete_targets(
+                session, projection_ids, projection_version, lock=True,
+            )
+            member_ids = set(targets["member_ids"])
+            relation_rows = uow.relations.list_for_facts(
+                list(member_ids), active_only=False,
+            )
+            relation_ids = sorted({int(row["id"]) for row in relation_rows})
+            if relation_ids:
+                # Derived links must be removed before their source relation
+                # rows; projection rows themselves are removed below.
+                session.execute(sa_delete(CashProjectionRelationModel).where(
+                    CashProjectionRelationModel.workspace_id == self._workspace_id,
+                    CashProjectionRelationModel.transaction_relation_id.in_(relation_ids),
+                ))
+
+            projection_status = CashProjectionService.remove_if_ready_in_session(
+                session, uow.workspace_id, member_ids,
+            )
+            if projection_status is None:
+                raise ValueError("projection.unavailable")
+            if relation_ids:
+                session.execute(sa_delete(TransactionRelationModel).where(
+                    TransactionRelationModel.workspace_id == self._workspace_id,
+                    TransactionRelationModel.id.in_(relation_ids),
+                ))
+            session.execute(sa_delete(CashInvestmentFundingRelationModel).where(
+                CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
+                CashInvestmentFundingRelationModel.cash_transaction_id.in_(member_ids),
+            ))
+            self._snapshot_deltas(uow, [(row, None) for row in targets["previous_rows"]])
+            session.execute(
+                sa_delete(CashTransactionModel)
+                .where(
+                    CashTransactionModel.workspace_id == self._workspace_id,
+                    CashTransactionModel.id.in_(member_ids),
+                )
+                .execution_options(synchronize_session=False)
+            )
+            uow.commit()
+            return {
+                "deleted": True,
+                "projection_count": targets["projection_count"],
+                "transaction_count": targets["transaction_count"],
+                "relation_group_count": targets["relation_group_count"],
+                "deleted_fact_ids": [str(fact_id) for fact_id in sorted(member_ids)],
+                "projection_version": int(projection_status["projection_version"]),
+            }
 
     @staticmethod
     def _record_wire(record: dict | None) -> dict | None:

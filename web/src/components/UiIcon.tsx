@@ -1,4 +1,4 @@
-type IconName = "account" | "arrow-left" | "calendar" | "chevron-down" | "eye" | "layers" | "pencil" | "plus" | "receipt" | "sliders" | "tag" | "x";
+type IconName = "account" | "arrow-left" | "calendar" | "chevron-down" | "eye" | "layers" | "more" | "pencil" | "plus" | "receipt" | "sliders" | "tag" | "x";
 
 type Props = {
   name: IconName;
@@ -13,6 +13,7 @@ export function UiIcon({ name, size = 20 }: Props) {
     "chevron-down": <path d="m6 9 6 6 6-6" />,
     eye: <><path d="M2.06 12.35a1 1 0 0 1 0-.7C3.5 7.58 7.35 5 12 5s8.5 2.58 9.94 6.65a1 1 0 0 1 0 .7C20.5 16.42 16.65 19 12 19s-8.5-2.58-9.94-6.65Z" /><circle cx="12" cy="12" r="3" /></>,
     layers: <><path d="m12 3 9 5-9 5-9-5 9-5Z" /><path d="m3 12 9 5 9-5" /><path d="m3 16 9 5 9-5" /></>,
+    more: <><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></>,
     pencil: <><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></>,
     plus: <><path d="M5 12h14" /><path d="M12 5v14" /></>,
     receipt: <><path d="M5 3h14v18l-3-2-4 2-4-2-3 2V3Z" /><path d="M8 8h8M8 12h8M8 16h4" /></>,
