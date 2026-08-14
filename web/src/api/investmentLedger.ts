@@ -1,4 +1,5 @@
 import type { Account, InvestmentEvidence, InvestmentFilters, InvestmentPage, Portfolio, PortfolioPeriod } from "./types";
+import { authHeaders } from "./access";
 
 function apiOrigin(): string {
   const origin = import.meta.env.VITE_FT_API_ORIGIN;
@@ -16,7 +17,7 @@ function apiOrigin(): string {
 }
 
 async function request<T>(path: string, signal?: AbortSignal, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiOrigin()}${path}`, { credentials: "include", ...init, signal });
+  const response = await fetch(`${apiOrigin()}${path}`, { ...init, headers: authHeaders(init?.headers), signal });
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: { code?: unknown }; code?: unknown } | null;
     const code = payload?.error?.code ?? payload?.code;
@@ -52,6 +53,7 @@ export function fetchInvestmentPortfolio(displayCurrency?: string, period: Portf
 }
 
 type PortfolioStreamPayload = { version: number; portfolio?: Portfolio };
+export type PortfolioStream = { close: () => void };
 
 function portfolioParams(displayCurrency?: string, period: PortfolioPeriod = "24h", phase?: "holdings" | "valuation") {
   const query = paramsFor({}, null, displayCurrency);
@@ -65,18 +67,61 @@ export function openInvestmentPortfolioStream(
   displayCurrency: string | undefined,
   period: PortfolioPeriod,
   handlers: { onPortfolio: (portfolio: Portfolio) => void; onRefreshError: () => void },
-): EventSource {
-  const source = new EventSource(`${apiOrigin()}/api/v1/investment-portfolio/stream?${portfolioParams(displayCurrency, period)}`, { withCredentials: true });
-  source.addEventListener("portfolio", (event) => {
-    try {
-      const payload = JSON.parse((event as MessageEvent<string>).data) as PortfolioStreamPayload;
-      if (payload.portfolio) handlers.onPortfolio(payload.portfolio);
-    } catch (_error) {
-      handlers.onRefreshError();
+): PortfolioStream {
+  const controller = new AbortController();
+  let closed = false;
+  const connection: PortfolioStream = {
+    close() {
+      closed = true;
+      controller.abort();
+    },
+  };
+
+  const consume = async (response: Response) => {
+    if (!response.ok || !response.body) {
+      if (!closed) handlers.onRefreshError();
+      return;
     }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const handleFrame = (frame: string) => {
+      let event = "message";
+      const data: string[] = [];
+      for (const line of frame.split(/\r?\n/)) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
+      }
+      if (event === "refresh_error") {
+        handlers.onRefreshError();
+        return;
+      }
+      if (event !== "portfolio" || data.length === 0) return;
+      try {
+        const payload = JSON.parse(data.join("\n")) as PortfolioStreamPayload;
+        if (payload.portfolio) handlers.onPortfolio(payload.portfolio);
+      } catch (_error) {
+        handlers.onRefreshError();
+      }
+    };
+    while (!closed) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const frames = buffer.split(/\r?\n\r?\n/);
+      buffer = frames.pop() ?? "";
+      frames.forEach(handleFrame);
+    }
+    if (!closed && buffer.trim()) handleFrame(buffer);
+  };
+
+  void fetch(`${apiOrigin()}/api/v1/investment-portfolio/stream?${portfolioParams(displayCurrency, period)}`, {
+    headers: authHeaders({ Accept: "text/event-stream" }),
+    signal: controller.signal,
+  }).then(consume).catch((error: unknown) => {
+    if (!closed && !(error instanceof DOMException && error.name === "AbortError")) handlers.onRefreshError();
   });
-  source.addEventListener("refresh_error", handlers.onRefreshError);
-  return source;
+  return connection;
 }
 
 export function requestInvestmentPortfolioRefresh(displayCurrency?: string, period: PortfolioPeriod = "24h"): Promise<void> {

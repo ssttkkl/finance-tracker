@@ -6,12 +6,17 @@
 
 ### Requirement: 用户使用邮箱和密码建立受保护会话
 
-系统 MUST 支持使用规范化邮箱地址和密码注册、登录与登出。密码 MUST 以强单向哈希保存；浏览器会话 MUST 使用 `HttpOnly`、`Secure`、`SameSite` Cookie，服务端仅保存会话摘要。错误响应不得泄露账户是否存在或任何密码内容。
+系统 MUST 支持使用规范化邮箱地址和密码注册、登录与登出。密码 MUST 以强单向哈希保存；登录和注册响应 MUST 返回一次性随机会话令牌，后续浏览器请求 MUST 使用 `Authorization: Bearer <token>` 携带该令牌，服务端仅保存会话摘要。浏览器 MUST 将令牌持久化到 `localStorage`，显式退出时清除本地令牌并撤销服务端会话。认证不得依赖 Cookie。错误响应不得泄露账户是否存在或任何密码内容。
 
 #### Scenario: 注册并登录
 
 - **WHEN** 使用者提交此前未注册的有效邮箱和符合密码规则的密码
 - **THEN** 系统 MUST 创建用户和受保护会话，并返回该用户可访问的工作区信息
+
+#### Scenario: 跨来源浏览器继续使用会话
+
+- **WHEN** 前端和 API 位于不同的 HTTPS origin，浏览器刷新页面或重新打开页面后请求会话和工作区接口
+- **THEN** 前端 MUST 从 `localStorage` 读取会话令牌并通过 `Authorization` 请求头发送，系统不得要求跨来源 Cookie
 
 #### Scenario: 无效登录
 
