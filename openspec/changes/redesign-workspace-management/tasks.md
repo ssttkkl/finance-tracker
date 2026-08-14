@@ -11,6 +11,7 @@
 - [x] 创建 `proposal.md`、`design.md` 和独立原型。
 - [x] 用户确认原型后进入正式页面实施。
 - [x] 确认后的原型路径、状态和文案预算回写设计记录。
+- [x] 用户确认纵向板块设计后，更新原型的信息架构与可见板块标题。
 
 ## 3. 任务拆分与一致性
 
@@ -30,7 +31,7 @@
 - [x] 对最终 `/workspace-management` UI 运行 Hallmark `audit`。
 - [x] 记录 finding、采纳/拒绝理由和回写位置。
 
-  - 范围复核：页面保持为与两本账本同级的一级路由，标题固定为“工作区管理”，名称与固定 ID 分离，桌面端成员/邀请横向展开；新增删除仅限当前管理员、精确名称确认和删除后切换，不改变角色语义。
+  - 范围复核：页面保持为与两本账本同级的一级路由，标题固定为“工作区管理”，名称与固定 ID 分离，四个功能板块按从上到下排列；新增删除仅限当前管理员、精确名称确认和删除后切换，不改变角色语义。
   - 工程复核：发现并修复邀请接口此前在不可达代码后返回 `null` 的缺陷；补充了登录态成员只读回归，并确认工作区名称更新、成员操作、邀请和管理员删除仍沿用现有权限边界。
   - Hallmark audit：按 `.agents/skills/hallmark/references/verbs/audit.md` 对 `web/src/AccessApp.tsx`、`web/src/App.tsx`、`web/src/styles.css` 和最终 1440/390 截图执行只读审查。页面匹配现有 `Workbench / Ledger Grid` stamp，未发现 AI 模板结构、设计系统漂移、实现术语、重复教学文案或无效卡片；0 critical、0 major、0 minor。审查结论回写于本节和 `design.md` 的 Hallmark 小节。
 
@@ -92,3 +93,36 @@
 - 删除性能门禁：固定夹具为 1,000 个活动会话、1,000 条现金流水和 50 个账户，1 次预热、5 次采样，p95 预算 1,000 ms；本机 macOS 26.2 arm64 观测 SQLite p95 约 19.7 ms、PostgreSQL p95 约 25.5 ms，均通过索引存在性、集合更新、级联删除和替代工作区切换断言。
 - 双后端契约：上述环境下 `FT_TEST_POSTGRES_URL='postgresql+psycopg://huangwenlong@127.0.0.1:55433/finance_tracker_test' uv run pytest tests/test_user_workspace_access.py -q` → 18 passed、1 warning；同一环境运行 `tests/test_user_workspace_access_performance.py -q -s` → SQLite/PostgreSQL 各 1 passed；同一环境运行 `tests/test_user_workspace_delete_performance.py -q -s -k postgresql` → 2 passed、2 deselected、1 warning。SQLite 删除性能场景也已单独通过。
 - 余留风险：`ruff` 仍因当前环境没有可执行文件未运行；本地 PostgreSQL 性能结果仅作为固定硬件上的门禁证据，不替代生产容量压测。提交、推送、归档和部署仍未授权。
+
+## 11. 工作区管理纵向板块原型
+
+- [x] 11.1 将工作区信息、成员、邀请成员和删除工作区改为固定的纵向顺序。
+- [x] 11.2 为每个板块补充可见标题、统一上边界线和一致间距；移除成员/邀请左右分栏及邀请左侧竖线；删除区按钮改为标题下方的描边操作。
+- [x] 11.3 使用真实 Chromium 完成 320/375/390/414/768/1440 px 检查并保存 1440 px、390 px 原型截图。
+- [x] 11.4 用户确认原型后，实施生产页面并补跑受影响测试、Hallmark audit 和最终浏览器 QA。
+
+### 11.1–11.3 验证证据
+
+- 原型路径：`openspec/changes/redesign-workspace-management/prototype/index.html`；板块 DOM 顺序为“工作区信息 → 成员 → 邀请成员 → 删除工作区”，每段均有可见标题、上边界线和统一间距。
+- 真实 Chromium：1440/390 px 的 `document.documentElement.scrollWidth` 分别为 1440/390；320、375、414、768 px 的 scrollWidth 也分别等于视口宽度，均无横向溢出。截图为 `/tmp/workspace-management-prototype-1440.png`、`/tmp/workspace-management-prototype-390.png`，删除确认截图为 `/tmp/workspace-management-prototype-delete-confirm-390.png`。
+- 设计修正：删除区在 1440/390 px 均验证为标题下方 16 px 放置描边按钮，不再采用标题右侧对齐；标题与按钮之间没有空白占位。
+- 原型状态：`?state=loading` 显示加载状态并隐藏管理板块；`?state=empty` 显示空成员；`?state=error` 显示保存错误；`?mode=viewer` 禁用写操作并隐藏删除区；创建邀请显示成功结果；点击删除入口后确认层可见且输入框自动获得焦点。控制台无错误。
+- 生产实现：`web/src/AccessApp.tsx` 将四个板块改为直接纵向 section，`web/src/styles.css` 仅保留工作区信息内部桌面双列，删除区标题下方紧跟描边按钮；成员、邀请、删除确认和权限逻辑未改变。
+
+## 12. 最终验证与交付
+
+- [x] 12.1 在最新 `refactor/web` 基线上重跑前端全量、构建、工作区 E2E 和 SQLite/PostgreSQL 工作区矩阵。
+- [x] 12.2 对最终生产 UI 运行 Hallmark `audit`，确认没有 critical、major 或 minor finding。
+- [x] 12.3 完成范围、工程、可访问性、响应式和最终 diff 复核，创建 PR 并等待合入。
+
+### 12.1–12.3 验证证据
+
+- 基线/HEAD：`origin/refactor/web`=`cd3842b6658e38213716f639790ce42741d96aa3`，本轮复核整改提交=`d25f61fa3fadbbfb63ffe635ee09ebd9012858c7`；PR 为 [#53](https://github.com/ssttkkl/finance-tracker/pull/53)，目标 `refactor/web`。
+- 前端：`npm test -- --run` → 10 个测试文件、104 passed；`VITE_FT_API_ORIGIN=http://127.0.0.1:8000 npm run build` → 通过。
+- 浏览器：`FT_E2E_WEB_PORT=5184 npm run test:e2e -- workspace-navigation.e2e.ts` → 2 passed；真实 Chromium 检查 320、375、390、414、768、1440 px，无横向滚动；1440 px 正常截图为 `/tmp/workspace-management-delete-desktop.png`，390 px 正常截图为 `/tmp/workspace-management-layout-mobile.png`，390 px 删除确认截图为 `/tmp/workspace-management-delete-mobile.png`；控制台无错误。
+- SQLite：`env -u FT_TEST_POSTGRES_URL uv run pytest -q` → 1410 passed、175 skipped、1 warning；最新基线上的工作区契约/性能 → 21 passed、4 skipped、1 warning。
+- PostgreSQL：`finance_tracker_test` 由本机 `psql -h 127.0.0.1 -p 55433` 验证可连接；最新基线上的工作区契约/性能 → 25 passed、1 warning；此前包含迁移矩阵的完整工作区组合 → 41 passed、1 warning。
+- OpenSpec 与格式：`openspec validate --all --strict` → 24 passed、0 failed；`git diff --check` → 通过。
+- Hallmark `audit`：复核 `web/src/AccessApp.tsx`、`web/src/styles.css`、最终 1440/390 截图和确认弹层；板块顺序、标题层级、危险操作位置、768px 单列、焦点可见性和现有 Cobalt token 一致，结果为 0 critical、0 major、0 minor。
+- 独立复核与处理：旧复核使用了 rebase 前的错误比较范围，并据此提出现金账户映射回归；用当前基线 `git diff cd3842b6658e38213716f639790ce42741d96aa3..d25f61fa3fadbbfb63ffe635ee09ebd9012858c7` 复核后，PR 仅包含工作区管理 UI、原型、测试和 OpenSpec 记录，不含账户映射、API 或数据库文件，拒绝该 finding。采纳并修复两项重要 finding：在 `max-width:1023px` 堆叠工作区信息字段；为删除确认层增加 Tab 焦点循环、Escape/取消关闭和触发按钮焦点恢复。采纳次要 finding，删除旧 `.workspace-management-grid` 及重复覆盖样式。整改后 Vitest 与真实 Chromium QA 均通过。
+- 未运行项：无自动 GitHub checks；本次不部署、不归档 OpenSpec change，待 PR 合入后再按仓库发布流程处理。
