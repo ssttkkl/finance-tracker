@@ -13,12 +13,50 @@ def _app(runtime):
     return TestClient(create_app(service, mutation_service=service, access_service=AccessService(runtime.sessions)), base_url="https://testserver")
 
 
+def _register(client: TestClient, email: str) -> object:
+    response = client.post("/api/v1/auth/register", json={
+        "email": email, "password": "a secure password",
+    })
+    if response.status_code == 200:
+        client.headers.update({"Authorization": f"Bearer {response.json()['access_token']}"})
+    return response
+
+
+def test_register_returns_bearer_token_without_setting_a_cookie(cash_web_runtime):
+    client = _app(cash_web_runtime)
+
+    response = client.post("/api/v1/auth/register", json={
+        "email": "bearer@example.com", "password": "a secure password",
+    })
+
+    assert response.status_code == 200
+    assert response.json()["access_token"]
+    assert "set-cookie" not in response.headers
+    token = response.json()["access_token"]
+    assert client.get("/api/v1/auth/session", headers={"Authorization": f"Bearer {token}"}).status_code == 200
+    assert client.get("/api/v1/auth/session").status_code == 401
+
+
+def test_bearer_token_is_revoked_by_logout(cash_web_runtime):
+    client = _app(cash_web_runtime)
+    token = client.post("/api/v1/auth/register", json={
+        "email": "logout-bearer@example.com", "password": "a secure password",
+    }).json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    assert client.post("/api/v1/auth/logout", headers=headers).json() == {"ok": True}
+    response = client.get("/api/v1/auth/session", headers=headers)
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "authentication_required"
+
+
 def test_bootstrap_admin_registration_owns_existing_default_workspace(cash_web_runtime):
     from ft.adapters.relational.models import WorkspaceModel
     with cash_web_runtime.sessions.begin() as session:
         session.add(WorkspaceModel(id="default", name="default"))
     client = _app(cash_web_runtime)
-    response = client.post("/api/v1/auth/register", json={"email": "admin@ssttkkl.fun", "password": "a secure password"})
+    response = _register(client, "admin@ssttkkl.fun")
     assert response.status_code == 200
     assert response.json()["active_workspace_id"] == "default"
     assert response.json()["workspaces"] == [{"id": "default", "name": "default", "role": "admin"}]
@@ -26,7 +64,7 @@ def test_bootstrap_admin_registration_owns_existing_default_workspace(cash_web_r
 
 def test_unrelated_registration_does_not_receive_default_workspace(cash_web_runtime):
     client = _app(cash_web_runtime)
-    response = client.post("/api/v1/auth/register", json={"email": "member@example.com", "password": "a secure password"})
+    response = _register(client, "member@example.com")
     assert response.status_code == 200
     assert response.json()["workspaces"] == []
 
@@ -36,11 +74,11 @@ def test_admin_invites_viewer_once_and_viewer_cannot_write(cash_web_runtime):
     with cash_web_runtime.sessions.begin() as session:
         session.add(WorkspaceModel(id="default", name="default"))
     admin = _app(cash_web_runtime)
-    assert admin.post("/api/v1/auth/register", json={"email": "admin@ssttkkl.fun", "password": "a secure password"}).status_code == 200
+    assert _register(admin, "admin@ssttkkl.fun").status_code == 200
     invitation = admin.post("/api/v1/auth/invitations", json={"role": "viewer"})
     assert invitation.status_code == 200
     viewer = _app(cash_web_runtime)
-    assert viewer.post("/api/v1/auth/register", json={"email": "member@example.com", "password": "a secure password"}).status_code == 200
+    assert _register(viewer, "member@example.com").status_code == 200
     assert viewer.post(f"/api/v1/auth/invitations/{invitation.json()['token']}/accept").status_code == 200
     assert viewer.get("/api/v1/accounts?view=cash").status_code != 401
     assert viewer.post("/api/v1/cash-records", json={}).status_code == 403
@@ -60,9 +98,7 @@ def test_invitation_preview_shows_the_workspace_and_frozen_role(cash_web_runtime
     with cash_web_runtime.sessions.begin() as session:
         session.add(WorkspaceModel(id="default", name="共享账本"))
     admin = _app(cash_web_runtime)
-    assert admin.post("/api/v1/auth/register", json={
-        "email": "admin@ssttkkl.fun", "password": "a secure password",
-    }).status_code == 200
+    assert _register(admin, "admin@ssttkkl.fun").status_code == 200
     invitation = admin.post("/api/v1/auth/invitations", json={"role": "viewer"})
 
     response = admin.get(f"/api/v1/auth/invitations/{invitation.json()['token']}")
@@ -102,13 +138,23 @@ def test_web_api_allows_a_single_https_frontend_origin(cash_web_runtime):
     response = client.options("/api/v1/auth/session", headers={
         "Origin": "https://finance-web.onrender.com",
         "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "authorization",
     })
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "https://finance-web.onrender.com"
-    assert response.headers["access-control-allow-credentials"] == "true"
+    assert "access-control-allow-credentials" not in response.headers
+    assert "authorization" in response.headers["access-control-allow-headers"].lower()
+
+    protected_preflight = client.options("/api/v1/accounts?view=cash", headers={
+        "Origin": "https://finance-web.onrender.com",
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "authorization",
+    })
+    assert protected_preflight.status_code == 200
+    assert protected_preflight.headers["access-control-allow-origin"] == "https://finance-web.onrender.com"
 
 
-def test_local_http_cookie_is_not_marked_secure(cash_web_runtime):
+def test_bearer_auth_does_not_set_a_cookie_on_local_http(cash_web_runtime):
     from ft.application.access import AccessService
     from ft.web.app import WorkspaceServices, create_app
     from contextvars import ContextVar
@@ -120,15 +166,12 @@ def test_local_http_cookie_is_not_marked_secure(cash_web_runtime):
         mutation_service=service,
         access_service=AccessService(cash_web_runtime.sessions),
         workspace_context=workspace,
-        cookie_secure=False,
     ))
 
-    response = client.post("/api/v1/auth/register", json={
-        "email": "member@example.com", "password": "a secure password",
-    })
+    response = client.post("/api/v1/auth/register", json={"email": "member@example.com", "password": "a secure password"})
 
     assert response.status_code == 200
-    assert "Secure" not in response.headers["set-cookie"]
+    assert "set-cookie" not in response.headers
 
 
 def test_last_admin_cannot_be_demoted_or_removed(cash_web_runtime):
@@ -137,9 +180,7 @@ def test_last_admin_cannot_be_demoted_or_removed(cash_web_runtime):
     with cash_web_runtime.sessions.begin() as session:
         session.add(WorkspaceModel(id="default", name="default"))
     client = _app(cash_web_runtime)
-    assert client.post("/api/v1/auth/register", json={
-        "email": "admin@ssttkkl.fun", "password": "a secure password",
-    }).status_code == 200
+    assert _register(client, "admin@ssttkkl.fun").status_code == 200
     member_id = client.get("/api/v1/auth/members").json()["members"][0]["user_id"]
 
     demote = client.put(f"/api/v1/auth/members/{member_id}", json={"role": "editor"})
@@ -157,14 +198,10 @@ def test_non_admin_can_view_workspace_members_but_cannot_manage_them(cash_web_ru
     with cash_web_runtime.sessions.begin() as session:
         session.add(WorkspaceModel(id="default", name="default"))
     admin = _app(cash_web_runtime)
-    assert admin.post("/api/v1/auth/register", json={
-        "email": "admin@ssttkkl.fun", "password": "a secure password",
-    }).status_code == 200
+    assert _register(admin, "admin@ssttkkl.fun").status_code == 200
     invite = admin.post("/api/v1/auth/invitations", json={"role": "editor"}).json()["token"]
     editor = _app(cash_web_runtime)
-    assert editor.post("/api/v1/auth/register", json={
-        "email": "editor@example.com", "password": "a secure password",
-    }).status_code == 200
+    assert _register(editor, "editor@example.com").status_code == 200
     assert editor.post(f"/api/v1/auth/invitations/{invite}/accept").status_code == 200
 
     response = editor.get("/api/v1/auth/members")
@@ -203,9 +240,7 @@ def test_authenticated_workspace_exposes_investment_accounts_events_and_holdings
         access_service=AccessService(cash_web_runtime.sessions),
         workspace_context=workspace,
     ), base_url="https://testserver")
-    assert client.post("/api/v1/auth/register", json={
-        "email": "investor@example.com", "password": "a secure password",
-    }).status_code == 200
+    assert _register(client, "investor@example.com").status_code == 200
     with cash_web_runtime.sessions.begin() as session:
         user = session.scalar(select(UserModel).where(UserModel.email == "investor@example.com"))
         session.add(WorkspaceMembershipModel(

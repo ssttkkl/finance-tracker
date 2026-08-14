@@ -1,4 +1,5 @@
 import type { Account, CashCategory, CashCategoryDirectory, CashFilters, CashPage, CashRecordDetail, CashRecordPage, Evidence, ImportCommitResult, ImportDetection, ImportPreview, LedgerOptions } from "./types";
+import { authHeaders } from "./access";
 
 function apiOrigin(): string {
   const origin = import.meta.env.VITE_FT_API_ORIGIN;
@@ -16,7 +17,7 @@ function apiOrigin(): string {
 }
 
 async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`${apiOrigin()}${path}`, { credentials: "include", signal });
+  const response = await fetch(`${apiOrigin()}${path}`, { headers: authHeaders(), signal });
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: { code?: unknown }; code?: unknown } | null;
     const code = payload?.error?.code ?? payload?.code;
@@ -28,9 +29,8 @@ async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
 async function write<T>(path: string, method: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${apiOrigin()}${path}`, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
-    credentials: "include",
     signal,
   });
   if (!response.ok) {
@@ -154,10 +154,10 @@ async function importRequest<T>(path: string, file: File, values: { source?: str
   if (values.previewDigest) params.set("preview_digest", values.previewDigest);
   if (values.previewChannel) params.set("preview_channel", values.previewChannel);
   if (values.relations) params.set("relations", values.relations);
-  const headers: Record<string, string> = { "Content-Type": "application/octet-stream" };
-  if (values.password) headers["X-FT-Statement-Password"] = values.password;
+  const headers = authHeaders({ "Content-Type": "application/octet-stream" });
+  if (values.password) headers.set("X-FT-Statement-Password", values.password);
   const response = await fetch(`${apiOrigin()}${path}?${params.toString()}`, {
-    method: "POST", headers, body: file, credentials: "include",
+    method: "POST", headers, body: file,
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: { code?: unknown } } | null;

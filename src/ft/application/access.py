@@ -15,8 +15,18 @@ from ft.adapters.relational.models import (
 )
 
 BOOTSTRAP_ADMIN_EMAIL = "admin@ssttkkl.fun"
-SESSION_COOKIE = "ft_session"
 _PASSWORDS = PasswordHasher()
+
+
+def bearer_token(authorization: str | None) -> str | None:
+    """Return a well-formed Bearer token without accepting other schemes."""
+    if not authorization:
+        return None
+    scheme, separator, value = authorization.partition(" ")
+    token = value.strip()
+    if separator != " " or scheme.lower() != "bearer" or not token or " " in token:
+        return None
+    return token
 
 
 class AccessError(ValueError):

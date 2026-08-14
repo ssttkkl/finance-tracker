@@ -78,6 +78,20 @@ def _sample(callable_):
     return elapsed, response
 
 
+def _register(client: TestClient, email: str, password: str):
+    response = client.post("/api/v1/auth/register", json={"email": email, "password": password})
+    if response.status_code == 200:
+        client.headers.update({"Authorization": f"Bearer {response.json()['access_token']}"})
+    return response
+
+
+def _login(client: TestClient, email: str, password: str):
+    response = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    if response.status_code == 200:
+        client.headers.update({"Authorization": f"Bearer {response.json()['access_token']}"})
+    return response
+
+
 def _report(backend: str, samples: dict[str, list[int]]) -> dict[str, int]:
     p95 = {operation: _p95(values) for operation, values in samples.items()}
     print({
@@ -103,7 +117,7 @@ def test_user_workspace_access_http_operations_meet_p95_budgets(access_performan
     for sample in range(WARMUPS + SAMPLES):
         email = f"admin-{sample}@performance.invalid"
         password = "performance password"
-        elapsed, response = _sample(lambda: client.post("/api/v1/auth/register", json={"email": email, "password": password}))
+        elapsed, response = _sample(lambda: _register(client, email, password))
         if sample >= WARMUPS:
             samples["register"].append(elapsed)
         elapsed, workspace_response = _sample(lambda: client.post("/api/v1/auth/workspaces", json={"name": f"性能工作区 {sample}"}))
@@ -129,7 +143,7 @@ def test_user_workspace_access_http_operations_meet_p95_budgets(access_performan
 
         member = TestClient(client.app, base_url="https://testserver")
         member_email = f"member-{sample}@performance.invalid"
-        assert member.post("/api/v1/auth/register", json={"email": member_email, "password": password}).status_code == 200
+        assert _register(member, member_email, password).status_code == 200
         elapsed, _ = _sample(lambda: member.post(f"/api/v1/auth/invitations/{invitation_token}/accept"))
         if sample >= WARMUPS:
             samples["accept_invitation"].append(elapsed)
@@ -146,7 +160,8 @@ def test_user_workspace_access_http_operations_meet_p95_budgets(access_performan
             samples["remove_member"].append(elapsed)
 
         client.post("/api/v1/auth/logout")
-        elapsed, _ = _sample(lambda: client.post("/api/v1/auth/login", json={"email": email, "password": password}))
+        client.headers.pop("Authorization", None)
+        elapsed, _ = _sample(lambda: _login(client, email, password))
         if sample >= WARMUPS:
             samples["login"].append(elapsed)
 
