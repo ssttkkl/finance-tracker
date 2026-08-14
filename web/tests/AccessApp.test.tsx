@@ -106,7 +106,7 @@ describe("AccessApp", () => {
     expect(switcher).toHaveValue("workspace-1");
   });
 
-  it("管理员在一级工作区管理页面完成名称、成员和邀请操作", async () => {
+  it("管理员在一级工作区管理页面按顺序完成名称、成员和邀请操作", async () => {
     const fetch = vi.fn((input: string, init?: RequestInit) => {
       if (input.includes("/auth/session")) return json(adminSession);
       if (input.includes("/auth/workspace") && init?.method === "PUT") return json(adminSession);
@@ -132,6 +132,13 @@ describe("AccessApp", () => {
     expect(screen.queryByRole("link", { name: "返回账本" })).not.toBeInTheDocument();
     expect(screen.queryByText("管理工作区信息、成员和邀请。")).not.toBeInTheDocument();
     expect(screen.getByText("固定 ID")).toBeInTheDocument();
+    const main = document.querySelector("main.workspace-management-page");
+    if (!main) throw new Error("工作区管理页面未渲染");
+    expect([...main.querySelectorAll(":scope > section h2")].map(node => node.textContent)).toEqual([
+      "工作区信息", "成员", "邀请成员", "删除工作区",
+    ]);
+    const dangerSection = main.querySelector('[aria-labelledby="workspace-delete-title"]');
+    expect([...dangerSection!.querySelectorAll(":scope > h2, :scope > button")].map(node => node.tagName)).toEqual(["H2", "BUTTON"]);
 
     fireEvent.click(within(navigation).getByRole("link", { name: "收支账本" }));
     expect(await screen.findByRole("heading", { name: "收支账本" })).toBeInTheDocument();
@@ -201,11 +208,23 @@ describe("AccessApp", () => {
     fireEvent.click(screen.getByRole("button", { name: "删除工作区" }));
     const dialog = screen.getByRole("alertdialog", { name: "删除工作区？" });
     expect(dialog).toBeInTheDocument();
-    const confirm = within(dialog).getByRole("button", { name: /^删除工作区$/ });
+    const deleteInput = within(dialog).getByRole("textbox", { name: "输入工作区名称" });
+    const cancel = within(dialog).getByRole("button", { name: "取消" });
+    expect(deleteInput).toHaveFocus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(cancel).toHaveFocus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(deleteInput).toHaveFocus();
+    fireEvent.click(cancel);
+    expect(screen.getByRole("button", { name: "删除工作区" })).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "删除工作区" }));
+    const reopenedDialog = screen.getByRole("alertdialog", { name: "删除工作区？" });
+    const confirm = within(reopenedDialog).getByRole("button", { name: /^删除工作区$/ });
     expect(confirm).toBeDisabled();
-    fireEvent.change(within(dialog).getByRole("textbox", { name: "输入工作区名称" }), { target: { value: "家庭账本 " } });
+    const reopenedInput = within(reopenedDialog).getByRole("textbox", { name: "输入工作区名称" });
+    fireEvent.change(reopenedInput, { target: { value: "家庭账本 " } });
     expect(confirm).toBeDisabled();
-    fireEvent.change(within(dialog).getByRole("textbox", { name: "输入工作区名称" }), { target: { value: "家庭账本" } });
+    fireEvent.change(reopenedInput, { target: { value: "家庭账本" } });
     expect(confirm).not.toBeDisabled();
     fireEvent.click(confirm);
 
