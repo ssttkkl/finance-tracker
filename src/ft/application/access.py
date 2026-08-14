@@ -129,6 +129,11 @@ class AccessService:
             workspace_id = self._active_membership(db, user.id, login, {"admin"}).workspace_id
             user_id = user.id
         finally: db.close()
+        if role not in {"editor", "viewer"}: raise AccessError("invalid_role")
+        raw = token_urlsafe(32)
+        with self._sessions.begin() as session:
+            session.add(WorkspaceInvitationModel(workspace_id=workspace_id, role=role, token_digest=_digest(raw), expires_at=_now()+timedelta(days=7), created_by_user_id=user_id))
+        return {"token": raw, "role": role, "expires_in_days": 7}
 
     def update_workspace(self, token: str | None, name: str) -> dict:
         name = name.strip()
@@ -144,11 +149,6 @@ class AccessService:
                 raise PermissionDenied("workspace_forbidden")
             workspace.name = name
         return self.state(token)
-        if role not in {"editor", "viewer"}: raise AccessError("invalid_role")
-        raw = token_urlsafe(32)
-        with self._sessions.begin() as session:
-            session.add(WorkspaceInvitationModel(workspace_id=workspace_id, role=role, token_digest=_digest(raw), expires_at=_now()+timedelta(days=7), created_by_user_id=user_id))
-        return {"token": raw, "role": role, "expires_in_days": 7}
 
     def accept_invitation(self, token: str | None, invitation_token: str) -> dict:
         db, user, _ = self._session(token)

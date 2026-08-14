@@ -151,7 +151,7 @@ def test_last_admin_cannot_be_demoted_or_removed(cash_web_runtime):
     assert remove.json()["error"]["code"] == "last_admin"
 
 
-def test_non_admin_cannot_manage_workspace_members(cash_web_runtime):
+def test_non_admin_can_view_workspace_members_but_cannot_manage_them(cash_web_runtime):
     from ft.adapters.relational.models import WorkspaceModel
 
     with cash_web_runtime.sessions.begin() as session:
@@ -169,8 +169,11 @@ def test_non_admin_cannot_manage_workspace_members(cash_web_runtime):
 
     response = editor.get("/api/v1/auth/members")
 
-    assert response.status_code == 403
-    assert response.json()["error"]["code"] == "workspace_forbidden"
+    assert response.status_code == 200
+    assert response.json()["workspace"] == {"id": "default", "name": "default"}
+    assert response.json()["members"][1]["role"] == "editor"
+    assert editor.put("/api/v1/auth/members/1", json={"role": "viewer"}).status_code == 403
+    assert editor.post("/api/v1/auth/invitations", json={"role": "viewer"}).status_code == 403
 
 
 def test_authenticated_workspace_exposes_investment_accounts_events_and_holdings(cash_web_runtime):

@@ -20,7 +20,7 @@ const InvestmentLedgerPage = lazy(async () => {
   return { default: module.InvestmentLedgerPage };
 });
 
-export function App({ sidebarFooter, mobileAccount, workspacePage, onWorkspaceManagement, workspaceManagementActive = false }: { sidebarFooter?: ReactNode; mobileAccount?: ReactNode; workspacePage?: ReactNode; onWorkspaceManagement?: () => void; workspaceManagementActive?: boolean } = {}) {
+export function App({ sidebarFooter, mobileAccount, workspacePage, onWorkspaceManagement, onLedgerNavigation, workspaceManagementActive = false }: { sidebarFooter?: ReactNode; mobileAccount?: ReactNode; workspacePage?: ReactNode; onWorkspaceManagement?: () => void; onLedgerNavigation?: () => void; workspaceManagementActive?: boolean } = {}) {
   const [path, setPath] = useState(() => normalizeRoute(window.location.pathname, window.location.hash));
   const [modalOpen, setModalOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -43,10 +43,10 @@ export function App({ sidebarFooter, mobileAccount, workspacePage, onWorkspaceMa
     setMobileNavOpen(false);
     requestAnimationFrame(() => mobileNavToggle.current?.focus());
   };
-  const isInvestmentEvents = path === "/investment-events";
-  const isInvestment = isInvestmentEvents || path === "/investment-holdings";
-  const isCashCategory = !isInvestment && path === "/cash-categories";
-  const isCashLedger = !isInvestment && !isCashCategory;
+  const isInvestmentEvents = !workspaceManagementActive && path === "/investment-events";
+  const isInvestment = !workspaceManagementActive && (isInvestmentEvents || path === "/investment-holdings");
+  const isCashCategory = !workspaceManagementActive && !isInvestment && path === "/cash-categories";
+  const isCashLedger = !workspaceManagementActive && !isInvestment && !isCashCategory;
   const isInvestmentHoldings = isInvestment && !isInvestmentEvents;
 
   if (path === "/cash-import") return <CashImportPage onBack={() => navigate("/")} onDone={() => undefined} />;
@@ -60,8 +60,8 @@ export function App({ sidebarFooter, mobileAccount, workspacePage, onWorkspaceMa
           <div className="mobile-account">{mobileAccount}</div>
         </div>
         <nav id="primary-navigation" aria-label="主要导航" onClick={closeMobileNav}>
-          <div className="nav-group"><a className="nav-parent" aria-current={isCashLedger ? "page" : undefined} href="/" onClick={(event) => { event.preventDefault(); navigate("/"); }}>收支账本</a><div className="nav-subnav" aria-label="收支账本页面"><a className="subnav-link" aria-current={isCashCategory ? "page" : undefined} href="/cash-categories" onClick={(event) => { event.preventDefault(); navigate("/cash-categories"); }}>分类管理</a></div></div>
-          <div className="nav-group"><a className="nav-parent" aria-current={isInvestmentHoldings ? "page" : undefined} href="/investment-holdings" onClick={(event) => { event.preventDefault(); navigate("/investment-holdings"); }}>投资账本</a><div className="nav-subnav" aria-label="投资账本页面"><a className="subnav-link" href="/investment-holdings" onClick={(event) => { event.preventDefault(); navigate("/investment-holdings"); }}>当前持仓</a><a className="subnav-link" aria-current={isInvestmentEvents ? "page" : undefined} href="/investment-events" onClick={(event) => { event.preventDefault(); navigate("/investment-events"); }}>投资事件</a></div></div>
+          <div className="nav-group"><a className="nav-parent" aria-current={isCashLedger ? "page" : undefined} href="/" onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/"); }}>收支账本</a><div className="nav-subnav" aria-label="收支账本页面"><a className="subnav-link" aria-current={isCashCategory ? "page" : undefined} href="/cash-categories" onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/cash-categories"); }}>分类管理</a></div></div>
+          <div className="nav-group"><a className="nav-parent" aria-current={isInvestmentHoldings ? "page" : undefined} href="/investment-holdings" onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/investment-holdings"); }}>投资账本</a><div className="nav-subnav" aria-label="投资账本页面"><a className="subnav-link" href="/investment-holdings" onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/investment-holdings"); }}>当前持仓</a><a className="subnav-link" aria-current={isInvestmentEvents ? "page" : undefined} href="/investment-events" onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/investment-events"); }}>投资事件</a></div></div>
           {onWorkspaceManagement && <a className="nav-parent" aria-current={workspaceManagementActive ? "page" : undefined} href="/workspace-management" onClick={(event) => { event.preventDefault(); onWorkspaceManagement(); }}>工作区管理</a>}
         </nav>
         {sidebarFooter}

@@ -3,18 +3,21 @@ import { App } from "./App";
 import * as access from "./api/access";
 import type { InvitationPreview, Member, Role, Session } from "./api/access";
 
-function Icon({ name }: { name: "arrow-left" | "link" | "logout" | "plus" | "users" }) {
+function Icon({ name }: { name: "arrow-left" | "copy" | "link" | "logout" | "plus" | "save" | "trash" | "users" }) {
   const paths = {
     "arrow-left": <path d="m14 6-6 6 6 6M8 12h10" />,
+    copy: <><rect x="9" y="9" width="10" height="10" rx="1" /><path d="M15 9V5H5v10h4" /></>,
     link: <><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" /><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1" /></>,
     logout: <><path d="M10 5H5v14h5" /><path d="m14 8 4 4-4 4M18 12H9" /></>,
     plus: <path d="M12 5v14M5 12h14" />,
+    save: <><path d="M5 4h11l3 3v13H5z" /><path d="M8 4v6h8V4M8 20v-5h8v5" /></>,
+    trash: <><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></>,
     users: <><path d="M16 20v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1" /><circle cx="9" cy="7" r="4" /><path d="M22 20v-1a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" /></>,
   }[name];
   return <svg className="access-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths}</svg>;
 }
 
-function BackButton({ onClick, label = "返回账本" }: { onClick: () => void; label?: string }) {
+function BackButton({ onClick, label = "返回" }: { onClick: () => void; label?: string }) {
   return <button type="button" className="access-back" onClick={onClick}><Icon name="arrow-left" />{label}</button>;
 }
 
@@ -43,27 +46,93 @@ function Create({ onSession, onBack }: { onSession: (value: Session) => void; on
   return <main className="access-page"><BackButton onClick={onBack} /><p className="access-eyebrow">新工作区</p><h1>创建工作区</h1><p className="access-muted">创建后你将成为首位管理员，可以再邀请其他成员。</p><section className="access-panel"><form className="access-form" onSubmit={async e => { e.preventDefault(); setLoading(true); setError(""); try { onSession(await access.createWorkspace(name)); } catch { setError("无法创建工作区，请检查名称后重试。"); } finally { setLoading(false); } }}><label>工作区名称<input value={name} onChange={e => setName(e.target.value)} required maxLength={255} /></label><button className="button-primary" disabled={loading}>{loading ? "正在创建…" : "创建工作区"}</button>{error && <p className="access-error" role="alert">{error}</p>}</form></section></main>;
 }
 
-function Members({ onBack, activeRole, onSession }: { onBack: () => void; activeRole: Role; onSession: (value: Session) => void }) {
-  const [data, setData] = useState<{ workspace: { id: string; name: string }; members: Member[] } | null>(null); const [role, setRole] = useState<"editor" | "viewer">("editor"); const [link, setLink] = useState(""); const [error, setError] = useState("");
+function WorkspaceManagement({ activeRole, onSession }: { activeRole: Role; onSession: (value: Session) => void }) {
+  const [data, setData] = useState<{ workspace: { id: string; name: string }; members: Member[] } | null>(null);
+  const [role, setRole] = useState<"editor" | "viewer">("editor");
+  const [link, setLink] = useState("");
   const [name, setName] = useState("");
-  const refresh = () => access.workspaceDetails().then(value => { setData(value); setName(value.workspace.name); }).catch(() => setError("无法读取工作区信息，请稍后重试。"));
-  useEffect(() => { refresh(); }, []);
-  if (!data) return <main className="access-page"><BackButton onClick={onBack} /><p className="access-muted">正在读取工作区信息…</p>{error && <p className="access-error" role="alert">{error}</p>}</main>;
+  const [error, setError] = useState("");
+  const [feedback, setFeedback] = useState("");
+  const [loading, setLoading] = useState(true);
   const admin = activeRole === "admin";
-  if (admin) return <main className="access-page"><BackButton onClick={onBack} label="返回账本" /><p className="access-eyebrow">工作区管理</p><h1>{data.workspace.name}</h1><p className="access-muted">管理工作区信息、成员和邀请。</p><section className="access-panel"><label className="access-form">工作区名称<input aria-label="工作区名称" value={name} onChange={event => setName(event.target.value)} maxLength={255} /><button className="button-primary" disabled={!name.trim() || name.trim() === data.workspace.name} onClick={async () => { try { onSession(await access.updateWorkspace(name)); refresh(); } catch { setError("无法更新工作区名称。"); } }}>保存名称</button></label><p className="workspace-id"><span>固定 ID</span><code>{data.workspace.id}</code></p><div className="access-member-list">{data.members.map(member => <div className="access-member" key={member.user_id}><div><b>{member.is_self ? "你" : member.email}</b><small>{member.is_self ? member.email : ""}</small></div>{member.is_self ? <span>{access.roleLabel[member.role]}</span> : <><select aria-label={`${member.email}的权限`} value={member.role} onChange={async event => { try { await access.updateMember(member.user_id, event.target.value as Role); refresh(); } catch { setError("无法更新成员权限。"); } }}><option value="admin">管理员</option><option value="editor">可编辑</option><option value="viewer">仅可查看</option></select><button className="text-button" onClick={async () => { try { await access.removeMember(member.user_id); refresh(); } catch { setError("无法移除该成员。"); } }}>移除</button></>}</div>)}</div><div className="access-invite"><div><span className="access-invite-title"><Icon name="link" />创建邀请链接</span><small>邀请仅能使用一次，并在 7 天后失效。</small></div><select aria-label="邀请权限" value={role} onChange={event => setRole(event.target.value as "editor" | "viewer")}><option value="editor">可编辑</option><option value="viewer">仅可查看</option></select><button className="button-primary" onClick={async () => { try { setLink(`${location.origin}${location.pathname}?invite=${(await access.invite(role)).token}`); } catch { setError("无法创建邀请链接。"); } }}>创建链接</button></div>{link && <label className="access-link-field">邀请链接<input readOnly value={link} aria-label="邀请链接" onFocus={event => event.currentTarget.select()} /></label>}{error && <p className="access-error" role="alert">{error}</p>}</section></main>;
-  return <main className="access-page"><BackButton onClick={onBack} /><p className="access-eyebrow">成员管理</p><h1>{data.workspace.name}的成员</h1><p className="access-muted">管理员可以调整成员权限、移除成员并创建邀请链接。</p><section className="access-panel"><div className="access-member-list">{data.members.map(member => <div className="access-member" key={member.user_id}><div><b>{member.is_self ? "你" : member.email}</b><small>{member.is_self ? member.email : ""}</small></div>{member.is_self ? <span>{access.roleLabel[member.role]}</span> : <><select aria-label={`${member.email}的权限`} value={member.role} onChange={async e => { try { await access.updateMember(member.user_id, e.target.value as Role); refresh(); } catch { setError("无法更新成员权限。"); } }}><option value="admin">管理员</option><option value="editor">可编辑</option><option value="viewer">仅可查看</option></select><button className="text-button" onClick={async () => { try { await access.removeMember(member.user_id); refresh(); } catch { setError("无法移除该成员。"); } }}>移除</button></>}</div>)}</div><div className="access-invite"><div><span className="access-invite-title"><Icon name="link" />创建邀请链接</span><small>邀请仅能使用一次，并在 7 天后失效。</small></div><select aria-label="邀请权限" value={role} onChange={e => setRole(e.target.value as "editor" | "viewer")}><option value="editor">可编辑</option><option value="viewer">仅可查看</option></select><button className="button-primary" onClick={async () => { try { setLink(`${location.origin}${location.pathname}?invite=${(await access.invite(role)).token}`); } catch { setError("无法创建邀请链接。"); } }}>创建链接</button></div>{link && <label className="access-link-field">邀请链接<input readOnly value={link} aria-label="邀请链接" onFocus={e => e.currentTarget.select()} /></label>}{error && <p className="access-error" role="alert">{error}</p>}</section></main>;
+
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      const value = await access.workspaceDetails();
+      setData(value);
+      setName(value.workspace.name);
+      setError("");
+    } catch {
+      setError("无法读取工作区信息，请稍后重试。");
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { void refresh(); }, []);
+
+  const copy = async (value: string) => {
+    try { await navigator.clipboard.writeText(value); } catch { /* 保留只读值供手动复制 */ }
+    setFeedback("已复制");
+  };
+  const saveName = async () => {
+    try {
+      onSession(await access.updateWorkspace(name.trim()));
+      await refresh();
+      setFeedback("已保存");
+    } catch {
+      setError("无法保存，请稍后重试。");
+    }
+  };
+  const updateMember = async (member: Member, value: Role) => {
+    try { await access.updateMember(member.user_id, value); await refresh(); }
+    catch { setError("无法更新成员权限，请稍后重试。"); }
+  };
+  const removeMember = async (member: Member) => {
+    try { await access.removeMember(member.user_id); await refresh(); }
+    catch { setError("无法移除该成员，请稍后重试。"); }
+  };
+  const createLink = async () => {
+    try {
+      const invitation = await access.invite(role);
+      setLink(`${location.origin}${location.pathname}?invite=${invitation.token}`);
+      setFeedback("链接已生成");
+    } catch {
+      setError("无法创建邀请链接，请稍后重试。");
+    }
+  };
+
+  if (loading && !data) return <main className="workspace-management-page"><p className="workspace-management-loading" role="status">正在读取工作区信息…</p></main>;
+  if (!data) return <main className="workspace-management-page"><p className="access-error" role="alert">{error}</p></main>;
+  const otherMembers = data.members.filter(member => !member.is_self);
+
+  return <main className="workspace-management-page">
+    <h1>工作区管理</h1>
+    <section className="workspace-identity" aria-label="工作区信息">
+      <label className="workspace-field">工作区名称<div className="workspace-field-row"><input aria-label="工作区名称" value={name} disabled={!admin} onChange={event => setName(event.target.value)} maxLength={255} /><button className="button-primary" disabled={!admin || !name.trim() || name.trim() === data.workspace.name} onClick={() => void saveName()}><Icon name="save" />保存</button></div></label>
+      <div className="workspace-field">固定 ID<div className="workspace-id-row"><code>{data.workspace.id}</code><button type="button" onClick={() => void copy(data.workspace.id)}><Icon name="copy" />复制</button></div></div>
+    </section>
+    {feedback && <p className="workspace-feedback" role="status">{feedback}</p>}
+    {error && <p className="access-error workspace-feedback" role="alert">{error}</p>}
+    <div className="workspace-management-grid">
+      <section className="workspace-members" aria-labelledby="workspace-members-title"><div className="workspace-section-head"><h2 id="workspace-members-title">成员</h2><span>{data.members.length} 位成员</span></div><div className="workspace-member-list">{otherMembers.length === 0 && <p className="workspace-empty">暂无其他成员</p>}{data.members.map(member => <div className="workspace-member" key={member.user_id}><div className="workspace-member-copy"><b>{member.is_self ? "你" : member.email}</b><small>{member.is_self ? member.email : ""}</small></div>{member.is_self ? <span>{access.roleLabel[member.role]}</span> : <>{admin ? <select aria-label={`${member.email}的权限`} value={member.role} onChange={event => void updateMember(member, event.target.value as Role)}><option value="admin">管理员</option><option value="editor">可编辑</option><option value="viewer">仅可查看</option></select> : <span>{access.roleLabel[member.role]}</span>}{admin && <button type="button" className="text-button workspace-remove" onClick={() => void removeMember(member)}><Icon name="trash" />移除</button>}</>}</div>)}</div></section>
+      <section className="workspace-invite" aria-labelledby="workspace-invite-title"><div className="workspace-section-head"><h2 id="workspace-invite-title">邀请成员</h2></div><div className="workspace-invite-form"><label className="workspace-field">权限<select aria-label="邀请权限" disabled={!admin} value={role} onChange={event => setRole(event.target.value as "editor" | "viewer")}><option value="editor">可编辑</option><option value="viewer">仅可查看</option></select></label><button type="button" className="button-primary" disabled={!admin} onClick={() => void createLink()}><Icon name="link" />创建链接</button></div>{link && <label className="workspace-link-field">邀请链接<input readOnly value={link} aria-label="邀请链接" onFocus={event => event.currentTarget.select()} onClick={event => void copy(event.currentTarget.value)} /></label>}</section>
+    </div>
+  </main>;
 }
 
 export function AccessApp() {
-  const [state, setState] = useState<Session | null>(null); const [route, setRoute] = useState<"ledger" | "create" | "members">("ledger"); const [inviteToken, setInviteToken] = useState(() => new URLSearchParams(location.search).get("invite")); const [signInForInvite, setSignInForInvite] = useState(false); const [mobileAccountOpen, setMobileAccountOpen] = useState(false);
-  useEffect(() => { access.session().then(setState).catch(() => undefined); const close = () => setMobileAccountOpen(false); window.addEventListener("mobile-menu-toggled", close); return () => window.removeEventListener("mobile-menu-toggled", close); }, []);
+  const [state, setState] = useState<Session | null>(null); const [route, setRoute] = useState<"ledger" | "create" | "members">(() => location.pathname === "/workspace-management" ? "members" : "ledger"); const [inviteToken, setInviteToken] = useState(() => new URLSearchParams(location.search).get("invite")); const [signInForInvite, setSignInForInvite] = useState(false); const [mobileAccountOpen, setMobileAccountOpen] = useState(false);
+  useEffect(() => { access.session().then(setState).catch(() => undefined); const close = () => setMobileAccountOpen(false); const syncRoute = () => setRoute(location.pathname === "/workspace-management" ? "members" : "ledger"); window.addEventListener("mobile-menu-toggled", close); window.addEventListener("popstate", syncRoute); return () => { window.removeEventListener("mobile-menu-toggled", close); window.removeEventListener("popstate", syncRoute); }; }, []);
   const clearInvite = () => { history.replaceState({}, "", location.pathname); setInviteToken(null); setSignInForInvite(false); };
   if (inviteToken && !signInForInvite) return <Invite token={inviteToken} session={state} onSession={value => { setState(value); setInviteToken(null); setRoute("ledger"); }} onSignIn={() => { if (state) clearInvite(); else setSignInForInvite(true); }} />;
   if (!state) return <Auth onSession={value => { setState(value); setSignInForInvite(false); }} />;
   if (route === "create") return <Create onSession={value => { setState(value); setRoute("ledger"); }} onBack={() => setRoute("ledger")} />;
   const active = state.workspaces.find(w => w.id === state.active_workspace_id);
   const footer = <div className="sidebar-footer"><div className="workspace-panel"><div className="account-line"><span className="account-avatar" aria-hidden="true">{state.user.email.slice(0, 1).toUpperCase()}</span><span className="account-email">{state.user.email}</span></div><label className="workspace-switcher"><span>当前工作区</span><select aria-label="当前工作区" value={state.active_workspace_id ?? ""} onChange={async e => { if (e.target.value === "__create__") { setRoute("create"); return; } setState(await access.selectWorkspace(e.target.value)); }}>{state.workspaces.map(w => <option key={w.id} value={w.id}>{w.name} · {access.roleLabel[w.role]}</option>)}<option value="__create__">＋ 创建工作区</option></select></label><button type="button" className="logout-link" onClick={async () => { await access.logout(); setState(null); }}><Icon name="logout" />退出登录</button></div></div>;
-  const workspacePage = <Members activeRole={active?.role ?? "viewer"} onSession={setState} onBack={() => setRoute("ledger")} />;
+  const openWorkspaceManagement = () => { history.pushState({}, "", "/workspace-management"); setRoute("members"); };
+  const leaveWorkspaceManagement = () => { if (route === "members") setRoute("ledger"); };
+  const workspacePage = <WorkspaceManagement activeRole={active?.role ?? "viewer"} onSession={setState} />;
   const mobileAccount = <div className="mobile-account-control"><button type="button" className="mobile-account-button" aria-expanded={mobileAccountOpen} aria-controls="mobile-account-panel" aria-label={`账户 ${state.user.email}`} onClick={() => { const menu = document.querySelector<HTMLButtonElement>(".menu-toggle"); if (menu?.getAttribute("aria-expanded") === "true") menu.click(); setMobileAccountOpen(open => !open); }}>{state.user.email.slice(0, 1).toUpperCase()}</button>{mobileAccountOpen && <div id="mobile-account-panel" className="mobile-account-panel"><div className="mobile-account-email">{state.user.email}</div>{footer}<button type="button" className="mobile-panel-close" onClick={() => setMobileAccountOpen(false)}>关闭</button></div>}</div>;
-  return <>{state.active_workspace_id ? <App sidebarFooter={footer} mobileAccount={mobileAccount} workspacePage={workspacePage} workspaceManagementActive={route === "members"} onWorkspaceManagement={() => setRoute("members")} /> : <Create onSession={setState} onBack={() => setRoute("ledger")} />}</>;
+  return <>{state.active_workspace_id ? <App sidebarFooter={footer} mobileAccount={mobileAccount} workspacePage={workspacePage} workspaceManagementActive={route === "members"} onWorkspaceManagement={openWorkspaceManagement} onLedgerNavigation={leaveWorkspaceManagement} /> : <Create onSession={setState} onBack={() => setRoute("ledger")} />}</>;
 }
