@@ -217,7 +217,46 @@ export type ImportPreview = {
   columns: string[];
   items: ImportPreviewItem[];
   summary: { total: number; new: number; existing: number; unsupported: number };
+  mapping?: ImportMappingResult[];
   relations: ImportRelation[];
+};
+
+export type ImportMappingResult = {
+  group_id: string;
+  account_id: number | null;
+  missing_currencies: string[];
+  new_account: { name: string; type: string; currencies: string[] } | null;
+};
+
+export type ImportMappingDecision = {
+  group_id: string;
+  account_id?: number | null;
+  mapping_revision?: number | null;
+  new_account?: { name: string; type: string; currencies: string[] } | null;
+};
+
+export type ImportSourceGroup = {
+  group_id: string;
+  display_name: string;
+  masked_evidence: string;
+  currencies: string[];
+  row_count: number;
+  suggestion: {
+    account_id: number | null;
+    account: Account | null;
+    missing_currencies: string[];
+    mapping_revision: number | null;
+  };
+};
+
+export type ImportScan = {
+  contract: string;
+  channel: string;
+  channel_label: string;
+  file: { name: string; digest: string };
+  digest: string;
+  accounts: Account[];
+  groups: ImportSourceGroup[];
 };
 
 export type ImportDetection = {

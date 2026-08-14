@@ -254,8 +254,12 @@ const server = createServer(async (request, response) => {
     send(response, { deleted: true, related_count: 0 });
     return;
   }
+  if (request.url?.startsWith("/api/v1/cash-import/scan")) {
+    send(response, { contract: "cash-account-mapping-v1", channel: "preview", channel_label: "预览渠道", file: { name: "preview.csv", digest: "preview-digest" }, digest: "preview-digest", accounts: [account], groups: [{ group_id: "preview-group-1", display_name: "预览账单账户", masked_evidence: "账户尾号：0001", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] });
+    return;
+  }
   if (request.url?.startsWith("/api/v1/cash-import/preview")) {
-    send(response, { channel: "preview", items: [{ record_id: "preview-import-1", occurred_at: "2026-07-03T09:00", counterparty: "预览导入记录", amount: "-1", currency: "CNY", account_name: account.name, category: "测试", channel: "preview", status: "new", message: "" }], summary: { new: 1, existing: 0, unsupported: 0, error: 0 } });
+    send(response, { channel: "preview", channel_label: "预览渠道", file: { name: "preview.csv", digest: "preview-digest" }, columns: ["occurred_at", "amount", "currency", "account_name", "counterparty", "counterparty_account", "record_type", "record_subtype", "category", "note", "channel", "status"], items: [{ record_id: "preview-import-1", occurred_at: "2026-07-03T09:00", counterparty: "预览导入记录", counterparty_account: "", amount: "-1", currency: "CNY", account_name: account.name, record_type: "consumption", record_subtype: "not_applicable", category: "测试", note: "", channel: "preview", status: "new", message: "" }], summary: { total: 1, new: 1, existing: 0, unsupported: 0 }, relations: [] });
     return;
   }
   if (request.url?.startsWith("/api/v1/cash-import/commit")) {

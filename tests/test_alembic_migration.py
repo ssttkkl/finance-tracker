@@ -42,6 +42,7 @@ def test_repository_has_clean_linear_revisions():
                 "20260813_29_cash_category_path_index.py",
             "20260813_30_merge_user_workspace_and_categories.py",
             "20260814_31_workspace_delete_performance.py",
+            "20260814_32_statement_account_mappings.py",
         ]
 
 

@@ -25,6 +25,32 @@ def _import_password_message(exc: Exception) -> str:
     return "请输入账单密码。" if isinstance(exc, PDFPasswordRequiredError) else "账单密码错误，请重试。"
 
 
+def _import_mapping_payload(value: str | None):
+    if value in (None, ""):
+        return None
+    try:
+        payload = json.loads(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("import_mapping_incomplete") from exc
+    if not isinstance(payload, list):
+        raise ValueError("import_mapping_incomplete")
+    return payload
+
+
+def _cash_import_error(exc: ValueError) -> JSONResponse:
+    code = str(exc)
+    messages = {
+        "import_mapping_incomplete": "请为每个来源账户选择系统账户。",
+        "import_mapping_stale": "账单来源或账户映射已变化，请重新扫描。",
+        "import_source_account_unrecognized": "无法识别账单中的来源账户，请重新选择文件。",
+        "import_account_unavailable": "所选账户已不可用，请重新选择。",
+        "import_account_draft_invalid": "新账户信息无效，请重新填写。",
+        "import_account_name_conflict": "账户名称已存在，请修改后重试。",
+        "import_preview_stale": "预览已失效，请重新核对账单。",
+    }
+    return JSONResponse(error_payload(code if code in messages else "invalid_import", messages.get(code, "账单无法导入，请检查后重试。")), 409 if code in messages else 400)
+
+
 def portfolio_sse_frame(update) -> str:
     """Serialize one coordinator update using the SSE event framing contract."""
     if update.kind == "heartbeat":
@@ -306,19 +332,31 @@ def cash_router(
             except _IMPORT_PASSWORD_ERRORS as exc:
                 return JSONResponse(error_payload(_import_password_code(exc), _import_password_message(exc)), 400)
             except ValueError as exc:
-                return JSONResponse(error_payload("invalid_import", str(exc)), 400)
+                return _cash_import_error(exc)
 
-        @router.post("/cash-import/preview")
-        async def preview_cash_import(request: Request, source: str = "", currency: str | None = None, filename: str = "statement"):
+        @router.post("/cash-import/scan")
+        async def scan_cash_import(request: Request, currency: str | None = None, filename: str = "statement"):
             try:
-                return json_value(mutation_service.preview_import(
-                    await request.body(), source=source, currency=currency, filename=filename,
+                return json_value(mutation_service.scan_import(
+                    await request.body(), filename=filename, currency=currency,
                     password=request.headers.get("x-ft-statement-password"),
                 ))
             except _IMPORT_PASSWORD_ERRORS as exc:
                 return JSONResponse(error_payload(_import_password_code(exc), _import_password_message(exc)), 400)
             except ValueError as exc:
-                return JSONResponse(error_payload("invalid_import", str(exc)), 400)
+                return _cash_import_error(exc)
+
+        @router.post("/cash-import/preview")
+        async def preview_cash_import(request: Request, source: str = "", currency: str | None = None, filename: str = "statement", mapping: str | None = None):
+            try:
+                return json_value(mutation_service.preview_import(
+                    await request.body(), source=source, currency=currency, filename=filename,
+                    password=request.headers.get("x-ft-statement-password"), mapping=_import_mapping_payload(mapping),
+                ))
+            except _IMPORT_PASSWORD_ERRORS as exc:
+                return JSONResponse(error_payload(_import_password_code(exc), _import_password_message(exc)), 400)
+            except ValueError as exc:
+                return _cash_import_error(exc)
 
         @router.post("/cash-import/commit")
         async def commit_cash_import(
@@ -329,6 +367,7 @@ def cash_router(
             preview_digest: str | None = None,
             preview_channel: str | None = None,
             relations: str | None = None,
+            mapping: str | None = None,
         ):
             try:
                 relation_decisions = None
@@ -344,12 +383,12 @@ def cash_router(
                     preview_digest=preview_digest,
                     preview_channel=preview_channel,
                     password=request.headers.get("x-ft-statement-password"),
-                    relation_decisions=relation_decisions,
+                    relation_decisions=relation_decisions, mapping=_import_mapping_payload(mapping),
                 ))
             except RelationImpactRequired as exc:
                 return JSONResponse(error_payload(exc.code, str(exc)), 409)
             except _IMPORT_PASSWORD_ERRORS as exc:
                 return JSONResponse(error_payload(_import_password_code(exc), _import_password_message(exc)), 400)
             except ValueError as exc:
-                return JSONResponse(error_payload("invalid_import", str(exc)), 400)
+                return _cash_import_error(exc)
     return router

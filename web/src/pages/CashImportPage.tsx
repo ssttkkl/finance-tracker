@@ -1,15 +1,17 @@
 import { useMemo, useState } from "react";
-import { commitCashImport, detectCashImport, previewCashImport } from "../api/cashLedger";
+import { commitCashImport, previewCashImport, scanCashImport } from "../api/cashLedger";
 import type {
   ImportCommitResult,
-  ImportDetection,
+  ImportMappingDecision,
   ImportPreview,
   ImportPreviewItem,
   ImportRelation,
   ImportRelationRecord,
+  ImportScan,
+  ImportSourceGroup,
 } from "../api/types";
 
-type Stage = "select" | "preview" | "relations" | "success";
+type Stage = "select" | "mapping" | "preview" | "relations" | "success";
 type RelationFilter = "all" | "automatic" | "pending";
 type RelationState = "automatic" | "pending" | "accepted" | "rejected";
 
@@ -22,6 +24,11 @@ type RelationDraft = {
     kind: string;
     secondary: ImportRelationRecord | null;
   };
+};
+
+type MappingDraft = {
+  accountId: number | null;
+  newAccount: { name: string; type: string; currencies: string[] } | null;
 };
 
 const PAGE_SIZES = [20, 50, 100];
@@ -97,6 +104,17 @@ function passwordErrorMessage(cause: unknown): string | null {
   return null;
 }
 
+function mappingErrorMessage(cause: unknown): string | null {
+  if (!(cause instanceof Error)) return null;
+  const messages: Record<string, string> = {
+    import_account_unavailable: "所选账户已不可用，请重新选择。",
+    import_account_name_conflict: "账户名称已存在，请修改后重试。",
+    import_account_draft_invalid: "新账户信息无效，请修改后重试。",
+    import_mapping_incomplete: "请为每个来源账户选择系统账户。",
+  };
+  return messages[cause.message] ?? null;
+}
+
 function relationDecision(
   relation: ImportRelation,
   draft: RelationDraft,
@@ -146,7 +164,9 @@ function RelationActionIcon({ undo }: { undo: boolean }) {
 export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?: () => void }) {
   const [stage, setStage] = useState<Stage>("select");
   const [file, setFile] = useState<File | null>(null);
-  const [detection, setDetection] = useState<ImportDetection | null>(null);
+  const [scan, setScan] = useState<ImportScan | null>(null);
+  const [mappingDrafts, setMappingDrafts] = useState<Record<string, MappingDraft>>({});
+  const [editingGroup, setEditingGroup] = useState<ImportSourceGroup | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [relationDrafts, setRelationDrafts] = useState<Record<string, RelationDraft>>({});
   const [relationFilter, setRelationFilter] = useState<RelationFilter>("all");
@@ -161,7 +181,8 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const returnToPasswordEntry = (cause: unknown): boolean => {
     const message = passwordErrorMessage(cause);
     if (!message) return false;
-    setDetection(null);
+    setScan(null);
+    setMappingDrafts({});
     setPreview(null);
     setRelationDrafts({});
     setPassword("");
@@ -174,7 +195,8 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const chooseFile = async (nextFile: File | undefined) => {
     if (!nextFile) return;
     setFile(nextFile);
-    setDetection(null);
+    setScan(null);
+    setMappingDrafts({});
     setPreview(null);
     setRelationDrafts({});
     setResult(null);
@@ -184,7 +206,13 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setStage("select");
     setBusy(true);
     try {
-      setDetection(await detectCashImport(nextFile));
+      const nextScan = await scanCashImport(nextFile);
+      setScan(nextScan);
+      setMappingDrafts(Object.fromEntries(nextScan.groups.map((group) => [
+        group.group_id,
+        { accountId: group.suggestion.account_id, newAccount: null },
+      ])));
+      setStage("mapping");
     } catch (cause) {
       if (cause instanceof Error && cause.message === "import_password_required") {
         setPasswordRequired(true);
@@ -204,7 +232,13 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setBusy(true);
     setError(undefined);
     try {
-      setDetection(await detectCashImport(file, undefined, password));
+      const nextScan = await scanCashImport(file, undefined, password);
+      setScan(nextScan);
+      setMappingDrafts(Object.fromEntries(nextScan.groups.map((group) => [
+        group.group_id,
+        { accountId: group.suggestion.account_id, newAccount: null },
+      ])));
+      setStage("mapping");
       setPasswordRequired(false);
     } catch (cause) {
       if (!returnToPasswordEntry(cause)) {
@@ -217,16 +251,64 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     }
   };
 
+  const mappingPayload = (): ImportMappingDecision[] => (scan?.groups ?? []).map((group) => {
+    const draft = mappingDrafts[group.group_id];
+    return {
+      group_id: group.group_id,
+      account_id: draft?.newAccount ? null : draft?.accountId,
+      mapping_revision: group.suggestion.mapping_revision,
+      new_account: draft?.newAccount ?? null,
+    };
+  });
+
+  const mappingComplete = Boolean(scan && scan.groups.length > 0 && scan.groups.every((group) => {
+    const draft = mappingDrafts[group.group_id];
+    return Boolean(draft?.accountId || draft?.newAccount);
+  }));
+
+  const newAccountDraftFor = (group: ImportSourceGroup): NonNullable<MappingDraft["newAccount"]> => ({
+    name: group.display_name,
+    type: group.display_name.includes("花呗") || group.display_name.includes("信用卡") ? "loan" : "cash",
+    currencies: [...group.currencies],
+  });
+
+  const selectMapping = (group: ImportSourceGroup, value: string) => {
+    const next = value === "__create__"
+      ? { accountId: null, newAccount: newAccountDraftFor(group) }
+      : { accountId: Number(value), newAccount: null };
+    setMappingDrafts((current) => ({ ...current, [group.group_id]: next }));
+    setPreview(null);
+    setRelationDrafts({});
+  };
+
+  const updateNewAccountDraft = (group: ImportSourceGroup, update: Partial<NonNullable<MappingDraft["newAccount"]>>) => {
+    setMappingDrafts((current) => {
+      const existing = current[group.group_id]?.newAccount ?? newAccountDraftFor(group);
+      return { ...current, [group.group_id]: { accountId: null, newAccount: { ...existing, ...update } } };
+    });
+    setPreview(null);
+    setRelationDrafts({});
+  };
+
   const loadPreview = async () => {
-    if (!file || !detection) return;
+    if (!file || !scan || !mappingComplete) return;
     setBusy(true);
     setError(undefined);
     try {
-      setPreview(await previewCashImport(file, "", undefined, password));
+      setPreview(await previewCashImport(file, "", undefined, password, mappingPayload()));
       setRelationDrafts({});
       setStage("preview");
     } catch (cause) {
-      if (!returnToPasswordEntry(cause)) setError("账单预览失败，请重试。");
+      if (!returnToPasswordEntry(cause)) {
+        if (cause instanceof Error && cause.message === "import_mapping_stale") {
+          setScan(null);
+          setMappingDrafts({});
+          setStage("select");
+          setError("账户映射已变化，请重新扫描。");
+        } else {
+          setError(mappingErrorMessage(cause) ?? "账单预览失败，请重试。");
+        }
+      }
     } finally {
       setBusy(false);
     }
@@ -284,6 +366,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
         previewChannel: preview.channel,
         password,
         relations: decisions,
+        mapping: mappingPayload(),
       });
       setResult(committed);
       setStage("success");
@@ -292,11 +375,19 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       if (returnToPasswordEntry(cause)) {
         // The password entry state already contains the actionable error.
       } else {
-        setError(cause instanceof Error && cause.message === "import_preview_stale"
-          ? "文件内容已经变化，请重新选择文件。"
-          : cause instanceof Error && cause.message === "relation_impact_required"
-            ? "这次导入会影响已关联的流水，请先处理关联。"
-            : "确认导入失败，请重试。");
+        const mappingError = mappingErrorMessage(cause);
+        if (mappingError) {
+          setPreview(null);
+          setRelationDrafts({});
+          setStage("mapping");
+          setError(mappingError);
+        } else {
+          setError(cause instanceof Error && cause.message === "import_preview_stale"
+            ? "文件内容已经变化，请重新选择文件。"
+            : cause instanceof Error && cause.message === "relation_impact_required"
+              ? "这次导入会影响已关联的流水，请先处理关联。"
+              : "确认导入失败，请重试。");
+        }
       }
     } finally {
       setBusy(false);
@@ -317,12 +408,13 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     (relationDrafts[relation.id] ?? relationDraftFor(relation)).state === "pending"
   )).length;
   const automaticCount = relationItems.filter((relation) => relation.automatic).length;
-  const stageIndex = stage === "select" ? 1 : stage === "preview" ? 2 : 3;
+  const stageIndex = stage === "select" ? 1 : stage === "mapping" ? 2 : stage === "preview" ? 3 : 4;
 
   const visitStep = (number: number) => {
     if (number === 1) setStage("select");
-    if (number === 2 && preview) setStage("preview");
-    if (number === 3 && preview) setStage("relations");
+    if (number === 2 && scan) setStage("mapping");
+    if (number === 3 && preview) setStage("preview");
+    if (number === 4 && preview) setStage("relations");
   };
 
   return (
@@ -338,13 +430,13 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
         <section className="ledger cash-import-shell" id="cash-import" aria-label="导入账单">
           <header className="page-header cash-import-header"><h1>导入账单</h1></header>
           <nav className="import-steps" aria-label="导入步骤">
-            {[{ number: 1, label: "选择文件" }, { number: 2, label: "核对流水" }, { number: 3, label: "配对" }].map((item) => (
+            {[{ number: 1, label: "选择文件" }, { number: 2, label: "映射账户" }, { number: 3, label: "核对流水" }, { number: 4, label: "配对" }].map((item) => (
               <button
                 type="button"
                 key={item.number}
                 className={item.number === stageIndex ? "is-current" : item.number < stageIndex ? "is-complete" : ""}
                 aria-current={item.number === stageIndex ? "step" : undefined}
-                disabled={busy || item.number > stageIndex || (item.number > 1 && !preview)}
+                disabled={busy || item.number > stageIndex || (item.number === 2 && !scan) || (item.number >= 3 && !preview)}
                 onClick={() => visitStep(item.number)}
               ><b>{item.number}</b>{item.label}</button>
             ))}
@@ -359,7 +451,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
               <strong>{file ? file.name : "拖入账单文件"}</strong>
               <small>CSV、XLS、XLSX、PDF</small>
             </label>
-            {detection ? <div className="detection-result" role="status"><strong>{detection.channel_label}账单</strong><span className="status-chip">已识别</span></div> : null}
+            {scan ? <div className="detection-result" role="status"><strong>{scan.channel_label}账单</strong><span className="status-chip">已识别</span></div> : null}
             {passwordRequired ? <div className="import-password-panel">
               <label htmlFor="cash-import-password">账单密码</label>
               <div className="import-password-row">
@@ -367,12 +459,36 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
                 <button type="button" className="button-primary" disabled={!password || busy} onClick={() => void detectWithPassword()}>重新识别</button>
               </div>
             </div> : null}
-            <div className="stage-actions"><button type="button" className="button-secondary" onClick={onBack}>取消</button><button type="button" className="button-primary" disabled={!detection || busy} onClick={() => void loadPreview()}>{busy ? "识别中…" : "核对流水"}</button></div>
+            <div className="stage-actions"><button type="button" className="button-secondary" onClick={onBack}>取消</button><button type="button" className="button-primary" disabled={busy}>{busy ? "扫描中…" : "选择账单文件"}</button></div>
+          </section> : null}
+
+          {stage === "mapping" && scan ? <section className="import-stage import-mapping-stage" aria-labelledby="import-mapping-heading">
+            <div className="import-stage-heading"><h2 id="import-mapping-heading">映射账户</h2><span className="channel-badge">{scan.channel_label}</span></div>
+            <div className="stage-actions-top"><button type="button" className="button-secondary" onClick={() => setStage("select")}>上一步</button><button type="button" className="button-primary" disabled={!mappingComplete || busy} onClick={() => void loadPreview()}>{busy ? "核对中…" : "确认映射"}</button></div>
+            <p className="import-stage-lead">识别到 {scan.groups.length} 个来源账户</p>
+            <div className="mapping-groups">
+              {scan.groups.map((group) => {
+                const draft = mappingDrafts[group.group_id] ?? { accountId: null, newAccount: null };
+                const selected = draft.newAccount ? null : scan.accounts.find((account) => account.id === draft.accountId) ?? null;
+                const missing = selected ? group.currencies.filter((currency) => !(selected.currencies ?? []).includes(currency)) : [];
+                const typeLabels: Record<string, string> = { cash: "现金账户", loan: "贷款账户", lend: "借款账户" };
+                return <article className="mapping-group" key={group.group_id}>
+                  <div className="mapping-group-source"><strong>{group.display_name}</strong><small>{group.masked_evidence} · {group.currencies.join(" / ")} · {group.row_count} 条流水</small></div>
+                  <label className="mapping-account-field">系统账户<select aria-label={`${group.display_name}系统账户`} value={draft.newAccount ? "__create__" : draft.accountId ? String(draft.accountId) : ""} onChange={(event) => selectMapping(group, event.target.value)}>
+                    <option value="">请选择账户</option>{scan.accounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}<option value="__create__">创建新账户</option>
+                  </select>
+                  {draft.newAccount ? <span className="row-commitment">将创建「{draft.newAccount.name}」 · {typeLabels[draft.newAccount.type] ?? draft.newAccount.type} · {draft.newAccount.currencies.join(" / ")} <button type="button" className="commitment-action" onClick={() => setEditingGroup(group)}>修改</button></span> : missing.length > 0 ? <span className="row-commitment">将为「{selected?.name}」新增 {missing.join("、")}</span> : null}
+                  {!draft.accountId && !draft.newAccount ? <span className="mapping-field-error" role="status">请选择系统账户或创建新账户</span> : null}
+                  </label>
+                </article>;
+              })}
+            </div>
+            {editingGroup ? <div className="import-dialog-backdrop" role="presentation" onMouseDown={() => setEditingGroup(null)}><div className="import-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-account-heading" onMouseDown={(event) => event.stopPropagation()}><h3 id="edit-account-heading">修改新账户</h3><label>账户名称<input value={mappingDrafts[editingGroup.group_id]?.newAccount?.name ?? ""} onChange={(event) => updateNewAccountDraft(editingGroup, { name: event.target.value })} /></label><label>账户类型<select value={mappingDrafts[editingGroup.group_id]?.newAccount?.type ?? "cash"} onChange={(event) => updateNewAccountDraft(editingGroup, { type: event.target.value })}><option value="cash">现金账户</option><option value="loan">贷款账户</option><option value="lend">借款账户</option></select></label><div className="stage-actions"><button type="button" className="button-secondary" onClick={() => setEditingGroup(null)}>取消</button><button type="button" className="button-primary" onClick={() => setEditingGroup(null)}>完成</button></div></div></div> : null}
           </section> : null}
 
           {stage === "preview" && preview ? <section className="import-stage import-preview-stage" aria-labelledby="import-preview-heading">
             <div className="import-stage-heading"><h2 id="import-preview-heading">核对流水</h2><span className="channel-badge">{preview.channel_label}</span></div>
-            <div className="stage-actions-top"><button type="button" className="button-secondary" onClick={() => setStage("select")}>上一步</button><button type="button" className="button-primary" disabled={busy} onClick={openRelations}>下一步</button></div>
+            <div className="stage-actions-top"><button type="button" className="button-secondary" onClick={() => setStage("mapping")}>上一步</button><button type="button" className="button-primary" disabled={busy} onClick={openRelations}>下一步</button></div>
             <div className="import-summary-cards">{[
               { label: "全部", value: preview.summary.total, tone: "total" },
               { label: "待新增", value: preview.summary.new, tone: "new" },

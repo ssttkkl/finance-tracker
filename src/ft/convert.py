@@ -1988,6 +1988,7 @@ def _parse_amt(s: str) -> Decimal:
 def _build_output_row(
     rec: dict, *, bill_type: str, account: str | None = None,
     currency: str | None = None, rules=None, default_action: str = "error",
+    resolve_account: bool = True,
 ) -> dict:
     """Build a normalized output row; route account via mapping unless explicitly given.
 
@@ -1997,7 +1998,10 @@ def _build_output_row(
     from .mapping import match_payment_method
     from .domain.record_type import classify_cash_record, normalize_counterparty_account
 
-    if account:
+    if not resolve_account:
+        acct_name = ""
+        cur = currency or rec.get("currency") or "CNY"
+    elif account:
         acct_name = account
         cur = currency or "CNY"
     else:

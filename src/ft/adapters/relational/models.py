@@ -196,6 +196,37 @@ class AccountModel(Base):
 
 
 
+class StatementAccountMappingModel(Base):
+    __tablename__ = "statement_account_mappings"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_statement_account_mappings_workspace_id"),
+        UniqueConstraint(
+            "workspace_id", "source_type", "identity_kind", "source_account_key",
+            name="uq_statement_account_mappings_source_identity",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "account_id"],
+            ["accounts.workspace_id", "accounts.id"],
+            ondelete="CASCADE",
+            name="fk_statement_account_mappings_workspace_account",
+        ),
+        Index("ix_statement_account_mappings_workspace", "workspace_id"),
+    )
+
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False,
+    )
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    identity_kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_account_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    account_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    confirmed_by: Mapped[str] = mapped_column(String(128), default="", nullable=False)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, onupdate=_now, nullable=False)
+
+
 class CashCategoryModel(Base):
     __tablename__ = "cash_categories"
     __table_args__ = (

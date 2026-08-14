@@ -18,6 +18,7 @@ from .repositories import (
     RelationalInvestmentRepository,
     RelationalRelationRepository,
     RelationalSnapshotRepository,
+    RelationalStatementAccountMappingRepository,
 )
 
 
@@ -62,6 +63,7 @@ class RelationalUnitOfWork:
         wealth_facts: object | None = None
         relations: object | None = None
         account_aliases: object | None = None
+        statement_account_mappings: object | None = None
         fact_deletions: object | None = None
 
     def _state(self) -> "RelationalUnitOfWork._State":
@@ -104,6 +106,10 @@ class RelationalUnitOfWork:
         return self._state().account_aliases
 
     @property
+    def statement_account_mappings(self):
+        return self._state().statement_account_mappings
+
+    @property
     def fact_deletions(self):
         return self._state().fact_deletions
 
@@ -131,6 +137,7 @@ class RelationalUnitOfWork:
             wealth_facts=RelationalWealthFactWriter(session, self.workspace_id),
             relations=RelationalRelationRepository(session, self.workspace_id),
             account_aliases=RelationalAccountAliasRepository(session, self.workspace_id),
+            statement_account_mappings=RelationalStatementAccountMappingRepository(session, self.workspace_id),
             fact_deletions=RelationalFactDeletionRepository(session, self.workspace_id),
         )
         state.token = self._state_var.set(state)

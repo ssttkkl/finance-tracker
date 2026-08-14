@@ -15,6 +15,9 @@ class AccountRepository(Protocol):
     def find(self, name: str) -> AccountDTO | None:
         ...
 
+    def get_by_id(self, account_id: int) -> dict | None:
+        ...
+
     def add(self, account: AccountDTO, *, seed_currency: str | None = None) -> None:
         ...
 
@@ -132,6 +135,21 @@ class AccountAliasRepository(Protocol):
 
 
 @runtime_checkable
+class StatementAccountMappingRepository(Protocol):
+    def get(self, *, source_type: str, identity_kind: str, source_account_key: str) -> dict | None:
+        ...
+
+    def list(self) -> list[dict]:
+        ...
+
+    def upsert(
+        self, *, source_type: str, identity_kind: str, source_account_key: str,
+        account_id: int, confirmed_by: str, expected_revision: int | None = None,
+    ) -> dict:
+        ...
+
+
+@runtime_checkable
 class FactDeletionRepository(Protocol):
     def logical_delete_cash(
         self, fact_id: str, *, actor: str, reason: str,
@@ -174,6 +192,7 @@ class UnitOfWork(Protocol):
     imports: ImportRepository
     relations: RelationRepository
     account_aliases: AccountAliasRepository
+    statement_account_mappings: StatementAccountMappingRepository
     fact_deletions: FactDeletionRepository
 
     def __enter__(self) -> "UnitOfWork":

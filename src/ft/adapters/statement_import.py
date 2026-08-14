@@ -21,20 +21,22 @@ def _decimal_text(value) -> str:
     return format(decimal, "f")
 
 
-def _parse_cash_statement(command):
+def _parse_cash_statement(command, *, resolve_accounts: bool = True):
     from ft.convert import _build_output_row, _prepare_convert_rows
-    from ft.mapping import load_rules
 
     rows, bill_type, tracking = _prepare_convert_rows(
         command.source_path, command.source, command.password
     )
-    rules, default_action = load_rules()
-    # 007 FR-004：mapping 未命中时必须失败关闭，不能通过默认 skip 静默跳过。
-    action = (default_action or "error").lower()
-    if action == "skip":
-        # 账单导入不能继承文件级的默认 skip，必须按错误处理。
-        action = "error"
-        default_action = "error"
+    rules = default_action = None
+    if resolve_accounts:
+        from ft.mapping import load_rules
+
+        rules, default_action = load_rules()
+        # 007 FR-004：mapping 未命中时必须失败关闭，不能通过默认 skip 静默跳过。
+        action = (default_action or "error").lower()
+        if action == "skip":
+            # 账单导入不能继承文件级的默认 skip，必须按错误处理。
+            default_action = "error"
     output = []
     skipped = 0
     for row in rows:
@@ -44,10 +46,13 @@ def _parse_cash_statement(command):
             currency=command.currency,
             rules=rules,
             default_action=default_action,
+            resolve_account=resolve_accounts,
         )
         if item is None:
             skipped += 1
             continue
+        if not resolve_accounts:
+            item["account_name"] = ""
         item["amount"] = _decimal_text(item["amount"])
         source_payload = row.get("_source_payload")
         if not isinstance(source_payload, dict) or not source_payload:
@@ -62,13 +67,14 @@ def _parse_cash_statement(command):
             "record_type", "record_subtype", "direction", "_wechat_direction", "_alipay_direction",
             "_refund_signal", "_ccb_refund_signal", "_is_refund", "_is_reversal",
             "_debit_offset_type", "offset_type", "location", "acct_name_raw",
+            "card_number", "_source_account_identifier", "file_account_key", "source_display_name",
         ):
             if key in row and key not in item:
                 item[key] = row[key]
             elif key in row and not item.get(key):
                 item[key] = row[key]
         output.append(item)
-    if skipped:
+    if skipped and resolve_accounts:
         raise ValueError(
             f"有 {skipped} 条账单记录未匹配账户映射规则；"
             f"请在 ~/.ft/mapping.yaml 中补充规则（失败关闭，FR-004）"
@@ -160,3 +166,17 @@ class StatementParser:
         if command.source == "dfzq":
             return _parse_dfzq_statement(command)
         raise ValueError(f"不支持的账单数据源：{command.source}")
+
+    def parse_source_rows(self, command):
+        """Parse cash facts without choosing a system account.
+
+        This is the source-account scanning entry point.  It is deliberately
+        separate from ``parse`` so investment compatibility paths retain their
+        existing routing semantics while cash import can be database-driven.
+        """
+        path = Path(command.source_path)
+        if not path.is_file():
+            raise FileNotFoundError(f"找不到账单文件：{path}")
+        if command.source in CASH_SOURCES:
+            return _parse_cash_statement(command, resolve_accounts=False)
+        raise ValueError(f"不支持扫描来源账户的数据源：{command.source}")

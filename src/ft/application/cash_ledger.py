@@ -10,6 +10,7 @@ import binascii
 import hashlib
 import json
 import tempfile
+from types import SimpleNamespace
 
 from sqlalchemy import delete as sa_delete, select as sa_select, update as sa_update
 
@@ -27,6 +28,13 @@ from ft.adapters.relational.uow import RelationalUnitOfWork
 from ft.adapters.statement_import import StatementParser
 from ft.application.cash_projections import CashProjectionService
 from ft.application.statement_import import StatementImportService, _row_record_id
+from ft.application.statement_account_mapping import (
+    SourceAccountGroup,
+    new_account_draft,
+    scan_source_rows,
+    source_identity_key,
+    suggest_mapping,
+)
 from ft.domain.application import RelationImpactRequired
 from ft.domain.cash_projection import CashProjectionError
 from ft.domain.imports import StatementImportCommand
@@ -93,6 +101,29 @@ IMPORT_FORMAL_TO_PARSER = {
     "icbc_credit": "icbc",
     "icbc_debit": "icbc-debit",
 }
+
+
+class _ActiveUowProxy:
+    """Let the legacy import service reuse an already-open final transaction."""
+
+    def __init__(self, uow):
+        self._uow = uow
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, _exc_type, _exc, _tb):
+        return None
+
+    def commit(self):
+        # The caller owns the final commit after mappings and account changes.
+        return None
+
+    def rollback(self):
+        return self._uow.rollback()
+
+    def __getattr__(self, name):
+        return getattr(self._uow, name)
 EDITABLE_FIELDS = (
     "occurred_at", "amount", "currency", "counterparty", "counterparty_account",
     "counterparty_account_attrs", "note", "category_id", "record_type", "record_subtype",
@@ -1039,6 +1070,152 @@ class CashLedgerCommandService:
             raise ValueError("账单中没有可导入的记录")
         return rows, self._formal_import_channel(rows, candidate)
 
+    def _parse_source_with_candidate(
+        self,
+        content: bytes,
+        *,
+        candidate: str,
+        currency: str | None,
+        filename: str,
+        password: str | None = None,
+    ) -> tuple[list[dict], str]:
+        suffix = Path(filename or "statement").suffix
+        with tempfile.NamedTemporaryFile(prefix="ft-web-source-scan-", suffix=suffix, delete=True) as handle:
+            handle.write(content)
+            handle.flush()
+            command = StatementImportCommand(
+                source_path=handle.name, source=candidate, currency=currency, password=password,
+            )
+            parser = getattr(self._parser, "parse_source_rows", None)
+            rows = self._clean_import_rows(
+                (parser(command) if parser is not None else self._parser.parse(command))
+            )
+        if not rows:
+            raise ValueError("账单中没有可导入的记录")
+        return rows, self._formal_import_channel(rows, candidate)
+
+    def _detect_source_candidate(
+        self,
+        content: bytes,
+        *,
+        currency: str | None,
+        filename: str,
+        password: str | None = None,
+    ) -> tuple[list[dict], str, str]:
+        if len(content) > 100 * 1024 * 1024:
+            raise ValueError("账单超过 100 MiB 输入上限")
+        matches: list[tuple[list[dict], str, str]] = []
+        password_errors = []
+        source_identity_failure = False
+        from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredError
+        for candidate in IMPORT_CHANNEL_CANDIDATES:
+            try:
+                rows, channel = self._parse_source_with_candidate(
+                    content, candidate=candidate, currency=currency, filename=filename,
+                    password=password,
+                )
+                scan_source_rows(rows)
+            except (PDFPasswordRequiredError, PDFPasswordInvalidError) as exc:
+                password_errors.append(exc)
+                continue
+            except ValueError as exc:
+                if "来源账户" in str(exc):
+                    source_identity_failure = True
+                continue
+            except Exception:  # noqa: BLE001 - channel probing must not leak parser details.
+                continue
+            matches.append((rows, channel, candidate))
+        channels = {channel for _rows, channel, _candidate in matches}
+        if len(channels) != 1:
+            if not matches and password_errors:
+                raise password_errors[0]
+            if not matches and source_identity_failure:
+                raise ValueError("import_source_account_unrecognized")
+            raise ValueError("import_channel_unrecognized")
+        return next(match for match in matches if match[1] == next(iter(channels)))
+
+    def _resolve_source_rows(
+        self,
+        content: bytes,
+        *,
+        source: str,
+        currency: str | None,
+        filename: str,
+        password: str | None = None,
+    ) -> tuple[list[dict], str, str]:
+        requested = str(source or "").strip()
+        if not requested:
+            return self._detect_source_candidate(
+                content, currency=currency, filename=filename, password=password,
+            )
+        candidate = IMPORT_FORMAL_TO_PARSER.get(requested, requested)
+        rows, channel = self._parse_source_with_candidate(
+            content, candidate=candidate, currency=currency, filename=filename,
+            password=password,
+        )
+        scan_source_rows(rows)
+        return rows, channel, candidate
+
+    @staticmethod
+    def _wire_import_account(account: dict | None) -> dict | None:
+        if account is None:
+            return None
+        return {
+            "id": int(account["id"]),
+            "name": account["name"],
+            "type": account["type"],
+            "active": bool(account["active"]),
+            "currencies": list(account.get("currencies", ())),
+        }
+
+    def scan_import(self, content: bytes, *, filename: str, currency: str | None = None, password: str | None = None) -> dict:
+        rows, channel, _candidate = self._detect_source_candidate(
+            content, currency=currency, filename=filename, password=password,
+        )
+        groups = scan_source_rows(rows)
+        with self._uow as uow:
+            suggestions = [suggest_mapping(uow, group) for group in groups]
+            accounts = [
+                {
+                    "id": row.id,
+                    "name": row.name,
+                    "type": row.type,
+                    "active": row.active,
+                    "currencies": [str(item).upper() for item in (row.currencies or ())],
+                }
+                for row in uow._state().session.scalars(sa_select(AccountModel).where(
+                    AccountModel.workspace_id == self._workspace_id,
+                    AccountModel.type.in_(("cash", "loan", "lend")),
+                    AccountModel.active.is_(True),
+                )).all()
+            ]
+            uow.rollback()
+        digest = self._import_digest(content)
+        return {
+            "contract": "cash-account-mapping-v1",
+            "channel": channel,
+            "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
+            "file": {"name": filename or "statement", "digest": digest},
+            "digest": digest,
+            "accounts": accounts,
+            "groups": [
+                {
+                    "group_id": group.group_id,
+                    "display_name": group.display_name,
+                    "masked_evidence": group.masked_evidence,
+                    "currencies": list(group.currencies),
+                    "row_count": group.row_count,
+                    "suggestion": {
+                        "account_id": suggestion["account_id"],
+                        "account": self._wire_import_account(suggestion["account"]),
+                        "missing_currencies": list(suggestion["missing_currencies"]),
+                        "mapping_revision": suggestion["mapping_revision"],
+                    },
+                }
+                for group, suggestion in zip(groups, suggestions, strict=True)
+            ],
+        }
+
     def _detect_import_candidate(
         self,
         content: bytes,
@@ -1151,7 +1328,7 @@ class CashLedgerCommandService:
             account = accounts_by_name.get(row.get("account_name"))
             if account is None or (channel, str(record_id).strip()) in existing_by_identity:
                 continue
-            synthetic = {**row, "id": f"preview:{record_id}", "record_id": record_id, "account_id": account.id, "account_type": account.type, "source_type": channel, "bill_source": channel}
+            synthetic = {**row, "id": f"preview:{record_id}", "record_id": record_id, "account_id": getattr(account, "id", None), "account_type": account.type, "source_type": channel, "bill_source": channel}
             preview_rows.append(synthetic)
             preview_ids.append(synthetic["id"])
         if not preview_rows:
@@ -1218,7 +1395,192 @@ class CashLedgerCommandService:
             })
         return result
 
-    def preview_import(self, content: bytes, *, source: str, currency: str | None, filename: str, password: str | None = None) -> dict:
+    def _apply_mapping_to_source_rows(self, uow, rows: list[dict], channel: str, mapping: list[dict]):
+        groups = scan_source_rows(rows)
+        by_group_id = {group.group_id: group for group in groups}
+        if not isinstance(mapping, list):
+            raise ValueError("import_mapping_incomplete")
+        decisions = {}
+        for decision in mapping:
+            if not isinstance(decision, dict) or not decision.get("group_id"):
+                raise ValueError("import_mapping_incomplete")
+            group_id = str(decision["group_id"])
+            if group_id in decisions or group_id not in by_group_id:
+                raise ValueError("import_mapping_stale")
+            decisions[group_id] = decision
+        if set(decisions) != set(by_group_id):
+            raise ValueError("import_mapping_incomplete")
+
+        resolved = {}
+        for group in groups:
+            decision = decisions[group.group_id]
+            current = uow.statement_account_mappings.get(
+                source_type=group.source_type,
+                identity_kind=group.identity_kind,
+                source_account_key=group.source_account_key,
+            )
+            expected_revision = decision.get("mapping_revision")
+            current_revision = current["revision"] if current is not None else None
+            if current_revision != expected_revision:
+                raise ValueError("import_mapping_stale")
+            if decision.get("account_id") not in (None, ""):
+                try:
+                    account_id = int(decision["account_id"])
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("import_mapping_incomplete") from exc
+                account = uow.accounts.get_by_id(account_id)
+                if account is None or not account.get("active") or account.get("type") not in {"cash", "loan", "lend"}:
+                    raise ValueError("import_account_unavailable")
+                supported = {str(value).upper() for value in account.get("currencies", ()) if value}
+                missing = tuple(sorted(set(group.currencies) - supported))
+                resolved[group.group_id] = {
+                    "account_id": account_id,
+                    "account": account,
+                    "missing_currencies": missing,
+                    "new_account": None,
+                }
+                continue
+            draft = decision.get("new_account")
+            if not isinstance(draft, dict):
+                raise ValueError("import_mapping_incomplete")
+            name = str(draft.get("name") or "").strip()
+            account_type = str(draft.get("type") or "").strip()
+            currencies = tuple(sorted({str(value).upper() for value in (draft.get("currencies") or ()) if value}))
+            if not name or account_type not in {"cash", "loan", "lend"} or currencies != tuple(group.currencies):
+                raise ValueError("import_account_draft_invalid")
+            if uow.accounts.find(name) is not None:
+                raise ValueError("import_account_name_conflict")
+            resolved[group.group_id] = {
+                "account_id": None,
+                "account": {"id": None, "name": name, "type": account_type, "active": True, "currencies": list(currencies)},
+                "missing_currencies": (),
+                "new_account": {"name": name, "type": account_type, "currencies": list(currencies)},
+            }
+
+        mapped_rows = []
+        for row in rows:
+            group_key = source_identity_key(row)
+            group = next(
+                (candidate for candidate in groups if (
+                    candidate.source_type, candidate.identity_kind, candidate.source_account_key
+                ) == group_key),
+                None,
+            )
+            if group is None:
+                raise ValueError("import_mapping_stale")
+            target = resolved[group.group_id]["account"]
+            mapped = dict(row)
+            mapped["account_name"] = target["name"]
+            mapped["currency"] = str(mapped.get("currency") or "CNY").upper()
+            if "source_payload" not in mapped and isinstance(mapped.get("_source_payload"), dict):
+                mapped["source_payload"] = mapped["_source_payload"]
+            mapped_rows.append(mapped)
+
+        occurrences: dict[str, int] = {}
+        record_ids = [_row_record_id(row, occurrences) for row in mapped_rows]
+        existing_targets = uow.imports.existing_fact_targets(
+            source_type=channel, record_ids=record_ids,
+        )
+        # A mapping change affects future rows only.  Existing facts are rendered
+        # and re-imported against their current account so the merge cannot move
+        # them to the newly selected account.
+        for row, record_id in zip(mapped_rows, record_ids, strict=True):
+            existing_target = existing_targets.get(record_id)
+            if existing_target is not None:
+                row["account_name"] = existing_target[0]
+                row["currency"] = existing_target[1]
+        return mapped_rows, groups, resolved, record_ids, existing_targets
+
+    def _preview_mapped_import(
+        self,
+        content: bytes,
+        *,
+        source: str,
+        currency: str | None,
+        filename: str,
+        password: str | None,
+        mapping: list[dict],
+    ) -> dict:
+        rows, channel, _candidate = self._resolve_source_rows(
+            content, source=source, currency=currency, filename=filename, password=password,
+        )
+        digest = self._import_digest(content)
+        with self._uow as uow:
+            mapped_rows, groups, resolved, record_ids, existing_targets = self._apply_mapping_to_source_rows(
+                uow, rows, channel, mapping,
+            )
+            accounts_by_name = {
+                row.name: row for row in uow._state().session.scalars(sa_select(AccountModel).where(
+                    AccountModel.workspace_id == self._workspace_id,
+                )).all()
+            }
+            for index, group in enumerate(groups):
+                target = resolved[group.group_id]["account"]
+                if target["name"] not in accounts_by_name:
+                    accounts_by_name[target["name"]] = SimpleNamespace(
+                        id=-(index + 1), name=target["name"], type=target["type"],
+                        currencies=list(target.get("currencies", ())),
+                    )
+            prepared = list(zip(mapped_rows, record_ids, strict=True))
+            items = []
+            for row, rid in prepared:
+                status = "existing" if rid in existing_targets else "new"
+                items.append({
+                    "record_id": rid,
+                    "occurred_at": row.get("occurred_at") or row.get("date") or "",
+                    "amount": str(row.get("amount") or "0"),
+                    "currency": str(row.get("currency") or currency or "CNY").upper(),
+                    "account_name": row.get("account_name") or "",
+                    "counterparty": row.get("counterparty") or "",
+                    "counterparty_account": row.get("counterparty_account") or "",
+                    "record_type": row.get("record_type") or "other",
+                    "record_subtype": row.get("record_subtype") or "not_applicable",
+                    "category": row.get("category") or "",
+                    "note": row.get("note") or "",
+                    "channel": channel,
+                    "status": status,
+                    "message": "",
+                })
+            counts = {
+                "total": len(items),
+                "new": sum(item["status"] == "new" for item in items),
+                "existing": sum(item["status"] == "existing" for item in items),
+                "unsupported": 0,
+            }
+            mapping_wire = [
+                {
+                    "group_id": group.group_id,
+                    "account_id": resolved[group.group_id]["account_id"],
+                    "missing_currencies": list(resolved[group.group_id]["missing_currencies"]),
+                    "new_account": resolved[group.group_id]["new_account"],
+                }
+                for group in groups
+            ]
+            relations = self._preview_relation_suggestions(
+                uow._state().session,
+                prepared=prepared,
+                items_by_id={item["record_id"]: item for item in items},
+                channel=channel,
+                accounts_by_name=accounts_by_name,
+            )
+            uow.rollback()
+            return {
+                "channel": channel,
+                "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
+                "file": {"name": filename or "statement", "digest": digest},
+                "columns": list(STANDARD_IMPORT_COLUMNS),
+                "items": items,
+                "summary": counts,
+                "mapping": mapping_wire,
+                "relations": relations,
+            }
+
+    def preview_import(self, content: bytes, *, source: str, currency: str | None, filename: str, password: str | None = None, mapping: list[dict] | None = None) -> dict:
+        if mapping is not None:
+            return self._preview_mapped_import(
+                content, source=source, currency=currency, filename=filename,
+                password=password, mapping=mapping,
+            )
         rows, channel, _candidate = self._resolve_import_rows(
             content, source=source, currency=currency, filename=filename, password=password,
         )
@@ -1286,6 +1648,116 @@ class CashLedgerCommandService:
                 ),
             }
 
+    def _commit_mapped_import(
+        self,
+        content: bytes,
+        *,
+        source: str,
+        currency: str | None,
+        filename: str,
+        password: str | None,
+        preview_digest: str | None,
+        preview_channel: str | None,
+        relation_decisions: list[dict] | None,
+        mapping: list[dict],
+    ) -> dict:
+        digest = self._import_digest(content)
+        if preview_digest and preview_digest != digest:
+            raise ValueError("import_preview_stale")
+        rows, channel, candidate = self._resolve_source_rows(
+            content, source=source, currency=currency, filename=filename, password=password,
+        )
+        if preview_channel and preview_channel != channel:
+            raise ValueError("import_preview_stale")
+        with self._uow as uow:
+            mapped_rows, groups, resolved, _record_ids, _existing_targets = self._apply_mapping_to_source_rows(
+                uow, rows, channel, mapping,
+            )
+            session = uow._state().session
+            snapshot = uow.snapshot.load(lock=True)
+            for group in groups:
+                target = resolved[group.group_id]
+                account = target["account"]
+                if target["new_account"] is not None:
+                    model = AccountModel(
+                        workspace_id=self._workspace_id,
+                        name=account["name"],
+                        type=account["type"],
+                        active=True,
+                        currencies=list(account["currencies"]),
+                        metadata_json={},
+                    )
+                    session.add(model)
+                    session.flush()
+                    target["account_id"] = model.id
+                    account["id"] = model.id
+                    uow.wealth_facts.record_lifecycle(
+                        account_name=model.name,
+                        event_kind="opened",
+                        effective_at=datetime.now(timezone.utc),
+                    )
+                else:
+                    model = session.get(AccountModel, int(account["id"]))
+                    if model is None or not model.active:
+                        raise ValueError("import_account_unavailable")
+                    currencies = [str(item).upper() for item in (model.currencies or ()) if item]
+                    for item in group.currencies:
+                        if item not in currencies:
+                            currencies.append(item)
+                    model.currencies = currencies
+                    account["currencies"] = currencies
+                bucket = snapshot.setdefault("accounts", {}).setdefault(account["type"], {})
+                pockets = bucket.setdefault(account["name"], {})
+                if isinstance(pockets, dict):
+                    for item in account["currencies"]:
+                        pockets.setdefault(item, "0")
+            uow.snapshot.save(snapshot)
+
+            class MappedParser:
+                def parse(self, _command):
+                    return [dict(row) for row in mapped_rows]
+
+            with tempfile.NamedTemporaryFile(
+                prefix="ft-mapped-import-", suffix=Path(filename or "statement").suffix, delete=True,
+            ) as handle:
+                handle.write(content)
+                handle.flush()
+                result = StatementImportService(
+                    _ActiveUowProxy(uow), MappedParser(), relation_service=self._relation_service,
+                    enforce_account_currencies=True, run_relation_check=False,
+                ).import_statement(
+                    StatementImportCommand(
+                        source_path=handle.name,
+                        source=candidate,
+                        currency=currency,
+                        password=password,
+                    ),
+                    relation_decisions=relation_decisions,
+                )
+            if not result.ok:
+                raise ValueError(result.message or "导入失败")
+            for group in groups:
+                decision = next(item for item in mapping if item["group_id"] == group.group_id)
+                uow.statement_account_mappings.upsert(
+                    source_type=group.source_type,
+                    identity_kind=group.identity_kind,
+                    source_account_key=group.source_account_key,
+                    account_id=resolved[group.group_id]["account_id"],
+                    confirmed_by="web",
+                    expected_revision=decision.get("mapping_revision"),
+                )
+            uow.commit()
+            details = result.details or {}
+            return _wire({
+                "message": result.message,
+                "new_rows": details.get("new_rows", result.count),
+                "updated_rows": details.get("updated_rows", 0),
+                "by_account": details.get("by_account", {}),
+                "channel": channel,
+                "digest": digest,
+                "mapping_saved": len(groups),
+            })
+
     def commit_import(
         self,
         content: bytes,
@@ -1297,7 +1769,15 @@ class CashLedgerCommandService:
         preview_digest: str | None = None,
         preview_channel: str | None = None,
         relation_decisions: list[dict] | None = None,
+        mapping: list[dict] | None = None,
     ) -> dict:
+        if mapping is not None:
+            return self._commit_mapped_import(
+                content, source=source, currency=currency, filename=filename,
+                password=password, preview_digest=preview_digest,
+                preview_channel=preview_channel, relation_decisions=relation_decisions,
+                mapping=mapping,
+            )
         digest = self._import_digest(content)
         if preview_digest and preview_digest != digest:
             raise ValueError("import_preview_stale")
