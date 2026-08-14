@@ -24,20 +24,20 @@
 
 ## 5. 审查
 
-- [x] 5.1 完成产品/范围、工程、数据安全和最终 diff 独立复核。范围覆盖三项用户诉求及旧路径兼容；确认 URL ID 不作为 API 授权依据、深链接先调用成员校验、切换失败保留旧 state/URL、删除在一个事务中按受限关系顺序集合清理并具备回滚。检查模型后未发现遗漏的 workspace 受限依赖；无 critical/major finding。仓库外 gstack review 清单不可用，已以当前 diff、模型 FK 和测试证据完成独立人工复核，未执行提交/推送。
+- [x] 5.1 完成产品/范围、工程、数据安全和最终 diff 独立复核。范围覆盖三项用户诉求及旧路径兼容；确认 URL ID 不作为 API 授权依据、深链接先调用成员校验、切换失败保留旧 state/URL、删除在一个事务中按受限关系顺序集合清理并具备回滚。检查模型后未发现遗漏的 workspace 受限依赖；无 critical/major finding。仓库未提供 gstack 专用 review 清单，已读取运行时可用的全局审查清单并以当前 diff、模型 FK 和测试证据完成独立人工复核，未发现阻断项。
 - [x] 5.2 完成原型与最终 UI 人工复核：核心任务、错误/空/加载/成功状态、删除确认、键盘焦点和 320/375/390/414/768/1440 px 均有覆盖，未发现 critical/major finding。运行时未提供 Hallmark `audit` 动作，已记录为不可用并完成等价人工审查，未声称已执行 Hallmark。
 - [x] 5.3 根据独立覆盖审查补齐高风险回归：新增无权深链接、子页面切换和删除失败后重试测试；覆盖审查列出的其余未覆盖分支（PostgreSQL、浏览器历史回退/前进及后端事务竞争）已记录为环境或后续专项验证，不改变本次修复范围。
 
 ## 6. 测试与 QA
 
-- [x] 6.1 在 `2026-08-15`、`HEAD=921e18f0899663e6a8187e6a2e3f214aec725ab3`（基线 `git merge-base origin/main HEAD=8c18ed7ecff6b31cd5adcc18becb4e4e09035f55`）完成受影响验证：`uv run pytest tests/test_user_workspace_access.py -q` 为 19 passed、1 skipped；新增删除回归单测通过；`npm test -- --run` 为 10 files/111 tests passed；`npm run build` 通过；`git diff --check` 通过。全量 `uv run pytest -q` 为 1475 passed、177 skipped、1 failed，失败为既有 `tests/test_wealth_performance.py::test_fixed_100k_fact_rebuild_and_active_cache_meet_budgets[sqlite]` 冷 P95 偶发超出 5 秒阈值；随后单独重跑该用例通过（128.85s），未修改性能代码。
+- [x] 6.1 在 `2026-08-15`、验证提交 `HEAD=a8e03f5f7ca554b4175a96b809f1387a26ffee66`（基线 `origin/refactor/web=921e18f0899663e6a8187e6a2e3f214aec725ab3`）完成受影响验证：`uv run pytest tests/test_user_workspace_access.py -q` 为 19 passed、1 skipped；新增删除回归单测通过；`npm test -- --run` 为 10 files/114 tests passed；`npm run build` 通过；`git diff --check` 通过。全量 `uv run pytest -q` 为 1475 passed、177 skipped、1 failed，失败为与本次工作区改动无关的 `tests/test_wealth_performance.py::test_fixed_100k_fact_rebuild_and_active_cache_meet_budgets[sqlite]` 性能预算：冷 P95 为 5,384,290,125 ns，超过 5,000,000,000 ns；随后单独重跑仍为 5,440,428,125 ns，热 P95 为 48,575,125 ns，未修改性能代码。
 - [ ] 6.2 `FT_TEST_POSTGRES_URL` 当前未配置，故未执行 PostgreSQL 矩阵；必须准备可连接的专用数据库且数据库名以 `_test` 结尾后，设置该变量并补跑同一工作区切换/删除契约（含 `tests/test_user_workspace_access.py` 的 PostgreSQL fixture）。这是交付前残余验证风险。
 - [x] 6.3 使用真实 Playwright Chromium 完成浏览器 QA。仓库 in-app Browser 尝试时 `agent.browsers.list()` 返回空列表，故记录为不可用并使用 Playwright fallback：工作区筛选用例 5 passed（`FT_E2E_WEB_PORT=5187 npm run test:e2e -- --grep '工作区'`），流水核心 12 passed，生产预览 7 passed（`npm run test:preview`），覆盖 `/w/workspace-1/`、`/w/workspace-2/`、`/w/workspace-2/cash-categories`、旧 `/workspace-management` 规范化及 `/w/preview-workspace/cash-import`；工作区管理检查 320/375/414/768/390/1440 px，无页面横向滚动，截图保存于 `/tmp/workspace-management-delete-desktop.png`、`/tmp/workspace-management-layout-mobile.png`、`/tmp/workspace-management-delete-mobile.png`。Playwright 流程未报告导航、API 或请求失败；未单独采集 console/network 事件。完整 30 项 E2E 为 29 passed、1 failed，失败为既有暗色侧栏断言将 8 个实际导航文字节点写死为 7 个。视觉套件 15 项为 9 passed、6 failed，失败集中于既有快照差异（相同 2178/1872 像素差异），本次未修改 CSS，未更新基线。
-- [x] 6.4 `openspec validate --all --strict` 通过（27 passed、0 failed），`openspec doctor` 通过；完成范围化 diff、`git diff --check` 和最终规格—实现—测试一致性复核。未发现需要 Flow-Back 的偏离；未执行提交、推送或部署。
+- [x] 6.4 `openspec validate --all --strict` 通过（27 passed、0 failed），`openspec doctor` 通过；完成范围化 diff、`git diff --check` 和最终规格—实现—测试一致性复核。未发现需要 Flow-Back 的偏离；验证提交已整理为 `a8e03f5f7ca554b4175a96b809f1387a26ffee66`，推送、PR 和合入待本次交付流程执行。
 
 ## 7. 发布准备
 
-- [x] 7.1 记录发布准备：前后端需同版本发布，先观察旧顶级路径规范化、深链接权限失败、切换失败和删除数据库错误；回滚时同时回滚前端/API，已成功删除的数据不可恢复。本次不执行提交、推送或部署。
+- [x] 7.1 记录发布准备：前后端需同版本发布，先观察旧顶级路径规范化、深链接权限失败、切换失败和删除数据库错误；回滚时同时回滚前端/API，已成功删除的数据不可恢复。用户已明确授权推送本分支、创建到 `refactor/web` 的 PR 并合入；本次不执行部署。
 
 ## 8. 反思
 
