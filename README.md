@@ -229,8 +229,8 @@ HTTPS origin（不得包含路径、查询参数或凭据）。配置无效或 A
 
 ### Render 部署
 
-部署两个 Render Service 时，后端使用 Web Service，前端使用 Static Site 或 Web Service。两者必须各自有
-独立公开 URL，并通过精确 origin 配置跨域会话：
+部署两个 Render Service 时，后端使用 Web Service，前端使用 Static Site 或 Web Service。两者可以直接使用
+Render 提供的独立公开 URL，不需要自定义域名；前端通过 Bearer 会话令牌访问 API：
 
 ```bash
 # 后端环境变量
@@ -247,8 +247,9 @@ uv run alembic upgrade head && uv run uvicorn ft.web.app:create_runtime_app --fa
 VITE_FT_API_ORIGIN='https://your-api.onrender.com'
 ```
 
-生产环境的会话 Cookie 自动使用 `HttpOnly`、`Secure`、`SameSite=Lax` 和 30 天有效期；前端请求会携带
-Cookie，后端仅允许 `FT_WEB_ORIGIN` 这一项 CORS 来源。不要把 `FT_WORKSPACE_ID` 配给 Web 后端；它只保留给
+生产环境不会设置或依赖 Cookie。登录/注册响应返回随机会话令牌，前端保存在浏览器 `localStorage`，后续请求通过
+`Authorization: Bearer <token>` 发送；显式退出会撤销服务端会话并清除本地令牌。后端仍仅允许
+`FT_WEB_ORIGIN` 这一项 CORS 来源，并允许 `Authorization` 预检。不要把 `FT_WORKSPACE_ID` 配给 Web 后端；它只保留给
 CLI。首次注册 `admin@ssttkkl.fun` 时，如果既有 `default` 工作区存在，该用户会自动成为其管理员。
 
 当前只交付**收支账本**与**证据详情**。投资账本视图、投资事件、持仓和持仓估值属于 `022-investment-ledger-browser-web`，尚未交付。

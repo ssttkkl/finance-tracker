@@ -19,7 +19,7 @@ from ft.application.web_queries import CashLedgerQueryService
 from ft.application.cash_ledger import CashLedgerCommandService
 from ft.config import StorageSettings
 from ft.web.serialization import error_payload
-from ft.application.access import AccessService, AuthenticationRequired, PermissionDenied, SESSION_COOKIE
+from ft.application.access import AccessService, AuthenticationRequired, PermissionDenied, bearer_token
 
 
 DEFAULT_WEB_ORIGIN = "http://127.0.0.1:5173"
@@ -165,13 +165,10 @@ def create_app(
     portfolio_refresh=None,
     access_service: AccessService | None = None,
     workspace_context=None,
-    cookie_secure: bool | None = None,
 ) -> FastAPI:
     from ft.web.routes import cash_router
 
     allowed_origin = validate_web_origin(allowed_origin)
-    if cookie_secure is None:
-        cookie_secure = urlparse(allowed_origin).scheme == "https"
     app = FastAPI(
         title="Finance Tracker 本机账本浏览器",
         docs_url=None,
@@ -185,17 +182,21 @@ def create_app(
         # default port. Keep the trust boundary local while allowing that port
         # change without making the user manually restart the API.
         allow_origin_regex=LOCAL_WEB_ORIGIN_REGEX,
-        allow_credentials=access_service is not None,
+        allow_credentials=False,
         allow_methods=["GET", "POST", "PUT", "DELETE"],
-        allow_headers=["Accept", "Content-Type", "X-FT-Statement-Password"],
+        allow_headers=["Accept", "Content-Type", "Authorization", "X-FT-Statement-Password"],
     )
 
     if access_service is not None:
         @app.middleware("http")
         async def authenticate_web_api(request, call_next):
-            if request.url.path.startswith("/api/v1") and not request.url.path.startswith("/api/v1/auth"):
+            if (
+                request.url.path.startswith("/api/v1")
+                and not request.url.path.startswith("/api/v1/auth")
+                and request.method != "OPTIONS"
+            ):
                 try:
-                    workspace_id, role = access_service.require(request.cookies.get(SESSION_COOKIE), {"admin", "editor", "viewer"})
+                    workspace_id, role = access_service.require(bearer_token(request.headers.get("Authorization")), {"admin", "editor", "viewer"})
                     if request.method not in {"GET", "HEAD", "OPTIONS"} and role == "viewer":
                         return JSONResponse(error_payload("workspace_forbidden", "当前角色仅可查看账本。"), 403)
                     request.state.workspace_id = workspace_id; request.state.workspace_role = role
@@ -224,7 +225,7 @@ def create_app(
 
     if access_service is not None:
         from ft.web.access_routes import access_router
-        app.include_router(access_router(access_service, cookie_secure=cookie_secure))
+        app.include_router(access_router(access_service))
     app.include_router(cash_router(
         service,
         mutation_service=mutation_service,

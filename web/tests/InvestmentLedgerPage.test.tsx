@@ -34,6 +34,34 @@ class MockEventSource {
   close() { this.closed = true; }
   emit(type: string, value: unknown) { for (const listener of this.listeners.get(type) ?? []) listener(new MessageEvent(type, { data: JSON.stringify(value) })); }
 }
+
+class MockFetchEventStream {
+  static instances: MockFetchEventStream[] = [];
+  readonly response: Response;
+  private controller: ReadableStreamDefaultController<Uint8Array> | null = null;
+  closed = false;
+
+  constructor() {
+    const instance = this;
+    this.response = new Response(new ReadableStream<Uint8Array>({
+      start(controller) { instance.controller = controller; },
+      cancel() { instance.closed = true; },
+    }), { headers: { "Content-Type": "text/event-stream" } });
+    MockFetchEventStream.instances.push(this);
+  }
+
+  bindAbortSignal(signal: AbortSignal | undefined) {
+    signal?.addEventListener("abort", () => {
+      this.closed = true;
+      this.controller?.error(new DOMException("Aborted", "AbortError"));
+    }, { once: true });
+    return this;
+  }
+
+  emit(type: string, value: unknown) {
+    this.controller?.enqueue(new TextEncoder().encode(`event: ${type}\ndata: ${JSON.stringify(value)}\n\n`));
+  }
+}
 const snapshotEvent: InvestmentEvent = {
   ...event,
   event_id: "fixture:investment-snapshot",
@@ -93,7 +121,7 @@ function holdingsOnly(value: Portfolio): Portfolio {
   };
 }
 
-beforeEach(() => { vi.stubEnv("VITE_FT_API_ORIGIN", "http://127.0.0.1:8000"); MockEventSource.instances = []; vi.stubGlobal("EventSource", MockEventSource); });
+beforeEach(() => { vi.stubEnv("VITE_FT_API_ORIGIN", "http://127.0.0.1:8000"); MockEventSource.instances = []; MockFetchEventStream.instances = []; vi.stubGlobal("EventSource", MockEventSource); });
 afterEach(() => { cleanup(); window.localStorage.clear(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("InvestmentLedgerPage", () => {
@@ -116,7 +144,8 @@ describe("InvestmentLedgerPage", () => {
 
   it("独立读取事件和持仓，并保留精确十进制与估值状态", async () => {
     const partial = { ...portfolio.accounts[0].positions[0], ticker: "BTC", quote_status: "partial" as const, quote_reason: "query_deadline_exceeded", current_price: null, market_value: null };
-    const fetch = vi.fn((input: string) => {
+    const fetch = vi.fn((input: string, init?: RequestInit) => {
+      if (input.includes("/investment-portfolio/stream")) return Promise.resolve(new MockFetchEventStream().bindAbortSignal(init?.signal ?? undefined).response);
       if (input.includes("/accounts")) return json({ items: [account] });
       if (input.includes("/investment-portfolio")) return json({ accounts: [{ ...portfolio.accounts[0], positions: [portfolio.accounts[0].positions[0], partial] }] });
       return json({ data_version: 1, items: [event], next_cursor: null, page_size: 50, filters: {} });
@@ -146,7 +175,8 @@ describe("InvestmentLedgerPage", () => {
         usd_market_value: "1012.50",
       }] }],
     };
-    const fetch = vi.fn((input: string) => {
+    const fetch = vi.fn((input: string, init?: RequestInit) => {
+      if (input.includes("/investment-portfolio/stream")) return Promise.resolve(new MockFetchEventStream().bindAbortSignal(init?.signal ?? undefined).response);
       if (input.includes("/accounts")) return json({ items: [account] });
       if (input.includes("/investment-portfolio")) return json(quotedPortfolio);
       return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
@@ -457,6 +487,7 @@ describe("InvestmentLedgerPage", () => {
     let resolveHoldings!: (response: Response) => void;
     const holdingsResponse = new Promise<Response>((resolve) => { resolveHoldings = resolve; });
     const fetch = vi.fn((input: string) => {
+      if (input.includes("/investment-portfolio/stream")) return Promise.resolve(new MockFetchEventStream().response);
       if (input.includes("/accounts")) return json({ items: [account] });
       if (input.includes("/investment-portfolio") && input.includes("phase=holdings")) return holdingsResponse;
       return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
@@ -465,17 +496,18 @@ describe("InvestmentLedgerPage", () => {
 
     render(<InvestmentLedgerPage />);
 
-    await waitFor(() => expect(fetch.mock.calls.filter(([input]) => String(input).includes("/investment-portfolio"))).toHaveLength(1));
+    await waitFor(() => expect(fetch.mock.calls.filter(([input]) => String(input).includes("/investment-portfolio") && !String(input).includes("/stream"))).toHaveLength(1));
     await act(async () => { resolveHoldings(await json(holdingsOnly(complete))); });
     const table = await screen.findByRole("table", { name: "当前持仓" });
     expect(within(table).getByText("AAPL.US")).toBeInTheDocument();
     expect(within(table).getByText("10")).toBeInTheDocument();
     expect(within(table).queryByText("101.25 USD")).not.toBeInTheDocument();
 
-    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
-    const stream = MockEventSource.instances[0];
-    expect(new URL(stream.url).pathname).toBe("/api/v1/investment-portfolio/stream");
-    expect(new URL(stream.url).searchParams.get("period")).toBe("24h");
+    await waitFor(() => expect(MockFetchEventStream.instances).toHaveLength(1));
+    const stream = MockFetchEventStream.instances[0];
+    const streamCall = fetch.mock.calls.find(([input]) => String(input).includes("/investment-portfolio/stream"));
+    expect(new URL(String(streamCall?.[0])).pathname).toBe("/api/v1/investment-portfolio/stream");
+    expect(new URL(String(streamCall?.[0])).searchParams.get("period")).toBe("24h");
     await act(async () => { stream.emit("portfolio", { version: 1, portfolio: complete }); });
     expect(await screen.findByText("101.25 USD")).toBeInTheDocument();
     expect(screen.getAllByText("+12.50 USD")).toHaveLength(2);
@@ -493,6 +525,7 @@ describe("InvestmentLedgerPage", () => {
       }] }],
     };
     const fetch = vi.fn((input: string) => {
+      if (input.includes("/investment-portfolio/stream")) return Promise.resolve(new MockFetchEventStream().response);
       if (input.includes("/accounts")) return json({ items: [account] });
       if (input.includes("/investment-portfolio") && input.includes("phase=holdings")) return json(holdingsOnly(complete));
       if (input.includes("/investment-portfolio/refresh")) return json({ accepted: true }, 202);
@@ -501,8 +534,8 @@ describe("InvestmentLedgerPage", () => {
     vi.stubGlobal("fetch", fetch);
 
     render(<InvestmentLedgerPage />);
-    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
-    const stream = MockEventSource.instances[0];
+    await waitFor(() => expect(MockFetchEventStream.instances).toHaveLength(1));
+    const stream = MockFetchEventStream.instances[0];
     await act(async () => { stream.emit("portfolio", { version: 1, portfolio: complete }); });
     expect(await screen.findByText("101.25 USD")).toBeInTheDocument();
 
@@ -533,6 +566,7 @@ describe("InvestmentLedgerPage", () => {
       }] }],
     };
     const fetch = vi.fn((input: string) => {
+      if (input.includes("/investment-portfolio/stream")) return Promise.resolve(new MockFetchEventStream().response);
       if (input.includes("/accounts")) return json({ items: [account] });
       if (input.includes("/investment-portfolio") && input.includes("phase=holdings")) return json(holdingsOnly(complete));
       return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
@@ -540,8 +574,8 @@ describe("InvestmentLedgerPage", () => {
     vi.stubGlobal("fetch", fetch);
 
     render(<InvestmentLedgerPage />);
-    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
-    const stream = MockEventSource.instances[0];
+    await waitFor(() => expect(MockFetchEventStream.instances).toHaveLength(1));
+    const stream = MockFetchEventStream.instances[0];
     await act(async () => { stream.emit("portfolio", { version: 1, portfolio: complete }); });
     expect(await screen.findByText("+100%")).toBeInTheDocument();
     expect(screen.getAllByText("+8.04 USD")).toHaveLength(2);
@@ -554,6 +588,7 @@ describe("InvestmentLedgerPage", () => {
   it("持仓页使用 SSE 而不启动定时估值轮询，事件页也不连接持仓流", async () => {
     vi.useFakeTimers();
     const fetch = vi.fn((input: string) => {
+      if (input.includes("/investment-portfolio/stream")) return Promise.resolve(new MockFetchEventStream().response);
       if (input.includes("/accounts")) return json({ items: [account] });
       if (input.includes("/investment-portfolio")) return json(portfolio);
       return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
@@ -562,21 +597,22 @@ describe("InvestmentLedgerPage", () => {
 
     render(<InvestmentLedgerPage />);
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
-    const before = fetch.mock.calls.filter(([input]) => String(input).includes("/investment-portfolio")).length;
+    const before = fetch.mock.calls.filter(([input]) => String(input).includes("/investment-portfolio") && !String(input).includes("/stream")).length;
     await act(async () => { vi.advanceTimersByTime(30000); await Promise.resolve(); await Promise.resolve(); });
-    expect(fetch.mock.calls.filter(([input]) => String(input).includes("/investment-portfolio")).length).toBe(before);
-    expect(MockEventSource.instances).toHaveLength(1);
+    expect(fetch.mock.calls.filter(([input]) => String(input).includes("/investment-portfolio") && !String(input).includes("/stream")).length).toBe(before);
+    expect(MockFetchEventStream.instances).toHaveLength(1);
 
     cleanup();
     fetch.mockClear();
     render(<InvestmentLedgerPage view="events" />);
     await act(async () => { vi.advanceTimersByTime(30000); await Promise.resolve(); });
     expect(fetch.mock.calls.some(([input]) => String(input).includes("/investment-portfolio"))).toBe(false);
-    expect(MockEventSource.instances).toHaveLength(1);
+    expect(MockFetchEventStream.instances).toHaveLength(1);
   });
 
   it("页面重新可见时重连 SSE，并向服务端请求一次优先刷新", async () => {
-    const fetch = vi.fn((input: string) => {
+    const fetch = vi.fn((input: string, init?: RequestInit) => {
+      if (input.includes("/investment-portfolio/stream")) return Promise.resolve(new MockFetchEventStream().bindAbortSignal(init?.signal ?? undefined).response);
       if (input.includes("/accounts")) return json({ items: [account] });
       if (input.includes("/investment-portfolio/refresh")) return json({ accepted: true }, 202);
       if (input.includes("/investment-portfolio")) return json(holdingsOnly(portfolio));
@@ -586,14 +622,14 @@ describe("InvestmentLedgerPage", () => {
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
 
     render(<InvestmentLedgerPage />);
-    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    await waitFor(() => expect(MockFetchEventStream.instances).toHaveLength(1));
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
     fireEvent(document, new Event("visibilitychange"));
-    expect(MockEventSource.instances[0].closed).toBe(true);
+    await waitFor(() => expect(MockFetchEventStream.instances[0].closed).toBe(true));
 
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
     fireEvent(document, new Event("visibilitychange"));
-    await waitFor(() => expect(MockEventSource.instances).toHaveLength(2));
+    await waitFor(() => expect(MockFetchEventStream.instances).toHaveLength(2));
     await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("/investment-portfolio/refresh"))).toBe(true));
   });
 
@@ -613,8 +649,9 @@ describe("InvestmentLedgerPage", () => {
       ],
     };
     const fetch = vi.fn((input: string) => {
+      if (input.includes("/investment-portfolio/stream")) return Promise.resolve(new MockFetchEventStream().response);
       if (input.includes("/accounts")) return json({ items: [account, secondAccount, thirdAccount] });
-      if (input.includes("/investment-portfolio")) return json(mergedPortfolio);
+      if (input.includes("/investment-portfolio") && input.includes("phase=holdings")) return json(mergedPortfolio);
       return json({ data_version: 1, items: [], next_cursor: null, page_size: 50, filters: {} });
     });
     vi.stubGlobal("fetch", fetch);

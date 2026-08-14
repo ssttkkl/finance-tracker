@@ -159,7 +159,7 @@ describe("CashImportPage", () => {
         detectCalls += 1;
         if (detectCalls === 1) return response({ error: { code: "import_password_required" } }, 400);
         expect(input).not.toContain("correct-password");
-        expect((init?.headers as Record<string, string>)["X-FT-Statement-Password"]).toBe("correct-password");
+        expect(new Headers(init?.headers).get("X-FT-Statement-Password")).toBe("correct-password");
         return response({ channel: "icbc", channel_label: "工行信用卡", file: { name: "locked.pdf", digest: "digest-1" }, digest: "digest-1", row_count: 1 });
       }
       return response({ message: "ok", new_rows: 1, updated_rows: 0 });
@@ -182,7 +182,7 @@ describe("CashImportPage", () => {
       if (input.includes("/detect")) {
         detectCalls += 1;
         if (detectCalls === 1) return response({ error: { code: "import_password_required" } }, 400);
-        expect((init?.headers as Record<string, string>)["X-FT-Statement-Password"]).toBe("wrong-password");
+        expect(new Headers(init?.headers).get("X-FT-Statement-Password")).toBe("wrong-password");
         return response({ channel: "icbc", channel_label: "工行信用卡", file: { name: "locked.pdf", digest: "digest-1" }, digest: "digest-1", row_count: 1 });
       }
       if (input.includes("/preview")) return response({ error: { code: "import_password_invalid" } }, 400);
@@ -210,7 +210,7 @@ describe("CashImportPage", () => {
       if (input.includes("/detect")) {
         detectCalls += 1;
         if (detectCalls === 1) return response({ error: { code: "import_password_required" } }, 400);
-        expect((init?.headers as Record<string, string>)["X-FT-Statement-Password"]).toBe("correct-password");
+        expect(new Headers(init?.headers).get("X-FT-Statement-Password")).toBe("correct-password");
         return response({ channel: "alipay", channel_label: "支付宝", file: { name: "locked.pdf", digest: "digest-1" }, digest: "digest-1", row_count: 1 });
       }
       if (input.includes("/preview")) return response(preview);
