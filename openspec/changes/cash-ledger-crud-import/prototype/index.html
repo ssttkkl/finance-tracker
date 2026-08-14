@@ -36,6 +36,15 @@
     .button-quiet { border-color: transparent; background: transparent; color: var(--color-ink-muted); }
     .button-link { min-height: 36px; padding-inline: var(--space-2); border-color: transparent; background: transparent; color: var(--color-accent); font-size: var(--text-sm); font-weight: 650; }
     .ui-icon { display: block; flex: none; }
+    .field-icon { width: 16px; height: 16px; color: var(--color-accent); }
+    .field-label { display: inline-flex; align-items: center; gap: var(--space-2); }
+    .feed-row.is-selectable { grid-template-columns: 24px minmax(0, 1fr) auto; }
+    .feed-row .selection-mark { align-self: start; width: 18px; height: 18px; margin-top: 2px; accent-color: var(--color-accent); }
+    .feed-row .feed-copy { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-2) var(--space-3); min-width: 0; }
+    .feed-row .feed-primary { grid-column: 1 / -1; }
+    .feed-row .feed-field { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; color: var(--color-ink-muted); font-size: var(--text-xs); }
+    .feed-row .feed-field .field-icon { width: 15px; height: 15px; }
+    .feed-row .feed-primary + .feed-field .field-icon { display: none; }
     .icon-only-button { display: inline-grid; width: 44px; min-width: 44px; min-height: 44px; padding: 0; place-items: center; }
     .icon-quiet-button { border-color: transparent; background: transparent; color: var(--color-accent); }
     input, select, textarea {
@@ -243,6 +252,11 @@
       .edit-row { grid-template-columns: 112px minmax(0, 1fr); align-items: start; gap: var(--space-3); }
       .edit-row label { padding-top: var(--space-3); }
     }
+    @media (max-width: 39.99rem) {
+      .feed-row .feed-copy { grid-template-columns: minmax(0, 1fr); }
+      .feed-row .feed-primary { grid-column: 1; }
+      .feed-row .feed-field { align-items: baseline; }
+    }
     @media (min-width: 60rem) {
       .topbar { padding-inline: var(--space-8); }
       .desktop-action { display: inline-flex; }
@@ -283,20 +297,21 @@
     <section aria-labelledby="month-heading">
       <div class="month-heading"><h2 id="month-heading">8 月 7 日</h2><span>4 条流水</span></div>
       <div class="ledger-feed">
-        <button class="feed-row" type="button" data-record="main">
-          <span><strong>满座儿餐饮服务（北京）有限公司</strong><small>18:17 · 工行信用卡(1200) · 餐饮</small><span class="feed-type">消费</span><span class="feed-related">已关联</span></span>
+        <button class="feed-row is-selectable" type="button" data-record="main">
+          <input class="selection-mark" type="checkbox" aria-label="选择满座儿餐饮服务（北京）有限公司" onclick="event.stopPropagation()">
+          <span class="feed-copy"><span class="feed-primary"><strong>满座儿餐饮服务（北京）有限公司</strong><small>智盘消费-A翘脚牛肉</small></span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="1"></rect><path d="M16 3v4M8 3v4M3 10h18"></path></svg>18:17</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.4 20.6a2 2 0 0 1-2.82 0L3.4 13.4a2 2 0 0 1 0-2.82V4h6.59a2 2 0 0 1 1.41.59l7.19 7.18a2 2 0 0 1 0 2.83Z"></path><circle cx="7.5" cy="7.5" r="1"></circle></svg>餐饮</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10h16M5 10v9M19 10v9M3 19h18l-8-6-8-6Z"></path></svg>工行信用卡(1200)</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h14v18l-3-2-4 2-4-2-3 2V3Z"></path><path d="M8 8h8M8 12h8M8 16h4"></path></svg>消费</span><span class="feed-related">已关联</span></span>
           <span class="amount">−33.80 CNY</span>
         </button>
         <button class="feed-row" type="button" data-record="income">
-          <span><strong>八月工资</strong><small>09:10 · 工行借记卡 · 工资</small><span class="feed-type">收入</span></span>
+          <span class="feed-copy"><span class="feed-primary"><strong>八月工资</strong><small>工资入账</small></span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="1"></rect><path d="M16 3v4M8 3v4M3 10h18"></path></svg>09:10</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.4 20.6a2 2 0 0 1-2.82 0L3.4 13.4a2 2 0 0 1 0-2.82V4h6.59a2 2 0 0 1 1.41.59l7.19 7.18a2 2 0 0 1 0 2.83Z"></path><circle cx="7.5" cy="7.5" r="1"></circle></svg>工资</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10h16M5 10v9M19 10v9M3 19h18l-8-6-8-6Z"></path></svg>工行借记卡</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h14v18l-3-2-4 2-4-2-3 2V3Z"></path><path d="M8 8h8M8 12h8M8 16h4"></path></svg>收入</span></span>
           <span class="amount income">12,800.00 CNY</span>
         </button>
         <button class="feed-row" type="button" data-record="zero">
-          <span><strong>账户确认记录</strong><small>08:30 · 工行借记卡 · 账户维护</small><span class="feed-type">消费</span></span>
+          <span class="feed-copy"><span class="feed-primary"><strong>账户确认记录</strong><small>月初账户确认</small></span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="1"></rect><path d="M16 3v4M8 3v4M3 10h18"></path></svg>08:30</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.4 20.6a2 2 0 0 1-2.82 0L3.4 13.4a2 2 0 0 1 0-2.82V4h6.59a2 2 0 0 1 1.41.59l7.19 7.18a2 2 0 0 1 0 2.83Z"></path><circle cx="7.5" cy="7.5" r="1"></circle></svg>账户维护</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10h16M5 10v9M19 10v9M3 19h18l-8-6-8-6Z"></path></svg>工行借记卡</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h14v18l-3-2-4 2-4-2-3 2V3Z"></path><path d="M8 8h8M8 12h8M8 16h4"></path></svg>消费</span></span>
           <span class="amount neutral">0.00 CNY</span>
         </button>
         <button class="feed-row" type="button" data-record="transfer">
-          <span><strong>转账至日常账户</strong><small>08:12 · 工行借记卡 · 普通转账</small><span class="feed-type">转账出账</span><span class="feed-related">已关联</span></span>
+          <span class="feed-copy"><span class="feed-primary"><strong>转账至日常账户</strong><small>本人账户</small></span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="1"></rect><path d="M16 3v4M8 3v4M3 10h18"></path></svg>08:12</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.4 20.6a2 2 0 0 1-2.82 0L3.4 13.4a2 2 0 0 1 0-2.82V4h6.59a2 2 0 0 1 1.41.59l7.19 7.18a2 2 0 0 1 0 2.83Z"></path><circle cx="7.5" cy="7.5" r="1"></circle></svg>转账</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10h16M5 10v9M19 10v9M3 19h18l-8-6-8-6Z"></path></svg>工行借记卡</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h14v18l-3-2-4 2-4-2-3 2V3Z"></path><path d="M8 8h8M8 12h8M8 16h4"></path></svg>转账出账</span><span class="feed-related">已关联</span></span>
           <span class="amount neutral">500.00 CNY</span>
         </button>
       </div>
@@ -347,13 +362,13 @@
           <dl class="record-details">
             <dt>交易对方</dt><dd id="view-counterparty">满座儿餐饮服务（北京）有限公司</dd>
             <dt id="view-counterparty-account-label">对方账号</dt><dd id="view-counterparty-account">尾号 0821</dd>
-            <dt>发生时间</dt><dd id="view-occurred">2026年8月7日 18:17</dd>
-            <dt>账户</dt><dd id="view-account">工行信用卡(1200)</dd>
-            <dt>流水类型</dt><dd id="view-type-detail">消费</dd>
+            <dt><span class="field-label"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="1"></rect><path d="M16 3v4M8 3v4M3 10h18"></path></svg>发生时间</span></dt><dd id="view-occurred">2026年8月7日 18:17</dd>
+            <dt><span class="field-label"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10h16M5 10v9M19 10v9M3 19h18l-8-6-8-6Z"></path></svg>账户</span></dt><dd id="view-account">工行信用卡(1200)</dd>
+            <dt><span class="field-label"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h14v18l-3-2-4 2-4-2-3 2V3Z"></path><path d="M8 8h8M8 12h8M8 16h4"></path></svg>流水类型</span></dt><dd id="view-type-detail">消费</dd>
             <dt id="view-subtype-label" hidden>业务细分</dt><dd id="view-subtype" hidden>普通转账</dd>
-            <dt>分类</dt><dd id="view-category">餐饮</dd>
+            <dt><span class="field-label"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.4 20.6a2 2 0 0 1-2.82 0L3.4 13.4a2 2 0 0 1 0-2.82V4h6.59a2 2 0 0 1 1.41.59l7.19 7.18a2 2 0 0 1 0 2.83Z"></path><circle cx="7.5" cy="7.5" r="1"></circle></svg>分类</span></dt><dd id="view-category">餐饮</dd>
             <dt>备注</dt><dd id="view-note">智盘消费-A翘脚牛肉</dd>
-            <dt>来源</dt><dd id="view-source">微信支付，工行信用卡账单</dd>
+            <dt><span class="field-label"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 9 5-9 5-9-5 9-5Z"></path><path d="m3 12 9 5 9-5M3 16l9 5 9-5"></path></svg>来源</span></dt><dd id="view-source">微信支付，工行信用卡账单</dd>
           </dl>
 
           <section class="drawer-related" id="related-section" aria-labelledby="related-heading">
@@ -392,15 +407,15 @@
           <div class="edit-fields">
             <div class="edit-row"><label for="edit-counterparty">交易对方</label><input id="edit-counterparty" value="满座儿餐饮服务（北京）有限公司"></div>
             <div class="edit-row"><label for="edit-counterparty-account">对方账号</label><input id="edit-counterparty-account" value="尾号 0821"></div>
-            <div class="edit-row"><label for="edit-date">发生时间</label><div class="date-time"><input id="edit-date" type="date" value="2026-08-07" aria-label="发生日期"><input id="edit-time" type="time" value="18:17" aria-label="发生时间"></div></div>
-            <div class="edit-row"><label for="edit-account">账户</label><select id="edit-account"><option>工行信用卡(1200)</option><option>微信支付</option><option>工行借记卡</option><option>日常账户</option></select></div>
-            <div class="edit-row"><label for="edit-type">流水类型</label><select id="edit-type">
+            <div class="edit-row"><label class="field-label" for="edit-date"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="1"></rect><path d="M16 3v4M8 3v4M3 10h18"></path></svg>发生时间</label><div class="date-time"><input id="edit-date" type="date" value="2026-08-07" aria-label="发生日期"><input id="edit-time" type="time" value="18:17" aria-label="发生时间"></div></div>
+            <div class="edit-row"><label class="field-label" for="edit-account"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10h16M5 10v9M19 10v9M3 19h18l-8-6-8-6Z"></path></svg>账户</label><select id="edit-account"><option>工行信用卡(1200)</option><option>微信支付</option><option>工行借记卡</option><option>日常账户</option></select></div>
+            <div class="edit-row"><label class="field-label" for="edit-type"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h14v18l-3-2-4 2-4-2-3 2V3Z"></path><path d="M8 8h8M8 12h8M8 16h4"></path></svg>流水类型</label><select id="edit-type">
               <option value="consumption">消费</option><option value="refund">消费退款</option><option value="reversal">撤销／冲正</option><option value="transfer_reversal">转账退回</option><option value="withdrawal_in">提现入账</option><option value="withdrawal_out">提现出账</option><option value="transfer_in">转账入账</option><option value="transfer_out">转账出账</option><option value="repayment">还款</option><option value="income">收入</option><option value="investment_in">投资入账</option><option value="investment_out">投资出账</option><option value="interest">利息</option><option value="fee">手续费</option><option value="fx_in">换汇入账</option><option value="fx_out">换汇出账</option><option value="other">其他</option>
             </select></div>
             <div class="edit-row" id="edit-subtype-row" hidden><label for="edit-subtype">业务细分</label><select id="edit-subtype"></select></div>
-            <div class="edit-row"><label for="edit-category">分类</label><input id="edit-category" value="餐饮"></div>
+            <div class="edit-row"><label class="field-label" for="edit-category"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.4 20.6a2 2 0 0 1-2.82 0L3.4 13.4a2 2 0 0 1 0-2.82V4h6.59a2 2 0 0 1 1.41.59l7.19 7.18a2 2 0 0 1 0 2.83Z"></path><circle cx="7.5" cy="7.5" r="1"></circle></svg>分类</label><input id="edit-category" value="餐饮"></div>
             <div class="edit-row"><label for="edit-note">备注</label><textarea id="edit-note">智盘消费-A翘脚牛肉</textarea></div>
-            <div class="edit-row"><span>来源</span><div class="readonly-value" id="edit-source">微信支付，工行信用卡账单</div></div>
+            <div class="edit-row"><span class="field-label"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 9 5-9 5-9-5 9-5Z"></path><path d="m3 12 9 5 9-5M3 16l9 5 9-5"></path></svg>来源</span><div class="readonly-value" id="edit-source">微信支付，工行信用卡账单</div></div>
           </div>
           <div class="drawer-actions"><button class="button-primary" id="save-record" type="submit">保存</button><button class="button-quiet" id="cancel-edit" type="button">取消</button></div>
         </form>

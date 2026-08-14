@@ -60,10 +60,17 @@ function crossCurrencyTransfer(accountName: string) {
 
 type LedgerItem = ReturnType<typeof item> | ReturnType<typeof crossCurrencyTransfer>;
 
+const authSession = {
+  user: { email: "e2e@example.com" },
+  active_workspace_id: "workspace-e2e",
+  workspaces: [{ id: "workspace-e2e", name: "E2E 账本", role: "editor" }],
+};
+
 async function mockLedger(page: Page, failOnce = false, firstCounterparty = "第一笔", firstItem: LedgerItem = item("1", firstCounterparty)) {
   let failed = false;
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
     if (url.pathname.includes("/evidence/")) return route.fulfill({ json: { projection_version: 1, projection: item("1", "第一笔"), root_record: null, members: [], accepted_relations: [], inactive_relation_hints: [], refund_timeline: [] } });
     const cursor = url.searchParams.get("cursor");
@@ -98,7 +105,7 @@ test("追加失败保留当前列表，并通过键盘重试", async ({ page }) 
   await expect(page.getByText("第一笔")).toBeVisible();
   await retry.focus(); await page.keyboard.press("Enter");
   await expect(page.getByText("第二笔")).toBeVisible();
-  await expect(page.getByText("流水类型：消费").first()).toBeVisible();
+  await expect(page.locator(".cash-row .economic-type").first()).toContainText("消费");
   await expect(page.getByText("导入渠道：fixture")).toHaveCount(0);
   expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
 });
@@ -119,12 +126,13 @@ test("超长交易信息不会挤出宽屏表格的后续列", async ({ page }) 
   await page.setViewportSize({ width: 1440, height: 900 });
   await mockLedger(page, false, longCounterparty);
   await page.goto("/");
+  await expect(page.getByText(longCounterparty)).toBeVisible();
 
   const tableWrap = page.locator(".table-wrap");
   await expect(tableWrap).toBeVisible();
   const layout = await tableWrap.evaluate((wrapper) => {
     const bounds = wrapper.getBoundingClientRect();
-    const laterColumns = ["td.source", "td.economic-type", "td.amount", "td.action"]
+    const laterColumns = ["td.category", "td.economic-type", "td.amount", "td.action"]
       .map((selector) => wrapper.querySelector(selector)?.getBoundingClientRect())
       .filter((rect): rect is DOMRect => Boolean(rect));
     const transactionText = wrapper.querySelector<HTMLElement>(".counterparty-primary");
@@ -194,6 +202,7 @@ test("新建流水沿用信息抽屉，不提供收入支出切换并保留零�
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [{ ...account, currencies: ["CNY", "USD"] }] } });
     if (url.pathname.endsWith("/cash-ledger/options")) return route.fulfill({ json: options });
     if (url.pathname.endsWith("/cash-records") && request.method() === "GET") return route.fulfill({ json: { items: [] } });
@@ -231,6 +240,7 @@ test("详情切换编辑、维护关联流水并在删除前展示影响确认",
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [{ ...account, currencies: ["CNY"] }] } });
     if (url.pathname.includes("/evidence/")) return route.fulfill({ json: { projection_version: 1, projection: { ...item("1", "咖啡店"), composition: ["payment_mirror"], member_count: 2, source_types: ["alipay", "wechat"] }, root_record: root, members: [{ ...root, roles: ["root"] }, { ...related, roles: ["mirror"] }], accepted_relations: [detail.relations[0]], inactive_relation_hints: [], refund_timeline: [] } });
     if (url.pathname.endsWith("/cash-ledger/options")) return route.fulfill({ json: options });
@@ -276,6 +286,7 @@ test("查看抽屉原位切换编辑，不重复读取当前流水并立即显�
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [{ ...account, currencies: ["CNY"] }] } });
     if (url.pathname.includes("/evidence/")) return route.fulfill({ json: { projection_version: 1, projection: { ...item("1", "咖啡店"), member_count: 1, composition: [], source_types: ["alipay"] }, root_record: root, members: [{ ...root, roles: ["root"] }], accepted_relations: [], inactive_relation_hints: [], refund_timeline: [] } });
     if (url.pathname.endsWith("/cash-ledger/options")) { optionsRequests += 1; return route.fulfill({ json: options }); }
@@ -317,6 +328,7 @@ test("关联流水从统一入口搜索已有流水并直接确认", async ({ pa
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [{ ...account, currencies: ["CNY"] }] } });
     if (url.pathname.includes("/evidence/")) return route.fulfill({ json: { projection_version: 1, projection: { ...item("1", "咖啡店"), member_count: 1, composition: [], source_types: ["alipay"] }, root_record: root, members: [{ ...root, roles: ["root"] }], accepted_relations: [], inactive_relation_hints: [], refund_timeline: [] } });
     if (url.pathname.endsWith("/cash-ledger/options")) return route.fulfill({ json: options });
@@ -335,7 +347,8 @@ test("关联流水从统一入口搜索已有流水并直接确认", async ({ pa
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await page.getByRole("button", { name: "查看咖啡店的收支详情" }).click();
+  await expect(page.getByRole("button", { name: "查看咖啡店的收支详情" })).toBeHidden();
+  await page.locator(".cash-row", { hasText: "咖啡店" }).click();
   const detail = page.getByRole("dialog", { name: "收支详情" });
   expect(candidateRequests).toHaveLength(0);
 
@@ -376,6 +389,7 @@ test("独立导入处理页面自动识别渠道并完成三步确认", async ({
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
     if (url.pathname.endsWith("/cash-import/detect")) return route.fulfill({ json: { channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", row_count: 1 } });
     if (url.pathname.endsWith("/cash-import/preview")) return route.fulfill({ json: { channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, columns: ["occurred_at", "amount", "currency", "account_name", "counterparty", "counterparty_account", "record_type", "record_subtype", "category", "note", "channel", "status"], items: [{ record_id: "row-1", occurred_at: "2026-07-03T09:00", counterparty: "咖啡店", counterparty_account: "", amount: "-12.50", currency: "CNY", account_name: "日常账户", record_type: "consumption", record_subtype: "not_applicable", category: "餐饮", note: "", channel: "icbc-asia", status: "new", message: "" }], summary: { total: 1, new: 1, existing: 0, unsupported: 0 }, relations: [] } });
@@ -406,6 +420,7 @@ test("独立导入处理页面自动识别渠道并完成三步确认", async ({
 });
 
 test("导入处理页面在四个目标宽度不产生页面级横向滚动", async ({ page }) => {
+  await page.route("**/api/v1/auth/session", async (route) => route.fulfill({ json: authSession }));
   for (const width of [320, 375, 414, 768]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/cash-import");

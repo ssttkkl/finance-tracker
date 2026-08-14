@@ -144,7 +144,7 @@ describe("CashLedgerPage", () => {
     expect(screen.getByRole("group", { name: "账本筛选工具" })).not.toHaveAttribute("open");
     expect(screen.queryByText("本机账本")).not.toBeInTheDocument();
     expect(screen.queryByText("按主记录发生时间查看收支投影")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["选择", "发生时间", "账户", "交易信息", "来源", "流水类型", "分类", "金额", "操作"]);
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["选择", "发生时间", "账户", "交易信息", "分类", "流水类型", "金额", "操作"]);
     expect(screen.queryByRole("columnheader", { name: "关联记录" })).not.toBeInTheDocument();
     expect(screen.getByText("午间消费")).toBeInTheDocument();
     expect(screen.getByText("-")).toBeInTheDocument();
@@ -509,7 +509,7 @@ describe("CashLedgerPage", () => {
     const confirmation = screen.getByRole("button", { name: "查看更新后的列表" });
     await waitFor(() => expect(confirmation).toHaveFocus());
     fireEvent.click(confirmation);
-    await waitFor(() => expect(screen.getByRole("button", { name: "查看刷新后的投影的收支详情" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("row", { name: /刷新后的投影/ })).toHaveFocus());
     expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("category_id=food"), expect.anything());
     expect(fetch).toHaveBeenLastCalledWith(expect.not.stringContaining("cursor=old-page"), expect.anything());
   });
@@ -700,6 +700,12 @@ describe("CashLedgerPage", () => {
     expect(within(editor).getByLabelText("结束日期")).toHaveValue("2026-07-06");
     expect(editor.textContent).toContain(`日常账户 · ${formatOccurredAt(candidate.occurred_at)}`);
     expect(within(editor).queryByRole("button", { name: "新建流水" })).not.toBeInTheDocument();
+    expect(within(editor).getByLabelText("发生时间").closest(".edit-row")).toHaveClass("edit-row");
+    expect(within(editor).getByLabelText("发生时间").closest(".edit-row")?.querySelector("svg")).toBeInTheDocument();
+    expect(within(editor).getByLabelText("账户").closest(".edit-row")?.querySelector("svg")).toBeInTheDocument();
+    expect(within(editor).getByLabelText("流水类型").closest(".edit-row")?.querySelector("svg")).toBeInTheDocument();
+    expect(within(editor).getByLabelText("分类").closest(".edit-row")?.querySelector("svg")).toBeInTheDocument();
+    expect(within(editor).getByLabelText("备注").closest(".edit-row")?.querySelector("svg")).toBeNull();
     expect(editor.querySelectorAll('input[type="radio"]')).toHaveLength(0);
     fireEvent.click(within(editor).getByRole("button", { name: "下一页" }));
     await within(editor).findByRole("radio", { name: /工资转入（下一页）/ });

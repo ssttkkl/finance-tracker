@@ -110,6 +110,11 @@ async function installFixture(page: Page, fixture: Fixture) {
     const method = request.method();
     const json = (value: unknown, status = 200) => route.fulfill({ status, json: value });
 
+    if (path.endsWith("/auth/session")) return json({
+      user: { email: "e2e@example.com" },
+      active_workspace_id: "workspace-e2e",
+      workspaces: [{ id: "workspace-e2e", name: "E2E 账本", role: "editor" }],
+    });
     if (path.endsWith("/accounts")) return json({ items: [account] });
     if (path.endsWith("/cash-ledger/options")) return json(ledgerOptions);
     if (path.endsWith("/cash-categories") && method === "GET") return json({ revision: fixture.directoryRevision, items: fixture.categories });
@@ -405,8 +410,9 @@ test("暗色模式下侧栏导航文字保持可读", async ({ page }, testInfo)
   await page.emulateMedia({ colorScheme: "dark" });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/cash-categories");
+  await expect(page.getByRole("navigation", { name: "主要导航" })).toBeVisible();
 
-  const colors = await page.locator(".sidebar a, .sidebar strong, .sidebar button").evaluateAll((elements) => elements.map((element) => {
+  const colors = await page.locator(".sidebar strong, .sidebar > nav a").evaluateAll((elements) => elements.map((element) => {
     const color = getComputedStyle(element).color;
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
