@@ -321,6 +321,25 @@ def test_cash_import_password_is_required_and_forwarded_to_every_stage(tmp_path)
     assert all(value == "correct-password" for value in calls[6:])
 
 
+def test_cash_import_missing_qpdf_still_requests_password_for_encrypted_pdf(tmp_path, monkeypatch):
+    from ft.importers import pdf_tools
+    from ft.importers.pdf_tools import PDFPasswordRequiredError
+
+    source = tmp_path / "encrypted-statement.pdf"
+    output = tmp_path / "decrypted-statement.pdf"
+    source.write_bytes(b"encrypted pdf")
+
+    monkeypatch.setattr(pdf_tools, "pdf_requires_password", lambda *_args, **_kwargs: True)
+
+    def missing_qpdf(*_args, **_kwargs):
+        raise FileNotFoundError("qpdf")
+
+    monkeypatch.setattr(pdf_tools.subprocess, "run", missing_qpdf)
+
+    with pytest.raises(PDFPasswordRequiredError):
+        pdf_tools.decrypt_pdf(source, output, None)
+
+
 def test_cash_import_channel_mismatch_is_stale_and_does_not_write(tmp_path):
     from ft.adapters.relational.models import CashTransactionModel
 

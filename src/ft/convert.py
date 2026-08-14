@@ -2,9 +2,6 @@
 import hashlib
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from pathlib import Path
-import os
-import tempfile
 
 
 # 消费平台推断规则 — 从交易对方/描述中识别
@@ -1767,13 +1764,11 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
 
 def _read_icbc_raw(path: str, password: str):
     """解析工行PDF，不落库，返回 (list[dict], bill_type, tracking_pairs)"""
-    from ft.importers.pdf_tools import decrypt_pdf, extract_pdf_text
+    from ft.importers.pdf_tools import extract_pdf_text
 
-    with tempfile.TemporaryDirectory(prefix="ft-icbc-") as temp_dir:
-        os.chmod(temp_dir, 0o700)
-        decrypted = Path(temp_dir) / "statement.pdf"
-        decrypt_pdf(path, decrypted, password, timeout=30)
-        text = extract_pdf_text(decrypted)
+    # ICBC credit text is parsed by pdfplumber's PDF text flow. Keeping each
+    # extracted word as a line preserves the fields expected by the importer.
+    text = extract_pdf_text(path, password=password, backend="pdfplumber", word_stream=True)
 
     is_credit = "信用卡" in text
     lines = text.split("\n")
