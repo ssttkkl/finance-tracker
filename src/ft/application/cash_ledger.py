@@ -17,11 +17,13 @@ from sqlalchemy import delete as sa_delete, select as sa_select, update as sa_up
 from ft.adapters.relational.models import (
     AccountModel,
     CashCategoryModel,
+    CashImportCommitModel,
     CashInvestmentFundingRelationModel,
     CashProjectionRelationModel,
     CashProjectionStateModel,
     CashTransactionModel,
     TransactionRelationModel,
+    WorkspaceModel,
 )
 from ft.adapters.relational.repositories import RelationalCashflowRepository
 from ft.adapters.relational.uow import RelationalUnitOfWork
@@ -1660,8 +1662,15 @@ class CashLedgerCommandService:
         preview_channel: str | None,
         relation_decisions: list[dict] | None,
         mapping: list[dict],
+        idempotency_key: str | None = None,
+        idempotency_scope: str | None = None,
+        idempotency_user_id: str | None = None,
     ) -> dict:
         digest = self._import_digest(content)
+        normalized_idempotency_key = str(idempotency_key or "").strip() or None
+        normalized_idempotency_user_id = str(idempotency_user_id or "__anonymous__")
+        if normalized_idempotency_key and len(normalized_idempotency_key) > 255:
+            raise ValueError("import_idempotency_key_invalid")
         if preview_digest and preview_digest != digest:
             raise ValueError("import_preview_stale")
         rows, channel, candidate = self._resolve_source_rows(
@@ -1670,10 +1679,30 @@ class CashLedgerCommandService:
         if preview_channel and preview_channel != channel:
             raise ValueError("import_preview_stale")
         with self._uow as uow:
+            session = uow._state().session
+            if normalized_idempotency_key:
+                # Serialize confirmation attempts for one workspace on PostgreSQL.
+                # SQLite already starts this UoW with BEGIN IMMEDIATE; the row lock
+                # closes the check-then-insert window on the shared database.
+                session.execute(sa_select(WorkspaceModel.id).where(
+                    WorkspaceModel.id == self._workspace_id,
+                ).with_for_update()).scalar_one()
+                existing = session.scalar(sa_select(CashImportCommitModel).where(
+                    CashImportCommitModel.workspace_id == self._workspace_id,
+                    CashImportCommitModel.idempotency_key == normalized_idempotency_key,
+                ))
+                if existing is not None:
+                    expected_scope = idempotency_scope or digest
+                    if (
+                        existing.user_id != normalized_idempotency_user_id
+                        or existing.session_digest != expected_scope
+                    ):
+                        raise ValueError("import_idempotency_conflict")
+                    uow.rollback()
+                    return dict(existing.result_json)
             mapped_rows, groups, resolved, _record_ids, _existing_targets = self._apply_mapping_to_source_rows(
                 uow, rows, channel, mapping,
             )
-            session = uow._state().session
             snapshot = uow.snapshot.load(lock=True)
             for group in groups:
                 target = resolved[group.group_id]
@@ -1746,9 +1775,8 @@ class CashLedgerCommandService:
                     confirmed_by="web",
                     expected_revision=decision.get("mapping_revision"),
                 )
-            uow.commit()
             details = result.details or {}
-            return _wire({
+            wire_result = _wire({
                 "message": result.message,
                 "new_rows": details.get("new_rows", result.count),
                 "updated_rows": details.get("updated_rows", 0),
@@ -1757,6 +1785,16 @@ class CashLedgerCommandService:
                 "digest": digest,
                 "mapping_saved": len(groups),
             })
+            if normalized_idempotency_key:
+                session.add(CashImportCommitModel(
+                    workspace_id=self._workspace_id,
+                    user_id=normalized_idempotency_user_id,
+                    idempotency_key=normalized_idempotency_key,
+                    session_digest=idempotency_scope or digest,
+                    result_json=wire_result,
+                ))
+            uow.commit()
+            return wire_result
 
     def commit_import(
         self,
@@ -1770,6 +1808,9 @@ class CashLedgerCommandService:
         preview_channel: str | None = None,
         relation_decisions: list[dict] | None = None,
         mapping: list[dict] | None = None,
+        idempotency_key: str | None = None,
+        idempotency_scope: str | None = None,
+        idempotency_user_id: str | None = None,
     ) -> dict:
         if mapping is not None:
             return self._commit_mapped_import(
@@ -1777,7 +1818,12 @@ class CashLedgerCommandService:
                 password=password, preview_digest=preview_digest,
                 preview_channel=preview_channel, relation_decisions=relation_decisions,
                 mapping=mapping,
+                idempotency_key=idempotency_key,
+                idempotency_scope=idempotency_scope,
+                idempotency_user_id=idempotency_user_id,
             )
+        if idempotency_key:
+            raise ValueError("import_mapping_incomplete")
         digest = self._import_digest(content)
         if preview_digest and preview_digest != digest:
             raise ValueError("import_preview_stale")
@@ -1806,6 +1852,21 @@ class CashLedgerCommandService:
             "channel": channel,
             "digest": digest,
         })
+
+    def get_import_commit_result(self, idempotency_key: str, *, idempotency_scope: str, user_id: str = "__anonymous__") -> dict | None:
+        key = str(idempotency_key or "").strip()
+        if not key:
+            return None
+        with self._sessions() as session:
+            row = session.scalar(sa_select(CashImportCommitModel).where(
+                CashImportCommitModel.workspace_id == self._workspace_id,
+                CashImportCommitModel.idempotency_key == key,
+            ))
+            if row is None:
+                return None
+            if row.user_id != str(user_id) or row.session_digest != idempotency_scope:
+                raise ValueError("import_idempotency_conflict")
+            return dict(row.result_json)
 
     def _parse_rows(self, content: bytes, *, source: str, currency: str | None, filename: str, password: str | None = None) -> tuple[list[dict], str]:
         rows, channel, _candidate = self._resolve_import_rows(

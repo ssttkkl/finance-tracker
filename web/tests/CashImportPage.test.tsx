@@ -98,8 +98,81 @@ describe("CashImportPage", () => {
     expect(await screen.findByRole("heading", { name: "导入完成" })).toBeInTheDocument();
     await waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).includes("/cash-import/commit"))).toBe(true));
     const commitRequest = fetch.mock.calls.find(([input]) => String(input).includes("/cash-import/commit"));
-    expect(String(commitRequest?.[0])).toContain("preview_digest=digest-1");
-    expect(String(commitRequest?.[0])).toContain("relations=%5B%5D");
+    expect(String(commitRequest?.[0])).not.toContain("relations=");
+    const commitInit = (commitRequest as unknown as [string, RequestInit?] | undefined)?.[1];
+    const commitBody = JSON.parse(String(commitInit?.body));
+    expect(commitBody.preview_digest).toBe("digest-1");
+    expect(commitBody.relations).toEqual([]);
+  });
+
+  it("扫描后只用令牌请求预览和确认，不重复上传账单正文", async () => {
+    const fetch = vi.fn((input: string, init?: RequestInit) => input.includes("/scan")
+      ? response({ ...scan, import_token: "token-1" })
+      : input.includes("/preview")
+        ? response({ ...previewWithRelations(2), import_token: "token-1" })
+        : response({ message: "导入完成", new_rows: 1, updated_rows: 0, channel: "alipay", digest: "digest-1" }));
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    const file = new File(["standardized"], "statement.csv", { type: "text/csv" });
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
+    await screen.findByRole("heading", { name: "映射账户" });
+    fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
+    await screen.findByRole("heading", { name: "核对流水" });
+    fireEvent.click(screen.getByRole("button", { name: /^下一步$/ }));
+    await screen.findByRole("heading", { name: "配对" });
+    fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
+    await screen.findByRole("heading", { name: "导入完成" });
+
+    const previewRequest = fetch.mock.calls.find(([input]) => String(input).includes("/preview"));
+    const commitRequest = fetch.mock.calls.find(([input]) => String(input).includes("/commit"));
+    const previewInit = (previewRequest as unknown as [string, RequestInit?])[1];
+    const commitInit = (commitRequest as unknown as [string, RequestInit?])[1];
+    expect(JSON.parse(String(previewInit?.body))).toMatchObject({ import_token: "token-1" });
+    expect(String(previewInit?.body)).not.toContain("content_base64");
+    expect(String(previewInit?.body)).not.toContain("standardized");
+    expect(JSON.parse(String(commitInit?.body))).toMatchObject({ import_token: "token-1" });
+    expect(String(commitInit?.body)).not.toContain("content_base64");
+    expect(String(commitInit?.body)).not.toContain("standardized");
+    expect(JSON.parse(String(commitInit?.body)).relations).toEqual([expect.objectContaining({
+      status: "accepted",
+      primary_record_id: "row-auto",
+      secondary_fact_id: 43,
+    })]);
+    expect(new Headers(commitInit?.headers).get("Idempotency-Key")).toBeTruthy();
+  });
+
+  it("确认遇到暂时性失败后复用同一幂等键重试", async () => {
+    let commitCalls = 0;
+    const commitKeys: string[] = [];
+    const fetch = vi.fn((input: string, init?: RequestInit) => {
+      if (input.includes("/scan")) return response({ ...scan, import_token: "token-retry" });
+      if (input.includes("/preview")) return response({ ...preview, import_token: "token-retry" });
+      if (input.includes("/commit")) {
+        commitCalls += 1;
+        commitKeys.push(new Headers(init?.headers).get("Idempotency-Key") ?? "");
+        return commitCalls === 1
+          ? response({ error: { code: "import_session_storage_unavailable" } }, 503)
+          : response({ message: "导入完成", new_rows: 1, updated_rows: 0, channel: "alipay", digest: "digest-1" });
+      }
+      return response({});
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [new File(["fixture"], "statement.csv")] } });
+    await screen.findByRole("heading", { name: "映射账户" });
+    fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
+    await screen.findByRole("heading", { name: "核对流水" });
+    fireEvent.click(screen.getByRole("button", { name: /^下一步$/ }));
+    await screen.findByRole("heading", { name: "配对" });
+    fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
+    expect(await screen.findByText("确认导入失败，请重试。" )).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
+    await screen.findByRole("heading", { name: "导入完成" });
+    expect(commitCalls).toBe(2);
+    expect(commitKeys[0]).toBeTruthy();
+    expect(commitKeys[1]).toBe(commitKeys[0]);
   });
 
   it("把创建账户和币种扩充说明放在各自账户选项下，并在最终请求提交草稿", async () => {
@@ -203,7 +276,10 @@ describe("CashImportPage", () => {
     await screen.findByRole("heading", { name: "导入完成" });
 
     const commitRequest = fetch.mock.calls.find(([input]) => String(input).includes("/cash-import/commit"));
-    expect(String(commitRequest?.[0])).toContain(encodeURIComponent('"status":"rejected"'));
+    expect(String(commitRequest?.[0])).not.toContain("relations=");
+    const commitInit = (commitRequest as unknown as [string, RequestInit?] | undefined)?.[1];
+    const commitBody = JSON.parse(String(commitInit?.body));
+    expect(commitBody.relations).toEqual([expect.objectContaining({ status: "rejected" })]);
   });
 
   it("加密 PDF 要求输入密码，并通过请求头重试而不放进 URL", async () => {
@@ -211,10 +287,10 @@ describe("CashImportPage", () => {
     const fetch = vi.fn((input: string, init?: RequestInit) => {
       if (input.includes("/scan")) {
         detectCalls += 1;
-        if (detectCalls === 1) return response({ error: { code: "import_password_required" } }, 400);
+        if (detectCalls === 1) return response({ error: { code: "import_password_required" }, import_token: "token-locked" }, 400);
         expect(input).not.toContain("correct-password");
         expect(new Headers(init?.headers).get("X-FT-Statement-Password")).toBe("correct-password");
-        return response({ ...scan, channel: "icbc", channel_label: "工行信用卡", file: { name: "locked.pdf", digest: "digest-1" }, groups: [{ ...scan.groups[0], display_name: "工行信用卡" }] });
+        return response({ ...scan, import_token: "token-locked", channel: "icbc", channel_label: "工行信用卡", file: { name: "locked.pdf", digest: "digest-1" }, groups: [{ ...scan.groups[0], display_name: "工行信用卡" }] });
       }
       return response({ message: "ok", new_rows: 1, updated_rows: 0 });
     });
@@ -227,6 +303,16 @@ describe("CashImportPage", () => {
     fireEvent.change(screen.getByLabelText("账单密码"), { target: { value: "correct-password" } });
     fireEvent.click(screen.getByRole("button", { name: "重新识别" }));
     expect(await screen.findByRole("heading", { name: "映射账户" })).toBeInTheDocument();
+    const scanRequests = fetch.mock.calls.filter(([input]) => String(input).includes("/scan"));
+    expect(JSON.parse(String(scanRequests[1]?.[1]?.body))).toEqual({
+      import_token: "token-locked",
+      source: "",
+      currency: null,
+      preview_digest: null,
+      preview_channel: null,
+      relations: null,
+      mapping: null,
+    });
     expect(screen.queryByText("correct-password")).not.toBeInTheDocument();
   });
 

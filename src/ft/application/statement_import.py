@@ -91,6 +91,13 @@ class StatementImportService:
         if not isinstance(decisions, list):
             raise ValueError("导入关系决策格式无效")
         accepted_ids: list[str] = []
+        projection_ready = None
+        if self._relations is not None:
+            from ft.adapters.relational.projections import RelationalCashProjectionRepository
+
+            projection_ready = RelationalCashProjectionRepository(
+                uow._state().session, uow.workspace_id,
+            ).ready_state_lock_or_none() is not None
 
         def resolve(value, *, required: bool = True) -> int | None:
             if value in (None, ""):
@@ -195,17 +202,11 @@ class StatementImportService:
                 self._relations._validate_transfer_endpoint_availability(
                     uow, [primary, secondary], str(relation_id), relations=endpoint_relations,
                 )
-            from ft.application.cash_projections import CashProjectionService
-            try:
-                projection_status = CashProjectionService.maintain_if_ready_in_session(
-                    uow._state().session,
-                    uow.workspace_id,
-                    {primary, secondary},
-                    known_component_ids={primary, secondary},
-                )
-            except Exception as exc:  # noqa: BLE001 - convert graph failures to import errors.
-                raise ValueError("导入关系无法形成有效收支投影") from exc
-            if projection_status is None and self._relations is not None:
+            # Import confirmation rebuilds all affected components once, after
+            # every relation decision has been applied. Rebuilding here as
+            # well would insert the relation endpoints into the active dataset
+            # twice and violate its projection identity constraint.
+            if projection_ready is False and self._relations is not None:
                 self._relations._validate_projection_acceptance(
                     uow, relation, other_fact_id=None,
                 )

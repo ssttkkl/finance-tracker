@@ -227,6 +227,29 @@ class StatementAccountMappingModel(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, onupdate=_now, nullable=False)
 
 
+class CashImportCommitModel(Base):
+    """Durable result fence for browser cash-import confirmation retries."""
+
+    __tablename__ = "cash_import_commits"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "idempotency_key",
+            name="uq_cash_import_commits_workspace_key",
+        ),
+        Index("ix_cash_import_commits_workspace", "workspace_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False,
+    )
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    session_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+
+
 class CashCategoryModel(Base):
     __tablename__ = "cash_categories"
     __table_args__ = (

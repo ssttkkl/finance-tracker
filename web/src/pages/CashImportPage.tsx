@@ -104,6 +104,19 @@ function passwordErrorMessage(cause: unknown): string | null {
   return null;
 }
 
+function importTokenFromError(cause: unknown): string | null {
+  if (!(cause instanceof Error)) return null;
+  const token = (cause as Error & { importToken?: unknown }).importToken;
+  return typeof token === "string" && token ? token : null;
+}
+
+function newImportIdempotencyKey(): string {
+  const random = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `cash-import-${random}`;
+}
+
 function mappingErrorMessage(cause: unknown): string | null {
   if (!(cause instanceof Error)) return null;
   const messages: Record<string, string> = {
@@ -177,6 +190,8 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const [error, setError] = useState<string>();
   const [password, setPassword] = useState("");
   const [passwordRequired, setPasswordRequired] = useState(false);
+  const [importToken, setImportToken] = useState<string | null>(null);
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
 
   const returnToPasswordEntry = (cause: unknown): boolean => {
     const message = passwordErrorMessage(cause);
@@ -203,17 +218,26 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setError(undefined);
     setPassword("");
     setPasswordRequired(false);
+    setImportToken(null);
+    setIdempotencyKey(null);
     setStage("select");
     setBusy(true);
     try {
       const nextScan = await scanCashImport(nextFile);
       setScan(nextScan);
+      setImportToken(nextScan.import_token ?? null);
+      setIdempotencyKey(nextScan.import_token ? newImportIdempotencyKey() : null);
       setMappingDrafts(Object.fromEntries(nextScan.groups.map((group) => [
         group.group_id,
         { accountId: group.suggestion.account_id, newAccount: null },
       ])));
       setStage("mapping");
     } catch (cause) {
+      const token = importTokenFromError(cause);
+      if (token) {
+        setImportToken(token);
+        setIdempotencyKey((current) => current ?? newImportIdempotencyKey());
+      }
       if (cause instanceof Error && cause.message === "import_password_required") {
         setPasswordRequired(true);
         setError(undefined);
@@ -232,8 +256,10 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setBusy(true);
     setError(undefined);
     try {
-      const nextScan = await scanCashImport(file, undefined, password);
+      const nextScan = await scanCashImport(file, undefined, password, importToken ?? undefined);
       setScan(nextScan);
+      setImportToken(nextScan.import_token ?? importToken);
+      if (nextScan.import_token || importToken) setIdempotencyKey((current) => current ?? newImportIdempotencyKey());
       setMappingDrafts(Object.fromEntries(nextScan.groups.map((group) => [
         group.group_id,
         { accountId: group.suggestion.account_id, newAccount: null },
@@ -241,6 +267,8 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       setStage("mapping");
       setPasswordRequired(false);
     } catch (cause) {
+      const token = importTokenFromError(cause);
+      if (token) setImportToken(token);
       if (!returnToPasswordEntry(cause)) {
         setError(cause instanceof Error && cause.message === "import_password_invalid"
           ? "账单密码错误，请重试。"
@@ -295,7 +323,9 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setBusy(true);
     setError(undefined);
     try {
-      setPreview(await previewCashImport(file, "", undefined, password, mappingPayload()));
+      const nextPreview = await previewCashImport(file, "", undefined, password, mappingPayload(), importToken ?? undefined);
+      setPreview(nextPreview);
+      setImportToken(nextPreview.import_token ?? importToken);
       setRelationDrafts({});
       setStage("preview");
     } catch (cause) {
@@ -361,17 +391,23 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       return decision ? [decision] : [];
     });
     try {
+      const commitKey = importToken ? (idempotencyKey ?? newImportIdempotencyKey()) : undefined;
+      if (commitKey && !idempotencyKey) setIdempotencyKey(commitKey);
       const committed = await commitCashImport(file, "", undefined, {
         previewDigest: preview.file.digest,
         previewChannel: preview.channel,
         password,
         relations: decisions,
         mapping: mappingPayload(),
+        importToken: importToken ?? undefined,
+        idempotencyKey: commitKey,
       });
       setResult(committed);
       setStage("success");
       onDone?.();
     } catch (cause) {
+      const token = importTokenFromError(cause);
+      if (token) setImportToken(token);
       if (returnToPasswordEntry(cause)) {
         // The password entry state already contains the actionable error.
       } else {
@@ -418,16 +454,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   };
 
   return (
-    <div className="page-layout cash-import-page">
-      <main className="app-shell">
-        <aside className="sidebar">
-          <strong>Finance Tracker</strong>
-          <nav aria-label="主要导航">
-            <a href="/" onClick={(event) => { event.preventDefault(); onBack(); }}>收支账本</a>
-            <a aria-current="page" href="/cash-import">导入账单</a>
-          </nav>
-        </aside>
-        <section className="ledger cash-import-shell" id="cash-import" aria-label="导入账单">
+    <section className="ledger cash-import-shell" id="cash-import" aria-label="导入账单">
           <header className="page-header cash-import-header"><h1>导入账单</h1></header>
           <nav className="import-steps" aria-label="导入步骤">
             {[{ number: 1, label: "选择文件" }, { number: 2, label: "映射账户" }, { number: 3, label: "核对流水" }, { number: 4, label: "配对" }].map((item) => (
@@ -532,8 +559,6 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
           </section> : null}
 
           {stage === "success" && result ? <section className="import-stage import-success-stage" aria-labelledby="import-success-heading"><div className="success-mark">✓</div><h2 id="import-success-heading">导入完成</h2><div className="import-success-stats"><span><strong>{result.new_rows}</strong>待新增</span><span><strong>{result.updated_rows}</strong>已更新</span><span><strong>{preview?.summary.existing ?? 0}</strong>已存在</span></div><div className="stage-actions"><button type="button" className="button-primary" onClick={onBack}>返回收支账本</button></div></section> : null}
-        </section>
-      </main>
-    </div>
+    </section>
   );
 }

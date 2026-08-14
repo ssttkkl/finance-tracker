@@ -3,12 +3,73 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+from urllib.parse import urlparse
 
 from sqlalchemy.engine import make_url
 
 
 class StorageConfigurationError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class ImportStagingSettings:
+    """Explicit configuration for the short-lived browser import store."""
+
+    backend: str
+    ttl_seconds: int = 1800
+    prefix: str = "cash-import"
+
+    @classmethod
+    def load(cls, *, environ=None) -> "ImportStagingSettings":
+        environment = dict(os.environ if environ is None else environ)
+        backend = environment.get("FT_IMPORT_STAGING_BACKEND", "").strip().lower()
+        if backend not in {"r2", "memory"}:
+            raise StorageConfigurationError(
+                "FT_IMPORT_STAGING_BACKEND must be explicitly set to r2 or memory"
+            )
+        if backend == "memory" and environment.get("FT_IMPORT_STAGING_ALLOW_MEMORY") != "1":
+            raise StorageConfigurationError(
+                "FT_IMPORT_STAGING_ALLOW_MEMORY=1 is required for the memory backend"
+            )
+        try:
+            ttl_seconds = int(environment.get("FT_IMPORT_STAGING_TTL_SECONDS", "1800"))
+        except (TypeError, ValueError) as exc:
+            raise StorageConfigurationError("FT_IMPORT_STAGING_TTL_SECONDS is invalid") from exc
+        if not 1 <= ttl_seconds <= 1800:
+            raise StorageConfigurationError("FT_IMPORT_STAGING_TTL_SECONDS must be between 1 and 1800")
+        prefix = environment.get("FT_R2_PREFIX", "cash-import").strip().strip("/")
+        if not prefix or ".." in prefix:
+            raise StorageConfigurationError("FT_R2_PREFIX is invalid")
+        if backend == "r2":
+            required = (
+                "FT_R2_ENDPOINT", "FT_R2_BUCKET", "FT_R2_ACCESS_KEY_ID", "FT_R2_SECRET_ACCESS_KEY",
+            )
+            missing = [key for key in required if not environment.get(key, "").strip()]
+            if missing:
+                raise StorageConfigurationError(f"{missing[0]} is required for the r2 backend")
+            endpoint = urlparse(environment["FT_R2_ENDPOINT"].strip())
+            if (
+                endpoint.scheme != "https" or not endpoint.netloc
+                or endpoint.path not in {"", "/"} or endpoint.query or endpoint.fragment
+            ):
+                raise StorageConfigurationError("FT_R2_ENDPOINT is invalid")
+        return cls(backend=backend, ttl_seconds=ttl_seconds, prefix=prefix)
+
+
+def build_import_staging_store(*, environ=None):
+    """Build the explicitly selected temporary store at the composition root."""
+    environment = dict(os.environ if environ is None else environ)
+    settings = ImportStagingSettings.load(environ=environment)
+    if settings.backend == "memory":
+        from ft.application.cash_import_staging import InMemoryImportStagingStore
+
+        return InMemoryImportStagingStore(ttl_seconds=settings.ttl_seconds)
+    from ft.application.cash_import_staging import R2ImportStagingStore
+    try:
+        return R2ImportStagingStore.from_environment(environ=environment)
+    except ValueError as exc:
+        raise StorageConfigurationError(str(exc)) from exc
 
 
 @dataclass(frozen=True)

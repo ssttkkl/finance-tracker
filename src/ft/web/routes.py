@@ -1,4 +1,5 @@
 """收支账本投影 API 路由。"""
+import base64
 import json
 
 from fastapi import APIRouter, Request
@@ -9,6 +10,7 @@ from ft.application.investment_web_queries import InvestmentCursorUpdatedError
 from ft.domain.application import RelationImpactRequired
 from ft.web.serialization import error_payload, json_value
 from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredError
+from ft.application.cash_import_staging import ImportSessionPasswordRequired
 
 _IMPORT_PASSWORD_ERRORS = (PDFPasswordRequiredError, PDFPasswordInvalidError)
 
@@ -47,8 +49,34 @@ def _cash_import_error(exc: ValueError) -> JSONResponse:
         "import_account_draft_invalid": "新账户信息无效，请重新填写。",
         "import_account_name_conflict": "账户名称已存在，请修改后重试。",
         "import_preview_stale": "预览已失效，请重新核对账单。",
+        "import_idempotency_key_required": "确认导入请求缺少幂等键，请重新提交。",
+        "import_idempotency_key_invalid": "确认导入请求的幂等键无效，请重新提交。",
+        "import_idempotency_conflict": "该幂等键已用于另一份导入，请重新提交。",
+        "import_session_not_found": "导入会话不存在，请重新选择文件。",
+        "import_session_forbidden": "导入会话无权访问，请重新选择文件。",
+        "import_session_expired": "导入会话已过期，请重新选择文件。",
+        "import_session_source_changed": "临时账单内容已变化，请重新选择文件。",
+        "import_session_storage_unavailable": "临时导入存储暂不可用，请稍后重试。",
+        "import_session_storage_config_missing": "临时导入存储未配置，请联系管理员。",
+        "import_session_storage_config_invalid": "临时导入存储配置无效，请联系管理员。",
+        "import_session_source_too_large": "账单文件过大，请选择较小的文件。",
+        "import_session_draft_too_large": "导入预览过大，请缩小账单范围后重试。",
+        "import_session_capacity_exceeded": "当前导入任务过多，请稍后重试。",
     }
-    return JSONResponse(error_payload(code if code in messages else "invalid_import", messages.get(code, "账单无法导入，请检查后重试。")), 409 if code in messages else 400)
+    status = (
+        503
+        if code in {
+            "import_session_storage_unavailable",
+            "import_session_storage_config_missing",
+            "import_session_storage_config_invalid",
+        }
+        else 400
+        if code == "import_idempotency_key_required"
+        else 409
+        if code in messages
+        else 400
+    )
+    return JSONResponse(error_payload(code if code in messages else "invalid_import", messages.get(code, "账单无法导入，请检查后重试。")), status)
 
 
 def portfolio_sse_frame(update) -> str:
@@ -337,10 +365,21 @@ def cash_router(
         @router.post("/cash-import/scan")
         async def scan_cash_import(request: Request, currency: str | None = None, filename: str = "statement"):
             try:
+                content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                if content_type == "application/json":
+                    payload = await request.json()
+                    if not isinstance(payload, dict) or not isinstance(payload.get("import_token"), str):
+                        raise ValueError("import_session_not_found")
+                    return json_value(mutation_service.scan_import_session(
+                        payload["import_token"],
+                        password=request.headers.get("x-ft-statement-password"),
+                    ))
                 return json_value(mutation_service.scan_import(
                     await request.body(), filename=filename, currency=currency,
                     password=request.headers.get("x-ft-statement-password"),
                 ))
+            except ImportSessionPasswordRequired as exc:
+                return JSONResponse(error_payload("import_password_required", "请输入账单密码。", import_token=exc.token), 400)
             except _IMPORT_PASSWORD_ERRORS as exc:
                 return JSONResponse(error_payload(_import_password_code(exc), _import_password_message(exc)), 400)
             except ValueError as exc:
@@ -349,6 +388,20 @@ def cash_router(
         @router.post("/cash-import/preview")
         async def preview_cash_import(request: Request, source: str = "", currency: str | None = None, filename: str = "statement", mapping: str | None = None):
             try:
+                content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                if content_type == "application/json":
+                    payload = await request.json()
+                    if not isinstance(payload, dict) or not isinstance(payload.get("import_token"), str):
+                        raise ValueError("import_session_not_found")
+                    mapping_payload = payload.get("mapping")
+                    if mapping_payload is not None and not isinstance(mapping_payload, list):
+                        raise ValueError("import_mapping_incomplete")
+                    return json_value(mutation_service.preview_import_session(
+                        payload["import_token"], source=str(payload.get("source") or source),
+                        currency=payload.get("currency") or currency,
+                        password=request.headers.get("x-ft-statement-password"),
+                        mapping=mapping_payload,
+                    ))
                 return json_value(mutation_service.preview_import(
                     await request.body(), source=source, currency=currency, filename=filename,
                     password=request.headers.get("x-ft-statement-password"), mapping=_import_mapping_payload(mapping),
@@ -370,20 +423,68 @@ def cash_router(
             mapping: str | None = None,
         ):
             try:
-                relation_decisions = None
-                if relations:
-                    relation_decisions = json.loads(relations)
-                    if not isinstance(relation_decisions, list):
+                password = request.headers.get("x-ft-statement-password")
+                content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                if content_type == "application/json":
+                    payload = await request.json()
+                    if not isinstance(payload, dict):
+                        raise ValueError("导入确认请求格式无效")
+                    if isinstance(payload.get("import_token"), str) and payload.get("import_token"):
+                        mapping_payload = payload.get("mapping")
+                        relation_decisions = payload.get("relations")
+                        if mapping_payload is not None and not isinstance(mapping_payload, list):
+                            raise ValueError("import_mapping_incomplete")
+                        if relation_decisions is not None and not isinstance(relation_decisions, list):
+                            raise ValueError("导入关系决策格式无效")
+                        idempotency_key = request.headers.get("idempotency-key", "").strip()
+                        if not idempotency_key:
+                            raise ValueError("import_idempotency_key_required")
+                        return json_value(mutation_service.commit_import_session(
+                            payload["import_token"],
+                            source=str(payload.get("source") or source),
+                            currency=payload.get("currency") or currency,
+                            password=password,
+                            preview_digest=payload.get("preview_digest") or preview_digest,
+                            preview_channel=payload.get("preview_channel") or preview_channel,
+                            relation_decisions=relation_decisions or [],
+                            mapping=mapping_payload,
+                            idempotency_key=idempotency_key,
+                        ))
+                    encoded_content = payload.get("content_base64")
+                    if not isinstance(encoded_content, str) or not encoded_content:
+                        raise ValueError("导入确认请求格式无效")
+                    try:
+                        content = base64.b64decode(encoded_content, validate=True)
+                    except (ValueError, TypeError):
+                        raise ValueError("导入确认请求格式无效") from None
+                    source = str(payload.get("source") or source)
+                    currency = payload.get("currency") or currency
+                    filename = str(payload.get("filename") or filename)
+                    preview_digest = payload.get("preview_digest") or preview_digest
+                    preview_channel = payload.get("preview_channel") or preview_channel
+                    relation_decisions = payload.get("relations")
+                    if relation_decisions is not None and not isinstance(relation_decisions, list):
                         raise ValueError("导入关系决策格式无效")
+                    mapping_payload = payload.get("mapping")
+                    if mapping_payload is not None and not isinstance(mapping_payload, list):
+                        raise ValueError("import_mapping_incomplete")
+                else:
+                    content = await request.body()
+                    relation_decisions = None
+                    if relations:
+                        relation_decisions = json.loads(relations)
+                        if not isinstance(relation_decisions, list):
+                            raise ValueError("导入关系决策格式无效")
+                    mapping_payload = _import_mapping_payload(mapping)
                 return json_value(mutation_service.commit_import(
-                    await request.body(),
+                    content,
                     source=source,
                     currency=currency,
                     filename=filename,
                     preview_digest=preview_digest,
                     preview_channel=preview_channel,
-                    password=request.headers.get("x-ft-statement-password"),
-                    relation_decisions=relation_decisions, mapping=_import_mapping_payload(mapping),
+                    password=password,
+                    relation_decisions=relation_decisions, mapping=mapping_payload,
                 ))
             except RelationImpactRequired as exc:
                 return JSONResponse(error_payload(exc.code, str(exc)), 409)

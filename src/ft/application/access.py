@@ -292,10 +292,14 @@ class AccessService:
         )).all())
 
     def require(self, token: str | None, roles: set[str]) -> tuple[str, str]:
+        workspace_id, role, _user_id = self.require_context(token, roles)
+        return workspace_id, role
+
+    def require_context(self, token: str | None, roles: set[str]) -> tuple[str, str, str]:
         db, user, login = self._session(token)
         try:
             member = self._active_membership(db, user.id, login, roles)
-            return member.workspace_id, member.role
+            return member.workspace_id, member.role, user.id
         finally: db.close()
 
     def _session(self, token: str | None):

@@ -1,3 +1,5 @@
+import base64
+
 from fastapi.testclient import TestClient
 import pytest
 
@@ -55,6 +57,139 @@ def test_cash_import_password_header_is_allowed_by_cors(cash_web_runtime):
     assert "x-ft-statement-password" in response.headers["access-control-allow-headers"].lower()
 
 
+def test_cash_import_idempotency_header_is_allowed_by_cors(cash_web_runtime):
+    from ft.application.web_queries import CashLedgerQueryService
+    from ft.web.app import create_app
+
+    app = create_app(
+        CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id),
+        allowed_origin="http://127.0.0.1:4173",
+    )
+    response = TestClient(app).options(
+        "/api/v1/cash-import/commit",
+        headers={
+            "Origin": "http://127.0.0.1:5181",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,idempotency-key",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "idempotency-key" in response.headers["access-control-allow-headers"].lower()
+
+
+def test_cash_import_commit_accepts_large_confirmation_payload_in_json_body(cash_web_runtime):
+    from ft.application.web_queries import CashLedgerQueryService
+    from ft.web.app import create_app
+
+    class RecordingImportService:
+        def options(self):
+            return {}
+
+        def commit_import(self, content, **kwargs):
+            assert content == b"statement-bytes"
+            assert kwargs["preview_digest"] == "digest-1"
+            assert kwargs["preview_channel"] == "icbc_credit"
+            assert kwargs["password"] == "secret"
+            assert len(kwargs["relation_decisions"]) == 721
+            assert kwargs["mapping"] == [{"group_id": "group-1", "account_id": 101}]
+            return {"message": "导入完成", "new_rows": 1, "updated_rows": 0}
+
+    client = TestClient(create_app(
+        CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id),
+        mutation_service=RecordingImportService(),
+    ))
+    relations = [{"kind": "payment_mirror", "status": "accepted", "index": index} for index in range(721)]
+    response = client.post(
+        "/api/v1/cash-import/commit",
+        json={
+            "content_base64": base64.b64encode(b"statement-bytes").decode("ascii"),
+            "filename": "statement.pdf",
+            "preview_digest": "digest-1",
+            "preview_channel": "icbc_credit",
+            "relations": relations,
+            "mapping": [{"group_id": "group-1", "account_id": 101}],
+        },
+        headers={"X-FT-Statement-Password": "secret"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "导入完成"
+    assert b'"password"' not in response.request.content
+
+
+def test_cash_import_session_api_does_not_accept_source_file_after_scan(cash_web_runtime):
+    from ft.application.web_queries import CashLedgerQueryService
+    from ft.web.app import create_app
+
+    class SessionImportService:
+        def options(self):
+            return {}
+
+        def scan_import_session(self, token, **kwargs):
+            assert token == "session-token"
+            assert kwargs["password"] == "secret"
+            return {"import_token": token, "channel": "alipay", "groups": [], "accounts": []}
+
+        def preview_import_session(self, token, **kwargs):
+            assert token == "session-token"
+            assert kwargs["mapping"] == [{"group_id": "group-1", "account_id": 101}]
+            return {"import_token": token, "summary": {"total": 0, "new": 0, "existing": 0, "unsupported": 0}, "relations": []}
+
+        def commit_import_session(self, token, **kwargs):
+            assert token == "session-token"
+            assert kwargs["idempotency_key"] == "commit-1"
+            assert kwargs["relation_decisions"] == []
+            return {"message": "导入完成", "new_rows": 0, "updated_rows": 0}
+
+    client = TestClient(create_app(
+        CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id),
+        mutation_service=SessionImportService(),
+    ))
+    scan = client.post(
+        "/api/v1/cash-import/scan",
+        json={"import_token": "session-token"},
+        headers={"X-FT-Statement-Password": "secret"},
+    )
+    assert scan.status_code == 200
+    assert scan.json()["import_token"] == "session-token"
+    preview = client.post(
+        "/api/v1/cash-import/preview",
+        json={"import_token": "session-token", "mapping": [{"group_id": "group-1", "account_id": 101}]},
+    )
+    assert preview.status_code == 200
+    commit = client.post(
+        "/api/v1/cash-import/commit",
+        json={"import_token": "session-token", "mapping": [], "relations": []},
+        headers={"Idempotency-Key": "commit-1"},
+    )
+    assert commit.status_code == 200
+    assert b"content_base64" not in commit.request.content
+
+
+def test_cash_import_session_commit_requires_idempotency_key(cash_web_runtime):
+    from ft.application.web_queries import CashLedgerQueryService
+    from ft.web.app import create_app
+
+    class SessionImportService:
+        def options(self):
+            return {}
+
+        def commit_import_session(self, *_args, **_kwargs):
+            raise AssertionError("route must reject a missing idempotency key")
+
+    client = TestClient(create_app(
+        CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id),
+        mutation_service=SessionImportService(),
+    ))
+    response = client.post(
+        "/api/v1/cash-import/commit",
+        json={"import_token": "session-token", "mapping": [], "relations": []},
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "import_idempotency_key_required"
+
+
 @pytest.mark.parametrize(
     ("exception_type", "code", "message"),
     [
@@ -89,6 +224,40 @@ def test_cash_import_password_errors_are_stable_and_redacted(cash_web_runtime, e
     assert response.json() == {"error": {"code": code, "message": message}}
     assert "secret-password" not in response.text
     assert "statement.pdf" not in response.text
+
+
+@pytest.mark.parametrize(
+    ("error_code", "status_code"),
+    [
+        ("import_session_forbidden", 409),
+        ("import_session_expired", 409),
+        ("import_session_source_changed", 409),
+        ("import_session_storage_unavailable", 503),
+        ("import_idempotency_conflict", 409),
+    ],
+)
+def test_cash_import_session_errors_have_stable_status_and_code(cash_web_runtime, error_code, status_code):
+    from ft.application.web_queries import CashLedgerQueryService
+    from ft.web.app import create_app
+
+    class SessionErrorService:
+        def options(self):
+            return {}
+
+        def preview_import_session(self, *_args, **_kwargs):
+            raise ValueError(error_code)
+
+    response = TestClient(create_app(
+        CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id),
+        mutation_service=SessionErrorService(),
+    )).post(
+        "/api/v1/cash-import/preview",
+        json={"import_token": "opaque-token", "mapping": []},
+    )
+
+    assert response.status_code == status_code
+    assert response.json()["error"]["code"] == error_code
+    assert "opaque-token" not in response.text
 
 
 def test_projection_api_contract_and_old_routes_are_absent(cash_web_runtime):

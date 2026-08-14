@@ -148,7 +148,86 @@ const importChannelLabels: Record<string, string> = {
 };
 export { importChannelLabels };
 
-async function importRequest<T>(path: string, file: File, values: { source?: string; currency?: string; password?: string; previewDigest?: string; previewChannel?: string; relations?: string; mapping?: ImportMappingDecision[] } = {}): Promise<T> {
+function base64FromBytes(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
+}
+
+type ImportRequestValues = {
+  source?: string;
+  currency?: string;
+  password?: string;
+  previewDigest?: string;
+  previewChannel?: string;
+  relations?: string;
+  mapping?: ImportMappingDecision[];
+  importToken?: string;
+  idempotencyKey?: string;
+  jsonBody?: boolean;
+};
+
+type ImportRequestError = Error & { importToken?: string };
+
+async function importFailure(response: Response): Promise<never> {
+  const payload = await response.json().catch(() => null) as {
+    error?: { code?: unknown };
+    import_token?: unknown;
+  } | null;
+  const code = payload?.error?.code;
+  const error = new Error(typeof code === "string" ? code : "api_request_failed") as ImportRequestError;
+  if (typeof payload?.import_token === "string") error.importToken = payload.import_token;
+  throw error;
+}
+
+async function importRequest<T>(path: string, file: File, values: ImportRequestValues = {}): Promise<T> {
+  if (values.importToken) {
+    const headers = authHeaders({ "Content-Type": "application/json" });
+    if (values.password) headers.set("X-FT-Statement-Password", values.password);
+    if (values.idempotencyKey) headers.set("Idempotency-Key", values.idempotencyKey);
+    const response = await fetch(`${apiOrigin()}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        import_token: values.importToken,
+        source: values.source ?? "",
+        currency: values.currency ?? null,
+        preview_digest: values.previewDigest ?? null,
+        preview_channel: values.previewChannel ?? null,
+        relations: values.relations ? JSON.parse(values.relations) : null,
+        mapping: values.mapping ?? null,
+      }),
+    });
+    if (!response.ok) await importFailure(response);
+    return response.json() as Promise<T>;
+  }
+  if (values.jsonBody) {
+    const fileBytes = typeof file.arrayBuffer === "function"
+      ? await file.arrayBuffer()
+      : await new Response(file).arrayBuffer();
+    const contentBase64 = base64FromBytes(new Uint8Array(fileBytes));
+    const headers = authHeaders({ "Content-Type": "application/json" });
+    if (values.password) headers.set("X-FT-Statement-Password", values.password);
+    const response = await fetch(`${apiOrigin()}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        content_base64: contentBase64,
+        source: values.source ?? "",
+        currency: values.currency ?? null,
+        filename: file.name,
+        preview_digest: values.previewDigest ?? null,
+        preview_channel: values.previewChannel ?? null,
+        relations: values.relations ? JSON.parse(values.relations) : null,
+        mapping: values.mapping ?? null,
+      }),
+    });
+    if (!response.ok) await importFailure(response);
+    return response.json() as Promise<T>;
+  }
   const params = new URLSearchParams({ source: values.source ?? "", filename: file.name });
   if (values.currency) params.set("currency", values.currency);
   if (values.previewDigest) params.set("preview_digest", values.previewDigest);
@@ -160,11 +239,7 @@ async function importRequest<T>(path: string, file: File, values: { source?: str
   const response = await fetch(`${apiOrigin()}${path}?${params.toString()}`, {
     method: "POST", headers, body: file,
   });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null) as { error?: { code?: unknown } } | null;
-    const code = payload?.error?.code;
-    throw new Error(typeof code === "string" ? code : "api_request_failed");
-  }
+  if (!response.ok) await importFailure(response);
   return response.json() as Promise<T>;
 }
 
@@ -172,19 +247,19 @@ export function detectCashImport(file: File, currency?: string, password?: strin
   return importRequest<ImportDetection>("/api/v1/cash-import/detect", file, { currency, password });
 }
 
-export function scanCashImport(file: File, currency?: string, password?: string): Promise<ImportScan> {
-  return importRequest<ImportScan>("/api/v1/cash-import/scan", file, { currency, password });
+export function scanCashImport(file: File, currency?: string, password?: string, importToken?: string): Promise<ImportScan> {
+  return importRequest<ImportScan>("/api/v1/cash-import/scan", file, { currency, password, importToken });
 }
 
-export function previewCashImport(file: File, source = "", currency?: string, password?: string, mapping?: ImportMappingDecision[]): Promise<ImportPreview> {
-  return importRequest<ImportPreview>("/api/v1/cash-import/preview", file, { source, currency, password, mapping });
+export function previewCashImport(file: File, source = "", currency?: string, password?: string, mapping?: ImportMappingDecision[], importToken?: string): Promise<ImportPreview> {
+  return importRequest<ImportPreview>("/api/v1/cash-import/preview", file, { source, currency, password, mapping, importToken });
 }
 
 export function commitCashImport(
   file: File,
   source = "",
   currency?: string,
-  options: { password?: string; previewDigest?: string; previewChannel?: string; relations?: Record<string, unknown>[]; mapping?: ImportMappingDecision[] } = {},
+  options: { password?: string; previewDigest?: string; previewChannel?: string; relations?: Record<string, unknown>[]; mapping?: ImportMappingDecision[]; importToken?: string; idempotencyKey?: string } = {},
 ): Promise<ImportCommitResult> {
   return importRequest<ImportCommitResult>("/api/v1/cash-import/commit", file, {
     source,
@@ -194,5 +269,8 @@ export function commitCashImport(
     previewChannel: options.previewChannel,
     relations: options.relations ? JSON.stringify(options.relations) : undefined,
     mapping: options.mapping,
+    importToken: options.importToken,
+    idempotencyKey: options.idempotencyKey,
+    jsonBody: true,
   });
 }

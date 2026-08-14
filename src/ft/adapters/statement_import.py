@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from pathlib import Path
+import re
 import tempfile
 
 
@@ -19,6 +20,32 @@ def _decimal_text(value) -> str:
     if max(0, -normalized.as_tuple().exponent) > 18:
         raise ValueError("账单金额最多保留 18 位小数")
     return format(decimal, "f")
+
+
+def _normalize_cash_source_account(row: dict, *, source: str) -> None:
+    """Normalize platform placeholders that are not real source accounts."""
+    if source == "alipay" and not str(row.get("payment_method") or "").strip():
+        # Alipay exports some valid income / expense rows without a funding
+        # method.  Keep them in a real wallet group so the import wizard can
+        # ask for an account instead of failing the whole file.
+        row["payment_method"] = "支付宝余额"
+        return
+    if source != "wechat":
+        if source != "icbc_credit" or str(row.get("card_number") or "").strip():
+            return
+        payload = row.get("_source_payload") or row.get("source_payload") or {}
+        units = payload.get("原始文本单元") if isinstance(payload, dict) else None
+        for value in units if isinstance(units, list) else ():
+            digits = re.sub(r"\D", "", str(value))
+            if 12 <= len(digits) <= 19:
+                row["card_number"] = digits[-4:]
+                return
+        return
+    if str(row.get("payment_method") or "").strip() != "/":
+        return
+    status = str(row.get("status") or row.get("platform_status") or "").strip()
+    if row.get("record_type") == "transfer_in" and status == "已存入零钱":
+        row["payment_method"] = "零钱"
 
 
 def _parse_cash_statement(command, *, resolve_accounts: bool = True):
@@ -40,6 +67,7 @@ def _parse_cash_statement(command, *, resolve_accounts: bool = True):
     output = []
     skipped = 0
     for row in rows:
+        _normalize_cash_source_account(row, source=bill_type)
         item = _build_output_row(
             row,
             bill_type=bill_type,
