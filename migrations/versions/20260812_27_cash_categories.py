@@ -66,10 +66,17 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
         )
-    bind.execute(sa.text(
-        "INSERT OR IGNORE INTO cash_category_states (workspace_id, revision, updated_at) "
-        "SELECT id, 0, CURRENT_TIMESTAMP FROM workspaces"
-    ))
+    if bind.dialect.name == "sqlite":
+        bind.execute(sa.text(
+            "INSERT OR IGNORE INTO cash_category_states (workspace_id, revision, updated_at) "
+            "SELECT id, 0, CURRENT_TIMESTAMP FROM workspaces"
+        ))
+    else:
+        bind.execute(sa.text(
+            "INSERT INTO cash_category_states (workspace_id, revision, updated_at) "
+            "SELECT id, 0, CURRENT_TIMESTAMP FROM workspaces "
+            "ON CONFLICT (workspace_id) DO NOTHING"
+        ))
 
     if sqlite_rebuild:
         with op.batch_alter_table("cash_transactions", recreate="always") as batch_op:

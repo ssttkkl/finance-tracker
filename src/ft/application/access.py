@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from ft.adapters.relational.models import (
     UserModel, UserSessionModel, WorkspaceInvitationModel, WorkspaceMembershipModel, WorkspaceModel,
@@ -160,6 +160,48 @@ class AccessService:
             if workspace is None:
                 raise PermissionDenied("workspace_forbidden")
             workspace.name = name
+        return self.state(token)
+
+    def delete_workspace(self, token: str | None, confirmation_name: str) -> dict:
+        db, user, login = self._session(token)
+        try:
+            membership = self._active_membership(db, user.id, login, {"admin"})
+            workspace_id = membership.workspace_id
+            workspace = db.get(WorkspaceModel, workspace_id)
+            if workspace is None:
+                raise PermissionDenied("workspace_forbidden")
+            current_name = workspace.name
+            user_id = user.id
+            login_id = login.id
+        finally:
+            db.close()
+
+        if confirmation_name != current_name:
+            raise AccessError("workspace_name_mismatch")
+
+        with self._sessions.begin() as session:
+            workspace = session.get(WorkspaceModel, workspace_id)
+            if workspace is None:
+                raise PermissionDenied("workspace_forbidden")
+            if confirmation_name != workspace.name:
+                raise AccessError("workspace_name_mismatch")
+
+            # active_workspace_id is intentionally not a foreign key, so clear
+            # every session before the workspace's cascading delete.
+            session.execute(
+                update(UserSessionModel)
+                .where(UserSessionModel.active_workspace_id == workspace_id)
+                .values(active_workspace_id=None)
+            )
+            session.delete(workspace)
+            session.flush()
+            replacement = session.scalar(
+                select(WorkspaceMembershipModel.workspace_id)
+                .where(WorkspaceMembershipModel.user_id == user_id)
+                .order_by(WorkspaceMembershipModel.created_at, WorkspaceMembershipModel.workspace_id)
+            )
+            session.get(UserSessionModel, login_id).active_workspace_id = replacement
+
         return self.state(token)
 
     def accept_invitation(self, token: str | None, invitation_token: str) -> dict:
