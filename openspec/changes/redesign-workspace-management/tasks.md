@@ -117,12 +117,12 @@
 
 ### 12.1–12.3 验证证据
 
-- 基线/HEAD：`origin/refactor/web`=`cd3842b6658e38213716f639790ce42741d96aa3`，最终实现=`e96b757b1823a62262daeaf9ae79ab6df78a3cb5`；PR 为 [#53](https://github.com/ssttkkl/finance-tracker/pull/53)，目标 `refactor/web`。
+- 基线/HEAD：`origin/refactor/web`=`cd3842b6658e38213716f639790ce42741d96aa3`，本轮复核整改提交=`d25f61fa3fadbbfb63ffe635ee09ebd9012858c7`；PR 为 [#53](https://github.com/ssttkkl/finance-tracker/pull/53)，目标 `refactor/web`。
 - 前端：`npm test -- --run` → 10 个测试文件、104 passed；`VITE_FT_API_ORIGIN=http://127.0.0.1:8000 npm run build` → 通过。
 - 浏览器：`FT_E2E_WEB_PORT=5184 npm run test:e2e -- workspace-navigation.e2e.ts` → 2 passed；真实 Chromium 检查 320、375、390、414、768、1440 px，无横向滚动；1440 px 正常截图为 `/tmp/workspace-management-delete-desktop.png`，390 px 正常截图为 `/tmp/workspace-management-layout-mobile.png`，390 px 删除确认截图为 `/tmp/workspace-management-delete-mobile.png`；控制台无错误。
 - SQLite：`env -u FT_TEST_POSTGRES_URL uv run pytest -q` → 1410 passed、175 skipped、1 warning；最新基线上的工作区契约/性能 → 21 passed、4 skipped、1 warning。
 - PostgreSQL：`finance_tracker_test` 由本机 `psql -h 127.0.0.1 -p 55433` 验证可连接；最新基线上的工作区契约/性能 → 25 passed、1 warning；此前包含迁移矩阵的完整工作区组合 → 41 passed、1 warning。
 - OpenSpec 与格式：`openspec validate --all --strict` → 24 passed、0 failed；`git diff --check` → 通过。
-- Hallmark `audit`：审查 `web/src/AccessApp.tsx`、`web/src/styles.css`、最终 1440/390 截图和确认弹层；板块顺序、标题层级、危险操作位置、移动端单列和现有 Cobalt token 一致，结果为 0 critical、0 major、0 minor。
-- 独立复核：已提交只读 diff review 请求，范围覆盖计划、DOM/CSS、权限/删除行为、测试、OpenSpec 和发布准备；合入前按复核结果处理 finding。
+- Hallmark `audit`：复核 `web/src/AccessApp.tsx`、`web/src/styles.css`、最终 1440/390 截图和确认弹层；板块顺序、标题层级、危险操作位置、768px 单列、焦点可见性和现有 Cobalt token 一致，结果为 0 critical、0 major、0 minor。
+- 独立复核与处理：旧复核使用了 rebase 前的错误比较范围，并据此提出现金账户映射回归；用当前基线 `git diff cd3842b6658e38213716f639790ce42741d96aa3..d25f61fa3fadbbfb63ffe635ee09ebd9012858c7` 复核后，PR 仅包含工作区管理 UI、原型、测试和 OpenSpec 记录，不含账户映射、API 或数据库文件，拒绝该 finding。采纳并修复两项重要 finding：在 `max-width:1023px` 堆叠工作区信息字段；为删除确认层增加 Tab 焦点循环、Escape/取消关闭和触发按钮焦点恢复。采纳次要 finding，删除旧 `.workspace-management-grid` 及重复覆盖样式。整改后 Vitest 与真实 Chromium QA 均通过。
 - 未运行项：无自动 GitHub checks；本次不部署、不归档 OpenSpec change，待 PR 合入后再按仓库发布流程处理。

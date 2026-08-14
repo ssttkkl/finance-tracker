@@ -54,4 +54,4 @@
 
 ## Final audit
 
-最终页面沿用现有 `Workbench / Ledger Grid` 结构和 Cobalt token。对 `web/src/AccessApp.tsx`、`web/src/App.tsx`、`web/src/styles.css`、`/tmp/workspace-management-delete-desktop.png` 和 `/tmp/workspace-management-delete-mobile.png` 执行 Hallmark `audit` 只读审查，新增检查管理员危险操作与确认弹层：未发现 AI 模板结构、设计系统漂移、实现术语、重复教学文案、确认缺少具体影响或确认弹层在移动端溢出；结果为 0 critical、0 major、0 minor。
+最终页面沿用现有 `Workbench / Ledger Grid` 结构和 Cobalt token。对 `web/src/AccessApp.tsx`、`web/src/App.tsx`、`web/src/styles.css`、`/tmp/workspace-management-delete-desktop.png` 和 `/tmp/workspace-management-delete-mobile.png` 执行 Hallmark `audit` 只读审查，新增检查管理员危险操作、确认弹层、768px 单列和焦点捕获/恢复：未发现 AI 模板结构、设计系统漂移、实现术语、重复教学文案、确认缺少具体影响或确认弹层在移动端溢出；结果为 0 critical、0 major、0 minor。
