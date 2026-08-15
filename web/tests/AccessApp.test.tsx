@@ -63,7 +63,7 @@ beforeEach(() => {
   vi.stubEnv("VITE_FT_API_ORIGIN", "http://127.0.0.1:8000");
   history.replaceState({}, "", "/?invite=invite-token");
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); history.replaceState({}, "", "/"); });
+afterEach(() => { cleanup(); localStorage.clear(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); history.replaceState({}, "", "/"); });
 
 describe("AccessApp", () => {
   it("展示邀请指定的冻结角色，而不提供角色选择", async () => {
@@ -94,6 +94,86 @@ describe("AccessApp", () => {
     fireEvent.click(await screen.findByRole("button", { name: "接受邀请" }));
 
     await waitFor(() => expect(location.search).toBe(""));
+    expect(await screen.findByRole("heading", { name: "收支账本" })).toBeInTheDocument();
+  });
+
+  it("登录响应没有活动工作区时自动进入已有工作区", async () => {
+    const loginSession = { ...session, active_workspace_id: null };
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/auth/session")) return json({ error: { code: "authentication_required" } }, 401);
+      if (input.includes("/auth/login")) return json({ ...loginSession, access_token: "login-token" });
+      if (input.includes("/auth/workspaces/workspace-1/select")) return json(session);
+      return json({ items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+    localStorage.clear();
+    history.replaceState({}, "", "/");
+
+    render(<AccessApp />);
+
+    fireEvent.change(await screen.findByLabelText("邮箱"), { target: { value: "member@example.com" } });
+    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "a-secure-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
+
+    expect(await screen.findByRole("heading", { name: "收支账本" })).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/auth/workspaces/workspace-1/select"), expect.anything());
+  });
+
+  it("恢复会话没有活动工作区时自动进入已有工作区", async () => {
+    const restoredSession = { ...session, active_workspace_id: null };
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/auth/session")) return json(restoredSession);
+      if (input.includes("/auth/workspaces/workspace-1/select")) return json(session);
+      return json({ items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+    history.replaceState({}, "", "/");
+
+    render(<AccessApp />);
+
+    expect(await screen.findByRole("heading", { name: "收支账本" })).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/auth/workspaces/workspace-1/select"), expect.anything());
+  });
+
+  it("已有工作区选择失败时不进入创建页而提供重试", async () => {
+    const restoredSession = { ...session, active_workspace_id: null };
+    vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/auth/session")
+      ? json(restoredSession)
+      : input.includes("/auth/workspaces/workspace-1/select")
+        ? json({ error: { code: "storage.busy" } }, 503)
+        : json({ items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} })));
+    history.replaceState({}, "", "/");
+
+    render(<AccessApp />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("无法打开工作区，请稍后重试。");
+    expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "创建工作区" })).not.toBeInTheDocument();
+  });
+
+  it("没有工作区时显示创建页但不显示无效返回按钮", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/auth/session")
+      ? json({ user: { email: "new@example.com" }, active_workspace_id: null, workspaces: [] })
+      : json({ items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} })));
+    history.replaceState({}, "", "/");
+
+    render(<AccessApp />);
+
+    expect(await screen.findByRole("heading", { name: "创建工作区" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^返回$/ })).not.toBeInTheDocument();
+  });
+
+  it("从已有工作区创建新工作区时保留可用的返回按钮", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/auth/session")
+      ? json(session)
+      : json({ items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} })));
+    history.replaceState({}, "", "/");
+
+    render(<AccessApp />);
+
+    fireEvent.change(await screen.findByRole("combobox", { name: "当前工作区" }), { target: { value: "__create__" } });
+    expect(await screen.findByRole("heading", { name: "创建工作区" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^返回$/ }));
     expect(await screen.findByRole("heading", { name: "收支账本" })).toBeInTheDocument();
   });
 
