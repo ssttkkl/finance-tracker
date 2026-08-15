@@ -28,6 +28,7 @@ from ft.domain.relations.core.types import (
 )
 from ft.domain.relations.mirror.match import match_payment_mirrors_greedy
 from ft.domain.relations.core.mirror_graph import build_mirror_components, canonical_mirror_fact
+from ft.domain.relations.core.keys import stable_fact_order_key
 from ft.domain.relations.refund.diamond import match_diamond_bank_refunds
 from ft.domain.relations.refund.match import evaluate_refund_offset
 from ft.domain.relations.refund.signals import has_refund_signal_for_fact
@@ -103,7 +104,7 @@ def _collapse_refund_candidate_events(
             continue
         representative = canonical_mirror_fact(group)
         if representative is None:
-            representative = min(group, key=lambda fact: fact.id)
+            representative = min(group, key=stable_fact_order_key)
         collapsed.append(representative)
     return collapsed
 
@@ -125,7 +126,7 @@ def _mirror_components_by_fact(
 def bank_refund_seed_ids(facts: Sequence[FactView], *, blocked: set[str]) -> list[str]:
     """Positive bank rows with refund-ish text (diamond open seeds)."""
     out: list[str] = []
-    for f in facts:
+    for f in sorted(facts, key=stable_fact_order_key):
         if f.id in blocked:
             continue
         if source_group(f) != "bank":
@@ -174,7 +175,10 @@ def run_relation_phases(
     transfer_blocked |= set(ctx.used_fact_ids)
     refund_blocked |= set(ctx.used_fact_ids)
 
-    active = [f for f in facts if not getattr(f, "deleted", False)]
+    active = sorted(
+        (f for f in facts if not getattr(f, "deleted", False)),
+        key=stable_fact_order_key,
+    )
     by_id = {f.id: f for f in active}
     out: list[RelationProposal] = []
 

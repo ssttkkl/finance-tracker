@@ -350,8 +350,50 @@ class DatabaseMappedStatementParser:
         self._uow = uow
 
     def parse(self, command):
-        rows = self._source_parser.parse_source_rows(command)
+        rows = [dict(row) for row in self._source_parser.parse_source_rows(command)]
+        _, issues = scan_source_rows_with_issues(rows)
+        issue_indexes = {issue.row_index for issue in issues}
+        importable_rows = [
+            row for index, row in enumerate(rows) if index not in issue_indexes
+        ]
+        if issues:
+            skipped_rows = [
+                {
+                    "row_index": issue.row_index,
+                    "record_id": str(rows[issue.row_index].get("record_id") or ""),
+                    "code": issue.code,
+                }
+                for issue in issues
+            ]
+            source_meta = {}
+            for row in rows:
+                if isinstance(row.get("_import_meta"), dict):
+                    source_meta = dict(row["_import_meta"])
+                    break
+            acceptance = dict(source_meta.get("acceptance") or {})
+            acceptance["source_lines"] = max(
+                int(acceptance.get("source_lines") or 0), len(rows),
+            )
+            acceptance["fact_lines"] = len(importable_rows)
+            acceptance["skipped_composite_payment"] = sum(
+                issue.code == "import_composite_payment_unresolved" for issue in issues
+            )
+            source_meta.update({
+                "acceptance": acceptance,
+                "skipped_rows": skipped_rows,
+                "skipped_composite_payment": acceptance["skipped_composite_payment"],
+            })
+        else:
+            source_meta = {}
         with self._uow as uow:
-            mapped = apply_saved_mappings(uow, [dict(row) for row in rows])
+            mapped = apply_saved_mappings(uow, importable_rows)
             uow.rollback()
+        if issues:
+            if mapped:
+                mapped[0] = dict(mapped[0])
+                mapped[0]["_import_meta"] = source_meta
+            else:
+                # StatementImportService recognizes this metadata-only result as
+                # a successful zero-row import when every source row is whitelisted.
+                mapped = [{"_import_meta": source_meta}]
         return mapped

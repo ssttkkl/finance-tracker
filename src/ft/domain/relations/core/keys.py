@@ -1,6 +1,44 @@
 from __future__ import annotations
-from typing import Any, Mapping
+from datetime import datetime, timezone
+from typing import Any, Callable, Mapping, Sequence
 from ft.domain.relations.core.types import OPEN_LEG_CANDIDATE_TOP_K, OPEN_LEG_ORDERED_B_SENTINEL, RelationKind, SUBTYPE_NONE
+
+
+def _stable_timestamp(value) -> str:
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        text = str(value or "").strip().replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            return text
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat()
+
+
+def stable_fact_reference(fact) -> str:
+    """Stable source reference independent of a database surrogate id."""
+    source = str(getattr(fact, "bill_source", "") or getattr(fact, "source", ""))
+    record_id = str(getattr(fact, "record_id", "") or "")
+    if source and record_id:
+        return f"{source}:{record_id}"
+    return str(getattr(fact, "id", "") or "")
+
+
+def stable_fact_order_key(fact) -> tuple[str, str, str, str, str, str]:
+    """Order facts by source business identity before runtime ids."""
+    return (
+        _stable_timestamp(getattr(fact, "occurred_at", "")),
+        str(getattr(fact, "bill_source", "") or getattr(fact, "source", "")),
+        str(getattr(fact, "record_id", "") or ""),
+        str(getattr(fact, "account_id", "") or ""),
+        stable_fact_reference(fact),
+        str(getattr(fact, "id", "") or ""),
+    )
+
+
 def ordered_fact_pair(fact_a, fact_b=None) -> tuple:
     """Bilateral ordered pair. An `open_leg` uses empty secondary → (anchor, sentinel).
 
@@ -48,7 +86,8 @@ def top_k_candidate_ids(
     candidate_ids: Sequence[str],
     *,
     k: int = OPEN_LEG_CANDIDATE_TOP_K,
+    key: Callable[[str], object] | None = None,
 ) -> tuple[str, ...]:
     """Stable sorted top-K candidate fact ids for unpaired relation evidence."""
-    ordered = sorted({str(cid) for cid in candidate_ids if cid})
+    ordered = sorted({str(cid) for cid in candidate_ids if cid}, key=key)
     return tuple(ordered[: max(0, int(k))])

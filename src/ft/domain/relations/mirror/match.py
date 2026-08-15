@@ -34,6 +34,9 @@ from ft.domain.relations.core.record_types import (
     is_payment_mirror_expense,
     is_payment_mirror_refund,
 )
+from ft.domain.relations.core.keys import stable_fact_order_key
+
+
 def _mirror_channel(fact: FactView) -> str:
     return str(fact.bill_source or fact.source or "").strip().lower()
 
@@ -145,11 +148,11 @@ def _deterministic_payment_mirror_groups(
                 handled.update(item.id for item in group_facts)
                 ordered_platforms = sorted(
                     (item for item in platform_facts if item.id not in claimed_fact_ids),
-                    key=lambda item: (_parse_dt(item.occurred_at), item.id),
+                    key=stable_fact_order_key,
                 )
                 ordered_banks = sorted(
                     (item for item in bank_facts if item.id not in claimed_fact_ids),
-                    key=lambda item: (_parse_dt(item.occurred_at), item.id),
+                    key=stable_fact_order_key,
                 )
                 if not ordered_platforms or not ordered_banks:
                     continue
@@ -457,7 +460,7 @@ def evaluate_payment_mirror(
         return None
 
     # Prefer highest score, then nearest time (FR-057).
-    matches.sort(key=lambda m: (-m[4], m[1].time_delta_seconds, m[0].id))
+    matches.sort(key=lambda m: (-m[4], m[1].time_delta_seconds, stable_fact_order_key(m[0])))
     best = matches[0]
     cand, evidence, status, conf, _score = best
     rule_id = evidence.rule_id
@@ -548,7 +551,7 @@ def match_payment_mirrors_greedy(
     else:
         seeds = [by_id[sid] for sid in seed_ids if sid in by_id and source_group(by_id[sid]) in {"platform", "bank"}]
     # Prefer platform seeds first for canonical primary selection.
-    seeds.sort(key=lambda f: (0 if source_group(f) == "platform" else 1, str(f.occurred_at), f.id))
+    seeds.sort(key=lambda f: (0 if source_group(f) == "platform" else 1, stable_fact_order_key(f)))
 
     proposals, grouped_ids = _deterministic_payment_mirror_groups(
         active,

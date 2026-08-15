@@ -13,6 +13,7 @@ from ft.domain.relations.core.types import (
     FactView,
     PAYMENT_PLATFORM_SOURCES,
 )
+from ft.domain.relations.core.keys import stable_fact_order_key
 
 
 def platform_score(fact: FactView) -> int:
@@ -37,7 +38,7 @@ def canonical_mirror_fact(facts: Sequence[FactView]) -> FactView | None:
         key=lambda f: (
             platform_score(f),
             len(_text_blob(f.counterparty, f.note)),
-            f.id,
+            stable_fact_order_key(f),
         ),
         reverse=True,
     )

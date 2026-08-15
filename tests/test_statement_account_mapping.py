@@ -560,6 +560,173 @@ def test_database_mapped_parser_uses_confirmed_mapping_without_yaml(tmp_path, mo
     assert rows[0]["account_name"] == "数据库账户"
 
 
+def test_database_mapped_parser_skips_only_alipay_composite_rows(tmp_path):
+    from sqlalchemy import select
+
+    from ft.application.statement_account_mapping import DatabaseMappedStatementParser
+    from ft.domain.imports import StatementImportCommand
+    from ft.adapters.relational import ensure_workspace
+    from ft.adapters.relational.models import AccountModel
+    from test_postgres_adapter import _database
+
+    class SourceParser:
+        def parse_source_rows(self, _command):
+            return [
+                _row(
+                    "alipay",
+                    record_id="ambiguous",
+                    amount="-3020.00",
+                    payment_method="账户余额&花呗分期(3期)",
+                ),
+                _row("alipay", record_id="valid", payment_method="账户余额"),
+            ]
+
+    source = tmp_path / "statement.csv"
+    source.write_text("fixture", encoding="utf-8")
+    sessions, unit_of_work = _database()
+    ensure_workspace(sessions, "cli-composite-workspace")
+    with unit_of_work(sessions, "cli-composite-workspace") as uow:
+        uow.accounts.add_raw({"name": "数据库账户", "type": "cash", "currency": "CNY"})
+        uow.commit()
+    with sessions() as session:
+        account_id = session.scalar(select(AccountModel.id).where(
+            AccountModel.workspace_id == "cli-composite-workspace",
+            AccountModel.name == "数据库账户",
+        ))
+    with unit_of_work(sessions, "cli-composite-workspace") as uow:
+        uow.statement_account_mappings.upsert(
+            source_type="alipay", identity_kind="payment_method",
+            source_account_key="支付宝余额", account_id=account_id, confirmed_by="web",
+        )
+        uow.commit()
+
+    rows = DatabaseMappedStatementParser(
+        SourceParser(), unit_of_work(sessions, "cli-composite-workspace")
+    ).parse(StatementImportCommand(source_path=str(source), source="alipay"))
+
+    assert len(rows) == 1
+    assert rows[0]["record_id"] == "valid"
+    meta = rows[0]["_import_meta"]
+    assert meta["skipped_composite_payment"] == 1
+    assert meta["skipped_rows"] == [{
+        "row_index": 0,
+        "record_id": "ambiguous",
+        "code": "import_composite_payment_unresolved",
+    }]
+
+
+def test_cli_import_reports_composite_skip_and_keeps_unknown_mapping_fail_closed(tmp_path):
+    from sqlalchemy import func, select
+
+    from ft.adapters.relational import ensure_workspace
+    from ft.adapters.relational.models import AccountModel, CashTransactionModel
+    from ft.application.statement_account_mapping import DatabaseMappedStatementParser
+    from ft.application.statement_import import StatementImportService
+    from ft.domain.imports import StatementImportCommand
+    from test_postgres_adapter import _database
+
+    source = tmp_path / "statement.csv"
+    source.write_text("fixture", encoding="utf-8")
+    sessions, unit_of_work = _database()
+    ensure_workspace(sessions, "cli-composite-service-workspace")
+    with unit_of_work(sessions, "cli-composite-service-workspace") as uow:
+        uow.accounts.add_raw({"name": "数据库账户", "type": "cash", "currency": "CNY"})
+        uow.commit()
+    with sessions() as session:
+        account_id = session.scalar(select(AccountModel.id).where(
+            AccountModel.workspace_id == "cli-composite-service-workspace",
+            AccountModel.name == "数据库账户",
+        ))
+    with unit_of_work(sessions, "cli-composite-service-workspace") as uow:
+        uow.statement_account_mappings.upsert(
+            source_type="alipay", identity_kind="payment_method",
+            source_account_key="支付宝余额", account_id=account_id, confirmed_by="web",
+        )
+        uow.commit()
+
+    class SourceParser:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def parse_source_rows(self, _command):
+            return [dict(row) for row in self.rows]
+
+    valid = _row(
+        "alipay", record_id="valid", payment_method="账户余额",
+        date="2026-08-14 10:00:00", category="expense",
+        record_type="consumption", record_subtype="not_applicable",
+        counterparty_account="",
+    )
+    composite = _row(
+        "alipay", record_id="ambiguous", amount="-3020.00",
+        payment_method="账户余额&花呗分期(3期)", date="2026-08-14 10:00:01",
+        category="expense", record_type="consumption", record_subtype="not_applicable",
+        counterparty_account="",
+    )
+    parser = DatabaseMappedStatementParser(
+        SourceParser([composite, valid]),
+        unit_of_work(sessions, "cli-composite-service-workspace"),
+    )
+    result = StatementImportService(
+        unit_of_work(sessions, "cli-composite-service-workspace"), parser,
+        enforce_account_currencies=True,
+    ).import_statement(StatementImportCommand(source_path=str(source), source="alipay"))
+
+    assert result.ok is True
+    assert result.count == 1
+    assert result.details["skipped_rows"] == 1
+    assert result.details["skipped_composite_payment"] == 1
+    with sessions() as session:
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 1
+
+    all_composite_parser = DatabaseMappedStatementParser(
+        SourceParser([composite]),
+        unit_of_work(sessions, "cli-composite-service-workspace"),
+    )
+    all_skipped_source = tmp_path / "all-composite.csv"
+    all_skipped_source.write_text("fixture", encoding="utf-8")
+    all_skipped = StatementImportService(
+        unit_of_work(sessions, "cli-composite-service-workspace"),
+        all_composite_parser,
+        enforce_account_currencies=True,
+    ).import_statement(StatementImportCommand(
+        source_path=str(all_skipped_source), source="alipay",
+    ))
+    assert all_skipped.ok is True
+    assert all_skipped.count == 0
+    assert all_skipped.details["skipped_rows"] == 1
+    assert all_skipped.details["skipped_composite_payment"] == 1
+    with sessions() as session:
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 1
+
+    bad = _row("alipay", record_id="bad", payment_method="")
+    with pytest.raises(ValueError, match="业务行无法识别来源账户"):
+        DatabaseMappedStatementParser(
+            SourceParser([bad]),
+            unit_of_work(sessions, "cli-composite-service-workspace"),
+        ).parse(StatementImportCommand(source_path=str(source), source="alipay"))
+
+
+def test_statement_source_time_is_normalized_at_parser_boundary():
+    from ft.adapters.statement_import import normalize_statement_timestamp
+
+    assert normalize_statement_timestamp(
+        "2023-06-14 13:06:11", source="alipay",
+    ) == "2023-06-14T05:06:11+00:00"
+    assert normalize_statement_timestamp(
+        "2023-06-14T13:06:11+08:00", source="wechat",
+    ) == "2023-06-14T05:06:11+00:00"
+    assert normalize_statement_timestamp(
+        "2023-06-14 13:06:11", source="icbc_credit",
+    ) == "2023-06-14T05:06:11+00:00"
+    assert normalize_statement_timestamp(
+        "2023-06-14 13:06:11", source="ccb_debit",
+    ) == "2023-06-14T05:06:11+00:00"
+    assert normalize_statement_timestamp(
+        "2023-06-14 13:06:11", source="icbc_asia",
+    ) == "2023-06-14T05:06:11+00:00"
+
+
 def test_database_mapped_parser_fails_closed_when_mapping_is_missing(tmp_path):
     from ft.application.statement_account_mapping import DatabaseMappedStatementParser
     from ft.adapters.relational import ensure_workspace
