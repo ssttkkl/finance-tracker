@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from decimal import Decimal
 import hashlib
 import json
@@ -35,6 +35,8 @@ from ft.domain.relations import (
     DefaultRefundTextGates,
     source_group,
 )
+from ft.domain.import_time import normalize_timestamp
+from ft.domain.relations.core.keys import stable_fact_order_key, stable_fact_reference
 
 
 def _fact_view_from_row(row: dict) -> FactView:
@@ -85,24 +87,18 @@ def _stable_fact_ref(fact_id: str | None, facts_by_id: dict[str, FactView] | Non
     key = str(fact_id or "")
     fact = (facts_by_id or {}).get(key)
     if fact is not None and fact.record_id:
-        return f"{fact.bill_source or fact.source}:{fact.record_id}"
+        return stable_fact_reference(fact)
     if key.startswith("preview:"):
         return key.removeprefix("preview:")
     return key
 
 
 def _canonical_occurred_at(value: datetime | str) -> str:
-    if isinstance(value, datetime):
-        parsed = value
-    else:
-        text = str(value or "")
-        try:
-            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-        except ValueError:
-            return text
-    if parsed.tzinfo is None:
-        return parsed.isoformat()
-    return parsed.astimezone(timezone.utc).isoformat()
+    text = str(value or "")
+    try:
+        return normalize_timestamp(value, default_timezone="UTC")
+    except ValueError:
+        return text
 
 
 def relation_proposal_key(
@@ -205,7 +201,10 @@ def _relation_context_digest(
                 "signals": list(item.evidence.signals),
                 "evidence": item.evidence.extras or {},
             }
-            for item in proposals
+            for item in sorted(
+                proposals,
+                key=lambda item: relation_proposal_key(item, facts),
+            )
         ],
         "rule_version": "relation-plan.v1",
     }
@@ -327,15 +326,24 @@ def plan_relation_proposals(
     workspace_id: str = "",
 ) -> RelationPlan:
     """Build the complete Phase A → B-D plan without persistence side effects."""
-    normalized_facts = tuple(
-        replace(fact, id=str(fact.id)) if not isinstance(fact.id, str) else fact
-        for fact in facts
-        if not fact.deleted
-    )
+    normalized_facts = tuple(sorted(
+        (
+            replace(fact, id=str(fact.id)) if not isinstance(fact.id, str) else fact
+            for fact in facts
+            if not fact.deleted
+        ),
+        key=stable_fact_order_key,
+    ))
     fact_by_id = {fact.id: fact for fact in normalized_facts}
     rows = _enrich_platform_refund_rows(
         detailed_rows or [_fact_detail_row(fact) for fact in normalized_facts]
     )
+    facts_by_record_id = {str(fact.record_id): fact for fact in normalized_facts if fact.record_id}
+    rows.sort(key=lambda row: stable_fact_order_key(
+        fact_by_id.get(str(row.get("id") or ""))
+        or facts_by_record_id.get(str(row.get("record_id") or ""))
+        or _fact_view_from_row(row)
+    ))
     active_relations = [dict(item) for item in accepted_relations]
     linked_pairs = {
         (str(item.get("primary_fact_id")), str(item.get("secondary_fact_id")))
@@ -410,6 +418,10 @@ def plan_relation_proposals(
         refund_gates=DefaultRefundTextGates(),
     )
     seeds = [str(item) for item in seed_ids] if seed_ids is not None else [fact.id for fact in normalized_facts]
+    seeds = sorted(
+        (item for item in seeds if item in fact_by_id),
+        key=lambda item: stable_fact_order_key(fact_by_id[item]),
+    )
     proposals = tuple(
         run_relation_phases(
             normalized_facts,
@@ -423,7 +435,10 @@ def plan_relation_proposals(
             merchant_refund_seed_ids=seeds,
         )
     )
-    all_proposals = phase_a + proposals
+    all_proposals = tuple(sorted(
+        (*phase_a, *proposals),
+        key=lambda item: relation_proposal_key(item, normalized_facts),
+    ))
     return RelationPlan(
         facts=normalized_facts,
         proposals=all_proposals,

@@ -1,6 +1,9 @@
 from decimal import Decimal
 
-from ft.application.relations import plan_relation_proposals
+from ft.application.relations import (
+    _relation_context_digest,
+    plan_relation_proposals,
+)
 from ft.domain.relations import FactView, RelationKind, RelationStatus
 
 
@@ -112,3 +115,83 @@ def test_wechat_hard_refund_occupies_pair_before_same_amount_merchant_matching()
     )
     assert refund_pairs[0].status == RelationStatus.ACCEPTED.value
     assert refund_pairs[0].rule_id.startswith("scan.wechat")
+
+
+def test_relation_context_digest_treats_naive_import_time_as_persisted_utc():
+    naive = _fact(
+        "fact-1",
+        amount="-9.90",
+        counterparty="商户",
+        record_type="consumption",
+        occurred_at="2023-06-14T13:06:11",
+        record_id="row-1",
+    )
+    aware = _fact(
+        "fact-1",
+        amount="-9.90",
+        counterparty="商户",
+        record_type="consumption",
+        occurred_at="2023-06-14T13:06:11+00:00",
+        record_id="row-1",
+    )
+
+    assert _relation_context_digest([naive], (), ()) == _relation_context_digest([aware], (), ())
+
+
+def test_relation_plan_uses_business_row_order_when_preview_ids_become_database_ids():
+    def payment(fact_id: str, record_id: str, source: str) -> FactView:
+        return FactView(
+            id=fact_id,
+            amount=Decimal("-10.00"),
+            currency="CNY",
+            account_id="shared-card",
+            account_name="共享卡",
+            occurred_at="2023-06-14T13:06:11+00:00",
+            counterparty="商户",
+            counterparty_account="",
+            payment_method="尾号1234",
+            note="消费 尾号1234",
+            record_type="consumption",
+            record_subtype="not_applicable",
+            bill_source=source,
+            source=source,
+            record_id=record_id,
+            raw_payload={"date": "2023-06-14 13:06:11"},
+        )
+
+    preview_facts = [
+        payment("preview:p1", "p1", "alipay"),
+        payment("preview:p2", "p2", "alipay"),
+        payment("preview:b1", "b1", "ccb_debit"),
+        payment("preview:b2", "b2", "ccb_debit"),
+    ]
+    actual_facts = [
+        payment("22", "p1", "alipay"),
+        payment("21", "p2", "alipay"),
+        payment("12", "b1", "ccb_debit"),
+        payment("11", "b2", "ccb_debit"),
+    ]
+
+    def plan(facts):
+        return plan_relation_proposals(
+            facts,
+            detailed_rows=[_row(fact) for fact in facts],
+            seed_ids=[fact.id for fact in facts],
+        )
+
+    preview = plan(preview_facts)
+    actual = plan(actual_facts)
+
+    assert preview.context_digest == actual.context_digest
+    def stable_pairs(plan):
+        by_id = {str(fact.id): fact for fact in plan.facts}
+        return [
+            (
+                item.kind,
+                by_id[str(item.primary_fact_id)].record_id,
+                by_id[str(item.secondary_fact_id)].record_id,
+            )
+            for item in plan.proposals
+        ]
+
+    assert stable_pairs(preview) == stable_pairs(actual)

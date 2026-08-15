@@ -235,11 +235,18 @@ class StatementImportService:
         for row in parsed:
             if "_import_meta" in row:
                 import_meta = dict(row.pop("_import_meta") or {})
-            rows.append(row)
+            if row:
+                rows.append(row)
+        skipped_rows = list(import_meta.get("skipped_rows") or ())
+        skipped_composite_payment = int(
+            import_meta.get("skipped_composite_payment") or 0
+        )
         if not rows:
             acc = import_meta.get("acceptance") or {}
             if acc.get("source_lines") and (
-                acc.get("skipped_unpaid_closed", 0) + acc.get("skipped_failed_repay", 0)
+                acc.get("skipped_unpaid_closed", 0)
+                + acc.get("skipped_failed_repay", 0)
+                + len(skipped_rows)
             ) >= acc.get("source_lines", 0):
                 return OperationResult(
                     ok=True,
@@ -252,6 +259,8 @@ class StatementImportService:
                         "new_cash_fact_ids": [],
                         "acceptance": acc,
                         "import_refund_relations": [],
+                        "skipped_rows": len(skipped_rows),
+                        "skipped_composite_payment": skipped_composite_payment,
                     },
                 )
             raise ValueError("账单中没有可导入的记录")
@@ -489,5 +498,7 @@ class StatementImportService:
                 "import_refund_relations": import_refund_relations,
                 "relation_check": relation_details,
                 "imported_relation_ids": imported_relation_ids,
+                "skipped_rows": len(skipped_rows),
+                "skipped_composite_payment": skipped_composite_payment,
             },
         )

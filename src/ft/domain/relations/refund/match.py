@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ft.domain.relations.core.keys import top_k_candidate_ids
+from ft.domain.relations.core.keys import stable_fact_order_key, top_k_candidate_ids
 
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -288,6 +288,7 @@ def evaluate_refund_offset(
             anchor_fact_id=seed.id,
             open_leg=False,
         )
+    matches_by_id = {str(match[0].id): match[0] for match in matches}
     strong = [m for m in matches if m[2] == RelationStatus.ACCEPTED.value]
     if is_refund_seed and strong:
         highest_priority = max(m[5] for m in strong)
@@ -301,7 +302,10 @@ def evaluate_refund_offset(
                 **{
                     **evidence.__dict__,
                     "candidate_count": len(matches),
-                    "candidate_fact_ids": top_k_candidate_ids([m[0].id for m in matches]),
+                    "candidate_fact_ids": top_k_candidate_ids(
+                        [m[0].id for m in matches],
+                        key=lambda item_id: stable_fact_order_key(matches_by_id[str(item_id)]),
+                    ),
                     "signals": tuple(dict.fromkeys(signals)),
                 }
             )
@@ -332,7 +336,10 @@ def evaluate_refund_offset(
                 **{
                     **evidence.__dict__,
                     "candidate_count": len(matches),
-                    "candidate_fact_ids": top_k_candidate_ids([m[0].id for m in matches]),
+                    "candidate_fact_ids": top_k_candidate_ids(
+                        [m[0].id for m in matches],
+                        key=lambda item_id: stable_fact_order_key(matches_by_id[str(item_id)]),
+                    ),
                     "signals": tuple(dict.fromkeys(list(evidence.signals) + [nearest_signal])),
                 }
             )
@@ -374,10 +381,13 @@ def evaluate_refund_offset(
             0 if m[2] == RelationStatus.ACCEPTED.value else 1,
             -m[5],
             m[1].time_delta_seconds,
-            m[0].id,
+            stable_fact_order_key(m[0]),
         )
     )
-    cand_ids = top_k_candidate_ids([m[0].id for m in matches])
+    cand_ids = top_k_candidate_ids(
+        [m[0].id for m in matches],
+        key=lambda item_id: stable_fact_order_key(matches_by_id[str(item_id)]),
+    )
     base_ev = matches[0][1]
     evidence = RelationEvidence(
         amount_delta=base_ev.amount_delta,

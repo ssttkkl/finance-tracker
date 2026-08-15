@@ -6,6 +6,8 @@ from pathlib import Path
 import re
 import tempfile
 
+from ft.domain.import_time import normalize_statement_timestamp
+
 
 CASH_SOURCES = {
     "alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "icbc-asia",
@@ -91,6 +93,10 @@ def _parse_cash_statement(command, *, resolve_accounts: bool = True):
             continue
         if not resolve_accounts:
             item["account_name"] = ""
+        item["occurred_at"] = normalize_statement_timestamp(
+            item.get("occurred_at") or item.get("date"),
+            source=bill_type,
+        )
         item["amount"] = _decimal_text(item["amount"])
         source_payload = row.get("_source_payload")
         if not isinstance(source_payload, dict) or not source_payload:
