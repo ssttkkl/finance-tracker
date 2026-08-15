@@ -28,7 +28,7 @@ type RelationDraft = {
 
 type MappingDraft = {
   accountId: number | null;
-  newAccount: { name: string; type: string; currencies: string[] } | null;
+  newAccount: { draftId: string; name: string; type: string; currencies: string[] } | null;
 };
 
 const PAGE_SIZES = [20, 50, 100];
@@ -62,6 +62,16 @@ const recordTypeLabels: Record<string, string> = {
   other: "其他",
 };
 
+const recordSubtypeLabels: Record<string, string> = {
+  not_applicable: "—",
+  ordinary_transfer: "普通转账",
+  cross_border_remittance: "跨境汇款",
+  internal_account_transfer: "账户间转账",
+  currency_exchange: "币种兑换",
+  withdraw_to_bank: "提现到银行",
+  credit_repayment: "信用卡还款",
+};
+
 const relationKindLabels: Record<string, string> = {
   payment_mirror: "同笔支付",
   refund_offset: "退款冲销",
@@ -78,6 +88,7 @@ const relationStateLabels: Record<RelationState, string> = {
 function displayValue(item: ImportPreviewItem, column: string): string {
   const value = item[column as keyof ImportPreviewItem];
   if (column === "record_type") return recordTypeLabels[String(value)] ?? String(value || "—");
+  if (column === "record_subtype") return recordSubtypeLabels[String(value)] ?? (value ? "其他" : "—");
   return value === undefined || value === "" ? "—" : String(value);
 }
 
@@ -309,7 +320,14 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       group_id: group.group_id,
       account_id: draft?.newAccount ? null : draft?.accountId,
       mapping_revision: group.suggestion.mapping_revision,
-      new_account: draft?.newAccount ?? null,
+      new_account: draft?.newAccount
+        ? {
+            draft_id: draft.newAccount.draftId,
+            name: draft.newAccount.name,
+            type: draft.newAccount.type,
+            currencies: draft.newAccount.currencies,
+          }
+        : null,
     };
   });
 
@@ -319,16 +337,35 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   }));
 
   const newAccountDraftFor = (group: ImportSourceGroup): NonNullable<MappingDraft["newAccount"]> => ({
+    draftId: `draft-${group.group_id}`,
     name: group.display_name,
     type: group.display_name.includes("花呗") || group.display_name.includes("信用卡") ? "loan" : "cash",
     currencies: [...group.currencies],
   });
 
   const selectMapping = (group: ImportSourceGroup, value: string) => {
-    const next = value === "__create__"
-      ? { accountId: null, newAccount: newAccountDraftFor(group) }
-      : { accountId: Number(value), newAccount: null };
-    setMappingDrafts((current) => ({ ...current, [group.group_id]: next }));
+    setMappingDrafts((current) => {
+      if (value === "__create__") {
+        return { ...current, [group.group_id]: { accountId: null, newAccount: newAccountDraftFor(group) } };
+      }
+      if (value.startsWith("__draft__")) {
+        const draftId = value.slice("__draft__".length);
+        const selected = Object.values(current).find((item) => item.newAccount?.draftId === draftId)?.newAccount;
+        if (!selected) return current;
+        const merged = {
+          ...selected,
+          currencies: Array.from(new Set([...selected.currencies, ...group.currencies])).sort(),
+        };
+        const next = Object.fromEntries(Object.entries(current).map(([groupId, item]) => (
+          item.newAccount?.draftId === draftId
+            ? [groupId, { accountId: null, newAccount: merged }]
+            : [groupId, item]
+        )));
+        next[group.group_id] = { accountId: null, newAccount: merged };
+        return next;
+      }
+      return { ...current, [group.group_id]: { accountId: Number(value), newAccount: null } };
+    });
     setPreview(null);
     setRelationDrafts({});
   };
@@ -336,7 +373,12 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const updateNewAccountDraft = (group: ImportSourceGroup, update: Partial<NonNullable<MappingDraft["newAccount"]>>) => {
     setMappingDrafts((current) => {
       const existing = current[group.group_id]?.newAccount ?? newAccountDraftFor(group);
-      return { ...current, [group.group_id]: { accountId: null, newAccount: { ...existing, ...update } } };
+      const updated = { ...existing, ...update };
+      return Object.fromEntries(Object.entries(current).map(([groupId, item]) => (
+        item.newAccount?.draftId === existing.draftId
+          ? [groupId, { accountId: null, newAccount: updated }]
+          : [groupId, item]
+      )));
     });
     setPreview(null);
     setRelationDrafts({});
@@ -460,6 +502,10 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   };
 
   const relationItems = preview?.relations ?? [];
+  const sharedDrafts = Array.from(new Map(
+    Object.values(mappingDrafts)
+      .flatMap((item) => item.newAccount ? [[item.newAccount.draftId, item.newAccount] as const] : []),
+  ).values());
   const filteredRelations = useMemo(() => relationItems.filter((relation) => {
     if (relationFilter === "all") return true;
     const draft = relationDrafts[relation.id] ?? relationDraftFor(relation);
@@ -530,8 +576,8 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
                 const typeLabels: Record<string, string> = { cash: "现金账户", loan: "贷款账户", lend: "借款账户" };
                 return <article className="mapping-group" key={group.group_id}>
                   <div className="mapping-group-source"><strong>{group.display_name}</strong><small>{group.masked_evidence} · {group.currencies.join(" / ")} · {group.row_count} 条流水</small></div>
-                  <label className="mapping-account-field">系统账户<select aria-label={`${group.display_name}系统账户`} value={draft.newAccount ? "__create__" : draft.accountId ? String(draft.accountId) : ""} onChange={(event) => selectMapping(group, event.target.value)}>
-                    <option value="">请选择账户</option>{scan.accounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}<option value="__create__">创建新账户</option>
+                  <label className="mapping-account-field">系统账户<select aria-label={`${group.display_name}系统账户`} value={draft.newAccount ? `__draft__${draft.newAccount.draftId}` : draft.accountId ? String(draft.accountId) : ""} onChange={(event) => selectMapping(group, event.target.value)}>
+                    <option value="">请选择账户</option>{scan.accounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}{sharedDrafts.map((item) => <option value={`__draft__${item.draftId}`} key={item.draftId}>即将创建「{item.name}」</option>)}<option value="__create__">创建新账户</option>
                   </select>
                   {draft.newAccount ? <span className="row-commitment">将创建「{draft.newAccount.name}」 · {typeLabels[draft.newAccount.type] ?? draft.newAccount.type} · {draft.newAccount.currencies.join(" / ")} <button type="button" className="commitment-action" onClick={() => setEditingGroup(group)}>修改</button></span> : missing.length > 0 ? <span className="row-commitment">将为「{selected?.name}」新增 {missing.join("、")}</span> : null}
                   {!draft.accountId && !draft.newAccount ? <span className="mapping-field-error" role="status">请选择系统账户或创建新账户</span> : null}

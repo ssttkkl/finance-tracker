@@ -18,8 +18,8 @@ def _row(source_type: str, **values) -> dict:
 @pytest.mark.parametrize(
     ("source_type", "values", "identity_kind", "source_key"),
     [
-        ("alipay", {"payment_method": "账户余额"}, "payment_method", "账户余额"),
-        ("wechat", {"payment_method": "零钱"}, "payment_method", "零钱"),
+        ("alipay", {"payment_method": "账户余额"}, "payment_method", "支付宝余额"),
+        ("wechat", {"payment_method": "零钱"}, "payment_method", "微信零钱"),
         ("icbc_credit", {"card_number": "1200"}, "card_tail", "1200"),
         ("icbc_debit", {"payment_method": "银行卡"}, "file_account", "银行卡"),
         ("ccb_debit", {"card_number": "2820"}, "card_tail", "2820"),
@@ -115,6 +115,37 @@ def test_scan_alipay_payment_components_share_one_underlying_account():
     assert card_row["source_payload"]["收/付款方式"] == "工商银行信用卡(1200)&工商银行立减金"
 
 
+def test_scan_alipay_wallet_aliases_share_canonical_group_without_mutating_source_payload():
+    from ft.application.statement_account_mapping import scan_source_rows
+
+    account_balance = _row(
+        "alipay",
+        amount="-12.00",
+        payment_method="账户余额",
+        source_payload={"收/付款方式": "账户余额"},
+    )
+    alipay_balance = _row(
+        "alipay",
+        amount="1.00",
+        payment_method="支付宝余额",
+        source_payload={"收/付款方式": "支付宝余额"},
+    )
+    short_balance = _row(
+        "alipay",
+        amount="2.00",
+        payment_method="余额",
+        source_payload={"收/付款方式": "余额"},
+    )
+
+    groups = scan_source_rows([account_balance, alipay_balance, short_balance])
+
+    assert [(group.source_account_key, group.row_count) for group in groups] == [("支付宝余额", 3)]
+    assert groups[0].legacy_source_account_keys == ("余额", "账户余额")
+    assert account_balance["payment_method"] == "账户余额"
+    assert account_balance["source_payload"]["收/付款方式"] == "账户余额"
+    assert short_balance["payment_method"] == "余额"
+
+
 def test_scan_alipay_multiple_funding_accounts_fails_closed():
     from ft.application.statement_account_mapping import scan_source_rows
 
@@ -142,7 +173,7 @@ def test_scan_alipay_multiple_funding_accounts_are_reported_per_row():
         _row("alipay", record_id="valid", payment_method="账户余额"),
     ])
 
-    assert [group.source_account_key for group in groups] == ["账户余额"]
+    assert [group.source_account_key for group in groups] == ["支付宝余额"]
     assert issues == (
         SourceRowIssue(row_index=0, code="import_composite_payment_unresolved"),
     )
@@ -197,7 +228,19 @@ def test_wechat_wallet_deposit_placeholder_is_normalized_before_account_scan(tmp
         StatementImportCommand(source_path=str(source), source="wechat")
     )
 
-    assert rows[0]["payment_method"] == "零钱"
+    assert rows[0]["payment_method"] == "微信零钱"
+
+
+def test_scan_wechat_wallet_aliases_share_canonical_group():
+    from ft.application.statement_account_mapping import scan_source_rows
+
+    groups = scan_source_rows([
+        _row("wechat", payment_method="零钱"),
+        _row("wechat", payment_method="微信零钱"),
+    ])
+
+    assert [(group.source_account_key, group.row_count) for group in groups] == [("微信零钱", 2)]
+    assert groups[0].legacy_source_account_keys == ("零钱",)
 
 
 def test_alipay_missing_payment_method_uses_explicit_wallet_group(tmp_path, monkeypatch):
@@ -475,7 +518,7 @@ def test_source_parser_path_does_not_read_yaml_or_assign_a_system_account(tmp_pa
     )
 
     assert rows[0]["account_name"] == ""
-    assert rows[0]["payment_method"] == "账户余额"
+    assert rows[0]["payment_method"] == "支付宝余额"
 
 
 def test_database_mapped_parser_uses_confirmed_mapping_without_yaml(tmp_path, monkeypatch):
@@ -691,6 +734,7 @@ def test_preview_new_account_draft_does_not_write_account_or_mapping(tmp_path):
     )
 
     assert preview["mapping"][0]["new_account"] == {
+        "draft_id": group["group_id"],
         "name": "花呗", "type": "loan", "currencies": ["CNY"],
     }
     with sessions() as session:

@@ -443,7 +443,7 @@ class TestWechatCategory:
         assert records[0]["amount"] == 30.0
 
     def test_零钱提现_中性_银行卡入账(self):
-        """零钱提现 = 微信零钱出账；到账卡仅作证据，mapping 用「零钱」。"""
+        """零钱提现 = 微信零钱出账；到账卡仅作证据，现金账单适配层统一为「微信零钱」。"""
         path = str(TEST_DIR / "wechat_wallet_withdrawal.xlsx")
         _make_wechat_xlsx([
             ["2025-08-17 23:54:28", "建设银行(2820)", "/", "/", "2100.00", "建设银行储蓄卡(2820)", "提现已到账", "零钱提现"],

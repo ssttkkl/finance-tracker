@@ -77,7 +77,15 @@ def _normalize_alipay_payment_component(value: str) -> str:
     component = re.sub(r"分期\s*[（(]\s*\d+\s*期\s*[）)]", "", component)
     component = component.replace("分期", "")
     component = re.sub(r"\s*[（(]?\d+\s*期[）)]?", "", component)
-    return component.strip()
+    component = component.strip()
+    if component in {"账户余额", "余额"}:
+        return "支付宝余额"
+    return component
+
+
+def _normalize_wechat_payment_identity(value: object) -> str:
+    payment_method = _text(value)
+    return "微信零钱" if payment_method in {"零钱", "微信零钱"} else payment_method
 
 
 def _alipay_payment_identity(row: dict) -> str:
@@ -111,7 +119,7 @@ def _identity_for_row(row: dict) -> tuple[str, str, str, str, str]:
         source_key = (
             _alipay_payment_identity(row)
             if source_type == "alipay"
-            else _text(row.get("payment_method"))
+            else _normalize_wechat_payment_identity(row.get("payment_method"))
         )
         identity_kind = "payment_method"
         if not source_key:
@@ -151,15 +159,23 @@ def _identity_for_row(row: dict) -> tuple[str, str, str, str, str]:
 
 
 def _legacy_source_account_keys(row: dict, source_key: str) -> tuple[str, ...]:
-    if str(row.get("bill_source") or row.get("source_type") or "").strip() != "alipay":
+    source_type = str(row.get("bill_source") or row.get("source_type") or "").strip()
+    if source_type not in {"alipay", "wechat"}:
         return ()
     raw = _text(row.get("payment_method"))
-    if raw and not any(
-        _normalize_alipay_payment_component(item)
-        for item in raw.split("&")
-    ):
+    if not raw:
         return ()
-    return (raw,) if raw and raw != source_key else ()
+    if source_type == "alipay":
+        normalized_components = [
+            _normalize_alipay_payment_component(item)
+            for item in raw.split("&")
+        ]
+        if not any(normalized_components):
+            return ()
+    else:
+        if _normalize_wechat_payment_identity(raw) == raw:
+            return ()
+    return (raw,) if raw != source_key else ()
 
 
 def source_identity_key(row: dict) -> tuple[str, str, str]:

@@ -208,3 +208,24 @@
 - Parser edge acceptance (2026-08-14): targeted regressions confirmed Alipay rows with a blank payment method use the explicit `支付宝余额` source group, WeChat transfer-in rows with `/` and `已存入零钱` use `零钱`, and ICBC credit rows with a missing card field recover the masked tail from the source snapshot; all targeted parser tests passed.
 - Browser same-workspace spot check (2026-08-14): in workspace `全量账单验收 QA` (`5d87ee66-6d47-4b2e-bb38-f7b2198ef33d`), the Alipay bill committed through the UI with 1,028 rows. A fresh scan of the ICBC credit PDF reused the three persisted accounts and mapped revisions, previewed 2,500 existing rows, then confirmed through the JSON request body with HTTP 200 and displayed `0 待新增 / 0 已更新 / 2500 已存在`. The request body contained no password; `X-FT-Statement-Password` carried it. After clearing browser buffers, the final flow had zero console errors.
 - Large-confirmation transport follow-up (2026-08-14): 721 relation decisions are accepted by the API contract test without serializing them into the URL; the Web test asserts the commit URL has no `relations` query and the password is not included in the JSON body. The first browser retry with an old mapping revision correctly returned a stale-mapping conflict; rescanning and confirming with the current revision succeeded, confirming the concurrency guard rather than a storage failure.
+
+## 23. 钱包规范身份、共享新账户草稿与预览显示名称 Flow-Back
+
+- [x] 23.1 先补支付宝 `账户余额` / `余额` / `支付宝余额`、微信 `零钱` / `微信零钱` 的规范身份失败回归，并验证历史来源键仍能命中映射、原始来源快照不变
+- [x] 23.2 先补共享新账户草稿失败回归：多个来源组引用同一 `draft_id` 时预览目标一致，币种安全合并，名称冲突与草稿不一致失败关闭
+- [x] 23.3 先补预览 `record_subtype` 显示名称回归：已知枚举显示中文，`not_applicable` 显示 `—`，未知值不泄露内部枚举
+- [x] 23.4 实现支付宝 / 微信来源身份规范化与旧键兼容；不改变金额、来源快照、关系规则或既有流水
+- [x] 23.5 实现前端会话级共享新账户草稿：候选去重、跨行选择、编辑同步、草稿引用清理和映射请求携带 `draft_id`
+- [x] 23.6 实现后端按 `draft_id` 校验共享草稿并在最终事务中只创建一次账户，所有来源组映射到同一账户；预览阶段保持无写入
+- [x] 23.7 实现流水预览业务细分中文显示名称映射，未知值使用安全中文兜底，内部字段合同保持不变
+- [x] 23.8 用 Downloads 中支付宝、微信账单验证规范分组数量与名称：支付宝钱包仅为 `支付宝余额`，微信钱包仅为 `微信零钱`
+- [x] 23.9 运行受影响 Python / SQLite / PostgreSQL 契约测试、Web Vitest、构建、真实浏览器响应式 QA、Hallmark 等价审查、OpenSpec 校验、`git diff --check` 和最终 diff 复核
+- [x] 23.10 回写当前 `HEAD`、基线、命令、结果、截图、未完成的 PostgreSQL 条件和残余风险；未获单独授权不提交、推送、创建 PR 或部署
+
+### 23.11 验证证据（2026-08-15）
+
+- 需求澄清：按仓库要求显式读取并进入 `grill-me` `/grilling` 需求澄清门禁；当前运行时未提供可执行的 Skill session API，澄清结论已回写本节及 `proposal.md` / `design.md` / delta spec。范围锁定为钱包规范身份、会话共享新账户草稿和预览业务细分显示名称，不改变金额、来源快照、关系语义或迁移。
+- 回归测试先红后绿：新增 `tests/test_statement_account_mapping.py`、`tests/test_mapping.py`、`tests/test_cash_import_wizard.py`、`web/tests/CashImportPage.test.tsx` 以及 `tests/contract/test_cash_import_dual_backend.py`；共享 `draft_id` 不一致、名称冲突、预览无写入和只创建一次账户均有覆盖。最终 `uv run pytest -q` → **1492 passed, 179 skipped, 1 warning**；`FT_TEST_POSTGRES_URL=postgresql+psycopg://quantdinger:***@127.0.0.1:5432/finance_tracker_test uv run pytest -q tests/test_statement_account_mapping.py tests/test_mapping.py tests/test_cash_import_wizard.py tests/contract/test_cash_import_dual_backend.py tests/test_mapping_import_dual_backend.py` → **71 passed**（SQLite / PostgreSQL）；新增旧精确映射优先于规范值通配映射回归及受影响本地矩阵 → **75 passed, 4 skipped**；`uv run python -m compileall -q src tests/test_mapping.py tests/test_statement_account_mapping.py tests/test_cash_import_wizard.py tests/contract/test_cash_import_dual_backend.py` → 通过。
+- Web：`cd web && npm ci`；`npm test -- --run` → **119 passed**；`npm run build` → 通过。真实 Chromium 使用隔离 Vite `http://127.0.0.1:5176/w/workspace-qa/cash-import` 和 API 路由桩，390×844 与 1440×900 覆盖上传、映射、跨行选择同一待创建账户、编辑同步和预览；页面到达“核对流水”，`ordinary_transfer` 显示为“普通转账”，无原始枚举泄露，控制台错误 / 网络失败均为 0。截图：`/tmp/finance-tracker-cash-import-390.png`、`/tmp/finance-tracker-cash-import-1440.png`；390 px 页面级 `scrollWidth=390`，表格溢出仅在容器内。
+- Downloads 真实账单：通过 `CashLedgerCommandService.scan_import` 验证 `支付宝交易明细(20260512-20260812).csv`（188 行、0 个问题）的钱包组 **31** 行且唯一名称为 `支付宝余额`；`微信支付账单流水文件(20260512-20260812)_20260812163147.xlsx`（212 行、0 个问题）的钱包组 **109** 行且唯一名称为 `微信零钱`。历史支付宝账单中的 `账户余额` / `余额` 也合并到 `支付宝余额`，来源快照字段未变；旧 `mapping.yaml` 的 `账户余额` / `零钱` 规则通过别名回退仍可命中。
+- 规范与差异：`openspec validate --all --strict --no-interactive` → **27 passed, 0 failed**；`openspec doctor` → root / OpenSpec root ok；`git diff --check` → 通过。当前 `HEAD=57704e424d48dbfd30cfe78682e2a53251544ab8`，本次变更未创建提交。Hallmark `audit` 动作在仓库环境不可用（`hallmark` 命令不存在），已按同等人工审查完成 390 / 1440 截图、焦点 / 关键点击 / 页面级溢出和文案泄露检查，0 critical / major / minor。当前工作树保留未提交改动；用户尚未授权提交、推送、创建 PR 或部署。

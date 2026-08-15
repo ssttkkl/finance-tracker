@@ -656,7 +656,10 @@ def test_cash_import_mapping_and_relations_rebuild_ready_projection_once(tmp_pat
     mapping = [{
         "group_id": scan["groups"][0]["group_id"],
         "mapping_revision": None,
-        "new_account": {"name": "支付宝余额", "type": "cash", "currencies": ["CNY"]},
+        "new_account": {
+            "draft_id": scan["groups"][0]["group_id"],
+            "name": "支付宝余额", "type": "cash", "currencies": ["CNY"],
+        },
     }]
     preview = service.preview_import(
         b"fixture", source="", currency=None, filename="statement.csv", mapping=mapping,
@@ -689,6 +692,122 @@ def test_cash_import_mapping_and_relations_rebuild_ready_projection_once(tmp_pat
             TransactionRelationModel.workspace_id == workspace_id,
             TransactionRelationModel.status == "accepted",
         )) == 1
+
+
+def test_cash_import_shared_new_account_draft_creates_one_account_for_multiple_groups(tmp_path):
+    from ft.adapters.relational.models import (
+        AccountLifecycleEventModel, AccountModel, CashTransactionModel,
+        StatementAccountMappingModel,
+    )
+    from ft.adapters.relational import ensure_workspace
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from test_postgres_adapter import _database
+
+    class SourceParser:
+        def parse_source_rows(self, _command):
+            return [
+                _row(record_id="wallet-row", payment_method="账户余额"),
+                _row(record_id="credit-row", payment_method="花呗", account_name="共同账户", currency="USD"),
+            ]
+
+    sessions, _unit_of_work = _database()
+    workspace_id = "shared-draft-workspace"
+    ensure_workspace(sessions, workspace_id)
+    service = CashLedgerCommandService(sessions, workspace_id, parser=SourceParser())
+    scan = service.scan_import(b"fixture", filename="statement.csv")
+    assert len(scan["groups"]) == 2
+    mapping = [
+        {
+            "group_id": group["group_id"],
+            "mapping_revision": None,
+            "new_account": {
+                "draft_id": "draft-shared-1",
+                "name": "共同账户",
+                "type": "cash",
+                "currencies": list(group["currencies"]),
+            },
+        }
+        for group in scan["groups"]
+    ]
+
+    preview = service.preview_import(
+        b"fixture", source="", currency=None, filename="statement.csv", mapping=mapping,
+    )
+    assert {item["account_name"] for item in preview["items"]} == {"共同账户"}
+    assert {item["new_account"]["draft_id"] for item in preview["mapping"]} == {"draft-shared-1"}
+
+    result = service.commit_import(
+        b"fixture", source="", currency=None, filename="statement.csv",
+        preview_digest=scan["digest"], preview_channel=scan["channel"], mapping=mapping,
+    )
+
+    assert result["new_rows"] == 2
+    with sessions() as session:
+        assert session.scalar(select(func.count()).select_from(AccountModel).where(
+            AccountModel.workspace_id == workspace_id,
+            AccountModel.name == "共同账户",
+        )) == 1
+        account = session.scalar(select(AccountModel).where(
+            AccountModel.workspace_id == workspace_id,
+            AccountModel.name == "共同账户",
+        ))
+        assert account.currencies == ["CNY", "USD"]
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel).where(
+            CashTransactionModel.workspace_id == workspace_id,
+            CashTransactionModel.account_id == account.id,
+        )) == 2
+        assert session.scalar(select(func.count()).select_from(StatementAccountMappingModel).where(
+            StatementAccountMappingModel.workspace_id == workspace_id,
+            StatementAccountMappingModel.account_id == account.id,
+        )) == 2
+        assert session.scalar(select(func.count()).select_from(AccountLifecycleEventModel).where(
+            AccountLifecycleEventModel.workspace_id == workspace_id,
+            AccountLifecycleEventModel.account_id == account.id,
+            AccountLifecycleEventModel.event_kind == "opened",
+        )) == 1
+
+
+def test_cash_import_shared_new_account_draft_conflicts_fail_closed(tmp_path):
+    from ft.adapters.relational import ensure_workspace
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from test_postgres_adapter import _database
+
+    class SourceParser:
+        def parse_source_rows(self, _command):
+            return [
+                _row(record_id="wallet-row", payment_method="账户余额"),
+                _row(record_id="credit-row", payment_method="花呗"),
+            ]
+
+    sessions, _unit_of_work = _database()
+    workspace_id = "shared-draft-conflict-workspace"
+    ensure_workspace(sessions, workspace_id)
+    service = CashLedgerCommandService(sessions, workspace_id, parser=SourceParser())
+    scan = service.scan_import(b"fixture", filename="statement.csv")
+
+    def mapping(*, second_draft_id: str, second_name: str):
+        return [
+            {
+                "group_id": group["group_id"], "mapping_revision": None,
+                "new_account": {
+                    "draft_id": "draft-shared-1" if index == 0 else second_draft_id,
+                    "name": "共同账户" if index == 0 else second_name,
+                    "type": "cash", "currencies": ["CNY"],
+                },
+            }
+            for index, group in enumerate(scan["groups"])
+        ]
+
+    with pytest.raises(ValueError, match="import_account_draft_invalid"):
+        service.preview_import(
+            b"fixture", source="", currency=None, filename="statement.csv",
+            mapping=mapping(second_draft_id="draft-shared-1", second_name="另一个账户"),
+        )
+    with pytest.raises(ValueError, match="import_account_name_conflict"):
+        service.preview_import(
+            b"fixture", source="", currency=None, filename="statement.csv",
+            mapping=mapping(second_draft_id="draft-shared-2", second_name="共同账户"),
+        )
 
 
 def test_cash_import_commit_reuses_same_idempotency_result(tmp_path):

@@ -118,3 +118,75 @@ def test_postgres_cash_import_confirmation_serializes_same_idempotency_key(postg
         assert session.scalar(select(func.count()).select_from(CashTransactionModel).where(
             CashTransactionModel.workspace_id == workspace_id,
         )) == 1
+
+
+@pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_shared_new_account_draft_creates_one_account_on_both_backends(request, runtime_name):
+    from ft.adapters.relational import ensure_workspace
+    from ft.adapters.relational.models import AccountModel, CashTransactionModel, StatementAccountMappingModel
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from ft.application.cash_projections import CashProjectionService
+
+    runtime = request.getfixturevalue(runtime_name)
+    workspace_id = f"cash-import-shared-draft-{runtime_name}"
+    ensure_workspace(runtime.sessions, workspace_id)
+    with runtime.sessions.begin() as session:
+        CashProjectionService.initialize_in_session(session, workspace_id)
+
+    class SourceParser:
+        def parse_source_rows(self, _command):
+            return [
+                {
+                    "record_id": "shared-wallet-row", "bill_source": "alipay", "source_type": "alipay",
+                    "payment_method": "账户余额", "currency": "CNY", "amount": "-1.00",
+                    "date": "2026-08-15", "counterparty": "钱包商户", "counterparty_account": "",
+                    "category": "expense", "record_type": "consumption", "record_subtype": "not_applicable",
+                    "note": "钱包", "_source_payload": {"原始": "wallet"},
+                },
+                {
+                    "record_id": "shared-credit-row", "bill_source": "alipay", "source_type": "alipay",
+                    "payment_method": "花呗", "currency": "USD", "amount": "-2.00",
+                    "date": "2026-08-15", "counterparty": "花呗商户", "counterparty_account": "",
+                    "category": "expense", "record_type": "consumption", "record_subtype": "not_applicable",
+                    "note": "花呗", "_source_payload": {"原始": "credit"},
+                },
+            ]
+
+    service = CashLedgerCommandService(runtime.sessions, workspace_id, parser=SourceParser())
+    scan = service.scan_import(b"shared-draft", filename="statement.csv")
+    assert len(scan["groups"]) == 2
+    mapping = [
+        {
+            "group_id": group["group_id"],
+            "mapping_revision": None,
+            "new_account": {
+                "draft_id": "shared-draft-1", "name": "共享钱包", "type": "cash",
+                "currencies": list(group["currencies"]),
+            },
+        }
+        for group in scan["groups"]
+    ]
+    preview = service.preview_import(
+        b"shared-draft", source="", currency=None, filename="statement.csv", mapping=mapping,
+    )
+    assert {item["account_name"] for item in preview["items"]} == {"共享钱包"}
+    result = service.commit_import(
+        b"shared-draft", source="", currency=None, filename="statement.csv",
+        preview_digest=scan["digest"], preview_channel=scan["channel"], mapping=mapping,
+    )
+    assert result["new_rows"] == 2
+    with runtime.sessions() as session:
+        account = session.scalar(select(AccountModel).where(
+            AccountModel.workspace_id == workspace_id, AccountModel.name == "共享钱包",
+        ))
+        assert account is not None
+        assert account.currencies == ["CNY", "USD"]
+        assert session.scalar(select(func.count()).select_from(AccountModel).where(
+            AccountModel.workspace_id == workspace_id, AccountModel.name == "共享钱包",
+        )) == 1
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel).where(
+            CashTransactionModel.workspace_id == workspace_id, CashTransactionModel.account_id == account.id,
+        )) == 2
+        assert session.scalar(select(func.count()).select_from(StatementAccountMappingModel).where(
+            StatementAccountMappingModel.workspace_id == workspace_id, StatementAccountMappingModel.account_id == account.id,
+        )) == 2

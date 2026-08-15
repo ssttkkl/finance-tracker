@@ -80,6 +80,49 @@ def test_no_match_returns_none(tmp_path):
     assert match_payment_method(rules, "alipay", "未知支付方式") is None
 
 
+@pytest.mark.parametrize(
+    ("source", "canonical", "legacy"),
+    [
+        ("alipay", "支付宝余额", "账户余额"),
+        ("alipay", "支付宝余额", "余额"),
+        ("wechat", "微信零钱", "零钱"),
+    ],
+)
+def test_canonical_wallet_names_match_legacy_mapping_rules(tmp_path, source, canonical, legacy):
+    from ft.mapping import load_rules, match_payment_method
+
+    mapping = _write_mapping(
+        tmp_path / f"{source}.yaml",
+        [{"source": source, "match": legacy, "account": canonical, "currency": "CNY"}],
+    )
+    rules, _ = load_rules(mapping)
+    match = match_payment_method(rules, source, canonical)
+    assert match == {"account": canonical, "currency": "CNY"}
+
+
+@pytest.mark.parametrize(
+    ("source", "canonical", "legacy"),
+    [
+        ("alipay", "支付宝余额", "账户余额"),
+        ("wechat", "微信零钱", "零钱"),
+    ],
+)
+def test_legacy_exact_rule_beats_canonical_catch_all(tmp_path, source, canonical, legacy):
+    from ft.mapping import load_rules, match_payment_method
+
+    mapping = _write_mapping(
+        tmp_path / f"{source}-specific.yaml",
+        [
+            {"source": source, "match": "*", "account": "通用账户", "currency": "CNY"},
+            {"source": source, "match": legacy, "account": "历史钱包", "currency": "CNY"},
+        ],
+    )
+    rules, _ = load_rules(mapping)
+    assert match_payment_method(rules, source, canonical) == {
+        "account": "历史钱包", "currency": "CNY",
+    }
+
+
 def test_load_rules_creates_default_template(tmp_path, monkeypatch):
     from ft import mapping as mapping_mod
 
