@@ -24,7 +24,13 @@ def _decimal_text(value) -> str:
 
 def _normalize_cash_source_account(row: dict, *, source: str) -> None:
     """Normalize platform placeholders that are not real source accounts."""
-    if source == "alipay" and not str(row.get("payment_method") or "").strip():
+    if source == "alipay":
+        payment_method = str(row.get("payment_method") or "").strip()
+        if payment_method in {"账户余额", "余额"}:
+            row["payment_method"] = "支付宝余额"
+            return
+        if payment_method:
+            return
         # Alipay exports some valid income / expense rows without a funding
         # method.  Keep them in a real wallet group so the import wizard can
         # ask for an account instead of failing the whole file.
@@ -41,11 +47,15 @@ def _normalize_cash_source_account(row: dict, *, source: str) -> None:
                 row["card_number"] = digits[-4:]
                 return
         return
-    if str(row.get("payment_method") or "").strip() != "/":
+    payment_method = str(row.get("payment_method") or "").strip()
+    if payment_method in {"零钱", "微信零钱"}:
+        row["payment_method"] = "微信零钱"
+        return
+    if payment_method != "/":
         return
     status = str(row.get("status") or row.get("platform_status") or "").strip()
     if row.get("record_type") == "transfer_in" and status == "已存入零钱":
-        row["payment_method"] = "零钱"
+        row["payment_method"] = "微信零钱"
 
 
 def _parse_cash_statement(command, *, resolve_accounts: bool = True):

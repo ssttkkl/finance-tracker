@@ -1624,6 +1624,8 @@ class CashLedgerCommandService:
             raise ValueError("import_mapping_incomplete")
 
         resolved = {}
+        drafts_by_id: dict[str, dict] = {}
+        draft_names: dict[str, str] = {}
         for group in groups:
             decision = decisions[group.group_id]
             current = historical_mapping_for_group(uow, group)
@@ -1656,18 +1658,52 @@ class CashLedgerCommandService:
             draft = decision.get("new_account")
             if not isinstance(draft, dict):
                 raise ValueError("import_mapping_incomplete")
+            draft_id = str(draft.get("draft_id") or group.group_id).strip()
             name = str(draft.get("name") or "").strip()
             account_type = str(draft.get("type") or "").strip()
             currencies = tuple(sorted({str(value).upper() for value in (draft.get("currencies") or ()) if value}))
-            if not name or account_type not in {"cash", "loan", "lend"} or currencies != tuple(group.currencies):
+            if (
+                not draft_id or len(draft_id) > 128 or not name
+                or account_type not in {"cash", "loan", "lend"}
+                or not set(group.currencies).issubset(currencies)
+            ):
                 raise ValueError("import_account_draft_invalid")
-            if uow.accounts.find(name) is not None:
-                raise ValueError("import_account_name_conflict")
+            existing_draft = drafts_by_id.get(draft_id)
+            if existing_draft is not None:
+                if existing_draft["name"] != name or existing_draft["type"] != account_type:
+                    raise ValueError("import_account_draft_invalid")
+                merged_currencies = sorted(set(existing_draft["currencies"]) | set(currencies) | set(group.currencies))
+                existing_draft["currencies"] = merged_currencies
+                existing_draft["account"]["currencies"] = merged_currencies
+                existing_draft["new_account"]["currencies"] = merged_currencies
+            else:
+                prior_draft_id = draft_names.get(name)
+                if prior_draft_id is not None and prior_draft_id != draft_id:
+                    raise ValueError("import_account_name_conflict")
+                if uow.accounts.find(name) is not None:
+                    raise ValueError("import_account_name_conflict")
+                draft_names[name] = draft_id
+                drafts_by_id[draft_id] = {
+                    "draft_id": draft_id,
+                    "name": name,
+                    "type": account_type,
+                    "currencies": list(currencies),
+                    "account": {
+                        "id": None, "name": name, "type": account_type,
+                        "active": True, "currencies": list(currencies),
+                    },
+                    "new_account": {
+                        "draft_id": draft_id, "name": name, "type": account_type,
+                        "currencies": list(currencies),
+                    },
+                }
+            draft_entry = drafts_by_id[draft_id]
             resolved[group.group_id] = {
                 "account_id": None,
-                "account": {"id": None, "name": name, "type": account_type, "active": True, "currencies": list(currencies)},
+                "account": draft_entry["account"],
                 "missing_currencies": (),
-                "new_account": {"name": name, "type": account_type, "currencies": list(currencies)},
+                "new_account": draft_entry["new_account"],
+                "draft_id": draft_id,
                 "mapping_source_account_key": (
                     current["source_account_key"]
                     if current is not None
@@ -1962,27 +1998,34 @@ class CashLedgerCommandService:
                 uow, rows, channel, mapping,
             )
             snapshot = uow.snapshot.load(lock=True)
+            created_drafts: dict[str, dict] = {}
             for group in groups:
                 target = resolved[group.group_id]
                 account = target["account"]
                 if target["new_account"] is not None:
-                    model = AccountModel(
-                        workspace_id=self._workspace_id,
-                        name=account["name"],
-                        type=account["type"],
-                        active=True,
-                        currencies=list(account["currencies"]),
-                        metadata_json={},
-                    )
-                    session.add(model)
-                    session.flush()
+                    draft_id = target["new_account"]["draft_id"]
+                    created = created_drafts.get(draft_id)
+                    if created is None:
+                        model = AccountModel(
+                            workspace_id=self._workspace_id,
+                            name=account["name"],
+                            type=account["type"],
+                            active=True,
+                            currencies=list(account["currencies"]),
+                            metadata_json={},
+                        )
+                        session.add(model)
+                        session.flush()
+                        created = {"model": model, "account": account}
+                        created_drafts[draft_id] = created
+                        uow.wealth_facts.record_lifecycle(
+                            account_name=model.name,
+                            event_kind="opened",
+                            effective_at=datetime.now(timezone.utc),
+                        )
+                    model = created["model"]
                     target["account_id"] = model.id
                     account["id"] = model.id
-                    uow.wealth_facts.record_lifecycle(
-                        account_name=model.name,
-                        event_kind="opened",
-                        effective_at=datetime.now(timezone.utc),
-                    )
                 else:
                     model = session.get(AccountModel, int(account["id"]))
                     if model is None or not model.active:

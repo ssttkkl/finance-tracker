@@ -105,6 +105,30 @@ describe("CashImportPage", () => {
     expect(commitBody.relations).toEqual([]);
   });
 
+  it("流水预览将业务细分显示为中文名称而不是内部枚举", async () => {
+    const subtypePreview = {
+      ...preview,
+      items: [{ ...item, record_subtype: "ordinary_transfer" }],
+      relations: [],
+    };
+    const fetch = vi.fn((input: string) => input.includes("/scan")
+      ? response(scan)
+      : input.includes("/preview")
+        ? response(subtypePreview)
+        : response({ message: "导入完成", new_rows: 1, updated_rows: 0, channel: "alipay", digest: "digest-1" }));
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [new File(["fixture"], "statement.csv")] } });
+    await screen.findByRole("heading", { name: "映射账户" });
+    fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
+
+    await screen.findByRole("heading", { name: "核对流水" });
+    expect(screen.getByText("普通转账")).toBeInTheDocument();
+    expect(screen.queryByText("ordinary_transfer")).not.toBeInTheDocument();
+    expect(screen.queryByText("not_applicable")).not.toBeInTheDocument();
+  });
+
   it("扫描后只用令牌请求预览和确认，不重复上传账单正文", async () => {
     const fetch = vi.fn((input: string, init?: RequestInit) => input.includes("/scan")
       ? response({ ...scan, import_token: "token-1" })
@@ -214,6 +238,50 @@ describe("CashImportPage", () => {
     await screen.findByRole("heading", { name: "核对流水" });
     const previewRequest = fetch.mock.calls.find(([input]) => String(input).includes("/cash-import/preview"));
     expect(String(previewRequest?.[0])).toContain(encodeURIComponent('"name":"花呗新账户"'));
+  });
+
+  it("允许多个来源账户选择同一个会话内待创建账户并同步编辑", async () => {
+    const sharedDraftScan = {
+      ...scan,
+      accounts: [],
+      groups: [
+        { ...scan.groups[0], group_id: "group-wallet", display_name: "支付宝余额", suggestion: { ...scan.groups[0].suggestion, account_id: null, account: null } },
+        { ...scan.groups[0], group_id: "group-huabei", display_name: "花呗", suggestion: { ...scan.groups[0].suggestion, account_id: null, account: null } },
+      ],
+    };
+    const fetch = vi.fn((input: string) => input.includes("/scan")
+      ? response(sharedDraftScan)
+      : input.includes("/preview")
+        ? response({ ...preview, relations: [] })
+        : response({ message: "导入完成", new_rows: 2, updated_rows: 0, channel: "alipay", digest: "digest-1" }));
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [new File(["fixture"], "statement.csv")] } });
+    await screen.findByRole("heading", { name: "映射账户" });
+    const walletGroup = screen.getByText("支付宝余额").closest("article")!;
+    const huabeiGroup = screen.getByText("花呗").closest("article")!;
+    fireEvent.change(walletGroup.querySelector("select")!, { target: { value: "__create__" } });
+    const draftOption = Array.from(huabeiGroup.querySelector("select")!.options).find((option) => option.textContent?.includes("即将创建"));
+    expect(draftOption).toBeDefined();
+    fireEvent.change(huabeiGroup.querySelector("select")!, { target: { value: draftOption!.value } });
+    expect(walletGroup).toHaveTextContent("将创建");
+    expect(huabeiGroup).toHaveTextContent("将创建");
+
+    fireEvent.click(walletGroup.querySelector("button")!);
+    fireEvent.change(screen.getByRole("dialog").querySelector("input")!, { target: { value: "共享钱包" } });
+    fireEvent.click(screen.getByRole("button", { name: "完成" }));
+    expect(walletGroup).toHaveTextContent("共享钱包");
+    expect(huabeiGroup).toHaveTextContent("共享钱包");
+
+    fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
+    await screen.findByRole("heading", { name: "核对流水" });
+    const previewRequest = fetch.mock.calls.find(([input]) => String(input).includes("/cash-import/preview"));
+    const mappingText = new URL(String(previewRequest?.[0])).searchParams.get("mapping");
+    const mapping = JSON.parse(mappingText ?? "[]") as Array<{ new_account?: { draft_id?: string; name?: string } }>;
+    expect(mapping).toHaveLength(2);
+    expect(new Set(mapping.map((item) => item.new_account?.draft_id))).toEqual(new Set(["draft-group-wallet"]));
+    expect(mapping.every((item) => item.new_account?.name === "共享钱包")).toBe(true);
   });
 
   it("分页展示关系、允许修改非自动类型，并能拒绝后撤销", async () => {
