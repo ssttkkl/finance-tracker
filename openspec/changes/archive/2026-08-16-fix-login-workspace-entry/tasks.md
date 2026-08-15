@@ -19,9 +19,9 @@
 
 - [x] 4.1 运行受影响 Vitest、TypeScript/生产构建和 `git diff --check`：`cd web && npm test -- --run` 为 10 files/124 tests passed；`cd web && npm run build` 通过；`git diff --check` 通过。
 - [x] 4.2 使用真实 Playwright Chromium 覆盖登录后已有工作区、无工作区创建页、返回按钮交互及 390/1440 px 响应式状态：`FT_E2E_WEB_PORT=5195 npm run test:e2e -- --reporter=line tests/workspace-entry.e2e.ts` 为 3 passed；`FT_PREVIEW_WEB_PORT=5196 FT_PREVIEW_API_PORT=8778 npm run test:preview -- --reporter=line` 为 10 passed（含 3 条入口回归）。`/tmp/fix-login-workspace-entry-390.png` 与 `/tmp/fix-login-workspace-entry-1440.png` 已截图并人工检查，页面无横向溢出；控制台仅有未登录会话探测的预期 401，无意外 console 或 request failure。最终全量 E2E（`FT_E2E_WEB_PORT=5200 npm run test:e2e -- --reporter=line`）为 33 passed、1 failed，唯一失败是既有暗色侧栏颜色断言期望 7 个节点而当前实际有 8 个导航节点，与本变更无关。
-- [x] 4.3 运行 `openspec validate --all --strict` 与 `openspec doctor`：29 passed、0 failed，doctor 根目录正常；验证前 `HEAD=c2456dbc7a2f1dc78488dd6de2a62741b0ced57e`，比较基线 `origin/refactor/web` 同为该提交；未涉及数据库、迁移或 PostgreSQL 矩阵。
+- [x] 4.3 运行 `openspec validate --all --strict` 与 `openspec doctor`：28 passed、0 failed，doctor 根目录正常；验证前 `HEAD=c2456dbc7a2f1dc78488dd6de2a62741b0ced57e`，比较基线 `origin/refactor/web` 同为该提交；最终交付 HEAD 为 `49562152191a2987eeb4ed69819f976de1c9d852`；未涉及数据库、迁移或 PostgreSQL 矩阵。
 
 ## 5. 发布与反思
 
-- [x] 5.1 记录前端发布准备、回滚条件和外部动作范围：本次只需前后端兼容发布前端；回滚恢复 `AccessApp.tsx` 与入口回归测试配置即可；本次按用户授权提交、推送并创建目标为 `refactor/web` 的 PR，不直接合并或部署。
+- [x] 5.1 记录前端发布准备、回滚条件和外部动作范围：本次只需前后端兼容发布前端；回滚恢复 `AccessApp.tsx` 与入口回归测试配置即可；已按用户授权提交 `8980a43`、`4956215`，推送分支 `fix-workspace-redirect-back-button`，并创建目标为 `refactor/web` 的 [PR #63](https://github.com/ssttkkl/finance-tracker/pull/63)；未直接合并或部署。执行时间：2026-08-15T17:09:26Z。
 - [x] 5.2 记录防复发规则：认证后必须按工作区列表与活动 ID共同决定入口，工作区选择失败不得落到创建页，无目标的创建流程不得显示无效返回操作；自动化覆盖登录、会话恢复、选择失败、首次创建和已有工作区创建返回。
