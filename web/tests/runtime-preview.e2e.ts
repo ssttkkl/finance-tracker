@@ -28,6 +28,30 @@ test("生产预览在窄屏保持银证转账双端金额可见", async ({ page 
   expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
+test("生产预览在桌面和移动宽度保留禁止缩放 viewport", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  const requestFailures: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  page.on("requestfailed", (request) => {
+    requestFailures.push(`${request.method()} ${request.url()}: ${request.failure()?.errorText ?? "unknown"}`);
+  });
+
+  for (const [width, height] of [[390, 844], [1440, 900]]) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/");
+    await expect(page.locator('meta[name="viewport"]')).toHaveAttribute(
+      "content",
+      "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no",
+    );
+    expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+
+  expect(consoleErrors).toEqual([]);
+  expect(requestFailures).toEqual([]);
+});
+
 test("生产预览在性能预算内分阶段展示当前持仓", async ({ page }) => {
   const started = Date.now();
   await page.goto("/investment-holdings");
