@@ -219,6 +219,7 @@ class StatementImportService:
         *,
         relation_decisions: list[dict] | None = None,
         relation_plan_digest: str | None = None,
+        cached_relation_plan: dict | None = None,
     ) -> OperationResult:
         path = Path(command.source_path)
         with path.open("rb") as source:
@@ -416,21 +417,33 @@ class StatementImportService:
             relation_affected_fact_ids: set[int] = set()
             relation_details = None
             if new_cash_fact_ids and self._relations is not None and self._run_relation_check:
-                created_relations, relation_affected_fact_ids = self._relations.apply_import_plan_in_uow(
-                    uow,
-                    seed_ids=[str(item) for item in new_cash_fact_ids],
-                    relation_decisions=relation_decisions,
-                    expected_digest=relation_plan_digest,
-                )
+                if cached_relation_plan is not None:
+                    (
+                        created_relations,
+                        relation_affected_fact_ids,
+                        explicit_decisions,
+                    ) = self._relations.apply_cached_import_plan_in_uow(
+                        uow,
+                        cached_plan=cached_relation_plan,
+                        relation_decisions=relation_decisions,
+                        expected_digest=relation_plan_digest,
+                    )
+                else:
+                    created_relations, relation_affected_fact_ids = self._relations.apply_import_plan_in_uow(
+                        uow,
+                        seed_ids=[str(item) for item in new_cash_fact_ids],
+                        relation_decisions=relation_decisions,
+                        expected_digest=relation_plan_digest,
+                    )
+                    explicit_decisions = [
+                        item for item in (relation_decisions or ())
+                        if str(item.get("status") or "accepted") == "accepted"
+                    ]
                 imported_relation_ids.extend(
                     str(item["id"])
                     for item in created_relations
                     if item.get("status") == "accepted" and item.get("id") is not None
                 )
-                explicit_decisions = [
-                    item for item in (relation_decisions or ())
-                    if str(item.get("status") or "accepted") == "accepted"
-                ]
                 imported_relation_ids.extend(
                     self._apply_relation_decisions(
                         uow,

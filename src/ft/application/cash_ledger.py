@@ -1534,10 +1534,11 @@ class CashLedgerCommandService:
         items_by_id: dict[str, dict],
         channel: str,
         accounts_by_name: dict[str, AccountModel],
-    ) -> tuple[list[dict], str]:
+        cache_relation_plan: bool = False,
+    ) -> tuple[list[dict], str, dict | None]:
         """Serialize the shared read-only relation plan for the browser."""
         if self._relation_service is None:
-            return [], ""
+            return [], "", None
 
         existing_rows = uow.cashflows.list_detailed(include_deleted=False)
         existing_by_identity = {
@@ -1563,7 +1564,7 @@ class CashLedgerCommandService:
             preview_rows.append(synthetic)
             preview_ids.append(synthetic["id"])
         if not preview_rows:
-            return [], ""
+            return [], "", None
         plan = self._relation_service.plan_in_uow(
             uow,
             preview_rows=preview_rows,
@@ -1588,7 +1589,7 @@ class CashLedgerCommandService:
             return record
 
         result = []
-        from ft.application.relations import relation_proposal_key
+        from ft.application.relations import relation_proposal_key, serialize_import_relation_plan
         for proposal in plan.proposals:
             primary = wire_fact(proposal.primary_fact_id)
             secondary = wire_fact(proposal.secondary_fact_id)
@@ -1605,7 +1606,11 @@ class CashLedgerCommandService:
                 "reason": ", ".join(proposal.evidence.signals) or "标准化字段匹配",
                 "primary": primary, "secondary": secondary, "candidates": candidates,
             })
-        return result, plan.context_digest
+        return (
+            result,
+            plan.context_digest,
+            serialize_import_relation_plan(plan) if cache_relation_plan else None,
+        )
 
     def _apply_mapping_to_source_rows(self, uow, rows: list[dict], channel: str, mapping: list[dict]):
         groups, issues = scan_source_rows_with_issues(rows)
@@ -1769,6 +1774,7 @@ class CashLedgerCommandService:
         filename: str,
         password: str | None,
         mapping: list[dict],
+        cache_relation_plan: bool = False,
     ) -> dict:
         rows, channel, _candidate = self._resolve_source_rows(
             content, source=source, currency=currency, filename=filename, password=password,
@@ -1844,15 +1850,16 @@ class CashLedgerCommandService:
                 }
                 for group in groups
             ]
-            relations, relation_digest = self._preview_relation_suggestions(
+            relations, relation_digest, relation_plan = self._preview_relation_suggestions(
                 uow,
                 prepared=prepared,
                 items_by_id={item["record_id"]: item for item in items},
                 channel=channel,
                 accounts_by_name=accounts_by_name,
+                cache_relation_plan=cache_relation_plan,
             )
             uow.rollback()
-            return {
+            result = {
                 "channel": channel,
                 "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
                 "file": {"name": filename or "statement", "digest": digest},
@@ -1863,12 +1870,25 @@ class CashLedgerCommandService:
                 "mapping": mapping_wire,
                 "relations": relations,
             }
+            if relation_plan is not None:
+                result["_relation_plan"] = relation_plan
+            return result
 
-    def preview_import(self, content: bytes, *, source: str, currency: str | None, filename: str, password: str | None = None, mapping: list[dict] | None = None) -> dict:
+    def preview_import(
+        self,
+        content: bytes,
+        *,
+        source: str,
+        currency: str | None,
+        filename: str,
+        password: str | None = None,
+        mapping: list[dict] | None = None,
+        cache_relation_plan: bool = False,
+    ) -> dict:
         if mapping is not None:
             return self._preview_mapped_import(
                 content, source=source, currency=currency, filename=filename,
-                password=password, mapping=mapping,
+                password=password, mapping=mapping, cache_relation_plan=cache_relation_plan,
             )
         rows, channel, _candidate = self._resolve_import_rows(
             content, source=source, currency=currency, filename=filename, password=password,
@@ -1925,14 +1945,15 @@ class CashLedgerCommandService:
                 "existing": sum(item["status"] == "existing" for item in items),
                 "unsupported": sum(item["status"] == "unsupported" for item in items),
             }
-            relations, relation_digest = self._preview_relation_suggestions(
+            relations, relation_digest, relation_plan = self._preview_relation_suggestions(
                 uow,
                 prepared=prepared,
                 items_by_id={item["record_id"]: item for item in items},
                 channel=channel,
                 accounts_by_name=account_names,
+                cache_relation_plan=cache_relation_plan,
             )
-            return {
+            result = {
                 "channel": channel,
                 "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
                 "file": {"name": filename or "statement", "digest": digest},
@@ -1942,6 +1963,9 @@ class CashLedgerCommandService:
                 "summary": counts,
                 "relations": relations,
             }
+            if relation_plan is not None:
+                result["_relation_plan"] = relation_plan
+            return result
 
     def _commit_mapped_import(
         self,
@@ -1956,6 +1980,7 @@ class CashLedgerCommandService:
         preview_channel: str | None,
         relation_decisions: list[dict] | None,
         mapping: list[dict],
+        cached_relation_plan: dict | None = None,
         idempotency_key: str | None = None,
         idempotency_scope: str | None = None,
         idempotency_user_id: str | None = None,
@@ -1994,6 +2019,14 @@ class CashLedgerCommandService:
                         raise ValueError("import_idempotency_conflict")
                     uow.rollback()
                     return dict(existing.result_json)
+            if cached_relation_plan is not None:
+                if self._relation_service is None or not preview_relation_digest:
+                    raise ValueError("import_relation_reconfirmation_required")
+                self._relation_service.validate_cached_import_plan_context_in_uow(
+                    uow,
+                    cached_relation_plan,
+                    expected_plan_digest=preview_relation_digest,
+                )
             mapped_rows, groups, resolved, _record_ids, _existing_targets, unresolved_items = self._apply_mapping_to_source_rows(
                 uow, rows, channel, mapping,
             )
@@ -2064,6 +2097,7 @@ class CashLedgerCommandService:
                     ),
                     relation_decisions=relation_decisions,
                     relation_plan_digest=preview_relation_digest,
+                    cached_relation_plan=cached_relation_plan,
                 )
             if not result.ok:
                 raise ValueError(result.message or "导入失败")
@@ -2119,6 +2153,7 @@ class CashLedgerCommandService:
         preview_channel: str | None = None,
         relation_decisions: list[dict] | None = None,
         mapping: list[dict] | None = None,
+        cached_relation_plan: dict | None = None,
         idempotency_key: str | None = None,
         idempotency_scope: str | None = None,
         idempotency_user_id: str | None = None,
@@ -2129,7 +2164,7 @@ class CashLedgerCommandService:
                 password=password, preview_digest=preview_digest,
                 preview_relation_digest=preview_relation_digest,
                 preview_channel=preview_channel, relation_decisions=relation_decisions,
-                mapping=mapping,
+                mapping=mapping, cached_relation_plan=cached_relation_plan,
                 idempotency_key=idempotency_key,
                 idempotency_scope=idempotency_scope,
                 idempotency_user_id=idempotency_user_id,

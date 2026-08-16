@@ -554,6 +554,203 @@ def test_cash_import_relation_plan_stale_rolls_back_new_cash_rows(tmp_path):
         assert session.query(CashTransactionModel).count() == 0
 
 
+def test_session_commit_applies_cached_preview_plan_without_replanning(tmp_path, monkeypatch):
+    from ft.adapters.relational.models import AccountModel, TransactionRelationModel
+    from ft.application.cash_import_session import CashImportSessionService
+    from ft.application.cash_import_staging import InMemoryImportStagingStore
+    from ft.application.relations import RelationService
+
+    source = tmp_path / "alipay.xlsx"
+    source.write_bytes(b"alipay fixture")
+    rows = [
+        _row(
+            record_id="expense-1", amount="-10.00", counterparty="咖啡店",
+            payment_method="支付宝余额",
+        ),
+        _row(
+            record_id="refund-1", amount="5.00", counterparty="咖啡店",
+            record_type="refund", category="退款", payment_method="支付宝余额",
+        ),
+    ]
+    sessions, cash_import = _service(tmp_path, {"alipay": rows})
+    cash_import._relation_service = RelationService(cash_import._uow)
+    service = CashImportSessionService(
+        cash_import,
+        InMemoryImportStagingStore(),
+        workspace_id="wizard-workspace",
+        user_id="user-a",
+    )
+    scan = service.scan_import(source.read_bytes(), filename=source.name)
+    group = scan["groups"][0]
+    with sessions() as session:
+        account_id = session.query(AccountModel.id).filter_by(
+            workspace_id="wizard-workspace", name="支付宝余额",
+        ).scalar()
+    mapping = [{
+        "group_id": group["group_id"],
+        "account_id": account_id,
+        "mapping_revision": group["suggestion"]["mapping_revision"],
+    }]
+    preview = service.preview_import_session(scan["import_token"], mapping=mapping)
+    assert preview["relation_digest"]
+
+    def must_not_replan(*_args, **_kwargs):
+        raise AssertionError("confirmation must apply the cached preview plan")
+
+    monkeypatch.setattr(cash_import._relation_service, "plan_in_uow", must_not_replan)
+    result = service.commit_import_session(
+        scan["import_token"],
+        preview_relation_digest=preview["relation_digest"],
+        mapping=mapping,
+        relation_decisions=[],
+        idempotency_key="commit-1",
+    )
+
+    assert result["new_rows"] == 2
+    with sessions() as session:
+        relation = session.query(TransactionRelationModel).filter_by(
+            workspace_id="wizard-workspace", kind="refund_offset",
+        ).one()
+        assert relation.status == "accepted"
+
+
+def test_session_relation_context_change_requires_reconfirmation_without_writes(tmp_path):
+    from ft.adapters.relational.models import (
+        AccountModel,
+        CashTransactionModel,
+        StatementAccountMappingModel,
+        TransactionRelationModel,
+    )
+    from ft.application.cash_import_session import CashImportSessionService
+    from ft.application.cash_import_staging import InMemoryImportStagingStore
+    from ft.application.relations import RelationService
+
+    source = tmp_path / "alipay.xlsx"
+    source.write_bytes(b"alipay fixture")
+    rows = [
+        _row(
+            record_id="expense-1", amount="-10.00", counterparty="咖啡店",
+            payment_method="支付宝余额",
+        ),
+        _row(
+            record_id="refund-1", amount="5.00", counterparty="咖啡店",
+            record_type="refund", category="退款", payment_method="支付宝余额",
+        ),
+    ]
+    sessions, cash_import = _service(tmp_path, {"alipay": rows})
+    cash_import._relation_service = RelationService(cash_import._uow)
+    service = CashImportSessionService(
+        cash_import,
+        InMemoryImportStagingStore(),
+        workspace_id="wizard-workspace",
+        user_id="user-a",
+    )
+    scan = service.scan_import(source.read_bytes(), filename=source.name)
+    group = scan["groups"][0]
+    with sessions() as session:
+        account_id = session.query(AccountModel.id).filter_by(
+            workspace_id="wizard-workspace", name="支付宝余额",
+        ).scalar()
+    mapping = [{
+        "group_id": group["group_id"],
+        "account_id": account_id,
+        "mapping_revision": group["suggestion"]["mapping_revision"],
+    }]
+    preview = service.preview_import_session(scan["import_token"], mapping=mapping)
+
+    # A concurrent ledger change is not part of this import session.  It makes
+    # the cached suggestions inapplicable, but must not leak any import writes.
+    cash_import.create_record({
+        "occurred_at": "2026-08-13T09:24:00+08:00",
+        "amount": "1.00",
+        "currency": "CNY",
+        "account_name": "支付宝余额",
+        "counterparty": "并发流水",
+        "counterparty_account": "",
+        "note": "",
+        "category": "",
+        "record_type": "income",
+        "record_subtype": "not_applicable",
+    })
+
+    with pytest.raises(ValueError, match="import_relation_reconfirmation_required"):
+        service.commit_import_session(
+            scan["import_token"],
+            preview_relation_digest=preview["relation_digest"],
+            mapping=mapping,
+            relation_decisions=[],
+            idempotency_key="commit-1",
+        )
+
+    with sessions() as session:
+        assert session.query(CashTransactionModel).count() == 1
+        assert session.query(StatementAccountMappingModel).count() == 0
+        assert session.query(TransactionRelationModel).count() == 0
+
+    refreshed = service.preview_import_session(scan["import_token"], mapping=mapping)
+    assert refreshed["relation_digest"] != preview["relation_digest"]
+
+
+def test_session_rejects_a_cached_plan_decision_outside_its_primary_or_candidates(tmp_path):
+    from ft.adapters.relational.models import AccountModel, CashTransactionModel, TransactionRelationModel
+    from ft.application.cash_import_session import CashImportSessionService
+    from ft.application.cash_import_staging import InMemoryImportStagingStore
+    from ft.application.relations import RelationService
+
+    source = tmp_path / "alipay.xlsx"
+    source.write_bytes(b"alipay fixture")
+    rows = [
+        _row(
+            record_id="expense-1", amount="-10.00", counterparty="咖啡店",
+            payment_method="支付宝余额",
+        ),
+        _row(
+            record_id="refund-1", amount="5.00", counterparty="咖啡店",
+            record_type="refund", category="退款", payment_method="支付宝余额",
+        ),
+    ]
+    sessions, cash_import = _service(tmp_path, {"alipay": rows})
+    cash_import._relation_service = RelationService(cash_import._uow)
+    service = CashImportSessionService(
+        cash_import,
+        InMemoryImportStagingStore(),
+        workspace_id="wizard-workspace",
+        user_id="user-a",
+    )
+    scan = service.scan_import(source.read_bytes(), filename=source.name)
+    group = scan["groups"][0]
+    with sessions() as session:
+        account_id = session.query(AccountModel.id).filter_by(
+            workspace_id="wizard-workspace", name="支付宝余额",
+        ).scalar()
+    mapping = [{
+        "group_id": group["group_id"],
+        "account_id": account_id,
+        "mapping_revision": group["suggestion"]["mapping_revision"],
+    }]
+    preview = service.preview_import_session(scan["import_token"], mapping=mapping)
+    relation = preview["relations"][0]
+
+    with pytest.raises(ValueError, match="import_relation_candidate_invalid"):
+        service.commit_import_session(
+            scan["import_token"],
+            preview_relation_digest=preview["relation_digest"],
+            mapping=mapping,
+            relation_decisions=[{
+                "proposal_key": relation["id"],
+                "kind": relation["kind"],
+                "primary_record_id": "refund-1",
+                "secondary_record_id": "refund-1",
+                "status": "accepted",
+            }],
+            idempotency_key="commit-1",
+        )
+
+    with sessions() as session:
+        assert session.query(CashTransactionModel).count() == 0
+        assert session.query(TransactionRelationModel).count() == 0
+
+
 def test_cash_import_confirm_persists_selected_relation_in_same_transaction(tmp_path):
     from ft.adapters.relational.models import TransactionRelationModel
 

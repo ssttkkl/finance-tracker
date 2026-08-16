@@ -199,6 +199,86 @@ describe("CashImportPage", () => {
     expect(commitKeys[1]).toBe(commitKeys[0]);
   });
 
+  it("导入完成后从第一步重新开始时不复用已完成的导入会话", async () => {
+    const fetch = vi.fn((input: string) => input.includes("/scan")
+      ? response({ ...scan, import_token: "token-completed" })
+      : input.includes("/preview")
+        ? response({ ...preview, import_token: "token-completed" })
+        : response({ message: "导入完成", new_rows: 1, updated_rows: 0, channel: "alipay", digest: "digest-1" }));
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [new File(["fixture"], "statement.csv")] } });
+    await screen.findByRole("heading", { name: "映射账户" });
+    fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
+    await screen.findByRole("heading", { name: "核对流水" });
+    fireEvent.click(screen.getByRole("button", { name: /^下一步$/ }));
+    await screen.findByRole("heading", { name: "配对" });
+    fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
+    await screen.findByRole("heading", { name: "导入完成" });
+
+    fireEvent.click(screen.getByRole("button", { name: /1\s*选择文件/ }));
+    expect(await screen.findByRole("heading", { name: "选择文件" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "下一步" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /2\s*映射账户/ })).toBeDisabled();
+  });
+
+  it("相关流水变化后刷新配对预览、清空旧决定并留在配对步骤", async () => {
+    let previewCalls = 0;
+    const initialPreview = {
+      ...preview,
+      import_token: "token-reconfirm",
+      relation_digest: "relation-digest-1",
+    };
+    const refreshedPreview = {
+      ...initialPreview,
+      relation_digest: "relation-digest-2",
+      relations: [{
+        ...preview.relations[0],
+        id: "relation-fresh",
+      }],
+    };
+    const fetch = vi.fn((input: string, _init?: RequestInit) => {
+      if (input.includes("/scan")) return response({ ...scan, import_token: "token-reconfirm" });
+      if (input.includes("/preview")) {
+        previewCalls += 1;
+        return response(previewCalls === 1 ? initialPreview : refreshedPreview);
+      }
+      if (input.includes("/commit")) {
+        return response({ error: { code: "import_relation_reconfirmation_required" } }, 409);
+      }
+      return response({});
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, {
+      target: { files: [new File(["fixture"], "statement.csv")] },
+    });
+    await screen.findByRole("heading", { name: "映射账户" });
+    fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
+    await screen.findByRole("heading", { name: "核对流水" });
+    fireEvent.click(screen.getByRole("button", { name: /^下一步$/ }));
+    await screen.findByRole("heading", { name: "配对" });
+    fireEvent.change(screen.getByLabelText("同笔支付对侧流水"), {
+      target: { value: "existing-1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
+
+    const relationHeading = await screen.findByRole("heading", { name: "配对" });
+    expect(await screen.findByText("相关流水已变化，请重新确认配对。")).toBeInTheDocument();
+    expect(previewCalls).toBe(2);
+    expect(screen.getByLabelText("同笔支付对侧流水")).toHaveValue("");
+    expect(document.activeElement).toBe(relationHeading);
+    expect(screen.queryByRole("heading", { name: "映射账户" })).not.toBeInTheDocument();
+
+    const previewRequests = fetch.mock.calls.filter(([input]) => String(input).includes("/preview"));
+    expect(JSON.parse(String(previewRequests[1]?.[1]?.body))).toMatchObject({
+      import_token: "token-reconfirm",
+      mapping: [{ group_id: "group-1", account_id: 101 }],
+    });
+  });
+
   it("把创建账户和币种扩充说明放在各自账户选项下，并在最终请求提交草稿", async () => {
     const mappingScan = {
       ...scan,

@@ -17,6 +17,233 @@ class _SourceParser:
         }]
 
 
+class _RefundPlanParser:
+    def parse_source_rows(self, _command):
+        return [
+            {
+                "record_id": "cached-expense", "bill_source": "alipay", "source_type": "alipay",
+                "payment_method": "支付宝余额", "currency": "CNY", "amount": "-10.00",
+                "date": "2026-08-12", "counterparty": "咖啡店", "counterparty_account": "",
+                "category": "餐饮", "record_type": "consumption", "record_subtype": "not_applicable",
+                "note": "咖啡", "_source_payload": {"交易对方": "咖啡店", "金额": "-10.00"},
+            },
+            {
+                "record_id": "cached-refund", "bill_source": "alipay", "source_type": "alipay",
+                "payment_method": "支付宝余额", "currency": "CNY", "amount": "5.00",
+                "date": "2026-08-13", "counterparty": "咖啡店", "counterparty_account": "",
+                "category": "退款", "record_type": "refund", "record_subtype": "not_applicable",
+                "note": "退款", "_source_payload": {"交易对方": "咖啡店", "金额": "5.00"},
+            },
+        ]
+
+
+def _cached_relation_import_session(runtime, workspace_id: str):
+    from ft.adapters.relational import RelationalUnitOfWork, ensure_workspace
+    from ft.adapters.relational.models import AccountModel
+    from ft.application.cash_import_session import CashImportSessionService
+    from ft.application.cash_import_staging import InMemoryImportStagingStore
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.relations import RelationService
+
+    ensure_workspace(runtime.sessions, workspace_id)
+    with runtime.sessions.begin() as session:
+        CashProjectionService.initialize_in_session(session, workspace_id)
+        session.add(AccountModel(
+            workspace_id=workspace_id,
+            name="支付宝余额",
+            type="cash",
+            currencies=["CNY"],
+            active=True,
+            metadata_json={},
+        ))
+    relation_service = RelationService(RelationalUnitOfWork(runtime.sessions, workspace_id))
+    cash_import = CashLedgerCommandService(
+        runtime.sessions,
+        workspace_id,
+        parser=_RefundPlanParser(),
+        relation_service=relation_service,
+    )
+    session_service = CashImportSessionService(
+        cash_import,
+        InMemoryImportStagingStore(),
+        workspace_id=workspace_id,
+        user_id="contract-user",
+    )
+    content = b"cached-preview-plan"
+    scan = session_service.scan_import(content, filename="statement.csv")
+    mapping = [{
+        "group_id": scan["groups"][0]["group_id"],
+        "account_id": scan["accounts"][0]["id"],
+        "mapping_revision": scan["groups"][0]["suggestion"]["mapping_revision"],
+    }]
+    preview = session_service.preview_import_session(scan["import_token"], mapping=mapping)
+    assert preview["relation_digest"]
+    assert preview["relations"]
+    return cash_import, session_service, content, scan, mapping, preview
+
+
+@pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_cached_preview_plan_import_is_idempotent_without_replanning_on_both_backends(
+    request,
+    runtime_name,
+    monkeypatch,
+):
+    from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
+
+    runtime = request.getfixturevalue(runtime_name)
+    workspace_id = f"cached-plan-hit-{runtime_name}"
+    cash_import, session_service, _content, scan, mapping, preview = _cached_relation_import_session(
+        runtime,
+        workspace_id,
+    )
+
+    def must_not_replan(*_args, **_kwargs):
+        raise AssertionError("confirmation must apply the cached preview plan")
+
+    monkeypatch.setattr(cash_import._relation_service, "plan_in_uow", must_not_replan)
+    first = session_service.commit_import_session(
+        scan["import_token"],
+        preview_relation_digest=preview["relation_digest"],
+        mapping=mapping,
+        relation_decisions=[],
+        idempotency_key="cached-plan-hit",
+    )
+    second = session_service.commit_import_session(
+        scan["import_token"],
+        preview_relation_digest=preview["relation_digest"],
+        mapping=mapping,
+        relation_decisions=[],
+        idempotency_key="cached-plan-hit",
+    )
+
+    assert second == first
+    assert first["new_rows"] == 2
+    with runtime.sessions() as session:
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel).where(
+            CashTransactionModel.workspace_id == workspace_id,
+        )) == 2
+        relation = session.scalar(select(TransactionRelationModel).where(
+            TransactionRelationModel.workspace_id == workspace_id,
+            TransactionRelationModel.kind == "refund_offset",
+        ))
+        assert relation is not None
+        assert relation.status == "accepted"
+
+
+@pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_cached_preview_plan_context_change_rolls_back_and_can_refresh_on_both_backends(
+    request,
+    runtime_name,
+):
+    from ft.adapters.relational.models import (
+        CashTransactionModel,
+        StatementAccountMappingModel,
+        TransactionRelationModel,
+    )
+
+    runtime = request.getfixturevalue(runtime_name)
+    workspace_id = f"cached-plan-stale-{runtime_name}"
+    cash_import, session_service, _content, scan, mapping, preview = _cached_relation_import_session(
+        runtime,
+        workspace_id,
+    )
+    cash_import.create_record({
+        "occurred_at": "2026-08-14T09:24:00+08:00",
+        "amount": "1.00",
+        "currency": "CNY",
+        "account_name": "支付宝余额",
+        "counterparty": "并发流水",
+        "counterparty_account": "",
+        "note": "",
+        "category": "",
+        "record_type": "income",
+        "record_subtype": "not_applicable",
+    })
+
+    with pytest.raises(ValueError, match="import_relation_reconfirmation_required"):
+        session_service.commit_import_session(
+            scan["import_token"],
+            preview_relation_digest=preview["relation_digest"],
+            mapping=mapping,
+            relation_decisions=[],
+            idempotency_key="cached-plan-stale",
+        )
+
+    with runtime.sessions() as session:
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel).where(
+            CashTransactionModel.workspace_id == workspace_id,
+        )) == 1
+        assert session.scalar(select(func.count()).select_from(StatementAccountMappingModel).where(
+            StatementAccountMappingModel.workspace_id == workspace_id,
+        )) == 0
+        assert session.scalar(select(func.count()).select_from(TransactionRelationModel).where(
+            TransactionRelationModel.workspace_id == workspace_id,
+        )) == 0
+    refreshed = session_service.preview_import_session(scan["import_token"], mapping=mapping)
+    assert refreshed["relation_digest"] != preview["relation_digest"]
+
+
+@pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_cached_preview_plan_rejects_tampered_candidate_and_keeps_auditable_rejection(
+    request,
+    runtime_name,
+):
+    from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
+
+    runtime = request.getfixturevalue(runtime_name)
+    workspace_id = f"cached-plan-candidate-{runtime_name}"
+    _cash_import, session_service, _content, scan, mapping, preview = _cached_relation_import_session(
+        runtime,
+        workspace_id,
+    )
+    relation = preview["relations"][0]
+
+    with pytest.raises(ValueError, match="import_relation_candidate_invalid"):
+        session_service.commit_import_session(
+            scan["import_token"],
+            preview_relation_digest=preview["relation_digest"],
+            mapping=mapping,
+            relation_decisions=[{
+                "proposal_key": relation["id"],
+                "kind": relation["kind"],
+                "primary_record_id": "cached-refund",
+                "secondary_record_id": "cached-refund",
+                "status": "accepted",
+            }],
+            idempotency_key="cached-plan-invalid-candidate",
+        )
+
+    with runtime.sessions() as session:
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel).where(
+            CashTransactionModel.workspace_id == workspace_id,
+        )) == 0
+        assert session.scalar(select(func.count()).select_from(TransactionRelationModel).where(
+            TransactionRelationModel.workspace_id == workspace_id,
+        )) == 0
+
+    committed = session_service.commit_import_session(
+        scan["import_token"],
+        preview_relation_digest=preview["relation_digest"],
+        mapping=mapping,
+        relation_decisions=[{
+            "proposal_key": relation["id"],
+            "kind": relation["kind"],
+            "primary_record_id": "cached-expense",
+            "status": "rejected",
+        }],
+        idempotency_key="cached-plan-rejected",
+    )
+    assert committed["new_rows"] == 2
+    with runtime.sessions() as session:
+        relation_model = session.scalar(select(TransactionRelationModel).where(
+            TransactionRelationModel.workspace_id == workspace_id,
+        ))
+        assert relation_model is not None
+        assert relation_model.status == "rejected"
+        assert relation_model.decided_by == "web"
+
+
 @pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
 def test_cash_import_idempotency_is_equivalent_on_sqlite_and_postgres(request, runtime_name):
     from ft.adapters.relational import ensure_workspace
