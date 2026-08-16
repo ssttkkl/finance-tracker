@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { commitCashImport, previewCashImport, scanCashImport } from "../api/cashLedger";
 import type {
   ImportCommitResult,
@@ -213,6 +213,14 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const [passwordRequired, setPasswordRequired] = useState(false);
   const [importToken, setImportToken] = useState<string | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
+  const [focusRelations, setFocusRelations] = useState(false);
+  const relationHeadingRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    if (stage !== "relations" || !focusRelations) return;
+    relationHeadingRef.current?.focus();
+    setFocusRelations(false);
+  }, [focusRelations, stage]);
 
   const returnToPasswordEntry = (cause: unknown): boolean => {
     const message = passwordErrorMessage(cause);
@@ -384,8 +392,8 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setRelationDrafts({});
   };
 
-  const loadPreview = async () => {
-    if (!file || !scan || !mappingComplete) return;
+  const loadPreview = async (nextStage: "preview" | "relations" = "preview"): Promise<boolean> => {
+    if (!file || !scan || !mappingComplete) return false;
     setBusy(true);
     setError(undefined);
     try {
@@ -393,7 +401,11 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       setPreview(nextPreview);
       setImportToken(nextPreview.import_token ?? importToken);
       setRelationDrafts({});
-      setStage("preview");
+      setRelationFilter("all");
+      setPage(1);
+      setStage(nextStage);
+      if (nextStage === "relations") setFocusRelations(true);
+      return true;
     } catch (cause) {
       if (!returnToPasswordEntry(cause)) {
         if (cause instanceof Error && cause.message === "import_mapping_stale") {
@@ -405,6 +417,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
           setError(mappingErrorMessage(cause) ?? "账单预览失败，请重试。");
         }
       }
+      return false;
     } finally {
       setBusy(false);
     }
@@ -485,13 +498,19 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
           setStage("mapping");
           setError(mappingError);
         } else {
+          const requiresRelationReconfirmation = cause instanceof Error && [
+            "import_relation_reconfirmation_required",
+            "import_relation_preview_stale",
+            "import_relation_candidate_invalid",
+          ].includes(cause.message);
+          if (requiresRelationReconfirmation) {
+            const refreshed = await loadPreview("relations");
+            if (refreshed) setError("相关流水已变化，请重新确认配对。");
+            return;
+          }
           setError(cause instanceof Error && cause.message === "import_preview_stale"
             ? "文件内容已经变化，请重新选择文件。"
-            : cause instanceof Error && cause.message === "import_relation_preview_stale"
-              ? "配对建议已经变化，请重新预览账单。"
-              : cause instanceof Error && cause.message === "import_relation_candidate_invalid"
-                ? "关联流水已经变化，请重新预览账单。"
-              : cause instanceof Error && cause.message === "relation_impact_required"
+            : cause instanceof Error && cause.message === "relation_impact_required"
               ? "这次导入会影响已关联的流水，请先处理关联。"
               : "确认导入失败，请重试。");
         }
@@ -521,8 +540,30 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const automaticCount = relationItems.filter((relation) => relation.automatic).length;
   const stageIndex = stage === "select" ? 1 : stage === "mapping" ? 2 : stage === "preview" ? 3 : 4;
 
+  const restartAfterCompletedImport = () => {
+    setFile(null);
+    setScan(null);
+    setMappingDrafts({});
+    setEditingGroup(null);
+    setPreview(null);
+    setRelationDrafts({});
+    setRelationFilter("all");
+    setPage(1);
+    setResult(null);
+    setError(undefined);
+    setPassword("");
+    setPasswordRequired(false);
+    setImportToken(null);
+    setIdempotencyKey(null);
+    setFocusRelations(false);
+    setStage("select");
+  };
+
   const visitStep = (number: number) => {
-    if (number === 1) setStage("select");
+    if (number === 1) {
+      if (stage === "success") restartAfterCompletedImport();
+      else setStage("select");
+    }
     if (number === 2 && scan) setStage("mapping");
     if (number === 3 && preview) setStage("preview");
     if (number === 4 && preview) setStage("relations");
@@ -605,7 +646,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
           </section> : null}
 
           {stage === "relations" && preview ? <section className="import-stage" aria-labelledby="import-relations-heading">
-            <div className="import-stage-heading"><h2 id="import-relations-heading">配对</h2></div>
+            <div className="import-stage-heading"><h2 id="import-relations-heading" ref={relationHeadingRef} tabIndex={-1}>配对</h2></div>
             <div className="stage-actions-top"><button type="button" className="button-secondary" onClick={() => setStage("preview")}>上一步</button><button type="button" className="button-primary" disabled={busy || ordinaryUnsupportedCount(preview) > 0} onClick={() => void confirmImport()}>{busy ? "导入中…" : "确认导入"}</button></div>
             {relationItems.length === 0 ? <div className="import-empty-state"><strong>没有配对</strong></div> : <>
               <div className="relation-toolbar"><div className="relation-filters" role="group" aria-label="配对筛选">

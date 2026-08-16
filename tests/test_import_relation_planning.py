@@ -1,10 +1,12 @@
 from decimal import Decimal
 
 from ft.application.relations import (
+    RelationService,
     _relation_context_digest,
     plan_relation_proposals,
+    relation_proposal_key,
 )
-from ft.domain.relations import FactView, RelationKind, RelationStatus
+from ft.domain.relations import FactView, RelationEvidence, RelationKind, RelationProposal, RelationStatus
 
 
 def _fact(
@@ -253,3 +255,34 @@ def test_relation_plan_uses_business_row_order_when_preview_ids_become_database_
         ]
 
     assert stable_pairs(preview) == stable_pairs(actual)
+
+
+def test_proposal_key_does_not_bypass_cached_primary_or_candidate_validation():
+    primary = _fact(
+        "expense", amount="-10.00", counterparty="咖啡店",
+        record_type="consumption", occurred_at="2026-08-12T09:24:00+08:00",
+    )
+    candidate = _fact(
+        "candidate", amount="10.00", counterparty="咖啡店",
+        record_type="refund", occurred_at="2026-08-13T09:24:00+08:00",
+    )
+    outside_candidate = _fact(
+        "outside", amount="10.00", counterparty="其他商户",
+        record_type="refund", occurred_at="2026-08-13T09:24:00+08:00",
+    )
+    facts = [primary, candidate, outside_candidate]
+    proposal = RelationProposal(
+        kind=RelationKind.REFUND_OFFSET.value,
+        primary_fact_id=primary.id,
+        secondary_fact_id=None,
+        evidence=RelationEvidence(candidate_fact_ids=(candidate.id,)),
+    )
+    decision = {
+        "proposal_key": relation_proposal_key(proposal, facts),
+        "primary_record_id": outside_candidate.record_id,
+        "secondary_record_id": outside_candidate.record_id,
+        "status": "accepted",
+    }
+
+    assert not RelationService._decision_primary_matches(proposal, decision, facts)
+    assert not RelationService._decision_matches(proposal, decision, facts)

@@ -20,6 +20,7 @@ from ft.domain.relations import (
     RelationCheckStatus,
     RelationCheckTrigger,
     RelationEdge,
+    RelationEvidence,
     RelationKind,
     RelationProposal,
     RelationStatus,
@@ -85,6 +86,10 @@ class RelationPlan:
     facts: tuple[FactView, ...]
     proposals: tuple[RelationProposal, ...]
     context_digest: str
+    # This deliberately excludes the frozen statement rows.  It is used by a
+    # staged Web import to check whether the pre-existing matching environment
+    # changed before the cached plan is applied.
+    external_context_digest: str = ""
 
 
 def _stable_fact_ref(fact_id: str | None, facts_by_id: dict[str, FactView] | None = None) -> str:
@@ -216,6 +221,160 @@ def _relation_context_digest(
     }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _cache_json_value(value: Any):
+    """Return a small JSON-safe representation for a staged relation plan."""
+    if isinstance(value, Decimal):
+        return format(value, "f")
+    if isinstance(value, datetime):
+        return _canonical_occurred_at(value)
+    if isinstance(value, dict):
+        return {str(key): _cache_json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_cache_json_value(item) for item in value]
+    if isinstance(value, set):
+        return [_cache_json_value(item) for item in sorted(value, key=str)]
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
+def _external_relation_context_digest(
+    facts: Sequence[FactView],
+    relations: Sequence[dict],
+    aliases_by_tail: dict[str, list[str]],
+    account_identifiers_by_value: dict[str, list[str]],
+) -> str:
+    """Hash only the mutable context that can invalidate a staged plan.
+
+    Incoming statement rows are immutable within an import session and are
+    represented by the server-owned plan.  Reconstructing them here would
+    duplicate the planner's work and turn validation back into re-matching.
+    """
+    facts_by_id = {str(fact.id): fact for fact in facts}
+    payload = {
+        "facts": [
+            {
+                "ref": _stable_fact_ref(str(fact.id), facts_by_id),
+                "amount": format(fact.signed_amount, "f"),
+                "currency": str(fact.currency or "").upper(),
+                "account_id": str(fact.account_id or ""),
+                "account_name": str(fact.account_name or ""),
+                "account_type": str(fact.account_type or ""),
+                "occurred_at": _canonical_occurred_at(fact.occurred_at),
+                "counterparty": str(fact.counterparty or ""),
+                "counterparty_account": str(fact.counterparty_account or ""),
+                "counterparty_account_attrs": list(fact.counterparty_account_attrs),
+                "payment_method": str(fact.payment_method or ""),
+                "note": str(fact.note or ""),
+                "record_type": str(fact.record_type or ""),
+                "record_subtype": str(fact.record_subtype or ""),
+                "source": str(fact.bill_source or fact.source or ""),
+                "record_id": str(fact.record_id or ""),
+                "source_identity": str(fact.source_identity or ""),
+                "raw_payload": _cache_json_value(fact.raw_payload or {}),
+                "relation_metadata": _cache_json_value(fact.relation_metadata or {}),
+            }
+            for fact in sorted(
+                facts,
+                key=lambda item: _stable_fact_ref(str(item.id), facts_by_id),
+            )
+        ],
+        "relations": [
+            {
+                "kind": str(item.get("kind") or ""),
+                "subtype": str(item.get("subtype") or ""),
+                "primary": _stable_fact_ref(str(item.get("primary_fact_id") or ""), facts_by_id),
+                "secondary": _stable_fact_ref(str(item.get("secondary_fact_id") or ""), facts_by_id),
+                "anchor": _stable_fact_ref(str(item.get("anchor_fact_id") or ""), facts_by_id),
+                "status": str(item.get("status") or ""),
+                "rule_id": str(item.get("rule_id") or ""),
+                "created_by": str(item.get("created_by") or ""),
+                "decided_by": str(item.get("decided_by") or ""),
+                "candidate_refs": sorted(
+                    _stable_fact_ref(str(candidate), facts_by_id)
+                    for candidate in (item.get("candidate_fact_ids") or ())
+                ),
+            }
+            for item in sorted(
+                relations,
+                key=lambda item: (
+                    str(item.get("kind") or ""),
+                    _stable_fact_ref(str(item.get("primary_fact_id") or ""), facts_by_id),
+                    _stable_fact_ref(str(item.get("secondary_fact_id") or ""), facts_by_id),
+                    str(item.get("id") or ""),
+                ),
+            )
+        ],
+        "aliases": {
+            "card_tails": [
+                {"value": str(value), "account_ids": sorted(str(item) for item in account_ids)}
+                for value, account_ids in sorted(aliases_by_tail.items())
+            ],
+            "account_identifiers": [
+                {"value": str(value), "account_ids": sorted(str(item) for item in account_ids)}
+                for value, account_ids in sorted(account_identifiers_by_value.items())
+            ],
+        },
+        "rule_version": "relation-plan.v1",
+    }
+    encoded = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str,
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def serialize_import_relation_plan(plan: RelationPlan) -> dict:
+    """Serialize a preview plan without leaking it through the public API."""
+    if not plan.context_digest or not plan.external_context_digest:
+        raise ValueError("import_relation_reconfirmation_required")
+    facts_by_id = {str(fact.id): fact for fact in plan.facts}
+
+    def fact_ref(fact_id: str | None) -> str:
+        return _stable_fact_ref(str(fact_id or ""), facts_by_id)
+
+    proposals = []
+    for proposal in sorted(
+        plan.proposals,
+        key=lambda item: relation_proposal_key(item, plan.facts),
+    ):
+        evidence = proposal.evidence
+        proposals.append({
+            "proposal_key": relation_proposal_key(proposal, plan.facts),
+            "kind": proposal.kind,
+            "subtype": proposal.subtype or "",
+            "status": proposal.status,
+            "rule_id": proposal.rule_id or "",
+            "confidence": proposal.confidence,
+            "primary_ref": fact_ref(proposal.primary_fact_id),
+            "secondary_ref": fact_ref(proposal.secondary_fact_id),
+            "anchor_ref": fact_ref(proposal.anchor_fact_id),
+            "primary_fact_type": proposal.primary_fact_type,
+            "secondary_fact_type": proposal.secondary_fact_type,
+            "created_by": proposal.created_by,
+            "open_leg": bool(proposal.open_leg),
+            "evidence": {
+                "amount_delta": str(evidence.amount_delta),
+                "time_delta_seconds": evidence.time_delta_seconds,
+                "same_currency": bool(evidence.same_currency),
+                "counterparty_similarity": evidence.counterparty_similarity,
+                "source_pair": list(evidence.source_pair),
+                "rule_id": evidence.rule_id,
+                "candidate_count": int(evidence.candidate_count),
+                "signals": list(evidence.signals),
+                "open_leg": bool(evidence.open_leg),
+                "anchor_role": evidence.anchor_role,
+                "candidate_refs": [fact_ref(item) for item in evidence.candidate_fact_ids],
+                "extras": _cache_json_value(dict(evidence.extras or {})),
+            },
+        })
+    return {
+        "version": 1,
+        "plan_digest": plan.context_digest,
+        "external_context_digest": plan.external_context_digest,
+        "proposals": proposals,
+    }
 
 
 def _enrich_platform_refund_rows(rows: Sequence[dict]) -> list[dict]:
@@ -490,7 +649,7 @@ class RelationService:
         facts = [*existing_facts, *virtual_facts]
         relations = [dict(item) for item in uow.relations.list_active()]
         aliases_by_tail, account_identifiers_by_value = self._alias_indexes(uow)
-        return plan_relation_proposals(
+        plan = plan_relation_proposals(
             facts,
             detailed_rows=[*existing_rows, *virtual_rows],
             seed_ids=seed_ids,
@@ -499,6 +658,159 @@ class RelationService:
             account_identifiers_by_value=account_identifiers_by_value,
             workspace_id=str(getattr(uow, "workspace_id", "") or ""),
         )
+        return replace(
+            plan,
+            external_context_digest=_external_relation_context_digest(
+                existing_facts,
+                relations,
+                aliases_by_tail,
+                account_identifiers_by_value,
+            ),
+        )
+
+    def external_context_digest_in_uow(self, uow) -> str:
+        """Return the mutable matching context without generating candidates."""
+        facts = self._list_active_cash_facts(uow)
+        relations = [dict(item) for item in uow.relations.list_active()]
+        aliases_by_tail, account_identifiers_by_value = self._alias_indexes(uow)
+        return _external_relation_context_digest(
+            facts,
+            relations,
+            aliases_by_tail,
+            account_identifiers_by_value,
+        )
+
+    def validate_cached_import_plan_context_in_uow(
+        self,
+        uow,
+        cached_plan: dict,
+        *,
+        expected_plan_digest: str | None = None,
+    ) -> None:
+        """Fail closed when a server-side preview plan no longer applies.
+
+        This is intentionally a digest-only read.  Calling ``plan_in_uow``
+        here would silently generate a second set of pairing suggestions.
+        """
+        if not isinstance(cached_plan, dict) or cached_plan.get("version") != 1:
+            raise ValueError("import_relation_reconfirmation_required")
+        plan_digest = str(cached_plan.get("plan_digest") or "")
+        context_digest = str(cached_plan.get("external_context_digest") or "")
+        if (
+            not plan_digest
+            or not context_digest
+            or (expected_plan_digest is not None and plan_digest != str(expected_plan_digest))
+        ):
+            raise ValueError("import_relation_reconfirmation_required")
+        if context_digest != self.external_context_digest_in_uow(uow):
+            raise ValueError("import_relation_reconfirmation_required")
+
+    @staticmethod
+    def _facts_by_cached_reference(facts: Sequence[FactView]) -> dict[str, FactView]:
+        by_id = {str(fact.id): fact for fact in facts}
+        by_reference: dict[str, FactView] = {}
+        for fact in facts:
+            reference = _stable_fact_ref(str(fact.id), by_id)
+            existing = by_reference.get(reference)
+            if existing is not None and str(existing.id) != str(fact.id):
+                raise ValueError("import_relation_reconfirmation_required")
+            by_reference[reference] = fact
+            by_reference.setdefault(str(fact.id), fact)
+        return by_reference
+
+    def _cached_proposals_in_uow(
+        self,
+        uow,
+        cached_plan: dict,
+    ) -> tuple[tuple[FactView, ...], tuple[RelationProposal, ...]]:
+        """Resolve compact cache references after statement facts were merged."""
+        if not isinstance(cached_plan, dict) or cached_plan.get("version") != 1:
+            raise ValueError("import_relation_reconfirmation_required")
+        cached_items = cached_plan.get("proposals")
+        if not isinstance(cached_items, list):
+            raise ValueError("import_relation_reconfirmation_required")
+        facts = tuple(self._list_active_cash_facts(uow))
+        by_reference = self._facts_by_cached_reference(facts)
+
+        def resolve(value, *, required: bool = True) -> str | None:
+            reference = str(value or "")
+            if not reference:
+                if required:
+                    raise ValueError("import_relation_reconfirmation_required")
+                return None
+            fact = by_reference.get(reference)
+            if fact is None:
+                raise ValueError("import_relation_reconfirmation_required")
+            return str(fact.id)
+
+        proposals: list[RelationProposal] = []
+        valid_kinds = {item.value for item in RelationKind}
+        valid_statuses = {item.value for item in RelationStatus}
+        for item in cached_items:
+            if not isinstance(item, dict):
+                raise ValueError("import_relation_reconfirmation_required")
+            evidence_payload = item.get("evidence")
+            if not isinstance(evidence_payload, dict):
+                raise ValueError("import_relation_reconfirmation_required")
+            candidate_refs = evidence_payload.get("candidate_refs")
+            source_pair = evidence_payload.get("source_pair")
+            extras = evidence_payload.get("extras")
+            if (
+                not isinstance(candidate_refs, list)
+                or not isinstance(source_pair, list)
+                or len(source_pair) != 2
+                or not isinstance(extras, dict)
+            ):
+                raise ValueError("import_relation_reconfirmation_required")
+            kind = str(item.get("kind") or "")
+            status = str(item.get("status") or "")
+            if kind not in valid_kinds or status not in valid_statuses:
+                raise ValueError("import_relation_reconfirmation_required")
+            time_delta_seconds = evidence_payload.get("time_delta_seconds")
+            try:
+                candidate_count = int(evidence_payload.get("candidate_count"))
+                normalized_time_delta = (
+                    None if time_delta_seconds is None else int(time_delta_seconds)
+                )
+            except (TypeError, ValueError) as exc:
+                raise ValueError("import_relation_reconfirmation_required") from exc
+            proposal = RelationProposal(
+                kind=kind,
+                primary_fact_id=resolve(item.get("primary_ref")),
+                secondary_fact_id=resolve(item.get("secondary_ref"), required=False),
+                primary_fact_type=str(item.get("primary_fact_type") or FactType.CASH.value),
+                secondary_fact_type=(
+                    str(item.get("secondary_fact_type"))
+                    if item.get("secondary_fact_type") not in (None, "")
+                    else None
+                ),
+                subtype=str(item.get("subtype") or SUBTYPE_NONE),
+                status=status,
+                rule_id=str(item.get("rule_id") or ""),
+                confidence=str(item.get("confidence") or CONFIDENCE_WEAK),
+                evidence=RelationEvidence(
+                    amount_delta=str(evidence_payload.get("amount_delta") or "0"),
+                    time_delta_seconds=normalized_time_delta,
+                    same_currency=bool(evidence_payload.get("same_currency")),
+                    counterparty_similarity=str(evidence_payload.get("counterparty_similarity") or ""),
+                    source_pair=(str(source_pair[0]), str(source_pair[1])),
+                    rule_id=str(evidence_payload.get("rule_id") or ""),
+                    candidate_count=candidate_count,
+                    signals=tuple(str(value) for value in (evidence_payload.get("signals") or ())),
+                    open_leg=bool(evidence_payload.get("open_leg")),
+                    anchor_role=str(evidence_payload.get("anchor_role") or ""),
+                    candidate_fact_ids=tuple(resolve(value) for value in candidate_refs),
+                    extras=dict(extras),
+                ),
+                created_by=str(item.get("created_by") or "system"),
+                anchor_fact_id=resolve(item.get("anchor_ref"), required=False) or "",
+                open_leg=bool(item.get("open_leg")),
+            )
+            expected_key = str(item.get("proposal_key") or "")
+            if not expected_key or relation_proposal_key(proposal, facts) != expected_key:
+                raise ValueError("import_relation_reconfirmation_required")
+            proposals.append(proposal)
+        return facts, tuple(proposals)
 
     @staticmethod
     def _decision_matches(
@@ -507,8 +819,8 @@ class RelationService:
         facts: Sequence[FactView],
     ) -> bool:
         proposal_key = str(decision.get("proposal_key") or "")
-        if proposal_key:
-            return proposal_key == relation_proposal_key(proposal, facts)
+        if proposal_key and proposal_key != relation_proposal_key(proposal, facts):
+            return False
         by_id = {str(fact.id): fact for fact in facts}
 
         def ref(value) -> str:
@@ -543,8 +855,8 @@ class RelationService:
         facts: Sequence[FactView],
     ) -> bool:
         proposal_key = str(decision.get("proposal_key") or "")
-        if proposal_key:
-            return proposal_key == relation_proposal_key(proposal, facts)
+        if proposal_key and proposal_key != relation_proposal_key(proposal, facts):
+            return False
         primary = decision.get("primary_fact_id") or decision.get("primary_record_id")
         if not primary:
             return False
@@ -597,6 +909,102 @@ class RelationService:
                 "decision_reason": "import_rejected",
             })
         )
+
+    def apply_cached_import_plan_in_uow(
+        self,
+        uow,
+        *,
+        cached_plan: dict,
+        relation_decisions: Sequence[dict] | None = None,
+        expected_digest: str | None = None,
+    ) -> tuple[list[dict], set[int], list[dict]]:
+        """Apply a server-owned preview plan without invoking the matcher again.
+
+        ``validate_cached_import_plan_context_in_uow`` must run before import
+        writes, while the ledger still contains only the external facts that
+        existed at preview time.  This method runs after those statement rows
+        have been merged and resolves their stable source references.
+        """
+        plan_digest = str(cached_plan.get("plan_digest") or "") if isinstance(cached_plan, dict) else ""
+        if not plan_digest or (expected_digest is not None and plan_digest != str(expected_digest)):
+            raise ValueError("import_relation_reconfirmation_required")
+        facts, proposals = self._cached_proposals_in_uow(uow, cached_plan)
+        if relation_decisions is not None and not isinstance(relation_decisions, (list, tuple)):
+            raise ValueError("import_relation_candidate_invalid")
+        decisions = list(relation_decisions or ())
+        decisions_by_key: dict[str, dict] = {}
+        proposal_by_key = {
+            relation_proposal_key(proposal, facts): proposal
+            for proposal in proposals
+        }
+        for decision in decisions:
+            if not isinstance(decision, dict):
+                raise ValueError("import_relation_candidate_invalid")
+            proposal_key = str(decision.get("proposal_key") or "")
+            proposal = proposal_by_key.get(proposal_key)
+            if proposal is None or proposal_key in decisions_by_key:
+                raise ValueError("import_relation_candidate_invalid")
+            status = str(decision.get("status") or "accepted")
+            if status not in {"accepted", "rejected", "skipped", "ignored"}:
+                raise ValueError("import_relation_candidate_invalid")
+            if not self._decision_primary_matches(proposal, decision, facts):
+                raise ValueError("import_relation_candidate_invalid")
+            if status != "rejected" and not self._decision_matches(proposal, decision, facts):
+                raise ValueError("import_relation_candidate_invalid")
+            decisions_by_key[proposal_key] = decision
+
+        created: list[dict] = []
+        affected: set[int] = set()
+        accepted_decisions: list[dict] = []
+        remaining = self._refund_remaining(uow, list(facts))
+        accepted_relations = [
+            dict(item)
+            for item in uow.relations.list_active()
+            if item.get("status") == RelationStatus.ACCEPTED.value
+        ]
+        for proposal in proposals:
+            proposal_key = relation_proposal_key(proposal, facts)
+            matched = decisions_by_key.get(proposal_key)
+            if matched is not None:
+                status = str(matched.get("status") or "accepted")
+                if status == "rejected":
+                    outcome = self._persist_rejected_proposal(uow, proposal)
+                    created.append(outcome)
+                    continue
+                if status == "accepted":
+                    # The import service creates accepted manual choices after
+                    # the automatic cache entries have been persisted.
+                    accepted_decisions.append(matched)
+                    continue
+                # Skipped/ignored suggestions retain the normal pending or
+                # automatic cache behaviour below.
+            outcome = self._persist_proposal(
+                uow,
+                proposal,
+                remaining,
+                accepted_relations=accepted_relations,
+            )
+            if outcome is None:
+                continue
+            created.append(outcome)
+            if outcome.get("status") == RelationStatus.ACCEPTED.value:
+                accepted_relations.append(outcome)
+                for fact_id in (outcome.get("primary_fact_id"), outcome.get("secondary_fact_id")):
+                    if fact_id not in (None, ""):
+                        affected.add(int(fact_id))
+                if outcome.get("kind") == RelationKind.REFUND_OFFSET.value:
+                    expense_id = str(outcome.get("primary_fact_id") or "")
+                    refund_id = str(outcome.get("secondary_fact_id") or "")
+                    refund_fact = next(
+                        (fact for fact in facts if str(fact.id) == refund_id),
+                        None,
+                    )
+                    if expense_id and refund_fact is not None:
+                        remaining[expense_id] = (
+                            remaining.get(expense_id, Decimal("0"))
+                            - abs(refund_fact.signed_amount)
+                        )
+        return created, affected, accepted_decisions
 
     def apply_import_plan_in_uow(
         self,
