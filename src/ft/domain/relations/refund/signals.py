@@ -16,6 +16,17 @@ from ft.domain.relations.core.record_types import is_refund_in
 REFUND_SIGNAL_TOKENS = (
     "退款", "退货", "退回", "冲正", "消费退货", "refund", "return",
 )
+# These labels identify only the payment intermediary.  They are not useful
+# as an exact product title because unrelated merchants can share the same
+# platform label (for example, both rows may say ``美团App``).
+_GENERIC_PLATFORM_TITLES = frozenset({
+    "美团App",
+    "美团支付",
+    "财付通",
+    "支付宝",
+    "微信支付",
+    "银行卡",
+})
 # P2P / transfer / receipt / red-packet family (not ordinary merchant spend).
 # - As refund seed: allowed only with explicit refund signal (微信红包-退款).
 # - As expense row: only pair with p2p-style refunds, not with 退款-商品.
@@ -131,6 +142,8 @@ def refund_title_exact_match(refund: FactView, expense: FactView) -> bool:
     refund_title = strip_refund_description_prefix(refund.note)
     expense_title = str(expense.note or "").strip()
     if not refund_title or not expense_title:
+        return False
+    if refund_title in _GENERIC_PLATFORM_TITLES or expense_title in _GENERIC_PLATFORM_TITLES:
         return False
     return refund_title == expense_title
 

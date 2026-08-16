@@ -47,3 +47,19 @@
 - **WHEN** 支付宝账单提供无 offset 的中国本地时间
 - **THEN** 预览事实和实际现金流水 MUST 表示同一个按中国来源时区解释后的 UTC 时刻
 - **AND** 确认不得因为 naive 与 aware 表示差异返回陈旧错误
+
+### Requirement: 关系派生元数据与来源行快照分离保存
+
+账单导入 MUST 将 `source_payload` 限定为原始来源行快照，并将 `offset_role`、`offset_group`、`offset_strength`、`offset_match_type` 和 `offset_rule_hint` 等关系派生值保存到独立的关系派生元数据中。现金流水从数据库重载后，关系规划 MUST 能读取这些派生值；重复导入同一业务行时不得创建第二条流水，且允许只更新变化的关系派生元数据。
+
+#### Scenario: 微信退款角色在重载后仍可用
+
+- **WHEN** 微信转换器为同一订单的消费行和退款行生成 `offset_role`，并把结果写入现金流水
+- **THEN** 原始来源行快照 MUST 不包含这些派生字段
+- **AND** 从 SQLite 或 PostgreSQL 重载流水后，退款规划 MUST 仍能按该角色识别正确的消费对侧
+
+#### Scenario: 重新导入只刷新派生元数据
+
+- **WHEN** 同一工作区再次导入相同业务行，原始来源快照和业务行标识未变但关系派生元数据发生变化
+- **THEN** 系统 MUST 更新该流水的关系派生元数据而不创建重复流水
+- **AND** 既有来源行快照 MUST 保持原值

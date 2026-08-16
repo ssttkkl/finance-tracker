@@ -39,7 +39,7 @@ def _utc_today():
     return datetime.now(timezone.utc).date()
 
 
-SCHEMA_REVISION = "20260814_33"
+SCHEMA_REVISION = "20260816_34"
 REQUIRED_TABLES = {
     "workspaces", "accounts", "cash_transactions", "investment_events",
     "ledger_snapshots",

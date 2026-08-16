@@ -379,6 +379,7 @@ class FactView:
     source_identity: str = ""
     record_id: str = ""
     raw_payload: dict | None = None
+    relation_metadata: dict | None = None
 
     def __post_init__(self) -> None:
         attrs = self.counterparty_account_attrs

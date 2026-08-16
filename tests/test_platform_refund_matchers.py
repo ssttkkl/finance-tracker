@@ -103,6 +103,33 @@ class TestWeChatDualRow:
         assert m is not None
         assert m.expense_index == 0
 
+    def test_full_match_uses_normalized_iso_time_to_choose_unique_closest_expense(self):
+        expenses = [
+            {
+                "direction": "支出", "status": "已全额退款", "amount": Decimal("-9.90"),
+                "pay": "零钱", "cp": "瑞幸咖啡",
+                "occurred_at": "2023-10-09T05:51:23+00:00",
+                "txn": "near", "mer": "m-near", "type": "商户消费",
+            },
+            {
+                "direction": "支出", "status": "已全额退款", "amount": Decimal("-9.90"),
+                "pay": "零钱", "cp": "瑞幸咖啡",
+                "occurred_at": "2023-10-09T05:50:23+00:00",
+                "txn": "far", "mer": "m-far", "type": "商户消费",
+            },
+        ]
+        income = {
+            "direction": "收入", "status": "已全额退款", "amount": Decimal("9.90"),
+            "pay": "零钱", "cp": "瑞幸咖啡",
+            "occurred_at": "2023-10-09T05:51:43+00:00",
+            "txn": "refund", "mer": "", "type": "瑞幸咖啡-退款",
+        }
+
+        match = wechat_find_expense_for_refund(income, expenses)
+
+        assert match is not None
+        assert match.expense_index == 0
+
     def test_partial_30_day_window(self):
         expenses = [{
             "direction": "支出", "status": "已退款(¥18.00)", "amount": Decimal("-45"),

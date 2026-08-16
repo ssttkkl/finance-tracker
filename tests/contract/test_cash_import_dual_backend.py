@@ -121,6 +121,131 @@ def test_postgres_cash_import_confirmation_serializes_same_idempotency_key(postg
 
 
 @pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_refund_relation_metadata_survives_import_on_both_backends(request, runtime_name, tmp_path):
+    from ft.adapters.relational import RelationalUnitOfWork, ensure_workspace
+    from ft.adapters.relational.models import AccountModel, CashTransactionModel, TransactionRelationModel
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.relations import RelationService
+    from ft.application.statement_import import StatementImportService
+    from ft.domain.imports import StatementImportCommand
+    from ft.domain.relations import RelationKind, RelationStatus
+
+    runtime = request.getfixturevalue(runtime_name)
+    workspace_id = f"refund-metadata-{runtime_name}"
+    ensure_workspace(runtime.sessions, workspace_id)
+    with runtime.sessions.begin() as session:
+        CashProjectionService.initialize_in_session(session, workspace_id)
+        session.add(AccountModel(
+            workspace_id=workspace_id,
+            name="微信测试账户",
+            type="cash",
+            currencies=["CNY"],
+            active=True,
+            metadata_json={},
+        ))
+
+    rows = [
+        {
+            "record_id": "wechat-origin-contract",
+            "bill_source": "wechat",
+            "source_type": "wechat",
+            "account_name": "微信测试账户",
+            "currency": "CNY",
+            "amount": "-9.90",
+            "occurred_at": "2023-10-09T05:51:23+00:00",
+            "counterparty": "瑞幸咖啡",
+            "record_type": "refund",
+            "record_subtype": "not_applicable",
+            "payment_method": "零钱",
+            "status": "已全额退款",
+            "txn_type": "商户消费",
+            "merchant_order_id": "contract-order-1",
+            "txn_id": "contract-txn-1",
+            "source_payload": {
+                "交易对方": "瑞幸咖啡", "金额": "-9.90", "状态": "已全额退款",
+            },
+            "relation_metadata": {
+                "offset_role": "expense", "offset_group": "contract-refund-1",
+            },
+        },
+        {
+            "record_id": "wechat-refund-contract",
+            "bill_source": "wechat",
+            "source_type": "wechat",
+            "account_name": "微信测试账户",
+            "currency": "CNY",
+            "amount": "9.90",
+            "occurred_at": "2023-10-09T05:51:43+00:00",
+            "counterparty": "瑞幸咖啡",
+            "record_type": "refund",
+            "record_subtype": "not_applicable",
+            "payment_method": "零钱",
+            "status": "已全额退款",
+            "txn_type": "商户退款",
+            "merchant_order_id": "contract-order-1",
+            "txn_id": "contract-order-1",
+            "source_payload": {
+                "交易对方": "瑞幸咖啡", "金额": "9.90", "状态": "已全额退款",
+            },
+            "relation_metadata": {
+                "offset_role": "refund", "offset_group": "contract-refund-1",
+            },
+        },
+        {
+            "record_id": "wechat-decoy-contract",
+            "bill_source": "wechat",
+            "source_type": "wechat",
+            "account_name": "微信测试账户",
+            "currency": "CNY",
+            "amount": "-9.90",
+            "occurred_at": "2023-10-09T06:30:00+00:00",
+            "counterparty": "奈雪",
+            "record_type": "consumption",
+            "record_subtype": "not_applicable",
+            "payment_method": "零钱",
+            "status": "支付成功",
+            "txn_type": "商户消费",
+            "merchant_order_id": "decoy-order-1",
+            "txn_id": "decoy-txn-1",
+            "source_payload": {
+                "交易对方": "奈雪", "金额": "-9.90", "状态": "支付成功",
+            },
+        },
+    ]
+
+    class Parser:
+        def parse(self, _command):
+            return [dict(row) for row in rows]
+
+    unit_of_work = RelationalUnitOfWork(runtime.sessions, workspace_id)
+    service = StatementImportService(
+        unit_of_work,
+        Parser(),
+        relation_service=RelationService(unit_of_work),
+    )
+    source = tmp_path / "wechat-contract.xlsx"
+    source.write_bytes(b"wechat-contract")
+    result = service.import_statement(
+        StatementImportCommand(str(source), source="wechat", currency="CNY")
+    )
+
+    assert result.count == 3
+    with runtime.sessions() as session:
+        facts = list(session.scalars(select(CashTransactionModel).where(
+            CashTransactionModel.workspace_id == workspace_id,
+        )))
+        relations = list(session.scalars(select(TransactionRelationModel).where(
+            TransactionRelationModel.workspace_id == workspace_id,
+            TransactionRelationModel.kind == RelationKind.REFUND_OFFSET.value,
+            TransactionRelationModel.status == RelationStatus.ACCEPTED.value,
+        )))
+        assert len(facts) == 3
+        assert len(relations) == 1
+        assert sum(bool(fact.relation_metadata) for fact in facts) == 2
+        assert all("offset_role" not in (fact.source_payload or {}) for fact in facts)
+
+
+@pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
 def test_shared_new_account_draft_creates_one_account_on_both_backends(request, runtime_name):
     from ft.adapters.relational import ensure_workspace
     from ft.adapters.relational.models import AccountModel, CashTransactionModel, StatementAccountMappingModel
