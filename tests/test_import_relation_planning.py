@@ -17,7 +17,19 @@ def _fact(
     record_id: str | None = None,
     merchant_order_id: str = "",
     txn_id: str = "",
+    relation_metadata: dict | None = None,
+    include_offset_role: bool = True,
 ):
+    payload = {
+        "merchant_order_id": merchant_order_id,
+        "txn_id": txn_id,
+        "status": "退款成功" if record_type == "refund" else "支付成功",
+        "txn_type": "商户退款" if record_type == "refund" else "消费",
+    }
+    if include_offset_role:
+        payload["offset_role"] = (
+            "refund" if record_type == "refund" and Decimal(amount) > 0 else "expense"
+        )
     return FactView(
         id=fact_id,
         amount=Decimal(amount),
@@ -31,13 +43,8 @@ def _fact(
         bill_source="wechat",
         source="wechat",
         record_id=record_id or fact_id,
-        raw_payload={
-            "offset_role": "refund" if record_type == "refund" and Decimal(amount) > 0 else "expense",
-            "merchant_order_id": merchant_order_id,
-            "txn_id": txn_id,
-            "status": "退款成功" if record_type == "refund" else "支付成功",
-            "txn_type": "商户退款" if record_type == "refund" else "消费",
-        },
+        raw_payload=payload,
+        relation_metadata=relation_metadata,
     )
 
 
@@ -115,6 +122,57 @@ def test_wechat_hard_refund_occupies_pair_before_same_amount_merchant_matching()
     )
     assert refund_pairs[0].status == RelationStatus.ACCEPTED.value
     assert refund_pairs[0].rule_id.startswith("scan.wechat")
+
+
+def test_wechat_hard_refund_reads_persisted_relation_metadata_after_source_snapshot_round_trip():
+    origin = _fact(
+        "wechat-origin-metadata",
+        amount="-9.90",
+        counterparty="瑞幸",
+        record_type="refund",
+        occurred_at="2023-10-09T05:51:23+00:00",
+        merchant_order_id="M-200",
+        txn_id="T-200",
+        relation_metadata={"offset_role": "expense", "offset_group": "M-200"},
+        include_offset_role=False,
+    )
+    refund = _fact(
+        "wechat-refund-metadata",
+        amount="9.90",
+        counterparty="瑞幸",
+        record_type="refund",
+        occurred_at="2023-10-09T05:51:43+00:00",
+        merchant_order_id="M-200",
+        txn_id="M-200",
+        relation_metadata={"offset_role": "refund", "offset_group": "M-200"},
+        include_offset_role=False,
+    )
+    decoy = _fact(
+        "same-amount-decoy",
+        amount="-9.90",
+        counterparty="奈雪",
+        record_type="consumption",
+        occurred_at="2023-10-09T06:30:00+00:00",
+        merchant_order_id="N-200",
+        txn_id="N-200",
+    )
+    facts = [origin, refund, decoy]
+
+    plan = plan_relation_proposals(
+        facts,
+        detailed_rows=[_row(fact) | {"relation_metadata": fact.relation_metadata} for fact in facts],
+        seed_ids=[fact.id for fact in facts],
+    )
+
+    refund_pairs = [
+        proposal for proposal in plan.proposals
+        if proposal.kind == RelationKind.REFUND_OFFSET.value
+    ]
+    assert len(refund_pairs) == 1
+    assert (refund_pairs[0].primary_fact_id, refund_pairs[0].secondary_fact_id) == (
+        origin.id,
+        refund.id,
+    )
 
 
 def test_relation_context_digest_treats_naive_import_time_as_persisted_utc():

@@ -43,6 +43,9 @@ def _fact_view_from_row(row: dict) -> FactView:
     payload = row.get("raw_payload")
     if not isinstance(payload, dict):
         payload = row.get("source_payload") if isinstance(row.get("source_payload"), dict) else None
+    relation_metadata = row.get("relation_metadata")
+    if not isinstance(relation_metadata, dict):
+        relation_metadata = None
     source_type = str(row.get("source_type") or row.get("bill_source") or row.get("source") or "")
     return FactView(
         id=row["id"],
@@ -71,6 +74,7 @@ def _fact_view_from_row(row: dict) -> FactView:
         source_identity=str(row.get("source_identity") or ""),
         record_id=str(row.get("record_id") or ""),
         raw_payload=payload,
+        relation_metadata=relation_metadata,
     )
 
 
@@ -145,6 +149,7 @@ def _fact_detail_row(fact: FactView) -> dict:
         "source": fact.source,
         "fact_type": fact.fact_type,
         "raw_payload": fact.raw_payload,
+        "relation_metadata": fact.relation_metadata,
     }
 
 
@@ -167,6 +172,7 @@ def _relation_context_digest(
                 "source": fact.bill_source or fact.source,
                 "record_id": fact.record_id,
                 "payload": fact.raw_payload or {},
+                "relation_metadata": fact.relation_metadata or {},
             }
             for fact in sorted(
                 facts,
@@ -218,6 +224,14 @@ def _enrich_platform_refund_rows(rows: Sequence[dict]) -> list[dict]:
     for source_row in rows:
         row = dict(source_row)
         payload = row.get("raw_payload") if isinstance(row.get("raw_payload"), dict) else {}
+        relation_metadata = row.get("relation_metadata")
+        if isinstance(relation_metadata, dict):
+            for key in (
+                "offset_group", "offset_role", "offset_rule_hint",
+                "offset_match_type", "offset_strength",
+            ):
+                if key in relation_metadata and not row.get(key):
+                    row[key] = relation_metadata[key]
         if not payload and isinstance(row.get("source_payload"), dict):
             payload = dict(row["source_payload"])
             row["raw_payload"] = payload

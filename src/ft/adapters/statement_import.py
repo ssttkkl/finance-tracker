@@ -102,6 +102,16 @@ def _parse_cash_statement(command, *, resolve_accounts: bool = True):
         if not isinstance(source_payload, dict) or not source_payload:
             raise ValueError("账单行缺少完整来源行快照")
         item["source_payload"] = source_payload
+        relation_metadata = {
+            key: row[key]
+            for key in (
+                "offset_group", "offset_role", "offset_strength", "offset_source",
+                "offset_rule_hint", "offset_match_type",
+            )
+            if row.get(key) not in (None, "")
+        }
+        if relation_metadata:
+            item["relation_metadata"] = relation_metadata
         # 保留平台元数据，供导入时建立退款关系。
         for key in (
             "platform_status", "status", "txn_id", "merchant_order_id",

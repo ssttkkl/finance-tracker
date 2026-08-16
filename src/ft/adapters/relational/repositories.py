@@ -458,6 +458,9 @@ class RelationalCashflowRepository:
         payload = row.get("source_payload")
         if payload is not None and not isinstance(payload, dict):
             payload = dict(payload) if payload else None
+        relation_metadata = row.get("relation_metadata")
+        if relation_metadata is not None and not isinstance(relation_metadata, dict):
+            raise ValueError("relation_metadata must be a JSON object")
         source_type = str(
             row.get("source_type")
             or normalized.get("source_type")
@@ -486,6 +489,7 @@ class RelationalCashflowRepository:
             source_type=(source_type or None),
             record_id=record_id,
             source_payload=payload,
+            relation_metadata=_json_safe(relation_metadata),
             source_fingerprint=_source_fingerprint(source_type, record_id, payload),
             manual_overrides=_json_safe(row.get("manual_overrides") or {}),
             occurred_at=_parse_timestamp(normalized["occurred_at"]),
@@ -654,11 +658,27 @@ class RelationalCashflowRepository:
         incoming_payload = _json_safe(row.get("source_payload") or {})
         incoming_fingerprint = _source_fingerprint(source_type, record_id, incoming_payload)
         if existing.source_fingerprint == incoming_fingerprint:
+            incoming_relation_metadata = (
+                _json_safe(row.get("relation_metadata"))
+                if "relation_metadata" in row else None
+            )
+            if incoming_relation_metadata == _json_safe(existing.relation_metadata):
+                return {
+                    "fact_id": existing.id,
+                    "created": False,
+                    "source_changed": False,
+                    "previous": None,
+                    "current": self._to_row(existing, account),
+                    "_model": existing,
+                    "_account": account,
+                }
+            previous = self._to_row(existing, account)
+            existing.relation_metadata = incoming_relation_metadata
             return {
                 "fact_id": existing.id,
                 "created": False,
-                "source_changed": False,
-                "previous": None,
+                "source_changed": True,
+                "previous": previous,
                 "current": self._to_row(existing, account),
                 "_model": existing,
                 "_account": account,
@@ -692,6 +712,7 @@ class RelationalCashflowRepository:
             _flush=False,
         )
         existing.source_payload = incoming_payload
+        existing.relation_metadata = _json_safe(row.get("relation_metadata"))
         existing.source_fingerprint = incoming_fingerprint
         existing.manual_overrides = overrides
         return {
@@ -832,6 +853,7 @@ class RelationalCashflowRepository:
             "record_id": row.record_id,
             "source_type": row.source_type or "",
             "source_payload": row.source_payload,
+            "relation_metadata": _json_safe(row.relation_metadata or {}),
             "source_fingerprint": row.source_fingerprint,
             "manual_overrides": _json_safe(row.manual_overrides or {}),
             "source": row.source_type or "",

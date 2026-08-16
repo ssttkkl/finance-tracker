@@ -835,3 +835,33 @@ def test_title_exact_partial_refund_auto_selects_nearest_candidate():
     assert proposal.primary_fact_id == "e2"
     assert proposal.secondary_fact_id == "r"
     assert "partial_nearest_unique" in proposal.evidence.signals
+
+
+def test_generic_platform_title_does_not_cross_match_merchants():
+    """A platform-only title must not pair an unrelated merchant refund."""
+    expense = _fv(
+        id="kfc-expense",
+        amount=Decimal("-29.90"),
+        account_id="icbc-credit",
+        account_name="工行信用卡",
+        bill_source="icbc_credit",
+        source="icbc_credit",
+        counterparty="肯德基",
+        note="美团App",
+        occurred_at="2025-09-07 20:06:00",
+        category="expense",
+    )
+    refund = _fv(
+        id="mcd-refund",
+        amount=Decimal("12.00"),
+        account_id="icbc-credit",
+        account_name="工行信用卡",
+        bill_source="icbc_credit",
+        source="icbc_credit",
+        counterparty="麦当劳",
+        note="退款-美团App",
+        occurred_at="2025-09-08 00:52:00",
+        category="income",
+    )
+
+    assert evaluate_refund_offset(refund, [expense]) is None
