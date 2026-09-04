@@ -164,7 +164,7 @@ export function TransactionTable<T>({
   const allSelected = items.length > 0 && selectedCount === items.length;
   if (selectAllRef.current) selectAllRef.current.indeterminate = selectedCount > 0 && !allSelected;
   const showActions = Boolean(actions);
-  const columnCount = (selectable ? 1 : 0) + 4 + (showCategory ? 1 : 0) + (showStatus ? 1 : 0) + (showActions ? 1 : 0);
+  const columnCount = (selectable ? 1 : 0) + 5 + (showCategory ? 1 : 0) + (showStatus ? 1 : 0) + (showActions ? 1 : 0);
   const summaries = new Map(monthlySummaries.map((summary) => [summary.month, summary]));
   let previousMonth: string | undefined;
   const displayItems = groupByMonth

@@ -10,11 +10,12 @@ import type {
   ImportScan,
   ImportSourceGroup,
 } from "../api/types";
-import { formatOccurredAt } from "../format";
+import { formatOccurredAt, isZeroAmount } from "../format";
 import { buildTransactionMonthlySummaries, TransactionTable, type TransactionTableItem } from "../components/TransactionTable";
 
 type Stage = "select" | "mapping" | "preview" | "relations" | "success";
 type RelationFilter = "all" | "automatic" | "pending";
+type ImportPreviewFilter = "all" | "new" | "existing" | "unresolved";
 type RelationState = "automatic" | "pending" | "accepted" | "rejected";
 
 type RelationDraft = {
@@ -82,6 +83,7 @@ const importStatusLabels = {
 } as const;
 
 function importDirection(item: ImportPreviewItem): TransactionTableItem<ImportPreviewItem>["direction"] {
+  if (isZeroAmount(item.amount)) return "unknown";
   if (item.amount.startsWith("-")) return "expense";
   if (item.amount.startsWith("+") || item.amount !== "0") return "income";
   if (["transfer_out", "withdrawal_out"].includes(item.record_type)) return "expense";
@@ -90,7 +92,7 @@ function importDirection(item: ImportPreviewItem): TransactionTableItem<ImportPr
 }
 
 function importAmountLabel(item: ImportPreviewItem): string {
-  const amount = item.amount.startsWith("-") || item.amount.startsWith("+") || item.amount === "0" ? item.amount : `+${item.amount}`;
+  const amount = isZeroAmount(item.amount) ? item.amount.replace(/^[+-]/, "") : item.amount.startsWith("-") || item.amount.startsWith("+") ? item.amount : `+${item.amount}`;
   return `${amount} ${item.currency}`;
 }
 
@@ -210,6 +212,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const [mappingDrafts, setMappingDrafts] = useState<Record<string, MappingDraft>>({});
   const [editingGroup, setEditingGroup] = useState<ImportSourceGroup | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [previewFilter, setPreviewFilter] = useState<ImportPreviewFilter>("all");
   const [relationDrafts, setRelationDrafts] = useState<Record<string, RelationDraft>>({});
   const [relationFilter, setRelationFilter] = useState<RelationFilter>("all");
   const [pageSize, setPageSize] = useState(20);
@@ -236,6 +239,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setScan(null);
     setMappingDrafts({});
     setPreview(null);
+    setPreviewFilter("all");
     setRelationDrafts({});
     setPassword("");
     setPasswordRequired(true);
@@ -250,6 +254,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setScan(null);
     setMappingDrafts({});
     setPreview(null);
+    setPreviewFilter("all");
     setRelationDrafts({});
     setResult(null);
     setError(undefined);
@@ -383,6 +388,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       return { ...current, [group.group_id]: { accountId: Number(value), newAccount: null } };
     });
     setPreview(null);
+    setPreviewFilter("all");
     setRelationDrafts({});
   };
 
@@ -397,6 +403,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       )));
     });
     setPreview(null);
+    setPreviewFilter("all");
     setRelationDrafts({});
   };
 
@@ -530,7 +537,11 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
 
   const relationItems = preview?.relations ?? [];
   const importTableItems = useMemo(() => (preview?.items ?? []).map(importTableItem), [preview]);
-  const importMonthlySummaries = useMemo(() => buildTransactionMonthlySummaries(importTableItems), [importTableItems]);
+  const filteredImportTableItems = useMemo(() => {
+    if (previewFilter === "all") return importTableItems;
+    return importTableItems.filter((item) => item.source?.status === previewFilter);
+  }, [importTableItems, previewFilter]);
+  const importMonthlySummaries = useMemo(() => buildTransactionMonthlySummaries(filteredImportTableItems), [filteredImportTableItems]);
   const sharedDrafts = Array.from(new Map(
     Object.values(mappingDrafts)
       .flatMap((item) => item.newAccount ? [[item.newAccount.draftId, item.newAccount] as const] : []),
@@ -556,6 +567,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setMappingDrafts({});
     setEditingGroup(null);
     setPreview(null);
+    setPreviewFilter("all");
     setRelationDrafts({});
     setRelationFilter("all");
     setPage(1);
@@ -642,25 +654,34 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
           {stage === "preview" && preview ? <section className="import-stage import-preview-stage" aria-labelledby="import-preview-heading">
             <div className="import-stage-heading"><h2 id="import-preview-heading">核对流水</h2><span className="channel-badge">{preview.channel_label}</span></div>
             <div className="stage-actions-top"><button type="button" className="button-secondary" onClick={() => setStage("mapping")}>上一步</button><button type="button" className="button-primary" disabled={busy} onClick={openRelations}>下一步</button></div>
-            <div className="import-summary-cards">{[
-              { label: "全部", value: preview.summary.total, tone: "total" },
-              { label: "待新增", value: preview.summary.new, tone: "new" },
-              { label: "已存在", value: preview.summary.existing, tone: "existing" },
-              { label: "无法识别", value: preview.summary.unresolved ?? 0, tone: "unsupported" },
-            ].map((summary) => <div key={summary.label} className={`import-summary-card ${summary.tone}`}><small>{summary.label}</small><strong>{summary.value}</strong></div>)}</div>
-            {preview.items.length === 0
-              ? <div className="import-empty-state" role="status"><strong>没有可核对流水</strong></div>
-              : <TransactionTable
-                items={importTableItems}
-                variant="import"
-                groupByMonth
-                monthlySummaries={importMonthlySummaries}
-                showStatus
-                wrapperClassName="standard-table-wrap"
-                wrapperProps={{ role: "region", "aria-label": "账单流水表格", tabIndex: 0 }}
-                caption="账单流水"
-                columnIdPrefix="import"
-              />}
+            <div className="import-summary-cards" role="group" aria-label="预览流水筛选">{[
+              { filter: "all" as const, label: "全部", value: preview.summary.total, tone: "total" },
+              { filter: "new" as const, label: "待新增", value: preview.summary.new, tone: "new" },
+              { filter: "existing" as const, label: "已存在", value: preview.summary.existing, tone: "existing" },
+              { filter: "unresolved" as const, label: "无法识别", value: preview.summary.unresolved ?? 0, tone: "unsupported" },
+            ].map((summary) => <button
+              type="button"
+              key={summary.label}
+              className={`import-summary-card ${summary.tone}`}
+              aria-pressed={previewFilter === summary.filter}
+              aria-controls="import-preview-table"
+              onClick={() => setPreviewFilter(summary.filter)}
+            ><small>{summary.label}</small><strong>{summary.value}</strong></button>)}</div>
+            <div id="import-preview-table">
+              {filteredImportTableItems.length === 0
+                ? <div className="import-empty-state" role="status"><strong>{preview.items.length === 0 ? "没有可核对流水" : "没有符合条件的流水"}</strong></div>
+                : <TransactionTable
+                  items={filteredImportTableItems}
+                  variant="import"
+                  groupByMonth
+                  monthlySummaries={importMonthlySummaries}
+                  showStatus
+                  wrapperClassName="standard-table-wrap"
+                  wrapperProps={{ role: "region", "aria-label": "账单流水表格", tabIndex: 0 }}
+                  caption="账单流水"
+                  columnIdPrefix="import"
+                />}
+            </div>
             {unresolvedCount(preview) > 0 ? <p className="import-stage-warning" role="status">有 {unresolvedCount(preview)} 条流水无法准确归属，确认后将跳过；其他流水正常导入。</p> : null}
             {ordinaryUnsupportedCount(preview) > 0 ? <p className="import-stage-warning" role="status">有流水暂不支持。</p> : null}
           </section> : null}

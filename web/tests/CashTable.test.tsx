@@ -174,6 +174,17 @@ it("按浏览器本地时间将 UTC 月末流水归入显示月份", () => {
   expect(screen.getByRole("row", { name: /2026年7月.*收入 \+100 CNY.*支出 -12\.50 CNY/ })).toHaveAttribute("data-month", "2026-07");
 });
 
+it("月份分组行覆盖金额列，零金额保持中性", () => {
+  const zero = { ...projection("zero", "payment_mirror"), amount: "0.00", economic_type: "expense" as const };
+  render(<CashTable items={[zero]} monthlySummaries={[{ month: "2026-07", currencies: [{ currency: "CNY", income: "0", expense: "0" }] }]} onEvidence={(_projection, _source) => undefined} />);
+
+  const monthRow = screen.getAllByRole("row").find((row) => row.classList.contains("month-divider"));
+  expect(monthRow?.querySelector("th")).toHaveAttribute("colspan", "7");
+  const amount = screen.getByRole("cell", { name: "0.00 CNY" });
+  expect(amount).toHaveAttribute("data-direction", "未提供");
+  expect(amount).not.toHaveClass("inflow", "outflow");
+});
+
 it("同币种内部转账只显示一次金额且不显示负号", () => {
   render(<CashTable items={[transfer()]} onEvidence={(_projection, _source) => undefined} />);
 
