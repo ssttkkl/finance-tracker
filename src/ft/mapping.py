@@ -104,24 +104,55 @@ def load_rules(path=None) -> tuple[list[dict], str]:
     return rules, default_action
 
 
+def _payment_method_variants(source: str, payment_method: str) -> tuple[str, ...]:
+    """Return canonical value first, followed by source aliases.
+
+    Statement parsing now exposes stable wallet identities, while existing
+    user mapping files may still contain the export labels they were created
+    with.  Canonical values win ties between equally specific rules; aliases
+    keep old ``mapping.yaml`` files working without rewriting them.
+    """
+    value = str(payment_method or "")
+    aliases = {
+        "alipay": {
+            "支付宝余额": ("账户余额", "余额"),
+            "账户余额": ("支付宝余额", "余额"),
+        },
+        "wechat": {
+            "微信零钱": ("零钱", "/"),
+            "零钱": ("微信零钱", "/"),
+            "/": ("微信零钱", "零钱"),
+        },
+    }
+    return (value, *aliases.get(source, {}).get(value, ()))
+
+
 def match_payment_method(rules: list[dict], source: str, payment_method: str) -> dict | None:
     """按 (source, payment_method) 匹配规则，返回 {account, currency} 或 None
     
     优先级：长规则优先（精确匹配 > 前缀匹配 > 通配 *）
     """
+    variants = _payment_method_variants(source, payment_method)
     candidates = []
-    for rule in rules:
+    for rule_index, rule in enumerate(rules):
         if rule.get("source") != source:
             continue
         pattern = rule["match"]
-        if fnmatch.fnmatch(payment_method, pattern):
-            candidates.append((len(pattern), rule))
+        matching_variants = [
+            index for index, value in enumerate(variants)
+            if fnmatch.fnmatch(value, pattern)
+        ]
+        if matching_variants:
+            # Preserve the original longest-pattern rule semantics across
+            # canonical and legacy values.  Canonical values win ties, while
+            # an old exact rule still beats a canonical catch-all rule.
+            candidates.append((len(pattern), -min(matching_variants), -rule_index, rule))
 
-    if not candidates:
-        return None
-
-    candidates.sort(key=lambda x: -x[0])
-    return {
-        "account": candidates[0][1]["account"],
-        "currency": candidates[0][1]["currency"],
-    }
+    if candidates:
+        candidates.sort(key=lambda item: item[:3], reverse=True)
+        rule = candidates[0][3]
+        return {
+            "account": rule["account"],
+            "currency": rule["currency"],
+        }
+    return None

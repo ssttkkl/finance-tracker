@@ -2,9 +2,6 @@
 import hashlib
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from pathlib import Path
-import os
-import tempfile
 
 
 # 消费平台推断规则 — 从交易对方/描述中识别
@@ -1361,7 +1358,7 @@ def _read_wechat_raw(path: str):
             # 微信中性交易（收/支="/"）金额列始终为正，不能按金额正负判断方向，必须按交易类型语义判断。
             if txn_type == "零钱提现":
                 # 零钱 → 银行卡：本行是微信零钱出账（expense）。
-                # 支付方式列是到账卡，仅作证据；mapping 用「零钱」落到微信零钱。
+                # 支付方式列是到账卡，仅作证据；原始解析保留「零钱」，由现金账单适配层统一为「微信零钱」。
                 # 银行卡入账由银行账单表达，再以 transfer_pair 配对。
                 amount = -amount
                 category = "expense"
@@ -1767,13 +1764,11 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
 
 def _read_icbc_raw(path: str, password: str):
     """解析工行PDF，不落库，返回 (list[dict], bill_type, tracking_pairs)"""
-    from ft.importers.pdf_tools import decrypt_pdf, extract_pdf_text
+    from ft.importers.pdf_tools import extract_pdf_text
 
-    with tempfile.TemporaryDirectory(prefix="ft-icbc-") as temp_dir:
-        os.chmod(temp_dir, 0o700)
-        decrypted = Path(temp_dir) / "statement.pdf"
-        decrypt_pdf(path, decrypted, password, timeout=30)
-        text = extract_pdf_text(decrypted)
+    # ICBC credit text is parsed by pdfplumber's PDF text flow. Keeping each
+    # extracted word as a line preserves the fields expected by the importer.
+    text = extract_pdf_text(path, password=password, backend="pdfplumber", word_stream=True)
 
     is_credit = "信用卡" in text
     lines = text.split("\n")

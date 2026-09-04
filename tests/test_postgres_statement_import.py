@@ -445,30 +445,69 @@ def test_statement_parser_dispatches_every_contracted_provider(monkeypatch, tmp_
     assert calls == [("dfzq" if source == "dfzq" else "cash", source)]
 
 
-def test_icbc_parser_uses_private_temp_files_and_never_exposes_password_in_argv(
-    monkeypatch, tmp_path,
-):
+def test_icbc_credit_parser_always_uses_pdfplumber_with_password(monkeypatch, tmp_path):
     from ft.convert import _read_icbc_raw
 
     source = tmp_path / "statement.pdf"
     source.write_bytes(b"encrypted")
     calls = []
 
-    def fake_decrypt(input_path, output_path, password, *, timeout=30):
-        calls.append((str(input_path), str(output_path), password))
-        Path(output_path).write_bytes(b"decrypted")
+    def fail_decrypt(*_args, **_kwargs):
+        pytest.fail("ICBC credit import must not invoke qpdf decryption")
 
-    monkeypatch.setattr("ft.importers.pdf_tools.decrypt_pdf", fake_decrypt)
-    monkeypatch.setattr("ft.importers.pdf_tools.extract_pdf_text", lambda _path: "信用卡\n")
+    def fake_extract(input_path, *, password=None, backend="mutool", word_stream=False, **_kwargs):
+        calls.append((str(input_path), password, backend, word_stream))
+        return "信用卡\n"
+
+    monkeypatch.setattr("ft.importers.pdf_tools.decrypt_pdf", fail_decrypt)
+    monkeypatch.setattr("ft.importers.pdf_tools.extract_pdf_text", fake_extract)
 
     rows, bill_type, tracking = _read_icbc_raw(str(source), "top-secret")
 
     assert rows == []
     assert bill_type == "icbc_credit"
     assert tracking == []
-    assert calls[0][0] == str(source)
-    assert Path(calls[0][1]).parent != tmp_path
-    assert list(tmp_path.iterdir()) == [source]
+    assert calls == [(str(source), "top-secret", "pdfplumber", True)]
+
+
+def test_icbc_debit_parser_opens_pdfplumber_table_pdf(monkeypatch, tmp_path):
+    from ft.convert import _read_icbc_debit_raw
+
+    source = tmp_path / "statement.pdf"
+    source.write_bytes(b"encrypted")
+    calls = []
+    headers = [f"column-{index}" for index in range(13)]
+    row = [
+        "2026-03-26\n12:00:00", "1614020101021984636", "活期", "00000",
+        "人民币", "钞", "工资", "1614", "+1,000.00", "19,000.00",
+        "公司", "2088****0156", "手机银行",
+    ]
+
+    class FakePage:
+        def filter(self, _predicate):
+            return self
+
+        def extract_tables(self):
+            return [[headers, row]]
+
+    class FakePdf:
+        pages = [FakePage()]
+
+        def close(self):
+            calls.append("close")
+
+    def fake_open(input_path, *, password=None):
+        calls.append((str(input_path), password))
+        return FakePdf()
+
+    monkeypatch.setattr("ft.importers.pdf_tools.open_pdf", fake_open)
+
+    rows, bill_type, tracking = _read_icbc_debit_raw(str(source), "top-secret")
+
+    assert rows[0]["currency"] == "CNY"
+    assert bill_type == "icbc_debit"
+    assert tracking == []
+    assert calls == [(str(source), "top-secret"), "close"]
 
 
 def test_pdf_decryption_uses_mode_0600_password_file_and_cleans_it(monkeypatch, tmp_path):

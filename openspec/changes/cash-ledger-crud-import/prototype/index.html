@@ -45,6 +45,15 @@
     .feed-row .feed-field { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; color: var(--color-ink-muted); font-size: var(--text-xs); }
     .feed-row .feed-field .field-icon { width: 15px; height: 15px; }
     .feed-row .feed-primary + .feed-field .field-icon { display: none; }
+    .feed-entry { position: relative; }
+    .feed-entry .feed-row { padding-right: 64px; }
+    .row-actions { position: absolute; top: var(--space-4); right: 0; z-index: 2; }
+    .row-actions summary { list-style: none; }
+    .row-actions summary::-webkit-details-marker { display: none; }
+    .row-menu { position: absolute; top: calc(100% + 4px); right: 0; display: grid; min-width: 138px; padding: 4px; border: var(--rule-1) solid var(--color-rule-strong); background: var(--color-paper-raised); box-shadow: 0 8px 20px var(--color-shadow); }
+    .row-menu button { min-height: 38px; padding: 7px 12px; border: 0; background: transparent; text-align: left; }
+    .row-menu button:hover, .row-menu button:focus-visible { background: var(--color-paper-selected); color: var(--color-accent); }
+    .row-menu .is-danger { color: var(--color-danger); }
     .icon-only-button { display: inline-grid; width: 44px; min-width: 44px; min-height: 44px; padding: 0; place-items: center; }
     .icon-quiet-button { border-color: transparent; background: transparent; color: var(--color-accent); }
     input, select, textarea {
@@ -121,6 +130,9 @@
     .foot-line { padding: var(--space-5) var(--space-4); border-top: var(--rule-1) solid var(--color-rule-strong); color: var(--color-ink-muted); font-size: var(--text-xs); }
     .foot-line p { max-width: 1080px; margin: 0 auto; }
     .mobile-actions { position: fixed; z-index: 2; inset: auto 0 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); padding: var(--space-3) var(--space-4) max(var(--space-3), env(safe-area-inset-bottom)); border-top: var(--rule-1) solid var(--color-rule-strong); background: var(--color-paper-raised); }
+    .batch-toolbar { position: fixed; z-index: 3; right: var(--space-4); bottom: 76px; left: var(--space-4); display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border: var(--rule-1) solid var(--color-accent); background: var(--color-sidebar); color: var(--color-accent-ink); box-shadow: 0 12px 28px var(--color-shadow); }
+    .batch-toolbar span { margin-right: auto; font-size: var(--text-sm); font-weight: 650; }
+    @media (min-width: 60rem) { .batch-toolbar { right: max(var(--space-4), calc((100vw - 1080px) / 2 + var(--space-8))); left: max(var(--space-4), calc((100vw - 1080px) / 2 + var(--space-8))); } }
 
     dialog { color: var(--color-ink); }
     .drawer-layer {
@@ -297,11 +309,17 @@
     <section aria-labelledby="month-heading">
       <div class="month-heading"><h2 id="month-heading">8 月 7 日</h2><span>4 条流水</span></div>
       <div class="ledger-feed">
+        <div class="feed-entry">
         <button class="feed-row is-selectable" type="button" data-record="main">
           <input class="selection-mark" type="checkbox" aria-label="选择满座儿餐饮服务（北京）有限公司" onclick="event.stopPropagation()">
           <span class="feed-copy"><span class="feed-primary"><strong>满座儿餐饮服务（北京）有限公司</strong><small>智盘消费-A翘脚牛肉</small></span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="1"></rect><path d="M16 3v4M8 3v4M3 10h18"></path></svg>18:17</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.4 20.6a2 2 0 0 1-2.82 0L3.4 13.4a2 2 0 0 1 0-2.82V4h6.59a2 2 0 0 1 1.41.59l7.19 7.18a2 2 0 0 1 0 2.83Z"></path><circle cx="7.5" cy="7.5" r="1"></circle></svg>餐饮</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10h16M5 10v9M19 10v9M3 19h18l-8-6-8-6Z"></path></svg>工行信用卡(1200)</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h14v18l-3-2-4 2-4-2-3 2V3Z"></path><path d="M8 8h8M8 12h8M8 16h4"></path></svg>消费</span><span class="feed-related">已关联</span></span>
           <span class="amount">−33.80 CNY</span>
         </button>
+        <details class="row-actions">
+          <summary class="icon-only-button" aria-label="打开满座儿餐饮服务（北京）有限公司的操作菜单" title="更多操作"><svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg></summary>
+          <div class="row-menu" role="menu" aria-label="满座儿餐饮服务（北京）有限公司的操作"><button type="button" role="menuitem" data-row-action="view">查看详情</button><button type="button" role="menuitem" data-row-action="edit">编辑</button><button type="button" role="menuitem" data-row-action="category">修改分类</button><button class="is-danger" type="button" role="menuitem" data-row-action="delete">删除</button></div>
+        </details>
+        </div>
         <button class="feed-row" type="button" data-record="income">
           <span class="feed-copy"><span class="feed-primary"><strong>八月工资</strong><small>工资入账</small></span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="1"></rect><path d="M16 3v4M8 3v4M3 10h18"></path></svg>09:10</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.4 20.6a2 2 0 0 1-2.82 0L3.4 13.4a2 2 0 0 1 0-2.82V4h6.59a2 2 0 0 1 1.41.59l7.19 7.18a2 2 0 0 1 0 2.83Z"></path><circle cx="7.5" cy="7.5" r="1"></circle></svg>工资</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10h16M5 10v9M19 10v9M3 19h18l-8-6-8-6Z"></path></svg>工行借记卡</span><span class="feed-field"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h14v18l-3-2-4 2-4-2-3 2V3Z"></path><path d="M8 8h8M8 12h8M8 16h4"></path></svg>收入</span></span>
           <span class="amount income">12,800.00 CNY</span>
@@ -315,6 +333,7 @@
           <span class="amount neutral">500.00 CNY</span>
         </button>
       </div>
+      <div class="batch-toolbar" id="batch-toolbar" role="toolbar" aria-label="批量操作" hidden><span>已选 1 项</span><button class="button-danger" type="button" id="batch-delete">删除</button><button class="button-quiet" type="button" id="batch-clear">取消选择</button></div>
       <div class="ledger-feed" data-extra-feed hidden>
         <button class="feed-row" type="button" data-record="refund">
           <span><strong>退款到账</strong><small>8 月 6 日 · 工行信用卡 · 退款</small><span class="feed-type">退款</span></span>
@@ -444,6 +463,10 @@
 
   <dialog class="modal" id="delete-dialog" aria-labelledby="delete-title">
     <div class="modal-content"><h2 id="delete-title">删除这笔收支？</h2><p>删除后无法恢复。</p><div class="impact-line" id="delete-impact">请选择删除范围。</div><div class="delete-choices" id="delete-choices" hidden><button class="button-danger" id="delete-all" type="button">删除全部流水</button><button class="button-quiet" id="delete-current" type="button">只删除当前流水并解散关联</button></div><div class="modal-actions"><button type="button" data-close-dialog="delete-dialog">返回</button><button class="button-danger" id="confirm-delete" type="button">删除流水</button></div></div>
+  </dialog>
+
+  <dialog class="modal" id="batch-delete-dialog" aria-labelledby="batch-delete-title">
+    <div class="modal-content"><h2 id="batch-delete-title">删除已选收支</h2><p>这次操作将删除以下内容：</p><div class="impact-line"><strong>收支记录 1 笔</strong><br>流水 2 条 · 关联组 1 组</div><p>关联组会整体删除，不再单独拆分。</p><div class="modal-actions"><button type="button" data-close-dialog="batch-delete-dialog">取消</button><button class="button-danger" id="confirm-batch-delete" type="button">确认删除</button></div></div>
   </dialog>
 
   <dialog class="modal" id="edit-impact-dialog" aria-labelledby="edit-impact-title">
@@ -635,6 +658,22 @@
     }
 
     document.querySelectorAll("[data-record]").forEach(button => button.addEventListener("click", () => openDrawer(button.dataset.record)));
+    document.querySelectorAll("[data-row-action]").forEach(button => button.addEventListener("click", event => {
+      event.stopPropagation();
+      const action = button.dataset.rowAction;
+      button.closest("details").open = false;
+      if (action === "view") openDrawer("main");
+      if (action === "edit") openDrawer("main", "edit");
+      if (action === "category") { openDrawer("main", "edit"); window.setTimeout(() => document.getElementById("edit-category").focus(), 0); announce("已打开分类修改。"); }
+      if (action === "delete") { openDrawer("main", "edit"); window.setTimeout(() => document.getElementById("delete-record").click(), 0); }
+    }));
+    const mainSelection = document.querySelector(".selection-mark");
+    const batchToolbar = document.getElementById("batch-toolbar");
+    const batchCount = batchToolbar.querySelector("span");
+    mainSelection.addEventListener("change", () => { const checked = mainSelection.checked; batchToolbar.hidden = !checked; batchCount.textContent = checked ? "已选 1 项" : "已选 0 项"; announce(checked ? "已选择 1 项流水。" : "已取消选择。"); });
+    document.getElementById("batch-clear").addEventListener("click", () => { mainSelection.checked = false; batchToolbar.hidden = true; announce("已取消选择。"); });
+    document.getElementById("batch-delete").addEventListener("click", () => document.getElementById("batch-delete-dialog").showModal());
+    document.getElementById("confirm-batch-delete").addEventListener("click", event => finishDelete(event.currentTarget, "已删除选中的收支记录。", "batch-delete-dialog"));
     document.querySelectorAll("[data-new-record]").forEach(button => button.addEventListener("click", () => { openDrawer("zero", "edit"); document.getElementById("edit-counterparty").value = ""; document.getElementById("edit-note").value = ""; announce("已打开新建流水。") }));
     document.querySelectorAll("[data-open-import]").forEach(button => button.addEventListener("click", () => document.getElementById("import-dialog").showModal()));
     document.getElementById("drawer-close").addEventListener("click", () => drawerDialog.close());
@@ -678,7 +717,7 @@
       document.getElementById("confirm-delete").hidden = related;
       document.getElementById("delete-dialog").showModal();
     });
-    function finishDelete(button, message) { button.disabled = true; button.dataset.state = "loading"; button.textContent = "正在删除…"; window.setTimeout(() => { document.getElementById("delete-dialog").close(); drawerDialog.close(); button.disabled = false; button.dataset.state = "success"; button.textContent = button.id === "delete-all" ? "删除全部流水" : "只删除当前流水并解散关联"; showToast(message); }, 360); }
+    function finishDelete(button, message, dialogId = "delete-dialog") { button.disabled = true; button.dataset.state = "loading"; button.textContent = "正在删除…"; window.setTimeout(() => { document.getElementById(dialogId).close(); if (dialogId === "delete-dialog") drawerDialog.close(); else { mainSelection.checked = false; batchToolbar.hidden = true; } button.disabled = false; button.dataset.state = "success"; button.textContent = button.id === "delete-all" ? "删除全部流水" : "只删除当前流水并解散关联"; showToast(message); }, 360); }
     document.getElementById("confirm-delete").addEventListener("click", event => finishDelete(event.currentTarget, "流水已删除。"));
     document.getElementById("delete-all").addEventListener("click", event => finishDelete(event.currentTarget, "全部流水已删除。"));
     document.getElementById("delete-current").addEventListener("click", event => finishDelete(event.currentTarget, "当前流水已删除，其他流水已拆开保留。"));

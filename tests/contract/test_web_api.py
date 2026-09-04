@@ -235,6 +235,7 @@ def test_cash_import_password_errors_are_stable_and_redacted(cash_web_runtime, e
         ("import_session_storage_unavailable", 503),
         ("import_composite_payment_unresolved", 409),
         ("import_idempotency_conflict", 409),
+        ("import_relation_reconfirmation_required", 409),
     ],
 )
 def test_cash_import_session_errors_have_stable_status_and_code(cash_web_runtime, error_code, status_code):
@@ -259,6 +260,43 @@ def test_cash_import_session_errors_have_stable_status_and_code(cash_web_runtime
     assert response.status_code == status_code
     assert response.json()["error"]["code"] == error_code
     assert "opaque-token" not in response.text
+
+
+@pytest.mark.parametrize("error_code", [
+    "import_relation_reconfirmation_required",
+    "import_relation_preview_stale",
+    "import_relation_candidate_invalid",
+])
+def test_cash_import_relation_reconfirmation_has_a_business_recovery_message(
+    cash_web_runtime,
+    error_code,
+):
+    from ft.application.web_queries import CashLedgerQueryService
+    from ft.web.app import create_app
+
+    class SessionErrorService:
+        def options(self):
+            return {}
+
+        def commit_import_session(self, *_args, **_kwargs):
+            raise ValueError(error_code)
+
+    response = TestClient(create_app(
+        CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id),
+        mutation_service=SessionErrorService(),
+    )).post(
+        "/api/v1/cash-import/commit",
+        json={"import_token": "opaque-token", "mapping": [], "relations": []},
+        headers={"Idempotency-Key": "commit-1"},
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "error": {
+            "code": error_code,
+            "message": "相关流水已变化，请重新确认配对。",
+        },
+    }
 
 
 def test_projection_api_contract_and_old_routes_are_absent(cash_web_runtime):

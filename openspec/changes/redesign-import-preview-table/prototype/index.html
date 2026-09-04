@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>导入账单 · 核对流水原型</title>
+  <link rel="icon" href="./favicon.svg">
+  <link rel="stylesheet" href="./tokens.css">
+  <style>
+    /* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4 */
+    /* Hallmark · genre: modern-minimal · macrostructure: Index-First · theme: Cobalt · enrichment: none · nav: N9 · footer: none (application) */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { min-width: 0; overflow-x: clip; }
+    html { background: var(--color-paper); }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      background: var(--color-paper);
+      color: var(--color-ink);
+      font-family: var(--font-body);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit; }
+    button, .state-choice { white-space: nowrap; }
+    button {
+      min-height: 44px;
+      padding: 0 var(--space-3);
+      border: var(--rule-1) solid var(--color-rule-strong);
+      border-radius: var(--radius-1);
+      background: var(--color-paper-raised);
+      color: var(--color-ink);
+      cursor: pointer;
+      transition: transform var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+    }
+    button:hover:not(:disabled) { border-color: var(--color-accent); background: var(--color-accent-soft); }
+    button:active:not(:disabled) { transform: translateY(1px); }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    button:focus-visible { outline: 3px solid var(--color-accent); outline-offset: 2px; }
+    .prototype-shell { display: grid; min-height: 100dvh; grid-template-columns: 224px minmax(0, 1fr); }
+    .sidebar {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      gap: var(--space-5);
+      padding: 28px 18px;
+      background: var(--color-sidebar);
+      color: var(--color-sidebar-link);
+    }
+    .sidebar strong { font: 600 13px/1 var(--font-mono); letter-spacing: .1em; }
+    .sidebar nav { display: grid; gap: var(--space-5); margin-top: var(--space-6); }
+    .nav-group { display: grid; gap: var(--space-1); }
+    .sidebar a { display: block; padding: 11px 12px; border-left: 2px solid transparent; color: var(--color-sidebar-link); text-decoration: none; }
+    .sidebar a[aria-current="page"] { border-color: var(--color-sidebar-link); background: var(--color-sidebar-raised); }
+    .sidebar .subnav { padding-left: 12px; color: var(--color-sidebar-link); font-size: 12px; }
+    .main { min-width: 0; padding: 42px clamp(24px, 4vw, 68px) 52px; }
+    .page-header { display: flex; align-items: end; justify-content: space-between; gap: var(--space-4); margin-bottom: 22px; padding-bottom: 22px; border-bottom: var(--rule-1) solid var(--color-rule-strong); }
+    h1, h2, p { margin: 0; }
+    h1 { font-size: 32px; font-weight: 650; line-height: 1.2; letter-spacing: -.04em; }
+    .page-actions, .stage-actions { display: flex; gap: var(--space-2); }
+    .button-primary { border-color: var(--color-accent); background: var(--color-accent); color: var(--color-accent-ink); font-weight: 650; }
+    .button-primary:hover:not(:disabled) { border-color: var(--color-sidebar); background: var(--color-sidebar); color: var(--color-sidebar-link); }
+    .import-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: var(--space-4); border-bottom: var(--rule-1) solid var(--color-rule-strong); }
+    .import-steps button { display: flex; min-width: 0; align-items: center; justify-content: center; gap: var(--space-2); min-height: 44px; padding-inline: var(--space-2); border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; color: var(--color-ink-faint); font-size: 12px; }
+    .import-steps button b { display: grid; width: 22px; height: 22px; place-items: center; border: var(--rule-1) solid currentColor; border-radius: 50%; font: 10px var(--font-mono); }
+    .import-steps button.is-current { border-bottom-color: var(--color-accent); color: var(--color-accent); font-weight: 650; }
+    .import-steps button.is-complete { color: var(--color-ink-muted); }
+    .preview-stage { display: grid; gap: var(--space-4); padding: var(--space-5); border: var(--rule-1) solid var(--color-rule); background: var(--color-paper-raised); }
+    .stage-heading { display: flex; min-width: 0; align-items: end; justify-content: space-between; gap: var(--space-4); }
+    .stage-heading h2 { font-size: 20px; font-weight: 650; }
+    .stage-heading p { margin-top: 4px; color: var(--color-ink-muted); font-size: 12px; }
+    .file-meta { color: var(--color-ink-muted); font-size: 12px; }
+    .summary-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-block: var(--rule-1) solid var(--color-rule); }
+    .summary-item { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); min-width: 0; padding: var(--space-3) var(--space-2); }
+    .summary-item + .summary-item { border-left: var(--rule-1) solid var(--color-rule); }
+    .summary-item span { color: var(--color-ink-muted); font-size: 12px; }
+    .summary-item strong { font: 650 18px var(--font-mono); }
+    .summary-item.new strong { color: var(--color-income); }
+    .summary-item.error strong { color: var(--color-danger); }
+    .table-wrap { width: 100%; border: var(--rule-1) solid var(--color-rule-strong); background: var(--color-paper-raised); }
+    .import-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
+    .import-table col.time { width: 14%; }
+    .import-table col.account { width: 16%; }
+    .import-table col.info { width: 31%; }
+    .import-table col.flow { width: 13%; }
+    .import-table col.status { width: 11%; }
+    .import-table col.amount { width: 15%; }
+    .import-table th, .import-table td { min-width: 0; padding: 13px var(--space-3); border-bottom: var(--rule-1) solid var(--color-rule); text-align: left; vertical-align: middle; }
+    .import-table thead th { position: sticky; top: 0; z-index: var(--z-sticky); background: var(--color-sidebar); color: var(--color-sidebar-link); font: 500 10px var(--font-mono); letter-spacing: .06em; }
+    .import-table thead th:last-child, .import-table td.amount { text-align: right; }
+    .import-table tbody tr.data-row { transition: background-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard); }
+    .import-table tbody tr.data-row:hover, .import-table tbody tr.data-row:focus-within { background: var(--color-accent-soft); box-shadow: inset 3px 0 0 var(--color-accent); }
+    .import-table tbody tr:last-child td { border-bottom: 0; }
+    .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); white-space: nowrap; }
+    .month-row th { padding: 11px var(--space-3) 9px; background: var(--color-paper-muted); color: var(--color-ink-muted); font-size: 12px; font-weight: 650; }
+    .month-row-content { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); }
+    .month-label { color: var(--color-ink); font-size: 14px; }
+    .month-totals { display: flex; flex-wrap: wrap; justify-content: end; gap: var(--space-3); font: 500 11px var(--font-mono); }
+    .month-total.income { color: var(--color-income); }
+    .month-total.expense { color: var(--color-expense); }
+    .occurred-at { color: var(--color-ink-muted); font-size: 12px; }
+    .occurred-at span, .occurred-at small { display: block; }
+    .occurred-at small { margin-top: 2px; color: var(--color-ink-faint); font: 11px var(--font-mono); }
+    .account { color: var(--color-ink-muted); overflow-wrap: anywhere; }
+    .transaction-info { overflow: hidden; }
+    .transaction-info strong, .transaction-info span { display: block; min-width: 0; overflow: hidden; overflow-wrap: anywhere; }
+    .transaction-info strong { color: var(--color-ink); font-weight: 650; text-overflow: ellipsis; }
+    .transaction-info span { margin-top: 3px; color: var(--color-ink-muted); font-size: 11px; line-height: 1.35; text-overflow: ellipsis; }
+    .flow { color: var(--color-ink-muted); white-space: nowrap; }
+    .flow-dot { display: inline-block; width: 5px; height: 5px; margin-right: 8px; border-radius: 50%; background: var(--color-accent); vertical-align: middle; }
+    .status-chip { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 7px; border: var(--rule-1) solid var(--color-rule-strong); color: var(--color-ink-muted); font-size: 11px; white-space: nowrap; }
+    .status-chip.new { border-color: var(--color-income); color: var(--color-income); }
+    .status-chip.unresolved { border-color: var(--color-danger); color: var(--color-danger); }
+    .amount { font: 650 14px var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .amount.income { color: var(--color-income); }
+    .amount.expense { color: var(--color-expense); }
+    .amount small { margin-left: 5px; font-size: 11px; font-weight: 500; }
+    .preview-state { display: none; }
+    [data-preview-state="loading"] .normal-preview, [data-preview-state="empty"] .normal-preview, [data-preview-state="error"] .normal-preview, [data-preview-state="success"] .normal-preview { display: none; }
+    [data-preview-state="loading"] .loading-preview, [data-preview-state="empty"] .empty-preview, [data-preview-state="error"] .error-preview, [data-preview-state="success"] .success-preview { display: grid; }
+    .loading-preview { gap: var(--space-2); }
+    .skeleton-row { height: 56px; border-bottom: var(--rule-1) solid var(--color-rule); background: var(--color-paper-muted); animation: loading-pulse 1.4s var(--ease-standard) infinite; }
+    .skeleton-row:last-child { border-bottom: 0; }
+    @keyframes loading-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+    .empty-preview, .error-preview, .success-preview { min-height: 210px; place-items: center; align-content: center; gap: var(--space-3); border: var(--rule-1) solid var(--color-rule); text-align: center; }
+    .empty-preview strong, .error-preview strong, .success-preview strong { font-size: 16px; }
+    .empty-preview p, .error-preview p, .success-preview p { max-width: 40ch; color: var(--color-ink-muted); font-size: 12px; }
+    .error-preview { border-color: var(--color-danger); }
+    .error-preview strong { color: var(--color-danger); }
+    .success-mark { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 50%; background: var(--color-income); color: var(--color-paper-raised); font-size: 22px; }
+    .success-preview strong { color: var(--color-income); }
+    .state-rail { display: grid; gap: var(--space-3); padding-top: var(--space-4); border-top: var(--rule-1) solid var(--color-rule); }
+    .state-rail h3 { margin: 0; font-size: 12px; font-weight: 650; }
+    .state-choices { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .state-choice { min-height: 36px; padding-inline: var(--space-2); border-color: var(--color-rule); background: var(--color-paper-muted); color: var(--color-ink-muted); font-size: 11px; }
+    .state-choice[aria-pressed="true"] { border-color: var(--color-accent); background: var(--color-accent-soft); color: var(--color-accent); font-weight: 650; }
+    .state-samples { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); color: var(--color-ink-muted); font-size: 11px; }
+    .state-samples button.is-focus { outline: 3px solid var(--color-accent); outline-offset: 2px; }
+    .state-samples button { min-height: 40px; font-size: 12px; }
+    .stage-actions { justify-content: space-between; padding-top: var(--space-3); border-top: var(--rule-1) solid var(--color-rule); }
+    .stage-actions .button-secondary { margin-right: auto; }
+    @media (max-width: 1023px) {
+      .prototype-shell { grid-template-columns: 1fr; }
+      .sidebar { min-height: auto; flex-direction: row; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); }
+      .sidebar nav { display: flex; margin: 0; }
+      .nav-group { display: flex; }
+      .sidebar a { border-left: 0; border-bottom: 2px solid transparent; padding: 8px 10px; }
+      .sidebar a[aria-current="page"] { border-color: var(--color-sidebar-link); }
+      .sidebar .subnav { display: none; }
+    }
+    @media (max-width: 820px) {
+      .main { padding: var(--space-6) var(--space-4) 40px; }
+      .preview-stage { padding: var(--space-4); }
+      .table-wrap { border-right: 0; border-left: 0; margin-inline: calc(var(--space-4) * -1); width: calc(100% + var(--space-8)); }
+      .import-table { display: block; }
+      .import-table colgroup { display: none; }
+      .import-table thead { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); white-space: nowrap; }
+      .import-table tbody { display: grid; gap: var(--space-2); padding: var(--space-2); }
+      .import-table tr.data-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "time amount" "account amount" "info info" "flow status"; gap: 6px var(--space-3); padding: 14px 12px; border: var(--rule-1) solid var(--color-rule); }
+      .import-table tr.data-row td { display: block; padding: 0; border: 0; }
+      .import-table tr.data-row td.occurred-at { grid-area: time; }
+      .import-table tr.data-row td.account { grid-area: account; }
+      .import-table tr.data-row td.transaction-info { grid-area: info; padding-top: 5px; border-top: var(--rule-1) solid var(--color-rule); }
+      .import-table tr.data-row td.flow { grid-area: flow; }
+      .import-table tr.data-row td.status { grid-area: status; justify-self: end; }
+      .import-table tr.data-row td.amount { grid-area: amount; align-self: start; }
+      .month-row { display: block; }
+      .month-row th { display: block; padding: 10px 12px; }
+      .month-row-content { align-items: start; flex-direction: column; gap: 5px; }
+      .month-totals { justify-content: start; }
+      .summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .summary-item:nth-child(3) { border-left: 0; border-top: var(--rule-1) solid var(--color-rule); }
+      .summary-item:nth-child(4) { border-top: var(--rule-1) solid var(--color-rule); }
+    }
+    @media (max-width: 480px) {
+      .main { padding-inline: var(--space-4); }
+      .page-header, .stage-heading { align-items: stretch; flex-direction: column; }
+      .page-actions, .stage-actions { width: 100%; }
+      .page-actions button, .stage-actions button { flex: 1; }
+      .import-steps button { gap: 3px; padding-inline: 2px; font-size: 10px; }
+      .import-steps button b { width: 19px; height: 19px; }
+      .file-meta { font-size: 11px; }
+      .state-samples { align-items: stretch; flex-direction: column; }
+      .state-samples button { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 150ms !important; animation-iteration-count: 1 !important; transition-duration: 150ms !important; }
+    }
+  </style>
+</head>
+<body data-preview-state="normal">
+  <div class="prototype-shell">
+    <aside class="sidebar">
+      <strong>Finance Tracker</strong>
+      <nav aria-label="主要导航">
+        <div class="nav-group">
+          <a href="#ledger">收支账本</a>
+          <div class="subnav"><a href="#import" aria-current="page">导入账单</a></div>
+        </div>
+        <div class="nav-group"><a href="#investment">投资账本</a></div>
+      </nav>
+    </aside>
+    <main class="main">
+      <header class="page-header">
+        <h1>导入账单</h1>
+        <div class="page-actions"><button type="button">上一步</button><button class="button-primary" type="button">下一步</button></div>
+      </header>
+
+      <nav class="import-steps" aria-label="导入步骤">
+        <button type="button" class="is-complete"><b>1</b>选择文件</button>
+        <button type="button" class="is-complete"><b>2</b>映射账户</button>
+        <button type="button" class="is-current" aria-current="step"><b>3</b>核对流水</button>
+        <button type="button"><b>4</b>配对</button>
+      </nav>
+
+      <section class="preview-stage" aria-labelledby="preview-heading">
+        <div class="stage-heading">
+          <div><h2 id="preview-heading">核对流水</h2><p>微信账单 · 预览示例</p></div>
+          <span class="file-meta">共 212 条 · 2026年5月</span>
+        </div>
+
+        <div class="normal-preview">
+          <div class="summary-strip" aria-label="导入摘要">
+            <div class="summary-item"><span>全部</span><strong>212</strong></div>
+            <div class="summary-item new"><span>待新增</span><strong>212</strong></div>
+            <div class="summary-item"><span>已存在</span><strong>0</strong></div>
+            <div class="summary-item error"><span>无法识别</span><strong>0</strong></div>
+          </div>
+          <div class="table-wrap" role="region" aria-label="账单流水表格" tabindex="0">
+            <table class="import-table">
+              <caption class="sr-only">按月份分组的账单流水</caption>
+              <colgroup><col class="time"><col class="account"><col class="info"><col class="flow"><col class="status"><col class="amount"></colgroup>
+              <thead><tr><th scope="col">发生时间</th><th scope="col">账户</th><th scope="col">交易信息</th><th scope="col">流水类型</th><th scope="col">状态</th><th scope="col">金额</th></tr></thead>
+              <tbody>
+                <tr class="month-row"><th colspan="6" scope="rowgroup"><span class="month-row-content"><span class="month-label">2026年5月</span><span class="month-totals"><span class="month-total income">收入 +710.9 CNY</span><span class="month-total expense">支出 -136.0 CNY</span></span></span></th></tr>
+                <tr class="data-row"><td class="occurred-at"><span>2026年5月15日</span><small>11:48</small></td><td class="account">工商银行信用卡(1200)</td><td class="transaction-info"><strong>满座儿餐饮服务（北京）有限公司</strong><span>智盘消费-A翘脚</span></td><td class="flow"><i class="flow-dot" aria-hidden="true"></i>消费</td><td class="status"><span class="status-chip new">待新增</span></td><td class="amount expense">-33.8 <small>CNY</small></td></tr>
+                <tr class="data-row"><td class="occurred-at"><span>2026年5月15日</span><small>03:25</small></td><td class="account">微信零钱</td><td class="transaction-info"><strong>微信</strong><span>转账备注：房租</span></td><td class="flow"><i class="flow-dot" aria-hidden="true"></i>收入</td><td class="status"><span class="status-chip new">待新增</span></td><td class="amount income">+700 <small>CNY</small></td></tr>
+                <tr class="data-row"><td class="occurred-at"><span>2026年5月14日</span><small>18:10</small></td><td class="account">微信零钱</td><td class="transaction-info"><strong>遇见小面-北京</strong><span>退款</span></td><td class="flow"><i class="flow-dot" aria-hidden="true"></i>收入</td><td class="status"><span class="status-chip new">待新增</span></td><td class="amount income">+10.9 <small>CNY</small></td></tr>
+                <tr class="data-row"><td class="occurred-at"><span>2026年5月14日</span><small>10:32</small></td><td class="account">微信零钱</td><td class="transaction-info"><strong>遇见小面</strong><span>招牌冒菜三件套</span></td><td class="flow"><i class="flow-dot" aria-hidden="true"></i>消费</td><td class="status"><span class="status-chip new">待新增</span></td><td class="amount expense">-47.8 <small>CNY</small></td></tr>
+                <tr class="month-row"><th colspan="6" scope="rowgroup"><span class="month-row-content"><span class="month-label">2026年4月</span><span class="month-totals"><span class="month-total income">收入 +200 CNY</span><span class="month-total expense">支出 -26 CNY</span></span></span></th></tr>
+                <tr class="data-row"><td class="occurred-at"><span>2026年4月30日</span><small>09:14</small></td><td class="account">微信零钱</td><td class="transaction-info"><strong>麦当劳</strong><span>麦当劳</span></td><td class="flow"><i class="flow-dot" aria-hidden="true"></i>消费</td><td class="status"><span class="status-chip">已存在</span></td><td class="amount expense">-26 <small>CNY</small></td></tr>
+                <tr class="data-row"><td class="occurred-at"><span>2026年4月28日</span><small>16:20</small></td><td class="account">微信零钱</td><td class="transaction-info"><strong>微信</strong><span>朋友转账</span></td><td class="flow"><i class="flow-dot" aria-hidden="true"></i>收入</td><td class="status"><span class="status-chip">已存在</span></td><td class="amount income">+200 <small>CNY</small></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="stage-actions"><button type="button">上一步</button><button class="button-primary" type="button">下一步</button></div>
+        </div>
+
+        <div class="preview-state loading-preview" aria-live="polite">
+          <div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div>
+        </div>
+        <div class="preview-state empty-preview" aria-live="polite"><strong>没有可核对的流水</strong><p>这份账单没有解析出可导入记录。</p><button type="button">重新选择文件</button></div>
+        <div class="preview-state error-preview" role="alert"><strong>账单预览失败</strong><p>文件内容无法读取，请重新选择账单文件。</p><button type="button">重新选择文件</button></div>
+        <div class="preview-state success-preview" aria-live="polite"><span class="success-mark" aria-hidden="true">✓</span><strong>导入完成</strong><p>212 条流水已进入收支账本。</p><button class="button-primary" type="button">返回收支账本</button></div>
+
+        <section class="state-rail" aria-label="原型状态检视">
+          <h3>原型状态</h3>
+          <div class="state-choices" role="group" aria-label="切换预览状态">
+            <button class="state-choice" type="button" data-state-choice="normal" aria-pressed="true">正常</button>
+            <button class="state-choice" type="button" data-state-choice="loading" aria-pressed="false">加载中</button>
+            <button class="state-choice" type="button" data-state-choice="empty" aria-pressed="false">空状态</button>
+            <button class="state-choice" type="button" data-state-choice="error" aria-pressed="false">错误</button>
+            <button class="state-choice" type="button" data-state-choice="success" aria-pressed="false">完成</button>
+          </div>
+          <div class="state-samples"><span>交互状态：</span><button class="is-focus" type="button">焦点</button><button type="button" disabled>确认导入</button></div>
+        </section>
+      </section>
+    </main>
+  </div>
+  <script>
+    const choices = document.querySelectorAll('[data-state-choice]');
+    choices.forEach((choice) => choice.addEventListener('click', () => {
+      const state = choice.dataset.stateChoice || 'normal';
+      document.body.dataset.previewState = state;
+      choices.forEach((item) => item.setAttribute('aria-pressed', String(item === choice)));
+    }));
+  </script>
+</body>
+</html>

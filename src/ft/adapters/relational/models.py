@@ -330,6 +330,7 @@ class CashTransactionModel(Base):
     source_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     record_id: Mapped[str] = mapped_column(String(512), default="", nullable=False)
     source_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    relation_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     source_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
     manual_overrides: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)

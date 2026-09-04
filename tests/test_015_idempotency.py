@@ -113,3 +113,51 @@ def test_digest_not_gate_different_file_same_row(tmp_path):
     assert service.import_statement(StatementImportCommand(str(f2), "alipay")).count == 0
     with sessions() as session:
         assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 1
+
+
+def test_relation_metadata_is_separate_and_refreshes_on_idempotent_reimport(tmp_path):
+    from ft.adapters.relational.models import CashTransactionModel
+    from ft.application.statement_import import StatementImportService
+    from ft.domain.imports import StatementImportCommand
+
+    source = tmp_path / "wechat.xlsx"
+    source.write_bytes(b"wechat")
+    first_row = _row(
+        record_id="META-1",
+        source_payload={"交易对方": "瑞幸", "金额": "-9.90"},
+        relation_metadata={"offset_role": "expense", "offset_group": "M-1"},
+    )
+    sessions, uow_factory, service = _service([first_row])
+    command = StatementImportCommand(str(source), "wechat")
+    assert service.import_statement(command).count == 1
+
+    second_row = dict(first_row)
+    second_row["relation_metadata"] = {
+        "offset_role": "expense", "offset_group": "M-2",
+    }
+    refreshed = StatementImportService(
+        uow_factory(sessions, "workspace-a"), FakeParser([second_row]),
+    )
+    result = refreshed.import_statement(command)
+
+    assert result.count == 0
+    assert result.details["updated_rows"] == 1
+    with sessions() as session:
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 1
+        fact = session.scalar(select(CashTransactionModel))
+        assert fact.source_payload == {"交易对方": "瑞幸", "金额": "-9.90"}
+        assert fact.relation_metadata == {
+            "offset_role": "expense", "offset_group": "M-2",
+        }
+
+    cleared_row = dict(second_row)
+    cleared_row.pop("relation_metadata")
+    cleared = StatementImportService(
+        uow_factory(sessions, "workspace-a"), FakeParser([cleared_row]),
+    ).import_statement(command)
+
+    assert cleared.count == 0
+    assert cleared.details["updated_rows"] == 1
+    with sessions() as session:
+        fact = session.scalar(select(CashTransactionModel))
+        assert fact.relation_metadata is None

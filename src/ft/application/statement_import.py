@@ -219,6 +219,7 @@ class StatementImportService:
         *,
         relation_decisions: list[dict] | None = None,
         relation_plan_digest: str | None = None,
+        cached_relation_plan: dict | None = None,
     ) -> OperationResult:
         path = Path(command.source_path)
         with path.open("rb") as source:
@@ -235,11 +236,18 @@ class StatementImportService:
         for row in parsed:
             if "_import_meta" in row:
                 import_meta = dict(row.pop("_import_meta") or {})
-            rows.append(row)
+            if row:
+                rows.append(row)
+        skipped_rows = list(import_meta.get("skipped_rows") or ())
+        skipped_composite_payment = int(
+            import_meta.get("skipped_composite_payment") or 0
+        )
         if not rows:
             acc = import_meta.get("acceptance") or {}
             if acc.get("source_lines") and (
-                acc.get("skipped_unpaid_closed", 0) + acc.get("skipped_failed_repay", 0)
+                acc.get("skipped_unpaid_closed", 0)
+                + acc.get("skipped_failed_repay", 0)
+                + len(skipped_rows)
             ) >= acc.get("source_lines", 0):
                 return OperationResult(
                     ok=True,
@@ -252,6 +260,8 @@ class StatementImportService:
                         "new_cash_fact_ids": [],
                         "acceptance": acc,
                         "import_refund_relations": [],
+                        "skipped_rows": len(skipped_rows),
+                        "skipped_composite_payment": skipped_composite_payment,
                     },
                 )
             raise ValueError("账单中没有可导入的记录")
@@ -407,21 +417,33 @@ class StatementImportService:
             relation_affected_fact_ids: set[int] = set()
             relation_details = None
             if new_cash_fact_ids and self._relations is not None and self._run_relation_check:
-                created_relations, relation_affected_fact_ids = self._relations.apply_import_plan_in_uow(
-                    uow,
-                    seed_ids=[str(item) for item in new_cash_fact_ids],
-                    relation_decisions=relation_decisions,
-                    expected_digest=relation_plan_digest,
-                )
+                if cached_relation_plan is not None:
+                    (
+                        created_relations,
+                        relation_affected_fact_ids,
+                        explicit_decisions,
+                    ) = self._relations.apply_cached_import_plan_in_uow(
+                        uow,
+                        cached_plan=cached_relation_plan,
+                        relation_decisions=relation_decisions,
+                        expected_digest=relation_plan_digest,
+                    )
+                else:
+                    created_relations, relation_affected_fact_ids = self._relations.apply_import_plan_in_uow(
+                        uow,
+                        seed_ids=[str(item) for item in new_cash_fact_ids],
+                        relation_decisions=relation_decisions,
+                        expected_digest=relation_plan_digest,
+                    )
+                    explicit_decisions = [
+                        item for item in (relation_decisions or ())
+                        if str(item.get("status") or "accepted") == "accepted"
+                    ]
                 imported_relation_ids.extend(
                     str(item["id"])
                     for item in created_relations
                     if item.get("status") == "accepted" and item.get("id") is not None
                 )
-                explicit_decisions = [
-                    item for item in (relation_decisions or ())
-                    if str(item.get("status") or "accepted") == "accepted"
-                ]
                 imported_relation_ids.extend(
                     self._apply_relation_decisions(
                         uow,
@@ -489,5 +511,7 @@ class StatementImportService:
                 "import_refund_relations": import_refund_relations,
                 "relation_check": relation_details,
                 "imported_relation_ids": imported_relation_ids,
+                "skipped_rows": len(skipped_rows),
+                "skipped_composite_payment": skipped_composite_payment,
             },
         )

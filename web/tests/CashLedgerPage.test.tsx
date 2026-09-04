@@ -639,6 +639,56 @@ describe("CashLedgerPage", () => {
     expect(pageCalls).toBe(2);
   });
 
+  it("批量删除先展示影响，再按投影版本提交并刷新列表", async () => {
+    const second = { ...projection, projection_id: "cash:1004", counterparty: "第二笔" };
+    const bodies: { method?: string; body?: unknown }[] = [];
+    let pageCalls = 0;
+    const fetch = vi.fn((input: string, init?: RequestInit) => {
+      const url = new URL(input);
+      if (url.pathname.endsWith("/accounts")) return json({ items: [account] });
+      if (url.pathname.endsWith("/cash-projections/delete-impact") && init?.method === "POST") return json({ projection_count: 2, transaction_count: 3, relation_group_count: 1 });
+      if (url.pathname.endsWith("/cash-projections") && init?.method === "DELETE") { bodies.push({ method: init.method, body: JSON.parse(String(init.body)) }); return json({ deleted: true, projection_count: 2, transaction_count: 3, relation_group_count: 1, deleted_fact_ids: ["1003", "1004", "1005"], projection_version: 2 }); }
+      pageCalls += 1;
+      return json({ projection_version: pageCalls === 1 ? 1 : 2, items: pageCalls === 1 ? [projection, second] : [], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: [foodCategory], currencies: ["CNY"], economic_types: [] } });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<CashLedgerPage />);
+    await screen.findByText("咖啡店");
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择当前已加载记录" }));
+    fireEvent.click(screen.getByRole("button", { name: "删除" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "删除已选收支" });
+    expect(await within(dialog).findByText("这次操作将删除以下内容：")).toBeInTheDocument();
+    expect(within(dialog).getByText("2 笔")).toBeInTheDocument();
+    expect(within(dialog).getByText("3 条")).toBeInTheDocument();
+    expect(within(dialog).getByText("1 组")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "确认删除" }));
+
+    await waitFor(() => expect(bodies).toEqual([{ method: "DELETE", body: { projection_ids: ["cash:1003", "cash:1004"], projection_version: 1, confirmed: true } }]));
+    await waitFor(() => expect(screen.queryByRole("toolbar", { name: "批量操作" })).not.toBeInTheDocument());
+    expect(pageCalls).toBe(2);
+  });
+
+  it("读取批量删除影响失败时清空选择并提示重试", async () => {
+    const fetch = vi.fn((input: string, init?: RequestInit) => {
+      const url = new URL(input);
+      if (url.pathname.endsWith("/accounts")) return json({ items: [account] });
+      if (url.pathname.endsWith("/cash-projections/delete-impact") && init?.method === "POST") return json({ error: { code: "api_request_failed" } }, 503);
+      return json({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {}, filter_options: { categories: [foodCategory], currencies: ["CNY"], economic_types: [] } });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<CashLedgerPage />);
+    await screen.findByText("咖啡店");
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择当前已加载记录" }));
+    fireEvent.click(screen.getByRole("button", { name: "删除" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("无法读取删除影响，请稍后重试。");
+    expect(screen.queryByRole("toolbar", { name: "批量操作" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "删除已选收支" })).not.toBeInTheDocument();
+  });
+
   it("将交易信息和金额范围传递到收支投影筛选", async () => {
     const fetch = vi.fn((input: string) => input.includes("/accounts") ? json({ items: [account] }) : json({ projection_version: 1, items: [projection], next_cursor: null, page_size: 50, filters: {} }));
     vi.stubGlobal("fetch", fetch);

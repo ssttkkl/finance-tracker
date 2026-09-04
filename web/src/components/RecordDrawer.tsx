@@ -22,6 +22,7 @@ type Props = {
   loading?: boolean;
   loadError?: boolean;
   initialRelationOpen?: boolean;
+  initialDeleteOpen?: boolean;
   accounts: Account[];
   options: LedgerOptions;
   categories?: CashCategory[];
@@ -70,13 +71,13 @@ function initialForm(record: CashRecord | null | undefined, defaultAccount?: Acc
   };
 }
 
-export function RecordDrawer({ detail, mode, embedded = false, loading = false, loadError = false, initialRelationOpen = false, accounts, options, categories = [], projectionVersion = null, onClose, onRetry, onSaved, onDeleted }: Props) {
+export function RecordDrawer({ detail, mode, embedded = false, loading = false, loadError = false, initialRelationOpen = false, initialDeleteOpen = false, accounts, options, categories = [], projectionVersion = null, onClose, onRetry, onSaved, onDeleted }: Props) {
   const record = detail?.record;
   const isNew = mode ? mode === "new" : !record;
   const [form, setForm] = useState(() => initialForm(record, accounts[0], options.record_types[0]?.value));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(initialDeleteOpen);
   const [relationImpactOpen, setRelationImpactOpen] = useState(false);
   const [relationOpen, setRelationOpen] = useState(initialRelationOpen);
   const [relationQuery, setRelationQuery] = useState("");
@@ -100,7 +101,8 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
   useEffect(() => {
     setForm(initialForm(record, accounts[0], options.record_types[0]?.value));
     setRelationImpactOpen(false);
-  }, [record?.id]);
+    setDeleteOpen(initialDeleteOpen);
+  }, [initialDeleteOpen, record?.id]);
   useEffect(() => {
     setRelationOpen(initialRelationOpen);
     setRelationQuery("");
@@ -355,7 +357,7 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
         </>}
       </div>
       {relationImpactOpen && record ? <div className="confirm-layer" role="alertdialog" aria-label="保存关联影响确认"><div className="confirm-card"><h3>保存并拆开关联流水？</h3><p>当前修改会让这组关联流水分开显示。</p><div className="drawer-actions"><button type="button" onClick={() => setRelationImpactOpen(false)}>取消</button><button type="button" className="button-primary" disabled={saving} onClick={() => { setRelationImpactOpen(false); void save(true); }}>保存并拆开</button></div></div></div> : null}
-      {deleteOpen && record ? <div className="confirm-layer" role="alertdialog" aria-label="删除流水确认"><div className="confirm-card"><h3>删除这条流水？</h3>{activeRelationCount ? <><p>这条流水已添加关联流水，请选择处理方式。</p><div className="drawer-actions delete-choice-actions"><button type="button" onClick={() => setDeleteOpen(false)}>取消</button><button type="button" className="button-danger" disabled={saving} onClick={() => void confirmDelete("delete_current_dissolve")}>只删除当前流水并解散关联</button><button type="button" className="button-danger" disabled={saving} onClick={() => void confirmDelete("delete_all")}>删除全部流水</button></div></> : <><p>删除后将从账本中移除。</p><div className="drawer-actions"><button type="button" onClick={() => setDeleteOpen(false)}>取消</button><button type="button" className="button-danger" disabled={saving} onClick={() => void confirmDelete("delete_current_dissolve")}>确认删除</button></div></>}</div></div> : null}
+      {deleteOpen && record ? <div className="confirm-layer" role="alertdialog" aria-label="删除流水确认"><div className="confirm-card"><h3>删除这条流水？</h3>{activeRelationCount ? <><p>这条流水已添加关联流水，请选择处理方式。</p><div className="drawer-actions delete-choice-actions"><button autoFocus type="button" onClick={() => setDeleteOpen(false)}>取消</button><button type="button" className="button-danger" disabled={saving} onClick={() => void confirmDelete("delete_current_dissolve")}>只删除当前流水并解散关联</button><button type="button" className="button-danger" disabled={saving} onClick={() => void confirmDelete("delete_all")}>删除全部流水</button></div></> : <><p>删除后将从账本中移除。</p><div className="drawer-actions"><button autoFocus type="button" onClick={() => setDeleteOpen(false)}>取消</button><button type="button" className="button-danger" disabled={saving} onClick={() => void confirmDelete("delete_current_dissolve")}>确认删除</button></div></>}</div></div> : null}
     </>;
 
   if (embedded) return drawerContent;

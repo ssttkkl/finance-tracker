@@ -1,4 +1,4 @@
-import type { Account, CashCategory, CashCategoryDirectory, CashFilters, CashPage, CashRecordDetail, CashRecordPage, Evidence, ImportCommitResult, ImportDetection, ImportMappingDecision, ImportPreview, ImportScan, LedgerOptions } from "./types";
+import type { Account, CashCategory, CashCategoryDirectory, CashFilters, CashPage, CashProjectionDeleteImpact, CashProjectionDeleteResult, CashRecordDetail, CashRecordPage, Evidence, ImportCommitResult, ImportDetection, ImportMappingDecision, ImportPreview, ImportScan, LedgerOptions } from "./types";
 import { authHeaders } from "./access";
 
 function apiOrigin(): string {
@@ -93,6 +93,14 @@ export function classifyCashProjection(id: string, projection_version: number, c
 
 export function classifyCashProjections(projection_ids: string[], projection_version: number, category_id: string | null, signal?: AbortSignal): Promise<{ projection_version: number; projection_count: number; updated_transaction_count: number; category_id: string | null }> {
   return write("/api/v1/cash-projections/categories", "PUT", { projection_ids, projection_version, category_id }, signal);
+}
+
+export function fetchCashProjectionDeleteImpact(projection_ids: string[], projection_version: number, signal?: AbortSignal): Promise<CashProjectionDeleteImpact> {
+  return write<CashProjectionDeleteImpact>("/api/v1/cash-projections/delete-impact", "POST", { projection_ids, projection_version }, signal);
+}
+
+export function deleteCashProjections(projection_ids: string[], projection_version: number, signal?: AbortSignal): Promise<CashProjectionDeleteResult> {
+  return write<CashProjectionDeleteResult>("/api/v1/cash-projections", "DELETE", { projection_ids, projection_version, confirmed: true }, signal);
 }
 
 export function fetchCashRecord(id: string, signal?: AbortSignal): Promise<CashRecordDetail> {

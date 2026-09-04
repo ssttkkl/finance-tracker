@@ -110,6 +110,7 @@ def test_diamond_refund():
     assert props[0].status == RelationStatus.ACCEPTED.value
     assert props[0].primary_fact_id == bank_pay.id
     assert props[0].secondary_fact_id == bank_ref.id
+    assert props[0].refund_amount == Decimal("19.90")
 
 
 def test_fact_is_bank_date_only_yyyy_mm_dd_len10():

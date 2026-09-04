@@ -5,7 +5,7 @@ from collections.abc import Mapping, Sequence
 import re
 
 from ft.domain.relations.core.geometry import _abs_decimal, _time_delta_seconds
-from ft.domain.relations.core.keys import top_k_candidate_ids
+from ft.domain.relations.core.keys import stable_fact_order_key, top_k_candidate_ids
 from ft.domain.relations.core.record_types import (
     is_fx_in_record,
     is_fx_out_record,
@@ -182,9 +182,10 @@ def _proposal(
     """以既有开放候选关系载体表达唯一或歧义结果。"""
     ordered = sorted(
         candidates,
-        key=lambda item: (_time_delta_seconds(seed.occurred_at, item.occurred_at), item.id),
+        key=lambda item: (_time_delta_seconds(seed.occurred_at, item.occurred_at), stable_fact_order_key(item)),
     )
     best = ordered[0]
+    candidates_by_id = {str(item.id): item for item in ordered}
     evidence = RelationEvidence(
         amount_delta=(
             format(_abs_decimal(seed.signed_amount) - _abs_decimal(best.signed_amount), "f")
@@ -194,7 +195,10 @@ def _proposal(
         same_currency=same_currency,
         rule_id=rule_id,
         candidate_count=len(ordered),
-        candidate_fact_ids=top_k_candidate_ids([item.id for item in ordered]),
+        candidate_fact_ids=top_k_candidate_ids(
+            [item.id for item in ordered],
+            key=lambda item_id: stable_fact_order_key(candidates_by_id[str(item_id)]),
+        ),
         signals=("opposite_sign", "record_subtype", "counterparty_account"),
     )
     if accepted:
@@ -398,7 +402,12 @@ def match_normalized_subtype_transfers(
             )
     proposals: list[RelationProposal] = []
     assigned: set[str] = set()
-    for _delta, seed_id, candidate_id, seed, candidate, subtype, rule_id, same_currency in sorted(edges):
+    for _delta, seed_id, candidate_id, seed, candidate, subtype, rule_id, same_currency in sorted(
+        edges,
+        key=lambda edge: (
+            edge[0], stable_fact_order_key(edge[3]), stable_fact_order_key(edge[4]),
+        ),
+    ):
         if seed_id in assigned or candidate_id in assigned:
             continue
         assigned.update({seed_id, candidate_id})
@@ -445,7 +454,7 @@ def match_transfer_pairs_phase_c(
         for fact_id in (proposal.primary_fact_id, proposal.secondary_fact_id)
         if fact_id
     }
-    for seed in sorted(active, key=lambda item: (str(item.occurred_at), item.id)):
+    for seed in sorted(active, key=stable_fact_order_key):
         if seed.id in used or seed.signed_amount >= 0:
             continue
         if selected is not None and str(seed.id) not in selected:

@@ -20,6 +20,8 @@ from ft.adapters.relational.models import (
     CashImportCommitModel,
     CashInvestmentFundingRelationModel,
     CashProjectionRelationModel,
+    CashProjectionMemberModel,
+    CashProjectionModel,
     CashProjectionStateModel,
     CashTransactionModel,
     TransactionRelationModel,
@@ -171,8 +173,9 @@ class CashLedgerCommandService:
     """Application service for current facts and current relation state.
 
     This service deliberately writes facts and then refreshes the existing
-    projection read model in the same transaction. It never accepts a
-    projection id as a write target.
+    projection read model in the same transaction. Batch deletion may accept
+    projection IDs only as a versioned selection boundary, then resolves them
+    to their source facts before writing.
     """
 
     def __init__(self, sessions, workspace_id: str, *, parser=None, relation_service=None):
@@ -642,6 +645,214 @@ class CashLedgerCommandService:
                 if endpoint not in (None, "") and str(endpoint) != str(fact_id)
             }),
         }
+
+    @staticmethod
+    def _normalize_projection_ids(projection_ids) -> list[str]:
+        if not isinstance(projection_ids, (list, tuple, set)):
+            raise ValueError("projection.delete_required")
+        normalized: list[str] = []
+        for projection_id in projection_ids:
+            if not isinstance(projection_id, str) or not projection_id or len(projection_id) > 96:
+                raise ValueError("projection.version_conflict")
+            if projection_id not in normalized:
+                normalized.append(projection_id)
+        if not normalized:
+            raise ValueError("projection.delete_required")
+        return normalized
+
+    def _load_projection_delete_targets(
+        self,
+        session,
+        projection_ids,
+        projection_version,
+        *,
+        lock: bool = False,
+    ) -> dict:
+        """Resolve a visible projection selection to its complete source facts.
+
+        The selection is intentionally validated against one active dataset and
+        one projection version.  Callers use this helper both for the read-only
+        impact preview and the locked commit, keeping the two contracts aligned.
+        """
+        ids = self._normalize_projection_ids(projection_ids)
+        if isinstance(projection_version, bool) or not isinstance(projection_version, int):
+            raise ValueError("projection.version_conflict")
+
+        state_statement = sa_select(CashProjectionStateModel).where(
+            CashProjectionStateModel.workspace_id == self._workspace_id,
+        )
+        if lock:
+            state_statement = state_statement.with_for_update()
+        state = session.scalar(state_statement)
+        if state is None or state.availability != "ready" or not state.active_dataset_id:
+            raise ValueError("projection.unavailable")
+        if int(state.projection_version) != projection_version:
+            raise ValueError("projection.version_conflict")
+
+        projection_statement = sa_select(CashProjectionModel).where(
+            CashProjectionModel.workspace_id == self._workspace_id,
+            CashProjectionModel.dataset_id == state.active_dataset_id,
+            CashProjectionModel.projection_id.in_(ids),
+            CashProjectionModel.visible.is_(True),
+        )
+        if lock:
+            projection_statement = projection_statement.with_for_update()
+        projection_rows = session.scalars(projection_statement).all()
+        by_projection_id = {row.projection_id: row for row in projection_rows}
+        if len(projection_rows) != len(ids) or set(by_projection_id) != set(ids):
+            raise ValueError("projection.version_conflict")
+
+        projection_row_ids = [int(row.id) for row in projection_rows]
+        member_rows = session.scalars(
+            sa_select(CashProjectionMemberModel)
+            .where(
+                CashProjectionMemberModel.workspace_id == self._workspace_id,
+                CashProjectionMemberModel.dataset_id == state.active_dataset_id,
+                CashProjectionMemberModel.projection_row_id.in_(projection_row_ids),
+            )
+            .order_by(CashProjectionMemberModel.projection_row_id, CashProjectionMemberModel.ordinal)
+        ).all()
+        expected_member_count = sum(int(row.member_count) for row in projection_rows)
+        member_ids = [int(row.cash_transaction_id) for row in member_rows]
+        if (
+            len(member_rows) != expected_member_count
+            or not member_ids
+            or len(member_ids) != len(set(member_ids))
+        ):
+            raise ValueError("projection.version_conflict")
+
+        model_rows = session.execute(
+            sa_select(CashTransactionModel, AccountModel)
+            .join(AccountModel, (
+                AccountModel.workspace_id == CashTransactionModel.workspace_id
+            ) & (AccountModel.id == CashTransactionModel.account_id))
+            .where(
+                CashTransactionModel.workspace_id == self._workspace_id,
+                CashTransactionModel.id.in_(member_ids),
+                CashTransactionModel.deleted_at.is_(None),
+            )
+        ).all()
+        models_by_id = {int(model.id): (model, account) for model, account in model_rows}
+        if len(models_by_id) != len(member_ids):
+            raise ValueError("projection.version_conflict")
+
+        relation_rows = session.scalars(
+            sa_select(TransactionRelationModel).where(
+                TransactionRelationModel.workspace_id == self._workspace_id,
+                (
+                    TransactionRelationModel.primary_fact_id.in_(member_ids)
+                    | TransactionRelationModel.secondary_fact_id.in_(member_ids)
+                ),
+            )
+        ).all()
+        member_projection_ids = {
+            int(row.cash_transaction_id): int(row.projection_row_id)
+            for row in member_rows
+        }
+        relation_group_projection_ids = {
+            member_projection_ids[int(endpoint)]
+            for row in relation_rows
+            if row.status in {
+                RelationStatus.ACCEPTED.value,
+                RelationStatus.PENDING_REVIEW.value,
+            }
+            for endpoint in (row.primary_fact_id, row.secondary_fact_id)
+            if endpoint is not None and int(endpoint) in member_projection_ids
+        }
+        previous_rows = [
+            self._uow_cashflow_row(model, account)
+            for fact_id in member_ids
+            for model, account in (models_by_id[fact_id],)
+        ]
+        return {
+            "ids": ids,
+            "state": state,
+            "projection_rows": projection_rows,
+            "member_rows": member_rows,
+            "member_ids": member_ids,
+            "models_by_id": models_by_id,
+            "previous_rows": previous_rows,
+            "relation_rows": relation_rows,
+            "projection_count": len(projection_rows),
+            "transaction_count": len(member_ids),
+            "relation_group_count": len(relation_group_projection_ids),
+        }
+
+    @staticmethod
+    def _uow_cashflow_row(model, account) -> dict:
+        """Keep the balance snapshot input independent of a repository UoW."""
+        return RelationalCashflowRepository._to_row(model, account)
+
+    def preview_delete_projections(self, projection_ids, *, projection_version: int) -> dict:
+        """Return the impact of deleting a visible, explicitly selected set."""
+        with self._sessions() as session:
+            targets = self._load_projection_delete_targets(
+                session, projection_ids, projection_version,
+            )
+            return {
+                "projection_count": targets["projection_count"],
+                "transaction_count": targets["transaction_count"],
+                "relation_group_count": targets["relation_group_count"],
+            }
+
+    def delete_projections(
+        self,
+        projection_ids,
+        *,
+        projection_version: int,
+        actor: str = "web",
+    ) -> dict:
+        """Delete selected projections and all of their source facts atomically."""
+        with self._uow as uow:
+            session = uow._state().session
+            targets = self._load_projection_delete_targets(
+                session, projection_ids, projection_version, lock=True,
+            )
+            member_ids = set(targets["member_ids"])
+            relation_rows = uow.relations.list_for_facts(
+                list(member_ids), active_only=False,
+            )
+            relation_ids = sorted({int(row["id"]) for row in relation_rows})
+            if relation_ids:
+                # Derived links must be removed before their source relation
+                # rows; projection rows themselves are removed below.
+                session.execute(sa_delete(CashProjectionRelationModel).where(
+                    CashProjectionRelationModel.workspace_id == self._workspace_id,
+                    CashProjectionRelationModel.transaction_relation_id.in_(relation_ids),
+                ))
+
+            projection_status = CashProjectionService.remove_if_ready_in_session(
+                session, uow.workspace_id, member_ids,
+            )
+            if projection_status is None:
+                raise ValueError("projection.unavailable")
+            if relation_ids:
+                session.execute(sa_delete(TransactionRelationModel).where(
+                    TransactionRelationModel.workspace_id == self._workspace_id,
+                    TransactionRelationModel.id.in_(relation_ids),
+                ))
+            session.execute(sa_delete(CashInvestmentFundingRelationModel).where(
+                CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
+                CashInvestmentFundingRelationModel.cash_transaction_id.in_(member_ids),
+            ))
+            self._snapshot_deltas(uow, [(row, None) for row in targets["previous_rows"]])
+            session.execute(
+                sa_delete(CashTransactionModel)
+                .where(
+                    CashTransactionModel.workspace_id == self._workspace_id,
+                    CashTransactionModel.id.in_(member_ids),
+                )
+                .execution_options(synchronize_session=False)
+            )
+            uow.commit()
+            return {
+                "deleted": True,
+                "projection_count": targets["projection_count"],
+                "transaction_count": targets["transaction_count"],
+                "relation_group_count": targets["relation_group_count"],
+                "deleted_fact_ids": [str(fact_id) for fact_id in sorted(member_ids)],
+                "projection_version": int(projection_status["projection_version"]),
+            }
 
     @staticmethod
     def _record_wire(record: dict | None) -> dict | None:
@@ -1323,10 +1534,11 @@ class CashLedgerCommandService:
         items_by_id: dict[str, dict],
         channel: str,
         accounts_by_name: dict[str, AccountModel],
-    ) -> tuple[list[dict], str]:
+        cache_relation_plan: bool = False,
+    ) -> tuple[list[dict], str, dict | None]:
         """Serialize the shared read-only relation plan for the browser."""
         if self._relation_service is None:
-            return [], ""
+            return [], "", None
 
         existing_rows = uow.cashflows.list_detailed(include_deleted=False)
         existing_by_identity = {
@@ -1352,7 +1564,7 @@ class CashLedgerCommandService:
             preview_rows.append(synthetic)
             preview_ids.append(synthetic["id"])
         if not preview_rows:
-            return [], ""
+            return [], "", None
         plan = self._relation_service.plan_in_uow(
             uow,
             preview_rows=preview_rows,
@@ -1377,7 +1589,7 @@ class CashLedgerCommandService:
             return record
 
         result = []
-        from ft.application.relations import relation_proposal_key
+        from ft.application.relations import relation_proposal_key, serialize_import_relation_plan
         for proposal in plan.proposals:
             primary = wire_fact(proposal.primary_fact_id)
             secondary = wire_fact(proposal.secondary_fact_id)
@@ -1394,7 +1606,11 @@ class CashLedgerCommandService:
                 "reason": ", ".join(proposal.evidence.signals) or "标准化字段匹配",
                 "primary": primary, "secondary": secondary, "candidates": candidates,
             })
-        return result, plan.context_digest
+        return (
+            result,
+            plan.context_digest,
+            serialize_import_relation_plan(plan) if cache_relation_plan else None,
+        )
 
     def _apply_mapping_to_source_rows(self, uow, rows: list[dict], channel: str, mapping: list[dict]):
         groups, issues = scan_source_rows_with_issues(rows)
@@ -1413,6 +1629,8 @@ class CashLedgerCommandService:
             raise ValueError("import_mapping_incomplete")
 
         resolved = {}
+        drafts_by_id: dict[str, dict] = {}
+        draft_names: dict[str, str] = {}
         for group in groups:
             decision = decisions[group.group_id]
             current = historical_mapping_for_group(uow, group)
@@ -1445,18 +1663,52 @@ class CashLedgerCommandService:
             draft = decision.get("new_account")
             if not isinstance(draft, dict):
                 raise ValueError("import_mapping_incomplete")
+            draft_id = str(draft.get("draft_id") or group.group_id).strip()
             name = str(draft.get("name") or "").strip()
             account_type = str(draft.get("type") or "").strip()
             currencies = tuple(sorted({str(value).upper() for value in (draft.get("currencies") or ()) if value}))
-            if not name or account_type not in {"cash", "loan", "lend"} or currencies != tuple(group.currencies):
+            if (
+                not draft_id or len(draft_id) > 128 or not name
+                or account_type not in {"cash", "loan", "lend"}
+                or not set(group.currencies).issubset(currencies)
+            ):
                 raise ValueError("import_account_draft_invalid")
-            if uow.accounts.find(name) is not None:
-                raise ValueError("import_account_name_conflict")
+            existing_draft = drafts_by_id.get(draft_id)
+            if existing_draft is not None:
+                if existing_draft["name"] != name or existing_draft["type"] != account_type:
+                    raise ValueError("import_account_draft_invalid")
+                merged_currencies = sorted(set(existing_draft["currencies"]) | set(currencies) | set(group.currencies))
+                existing_draft["currencies"] = merged_currencies
+                existing_draft["account"]["currencies"] = merged_currencies
+                existing_draft["new_account"]["currencies"] = merged_currencies
+            else:
+                prior_draft_id = draft_names.get(name)
+                if prior_draft_id is not None and prior_draft_id != draft_id:
+                    raise ValueError("import_account_name_conflict")
+                if uow.accounts.find(name) is not None:
+                    raise ValueError("import_account_name_conflict")
+                draft_names[name] = draft_id
+                drafts_by_id[draft_id] = {
+                    "draft_id": draft_id,
+                    "name": name,
+                    "type": account_type,
+                    "currencies": list(currencies),
+                    "account": {
+                        "id": None, "name": name, "type": account_type,
+                        "active": True, "currencies": list(currencies),
+                    },
+                    "new_account": {
+                        "draft_id": draft_id, "name": name, "type": account_type,
+                        "currencies": list(currencies),
+                    },
+                }
+            draft_entry = drafts_by_id[draft_id]
             resolved[group.group_id] = {
                 "account_id": None,
-                "account": {"id": None, "name": name, "type": account_type, "active": True, "currencies": list(currencies)},
+                "account": draft_entry["account"],
                 "missing_currencies": (),
-                "new_account": {"name": name, "type": account_type, "currencies": list(currencies)},
+                "new_account": draft_entry["new_account"],
+                "draft_id": draft_id,
                 "mapping_source_account_key": (
                     current["source_account_key"]
                     if current is not None
@@ -1522,6 +1774,7 @@ class CashLedgerCommandService:
         filename: str,
         password: str | None,
         mapping: list[dict],
+        cache_relation_plan: bool = False,
     ) -> dict:
         rows, channel, _candidate = self._resolve_source_rows(
             content, source=source, currency=currency, filename=filename, password=password,
@@ -1597,15 +1850,16 @@ class CashLedgerCommandService:
                 }
                 for group in groups
             ]
-            relations, relation_digest = self._preview_relation_suggestions(
+            relations, relation_digest, relation_plan = self._preview_relation_suggestions(
                 uow,
                 prepared=prepared,
                 items_by_id={item["record_id"]: item for item in items},
                 channel=channel,
                 accounts_by_name=accounts_by_name,
+                cache_relation_plan=cache_relation_plan,
             )
             uow.rollback()
-            return {
+            result = {
                 "channel": channel,
                 "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
                 "file": {"name": filename or "statement", "digest": digest},
@@ -1616,12 +1870,25 @@ class CashLedgerCommandService:
                 "mapping": mapping_wire,
                 "relations": relations,
             }
+            if relation_plan is not None:
+                result["_relation_plan"] = relation_plan
+            return result
 
-    def preview_import(self, content: bytes, *, source: str, currency: str | None, filename: str, password: str | None = None, mapping: list[dict] | None = None) -> dict:
+    def preview_import(
+        self,
+        content: bytes,
+        *,
+        source: str,
+        currency: str | None,
+        filename: str,
+        password: str | None = None,
+        mapping: list[dict] | None = None,
+        cache_relation_plan: bool = False,
+    ) -> dict:
         if mapping is not None:
             return self._preview_mapped_import(
                 content, source=source, currency=currency, filename=filename,
-                password=password, mapping=mapping,
+                password=password, mapping=mapping, cache_relation_plan=cache_relation_plan,
             )
         rows, channel, _candidate = self._resolve_import_rows(
             content, source=source, currency=currency, filename=filename, password=password,
@@ -1678,14 +1945,15 @@ class CashLedgerCommandService:
                 "existing": sum(item["status"] == "existing" for item in items),
                 "unsupported": sum(item["status"] == "unsupported" for item in items),
             }
-            relations, relation_digest = self._preview_relation_suggestions(
+            relations, relation_digest, relation_plan = self._preview_relation_suggestions(
                 uow,
                 prepared=prepared,
                 items_by_id={item["record_id"]: item for item in items},
                 channel=channel,
                 accounts_by_name=account_names,
+                cache_relation_plan=cache_relation_plan,
             )
-            return {
+            result = {
                 "channel": channel,
                 "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
                 "file": {"name": filename or "statement", "digest": digest},
@@ -1695,6 +1963,9 @@ class CashLedgerCommandService:
                 "summary": counts,
                 "relations": relations,
             }
+            if relation_plan is not None:
+                result["_relation_plan"] = relation_plan
+            return result
 
     def _commit_mapped_import(
         self,
@@ -1709,6 +1980,7 @@ class CashLedgerCommandService:
         preview_channel: str | None,
         relation_decisions: list[dict] | None,
         mapping: list[dict],
+        cached_relation_plan: dict | None = None,
         idempotency_key: str | None = None,
         idempotency_scope: str | None = None,
         idempotency_user_id: str | None = None,
@@ -1747,31 +2019,46 @@ class CashLedgerCommandService:
                         raise ValueError("import_idempotency_conflict")
                     uow.rollback()
                     return dict(existing.result_json)
+            if cached_relation_plan is not None:
+                if self._relation_service is None or not preview_relation_digest:
+                    raise ValueError("import_relation_reconfirmation_required")
+                self._relation_service.validate_cached_import_plan_context_in_uow(
+                    uow,
+                    cached_relation_plan,
+                    expected_plan_digest=preview_relation_digest,
+                )
             mapped_rows, groups, resolved, _record_ids, _existing_targets, unresolved_items = self._apply_mapping_to_source_rows(
                 uow, rows, channel, mapping,
             )
             snapshot = uow.snapshot.load(lock=True)
+            created_drafts: dict[str, dict] = {}
             for group in groups:
                 target = resolved[group.group_id]
                 account = target["account"]
                 if target["new_account"] is not None:
-                    model = AccountModel(
-                        workspace_id=self._workspace_id,
-                        name=account["name"],
-                        type=account["type"],
-                        active=True,
-                        currencies=list(account["currencies"]),
-                        metadata_json={},
-                    )
-                    session.add(model)
-                    session.flush()
+                    draft_id = target["new_account"]["draft_id"]
+                    created = created_drafts.get(draft_id)
+                    if created is None:
+                        model = AccountModel(
+                            workspace_id=self._workspace_id,
+                            name=account["name"],
+                            type=account["type"],
+                            active=True,
+                            currencies=list(account["currencies"]),
+                            metadata_json={},
+                        )
+                        session.add(model)
+                        session.flush()
+                        created = {"model": model, "account": account}
+                        created_drafts[draft_id] = created
+                        uow.wealth_facts.record_lifecycle(
+                            account_name=model.name,
+                            event_kind="opened",
+                            effective_at=datetime.now(timezone.utc),
+                        )
+                    model = created["model"]
                     target["account_id"] = model.id
                     account["id"] = model.id
-                    uow.wealth_facts.record_lifecycle(
-                        account_name=model.name,
-                        event_kind="opened",
-                        effective_at=datetime.now(timezone.utc),
-                    )
                 else:
                     model = session.get(AccountModel, int(account["id"]))
                     if model is None or not model.active:
@@ -1810,6 +2097,7 @@ class CashLedgerCommandService:
                     ),
                     relation_decisions=relation_decisions,
                     relation_plan_digest=preview_relation_digest,
+                    cached_relation_plan=cached_relation_plan,
                 )
             if not result.ok:
                 raise ValueError(result.message or "导入失败")
@@ -1865,6 +2153,7 @@ class CashLedgerCommandService:
         preview_channel: str | None = None,
         relation_decisions: list[dict] | None = None,
         mapping: list[dict] | None = None,
+        cached_relation_plan: dict | None = None,
         idempotency_key: str | None = None,
         idempotency_scope: str | None = None,
         idempotency_user_id: str | None = None,
@@ -1875,7 +2164,7 @@ class CashLedgerCommandService:
                 password=password, preview_digest=preview_digest,
                 preview_relation_digest=preview_relation_digest,
                 preview_channel=preview_channel, relation_decisions=relation_decisions,
-                mapping=mapping,
+                mapping=mapping, cached_relation_plan=cached_relation_plan,
                 idempotency_key=idempotency_key,
                 idempotency_scope=idempotency_scope,
                 idempotency_user_id=idempotency_user_id,
