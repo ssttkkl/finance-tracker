@@ -82,6 +82,17 @@ export type CashPage = {
   monthly_summaries?: CashMonthlySummary[];
 };
 
+export type CashProjectionDeleteImpact = {
+  projection_count: number;
+  transaction_count: number;
+  relation_group_count: number;
+};
+
+export type CashProjectionDeleteResult = CashProjectionDeleteImpact & {
+  deleted: boolean;
+  projection_version: number;
+};
+
 export type EvidenceRecord = {
   id: string;
   occurred_at: string;
@@ -227,14 +238,14 @@ export type ImportMappingResult = {
   group_id: string;
   account_id: number | null;
   missing_currencies: string[];
-  new_account: { name: string; type: string; currencies: string[] } | null;
+  new_account: { draft_id?: string; name: string; type: string; currencies: string[] } | null;
 };
 
 export type ImportMappingDecision = {
   group_id: string;
   account_id?: number | null;
   mapping_revision?: number | null;
-  new_account?: { name: string; type: string; currencies: string[] } | null;
+  new_account?: { draft_id?: string; name: string; type: string; currencies: string[] } | null;
 };
 
 export type ImportSourceGroup = {

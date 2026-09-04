@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ft.domain.relations.core.keys import top_k_candidate_ids
+from ft.domain.relations.core.keys import stable_fact_order_key, top_k_candidate_ids
 
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -73,6 +73,7 @@ def evaluate_refund_offset(
     candidates: Sequence[FactView],
     *,
     remaining_by_expense: Mapping[str, Decimal] | None = None,
+    candidate_event_ids: Mapping[str, str] | None = None,
 ) -> RelationProposal | None:
     """Refund pairing: auto strict, bounded pending, merchant-consumption only.
 
@@ -226,6 +227,38 @@ def evaluate_refund_offset(
         )
         matches.append((expense if is_refund_seed else refund, evidence, status, conf, title_exact, priority))
 
+    # Accepted payment mirrors are multiple source rows for one economic
+    # event.  Rank evidence across every member first, then retain one stable
+    # representative per event.  This preserves a bank merchant/order signal
+    # when the platform-side row is generic without counting the same expense
+    # twice or creating a false nearest-time tie.
+    if candidate_event_ids and matches:
+        by_event: dict[str, list[tuple[FactView, RelationEvidence, str, str, bool, int]]] = defaultdict(list)
+        for match in matches:
+            by_event[str(candidate_event_ids.get(match[0].id, match[0].id))].append(match)
+        collapsed_matches = []
+        for event_id in sorted(by_event):
+            event_matches = by_event[event_id]
+            best_priority = max(match[5] for match in event_matches)
+            best = [match for match in event_matches if match[5] == best_priority]
+            best.sort(
+                key=lambda match: (
+                    0 if match[2] == RelationStatus.ACCEPTED.value else 1,
+                    match[1].time_delta_seconds,
+                    stable_fact_order_key(match[0]),
+                )
+            )
+            selected = best[0]
+            representative_id = str(event_id)
+            representative = next(
+                (match[0] for match in event_matches if match[0].id == representative_id),
+                selected[0],
+            )
+            if representative.id != selected[0].id:
+                selected = (representative, *selected[1:])
+            collapsed_matches.append(selected)
+        matches = collapsed_matches
+
     if not matches:
         # Zero *legal* matches: only unpaired relation when there were no candidates at all
         # (true orphan). If candidates existed but all filtered (P2P exclusion, window,
@@ -288,6 +321,7 @@ def evaluate_refund_offset(
             anchor_fact_id=seed.id,
             open_leg=False,
         )
+    matches_by_id = {str(match[0].id): match[0] for match in matches}
     strong = [m for m in matches if m[2] == RelationStatus.ACCEPTED.value]
     if is_refund_seed and strong:
         highest_priority = max(m[5] for m in strong)
@@ -301,7 +335,10 @@ def evaluate_refund_offset(
                 **{
                     **evidence.__dict__,
                     "candidate_count": len(matches),
-                    "candidate_fact_ids": top_k_candidate_ids([m[0].id for m in matches]),
+                    "candidate_fact_ids": top_k_candidate_ids(
+                        [m[0].id for m in matches],
+                        key=lambda item_id: stable_fact_order_key(matches_by_id[str(item_id)]),
+                    ),
                     "signals": tuple(dict.fromkeys(signals)),
                 }
             )
@@ -332,7 +369,10 @@ def evaluate_refund_offset(
                 **{
                     **evidence.__dict__,
                     "candidate_count": len(matches),
-                    "candidate_fact_ids": top_k_candidate_ids([m[0].id for m in matches]),
+                    "candidate_fact_ids": top_k_candidate_ids(
+                        [m[0].id for m in matches],
+                        key=lambda item_id: stable_fact_order_key(matches_by_id[str(item_id)]),
+                    ),
                     "signals": tuple(dict.fromkeys(list(evidence.signals) + [nearest_signal])),
                 }
             )
@@ -374,10 +414,13 @@ def evaluate_refund_offset(
             0 if m[2] == RelationStatus.ACCEPTED.value else 1,
             -m[5],
             m[1].time_delta_seconds,
-            m[0].id,
+            stable_fact_order_key(m[0]),
         )
     )
-    cand_ids = top_k_candidate_ids([m[0].id for m in matches])
+    cand_ids = top_k_candidate_ids(
+        [m[0].id for m in matches],
+        key=lambda item_id: stable_fact_order_key(matches_by_id[str(item_id)]),
+    )
     base_ev = matches[0][1]
     evidence = RelationEvidence(
         amount_delta=base_ev.amount_delta,

@@ -113,7 +113,10 @@ def match_diamond_bank_refunds(
             rule_id=RULE_REFUND_DIAMOND_V1,
             candidate_count=1,
             signals=("diamond", "platform_chain", "exact_or_residual"),
-            extras={"via": "platform_refund_mirror"},
+            extras={
+                "via": "platform_refund_mirror",
+                "refund_amount": format(abs(bank_ref.signed_amount), "f"),
+            },
         )
         out.append(RelationProposal(
             kind=RelationKind.REFUND_OFFSET.value,
@@ -129,5 +132,4 @@ def match_diamond_bank_refunds(
         used.add(bank_pay_id)
         used.add(bank_ref.id)
     return out
-
 

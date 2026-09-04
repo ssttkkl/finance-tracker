@@ -16,6 +16,7 @@ type Props = {
   projectionVersion?: number | null;
   editOptions?: LedgerOptions;
   editRelationOpen?: boolean;
+  editDeleteOpen?: boolean;
   editLoading?: boolean;
   editLoadError?: boolean;
   onClose: () => void;
@@ -134,7 +135,7 @@ function RelatedMember({ member, evidence, relation, onEditRecord, onCancelRelat
   </li>;
 }
 
-export function EvidenceDetail({ evidence, loading, error, editing = false, editMode = "edit", editDetail, editAccounts = [], categories = [], projectionVersion = null, editOptions = { record_types: [], relation_types: [] }, editRelationOpen = false, editLoading = false, editLoadError = false, onClose, onRetry, onEditRetry, onEditRecord, onAddRelation, onCancelRelation, onRecordSaved, onRecordDeleted }: Props) {
+export function EvidenceDetail({ evidence, loading, error, editing = false, editMode = "edit", editDetail, editAccounts = [], categories = [], projectionVersion = null, editOptions = { record_types: [], relation_types: [] }, editRelationOpen = false, editDeleteOpen = false, editLoading = false, editLoadError = false, onClose, onRetry, onEditRetry, onEditRecord, onAddRelation, onCancelRelation, onRecordSaved, onRecordDeleted }: Props) {
   const closeButton = useRef<HTMLButtonElement>(null);
   const dialog = useRef<HTMLElement>(null);
   const closeTimer = useRef<number | null>(null);
@@ -169,7 +170,7 @@ export function EvidenceDetail({ evidence, loading, error, editing = false, edit
   return <div className={`evidence-layer${closing ? " is-closing" : ""}`}>
     <button type="button" className="evidence-backdrop" aria-label="点击遮罩关闭收支详情" tabIndex={-1} onPointerDown={(event) => event.preventDefault()} onClick={requestClose} />
     <aside ref={dialog} className="evidence evidence-panel" data-focus-trap="active" data-state={closing ? "closing" : "open"} role="dialog" aria-modal="true" aria-label={editing ? (editMode === "new" ? "新建流水" : "编辑收支详情") : "收支详情"}>
-      {editing ? <RecordDrawer embedded mode={editMode} detail={editDetail} accounts={editAccounts} options={editOptions} categories={categories} projectionVersion={projectionVersion} initialRelationOpen={editRelationOpen} loading={editLoading} loadError={editLoadError} onRetry={onEditRetry} onClose={onClose} onSaved={onRecordSaved ?? (() => undefined)} onDeleted={onRecordDeleted ?? (() => undefined)} /> : <>
+      {editing ? <RecordDrawer embedded mode={editMode} detail={editDetail} accounts={editAccounts} options={editOptions} categories={categories} projectionVersion={projectionVersion} initialRelationOpen={editRelationOpen} initialDeleteOpen={editDeleteOpen} loading={editLoading} loadError={editLoadError} onRetry={onEditRetry} onClose={onClose} onSaved={onRecordSaved ?? (() => undefined)} onDeleted={onRecordDeleted ?? (() => undefined)} /> : <>
         <header><div><p className="evidence-eyebrow">收支账本</p><h2>收支详情</h2></div><div className="drawer-header-actions">{root ? <button type="button" className="icon-only-button" aria-label="编辑" title="编辑" onClick={() => onEditRecord?.(root.id)}><UiIcon name="pencil" /></button> : null}<button ref={closeButton} type="button" className="icon-only-button" aria-label="关闭收支详情" title="关闭" onClick={requestClose}><UiIcon name="x" /></button></div></header>
         {loading ? <p className="evidence-state" role="status">正在读取收支详情…</p> : null}
         {error ? <div className="evidence-state evidence-state-error" role="alert"><p>无法读取收支详情。</p><button type="button" onClick={onRetry}>重试</button></div> : null}

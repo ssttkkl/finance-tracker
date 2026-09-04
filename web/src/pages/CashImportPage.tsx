@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { commitCashImport, previewCashImport, scanCashImport } from "../api/cashLedger";
 import { detectPdfPasswordRequirement } from "../import/pdfPassword";
 import type {
@@ -11,9 +11,12 @@ import type {
   ImportScan,
   ImportSourceGroup,
 } from "../api/types";
+import { formatOccurredAt, isZeroAmount } from "../format";
+import { buildTransactionMonthlySummaries, TransactionTable, type TransactionTableItem } from "../components/TransactionTable";
 
 type Stage = "select" | "mapping" | "preview" | "relations" | "success";
 type RelationFilter = "all" | "automatic" | "pending";
+type ImportPreviewFilter = "all" | "new" | "existing" | "unresolved";
 type RelationState = "automatic" | "pending" | "accepted" | "rejected";
 
 type RelationDraft = {
@@ -29,25 +32,10 @@ type RelationDraft = {
 
 type MappingDraft = {
   accountId: number | null;
-  newAccount: { name: string; type: string; currencies: string[] } | null;
+  newAccount: { draftId: string; name: string; type: string; currencies: string[] } | null;
 };
 
 const PAGE_SIZES = [20, 50, 100];
-
-const columnLabels: Record<string, string> = {
-  occurred_at: "发生时间",
-  amount: "金额",
-  currency: "币种",
-  account_name: "账户",
-  counterparty: "交易对方",
-  counterparty_account: "对方账号",
-  record_type: "流水类型",
-  record_subtype: "业务细分",
-  category: "分类",
-  note: "备注",
-  channel: "渠道",
-  status: "状态",
-};
 
 const recordTypeLabels: Record<string, string> = {
   consumption: "消费",
@@ -76,12 +64,6 @@ const relationStateLabels: Record<RelationState, string> = {
   rejected: "已拒绝",
 };
 
-function displayValue(item: ImportPreviewItem, column: string): string {
-  const value = item[column as keyof ImportPreviewItem];
-  if (column === "record_type") return recordTypeLabels[String(value)] ?? String(value || "—");
-  return value === undefined || value === "" ? "—" : String(value);
-}
-
 function unresolvedCount(preview: ImportPreview): number {
   return preview.summary.unresolved ?? 0;
 }
@@ -91,7 +73,46 @@ function ordinaryUnsupportedCount(preview: ImportPreview): number {
 }
 
 function recordDate(value: string): string {
-  return value.replace("T", " ").slice(0, 16);
+  return formatOccurredAt(value);
+}
+
+const importStatusLabels = {
+  new: "待新增",
+  existing: "已存在",
+  unsupported: "暂不支持",
+  unresolved: "无法识别",
+} as const;
+
+function importDirection(item: ImportPreviewItem): TransactionTableItem<ImportPreviewItem>["direction"] {
+  if (isZeroAmount(item.amount)) return "unknown";
+  if (item.amount.startsWith("-")) return "expense";
+  if (item.amount.startsWith("+") || item.amount !== "0") return "income";
+  if (["transfer_out", "withdrawal_out"].includes(item.record_type)) return "expense";
+  if (["transfer_in", "withdrawal_in"].includes(item.record_type)) return "income";
+  return "unknown";
+}
+
+function importAmountLabel(item: ImportPreviewItem): string {
+  const amount = isZeroAmount(item.amount) ? item.amount.replace(/^[+-]/, "") : item.amount.startsWith("-") || item.amount.startsWith("+") ? item.amount : `+${item.amount}`;
+  return `${amount} ${item.currency}`;
+}
+
+function importTableItem(item: ImportPreviewItem): TransactionTableItem<ImportPreviewItem> {
+  return {
+    id: item.record_id,
+    source: item,
+    occurredAt: item.occurred_at,
+    accountLabel: item.account_name,
+    counterparty: item.counterparty,
+    note: item.note,
+    flowLabel: recordTypeLabels[item.record_type] ?? "其他",
+    direction: importDirection(item),
+    amountLabel: importAmountLabel(item),
+    statusLabel: importStatusLabels[item.status],
+    statusTone: item.status,
+    summaryAmount: item.amount,
+    summaryCurrency: item.currency,
+  };
 }
 
 function relationRecordLabel(record: ImportRelationRecord): string {
@@ -192,6 +213,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const [mappingDrafts, setMappingDrafts] = useState<Record<string, MappingDraft>>({});
   const [editingGroup, setEditingGroup] = useState<ImportSourceGroup | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [previewFilter, setPreviewFilter] = useState<ImportPreviewFilter>("all");
   const [relationDrafts, setRelationDrafts] = useState<Record<string, RelationDraft>>({});
   const [relationFilter, setRelationFilter] = useState<RelationFilter>("all");
   const [pageSize, setPageSize] = useState(20);
@@ -203,6 +225,14 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const [passwordRequired, setPasswordRequired] = useState(false);
   const [importToken, setImportToken] = useState<string | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
+  const [focusRelations, setFocusRelations] = useState(false);
+  const relationHeadingRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    if (stage !== "relations" || !focusRelations) return;
+    relationHeadingRef.current?.focus();
+    setFocusRelations(false);
+  }, [focusRelations, stage]);
 
   const returnToPasswordEntry = (cause: unknown): boolean => {
     const message = passwordErrorMessage(cause);
@@ -210,6 +240,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setScan(null);
     setMappingDrafts({});
     setPreview(null);
+    setPreviewFilter("all");
     setRelationDrafts({});
     setPassword("");
     setPasswordRequired(true);
@@ -224,6 +255,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setScan(null);
     setMappingDrafts({});
     setPreview(null);
+    setPreviewFilter("all");
     setRelationDrafts({});
     setResult(null);
     setError(undefined);
@@ -314,7 +346,14 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       group_id: group.group_id,
       account_id: draft?.newAccount ? null : draft?.accountId,
       mapping_revision: group.suggestion.mapping_revision,
-      new_account: draft?.newAccount ?? null,
+      new_account: draft?.newAccount
+        ? {
+            draft_id: draft.newAccount.draftId,
+            name: draft.newAccount.name,
+            type: draft.newAccount.type,
+            currencies: draft.newAccount.currencies,
+          }
+        : null,
     };
   });
 
@@ -324,31 +363,57 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   }));
 
   const newAccountDraftFor = (group: ImportSourceGroup): NonNullable<MappingDraft["newAccount"]> => ({
+    draftId: `draft-${group.group_id}`,
     name: group.display_name,
     type: group.display_name.includes("花呗") || group.display_name.includes("信用卡") ? "loan" : "cash",
     currencies: [...group.currencies],
   });
 
   const selectMapping = (group: ImportSourceGroup, value: string) => {
-    const next = value === "__create__"
-      ? { accountId: null, newAccount: newAccountDraftFor(group) }
-      : { accountId: Number(value), newAccount: null };
-    setMappingDrafts((current) => ({ ...current, [group.group_id]: next }));
+    setMappingDrafts((current) => {
+      if (value === "__create__") {
+        return { ...current, [group.group_id]: { accountId: null, newAccount: newAccountDraftFor(group) } };
+      }
+      if (value.startsWith("__draft__")) {
+        const draftId = value.slice("__draft__".length);
+        const selected = Object.values(current).find((item) => item.newAccount?.draftId === draftId)?.newAccount;
+        if (!selected) return current;
+        const merged = {
+          ...selected,
+          currencies: Array.from(new Set([...selected.currencies, ...group.currencies])).sort(),
+        };
+        const next = Object.fromEntries(Object.entries(current).map(([groupId, item]) => (
+          item.newAccount?.draftId === draftId
+            ? [groupId, { accountId: null, newAccount: merged }]
+            : [groupId, item]
+        )));
+        next[group.group_id] = { accountId: null, newAccount: merged };
+        return next;
+      }
+      return { ...current, [group.group_id]: { accountId: Number(value), newAccount: null } };
+    });
     setPreview(null);
+    setPreviewFilter("all");
     setRelationDrafts({});
   };
 
   const updateNewAccountDraft = (group: ImportSourceGroup, update: Partial<NonNullable<MappingDraft["newAccount"]>>) => {
     setMappingDrafts((current) => {
       const existing = current[group.group_id]?.newAccount ?? newAccountDraftFor(group);
-      return { ...current, [group.group_id]: { accountId: null, newAccount: { ...existing, ...update } } };
+      const updated = { ...existing, ...update };
+      return Object.fromEntries(Object.entries(current).map(([groupId, item]) => (
+        item.newAccount?.draftId === existing.draftId
+          ? [groupId, { accountId: null, newAccount: updated }]
+          : [groupId, item]
+      )));
     });
     setPreview(null);
+    setPreviewFilter("all");
     setRelationDrafts({});
   };
 
-  const loadPreview = async () => {
-    if (!file || !scan || !mappingComplete) return;
+  const loadPreview = async (nextStage: "preview" | "relations" = "preview"): Promise<boolean> => {
+    if (!file || !scan || !mappingComplete) return false;
     setBusy(true);
     setError(undefined);
     try {
@@ -356,7 +421,11 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       setPreview(nextPreview);
       setImportToken(nextPreview.import_token ?? importToken);
       setRelationDrafts({});
-      setStage("preview");
+      setRelationFilter("all");
+      setPage(1);
+      setStage(nextStage);
+      if (nextStage === "relations") setFocusRelations(true);
+      return true;
     } catch (cause) {
       if (!returnToPasswordEntry(cause)) {
         if (cause instanceof Error && cause.message === "import_mapping_stale") {
@@ -368,6 +437,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
           setError(mappingErrorMessage(cause) ?? "账单预览失败，请重试。");
         }
       }
+      return false;
     } finally {
       setBusy(false);
     }
@@ -448,13 +518,19 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
           setStage("mapping");
           setError(mappingError);
         } else {
+          const requiresRelationReconfirmation = cause instanceof Error && [
+            "import_relation_reconfirmation_required",
+            "import_relation_preview_stale",
+            "import_relation_candidate_invalid",
+          ].includes(cause.message);
+          if (requiresRelationReconfirmation) {
+            const refreshed = await loadPreview("relations");
+            if (refreshed) setError("相关流水已变化，请重新确认配对。");
+            return;
+          }
           setError(cause instanceof Error && cause.message === "import_preview_stale"
             ? "文件内容已经变化，请重新选择文件。"
-            : cause instanceof Error && cause.message === "import_relation_preview_stale"
-              ? "配对建议已经变化，请重新预览账单。"
-              : cause instanceof Error && cause.message === "import_relation_candidate_invalid"
-                ? "关联流水已经变化，请重新预览账单。"
-              : cause instanceof Error && cause.message === "relation_impact_required"
+            : cause instanceof Error && cause.message === "relation_impact_required"
               ? "这次导入会影响已关联的流水，请先处理关联。"
               : "确认导入失败，请重试。");
         }
@@ -465,6 +541,16 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   };
 
   const relationItems = preview?.relations ?? [];
+  const importTableItems = useMemo(() => (preview?.items ?? []).map(importTableItem), [preview]);
+  const filteredImportTableItems = useMemo(() => {
+    if (previewFilter === "all") return importTableItems;
+    return importTableItems.filter((item) => item.source?.status === previewFilter);
+  }, [importTableItems, previewFilter]);
+  const importMonthlySummaries = useMemo(() => buildTransactionMonthlySummaries(filteredImportTableItems), [filteredImportTableItems]);
+  const sharedDrafts = Array.from(new Map(
+    Object.values(mappingDrafts)
+      .flatMap((item) => item.newAccount ? [[item.newAccount.draftId, item.newAccount] as const] : []),
+  ).values());
   const filteredRelations = useMemo(() => relationItems.filter((relation) => {
     if (relationFilter === "all") return true;
     const draft = relationDrafts[relation.id] ?? relationDraftFor(relation);
@@ -480,8 +566,31 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const automaticCount = relationItems.filter((relation) => relation.automatic).length;
   const stageIndex = stage === "select" ? 1 : stage === "mapping" ? 2 : stage === "preview" ? 3 : 4;
 
+  const restartAfterCompletedImport = () => {
+    setFile(null);
+    setScan(null);
+    setMappingDrafts({});
+    setEditingGroup(null);
+    setPreview(null);
+    setPreviewFilter("all");
+    setRelationDrafts({});
+    setRelationFilter("all");
+    setPage(1);
+    setResult(null);
+    setError(undefined);
+    setPassword("");
+    setPasswordRequired(false);
+    setImportToken(null);
+    setIdempotencyKey(null);
+    setFocusRelations(false);
+    setStage("select");
+  };
+
   const visitStep = (number: number) => {
-    if (number === 1) setStage("select");
+    if (number === 1) {
+      if (stage === "success") restartAfterCompletedImport();
+      else setStage("select");
+    }
     if (number === 2 && scan) setStage("mapping");
     if (number === 3 && preview) setStage("preview");
     if (number === 4 && preview) setStage("relations");
@@ -535,8 +644,8 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
                 const typeLabels: Record<string, string> = { cash: "现金账户", loan: "贷款账户", lend: "借款账户" };
                 return <article className="mapping-group" key={group.group_id}>
                   <div className="mapping-group-source"><strong>{group.display_name}</strong><small>{group.masked_evidence} · {group.currencies.join(" / ")} · {group.row_count} 条流水</small></div>
-                  <label className="mapping-account-field">系统账户<select aria-label={`${group.display_name}系统账户`} value={draft.newAccount ? "__create__" : draft.accountId ? String(draft.accountId) : ""} onChange={(event) => selectMapping(group, event.target.value)}>
-                    <option value="">请选择账户</option>{scan.accounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}<option value="__create__">创建新账户</option>
+                  <label className="mapping-account-field">系统账户<select aria-label={`${group.display_name}系统账户`} value={draft.newAccount ? `__draft__${draft.newAccount.draftId}` : draft.accountId ? String(draft.accountId) : ""} onChange={(event) => selectMapping(group, event.target.value)}>
+                    <option value="">请选择账户</option>{scan.accounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}{sharedDrafts.map((item) => <option value={`__draft__${item.draftId}`} key={item.draftId}>即将创建「{item.name}」</option>)}<option value="__create__">创建新账户</option>
                   </select>
                   {draft.newAccount ? <span className="row-commitment">将创建「{draft.newAccount.name}」 · {typeLabels[draft.newAccount.type] ?? draft.newAccount.type} · {draft.newAccount.currencies.join(" / ")} <button type="button" className="commitment-action" onClick={() => setEditingGroup(group)}>修改</button></span> : missing.length > 0 ? <span className="row-commitment">将为「{selected?.name}」新增 {missing.join("、")}</span> : null}
                   {!draft.accountId && !draft.newAccount ? <span className="mapping-field-error" role="status">请选择系统账户或创建新账户</span> : null}
@@ -550,21 +659,40 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
           {stage === "preview" && preview ? <section className="import-stage import-preview-stage" aria-labelledby="import-preview-heading">
             <div className="import-stage-heading"><h2 id="import-preview-heading">核对流水</h2><span className="channel-badge">{preview.channel_label}</span></div>
             <div className="stage-actions-top"><button type="button" className="button-secondary" onClick={() => setStage("mapping")}>上一步</button><button type="button" className="button-primary" disabled={busy} onClick={openRelations}>下一步</button></div>
-            <div className="import-summary-cards">{[
-              { label: "全部", value: preview.summary.total, tone: "total" },
-              { label: "待新增", value: preview.summary.new, tone: "new" },
-              { label: "已存在", value: preview.summary.existing, tone: "existing" },
-              { label: "无法识别", value: preview.summary.unresolved ?? 0, tone: "unsupported" },
-            ].map((summary) => <div key={summary.label} className={`import-summary-card ${summary.tone}`}><small>{summary.label}</small><strong>{summary.value}</strong></div>)}</div>
-            <div className="standard-table-wrap" role="region" aria-label="账单流水表格" tabIndex={0}>
-              <table className="standard-import-table"><caption className="sr-only">账单流水</caption><thead><tr>{preview.columns.map((column) => <th key={column} scope="col">{columnLabels[column] ?? column}</th>)}</tr></thead><tbody>{preview.items.map((item) => <tr key={item.record_id}>{preview.columns.map((column) => <td key={column} data-label={columnLabels[column] ?? column}>{column === "status" ? <span className={`import-status ${item.status}`}>{({ new: "待新增", existing: "已存在", unsupported: "暂不支持", unresolved: "无法识别" } as const)[item.status]}</span> : displayValue(item, column)}</td>)}</tr>)}</tbody></table>
+            <div className="import-summary-cards" role="group" aria-label="预览流水筛选">{[
+              { filter: "all" as const, label: "全部", value: preview.summary.total, tone: "total" },
+              { filter: "new" as const, label: "待新增", value: preview.summary.new, tone: "new" },
+              { filter: "existing" as const, label: "已存在", value: preview.summary.existing, tone: "existing" },
+              { filter: "unresolved" as const, label: "无法识别", value: preview.summary.unresolved ?? 0, tone: "unsupported" },
+            ].map((summary) => <button
+              type="button"
+              key={summary.label}
+              className={`import-summary-card ${summary.tone}`}
+              aria-pressed={previewFilter === summary.filter}
+              aria-controls="import-preview-table"
+              onClick={() => setPreviewFilter(summary.filter)}
+            ><small>{summary.label}</small><strong>{summary.value}</strong></button>)}</div>
+            <div id="import-preview-table">
+              {filteredImportTableItems.length === 0
+                ? <div className="import-empty-state" role="status"><strong>{preview.items.length === 0 ? "没有可核对流水" : "没有符合条件的流水"}</strong></div>
+                : <TransactionTable
+                  items={filteredImportTableItems}
+                  variant="import"
+                  groupByMonth
+                  monthlySummaries={importMonthlySummaries}
+                  showStatus
+                  wrapperClassName="standard-table-wrap"
+                  wrapperProps={{ role: "region", "aria-label": "账单流水表格", tabIndex: 0 }}
+                  caption="账单流水"
+                  columnIdPrefix="import"
+                />}
             </div>
             {unresolvedCount(preview) > 0 ? <p className="import-stage-warning" role="status">有 {unresolvedCount(preview)} 条流水无法准确归属，确认后将跳过；其他流水正常导入。</p> : null}
             {ordinaryUnsupportedCount(preview) > 0 ? <p className="import-stage-warning" role="status">有流水暂不支持。</p> : null}
           </section> : null}
 
           {stage === "relations" && preview ? <section className="import-stage" aria-labelledby="import-relations-heading">
-            <div className="import-stage-heading"><h2 id="import-relations-heading">配对</h2></div>
+            <div className="import-stage-heading"><h2 id="import-relations-heading" ref={relationHeadingRef} tabIndex={-1}>配对</h2></div>
             <div className="stage-actions-top"><button type="button" className="button-secondary" onClick={() => setStage("preview")}>上一步</button><button type="button" className="button-primary" disabled={busy || ordinaryUnsupportedCount(preview) > 0} onClick={() => void confirmImport()}>{busy ? "导入中…" : "确认导入"}</button></div>
             {relationItems.length === 0 ? <div className="import-empty-state"><strong>没有配对</strong></div> : <>
               <div className="relation-toolbar"><div className="relation-filters" role="group" aria-label="配对筛选">

@@ -44,6 +44,7 @@ def test_repository_has_clean_linear_revisions():
                 "20260814_31_workspace_delete_performance.py",
                 "20260814_32_statement_account_mappings.py",
                 "20260814_33_cash_import_commits.py",
+                "20260816_34_cash_relation_metadata.py",
             ]
 
 
@@ -147,6 +148,7 @@ def test_metadata_uses_enforceable_fact_relationships_post_015():
     assert {
         "counterparty_account", "counterparty_account_attrs", "record_subtype",
     } <= set(CashTransactionModel.__table__.c.keys())
+    assert "relation_metadata" in CashTransactionModel.__table__.c
     from ft.adapters.relational.models import TransactionRelationModel
     assert {"evidence_json", "confidence", "later_marker"}.isdisjoint(
         TransactionRelationModel.__table__.c.keys()

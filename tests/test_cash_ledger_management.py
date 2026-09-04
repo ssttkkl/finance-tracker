@@ -614,6 +614,175 @@ def test_delete_transfer_related_record_clears_projection_relation_before_fact(c
     assert service.get_record(incoming["id"])["relations"] == []
 
 
+def _projection_page(runtime):
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.web_queries import CashLedgerQueryService
+
+    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+    return CashLedgerQueryService(
+        runtime.sessions, runtime.workspace_id,
+    ).list_cash_projections(limit=50)
+
+
+@pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_batch_delete_reports_impact_and_removes_selected_projections_atomically(request, runtime_name):
+    runtime = request.getfixturevalue(runtime_name)
+    service = _service(runtime)
+    page = _projection_page(runtime)
+    selected = ["cash:1003", "cash:1002"]
+
+    impact = service.preview_delete_projections(
+        selected, projection_version=page.projection_version,
+    )
+
+    assert impact == {
+        "projection_count": 2,
+        "transaction_count": 2,
+        "relation_group_count": 0,
+    }
+
+    deleted = service.delete_projections(
+        selected, projection_version=page.projection_version,
+    )
+
+    assert deleted["projection_count"] == 2
+    assert deleted["transaction_count"] == 2
+    assert deleted["relation_group_count"] == 0
+    assert set(deleted["deleted_fact_ids"]) == {"1002", "1003"}
+    assert deleted["projection_version"] > page.projection_version
+    remaining = _projection_page(runtime)
+    assert [item.projection_id for item in remaining.items] == ["cash:1001"]
+    with pytest.raises(ValueError, match="找不到"):
+        service.get_record("1002")
+
+
+def test_batch_delete_related_projection_deletes_the_whole_relation_group(cash_web_runtime):
+    _enable_cny(cash_web_runtime, "日常账户")
+    service = _service(cash_web_runtime)
+    records = [service.create_record(_payload(
+        amount="-20", counterparty=f"同笔渠道 {index}", source_type="fixture",
+        record_id=f"batch-group-{index}",
+    ))["record"] for index in range(3)]
+    for left, right in zip(records, records[1:]):
+        service.add_relation({
+            "primary_fact_id": left["id"], "secondary_fact_id": right["id"],
+            "kind": "payment_mirror", "status": "accepted",
+    })
+    page = _projection_page(cash_web_runtime)
+    selected = [item.projection_id for item in page.items if item.member_count == 3]
+    assert len(selected) == 1
+
+    impact = service.preview_delete_projections(
+        selected, projection_version=page.projection_version,
+    )
+    assert impact == {
+        "projection_count": 1,
+        "transaction_count": 3,
+        "relation_group_count": 1,
+    }
+
+    deleted = service.delete_projections(
+        selected, projection_version=page.projection_version,
+    )
+    assert deleted["transaction_count"] == 3
+    for record in records:
+        with pytest.raises(ValueError, match="找不到"):
+            service.get_record(record["id"])
+
+
+def test_batch_delete_rejects_stale_projection_version_without_mutating_facts(cash_web_runtime):
+    service = _service(cash_web_runtime)
+    page = _projection_page(cash_web_runtime)
+    selected = [page.items[0].projection_id]
+    from ft.application.cash_projections import CashProjectionService
+
+    CashProjectionService(cash_web_runtime.sessions, cash_web_runtime.workspace_id).rebuild()
+
+    with pytest.raises(ValueError, match="projection.version_conflict"):
+        service.delete_projections(selected, projection_version=page.projection_version)
+
+    fact_id = page.items[0].projection_id.split(":", 1)[1]
+    assert service.get_record(fact_id)["record"]["id"] == int(fact_id)
+
+
+def test_batch_delete_rolls_back_projection_and_fact_removal_on_write_failure(cash_web_runtime, monkeypatch):
+    service = _service(cash_web_runtime)
+    page = _projection_page(cash_web_runtime)
+
+    def fail_snapshot(*_args, **_kwargs):
+        raise RuntimeError("snapshot write failed")
+
+    monkeypatch.setattr(service, "_snapshot_deltas", fail_snapshot)
+    with pytest.raises(RuntimeError, match="snapshot write failed"):
+        service.delete_projections(["cash:1003"], projection_version=page.projection_version)
+
+    assert service.get_record("1003")["record"]["id"] == 1003
+    from ft.application.web_queries import CashLedgerQueryService
+
+    current = CashLedgerQueryService(
+        cash_web_runtime.sessions, cash_web_runtime.workspace_id,
+    ).list_cash_projections(limit=50)
+    assert "cash:1003" in {item.projection_id for item in current.items}
+
+
+def test_batch_delete_rejects_empty_hidden_and_cross_workspace_targets(cash_web_runtime):
+    service = _service(cash_web_runtime)
+    page = _projection_page(cash_web_runtime)
+
+    with pytest.raises(ValueError, match="projection.delete_required"):
+        service.preview_delete_projections([], projection_version=page.projection_version)
+    with pytest.raises(ValueError, match="projection.version_conflict"):
+        service.preview_delete_projections(["cash:not-visible"], projection_version=page.projection_version)
+    with pytest.raises(ValueError, match="projection.version_conflict"):
+        service.preview_delete_projections(["cash:other-workspace"], projection_version=page.projection_version)
+
+
+def test_batch_delete_routes_preview_confirmation_and_version_errors(cash_web_runtime):
+    from fastapi.testclient import TestClient
+    from ft.application.web_queries import CashLedgerQueryService
+    from ft.web.app import create_app
+
+    service = _service(cash_web_runtime)
+    page = _projection_page(cash_web_runtime)
+    client = TestClient(create_app(
+        CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id),
+        mutation_service=service,
+    ))
+
+    impact = client.post("/api/v1/cash-projections/delete-impact", json={
+        "projection_ids": ["cash:1003"],
+        "projection_version": page.projection_version,
+    })
+    assert impact.status_code == 200
+    assert impact.json() == {
+        "projection_count": 1,
+        "transaction_count": 1,
+        "relation_group_count": 0,
+    }
+    missing_confirmation = client.request("DELETE", "/api/v1/cash-projections", json={
+        "projection_ids": ["cash:1003"],
+        "projection_version": page.projection_version,
+    })
+    assert missing_confirmation.status_code == 400
+    assert missing_confirmation.json()["error"]["code"] == "projection.confirmation_required"
+
+    deleted = client.request("DELETE", "/api/v1/cash-projections", json={
+        "projection_ids": ["cash:1003"],
+        "projection_version": page.projection_version,
+        "confirmed": True,
+    })
+    assert deleted.status_code == 200
+    assert deleted.json()["transaction_count"] == 1
+    assert "deleted_fact_ids" not in deleted.json()
+
+    stale = client.post("/api/v1/cash-projections/delete-impact", json={
+        "projection_ids": ["cash:1002"],
+        "projection_version": page.projection_version,
+    })
+    assert stale.status_code == 409
+    assert stale.json()["error"]["code"] == "projection.version_conflict"
+
+
 def test_editing_detail_category_updates_every_related_cash_record(cash_web_runtime):
     from ft.adapters.relational.models import CashProjectionStateModel, CashTransactionModel
     from ft.application.cash_categories import CashCategoryService

@@ -1,10 +1,24 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { CashTable } from "../src/components/CashTable";
+import { TransactionTable, type TransactionTableItem } from "../src/components/TransactionTable";
 
 afterEach(cleanup);
+
+const importTableItem: TransactionTableItem = {
+  id: "import-1",
+  occurredAt: "2026-08-12T09:24:00+08:00",
+  accountLabel: "支付宝余额",
+  counterparty: "咖啡店",
+  note: "拿铁",
+  flowLabel: "消费",
+  direction: "expense",
+  amountLabel: "-12.50 CNY",
+  statusLabel: "待新增",
+  statusTone: "new",
+};
 
 it("发生时间和月份键不固定地区时区", () => {
   const formatSource = readFileSync(resolve(process.cwd(), "src/format.ts"), "utf8");
@@ -12,6 +26,22 @@ it("发生时间和月份键不固定地区时区", () => {
 
   expect(formatSource).not.toContain('timeZone: "Asia/Shanghai"');
   expect(tableSource).not.toContain('timeZone: "Asia/Shanghai"');
+});
+
+it("共享表格组件支持导入预览字段、状态和加载骨架", () => {
+  const { rerender } = render(<TransactionTable items={[importTableItem]} variant="import" groupByMonth />);
+
+  expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "流水类型", "状态", "金额"]);
+  expect(screen.getByText("2026年8月")).toBeInTheDocument();
+  expect(screen.getByText("咖啡店")).toBeInTheDocument();
+  expect(screen.getByText("拿铁")).toBeInTheDocument();
+  expect(screen.getByText("待新增")).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "-12.50 CNY" })).toHaveAttribute("data-direction", "支出");
+  expect(screen.queryByRole("columnheader", { name: "分类" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("columnheader", { name: "操作" })).not.toBeInTheDocument();
+
+  rerender(<TransactionTable items={[]} variant="import" loading />);
+  expect(screen.getAllByTestId("现金流水骨架行")).toHaveLength(3);
 });
 
 const projection = (projection_id: string, kind: string, note = "") => ({
@@ -58,6 +88,17 @@ it("移动端整张卡片承担查看详情操作，桌面保留可访问的查�
   expect(row).toHaveAttribute("tabindex", "0");
   fireEvent.click(row);
   expect(opened).toBe("1");
+});
+
+it("行级操作菜单复用查看、编辑、分类和删除入口", () => {
+  const actions: string[] = [];
+  render(<CashTable items={[projection("menu", "single")]} onEvidence={() => undefined} onAction={(_item, action) => actions.push(action)} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "打开交易对方menu的操作菜单" }));
+  const menu = screen.getByRole("menu", { name: "交易对方menu的操作" });
+  expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["查看详情", "编辑", "修改分类", "删除"]);
+  fireEvent.click(within(menu).getByRole("menuitem", { name: "修改分类" }));
+  expect(actions).toEqual(["category"]);
 });
 
 it("列表不显示单笔或已合并流水的来源", () => {
@@ -131,6 +172,17 @@ it("按浏览器本地时间将 UTC 月末流水归入显示月份", () => {
   render(<CashTable items={[crossMonth]} monthlySummaries={monthlySummaries} onEvidence={(_projection, _source) => undefined} />);
 
   expect(screen.getByRole("row", { name: /2026年7月.*收入 \+100 CNY.*支出 -12\.50 CNY/ })).toHaveAttribute("data-month", "2026-07");
+});
+
+it("月份分组行覆盖金额列，零金额保持中性", () => {
+  const zero = { ...projection("zero", "payment_mirror"), amount: "0.00", economic_type: "expense" as const };
+  render(<CashTable items={[zero]} monthlySummaries={[{ month: "2026-07", currencies: [{ currency: "CNY", income: "0", expense: "0" }] }]} onEvidence={(_projection, _source) => undefined} />);
+
+  const monthRow = screen.getAllByRole("row").find((row) => row.classList.contains("month-divider"));
+  expect(monthRow?.querySelector("th")).toHaveAttribute("colspan", "7");
+  const amount = screen.getByRole("cell", { name: "0.00 CNY" });
+  expect(amount).toHaveAttribute("data-direction", "未提供");
+  expect(amount).not.toHaveClass("inflow", "outflow");
 });
 
 it("同币种内部转账只显示一次金额且不显示负号", () => {

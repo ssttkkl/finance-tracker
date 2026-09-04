@@ -6,6 +6,8 @@ from pathlib import Path
 import re
 import tempfile
 
+from ft.domain.import_time import normalize_statement_timestamp
+
 
 CASH_SOURCES = {
     "alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "icbc-asia",
@@ -24,7 +26,13 @@ def _decimal_text(value) -> str:
 
 def _normalize_cash_source_account(row: dict, *, source: str) -> None:
     """Normalize platform placeholders that are not real source accounts."""
-    if source == "alipay" and not str(row.get("payment_method") or "").strip():
+    if source == "alipay":
+        payment_method = str(row.get("payment_method") or "").strip()
+        if payment_method in {"账户余额", "余额"}:
+            row["payment_method"] = "支付宝余额"
+            return
+        if payment_method:
+            return
         # Alipay exports some valid income / expense rows without a funding
         # method.  Keep them in a real wallet group so the import wizard can
         # ask for an account instead of failing the whole file.
@@ -41,11 +49,15 @@ def _normalize_cash_source_account(row: dict, *, source: str) -> None:
                 row["card_number"] = digits[-4:]
                 return
         return
-    if str(row.get("payment_method") or "").strip() != "/":
+    payment_method = str(row.get("payment_method") or "").strip()
+    if payment_method in {"零钱", "微信零钱"}:
+        row["payment_method"] = "微信零钱"
+        return
+    if payment_method != "/":
         return
     status = str(row.get("status") or row.get("platform_status") or "").strip()
     if row.get("record_type") == "transfer_in" and status == "已存入零钱":
-        row["payment_method"] = "零钱"
+        row["payment_method"] = "微信零钱"
 
 
 def _parse_cash_statement(command, *, resolve_accounts: bool = True):
@@ -81,11 +93,25 @@ def _parse_cash_statement(command, *, resolve_accounts: bool = True):
             continue
         if not resolve_accounts:
             item["account_name"] = ""
+        item["occurred_at"] = normalize_statement_timestamp(
+            item.get("occurred_at") or item.get("date"),
+            source=bill_type,
+        )
         item["amount"] = _decimal_text(item["amount"])
         source_payload = row.get("_source_payload")
         if not isinstance(source_payload, dict) or not source_payload:
             raise ValueError("账单行缺少完整来源行快照")
         item["source_payload"] = source_payload
+        relation_metadata = {
+            key: row[key]
+            for key in (
+                "offset_group", "offset_role", "offset_strength", "offset_source",
+                "offset_rule_hint", "offset_match_type",
+            )
+            if row.get(key) not in (None, "")
+        }
+        if relation_metadata:
+            item["relation_metadata"] = relation_metadata
         # 保留平台元数据，供导入时建立退款关系。
         for key in (
             "platform_status", "status", "txn_id", "merchant_order_id",

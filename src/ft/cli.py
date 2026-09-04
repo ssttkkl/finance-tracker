@@ -682,6 +682,11 @@ def _main(argv=None):
                 print(f"已向当前数据库导入 {result.count} 条（{parts}）")
             else:
                 print(f"已向当前数据库导入 {result.count} 条")
+        skipped_composite_payment = int(
+            result.details.get("skipped_composite_payment") or 0
+        )
+        if skipped_composite_payment:
+            print(f"已跳过 {skipped_composite_payment} 条无法唯一归属的组合支付")
         return
 
     if args.cmd == "acct":

@@ -27,6 +27,61 @@ def _alipay_csv(path: Path, rows: list[list[str]]) -> Path:
     return path
 
 
+def test_statement_parser_keeps_relation_metadata_out_of_source_snapshot(tmp_path, monkeypatch):
+    from ft import convert
+    from ft.adapters.statement_import import StatementParser
+    from ft.domain.imports import StatementImportCommand
+
+    source_row = {
+        "date": "2023-10-09 13:51:23",
+        "amount": "-9.90",
+        "payment_method": "零钱",
+        "counterparty": "瑞幸咖啡",
+        "category": "expense",
+        "record_type": "refund",
+        "_source_payload": {
+            "交易时间": "2023-10-09 13:51:23",
+            "交易对方": "瑞幸咖啡",
+            "金额": "-9.90",
+        },
+        "offset_group": "refund_000001",
+        "offset_role": "expense",
+        "offset_strength": "strong",
+        "offset_rule_hint": "import.wechat.full_status_pay.v1",
+    }
+
+    monkeypatch.setattr(
+        convert,
+        "_prepare_convert_rows",
+        lambda *_args: ([dict(source_row)], "wechat", []),
+    )
+    monkeypatch.setattr(
+        convert,
+        "_build_output_row",
+        lambda row, **_kwargs: {
+            "occurred_at": row["date"],
+            "amount": row["amount"],
+            "record_type": row["record_type"],
+            "account_name": "",
+        },
+    )
+
+    source = tmp_path / "unused.xlsx"
+    source.write_bytes(b"fixture")
+    rows = StatementParser().parse_source_rows(
+        StatementImportCommand(str(source), source="wechat", currency="CNY")
+    )
+
+    assert rows[0]["relation_metadata"] == {
+        "offset_group": "refund_000001",
+        "offset_role": "expense",
+        "offset_strength": "strong",
+        "offset_rule_hint": "import.wechat.full_status_pay.v1",
+    }
+    assert rows[0]["source_payload"] == source_row["_source_payload"]
+    assert "offset_role" not in rows[0]["source_payload"]
+
+
 @pytest.fixture
 def mapping_path(tmp_path, monkeypatch):
     from ft import mapping as mapping_mod

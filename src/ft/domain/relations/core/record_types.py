@@ -14,6 +14,9 @@ FX_IN_RECORD_TYPE = "fx_in"
 
 
 def _payload(fact: Any) -> Mapping[str, Any]:
+    value = getattr(fact, "relation_metadata", None)
+    if isinstance(value, Mapping) and value:
+        return value
     value = getattr(fact, "raw_payload", None)
     return value if isinstance(value, Mapping) else {}
 
