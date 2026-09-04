@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-08-17
+goal: Preserve merchant/order evidence across overlapping imports and fail
+  closed instead of creating a cross-merchant refund offset.
