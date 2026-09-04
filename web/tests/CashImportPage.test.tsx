@@ -76,12 +76,27 @@ describe("CashImportPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^确认映射$/ }));
     expect(await screen.findByRole("heading", { name: "核对流水" })).toBeInTheDocument();
     expect(screen.getByText("全部")).toBeInTheDocument();
-    expect(screen.getByText("交易对方")).toBeInTheDocument();
+    expect(screen.getByText("交易信息")).toBeInTheDocument();
     expect(screen.queryByText("交易对方原始列")).not.toBeInTheDocument();
+    expect(screen.getByText(/2026年8月12日.*09:24/)).toBeInTheDocument();
+    expect(screen.getByText("2026年8月")).toBeInTheDocument();
+    expect(screen.getByText("消费")).toBeInTheDocument();
+    expect(screen.getByText("-12.50 CNY")).toBeInTheDocument();
+    expect(screen.getByText("咖啡店")).toBeInTheDocument();
+    expect(screen.getByText("拿铁")).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "分类" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "币种" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "对方账号" })).not.toBeInTheDocument();
+    expect(screen.queryByText("餐饮")).not.toBeInTheDocument();
+    expect(screen.queryByText("alipay")).not.toBeInTheDocument();
+    expect(screen.queryByText("consumption")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "上一步" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /4\s*配对/ })).toBeDisabled();
     const previewStage = screen.getByRole("heading", { name: "核对流水" }).closest("section")!;
     const previewActions = previewStage.querySelector(".stage-actions-top")!;
     const previewTable = previewStage.querySelector(".standard-table-wrap")!;
+    (previewTable as HTMLElement).focus();
+    expect(document.activeElement).toBe(previewTable);
     expect(previewActions.compareDocumentPosition(previewTable) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(previewStage.querySelectorAll(".stage-actions")).toHaveLength(0);
 
@@ -108,7 +123,7 @@ describe("CashImportPage", () => {
   it("流水预览将业务细分显示为中文名称而不是内部枚举", async () => {
     const subtypePreview = {
       ...preview,
-      items: [{ ...item, record_subtype: "ordinary_transfer" }],
+      items: [{ ...item, record_type: "transfer_out", record_subtype: "ordinary_transfer" }],
       relations: [],
     };
     const fetch = vi.fn((input: string) => input.includes("/scan")
@@ -124,9 +139,64 @@ describe("CashImportPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
 
     await screen.findByRole("heading", { name: "核对流水" });
-    expect(screen.getByText("普通转账")).toBeInTheDocument();
+    expect(screen.getByText("转账转出")).toBeInTheDocument();
     expect(screen.queryByText("ordinary_transfer")).not.toBeInTheDocument();
     expect(screen.queryByText("not_applicable")).not.toBeInTheDocument();
+  });
+
+  it("导入预览按本地月份分组并保留状态摘要和中文行状态", async () => {
+    const groupedPreview = {
+      ...preview,
+      items: [
+        item,
+        { ...item, record_id: "row-2", occurred_at: "2026-07-31T17:30:00Z", amount: "700", record_type: "income", status: "existing" as const, counterparty: "退款方", note: "退款到账" },
+        { ...item, record_id: "row-3", occurred_at: "2026-07-01T02:00:00+08:00", amount: "-8", status: "unresolved" as const, counterparty: "待确认", note: "无法归属" },
+      ],
+      summary: { total: 3, new: 1, existing: 1, unsupported: 1, unresolved: 1 },
+      relations: [],
+    };
+    const fetch = vi.fn((input: string) => input.includes("/scan")
+      ? response(scan)
+      : input.includes("/preview")
+        ? response(groupedPreview)
+        : response({ message: "导入完成", new_rows: 1, updated_rows: 0, channel: "alipay", digest: "digest-1" }));
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [new File(["fixture"], "statement.csv")] } });
+    await screen.findByRole("heading", { name: "映射账户" });
+    fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
+    await screen.findByRole("heading", { name: "核对流水" });
+
+    expect(screen.getByText("2026年8月")).toBeInTheDocument();
+    expect(screen.getByText("2026年7月")).toBeInTheDocument();
+    expect(screen.getAllByText("待新增").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("已存在").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("无法识别").length).toBeGreaterThan(1);
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "流水类型", "状态", "金额"]);
+    expect(screen.queryByText("未分类")).not.toBeInTheDocument();
+    expect(screen.queryByText("expense")).not.toBeInTheDocument();
+    expect(screen.queryByText("income")).not.toBeInTheDocument();
+  });
+
+  it("导入预览为空时显示空状态而不是空表格", async () => {
+    const emptyPreview = { ...preview, items: [], summary: { total: 0, new: 0, existing: 0, unsupported: 0 }, relations: [] };
+    const fetch = vi.fn((input: string) => input.includes("/scan")
+      ? response(scan)
+      : input.includes("/preview")
+        ? response(emptyPreview)
+        : response({}));
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [new File(["fixture"], "statement.csv")] } });
+    await screen.findByRole("heading", { name: "映射账户" });
+    fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
+    await screen.findByRole("heading", { name: "核对流水" });
+
+    expect(screen.getByRole("status")).toHaveTextContent("没有可核对流水");
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByText("未分类")).not.toBeInTheDocument();
   });
 
   it("扫描后只用令牌请求预览和确认，不重复上传账单正文", async () => {

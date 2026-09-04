@@ -66,6 +66,16 @@ const authSession = {
   workspaces: [{ id: "workspace-e2e", name: "E2E 账本", role: "editor" }],
 };
 
+const importPreview = {
+  channel: "icbc-asia",
+  channel_label: "工银亚洲",
+  file: { name: "statement.csv", digest: "digest-1" },
+  columns: ["occurred_at", "amount", "currency", "account_name", "counterparty", "counterparty_account", "record_type", "record_subtype", "category", "note", "channel", "status"],
+  items: [{ record_id: "row-1", occurred_at: "2026-07-03T09:00", counterparty: "咖啡店", counterparty_account: "", amount: "-12.50", currency: "CNY", account_name: "日常账户", record_type: "consumption", record_subtype: "not_applicable", category: "餐饮", note: "", channel: "icbc-asia", status: "new", message: "" }],
+  summary: { total: 1, new: 1, existing: 0, unsupported: 0 },
+  relations: [],
+};
+
 async function mockLedger(page: Page, failOnce = false, firstCounterparty = "第一笔", firstItem: LedgerItem = item("1", firstCounterparty)) {
   let failed = false;
   await page.route("**/api/v1/**", async (route) => {
@@ -81,6 +91,20 @@ async function mockLedger(page: Page, failOnce = false, firstCounterparty = "第
 }
 
 async function openFilters(page: Page) { await page.locator("details.filters > summary").click(); }
+
+async function mockImport(page: Page, previewBody: unknown, previewStatus = 200, previewDelay = 0) {
+  await page.route("**/api/v1/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
+    if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
+    if (url.pathname.endsWith("/cash-import/scan")) return route.fulfill({ json: { contract: "cash-account-mapping-v1", channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", accounts: [account], groups: [{ group_id: "group-1", display_name: "工银亚洲账户", masked_evidence: "账户尾号：1234", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] } });
+    if (url.pathname.endsWith("/cash-import/preview")) {
+      if (previewDelay) await new Promise((resolve) => setTimeout(resolve, previewDelay));
+      return route.fulfill({ status: previewStatus, json: previewBody });
+    }
+    return route.fulfill({ json: { message: "ok", new_rows: 1, updated_rows: 0 } });
+  });
+}
 
 test("默认折叠筛选，主列表追加三批且保留已加载流水", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -435,6 +459,9 @@ test("关联流水从统一入口搜索已有流水并直接确认", async ({ pa
 
 test("独立导入处理页面扫描账户并完成四步确认", async ({ page }) => {
   let committed = false;
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  page.on("pageerror", (error) => consoleErrors.push(error.message));
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -458,6 +485,30 @@ test("独立导入处理页面扫描账户并完成四步确认", async ({ page 
   await page.getByRole("button", { name: "确认映射", exact: true }).click();
   await expect(page.getByRole("heading", { name: "核对流水" })).toBeVisible();
   await expect(page.getByText("全部", { exact: true })).toBeVisible();
+  await expect(page.locator(".transaction-table--import")).toBeVisible();
+  await expect(page.locator(".transaction-table--import thead th")).toHaveText(["发生时间", "账户", "交易信息", "流水类型", "状态", "金额"]);
+  await expect(page.locator(".transaction-table--import .occurred-at")).not.toContainText("T");
+  await expect(page.getByText("2026年7月", { exact: true })).toBeVisible();
+  await expect(page.getByText("消费", { exact: true })).toBeVisible();
+  await expect(page.locator(".transaction-table--import td.amount")).toHaveAttribute("data-direction", "支出");
+  await expect(page.locator(".transaction-table--import .counterparty-primary")).toHaveText("咖啡店");
+  await expect(page.locator(".transaction-table--import .counterparty .note")).toHaveText("-");
+  await expect(page.locator(".transaction-table--import .status .import-status")).toHaveText("待新增");
+  await expect(page.locator(".transaction-table--import .category-column")).toHaveCount(0);
+  await expect(page.getByText("餐饮", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("expense", { exact: true })).toHaveCount(0);
+  for (const width of [320, 375, 390, 414, 768, 1440]) {
+    await page.setViewportSize({ width, height: width < 821 ? 844 : 900 });
+    expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
+    const buttons = page.locator("button:visible");
+    expect(await buttons.evaluateAll((elements) => elements.every((element) => element.scrollWidth <= element.clientWidth))).toBeTruthy();
+  }
+  await page.screenshot({ path: "/tmp/cash-import-preview-production-1440.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator(".transaction-table--import .counterparty-primary")).toBeVisible();
+  expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
+  await page.screenshot({ path: "/tmp/cash-import-preview-production-390.png", fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
   const previewActions = page.locator(".import-preview-stage .stage-actions-top");
   await expect(previewActions).toBeVisible();
   expect((await previewActions.boundingBox())!.y).toBeLessThan((await page.locator(".standard-table-wrap").boundingBox())!.y);
@@ -470,6 +521,39 @@ test("独立导入处理页面扫描账户并完成四步确认", async ({ page 
   await page.getByRole("button", { name: "确认导入" }).click();
   await expect.poll(() => committed).toBe(true);
   await expect(page.getByRole("heading", { name: "导入完成" })).toBeVisible();
+  expect(consoleErrors).toEqual([]);
+});
+
+test("导入预览加载、空和错误状态保持统一表格语义", async ({ page }) => {
+  const scenarios = [
+    { name: "加载", body: importPreview, status: 200, delay: 180 },
+    { name: "空", body: { ...importPreview, items: [], summary: { total: 0, new: 0, existing: 0, unsupported: 0 } }, status: 200, delay: 0 },
+    { name: "错误", body: { error: { code: "import_preview_failed" } }, status: 400, delay: 0 },
+  ];
+
+  for (const scenario of scenarios) {
+    await page.unroute("**/api/v1/**");
+    await mockImport(page, scenario.body, scenario.status, scenario.delay);
+    await page.goto("/cash-import");
+    await page.locator('input[type="file"]').setInputFiles({ name: "statement.csv", mimeType: "text/csv", buffer: Buffer.from("fixture") });
+    await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
+    const confirmMapping = page.locator(".import-mapping-stage .stage-actions-top .button-primary");
+    await confirmMapping.click();
+
+    if (scenario.name === "加载") {
+      await expect(confirmMapping).toHaveText("核对中…");
+      await expect(page.getByRole("heading", { name: "核对流水" })).toBeVisible();
+      await expect(page.locator(".transaction-table--import")).toBeVisible();
+    } else if (scenario.name === "空") {
+      await expect(page.getByRole("heading", { name: "核对流水" })).toBeVisible();
+      await expect(page.getByRole("status")).toContainText("没有可核对流水");
+      await expect(page.locator(".transaction-table--import")).toHaveCount(0);
+    } else {
+      await expect(page.getByRole("alert")).toContainText("账单预览失败，请重试。");
+      await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
+      await expect(page.locator(".transaction-table--import")).toHaveCount(0);
+    }
+  }
 });
 
 test("导入处理页面在四个目标宽度不产生页面级横向滚动", async ({ page }) => {
