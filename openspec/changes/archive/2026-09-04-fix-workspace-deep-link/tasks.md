@@ -33,7 +33,7 @@
 
 ## 6. 发布准备
 
-- [x] 记录当前 `HEAD`、线上 rewrite 同步要求、回滚方式和未解决风险；不执行提交、推送或部署。当前 `HEAD=efa313b3e604b38c0dbbd65582da8d84be55ef1e`，比较基线为 `git merge-base HEAD origin/main=8c18ed7ecff6b31cd5adcc18becb4e4e09035f55`。线上复核仍为根路径 200、工作区深链接 404；需将 `render.yaml` 的 rewrite 同步到现有 Render Static Site 后重新部署，回滚为移除该 rewrite 与本次路由改动。
+- [x] 记录验证基线、线上 rewrite 同步要求、回滚方式和未解决风险。实现验证基线为 `HEAD=efa313b3e604b38c0dbbd65582da8d84be55ef1e`，比较基线为 `git merge-base HEAD origin/main=8c18ed7ecff6b31cd5adcc18becb4e4e09035f55`；已获用户授权提交、推送、创建并合并目标为 `refactor/web` 的 PR，本次不执行部署。线上复核仍为根路径 200、工作区深链接 404；需将 `render.yaml` 的 rewrite 同步到现有 Render Static Site 后重新部署，回滚为移除该 rewrite 与本次路由改动。
 
 ## 7. 反思
 
