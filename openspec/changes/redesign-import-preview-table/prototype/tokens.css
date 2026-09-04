@@ -1,0 +1,35 @@
+/* Hallmark · prototype tokens · genre: modern-minimal · theme: Cobalt · macrostructure: Index-First / Import Preview Grid */
+:root {
+  --color-paper: oklch(.965 .008 250);
+  --color-paper-raised: oklch(.995 .004 250);
+  --color-paper-muted: oklch(.975 .007 250);
+  --color-ink: oklch(.25 .02 250);
+  --color-ink-muted: oklch(.48 .018 250);
+  --color-ink-faint: oklch(.59 .014 250);
+  --color-rule: oklch(.87 .012 250);
+  --color-rule-strong: oklch(.74 .02 250);
+  --color-accent: oklch(.48 .16 252);
+  --color-accent-soft: oklch(.94 .03 252);
+  --color-accent-ink: oklch(.99 .004 250);
+  --color-income: oklch(.66 .12 165);
+  --color-expense: oklch(.68 .13 35);
+  --color-danger: oklch(.52 .09 24);
+  --color-sidebar: oklch(.25 .02 250);
+  --color-sidebar-raised: oklch(.31 .025 250);
+  --color-sidebar-link: oklch(.86 .02 250);
+  --color-detail-shadow: oklch(.25 .02 250 / .12);
+  --font-body: "Noto Sans SC", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-1: 3px;
+  --rule-1: 1px;
+  --dur-fast: 120ms;
+  --ease-standard: cubic-bezier(.16, 1, .3, 1);
+  --z-sticky: 10;
+}

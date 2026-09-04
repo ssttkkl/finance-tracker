@@ -3,8 +3,22 @@ import { afterEach, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { CashTable } from "../src/components/CashTable";
+import { TransactionTable, type TransactionTableItem } from "../src/components/TransactionTable";
 
 afterEach(cleanup);
+
+const importTableItem: TransactionTableItem = {
+  id: "import-1",
+  occurredAt: "2026-08-12T09:24:00+08:00",
+  accountLabel: "支付宝余额",
+  counterparty: "咖啡店",
+  note: "拿铁",
+  flowLabel: "消费",
+  direction: "expense",
+  amountLabel: "-12.50 CNY",
+  statusLabel: "待新增",
+  statusTone: "new",
+};
 
 it("发生时间和月份键不固定地区时区", () => {
   const formatSource = readFileSync(resolve(process.cwd(), "src/format.ts"), "utf8");
@@ -12,6 +26,22 @@ it("发生时间和月份键不固定地区时区", () => {
 
   expect(formatSource).not.toContain('timeZone: "Asia/Shanghai"');
   expect(tableSource).not.toContain('timeZone: "Asia/Shanghai"');
+});
+
+it("共享表格组件支持导入预览字段、状态和加载骨架", () => {
+  const { rerender } = render(<TransactionTable items={[importTableItem]} variant="import" groupByMonth />);
+
+  expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "流水类型", "状态", "金额"]);
+  expect(screen.getByText("2026年8月")).toBeInTheDocument();
+  expect(screen.getByText("咖啡店")).toBeInTheDocument();
+  expect(screen.getByText("拿铁")).toBeInTheDocument();
+  expect(screen.getByText("待新增")).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "-12.50 CNY" })).toHaveAttribute("data-direction", "支出");
+  expect(screen.queryByRole("columnheader", { name: "分类" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("columnheader", { name: "操作" })).not.toBeInTheDocument();
+
+  rerender(<TransactionTable items={[]} variant="import" loading />);
+  expect(screen.getAllByTestId("现金流水骨架行")).toHaveLength(3);
 });
 
 const projection = (projection_id: string, kind: string, note = "") => ({

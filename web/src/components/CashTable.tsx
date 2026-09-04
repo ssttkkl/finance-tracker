@@ -1,7 +1,5 @@
-import { useEffect, useRef, useState } from "react";
 import type { CashCategory, CashMonthlySummary, CashProjection } from "../api/types";
-import { formatOccurredAt } from "../format";
-import { UiIcon } from "./UiIcon";
+import { TransactionTable, type TransactionTableItem } from "./TransactionTable";
 
 type Props = {
   items: CashProjection[];
@@ -16,8 +14,6 @@ type Props = {
 };
 
 export type CashRowAction = "view" | "edit" | "category" | "delete";
-
-const monthKeyFormatter = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit" });
 
 function isBankSecurityTransfer(item: CashProjection): boolean { return item.transfer_subtype === "bank_security_transfer"; }
 function economicTypeLabel(item: CashProjection): string {
@@ -40,14 +36,6 @@ function amountLabel(item: CashProjection): string {
   const amount = item.amount.startsWith("-") || item.amount.startsWith("+") || item.amount === "0" ? item.amount : `+${item.amount}`;
   return `${amount} ${item.currency}`;
 }
-function monthKey(item: CashProjection): string {
-  const parts = monthKeyFormatter.formatToParts(new Date(item.occurred_at));
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  return year && month ? `${year}-${month}` : "";
-}
-function monthLabel(month: string): string { const [year, monthNumber] = month.split("-"); return `${year}年${Number(monthNumber)}月`; }
-function summaryAmount(kind: "income" | "expense", amount: string): string { return amount === "0" ? "0" : `${kind === "income" ? "+" : "-"}${unsignedAmount(amount)}`; }
 function projectionSource(item: CashProjection) {
   const bankSecurityTransfer = isBankSecurityTransfer(item);
   if (!bankSecurityTransfer && item.member_count === 1 && item.composition.length === 0) return null;
@@ -59,73 +47,48 @@ function categoryLabel(category: CashCategory | string | null | undefined): stri
   return category?.path?.map((item) => item.name).join(" / ") || "未分类";
 }
 
-function MobileFieldMarker({ icon }: { icon: "account" | "receipt" | "tag" }) {
-  return <span className="cash-mobile-field-marker" aria-hidden="true"><UiIcon name={icon} /></span>;
-}
-
-function MonthDivider({ month, summary, colSpan }: { month: string; summary?: CashMonthlySummary; colSpan: number }) {
-  return <tr className="month-divider" data-month={month}><th colSpan={colSpan} scope="rowgroup"><span className="month-divider-content"><span className="month-divider-label">{monthLabel(month)}</span><span className="month-summary-list">{summary?.currencies.length ? summary.currencies.map((currency) => <span className="month-currency-summary" key={currency.currency}><span>收入 <strong>{summaryAmount("income", currency.income)} {currency.currency}</strong></span><span>支出 <strong>{summaryAmount("expense", currency.expense)} {currency.currency}</strong></span></span>) : <span className="month-summary-empty">无收支</span>}</span></span></th></tr>;
+function toTableItem(item: CashProjection): TransactionTableItem<CashProjection> {
+  const transfer = transferFor(item);
+  return {
+    id: item.projection_id,
+    source: item,
+    occurredAt: item.occurred_at,
+    accountLabel: accountLabel(item),
+    counterparty: item.counterparty,
+    note: item.note,
+    flowLabel: economicTypeLabel(item),
+    direction: transfer ? "transfer" : item.amount.startsWith("-") ? "expense" : item.amount.startsWith("+") || item.amount !== "0" ? "income" : "unknown",
+    amountLabel: amountLabel(item),
+    categoryLabel: categoryLabel(item.category),
+    sourceIndicator: projectionSource(item),
+  };
 }
 
 export function CashTable({ items, monthlySummaries = [], loading = false, selectable = false, selectedIds = new Set<string>(), onToggleSelection, onToggleAll, onEvidence, onAction }: Props) {
-  const selectAllRef = useRef<HTMLInputElement>(null);
-  const selectedCount = items.filter((item) => selectedIds.has(item.projection_id)).length;
-  const allSelected = items.length > 0 && selectedCount === items.length;
-  if (selectAllRef.current) selectAllRef.current.indeterminate = selectedCount > 0 && !allSelected;
-  const columnCount = selectable ? 8 : 7;
-  const summaries = new Map(monthlySummaries.map((summary) => [summary.month, summary]));
-  let previousMonth: string | undefined;
-
-  const rows = items.flatMap((item) => {
-    const month = monthKey(item);
-    const divider = monthlySummaries.length && month !== previousMonth ? <MonthDivider key={`month-${month}`} month={month} summary={summaries.get(month)} colSpan={columnCount} /> : null;
-    previousMonth = month;
-    return [divider, <CashRow key={item.projection_id} item={item} selectable={selectable} selected={selectedIds.has(item.projection_id)} onToggleSelection={onToggleSelection} onEvidence={onEvidence} onAction={onAction} />];
-  });
-
-  return <div className="table-wrap"><table className="cash-table"><caption className="sr-only">收支账本中的收支记录</caption>
-    <colgroup>{selectable ? <col className="selection-column" /> : null}<col className="occurred-at-column" /><col className="account-column" /><col className="transaction-info-column" /><col className="category-column" /><col className="economic-type-column" /><col className="amount-column" /><col className="action-column" /></colgroup>
-    <thead className="table-head"><tr>
-      {selectable ? <th id="cash-column-selection" scope="col"><span className="sr-only">选择</span><input ref={selectAllRef} type="checkbox" aria-label="选择当前已加载记录" checked={allSelected} onChange={(event) => onToggleAll?.(event.target.checked)} disabled={!items.length} /></th> : null}
-      <th id="cash-column-occurred-at" scope="col">发生时间</th><th id="cash-column-account" scope="col">账户</th><th id="cash-column-transaction-info" scope="col">交易信息</th><th id="cash-column-category" scope="col">分类</th><th id="cash-column-economic-type" scope="col">流水类型</th><th id="cash-column-amount" scope="col" className="amount">金额</th><th id="cash-column-action" scope="col"><span className="sr-only">操作</span></th>
-    </tr></thead>
-    <tbody>{loading ? Array.from({ length: 3 }, (_value, index) => <tr className="loading-row" data-testid="现金流水骨架行" key={index}>{Array.from({ length: columnCount }, (_cell, cellIndex) => <td key={cellIndex}><span className="skeleton-cell" aria-hidden="true" /></td>)}</tr>) : rows}</tbody>
-  </table></div>;
-}
-
-function CashRow({ item, selectable, selected, onToggleSelection, onEvidence, onAction }: { item: CashProjection; selectable: boolean; selected: boolean; onToggleSelection?: (projection: CashProjection) => void; onEvidence: (projection: CashProjection, source: HTMLElement) => void; onAction?: (projection: CashProjection, action: CashRowAction, source: HTMLElement) => void }) {
-  const transfer = transferFor(item);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuTrigger = useRef<HTMLButtonElement | null>(null);
-  const menu = useRef<HTMLDivElement | null>(null);
-  const transaction = <td className="counterparty" data-label="交易信息" headers="cash-column-transaction-info"><span className="counterparty-primary">{item.counterparty || "-"}</span><span className="note" data-label="备注">{item.note || "-"}</span>{projectionSource(item)}</td>;
-  const open = (source: HTMLElement) => onEvidence(item, source);
-  useEffect(() => {
-    if (!menuOpen) return;
-    const closeOnOutside = (event: PointerEvent) => {
-      if (!menu.current?.contains(event.target as Node) && !menuTrigger.current?.contains(event.target as Node)) setMenuOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { event.preventDefault(); setMenuOpen(false); menuTrigger.current?.focus(); }
-    };
-    document.addEventListener("pointerdown", closeOnOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    requestAnimationFrame(() => menu.current?.querySelector<HTMLButtonElement>("button")?.focus());
-    return () => { document.removeEventListener("pointerdown", closeOnOutside); document.removeEventListener("keydown", closeOnEscape); };
-  }, [menuOpen]);
-  const runAction = (action: CashRowAction, source: HTMLElement) => {
-    setMenuOpen(false);
-    if (onAction) onAction(item, action, source);
-    else if (action === "view") open(source);
-  };
-  return <tr className={`cash-row${selected ? " is-selected" : ""}${selectable ? " is-selectable" : ""}`} data-projection-id={item.projection_id} tabIndex={0} onClick={(event) => open(event.currentTarget)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(event.currentTarget); } }}>
-    {selectable ? <td className="selection" data-label="选择" headers="cash-column-selection"><input type="checkbox" aria-label={`选择${item.counterparty || "该记录"}`} checked={selected} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()} onChange={() => onToggleSelection?.(item)} /></td> : null}
-    <td className="occurred-at mono" data-label="发生时间" headers="cash-column-occurred-at">{formatOccurredAt(item.occurred_at)}</td>
-    <td className="account" data-label="账户" headers="cash-column-account"><MobileFieldMarker icon="account" /><span className="cash-mobile-field-value">{accountLabel(item)}</span></td>
-    {transaction}
-    <td className="category" data-label="分类" headers="cash-column-category"><MobileFieldMarker icon="tag" /><span className="cash-mobile-field-value">{categoryLabel(item.category)}</span></td>
-    <td className="economic-type" data-label="流水类型" headers="cash-column-economic-type"><MobileFieldMarker icon="receipt" /><span className="cash-mobile-field-value">{economicTypeLabel(item)}</span></td>
-    <td className={`amount mono ${transfer ? "transfer" : item.amount.startsWith("-") ? "outflow" : "inflow"}`} data-direction={transfer ? "转账" : item.amount.startsWith("-") ? "支出" : "收入"} data-label="金额" headers="cash-column-amount"><span className="amount-value">{amountLabel(item)}</span></td>
-    <td className="action" headers="cash-column-action"><div className="cash-row-actions"><button className="icon-button icon-only-button evidence-trigger" type="button" aria-label={`查看${item.counterparty || "该记录"}的收支详情`} title="查看详情" onClick={(event) => { event.stopPropagation(); open(event.currentTarget); }}><UiIcon name="eye" /></button><button ref={menuTrigger} className="icon-button icon-only-button cash-row-menu-trigger" type="button" aria-label={`打开${item.counterparty || "该记录"}的操作菜单`} aria-haspopup="menu" aria-expanded={menuOpen} title="更多操作" onClick={(event) => { event.stopPropagation(); setMenuOpen((value) => !value); }}><UiIcon name="more" /></button>{menuOpen ? <div ref={menu} className="cash-row-menu" role="menu" aria-label={`${item.counterparty || "该记录"}的操作`} onClick={(event) => event.stopPropagation()}><button type="button" role="menuitem" onClick={() => runAction("view", menuTrigger.current ?? document.body)}>查看详情</button><button type="button" role="menuitem" onClick={() => runAction("edit", menuTrigger.current ?? document.body)}>编辑</button><button type="button" role="menuitem" onClick={() => runAction("category", menuTrigger.current ?? document.body)}>修改分类</button><button type="button" role="menuitem" className="is-danger" onClick={() => runAction("delete", menuTrigger.current ?? document.body)}>删除</button></div> : null}</div></td>
-  </tr>;
+  return <TransactionTable
+    items={items.map(toTableItem)}
+    variant="ledger"
+    monthlySummaries={monthlySummaries}
+    groupByMonth={monthlySummaries.length > 0}
+    loading={loading}
+    selectable={selectable}
+    selectedIds={selectedIds}
+    showCategory
+    onToggleSelection={(item) => { if (item.source) onToggleSelection?.(item.source); }}
+    onToggleAll={onToggleAll}
+    onEvidence={(item, source) => { if (item.source) onEvidence(item.source, source); }}
+    actions={() => [
+      { id: "view", label: "查看详情" },
+      { id: "edit", label: "编辑" },
+      { id: "category", label: "修改分类" },
+      { id: "delete", label: "删除", danger: true },
+    ]}
+    onAction={(item, action, source) => {
+      if (!item.source) return;
+      if (onAction) onAction(item.source, action as CashRowAction, source);
+      else if (action === "view") onEvidence(item.source, source);
+    }}
+    caption="收支账本中的收支记录"
+    columnIdPrefix="cash"
+  />;
 }

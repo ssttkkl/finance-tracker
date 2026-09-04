@@ -10,6 +10,8 @@ import type {
   ImportScan,
   ImportSourceGroup,
 } from "../api/types";
+import { formatOccurredAt } from "../format";
+import { buildTransactionMonthlySummaries, TransactionTable, type TransactionTableItem } from "../components/TransactionTable";
 
 type Stage = "select" | "mapping" | "preview" | "relations" | "success";
 type RelationFilter = "all" | "automatic" | "pending";
@@ -33,21 +35,6 @@ type MappingDraft = {
 
 const PAGE_SIZES = [20, 50, 100];
 
-const columnLabels: Record<string, string> = {
-  occurred_at: "发生时间",
-  amount: "金额",
-  currency: "币种",
-  account_name: "账户",
-  counterparty: "交易对方",
-  counterparty_account: "对方账号",
-  record_type: "流水类型",
-  record_subtype: "业务细分",
-  category: "分类",
-  note: "备注",
-  channel: "渠道",
-  status: "状态",
-};
-
 const recordTypeLabels: Record<string, string> = {
   consumption: "消费",
   refund: "退款",
@@ -60,16 +47,6 @@ const recordTypeLabels: Record<string, string> = {
   fx_in: "换汇转入",
   fx_out: "换汇转出",
   other: "其他",
-};
-
-const recordSubtypeLabels: Record<string, string> = {
-  not_applicable: "—",
-  ordinary_transfer: "普通转账",
-  cross_border_remittance: "跨境汇款",
-  internal_account_transfer: "账户间转账",
-  currency_exchange: "币种兑换",
-  withdraw_to_bank: "提现到银行",
-  credit_repayment: "信用卡还款",
 };
 
 const relationKindLabels: Record<string, string> = {
@@ -85,13 +62,6 @@ const relationStateLabels: Record<RelationState, string> = {
   rejected: "已拒绝",
 };
 
-function displayValue(item: ImportPreviewItem, column: string): string {
-  const value = item[column as keyof ImportPreviewItem];
-  if (column === "record_type") return recordTypeLabels[String(value)] ?? String(value || "—");
-  if (column === "record_subtype") return recordSubtypeLabels[String(value)] ?? (value ? "其他" : "—");
-  return value === undefined || value === "" ? "—" : String(value);
-}
-
 function unresolvedCount(preview: ImportPreview): number {
   return preview.summary.unresolved ?? 0;
 }
@@ -101,7 +71,45 @@ function ordinaryUnsupportedCount(preview: ImportPreview): number {
 }
 
 function recordDate(value: string): string {
-  return value.replace("T", " ").slice(0, 16);
+  return formatOccurredAt(value);
+}
+
+const importStatusLabels = {
+  new: "待新增",
+  existing: "已存在",
+  unsupported: "暂不支持",
+  unresolved: "无法识别",
+} as const;
+
+function importDirection(item: ImportPreviewItem): TransactionTableItem<ImportPreviewItem>["direction"] {
+  if (item.amount.startsWith("-")) return "expense";
+  if (item.amount.startsWith("+") || item.amount !== "0") return "income";
+  if (["transfer_out", "withdrawal_out"].includes(item.record_type)) return "expense";
+  if (["transfer_in", "withdrawal_in"].includes(item.record_type)) return "income";
+  return "unknown";
+}
+
+function importAmountLabel(item: ImportPreviewItem): string {
+  const amount = item.amount.startsWith("-") || item.amount.startsWith("+") || item.amount === "0" ? item.amount : `+${item.amount}`;
+  return `${amount} ${item.currency}`;
+}
+
+function importTableItem(item: ImportPreviewItem): TransactionTableItem<ImportPreviewItem> {
+  return {
+    id: item.record_id,
+    source: item,
+    occurredAt: item.occurred_at,
+    accountLabel: item.account_name,
+    counterparty: item.counterparty,
+    note: item.note,
+    flowLabel: recordTypeLabels[item.record_type] ?? "其他",
+    direction: importDirection(item),
+    amountLabel: importAmountLabel(item),
+    statusLabel: importStatusLabels[item.status],
+    statusTone: item.status,
+    summaryAmount: item.amount,
+    summaryCurrency: item.currency,
+  };
 }
 
 function relationRecordLabel(record: ImportRelationRecord): string {
@@ -521,6 +529,8 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   };
 
   const relationItems = preview?.relations ?? [];
+  const importTableItems = useMemo(() => (preview?.items ?? []).map(importTableItem), [preview]);
+  const importMonthlySummaries = useMemo(() => buildTransactionMonthlySummaries(importTableItems), [importTableItems]);
   const sharedDrafts = Array.from(new Map(
     Object.values(mappingDrafts)
       .flatMap((item) => item.newAccount ? [[item.newAccount.draftId, item.newAccount] as const] : []),
@@ -638,9 +648,19 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
               { label: "已存在", value: preview.summary.existing, tone: "existing" },
               { label: "无法识别", value: preview.summary.unresolved ?? 0, tone: "unsupported" },
             ].map((summary) => <div key={summary.label} className={`import-summary-card ${summary.tone}`}><small>{summary.label}</small><strong>{summary.value}</strong></div>)}</div>
-            <div className="standard-table-wrap" role="region" aria-label="账单流水表格" tabIndex={0}>
-              <table className="standard-import-table"><caption className="sr-only">账单流水</caption><thead><tr>{preview.columns.map((column) => <th key={column} scope="col">{columnLabels[column] ?? column}</th>)}</tr></thead><tbody>{preview.items.map((item) => <tr key={item.record_id}>{preview.columns.map((column) => <td key={column} data-label={columnLabels[column] ?? column}>{column === "status" ? <span className={`import-status ${item.status}`}>{({ new: "待新增", existing: "已存在", unsupported: "暂不支持", unresolved: "无法识别" } as const)[item.status]}</span> : displayValue(item, column)}</td>)}</tr>)}</tbody></table>
-            </div>
+            {preview.items.length === 0
+              ? <div className="import-empty-state" role="status"><strong>没有可核对流水</strong></div>
+              : <TransactionTable
+                items={importTableItems}
+                variant="import"
+                groupByMonth
+                monthlySummaries={importMonthlySummaries}
+                showStatus
+                wrapperClassName="standard-table-wrap"
+                wrapperProps={{ role: "region", "aria-label": "账单流水表格", tabIndex: 0 }}
+                caption="账单流水"
+                columnIdPrefix="import"
+              />}
             {unresolvedCount(preview) > 0 ? <p className="import-stage-warning" role="status">有 {unresolvedCount(preview)} 条流水无法准确归属，确认后将跳过；其他流水正常导入。</p> : null}
             {ordinaryUnsupportedCount(preview) > 0 ? <p className="import-stage-warning" role="status">有流水暂不支持。</p> : null}
           </section> : null}
