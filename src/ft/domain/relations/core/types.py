@@ -74,6 +74,7 @@ class AccountAliasType(str, Enum):
 
 
 SUBTYPE_NONE = ""
+SUBTYPE_P2P_RETURN = "p2p_return"
 
 PAYMENT_MIRROR_STRONG_SECONDS = 10
 # Short window for same-account exact-2 without text, and text-unique cross-account.

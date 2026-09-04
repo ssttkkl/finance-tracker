@@ -527,6 +527,11 @@ def plan_relation_proposals(
         or _fact_view_from_row(row)
     ))
     active_relations = [dict(item) for item in accepted_relations]
+    remaining = dict(
+        remaining_by_expense
+        if remaining_by_expense is not None
+        else _initial_remaining(normalized_facts, active_relations)
+    )
     linked_pairs = {
         (str(item.get("primary_fact_id")), str(item.get("secondary_fact_id")))
         for item in active_relations
@@ -540,12 +545,8 @@ def plan_relation_proposals(
             rows,
             facts_by_id=fact_by_id,
             linked_pairs=linked_pairs,
+            remaining_by_expense=remaining,
         )
-    )
-    remaining = dict(
-        remaining_by_expense
-        if remaining_by_expense is not None
-        else _initial_remaining(normalized_facts, active_relations)
     )
     for proposal in phase_a:
         if proposal.status != RelationStatus.ACCEPTED.value or proposal.kind != RelationKind.REFUND_OFFSET.value:

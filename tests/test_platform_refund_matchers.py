@@ -7,6 +7,7 @@ from ft.domain.platform_refund import (
     alipay_is_paid_closed_expense,
     alipay_is_unpaid_closed,
     alipay_order_match,
+    pair_wechat_transfer_returns,
     pair_wechat_refunds,
     wechat_embedded_refund_amount,
     wechat_find_expense_for_refund,
@@ -73,6 +74,123 @@ class TestAlipaySkipPredicates:
         ]
 
         assert match_phase_a_platform_refunds(rows, facts_by_id=facts) == []
+
+
+class TestPlatformRefundRegression:
+    def test_alipay_multiple_partial_refunds_share_one_origin(self):
+        facts = {
+            "expense": FactView(
+                id="expense", amount=Decimal("-47.90"), currency="CNY", account_id="wallet",
+                occurred_at="2023-06-20 10:00:00", bill_source="alipay", source="alipay",
+                record_type="consumption", record_id="2023062022001111",
+            ),
+            "refund-a": FactView(
+                id="refund-a", amount=Decimal("27.00"), currency="CNY", account_id="wallet",
+                occurred_at="2023-06-23 01:33:00", bill_source="alipay", source="alipay",
+                record_type="refund", record_id="2023062022001111_merchant_a",
+            ),
+            "refund-b": FactView(
+                id="refund-b", amount=Decimal("20.90"), currency="CNY", account_id="wallet",
+                occurred_at="2023-06-23 01:34:00", bill_source="alipay", source="alipay",
+                record_type="refund", record_id="2023062022001111_merchant_b",
+            ),
+            "refund-over": FactView(
+                id="refund-over", amount=Decimal("1.00"), currency="CNY", account_id="wallet",
+                occurred_at="2023-06-23 01:35:00", bill_source="alipay", source="alipay",
+                record_type="refund", record_id="2023062022001111_merchant_over",
+            ),
+        }
+        rows = [
+            {"id": "expense", "bill_source": "alipay", "amount": "-47.90", "txn_id": "2023062022001111"},
+            {"id": "refund-a", "bill_source": "alipay", "amount": "27.00", "txn_id": "2023062022001111_merchant_a"},
+            {"id": "refund-b", "bill_source": "alipay", "amount": "20.90", "txn_id": "2023062022001111_merchant_b"},
+            {"id": "refund-over", "bill_source": "alipay", "amount": "1.00", "txn_id": "2023062022001111_merchant_over"},
+        ]
+
+        proposals = match_phase_a_platform_refunds(rows, facts_by_id=facts)
+
+        assert {(p.primary_fact_id, p.secondary_fact_id) for p in proposals} == {
+            ("expense", "refund-a"),
+            ("expense", "refund-b"),
+        }
+
+    def test_alipay_investment_out_refund_uses_exact_order_key(self):
+        facts = {
+            "investment-out": FactView(
+                id="investment-out", amount=Decimal("-300"), currency="CNY", account_id="wallet",
+                occurred_at="2025-01-28 14:10:00", bill_source="alipay", source="alipay",
+                record_type="investment_out", record_id="2025012822001111",
+            ),
+            "refund": FactView(
+                id="refund", amount=Decimal("300"), currency="CNY", account_id="wallet",
+                occurred_at="2025-01-28 14:14:00", bill_source="alipay", source="alipay",
+                record_type="refund", record_id="2025012822001111_300",
+            ),
+        }
+        rows = [
+            {"id": "investment-out", "bill_source": "alipay", "amount": "-300", "txn_id": "2025012822001111"},
+            {"id": "refund", "bill_source": "alipay", "amount": "300", "txn_id": "2025012822001111_300"},
+        ]
+
+        proposals = match_phase_a_platform_refunds(rows, facts_by_id=facts)
+
+        assert [(p.primary_fact_id, p.secondary_fact_id) for p in proposals] == [
+            ("investment-out", "refund"),
+        ]
+
+    def test_wechat_transfer_return_uses_platform_transaction_link(self):
+        facts = {
+            "expense": FactView(
+                id="expense", amount=Decimal("-50"), currency="CNY", account_id="wallet",
+                occurred_at="2025-05-15 17:09:34", bill_source="wechat", source="wechat",
+                record_type="transfer_reversal", record_id="wechat-out",
+            ),
+            "refund": FactView(
+                id="refund", amount=Decimal("50"), currency="CNY", account_id="wallet",
+                occurred_at="2025-05-16 17:09:37", bill_source="wechat", source="wechat",
+                record_type="transfer_reversal", record_id="wechat-return",
+            ),
+        }
+        rows = [
+            {
+                "id": "expense", "bill_source": "wechat", "amount": "-50",
+                "currency": "CNY", "account_id": "wallet",
+                "occurred_at": "2025-05-15 17:09:34",
+                "record_type": "transfer_reversal", "txn_id": "wechat-out",
+                "merchant_order_id": "wechat-return", "status": "对方已退还",
+                "txn_type": "微信红包（单发）", "payment_method": "零钱",
+            },
+            {
+                "id": "refund", "bill_source": "wechat", "amount": "50",
+                "currency": "CNY", "account_id": "wallet",
+                "occurred_at": "2025-05-16 17:09:37",
+                "record_type": "transfer_reversal", "txn_id": "wechat-return",
+                "status": "已全额退款", "txn_type": "微信红包-退款",
+                "payment_method": "零钱",
+            },
+        ]
+
+        proposals = match_phase_a_platform_refunds(rows, facts_by_id=facts)
+
+        assert [(p.primary_fact_id, p.secondary_fact_id, p.subtype) for p in proposals] == [
+            ("expense", "refund", "p2p_return"),
+        ]
+
+    def test_wechat_transfer_return_without_transaction_link_is_rejected(self):
+        rows = [
+            {
+                "id": "expense", "bill_source": "wechat", "amount": "-50",
+                "record_type": "transfer_reversal", "txn_id": "wechat-out",
+                "status": "对方已退还", "txn_type": "微信红包（单发）",
+            },
+            {
+                "id": "refund", "bill_source": "wechat", "amount": "50",
+                "record_type": "transfer_reversal", "txn_id": "other-return",
+                "status": "已全额退款", "txn_type": "微信红包-退款",
+            },
+        ]
+
+        assert pair_wechat_transfer_returns(rows) == []
 
 
 class TestWeChatDualRow:

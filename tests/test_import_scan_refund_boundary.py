@@ -159,6 +159,195 @@ def test_scan_phase_a_creates_alipay_order_prefix_edge():
         assert any("order_prefix" in (rid or "") or "merchant_or_order" in (rid or "") for rid in rules)
 
 
+def test_scan_phase_a_allows_multiple_alipay_partial_refunds():
+    from ft.adapters.relational.models import TransactionRelationModel
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.relations import RelationService
+    from ft.domain.relations import RelationKind, RelationStatus
+
+    sessions, UoW = _db()
+    with UoW(sessions, "ws") as uow:
+        uow.accounts.add_raw({"name": "支付宝余额", "type": "cash", "currency": "CNY"})
+        common = {
+            "currency": "CNY",
+            "account_name": "支付宝余额",
+            "source": "支付宝",
+            "bill_source": "alipay",
+        }
+        expense_id = uow.cashflows.add("cash", {
+            **common,
+            "occurred_at": "2023-06-20 10:00:00",
+            "amount": "-47.90",
+            "counterparty": "荣事达",
+            "note": "商品",
+            "category": "expense",
+            "record_type": "consumption",
+            "record_id": "2023062022001111",
+        })
+        refund_ids = [
+            uow.cashflows.add("cash", {
+                **common,
+                "occurred_at": occurred_at,
+                "amount": amount,
+                "counterparty": "荣事达",
+                "note": "退款-商品",
+                "category": "income",
+                "record_type": "refund",
+                "record_id": f"2023062022001111_{suffix}",
+            })
+            for occurred_at, amount, suffix in (
+                ("2023-06-23 01:33:00", "27.00", "a"),
+                ("2023-06-23 01:34:00", "20.90", "b"),
+            )
+        ]
+        uow.commit()
+
+    CashProjectionService(sessions, "ws").rebuild()
+    result = RelationService(UoW(sessions, "ws")).check(
+        seed_fact_ids=[expense_id, *refund_ids], trigger="manual_range", seed_ref="partial-refunds"
+    )
+    assert result.ok is True
+    with sessions() as session:
+        relations = list(session.scalars(
+            select(TransactionRelationModel).where(
+                TransactionRelationModel.workspace_id == "ws",
+                TransactionRelationModel.kind == RelationKind.REFUND_OFFSET.value,
+                TransactionRelationModel.status == RelationStatus.ACCEPTED.value,
+            )
+        ))
+        assert len(relations) == 2
+        assert {relation.primary_fact_id for relation in relations} == {expense_id}
+        assert {relation.secondary_fact_id for relation in relations} == set(refund_ids)
+
+
+def test_scan_phase_a_pairs_alipay_investment_out_refund():
+    from ft.adapters.relational.models import TransactionRelationModel
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.relations import RelationService
+    from ft.domain.relations import RelationKind, RelationStatus
+
+    sessions, UoW = _db()
+    with UoW(sessions, "ws") as uow:
+        uow.accounts.add_raw({"name": "支付宝余额", "type": "cash", "currency": "CNY"})
+        common = {
+            "currency": "CNY",
+            "account_name": "支付宝余额",
+            "source": "支付宝",
+            "bill_source": "alipay",
+        }
+        expense_id = uow.cashflows.add("cash", {
+            **common,
+            "occurred_at": "2025-01-28 14:10:00",
+            "amount": "-300.00",
+            "counterparty": "蚂蚁财富",
+            "note": "买入",
+            "category": "expense",
+            "record_type": "investment_out",
+            "record_id": "2025012822001111",
+        })
+        refund_id = uow.cashflows.add("cash", {
+            **common,
+            "occurred_at": "2025-01-28 14:14:00",
+            "amount": "300.00",
+            "counterparty": "蚂蚁财富",
+            "note": "买入退款",
+            "category": "income",
+            "record_type": "refund",
+            "record_id": "2025012822001111_refund",
+        })
+        uow.commit()
+
+    CashProjectionService(sessions, "ws").rebuild()
+    result = RelationService(UoW(sessions, "ws")).check(
+        seed_fact_ids=[expense_id, refund_id], trigger="manual_range", seed_ref="investment-refund"
+    )
+    assert result.ok is True
+    with sessions() as session:
+        relations = list(session.scalars(
+            select(TransactionRelationModel).where(
+                TransactionRelationModel.workspace_id == "ws",
+                TransactionRelationModel.kind == RelationKind.REFUND_OFFSET.value,
+                TransactionRelationModel.status == RelationStatus.ACCEPTED.value,
+            )
+        ))
+        assert len(relations) == 1
+        assert {relations[0].primary_fact_id, relations[0].secondary_fact_id} == {expense_id, refund_id}
+
+
+def test_scan_phase_a_pairs_wechat_transfer_return_without_reclassifying_it():
+    from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.relations import RelationService
+    from ft.domain.relations import RelationKind, RelationStatus
+
+    sessions, UoW = _db()
+    with UoW(sessions, "ws") as uow:
+        uow.accounts.add_raw({"name": "微信钱包", "type": "cash", "currency": "CNY"})
+        common = {
+            "currency": "CNY",
+            "account_name": "微信钱包",
+            "source": "微信",
+            "bill_source": "wechat",
+        }
+        expense_id = uow.cashflows.add("cash", {
+            **common,
+            "occurred_at": "2025-05-15 17:09:34",
+            "amount": "-50.00",
+            "counterparty": "收款人",
+            "note": "微信红包（单发）",
+            "category": "expense",
+            "record_type": "transfer_reversal",
+            "record_id": "wechat-out",
+            "source_payload": {
+                "txn_id": "wechat-out",
+                "merchant_order_id": "wechat-return",
+                "status": "对方已退还",
+                "txn_type": "微信红包（单发）",
+                "payment_method": "零钱",
+            },
+        })
+        refund_id = uow.cashflows.add("cash", {
+            **common,
+            "occurred_at": "2025-05-16 17:09:37",
+            "amount": "50.00",
+            "counterparty": "/",
+            "note": "微信红包-退款",
+            "category": "income",
+            "record_type": "transfer_reversal",
+            "record_id": "wechat-return",
+            "source_payload": {
+                "txn_id": "wechat-return",
+                "status": "已全额退款",
+                "txn_type": "微信红包-退款",
+                "payment_method": "零钱",
+            },
+        })
+        uow.commit()
+
+    CashProjectionService(sessions, "ws").rebuild()
+    result = RelationService(UoW(sessions, "ws")).check(
+        seed_fact_ids=[expense_id, refund_id], trigger="manual_range", seed_ref="wechat-return"
+    )
+    assert result.ok is True
+    with sessions() as session:
+        relations = list(session.scalars(
+            select(TransactionRelationModel).where(
+                TransactionRelationModel.workspace_id == "ws",
+                TransactionRelationModel.kind == RelationKind.REFUND_OFFSET.value,
+                TransactionRelationModel.status == RelationStatus.ACCEPTED.value,
+            )
+        ))
+        assert len(relations) == 1
+        assert relations[0].subtype == "p2p_return"
+        assert {relations[0].primary_fact_id, relations[0].secondary_fact_id} == {expense_id, refund_id}
+        types = dict(session.execute(
+            select(CashTransactionModel.id, CashTransactionModel.record_type).where(
+                CashTransactionModel.id.in_([expense_id, refund_id])
+            )
+        ).all())
+        assert set(types.values()) == {"transfer_reversal"}
+
+
 def test_is_platform_import_refund_source_helper():
     from ft.domain.relations import FactView, is_platform_import_refund_source
     from datetime import datetime, timezone
