@@ -40,7 +40,7 @@
 - [x] 5.6 补齐键盘焦点、可访问名称、按钮命中区域和 320 / 375 / 414 / 768 px 响应式样式
 - [x] 5.7 原型确认后，将当前低文案、紧凑关系列表和分页设计同步到 `CashImportPage` 和生产样式；拒绝决定提交 `rejected` 状态，非自动关系默认待处理
 - [x] 5.8 根据长流水浏览反馈，将第二、三步操作栏移到步骤标题下方；删除这两步内容末尾的重复操作栏，选择文件和成功页保持原布局
-- [x] 5.9 在选择文件步骤增加加密 PDF 密码输入、重新识别和错误状态；预览 / 确认阶段密码失效时回到该步骤并清空密码，密码只保存在当前页面内存
+- [x] 5.9 在选择文件步骤增加加密 PDF 密码输入和错误状态；密码通过当前步骤的“下一步”提交，预览 / 确认阶段密码失效时回到该步骤并清空密码，密码只保存在当前页面内存
 
 ## 6. 审查
 
@@ -136,9 +136,18 @@
 - [x] 18.5 用 Downloads 中 6 份支付宝账单做来源分类校验：无 `&` 优惠后缀账户组、无附加项命名账户、多个真实资金账户按合同识别为问题行
 - [x] 18.6 运行受影响 Python / SQLite / PostgreSQL 契约测试、Web Vitest、构建、`openspec validate --all --strict`、`git diff --check` 和安全 / diff 复核；回写当前 `HEAD`、基线、命令、结果和残余风险
 
+## 21. 工行 PDF 解析与本地密码预检 Flow-Back
+
+- [x] 21.1 以 `/Users/huangwenlong/.ft/bills` 中的用户样本复现识别失败，确认真实密码可解锁并记录脱敏解析结果；不把真实账单或密码加入仓库
+- [x] 21.2 先补工行信用卡 / 借记卡解析失败回归和缺少 `qpdf` 时的密码错误回归，再将工行现金 PDF 固定为带密码的 `pdfplumber` 路径
+- [x] 21.3 先补浏览器本地 PDF 加密标记检测与“命中后不请求扫描”的失败回归，再将选择文件步骤改为命中即显示密码，未命中或未知继续服务端兜底
+- [x] 21.4 将密码输入与选择文件步骤唯一的“下一步”绑定；删除“重新识别”和重复选择操作，保留后续阶段密码失效时的脱敏回退
+- [x] 21.5 完成后端 / Web 测试、构建、OpenSpec 校验、真实 Chromium 的 320 / 390 / 1440 px 主流程与错误状态、人工设计 / 安全复核，并回写命令、截图、控制台和网络结果
+
 ## Verification evidence
 
 - Current implementation evidence (2026-08-14, uncommitted worktree): `uv run pytest -q` → 1437 passed, 175 skipped, 1 warning; explicit PostgreSQL target against Docker PostgreSQL 16 database `finance_tracker_test` with `FT_TEST_POSTGRES_URL` → 70 passed, 1 warning; `cd web && npm test -- --run` → 104 passed; `npm run build` → passed; final production Chromium import / responsive QA was rerun after the large-confirmation transport and password-header changes. `openspec validate --all --strict` → 24 passed, 0 failed; `openspec doctor` → root and OpenSpec root ok; `git diff --check` → passed. `ruff` was unavailable in the environment (`Failed to spawn: ruff`). No commit, push, PR or deployment was performed in this continuation.
+- ICBC parser and select-step optimization (2026-09-04, `HEAD` `efa313b`, uncommitted): targeted Python regressions `tests/test_postgres_statement_import.py tests/test_cash_import_wizard.py` → 46 passed; full Python regression → 1473 passed, 177 skipped, 2 unrelated failures (`test_application_queries.py` existing valuation expectation and full-suite SQLite 100k P95 budget); the performance test passed in isolation. Real user PDF read-only check → no-password `required`, correct password `icbc_debit`, 1206 rows and 35 tracking pairs; raw bytes contain `/Encrypt`. Web Vitest → 112 passed; production build → passed; focused import E2E and preview E2E → 2 and 2 passed; final full import E2E → 27 passed, 1 unrelated existing dark-navigation color assertion failed (`tests/cash-category-management.e2e.ts`). The new import E2E covers local password prompt, zero pre-submit scan requests, wrong-password clearing, correct-password header forwarding, return-and-next without rescan, 390 / 1440 px overflow checks, and no page errors or failed requests. Screenshots: `/tmp/cash-import-encrypted-password-390.png`, `/tmp/cash-import-encrypted-password-error-390.png`, `/tmp/cash-import-encrypted-password-1440.png`. `openspec validate --all --strict` → 26 passed, 0 failed; `openspec doctor` → ok; Python compileall and `git diff --check` → passed. The in-app browser runtime reported no available browser, so repository Playwright was used for real Chromium QA; Hallmark audit was unavailable and manual visual / security review found no critical or major finding. PostgreSQL was not applicable because no storage schema or persistence contract changed. No commit, push, PR or deployment was performed.
 - Alipay combo-payment follow-up (2026-08-15, current `HEAD` `2a5dce137c7378c1a8416735b68d0e3f61aa49e3`, comparison `origin/refactor/web` `58041150dd4eec76ee3509fbefe308d08d070771`, uncommitted): `uv run pytest -q tests/test_statement_account_mapping.py tests/test_cash_import_wizard.py tests/test_complete_statement_source_payload.py tests/contract/test_web_api.py` → 93 passed, 4 skipped; focused legacy / normalization / no-write regressions → passed; `cd web && npm test -- --run` → 108 passed; `npm run build` → passed; `openspec validate --all --strict` → 25 passed, 0 failed; `git diff --check` and `python -m compileall -q src tests` → passed. Dedicated PostgreSQL 16 Docker database `finance_tracker_test` via `FT_TEST_POSTGRES_URL` and `uv run pytest -q tests/contract/test_web_api.py tests/integration/test_web_postgres.py` → 45 passed, 1 warning; temporary container stopped after verification.
 - Downloads evidence: all 6 local files were parsed with `StatementParser`; the 2024–2026 five files normalized to 12 / 7 / 6 / 6 / 6 source groups with zero unresolved rows; the 2023 file had 5 unresolved rows (`账户余额&花呗分期(3期)`, `工商银行储蓄卡(3697)&账户余额` and `建设银行储蓄卡(2820)&账户余额`) while retaining 7 usable source groups and 1362 usable rows. All 6 files preserved raw `&` payment text in `source_payload`; no discount-only account group was generated. The previous whole-file blocking browser evidence is superseded by Flow-Back 19.
 - Browser QA: production Vite preview `http://127.0.0.1:5173/cash-import`, isolated API stub, uploaded `/tmp/支付宝交易明细-qa.csv` copied from `Downloads/支付宝交易明细(20260512-20260812).csv`; 1440×900 and 390×844. The page stayed at “选择文件”, displayed `账单包含无法准确归属的组合支付，请拆分后重试。`, exposed no guessed account, had `document.body.scrollWidth <= window.innerWidth`, and had no console errors. Screenshots: `/tmp/cash-import-composite-1440.png`, `/tmp/cash-import-composite-390.png`.

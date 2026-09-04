@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { commitCashImport, previewCashImport, scanCashImport } from "../api/cashLedger";
+import { detectPdfPasswordRequirement } from "../import/pdfPassword";
 import type {
   ImportCommitResult,
   ImportMappingDecision,
@@ -233,6 +234,10 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setStage("select");
     setBusy(true);
     try {
+      if (await detectPdfPasswordRequirement(nextFile)) {
+        setPasswordRequired(true);
+        return;
+      }
       const nextScan = await scanCashImport(nextFile);
       setScan(nextScan);
       setImportToken(nextScan.import_token ?? null);
@@ -287,6 +292,20 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     } finally {
       setBusy(false);
     }
+  };
+
+  const continueFromSelect = () => {
+    if (!file || busy) return;
+    setError(undefined);
+    if (scan) {
+      setStage("mapping");
+      return;
+    }
+    if (passwordRequired) {
+      void detectWithPassword();
+      return;
+    }
+    void chooseFile(file);
   };
 
   const mappingPayload = (): ImportMappingDecision[] => (scan?.groups ?? []).map((group) => {
@@ -498,10 +517,9 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
               <label htmlFor="cash-import-password">账单密码</label>
               <div className="import-password-row">
                 <input id="cash-import-password" type="password" value={password} autoComplete="off" onChange={(event) => setPassword(event.target.value)} />
-                <button type="button" className="button-primary" disabled={!password || busy} onClick={() => void detectWithPassword()}>重新识别</button>
               </div>
             </div> : null}
-            <div className="stage-actions"><button type="button" className="button-secondary" onClick={onBack}>取消</button><button type="button" className="button-primary" disabled={busy}>{busy ? "扫描中…" : "选择账单文件"}</button></div>
+            <div className="stage-actions"><button type="button" className="button-secondary" onClick={onBack}>取消</button><button type="button" className="button-primary" disabled={!file || busy || (passwordRequired && !password)} onClick={continueFromSelect}>{busy ? "扫描中…" : "下一步"}</button></div>
           </section> : null}
 
           {stage === "mapping" && scan ? <section className="import-stage import-mapping-stage" aria-labelledby="import-mapping-heading">

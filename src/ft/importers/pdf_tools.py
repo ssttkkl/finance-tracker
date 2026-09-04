@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import selectors
+import shutil
 import subprocess
 import tempfile
 import time
@@ -17,15 +18,84 @@ class PDFPasswordInvalidError(ValueError):
     """The supplied statement password could not unlock the PDF."""
 
 
+def _is_pdf_password_error(exc: BaseException) -> bool:
+    """Recognize pdfminer password failures without exposing parser details."""
+    pending = [exc]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        identity = id(current)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        if type(current).__name__ in {"PDFPasswordIncorrect", "PDFPasswordRequired"}:
+            return True
+        if isinstance(current.__cause__, BaseException):
+            pending.append(current.__cause__)
+        if isinstance(current.__context__, BaseException):
+            pending.append(current.__context__)
+        pending.extend(item for item in current.args if isinstance(item, BaseException))
+    return False
+
+
+def _raise_pdf_password_error(exc: BaseException, password: str | None) -> None:
+    if _is_pdf_password_error(exc):
+        if password is None:
+            raise PDFPasswordRequiredError("PDF password required") from exc
+        raise PDFPasswordInvalidError("PDF password invalid") from exc
+
+
+def _extract_with_pdfplumber(
+    input_path, *, password: str | None = None, max_bytes: int = 25 * 1024 * 1024,
+    word_stream: bool = False,
+) -> str:
+    import pdfplumber
+
+    try:
+        with pdfplumber.open(input_path, password=password) as pdf:
+            pages = []
+            total = 0
+            for page in pdf.pages:
+                if word_stream:
+                    text = "\n".join(
+                        str(word.get("text") or "")
+                        for word in page.extract_words(use_text_flow=True)
+                    )
+                else:
+                    text = page.extract_text() or ""
+                total += len(text.encode("utf-8"))
+                if total > max_bytes:
+                    raise ValueError("extracted statement text exceeds 25 MiB limit")
+                pages.append(text)
+            return "\n".join(pages)
+    except ValueError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - normalize provider PDF errors.
+        _raise_pdf_password_error(exc, password)
+        raise ValueError("PDF text extraction failed") from exc
+
+
 def pdf_requires_password(input_path, *, timeout: int = 30) -> bool:
     """Return whether qpdf identifies the input as requiring a password."""
-    result = subprocess.run(
-        ["qpdf", "--requires-password", str(input_path)],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        timeout=timeout,
-    )
-    return result.returncode == 0
+    try:
+        result = subprocess.run(
+            ["qpdf", "--requires-password", str(input_path)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=timeout,
+        )
+        if result.returncode == 0:
+            return True
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        pass
+    try:
+        import pdfplumber
+
+        with pdfplumber.open(input_path) as pdf:
+            del pdf
+            return False
+    except Exception as exc:  # noqa: BLE001 - only use fallback for classification.
+        return _is_pdf_password_error(exc)
 
 
 def open_pdf(input_path, *, password: str | None = None):
@@ -35,6 +105,7 @@ def open_pdf(input_path, *, password: str | None = None):
     try:
         return pdfplumber.open(input_path, password=password)
     except Exception as exc:  # noqa: BLE001 - normalize provider PDF errors.
+        _raise_pdf_password_error(exc, password)
         try:
             requires_password = pdf_requires_password(input_path)
         except Exception:  # noqa: BLE001 - preserve a redacted parse failure.
@@ -66,9 +137,14 @@ def decrypt_pdf(input_path, output_path, password: str | None, *, timeout: int =
                 handle.close()
             argv.append(f"--password-file={password_path}")
         argv.extend(["--decrypt", str(input_path), str(output)])
-        result = subprocess.run(
-            argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout,
-        )
+        try:
+            result = subprocess.run(
+                argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout,
+            )
+        except FileNotFoundError as exc:
+            if password is None and pdf_requires_password(input_path, timeout=timeout):
+                raise PDFPasswordRequiredError("PDF password required") from exc
+            raise ValueError("PDF decryption tool unavailable") from exc
         if result.returncode != 0:
             requires_password = False
             try:
@@ -86,9 +162,16 @@ def decrypt_pdf(input_path, output_path, password: str | None, *, timeout: int =
 
 
 def extract_pdf_text(
-    input_path, *, timeout: int = 60, max_bytes: int = 25 * 1024 * 1024,
+    input_path, *, password: str | None = None, timeout: int = 60,
+    max_bytes: int = 25 * 1024 * 1024, backend: str = "mutool", word_stream: bool = False,
 ) -> str:
-    """Extract mutool text while enforcing hard time and output-memory limits."""
+    """Extract PDF text with a selected backend and bounded output."""
+    if backend not in {"mutool", "pdfplumber"}:
+        raise ValueError(f"unsupported PDF text extraction backend: {backend}")
+    if backend == "pdfplumber" or password is not None or shutil.which("mutool") is None:
+        return _extract_with_pdfplumber(
+            input_path, password=password, max_bytes=max_bytes, word_stream=word_stream,
+        )
     process = subprocess.Popen(
         ["mutool", "draw", "-F", "text", str(input_path)],
         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,

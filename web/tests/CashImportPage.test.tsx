@@ -301,7 +301,7 @@ describe("CashImportPage", () => {
     fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
     expect(await screen.findByLabelText("账单密码")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("账单密码"), { target: { value: "correct-password" } });
-    fireEvent.click(screen.getByRole("button", { name: "重新识别" }));
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
     expect(await screen.findByRole("heading", { name: "映射账户" })).toBeInTheDocument();
     const scanRequests = fetch.mock.calls.filter(([input]) => String(input).includes("/scan"));
     expect(JSON.parse(String(scanRequests[1]?.[1]?.body))).toEqual({
@@ -314,6 +314,32 @@ describe("CashImportPage", () => {
       mapping: null,
     });
     expect(screen.queryByText("correct-password")).not.toBeInTheDocument();
+  });
+
+  it("选中带加密标记的 PDF 后先在本地显示密码，不提前上传扫描", async () => {
+    const fetch = vi.fn((input: string, init?: RequestInit) => {
+      if (input.includes("/scan")) {
+        expect(input).not.toContain("local-password");
+        expect(new Headers(init?.headers).get("X-FT-Statement-Password")).toBe("local-password");
+        return response(scan);
+      }
+      return response({ message: "ok", new_rows: 1, updated_rows: 0 });
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    const file = new File(["%PDF-1.7\ntrailer\n<< /Encrypt 8 0 R >>"], "locked.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
+
+    expect(await screen.findByLabelText("账单密码")).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("账单密码"), { target: { value: "local-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+
+    expect(await screen.findByRole("heading", { name: "映射账户" })).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it("预览阶段密码失效时回到选择文件并清空密码", async () => {
@@ -335,7 +361,7 @@ describe("CashImportPage", () => {
     fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
     const passwordInput = await screen.findByLabelText("账单密码");
     fireEvent.change(passwordInput, { target: { value: "wrong-password" } });
-    fireEvent.click(screen.getByRole("button", { name: "重新识别" }));
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
     fireEvent.click(await screen.findByRole("button", { name: /^确认映射$/ }));
 
     expect(await screen.findByRole("heading", { name: "选择文件" })).toBeInTheDocument();
@@ -364,7 +390,7 @@ describe("CashImportPage", () => {
     fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
     const passwordInput = await screen.findByLabelText("账单密码");
     fireEvent.change(passwordInput, { target: { value: "correct-password" } });
-    fireEvent.click(screen.getByRole("button", { name: "重新识别" }));
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
     fireEvent.click(await screen.findByRole("button", { name: /^确认映射$/ }));
     fireEvent.click(await screen.findByRole("button", { name: /^下一步$/ }));
     fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
