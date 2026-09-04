@@ -468,7 +468,10 @@ test("独立导入处理页面扫描账户并完成四步确认", async ({ page 
     if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
     if (url.pathname.endsWith("/cash-import/scan")) return route.fulfill({ json: { contract: "cash-account-mapping-v1", channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", accounts: [account], groups: [{ group_id: "group-1", display_name: "工银亚洲账户", masked_evidence: "账户尾号：1234", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] } });
-    if (url.pathname.endsWith("/cash-import/preview")) return route.fulfill({ json: { channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, columns: ["occurred_at", "amount", "currency", "account_name", "counterparty", "counterparty_account", "record_type", "record_subtype", "category", "note", "channel", "status"], items: [{ record_id: "row-1", occurred_at: "2026-07-03T09:00", counterparty: "咖啡店", counterparty_account: "", amount: "-12.50", currency: "CNY", account_name: "日常账户", record_type: "consumption", record_subtype: "not_applicable", category: "餐饮", note: "", channel: "icbc-asia", status: "new", message: "" }], summary: { total: 1, new: 1, existing: 0, unsupported: 0 }, relations: [] } });
+    if (url.pathname.endsWith("/cash-import/preview")) return route.fulfill({ json: { channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, columns: ["occurred_at", "amount", "currency", "account_name", "counterparty", "counterparty_account", "record_type", "record_subtype", "category", "note", "channel", "status"], items: [
+      { record_id: "row-1", occurred_at: "2026-07-03T09:00", counterparty: "咖啡店", counterparty_account: "", amount: "-12.50", currency: "CNY", account_name: "日常账户", record_type: "consumption", record_subtype: "not_applicable", category: "餐饮", note: "", channel: "icbc-asia", status: "new", message: "" },
+      { record_id: "row-2", occurred_at: "2026-07-02T09:00", counterparty: "零金额流水", counterparty_account: "", amount: "0.00", currency: "CNY", account_name: "日常账户", record_type: "consumption", record_subtype: "not_applicable", category: "餐饮", note: "不表达方向", channel: "icbc-asia", status: "existing", message: "" },
+    ], summary: { total: 2, new: 1, existing: 1, unsupported: 0 }, relations: [] } });
     if (url.pathname.endsWith("/cash-import/commit")) { committed = true; return route.fulfill({ json: { message: "ok", new_rows: 1, updated_rows: 0 } }); }
     return route.fulfill({ json: { projection_version: 1, items: [item("1", "第一笔")], next_cursor: null, page_size: 50, filters: {}, filter_options } });
   });
@@ -487,13 +490,36 @@ test("独立导入处理页面扫描账户并完成四步确认", async ({ page 
   await expect(page.getByText("全部", { exact: true })).toBeVisible();
   await expect(page.locator(".transaction-table--import")).toBeVisible();
   await expect(page.locator(".transaction-table--import thead th")).toHaveText(["发生时间", "账户", "交易信息", "流水类型", "状态", "金额"]);
-  await expect(page.locator(".transaction-table--import .occurred-at")).not.toContainText("T");
+  expect((await page.locator(".transaction-table--import .occurred-at").allTextContents()).every((value) => !value.includes("T"))).toBeTruthy();
   await expect(page.getByText("2026年7月", { exact: true })).toBeVisible();
-  await expect(page.getByText("消费", { exact: true })).toBeVisible();
-  await expect(page.locator(".transaction-table--import td.amount")).toHaveAttribute("data-direction", "支出");
-  await expect(page.locator(".transaction-table--import .counterparty-primary")).toHaveText("咖啡店");
-  await expect(page.locator(".transaction-table--import .counterparty .note")).toHaveText("-");
-  await expect(page.locator(".transaction-table--import .status .import-status")).toHaveText("待新增");
+  const expenseRow = page.locator(".transaction-table--import tr.cash-row", { hasText: "咖啡店" });
+  await expect(expenseRow.locator(".economic-type .cash-mobile-field-value")).toHaveText("消费");
+  await expect(expenseRow.locator("td.amount")).toHaveAttribute("data-direction", "支出");
+  await expect(expenseRow.locator(".counterparty-primary")).toHaveText("咖啡店");
+  await expect(expenseRow.locator(".counterparty .note")).toHaveText("-");
+  await expect(expenseRow.locator(".status .import-status.new")).toHaveText("待新增");
+  const existingRow = page.locator(".transaction-table--import tr.cash-row", { hasText: "零金额流水" });
+  await expect(existingRow.locator(".status .import-status.existing")).toHaveText("已存在");
+  await expect(expenseRow.locator(".status .import-status")).toHaveCSS("font-weight", "650");
+  const zeroAmount = page.locator('.transaction-table--import td.amount', { hasText: "0.00 CNY" });
+  await expect(zeroAmount).toHaveAttribute("data-direction", "未提供");
+  await expect(zeroAmount).not.toHaveClass(/inflow|outflow/);
+  const summaryCards = page.locator(".import-summary-cards");
+  const existingFilter = summaryCards.getByRole("button", { name: /已存在/ });
+  await existingFilter.click();
+  await expect(existingFilter).toHaveAttribute("aria-pressed", "true");
+  await expect(existingRow).toBeVisible();
+  await expect(expenseRow).toHaveCount(0);
+  const unresolvedFilter = summaryCards.getByRole("button", { name: /无法识别/ });
+  await unresolvedFilter.focus();
+  await page.keyboard.press("Enter");
+  await expect(unresolvedFilter).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("status")).toContainText("没有符合条件的流水");
+  await expect(page.locator(".transaction-table--import")).toHaveCount(0);
+  const allFilter = summaryCards.getByRole("button", { name: /全部/ });
+  await allFilter.click();
+  await expect(allFilter).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".transaction-table--import tr.cash-row")).toHaveCount(2);
   await expect(page.locator(".transaction-table--import .category-column")).toHaveCount(0);
   await expect(page.getByText("餐饮", { exact: true })).toHaveCount(0);
   await expect(page.getByText("expense", { exact: true })).toHaveCount(0);
@@ -505,7 +531,7 @@ test("独立导入处理页面扫描账户并完成四步确认", async ({ page 
   }
   await page.screenshot({ path: "/tmp/cash-import-preview-production-1440.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator(".transaction-table--import .counterparty-primary")).toBeVisible();
+  await expect(page.locator(".transaction-table--import .counterparty-primary").first()).toBeVisible();
   expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
   await page.screenshot({ path: "/tmp/cash-import-preview-production-390.png", fullPage: true });
   await page.setViewportSize({ width: 1440, height: 900 });

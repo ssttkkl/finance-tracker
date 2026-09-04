@@ -1,4 +1,5 @@
 import type { CashCategory, CashMonthlySummary, CashProjection } from "../api/types";
+import { isZeroAmount } from "../format";
 import { TransactionTable, type TransactionTableItem } from "./TransactionTable";
 
 type Props = {
@@ -33,7 +34,7 @@ function amountLabel(item: CashProjection): string {
     const toAmount = unsignedAmount(transfer.to_amount);
     return transfer.from_currency === transfer.to_currency ? `${fromAmount} ${transfer.from_currency}` : `${fromAmount} ${transfer.from_currency} → ${toAmount} ${transfer.to_currency}`;
   }
-  const amount = item.amount.startsWith("-") || item.amount.startsWith("+") || item.amount === "0" ? item.amount : `+${item.amount}`;
+  const amount = isZeroAmount(item.amount) ? unsignedAmount(item.amount) : item.amount.startsWith("-") || item.amount.startsWith("+") ? item.amount : `+${item.amount}`;
   return `${amount} ${item.currency}`;
 }
 function projectionSource(item: CashProjection) {
@@ -57,7 +58,7 @@ function toTableItem(item: CashProjection): TransactionTableItem<CashProjection>
     counterparty: item.counterparty,
     note: item.note,
     flowLabel: economicTypeLabel(item),
-    direction: transfer ? "transfer" : item.amount.startsWith("-") ? "expense" : item.amount.startsWith("+") || item.amount !== "0" ? "income" : "unknown",
+    direction: transfer ? "transfer" : isZeroAmount(item.amount) ? "unknown" : item.amount.startsWith("-") ? "expense" : item.amount.startsWith("+") || item.amount !== "0" ? "income" : "unknown",
     amountLabel: amountLabel(item),
     categoryLabel: categoryLabel(item.category),
     sourceIndicator: projectionSource(item),

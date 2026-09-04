@@ -151,8 +151,9 @@ describe("CashImportPage", () => {
         item,
         { ...item, record_id: "row-2", occurred_at: "2026-07-31T17:30:00Z", amount: "700", record_type: "income", status: "existing" as const, counterparty: "退款方", note: "退款到账" },
         { ...item, record_id: "row-3", occurred_at: "2026-07-01T02:00:00+08:00", amount: "-8", status: "unresolved" as const, counterparty: "待确认", note: "无法归属" },
+        { ...item, record_id: "row-4", occurred_at: "2026-07-02T02:00:00+08:00", amount: "0.00", status: "existing" as const, counterparty: "零金额", note: "不表达方向" },
       ],
-      summary: { total: 3, new: 1, existing: 1, unsupported: 1, unresolved: 1 },
+      summary: { total: 4, new: 1, existing: 2, unsupported: 1, unresolved: 1 },
       relations: [],
     };
     const fetch = vi.fn((input: string) => input.includes("/scan")
@@ -174,6 +175,9 @@ describe("CashImportPage", () => {
     expect(screen.getAllByText("已存在").length).toBeGreaterThan(1);
     expect(screen.getAllByText("无法识别").length).toBeGreaterThan(1);
     expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["发生时间", "账户", "交易信息", "流水类型", "状态", "金额"]);
+    const zeroAmount = screen.getByRole("cell", { name: "0.00 CNY" });
+    expect(zeroAmount).toHaveAttribute("data-direction", "未提供");
+    expect(zeroAmount).not.toHaveClass("inflow", "outflow");
     expect(screen.queryByText("未分类")).not.toBeInTheDocument();
     expect(screen.queryByText("expense")).not.toBeInTheDocument();
     expect(screen.queryByText("income")).not.toBeInTheDocument();
@@ -197,6 +201,41 @@ describe("CashImportPage", () => {
     expect(screen.getByRole("status")).toHaveTextContent("没有可核对流水");
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.queryByText("未分类")).not.toBeInTheDocument();
+  });
+
+  it("点击摘要状态只筛选预览表格并支持恢复全部", async () => {
+    const filterPreview = {
+      ...preview,
+      items: [item, { ...item, record_id: "row-existing", status: "existing" as const, counterparty: "已存在流水" }],
+      summary: { total: 2, new: 1, existing: 1, unsupported: 0 },
+      relations: [],
+    };
+    const fetch = vi.fn((input: string) => input.includes("/scan")
+      ? response(scan)
+      : input.includes("/preview")
+        ? response(filterPreview)
+        : response({}));
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [new File(["fixture"], "statement.csv")] } });
+    await screen.findByRole("heading", { name: "映射账户" });
+    fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
+    await screen.findByRole("heading", { name: "核对流水" });
+
+    const existingFilter = screen.getByRole("button", { name: /已存在\s*1/ });
+    fireEvent.click(existingFilter);
+    expect(existingFilter).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("已存在流水")).toBeInTheDocument();
+    expect(screen.queryByText("咖啡店")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /全部\s*2/ }));
+    expect(screen.getByText("咖啡店")).toBeInTheDocument();
+    expect(screen.getByText("已存在流水")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /无法识别\s*0/ }));
+    expect(screen.getByRole("status")).toHaveTextContent("没有符合条件的流水");
+    expect(screen.queryByText("咖啡店")).not.toBeInTheDocument();
   });
 
   it("扫描后只用令牌请求预览和确认，不重复上传账单正文", async () => {

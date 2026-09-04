@@ -5,3 +5,7 @@ export function formatOccurredAt(value: string): string {
     timeStyle: "short",
   }).format(new Date(value));
 }
+
+export function isZeroAmount(value: string): boolean {
+  return /^[+-]?0+(?:\.0+)?$/.test(value.trim());
+}
