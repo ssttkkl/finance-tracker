@@ -48,6 +48,32 @@ def test_partial_refund_auto_accept():
     assert proposal.secondary_fact_id == "r"
 
 
+def test_p2p_return_offset_is_not_independent_income():
+    expense = _fv(
+        id="transfer-out", amount=Decimal("-50"), account_id="wallet",
+        account_name="微信钱包", occurred_at="2025-05-15 17:09:34",
+        record_type="transfer_reversal", note="微信红包（单发）",
+    )
+    returned = _fv(
+        id="transfer-return", amount=Decimal("50"), account_id="wallet",
+        account_name="微信钱包", occurred_at="2025-05-16 17:09:37",
+        record_type="transfer_reversal", note="微信红包-退款",
+    )
+    result = project_balances_and_pnl(
+        [expense, returned],
+        [{
+            "kind": "refund_offset",
+            "subtype": "p2p_return",
+            "primary_fact_id": "transfer-out",
+            "secondary_fact_id": "transfer-return",
+            "status": RelationStatus.ACCEPTED.value,
+        }],
+    )
+
+    assert result.expenses.get("CNY", Decimal("0")) == Decimal("0")
+    assert result.income.get("CNY", Decimal("0")) == Decimal("0")
+
+
 def test_over_refund_is_not_a_candidate():
     expense = _fv(
         id="e", amount=Decimal("-100"), account_id="1", account_name="支付宝",

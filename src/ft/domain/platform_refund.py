@@ -403,3 +403,104 @@ def pair_wechat_refunds(
             used.add(m.expense_index)
         pairs.append((exp_map[m.expense_index], ii, m.rule_id))
     return pairs
+
+
+def pair_wechat_transfer_returns(
+    rows: Sequence[dict],
+    *,
+    max_window: timedelta = timedelta(days=60),
+) -> list[tuple[int, int, str]]:
+    """Pair exact WeChat transfer/red-packet return rows.
+
+    This is deliberately separate from :func:`pair_wechat_refunds`: both legs
+    remain ``transfer_reversal`` and only a source transaction-id loop closes
+    the pair.  Free-text refund words are not sufficient evidence.
+    """
+    expenses: list[int] = []
+    incomes: list[int] = []
+    for i, row in enumerate(rows):
+        amount = _to_decimal(row.get("amount"))
+        if amount is None:
+            continue
+        record_type = str(row.get("record_type") or "")
+        if amount < 0 and record_type == "transfer_reversal":
+            expenses.append(i)
+        elif amount > 0 and record_type == "transfer_reversal":
+            status = str(row.get("status") or row.get("platform_status") or "")
+            txn_type = str(row.get("txn_type") or row.get("type") or "")
+            if "退款" in status or "退款" in txn_type:
+                incomes.append(i)
+
+    def value(row: dict, *keys: str) -> str:
+        for key in keys:
+            item = row.get(key)
+            if item not in (None, ""):
+                return str(item).strip()
+        return ""
+
+    def transaction_link(expense: dict, income: dict) -> bool:
+        expense_txn = value(expense, "txn_id", "txn")
+        expense_merchant = value(expense, "merchant_order_id", "mer")
+        income_txn = value(income, "txn_id", "txn")
+        income_merchant = value(income, "merchant_order_id", "mer")
+        return bool(
+            (expense_merchant and income_txn and expense_merchant == income_txn)
+            or (income_merchant and expense_txn and income_merchant == expense_txn)
+        )
+
+    def same_account(expense: dict, income: dict) -> bool:
+        expense_account = value(expense, "account_id")
+        income_account = value(income, "account_id")
+        if expense_account and income_account:
+            return expense_account == income_account
+        expense_pay = value(expense, "payment_method", "pay")
+        income_pay = value(income, "payment_method", "pay")
+        return bool(expense_pay and income_pay and expense_pay == income_pay)
+
+    def date_key(index: int) -> tuple[str, str, str]:
+        row = rows[index]
+        return (
+            value(row, "date", "occurred_at"),
+            value(row, "txn_id", "txn"),
+            value(row, "id"),
+        )
+
+    used_expenses: set[int] = set()
+    pairs: list[tuple[int, int, str]] = []
+    for income_index in sorted(incomes, key=date_key):
+        income = rows[income_index]
+        income_amount = _to_decimal(income.get("amount"))
+        if income_amount is None:
+            continue
+        income_currency = value(income, "currency").upper()
+        income_dt = _parse_dt(value(income, "date", "occurred_at"))
+        candidates: list[int] = []
+        for expense_index in expenses:
+            if expense_index in used_expenses:
+                continue
+            expense = rows[expense_index]
+            expense_amount = _to_decimal(expense.get("amount"))
+            if expense_amount is None or abs(expense_amount) != abs(income_amount):
+                continue
+            expense_currency = value(expense, "currency").upper()
+            if (
+                not expense_currency
+                or not income_currency
+                or expense_currency != income_currency
+            ):
+                continue
+            if not same_account(expense, income) or not transaction_link(expense, income):
+                continue
+            expense_dt = _parse_dt(value(expense, "date", "occurred_at"))
+            if income_dt is None or expense_dt is None:
+                continue
+            delta = income_dt - expense_dt
+            if delta < timedelta(0) or delta > max_window:
+                continue
+            candidates.append(expense_index)
+        if len(candidates) != 1:
+            continue
+        expense_index = candidates[0]
+        used_expenses.add(expense_index)
+        pairs.append((expense_index, income_index, "import.wechat.transfer_return.v1"))
+    return pairs

@@ -13,6 +13,7 @@ from ft.domain.platform_refund import (
     alipay_is_auth_hold,
     alipay_is_unfreeze,
     alipay_order_match,
+    pair_wechat_transfer_returns,
     pair_wechat_refunds,
 )
 from ft.domain.relations.core.types import (
@@ -22,6 +23,7 @@ from ft.domain.relations.core.types import (
     RelationKind,
     RelationProposal,
     RelationStatus,
+    SUBTYPE_P2P_RETURN,
     SUBTYPE_NONE,
 )
 from ft.domain.relations.core.record_types import (
@@ -61,12 +63,49 @@ def _proposal_pair(
     ref: FactView | None,
     rule_id: str,
     extras: dict | None = None,
+    allow_investment_out: bool = False,
+    allow_transfer_reversal: bool = False,
+    subtype: str = SUBTYPE_NONE,
 ) -> RelationProposal | None:
     if not exp_id or not ref_id or exp_id == ref_id:
         return None
     if exp is None or ref is None:
         return None
-    if not is_refund_expense_candidate(exp) or not is_refund_in(ref):
+    if str(exp.account_id) != str(ref.account_id):
+        return None
+    if str(exp.currency).upper() != str(ref.currency).upper():
+        return None
+    expense_is_valid = is_refund_expense_candidate(exp)
+    if (
+        not expense_is_valid
+        and allow_investment_out
+        and exp.signed_amount < 0
+        and exp.record_type == "investment_out"
+    ):
+        expense_is_valid = True
+    if (
+        not expense_is_valid
+        and allow_transfer_reversal
+        and exp.record_type == "transfer_reversal"
+        and exp.signed_amount < 0
+    ):
+        expense_is_valid = True
+    refund_is_valid = is_refund_in(ref)
+    if (
+        not refund_is_valid
+        and allow_transfer_reversal
+        and ref.record_type == "transfer_reversal"
+        and ref.signed_amount > 0
+    ):
+        refund_is_valid = True
+    if (
+        not expense_is_valid
+        or not refund_is_valid
+        or (
+            not allow_transfer_reversal
+            and exp.record_type == "transfer_reversal"
+        )
+    ):
         return None
     rid = _normalize_scan_rule_id(rule_id)
     refund_amt = abs(ref.signed_amount)
@@ -92,7 +131,7 @@ def _proposal_pair(
         secondary_fact_id=secondary,
         primary_fact_type=exp.fact_type if primary == exp_id else ref.fact_type,
         secondary_fact_type=ref.fact_type if secondary == ref_id else exp.fact_type,
-        subtype=SUBTYPE_NONE,
+        subtype=subtype,
         status=RelationStatus.ACCEPTED.value,
         rule_id=rid,
         confidence=CONFIDENCE_STRONG,
@@ -108,6 +147,7 @@ def match_phase_a_platform_refunds(
     *,
     facts_by_id: Mapping[str, FactView],
     linked_pairs: set[tuple[str, str]] | None = None,
+    remaining_by_expense: Mapping[str, Decimal] | None = None,
 ) -> list[RelationProposal]:
     """Return hard-key refund_offset proposals (no DB side effects)."""
     linked = linked_pairs or set()
@@ -123,6 +163,13 @@ def match_phase_a_platform_refunds(
 
     proposals: list[RelationProposal] = []
     detailed = [dict(r) for r in detailed_rows if r.get("id")]
+    remaining = dict(remaining_by_expense or {})
+    if not remaining:
+        remaining = {
+            str(fact.id): abs(fact.signed_amount)
+            for fact in facts_by_id.values()
+            if fact.signed_amount < 0
+        }
 
     # --- Alipay order-key ---
     alipay_rows = [r for r in detailed if _is_alipay_row(r)]
@@ -140,7 +187,16 @@ def match_phase_a_platform_refunds(
         )
         fact = facts_by_id.get(str(r.get("id") or ""))
         is_ref = bool(fact and is_refund_in(fact))
-        is_exp = bool(fact and is_refund_expense_candidate(fact))
+        is_exp = bool(
+            fact
+            and (
+                is_refund_expense_candidate(fact)
+                or (
+                    fact.record_type == "investment_out"
+                    and fact.signed_amount < 0
+                )
+            )
+        )
         if alipay_is_auth_hold(status):
             origins.append(r)
             continue
@@ -153,8 +209,31 @@ def match_phase_a_platform_refunds(
             origins.append(r)
 
     origin_txns = [str(o.get("txn_id") or o.get("record_id") or "") for o in origins]
-    used_origin: set[int] = set()
-    for ref in refunds:
+
+    def candidate_origins(ref: dict) -> list[int]:
+        rtxn = str(ref.get("txn_id") or ref.get("record_id") or "")
+        hits = [
+            i for i, otxn in enumerate(origin_txns)
+            if alipay_order_match(rtxn, otxn)
+        ]
+        merchant_order_id = str(ref.get("merchant_order_id") or "").strip()
+        if merchant_order_id:
+            exact_order_hits = [
+                i for i in hits
+                if str(origins[i].get("merchant_order_id") or "").strip()
+                == merchant_order_id
+            ]
+            if exact_order_hits:
+                hits = exact_order_hits
+        return hits
+
+    for ref in sorted(
+        refunds,
+        key=lambda row: (
+            str(row.get("txn_id") or row.get("record_id") or ""),
+            str(row.get("id") or ""),
+        ),
+    ):
         status = str(
             ref.get("platform_status")
             or ref.get("status")
@@ -163,16 +242,18 @@ def match_phase_a_platform_refunds(
         )
         if alipay_is_unfreeze(status):
             continue
-        rtxn = str(ref.get("txn_id") or ref.get("record_id") or "")
+        ref_amount = abs(Decimal(str(ref.get("amount") or 0)))
         hits = [
-            i
-            for i, otxn in enumerate(origin_txns)
-            if i not in used_origin and alipay_order_match(rtxn, otxn)
+            i for i in candidate_origins(ref)
+            if ref_amount > 0
+            and ref_amount <= remaining.get(
+                str(origins[i].get("id")),
+                abs(facts_by_id[str(origins[i]["id"])].signed_amount),
+            )
         ]
         if len(hits) != 1:
             continue
         oi = hits[0]
-        used_origin.add(oi)
         exp_id = str(origins[oi]["id"])
         ref_id = str(ref["id"])
         if already(exp_id, ref_id):
@@ -183,9 +264,13 @@ def match_phase_a_platform_refunds(
             exp=facts_by_id.get(exp_id),
             ref=facts_by_id.get(ref_id),
             rule_id="scan.alipay.order_prefix.v1",
+            allow_investment_out=True,
         )
         if prop is not None:
             proposals.append(prop)
+            remaining[exp_id] = remaining.get(
+                exp_id, abs(facts_by_id[exp_id].signed_amount)
+            ) - ref_amount
 
     # Auth hold → unfreeze same calendar day unique
     holds = [
@@ -266,6 +351,15 @@ def match_phase_a_platform_refunds(
         )
         row["mer"] = row["merchant_order_id"]
         row["record_type"] = str(row.get("record_type") or "")
+        fact = facts_by_id.get(str(row.get("id") or ""))
+        if fact is not None:
+            if not row.get("account_id"):
+                row["account_id"] = fact.account_id
+            if not row.get("currency"):
+                row["currency"] = fact.currency
+            row["record_type"] = row["record_type"] or fact.record_type
+            if not row.get("occurred_at") and not row.get("date"):
+                row["occurred_at"] = fact.occurred_at
         row["direction"] = row.get("direction") or payload.get("direction") or (
             "支出" if Decimal(str(row.get("amount") or 0)) < 0 else "收入"
         )
@@ -273,7 +367,10 @@ def match_phase_a_platform_refunds(
         wechat_rows.append(row)
 
     if wechat_rows:
-        pairs = pair_wechat_refunds(wechat_rows)
+        pairs = [
+            *pair_wechat_transfer_returns(wechat_rows),
+            *pair_wechat_refunds(wechat_rows),
+        ]
         for ei, ii, rule_id in pairs:
             exp_id = str(wechat_rows[ei]["id"])
             ref_id = str(wechat_rows[ii]["id"])
@@ -285,6 +382,12 @@ def match_phase_a_platform_refunds(
                 exp=facts_by_id.get(exp_id),
                 ref=facts_by_id.get(ref_id),
                 rule_id=rule_id,
+                allow_transfer_reversal=rule_id.endswith("transfer_return.v1"),
+                subtype=(
+                    SUBTYPE_P2P_RETURN
+                    if rule_id.endswith("transfer_return.v1")
+                    else SUBTYPE_NONE
+                ),
             )
             if prop is not None:
                 proposals.append(prop)
