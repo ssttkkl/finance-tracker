@@ -23,4 +23,12 @@ describe("detectPdfPasswordRequirement", () => {
 
     await expect(detectPdfPasswordRequirement(file)).resolves.toBe(null);
   });
+
+  it("只把 trailer 中的加密字典引用视为加密标记", async () => {
+    const file = new File(["%PDF-1.7\n1 0 obj\n<< /Encrypt 8 0 R >>\nendobj"], "plain.pdf", {
+      type: "application/pdf",
+    });
+
+    await expect(detectPdfPasswordRequirement(file)).resolves.toBe(false);
+  });
 });

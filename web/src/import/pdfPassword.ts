@@ -1,6 +1,8 @@
 const PDF_SIGNATURE = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]);
 const ENCRYPT_ENTRY = new Uint8Array([0x2f, 0x45, 0x6e, 0x63, 0x72, 0x79, 0x70, 0x74]);
+const TRAILER_ENTRY = new Uint8Array([0x74, 0x72, 0x61, 0x69, 0x6c, 0x65, 0x72]);
 const MAX_PROBE_BYTES = 16 * 1024 * 1024;
+const TRAILER_LOOKBACK_BYTES = 1024 * 1024;
 
 function isWhitespace(value: number | undefined): boolean {
   return value === 0 || value === 9 || value === 10 || value === 12 || value === 13 || value === 32;
@@ -17,16 +19,43 @@ function startsWith(bytes: Uint8Array, prefix: Uint8Array): boolean {
   return prefix.every((value, index) => bytes[index] === value);
 }
 
+function matchesTokenAt(bytes: Uint8Array, index: number, token: Uint8Array): boolean {
+  if (index < 0 || index + token.length > bytes.length) return false;
+  if (!token.every((value, offset) => bytes[index + offset] === value)) return false;
+  return isPdfDelimiter(bytes[index - 1]) && isPdfDelimiter(bytes[index + token.length]);
+}
+
+function hasTrailerBefore(bytes: Uint8Array, index: number): boolean {
+  const start = Math.max(0, index - TRAILER_LOOKBACK_BYTES);
+  for (let cursor = index - TRAILER_ENTRY.length; cursor >= start; cursor -= 1) {
+    if (matchesTokenAt(bytes, cursor, TRAILER_ENTRY)) return true;
+  }
+  return false;
+}
+
+function hasIndirectReference(bytes: Uint8Array, index: number): boolean {
+  let cursor = index;
+  if (bytes[cursor] === undefined || bytes[cursor] < 0x30 || bytes[cursor] > 0x39) return false;
+  while (bytes[cursor] >= 0x30 && bytes[cursor] <= 0x39) cursor += 1;
+  if (!isWhitespace(bytes[cursor])) return false;
+  while (isWhitespace(bytes[cursor])) cursor += 1;
+  if (bytes[cursor] === undefined || bytes[cursor] < 0x30 || bytes[cursor] > 0x39) return false;
+  while (bytes[cursor] >= 0x30 && bytes[cursor] <= 0x39) cursor += 1;
+  if (!isWhitespace(bytes[cursor])) return false;
+  while (isWhitespace(bytes[cursor])) cursor += 1;
+  return bytes[cursor] === 0x52 && isPdfDelimiter(bytes[cursor + 1]);
+}
+
 function hasEncryptEntry(bytes: Uint8Array): boolean {
   for (let index = 0; index <= bytes.length - ENCRYPT_ENTRY.length; index += 1) {
     if (!isPdfDelimiter(bytes[index - 1])) continue;
     if (!ENCRYPT_ENTRY.every((value, offset) => bytes[index + offset] === value)) continue;
+    if (!hasTrailerBefore(bytes, index)) continue;
     const afterMarker = index + ENCRYPT_ENTRY.length;
     if (!isWhitespace(bytes[afterMarker])) continue;
     let valueStart = afterMarker;
     while (isWhitespace(bytes[valueStart])) valueStart += 1;
-    const value = bytes[valueStart];
-    if ((value >= 0x30 && value <= 0x39) || value === 0x3c) return true;
+    if (hasIndirectReference(bytes, valueStart)) return true;
   }
   return false;
 }

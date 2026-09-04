@@ -604,6 +604,7 @@ test("加密 PDF 先在浏览器提示密码，点击下一步后才开始扫描
     return route.fulfill({ json: { projection_version: 1, items: [], next_cursor: null, page_size: 50, filters: {}, filter_options } });
   });
 
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/cash-import");
   await page.locator('input[type="file"]').setInputFiles({
     name: "locked.pdf",
