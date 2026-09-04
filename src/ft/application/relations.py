@@ -38,6 +38,7 @@ from ft.domain.relations import (
 )
 from ft.domain.import_time import normalize_timestamp
 from ft.domain.relations.core.keys import stable_fact_order_key, stable_fact_reference
+from ft.domain.relations.pipeline import _demote_overlapping_phase_a_refunds
 
 
 def _fact_view_from_row(row: dict) -> FactView:
@@ -460,6 +461,14 @@ def _refund_blocked_ids(
     for relation in relations:
         if relation.get("status") == RelationStatus.SUPERSEDED.value:
             continue
+        # A payment mirror joins two source rows into one economic event; it
+        # does not consume either row as a refund leg.  Blocking both mirror
+        # endpoints here discards the event evidence before Phase D can
+        # collapse it, which lets an unrelated same-amount expense win.
+        # Refund/transfer occupancy remains handled by their own relation
+        # kinds, and the pipeline expands consumed refund legs through mirrors.
+        if relation.get("kind") == RelationKind.PAYMENT_MIRROR.value:
+            continue
         primary = str(relation.get("primary_fact_id") or "")
         secondary = str(relation.get("secondary_fact_id") or "")
         refreshable_open_leg = (
@@ -607,6 +616,12 @@ def plan_relation_proposals(
             refund_blocked_ids=refund_blocked,
             merchant_refund_seed_ids=seeds,
         )
+    )
+    phase_a = _demote_overlapping_phase_a_refunds(
+        normalized_facts,
+        phase_a,
+        active_relations,
+        context.mirror_pairs(),
     )
     all_proposals = tuple(sorted(
         (*phase_a, *proposals),

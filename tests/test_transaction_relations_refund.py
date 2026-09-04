@@ -13,6 +13,8 @@ from ft.domain.relations import (
     run_relation_phases,
 )
 
+from ft.application.relations import plan_relation_proposals
+
 
 def _fv(**kwargs):
     base = dict(currency="CNY", account_type="cash", fact_type="cash", deleted=False)
@@ -501,6 +503,40 @@ def test_refund_uses_nearest_economic_event_after_mirror_rows_are_collapsed():
     assert "full_nearest_unique" in refund_proposals[0].evidence.signals
 
 
+def test_mirror_event_shares_partial_refund_remaining_across_members():
+    platform_expense = _fv(
+        id="platform-expense", amount=Decimal("-100"), account_id="1",
+        occurred_at="2026-01-02 10:00:00", counterparty="商家A",
+        category="expense", bill_source="alipay", source="alipay",
+    )
+    bank_expense = _fv(
+        id="bank-expense", amount=Decimal("-100"), account_id="1",
+        occurred_at="2026-01-01 10:00:00", counterparty="商家A",
+        category="expense", bill_source="ccb_debit", source="ccb_debit",
+    )
+    refund = _fv(
+        id="refund", amount=Decimal("50"), account_id="1",
+        occurred_at="2026-01-03 10:00:00", counterparty="商家A", note="退款",
+        category="income", bill_source="ccb_debit", source="ccb_debit",
+    )
+
+    proposals = run_relation_phases(
+        [platform_expense, bank_expense, refund],
+        ctx=MatchContext(
+            accepted_mirrors=[
+                RelationEdge("platform-expense", "bank-expense", "payment_mirror"),
+            ],
+            remaining_by_expense={
+                "platform-expense": Decimal("100"),
+                "bank-expense": Decimal("30"),
+            },
+        ),
+        merchant_refund_seed_ids=["refund"],
+    )
+
+    assert [p for p in proposals if p.kind == "refund_offset"] == []
+
+
 def test_full_refund_with_mirror_collapsed_nearest_tie_stays_pending():
     platform_one = _fv(
         id="platform-one", amount=Decimal("-100"), account_id="1",
@@ -865,3 +901,129 @@ def test_generic_platform_title_does_not_cross_match_merchants():
     )
 
     assert evaluate_refund_offset(refund, [expense]) is None
+
+
+def test_refund_keeps_payment_mirror_event_from_cross_merchant_fallback():
+    """A mirrored expense remains evidence for its refund event.
+
+    Regression for the real Alipay/WeChat/CCB overlap: treating every
+    payment_mirror endpoint as refund-occupied made the CCB refund fall back to
+    an unrelated same-amount WeChat expense.
+    """
+    alipay_expense = _fv(
+        id="alipay-gaode-expense", amount=Decimal("-10.00"), account_id="cash",
+        account_name="支付宝", occurred_at="2024-04-18 10:00:00",
+        counterparty="高德", category="expense", bill_source="alipay", source="alipay",
+    )
+    ccb_expense = _fv(
+        id="ccb-gaode-expense", amount=Decimal("-10.00"), account_id="cash",
+        account_name="建设银行", occurred_at="2024-04-17 10:00:00",
+        counterparty="高德", category="expense", bill_source="ccb_debit", source="ccb_debit",
+    )
+    unrelated_expense = _fv(
+        id="wechat-yuyuantan-expense", amount=Decimal("-10.00"), account_id="cash",
+        account_name="微信", occurred_at="2024-04-20 10:00:00",
+        counterparty="北京市玉渊潭公园管理处", category="expense",
+        bill_source="wechat", source="wechat",
+    )
+    ccb_refund = _fv(
+        id="ccb-gaode-refund", amount=Decimal("10.00"), account_id="cash",
+        account_name="建设银行", occurred_at="2024-04-20 11:00:00",
+        counterparty="高德", category="income", record_type="refund",
+        bill_source="ccb_debit", source="ccb_debit", note="退款",
+    )
+
+    proposals = run_relation_phases(
+        [alipay_expense, ccb_expense, unrelated_expense, ccb_refund],
+        ctx=MatchContext(
+            accepted_mirrors=[
+                RelationEdge("alipay-gaode-expense", "ccb-gaode-expense", "payment_mirror"),
+            ],
+        ),
+        merchant_refund_seed_ids=["ccb-gaode-refund"],
+    )
+
+    refund_proposals = [p for p in proposals if p.kind == "refund_offset"]
+    assert len(refund_proposals) == 1
+    assert refund_proposals[0].primary_fact_id != "wechat-yuyuantan-expense"
+    assert refund_proposals[0].status == RelationStatus.ACCEPTED.value
+
+
+def test_relation_planner_does_not_block_payment_mirror_expenses_from_refund_evidence():
+    facts = [
+        _fv(
+            id="alipay-gaode-expense", amount=Decimal("-10.00"), account_id="cash",
+            account_name="支付宝", occurred_at="2024-04-18 10:00:00",
+            counterparty="高德", category="expense", bill_source="alipay", source="alipay",
+        ),
+        _fv(
+            id="ccb-gaode-expense", amount=Decimal("-10.00"), account_id="cash",
+            account_name="建设银行", occurred_at="2024-04-17 10:00:00",
+            counterparty="高德", category="expense", bill_source="ccb_debit", source="ccb_debit",
+        ),
+        _fv(
+            id="wechat-yuyuantan-expense", amount=Decimal("-10.00"), account_id="cash",
+            account_name="微信", occurred_at="2024-04-20 10:00:00",
+            counterparty="北京市玉渊潭公园管理处", category="expense",
+            bill_source="wechat", source="wechat",
+        ),
+        _fv(
+            id="ccb-gaode-refund", amount=Decimal("10.00"), account_id="cash",
+            account_name="建设银行", occurred_at="2024-04-20 11:00:00",
+            counterparty="高德", category="income", record_type="refund",
+            bill_source="ccb_debit", source="ccb_debit", note="退款",
+        ),
+    ]
+    plan = plan_relation_proposals(
+        facts,
+        seed_ids=["ccb-gaode-refund"],
+        accepted_relations=[{
+            "kind": "payment_mirror", "status": "accepted",
+            "primary_fact_id": "alipay-gaode-expense",
+            "secondary_fact_id": "ccb-gaode-expense",
+        }],
+    )
+    refunds = [p for p in plan.proposals if p.kind == "refund_offset"]
+    assert len(refunds) == 1
+    assert refunds[0].primary_fact_id != "wechat-yuyuantan-expense"
+
+
+def test_refund_event_uses_bank_merchant_when_platform_mirror_is_generic():
+    platform_expense = _fv(
+        id="platform-expense", amount=Decimal("-10.00"), account_id="cash",
+        account_name="支付宝", occurred_at="2024-04-18 10:00:00",
+        counterparty="消费", note="景区门票", category="expense",
+        bill_source="alipay", source="alipay",
+    )
+    bank_expense = _fv(
+        id="bank-gaode-expense", amount=Decimal("-10.00"), account_id="cash",
+        account_name="建设银行", occurred_at="2024-04-17 10:00:00",
+        counterparty="高德", note="消费", category="expense",
+        bill_source="ccb_debit", source="ccb_debit",
+    )
+    unrelated = _fv(
+        id="unrelated", amount=Decimal("-10.00"), account_id="cash",
+        account_name="微信", occurred_at="2024-04-20 10:00:00",
+        counterparty="北京市玉渊潭公园管理处", category="expense",
+        bill_source="wechat", source="wechat",
+    )
+    refund = _fv(
+        id="bank-gaode-refund", amount=Decimal("10.00"), account_id="cash",
+        account_name="建设银行", occurred_at="2024-04-20 11:00:00",
+        counterparty="高德", note="消费退货", record_type="refund",
+        bill_source="ccb_debit", source="ccb_debit",
+    )
+
+    proposals = run_relation_phases(
+        [platform_expense, bank_expense, unrelated, refund],
+        ctx=MatchContext(accepted_mirrors=[
+            RelationEdge("platform-expense", "bank-gaode-expense", "payment_mirror"),
+        ]),
+        merchant_refund_seed_ids=["bank-gaode-refund"],
+    )
+    refunds = [p for p in proposals if p.kind == "refund_offset"]
+
+    assert len(refunds) == 1
+    assert refunds[0].status == RelationStatus.ACCEPTED.value
+    assert refunds[0].primary_fact_id == "platform-expense"
+    assert "merchant" in refunds[0].evidence.signals

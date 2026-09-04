@@ -11,6 +11,7 @@ invoke :func:`run_relation_phases` as the **sole** domain matcher for B–D.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from decimal import Decimal
 from typing import Any
 
@@ -79,36 +80,6 @@ def _expand_refund_blocked_through_mirrors(
             pending.append(mirror_id)
 
 
-def _collapse_refund_candidate_events(
-    candidates: Sequence[FactView],
-    mirror_components_by_fact: Mapping[str, frozenset[str]],
-) -> list[FactView]:
-    """Collapse accepted payment mirrors before refund ranking.
-
-    A platform row and its bank mirror are two source facts for one economic
-    expense.  Leaving both in Phase D creates a false nearest-time tie and
-    inflates the pending candidate count.
-    """
-    if not candidates or not mirror_components_by_fact:
-        return list(candidates)
-    by_id = {fact.id: fact for fact in candidates}
-    collapsed: list[FactView] = []
-    visited: set[str] = set()
-    for candidate in candidates:
-        if candidate.id in visited:
-            continue
-        component = mirror_components_by_fact.get(candidate.id, frozenset({candidate.id}))
-        group = [by_id[fact_id] for fact_id in component if fact_id in by_id]
-        visited.update(fact.id for fact in group)
-        if not group:
-            continue
-        representative = canonical_mirror_fact(group)
-        if representative is None:
-            representative = min(group, key=stable_fact_order_key)
-        collapsed.append(representative)
-    return collapsed
-
-
 def _mirror_components_by_fact(
     facts: Sequence[FactView],
     mirror_pairs: Sequence[tuple[str, str]],
@@ -121,6 +92,133 @@ def _mirror_components_by_fact(
         for fact_id in frozen:
             components_by_fact[fact_id] = frozen
     return components_by_fact
+
+
+def _demote_overlapping_phase_a_refunds(
+    facts: Sequence[FactView],
+    phase_a: Sequence[RelationProposal],
+    accepted_relations: Sequence[Mapping[str, Any]],
+    mirror_pairs: Sequence[tuple[str, str]],
+) -> tuple[RelationProposal, ...]:
+    """Keep hard-key evidence, but cap refunds after mirrors reveal one event.
+
+    Phase A runs before Phase B, so a platform expense/refund pair can be
+    accepted before the platform expense is shown to mirror an already
+    refunded bank expense.  The two source pairs are then one projection
+    event, and persisting both refunds would overdraw that event.  Treat the
+    previously accepted relations as consumed event-level amount and demote
+    only the new Phase A proposal that would exceed the cap.
+    """
+    if not mirror_pairs:
+        return tuple(phase_a)
+
+    by_id = {str(fact.id): fact for fact in facts}
+    components_by_fact = _mirror_components_by_fact(facts, mirror_pairs)
+    event_caps: dict[frozenset[str], Decimal] = {}
+    for component in set(components_by_fact.values()):
+        expenses = [
+            by_id[fact_id]
+            for fact_id in component
+            if fact_id in by_id and by_id[fact_id].signed_amount < 0
+        ]
+        if expenses:
+            event_caps[component] = min(
+                _abs_decimal(fact.signed_amount) for fact in expenses
+            )
+
+    consumed: dict[frozenset[str], Decimal] = {}
+    for relation in accepted_relations:
+        if (
+            relation.get("kind") != RelationKind.REFUND_OFFSET.value
+            or relation.get("status") != RelationStatus.ACCEPTED.value
+        ):
+            continue
+        primary_id = str(relation.get("primary_fact_id") or "")
+        secondary_id = str(relation.get("secondary_fact_id") or "")
+        primary = by_id.get(primary_id)
+        refund = by_id.get(secondary_id)
+        component = components_by_fact.get(primary_id)
+        if (
+            component is None
+            or primary is None
+            or refund is None
+            or primary.signed_amount >= 0
+            or refund.signed_amount <= 0
+        ):
+            continue
+        consumed[component] = consumed.get(component, Decimal("0")) + _abs_decimal(
+            refund.signed_amount
+        )
+
+    adjusted: list[RelationProposal] = []
+    for proposal in phase_a:
+        if (
+            proposal.status != RelationStatus.ACCEPTED.value
+            or proposal.kind != RelationKind.REFUND_OFFSET.value
+            or not proposal.primary_fact_id
+            or not proposal.secondary_fact_id
+        ):
+            adjusted.append(proposal)
+            continue
+        component = components_by_fact.get(proposal.primary_fact_id)
+        refund = by_id.get(str(proposal.secondary_fact_id))
+        cap = event_caps.get(component) if component is not None else None
+        if component is None or cap is None or refund is None or refund.signed_amount <= 0:
+            adjusted.append(proposal)
+            continue
+        refund_amount = proposal.refund_amount
+        if refund_amount <= 0:
+            refund_amount = _abs_decimal(refund.signed_amount)
+        used = consumed.get(component, Decimal("0"))
+        if used + refund_amount > cap:
+            adjusted.append(
+                replace(proposal, status=RelationStatus.PENDING_REVIEW.value)
+            )
+            continue
+        consumed[component] = used + refund_amount
+        adjusted.append(proposal)
+    return tuple(adjusted)
+
+
+def _share_refund_remaining_across_mirror_events(
+    facts: Sequence[FactView],
+    mirror_components_by_fact: Mapping[str, frozenset[str]],
+    remaining_by_expense: Mapping[str, Decimal],
+) -> dict[str, Decimal]:
+    """Project member-level balances onto accepted mirror economic events.
+
+    Accepted payment mirrors describe one expense through multiple source rows.
+    A prior partial refund may have been persisted against any member, so the
+    remaining balance must be shared by every member before Phase D evaluates
+    another refund.  Summing member-level consumed amounts also fails closed
+    for historical relations that targeted different members of the same event.
+    """
+    shared = dict(remaining_by_expense)
+    if not mirror_components_by_fact:
+        return shared
+    by_id = {fact.id: fact for fact in facts}
+    visited: set[frozenset[str]] = set()
+    for component in mirror_components_by_fact.values():
+        if component in visited:
+            continue
+        visited.add(component)
+        expenses = [
+            by_id[fact_id]
+            for fact_id in component
+            if fact_id in by_id and by_id[fact_id].signed_amount < 0
+        ]
+        if len(expenses) < 2:
+            continue
+        event_amount = min(_abs_decimal(fact.signed_amount) for fact in expenses)
+        consumed = Decimal("0")
+        for fact in expenses:
+            fact_amount = _abs_decimal(fact.signed_amount)
+            fact_remaining = _as_decimal(shared.get(fact.id, fact_amount))
+            consumed += max(Decimal("0"), fact_amount - fact_remaining)
+        event_remaining = max(Decimal("0"), event_amount - consumed)
+        for fact in expenses:
+            shared[fact.id] = event_remaining
+    return shared
 
 
 def bank_refund_seed_ids(facts: Sequence[FactView], *, blocked: set[str]) -> list[str]:
@@ -277,7 +375,9 @@ def run_relation_phases(
     else:
         refund_seeds = [by_id[s] for s in merchant_refund_seed_ids if s in by_id]
 
-    remaining = dict(ctx.remaining_by_expense)
+    remaining = _share_refund_remaining_across_mirror_events(
+        active, mirror_components_by_fact, ctx.remaining_by_expense,
+    )
     for seed in refund_seeds:
         if seed.id in refund_blocked:
             continue
@@ -289,11 +389,22 @@ def run_relation_phases(
                 for f in index.refund_candidates(seed)
                 if f.id != seed.id and f.id not in refund_blocked
             ]
-            others = _collapse_refund_candidate_events(others, mirror_components_by_fact)
         else:
             others = [f for f in active if f.id != seed.id and f.id not in refund_blocked]
-        others = _collapse_refund_candidate_events(others, mirror_components_by_fact)
-        prop = evaluate_refund_offset(seed, others, remaining_by_expense=remaining)
+        event_ids: dict[str, str] = {}
+        for fact in others:
+            component_ids = mirror_components_by_fact.get(fact.id, frozenset({fact.id}))
+            component_facts = [by_id[item] for item in component_ids if item in by_id]
+            representative = canonical_mirror_fact(component_facts)
+            if representative is None:
+                representative = min(component_facts, key=stable_fact_order_key)
+            event_ids[fact.id] = representative.id
+        prop = evaluate_refund_offset(
+            seed,
+            others,
+            remaining_by_expense=remaining,
+            candidate_event_ids=event_ids,
+        )
         if prop is None:
             continue
         out.append(prop)
@@ -313,13 +424,19 @@ def run_relation_phases(
             refund_amount = _as_decimal(
                 (prop.evidence.extras or {}).get("refund_amount")
             )
-            remaining[prop.primary_fact_id] = remaining.get(
+            component_ids = mirror_components_by_fact.get(
+                prop.primary_fact_id, frozenset({prop.primary_fact_id}),
+            )
+            event_remaining = remaining.get(
                 prop.primary_fact_id,
                 _abs_decimal(by_id[prop.primary_fact_id].signed_amount)
                 if prop.primary_fact_id in by_id else Decimal("0"),
             ) - refund_amount
-            if remaining[prop.primary_fact_id] <= 0:
-                refund_blocked.add(prop.primary_fact_id)
+            for expense_id in component_ids:
+                if expense_id in by_id and by_id[expense_id].signed_amount < 0:
+                    remaining[expense_id] = event_remaining
+            if event_remaining <= 0:
+                refund_blocked.update(component_ids)
         else:
             if prop.primary_fact_id:
                 refund_blocked.add(prop.primary_fact_id)

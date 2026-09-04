@@ -126,6 +126,107 @@ def test_wechat_hard_refund_occupies_pair_before_same_amount_merchant_matching()
     assert refund_pairs[0].rule_id.startswith("scan.wechat")
 
 
+def test_alipay_hard_refund_is_pending_when_mirror_event_already_refunded():
+    """A reverse import must not auto-accept a second refund for one event."""
+    account = "shared-cash"
+    alipay_origin_id = "2024041822001112651418895633"
+    facts = [
+        FactView(
+            id="ccb-expense",
+            amount=Decimal("-10.00"),
+            currency="CNY",
+            account_id=account,
+            account_name="建设银行系统账户",
+            occurred_at="2024-04-18T10:00:00+08:00",
+            counterparty="高德地图",
+            note="消费",
+            record_type="consumption",
+            bill_source="ccb_debit",
+            source="ccb_debit",
+            record_id="ccb-expense",
+        ),
+        FactView(
+            id="ccb-refund",
+            amount=Decimal("10.00"),
+            currency="CNY",
+            account_id=account,
+            account_name="建设银行系统账户",
+            occurred_at="2024-04-20T10:00:00+08:00",
+            counterparty="高德地图",
+            note="消费退货",
+            record_type="refund",
+            bill_source="ccb_debit",
+            source="ccb_debit",
+            record_id="ccb-refund",
+            raw_payload={"summary": "退货", "refund_signal": "ccb_return"},
+        ),
+        FactView(
+            id="alipay-expense",
+            amount=Decimal("-10.00"),
+            currency="CNY",
+            account_id=account,
+            account_name="建设银行系统账户",
+            occurred_at="2024-04-18T09:00:00+08:00",
+            counterparty="高德地图",
+            note="消费",
+            record_type="consumption",
+            bill_source="alipay",
+            source="alipay",
+            record_id=alipay_origin_id,
+            raw_payload={"status": "交易成功", "txn_type": "消费", "txn_id": alipay_origin_id},
+        ),
+        FactView(
+            id="alipay-refund",
+            amount=Decimal("10.00"),
+            currency="CNY",
+            account_id=account,
+            account_name="建设银行系统账户",
+            occurred_at="2024-04-21T10:00:00+08:00",
+            counterparty="高德地图",
+            note="退款",
+            record_type="refund",
+            bill_source="alipay",
+            source="alipay",
+            record_id=f"{alipay_origin_id}_036648971000000542204235",
+            raw_payload={
+                "status": "退款成功",
+                "txn_type": "退款",
+                "txn_id": f"{alipay_origin_id}_036648971000000542204235",
+            },
+        ),
+    ]
+    accepted_relations = [{
+        "kind": RelationKind.REFUND_OFFSET.value,
+        "status": RelationStatus.ACCEPTED.value,
+        "primary_fact_id": "ccb-expense",
+        "secondary_fact_id": "ccb-refund",
+    }]
+
+    plan = plan_relation_proposals(
+        facts,
+        detailed_rows=[_row(fact) for fact in facts],
+        seed_ids=[fact.id for fact in facts],
+        accepted_relations=accepted_relations,
+    )
+
+    hard_key = next(
+        proposal
+        for proposal in plan.proposals
+        if proposal.kind == RelationKind.REFUND_OFFSET.value
+        and proposal.primary_fact_id == "alipay-expense"
+        and proposal.secondary_fact_id == "alipay-refund"
+    )
+    assert hard_key.rule_id == "scan.alipay.order_prefix.v1"
+    assert hard_key.status == RelationStatus.PENDING_REVIEW.value
+    assert any(
+        proposal.kind == RelationKind.PAYMENT_MIRROR.value
+        and proposal.primary_fact_id == "alipay-expense"
+        and proposal.secondary_fact_id == "ccb-expense"
+        and proposal.status == RelationStatus.ACCEPTED.value
+        for proposal in plan.proposals
+    )
+
+
 def test_wechat_hard_refund_reads_persisted_relation_metadata_after_source_snapshot_round_trip():
     origin = _fact(
         "wechat-origin-metadata",
