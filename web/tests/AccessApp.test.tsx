@@ -90,6 +90,54 @@ describe("AccessApp", () => {
     expect(await screen.findByRole("heading", { name: "投资事件", level: 1 })).toBeInTheDocument();
   });
 
+  it("直接打开工作区子页面时选择对应工作区并保留深链接", async () => {
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/auth/session")) return json(multiWorkspaceSession);
+      if (input.includes("/auth/workspaces/workspace-2/select")) return json({ ...multiWorkspaceSession, active_workspace_id: "workspace-2" });
+      if (input.includes("/cash-categories")) return json({ items: [], revision: 0 });
+      return json({ items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+    history.replaceState({}, "", "/w/workspace-2/cash-categories");
+
+    render(<AccessApp />);
+
+    expect(await screen.findByRole("heading", { name: "分类管理", level: 1 })).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/auth/workspaces/workspace-2/select"), expect.anything());
+    expect(location.pathname).toBe("/w/workspace-2/cash-categories");
+  });
+
+  it("直接打开工作区根路径时渲染对应账本", async () => {
+    const fetch = vi.fn((input: string) => input.includes("/auth/session")
+      ? json(session)
+      : json({ items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} }));
+    vi.stubGlobal("fetch", fetch);
+    history.replaceState({}, "", "/w/workspace-1/");
+
+    render(<AccessApp />);
+
+    expect(await screen.findByRole("heading", { name: "收支账本", level: 1 })).toBeInTheDocument();
+    expect(location.pathname).toBe("/w/workspace-1/");
+  });
+
+  it("无权打开工作区深链接时回到当前工作区并提示错误", async () => {
+    const fetch = vi.fn((input: string) => input.includes("/auth/session")
+      ? json(multiWorkspaceSession)
+      : input.includes("/auth/workspaces/workspace-2/select")
+        ? json({ error: { code: "workspace_forbidden" } }, 403)
+        : input.includes("/cash-categories")
+          ? json({ items: [], revision: 0 })
+          : json({ items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} }));
+    vi.stubGlobal("fetch", fetch);
+    history.replaceState({}, "", "/w/workspace-2/cash-categories");
+
+    render(<AccessApp />);
+
+    expect(await screen.findByRole("heading", { name: "分类管理", level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("无法打开该工作区，请检查权限后重试。");
+    expect(location.pathname).toBe("/w/workspace-1/cash-categories");
+  });
+
   it("切换工作区失败时保留当前账本并提供重试提示", async () => {
     vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/auth/session")
       ? json(multiWorkspaceSession)
@@ -125,7 +173,7 @@ describe("AccessApp", () => {
 
     fireEvent.click(await screen.findByRole("link", { name: "工作区管理" }));
     expect(await screen.findByRole("heading", { name: "工作区管理", level: 1 })).toBeInTheDocument();
-    expect(location.pathname).toBe("/workspace-management");
+    expect(location.pathname).toBe("/w/workspace-1/workspace-management");
     const navigation = screen.getByRole("navigation", { name: "主要导航" });
     expect(within(navigation).getAllByRole("link").filter(link => link.hasAttribute("aria-current"))).toHaveLength(1);
     expect(within(navigation).getByRole("link", { name: "工作区管理" })).toHaveAttribute("aria-current", "page");
@@ -142,7 +190,7 @@ describe("AccessApp", () => {
 
     fireEvent.click(within(navigation).getByRole("link", { name: "收支账本" }));
     expect(await screen.findByRole("heading", { name: "收支账本" })).toBeInTheDocument();
-    expect(location.pathname).toBe("/");
+    expect(location.pathname).toBe("/w/workspace-1/");
     fireEvent.click(within(screen.getByRole("navigation", { name: "主要导航" })).getByRole("link", { name: "工作区管理" }));
     await screen.findByRole("heading", { name: "工作区管理", level: 1 });
 
@@ -161,7 +209,7 @@ describe("AccessApp", () => {
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/auth/members/editor-1"), expect.objectContaining({ method: "DELETE" })));
 
     fireEvent.click(screen.getByRole("button", { name: "创建链接" }));
-    expect(await screen.findByRole("textbox", { name: "邀请链接" })).toHaveValue("http://localhost:3000/workspace-management?invite=invite-token");
+    expect(await screen.findByRole("textbox", { name: "邀请链接" })).toHaveValue("http://localhost:3000/w/workspace-1/workspace-management?invite=invite-token");
   });
 
   it("非管理员可以查看工作区管理页面但不能写入", async () => {
@@ -231,7 +279,7 @@ describe("AccessApp", () => {
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/auth/workspace"), expect.objectContaining({ method: "DELETE" })));
     const request = fetch.mock.calls.find(([input, init]) => input.includes("/auth/workspace") && init?.method === "DELETE");
     expect(JSON.parse(String(request?.[1]?.body))).toEqual({ name: "家庭账本" });
-    expect(location.pathname).toBe("/");
+    expect(location.pathname).toBe("/w/workspace-2/");
     expect(await screen.findByRole("heading", { name: "收支账本" })).toBeInTheDocument();
   });
 

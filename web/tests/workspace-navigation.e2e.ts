@@ -1,5 +1,56 @@
 import { expect, test } from "@playwright/test";
 
+test("直接打开工作区根路径时加载对应账本并保留 URL", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  const requestFailures: string[] = [];
+  page.on("console", message => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  page.on("requestfailed", request => { requestFailures.push(`${request.method()} ${request.url()}: ${request.failure()?.errorText ?? "failed"}`); });
+  await page.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path.endsWith("/auth/session")) {
+      return route.fulfill({ json: {
+        user: { email: "member@example.com" }, active_workspace_id: "workspace-2",
+        workspaces: [
+          { id: "workspace-1", name: "家庭账本", role: "editor" },
+          { id: "workspace-2", name: "旅行账本", role: "editor" },
+        ],
+      } });
+    }
+    if (path.endsWith("/auth/workspaces/workspace-1/select") && request.method() === "POST") {
+      return route.fulfill({ json: {
+        user: { email: "member@example.com" }, active_workspace_id: "workspace-1",
+        workspaces: [
+          { id: "workspace-1", name: "家庭账本", role: "editor" },
+          { id: "workspace-2", name: "旅行账本", role: "editor" },
+        ],
+      } });
+    }
+    if (path.endsWith("/cash-categories")) return route.fulfill({ json: { items: [], revision: 0 } });
+    if (path.endsWith("/accounts")) return route.fulfill({ json: { items: [] } });
+    return route.fulfill({ json: { items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} } });
+  });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const response = await page.goto("/w/workspace-1/");
+  expect(response?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "收支账本", level: 1 })).toBeVisible();
+  await expect(page).toHaveURL(/\/w\/workspace-1\/$/);
+  await page.getByRole("link", { name: "分类管理" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "分类管理", level: 1 })).toBeVisible();
+  await expect(page).toHaveURL(/\/w\/workspace-1\/cash-categories$/);
+  expect(consoleErrors).toEqual([]);
+  expect(requestFailures).toEqual([]);
+  await page.screenshot({ path: "/tmp/workspace-entry-1440.png", fullPage: true });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/w/workspace-1/");
+  await expect(page.getByRole("heading", { name: "收支账本", level: 1 })).toBeVisible();
+  expect(await page.locator("body").evaluate(body => body.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: "/tmp/workspace-entry-390.png", fullPage: true });
+});
+
 test("登录后的工作区使用统一侧栏路由打开分类与投资事件", async ({ page }) => {
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
