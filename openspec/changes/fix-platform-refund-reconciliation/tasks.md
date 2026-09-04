@@ -38,8 +38,8 @@
 ## 7. 发布与合入
 
 - [x] 7.1 记录变基后验证的当前 `HEAD`、比较基线、命令、结果、未解决风险和回滚方式。
-- [ ] 7.2 创建聚焦本地提交并推送当前修复分支，创建 base 为 `refactor/web` 的 PR。
-- [ ] 7.3 等待并检查 PR 检查项；通过后合入 `refactor/web`，记录 PR、合入提交和 CI 结果。
+- [x] 7.2 创建聚焦本地提交 `71cb9e0` 并推送修复分支，创建 base 为 `refactor/web` 的 PR #71。
+- [x] 7.3 检查 PR #71：GitHub 未配置自动检查项（`gh pr checks 71 --watch` 返回 no checks reported），PR 状态为 `MERGEABLE/CLEAN`；已合入 `refactor/web`，合入提交为 `5ae1ef73d16f4ecb506f16797d969d648c5bcd48`，并确认修复提交是目标分支祖先。
 
 ## 8. 反思
 
@@ -66,5 +66,5 @@
 - 变基后 SQLite 命令 `PYTHONPATH=.:src python -m pytest -q tests/test_platform_refund_matchers.py tests/test_transaction_relations_refund.py tests/test_import_relation_planning.py tests/test_import_scan_refund_boundary.py tests/test_record_type.py tests/test_transaction_relations_transfer.py tests/test_cash_projection.py` → `140 passed`。
 - 最终基线 Web 命令 `npm test -- --run` → `14 files passed / 143 tests passed`；`npm run build` → Vite production build 成功；`FT_PREVIEW_WEB_PORT=5188 FT_PREVIEW_API_PORT=8768 npm run test:preview` → 11 passed；`FT_E2E_WEB_PORT=5189 npm run test:e2e -- --grep='默认折叠|追加失败|筛选后|详情切换|关联流水|导入处理页面|四个目标宽度|浏览器本地时区|新建流水|查看抽屉'` → 10 passed；`FT_E2E_WEB_PORT=5190 npm run test:e2e` → 36 passed、1 failed，失败仍为未改动的暗色模式侧栏文字颜色数量断言（期望 7、实际 8）。生产预览 URL 为 `http://127.0.0.1:5188`，截图路径为 `/tmp/cash-import-production-1440.png`、`/tmp/cash-import-production-390.png`；未观察到本变更引起的控制台或网络错误。
 - 变基后 PostgreSQL：使用 `FT_TEST_POSTGRES_URL` 指向本机专用 `finance_tracker_refund_test`，执行同一 `RelationService`/`RelationalUnitOfWork` 夹具 → `4 accepted refund_offset relations`，随后仅清理该测试库 schema。
-- 变基后 OpenSpec：`openspec validate --all --strict` → `35 passed`；`openspec doctor` → root ok；`PYTHONPATH=.:src python -m compileall -q src tests` → 通过。未解决风险仍为完整 E2E 的既有断言、全量后端测试的环境/依赖失败；合入前需使用最终 PR 检查结果更新本节。
+- 变基后 OpenSpec：`openspec validate --all --strict` → `35 passed`；`openspec doctor` → root ok；`PYTHONPATH=.:src python -m compileall -q src tests` → 通过。未解决风险仍为完整 E2E 的既有断言、全量后端测试的环境/依赖失败；PR #71 未配置自动检查项，GitHub 合入状态为 `MERGED`。
 - 全量后端（变基后）：`PYTHONPATH=.:src python -m pytest -q` → `1495 passed, 189 skipped, 14 failed`。14 个失败仍集中于同名 `tests` 包导致的测试辅助模块导入、缺少 `xlwt`、与本次修改无关的查询余额断言；没有退款相关失败。
