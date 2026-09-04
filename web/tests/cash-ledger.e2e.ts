@@ -76,6 +76,57 @@ const importPreview = {
   relations: [],
 };
 
+const importRelationRecord = (recordId: string, counterparty: string, occurredAt: string, amount: string, preview: boolean, factId?: number) => ({
+  record_id: recordId,
+  occurred_at: occurredAt,
+  counterparty,
+  counterparty_account: "",
+  amount,
+  currency: "CNY",
+  account_name: "日常账户",
+  record_type: "consumption",
+  record_subtype: "not_applicable",
+  category: "",
+  note: "",
+  channel: "icbc-asia",
+  status: preview ? "new" : "existing",
+  message: "",
+  preview,
+  ...(factId === undefined ? {} : { fact_id: factId }),
+});
+
+const relationImportPreview = {
+  ...importPreview,
+  relations: [
+    {
+      id: "relation-auto",
+      kind: "payment_mirror",
+      label: "同笔支付",
+      subtype: "",
+      status: "accepted",
+      automatic: true,
+      rule_id: "mirror.v1",
+      reason: "唯一匹配",
+      primary: importRelationRecord("preview-auto", "自动配对流水", "2026-07-03T09:00", "-12.50", true),
+      secondary: importRelationRecord("fact-auto", "自动配对流水", "2026-07-03T08:58", "-12.50", false, 43),
+      candidates: [],
+    },
+    ...Array.from({ length: 20 }, (_, index) => ({
+      id: `relation-pending-${index + 1}`,
+      kind: "payment_mirror",
+      label: "同笔支付",
+      subtype: "",
+      status: "pending_review",
+      automatic: false,
+      rule_id: "mirror.v1",
+      reason: "候选不唯一",
+      primary: importRelationRecord(`preview-pending-${index + 1}`, `待处理流水${index + 1}`, "2026-07-02T09:00", "-10.00", true),
+      secondary: null,
+      candidates: [importRelationRecord(`fact-pending-${index + 1}`, `候选流水${index + 1}`, "2026-07-02T08:58", "-10.00", false, 100 + index)],
+    })),
+  ],
+};
+
 async function mockLedger(page: Page, failOnce = false, firstCounterparty = "第一笔", firstItem: LedgerItem = item("1", firstCounterparty)) {
   let failed = false;
   await page.route("**/api/v1/**", async (route) => {
@@ -548,6 +599,67 @@ test("独立导入处理页面扫描账户并完成四步确认", async ({ page 
   await expect.poll(() => committed).toBe(true);
   await expect(page.getByRole("heading", { name: "导入完成" })).toBeVisible();
   expect(consoleErrors).toEqual([]);
+});
+
+test("配对阶段使用摘要筛选卡片和连续关系列表，并在移动端切换为卡片", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  const requestFailures: string[] = [];
+  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  page.on("pageerror", (error) => consoleErrors.push(error.message));
+  page.on("requestfailed", (request) => requestFailures.push(`${request.method()} ${request.url()}`));
+  await mockImport(page, relationImportPreview);
+
+  await page.goto("/cash-import");
+  await page.locator('input[type="file"]').setInputFiles({ name: "statement.csv", mimeType: "text/csv", buffer: Buffer.from("fixture") });
+  await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
+  await page.getByRole("button", { name: "确认映射", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "核对流水" })).toBeVisible();
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
+
+  const relationStage = page.locator('[aria-labelledby="import-relations-heading"]');
+  await expect(relationStage.locator(".relation-summary-cards")).toBeVisible();
+  const allFilter = relationStage.getByRole("button", { name: /全部\s*21/ });
+  const automaticFilter = relationStage.getByRole("button", { name: /自动\s*1/ });
+  const pendingFilter = relationStage.getByRole("button", { name: /待处理\s*20/ });
+  await expect(allFilter).toHaveAttribute("aria-pressed", "true");
+  await expect(relationStage.locator(".relation-table tbody tr")).toHaveCount(21);
+  await expect(relationStage.locator(".relation-pager")).toHaveCount(0);
+  await expect(relationStage.locator(".page-size")).toHaveCount(0);
+
+  for (const width of [320, 375, 390, 414, 768]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
+    await expect(relationStage.locator(".relation-table tbody tr").first()).toHaveCSS("display", "grid");
+  }
+
+  await pendingFilter.click();
+  await expect(pendingFilter).toHaveAttribute("aria-pressed", "true");
+  await expect(relationStage.locator(".relation-table tbody tr")).toHaveCount(20);
+  const pendingRow = relationStage.locator(".relation-table tbody tr", { has: page.getByText("待处理流水1", { exact: true }) });
+  await pendingRow.locator("select.relation-kind-select").selectOption("refund_offset");
+  await pendingRow.locator("select.compact-select").selectOption("fact-pending-1");
+  await allFilter.click();
+  const rejectedRow = relationStage.locator(".relation-table tbody tr", { has: page.getByText("待处理流水1", { exact: true }) });
+  await rejectedRow.getByRole("button", { name: "拒绝配对" }).click();
+  await expect(rejectedRow.getByRole("button", { name: "撤销拒绝" })).toBeVisible();
+  await rejectedRow.getByRole("button", { name: "撤销拒绝" }).click();
+
+  await automaticFilter.focus();
+  await page.keyboard.press("Enter");
+  await expect(automaticFilter).toHaveAttribute("aria-pressed", "true");
+  await expect(relationStage.locator(".relation-table tbody tr")).toHaveCount(1);
+  await allFilter.click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "/tmp/cash-import-relations-production-390.png", fullPage: true });
+  await expect(relationStage.locator(".relation-table tbody tr").first().locator('td[data-label="现金流水"]')).toContainText("自动配对流水");
+  await expect(relationStage.locator(".relation-table tbody tr").first().getByRole("button", { name: "拒绝配对" })).toBeVisible();
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(relationStage.locator(".relation-table tbody tr").first()).toHaveCSS("display", "table-row");
+  expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
+  await page.screenshot({ path: "/tmp/cash-import-relations-production-1440.png", fullPage: true });
+  expect(consoleErrors).toEqual([]);
+  expect(requestFailures).toEqual([]);
 });
 
 test("导入预览加载、空和错误状态保持统一表格语义", async ({ page }) => {
