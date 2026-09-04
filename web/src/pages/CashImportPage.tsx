@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { commitCashImport, previewCashImport, scanCashImport } from "../api/cashLedger";
+import { detectPdfPasswordRequirement } from "../import/pdfPassword";
 import type {
   ImportCommitResult,
   ImportMappingDecision,
@@ -265,6 +266,10 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setStage("select");
     setBusy(true);
     try {
+      if (await detectPdfPasswordRequirement(nextFile)) {
+        setPasswordRequired(true);
+        return;
+      }
       const nextScan = await scanCashImport(nextFile);
       setScan(nextScan);
       setImportToken(nextScan.import_token ?? null);

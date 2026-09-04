@@ -582,6 +582,70 @@ test("导入预览加载、空和错误状态保持统一表格语义", async ({
   }
 });
 
+test("加密 PDF 先在浏览器提示密码，点击下一步后才开始扫描", async ({ page }) => {
+  let scanCalls = 0;
+  let receivedPassword = "";
+  const pageErrors: string[] = [];
+  const failedRequests: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("requestfailed", (request) => failedRequests.push(request.url()));
+  await page.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
+    if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
+    if (url.pathname.endsWith("/cash-import/scan")) {
+      scanCalls += 1;
+      receivedPassword = request.headers()["x-ft-statement-password"] ?? "";
+      if (!receivedPassword) return route.fulfill({ status: 400, json: { error: { code: "import_password_required" } } });
+      if (receivedPassword === "wrong-password") return route.fulfill({ status: 400, json: { error: { code: "import_password_invalid" } } });
+      return route.fulfill({ json: { contract: "cash-account-mapping-v1", channel: "icbc-debit", channel_label: "工行借记卡", file: { name: "locked.pdf", digest: "digest-1" }, digest: "digest-1", accounts: [account], groups: [{ group_id: "group-1", display_name: "工行借记卡", masked_evidence: "账户尾号：3697", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] } });
+    }
+    return route.fulfill({ json: { projection_version: 1, items: [], next_cursor: null, page_size: 50, filters: {}, filter_options } });
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/cash-import");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "locked.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.7\ntrailer\n<< /Encrypt 8 0 R >>"),
+  });
+  await expect(page.getByLabel("账单密码")).toBeVisible();
+  expect(scanCalls).toBe(0);
+  await expect(page.getByRole("button", { name: "下一步", exact: true })).toBeDisabled();
+  await page.screenshot({ path: "/tmp/cash-import-encrypted-password-390.png", fullPage: true });
+  await page.getByLabel("账单密码").fill("wrong-password");
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
+  await expect(page.getByText("账单密码错误，请重试。")).toBeVisible();
+  await expect(page.getByLabel("账单密码")).toHaveValue("");
+  expect(scanCalls).toBe(1);
+  await page.screenshot({ path: "/tmp/cash-import-encrypted-password-error-390.png", fullPage: true });
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "locked.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.7\ntrailer\n<< /Encrypt 8 0 R >>"),
+  });
+  await expect(page.getByLabel("账单密码")).toBeVisible();
+  await page.getByLabel("账单密码").fill("browser-password");
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
+  expect(scanCalls).toBe(2);
+  expect(receivedPassword).toBe("browser-password");
+  expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("button", { name: "上一步", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("已识别");
+  await expect(page.getByLabel("账单密码")).toHaveCount(0);
+  expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
+  await page.screenshot({ path: "/tmp/cash-import-encrypted-password-1440.png", fullPage: true });
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
+  expect(scanCalls).toBe(2);
+  expect(pageErrors).toEqual([]);
+  expect(failedRequests).toEqual([]);
+});
+
 test("导入处理页面在四个目标宽度不产生页面级横向滚动", async ({ page }) => {
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
