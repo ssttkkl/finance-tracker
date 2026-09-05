@@ -457,9 +457,21 @@ def match_transfer_pairs_phase_c(
     for seed in sorted(active, key=stable_fact_order_key):
         if seed.id in used or seed.signed_amount >= 0:
             continue
-        if selected is not None and str(seed.id) not in selected:
-            continue
+        seed_selected = selected is None or str(seed.id) in selected
         others = [fact for fact in active if fact.id != seed.id and fact.id not in used]
+        if not seed_selected:
+            # A newly imported positive repayment/transfer may be the only
+            # selected endpoint.  Evaluate the existing negative side against
+            # the complete candidate pool so the result preserves the same
+            # uniqueness semantics as an outgoing seed; only retain a proposal
+            # when the selected positive endpoint participates in it.
+            selected_positive_ids = {
+                str(fact.id)
+                for fact in active
+                if str(fact.id) in selected and fact.signed_amount > 0
+            }
+            if not selected_positive_ids:
+                continue
         if str(seed.record_subtype or "") == "currency_exchange":
             proposal = match_personal_fx_exchange(seed, others)
         else:
@@ -471,6 +483,14 @@ def match_transfer_pairs_phase_c(
             )
         if proposal is None:
             continue
+        if not seed_selected:
+            if proposal.secondary_fact_id is not None:
+                if str(proposal.secondary_fact_id) not in selected_positive_ids:
+                    continue
+            elif not selected_positive_ids.intersection(
+                str(item) for item in proposal.evidence.candidate_fact_ids
+            ):
+                continue
         proposals.append(proposal)
         used.add(proposal.primary_fact_id)
         if proposal.secondary_fact_id:

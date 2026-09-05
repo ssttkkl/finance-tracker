@@ -310,6 +310,59 @@ def test_ccb_card_number_routes_via_mapping(tmp_path, monkeypatch):
     assert row_0523["account_name"] == "建行储蓄卡(0523)"
 
 
+def test_icbc_source_identity_routes_via_mapping_without_channel_fallback():
+    from ft.convert import _build_output_row
+
+    rules = [{
+        "source": "icbc_credit_622599000000001200",
+        "match": "*",
+        "account": "工行信用卡",
+        "currency": "CNY",
+    }]
+    row = _build_output_row(
+        {
+            "occurred_at": "2026-01-01 10:00:00",
+            "amount": -10,
+            "currency": "CNY",
+            "counterparty": "Shop",
+            "note": "x",
+            "category": "expense",
+            "_source_account_identifier": "622599000000001200",
+            "payment_method": "快捷支付",
+        },
+        bill_type="icbc_credit",
+        rules=rules,
+        default_action="error",
+    )
+
+    assert row["account_name"] == "工行信用卡"
+
+
+def test_icbc_direct_mapping_fails_closed_without_source_identity():
+    from ft.convert import _build_output_row
+
+    with pytest.raises(ValueError, match="来源账户身份"):
+        _build_output_row(
+            {
+                "occurred_at": "2026-01-01 10:00:00",
+                "amount": -10,
+                "currency": "CNY",
+                "counterparty": "Shop",
+                "note": "x",
+                "category": "expense",
+                "payment_method": "快捷支付",
+            },
+            bill_type="icbc_debit",
+            rules=[{
+                "source": "icbc_debit",
+                "match": "*",
+                "account": "工行借记卡",
+                "currency": "CNY",
+            }],
+            default_action="error",
+        )
+
+
 def test_convert_and_import_account_distribution_match(tmp_path, mapping_path):
     from collections import Counter
 
