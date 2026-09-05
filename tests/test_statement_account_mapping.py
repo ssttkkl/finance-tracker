@@ -61,6 +61,60 @@ def test_scan_keeps_same_display_name_with_different_stable_identity_separate():
     ]
 
 
+def test_scan_icbc_debit_groups_same_account_across_channels():
+    from ft.application.statement_account_mapping import scan_source_rows
+
+    account = "1614020101021984636"
+    groups = scan_source_rows([
+        _row(
+            "icbc_debit",
+            _source_account_identifier=account,
+            source_display_name="工商银行借记卡",
+            payment_method="快捷支付",
+        ),
+        _row(
+            "icbc_debit",
+            _source_account_identifier=account,
+            source_display_name="工商银行借记卡",
+            payment_method="网上银行",
+        ),
+        _row(
+            "icbc_debit",
+            _source_account_identifier=account,
+            source_display_name="工商银行借记卡",
+            payment_method="手机银行",
+        ),
+    ])
+
+    assert len(groups) == 1
+    assert groups[0].source_account_key == account
+    assert groups[0].identity_kind == "file_account"
+    assert groups[0].masked_evidence == "工商银行借记卡（尾号 4636）"
+
+
+def test_scan_icbc_debit_normalizes_account_presentation_separators():
+    from ft.application.statement_account_mapping import scan_source_rows
+
+    groups = scan_source_rows([
+        _row(
+            "icbc_debit",
+            _source_account_identifier="1614 0201-0102（1984636）",
+            source_display_name="工商银行借记卡",
+            payment_method="快捷支付",
+        ),
+        _row(
+            "icbc_debit",
+            _source_account_identifier="1614020101021984636",
+            source_display_name="工商银行借记卡",
+            payment_method="网上银行",
+        ),
+    ])
+
+    assert len(groups) == 1
+    assert groups[0].source_account_key == "1614020101021984636"
+    assert groups[0].masked_evidence == "工商银行借记卡（尾号 4636）"
+
+
 def test_scan_rejects_business_row_without_a_declared_source_identity():
     from ft.application.statement_account_mapping import scan_source_rows
 

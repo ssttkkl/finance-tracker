@@ -24,4 +24,7 @@ from ft.domain.relations.refund.match import evaluate_refund_offset
 from ft.domain.relations.refund.diamond import match_diamond_bank_refunds
 from ft.domain.relations.refund.hard_key import match_phase_a_platform_refunds
 from ft.domain.relations import pipeline as pipeline
-from ft.domain.relations.pipeline import run_relation_phases
+from ft.domain.relations.pipeline import (
+    match_canonical_payment_mirrors,
+    run_relation_phases,
+)

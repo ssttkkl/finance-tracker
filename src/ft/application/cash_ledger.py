@@ -101,7 +101,7 @@ STANDARD_IMPORT_COLUMNS = (
     "note", "channel", "status",
 )
 IMPORT_CHANNEL_CANDIDATES = (
-    "alipay", "wechat", "icbc", "icbc-debit", "ccb-debit", "icbc-asia",
+    "alipay", "wechat", "icbc-debit", "icbc", "ccb-debit", "icbc-asia",
 )
 IMPORT_FORMAL_TO_PARSER = {
     "icbc_credit": "icbc",

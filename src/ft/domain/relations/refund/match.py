@@ -50,6 +50,7 @@ def _refund_candidate_priority(
     *,
     order_lock: bool,
     title_exact: bool,
+    counterparty_account_exact: bool,
     merchant_exact: bool,
     amount_exact: bool,
     merchant_match: bool,
@@ -58,6 +59,8 @@ def _refund_candidate_priority(
     if order_lock:
         return 4
     if title_exact:
+        return 3
+    if counterparty_account_exact:
         return 3
     if merchant_exact:
         return 2
@@ -157,6 +160,11 @@ def evaluate_refund_offset(
         if days > candidate_window_days:
             continue
         merchant_exact = _merchant_exact(refund.counterparty, expense.counterparty)
+        counterparty_account_exact = bool(
+            str(refund.counterparty_account or "").replace(" ", "")
+            and str(refund.counterparty_account or "").replace(" ", "")
+            == str(expense.counterparty_account or "").replace(" ", "")
+        )
         merchant_match = (
             not _is_generic_counterparty(refund.counterparty)
             and not _is_generic_counterparty(expense.counterparty)
@@ -173,7 +181,12 @@ def evaluate_refund_offset(
         # Exact full or exact remaining — not "any expense larger than refund".
         exact = refund_abs == expense_abs or refund_abs == remaining
         refund_word = has_refund_signal_for_fact(refund)
-        strong_link = merchant_match or order_lock or title_exact
+        strong_link = (
+            merchant_match
+            or order_lock
+            or title_exact
+            or counterparty_account_exact
+        )
         # Weak high-recall: same account + exact amount only (partial same-account flood removed).
         weak_link = (
             same_account and refund_word and exact and not strong_link
@@ -185,6 +198,7 @@ def evaluate_refund_offset(
         priority = _refund_candidate_priority(
             order_lock=order_lock,
             title_exact=title_exact,
+            counterparty_account_exact=counterparty_account_exact,
             merchant_exact=merchant_exact,
             amount_exact=exact,
             merchant_match=merchant_match,
@@ -213,6 +227,7 @@ def evaluate_refund_offset(
                 "merchant" if merchant_match else "",
                 "order_lock" if order_lock else "",
                 "title_exact" if title_exact else "",
+                "counterparty_account" if counterparty_account_exact else "",
                 "same_account" if same_account else "",
                 "weak_link" if weak_link and not strong_link else "",
             ))),
@@ -326,6 +341,18 @@ def evaluate_refund_offset(
     if is_refund_seed and strong:
         highest_priority = max(m[5] for m in strong)
         top_priority = [m for m in strong if m[5] == highest_priority]
+        title_only = [
+            match for match in top_priority
+            if match[4] and "counterparty_account" not in match[1].signals
+        ]
+        account_only = [
+            match for match in top_priority
+            if "counterparty_account" in match[1].signals and not match[4]
+        ]
+        if title_only and account_only:
+            # Equal-ranked title and account evidence point to different
+            # expenses; recency is not enough to resolve that conflict.
+            return None
         if len(top_priority) == 1:
             expense_fact, evidence, _status, _conf, title_exact, _priority = top_priority[0]
             signals = list(evidence.signals)
@@ -353,6 +380,17 @@ def evaluate_refund_offset(
                 anchor_fact_id=seed.id,
                 open_leg=False,
             )
+
+        # A bank refund can share one counterparty account with several same-
+        # amount expenses (for example, a payment processor account).  The
+        # nearest row is not enough evidence to pick one; wait for a platform
+        # mirror or an explicit review decision instead of persisting a
+        # potentially wrong accepted edge.
+        if top_priority and all(
+            "counterparty_account" in match[1].signals
+            for match in top_priority
+        ):
+            return None
 
         nearest_delta = min(m[1].time_delta_seconds for m in top_priority)
         nearest = [m for m in top_priority if m[1].time_delta_seconds == nearest_delta]

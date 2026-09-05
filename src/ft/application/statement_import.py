@@ -161,10 +161,20 @@ class StatementImportService:
             existing = uow.relations.find_by_business_key(
                 kind=kind, fact_a=left, fact_b=right, subtype=subtype,
             )
+            if kind == RelationKind.PAYMENT_MIRROR.value and self._relations is not None:
+                self._relations._supersede_system_payment_mirror_conflicts_in_uow(
+                    uow,
+                    [primary, secondary],
+                    replacement_relation_id=existing.get("id") if existing else None,
+                )
             if existing is not None:
                 if existing.get("status") == RelationStatus.ACCEPTED.value:
-                    accepted_ids.append(str(existing["id"]))
-                    continue
+                    if not (
+                        existing.get("created_by") == "system"
+                        and str(existing.get("decided_by") or "") in {"", "system"}
+                    ):
+                        accepted_ids.append(str(existing["id"]))
+                        continue
                 relation_id = existing["id"]
                 relation = uow.relations.update_status(
                     relation_id,

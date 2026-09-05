@@ -1820,6 +1820,7 @@ def _read_icbc_debit_raw(path: str, password: str):
 
     pdf = open_pdf(path, password=password)
     records = []
+    occurrences: dict[str, int] = {}
 
     for page in pdf.pages:
         # 过滤水印大字（字号≥15），保留表格文字
@@ -1843,6 +1844,11 @@ def _read_icbc_debit_raw(path: str, password: str):
             }
             rec = _parse_icbc_debit_row(row, source_payload=source_payload)
             if rec:
+                base_fact_id = rec["_fact_id"]
+                occurrence = occurrences.get(base_fact_id, 0)
+                occurrences[base_fact_id] = occurrence + 1
+                if occurrence:
+                    rec["_fact_id"] = f"{base_fact_id}_{occurrence}"
                 records.append(rec)
 
     pdf.close()
@@ -1913,6 +1919,7 @@ def _parse_icbc_debit_row(row: list, *, source_payload: dict | None = None) -> d
 
     # 渠道
     channel = (row[12] or "").replace("\n", "").strip()
+    source_account_identifier = (row[1] or "").replace("\n", "").strip()
 
     category = "expense" if amount < 0 else "income"
 
@@ -1922,7 +1929,20 @@ def _parse_icbc_debit_row(row: list, *, source_payload: dict | None = None) -> d
     elif summary in {"退款", "退货"}:
         debit_offset_type = "refund"
 
-    fact_hash = _stable_short_hash(date, f"{amount:.2f}", counterparty, summary, channel)
+    source_balance = ""
+    if isinstance(source_payload, dict):
+        source_balance = str(source_payload.get("余额") or "")
+    fact_hash = _stable_short_hash(
+        date,
+        f"{amount:.2f}",
+        currency,
+        source_account_identifier,
+        counterparty,
+        counterparty_account,
+        summary,
+        channel,
+        source_balance,
+    )
     return {
         "date": date,
         "amount": amount,
@@ -1932,6 +1952,9 @@ def _parse_icbc_debit_row(row: list, *, source_payload: dict | None = None) -> d
         "note": summary,
         "category": category,
         "payment_method": channel,
+        "_source_account_identifier": source_account_identifier,
+        "file_account_key": source_account_identifier,
+        "source_display_name": "工商银行借记卡",
         "_raw_cp": counterparty,
         "_fact_id": f"icbc_debit_{fact_hash}",
         "_debit_offset_type": debit_offset_type,

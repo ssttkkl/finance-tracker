@@ -7,6 +7,7 @@ from ft.domain.relations import (
     FactView,
     RelationStatus,
     evaluate_payment_mirror,
+    match_canonical_payment_mirrors,
     match_payment_mirrors_greedy,
     source_group,
     project_balances_and_pnl,
@@ -63,6 +64,30 @@ def test_payment_mirror_auto_accept_strong_unique():
     proposal = evaluate_payment_mirror(seed, [bank])
     assert proposal is not None
     assert proposal.status == RelationStatus.ACCEPTED.value
+
+
+def test_canonical_mirror_matcher_keeps_human_endpoints_occupied():
+    platform = _fv(
+        id="p1", amount=Decimal("-30.00"), account_id="card",
+        occurred_at="2026-06-13 12:00:00", counterparty="麦当劳",
+        note="付款方式 尾号1234",
+    )
+    human_bank = _fv(
+        id="b1", amount=Decimal("-30.00"), account_id="card",
+        occurred_at="2026-06-13 12:00:05", counterparty="麦当劳",
+        note="快捷支付 尾号1234",
+    )
+    competing_bank = _fv(
+        id="b2", amount=Decimal("-30.00"), account_id="card",
+        occurred_at="2026-06-13 12:00:06", counterparty="麦当劳",
+        note="快捷支付 尾号1234",
+    )
+
+    assert match_canonical_payment_mirrors([platform, human_bank, competing_bank])
+    assert match_canonical_payment_mirrors(
+        [platform, human_bank, competing_bank],
+        occupied_fact_ids={"p1", "b1"},
+    ) == []
 
 
 def test_payment_mirror_same_account_exact2_no_text_within_60s():
@@ -370,6 +395,86 @@ def test_payment_mirror_equal_candidate_group_pairs_by_time_then_id():
         frozenset(("p2", "b2")),
     }
     assert {item.status for item in proposals} == {RelationStatus.ACCEPTED.value}
+
+
+def test_icbc_mirror_matching_is_symmetric_when_seed_direction_changes():
+    platform_early = _fv(
+        id="p-early", amount=Decimal("-9"), account_id="card",
+        occurred_at="2023-06-13 17:27:33", counterparty="商户A",
+        bill_source="wechat", source="wechat",
+    )
+    platform_late = _fv(
+        id="p-late", amount=Decimal("-9"), account_id="card",
+        occurred_at="2023-06-13 21:32:37", counterparty="商户B",
+        bill_source="wechat", source="wechat",
+    )
+    bank = _fv(
+        id="b", amount=Decimal("-9"), account_id="card",
+        occurred_at="2023-06-13 21:32:37", counterparty="支付机构",
+        bill_source="icbc_debit", source="icbc_debit",
+    )
+    facts = [platform_early, platform_late, bank]
+
+    reverse = match_payment_mirrors_greedy(facts, seed_ids=[platform_early.id, platform_late.id])
+    forward = match_payment_mirrors_greedy(facts, seed_ids=[bank.id])
+
+    assert {
+        frozenset((item.primary_fact_id, item.secondary_fact_id))
+        for item in reverse
+    } == {frozenset((platform_late.id, bank.id))}
+    assert {
+        frozenset((item.primary_fact_id, item.secondary_fact_id))
+        for item in forward
+    } == {frozenset((platform_late.id, bank.id))}
+
+
+def test_icbc_equal_best_candidates_stay_pending():
+    platform = _fv(
+        id="platform", amount=Decimal("-20"), account_id="card",
+        occurred_at="2026-06-13 12:00:00", counterparty="商户",
+        bill_source="wechat", source="wechat",
+    )
+    bank_rows = [
+        _fv(
+            id=f"bank-{suffix}", amount=Decimal("-20"), account_id="card",
+            occurred_at="2026-06-13 12:00:00", counterparty="支付机构",
+            bill_source="icbc_debit", source="icbc_debit",
+        )
+        for suffix in ("a", "b")
+    ]
+
+    proposal = evaluate_payment_mirror(platform, bank_rows)
+
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+
+
+def test_rejected_mirror_pair_is_excluded_but_other_candidate_can_match():
+    platform = _fv(
+        id="platform", amount=Decimal("-20"), account_id="card",
+        occurred_at="2026-06-13 12:00:00", counterparty="商户",
+        bill_source="wechat", source="wechat",
+    )
+    rejected = _fv(
+        id="bank-rejected", amount=Decimal("-20"), account_id="card",
+        occurred_at="2026-06-13 12:00:00", counterparty="商户",
+        bill_source="icbc_debit", source="icbc_debit",
+    )
+    replacement = _fv(
+        id="bank-replacement", amount=Decimal("-20"), account_id="card",
+        occurred_at="2026-06-13 12:00:03", counterparty="商户",
+        bill_source="icbc_debit", source="icbc_debit",
+    )
+
+    proposals = match_payment_mirrors_greedy(
+        [platform, rejected, replacement],
+        blocked_pairs={frozenset((platform.id, rejected.id))},
+    )
+
+    assert {
+        frozenset((item.primary_fact_id, item.secondary_fact_id))
+        for item in proposals
+    } == {frozenset((platform.id, replacement.id))}
 
 
 def test_deterministic_mirror_group_ignores_non_payment_record_types():

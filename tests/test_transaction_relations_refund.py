@@ -198,6 +198,94 @@ def test_icbc_structured_return_signal_can_form_strong_refund_offset():
     assert proposal.secondary_fact_id == "r"
 
 
+def test_refund_prefers_exact_counterparty_account_over_fuzzy_counterparty():
+    wrong_expense = _fv(
+        id="wrong-expense",
+        amount=Decimal("-9.90"),
+        account_id="cash",
+        account_name="工商银行借记卡",
+        occurred_at="2023-10-08 18:40:36",
+        counterparty="深圳市财付通支付科技有限公司",
+        counterparty_account="2433****0133",
+        bill_source="icbc_debit",
+        source="icbc_debit",
+    )
+    matching_expense = _fv(
+        id="matching-expense",
+        amount=Decimal("-9.90"),
+        account_id="cash",
+        account_name="工商银行借记卡",
+        occurred_at="2023-10-09 13:51:22",
+        counterparty="瑞幸咖啡",
+        counterparty_account="1611****8718",
+        bill_source="icbc_debit",
+        source="icbc_debit",
+    )
+    refund = _fv(
+        id="refund",
+        amount=Decimal("9.90"),
+        account_id="cash",
+        account_name="工商银行借记卡",
+        occurred_at="2023-10-09 13:51:43",
+        counterparty="财付通",
+        counterparty_account="1611****8718",
+        record_type="refund",
+        note="退款",
+        bill_source="icbc_debit",
+        source="icbc_debit",
+    )
+
+    proposal = evaluate_refund_offset(refund, [wrong_expense, matching_expense])
+
+    assert proposal is not None
+    assert proposal.status == RelationStatus.ACCEPTED.value
+    assert proposal.primary_fact_id == matching_expense.id
+    assert proposal.secondary_fact_id == refund.id
+    assert "counterparty_account" in proposal.evidence.signals
+
+
+def test_refund_does_not_choose_nearest_when_exact_account_candidates_tie():
+    first_expense = _fv(
+        id="first-expense",
+        amount=Decimal("-15.80"),
+        account_id="cash",
+        account_name="工商银行借记卡",
+        occurred_at="2023-07-09 20:03:47",
+        counterparty="支付宝（中国）网络技术有限公司",
+        counterparty_account="2155****0690",
+        bill_source="icbc_debit",
+        source="icbc_debit",
+    )
+    second_expense = _fv(
+        id="second-expense",
+        amount=Decimal("-30.80"),
+        account_id="cash",
+        account_name="工商银行借记卡",
+        occurred_at="2023-07-09 20:24:24",
+        counterparty="支付宝（中国）网络技术有限公司",
+        counterparty_account="2155****0690",
+        bill_source="icbc_debit",
+        source="icbc_debit",
+    )
+    refund = _fv(
+        id="refund",
+        amount=Decimal("15.80"),
+        account_id="cash",
+        account_name="工商银行借记卡",
+        occurred_at="2023-07-09 22:31:40",
+        counterparty="支付宝（中国）网络技术有限公司",
+        counterparty_account="2155****0690",
+        record_type="refund",
+        note="退款",
+        bill_source="icbc_debit",
+        source="icbc_debit",
+    )
+
+    proposal = evaluate_refund_offset(refund, [first_expense, second_expense])
+
+    assert proposal is None
+
+
 def test_icbc_structured_return_signal_does_not_read_summary_or_text_fallback():
     expense = _fv(
         id="e", amount=Decimal("-272"), account_id="icbc", account_name="工行信用卡",
@@ -439,6 +527,28 @@ def test_full_refund_multiple_candidates_prefers_unique_title_priority():
     assert proposal.secondary_fact_id == "r"
     assert proposal.open_leg is False
     assert "title_exact" in proposal.evidence.signals
+
+
+def test_refund_title_and_counterparty_account_conflict_stays_unresolved():
+    title_expense = _fv(
+        id="title-expense", amount=Decimal("-100"), account_id="1",
+        occurred_at="2026-01-04 10:00:00", counterparty="商家",
+        counterparty_account="account-A", note="订单A", category="expense",
+    )
+    account_expense = _fv(
+        id="account-expense", amount=Decimal("-100"), account_id="1",
+        occurred_at="2026-01-04 10:01:00", counterparty="商家",
+        counterparty_account="account-B", note="订单B", category="expense",
+    )
+    refund = _fv(
+        id="refund", amount=Decimal("100"), account_id="1",
+        occurred_at="2026-01-05 10:00:00", counterparty="商家",
+        counterparty_account="account-B", note="退款-订单A", category="income",
+    )
+
+    proposal = evaluate_refund_offset(refund, [title_expense, account_expense])
+
+    assert proposal is None
 
 
 def test_refund_at_fifteen_days_stays_auto_accepted_for_ordinary_candidate():
