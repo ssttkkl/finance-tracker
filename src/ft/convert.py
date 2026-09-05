@@ -1,5 +1,6 @@
 """convert — 账单 → 统一CSV"""
 import hashlib
+import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
@@ -385,11 +386,33 @@ def _icbc_credit_offset_cluster(value: str, description: str) -> str:
     return ""
 
 
-def _icbc_credit_account_cluster(payment_method: str, card_number: str) -> str:
-    card_tail = (card_number or "").strip()
-    if card_tail:
-        return f"icbc_credit_card_{card_tail}"
-    return f"icbc_credit_channel_{payment_method or 'unknown'}"
+def _icbc_source_account_cluster(rec: dict, source_type: str) -> str:
+    """Group ICBC refund candidates by the declared source account.
+
+    Both ICBC formats use the same account rule after parsing. The source
+    identity is required for current rows; the channel never identifies an
+    account.
+    """
+    identifier = rec.get("_source_account_identifier") or rec.get("file_account_key")
+    normalized = _normalize_icbc_account_identifier(identifier)
+    if normalized:
+        return f"{source_type}_account_{normalized}"
+    return ""
+
+
+def _normalize_icbc_account_identifier(value: object) -> str:
+    """Return a complete or PDF-stable ICBC identifier for internal use.
+
+    Credit-card PDFs may expose a declared card as a masked prefix/tail token;
+    that token is still a source-field identity, while payment channels are not.
+    """
+    text = re.sub(r"[\s\-－—()（）]", "", str(value or ""))
+    if re.fullmatch(r"\d{12,19}", text):
+        return text
+    masked = re.fullmatch(r"\d{4,6}[*＊]{2,}\d{4}", text)
+    if masked:
+        return text.replace("＊", "*")
+    return ""
 
 
 def _icbc_debit_refund_cluster(counterparty: str, description: str) -> str:
@@ -405,13 +428,6 @@ def _icbc_debit_refund_cluster(counterparty: str, description: str) -> str:
     if "淘宝" in text:
         return "taobao_refund"
     return ""
-
-
-def _icbc_debit_account_cluster(rec: dict) -> str:
-    payment_method = (rec.get("payment_method", "") or "").strip()
-    if payment_method:
-        return f"icbc_debit_channel_{payment_method}"
-    return "icbc_debit_channel_unknown"
 
 
 def _ccb_refund_cluster(rec: dict) -> str:
@@ -965,7 +981,7 @@ def _pair_refunds(expenses: list, refunds: list, others: list):
                 for exp in matched_expenses
             }
             account_clusters = {
-                _icbc_credit_account_cluster(exp.get("payment_method", ""), exp.get("card_number", ""))
+                _icbc_source_account_cluster(exp, "icbc_credit")
                 for exp in matched_expenses
             }
             ref["_icbc_refund_same_cluster"] = len(offset_clusters) == 1 and "" not in offset_clusters
@@ -987,7 +1003,7 @@ def _pair_refunds(expenses: list, refunds: list, others: list):
                 for exp in matched_expenses
             }
             account_clusters = {
-                _icbc_debit_account_cluster(exp)
+                _icbc_source_account_cluster(exp, "icbc_debit")
                 for exp in matched_expenses
             }
             ref["_icbc_debit_refund_same_cluster"] = len(offset_clusters) == 1 and "" not in offset_clusters
@@ -1479,7 +1495,7 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                 current_time = lines[i+1].strip() if i + 1 < len(lines) else "00:00:00"
                 # 卡号在时间行下一行（16~19位纯数字）
                 card_line = lines[i+2].strip() if i + 2 < len(lines) else ""
-                current_card = card_line if re.match(r"^\d{16,19}$", card_line) else ""
+                current_card = _normalize_icbc_account_identifier(card_line)
                 record_start = i
                 i += 1
                 continue
@@ -1594,14 +1610,15 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     counterparty, normalization_description[:80], "icbc"
                 )
                 payment_method = _infer_payment_source("icbc", normalized_cp, enriched_desc[:80])
-                card_number = current_card[-4:] if current_card else ""
+                source_account_identifier = _normalize_icbc_account_identifier(current_card)
+                card_number = source_account_identifier[-4:] if source_account_identifier else ""
                 fact_hash = _stable_short_hash(
                     f"{current_date} {current_time}",
                     f"{amount:.2f}",
                     currency,
                     normalized_cp,
                     enriched_desc[:80],
-                    card_number,
+                    source_account_identifier,
                 )
                 rec = {
                     "date": f"{current_date} {current_time}",
@@ -1620,6 +1637,9 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     "category": category,
                     "payment_method": payment_method,
                     "card_number": card_number,
+                    "_source_account_identifier": source_account_identifier,
+                    "file_account_key": source_account_identifier,
+                    "source_display_name": "工商银行信用卡",
                     "_raw_cp": counterparty,  # 保存原始 cp 用于退款匹配
                     "summary": summary,
                     "refund_signal": "",
@@ -1671,6 +1691,15 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     time_str = time_candidate
 
             between = [lines[j].strip() for j in range(date_line_idx + 1, i) if lines[j].strip()]
+            source_account_identifier = next(
+                (
+                    normalized
+                    for value in between
+                    for normalized in [_normalize_icbc_account_identifier(value)]
+                    if normalized
+                ),
+                "",
+            )
             summary = ""
             for s in between:
                 if s in ("活期", "00000", "人民币", "钞", "汇", "1614", "4600", "2116", "6982"):
@@ -1710,7 +1739,7 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
             normalized_cp, enriched_desc = _normalize_counterparty(cpy, summary[:80], "icbc")
             fact_hash = _stable_short_hash(
                 date, time_str, f"{amount:.2f}", normalized_cp,
-                enriched_desc[:80], channel,
+                enriched_desc[:80], channel, source_account_identifier,
             )
             rec = {
                 "date": f"{date} {time_str}",
@@ -1719,6 +1748,9 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                 "note": enriched_desc[:80] or normalized_cp[:80],
                 "category": category,
                 "payment_method": channel,
+                "_source_account_identifier": source_account_identifier,
+                "file_account_key": source_account_identifier,
+                "source_display_name": "工商银行借记卡",
                 "_raw_cp": cpy,
                 "summary": summary,
                 "refund_signal": "icbc_debit_return" if summary == "退货" else "",
@@ -1919,7 +1951,7 @@ def _parse_icbc_debit_row(row: list, *, source_payload: dict | None = None) -> d
 
     # 渠道
     channel = (row[12] or "").replace("\n", "").strip()
-    source_account_identifier = (row[1] or "").replace("\n", "").strip()
+    source_account_identifier = _normalize_icbc_account_identifier(row[1])
 
     category = "expense" if amount < 0 else "income"
 
@@ -2010,8 +2042,9 @@ def _build_output_row(
 ) -> dict:
     """Build a normalized output row; route account via mapping unless explicitly given.
 
-    Prefer bill_type + card_number composite source, then bill_type + payment_method.
-    Longer mapping match wins (see ft.mapping.match_payment_method).
+    Prefer the declared ICBC source-account identity, then the existing
+    platform/card mapping fields. Longer mapping match wins (see
+    ft.mapping.match_payment_method).
     """
     from .mapping import match_payment_method
     from .domain.record_type import classify_cash_record, normalize_counterparty_account
@@ -2026,14 +2059,23 @@ def _build_output_row(
         if rules is None:
             from .mapping import load_rules
             rules, default_action = load_rules()
-        card_num = rec.get("card_number", "") or ""
         match = None
-        if card_num:
-            match = match_payment_method(rules, f"{bill_type}_{card_num}", "*")
-        if not match:
-            match = match_payment_method(
-                rules, bill_type, rec.get("payment_method", "") or ""
+        if bill_type in {"icbc_credit", "icbc_debit"}:
+            source_identifier = _normalize_icbc_account_identifier(
+                rec.get("_source_account_identifier") or rec.get("file_account_key")
             )
+            if not source_identifier:
+                raise ValueError("工行账单行缺少本方来源账户身份")
+            match = match_payment_method(rules, f"{bill_type}_{source_identifier}", "*")
+            card_num = source_identifier[-4:]
+        else:
+            card_num = rec.get("card_number", "") or ""
+            if card_num:
+                match = match_payment_method(rules, f"{bill_type}_{card_num}", "*")
+            if not match:
+                match = match_payment_method(
+                    rules, bill_type, rec.get("payment_method", "") or ""
+                )
         if match:
             acct_name = match["account"]
             cur = match.get("currency") or currency or "CNY"

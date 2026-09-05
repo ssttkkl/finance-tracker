@@ -20,8 +20,16 @@ def _row(source_type: str, **values) -> dict:
     [
         ("alipay", {"payment_method": "账户余额"}, "payment_method", "支付宝余额"),
         ("wechat", {"payment_method": "零钱"}, "payment_method", "微信零钱"),
-        ("icbc_credit", {"card_number": "1200"}, "card_tail", "1200"),
-        ("icbc_debit", {"payment_method": "银行卡"}, "file_account", "银行卡"),
+        (
+            "icbc_credit",
+            {"_source_account_identifier": "622599000000001200", "card_number": "1200"},
+            "file_account", "622599000000001200",
+        ),
+        (
+            "icbc_debit",
+            {"_source_account_identifier": "1614020101021984636", "payment_method": "银行卡"},
+            "file_account", "1614020101021984636",
+        ),
         ("ccb_debit", {"card_number": "2820"}, "card_tail", "2820"),
         (
             "icbc_asia",
@@ -115,11 +123,122 @@ def test_scan_icbc_debit_normalizes_account_presentation_separators():
     assert groups[0].masked_evidence == "工商银行借记卡（尾号 4636）"
 
 
+def test_scan_icbc_credit_normalizes_account_presentation_separators():
+    from ft.application.statement_account_mapping import scan_source_rows
+
+    groups = scan_source_rows([
+        _row(
+            "icbc_credit",
+            _source_account_identifier="6225 **** 9166",
+            source_display_name="工商银行信用卡",
+            payment_method="快捷支付",
+        ),
+        _row(
+            "icbc_credit",
+            _source_account_identifier="6225****9166",
+            source_display_name="工商银行信用卡",
+            payment_method="网上银行",
+        ),
+    ])
+
+    assert len(groups) == 1
+    assert groups[0].source_account_key == "6225****9166"
+    assert groups[0].masked_evidence == "工商银行信用卡（尾号 9166）"
+
+
+def test_scan_icbc_credit_groups_same_card_across_channels_and_separates_cards():
+    from ft.application.statement_account_mapping import scan_source_rows
+
+    groups = scan_source_rows([
+        _row(
+            "icbc_credit",
+            _source_account_identifier="622599000000001200",
+            file_account_key="622599000000001200",
+            card_number="1200",
+            source_display_name="工商银行信用卡",
+            payment_method="支付宝",
+        ),
+        _row(
+            "icbc_credit",
+            _source_account_identifier="622599000000001200",
+            file_account_key="622599000000001200",
+            card_number="1200",
+            source_display_name="工商银行信用卡",
+            payment_method="微信支付",
+        ),
+        _row(
+            "icbc_credit",
+            _source_account_identifier="622599000000000851",
+            file_account_key="622599000000000851",
+            card_number="0851",
+            source_display_name="工商银行信用卡",
+            payment_method="支付宝",
+        ),
+    ])
+
+    assert [(group.identity_kind, group.source_account_key, group.row_count) for group in groups] == [
+        ("file_account", "622599000000001200", 2),
+        ("file_account", "622599000000000851", 1),
+    ]
+    assert groups[0].masked_evidence == "工商银行信用卡（尾号 1200）"
+    assert groups[1].masked_evidence == "工商银行信用卡（尾号 0851）"
+
+
+def test_icbc_credit_full_identity_uses_account_identifier_alias():
+    from sqlalchemy import select
+
+    from ft.application.statement_account_mapping import scan_source_rows, suggest_mapping
+    from ft.adapters.relational import ensure_workspace
+    from ft.adapters.relational.models import AccountModel
+    from test_postgres_adapter import _database
+
+    sessions, unit_of_work = _database()
+    ensure_workspace(sessions, "icbc-credit-identity-mapping")
+    with unit_of_work(sessions, "icbc-credit-identity-mapping") as uow:
+        uow.accounts.add_raw({"name": "工行信用卡", "type": "loan", "currency": "CNY"})
+        uow.commit()
+    with sessions() as session:
+        account_id = session.scalar(select(AccountModel.id).where(
+            AccountModel.workspace_id == "icbc-credit-identity-mapping",
+            AccountModel.name == "工行信用卡",
+        ))
+    with unit_of_work(sessions, "icbc-credit-identity-mapping") as uow:
+        uow.account_aliases.add(
+            alias_type="account_identifier",
+            alias_value="622599000000001200",
+            account_id=account_id,
+        )
+        group = scan_source_rows([_row(
+            "icbc_credit",
+            _source_account_identifier="622599000000001200",
+            file_account_key="622599000000001200",
+            card_number="1200",
+            source_display_name="工商银行信用卡",
+        )])[0]
+        suggestion = suggest_mapping(uow, group)
+        assert suggestion["account_id"] == account_id
+        assert suggestion["mapping_revision"] is None
+        uow.commit()
+
+
 def test_scan_rejects_business_row_without_a_declared_source_identity():
     from ft.application.statement_account_mapping import scan_source_rows
 
     with pytest.raises(ValueError, match="来源账户"):
         scan_source_rows([_row("alipay", payment_method="")])
+
+
+@pytest.mark.parametrize("source_type", ["icbc_credit", "icbc_debit"])
+def test_scan_icbc_rejects_channel_as_source_identity(source_type):
+    from ft.application.statement_account_mapping import scan_source_rows
+
+    with pytest.raises(ValueError, match="来源账户"):
+        scan_source_rows([_row(
+            source_type,
+            _source_account_identifier="银行卡",
+            file_account_key="银行卡",
+            payment_method="快捷支付",
+        )])
 
 
 def test_scan_alipay_payment_components_share_one_underlying_account():
@@ -332,43 +451,15 @@ def test_alipay_missing_payment_method_uses_explicit_wallet_group(tmp_path, monk
     assert rows[0]["payment_method"] == "支付宝余额"
 
 
-def test_icbc_credit_missing_card_number_is_recovered_from_source_snapshot(tmp_path, monkeypatch):
-    from ft.adapters.statement_import import StatementParser
-    from ft.domain.imports import StatementImportCommand
+def test_icbc_credit_without_full_identity_fails_closed():
+    from ft.application.statement_account_mapping import scan_source_rows
 
-    source = tmp_path / "icbc.pdf"
-    source.write_text("fixture", encoding="utf-8")
-
-    def fake_prepare(_path, _source, _password):
-        return ([{
-            "date": "2026-08-14 10:00:00",
-            "amount": "-1.00",
-            "currency": "CNY",
-            "card_number": "",
-            "payment_method": "银行卡",
-            "record_type": "consumption",
-            "counterparty": "商户",
-            "_source_payload": {"原始文本单元": [
-                "2026-08-14", "10:00:00", "379983032529166", "借",
-            ]},
-        }], "icbc_credit", [])
-
-    monkeypatch.setattr("ft.convert._prepare_convert_rows", fake_prepare)
-    monkeypatch.setattr(
-        "ft.convert._build_output_row",
-        lambda row, **kwargs: {
-            "date": row["date"], "amount": row["amount"], "currency": row["currency"],
-            "card_number": row["card_number"], "payment_method": row["payment_method"],
-            "record_type": row["record_type"], "counterparty": row["counterparty"],
-            "bill_source": "icbc_credit", "source_type": "icbc_credit",
-        },
-    )
-
-    rows = StatementParser().parse_source_rows(
-        StatementImportCommand(source_path=str(source), source="icbc")
-    )
-
-    assert rows[0]["card_number"] == "9166"
+    with pytest.raises(ValueError, match="来源账户"):
+        scan_source_rows([_row(
+            "icbc_credit",
+            card_number="9166",
+            payment_method="银行卡",
+        )])
 
 
 def test_scan_group_id_is_opaque_and_does_not_contain_the_source_key():

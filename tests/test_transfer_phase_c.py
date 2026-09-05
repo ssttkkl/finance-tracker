@@ -94,3 +94,21 @@ def test_phase_c_only_scans_selected_seed_but_allows_its_counterpart():
 
     assert len(proposals) == 1
     assert proposals[0].secondary_fact_id == "in"
+
+
+def test_phase_c_selected_incoming_still_scans_existing_outgoing_counterpart():
+    outgoing = _fact(
+        id="out", amount="-100.00", account_id="source", occurred_at="2026-01-01 10:00:00",
+        record_type="repayment", record_subtype="credit_repayment",
+    )
+    incoming = _fact(
+        id="in", amount="100.00", account_id="target", occurred_at="2026-01-01 10:00:05",
+        record_type="repayment", record_subtype="credit_repayment",
+    )
+
+    proposals = match_transfer_pairs_phase_c([outgoing, incoming], seed_ids=["in"])
+
+    assert len(proposals) == 1
+    assert proposals[0].primary_fact_id == "out"
+    assert proposals[0].secondary_fact_id == "in"
+    assert proposals[0].status == RelationStatus.ACCEPTED.value

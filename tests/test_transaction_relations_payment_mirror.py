@@ -449,6 +449,51 @@ def test_icbc_equal_best_candidates_stay_pending():
     assert proposal.status == RelationStatus.PENDING_REVIEW.value
 
 
+def test_icbc_credit_equal_best_candidates_stay_pending():
+    platform = _fv(
+        id="platform-credit", amount=Decimal("-20"), account_id="card",
+        occurred_at="2026-06-13 12:00:00", counterparty="商户",
+        bill_source="wechat", source="wechat",
+    )
+    bank_rows = [
+        _fv(
+            id=f"credit-bank-{suffix}", amount=Decimal("-20"), account_id="card",
+            occurred_at="2026-06-13 12:00:00", counterparty="支付机构",
+            bill_source="icbc_credit", source="icbc_credit",
+        )
+        for suffix in ("a", "b")
+    ]
+
+    proposal = evaluate_payment_mirror(platform, bank_rows)
+
+    assert proposal is not None
+    assert proposal.status == RelationStatus.PENDING_REVIEW.value
+
+
+def test_icbc_credit_and_debit_use_the_same_symmetric_seed_rule():
+    platform = _fv(
+        id="platform-seed", amount=Decimal("-9"), account_id="card",
+        occurred_at="2026-06-13 21:32:37", counterparty="商户",
+        bill_source="wechat", source="wechat",
+    )
+    credit = _fv(
+        id="credit-seed", amount=Decimal("-9"), account_id="card",
+        occurred_at="2026-06-13 21:32:37", counterparty="支付机构",
+        bill_source="icbc_credit", source="icbc_credit",
+    )
+    debit = _fv(
+        id="debit-seed", amount=Decimal("-9"), account_id="card",
+        occurred_at="2026-06-13 21:32:37", counterparty="支付机构",
+        bill_source="icbc_debit", source="icbc_debit",
+    )
+
+    credit_result = match_payment_mirrors_greedy([platform, credit], seed_ids=[credit.id])
+    debit_result = match_payment_mirrors_greedy([platform, debit], seed_ids=[debit.id])
+
+    assert credit_result[0].status == debit_result[0].status
+    assert credit_result[0].rule_id == debit_result[0].rule_id
+
+
 def test_rejected_mirror_pair_is_excluded_but_other_candidate_can_match():
     platform = _fv(
         id="platform", amount=Decimal("-20"), account_id="card",

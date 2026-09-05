@@ -41,6 +41,9 @@ def _mirror_channel(fact: FactView) -> str:
     return str(fact.bill_source or fact.source or "").strip().lower()
 
 
+_ICBC_MIRROR_SOURCES = frozenset({"icbc_credit", "icbc_debit"})
+
+
 def _mirror_group_key(fact: FactView) -> tuple[str, str, str, Decimal, int, date] | None:
     """返回同笔支付确定性配对使用的完整匹配字段。"""
     try:
@@ -170,7 +173,7 @@ def _deterministic_payment_mirror_groups(
                 if complete and len(ordered_platforms) == len(ordered_banks):
                     pairs = zip(ordered_platforms, ordered_banks)
                     force_pending = any(
-                        _mirror_channel(item) == "icbc_debit"
+                        _mirror_channel(item) in _ICBC_MIRROR_SOURCES
                         for item in group_facts
                     ) and (len(ordered_platforms) > 1 or len(ordered_banks) > 1)
                 else:
@@ -512,11 +515,14 @@ def evaluate_payment_mirror(
             conf = CONFIDENCE_WEAK
             rule_id = RULE_PAYMENT_MIRROR_WEAK_V1
 
-    # ICBC debit rows often repeat the same processor text and amount. An
+    # ICBC credit/debit rows often repeat the same processor text and amount. An
     # equal-score tie is deterministic but not identifying evidence.
     if (
         status == RelationStatus.ACCEPTED.value
-        and (_mirror_channel(seed) == "icbc_debit" or _mirror_channel(cand) == "icbc_debit")
+        and (
+            _mirror_channel(seed) in _ICBC_MIRROR_SOURCES
+            or _mirror_channel(cand) in _ICBC_MIRROR_SOURCES
+        )
     ):
         equal_score = [match for match in matches if match[4] == best[4]]
         if len(equal_score) > 1:
@@ -595,11 +601,11 @@ def match_payment_mirrors_greedy(
         if fact_id
     }
 
-    # ICBC debit rows can be used as either the seed or the candidate. Build
-    # the ICBC subset globally and rank each seed against its full candidate
+    # ICBC credit/debit rows can be used as either the seed or the candidate.
+    # Build the ICBC subset globally and rank each seed against its full candidate
     # pool, so the result is independent of seed direction without changing
     # matching for unrelated bank sources.
-    if any(_mirror_channel(fact) == "icbc_debit" for fact in active):
+    if any(_mirror_channel(fact) in _ICBC_MIRROR_SOURCES for fact in active):
         rule_priority = {
             RULE_PAYMENT_MIRROR_REFUND_DUAL_SOURCE_V1: 5,
             RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1: 5,
@@ -624,8 +630,10 @@ def match_payment_mirrors_greedy(
                     candidate.id in facts_by_id
                     and candidate.id not in used
                     and candidate.id != seed.id
-                    and (_mirror_channel(seed) == "icbc_debit"
-                         or _mirror_channel(candidate) == "icbc_debit")
+                    and (
+                        _mirror_channel(seed) in _ICBC_MIRROR_SOURCES
+                        or _mirror_channel(candidate) in _ICBC_MIRROR_SOURCES
+                    )
                     and frozenset((seed.id, candidate.id)) not in blocked_pairs
                 )
             ]

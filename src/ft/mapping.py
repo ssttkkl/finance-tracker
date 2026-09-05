@@ -69,14 +69,6 @@ DEFAULT_RULES = """rules:
     match: ""
     account: "微信零钱"
     currency: CNY
-  - source: icbc_debit
-    match: "*"
-    account: "工行借记卡"
-    currency: CNY
-  - source: icbc_credit
-    match: "*"
-    account: "工行信用卡"
-    currency: CNY
   - source: ccb_debit
     match: "*"
     account: "建行储蓄卡"

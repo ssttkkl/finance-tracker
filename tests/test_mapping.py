@@ -132,3 +132,4 @@ def test_load_rules_creates_default_template(tmp_path, monkeypatch):
     assert target.exists()
     assert isinstance(rules, list)
     assert default in {"skip", "error", "fail"}
+    assert not any(rule.get("source") in {"icbc_credit", "icbc_debit"} for rule in rules)

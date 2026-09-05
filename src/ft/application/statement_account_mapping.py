@@ -56,9 +56,15 @@ def _card_tail(value: object) -> str:
     return digits[-4:]
 
 
-def _normalize_file_account_identifier(value: object) -> str:
-    """Normalize presentation separators while retaining raw evidence in rows."""
-    return re.sub(r"[\s\-－—()（）]", "", _text(value))
+def _normalize_icbc_account_identifier(value: object) -> str:
+    """Return a complete or PDF-stable ICBC identifier, never for display."""
+    text = re.sub(r"[\s\-－—()（）]", "", _text(value))
+    if re.fullmatch(r"\d{12,19}", text):
+        return text
+    masked = re.fullmatch(r"\d{4,6}[*＊]{2,}\d{4}", text)
+    if masked:
+        return text.replace("＊", "*")
+    return ""
 
 
 _ALIPAY_NON_FUNDING_MARKERS = (
@@ -131,12 +137,21 @@ def _identity_for_row(row: dict) -> tuple[str, str, str, str, str]:
             raise ValueError("业务行无法识别来源账户")
         display_name = display_name or source_key
         evidence = display_name
-    elif source_type in {"icbc_credit", "ccb_debit"}:
+    elif source_type == "icbc_credit":
+        source_key = _normalize_icbc_account_identifier(
+            row.get("_source_account_identifier") or row.get("file_account_key")
+        )
+        identity_kind = "file_account"
+        if not source_key:
+            raise ValueError("业务行无法识别来源账户")
+        display_name = display_name or "信用卡"
+        evidence = f"{display_name}（尾号 {_card_tail(source_key)}）"
+    elif source_type == "ccb_debit":
         source_key = _card_tail(row.get("card_number"))
         identity_kind = "card_tail"
         if not source_key:
             raise ValueError("业务行无法识别来源账户")
-        display_name = display_name or ("信用卡" if source_type == "icbc_credit" else "建设银行")
+        display_name = display_name or "建设银行"
         evidence = f"{display_name}（尾号 {source_key}）"
     elif source_type == "icbc_asia":
         source_key = _text(row.get("_source_account_identifier"))
@@ -146,33 +161,22 @@ def _identity_for_row(row: dict) -> tuple[str, str, str, str, str]:
         display_name = display_name or "工银亚洲活期账户"
         evidence = f"{display_name}（尾号 {_card_tail(row.get('card_number')) or '未知'}）"
     else:
-        # ICBC debit parser has a file-level account contract.  Older parser
-        # rows only carry its declared payment/file label, which is still safer
-        # than deriving an identity from a counterparty or free text.
-        stable_source_key = _normalize_file_account_identifier(
+        # ICBC debit parser has a file-level account contract.
+        stable_source_key = _normalize_icbc_account_identifier(
             row.get("_source_account_identifier") or row.get("file_account_key")
         )
-        source_key = stable_source_key or _text(row.get("payment_method"))
+        source_key = stable_source_key
         identity_kind = "file_account"
         if not source_key:
             raise ValueError("业务行无法识别来源账户")
-        if stable_source_key:
-            display_name = display_name or "工商银行借记卡"
-            evidence = f"{display_name}（尾号 {_card_tail(stable_source_key) or '未知'}）"
-        else:
-            display_name = display_name or source_key
-            evidence = display_name
+        display_name = display_name or "工商银行借记卡"
+        evidence = f"{display_name}（尾号 {_card_tail(stable_source_key) or '未知'}）"
 
     return source_type, identity_kind, source_key, display_name, evidence
 
 
 def _legacy_source_account_keys(row: dict, source_key: str) -> tuple[str, ...]:
     source_type = str(row.get("bill_source") or row.get("source_type") or "").strip()
-    if source_type == "icbc_debit":
-        payment_method = _text(row.get("payment_method"))
-        if payment_method and payment_method != source_key:
-            return (payment_method,)
-        return ()
     if source_type not in {"alipay", "wechat"}:
         return ()
     raw = _text(row.get("payment_method"))
@@ -281,12 +285,19 @@ def _account_choice(account: dict | None, currencies: tuple[str, ...], *, revisi
 
 def historical_mapping_for_group(uow, group: SourceAccountGroup) -> dict | None:
     """Find the canonical mapping, with a deterministic legacy fallback."""
-    keys = (group.source_account_key, *group.legacy_source_account_keys)
+    lookups = [
+        (group.identity_kind, group.source_account_key),
+        *((group.identity_kind, key) for key in group.legacy_source_account_keys),
+    ]
     found = []
-    for source_key in keys:
+    seen = set()
+    for identity_kind, source_key in lookups:
+        if (identity_kind, source_key) in seen:
+            continue
+        seen.add((identity_kind, source_key))
         mapping = uow.statement_account_mappings.get(
             source_type=group.source_type,
-            identity_kind=group.identity_kind,
+            identity_kind=identity_kind,
             source_account_key=source_key,
         )
         if mapping is not None:
@@ -308,9 +319,17 @@ def suggest_mapping(uow, group: SourceAccountGroup) -> dict:
         if account is not None and account.get("active"):
             return _account_choice(account, group.currencies, revision=historical["revision"])
 
-    if group.identity_kind not in {"card_tail", "account_identifier"}:
+    if group.source_type == "icbc_credit" and group.identity_kind == "file_account":
+        alias_lookups = [("account_identifier", group.source_account_key)]
+    else:
+        alias_lookups = [(group.identity_kind, group.source_account_key)]
+    if group.identity_kind not in {"card_tail", "account_identifier", "file_account"}:
         return _account_choice(None, group.currencies)
-    aliases = uow.account_aliases.find_by_value(group.identity_kind, group.source_account_key)
+    aliases = []
+    for alias_type, alias_value in alias_lookups:
+        if not alias_value:
+            continue
+        aliases.extend(uow.account_aliases.find_by_value(alias_type, alias_value))
     active_ids = set()
     active_accounts = {}
     for alias in aliases:

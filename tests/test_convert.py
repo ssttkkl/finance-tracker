@@ -1123,7 +1123,7 @@ class TestIcbcParseLines:
         from ft.convert import _parse_icbc_lines
         records, _ = _parse_icbc_lines(lines, is_credit=True)
         assert len(records) == 1
-        assert records[0]["_fact_id"] == "icbc_credit_be8442491ab1"
+        assert records[0]["_fact_id"] == "icbc_credit_eed5d67399a3"
 
     def test_美元转账_描述不被污染(self):
         """美元转账 via 支付宝-高德 → counterparty=测试用户, desc=手机银行"""
@@ -1263,7 +1263,7 @@ class TestIcbcParseLines:
         lines = [
             "2023-06-13",         # 日期行
             "17:25:13",           # 时间行
-            "161402******4636",
+            "1614020101021984636",
             "活期", "00000", "人民币", "钞", "消费", "1614",
             "-17.00",             # 金额行
             "1,234.56",           # 余额行
@@ -2267,6 +2267,44 @@ class TestCardNumber:
         assert len(records) == 1
         assert records[0]["card_number"] == "0851", f"card={records[0]['card_number']!r}"
 
+    def test_icbc_信用卡保留完整内部来源身份并以尾号兼容展示(self):
+        lines = [
+            "2026-03-17", "18:32:25", "622599000000000851", "借",
+            "人民币", "5.00", "人民币", "5.00", "消费", "测试商户",
+        ]
+        from ft.convert import _parse_icbc_lines
+        records, _ = _parse_icbc_lines(lines, is_credit=True)
+        assert len(records) == 1
+        assert records[0]["_source_account_identifier"] == "622599000000000851"
+        assert records[0]["file_account_key"] == "622599000000000851"
+        assert records[0]["source_display_name"] == "工商银行信用卡"
+        assert records[0]["card_number"] == "0851"
+
+    def test_icbc_信用卡接受账单声明的掩码卡号作为来源身份(self):
+        lines = [
+            "2026-03-17", "18:32:25", "6225****9166", "借",
+            "人民币", "5.00", "人民币", "5.00", "消费", "测试商户",
+        ]
+        from ft.convert import _parse_icbc_lines
+        records, _ = _parse_icbc_lines(lines, is_credit=True)
+        assert len(records) == 1
+        assert records[0]["_source_account_identifier"] == "6225****9166"
+        assert records[0]["card_number"] == "9166"
+
+    def test_icbc_信用卡业务行标识包含完整卡号避免跨卡碰撞(self):
+        base = [
+            "2026-03-17", "18:32:25", None, "借", "人民币", "5.00",
+            "人民币", "5.00", "消费", "测试商户",
+        ]
+        from ft.convert import _parse_icbc_lines
+        first, _ = _parse_icbc_lines(
+            [*base[:2], "622599000000001200", *base[3:]], is_credit=True,
+        )
+        second, _ = _parse_icbc_lines(
+            [*base[:2], "622599000000000851", *base[3:]], is_credit=True,
+        )
+        assert first[0]["_fact_id"] != second[0]["_fact_id"]
+
     def test_icbc_卡号_无卡号行(self):
         """没有卡号行的旧PDF格式→card_number为空"""
         lines = [
@@ -2739,11 +2777,13 @@ class TestIcbcDebitReversal:
         lines = [
             "2026-01-05",
             "09:00:00",
+            "1614020101021984636",
             "-19.90",
             "快捷支付",
             "支付宝（中国）网络技术有限公司",
             "2026-01-05",
             "10:00:00",
+            "1614020101021984636",
             "+19.90",
             "退款",
             "支付宝（中国）网络技术有限公司",
@@ -2765,16 +2805,19 @@ class TestIcbcDebitReversal:
         lines = [
             "2026-01-05",
             "09:00:00",
+            "1614020101021984636",
             "-20.00",
             "快捷支付",
             "支付宝（中国）网络技术有限公司",
             "2026-01-05",
             "09:30:00",
+            "1614020101021984636",
             "-40.00",
             "快捷支付",
             "支付宝（中国）网络技术有限公司",
             "2026-01-05",
             "10:00:00",
+            "1614020101021984636",
             "+15.00",
             "退款",
             "支付宝（中国）网络技术有限公司",
@@ -2793,16 +2836,19 @@ class TestIcbcDebitReversal:
         lines = [
             "2026-01-05",
             "09:00:00",
+            "1614020101021984636",
             "-100.00",
             "快捷支付",
             "支付宝（中国）网络技术有限公司",
             "2026-01-05",
             "09:10:00",
+            "1614020101021984637",
             "-100.00",
             "网上银行",
             "支付宝（中国）网络技术有限公司",
             "2026-01-05",
             "10:00:00",
+            "1614020101021984636",
             "+50.00",
             "退款",
             "支付宝（中国）网络技术有限公司",
@@ -2816,11 +2862,13 @@ class TestIcbcDebitReversal:
         lines = [
             "2026-01-05",
             "09:00:00",
+            "1614020101021984636",
             "-20.00",
             "快捷支付",
             "支付宝（中国）网络技术有限公司",
             "2026-01-05",
             "10:00:00",
+            "1614020101021984636",
             "+50.00",
             "退款",
             "支付宝（中国）网络技术有限公司",

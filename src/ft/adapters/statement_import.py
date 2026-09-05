@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 from pathlib import Path
-import re
 import tempfile
 
 from ft.domain.import_time import normalize_statement_timestamp
@@ -39,15 +38,6 @@ def _normalize_cash_source_account(row: dict, *, source: str) -> None:
         row["payment_method"] = "支付宝余额"
         return
     if source != "wechat":
-        if source != "icbc_credit" or str(row.get("card_number") or "").strip():
-            return
-        payload = row.get("_source_payload") or row.get("source_payload") or {}
-        units = payload.get("原始文本单元") if isinstance(payload, dict) else None
-        for value in units if isinstance(units, list) else ():
-            digits = re.sub(r"\D", "", str(value))
-            if 12 <= len(digits) <= 19:
-                row["card_number"] = digits[-4:]
-                return
         return
     payment_method = str(row.get("payment_method") or "").strip()
     if payment_method in {"零钱", "微信零钱"}:
