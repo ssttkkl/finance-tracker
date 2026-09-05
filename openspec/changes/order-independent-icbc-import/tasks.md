@@ -39,7 +39,7 @@
 
 ## 验证记录
 
-- 基线：`origin/refactor/web` 与当前 `HEAD` 均为 `e9101963e8095f500c9803df390aa5d6793e59f9`；工作分支为 `fix-icbc-013958-pdf-recognition-failure`。
+- 基线：本次实现提交为 `62c56e0`，随后已合入最新 `origin/refactor/web`（合并提交 `1104467`）；当前工作分支为 `fix-icbc-013958-pdf-recognition-failure`，PR 基线为 `origin/refactor/web` `6ddea6b`。
 - 失败回归与受影响矩阵（本次最终功能修复后）：`.venv/bin/python -m pytest -p no:cacheprovider tests/test_convert.py tests/test_complete_statement_source_payload.py tests/test_statement_account_mapping.py tests/test_cash_import_wizard.py tests/test_transaction_relations_payment_mirror.py tests/test_transaction_relations_refund.py tests/test_transaction_relations_cross_batch.py tests/test_import_relation_planning.py` → `380 passed, 13 skipped`。
 - 全量回归：`PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider` 在更新旧工行哈希断言前为 `1552 passed, 192 skipped, 2 failed`（工行旧断言和一个基线查询失败）；更新断言后，受影响矩阵为 `380 passed, 13 skipped`，并单独复现基线失败 `tests/test_application_queries.py::test_list_accounts_values_cash_and_investment_with_cost_fallback`（`Broker=25` 对比期望 `29`）。该失败不涉及本变更文件，因此不能宣称全量无失败。
 - 真实账单双顺序重放：使用 `.ft/bills` 中 3 份微信、3 份支付宝和 1 份工行 PDF，在全新临时 SQLite 与临时导入会话内执行「微信/支付宝后工行」和「工行后微信/支付宝」。两种顺序均成功，导入行数分别为 `1170,1176,985,1367,664,1028,1206` 与逆序对应值；事实数均为 `7596`，活动关系均为 `948`（`919 accepted`、`29 pending_review`），投影成员均为 `7596`，投影条目均为 `6677`，业务事实集合与活动关系集合 `delta=0`。密码只在进程内传递，未写入仓库或日志。
