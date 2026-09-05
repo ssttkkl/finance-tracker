@@ -2446,7 +2446,26 @@ class TestIcbcDebit:
         rec = _parse_icbc_debit_row(row)
         assert rec is not None
         assert rec["_fact_id"].startswith("icbc_debit_")
-        assert rec["_fact_id"] == "icbc_debit_3ed3040e692e"
+        assert rec["_fact_id"] == "icbc_debit_c9f2acd76932"
+
+    def test_工行借记卡_record_id包含本方账号和余额证据(self):
+        row = [
+            "2026-01-10\n10:00:17", "1614020101021984636", "活期", "00000",
+            "人民币", "钞", "无卡支付", "4600", "-2,000.00",
+            "15,851.26", "梁碧玲", "6217****8572", "网上银行",
+        ]
+        from ft.convert import _parse_icbc_debit_row
+
+        account_a = _parse_icbc_debit_row(row, source_payload={"余额": "15,851.26"})
+        account_b = _parse_icbc_debit_row(
+            [row[0], "1614020101021984637", *row[2:]],
+            source_payload={"余额": "15,851.26"},
+        )
+        balance_b = _parse_icbc_debit_row(row, source_payload={"余额": "13,851.26"})
+
+        assert account_a["_source_account_identifier"] == "1614020101021984636"
+        assert account_a["_fact_id"] != account_b["_fact_id"]
+        assert account_a["_fact_id"] != balance_b["_fact_id"]
 
     def test_解析一行_美元(self):
         """美元交易正确识别"""

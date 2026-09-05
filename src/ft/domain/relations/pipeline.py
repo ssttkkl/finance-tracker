@@ -10,6 +10,7 @@ invoke :func:`run_relation_phases` as the **sole** domain matcher for B–D.
 """
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from decimal import Decimal
@@ -27,17 +28,51 @@ from ft.domain.relations.core.types import (
     RelationProposal,
     RelationStatus,
 )
-from ft.domain.relations.mirror.match import match_payment_mirrors_greedy
+from ft.domain.relations.mirror.match import (
+    evaluate_payment_mirror,
+    match_payment_mirrors_greedy,
+)
 from ft.domain.relations.core.mirror_graph import build_mirror_components, canonical_mirror_fact
 from ft.domain.relations.core.keys import stable_fact_order_key
 from ft.domain.relations.refund.diamond import match_diamond_bank_refunds
 from ft.domain.relations.refund.match import evaluate_refund_offset
-from ft.domain.relations.refund.signals import has_refund_signal_for_fact
+from ft.domain.relations.refund.signals import (
+    DefaultRefundTextGates,
+    has_refund_signal_for_fact,
+)
 from ft.domain.relations.transfer.match import match_transfer_pairs_phase_c
 
 
 def _edge(kind: str, a: str, b: str, subtype: str = "") -> RelationEdge:
     return RelationEdge(fact_a_id=a, fact_b_id=b, kind=kind, subtype=subtype or "")
+
+
+def match_canonical_payment_mirrors(
+    facts: Sequence[FactView],
+    *,
+    aliases_by_tail: Mapping[str, Sequence[str]] | None = None,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
+    occupied_fact_ids: set[str] | None = None,
+    blocked_pairs: set[frozenset[str]] | None = None,
+) -> list[RelationProposal]:
+    """Run the canonical all-fact payment mirror matcher.
+
+    The application layer uses this entry point during reconciliation so the
+    complete relation matcher remains owned by the domain pipeline.
+    """
+    index = FactCandidateIndex(
+        facts,
+        source_group=source_group,
+        refund_gates=DefaultRefundTextGates(),
+    )
+    return match_payment_mirrors_greedy(
+        facts,
+        aliases_by_tail=aliases_by_tail,
+        account_identifiers_by_value=account_identifiers_by_value,
+        index=index,
+        occupied_fact_ids=occupied_fact_ids,
+        blocked_pairs=blocked_pairs,
+    )
 
 
 def _mark_used(ctx: MatchContext, proposal: RelationProposal) -> None:
@@ -94,6 +129,199 @@ def _mirror_components_by_fact(
     return components_by_fact
 
 
+def _refund_pair_facts(
+    edge: RelationEdge, by_id: Mapping[str, FactView],
+) -> tuple[FactView, FactView] | None:
+    left, right = by_id.get(edge.fact_a_id), by_id.get(edge.fact_b_id)
+    if left is None or right is None:
+        return None
+    if left.signed_amount < 0 < right.signed_amount:
+        return left, right
+    if right.signed_amount < 0 < left.signed_amount:
+        return right, left
+    return None
+
+
+def _refund_pair_alignment_score(
+    expense_proposal: RelationProposal,
+    refund_proposal: RelationProposal,
+) -> tuple[int, int]:
+    """Rank a complete cross-source refund pair without using database ids."""
+    strong_rules = {
+        "payment_mirror.platform_bank.exact.time10.cross.v2": 4,
+        "payment_mirror.platform_bank.short_window.text.unique.v3": 3,
+        "payment_mirror.same_account.exact.business_day.v1": 3,
+        "payment_mirror.bank_date_only.v1": 3,
+        "payment_mirror.refund_dual_source.v1": 4,
+    }
+    rank = strong_rules.get(expense_proposal.rule_id or "", 1)
+    rank += strong_rules.get(refund_proposal.rule_id or "", 1)
+    elapsed = (
+        expense_proposal.evidence.time_delta_seconds
+        + refund_proposal.evidence.time_delta_seconds
+    )
+    return rank, -elapsed
+
+
+def _align_refund_pair_mirrors(
+    facts: Sequence[FactView],
+    ctx: MatchContext,
+    *,
+    aliases_by_tail: Mapping[str, Sequence[str]] | None = None,
+    account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
+    index: FactCandidateIndex | None = None,
+) -> tuple[list[RelationProposal], set[str]]:
+    """Prefer corresponding expense/refund mirrors for known refund pairs.
+
+    A generic same-day mirror matcher cannot distinguish two equal expenses. If
+    one of them is already part of a refund pair, independently matching the
+    other expense can make two refund edges converge on one projection root.
+    This pre-pass uses only complete, uniquely best cross-source refund-pair
+    candidates; unresolved candidates remain for the normal matcher/review.
+    """
+    by_id = {str(fact.id): fact for fact in facts if not fact.deleted}
+    pairs: list[tuple[FactView, FactView]] = []
+    for edge in ctx.accepted_platform_refunds:
+        pair = _refund_pair_facts(edge, by_id)
+        if pair is not None:
+            pairs.append(pair)
+
+    platform_pairs: list[tuple[FactView, FactView]] = []
+    bank_pairs: list[tuple[FactView, FactView]] = []
+    for expense, refund in pairs:
+        groups = {source_group(expense), source_group(refund)}
+        if len(groups) != 1:
+            continue
+        if source_group(expense) == "platform":
+            platform_pairs.append((expense, refund))
+        elif source_group(expense) == "bank":
+            bank_pairs.append((expense, refund))
+
+    candidates: list[tuple[
+        tuple[int, int],
+        tuple[str, str],
+        tuple[str, str],
+        RelationProposal,
+        RelationProposal,
+    ]] = []
+    bank_pairs_by_expense: dict[str, list[tuple[FactView, FactView]]] = defaultdict(list)
+    for bank_pair in bank_pairs:
+        bank_pairs_by_expense[bank_pair[0].id].append(bank_pair)
+    for platform_expense, platform_refund in platform_pairs:
+        if index is None:
+            candidate_bank_pairs = bank_pairs
+        else:
+            bank_expense_ids = {
+                fact.id for fact in index.mirror_candidates(platform_expense)
+            }
+            bank_refund_ids = {
+                fact.id for fact in index.mirror_candidates(platform_refund)
+            }
+            candidate_bank_pairs = [
+                (bank_expense, bank_refund)
+                for bank_expense_id in bank_expense_ids
+                for bank_expense, bank_refund in bank_pairs_by_expense.get(bank_expense_id, ())
+                if bank_refund.id in bank_refund_ids
+            ]
+        for bank_expense, bank_refund in candidate_bank_pairs:
+            expense_proposal = evaluate_payment_mirror(
+                platform_expense,
+                [bank_expense],
+                aliases_by_tail=aliases_by_tail,
+                account_identifiers_by_value=account_identifiers_by_value,
+            )
+            refund_proposal = evaluate_payment_mirror(
+                platform_refund,
+                [bank_refund],
+                aliases_by_tail=aliases_by_tail,
+                account_identifiers_by_value=account_identifiers_by_value,
+            )
+            if (
+                expense_proposal is None
+                or refund_proposal is None
+                or expense_proposal.status != RelationStatus.ACCEPTED.value
+                or refund_proposal.status != RelationStatus.ACCEPTED.value
+            ):
+                continue
+            candidates.append((
+                _refund_pair_alignment_score(expense_proposal, refund_proposal),
+                (platform_expense.id, platform_refund.id),
+                (bank_expense.id, bank_refund.id),
+                expense_proposal,
+                refund_proposal,
+            ))
+
+    def unique_best(
+        items: Sequence[tuple[
+            tuple[int, int], tuple[str, str], tuple[str, str],
+            RelationProposal, RelationProposal,
+        ]],
+        key_index: int,
+    ) -> set[int]:
+        grouped: dict[tuple[str, str], list[tuple[int, tuple[int, int]]]] = defaultdict(list)
+        for index, candidate in enumerate(items):
+            grouped[candidate[key_index]].append((index, candidate[0]))
+        selected: set[int] = set()
+        for values in grouped.values():
+            best_score = max(score for _index, score in values)
+            best = [index for index, score in values if score == best_score]
+            if len(best) == 1:
+                selected.add(best[0])
+        return selected
+
+    platform_best = unique_best(candidates, 1)
+    bank_best = unique_best(candidates, 2)
+    selected = [
+        candidate for index, candidate in enumerate(candidates)
+        if index in platform_best and index in bank_best
+    ]
+    selected.sort(key=lambda item: (item[1], item[2]))
+
+    existing = {
+        frozenset((edge.fact_a_id, edge.fact_b_id))
+        for edge in ctx.accepted_mirrors
+    }
+    neighbors: dict[str, set[str]] = defaultdict(set)
+    for edge in ctx.accepted_mirrors:
+        if edge.fact_a_id and edge.fact_b_id:
+            neighbors[edge.fact_a_id].add(edge.fact_b_id)
+            neighbors[edge.fact_b_id].add(edge.fact_a_id)
+    candidate_fact_ids = {
+        fact_id
+        for _score, platform_pair, bank_pair, _expense, _refund in candidates
+        for fact_id in (*platform_pair, *bank_pair)
+    }
+    aligned_fact_ids: set[str] = set()
+    out: list[RelationProposal] = []
+    for _score, _platform_pair, _bank_pair, expense_proposal, refund_proposal in selected:
+        proposals = (expense_proposal, refund_proposal)
+        if any(
+            frozenset((proposal.primary_fact_id, proposal.secondary_fact_id)) not in existing
+            and (
+                neighbors.get(proposal.primary_fact_id, set())
+                - {proposal.secondary_fact_id}
+                or neighbors.get(proposal.secondary_fact_id, set())
+                - {proposal.primary_fact_id}
+            )
+            for proposal in proposals
+        ):
+            continue
+        aligned_fact_ids.update((*_platform_pair, *_bank_pair))
+        for proposal in proposals:
+            left, right = proposal.primary_fact_id, proposal.secondary_fact_id
+            if not left or not right or frozenset((left, right)) in existing:
+                continue
+            out.append(proposal)
+            existing.add(frozenset((left, right)))
+            neighbors[left].add(right)
+            neighbors[right].add(left)
+            ctx.accepted_mirrors.append(
+                _edge(RelationKind.PAYMENT_MIRROR.value, left, right, proposal.subtype or "")
+            )
+            _mark_used(ctx, proposal)
+    return out, candidate_fact_ids - aligned_fact_ids
+
+
 def _demote_overlapping_phase_a_refunds(
     facts: Sequence[FactView],
     phase_a: Sequence[RelationProposal],
@@ -113,6 +341,11 @@ def _demote_overlapping_phase_a_refunds(
         return tuple(phase_a)
 
     by_id = {str(fact.id): fact for fact in facts}
+
+    def group_for(fact_id: str | None) -> str:
+        fact = by_id.get(str(fact_id or ""))
+        return source_group(fact) if fact is not None else ""
+
     components_by_fact = _mirror_components_by_fact(facts, mirror_pairs)
     event_caps: dict[frozenset[str], Decimal] = {}
     for component in set(components_by_fact.values()):
@@ -127,6 +360,52 @@ def _demote_overlapping_phase_a_refunds(
             )
 
     consumed: dict[frozenset[str], Decimal] = {}
+    phase_a_platform_refund_bank_ids: set[str] = set()
+    phase_a_platform_refund_components = {
+        components_by_fact.get(str(proposal.secondary_fact_id))
+        for proposal in phase_a
+        if (
+            proposal.status == RelationStatus.ACCEPTED.value
+            and proposal.kind == RelationKind.REFUND_OFFSET.value
+            and proposal.primary_fact_id
+            and proposal.secondary_fact_id
+            and group_for(proposal.primary_fact_id) == "platform"
+            and group_for(proposal.secondary_fact_id) == "platform"
+        )
+    }
+    phase_a_platform_refund_components.discard(None)
+    for proposal in phase_a:
+        if (
+            proposal.status != RelationStatus.ACCEPTED.value
+            or proposal.kind != RelationKind.REFUND_OFFSET.value
+            or not proposal.primary_fact_id
+            or not proposal.secondary_fact_id
+            or group_for(proposal.primary_fact_id) != "platform"
+            or group_for(proposal.secondary_fact_id) != "platform"
+        ):
+            continue
+        platform_refund = by_id.get(str(proposal.secondary_fact_id))
+        if platform_refund is None:
+            continue
+        for relation in accepted_relations:
+            if (
+                relation.get("kind") != RelationKind.REFUND_OFFSET.value
+                or relation.get("status") != RelationStatus.ACCEPTED.value
+            ):
+                continue
+            bank_refund = by_id.get(str(relation.get("secondary_fact_id") or ""))
+            bank_expense = by_id.get(str(relation.get("primary_fact_id") or ""))
+            if (
+                bank_refund is None
+                or bank_expense is None
+                or source_group(bank_expense) != "bank"
+                or source_group(bank_refund) != "bank"
+            ):
+                continue
+            mirror = evaluate_payment_mirror(platform_refund, [bank_refund])
+            if mirror is not None and mirror.status == RelationStatus.ACCEPTED.value:
+                phase_a_platform_refund_bank_ids.add(str(bank_refund.id))
+
     for relation in accepted_relations:
         if (
             relation.get("kind") != RelationKind.REFUND_OFFSET.value
@@ -144,6 +423,19 @@ def _demote_overlapping_phase_a_refunds(
             or refund is None
             or primary.signed_amount >= 0
             or refund.signed_amount <= 0
+        ):
+            continue
+        # A later platform hard-key pair is stronger than a provisional bank
+        # refund.  Let the application supersede that bank edge after the
+        # corresponding payment mirrors are persisted, instead of demoting
+        # the canonical platform proposal back to review.
+        if (
+            group_for(primary.id) == "bank"
+            and secondary_id in phase_a_platform_refund_bank_ids
+        ) or (
+            group_for(primary.id) == "bank"
+            and components_by_fact.get(secondary_id) is not None
+            and components_by_fact.get(secondary_id) in phase_a_platform_refund_components
         ):
             continue
         consumed[component] = consumed.get(component, Decimal("0")) + _abs_decimal(
@@ -281,12 +573,21 @@ def run_relation_phases(
     out: list[RelationProposal] = []
 
     # --- Phase B: payment_mirror ---
+    aligned_mirrors, blocked_refund_mirror_ids = _align_refund_pair_mirrors(
+        active,
+        ctx,
+        aliases_by_tail=aliases_by_tail,
+        account_identifiers_by_value=account_identifiers_by_value,
+        index=index,
+    )
+    out.extend(aligned_mirrors)
     occupied_mirror_fact_ids = {
         fact_id
         for edge in ctx.accepted_mirrors
         for fact_id in (edge.fact_a_id, edge.fact_b_id)
         if fact_id
     }
+    occupied_mirror_fact_ids.update(blocked_refund_mirror_ids)
     mirror_props = match_payment_mirrors_greedy(
         active,
         aliases_by_tail=aliases_by_tail,

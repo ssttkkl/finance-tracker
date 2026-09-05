@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 import hashlib
 import json
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from ft.domain.application import OperationResult
 from ft.domain.relations import (
@@ -29,6 +29,9 @@ from ft.domain.relations import (
     is_fx_out_record,
     is_open_leg_relation,
     match_personal_fx_exchange,
+    match_canonical_payment_mirrors,
+    evaluate_refund_offset,
+    build_mirror_components,
     ordered_fact_pair,
     project_balances_and_pnl,
     run_relation_phases,
@@ -78,6 +81,18 @@ def _fact_view_from_row(row: dict) -> FactView:
         raw_payload=payload,
         relation_metadata=relation_metadata,
     )
+
+
+def _is_human_decision(relation: Mapping[str, Any]) -> bool:
+    """Return whether a relation carries an explicit user decision.
+
+    Automatic reconciliation writes audit metadata too, but ``decided_by``
+    must not turn a system transition into a permanent human lock.
+    """
+    if relation.get("created_by") != "system":
+        return True
+    decided_by = str(relation.get("decided_by") or "")
+    return bool(decided_by and decided_by != "system")
 
 
 @dataclass(frozen=True)
@@ -475,7 +490,7 @@ def _refund_blocked_ids(
             relation.get("status") == RelationStatus.PENDING_REVIEW.value
             and is_open_leg_relation(relation)
             and relation.get("created_by") == "system"
-            and not relation.get("decided_by")
+            and not _is_human_decision(relation)
             and not relation.get("candidate_fact_ids")
         )
         keep_expense_candidate = (
@@ -639,6 +654,320 @@ class RelationService:
     def __init__(self, unit_of_work):
         self._uow = unit_of_work
 
+    def _reconcile_system_payment_mirrors(
+        self,
+        uow,
+        facts: Sequence[FactView],
+        *,
+        protected_fact_ids: set[str] | None = None,
+        blocked_pairs: set[frozenset[str]] | None = None,
+    ) -> set[int]:
+        """Converge automatic mirrors to one canonical all-source matching.
+
+        Importing one platform before another can create a provisional mirror
+        for a bank row.  Re-run the deterministic matcher over the complete
+        fact set when a batch is checked, so the final graph does not depend
+        on which platform happened to arrive first.  Human-decided mirrors
+        remain authoritative and are never changed.
+        """
+        affected: set[int] = set()
+
+        def mark_affected(*fact_ids) -> None:
+            for fact_id in fact_ids:
+                if fact_id not in (None, ""):
+                    affected.add(int(fact_id))
+
+        all_active_relations = [
+            dict(item)
+            for item in uow.relations.list_active()
+            if item.get("status") != RelationStatus.SUPERSEDED.value
+        ]
+        active_relations = [
+            item for item in all_active_relations
+            if item.get("status") == RelationStatus.ACCEPTED.value
+        ]
+        protected_fact_ids = {str(item) for item in (protected_fact_ids or set())}
+        blocked_pairs = set(blocked_pairs or set())
+        human_endpoint_ids = {
+            str(fact_id)
+            for relation in active_relations
+            if (
+                relation.get("kind") == RelationKind.PAYMENT_MIRROR.value
+                and _is_human_decision(relation)
+            )
+            for fact_id in (
+                relation.get("primary_fact_id"), relation.get("secondary_fact_id"),
+            )
+            if fact_id not in (None, "")
+        }
+        human_endpoint_ids.update(protected_fact_ids)
+        blocked_pairs.update(
+            frozenset((
+                str(relation.get("primary_fact_id") or ""),
+                str(relation.get("secondary_fact_id") or ""),
+            ))
+            for relation in all_active_relations
+            if (
+                relation.get("kind") == RelationKind.PAYMENT_MIRROR.value
+                and relation.get("status") == RelationStatus.REJECTED.value
+                and _is_human_decision(relation)
+                and relation.get("primary_fact_id") not in (None, "")
+                and relation.get("secondary_fact_id") not in (None, "")
+            )
+        )
+        aliases_by_tail, account_identifiers_by_value = self._alias_indexes(uow)
+        canonical = match_canonical_payment_mirrors(
+            facts,
+            aliases_by_tail=aliases_by_tail,
+            account_identifiers_by_value=account_identifiers_by_value,
+            occupied_fact_ids=human_endpoint_ids,
+            blocked_pairs=blocked_pairs,
+        )
+        canonical_pairs = {
+            frozenset((proposal.primary_fact_id, proposal.secondary_fact_id))
+            for proposal in canonical
+            if proposal.primary_fact_id and proposal.secondary_fact_id
+        }
+        automatic_mirrors = [
+            relation for relation in all_active_relations
+            if (
+                relation.get("kind") == RelationKind.PAYMENT_MIRROR.value
+                and relation.get("created_by") == "system"
+                and not _is_human_decision(relation)
+                and relation.get("status") in {
+                    RelationStatus.ACCEPTED.value,
+                    RelationStatus.PENDING_REVIEW.value,
+                }
+            )
+        ]
+        for relation in automatic_mirrors:
+            if (
+                relation.get("primary_fact_id") in (None, "")
+                or relation.get("secondary_fact_id") in (None, "")
+            ):
+                continue
+            pair = frozenset((
+                str(relation.get("primary_fact_id") or ""),
+                str(relation.get("secondary_fact_id") or ""),
+            ))
+            if pair in canonical_pairs:
+                continue
+            if pair & human_endpoint_ids:
+                uow.relations.update_status(
+                    relation["id"],
+                    status=RelationStatus.SUPERSEDED.value,
+                    decided_by="system",
+                    decision_reason="superseded_by_human_payment_mirror",
+                )
+                mark_affected(relation.get("primary_fact_id"), relation.get("secondary_fact_id"))
+                continue
+            uow.relations.update_status(
+                relation["id"],
+                status=RelationStatus.SUPERSEDED.value,
+                decided_by="system",
+                decision_reason="superseded_by_canonical_payment_mirror",
+            )
+            mark_affected(relation.get("primary_fact_id"), relation.get("secondary_fact_id"))
+        accepted_relations = [
+            dict(item)
+            for item in uow.relations.list_active()
+            if item.get("status") == RelationStatus.ACCEPTED.value
+        ]
+        for proposal in canonical:
+            if proposal.status != RelationStatus.ACCEPTED.value:
+                continue
+            outcome = self._persist_proposal(
+                uow,
+                proposal,
+                {},
+                accepted_relations=accepted_relations,
+            )
+            if outcome is not None and outcome.get("status") == RelationStatus.ACCEPTED.value:
+                accepted_relations.append(outcome)
+                mark_affected(outcome.get("primary_fact_id"), outcome.get("secondary_fact_id"))
+        return affected
+
+    def _reconcile_system_refund_offsets(
+        self,
+        uow,
+        facts: Sequence[FactView],
+        *,
+        skip_refund_ids: set[str] | None = None,
+    ) -> tuple[set[int], set[tuple[str, str]]]:
+        """Re-evaluate automatic bank refunds when later facts add evidence."""
+        affected: set[int] = set()
+        skip_refund_ids = {str(item) for item in (skip_refund_ids or set())}
+
+        def mark_affected(*fact_ids) -> None:
+            for fact_id in fact_ids:
+                if fact_id not in (None, ""):
+                    affected.add(int(fact_id))
+
+        accepted_relations = [
+            dict(item)
+            for item in uow.relations.list_active()
+            if item.get("status") == RelationStatus.ACCEPTED.value
+        ]
+        mirror_pairs = [
+            (
+                str(relation.get("primary_fact_id") or ""),
+                str(relation.get("secondary_fact_id") or ""),
+            )
+            for relation in accepted_relations
+            if relation.get("kind") == RelationKind.PAYMENT_MIRROR.value
+        ]
+        components_by_fact: dict[str, frozenset[str]] = {}
+        for component in build_mirror_components(
+            (str(fact.id) for fact in facts), mirror_pairs,
+        ):
+            frozen = frozenset(str(fact_id) for fact_id in component)
+            for fact_id in frozen:
+                components_by_fact[fact_id] = frozen
+        candidate_event_ids = {
+            fact_id: min(component)
+            for fact_id, component in components_by_fact.items()
+        }
+        remaining = self._refund_remaining(uow, list(facts))
+        superseded_pairs: set[tuple[str, str]] = set()
+        by_id = {str(fact.id): fact for fact in facts}
+        index = FactCandidateIndex(
+            facts,
+            source_group=source_group,
+            refund_gates=DefaultRefundTextGates(),
+        )
+        for relation in accepted_relations:
+            if (
+                relation.get("kind") != RelationKind.REFUND_OFFSET.value
+                or relation.get("status") != RelationStatus.ACCEPTED.value
+                or relation.get("created_by") != "system"
+                or _is_human_decision(relation)
+            ):
+                continue
+            expense_id = str(relation.get("primary_fact_id") or "")
+            refund_id = str(relation.get("secondary_fact_id") or "")
+            expense = by_id.get(expense_id)
+            refund = by_id.get(refund_id)
+            if (
+                expense is None
+                or refund is None
+                or source_group(refund) != "bank"
+                or refund.signed_amount <= 0
+            ):
+                continue
+            candidate_remaining = dict(remaining)
+            candidate_remaining[expense_id] = (
+                candidate_remaining.get(expense_id, abs(expense.signed_amount))
+                + abs(refund.signed_amount)
+            )
+            replacement = evaluate_refund_offset(
+                refund,
+                index.refund_candidates(refund),
+                remaining_by_expense=candidate_remaining,
+                candidate_event_ids=candidate_event_ids,
+            )
+            if (
+                replacement is None
+                or replacement.status != RelationStatus.ACCEPTED.value
+                or str(replacement.primary_fact_id) == expense_id
+            ):
+                continue
+            accepted_without_old = [
+                item for item in accepted_relations
+                if item.get("id") != relation.get("id")
+            ]
+            created = self._persist_proposal(
+                uow,
+                replacement,
+                candidate_remaining,
+                accepted_relations=accepted_without_old,
+            )
+            if (
+                created is None
+                or created.get("status") != RelationStatus.ACCEPTED.value
+            ):
+                continue
+            uow.relations.update_status(
+                relation["id"],
+                status=RelationStatus.SUPERSEDED.value,
+                decided_by="system",
+                decision_reason="superseded_by_later_refund_evidence",
+                superseded_by_id=created.get("id"),
+            )
+            mark_affected(
+                relation.get("primary_fact_id"), relation.get("secondary_fact_id"),
+                created.get("primary_fact_id"), created.get("secondary_fact_id"),
+            )
+            superseded_pairs.add((expense_id, refund_id))
+            accepted_relations = [*accepted_without_old, created]
+
+        # A bank refund may have arrived in the current batch with no prior
+        # automatic edge.  Re-run the same indexed matcher for it against the
+        # complete fact set; otherwise the result would still depend on which
+        # source happened to be imported first.
+        remaining = self._refund_remaining(uow, list(facts))
+        active_relations = [
+            dict(item)
+            for item in uow.relations.list_active()
+            if item.get("status") != RelationStatus.SUPERSEDED.value
+        ]
+        occupied_refund_ids = {
+            str(relation.get("secondary_fact_id") or "")
+            for relation in active_relations
+            if relation.get("kind") == RelationKind.REFUND_OFFSET.value
+            and relation.get("secondary_fact_id") not in (None, "")
+        }
+        for relation in active_relations:
+            if (
+                relation.get("kind") != RelationKind.REFUND_OFFSET.value
+                or relation.get("status") != RelationStatus.ACCEPTED.value
+            ):
+                continue
+            refund_id = str(relation.get("secondary_fact_id") or "")
+            occupied_refund_ids.update(components_by_fact.get(refund_id, (refund_id,)))
+        accepted_relations = [
+            dict(item)
+            for item in active_relations
+            if item.get("status") == RelationStatus.ACCEPTED.value
+        ]
+        for refund in sorted(facts, key=stable_fact_order_key):
+            refund_id = str(refund.id)
+            if (
+                refund_id in skip_refund_ids
+                or refund_id in occupied_refund_ids
+                or source_group(refund) != "bank"
+                or refund.signed_amount <= 0
+            ):
+                continue
+            proposal = evaluate_refund_offset(
+                refund,
+                index.refund_candidates(refund),
+                remaining_by_expense=remaining,
+                candidate_event_ids=candidate_event_ids,
+            )
+            if (
+                proposal is None
+                or proposal.status != RelationStatus.ACCEPTED.value
+            ):
+                continue
+            created = self._persist_proposal(
+                uow,
+                proposal,
+                remaining,
+                accepted_relations=accepted_relations,
+            )
+            if created is None or created.get("status") != RelationStatus.ACCEPTED.value:
+                continue
+            accepted_relations.append(created)
+            expense_id = str(created.get("primary_fact_id") or "")
+            if expense_id:
+                remaining[expense_id] = (
+                    remaining.get(expense_id, Decimal("0"))
+                    - abs(refund.signed_amount)
+                )
+            occupied_refund_ids.add(refund_id)
+            mark_affected(created.get("primary_fact_id"), created.get("secondary_fact_id"))
+        return affected, superseded_pairs
+
     def plan_in_uow(
         self,
         uow,
@@ -745,7 +1074,10 @@ class RelationService:
         cached_items = cached_plan.get("proposals")
         if not isinstance(cached_items, list):
             raise ValueError("import_relation_reconfirmation_required")
-        facts = tuple(self._list_active_cash_facts(uow))
+        facts = tuple(
+            replace(fact, id=str(fact.id))
+            for fact in self._list_active_cash_facts(uow)
+        )
         by_reference = self._facts_by_cached_reference(facts)
 
         def resolve(value, *, required: bool = True) -> str | None:
@@ -829,6 +1161,37 @@ class RelationService:
         return facts, tuple(proposals)
 
     @staticmethod
+    def _resolve_fact_reference(value, facts: Sequence[FactView]) -> str:
+        text = str(value or "").removeprefix("preview:")
+        by_id = {str(fact.id): fact for fact in facts}
+        if text in by_id:
+            return text
+        return next(
+            (str(fact.id) for fact in facts if str(fact.record_id or "") == text),
+            text,
+        )
+
+    @classmethod
+    def _decision_mirror_endpoints(
+        cls,
+        proposal: RelationProposal,
+        decision: dict,
+        facts: Sequence[FactView],
+    ) -> tuple[str, str] | None:
+        if (
+            proposal.kind != RelationKind.PAYMENT_MIRROR.value
+            or str(decision.get("status") or "accepted") != "accepted"
+            or proposal.secondary_fact_id in (None, "")
+        ):
+            return None
+        secondary = decision.get("secondary_fact_id") or decision.get("secondary_record_id")
+        secondary = secondary or proposal.secondary_fact_id
+        return (
+            str(proposal.primary_fact_id),
+            cls._resolve_fact_reference(secondary, facts),
+        )
+
+    @staticmethod
     def _decision_matches(
         proposal: RelationProposal,
         decision: dict,
@@ -898,9 +1261,7 @@ class RelationService:
             subtype=subtype,
         )
         if existing is not None:
-            if existing.get("status") == RelationStatus.ACCEPTED.value:
-                return existing
-            if existing.get("decided_by"):
+            if _is_human_decision(existing):
                 return existing
             return uow.relations.update_status(
                 existing["id"],
@@ -925,6 +1286,265 @@ class RelationService:
                 "decision_reason": "import_rejected",
             })
         )
+
+    def _supersede_redundant_bank_refunds(
+        self,
+        uow,
+        facts: Sequence[FactView],
+        proposals: Sequence[RelationProposal],
+        accepted_relations: Sequence[dict],
+        *,
+        skip_refund_ids: set[str] | None = None,
+    ) -> set[tuple[str, str]]:
+        """Retire an automatic bank refund after its platform pair is known.
+
+        A bank export may be imported before the platform export that carries
+        the merchant/order identity.  Its system refund matcher can therefore
+        persist a provisional bank-only edge.  Once both platform legs and
+        both payment mirrors are available, the platform refund edge is the
+        canonical relation; keeping the old bank edge would duplicate the
+        same logical refund and can create two roots when the provisional
+        expense was ambiguous.
+
+        Human decisions are never changed.  Superseded history remains in the
+        relation table for auditability, while the active graph follows the
+        same platform-first result regardless of import order.
+        """
+        by_id = {str(fact.id): fact for fact in facts}
+        skip_refund_ids = {str(item) for item in (skip_refund_ids or set())}
+        accepted_for_helper = [dict(item) for item in accepted_relations]
+        mirror_adjacency: dict[str, set[str]] = defaultdict(set)
+
+        def add_mirror(primary, secondary) -> None:
+            left, right = str(primary or ""), str(secondary or "")
+            if not left or not right:
+                return
+            mirror_adjacency[left].add(right)
+            mirror_adjacency[right].add(left)
+
+        for relation in accepted_for_helper:
+            if (
+                relation.get("kind") == RelationKind.PAYMENT_MIRROR.value
+                and relation.get("status") == RelationStatus.ACCEPTED.value
+            ):
+                add_mirror(relation.get("primary_fact_id"), relation.get("secondary_fact_id"))
+        for proposal in proposals:
+            if (
+                proposal.kind == RelationKind.PAYMENT_MIRROR.value
+                and proposal.status == RelationStatus.ACCEPTED.value
+            ):
+                add_mirror(proposal.primary_fact_id, proposal.secondary_fact_id)
+
+        components: dict[str, frozenset[str]] = {}
+        for fact_id in by_id:
+            if fact_id in components:
+                continue
+            component: set[str] = set()
+            pending = [fact_id]
+            while pending:
+                current = pending.pop()
+                if current in component:
+                    continue
+                component.add(current)
+                pending.extend(set(mirror_adjacency.get(current, ())) - component)
+            frozen = frozenset(component)
+            for member in frozen:
+                components[member] = frozen
+
+        platform_refund_pairs: dict[tuple[str, str], tuple[FactView, FactView]] = {}
+        platform_relation_ids: dict[tuple[str, str], str] = {}
+
+        def add_refund_pair(primary_id, secondary_id) -> None:
+            primary = by_id.get(str(primary_id or ""))
+            secondary = by_id.get(str(secondary_id or ""))
+            if primary is None or secondary is None:
+                return
+            if primary.signed_amount < 0 < secondary.signed_amount:
+                expense, refund = primary, secondary
+            elif secondary.signed_amount < 0 < primary.signed_amount:
+                expense, refund = secondary, primary
+            else:
+                return
+            if source_group(expense) == "platform" and source_group(refund) == "platform":
+                pair = (str(expense.id), str(refund.id))
+                platform_refund_pairs[pair] = (expense, refund)
+
+        for relation in accepted_for_helper:
+            if (
+                relation.get("kind") == RelationKind.REFUND_OFFSET.value
+                and relation.get("status") == RelationStatus.ACCEPTED.value
+            ):
+                add_refund_pair(relation.get("primary_fact_id"), relation.get("secondary_fact_id"))
+        for proposal in proposals:
+            if (
+                proposal.kind == RelationKind.REFUND_OFFSET.value
+                and proposal.status in {
+                    RelationStatus.ACCEPTED.value,
+                    RelationStatus.PENDING_REVIEW.value,
+                }
+                and proposal.rule_id.startswith("scan.")
+                and str(proposal.secondary_fact_id or "") not in skip_refund_ids
+            ):
+                add_refund_pair(proposal.primary_fact_id, proposal.secondary_fact_id)
+
+        eligible_platform_refund_pairs: dict[
+            tuple[str, str], tuple[FactView, FactView]
+        ] = {}
+        for pair, (platform_expense, platform_refund) in platform_refund_pairs.items():
+            expense_component = components.get(str(platform_expense.id), frozenset())
+            refund_component = components.get(str(platform_refund.id), frozenset())
+            has_bank_expense = any(
+                fact_id in by_id
+                and source_group(by_id[fact_id]) == "bank"
+                and by_id[fact_id].signed_amount < 0
+                for fact_id in expense_component
+            )
+            has_bank_refund = any(
+                fact_id in by_id
+                and source_group(by_id[fact_id]) == "bank"
+                and by_id[fact_id].signed_amount > 0
+                for fact_id in refund_component
+            )
+            has_direct_system_bank_refund = any(
+                relation.get("kind") == RelationKind.REFUND_OFFSET.value
+                and relation.get("status") == RelationStatus.ACCEPTED.value
+                and relation.get("created_by") == "system"
+                and not _is_human_decision(relation)
+                and str(relation.get("primary_fact_id") or "") == pair[0]
+                and str(relation.get("secondary_fact_id") or "") in by_id
+                and source_group(by_id[str(relation.get("secondary_fact_id"))]) == "bank"
+                and by_id[str(relation.get("secondary_fact_id"))].signed_amount > 0
+                for relation in accepted_for_helper
+            )
+            if (has_bank_expense and has_bank_refund) or has_direct_system_bank_refund:
+                eligible_platform_refund_pairs[pair] = (
+                    platform_expense, platform_refund,
+                )
+        platform_refund_pairs = eligible_platform_refund_pairs
+        if not platform_refund_pairs:
+            return set()
+
+        # The accepted platform refund may still be a proposal in this import
+        # batch.  Persist it before retiring the provisional bank edge so the
+        # audit trail can point at the exact replacement relation.
+        for pair in platform_refund_pairs:
+            existing = next(
+                (
+                    relation for relation in accepted_for_helper
+                    if (
+                        relation.get("kind") == RelationKind.REFUND_OFFSET.value
+                        and str(relation.get("primary_fact_id") or "") == pair[0]
+                        and str(relation.get("secondary_fact_id") or "") == pair[1]
+                    )
+                ),
+                None,
+            )
+            if existing is not None:
+                platform_relation_ids[pair] = str(existing["id"])
+                continue
+            proposal = next(
+                (
+                    item for item in proposals
+                    if (
+                        item.kind == RelationKind.REFUND_OFFSET.value
+                        and item.status in {
+                            RelationStatus.ACCEPTED.value,
+                            RelationStatus.PENDING_REVIEW.value,
+                        }
+                        and item.rule_id.startswith("scan.")
+                        and str(item.secondary_fact_id or "") not in skip_refund_ids
+                        and str(item.primary_fact_id) == pair[0]
+                        and str(item.secondary_fact_id) == pair[1]
+                    )
+                ),
+                None,
+            )
+            if proposal is None:
+                continue
+            persistable_proposal = (
+                replace(proposal, status=RelationStatus.ACCEPTED.value)
+                if proposal.status == RelationStatus.PENDING_REVIEW.value
+                else proposal
+            )
+            created = self._persist_proposal(
+                uow,
+                persistable_proposal,
+                {},
+                accepted_relations=accepted_for_helper,
+            )
+            if created is not None and created.get("status") == RelationStatus.ACCEPTED.value:
+                accepted_for_helper.append(created)
+                platform_relation_ids[pair] = str(created["id"])
+
+        bank_refund_ids: set[str] = set()
+        bank_refund_to_platform_relations: dict[str, set[str]] = defaultdict(set)
+        for pair, (platform_expense, platform_refund) in platform_refund_pairs.items():
+            platform_relation_id = platform_relation_ids.get(pair)
+            if not platform_relation_id:
+                continue
+            expense_component = components.get(str(platform_expense.id), frozenset())
+            refund_component = components.get(str(platform_refund.id), frozenset())
+            bank_expenses = {
+                fact_id
+                for fact_id in expense_component
+                if fact_id in by_id
+                and source_group(by_id[fact_id]) == "bank"
+                and by_id[fact_id].signed_amount < 0
+            }
+            bank_refunds = {
+                fact_id
+                for fact_id in refund_component
+                if fact_id in by_id
+                and source_group(by_id[fact_id]) == "bank"
+                and by_id[fact_id].signed_amount > 0
+            }
+            if bank_expenses and bank_refunds:
+                for bank_refund_id in bank_refunds:
+                    bank_refund_to_platform_relations[bank_refund_id].add(platform_relation_id)
+                bank_refund_ids.update(bank_refunds)
+            for relation in accepted_for_helper:
+                secondary_id = str(relation.get("secondary_fact_id") or "")
+                if (
+                    relation.get("kind") == RelationKind.REFUND_OFFSET.value
+                    and relation.get("status") == RelationStatus.ACCEPTED.value
+                    and relation.get("created_by") == "system"
+                    and not _is_human_decision(relation)
+                    and str(relation.get("primary_fact_id") or "") == pair[0]
+                    and secondary_id in by_id
+                    and source_group(by_id[secondary_id]) == "bank"
+                    and by_id[secondary_id].signed_amount > 0
+                ):
+                    bank_refund_to_platform_relations[secondary_id].add(platform_relation_id)
+                    bank_refund_ids.add(secondary_id)
+
+        superseded_pairs: set[tuple[str, str]] = set()
+        for relation in accepted_for_helper:
+            if (
+                relation.get("kind") != RelationKind.REFUND_OFFSET.value
+                or relation.get("status") != RelationStatus.ACCEPTED.value
+                or relation.get("created_by") != "system"
+                or _is_human_decision(relation)
+            ):
+                continue
+            primary = by_id.get(str(relation.get("primary_fact_id") or ""))
+            secondary_id = str(relation.get("secondary_fact_id") or "")
+            if (
+                primary is None
+                or primary.signed_amount >= 0
+                or secondary_id not in bank_refund_ids
+                or len(bank_refund_to_platform_relations[secondary_id]) != 1
+            ):
+                continue
+            replacement_id = next(iter(bank_refund_to_platform_relations[secondary_id]))
+            uow.relations.update_status(
+                relation["id"],
+                status=RelationStatus.SUPERSEDED.value,
+                decided_by="system",
+                decision_reason="superseded_by_cross_source_refund",
+                superseded_by_id=replacement_id,
+            )
+            superseded_pairs.add((str(primary.id), secondary_id))
+        return superseded_pairs
 
     def apply_cached_import_plan_in_uow(
         self,
@@ -968,10 +1588,68 @@ class RelationService:
             if status != "rejected" and not self._decision_matches(proposal, decision, facts):
                 raise ValueError("import_relation_candidate_invalid")
             decisions_by_key[proposal_key] = decision
+        blocked_refund_ids = {
+            str(proposal.secondary_fact_id)
+            for proposal in proposals
+            if (
+                proposal.kind == RelationKind.REFUND_OFFSET.value
+                and proposal.secondary_fact_id not in (None, "")
+                and decisions_by_key.get(relation_proposal_key(proposal, facts), {}).get("status") == "rejected"
+            )
+        }
 
         created: list[dict] = []
         affected: set[int] = set()
         accepted_decisions: list[dict] = []
+        pre_persisted_rejection_keys: set[str] = set()
+        protected_mirror_fact_ids: set[str] = set()
+        for proposal in proposals:
+            proposal_key = relation_proposal_key(proposal, facts)
+            decision = decisions_by_key.get(proposal_key)
+            if decision is None:
+                continue
+            if str(decision.get("status") or "accepted") == "rejected":
+                outcome = self._persist_rejected_proposal(uow, proposal)
+                created.append(outcome)
+                pre_persisted_rejection_keys.add(proposal_key)
+                continue
+            endpoints = self._decision_mirror_endpoints(proposal, decision, facts)
+            if endpoints is not None:
+                protected_mirror_fact_ids.update(endpoints)
+        accepted_relations = [
+            dict(item)
+            for item in uow.relations.list_active()
+            if item.get("status") == RelationStatus.ACCEPTED.value
+        ]
+        affected.update(self._reconcile_system_payment_mirrors(
+            uow,
+            facts,
+            protected_fact_ids=protected_mirror_fact_ids,
+        ))
+        accepted_relations = [
+            dict(item)
+            for item in uow.relations.list_active()
+            if item.get("status") == RelationStatus.ACCEPTED.value
+        ]
+        refund_affected, superseded_bank_refunds = self._reconcile_system_refund_offsets(
+            uow, facts, skip_refund_ids=blocked_refund_ids,
+        )
+        affected.update(refund_affected)
+        accepted_relations = [
+            dict(item)
+            for item in uow.relations.list_active()
+            if item.get("status") == RelationStatus.ACCEPTED.value
+        ]
+        superseded_bank_refunds |= self._supersede_redundant_bank_refunds(
+            uow, facts, proposals, accepted_relations,
+            skip_refund_ids=blocked_refund_ids,
+        )
+        for primary_id, secondary_id in superseded_bank_refunds:
+            affected.update(
+                int(fact_id)
+                for fact_id in (primary_id, secondary_id)
+                if fact_id not in (None, "")
+            )
         remaining = self._refund_remaining(uow, list(facts))
         accepted_relations = [
             dict(item)
@@ -979,13 +1657,20 @@ class RelationService:
             if item.get("status") == RelationStatus.ACCEPTED.value
         ]
         for proposal in proposals:
+            if (
+                proposal.kind == RelationKind.REFUND_OFFSET.value
+                and (str(proposal.primary_fact_id), str(proposal.secondary_fact_id))
+                in superseded_bank_refunds
+            ):
+                continue
             proposal_key = relation_proposal_key(proposal, facts)
             matched = decisions_by_key.get(proposal_key)
             if matched is not None:
                 status = str(matched.get("status") or "accepted")
                 if status == "rejected":
-                    outcome = self._persist_rejected_proposal(uow, proposal)
-                    created.append(outcome)
+                    if proposal_key not in pre_persisted_rejection_keys:
+                        outcome = self._persist_rejected_proposal(uow, proposal)
+                        created.append(outcome)
                     continue
                 if status == "accepted":
                     # The import service creates accepted manual choices after
@@ -1020,6 +1705,15 @@ class RelationService:
                             remaining.get(expense_id, Decimal("0"))
                             - abs(refund_fact.signed_amount)
                         )
+        # The seed-scoped plan may contain a pending mirror that is not part
+        # of the canonical all-source assignment. Clean those stale system
+        # suggestions after applying the plan, before returning to the import
+        # service for explicit human decisions.
+        affected.update(self._reconcile_system_payment_mirrors(
+            uow,
+            facts,
+            protected_fact_ids=protected_mirror_fact_ids,
+        ))
         return created, affected, accepted_decisions
 
     def apply_import_plan_in_uow(
@@ -1037,6 +1731,72 @@ class RelationService:
         decisions = [item for item in (relation_decisions or ()) if isinstance(item, dict)]
         created: list[dict] = []
         affected: set[int] = set()
+        blocked_refund_ids = set()
+        pre_persisted_rejections: set[int] = set()
+        protected_mirror_fact_ids: set[str] = set()
+        for proposal in plan.proposals:
+            matched = next(
+                (
+                    decision for decision in decisions
+                    if self._decision_primary_matches(
+                        decision=decision, proposal=proposal, facts=plan.facts,
+                    )
+                ),
+                None,
+            )
+            if matched is None:
+                continue
+            status = str(matched.get("status") or "accepted")
+            if status == "rejected":
+                created.append(self._persist_rejected_proposal(uow, proposal))
+                pre_persisted_rejections.add(id(proposal))
+                continue
+            if status == "accepted":
+                if not self._decision_matches(
+                    decision=matched, proposal=proposal, facts=plan.facts,
+                ):
+                    raise ValueError("import_relation_candidate_invalid")
+                endpoints = self._decision_mirror_endpoints(proposal, matched, plan.facts)
+                if endpoints is not None:
+                    protected_mirror_fact_ids.update(endpoints)
+            if proposal.kind != RelationKind.REFUND_OFFSET.value or proposal.secondary_fact_id in (None, ""):
+                continue
+            if status == "rejected":
+                blocked_refund_ids.add(str(proposal.secondary_fact_id))
+        accepted_relations = [
+            dict(item)
+            for item in uow.relations.list_active()
+            if item.get("status") == RelationStatus.ACCEPTED.value
+        ]
+        affected.update(self._reconcile_system_payment_mirrors(
+            uow,
+            plan.facts,
+            protected_fact_ids=protected_mirror_fact_ids,
+        ))
+        accepted_relations = [
+            dict(item)
+            for item in uow.relations.list_active()
+            if item.get("status") == RelationStatus.ACCEPTED.value
+        ]
+        refund_affected, superseded_bank_refunds = self._reconcile_system_refund_offsets(
+            uow, plan.facts, skip_refund_ids=blocked_refund_ids,
+        )
+        affected.update(refund_affected)
+        accepted_relations = [
+            dict(item)
+            for item in uow.relations.list_active()
+            if item.get("status") == RelationStatus.ACCEPTED.value
+        ]
+        superseded_bank_refunds |= self._supersede_redundant_bank_refunds(
+            uow, plan.facts, plan.proposals, accepted_relations,
+            skip_refund_ids=blocked_refund_ids,
+        )
+        for primary_id, secondary_id in superseded_bank_refunds:
+            affected.update(
+                int(fact_id)
+                for fact_id in (primary_id, secondary_id)
+                if fact_id not in (None, "")
+            )
         remaining = self._refund_remaining(uow, list(plan.facts))
         accepted_relations = [
             dict(item)
@@ -1044,6 +1804,12 @@ class RelationService:
             if item.get("status") == RelationStatus.ACCEPTED.value
         ]
         for proposal in plan.proposals:
+            if (
+                proposal.kind == RelationKind.REFUND_OFFSET.value
+                and (str(proposal.primary_fact_id), str(proposal.secondary_fact_id))
+                in superseded_bank_refunds
+            ):
+                continue
             matched = next(
                 (
                     decision for decision in decisions
@@ -1060,8 +1826,8 @@ class RelationService:
                 ):
                     raise ValueError("import_relation_candidate_invalid")
                 if status == "rejected":
-                    outcome = self._persist_rejected_proposal(uow, proposal)
-                    created.append(outcome)
+                    if id(proposal) not in pre_persisted_rejections:
+                        created.append(self._persist_rejected_proposal(uow, proposal))
                     continue
                 if status in {"accepted", "skipped", "ignored"}:
                     # Explicit accepted decisions are applied by the import service
@@ -1089,6 +1855,11 @@ class RelationService:
                     refund_fact = next((fact for fact in plan.facts if str(fact.id) == refund_id), None)
                     if expense_id and refund_fact is not None:
                         remaining[expense_id] = remaining.get(expense_id, Decimal("0")) - abs(refund_fact.signed_amount)
+        affected.update(self._reconcile_system_payment_mirrors(
+            uow,
+            plan.facts,
+            protected_fact_ids=protected_mirror_fact_ids,
+        ))
         return created, affected
 
     def check(
@@ -1108,12 +1879,46 @@ class RelationService:
                 fact_by_id = {f.id: f for f in active_facts}
                 remaining = self._refund_remaining(uow, active_facts)
                 created = []
+                reconciled_fact_ids: set[int] = set()
                 stats = {
                     "pending": 0, "accepted": 0, "skipped": 0, "supersessions": 0,
                     "phase_a_platform_refunds": 0,
                 }
                 plan = self.plan_in_uow(uow, seed_ids=seeds)
                 fact_by_id = {str(fact.id): fact for fact in plan.facts}
+                superseded_bank_refunds: set[tuple[str, str]] = set()
+                if trigger == RelationCheckTrigger.IMPORT_BATCH.value:
+                    accepted_relations = [
+                        relation
+                        for relation in uow.relations.list_active()
+                        if relation.get("status") == RelationStatus.ACCEPTED.value
+                    ]
+                    reconciled_fact_ids.update(
+                        self._reconcile_system_payment_mirrors(uow, plan.facts)
+                    )
+                    accepted_relations = [
+                        relation
+                        for relation in uow.relations.list_active()
+                        if relation.get("status") == RelationStatus.ACCEPTED.value
+                    ]
+                    refund_affected, superseded_bank_refunds = self._reconcile_system_refund_offsets(
+                        uow, plan.facts,
+                    )
+                    reconciled_fact_ids.update(refund_affected)
+                    accepted_relations = [
+                        relation
+                        for relation in uow.relations.list_active()
+                        if relation.get("status") == RelationStatus.ACCEPTED.value
+                    ]
+                    superseded_bank_refunds |= self._supersede_redundant_bank_refunds(
+                        uow, plan.facts, plan.proposals, accepted_relations,
+                    )
+                reconciled_fact_ids.update(
+                    int(fact_id)
+                    for primary_id, secondary_id in superseded_bank_refunds
+                    for fact_id in (primary_id, secondary_id)
+                    if fact_id not in (None, "")
+                )
                 accepted_relations = [
                     relation
                     for relation in uow.relations.list_active()
@@ -1122,6 +1927,12 @@ class RelationService:
                 stats["phase_c_transfers"] = 0
                 stats["phase_d_diamond"] = 0
                 for proposal in plan.proposals:
+                    if (
+                        proposal.kind == RelationKind.REFUND_OFFSET.value
+                        and (str(proposal.primary_fact_id), str(proposal.secondary_fact_id))
+                        in superseded_bank_refunds
+                    ):
+                        continue
                     if proposal.rule_id.startswith("scan."):
                         stats["phase_a_platform_refunds"] += 1
                     if proposal.kind == RelationKind.TRANSFER_PAIR.value:
@@ -1166,6 +1977,7 @@ class RelationService:
                     )
                     if fact_id not in (None, "")
                 }
+                affected_fact_ids.update(reconciled_fact_ids)
                 if affected_fact_ids:
                     from ft.application.cash_projections import CashProjectionService
 
@@ -1194,6 +2006,40 @@ class RelationService:
         with self._uow as uow:
             rows = uow.relations.list_active(kind=kind, status=RelationStatus.PENDING_REVIEW.value)
             return rows
+
+    def _supersede_system_payment_mirror_conflicts_in_uow(
+        self,
+        uow,
+        fact_ids: Sequence[str | int],
+        replacement_relation_id: str | int | None = None,
+    ) -> None:
+        """Retire automatic mirror conflicts before a human choice is saved."""
+        endpoints = {str(fact_id) for fact_id in fact_ids if fact_id not in (None, "")}
+        if not endpoints:
+            return
+        relation_rows = uow.relations.list_for_facts(list(endpoints), active_only=True)
+        for relation in relation_rows:
+            if relation.get("kind") != RelationKind.PAYMENT_MIRROR.value:
+                continue
+            if relation.get("status") != RelationStatus.ACCEPTED.value:
+                continue
+            if replacement_relation_id is not None and str(relation.get("id")) == str(replacement_relation_id):
+                continue
+            occupied = {
+                str(relation.get("primary_fact_id") or ""),
+                str(relation.get("secondary_fact_id") or ""),
+            }
+            if not endpoints & occupied:
+                continue
+            if _is_human_decision(relation):
+                raise ValueError("指定的支付镜像端点已被另一条人工关系占用")
+            uow.relations.update_status(
+                relation["id"],
+                status=RelationStatus.SUPERSEDED.value,
+                decided_by="system",
+                decision_reason="superseded_by_human_payment_mirror",
+                superseded_by_id=replacement_relation_id,
+            )
 
     def accept(
         self,
@@ -1226,6 +2072,10 @@ class RelationService:
                 if rel.get("secondary_fact_id") in (None, ""):
                     raise ValueError("待审核的双边关系缺少对侧流水，无法确认")
                 fact_ids = [rel["primary_fact_id"], rel["secondary_fact_id"]]
+            if rel["kind"] == RelationKind.PAYMENT_MIRROR.value:
+                self._supersede_system_payment_mirror_conflicts_in_uow(
+                    uow, fact_ids, replacement_relation_id=relation_id,
+                )
             self._validate_transfer_endpoint_availability(uow, fact_ids, relation_id)
             self._validate_projection_acceptance(uow, rel, other_fact_id=other_fact_id)
             if open_leg:
@@ -1433,16 +2283,16 @@ class RelationService:
 
     def _refund_remaining(self, uow, facts: Sequence[FactView]) -> dict[str, Decimal]:
         remaining = {
-            f.id: abs(f.signed_amount)
+            str(f.id): abs(f.signed_amount)
             for f in facts
             if f.signed_amount < 0
         }
         for rel in uow.relations.list_active(kind=RelationKind.REFUND_OFFSET.value, status=RelationStatus.ACCEPTED.value):
-            exp = rel["primary_fact_id"]
-            refund_id = rel.get("secondary_fact_id")
+            exp = str(rel["primary_fact_id"] or "")
+            refund_id = str(rel.get("secondary_fact_id") or "")
             if not refund_id:
                 continue
-            refund_fact = next((f for f in facts if f.id == refund_id), None)
+            refund_fact = next((f for f in facts if str(f.id) == refund_id), None)
             if refund_fact is None:
                 continue
             if exp in remaining:
@@ -1533,7 +2383,7 @@ class RelationService:
                     open_existing is not None
                     and open_existing.get("status") == RelationStatus.PENDING_REVIEW.value
                     and open_existing.get("created_by") == "system"
-                    and not open_existing.get("decided_by")
+                    and not _is_human_decision(open_existing)
                     and proposal.status == RelationStatus.ACCEPTED.value
                 ):
                     if self._candidate_creates_kind_conflict(
@@ -1553,7 +2403,7 @@ class RelationService:
                             else None
                         ),
                         status=RelationStatus.ACCEPTED.value,
-                        decided_by="system",
+                        decided_by="",
                         decision_reason="fx_rate_score_auto",
                     )
         if existing is not None:
@@ -1561,14 +2411,14 @@ class RelationService:
                 open_leg
                 and existing["status"] == RelationStatus.PENDING_REVIEW.value
                 and existing.get("created_by") == "system"
-                and not existing.get("decided_by")
+                and not _is_human_decision(existing)
             ):
                 return uow.relations.update_open_leg_candidates(
                     existing["id"],
                     list(proposal.evidence.candidate_fact_ids),
                 )
             # Do not overwrite human decisions.
-            if existing.get("created_by") != "system" or existing.get("decided_by"):
+            if existing.get("created_by") != "system" or _is_human_decision(existing):
                 if existing["status"] in {
                     RelationStatus.ACCEPTED.value,
                     RelationStatus.REJECTED.value,
@@ -1580,7 +2430,7 @@ class RelationService:
             if (
                 existing["status"] == RelationStatus.PENDING_REVIEW.value
                 and existing.get("created_by") == "system"
-                and not existing.get("decided_by")
+                and not _is_human_decision(existing)
                 and is_open_leg_relation(existing)
                 and proposal.secondary_fact_id not in (None, "")
                 and proposal.status == RelationStatus.ACCEPTED.value
@@ -1603,7 +2453,7 @@ class RelationService:
                         else None
                     ),
                     status=RelationStatus.ACCEPTED.value,
-                    decided_by="system",
+                    decided_by="",
                     decision_reason="fx_rate_score_auto",
                 )
                 return updated
@@ -1617,7 +2467,7 @@ class RelationService:
                 if (
                     existing["status"] == RelationStatus.PENDING_REVIEW.value
                     and existing.get("created_by") == "system"
-                    and not existing.get("decided_by")
+                    and not _is_human_decision(existing)
                     and not is_open_leg_relation(existing)
                     and proposal.status == RelationStatus.ACCEPTED.value
                     and not open_leg
@@ -1630,7 +2480,7 @@ class RelationService:
                     return uow.relations.update_status(
                         existing["id"],
                         status=RelationStatus.ACCEPTED.value,
-                        decided_by="system",
+                        decided_by="",
                         decision_reason=f"auto_upgrade:{proposal.rule_id}",
                     )
                 return existing

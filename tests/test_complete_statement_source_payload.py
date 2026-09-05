@@ -249,6 +249,23 @@ def test_icbc_debit_keeps_full_table_row_and_extracts_counterparty_account():
     assert output["counterparty_account_attrs"] == ["masked"]
 
 
+def test_icbc_debit_uses_pdf_account_column_as_source_account_identity():
+    from ft.convert import _parse_icbc_debit_row
+
+    account = "1614020101021984636"
+    row = [
+        "2026-08-03\n10:00:00", account, "活期", "00001", "人民币", "钞", "消费", "北京",
+        "-88.00", "100.00", "示例户名", "6222****4321", "快捷支付",
+    ]
+
+    record = _parse_icbc_debit_row(row)
+
+    assert record is not None
+    assert record["_source_account_identifier"] == account
+    assert record["file_account_key"] == account
+    assert record["source_display_name"] == "工商银行借记卡"
+
+
 def test_icbc_credit_transfer_extracts_structured_masked_counterparty_account():
     from ft.convert import _build_output_row, _parse_icbc_lines
 

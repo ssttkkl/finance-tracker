@@ -101,6 +101,7 @@ def _deterministic_payment_mirror_groups(
     seed_ids: set[str] | None,
     aliases_by_tail: Mapping[str, Sequence[str]] | None = None,
     account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
+    blocked_pairs: set[frozenset[str]] | None = None,
 ) -> tuple[list[RelationProposal], set[str]]:
     """为字段完全相同的渠道对生成稳定的一对一候选。"""
     grouped: dict[
@@ -125,6 +126,7 @@ def _deterministic_payment_mirror_groups(
 
     proposals: list[RelationProposal] = []
     claimed_fact_ids: set[str] = set()
+    blocked_pairs = blocked_pairs or set()
     for base, channels in sorted(
         grouped.items(), key=lambda item: tuple(str(value) for value in item[0])
     ):
@@ -145,7 +147,6 @@ def _deterministic_payment_mirror_groups(
                     continue
                 if seed_ids is not None and not any(item.id in seed_ids for item in group_facts):
                     continue
-                handled.update(item.id for item in group_facts)
                 ordered_platforms = sorted(
                     (item for item in platform_facts if item.id not in claimed_fact_ids),
                     key=stable_fact_order_key,
@@ -156,15 +157,28 @@ def _deterministic_payment_mirror_groups(
                 )
                 if not ordered_platforms or not ordered_banks:
                     continue
+                if any(
+                    frozenset((platform_fact.id, bank_fact.id)) in blocked_pairs
+                    for platform_fact, bank_fact in zip(ordered_platforms, ordered_banks)
+                ):
+                    # Leave the group for the normal matcher so one rejected
+                    # pair does not suppress unrelated rows in the group.
+                    continue
+                handled.update(item.id for item in group_facts)
                 candidate_ids = tuple(item.id for item in (*ordered_platforms, *ordered_banks))
                 complete = all(_is_complete_mirror_group(item, base) for item in group_facts)
                 if complete and len(ordered_platforms) == len(ordered_banks):
                     pairs = zip(ordered_platforms, ordered_banks)
-                    force_pending = False
+                    force_pending = any(
+                        _mirror_channel(item) == "icbc_debit"
+                        for item in group_facts
+                    ) and (len(ordered_platforms) > 1 or len(ordered_banks) > 1)
                 else:
                     pairs = zip(ordered_platforms, ordered_banks)
                     force_pending = True
                 for platform_fact, bank_fact in pairs:
+                    if frozenset((platform_fact.id, bank_fact.id)) in blocked_pairs:
+                        continue
                     if force_pending:
                         proposal = _pending_group_proposal(
                             platform_fact,
@@ -498,6 +512,18 @@ def evaluate_payment_mirror(
             conf = CONFIDENCE_WEAK
             rule_id = RULE_PAYMENT_MIRROR_WEAK_V1
 
+    # ICBC debit rows often repeat the same processor text and amount. An
+    # equal-score tie is deterministic but not identifying evidence.
+    if (
+        status == RelationStatus.ACCEPTED.value
+        and (_mirror_channel(seed) == "icbc_debit" or _mirror_channel(cand) == "icbc_debit")
+    ):
+        equal_score = [match for match in matches if match[4] == best[4]]
+        if len(equal_score) > 1:
+            status = RelationStatus.PENDING_REVIEW.value
+            conf = CONFIDENCE_WEAK
+            rule_id = RULE_PAYMENT_MIRROR_WEAK_V1
+
     cand_ids = tuple(m[0].id for m in matches[:OPEN_LEG_CANDIDATE_TOP_K])
     evidence = RelationEvidence(
         **{
@@ -529,6 +555,7 @@ def match_payment_mirrors_greedy(
     seed_ids: Sequence[str] | None = None,
     index: FactCandidateIndex | None = None,
     occupied_fact_ids: set[str] | None = None,
+    blocked_pairs: set[frozenset[str]] | None = None,
 ) -> list[RelationProposal]:
     """Global 1:1 greedy payment_mirror matching (main dedup spirit).
 
@@ -540,6 +567,7 @@ def match_payment_mirrors_greedy(
     buckets (FR-025) instead of scanning all active facts.
     """
     occupied = set(occupied_fact_ids or ())
+    blocked_pairs = blocked_pairs or set()
     active = [
         f for f in facts
         if not f.deleted and f.fact_type == FactType.CASH.value and f.id not in occupied
@@ -558,6 +586,7 @@ def match_payment_mirrors_greedy(
         seed_ids=requested_seed_ids,
         aliases_by_tail=aliases_by_tail,
         account_identifiers_by_value=account_identifiers_by_value,
+        blocked_pairs=blocked_pairs,
     )
     used: set[str] = {
         fact_id
@@ -565,13 +594,99 @@ def match_payment_mirrors_greedy(
         for fact_id in (proposal.primary_fact_id, proposal.secondary_fact_id)
         if fact_id
     }
+
+    # ICBC debit rows can be used as either the seed or the candidate. Build
+    # the ICBC subset globally and rank each seed against its full candidate
+    # pool, so the result is independent of seed direction without changing
+    # matching for unrelated bank sources.
+    if any(_mirror_channel(fact) == "icbc_debit" for fact in active):
+        rule_priority = {
+            RULE_PAYMENT_MIRROR_REFUND_DUAL_SOURCE_V1: 5,
+            RULE_PAYMENT_MIRROR_SAME_ACCOUNT_BIZ_DAY_V1: 5,
+            RULE_PAYMENT_MIRROR_BANK_DATE_ONLY_V1: 5,
+            RULE_PAYMENT_MIRROR_STRONG_V1: 4,
+            RULE_PAYMENT_MIRROR_SHORT_WINDOW_TEXT_V1: 3,
+            RULE_PAYMENT_MIRROR_WEAK_V1: 1,
+        }
+        facts_by_id = {fact.id: fact for fact in active}
+        pair_candidates: dict[frozenset[str], RelationProposal] = {}
+        for seed in seeds:
+            if seed.id in used or seed.id in grouped_ids:
+                continue
+            candidate_pool = (
+                list(index.mirror_candidates(seed))
+                if index is not None
+                else active
+            )
+            candidate_pool = [
+                candidate for candidate in candidate_pool
+                if (
+                    candidate.id in facts_by_id
+                    and candidate.id not in used
+                    and candidate.id != seed.id
+                    and (_mirror_channel(seed) == "icbc_debit"
+                         or _mirror_channel(candidate) == "icbc_debit")
+                    and frozenset((seed.id, candidate.id)) not in blocked_pairs
+                )
+            ]
+            if not candidate_pool:
+                continue
+            proposal = evaluate_payment_mirror(
+                seed,
+                candidate_pool,
+                aliases_by_tail=aliases_by_tail,
+                account_identifiers_by_value=account_identifiers_by_value,
+            )
+            if proposal is None:
+                continue
+            pair_key = frozenset((proposal.primary_fact_id, proposal.secondary_fact_id))
+            current = pair_candidates.get(pair_key)
+            if current is None or (
+                rule_priority.get(proposal.rule_id or "", 0),
+                -proposal.evidence.time_delta_seconds,
+                tuple(sorted((proposal.primary_fact_id, proposal.secondary_fact_id))),
+            ) > (
+                rule_priority.get(current.rule_id or "", 0),
+                -current.evidence.time_delta_seconds,
+                tuple(sorted((current.primary_fact_id, current.secondary_fact_id))),
+            ):
+                pair_candidates[pair_key] = proposal
+
+        for proposal in sorted(
+            pair_candidates.values(),
+            key=lambda item: (
+                -rule_priority.get(item.rule_id or "", 0),
+                item.evidence.time_delta_seconds,
+                stable_fact_order_key(facts_by_id[item.primary_fact_id]),
+                stable_fact_order_key(facts_by_id[item.secondary_fact_id]),
+            ),
+        ):
+            if proposal.primary_fact_id in used or proposal.secondary_fact_id in used:
+                continue
+            used.update((proposal.primary_fact_id, proposal.secondary_fact_id))
+            proposals.append(proposal)
+
     for seed in seeds:
         if seed.id in used or seed.id in grouped_ids:
             continue
         if index is not None:
-            others = [f for f in index.mirror_candidates(seed) if f.id not in used and f.id not in occupied]
+            others = [
+                f for f in index.mirror_candidates(seed)
+                if (
+                    f.id not in used
+                    and f.id not in occupied
+                    and frozenset((seed.id, f.id)) not in blocked_pairs
+                )
+            ]
         else:
-            others = [f for f in active if f.id != seed.id and f.id not in used]
+            others = [
+                f for f in active
+                if (
+                    f.id != seed.id
+                    and f.id not in used
+                    and frozenset((seed.id, f.id)) not in blocked_pairs
+                )
+            ]
         proposal = evaluate_payment_mirror(
             seed,
             others,

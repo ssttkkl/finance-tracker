@@ -56,6 +56,11 @@ def _card_tail(value: object) -> str:
     return digits[-4:]
 
 
+def _normalize_file_account_identifier(value: object) -> str:
+    """Normalize presentation separators while retaining raw evidence in rows."""
+    return re.sub(r"[\s\-－—()（）]", "", _text(value))
+
+
 _ALIPAY_NON_FUNDING_MARKERS = (
     "红包", "立减", "优惠", "抵扣", "福利金", "券", "骑行卡", "天天减", "每日必减",
 )
@@ -144,22 +149,30 @@ def _identity_for_row(row: dict) -> tuple[str, str, str, str, str]:
         # ICBC debit parser has a file-level account contract.  Older parser
         # rows only carry its declared payment/file label, which is still safer
         # than deriving an identity from a counterparty or free text.
-        source_key = _text(
-            row.get("_source_account_identifier")
-            or row.get("file_account_key")
-            or row.get("payment_method")
+        stable_source_key = _normalize_file_account_identifier(
+            row.get("_source_account_identifier") or row.get("file_account_key")
         )
+        source_key = stable_source_key or _text(row.get("payment_method"))
         identity_kind = "file_account"
         if not source_key:
             raise ValueError("业务行无法识别来源账户")
-        display_name = display_name or source_key
-        evidence = display_name
+        if stable_source_key:
+            display_name = display_name or "工商银行借记卡"
+            evidence = f"{display_name}（尾号 {_card_tail(stable_source_key) or '未知'}）"
+        else:
+            display_name = display_name or source_key
+            evidence = display_name
 
     return source_type, identity_kind, source_key, display_name, evidence
 
 
 def _legacy_source_account_keys(row: dict, source_key: str) -> tuple[str, ...]:
     source_type = str(row.get("bill_source") or row.get("source_type") or "").strip()
+    if source_type == "icbc_debit":
+        payment_method = _text(row.get("payment_method"))
+        if payment_method and payment_method != source_key:
+            return (payment_method,)
+        return ()
     if source_type not in {"alipay", "wechat"}:
         return ()
     raw = _text(row.get("payment_method"))

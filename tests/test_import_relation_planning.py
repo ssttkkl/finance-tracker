@@ -2,9 +2,11 @@ from decimal import Decimal
 
 from ft.application.relations import (
     RelationService,
+    RelationPlan,
     _relation_context_digest,
     plan_relation_proposals,
     relation_proposal_key,
+    serialize_import_relation_plan,
 )
 from ft.domain.relations import FactView, RelationEvidence, RelationKind, RelationProposal, RelationStatus
 
@@ -358,6 +360,53 @@ def test_relation_plan_uses_business_row_order_when_preview_ids_become_database_
     assert stable_pairs(preview) == stable_pairs(actual)
 
 
+def test_cached_relation_plan_normalizes_database_fact_ids_to_strings(monkeypatch):
+    facts = (
+        _fact(
+            11,
+            amount="-10.00",
+            counterparty="商户",
+            record_type="consumption",
+            occurred_at="2026-08-12T09:24:00+08:00",
+            record_id="cash-11",
+        ),
+        _fact(
+            12,
+            amount="-10.00",
+            counterparty="商户",
+            record_type="consumption",
+            occurred_at="2026-08-12T09:24:05+08:00",
+            record_id="cash-12",
+        ),
+    )
+    proposal = RelationProposal(
+        kind=RelationKind.PAYMENT_MIRROR.value,
+        primary_fact_id="11",
+        secondary_fact_id="12",
+        status=RelationStatus.ACCEPTED.value,
+        rule_id="test.cached",
+        evidence=RelationEvidence(
+            source_pair=("alipay", "ccb_debit"),
+            rule_id="test.cached",
+        ),
+    )
+    plan = RelationPlan(
+        facts=facts,
+        proposals=(proposal,),
+        context_digest="context",
+        external_context_digest="external",
+    )
+    cached = serialize_import_relation_plan(plan)
+    service = RelationService(None)
+    monkeypatch.setattr(service, "_list_active_cash_facts", lambda _uow: facts)
+
+    resolved_facts, resolved_proposals = service._cached_proposals_in_uow(None, cached)
+
+    assert {type(fact.id) for fact in resolved_facts} == {str}
+    assert resolved_proposals[0].primary_fact_id == "11"
+    assert resolved_proposals[0].secondary_fact_id == "12"
+
+
 def test_proposal_key_does_not_bypass_cached_primary_or_candidate_validation():
     primary = _fact(
         "expense", amount="-10.00", counterparty="咖啡店",
@@ -387,3 +436,92 @@ def test_proposal_key_does_not_bypass_cached_primary_or_candidate_validation():
 
     assert not RelationService._decision_primary_matches(proposal, decision, facts)
     assert not RelationService._decision_matches(proposal, decision, facts)
+
+
+def test_existing_and_new_refund_pairs_align_their_payment_mirrors():
+    def fact(
+        fact_id: str,
+        amount: str,
+        source: str,
+        occurred_at: str,
+        *,
+        record_type: str,
+        record_id: str,
+        payload: dict | None = None,
+    ) -> FactView:
+        return FactView(
+            id=fact_id,
+            amount=Decimal(amount),
+            currency="CNY",
+            account_id="shared-cash",
+            account_name="共享账户",
+            occurred_at=occurred_at,
+            counterparty="商家A",
+            note="消费退货" if record_type == "refund" and source == "icbc_debit" else (
+                "退款" if record_type == "refund" else "消费"
+            ),
+            record_type=record_type,
+            record_subtype="not_applicable",
+            bill_source=source,
+            source=source,
+            record_id=record_id,
+            raw_payload=payload or {},
+        )
+
+    facts = [
+        fact(
+            "bank-expense-1", "-10.00", "icbc_debit", "2024-04-18 10:00:00",
+            record_type="consumption", record_id="bank-expense-1",
+        ),
+        fact(
+            "bank-refund-1", "10.00", "icbc_debit", "2024-04-20 11:00:00",
+            record_type="refund", record_id="bank-refund-1",
+            payload={"summary": "退货", "refund_signal": "icbc_debit_return"},
+        ),
+        fact(
+            "bank-expense-2", "-10.00", "icbc_debit", "2024-04-18 10:01:00",
+            record_type="consumption", record_id="bank-expense-2",
+        ),
+        fact(
+            "platform-expense-1", "-10.00", "alipay", "2024-04-18 09:00:00",
+            record_type="consumption", record_id="platform-expense-1",
+            payload={"status": "交易成功", "txn_type": "消费", "txn_id": "platform-expense-1"},
+        ),
+        fact(
+            "platform-expense-2", "-10.00", "alipay", "2024-04-18 10:02:00",
+            record_type="consumption", record_id="platform-expense-2",
+            payload={"status": "交易成功", "txn_type": "消费", "txn_id": "platform-expense-2"},
+        ),
+        fact(
+            "platform-refund-2", "10.00", "alipay", "2024-04-20 10:00:00",
+            record_type="refund", record_id="platform-refund-2",
+            payload={
+                "status": "退款成功",
+                "txn_type": "退款",
+                "txn_id": "platform-expense-2_refund",
+            },
+        ),
+    ]
+    rows = [_row(item) | {"txn_id": (item.raw_payload or {}).get("txn_id", "")} for item in facts]
+
+    plan = plan_relation_proposals(
+        facts,
+        detailed_rows=rows,
+        seed_ids=[item.id for item in facts],
+        accepted_relations=[{
+            "kind": RelationKind.REFUND_OFFSET.value,
+            "status": RelationStatus.ACCEPTED.value,
+            "primary_fact_id": "bank-expense-1",
+            "secondary_fact_id": "bank-refund-1",
+        }],
+    )
+
+    mirrors = {
+        (item.primary_fact_id, item.secondary_fact_id)
+        for item in plan.proposals
+        if item.kind == RelationKind.PAYMENT_MIRROR.value
+        and item.status == RelationStatus.ACCEPTED.value
+    }
+    assert ("platform-expense-2", "bank-expense-1") in mirrors
+    assert ("platform-refund-2", "bank-refund-1") in mirrors
+    assert ("platform-expense-2", "bank-expense-2") not in mirrors
