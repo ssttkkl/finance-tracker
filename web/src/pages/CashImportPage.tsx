@@ -35,8 +35,6 @@ type MappingDraft = {
   newAccount: { draftId: string; name: string; type: string; currencies: string[] } | null;
 };
 
-const PAGE_SIZES = [20, 50, 100];
-
 const recordTypeLabels: Record<string, string> = {
   consumption: "消费",
   refund: "退款",
@@ -216,8 +214,6 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const [previewFilter, setPreviewFilter] = useState<ImportPreviewFilter>("all");
   const [relationDrafts, setRelationDrafts] = useState<Record<string, RelationDraft>>({});
   const [relationFilter, setRelationFilter] = useState<RelationFilter>("all");
-  const [pageSize, setPageSize] = useState(20);
-  const [page, setPage] = useState(1);
   const [result, setResult] = useState<ImportCommitResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -422,7 +418,6 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       setImportToken(nextPreview.import_token ?? importToken);
       setRelationDrafts({});
       setRelationFilter("all");
-      setPage(1);
       setStage(nextStage);
       if (nextStage === "relations") setFocusRelations(true);
       return true;
@@ -449,7 +444,6 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       preview.relations.map((relation) => [relation.id, current[relation.id] ?? relationDraftFor(relation)]),
     ));
     setRelationFilter("all");
-    setPage(1);
     setStage("relations");
   };
 
@@ -557,9 +551,6 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     if (relationFilter === "automatic") return relation.automatic;
     return draft.state === "pending";
   }), [relationDrafts, relationFilter, relationItems]);
-  const pageTotal = Math.max(1, Math.ceil(filteredRelations.length / pageSize));
-  const currentPage = Math.min(page, pageTotal);
-  const visibleRelations = filteredRelations.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const pendingCount = relationItems.filter((relation) => (
     (relationDrafts[relation.id] ?? relationDraftFor(relation)).state === "pending"
   )).length;
@@ -575,7 +566,6 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setPreviewFilter("all");
     setRelationDrafts({});
     setRelationFilter("all");
-    setPage(1);
     setResult(null);
     setError(undefined);
     setPassword("");
@@ -695,29 +685,28 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
             <div className="import-stage-heading"><h2 id="import-relations-heading" ref={relationHeadingRef} tabIndex={-1}>配对</h2></div>
             <div className="stage-actions-top"><button type="button" className="button-secondary" onClick={() => setStage("preview")}>上一步</button><button type="button" className="button-primary" disabled={busy || ordinaryUnsupportedCount(preview) > 0} onClick={() => void confirmImport()}>{busy ? "导入中…" : "确认导入"}</button></div>
             {relationItems.length === 0 ? <div className="import-empty-state"><strong>没有配对</strong></div> : <>
-              <div className="relation-toolbar"><div className="relation-filters" role="group" aria-label="配对筛选">
+              <div className="import-summary-cards relation-summary-cards" role="group" aria-label="配对筛选">
                 {[
-                  { value: "all" as const, label: "全部", count: relationItems.length },
-                  { value: "automatic" as const, label: "自动", count: automaticCount },
-                  { value: "pending" as const, label: "待处理", count: pendingCount },
-                ].map((filter) => <button key={filter.value} className="relation-filter" type="button" aria-pressed={relationFilter === filter.value} onClick={() => { setRelationFilter(filter.value); setPage(1); }}>{filter.label} <b>{filter.count}</b></button>)}
-              </div><label className="page-size">每页<select value={pageSize} aria-label="每页显示条数" onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}>{PAGE_SIZES.map((size) => <option value={size} key={size}>{size} 条</option>)}</select></label></div>
-              <div className="relation-table-wrap" role="region" aria-label="配对列表" aria-live="polite"><table className="relation-table"><caption className="sr-only">配对列表</caption><thead><tr><th scope="col">状态</th><th scope="col">类型</th><th scope="col">现金流水</th><th scope="col">对侧流水</th><th scope="col">金额</th><th scope="col" aria-label="拒绝或撤销" /></tr></thead><tbody>
-                {visibleRelations.map((relation) => {
+                  { value: "all" as const, label: "全部", count: relationItems.length, tone: "total" },
+                  { value: "automatic" as const, label: "自动", count: automaticCount, tone: "automatic" },
+                  { value: "pending" as const, label: "待处理", count: pendingCount, tone: "pending" },
+                ].map((filter) => <button key={filter.value} className={`import-summary-card relation-summary-card ${filter.tone}`} type="button" aria-pressed={relationFilter === filter.value} aria-controls="relation-list" onClick={() => setRelationFilter(filter.value)}><small>{filter.label}</small><strong>{filter.count}</strong></button>)}
+              </div>
+              <div id="relation-list" className="relation-table-wrap" role="region" aria-label="配对列表" aria-live="polite"><table className="relation-table"><caption className="sr-only">配对列表</caption><thead><tr><th scope="col">状态</th><th scope="col">类型</th><th scope="col">现金流水</th><th scope="col">对侧流水</th><th scope="col">金额</th><th scope="col" aria-label="拒绝或撤销" /></tr></thead><tbody>
+                {filteredRelations.map((relation) => {
                   const draft = relationDrafts[relation.id] ?? relationDraftFor(relation);
                   const rejected = draft.state === "rejected";
                   const selectedValue = draft.secondary?.record_id ?? "";
                   return <tr key={relation.id} className={rejected ? "is-rejected" : undefined}>
                     <td data-label="状态"><span className={`status ${draft.state === "rejected" ? "is-rejected" : draft.state === "pending" ? "is-pending" : "is-auto"}`}>{relationStateLabels[draft.state]}</span></td>
-                    <td data-label="类型">{relation.automatic ? relationKindLabels[draft.kind] ?? draft.kind : <select className="relation-kind-select" aria-label={`${relation.label}关系类型`} value={draft.kind} disabled={rejected} onChange={(event) => setKind(relation, event.target.value)}>{Object.entries(relationKindLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>}</td>
+                    <td data-label="类型">{relation.automatic ? <span className="relation-kind-label">{relationKindLabels[draft.kind] ?? draft.kind}</span> : <select className="relation-kind-select" aria-label={`${relation.label}关系类型`} value={draft.kind} disabled={rejected} onChange={(event) => setKind(relation, event.target.value)}>{Object.entries(relationKindLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>}</td>
                     <td data-label="现金流水"><RelationRecord record={relation.primary} /></td>
                     <td data-label="对侧流水">{relation.automatic ? <RelationRecord record={draft.secondary ?? relation.secondary} /> : <select className="compact-select" aria-label={`${relation.label}对侧流水`} value={selectedValue} disabled={rejected} onChange={(event) => setSecondary(relation, event.target.value)}><option value="">选择对侧流水</option><option value="skip">暂不处理</option>{relation.candidates.map((candidate) => <option value={candidate.record_id} key={candidate.record_id}>{relationRecordLabel(candidate)}</option>)}</select>}</td>
                     <td data-label="金额"><span className="compact-amount">{relation.primary.amount}{draft.secondary ? ` / ${draft.secondary.amount}` : ""} {relation.primary.currency}</span></td>
-                    <td data-label="拒绝或撤销"><button type="button" className="icon-only-button icon-quiet-button relation-action" aria-label={rejected ? "撤销拒绝" : "拒绝配对"} title={rejected ? "撤销拒绝" : "拒绝配对"} onClick={() => toggleRejected(relation)}><RelationActionIcon undo={rejected} /></button></td>
+                    <td data-label="拒绝或撤销"><button type="button" className="icon-only-button icon-quiet-button relation-action" aria-label={rejected ? "撤销拒绝" : "拒绝配对"} title={rejected ? "撤销拒绝" : "拒绝配对"} onClick={() => toggleRejected(relation)}><span className="relation-action-label">{rejected ? "撤销拒绝" : "拒绝配对"}</span><RelationActionIcon undo={rejected} /></button></td>
                   </tr>;
                 })}
               </tbody></table></div>
-              <div className="relation-pager" aria-label="配对分页"><button type="button" className="button-secondary" disabled={currentPage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>上一页</button><span aria-live="polite">第 {currentPage} / {pageTotal} 页</span><button type="button" className="button-secondary" disabled={currentPage === pageTotal} onClick={() => setPage((value) => Math.min(pageTotal, value + 1))}>下一页</button></div>
             </>}
           </section> : null}
 

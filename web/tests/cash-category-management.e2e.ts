@@ -420,7 +420,7 @@ test("暗色模式下侧栏导航文字保持可读", async ({ page }, testInfo)
     context.fillStyle = color;
     return context.fillStyle;
   }));
-  expect(colors).toHaveLength(7);
+  expect(colors).toHaveLength(8);
   expect(colors.every((color) => {
     const lightness = color.match(/oklch\((\d+(?:\.\d+)?)/)?.[1];
     return lightness !== undefined && Number(lightness) > 0.6;

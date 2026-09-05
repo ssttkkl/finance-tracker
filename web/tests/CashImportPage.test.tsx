@@ -105,8 +105,8 @@ describe("CashImportPage", () => {
     expect(screen.getByRole("button", { name: "上一步" })).toBeInTheDocument();
     const relationsStage = screen.getByRole("heading", { name: "配对" }).closest("section")!;
     const relationsActions = relationsStage.querySelector(".stage-actions-top")!;
-    const relationToolbar = relationsStage.querySelector(".relation-toolbar")!;
-    expect(relationsActions.compareDocumentPosition(relationToolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const relationFilters = relationsStage.querySelector(".relation-summary-cards")!;
+    expect(relationsActions.compareDocumentPosition(relationFilters) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(relationsStage.querySelectorAll(".stage-actions")).toHaveLength(0);
     fireEvent.change(screen.getAllByRole("combobox")[1], { target: { value: "skip" } });
     fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
@@ -473,7 +473,7 @@ describe("CashImportPage", () => {
     expect(mapping.every((item) => item.new_account?.name === "共享钱包")).toBe(true);
   });
 
-  it("分页展示关系、允许修改非自动类型，并能拒绝后撤销", async () => {
+  it("连续展示关系、使用摘要筛选卡片，并能修改和拒绝关系", async () => {
     const relationPreview = previewWithRelations(21);
     const fetch = vi.fn((input: string) => input.includes("/scan")
       ? response(scan)
@@ -489,16 +489,21 @@ describe("CashImportPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
     fireEvent.click(await screen.findByRole("button", { name: /^下一步$/ }));
 
-    expect(screen.getAllByRole("button", { name: "拒绝配对" })).toHaveLength(20);
-    expect(screen.getByText("第 1 / 2 页")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "全部 21" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "自动 1" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "待处理 20" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "上一步" })).toBeInTheDocument();
     const relationsStage = screen.getByRole("heading", { name: "配对" }).closest("section")!;
     const relationsActions = relationsStage.querySelector(".stage-actions-top")!;
     const relationTable = relationsStage.querySelector(".relation-table-wrap")!;
     expect(relationsActions.compareDocumentPosition(relationTable) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(relationsStage.querySelectorAll("button.import-summary-card")).toHaveLength(3);
+    expect(relationsStage.querySelectorAll(".relation-table tbody tr")).toHaveLength(21);
+    expect(relationsStage.querySelector(".relation-pager")).not.toBeInTheDocument();
+    expect(relationsStage.querySelector(".page-size")).not.toBeInTheDocument();
     expect(relationsStage.querySelectorAll(".stage-actions")).toHaveLength(0);
 
-    const typeSelect = screen.getAllByRole("combobox")[1];
+    const typeSelect = relationsStage.querySelector<HTMLSelectElement>('select[aria-label="同笔支付关系类型"]')!;
     fireEvent.change(typeSelect, { target: { value: "refund_offset" } });
     expect(typeSelect).toHaveValue("refund_offset");
 
@@ -506,11 +511,16 @@ describe("CashImportPage", () => {
     expect(screen.getAllByRole("button", { name: "撤销拒绝" })).toHaveLength(1);
     expect(screen.getByText("已拒绝")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "撤销拒绝" }));
-    expect(screen.getAllByRole("button", { name: "拒绝配对" })).toHaveLength(20);
+    expect(screen.getAllByRole("button", { name: "拒绝配对" })).toHaveLength(21);
 
-    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
-    expect(screen.getByText("第 2 / 2 页")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "自动 1" }));
+    expect(screen.getByRole("button", { name: "自动 1" })).toHaveAttribute("aria-pressed", "true");
+    expect(relationsStage.querySelectorAll(".relation-table tbody tr")).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: "拒绝配对" })).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "待处理 20" }));
+    expect(relationsStage.querySelectorAll(".relation-table tbody tr")).toHaveLength(20);
+    expect(screen.getAllByRole("button", { name: "拒绝配对" })).toHaveLength(20);
   });
 
   it("确认时提交已拒绝的关系决定", async () => {
