@@ -39,7 +39,7 @@
 
 ## 验证记录
 
-- 基线：本轮最终复核基于当前 `origin/refactor/web` `172e432a147c44d7dc548f98c371ccbbab8b93aa`；当前工作分支 `fix-icbc-013958-pdf-recognition-failure` 的 `HEAD` 为 `f90e2b0c2d0802c6bab9622fdd46aed55343cc2a`，卡号校正仍在未提交工作树中。
+- 基线：本轮最终复核基于 `origin/refactor/web` `172e432a147c44d7dc548f98c371ccbbab8b93aa`；功能实现提交为 `177637ae850002f2a361b1a5fc1048c85ff92a32`，已通过 PR #80 合入 `refactor/web`，合并提交为 `671a77586a3729ed4e76c65d1de7fccd8f18bf8b`。
 - 失败回归与受影响矩阵（本次最终功能修复后）：`.venv/bin/python -m pytest -p no:cacheprovider tests/test_convert.py tests/test_complete_statement_source_payload.py tests/test_statement_account_mapping.py tests/test_cash_import_wizard.py tests/test_transaction_relations_payment_mirror.py tests/test_transaction_relations_refund.py tests/test_transaction_relations_cross_batch.py tests/test_import_relation_planning.py` → `380 passed, 13 skipped`。
 - 全量回归：`PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider` 在更新旧工行哈希断言前为 `1552 passed, 192 skipped, 2 failed`（工行旧断言和一个基线查询失败）；更新断言后，受影响矩阵为 `380 passed, 13 skipped`，并单独复现基线失败 `tests/test_application_queries.py::test_list_accounts_values_cash_and_investment_with_cost_fallback`（`Broker=25` 对比期望 `29`）。该失败不涉及本变更文件，因此不能宣称全量无失败。
 - 真实账单双顺序重放：使用 `.ft/bills` 中 3 份微信、3 份支付宝和 1 份工行 PDF，在全新临时 SQLite 与临时导入会话内执行「微信/支付宝后工行」和「工行后微信/支付宝」。两种顺序均成功，导入行数分别为 `1170,1176,985,1367,664,1028,1206` 与逆序对应值；事实数均为 `7596`，活动关系均为 `948`（`919 accepted`、`29 pending_review`），投影成员均为 `7596`，投影条目均为 `6677`，业务事实集合与活动关系集合 `delta=0`。密码只在进程内传递，未写入仓库或日志。
@@ -88,3 +88,4 @@
 - OpenSpec、构建和静态检查：`openspec validate --all --strict`、`openspec doctor`、`PYTHONDONTWRITEBYTECODE=1 python -m compileall -q src tests`、`uv build` 和 `git diff --check` 均通过。`openspec --version` 为 `1.7.0`，`node --version` 为 `v24.4.1`。
 - PostgreSQL：使用本机 Docker PostgreSQL 16 的专用 `finance_tracker_test` 数据库，临时显式配置 `FT_TEST_POSTGRES_URL` 和 `FT_REQUIRE_TEST_POSTGRES=1`，执行 `tests/contract/test_cash_import_dual_backend.py tests/contract/test_dual_backend_icbc_refund_pairing.py tests/contract/test_dual_backend_counterparty_account_transfer_matching.py tests/contract/test_dual_backend_record_type.py tests/test_postgres_statement_import.py tests/test_016_migration_parity.py` → `73 passed`。连接凭据未写入记录，未接触真实账本数据库。
 - 当前 diff 独立复核：首次发现验证基线引用过期及设计验证矩阵漏写建行两项文档问题，已分别更新基线与正反顺序范围；重新检查文件级卡号提取、行内账号排除、信用卡/借记卡共同来源身份输出、表格账号参与业务行去重但不参与来源映射、退款/支付镜像输入、人工保护、`record_id`、缓存计划、projection、一致性、性能和敏感数据边界后，未发现 critical/major/minor 阻断。残余风险仅为上述既有账户查询基线失败。
+- 交付记录：PR #80 已于 2026-09-06 合入 `refactor/web`；无数据库迁移，无 UI 变更，回滚方式为回滚应用提交，不删除或覆盖来源快照、事实或关系历史。
