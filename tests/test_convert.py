@@ -1272,12 +1272,17 @@ class TestIcbcParseLines:
             "其他",
         ]
         from ft.convert import _parse_icbc_lines
-        records, _ = _parse_icbc_lines(lines, is_credit=False)
+        records, _ = _parse_icbc_lines(
+            lines,
+            is_credit=False,
+            source_account_identifier="6212000000000003697",
+        )
         assert len(records) == 1, f"应解析出1条记录，实际={len(records)}"
         assert records[0]["date"] == "2023-06-13 17:25:13", \
             f"date 应包含时间，实际={records[0]['date']!r}"
         assert records[0]["note"] != "17:25:13", \
             f"时间不应跑到 description，实际={records[0]['note']!r}"
+        assert records[0]["card_number"] == "3697"
 
 
 # ── ICBC 边界修复 ──────────────────────────────────────
@@ -1456,7 +1461,11 @@ class TestIcbcEdgeCases:
         ]
         from ft.convert import _parse_icbc_lines
 
-        records, _ = _parse_icbc_lines(lines, is_credit=False)
+        records, _ = _parse_icbc_lines(
+            lines,
+            is_credit=False,
+            source_account_identifier="6212000000000003697",
+        )
 
         assert len(records) == 1
         assert records[0]["summary"] == "转账"
@@ -2448,7 +2457,7 @@ class TestIcbcDebit:
             "快捷支付",                # 12 渠道
         ]
         from ft.convert import _parse_icbc_debit_row
-        rec = _parse_icbc_debit_row(row)
+        rec = _parse_icbc_debit_row(row, source_account_identifier="6212000000000003697")
         assert rec is not None
         assert rec["date"] == "2026-01-05 20:32:09"
         assert rec["amount"] == 3500.0
@@ -2466,7 +2475,7 @@ class TestIcbcDebit:
             "15,851.26", "梁碧玲", "6217****8572", "网上银行",
         ]
         from ft.convert import _parse_icbc_debit_row
-        rec = _parse_icbc_debit_row(row)
+        rec = _parse_icbc_debit_row(row, source_account_identifier="6212000000000003697")
         assert rec is not None
         assert rec["amount"] == -2000.0
         assert rec["category"] == "expense"
@@ -2481,12 +2490,12 @@ class TestIcbcDebit:
             "15,851.26", "梁碧玲", "6217****8572", "网上银行",
         ]
         from ft.convert import _parse_icbc_debit_row
-        rec = _parse_icbc_debit_row(row)
+        rec = _parse_icbc_debit_row(row, source_account_identifier="6212000000000003697")
         assert rec is not None
         assert rec["_fact_id"].startswith("icbc_debit_")
-        assert rec["_fact_id"] == "icbc_debit_c9f2acd76932"
+        assert rec["_fact_id"] == "icbc_debit_4e6b62a49248"
 
-    def test_工行借记卡_record_id包含本方账号和余额证据(self):
+    def test_工行借记卡_来源身份使用卡号且业务行账号参与去重(self):
         row = [
             "2026-01-10\n10:00:17", "1614020101021984636", "活期", "00000",
             "人民币", "钞", "无卡支付", "4600", "-2,000.00",
@@ -2494,14 +2503,23 @@ class TestIcbcDebit:
         ]
         from ft.convert import _parse_icbc_debit_row
 
-        account_a = _parse_icbc_debit_row(row, source_payload={"余额": "15,851.26"})
-        account_b = _parse_icbc_debit_row(
-            [row[0], "1614020101021984637", *row[2:]],
+        account_a = _parse_icbc_debit_row(
+            row,
+            source_account_identifier="6212000000000003697",
             source_payload={"余额": "15,851.26"},
         )
-        balance_b = _parse_icbc_debit_row(row, source_payload={"余额": "13,851.26"})
+        account_b = _parse_icbc_debit_row(
+            [row[0], "1614020101021984637", *row[2:]],
+            source_account_identifier="6212000000000003697",
+            source_payload={"余额": "15,851.26"},
+        )
+        balance_b = _parse_icbc_debit_row(
+            row,
+            source_account_identifier="6212000000000003697",
+            source_payload={"余额": "13,851.26"},
+        )
 
-        assert account_a["_source_account_identifier"] == "1614020101021984636"
+        assert account_a["_source_account_identifier"] == "6212000000000003697"
         assert account_a["_fact_id"] != account_b["_fact_id"]
         assert account_a["_fact_id"] != balance_b["_fact_id"]
 
@@ -2513,7 +2531,7 @@ class TestIcbcDebit:
             "4,000.00", "测试用户", "6212****0000", "手机银行",
         ]
         from ft.convert import _parse_icbc_debit_row
-        rec = _parse_icbc_debit_row(row)
+        rec = _parse_icbc_debit_row(row, source_account_identifier="6212000000000003697")
         assert rec is not None
         assert rec["amount"] == 2000.0
         assert rec["currency"] == "USD"
@@ -2527,7 +2545,7 @@ class TestIcbcDebit:
             "17,851.26", "金哲玄", "2088****0156", "快捷支付",
         ]
         from ft.convert import _parse_icbc_debit_row
-        rec = _parse_icbc_debit_row(row)
+        rec = _parse_icbc_debit_row(row, source_account_identifier="6212000000000003697")
         assert rec is not None
         assert rec["note"] == "支付宝转账", f"desc={rec['note']!r}"
 
@@ -2538,7 +2556,7 @@ class TestIcbcDebit:
             "405.84", "支付宝（中国）网络技术有限公司", "2155****0690", "快捷支付",
         ]
         from ft.convert import _parse_icbc_debit_row
-        rec = _parse_icbc_debit_row(row)
+        rec = _parse_icbc_debit_row(row, source_account_identifier="6212000000000003697")
         assert rec is not None
         assert rec["category"] == "income"
         assert rec["_debit_offset_type"] == "refund"
@@ -2551,7 +2569,7 @@ class TestIcbcDebit:
             "1076.16", "中国银联无卡快捷支付业务专户", "3602****5565", "网上银行",
         ]
         from ft.convert import _parse_icbc_debit_row
-        rec = _parse_icbc_debit_row(row)
+        rec = _parse_icbc_debit_row(row, source_account_identifier="6212000000000003697")
         assert rec is not None
         assert rec["category"] == "income"
         assert rec["_debit_offset_type"] == "refund"
@@ -2564,7 +2582,7 @@ class TestIcbcDebit:
             "33628.24", "黄文龙", "3799****9166", "手机银行",
         ]
         from ft.convert import _parse_icbc_debit_row
-        rec = _parse_icbc_debit_row(row)
+        rec = _parse_icbc_debit_row(row, source_account_identifier="6212000000000003697")
         assert rec is not None
         assert rec["category"] == "income"
         assert rec["_debit_offset_type"] == "reversal"
@@ -2577,7 +2595,7 @@ class TestIcbcDebit:
             "998.87", "（空）", "（空）", "批量业务",
         ]
         from ft.convert import _parse_icbc_debit_row
-        rec = _parse_icbc_debit_row(row)
+        rec = _parse_icbc_debit_row(row, source_account_identifier="6212000000000003697")
         assert rec is not None
         assert rec["_debit_offset_type"] == ""
         assert rec["_is_refund"] is False
@@ -2590,7 +2608,7 @@ class TestIcbcDebit:
             "98270.93", "中国工商银行股份有限公司基金快速赎回", "0200****6428", "业务资金清算专户",
         ]
         from ft.convert import _parse_icbc_debit_row
-        rec = _parse_icbc_debit_row(row)
+        rec = _parse_icbc_debit_row(row, source_account_identifier="6212000000000003697")
         assert rec is not None
         assert rec["_debit_offset_type"] == ""
         assert rec["_is_refund"] is False
@@ -2628,7 +2646,7 @@ class TestIcbcDebit:
             "2088****0156",         # 11 对方账号
             "手机银行",              # 12 渠道
         ]
-        rec = _parse_icbc_debit_row(row)
+        rec = _parse_icbc_debit_row(row, source_account_identifier="6212000000000003697")
         assert rec is not None
         assert rec["counterparty"] == "中国工商银行股份有限公司基金清算专户", \
             f"counterparty={rec['counterparty']!r}"
@@ -2644,7 +2662,7 @@ class TestIcbcDebit:
             "中国工商银基行金股购份买有限公清司算专户",  # 乱码
             "2088****0156", "手机银行",
         ]
-        rec = _parse_icbc_debit_row(row)
+        rec = _parse_icbc_debit_row(row, source_account_identifier="6212000000000003697")
         assert rec is not None
         assert rec["counterparty"] == "中国工商银行股份有限公司基金清算专户", \
             f"counterparty={rec['counterparty']!r}"
@@ -2789,7 +2807,11 @@ class TestIcbcDebitReversal:
             "支付宝（中国）网络技术有限公司",
         ]
         from ft.convert import _parse_icbc_lines, _build_convert_fact_rows, _attach_tracking_metadata
-        records, tracking_pairs = _parse_icbc_lines(lines, is_credit=False)
+        records, tracking_pairs = _parse_icbc_lines(
+            lines,
+            is_credit=False,
+            source_account_identifier="6212000000000003697",
+        )
         fact_rows = _attach_tracking_metadata(_build_convert_fact_rows(records, tracking_pairs), tracking_pairs)
         assert len(fact_rows) == 2
         expense = next(r for r in fact_rows if r["category"] == "expense")
@@ -2823,7 +2845,11 @@ class TestIcbcDebitReversal:
             "支付宝（中国）网络技术有限公司",
         ]
         from ft.convert import _parse_icbc_lines, _build_convert_fact_rows, _attach_tracking_metadata
-        records, tracking_pairs = _parse_icbc_lines(lines, is_credit=False)
+        records, tracking_pairs = _parse_icbc_lines(
+            lines,
+            is_credit=False,
+            source_account_identifier="6212000000000003697",
+        )
         fact_rows = _attach_tracking_metadata(_build_convert_fact_rows(records, tracking_pairs), tracking_pairs)
         assert len(_pairs_only(tracking_pairs)) == 1
         assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
@@ -2832,7 +2858,7 @@ class TestIcbcDebitReversal:
         refund = next(r for r in fact_rows if r["category"] == "income")
         assert refund["offset_strength"] == "strong"
 
-    def test_工行借记卡_跨账户候选退款_保持弱置信(self):
+    def test_工行借记卡_同卡不同表格账号_退款仍按同卡匹配(self):
         lines = [
             "2026-01-05",
             "09:00:00",
@@ -2854,9 +2880,13 @@ class TestIcbcDebitReversal:
             "支付宝（中国）网络技术有限公司",
         ]
         from ft.convert import _parse_icbc_lines
-        records, tracking_pairs = _parse_icbc_lines(lines, is_credit=False)
+        records, tracking_pairs = _parse_icbc_lines(
+            lines,
+            is_credit=False,
+            source_account_identifier="6212000000000003697",
+        )
         assert len(_pairs_only(tracking_pairs)) == 1
-        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "weak"
+        assert _pairs_only(tracking_pairs)[0]["match_strength"] == "strong"
 
     def test_工行借记卡_退款冲超候选_不自动核销(self):
         lines = [
@@ -2874,7 +2904,11 @@ class TestIcbcDebitReversal:
             "支付宝（中国）网络技术有限公司",
         ]
         from ft.convert import _parse_icbc_lines
-        records, tracking_pairs = _parse_icbc_lines(lines, is_credit=False)
+        records, tracking_pairs = _parse_icbc_lines(
+            lines,
+            is_credit=False,
+            source_account_identifier="6212000000000003697",
+        )
         assert len(_pairs_only(tracking_pairs)) == 0
         incomes = [r for r in records if r["category"] == "income"]
         assert len(incomes) == 1

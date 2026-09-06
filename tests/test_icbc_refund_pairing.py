@@ -48,7 +48,10 @@ def test_icbc_debit_refund_signal_uses_exact_return_summary():
         "人民币", "钞", "退货", "0200", "+100.00", "1076.16",
         "支付宝（中国）网络技术有限公司", "3602****5565", "网上银行",
     ]
-    record = _parse_icbc_debit_row(row)
+    record = _parse_icbc_debit_row(
+        row,
+        source_account_identifier="6212000000000003697",
+    )
 
     assert record["summary"] == "退货"
     assert record["refund_signal"] == "icbc_debit_return"
@@ -62,7 +65,10 @@ def test_icbc_debit_refund_word_does_not_create_formal_signal():
         "人民币", "钞", "退款", "0200", "+100.00", "1076.16",
         "支付宝（中国）网络技术有限公司", "3602****5565", "网上银行",
     ]
-    record = _parse_icbc_debit_row(row)
+    record = _parse_icbc_debit_row(
+        row,
+        source_account_identifier="6212000000000003697",
+    )
 
     assert record["summary"] == "退款"
     assert record["refund_signal"] == ""
