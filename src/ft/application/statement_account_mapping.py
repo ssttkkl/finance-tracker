@@ -161,7 +161,7 @@ def _identity_for_row(row: dict) -> tuple[str, str, str, str, str]:
         display_name = display_name or "工银亚洲活期账户"
         evidence = f"{display_name}（尾号 {_card_tail(row.get('card_number')) or '未知'}）"
     else:
-        # ICBC debit parser has a file-level account contract.
+        # ICBC debit parser has a file-level card-number contract.
         stable_source_key = _normalize_icbc_account_identifier(
             row.get("_source_account_identifier") or row.get("file_account_key")
         )

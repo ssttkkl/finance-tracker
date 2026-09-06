@@ -415,6 +415,39 @@ def _normalize_icbc_account_identifier(value: object) -> str:
     return ""
 
 
+def _extract_icbc_debit_card_identifier(lines: list[str]) -> str:
+    """Extract the single file-level card number declared by an ICBC debit PDF.
+
+    The debit statement repeats a header such as ``卡号 <card> 户名`` on each
+    page.  The table's ``账号`` column is a per-row settlement account and is
+    deliberately excluded from this extraction.
+    """
+    identifiers: set[str] = set()
+    for index, raw_line in enumerate(lines):
+        line = str(raw_line or "")
+        label = re.search(r"(?<!交易)卡号", line)
+        if not label:
+            continue
+        window = "\n".join([line, *[str(item or "") for item in lines[index + 1:index + 4]]])
+        segment = window[label.end():]
+        segment = re.split(r"户名|姓名|起止日期|交易日期", segment, maxsplit=1)[0]
+        compact = re.sub(r"[\s:：]", "", segment)
+        candidates = re.findall(
+            r"(?<!\d)(?:\d{12,19}|\d{4,6}[*＊]{2,}\d{4})(?!\d)",
+            compact,
+        )
+        for candidate in candidates:
+            normalized = _normalize_icbc_account_identifier(candidate)
+            if normalized:
+                identifiers.add(normalized)
+
+    if not identifiers:
+        raise ValueError("工行借记卡缺少文件级卡号，无法识别来源账户")
+    if len(identifiers) != 1:
+        raise ValueError("工行借记卡文件级卡号不唯一，无法识别来源账户")
+    return next(iter(identifiers))
+
+
 def _icbc_debit_refund_cluster(counterparty: str, description: str) -> str:
     text = f"{counterparty or ''} {description or ''}"
     if "支付宝" in text:
@@ -1480,7 +1513,12 @@ def _read_wechat_raw(path: str):
     return records, tracking_pairs
 
 
-def _parse_icbc_lines(lines: list[str], is_credit: bool):
+def _parse_icbc_lines(
+    lines: list[str],
+    is_credit: bool,
+    *,
+    source_account_identifier: str | None = None,
+):
     """解析 ICBC PDF 文本行，返回统一 records（纯函数，方便单测）"""
     import re
     records = []
@@ -1663,6 +1701,9 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                 current_date = None
             i += 1
     else:
+        source_account_identifier = _normalize_icbc_account_identifier(source_account_identifier)
+        if not source_account_identifier:
+            source_account_identifier = _extract_icbc_debit_card_identifier(lines)
         i = 0
         while i < len(lines):
             line = lines[i].strip()
@@ -1691,15 +1732,6 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                     time_str = time_candidate
 
             between = [lines[j].strip() for j in range(date_line_idx + 1, i) if lines[j].strip()]
-            source_account_identifier = next(
-                (
-                    normalized
-                    for value in between
-                    for normalized in [_normalize_icbc_account_identifier(value)]
-                    if normalized
-                ),
-                "",
-            )
             summary = ""
             for s in between:
                 if s in ("活期", "00000", "人民币", "钞", "汇", "1614", "4600", "2116", "6982"):
@@ -1748,6 +1780,7 @@ def _parse_icbc_lines(lines: list[str], is_credit: bool):
                 "note": enriched_desc[:80] or normalized_cp[:80],
                 "category": category,
                 "payment_method": channel,
+                "card_number": source_account_identifier[-4:],
                 "_source_account_identifier": source_account_identifier,
                 "file_account_key": source_account_identifier,
                 "source_display_name": "工商银行借记卡",
@@ -1804,7 +1837,14 @@ def _read_icbc_raw(path: str, password: str):
 
     is_credit = "信用卡" in text
     lines = text.split("\n")
-    records, tracking_pairs = _parse_icbc_lines(lines, is_credit=is_credit)
+    source_account_identifier = (
+        _extract_icbc_debit_card_identifier(lines) if not is_credit else None
+    )
+    records, tracking_pairs = _parse_icbc_lines(
+        lines,
+        is_credit=is_credit,
+        source_account_identifier=source_account_identifier,
+    )
     return records, "icbc_credit" if is_credit else "icbc_debit", tracking_pairs
 
 
@@ -1854,6 +1894,15 @@ def _read_icbc_debit_raw(path: str, password: str):
     records = []
     occurrences: dict[str, int] = {}
 
+    try:
+        page_lines = []
+        for page in pdf.pages:
+            page_lines.extend((page.extract_text() or "").splitlines())
+        source_account_identifier = _extract_icbc_debit_card_identifier(page_lines)
+    except Exception:
+        pdf.close()
+        raise
+
     for page in pdf.pages:
         # 过滤水印大字（字号≥15），保留表格文字
         filtered = page.filter(lambda obj: obj.get("object_type") != "char" or obj.get("size", 99) < 15)
@@ -1874,7 +1923,11 @@ def _read_icbc_debit_raw(path: str, password: str):
                 header: str(value) if value is not None else ""
                 for header, value in zip(raw_headers, row, strict=True)
             }
-            rec = _parse_icbc_debit_row(row, source_payload=source_payload)
+            rec = _parse_icbc_debit_row(
+                row,
+                source_account_identifier=source_account_identifier,
+                source_payload=source_payload,
+            )
             if rec:
                 base_fact_id = rec["_fact_id"]
                 occurrence = occurrences.get(base_fact_id, 0)
@@ -1897,7 +1950,12 @@ def _read_icbc_debit_raw(path: str, password: str):
     return fact_rows, "icbc_debit", tracking_pairs
 
 
-def _parse_icbc_debit_row(row: list, *, source_payload: dict | None = None) -> dict | None:
+def _parse_icbc_debit_row(
+    row: list,
+    *,
+    source_account_identifier: str | None = None,
+    source_payload: dict | None = None,
+) -> dict | None:
     """解析储蓄卡PDF的一行表格数据"""
     import re as _re
 
@@ -1951,7 +2009,12 @@ def _parse_icbc_debit_row(row: list, *, source_payload: dict | None = None) -> d
 
     # 渠道
     channel = (row[12] or "").replace("\n", "").strip()
-    source_account_identifier = _normalize_icbc_account_identifier(row[1])
+    # The table's 账号 is not the source-account identity, but it remains a
+    # raw business-row field and must distinguish otherwise identical rows.
+    source_row_account = (row[1] or "").replace("\n", "").strip()
+    source_account_identifier = _normalize_icbc_account_identifier(source_account_identifier)
+    if not source_account_identifier:
+        raise ValueError("❌ 工行借记卡缺少文件级卡号，不能使用表格账号作为来源账户身份")
 
     category = "expense" if amount < 0 else "income"
 
@@ -1969,6 +2032,7 @@ def _parse_icbc_debit_row(row: list, *, source_payload: dict | None = None) -> d
         f"{amount:.2f}",
         currency,
         source_account_identifier,
+        source_row_account,
         counterparty,
         counterparty_account,
         summary,
@@ -1984,6 +2048,7 @@ def _parse_icbc_debit_row(row: list, *, source_payload: dict | None = None) -> d
         "note": summary,
         "category": category,
         "payment_method": channel,
+        "card_number": source_account_identifier[-4:],
         "_source_account_identifier": source_account_identifier,
         "file_account_key": source_account_identifier,
         "source_display_name": "工商银行借记卡",

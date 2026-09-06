@@ -27,8 +27,8 @@ def _row(source_type: str, **values) -> dict:
         ),
         (
             "icbc_debit",
-            {"_source_account_identifier": "1614020101021984636", "payment_method": "银行卡"},
-            "file_account", "1614020101021984636",
+            {"_source_account_identifier": "6212000000000003697", "payment_method": "银行卡"},
+            "file_account", "6212000000000003697",
         ),
         ("ccb_debit", {"card_number": "2820"}, "card_tail", "2820"),
         (
@@ -69,10 +69,10 @@ def test_scan_keeps_same_display_name_with_different_stable_identity_separate():
     ]
 
 
-def test_scan_icbc_debit_groups_same_account_across_channels():
+def test_scan_icbc_debit_groups_same_card_across_channels():
     from ft.application.statement_account_mapping import scan_source_rows
 
-    account = "1614020101021984636"
+    account = "6212000000000003697"
     groups = scan_source_rows([
         _row(
             "icbc_debit",
@@ -97,30 +97,30 @@ def test_scan_icbc_debit_groups_same_account_across_channels():
     assert len(groups) == 1
     assert groups[0].source_account_key == account
     assert groups[0].identity_kind == "file_account"
-    assert groups[0].masked_evidence == "工商银行借记卡（尾号 4636）"
+    assert groups[0].masked_evidence == "工商银行借记卡（尾号 3697）"
 
 
-def test_scan_icbc_debit_normalizes_account_presentation_separators():
+def test_scan_icbc_debit_normalizes_card_presentation_separators():
     from ft.application.statement_account_mapping import scan_source_rows
 
     groups = scan_source_rows([
         _row(
             "icbc_debit",
-            _source_account_identifier="1614 0201-0102（1984636）",
+            _source_account_identifier="6212 0000-0000-0（003697）",
             source_display_name="工商银行借记卡",
             payment_method="快捷支付",
         ),
         _row(
             "icbc_debit",
-            _source_account_identifier="1614020101021984636",
+            _source_account_identifier="6212000000000003697",
             source_display_name="工商银行借记卡",
             payment_method="网上银行",
         ),
     ])
 
     assert len(groups) == 1
-    assert groups[0].source_account_key == "1614020101021984636"
-    assert groups[0].masked_evidence == "工商银行借记卡（尾号 4636）"
+    assert groups[0].source_account_key == "6212000000000003697"
+    assert groups[0].masked_evidence == "工商银行借记卡（尾号 3697）"
 
 
 def test_scan_icbc_credit_normalizes_account_presentation_separators():

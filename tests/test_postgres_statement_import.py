@@ -484,6 +484,9 @@ def test_icbc_debit_parser_opens_pdfplumber_table_pdf(monkeypatch, tmp_path):
     ]
 
     class FakePage:
+        def extract_text(self):
+            return "卡号 6212000000000003697 户名：示例\n"
+
         def filter(self, _predicate):
             return self
 
@@ -505,6 +508,7 @@ def test_icbc_debit_parser_opens_pdfplumber_table_pdf(monkeypatch, tmp_path):
     rows, bill_type, tracking = _read_icbc_debit_raw(str(source), "top-secret")
 
     assert rows[0]["currency"] == "CNY"
+    assert rows[0]["card_number"] == "3697"
     assert bill_type == "icbc_debit"
     assert tracking == []
     assert calls == [(str(source), "top-secret"), "close"]

@@ -236,7 +236,11 @@ def test_icbc_debit_keeps_full_table_row_and_extracts_counterparty_account():
     ]
     source_payload = dict(zip(header, source_row, strict=True))
 
-    record = _parse_icbc_debit_row(source_row, source_payload=source_payload)
+    record = _parse_icbc_debit_row(
+        source_row,
+        source_account_identifier="6212000000000003697",
+        source_payload=source_payload,
+    )
 
     assert record is not None
     assert record["counterparty_account"] == "6222****4321"
@@ -249,21 +253,67 @@ def test_icbc_debit_keeps_full_table_row_and_extracts_counterparty_account():
     assert output["counterparty_account_attrs"] == ["masked"]
 
 
-def test_icbc_debit_uses_pdf_account_column_as_source_account_identity():
+def test_icbc_debit_uses_declared_card_not_pdf_account_column_as_source_identity():
     from ft.convert import _parse_icbc_debit_row
 
-    account = "1614020101021984636"
+    declared_card = "6212000000000003697"
+    table_account = "1614020101021984636"
     row = [
-        "2026-08-03\n10:00:00", account, "活期", "00001", "人民币", "钞", "消费", "北京",
+        "2026-08-03\n10:00:00", table_account, "活期", "00001", "人民币", "钞", "消费", "北京",
         "-88.00", "100.00", "示例户名", "6222****4321", "快捷支付",
     ]
 
-    record = _parse_icbc_debit_row(row)
+    record = _parse_icbc_debit_row(row, source_account_identifier=declared_card)
 
     assert record is not None
-    assert record["_source_account_identifier"] == account
-    assert record["file_account_key"] == account
+    assert record["_source_account_identifier"] == declared_card
+    assert record["file_account_key"] == declared_card
+    assert record["card_number"] == "3697"
+    assert record["_source_account_identifier"] != table_account
     assert record["source_display_name"] == "工商银行借记卡"
+
+
+def test_icbc_debit_requires_one_file_level_declared_card():
+    import pytest
+
+    from ft.convert import _extract_icbc_debit_card_identifier
+
+    assert _extract_icbc_debit_card_identifier([
+        "中国工商银行借记账户历史明细（电子版）",
+        "卡号",
+        "6212000000000003697",
+        "户名：示例",
+        "账号",
+        "1614020101021984636",
+    ]) == "6212000000000003697"
+
+    with pytest.raises(ValueError, match="文件级卡号"):
+        _extract_icbc_debit_card_identifier(["账号", "1614020101021984636"])
+
+    with pytest.raises(ValueError, match="唯一"):
+        _extract_icbc_debit_card_identifier([
+            "卡号 6212000000000003697 户名：示例",
+            "卡号 6212000000000003698 户名：示例",
+        ])
+
+    with pytest.raises(ValueError, match="文件级卡号"):
+        _extract_icbc_debit_card_identifier([
+            "卡号 62120000000000036970 户名：示例",
+        ])
+
+
+def test_icbc_debit_does_not_fallback_to_table_account():
+    import pytest
+
+    from ft.convert import _parse_icbc_debit_row
+
+    row = [
+        "2026-08-03\n10:00:00", "1614020101021984636", "活期", "00001", "人民币", "钞", "消费", "北京",
+        "-88.00", "100.00", "示例户名", "6222****4321", "快捷支付",
+    ]
+
+    with pytest.raises(ValueError, match="不能使用表格账号"):
+        _parse_icbc_debit_row(row)
 
 
 def test_icbc_credit_transfer_extracts_structured_masked_counterparty_account():
