@@ -54,7 +54,7 @@ Native 阶段验证证据：
 - Native 最终复现发现并修复 SecureStore 键名问题：Web 继续使用 `finance-tracker:session-token`，Native 使用合法键名 `finance-tracker-session-token`；最终登录后进入工作区，无客户端异常。系统“保存密码？”提示按测试流程选择“以后”。
 - Android 模拟器已补跑：`Medium_Phone_API_36` / `emulator-5554`（Android API 36，1080 × 2400），应用 `com.finance.tracker`，Metro 使用 `http://192.168.1.3:8081`，隔离 SQLite API 在宿主机 `127.0.0.1:18000`、模拟器通过 `http://10.0.2.2:18000` 访问。登录、工作区创建、空账本、记账表单、系统文件选择器取消和账单扫描/映射/预览/关系复核/确认导入已实际走通；手工记账和会话内退出问题已修复并完成复验。
 - 针对 Android QA 暴露的两个问题已补充回归测试：`npm run test --workspace @finance-tracker/core`（4 passed）和 `npm run test --workspace finance-tracker-mobile`（5 passed）；`buildCashRecordPayload` 已与现有 `account_name` API 合同对齐，退出事件改为显式 `signed_out` 状态，并已完成设备重跑确认。
-- GitHub Actions 工作流已写入 `.github/workflows/mobile-ci.yml`：权限仅为 `contents: read`，触发器覆盖 Pull Request、`refactor/web` 推送和 `workflow_dispatch`；质量 job 使用 Node 24/npm cache，Android 使用 Java 17、API 36、build-tools 36.0.0 和 NDK 30.0.14904198，iOS 使用 `macos-15`，两端均明确关闭商店签名并上传短期测试 artifact。
+- GitHub Actions 工作流已写入 `.github/workflows/mobile-ci.yml`：权限仅为 `contents: read`，触发器覆盖 Pull Request、`refactor/web` 推送和 `workflow_dispatch`；质量 job 使用 Node 24/npm cache，Android 使用 Java 17、API 36、build-tools 36.0.0 和 NDK 30.0.14904198，iOS 使用 `macos-26` 并显式选择 Xcode 26.3，两端均明确关闭商店签名并上传短期测试 artifact。
 
 ## 5. API 替代面与服务启动入口
 

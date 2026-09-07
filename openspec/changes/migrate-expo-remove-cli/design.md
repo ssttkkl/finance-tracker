@@ -161,7 +161,7 @@ Native CI 放在 `.github/workflows/mobile-ci.yml`，只依赖根级 `package-lo
 
 - `quality` 使用 Node 24，执行根级 `npm ci`、共享包和 Mobile 的 Vitest/typecheck，以及 Android/iOS JavaScript export，尽早发现 workspace、路由和 bundler 回归。
 - `android` 使用 Ubuntu、Java 17 和 Android SDK 36，安装项目当前 Gradle/Expo 需要的 platform、build-tools 和 NDK，在 `mobile/` 工作目录执行 `CI=1 npx expo prebuild --platform android --no-install` 后运行 `:app:assembleDebug`，上传 `app-debug.apk`。
-- `ios` 使用 macOS runner，在 `mobile/` 工作目录执行 `CI=1 npx expo prebuild --platform ios --no-install`，再执行 `pod install --no-repo-update` 和 Generic iOS Simulator Debug build；构建时显式关闭 code signing，再将生成的 `FinanceTracker.app` 压缩后上传。
+- `ios` 使用 `macos-26` runner 并显式选择 Xcode 26.3，在 `mobile/` 工作目录执行 `CI=1 npx expo prebuild --platform ios --no-install`，再执行 `pod install --no-repo-update` 和 Generic iOS Simulator Debug build；构建时显式关闭 code signing，再将生成的 `FinanceTracker.app` 压缩后上传。选择 Xcode 26.3 是为了匹配 ExpoModulesJSI 所需的 Swift 6.2 工具版本。
 
 三个 job 都使用 `actions/setup-node` 的 npm cache；Android 通过 `actions/setup-java` 的 Gradle cache 减少重复下载。Artifact 只保留短期测试用途，命名为 `finance-tracker-android-debug` 和 `finance-tracker-ios-simulator`。工作流不配置 EAS、Apple/Google 凭据、证书、provisioning profile 或生产 API 地址，因此不能被误认为商店发布门禁。后续若需要签名 release，应另开变更，明确 secrets、环境保护、版本号、签名轮换和回滚策略。
 
