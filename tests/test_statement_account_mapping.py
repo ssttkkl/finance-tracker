@@ -682,15 +682,15 @@ def test_database_mapped_parser_uses_confirmed_mapping_without_yaml(tmp_path, mo
     source = tmp_path / "statement.csv"
     source.write_text("fixture", encoding="utf-8")
     sessions, unit_of_work = _database()
-    ensure_workspace(sessions, "cli-mapping-workspace")
-    with unit_of_work(sessions, "cli-mapping-workspace") as uow:
+    ensure_workspace(sessions, "mapping-workspace")
+    with unit_of_work(sessions, "mapping-workspace") as uow:
         uow.accounts.add_raw({"name": "数据库账户", "type": "cash", "currency": "CNY"})
         uow.commit()
     with sessions() as session:
         account_id = session.scalar(select(AccountModel.id).where(
-            AccountModel.workspace_id == "cli-mapping-workspace", AccountModel.name == "数据库账户",
+            AccountModel.workspace_id == "mapping-workspace", AccountModel.name == "数据库账户",
         ))
-    with unit_of_work(sessions, "cli-mapping-workspace") as uow:
+    with unit_of_work(sessions, "mapping-workspace") as uow:
         uow.statement_account_mappings.upsert(
             source_type="alipay", identity_kind="payment_method", source_account_key="账户余额",
             account_id=account_id, confirmed_by="web",
@@ -699,7 +699,7 @@ def test_database_mapped_parser_uses_confirmed_mapping_without_yaml(tmp_path, mo
     monkeypatch.setattr("ft.mapping.load_rules", lambda: (_ for _ in ()).throw(AssertionError("YAML read")))
 
     rows = DatabaseMappedStatementParser(
-        SourceParser(), unit_of_work(sessions, "cli-mapping-workspace")
+        SourceParser(), unit_of_work(sessions, "mapping-workspace")
     ).parse(StatementImportCommand(source_path=str(source), source="alipay"))
 
     assert rows[0]["account_name"] == "数据库账户"
@@ -729,16 +729,16 @@ def test_database_mapped_parser_skips_only_alipay_composite_rows(tmp_path):
     source = tmp_path / "statement.csv"
     source.write_text("fixture", encoding="utf-8")
     sessions, unit_of_work = _database()
-    ensure_workspace(sessions, "cli-composite-workspace")
-    with unit_of_work(sessions, "cli-composite-workspace") as uow:
+    ensure_workspace(sessions, "composite-workspace")
+    with unit_of_work(sessions, "composite-workspace") as uow:
         uow.accounts.add_raw({"name": "数据库账户", "type": "cash", "currency": "CNY"})
         uow.commit()
     with sessions() as session:
         account_id = session.scalar(select(AccountModel.id).where(
-            AccountModel.workspace_id == "cli-composite-workspace",
+            AccountModel.workspace_id == "composite-workspace",
             AccountModel.name == "数据库账户",
         ))
-    with unit_of_work(sessions, "cli-composite-workspace") as uow:
+    with unit_of_work(sessions, "composite-workspace") as uow:
         uow.statement_account_mappings.upsert(
             source_type="alipay", identity_kind="payment_method",
             source_account_key="支付宝余额", account_id=account_id, confirmed_by="web",
@@ -746,7 +746,7 @@ def test_database_mapped_parser_skips_only_alipay_composite_rows(tmp_path):
         uow.commit()
 
     rows = DatabaseMappedStatementParser(
-        SourceParser(), unit_of_work(sessions, "cli-composite-workspace")
+        SourceParser(), unit_of_work(sessions, "composite-workspace")
     ).parse(StatementImportCommand(source_path=str(source), source="alipay"))
 
     assert len(rows) == 1
@@ -760,7 +760,7 @@ def test_database_mapped_parser_skips_only_alipay_composite_rows(tmp_path):
     }]
 
 
-def test_cli_import_reports_composite_skip_and_keeps_unknown_mapping_fail_closed(tmp_path):
+def test_import_service_reports_composite_skip_and_keeps_unknown_mapping_fail_closed(tmp_path):
     from sqlalchemy import func, select
 
     from ft.adapters.relational import ensure_workspace
@@ -773,16 +773,16 @@ def test_cli_import_reports_composite_skip_and_keeps_unknown_mapping_fail_closed
     source = tmp_path / "statement.csv"
     source.write_text("fixture", encoding="utf-8")
     sessions, unit_of_work = _database()
-    ensure_workspace(sessions, "cli-composite-service-workspace")
-    with unit_of_work(sessions, "cli-composite-service-workspace") as uow:
+    ensure_workspace(sessions, "composite-service-workspace")
+    with unit_of_work(sessions, "composite-service-workspace") as uow:
         uow.accounts.add_raw({"name": "数据库账户", "type": "cash", "currency": "CNY"})
         uow.commit()
     with sessions() as session:
         account_id = session.scalar(select(AccountModel.id).where(
-            AccountModel.workspace_id == "cli-composite-service-workspace",
+            AccountModel.workspace_id == "composite-service-workspace",
             AccountModel.name == "数据库账户",
         ))
-    with unit_of_work(sessions, "cli-composite-service-workspace") as uow:
+    with unit_of_work(sessions, "composite-service-workspace") as uow:
         uow.statement_account_mappings.upsert(
             source_type="alipay", identity_kind="payment_method",
             source_account_key="支付宝余额", account_id=account_id, confirmed_by="web",
@@ -810,10 +810,10 @@ def test_cli_import_reports_composite_skip_and_keeps_unknown_mapping_fail_closed
     )
     parser = DatabaseMappedStatementParser(
         SourceParser([composite, valid]),
-        unit_of_work(sessions, "cli-composite-service-workspace"),
+        unit_of_work(sessions, "composite-service-workspace"),
     )
     result = StatementImportService(
-        unit_of_work(sessions, "cli-composite-service-workspace"), parser,
+        unit_of_work(sessions, "composite-service-workspace"), parser,
         enforce_account_currencies=True,
     ).import_statement(StatementImportCommand(source_path=str(source), source="alipay"))
 
@@ -826,12 +826,12 @@ def test_cli_import_reports_composite_skip_and_keeps_unknown_mapping_fail_closed
 
     all_composite_parser = DatabaseMappedStatementParser(
         SourceParser([composite]),
-        unit_of_work(sessions, "cli-composite-service-workspace"),
+        unit_of_work(sessions, "composite-service-workspace"),
     )
     all_skipped_source = tmp_path / "all-composite.csv"
     all_skipped_source.write_text("fixture", encoding="utf-8")
     all_skipped = StatementImportService(
-        unit_of_work(sessions, "cli-composite-service-workspace"),
+        unit_of_work(sessions, "composite-service-workspace"),
         all_composite_parser,
         enforce_account_currencies=True,
     ).import_statement(StatementImportCommand(
@@ -848,7 +848,7 @@ def test_cli_import_reports_composite_skip_and_keeps_unknown_mapping_fail_closed
     with pytest.raises(ValueError, match="业务行无法识别来源账户"):
         DatabaseMappedStatementParser(
             SourceParser([bad]),
-            unit_of_work(sessions, "cli-composite-service-workspace"),
+            unit_of_work(sessions, "composite-service-workspace"),
         ).parse(StatementImportCommand(source_path=str(source), source="alipay"))
 
 
@@ -885,11 +885,11 @@ def test_database_mapped_parser_fails_closed_when_mapping_is_missing(tmp_path):
     source = tmp_path / "statement.csv"
     source.write_text("fixture", encoding="utf-8")
     sessions, unit_of_work = _database()
-    ensure_workspace(sessions, "missing-cli-mapping-workspace")
+    ensure_workspace(sessions, "missing-mapping-workspace")
 
     with pytest.raises(ValueError, match="来源账户尚未完成映射"):
         DatabaseMappedStatementParser(
-            SourceParser(), unit_of_work(sessions, "missing-cli-mapping-workspace")
+            SourceParser(), unit_of_work(sessions, "missing-mapping-workspace")
         ).parse(StatementImportCommand(source_path=str(source), source="alipay"))
 
 

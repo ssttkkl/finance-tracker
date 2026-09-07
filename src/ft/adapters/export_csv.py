@@ -1,4 +1,8 @@
-"""CLI 输出文件使用的 CSV 适配器。"""
+"""CSV 交换文件适配器。
+
+CSV 输出由 API/Web 的导出流程调用；本模块不提供命令行入口。
+"""
+
 import csv
 import json
 

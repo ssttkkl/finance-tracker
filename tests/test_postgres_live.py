@@ -44,32 +44,6 @@ def postgres_sessions():
         reset_postgres_schema(DATABASE_URL)
 
 
-def test_live_postgres_runtime_cross_entrypoint_and_empty_home(
-    postgres_sessions, tmp_path, monkeypatch, capsys,
-):
-    from ft import cli
-    from ft.adapters.relational import ensure_workspace
-
-    ensure_workspace(postgres_sessions, "live-workspace")
-    home = tmp_path / "home"
-    home.mkdir()
-    monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("FT_DATABASE_URL", DATABASE_URL)
-    monkeypatch.setenv("FT_WORKSPACE_ID", "live-workspace")
-
-    cli.main(["acct", "add", "Cash", "--type", "cash", "--currency", "CNY"])
-    from ft.application.cash_projections import CashProjectionService
-    CashProjectionService(postgres_sessions, "live-workspace").rebuild()
-    cli.main([
-        "add", "--amount", "-12.34", "--counterparty", "Coffee",
-        "--account", "Cash", "--currency", "CNY", "--date", "2026-07-17 09:00:00",
-    ])
-    cli.main(["list", "--account", "Cash"])
-
-    assert "Coffee" in capsys.readouterr().out
-    assert not (home / ".ft").exists()
-
-
 def test_live_postgres_workspace_isolation_and_transaction_rollback(postgres_sessions):
     from ft.adapters.relational import RelationalUnitOfWork, ensure_workspace
     from ft.application.accounts import AccountService

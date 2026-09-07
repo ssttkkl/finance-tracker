@@ -1,6 +1,6 @@
 # YFinance Ticker 格式指南
 
-`ft stock list` 和独立实时价查询都用 yfinance，但 yfinance 的 ticker 格式跟常见的券商/行情软件**不一样**，写错就 404。
+Web/API 持仓查询和独立实时价查询都用 yfinance，但 yfinance 的 ticker 格式跟常见的券商/行情软件**不一样**，写错就 404。
 
 ## 美股
 

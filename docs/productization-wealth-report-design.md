@@ -38,7 +38,7 @@ Finance Tracker 已经完成 Phase 1 Application Services 和关系型存储收�
 
 ## Status Quo
 
-目标用户目前通常通过银行、支付宝、微信、券商和交易所各自的页面查看局部余额，再用电子表格或心理估算解释财富变化。现有 Finance Tracker 可以统一数据，但用户仍需理解 CLI、文件结构、快照和对账流程，且缺少一个直接回答“这段时间我的钱为什么变化”的产品界面。
+目标用户目前通常通过银行、支付宝、微信、券商和交易所各自的页面查看局部余额，再用电子表格或心理估算解释财富变化。现有 Finance Tracker 可以统一数据，但用户仍需理解文件结构、快照和对账流程，且缺少一个直接回答“这段时间我的钱为什么变化”的产品界面。
 
 Phase 1、Phase 2 和 PostgreSQL-only 收口均已完成。现有 Application Service、PostgreSQL
 repository/query、workspace 隔离、稳定 account ID、UTC `timestamptz` 和测试是可复用资产。下一步可以
@@ -84,7 +84,7 @@ repository/query、workspace 隔离、稳定 account ID、UTC `timestamptz` 和�
 1. 财务恒等式必须始终成立；无法解释的差额必须显示为 `unexplained_adjustment`，不能静默吞掉。
 2. 每个汇总项必须能追溯到交易、持仓、行情、汇率或显式调整。
 3. A 阶段只使用 PostgreSQL 事实源，不保留 local backend、迁移、双写或运行时回退。
-4. 业务计算只能存在于 Application/Domain 层，CLI、API 和页面不得重复实现。
+4. 业务计算只能存在于 Application/Domain 层，API 和页面不得重复实现。
 5. A 的单用户假设只能存在于 composition/auth adapter，不能渗入财富计算接口。
 6. 缺少期初/期末估值、历史 FX 或行情时，系统返回部分结果和缺口说明，不伪造精确值。
 7. 不为了未来 C 提前建设用户体系、队列、对象存储、OAuth、MCP 或 AI 基础设施。
@@ -165,7 +165,7 @@ API 和页面在 A3 验证完成前标记为 `experimental`。A3 达标后才冻
 - 固定 workspace resolver → 登录用户和 workspace membership；
 - 同步计算 → Worker 与投影表；
 - 原始 artifact locator → 对象存储和签名 URL；
-- `ft web` 本地分发 → 云 SaaS 或自托管容器；
+- 显式 Uvicorn API + Web/Expo 客户端本地分发 → 云 SaaS 或自托管容器；
 - 手工导入 → Web Upload、Connector 和关系审查列表。
 
 ### 核心查询契约
@@ -606,7 +606,7 @@ A 支持现金、银行存款、普通借贷、现货多头股票/ETF、现货�
 - `GET /experimental/wealth/components/{component_id}/evidence?cursor=...`
 - `GET /experimental/wealth/data-health?month={yyyy_mm}`
 - Next.js 只实现一个财富报告页面和一个证据抽屉；页面顶部提供“区间解释 / 趋势对比”切换，趋势对比提供 7D、30D、90D、1Y 和日、周、月粒度控件。
-- `ft web` 通过 PostgreSQL composition root 启动 API 与页面，绑定显式 workspace；数据库或 workspace 缺失时失败关闭。
+- 通过显式 Uvicorn 工厂启动 API，Web/Expo 客户端连接 API 并绑定会话 workspace；数据库或 workspace 缺失时失败关闭。
 - 区间解释必须显示基础币种、时间区间、计算版本、数据截止时间、解释比例和差额。
 - 趋势对比必须显示净资产折线、组成项堆叠柱和独立投资收益率线；点击任一时间桶复用相同的 breakdown 与 evidence 下钻。
 - 收益率线和 Tooltip 标签必须写“投资市场收益率（不含 FX）”，避免与独立 FX 归因重复或被误解为总财富回报。
@@ -766,7 +766,7 @@ Canonical serialization 规定：金额为无指数 Decimal 字符串；时间�
 
 ### 本地分发实现
 
-前端使用 Next.js static export，在构建时生成静态资源并打包进 Python wheel。运行时不要求 Node：FastAPI 同一进程托管 `/experimental` API 和静态前端，`ft web` 默认绑定 `127.0.0.1`，连接显式配置的 PostgreSQL workspace，自动选择空闲端口并尝试打开浏览器。浏览器打开失败只打印 URL，不终止服务；端口冲突自动选择下一端口；Ctrl-C 统一关闭服务。A 不启动独立 Worker，但 PostgreSQL 是必需的独立运行依赖。
+前端使用 Next.js static export，在构建时生成静态资源并打包进 Python wheel。运行时不要求 Node：FastAPI 通过显式 Uvicorn 工厂托管 `/experimental` API，Web/Expo 客户端连接显式配置的 PostgreSQL workspace。A 不启动独立 Worker，但 PostgreSQL 是必需的独立运行依赖。
 
 ### Visual Sketch
 
@@ -813,7 +813,7 @@ Canonical serialization 规定：金额为无指数 Decimal 字符串；时间�
 
 ### A
 
-通过现有 Python 包和 CLI 分发，提供 `ft web` 连接显式选择的本机 PostgreSQL 或文件型 SQLite、启动只读 API 与页面并打开 localhost。数据默认不离开用户机器。CI 构建 Python 包和前端静态产物，运行领域测试、双后端 contract/integration tests、API schema snapshot 和前端 smoke test。
+通过 Python 包和显式 Uvicorn 工厂启动 API，Web/Expo 客户端连接本机 PostgreSQL 或文件型 SQLite。数据默认不离开用户机器。CI 构建 Python 包和前端静态产物，运行领域测试、双后端 contract/integration tests、API schema snapshot 和前端 smoke test。
 
 首批用户采用辅助安装，不为一次性 onboarding 提前建设完整安装器。
 

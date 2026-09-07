@@ -352,7 +352,7 @@ def new_account_draft(group: SourceAccountGroup) -> dict:
 def apply_saved_mappings(uow, rows: list[dict]) -> list[dict]:
     """Apply confirmed workspace mappings for non-interactive cash paths.
 
-    This is intentionally read-only.  CLI import and cash conversion can use
+    This is intentionally read-only.  Import and preview flows can use
     the same database fact as the Web flow, but cannot silently create or
     change an account when a mapping is missing.
     """
@@ -375,7 +375,7 @@ def apply_saved_mappings(uow, rows: list[dict]) -> list[dict]:
 
 
 class DatabaseMappedStatementParser:
-    """Adapter for CLI/export paths that must consume database mappings."""
+    """Adapter for import/preview paths that consume database mappings."""
 
     def __init__(self, source_parser, uow):
         self._source_parser = source_parser

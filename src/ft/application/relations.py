@@ -97,7 +97,7 @@ def _is_human_decision(relation: Mapping[str, Any]) -> bool:
 
 @dataclass(frozen=True)
 class RelationPlan:
-    """Read-only relation result shared by CLI import and Web preview."""
+    """Read-only relation result shared by import and Web preview."""
 
     facts: tuple[FactView, ...]
     proposals: tuple[RelationProposal, ...]

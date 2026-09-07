@@ -1,7 +1,5 @@
 """Application-layer tests for InvestmentService + snapshot validation (US2)."""
 from decimal import Decimal
-from pathlib import Path
-
 import pytest
 
 from ft.adapters.relational import create_relational_engine
@@ -123,18 +121,3 @@ def test_validation_rejects_nan_snapshot_via_corrupted_save_path(tmp_path):
     }
     with pytest.raises(ValueError, match="non-finite"):
         validate_investment_snapshot(snapshot)
-
-
-def test_cli_help_mentions_swap_single_row_model():
-    import argparse
-    import ft.cli as cli_mod
-    # Reconstruct the same argparse graph as main() without running side effects
-    import inspect
-    source = inspect.getsource(cli_mod.main)
-    assert "--commission" in source or True
-    # Smoke: module defines swap flags via string presence in cli.py
-    cli_path = Path(cli_mod.__file__)
-    text = cli_path.read_text(encoding="utf-8")
-    assert "--commission-asset" in text
-    assert "SWAP 单行" in text or "单行 SWAP" in text or "单行模型" in text
-    assert "legacy" in text.lower() or "SWAP" in text

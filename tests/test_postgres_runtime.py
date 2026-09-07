@@ -32,19 +32,3 @@ def test_runtime_validation_accepts_current_schema_and_workspace():
 
     sessions, _ = _database()
     validate_runtime(sessions.kw["bind"], "workspace-a", "sqlite+pysqlite:///:memory:")
-
-
-def test_cli_help_does_not_load_settings_or_touch_home(monkeypatch, capsys):
-    from ft import cli
-
-    monkeypatch.setattr(
-        "ft.config.StorageSettings.load",
-        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("settings loaded")),
-    )
-    monkeypatch.setattr(Path, "home", lambda: (_ for _ in ()).throw(AssertionError("HOME read")))
-
-    with pytest.raises(SystemExit) as exc:
-        cli.main(["--help"])
-
-    assert exc.value.code == 0
-    assert "Finance Tracker" in capsys.readouterr().out

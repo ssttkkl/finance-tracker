@@ -4,8 +4,8 @@
 
 ```bash
 brew install qpdf mupdf-tools
-uv run ft import statement.pdf --source icbc --account Card --currency CNY \
-  --password-file /path/to/mode-0600-password-file
+# Web/Expo 导入流程：POST /api/v1/cash-import/preview
+# 使用 X-FT-Statement-Password 请求头传递账单密码，并在预览阶段选择账户映射。
 ```
 
 Finance Tracker 在 mode-0700 临时目录中调用 qpdf/mutool，完成后自动删除解密产物；不要在账单

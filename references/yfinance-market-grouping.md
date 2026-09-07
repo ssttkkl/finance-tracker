@@ -1,7 +1,7 @@
 # yfinance market grouping quirk
 
 ## Symptom
-When `ft stock list` fetched prices for a mixed basket containing US (`.US`), China A-shares (`.SZ` / `.SS`), and HK (`.HK`) tickers in the same `yfinance.download(...)` batch, the resulting Close series could contain `NaN` for the US names, causing portfolio market values to print as `nan`.
+When the Web/API portfolio query fetched prices for a mixed basket containing US (`.US`), China A-shares (`.SZ` / `.SS`), and HK (`.HK`) tickers in the same `yfinance.download(...)` batch, the resulting Close series could contain `NaN` for the US names, causing portfolio market values to print as `nan`.
 
 ## Repro
 - Mixed basket example: `nvda.us`, `mu.us`, `avgo.us`, `159330.sz`, `159740.sz`, `00700.hk`

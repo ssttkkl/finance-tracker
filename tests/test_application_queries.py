@@ -63,6 +63,7 @@ class FakeValuationProvider:
 
 
 def _service(rows=()):
+    from datetime import datetime, timezone
     from ft.application.queries import FinanceQueryService
     from ft.application.valuation import ValuationService
     from ft.domain.accounts import AccountDTO
@@ -86,7 +87,10 @@ def _service(rows=()):
             },
         }
     }
-    valuation = ValuationService(FakeValuationProvider())
+    valuation = ValuationService(
+        FakeValuationProvider(),
+        clock=lambda: datetime(2026, 7, 25, tzinfo=timezone.utc),
+    )
     return FinanceQueryService(
         accounts=FakeAccounts(accounts),
         transactions=FakeTransactions(rows),
@@ -203,40 +207,3 @@ def test_query_modules_import_without_home(monkeypatch):
 
     assert ft.application.queries.FinanceQueryService
     assert ft.domain.queries.FinanceReportDTO
-
-
-def test_cli_report_and_list_enter_query_service(monkeypatch, capsys):
-    from ft import cli
-    from ft.domain.queries import (
-        AccountListDTO,
-        FinanceReportDTO,
-        TransactionDTO,
-        TransactionPageDTO,
-    )
-
-    calls = []
-
-    class FakeService:
-        def report(self, *, month=None):
-            calls.append(("report", month))
-            return FinanceReportDTO(accounts=AccountListDTO(()))
-
-        def list_transactions(self, **kwargs):
-            calls.append(("list", kwargs))
-            return TransactionPageDTO((TransactionDTO(
-                occurred_at="2026-06-03", account_name="Cash", currency="CNY",
-                record_type="consumption", amount=Decimal("-3"), note="meal",
-            ),))
-
-    bundle = type("Bundle", (), {"queries": FakeService()})()
-    monkeypatch.setattr("ft.config.StorageSettings.load", lambda: object())
-    monkeypatch.setattr("ft.cli.build_services", lambda _settings: bundle)
-
-    cli.main(["report", "--month", "2026-06"])
-    cli.main(["list", "--month", "2026-06", "--limit", "1"])
-
-    assert calls == [
-        ("report", "2026-06"),
-        ("list", {"month": "2026-06", "account": None, "category_id": None, "limit": 1}),
-    ]
-    assert "meal" in capsys.readouterr().out

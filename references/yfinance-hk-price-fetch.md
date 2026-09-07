@@ -1,7 +1,7 @@
 # yfinance HK price fetch notes
 
 ## Symptom
-`ft stock list` could normalize `00700.hk -> 0700.HK`, but HK prices still occasionally came back empty or partial.
+Web/API 持仓查询 could normalize `00700.hk -> 0700.HK`, but HK prices still occasionally came back empty or partial.
 
 ## Root cause
 `yfinance.download()` returns different shapes depending on the request:

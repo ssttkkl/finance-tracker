@@ -1,0 +1,174 @@
+name: Mobile CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - refactor/web
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24"
+  ANDROID_API_LEVEL: "36"
+  ANDROID_BUILD_TOOLS: "36.0.0"
+  ANDROID_NDK_VERSION: "30.0.14904198"
+
+jobs:
+  quality:
+    name: Shared and JavaScript checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install JavaScript dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Test shared packages
+        run: npm run test:shared
+
+      - name: Typecheck shared packages
+        run: npm run typecheck:shared
+
+      - name: Test Mobile workspace
+        run: npm run test --workspace finance-tracker-mobile
+
+      - name: Typecheck Mobile workspace
+        run: npm run typecheck --workspace finance-tracker-mobile
+
+      - name: Export Android JavaScript bundle
+        run: npm run export:android --workspace finance-tracker-mobile
+
+      - name: Export iOS JavaScript bundle
+        run: npm run export:ios --workspace finance-tracker-mobile
+
+  android:
+    name: Android Debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install JavaScript dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate Android native project
+        working-directory: mobile
+        run: CI=1 npx expo prebuild --platform android --no-install
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build toolchain
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-${ANDROID_API_LEVEL}" \
+            "build-tools;${ANDROID_BUILD_TOOLS}" \
+            "ndk;${ANDROID_NDK_VERSION}"
+
+      - name: Assemble unsigned Debug APK
+        working-directory: mobile/android
+        env:
+          ORG_GRADLE_PROJECT_ndkVersion: ${{ env.ANDROID_NDK_VERSION }}
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Upload Android Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: finance-tracker-android-debug
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  ios:
+    name: iOS Simulator app
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install JavaScript dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate iOS native project
+        working-directory: mobile
+        run: CI=1 npx expo prebuild --platform ios --no-install
+
+      - name: Install CocoaPods dependencies
+        working-directory: mobile/ios
+        run: pod install --no-repo-update
+
+      - name: Build unsigned iOS Simulator app
+        shell: bash
+        run: |
+          set -euo pipefail
+          ios_workspace="$(find mobile/ios -maxdepth 1 -name '*.xcworkspace' -print -quit)"
+          test -n "$ios_workspace"
+
+          ios_scheme="$(basename "$ios_workspace" .xcworkspace)"
+          xcodebuild \
+            -workspace "$ios_workspace" \
+            -scheme "$ios_scheme" \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath mobile/ios/build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+          ios_app="$(find mobile/ios/build/Build/Products/Debug-iphonesimulator -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$ios_app"
+          mkdir -p mobile/dist
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$ios_app" \
+            mobile/dist/finance-tracker-ios-simulator.zip
+
+      - name: Upload iOS Simulator app
+        uses: actions/upload-artifact@v4
+        with:
+          name: finance-tracker-ios-simulator
+          path: mobile/dist/finance-tracker-ios-simulator.zip
+          if-no-files-found: error
+          retention-days: 7

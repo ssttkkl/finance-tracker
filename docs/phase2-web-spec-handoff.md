@@ -33,7 +33,7 @@ SaaS 或通用 Web 平台设计基础设施。
 
 ## 2. Phase 2 总目标
 
-提供一个连接本机**工作区**的独立只读 Web，让用户无需通过 CLI，也能：
+提供一个连接本机**工作区**的独立只读 Web，让用户无需接触后端运行细节，也能：
 
 - 分别浏览已导入的**现金流水**与**投资事件**；
 - 查看每条账本记录的**导入渠道**、**业务行标识**和**来源行快照**；
@@ -61,7 +61,7 @@ PR。019 关账完成并合入基线后，再创建 `020-transaction-browser-web
 
 ### 4.1 本地运行
 
-- 提供明确的本地启动入口，目标命令为 `ft web`；
+- 提供明确的本地启动入口：`uv run uvicorn ft.web.app:create_runtime_app --factory`；
 - 默认只绑定 `127.0.0.1`，不得默认暴露到局域网或公网；
 - 使用 `FT_DATABASE_URL` 显式选择 PostgreSQL 或文件型 SQLite，不得自动回退、双写或隐式迁移；
 - 绑定明确的工作区；数据库、schema 或工作区不可用时失败关闭并给出可操作的错误信息；
@@ -171,8 +171,8 @@ Web/API 不得逐行调用外部行情源，也不得重新实现 ticker 去重�
 
 ## 5. 应用与 API 边界
 
-020 应补充专用的只读 Application Service 和 transport-neutral DTO。不要直接把现有 CLI DTO 当作
-Web API，也不要让 Web controller 直接查询 SQLAlchemy repository。
+020 应补充专用的只读 Application Service 和 transport-neutral DTO。不要让 Web controller 直接查询
+SQLAlchemy repository。
 
 最低能力边界应覆盖：
 
@@ -205,7 +205,7 @@ API 路径、框架和 DTO 名称由 plan 决定。无论采用何种 transport�
 
 ## 7. 整体验收场景
 
-1. 用户用 PostgreSQL 启动 `ft web`，进入消费账本，筛选并稳定翻页，然后查看来源和关系证据；
+1. 用户用 PostgreSQL 启动显式 Uvicorn 工厂，进入消费账本，筛选并稳定翻页，然后查看来源和关系证据；
 2. 用户在同一 Web 中进入投资账本，筛选投资事件、稳定翻页并查看来源证据；
 3. 用户同时看到当前持仓摘要和投资事件流水，并能区分二者含义；
 4. 用户用文件型 SQLite 完成相同主流程，用户可见结果与 PostgreSQL 基本等价；

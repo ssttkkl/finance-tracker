@@ -199,7 +199,7 @@ workspaces  (租户隔离根)
 
 - **不**写入文件 digest / 路径 / batch 状态到数据库。  
 - 幂等门禁：**仅**活跃事实的 **`record_id` × `source_type`**（导入渠道名 × 行键）。  
-- CLI 可报告 `new_rows` / 成功消息；**无**持久化 `batch_id`。
+- API 响应可报告 `new_rows` / 成功消息；**无**持久化 `batch_id`。
 
 
 ---

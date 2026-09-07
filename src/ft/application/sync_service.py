@@ -107,7 +107,8 @@ class SyncService:
             account_id = self._resolve_account_id(uow, account_name)
             uow.rollback()
 
-        # Connector must be provided by caller (CLI layer builds from credentials)
+        # Connector must be provided by the caller; the HTTP/operations boundary
+        # builds it from server-side credentials.
         if connector is None:
             return OperationResult(
                 ok=False,

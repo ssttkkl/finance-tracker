@@ -63,8 +63,8 @@ class InvestmentImportService:
             source_path: Path to statement file
             account_name: Target account name
             currency: Default currency. For dfzq defaults to CNY when unset;
-                for ibkr uses CLI value or 总结.基础货币 (no silent USD/CNY);
-                for schwab uses CLI value or USD when unset.
+                for ibkr uses the caller value or 总结.基础货币 (no silent USD/CNY);
+                for schwab uses the caller value or USD when unset.
             password: PDF password for encrypted statements (optional)
 
         Returns:
@@ -127,10 +127,10 @@ class InvestmentImportService:
                     message="账单中没有可导入的交易记录",
                 )
 
-            # Resolve currency: CLI override, else source-specific default.
+            # Resolve currency: caller override, else source-specific default.
             # IBKR: no silent USD/CNY — use 总结.基础货币 or require --currency.
-            # Schwab: CLI or USD (statement is US$).
-            # uSmart HK rows carry native currencies; CLI is fallback only.
+            # Schwab: caller value or USD (statement is US$).
+            # uSmart HK rows carry native currencies; the caller value is fallback only.
             resolved_currency = currency
             if source == "ibkr":
                 base = (transactions[0].get("_ibkr_base_currency") or "").strip()

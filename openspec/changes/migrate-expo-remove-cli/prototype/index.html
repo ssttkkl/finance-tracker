@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Finance Tracker · Expo 迁移原型</title>
+    <style>
+      /* Hallmark · macrostructure: Narrative Workflow · tone: technical · anchor hue: cobalt · theme: Cobalt · nav: N9 · footer: none (application) · pre-emit critique: P5 H5 E4 S5 R5 V4 */
+      :root {
+        --color-paper: oklch(.965 .008 250);
+        --color-paper-raised: oklch(.995 .004 250);
+        --color-paper-muted: oklch(.935 .012 250);
+        --color-ink: oklch(.25 .02 250);
+        --color-ink-muted: oklch(.48 .018 250);
+        --color-ink-faint: oklch(.59 .014 250);
+        --color-rule: oklch(.87 .012 250);
+        --color-rule-strong: oklch(.74 .02 250);
+        --color-accent: oklch(.48 .16 252);
+        --color-accent-ink: oklch(.99 .004 250);
+        --color-accent-soft: oklch(.94 .03 252);
+        --color-income: oklch(.45 .12 155);
+        --color-expense: oklch(.48 .15 28);
+        --color-danger: oklch(.5 .17 28);
+        --color-sidebar: oklch(.25 .02 250);
+        --color-sidebar-raised: oklch(.31 .025 250);
+        --color-sidebar-link: oklch(.86 .02 250);
+        --font-display: "Noto Sans SC", ui-sans-serif, sans-serif;
+        --font-body: "Noto Sans SC", ui-sans-serif, sans-serif;
+        --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 20px;
+        --space-6: 24px;
+        --space-8: 32px;
+        --radius-1: 3px;
+        --radius-2: 5px;
+        --rule-1: 1px;
+        --dur-fast: 120ms;
+        --dur-panel: 160ms;
+        --ease-out: cubic-bezier(.16, 1, .3, 1);
+      }
+
+      * { box-sizing: border-box; }
+      html, body { min-width: 0; overflow-x: clip; }
+      body {
+        margin: 0;
+        padding: env(safe-area-inset-top) max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+        background: var(--color-paper);
+        color: var(--color-ink);
+        font: 16px/1.55 var(--font-body);
+      }
+      button, input, select { font: inherit; }
+      button {
+        min-height: 44px;
+        padding: 0 var(--space-3);
+        border: var(--rule-1) solid var(--color-rule-strong);
+        border-radius: var(--radius-1);
+        background: var(--color-paper-raised);
+        color: var(--color-ink);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+      }
+      @media (hover: hover) and (pointer: fine) {
+        button:hover:not(:disabled) { border-color: var(--color-accent); background: var(--color-accent-soft); }
+      }
+      button:active:not(:disabled) { transform: translateY(1px); }
+      button:disabled { cursor: not-allowed; opacity: .55; }
+      button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+        outline: 3px solid var(--color-accent);
+        outline-offset: 2px;
+      }
+      input, select {
+        min-height: 44px;
+        width: 100%;
+        padding: 0 var(--space-3);
+        border: var(--rule-1) solid var(--color-rule);
+        border-radius: var(--radius-1);
+        outline: 2px solid transparent;
+        background: var(--color-paper-raised);
+        color: var(--color-ink);
+      }
+      input:hover:not(:disabled), select:hover:not(:disabled) { background: var(--color-paper-muted); }
+      input[aria-invalid="true"] { border-color: var(--color-danger); }
+      h1, h2, h3, p { margin: 0; }
+      h1, h2, h3 { font-family: var(--font-display); font-style: normal; }
+      h1 { font-size: clamp(1.75rem, 6vw, 2.5rem); line-height: 1.12; letter-spacing: -.04em; overflow-wrap: anywhere; }
+      h2 { font-size: 1.25rem; line-height: 1.2; }
+      h3 { font-size: 1rem; line-height: 1.3; }
+      .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+      .shell { max-width: 1120px; margin: 0 auto; }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-3);
+        min-height: 64px;
+        border-bottom: var(--rule-1) solid var(--color-rule-strong);
+      }
+      .wordmark { color: var(--color-ink); font-weight: 750; letter-spacing: -.03em; }
+      .topbar small { color: var(--color-ink-muted); white-space: nowrap; }
+      .intro { display: grid; gap: var(--space-3); padding: 36px 0 28px; max-width: 660px; }
+      .intro p { color: var(--color-ink-muted); max-width: 60ch; }
+      .stage-nav {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        border-top: var(--rule-1) solid var(--color-rule-strong);
+        border-bottom: var(--rule-1) solid var(--color-rule-strong);
+      }
+      .stage-nav button {
+        display: grid;
+        justify-items: start;
+        gap: 2px;
+        min-height: 68px;
+        padding: 10px 12px;
+        border-width: 0 var(--rule-1) 0 0;
+        border-radius: 0;
+        background: transparent;
+        text-align: left;
+      }
+      .stage-nav button:last-child { border-right: 0; }
+      .stage-nav button[aria-current="step"] { background: var(--color-sidebar); color: var(--color-sidebar-link); }
+      .stage-nav .stage-number { font: 500 11px/1 var(--font-mono); color: var(--color-accent); }
+      .stage-nav button[aria-current="step"] .stage-number { color: var(--color-sidebar-link); }
+      .stage-nav .stage-label { font-size: 13px; font-weight: 650; }
+      .workflow { display: grid; gap: var(--space-5); padding: 28px 0 48px; }
+      .stage { display: none; gap: var(--space-4); }
+      .stage[data-active="true"] { display: grid; }
+      .stage-heading { display: grid; gap: var(--space-2); }
+      .stage-heading .eyebrow { color: var(--color-accent); font: 500 11px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+      .stage-heading p { color: var(--color-ink-muted); }
+      .surface { border: var(--rule-1) solid var(--color-rule-strong); background: var(--color-paper-raised); }
+      .surface-header { display: flex; align-items: start; justify-content: space-between; gap: var(--space-3); padding: var(--space-4); border-bottom: var(--rule-1) solid var(--color-rule); }
+      .surface-header p { color: var(--color-ink-muted); font-size: 13px; }
+      .surface-body { display: grid; gap: var(--space-4); padding: var(--space-4); }
+      .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+      label { display: grid; gap: var(--space-1); color: var(--color-ink-muted); font-size: 13px; }
+      .field-wide { grid-column: 1 / -1; }
+      .actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; }
+      .button-primary { border-color: var(--color-accent); background: var(--color-accent); color: var(--color-accent-ink); }
+      .button-danger { border-color: var(--color-danger); color: var(--color-danger); }
+      .status-row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3); border-left: 3px solid var(--color-accent); background: var(--color-accent-soft); }
+      .status-row.error { border-left-color: var(--color-danger); background: color-mix(in oklch, var(--color-danger) 8%, var(--color-paper-raised)); color: var(--color-danger); }
+      .status-row.success { border-left-color: var(--color-income); background: color-mix(in oklch, var(--color-income) 8%, var(--color-paper-raised)); color: var(--color-income); }
+      .status-row strong { font-size: 13px; }
+      .status-row span { color: var(--color-ink-muted); font-size: 13px; }
+      .ledger-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2) var(--space-4); padding: var(--space-3) 0; border-bottom: var(--rule-1) solid var(--color-rule); }
+      .ledger-row:last-child { border-bottom: 0; }
+      .ledger-row small { display: block; color: var(--color-ink-muted); }
+      .amount { align-self: center; font-weight: 650; }
+      .expense { color: var(--color-expense); }
+      .income { color: var(--color-income); }
+      .empty { display: grid; justify-items: start; gap: var(--space-3); padding: 28px var(--space-4); color: var(--color-ink-muted); }
+      .choice-grid { display: grid; gap: var(--space-2); }
+      .choice { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 56px; padding: 0 var(--space-3); border: var(--rule-1) solid var(--color-rule); }
+      .choice strong { min-width: 0; overflow-wrap: anywhere; }
+      .choice select { width: min(220px, 46%); }
+      .danger-panel { display: grid; gap: var(--space-3); padding: var(--space-3); border: var(--rule-1) solid var(--color-danger); }
+      .danger-panel p { color: var(--color-ink-muted); font-size: 13px; }
+      .demo-note { color: var(--color-ink-faint); font-size: 12px; }
+      .state-switcher { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-bottom: var(--space-2); }
+      .state-switcher button[aria-pressed="true"] { border-color: var(--color-accent); background: var(--color-accent-soft); color: var(--color-accent); }
+      .state { display: none; }
+      .state[data-active="true"] { display: block; }
+      @media (max-width: 640px) {
+        .topbar { min-height: 56px; }
+        .topbar small { display: none; }
+        .intro { padding-top: 28px; }
+        .stage-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .stage-nav button:nth-child(2) { border-right: 0; }
+        .stage-nav button:nth-child(-n + 2) { border-bottom: var(--rule-1) solid var(--color-rule-strong); }
+        .field-grid { grid-template-columns: minmax(0, 1fr); }
+        .field-wide { grid-column: auto; }
+        .choice { align-items: stretch; flex-direction: column; justify-content: center; padding-block: var(--space-2); }
+        .choice select { width: 100%; }
+        .actions { justify-content: stretch; }
+        .actions button { flex: 1 1 auto; }
+      }
+      @media (max-width: 380px) {
+        body { padding-inline: 12px; }
+        .surface-header, .surface-body { padding: 12px; }
+        .stage-nav button { padding-inline: 10px; }
+        .stage-nav .stage-label { font-size: 12px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { transition-duration: 0s !important; scroll-behavior: auto !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="wordmark">Finance Tracker</div>
+        <small>Expo Native migration · prototype</small>
+      </header>
+
+      <section class="intro" aria-labelledby="prototype-title">
+        <h1 id="prototype-title">把每天的账记在手边。</h1>
+        <p>移动端先承载最常用的一条路径：进入工作区、查看收支、记一笔、处理账单。</p>
+      </section>
+
+      <nav class="stage-nav" aria-label="迁移原型流程">
+        <button type="button" data-step="0" aria-current="step"><span class="stage-number">01</span><span class="stage-label">进入工作区</span></button>
+        <button type="button" data-step="1"><span class="stage-number">02</span><span class="stage-label">看收支</span></button>
+        <button type="button" data-step="2"><span class="stage-number">03</span><span class="stage-label">记一笔</span></button>
+        <button type="button" data-step="3"><span class="stage-number">04</span><span class="stage-label">导入账单</span></button>
+      </nav>
+
+      <section class="workflow" aria-live="polite">
+        <article class="stage" data-stage="0" data-active="true">
+          <div class="stage-heading"><span class="eyebrow">01 · workspace</span><h2>选择要处理的工作区</h2><p>同一个工作区在 Web 和手机上看到相同的账。</p></div>
+          <div class="surface">
+            <div class="surface-header"><div><h3>你的工作区</h3><p>选择后进入收支账本。</p></div><span class="mono">2 个</span></div>
+            <div class="surface-body choice-grid">
+              <button class="choice" type="button"><strong>个人账本</strong><span class="mono">editor</span></button>
+              <button class="choice" type="button"><strong>家庭账本</strong><span class="mono">viewer</span></button>
+              <div class="status-row error" role="alert"><strong>会话已过期</strong><span>请重新登录后继续。</span></div>
+              <div class="actions"><button type="button" class="button-primary">重新登录</button></div>
+            </div>
+          </div>
+          <p class="demo-note">原型状态：正常列表、权限提示、会话错误。</p>
+        </article>
+
+        <article class="stage" data-stage="1" data-active="false">
+          <div class="stage-heading"><span class="eyebrow">02 · ledger</span><h2>先看今天发生了什么</h2><p>移动端使用单列记录，点开一条即可查看详情。</p></div>
+          <div class="surface">
+            <div class="surface-header"><div><h3>收支账本</h3><p>个人账本 · 最近更新</p></div><button type="button">筛选</button></div>
+            <div class="surface-body">
+              <div class="ledger-row"><div><strong>便利店</strong><small>今天 · 现金账户 · 食品</small></div><span class="amount expense mono">− 32.50 CNY</span></div>
+              <div class="ledger-row"><div><strong>工资</strong><small>昨天 · 工资账户 · 收入</small></div><span class="amount income mono">＋ 18,000 CNY</span></div>
+              <div class="ledger-row"><div><strong>账户转入</strong><small>昨天 · 储蓄账户 · 转账</small></div><span class="amount mono">＋ 2,000 CNY</span></div>
+            </div>
+          </div>
+          <div class="surface">
+            <div class="empty"><h3>还没有收支记录</h3><p>记下第一笔，账本就会开始工作。</p><button type="button" class="button-primary" data-step="2">记一笔</button></div>
+          </div>
+          <p class="demo-note">原型状态：已有记录、空账本；列表不使用桌面表格。</p>
+        </article>
+
+        <article class="stage" data-stage="2" data-active="false">
+          <div class="stage-heading"><span class="eyebrow">03 · record</span><h2>用几项信息记一笔</h2><p>金额和币种由服务端确认，提交后再刷新列表。</p></div>
+          <div class="surface">
+            <div class="surface-header"><div><h3>新建流水</h3><p>保存前可以随时取消。</p></div><span class="mono">draft</span></div>
+            <form class="surface-body" onsubmit="return false">
+              <div class="field-grid">
+                <label class="field-wide">金额<input inputmode="decimal" value="32.50" aria-label="金额" /></label>
+                <label>币种<select aria-label="币种"><option>CNY</option><option>HKD</option><option>USD</option></select></label>
+                <label>账户<select aria-label="账户"><option>现金账户</option><option>储蓄账户</option></select></label>
+                <label>流水类型<select aria-label="流水类型"><option>消费</option><option>收入</option><option>转账出账</option></select></label>
+                <label>发生日期<input type="date" value="2026-09-04" aria-label="发生日期" /></label>
+                <label class="field-wide">交易对方<input value="便利店" aria-label="交易对方" /></label>
+              </div>
+              <div class="status-row" role="status"><strong>正在保存</strong><span>按钮保持可读，结果由服务端确认。</span></div>
+              <div class="actions"><button type="button">取消</button><button type="button" class="button-primary" disabled>保存中…</button></div>
+            </form>
+          </div>
+          <div class="surface">
+            <div class="surface-body">
+              <div class="status-row success" role="status"><strong>已保存</strong><span>这笔记录已出现在收支账本。</span></div>
+              <div class="danger-panel"><h3>删除这笔记录？</h3><p>删除后它会从当前账本中消失。</p><div class="actions"><button type="button">取消</button><button type="button" class="button-danger">确认删除</button></div></div>
+            </div>
+          </div>
+          <p class="demo-note">原型状态：填写、保存中、保存成功、删除确认、错误入口。</p>
+        </article>
+
+        <article class="stage" data-stage="3" data-active="false">
+          <div class="stage-heading"><span class="eyebrow">04 · import</span><h2>导入账单，再确认一次</h2><p>文件只在导入会话里使用；没有确认就不会进入账本。</p></div>
+          <div class="surface">
+            <div class="surface-header"><div><h3>选择账单</h3><p>支持手机文件选择器。</p></div><span class="mono">PDF · CSV</span></div>
+            <div class="surface-body">
+              <button type="button" class="choice"><strong>选择文件</strong><span>打开系统文件</span></button>
+              <div class="status-row" role="status"><strong>正在读取账单</strong><span>请保持当前页面。</span></div>
+              <div class="status-row error" role="alert"><strong>需要账单密码</strong><span>密码只用于这次读取。</span></div>
+            </div>
+          </div>
+          <div class="surface">
+            <div class="surface-header"><div><h3>确认来源账户</h3><p>每个来源账户都要明确选择。</p></div><span class="mono">2 / 2</span></div>
+            <div class="surface-body choice-grid">
+              <div class="choice"><strong>尾号 8821 · CNY</strong><select aria-label="尾号 8821 的账户"><option>现金账户</option><option>新建账户</option></select></div>
+              <div class="choice"><strong>尾号 8821 · HKD</strong><select aria-label="尾号 8821 的账户"><option>现金账户</option><option>新建账户</option></select></div>
+              <div class="status-row success" role="status"><strong>可以确认导入</strong><span>新增 12 条，重复 3 条。</span></div>
+              <div class="actions"><button type="button">返回修改</button><button type="button" class="button-primary">确认导入</button></div>
+            </div>
+          </div>
+          <p class="demo-note">原型状态：选择、读取中、密码错误、账户映射、确认成功。</p>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      const stageButtons = [...document.querySelectorAll("[data-step]")];
+      const stages = [...document.querySelectorAll("[data-stage]")];
+      function activate(step) {
+        stageButtons.forEach((button) => {
+          const active = button.dataset.step === String(step);
+          if (button.closest("nav")) button.setAttribute("aria-current", active ? "step" : "false");
+        });
+        stages.forEach((stage) => { stage.dataset.active = stage.dataset.stage === String(step) ? "true" : "false"; });
+      }
+      stageButtons.forEach((button) => button.addEventListener("click", () => activate(button.dataset.step)));
+    </script>
+  </body>
+</html>

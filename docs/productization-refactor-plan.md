@@ -18,7 +18,7 @@
 
 当前相关材料：
 
-- [项目 README](../README.md)：运行时、CLI、导入与同步。
+- [项目 README](../README.md)：运行时、API、Web/Expo、导入与同步。
 - [文档索引](README.md)
 - [运行时数据库](../openspec/specs/runtime-database/spec.md)：PostgreSQL 与 SQLite 的显式选择和等价行为。
 - [投资组合估值](../openspec/specs/portfolio-valuation/spec.md) / [投资连接器同步](../openspec/specs/investment-connector-sync/spec.md)：估值与连接器当前合同。
@@ -44,9 +44,9 @@ Finance Tracker 面向同时使用银行、支付平台、券商和交易所的�
 
 ### 已完成：Phase 1 Application Services
 
-- CLI 叶子命令已经通过 Application Service 和 ports 编排。
-- CLI 负责参数、确认、退出码和展示；Application 层负责验证、事务和状态机。
-- 当前命令矩阵和边界测试见 Phase 1 文档。
+- Web/API 与客户端操作已经通过 Application Service 和 ports 编排。
+- API 负责请求解析与错误合同；Application 层负责验证、事务和状态机。
+- 当前能力矩阵和边界测试见 OpenSpec 变更与契约测试。
 
 ### 已完成：Phase 2 PostgreSQL Storage
 
@@ -59,7 +59,7 @@ Finance Tracker 面向同时使用银行、支付平台、券商和交易所的�
 
 新产品能力开始前的存储收口已经完成：
 
-- PostgreSQL 成为 CLI、Web、Worker 和 MCP 的唯一运行时事实源。
+- PostgreSQL 成为 API、Web、Worker 和 MCP 的唯一运行时事实源。
 - 删除 CSV/YAML/Git 文件账本 backend、backend 选择、迁移兼容和 shadow comparison。
 - 原始 CSV、XLS/XLSX 和 PDF 只作为输入证据，不成为正式账本或运行时回退。
 - 当前数据可丢弃；应用不得读取、迁移或自动删除用户目录中的旧账本。
@@ -70,7 +70,7 @@ Finance Tracker 面向同时使用银行、支付平台、券商和交易所的�
 ### 已完成：PostgreSQL 与 SQLite 双数据库运行时（`runtime-database`）
 
 PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_URL` 显式选择。
-两个后端共享 Application Service、CLI 契约、财务语义、审计关系和 schema 迁移入口；不提供自动回退、
+两个后端共享 Application Service、API 契约、财务语义、审计关系和 schema 迁移入口；不提供自动回退、
 双写或隐式跨后端迁移。SQLite 使用 WAL、外键和有界写锁等待；既有权限过宽的文件只给出修复建议，
 不会自动 chmod。PostgreSQL-only 只保留为历史收口记录，不回写新需求。
 
@@ -88,7 +88,7 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
 
 1. **一次选择一个事实源**：运行时通过 `FT_DATABASE_URL` 显式选择 PostgreSQL 或 SQLite，不建设双写、
    自动回退或文件账本回退。
-2. **业务规则只有一份**：CLI、Web、Worker、AI 和 MCP 调用相同 Application Service。
+2. **业务规则只有一份**：API、Web、Worker、AI 和 MCP 调用相同 Application Service。
 3. **模块化单体优先**：没有当前 feature 的具体需求，不增加微服务、队列或通用平台层。
 4. **可审计优先**：导入、自动规则、人工决定和 AI 建议必须能追溯来源与修订。
 5. **确定性优先**：可以由规则可靠处理的行为不交给模型。
@@ -133,8 +133,8 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
   非目标：历史时间序列、期初/期末边界估值、收益率归因（归 Phase 3）。
 
 - **`investment-connector-sync`（Complete）**：
-  手动 `ft sync`：ccxt 交易所（binance/kraken/okx）私有成交+ledger、Polymarket Activity（含 REDEEM/YIELD）与当前 pUSD `balanceOf` → USD checkin；
-  `source_type`×`record_id` 幂等、`sync_cursors` 增量、`~/.ft/credentials.yaml` 本地凭据；有界 `ft stock list` 渲染。
+  受控后端同步 API：ccxt 交易所（binance/kraken/okx）私有成交+ledger、Polymarket Activity（含 REDEEM/YIELD）与当前 pUSD `balanceOf` → USD checkin；
+  `source_type`×`record_id` 幂等、`sync_cursors` 增量、后端受控凭据；投资持仓通过 Web/API 查询。
   非目标：定时 Worker、Web、secret vault、通用 Connector 平台、行情/FX 自动更新（由 `portfolio-valuation` 约束）。
 
 #### Phase 1 完成门槛
@@ -246,7 +246,7 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
 
 ### 工程
 
-- Application Service 被 CLI/Web/MCP 复用；
+- Application Service 被 API/Web/MCP 复用；
 - PostgreSQL/SQLite repository、事务和 workspace 隔离等价测试通过；
 - 导入和同步重复执行保持幂等；
 - 财富恒等式在受支持范围内 100% 成立；

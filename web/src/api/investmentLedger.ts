@@ -1,64 +1,32 @@
-import type { Account, InvestmentEvidence, InvestmentFilters, InvestmentPage, Portfolio, PortfolioPeriod } from "./types";
-import { authHeaders } from "./access";
+import type { Account, InvestmentEvidence, InvestmentFilters, InvestmentPage, Portfolio, PortfolioPeriod } from "@finance-tracker/contracts";
+import { apiClient, apiOrigin, authHeaders } from "./access";
 
-function apiOrigin(): string {
-  const origin = import.meta.env.VITE_FT_API_ORIGIN;
-  if (!origin) {
-    throw new Error("api_origin_invalid");
-  }
-  let parsed: URL;
-  try { parsed = new URL(origin); } catch { throw new Error("api_origin_invalid"); }
-  const localHttp = parsed.protocol === "http:" && ["127.0.0.1", "localhost"].includes(parsed.hostname) && parsed.port !== "";
-  const hostedHttps = parsed.protocol === "https:" && parsed.hostname !== "";
-  if ((!localHttp && !hostedHttps) || parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
-    throw new Error("api_origin_invalid");
-  }
-  return origin.replace(/\/$/, "");
-}
-
-async function request<T>(path: string, signal?: AbortSignal, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiOrigin()}${path}`, { ...init, headers: authHeaders(init?.headers), signal });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null) as { error?: { code?: unknown }; code?: unknown } | null;
-    const code = payload?.error?.code ?? payload?.code;
-    throw new Error(typeof code === "string" ? code : "api_request_failed");
-  }
-  return response.json() as Promise<T>;
-}
-
-function paramsFor(filters: InvestmentFilters, cursor?: string | null, displayCurrency?: string): string {
-  const params = new URLSearchParams();
-  Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); });
-  params.set("timezone", Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
-  if (cursor) params.set("cursor", cursor);
-  if (displayCurrency) params.set("display_currency", displayCurrency);
-  return params.toString();
-}
+export type { Account, InvestmentEvidence, InvestmentFilters, InvestmentPage, Portfolio, PortfolioPeriod } from "@finance-tracker/contracts";
 
 export function fetchInvestmentPage(filters: InvestmentFilters, cursor?: string | null, signal?: AbortSignal): Promise<InvestmentPage> {
-  const query = paramsFor(filters, cursor);
-  return request<InvestmentPage>(`/api/v1/investment-events?${query}`, signal);
+  return apiClient().fetchInvestmentPage(filters, cursor, signal);
 }
 
 export function fetchInvestmentAccounts(signal?: AbortSignal): Promise<Account[]> {
-  return request<{ items: Account[] }>("/api/v1/accounts?view=investment", signal).then((payload) => payload.items);
+  return apiClient().fetchInvestmentAccounts(signal);
 }
 
 export function fetchInvestmentEvidence(eventId: string, signal?: AbortSignal): Promise<InvestmentEvidence> {
-  return request<InvestmentEvidence>(`/api/v1/evidence/investment-events/${encodeURIComponent(eventId)}`, signal);
+  return apiClient().fetchInvestmentEvidence(eventId, signal);
 }
 
 export function fetchInvestmentPortfolio(displayCurrency?: string, period: PortfolioPeriod = "24h", signal?: AbortSignal, phase: "holdings" | "valuation" = "valuation"): Promise<Portfolio> {
-  return request<Portfolio>(`/api/v1/investment-portfolio?${portfolioParams(displayCurrency, period, phase)}`, signal);
+  return apiClient().fetchInvestmentPortfolio(displayCurrency, period, signal, phase);
 }
 
 type PortfolioStreamPayload = { version: number; portfolio?: Portfolio };
 export type PortfolioStream = { close: () => void };
 
 function portfolioParams(displayCurrency?: string, period: PortfolioPeriod = "24h", phase?: "holdings" | "valuation") {
-  const query = paramsFor({}, null, displayCurrency);
-  const params = new URLSearchParams(query);
+  const params = new URLSearchParams();
+  params.set("timezone", Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   params.set("period", period);
+  if (displayCurrency) params.set("display_currency", displayCurrency);
   if (phase) params.set("phase", phase);
   return params.toString();
 }
@@ -125,9 +93,5 @@ export function openInvestmentPortfolioStream(
 }
 
 export function requestInvestmentPortfolioRefresh(displayCurrency?: string, period: PortfolioPeriod = "24h"): Promise<void> {
-  return request<{ accepted: boolean }>(
-    `/api/v1/investment-portfolio/refresh?${portfolioParams(displayCurrency, period)}`,
-    undefined,
-    { method: "POST" },
-  ).then(() => undefined);
+  return apiClient().request<{ accepted: boolean }>(`/api/v1/investment-portfolio/refresh?${portfolioParams(displayCurrency, period)}`, { method: "POST" }).then(() => undefined);
 }

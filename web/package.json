@@ -15,10 +15,14 @@
     "test:preview": "playwright test -c playwright.preview.config.ts"
   },
   "dependencies": {
+    "@finance-tracker/api-client": "0.1.0",
+    "@finance-tracker/contracts": "0.1.0",
+    "@finance-tracker/core": "0.1.0",
+    "@finance-tracker/design-tokens": "0.1.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@fontsource/noto-sans-sc": "^5.3.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.0",

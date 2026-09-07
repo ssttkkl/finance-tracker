@@ -77,6 +77,98 @@ class WorkspaceServices:
     def _user(self):
         return self._user_var.get() if self._user_var is not None and self._user_var.get() else "__anonymous__"
 
+    def _uow(self):
+        from ft.adapters.relational.uow import RelationalUnitOfWork
+
+        return RelationalUnitOfWork(self._sessions, self._workspace())
+
+    def legacy_accounts(self):
+        from ft.application.accounts import AccountService
+
+        return AccountService(self._uow())
+
+    def legacy_cashflow(self):
+        from ft.application.cashflow import CashflowService
+
+        return CashflowService(self._uow())
+
+    def legacy_transfers(self):
+        from ft.application.cashflow import TransferService
+
+        return TransferService(self._uow())
+
+    def legacy_investments(self):
+        from ft.adapters.relational.investments import RelationalInvestmentCommandRepository
+        from ft.application.investment import InvestmentService
+
+        return InvestmentService(repository=RelationalInvestmentCommandRepository(self._uow()))
+
+    def legacy_investment_import(self):
+        from ft.application.investment_import import InvestmentImportService
+
+        return InvestmentImportService(self._uow())
+
+    def legacy_queries(self):
+        from ft.adapters.market_data import CompositeQuoteProvider, MarketDataProvider
+        from ft.adapters.relational.queries import (
+            RelationalAccountQueryRepository,
+            RelationalSnapshotQueryRepository,
+            RelationalTransactionQueryRepository,
+        )
+        from ft.application.queries import FinanceQueryService
+        from ft.application.relations import RelationService
+        from ft.application.valuation import ValuationService
+
+        relation_service = RelationService(self._uow())
+        quote_provider = CompositeQuoteProvider()
+        return FinanceQueryService(
+            accounts=RelationalAccountQueryRepository(self._sessions, self._workspace()),
+            transactions=RelationalTransactionQueryRepository(self._sessions, self._workspace()),
+            snapshots=RelationalSnapshotQueryRepository(self._sessions, self._workspace()),
+            market_data=MarketDataProvider(quote_provider),
+            valuation=ValuationService(quote_provider),
+            relation_projector=relation_service.project,
+        )
+
+    def legacy_funding_relations(self):
+        from ft.application.cash_investment_funding_relations import CashInvestmentFundingRelationService
+
+        return CashInvestmentFundingRelationService(self._sessions, self._workspace())
+
+    def legacy_projection(self):
+        from ft.application.cash_projections import CashProjectionService
+
+        return CashProjectionService(self._sessions, self._workspace())
+
+    def legacy_relations(self):
+        from ft.application.relations import RelationService
+
+        return RelationService(self._uow())
+
+    def add_account_alias(self, *, alias_type: str, alias_value: str, account_name: str) -> dict:
+        from sqlalchemy import select
+        from ft.adapters.relational.models import AccountModel
+
+        with self._uow() as uow:
+            account = uow._state().session.scalar(select(AccountModel).where(
+                AccountModel.workspace_id == uow.workspace_id,
+                AccountModel.name == account_name,
+            ))
+            if account is None:
+                raise ValueError("account.not_found")
+            alias_id = uow.account_aliases.add(
+                alias_type=alias_type,
+                alias_value=alias_value,
+                account_id=account.id,
+            )
+            uow.commit()
+            return {"id": alias_id}
+
+    def legacy_sync(self):
+        from ft.application.sync_service import SyncService
+
+        return SyncService(self._uow())
+
     def __getattr__(self, name):
         workspace_id = self._workspace()
         query = CashLedgerQueryService(self._sessions, workspace_id)
@@ -184,8 +276,10 @@ def create_app(
     access_service: AccessService | None = None,
     workspace_context=None,
     user_context=None,
+    operations_service=None,
 ) -> FastAPI:
     from ft.web.routes import cash_router
+    from ft.web.operation_routes import operation_router
 
     allowed_origin = validate_web_origin(allowed_origin)
     app = FastAPI(
@@ -202,7 +296,7 @@ def create_app(
         # change without making the user manually restart the API.
         allow_origin_regex=LOCAL_WEB_ORIGIN_REGEX,
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PUT", "DELETE"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Accept", "Content-Type", "Authorization", "X-FT-Statement-Password", "Idempotency-Key"],
     )
 
@@ -221,7 +315,7 @@ def create_app(
                     )
                     if request.method not in {"GET", "HEAD", "OPTIONS"} and role == "viewer":
                         return JSONResponse(error_payload("workspace_forbidden", "当前角色仅可查看账本。"), 403)
-                    request.state.workspace_id = workspace_id; request.state.workspace_role = role
+                    request.state.workspace_id = workspace_id; request.state.workspace_role = role; request.state.user_id = user_id
                     context_token = workspace_context.set(workspace_id) if workspace_context is not None else None
                     user_token = user_context.set(user_id) if user_context is not None else None
                 except AuthenticationRequired:
@@ -259,6 +353,8 @@ def create_app(
         portfolio_service=portfolio_service,
         portfolio_refresh=portfolio_refresh,
     ))
+    if operations_service is not None:
+        app.include_router(operation_router(operations_service))
     return app
 
 
@@ -329,6 +425,7 @@ def create_runtime_app():
             access_service=access_service,
             workspace_context=workspace_var,
             user_context=user_var,
+            operations_service=service,
         )
     except StorageConfigurationError as exc:
         raise StorageError("storage.config") from exc

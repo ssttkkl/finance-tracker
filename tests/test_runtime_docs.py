@@ -27,19 +27,12 @@ def test_operator_docs_describe_both_backends_and_sqlite_limits(path):
     assert "schema" in text
 
 
-def test_cli_help_names_supported_backends_without_loading_runtime(monkeypatch, capsys):
-    from ft import cli
+def test_explicit_uvicorn_runtime_entrypoint_is_documented():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8").lower()
 
-    monkeypatch.setattr(
-        "ft.config.StorageSettings.load",
-        lambda: (_ for _ in ()).throw(AssertionError("runtime settings loaded")),
-    )
-    with pytest.raises(SystemExit) as status:
-        cli.main(["--help"])
-
-    assert status.value.code == 0
-    output = capsys.readouterr().out.lower()
-    assert "postgresql" in output
-    assert "sqlite" in output
-    assert "fallback" in output or "回退" in output
-    assert "dual-write" in output or "双写" in output
+    assert "uv run uvicorn ft.web.app:create_runtime_app" in readme
+    assert "--factory" in readme
+    assert "postgresql" in readme
+    assert "sqlite" in readme
+    assert "fallback" in readme or "回退" in readme
+    assert "dual-write" in readme or "双写" in readme

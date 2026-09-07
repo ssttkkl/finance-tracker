@@ -12,7 +12,7 @@ CASHFLOW_EXPORT_FIELDS = (
 
 
 def infer_statement_source(source_path: str) -> str:
-    """Best-effort channel name from filename (tests/CLI may omit explicit source)."""
+    """Best-effort channel name from filename when a caller omits the source."""
     name = Path(source_path).name.lower()
     if "currentaccounthistory" in name:
         return "icbc-asia"

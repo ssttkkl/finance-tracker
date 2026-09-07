@@ -87,33 +87,6 @@ def test_permissive_database_and_sidecars_produce_one_sanitized_notice(tmp_path)
     engine.dispose()
 
 
-def test_cli_renders_each_runtime_notice_once(monkeypatch, capsys):
-    from ft import cli
-
-    bundle = type("Bundle", (), {"notices": ("safe notice",)})()
-    monkeypatch.setattr("ft.config.StorageSettings.load", lambda: object())
-    monkeypatch.setattr("ft.cli.build_services", lambda _settings: bundle)
-
-    assert cli._runtime_services() is bundle
-    assert capsys.readouterr().err == "警告：safe notice\n"
-
-
-def test_cli_storage_configuration_error_is_controlled_and_nonzero(monkeypatch, capsys):
-    from ft import cli
-    from ft.config import StorageConfigurationError
-
-    monkeypatch.setattr(
-        "ft.config.StorageSettings.load",
-        lambda: (_ for _ in ()).throw(StorageConfigurationError("FT_DATABASE_URL is required")),
-    )
-
-    with pytest.raises(SystemExit) as exit_status:
-        cli._runtime_services()
-
-    assert exit_status.value.code == 1
-    assert capsys.readouterr().err == "错误：FT_DATABASE_URL is required\n"
-
-
 def test_uow_maps_independent_sqlite_writer_lock_to_busy(tmp_path):
     from sqlalchemy import text
     from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace

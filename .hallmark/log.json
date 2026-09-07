@@ -1,5 +1,19 @@
 [
   {
+    "date": "2026-09-06",
+    "macrostructure": "Narrative Workflow",
+    "theme": "Cobalt (system-preserved)",
+    "enrichment": "none",
+    "brief": "Final audit of Expo mobile entry, ledger empty state, record form, import entry and route guards"
+  },
+  {
+    "date": "2026-09-04",
+    "macrostructure": "Narrative Workflow",
+    "theme": "Cobalt (system-preserved)",
+    "enrichment": "none",
+    "brief": "Expo mobile migration first vertical slice and CLI-free runtime prototype"
+  },
+  {
     "date": "2026-08-14",
     "macrostructure": "Workbench / Account Mapping Grid",
     "theme": "Cobalt",

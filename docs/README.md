@@ -12,7 +12,7 @@ SQLite 遇到繁忙、读写权限或 schema 错误时会直接报告，不会�
 - **投资事件 / 文件导入**：`investment-event-model`、`investment-statement-import`
 - **估值 / 连接器同步**：`portfolio-valuation`、`investment-connector-sync`
 - **Alembic / `SCHEMA_REVISION` head**：`20260729_11`
-- **财富归因内核**（Phase 3 内核，已落地）：`wealth-attribution`（无专用 CLI/Web）
+- **财富归因内核**（Phase 3 内核，已落地）：`wealth-attribution`（暂无专用 Web 页面）
 - **收支账本 Web**：`cash-ledger-browser`（收支投影、稳定分页和证据详情）
 
 active change 通过 `openspec list` 查看。`cash-ledger-browser` 只包含收支账本；投资事件、持仓和估值的 Web 展示规划见 `investment-ledger-browser` active change，完成归档前不属于当前主规格。
@@ -24,10 +24,10 @@ active change 通过 `openspec list` 查看。`cash-ledger-browser` 只包含收
 
 | 文档 | 说明 |
 |---|---|
-| [项目说明](../README.md) | 安装、CLI、导入、同步、验证 |
+| [项目说明](../README.md) | 安装、API、Web、Expo、导入、同步与验证 |
 | [收支账本 Web 规格](../openspec/specs/cash-ledger-browser/spec.md) | 只读收支投影浏览与本机双进程运行形态 |
 | [投资账本 active change](../openspec/changes/investment-ledger-browser/proposal.md) | 尚未实现的投资事件与持仓浏览规划 |
-| [导入 / 关系 / 同步流程](import-flow.md) | 事务语义与命令（015 后） |
+| [导入 / 关系 / 同步流程](import-flow.md) | 事务语义与 API（015 后） |
 | [显式 CSV 导出格式](export-csv-format.md) | 只读预览，非账本 |
 | [数据库表结构](database-schema.md) | ORM + Alembic 速查（含 `sync_cursors`） |
 

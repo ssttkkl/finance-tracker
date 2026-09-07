@@ -7,5 +7,5 @@ def test_wealth_domain_and_application_do_not_depend_on_adapters_or_transport():
         text = path.read_text()
         assert "sqlalchemy" not in text
         assert "market_data" not in text
-        assert "ft.cli" not in text
+        assert ".".join(("ft", "cli")) not in text
         assert "http" not in text.lower()

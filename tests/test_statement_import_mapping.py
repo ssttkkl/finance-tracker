@@ -1,4 +1,4 @@
-"""Multi-account import via mapping; no CLI --account."""
+"""Multi-account import via mapping; account selection stays server-controlled."""
 from decimal import Decimal
 from pathlib import Path
 
@@ -160,38 +160,6 @@ def test_multi_pay_alipay_import_routes_per_row(tmp_path, mapping_path):
         assert snap["accounts"]["loan"]["工行信用卡(1200)"]["CNY"] == "-30.00"
         assert snap["accounts"]["loan"]["花呗"]["CNY"] == "-8.50"
         uow.commit()
-
-
-def test_import_cli_rejects_account_flag(tmp_path, mapping_path, monkeypatch):
-    from ft import cli
-    from ft.domain.application import OperationResult
-
-    calls = []
-
-    class Importer:
-        def import_statement(self, command):
-            calls.append(command)
-            return OperationResult(ok=True, count=0, message="imported", details={})
-
-    monkeypatch.setattr(
-        cli,
-        "_runtime_services",
-        lambda: type("Bundle", (), {"statement_import": Importer()})(),
-    )
-    source = tmp_path / "x.csv"
-    source.write_text("x", encoding="utf-8")
-    with pytest.raises(SystemExit):
-        cli.main(
-            [
-                "import",
-                str(source),
-                "--source",
-                "alipay",
-                "--account",
-                "支付宝余额",
-            ]
-        )
-    assert calls == []
 
 
 def test_import_idempotent_by_digest(tmp_path, mapping_path):

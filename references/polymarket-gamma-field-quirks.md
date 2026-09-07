@@ -1,7 +1,7 @@
 # Polymarket Gamma field quirks
 
 ## Symptom
-`ft stock list` / `_fetch_prices()` may show the wrong Polymarket market price, even though the slug is correct.
+The Web/API portfolio query / `_fetch_prices()` may show the wrong Polymarket market price, even though the slug is correct.
 
 ## Cause
 `https://gamma-api.polymarket.com/markets?slug=...` can return some list-like fields as **JSON strings** instead of native arrays, for example:
