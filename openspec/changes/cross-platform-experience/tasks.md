@@ -61,7 +61,7 @@
 - [x] 7.3 运行 Mobile Vitest、typecheck、Android/iOS export；在可用 Android/iOS 模拟器或真机验证 phone/tablet/large。无法运行时记录准确阻断错误和补跑条件。
 - [x] 7.4 本变更单独验证时记录当前 `HEAD`、比较基线、实际命令、时间、URL、视口、截图路径、控制台/网络错误、未解决风险和回滚说明；两个变更已在同一 feature 工作树完成联合验收，证据见下文。
 - [x] 7.5 运行 `openspec validate --all --strict`、`openspec doctor`、`git diff --check` 和本变更相称的回归；数据库/PostgreSQL 矩阵记录为不适用（无存储行为变化）。
-- [ ] 7.6 本变更单独验证通过后，只提交直接相关文件到现有 `feat/cross-platform-experience`；待另一个 change 合入后，在同一 feature 分支完成一次联合验收，再推送并创建指向 `refactor/web` 的 PR。与本变更无关的脏文件不纳入、不删除。
+- [x] 7.6 本变更单独验证通过后，只提交直接相关文件到现有 `feat/cross-platform-experience`；待另一个 change 合入后，在同一 feature 分支完成一次联合验收，再推送并创建指向 `refactor/web` 的 PR。与本变更无关的脏文件不纳入、不删除；远程质量门禁的未解决 finding 另见质量门禁 change 的远程证据。
 
 ## 8. 反思
 
@@ -84,3 +84,4 @@
 - 前端联合结果：`npm run test:shared` 通过（contracts 1、api-client 2、core 4、presentation 5）；`npm run typecheck:shared` 通过；`npm run test:web` 为 `15 files / 144 tests passed`；`npm run build:web` 通过；E2E `38 passed`；生产预览 `11 passed`；视觉回归 `15 passed`。共享文案将账本错误态操作从“重试”统一为“重新读取”，因此额外更新直接相关的 `web/tests/cash-ledger.visual.e2e.ts-snapshots/cash-ledger-error-darwin.png`，未放宽阈值或跳过测试。
 - 后端联合结果：SQLite 功能套件 `1525 passed, 182 skipped`，compileall 通过；专用 `finance_tracker_test` PostgreSQL 容器（`postgres:16-alpine`，主机端口 55432，数据库名以 `_test` 结尾）功能套件 `1731 passed, 2 skipped, 2 failed`。失败为既有分类目录 p95（本机 316.9ms > 250ms）和 100k 投影性能样本中的 SQLite 夹具状态/性能波动；两项分类/投资性能测试单独复跑通过，PostgreSQL 独立性能参数通过，SQLite 独立 100k 重建在本机两次 p95 为 5.664s/9.293s（预算 5s）。未修改预算或无关性能实现；远程 Linux CI 仍是最终性能门禁。
 - 联合浏览器/设计证据沿用本变更独立阶段的真实浏览器记录：`http://127.0.0.1:4173/`、临时 SQLite 后端、`320/375/390/414/768/1024/1440`；截图仍位于 `/tmp/cross-platform-experience-web-*.png`。生产预览/E2E/视觉重跑无新增控制台或网络错误；设备级 Android/iOS UI 和 Hallmark runtime `audit` 仍分别受无可用设备、无可调用 action 阻断，已记录人工等价审查和补跑条件。
+- PR 已创建：`https://github.com/ssttkkl/finance-tracker/pull/82`，head `feat/cross-platform-experience`（最终 `HEAD` `b9152f1`）指向 base `refactor/web`；未执行合并。PR 中的远程 `PR Checks` 结果、性能超预算和 macOS 视觉字形差异由 `add-pr-quality-gates/tasks.md` 记录，当前不将远程红灯表述为联合验收通过。

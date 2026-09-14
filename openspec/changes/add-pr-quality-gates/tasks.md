@@ -46,6 +46,14 @@
 
 ## 8. 反思与交付记录
 
-- [x] 8.1 在本清单记录本地与远程验证证据、最终 `HEAD`、比较基线、执行时间、未解决风险和审查结论；最终质量提交/远程 run URL 待发布阶段回写。
+- [x] 8.1 在本清单记录本地与远程验证证据、最终 `HEAD`、比较基线、执行时间、未解决风险和审查结论；远程 run URL 与失败 finding 已在下方回写。
 - [x] 8.2 记录可复用经验：浏览器主动取消必须与真实网络失败区分，视觉基线必须绑定 runner 平台，双后端 CI 必须拒绝静默 skip；Node 26 jsdom 需在测试 setup 显式提供一致的 Storage。
 - [ ] 8.3 确认所有实现任务、审查和验证均完成后，按 OpenSpec 规则评估 delta（本变更无 delta）并准备归档；不把归档当作发布授权。
+
+## 远程 PR 证据（2026-09-14，Asia/Shanghai）
+
+- PR：`https://github.com/ssttkkl/finance-tracker/pull/82`；head `feat/cross-platform-experience`，base `refactor/web`；最终 `HEAD` `b9152f1`，比较基线 `fdb766cd02e0eed7f88d7cea960b966c49963f05`。质量工作流 run：`https://github.com/ssttkkl/finance-tracker/actions/runs/34858540652`；Mobile CI run：`https://github.com/ssttkkl/finance-tracker/actions/runs/34858540801`，Android、iOS 和 shared JavaScript checks 通过。
+- Frontend (Web)：runner `macos-26-arm64`、macOS `26.6.2`、Chrome for Testing `151.0.7922.34`；共享测试、类型检查、Vitest、构建、E2E、生产预览通过，视觉回归 `3 passed / 12 failed`。失败均为现有 `darwin` 基线与该 runner 之间的文字像素差异（每个失败快照报告 27–128 个阈值像素），诊断 artifact 为 `frontend-playwright-diagnostics`；未通过放宽像素阈值或批量接受未审查基线处理。
+- Backend (SQLite)：`1523 passed, 182 skipped, 2 failed`；失败为 `test_large_category_directory_has_constant_query_count[sqlite]`（p95 `408.921767ms` > `250ms`）和 `test_portfolio_query_with_investment_history_meets_p95_budget[sqlite]`（holdings p95 `1484.742273ms` > `1000ms`）。
+- Backend (PostgreSQL)：`1729 passed, 2 skipped, 4 failed`；失败为分类过滤 p95 `542.553125ms` > `500ms`、现金投影重建 p95 `10.635443353s` > `10s`，以及 SQLite/PostgreSQL 投资组合查询 holdings p95 `1.410825496s`/`1.472413056s` > `1s`。
+- Backend (Performance)：独立 `tests/test_wealth_performance.py` 运行双后端均失败；SQLite cold p95 `9.287514056s` > `5s`，PostgreSQL cold p95 `9.199102055s` > `6.5s`，hot p95 分别约 `128ms`/`147ms`，runner 为 Linux `6.17.0-1022-azure-x86_64`。这些 finding 与本地性能波动方向一致，但尚未有不改变预算语义的修复；因此 7.3、7.4、8.3 保持未完成，不归档 active change。
