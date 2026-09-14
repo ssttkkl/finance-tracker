@@ -35,7 +35,7 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
+        run: npm exec --workspace finance-tracker-web -- playwright install chromium
 
       - name: Test shared packages
         run: npm run test:shared
@@ -83,7 +83,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v9
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
@@ -128,7 +128,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v9
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
@@ -173,7 +173,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v9
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
