@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cssVariableMap, designTokens, nativeColors, nativeTypography } from "./index";
+import { componentTokens, cssVariableMap, designTokens, nativeColors, nativeTypography, responsiveTokens } from "./index";
 
 describe("shared design tokens", () => {
   it("keeps the existing Cobalt typography and touch target vocabulary", () => {
@@ -10,5 +10,13 @@ describe("shared design tokens", () => {
     expect(cssVariableMap["--space-4"]).toBe("16px");
     expect(nativeTypography.mono).toBe("monospace");
     expect(nativeColors.errorSurface).toBe("#FBEAE8");
+  });
+
+  it("keeps responsive and component geometry shared across renderers", () => {
+    expect(responsiveTokens.regularMinWidth).toBe(600);
+    expect(responsiveTokens.wideMinWidth).toBe(1024);
+    expect(componentTokens.page.mobilePadding).toBe(16);
+    expect(componentTokens.page.formMaxWidth).toBe(720);
+    expect(componentTokens.control.minTouchTarget).toBe(44);
   });
 });

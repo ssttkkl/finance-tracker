@@ -7,8 +7,9 @@ type Props = {
   onChange: (value: string | null) => void;
   label?: string;
   id?: string;
+  testID?: string;
 };
 
-export function CashCategorySelect({ categories, value, onChange, label = "分类", id = "cash-category" }: Props) {
-  return <><label className="edit-field-label" htmlFor={id}><UiIcon name="tag" /><span>{label}</span></label><select id={id} aria-label={label} value={value ?? ""} onChange={(event) => onChange(event.target.value || null)}><option value="">无分类</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.path.map((item) => item.name).join(" / ")}</option>)}</select></>;
+export function CashCategorySelect({ categories, value, onChange, label = "分类", id = "cash-category", testID }: Props) {
+  return <><label className="edit-field-label" htmlFor={id}><UiIcon name="tag" /><span>{label}</span></label><select data-testid={testID} id={id} aria-label={label} value={value ?? ""} onChange={(event) => onChange(event.target.value || null)}><option value="">无分类</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.path.map((item) => item.name).join(" / ")}</option>)}</select></>;
 }

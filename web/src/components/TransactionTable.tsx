@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { formatOccurredAt } from "../format";
 import { UiIcon } from "./UiIcon";
+import { semanticIds } from "@finance-tracker/presentation";
 
 export type TransactionDirection = "income" | "expense" | "transfer" | "unknown";
 export type TransactionStatusTone = "new" | "existing" | "unsupported" | "unresolved";
@@ -301,7 +302,7 @@ function TransactionRow<T>({
     {item.sourceIndicator}
   </td>;
 
-  return <tr className={rowClass} data-transaction-id={item.id} data-projection-id={variant === "ledger" ? item.id : undefined} {...rowProps}>
+  return <tr className={rowClass} data-testid={variant === "ledger" ? semanticIds.ledgerRecord : undefined} data-transaction-id={item.id} data-projection-id={variant === "ledger" ? item.id : undefined} {...rowProps}>
     {selectable ? <td className="selection" data-label="选择" headers={`${columnIdPrefix}-column-selection`}><input type="checkbox" aria-label={`选择${item.counterparty || "该记录"}`} checked={selected} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()} onChange={() => onToggleSelection?.(item)} /></td> : null}
     <td className="occurred-at mono" data-label="发生时间" headers={`${columnIdPrefix}-column-occurred-at`}>{formatOccurredAt(item.occurredAt)}</td>
     <td className="account" data-label="账户" headers={`${columnIdPrefix}-column-account`}><MobileFieldMarker icon="account" /><span className="cash-mobile-field-value">{item.accountLabel || "-"}</span></td>
@@ -311,7 +312,7 @@ function TransactionRow<T>({
     {showStatus ? <td className="status" data-label="状态" headers={`${columnIdPrefix}-column-status`}><span className={`import-status ${item.statusTone ?? "existing"}`}>{item.statusLabel || "—"}</span></td> : null}
     <td className={`amount mono ${item.direction === "transfer" ? "transfer" : item.direction === "expense" ? "outflow" : item.direction === "income" ? "inflow" : ""}`} data-direction={item.direction === "transfer" ? "转账" : item.direction === "expense" ? "支出" : item.direction === "income" ? "收入" : "未提供"} data-label="金额" headers={`${columnIdPrefix}-column-amount`}><span className="amount-value">{item.amountLabel}</span></td>
     {showActions ? <td className="action" headers={`${columnIdPrefix}-column-action`}><div className="cash-row-actions">
-      {canOpenEvidence ? <button className="icon-button icon-only-button evidence-trigger" type="button" aria-label={`查看${item.counterparty || "该记录"}的收支详情`} title="查看详情" onClick={(event) => { event.stopPropagation(); open(event.currentTarget); }}><UiIcon name="eye" /></button> : null}
+      {canOpenEvidence ? <button data-testid={variant === "ledger" ? semanticIds.ledgerOpenRecord : undefined} className="icon-button icon-only-button evidence-trigger" type="button" aria-label={`查看${item.counterparty || "该记录"}的收支详情`} title="查看详情" onClick={(event) => { event.stopPropagation(); open(event.currentTarget); }}><UiIcon name="eye" /></button> : null}
       <button ref={menuTrigger} className="icon-button icon-only-button cash-row-menu-trigger" type="button" aria-label={`打开${item.counterparty || "该记录"}的操作菜单`} aria-haspopup="menu" aria-expanded={menuOpen} title="更多操作" onClick={(event) => { event.stopPropagation(); setMenuOpen((value) => !value); }}><UiIcon name="more" /></button>
       {menuOpen ? <div ref={menu} className="cash-row-menu" role="menu" aria-label={`${item.counterparty || "该记录"}的操作`} onClick={(event) => event.stopPropagation()}>{actionItems.map((action) => <button key={action.id} type="button" role="menuitem" className={action.danger ? "is-danger" : undefined} onClick={() => runAction(action.id, menuTrigger.current ?? document.body)}>{action.label}</button>)}</div> : null}
     </div></td> : null}

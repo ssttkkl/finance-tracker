@@ -13,6 +13,7 @@ import type {
 } from "../api/types";
 import { formatOccurredAt, isZeroAmount } from "../format";
 import { buildTransactionMonthlySummaries, TransactionTable, type TransactionTableItem } from "../components/TransactionTable";
+import { copy, semanticIds } from "@finance-tracker/presentation";
 
 type Stage = "select" | "mapping" | "preview" | "relations" | "success";
 type RelationFilter = "all" | "automatic" | "pending";
@@ -36,30 +37,26 @@ type MappingDraft = {
 };
 
 const recordTypeLabels: Record<string, string> = {
-  consumption: "消费",
-  refund: "退款",
-  income: "收入",
-  transfer_in: "转账入账",
-  transfer_out: "转账转出",
-  repayment: "还款",
-  withdrawal_in: "提现入账",
-  withdrawal_out: "提现",
-  fx_in: "换汇转入",
-  fx_out: "换汇转出",
-  other: "其他",
+  consumption: copy.record.typeLabels.consumption,
+  refund: copy.record.typeLabels.refund,
+  income: copy.record.typeLabels.income,
+  transfer_in: copy.record.typeLabels.transferIn,
+  transfer_out: copy.record.typeLabels.transferOut,
+  repayment: copy.record.typeLabels.repayment,
+  withdrawal_in: copy.record.typeLabels.withdrawalIn,
+  withdrawal_out: copy.record.typeLabels.withdrawalOut,
+  fx_in: copy.record.typeLabels.fxIn,
+  fx_out: copy.record.typeLabels.fxOut,
+  other: copy.record.typeLabels.other,
 };
 
-const relationKindLabels: Record<string, string> = {
-  payment_mirror: "同笔支付",
-  refund_offset: "退款冲销",
-  transfer_pair: "个人转账",
-};
+const relationKindLabels: Record<string, string> = copy.import.relationKinds;
 
 const relationStateLabels: Record<RelationState, string> = {
-  automatic: "自动",
-  pending: "待处理",
-  accepted: "已配对",
-  rejected: "已拒绝",
+  automatic: copy.import.automatic,
+  pending: copy.import.pending,
+  accepted: copy.import.confirmed,
+  rejected: copy.import.rejected,
 };
 
 function unresolvedCount(preview: ImportPreview): number {
@@ -75,10 +72,10 @@ function recordDate(value: string): string {
 }
 
 const importStatusLabels = {
-  new: "待新增",
-  existing: "已存在",
-  unsupported: "暂不支持",
-  unresolved: "无法识别",
+  new: copy.import.statusNew,
+  existing: copy.import.statusExisting,
+  unsupported: copy.import.statusUnsupported,
+  unresolved: copy.import.statusUnresolved,
 } as const;
 
 function importDirection(item: ImportPreviewItem): TransactionTableItem<ImportPreviewItem>["direction"] {
@@ -587,10 +584,10 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   };
 
   return (
-    <section className="ledger cash-import-shell" id="cash-import" aria-label="导入账单">
-          <header className="page-header cash-import-header"><h1>导入账单</h1></header>
-          <nav className="import-steps" aria-label="导入步骤">
-            {[{ number: 1, label: "选择文件" }, { number: 2, label: "映射账户" }, { number: 3, label: "核对流水" }, { number: 4, label: "配对" }].map((item) => (
+    <section className="ledger cash-import-shell" id="cash-import" data-testid={semanticIds.importScreen} aria-label={copy.import.title}>
+          <header className="page-header cash-import-header"><h1>{copy.import.title}</h1></header>
+          <nav className="import-steps" data-testid={semanticIds.importStepper} aria-label={copy.import.steps}>
+            {[{ number: 1, label: copy.import.selectFile }, { number: 2, label: copy.import.mapAccount }, { number: 3, label: copy.import.preview }, { number: 4, label: copy.import.relations }].map((item) => (
               <button
                 type="button"
                 key={item.number}
@@ -603,13 +600,13 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
           </nav>
           {error ? <div className="form-error cash-import-error" role="alert">{error}</div> : null}
 
-          {stage === "select" ? <section className="import-stage" aria-labelledby="import-select-heading">
-            <h2 id="import-select-heading">选择文件</h2>
+          {stage === "select" ? <section className="import-stage" data-testid={semanticIds.importFile} aria-labelledby="import-select-heading">
+            <h2 id="import-select-heading">{copy.import.selectFile}</h2>
             <label className="import-dropzone">
-              <input type="file" aria-label="选择账单文件" onChange={(event) => void chooseFile(event.target.files?.[0])} />
+              <input data-testid={semanticIds.importChooseFile} type="file" aria-label={copy.import.chooseFile} onChange={(event) => void chooseFile(event.target.files?.[0])} />
               <span className="dropzone-mark">↑</span>
-              <strong>{file ? file.name : "拖入账单文件"}</strong>
-              <small>CSV、XLS、XLSX、PDF</small>
+              <strong>{file ? file.name : copy.import.dropFile}</strong>
+              <small>{copy.import.supportedFiles}</small>
             </label>
             {scan ? <div className="detection-result" role="status"><strong>{scan.channel_label}账单</strong><span className="status-chip">已识别</span></div> : null}
             {passwordRequired ? <div className="import-password-panel">
@@ -618,12 +615,12 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
                 <input id="cash-import-password" type="password" value={password} autoComplete="off" onChange={(event) => setPassword(event.target.value)} />
               </div>
             </div> : null}
-            <div className="stage-actions"><button type="button" className="button-secondary" onClick={onBack}>取消</button><button type="button" className="button-primary" disabled={!file || busy || (passwordRequired && !password)} onClick={continueFromSelect}>{busy ? "扫描中…" : "下一步"}</button></div>
+            <div className="stage-actions"><button type="button" className="button-secondary" onClick={onBack}>{copy.common.cancel}</button><button data-testid={semanticIds.importNext} type="button" className="button-primary" disabled={!file || busy || (passwordRequired && !password)} onClick={continueFromSelect}>{busy ? copy.import.scanning : copy.import.next}</button></div>
           </section> : null}
 
-          {stage === "mapping" && scan ? <section className="import-stage import-mapping-stage" aria-labelledby="import-mapping-heading">
-            <div className="import-stage-heading"><h2 id="import-mapping-heading">映射账户</h2><span className="channel-badge">{scan.channel_label}</span></div>
-            <div className="stage-actions-top"><button type="button" className="button-secondary" onClick={() => setStage("select")}>上一步</button><button type="button" className="button-primary" disabled={!mappingComplete || busy} onClick={() => void loadPreview()}>{busy ? "核对中…" : "确认映射"}</button></div>
+          {stage === "mapping" && scan ? <section className="import-stage import-mapping-stage" data-testid={semanticIds.importMapping} aria-labelledby="import-mapping-heading">
+            <div className="import-stage-heading"><h2 id="import-mapping-heading">{copy.import.mapAccount}</h2><span className="channel-badge">{scan.channel_label}</span></div>
+            <div className="stage-actions-top"><button data-testid={semanticIds.importPrevious} type="button" className="button-secondary" onClick={() => setStage("select")}>{copy.import.previous}</button><button data-testid={semanticIds.importNext} type="button" className="button-primary" disabled={!mappingComplete || busy} onClick={() => void loadPreview()}>{busy ? copy.import.mapping : copy.import.mapConfirm}</button></div>
             <p className="import-stage-lead">识别到 {scan.groups.length} 个来源账户</p>
             {scan.unresolved_count ? <p className="import-stage-warning" role="status">有 {scan.unresolved_count} 条流水无法准确归属，确认导入时会跳过；其余流水可正常导入。</p> : null}
             <div className="mapping-groups">
@@ -646,9 +643,9 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
             {editingGroup ? <div className="import-dialog-backdrop" role="presentation" onMouseDown={() => setEditingGroup(null)}><div className="import-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-account-heading" onMouseDown={(event) => event.stopPropagation()}><h3 id="edit-account-heading">修改新账户</h3><label>账户名称<input value={mappingDrafts[editingGroup.group_id]?.newAccount?.name ?? ""} onChange={(event) => updateNewAccountDraft(editingGroup, { name: event.target.value })} /></label><label>账户类型<select value={mappingDrafts[editingGroup.group_id]?.newAccount?.type ?? "cash"} onChange={(event) => updateNewAccountDraft(editingGroup, { type: event.target.value })}><option value="cash">现金账户</option><option value="loan">贷款账户</option><option value="lend">借款账户</option></select></label><div className="stage-actions"><button type="button" className="button-secondary" onClick={() => setEditingGroup(null)}>取消</button><button type="button" className="button-primary" onClick={() => setEditingGroup(null)}>完成</button></div></div></div> : null}
           </section> : null}
 
-          {stage === "preview" && preview ? <section className="import-stage import-preview-stage" aria-labelledby="import-preview-heading">
-            <div className="import-stage-heading"><h2 id="import-preview-heading">核对流水</h2><span className="channel-badge">{preview.channel_label}</span></div>
-            <div className="stage-actions-top"><button type="button" className="button-secondary" onClick={() => setStage("mapping")}>上一步</button><button type="button" className="button-primary" disabled={busy} onClick={openRelations}>下一步</button></div>
+          {stage === "preview" && preview ? <section className="import-stage import-preview-stage" data-testid={semanticIds.importPreview} aria-labelledby="import-preview-heading">
+            <div className="import-stage-heading"><h2 id="import-preview-heading">{copy.import.preview}</h2><span className="channel-badge">{preview.channel_label}</span></div>
+            <div className="stage-actions-top"><button data-testid={semanticIds.importPrevious} type="button" className="button-secondary" onClick={() => setStage("mapping")}>{copy.import.previous}</button><button data-testid={semanticIds.importNext} type="button" className="button-primary" disabled={busy} onClick={openRelations}>{copy.import.next}</button></div>
             <div className="import-summary-cards" role="group" aria-label="预览流水筛选">{[
               { filter: "all" as const, label: "全部", value: preview.summary.total, tone: "total" },
               { filter: "new" as const, label: "待新增", value: preview.summary.new, tone: "new" },
@@ -681,9 +678,9 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
             {ordinaryUnsupportedCount(preview) > 0 ? <p className="import-stage-warning" role="status">有流水暂不支持。</p> : null}
           </section> : null}
 
-          {stage === "relations" && preview ? <section className="import-stage" aria-labelledby="import-relations-heading">
-            <div className="import-stage-heading"><h2 id="import-relations-heading" ref={relationHeadingRef} tabIndex={-1}>配对</h2></div>
-            <div className="stage-actions-top"><button type="button" className="button-secondary" onClick={() => setStage("preview")}>上一步</button><button type="button" className="button-primary" disabled={busy || ordinaryUnsupportedCount(preview) > 0} onClick={() => void confirmImport()}>{busy ? "导入中…" : "确认导入"}</button></div>
+          {stage === "relations" && preview ? <section className="import-stage" data-testid={semanticIds.importRelations} aria-labelledby="import-relations-heading">
+            <div className="import-stage-heading"><h2 id="import-relations-heading" ref={relationHeadingRef} tabIndex={-1}>{copy.import.relations}</h2></div>
+            <div className="stage-actions-top"><button data-testid={semanticIds.importPrevious} type="button" className="button-secondary" onClick={() => setStage("preview")}>{copy.import.previous}</button><button data-testid={semanticIds.importConfirm} type="button" className="button-primary" disabled={busy || ordinaryUnsupportedCount(preview) > 0} onClick={() => void confirmImport()}>{busy ? copy.import.importing : copy.import.confirm}</button></div>
             {relationItems.length === 0 ? <div className="import-empty-state"><strong>没有配对</strong></div> : <>
               <div className="import-summary-cards relation-summary-cards" role="group" aria-label="配对筛选">
                 {[
@@ -710,7 +707,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
             </>}
           </section> : null}
 
-          {stage === "success" && result ? <section className="import-stage import-success-stage" aria-labelledby="import-success-heading"><div className="success-mark">✓</div><h2 id="import-success-heading">导入完成</h2><div className="import-success-stats"><span><strong>{result.new_rows}</strong>待新增</span><span><strong>{result.updated_rows}</strong>已更新</span><span><strong>{preview?.summary.existing ?? 0}</strong>已存在</span>{result.skipped_rows ? <span><strong>{result.skipped_rows}</strong>无法识别</span> : null}</div><div className="stage-actions"><button type="button" className="button-primary" onClick={onBack}>返回收支账本</button></div></section> : null}
+          {stage === "success" && result ? <section className="import-stage import-success-stage" data-testid={semanticIds.importSuccess} aria-labelledby="import-success-heading"><div className="success-mark">✓</div><h2 id="import-success-heading">{copy.import.success}</h2><div className="import-success-stats"><span><strong>{result.new_rows}</strong>待新增</span><span><strong>{result.updated_rows}</strong>已更新</span><span><strong>{preview?.summary.existing ?? 0}</strong>已存在</span>{result.skipped_rows ? <span><strong>{result.skipped_rows}</strong>{copy.import.unresolved}</span> : null}</div><div className="stage-actions"><button type="button" className="button-primary" onClick={onBack}>{copy.import.backLedger}</button></div></section> : null}
     </section>
   );
 }

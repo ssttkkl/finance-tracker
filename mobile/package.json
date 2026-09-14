@@ -8,6 +8,7 @@
     "@finance-tracker/contracts": "0.1.0",
     "@finance-tracker/core": "0.1.0",
     "@finance-tracker/design-tokens": "0.1.0",
+    "@finance-tracker/presentation": "0.1.0",
     "expo": "~57.0.20",
     "expo-constants": "~57.0.17",
     "expo-document-picker": "~57.0.1",
@@ -36,7 +37,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run src/state/guards.test.ts src/platform/tokenKey.test.ts && node plugins/withExpoModulesJsiXcode26.test.cjs",
+    "test": "vitest run src/state/guards.test.ts src/platform/tokenKey.test.ts src/platform/presentation.test.ts && node plugins/withExpoModulesJsiXcode26.test.cjs",
     "export:android": "expo export --platform android",
     "export:ios": "expo export --platform ios"
   }

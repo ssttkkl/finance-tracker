@@ -3,6 +3,8 @@ import { CashLedgerPage } from "./pages/CashLedgerPage";
 import { CashCategoriesPage } from "./pages/CashCategoriesPage";
 import { CashImportPage } from "./pages/CashImportPage";
 import { parseWorkspacePath, workspacePath } from "./routing";
+import { copy, semanticIds } from "@finance-tracker/presentation";
+import { usePresentationLayout } from "./presentation";
 
 function navigate(path: string, workspaceId?: string) {
   const target = workspaceId ? workspacePath(workspaceId, path) : path;
@@ -24,6 +26,7 @@ const InvestmentLedgerPage = lazy(async () => {
 });
 
 export function App({ workspaceId, sidebarFooter, mobileAccount, workspacePage, onWorkspaceManagement, onLedgerNavigation, workspaceManagementActive = false }: { workspaceId?: string; sidebarFooter?: ReactNode; mobileAccount?: ReactNode; workspacePage?: ReactNode; onWorkspaceManagement?: () => void; onLedgerNavigation?: () => void; workspaceManagementActive?: boolean } = {}) {
+  const presentationLayout = usePresentationLayout();
   const [path, setPath] = useState(() => normalizeRoute(window.location.pathname, window.location.hash, workspaceId));
   const [modalOpen, setModalOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -58,18 +61,18 @@ export function App({ workspaceId, sidebarFooter, mobileAccount, workspacePage, 
 
   const route = (childPath: string) => workspaceId ? workspacePath(workspaceId, childPath) : childPath;
 
-  return <div className={`page-layout${isInvestment ? " investment-page" : ""}`}>
+  return <div className={`page-layout${isInvestment ? " investment-page" : ""}`} data-presentation-layout={presentationLayout}>
     <main className="app-shell" inert={modalOpen || undefined}>
       <aside className={`sidebar${mobileNavOpen ? " is-nav-open" : ""}`}>
         <div className="sidebar-head">
-          <div className="mobile-menu-slot"><button ref={mobileNavToggle} className="menu-toggle" type="button" aria-expanded={mobileNavOpen} aria-controls="primary-navigation" aria-label={mobileNavOpen ? "关闭菜单" : "打开菜单"} onClick={() => { setMobileNavOpen((open) => !open); window.dispatchEvent(new CustomEvent("mobile-menu-toggled")); }}><span className="menu-icon" aria-hidden="true">{mobileNavOpen ? "×" : "☰"}</span><span className="menu-label">菜单</span></button></div>
-          <strong>Finance Tracker</strong>
+          <div className="mobile-menu-slot"><button ref={mobileNavToggle} data-testid={semanticIds.navigationMenu} className="menu-toggle" type="button" aria-expanded={mobileNavOpen} aria-controls="primary-navigation" aria-label={mobileNavOpen ? copy.navigation.closeMenu : copy.navigation.openMenu} onClick={() => { setMobileNavOpen((open) => !open); window.dispatchEvent(new CustomEvent("mobile-menu-toggled")); }}><span className="menu-icon" aria-hidden="true">{mobileNavOpen ? "×" : "☰"}</span><span className="menu-label">{copy.navigation.menu}</span></button></div>
+          <strong>{copy.product.name}</strong>
           <div className="mobile-account">{mobileAccount}</div>
         </div>
-        <nav id="primary-navigation" aria-label="主要导航" onClick={closeMobileNav}>
-          <div className="nav-group"><a className="nav-parent" aria-current={isCashLedger ? "page" : undefined} href={route("/")} onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/", workspaceId); }}>收支账本</a><div className="nav-subnav" aria-label="收支账本页面"><a className="subnav-link" aria-current={isCashCategory ? "page" : undefined} href={route("/cash-categories")} onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/cash-categories", workspaceId); }}>分类管理</a><a className="subnav-link" aria-current={isCashImport ? "page" : undefined} href={route("/cash-import")} onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/cash-import", workspaceId); }}>导入账单</a></div></div>
-          <div className="nav-group"><a className="nav-parent" aria-current={isInvestmentHoldings ? "page" : undefined} href={route("/investment-holdings")} onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/investment-holdings", workspaceId); }}>投资账本</a><div className="nav-subnav" aria-label="投资账本页面"><a className="subnav-link" href={route("/investment-holdings")} onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/investment-holdings", workspaceId); }}>当前持仓</a><a className="subnav-link" aria-current={isInvestmentEvents ? "page" : undefined} href={route("/investment-events")} onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/investment-events", workspaceId); }}>投资事件</a></div></div>
-          {onWorkspaceManagement && <a className="nav-parent" aria-current={workspaceManagementActive ? "page" : undefined} href={route("/workspace-management")} onClick={(event) => { event.preventDefault(); onWorkspaceManagement(); }}>工作区管理</a>}
+          <nav id="primary-navigation" aria-label={copy.navigation.main} onClick={closeMobileNav}>
+          <div className="nav-group"><a data-testid={semanticIds.navigationLedger} className="nav-parent" aria-current={isCashLedger ? "page" : undefined} href={route("/")} onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/", workspaceId); }}>{copy.navigation.cashLedger}</a><div className="nav-subnav" aria-label={copy.navigation.cashLedgerGroup}><a className="subnav-link" aria-current={isCashCategory ? "page" : undefined} href={route("/cash-categories")} onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/cash-categories", workspaceId); }}>{copy.navigation.categories}</a><a data-testid={semanticIds.navigationImport} className="subnav-link" aria-current={isCashImport ? "page" : undefined} href={route("/cash-import")} onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/cash-import", workspaceId); }}>{copy.navigation.import}</a></div></div>
+          <div className="nav-group"><a className="nav-parent" aria-current={isInvestmentHoldings ? "page" : undefined} href={route("/investment-holdings")} onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/investment-holdings", workspaceId); }}>{copy.navigation.investmentLedger}</a><div className="nav-subnav" aria-label={copy.navigation.investmentLedger}><a className="subnav-link" href={route("/investment-holdings")} onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/investment-holdings", workspaceId); }}>{copy.navigation.holdings}</a><a className="subnav-link" aria-current={isInvestmentEvents ? "page" : undefined} href={route("/investment-events")} onClick={(event) => { event.preventDefault(); onLedgerNavigation?.(); navigate("/investment-events", workspaceId); }}>{copy.navigation.investmentEvents}</a></div></div>
+          {onWorkspaceManagement && <a className="nav-parent" aria-current={workspaceManagementActive ? "page" : undefined} href={route("/workspace-management")} onClick={(event) => { event.preventDefault(); onWorkspaceManagement(); }}>{copy.navigation.workspaceManagement}</a>}
         </nav>
         {sidebarFooter}
       </aside>
