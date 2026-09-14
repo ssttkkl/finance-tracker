@@ -27,7 +27,7 @@
 ## 5. 审查：范围、工程、设计与安全
 
 - [x] 5.1 独立复核最终 diff：确认只包含本变更定义的投影并发/迁移回归、Web 测试稳定性、两张 `1024×768` 视觉基线、workflow 与 OpenSpec；未修改 API/schema/分支保护/Mobile CI，其他工作树脏文件未纳入。Finding：无阻断项；Node 26 jsdom `localStorage` 差异已用测试 setup 的同一内存 Storage 修复。
-- [x] 5.2 工程与安全复核 workflow：确认前后端检查职责清晰、PostgreSQL 只使用一次性 `_test` 服务库、权限为 `contents: read`、失败 artifact 仅上传测试诊断目录且不上传环境变量；workflow Prettier 检查通过，当前环境无 `actionlint`，未声称 actionlint 通过。
+- [x] 5.2 工程与安全复核 workflow：确认前后端检查职责清晰、PostgreSQL 只使用一次性 `_test` 服务库、权限为 `contents: read`、失败 artifact 仅上传测试诊断目录且不上传环境变量；确认仓库忽略 `uv.lock`，因此 workflow 使用 `uv sync`/`pyproject.toml` 缓存键；workflow Prettier 检查通过，当前环境无 `actionlint`，未声称 actionlint 通过。
 - [x] 5.3 复核视觉基线差异仅包含当前表格列变化，且没有通过放宽像素阈值或跳过视觉测试隐藏差异。跨平台 change 另因共享错误态文案更新其直接相关 `cash-ledger-error-darwin.png`，不归入本 change 的两张基线范围。
 
 ## 6. 测试与 QA：本地与 OpenSpec 验证

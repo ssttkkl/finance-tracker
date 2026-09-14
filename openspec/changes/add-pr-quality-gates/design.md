@@ -1,6 +1,6 @@
 ## Context
 
-本变更不改变产品运行时，只补齐仓库级质量门禁。当前根级 `package-lock.json` 支持 npm workspace；Web 已有 Vitest、TypeScript、生产构建和三套 Playwright 配置；Python 依赖和测试命令由 `pyproject.toml`、`uv.lock` 与 `uv` 管理。现有快照文件使用 `darwin` 平台后缀，因此完整前端浏览器 job 需要使用 macOS runner，避免在 Linux 上寻找不存在的 `linux` 基线。
+本变更不改变产品运行时，只补齐仓库级质量门禁。当前根级 `package-lock.json` 支持 npm workspace；Web 已有 Vitest、TypeScript、生产构建和三套 Playwright 配置；Python 依赖和测试命令由 `pyproject.toml` 与 `uv` 管理，仓库按现有约定忽略 `uv.lock`，因此 CI 使用 `uv sync` 根据项目声明解析依赖，并以 `pyproject.toml` 作为缓存键。现有快照文件使用 `darwin` 平台后缀，因此完整前端浏览器 job 需要使用 macOS runner，避免在 Linux 上寻找不存在的 `linux` 基线。
 
 本地复现确认了两个独立问题：
 
@@ -44,7 +44,7 @@
 
 ### 3. 后端 job 显式分成功能与性能门禁
 
-两个功能 job 都使用 Python 3.11、`astral-sh/setup-uv`、`uv sync --locked` 和 `PYTHONPATH=tests:.:src uv run pytest -q --ignore=tests/test_wealth_performance.py`。SQLite job 不设置 PostgreSQL URL，保留显式的 PostgreSQL skip 作为本地后端基线；PostgreSQL job 提供 `postgres:16-alpine` service container，数据库名为 `finance_tracker_test`，使用 `FT_TEST_POSTGRES_URL=postgresql+psycopg://postgres:postgres@127.0.0.1:5432/finance_tracker_test` 与 `FT_REQUIRE_TEST_POSTGRES=1` 强制运行 PostgreSQL 参数。
+两个功能 job 都使用 Python 3.11、`astral-sh/setup-uv`、`uv sync` 和 `PYTHONPATH=tests:.:src uv run pytest -q --ignore=tests/test_wealth_performance.py`。仓库不提交 `uv.lock`，所以 CI 以 `pyproject.toml` 作为 uv cache dependency，依赖解析漂移由后续显式锁文件变更另行治理。SQLite job 不设置 PostgreSQL URL，保留显式的 PostgreSQL skip 作为本地后端基线；PostgreSQL job 提供 `postgres:16-alpine` service container，数据库名为 `finance_tracker_test`，使用 `FT_TEST_POSTGRES_URL=postgresql+psycopg://postgres:postgres@127.0.0.1:5432/finance_tracker_test` 与 `FT_REQUIRE_TEST_POSTGRES=1` 强制运行 PostgreSQL 参数。
 
 `backend-performance` 使用同样的 PostgreSQL service 和强制 URL，单独运行 `tests/test_wealth_performance.py`。该测试自身包含 SQLite 与 PostgreSQL 参数，因此两个后端的固定 cold/hot 性能预算仍都被执行；把它从功能套件中隔离是为了避免长时间迁移、并发和关系测试污染 p95 样本，不删除测试、不放宽预算。
 
@@ -68,7 +68,7 @@ service container 通过 `pg_isready` 健康检查，测试夹具继续负责清
 
 - **macOS runner 成本和排队时间较高** → 只在 Pull Request 与手动触发中运行，复用 npm cache；现有 Native CI 继续独立，可按职责单独重跑。
 - **完整 pytest 运行时间较长** → 为四个 job 设置足够的超时，保留功能与性能 job 并行；不通过删减测试或放宽性能预算换取表面速度。
-- **PostgreSQL service 或 Actions runner 漂移** → 固定 `postgres:16-alpine`、Python 3.11、Node 24 和 action major version，并在失败时保留完整日志；升级时重新执行本地双后端矩阵。
+- **PostgreSQL service 或 Actions runner 漂移** → 固定 `postgres:16-alpine`、Python 3.11、Node 24 和 action major version，并在失败时保留完整日志；升级时重新执行本地双后端矩阵。由于仓库当前不提交 `uv.lock`，依赖版本漂移需通过后续锁文件变更治理。
 - **来源指纹读取旧会话状态** → 对指纹查询启用实体刷新，并保留独立事务变更回归；若未来切换到更高隔离级别，应重新验证并发契约。
 - **视觉基线与 macOS 镜像仍可能漂移** → runner 与快照平台保持一致；视觉差异继续阻断检查，基线更新必须单独审查并记录。
 - **测试诊断 artifact 含有意外敏感信息** → 所有夹具使用去标识化数据，上传仅限失败时的测试结果目录，保留期为 7 天，不上传环境变量或凭据。
@@ -78,7 +78,7 @@ service container 通过 `pg_isready` 健康检查，测试夹具继续负责清
 
 1. 先复现并修复 Web 测试误报，更新已审查的 `1024×768` 快照。
 2. 修复 PostgreSQL 投影并发/来源指纹回归，并将迁移测试限制在可逆迁移边界；先运行窄范围红绿验证。
-3. 新增并本地静态校验 `pr-checks.yml`，分别运行 SQLite/ PostgreSQL 功能套件、隔离的双后端性能套件（若本机具备专用 `_test` 数据库）和前端全套命令。
+3. 新增并本地静态校验 `pr-checks.yml`，使用 `uv sync` 安装 `pyproject.toml` 声明的依赖，分别运行 SQLite/PostgreSQL 功能套件、隔离的双后端性能套件（若本机具备专用 `_test` 数据库）和前端全套命令；未来若提交 `uv.lock`，再切换到锁定同步。
 4. 两个 worktree 分别完成各自变更的直接相关文件和单变更验证后，将本变更加入现有 `feat/cross-platform-experience`，保持 `refactor/web` 为基线；合并后的 feature 分支再统一运行联合验收，通过后推送并创建 `feat/cross-platform-experience` → `refactor/web` 的 PR。把 run URL、commit、时间和结果回写任务记录。
 5. 若 CI 失败，优先回滚 workflow 文件或修正对应 job；不需要数据库迁移或应用回滚。若快照变更被拒绝，只恢复该二进制基线，不影响其他测试和 workflow。
 
