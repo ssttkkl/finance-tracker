@@ -59,9 +59,9 @@
 - [x] 7.1 运行 presentation/design-tokens/core/contracts/api-client 受影响测试与类型检查，记录先红后绿证据。
 - [x] 7.2 运行 Web Vitest、构建和生产预览；用真实浏览器执行 320、375、390、414、768、1024、1440 视口的主流程、正常/空/错误、关键点击、键盘焦点和横向滚动检查。
 - [x] 7.3 运行 Mobile Vitest、typecheck、Android/iOS export；在可用 Android/iOS 模拟器或真机验证 phone/tablet/large。无法运行时记录准确阻断错误和补跑条件。
-- [x] 7.4 本变更单独验证时记录当前 `HEAD`、比较基线、实际命令、时间、URL、视口、截图路径、控制台/网络错误、未解决风险和回滚说明；联合验证证据在两个变更合并后集中补记。
+- [x] 7.4 本变更单独验证时记录当前 `HEAD`、比较基线、实际命令、时间、URL、视口、截图路径、控制台/网络错误、未解决风险和回滚说明；两个变更已在同一 feature 工作树完成联合验收，证据见下文。
 - [x] 7.5 运行 `openspec validate --all --strict`、`openspec doctor`、`git diff --check` 和本变更相称的回归；数据库/PostgreSQL 矩阵记录为不适用（无存储行为变化）。
-- [x] 7.6 本变更单独验证通过后，只提交直接相关文件到现有 `feat/cross-platform-experience`；待另一个 change 合入后，在同一 feature 分支完成一次联合验收，再推送并创建指向 `refactor/web` 的 PR。与本变更无关的脏文件不纳入、不删除。
+- [ ] 7.6 本变更单独验证通过后，只提交直接相关文件到现有 `feat/cross-platform-experience`；待另一个 change 合入后，在同一 feature 分支完成一次联合验收，再推送并创建指向 `refactor/web` 的 PR。与本变更无关的脏文件不纳入、不删除。
 
 ## 8. 反思
 
@@ -77,3 +77,10 @@
 - 真实浏览器：生产预览 `http://127.0.0.1:4173/`，后端临时 SQLite `http://127.0.0.1:8000`；完成注册、创建工作区、空账本查看、打开/关闭记账抽屉、导入入口与禁用下一步检查；390 px 检查键盘可聚焦控件与禁用保存状态。视口 `320/375/390/414/768/1024/1440` 均无横向滚动（`scrollWidth === clientWidth`），导入主流程和空状态通过，清空控制台后无控制台错误；初始未认证请求的 `401` 为预期会话边界。截图：`/tmp/cross-platform-experience-web-320.png`、`-375.png`、`-390.png`、`-414.png`、`-768.png`、`-1024.png`、`-1440.png`、`/tmp/cross-platform-experience-web-ledger-390.png`、`-record-390.png`、`-import-390.png`。
 - Hallmark runtime 当前无可调用的 `audit` action；按同一审查维度完成人工等价复核，target 为上述生产预览认证工作区及 `openspec/changes/cross-platform-experience/prototype/index.html`。检查了 Cobalt token、N3 rail/compact menu、空/错误/禁用/焦点状态、safe-area、触控目标和 required viewports，未发现 critical/major；不将其表述为工具已执行。
 - 范围审查结论：只保留本 change 直接相关的 mobile/web/presentation/design-token/package/OpenSpec 文件；`docs/superpowers/` 下的既有计划/spec 未纳入，工作树中其他脏文件不删除。回滚为按 feature commit 回退共享 presentation/UI 适配提交，既有后端/API/数据库不变。
+
+## 联合验收证据（2026-09-14，Asia/Shanghai）
+
+- 联合 feature：`feat/cross-platform-experience`，跨平台提交 `0b770a5`；比较基线 `refactor/web` / `fdb766cd02e0eed7f88d7cea960b966c49963f05`。质量门禁直接文件已应用但尚未形成最终提交；最终 `HEAD`、推送和 PR 信息由 `add-pr-quality-gates` 的发布任务记录。
+- 前端联合结果：`npm run test:shared` 通过（contracts 1、api-client 2、core 4、presentation 5）；`npm run typecheck:shared` 通过；`npm run test:web` 为 `15 files / 144 tests passed`；`npm run build:web` 通过；E2E `38 passed`；生产预览 `11 passed`；视觉回归 `15 passed`。共享文案将账本错误态操作从“重试”统一为“重新读取”，因此额外更新直接相关的 `web/tests/cash-ledger.visual.e2e.ts-snapshots/cash-ledger-error-darwin.png`，未放宽阈值或跳过测试。
+- 后端联合结果：SQLite 功能套件 `1525 passed, 182 skipped`，compileall 通过；专用 `finance_tracker_test` PostgreSQL 容器（`postgres:16-alpine`，主机端口 55432，数据库名以 `_test` 结尾）功能套件 `1731 passed, 2 skipped, 2 failed`。失败为既有分类目录 p95（本机 316.9ms > 250ms）和 100k 投影性能样本中的 SQLite 夹具状态/性能波动；两项分类/投资性能测试单独复跑通过，PostgreSQL 独立性能参数通过，SQLite 独立 100k 重建在本机两次 p95 为 5.664s/9.293s（预算 5s）。未修改预算或无关性能实现；远程 Linux CI 仍是最终性能门禁。
+- 联合浏览器/设计证据沿用本变更独立阶段的真实浏览器记录：`http://127.0.0.1:4173/`、临时 SQLite 后端、`320/375/390/414/768/1024/1440`；截图仍位于 `/tmp/cross-platform-experience-web-*.png`。生产预览/E2E/视觉重跑无新增控制台或网络错误；设备级 Android/iOS UI 和 Hallmark runtime `audit` 仍分别受无可用设备、无可调用 action 阻断，已记录人工等价审查和补跑条件。
