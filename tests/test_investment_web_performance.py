@@ -11,6 +11,8 @@ from pathlib import Path
 import pytest
 from sqlalchemy import func, insert, select
 
+pytestmark = pytest.mark.performance
+
 
 WORKSPACE = "investment-web-performance"
 EVENT_COUNT = 20_000

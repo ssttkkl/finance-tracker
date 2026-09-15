@@ -13,6 +13,8 @@ import pytest
 from sqlalchemy import event, insert, inspect, select
 from fastapi.testclient import TestClient
 
+pytestmark = pytest.mark.performance
+
 
 SURVIVOR = "workspace-delete-performance-survivor"
 SESSION_COUNT = 1_000

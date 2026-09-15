@@ -36,3 +36,8 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ft"]
+
+[tool.pytest.ini_options]
+markers = [
+    "performance: fixed workload and latency budget tests",
+]

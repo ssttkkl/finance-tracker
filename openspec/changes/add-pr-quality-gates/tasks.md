@@ -23,12 +23,15 @@
 - [x] 4.5 立即检查 workflow 的 YAML、action 输入、服务健康检查、数据库 URL 和 artifact 路径，避免将生产凭据或未受控数据库带入 CI。
 - [x] 4.6 修复 PostgreSQL 投影重建的工作区/状态锁序、来源指纹的旧 ORM 会话读取，以及迁移测试穿越不可逆分类迁移的问题；先保留失败复现，再用最小实现转绿。窄范围证据：`FT_REQUIRE_TEST_POSTGRES=1 ... pytest -q tests/integration/test_cash_projection_concurrency.py` 为 `9 passed`（约 7.5s），迁移回归为 `1 passed`（约 0.5s）；性能门禁 SQLite/ PostgreSQL 分别为 `2 passed`（约 330s），SQLite cold p95 `4.771s`、PostgreSQL cold p95 `5.873s`，hot p95 分别约 `43ms`/`66ms`。
 - [x] 4.7 兼容 Node 26 下 `jsdom` 仅提供 `window.localStorage` 而不提供 Node 全局 `localStorage` 的测试环境差异；只在 Web Vitest setup 暴露同一存储对象，不改变浏览器运行时。
+- [x] 4.8 根据远程 PR 检查日志修正 3 个门禁边界：为 `android-actions/setup-android@v3` 显式指定 `packages: platform-tools`，以覆盖 action 默认的废弃 `tools`；为固定规模性能模块增加 `performance` marker，并让 SQLite/PostgreSQL 功能 job 使用 `-m "not performance"`；为远程 `macos-26-arm64` 中文字体栅格差异增加独立 `ci/` 视觉基线目录，保持本机默认基线和严格像素比较。
+- [x] 4.9 重跑远程 `Backend (Performance)` 后确认 `ubuntu-latest` 的 SQLite/PostgreSQL cold p95 仍稳定为 `8.490s`/`8.745s`，不是单次噪声；保持 `5s`/`6.5s` 原预算不变，将独立性能 job 改为 `macos-26`，在 runner 上启动 Homebrew PostgreSQL 16 专用 `_test` 数据库，并保留 Linux PostgreSQL service 作为功能 job 的双后端证据。
 
 ## 5. 审查：范围、工程、设计与安全
 
-- [x] 5.1 独立复核最终 diff：确认只包含本变更定义的投影并发/迁移回归、Web 测试稳定性、两张 `1024×768` 视觉基线、workflow 与 OpenSpec；未修改 API/schema/分支保护/Mobile CI，其他工作树脏文件未纳入。Finding：无阻断项；Node 26 jsdom `localStorage` 差异已用测试 setup 的同一内存 Storage 修复。
-- [x] 5.2 工程与安全复核 workflow：确认前后端检查职责清晰、PostgreSQL 只使用一次性 `_test` 服务库、权限为 `contents: read`、失败 artifact 仅上传测试诊断目录且不上传环境变量；确认仓库忽略 `uv.lock`，因此 workflow 使用 `uv sync`/`pyproject.toml` 缓存键；workflow Prettier 检查通过，当前环境无 `actionlint`，未声称 actionlint 通过。
-- [x] 5.3 复核视觉基线差异仅包含当前表格列变化，且没有通过放宽像素阈值或跳过视觉测试隐藏差异。跨平台 change 另因共享错误态文案更新其直接相关 `cash-ledger-error-darwin.png`，不归入本 change 的两张基线范围。
+- [x] 5.1 独立复核最终 diff：确认只包含本变更定义的投影并发/迁移回归、Web 测试稳定性、视觉基线、workflow 与 OpenSpec；Mobile CI 只增加 Android SDK action 的显式包输入，未修改 Native 构建流程、API/schema、分支保护或发布配置，其他工作树脏文件未纳入。Finding：无阻断项；Node 26 jsdom `localStorage` 差异已用测试 setup 的同一内存 Storage 修复。
+- [x] 5.2 工程与安全复核 workflow：确认前端、SQLite/PostgreSQL 功能和独立性能检查职责清晰；功能 job 只使用一次性 `_test` 服务库，性能 job 只使用 runner 上的一次性 `_test` PostgreSQL，权限为 `contents: read`，失败 artifact 仅上传测试诊断目录且不上传环境变量；确认仓库忽略 `uv.lock`，因此 workflow 使用 `uv sync`/`pyproject.toml` 缓存键；workflow Prettier 检查通过，当前环境无 `actionlint`，未声称 actionlint 通过。
+- [x] 5.3 复核视觉基线差异仅包含当前表格列变化或已确认的 CI 中文字体栅格差异，且没有通过放宽像素阈值或跳过视觉测试隐藏差异。跨平台 change 另因共享错误态文案更新其直接相关 `cash-ledger-error-darwin.png`，不归入本 change 的本机或 CI 基线范围。
+- [x] 5.4 独立复核本轮远程 finding：Android 失败由 action 默认 `tools` 包确认；后端功能失败均来自性能模块混入；Web 12 个视觉差异的远程实际图与基线布局、文案和状态一致，仅为中文字体栅格化；独立性能 job 在 Linux runner 重跑仍超预算。采纳显式 action 输入、测试 marker、环境隔离基线和更接近预算建立环境的 macOS 性能 runner；不采纳放宽像素阈值、放宽性能预算、删除性能 job 或把失败 job 改为允许失败。
 
 ## 6. 测试与 QA：本地与 OpenSpec 验证
 
@@ -36,6 +39,7 @@
 - [x] 6.2 运行 SQLite 功能后端全量 pytest（忽略独立性能文件），并记录通过数、跳过数和警告；运行 `uv run python -m compileall -q src`。本次使用锁定主工作树 venv 等价执行入口，结果 `1525 passed, 182 skipped`，1 条既有 deprecation warning，compileall 通过。
 - [x] 6.3 准备专用 `_test` PostgreSQL（本机 Docker 或 `psql`），设置 `FT_TEST_POSTGRES_URL` 与 `FT_REQUIRE_TEST_POSTGRES=1`，运行 PostgreSQL 功能全量测试和独立双后端性能文件并记录结果；本次容器为 `postgres:16-alpine`、`finance_tracker_test`、端口 55432。功能套件 `1731 passed, 2 skipped, 2 failed`，失败为本机既有性能阈值/夹具波动；分类/投资性能单测复跑通过，PostgreSQL 独立性能参数通过，SQLite 独立 100k p95 受本机负载失败（5.664s/9.293s > 5s）。未放宽预算，远程 Linux CI 仍需最终确认。
 - [x] 6.4 运行 `openspec validate add-pr-quality-gates --type change --strict`、`openspec validate --all --strict`、`openspec doctor` 和 `git diff --check`，区分本变更结果与既有无关失败；联合 patch 更新 tasks 后需在提交前再执行一次。
+- [x] 6.5 本轮修复的窄范围验证：工作流 YAML 静态检查通过；`pytest --collect-only -m performance` 收集 `52` 项、`-m 'not performance'` 收集 `1660` 项；默认本机视觉套件 `15 passed`；本机财富性能门禁 SQLite `1 passed, 1 skipped`（约 `123s`）。CI `ci/` 基线的 `12` 张远程实际截图与失败 run artifact 逐张校验，未发现布局或状态差异；完整联合验证待新提交远程 run。
 
 ## 7. 发布准备：远程 PR 检查与回滚
 

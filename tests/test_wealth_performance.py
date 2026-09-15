@@ -12,6 +12,8 @@ from pathlib import Path
 import pytest
 from sqlalchemy import delete, func, insert, select
 
+pytestmark = pytest.mark.performance
+
 
 WORKSPACE = "wealth-performance"
 START = date(2025, 7, 1)

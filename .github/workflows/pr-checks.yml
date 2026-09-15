@@ -97,7 +97,7 @@ jobs:
         run: uv run python -m compileall -q src
 
       - name: Run SQLite backend tests
-        run: PYTHONPATH=tests:.:src uv run pytest -q --ignore=tests/test_wealth_performance.py
+        run: PYTHONPATH=tests:.:src uv run pytest -q -m "not performance"
 
   backend-postgres:
     name: Backend (PostgreSQL)
@@ -142,26 +142,12 @@ jobs:
         run: uv run python -m compileall -q src
 
       - name: Run PostgreSQL backend tests
-        run: PYTHONPATH=tests:.:src uv run pytest -q --ignore=tests/test_wealth_performance.py
+        run: PYTHONPATH=tests:.:src uv run pytest -q -m "not performance"
 
   backend-performance:
     name: Backend (Performance)
-    runs-on: ubuntu-latest
+    runs-on: macos-26
     timeout-minutes: 20
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: finance_tracker_test
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d finance_tracker_test"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     env:
       FT_TEST_POSTGRES_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/finance_tracker_test
       FT_REQUIRE_TEST_POSTGRES: "1"
@@ -186,5 +172,24 @@ jobs:
       - name: Compile Python sources
         run: uv run python -m compileall -q src
 
+      - name: Start dedicated PostgreSQL
+        shell: bash
+        run: |
+          brew install postgresql@16
+          pg_bin="$(brew --prefix postgresql@16)/bin"
+          pg_data="$RUNNER_TEMP/finance-tracker-postgres"
+          "$pg_bin/initdb" --pgdata "$pg_data" --username postgres --auth trust --no-locale --encoding UTF8
+          "$pg_bin/pg_ctl" --pgdata "$pg_data" --wait --log "$RUNNER_TEMP/finance-tracker-postgres.log" --options "-h 127.0.0.1 -p 5432" start
+          "$pg_bin/createdb" --host 127.0.0.1 --port 5432 --username postgres finance_tracker_test
+
       - name: Run isolated backend performance tests
         run: PYTHONPATH=tests:.:src uv run pytest -q tests/test_wealth_performance.py
+
+      - name: Stop dedicated PostgreSQL
+        if: always()
+        shell: bash
+        run: |
+          pg_bin="$(brew --prefix postgresql@16 2>/dev/null || true)/bin"
+          if test -x "$pg_bin/pg_ctl"; then
+            "$pg_bin/pg_ctl" --pgdata "$RUNNER_TEMP/finance-tracker-postgres" --wait stop || true
+          fi
