@@ -197,7 +197,9 @@ jobs:
       - name: Run isolated backend performance tests
         env:
           TMPDIR: ${{ runner.temp }}/finance-tracker-performance-tmp
-        run: PYTHONPATH=tests:.:src uv run pytest -q tests/test_wealth_performance.py
+        run: >-
+          PYTHONPATH=tests:.:src uv run pytest -q
+          --basetemp "$TMPDIR/pytest" tests/test_wealth_performance.py
 
       - name: Unmount in-memory SQLite temporary directory
         if: always()

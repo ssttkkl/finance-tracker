@@ -257,8 +257,13 @@ def build_relational_services(settings) -> ServiceBundle:
                     LifecycleEvent(item.event_kind, item.effective_at)
                     for item in lifecycle if item.account_id == account_id
                 )
-            flows_by_day: dict[date, list[Decimal]] = {}
-            cash_events_by_day: dict[date, list[WealthEvent]] = {}
+            # Workspace-level attribution only needs the ordered sums of cash
+            # flows.  Keeping one Decimal per day avoids allocating and then
+            # walking one WealthEvent for every formal cash fact.  The
+            # foreign-cash path below still retains its per-flow pairs because
+            # FX attribution uses each flow's local-currency rate.
+            flow_totals_by_day: dict[date, Decimal] = {}
+            external_cash_totals_by_day: dict[date, Decimal] = {}
             # Foreign-cash FX uses local-currency flow amounts and the FX rate at
             # flow day (day-start FX series), not opening-balance-only impact.
             cash_flows_by_day_currency: dict[tuple[date, str], list[tuple[Decimal, Decimal]]] = {}
@@ -276,7 +281,7 @@ def build_relational_services(settings) -> ServiceBundle:
                         continue
                     amount = decimal_value((local_amount * rate).normalize())
                     flow_rate = decimal_value(rate)
-                flows_by_day.setdefault(occurred, []).append(amount)
+                flow_totals_by_day[occurred] = flow_totals_by_day.get(occurred, Decimal("0")) + amount
                 cat = (value.record_type or "").lower()
                 if cat in {"transfer", "transfer_in", "transfer_out"}:
                     event_kind = "transfer"
@@ -284,7 +289,10 @@ def build_relational_services(settings) -> ServiceBundle:
                     event_kind = cat
                 else:
                     event_kind = "external_cashflow"
-                cash_events_by_day.setdefault(occurred, []).append(WealthEvent(event_kind, amount))
+                if event_kind != "transfer":
+                    external_cash_totals_by_day[occurred] = (
+                        external_cash_totals_by_day.get(occurred, Decimal("0")) + amount
+                    )
                 if event_kind != "transfer" and value.currency != "CNY":
                     cash_flows_by_day_currency.setdefault(
                         (occurred, value.currency), []
@@ -405,7 +413,13 @@ def build_relational_services(settings) -> ServiceBundle:
                     ) for (owner, identity_kind, identity) in applicable
                     if (owner, identity_kind, identity) not in day_conflict
                 }
-                flows = tuple(flows_by_day.get(current, ()))
+                flow_total = flow_totals_by_day.get(current)
+                flows = () if flow_total is None else (flow_total,)
+                external_cash_total = external_cash_totals_by_day.get(current)
+                external_events = (
+                    () if external_cash_total is None
+                    else (WealthEvent("external_cashflow", external_cash_total),)
+                )
                 fingerprint = canonical_digest(tuple(sorted(
                     (f"{owner}:{identity_kind}:{identity}", disposition)
                     for (owner, identity_kind, identity), disposition in dispositions.items()
@@ -584,7 +598,7 @@ def build_relational_services(settings) -> ServiceBundle:
                     identity = attribute_complete_day(
                         opening=sum((opening for opening, _closing in boundaries.values()), Decimal("0")),
                         closing=sum((closing for _opening, closing in boundaries.values()), Decimal("0")),
-                        external_events=tuple(cash_events_by_day.get(current, ())) + tuple(investment_events_by_day.get(current, ())),
+                        external_events=external_events + tuple(investment_events_by_day.get(current, ())),
                         portfolio_buckets=tuple(portfolio_buckets),
                     )
                     dietz_buckets = []
@@ -630,11 +644,7 @@ def build_relational_services(settings) -> ServiceBundle:
                 # corresponding result components before publication.
                 if point.status is WealthStatus.COMPLETE:
                     expected_evidence = {
-                        ComponentKind.EXTERNAL_CASHFLOW: sum(
-                            (event.amount for event in cash_events_by_day.get(current, ())
-                            if event.kind in {"salary", "expense", "refund", "interest", "liability_interest", "external_cashflow"}),
-                            Decimal("0"),
-                        ) + sum(
+                        ComponentKind.EXTERNAL_CASHFLOW: (external_cash_total or Decimal("0")) + sum(
                             (event.amount for event in investment_events_by_day.get(current, ())
                             if event.kind == "external_cashflow"),
                             Decimal("0"),
