@@ -17,12 +17,12 @@ from .models import (
 
 
 def _manifest_item_id(*parts) -> str:
-    digest = hashlib.sha256()
+    encoded_parts = bytearray()
     for part in parts:
         encoded = str(part).encode("utf-8")
-        digest.update(len(encoded).to_bytes(8, "big"))
-        digest.update(encoded)
-    return digest.hexdigest()
+        encoded_parts.extend(len(encoded).to_bytes(8, "big"))
+        encoded_parts.extend(encoded)
+    return hashlib.sha256(encoded_parts).hexdigest()
 
 
 
@@ -36,6 +36,17 @@ def _postgres_bulk_write_settings(session) -> None:
     """
     session.execute(text("SET LOCAL synchronous_commit = off"))
     session.execute(text("SET LOCAL session_replication_role = 'replica'"))
+
+
+def _sqlite_bulk_write_settings(session) -> None:
+    """Keep the large immutable manifest insert in the SQLite page cache.
+
+    The cache setting is connection-local and only affects the connection that
+    performs a rebuild; deferred foreign keys are still checked at commit.
+    Neither setting changes the transaction's atomicity or the published data.
+    """
+    session.execute(text("PRAGMA cache_size=-65536"))
+    session.execute(text("PRAGMA defer_foreign_keys=ON"))
 
 
 class RelationalWealthReadModel:
@@ -80,6 +91,7 @@ class RelationalWealthReadModel:
                 # and ORM bind-processing allocations while retaining this
                 # transaction and the same manifest FK.  All values are
                 # converted with the model's SQLite representation.
+                _sqlite_bulk_write_settings(session)
                 session.flush()
                 raw_connection = session.connection().connection.driver_connection
                 cursor = raw_connection.cursor()

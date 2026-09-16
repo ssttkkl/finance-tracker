@@ -23,18 +23,23 @@ def _digest_parts(*parts: object) -> str:
 
 
 def _manifest_digest(items: tuple[WealthSourceItem, ...]) -> str:
-    digest = hashlib.sha256()
+    encoded_items = bytearray()
     for item in items:
         # The canonical source set includes its direct-evidence projection.  A
         # changed period, kind, fold identity, or contribution must therefore
         # yield a new immutable source-manifest identity even if the formal
-        # fact's primary identity is unchanged.
-        digest.update(bytes.fromhex(_digest_parts(
+        # fact's primary identity is unchanged.  The length-delimited fields
+        # retain unambiguous boundaries while one outer digest avoids a second
+        # SHA-256 invocation for every source item in a large workspace.
+        for part in (
             item.item_kind, item.identity, item.revision, item.content_digest,
             item.occurred_at.isoformat() if item.occurred_at else None,
             item.evidence_kind, item.contribution, item.scope_fold_identity,
-        )))
-    return digest.hexdigest()
+        ):
+            encoded = str(part).encode("utf-8")
+            encoded_items.extend(len(encoded).to_bytes(8, "big"))
+            encoded_items.extend(encoded)
+    return hashlib.sha256(encoded_items).hexdigest()
 
 
 class RelationalWealthFactRepository:
@@ -319,13 +324,15 @@ class RelationalWealthFactRepository:
         )
 
     def _absorb_source_state_rows(self, digest, rows) -> None:
+        encoded_rows = bytearray()
         for row in rows:
             for part in row:
                 encoded = str(part).encode("utf-8")
-                digest.update(len(encoded).to_bytes(8, "big"))
-                digest.update(encoded)
-            digest.update(b"\n")
-        digest.update(b"|")
+                encoded_rows.extend(len(encoded).to_bytes(8, "big"))
+                encoded_rows.extend(encoded)
+            encoded_rows.extend(b"\n")
+        encoded_rows.extend(b"|")
+        digest.update(encoded_rows)
 
     def _source_state_from_capture_rows(
         self, account_rows, valuation_rows, lifecycle_rows, cash_rows, investment_rows,
