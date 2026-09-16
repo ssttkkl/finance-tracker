@@ -68,7 +68,7 @@
 
 `RelationalCashProjectionRepository._state(lock=True)` 在 PostgreSQL 中先单独执行工作区 `FOR UPDATE`，再执行状态行 `FOR UPDATE`，保持所有写路径一致的锁序，避免两个事务以不同顺序获取资源。全量重建在读取输入前保存来源指纹，投影发布时再校验；分类同步是构建后的内部写入，放在发布校验之后执行，避免把预期的分类归一化误判为并发更新。`source_digest()` 的来源查询使用 `populate_existing`，使同一重建事务在读取过来源 ORM 实例后仍能看到已提交的独立事务更新；关系和资金关系也采用相同策略。
 
-财富重建的来源 fence 使用 `wealth_source_revisions.revision`：捕获事务读取 token 与正式来源行，触发器覆盖会改变财富 manifest 或计算输入的写入；现金流水只对账户、时间、金额、币种、类型和删除状态变化递增，用户分类修正保持当前。`source_is_current()` 在独立会话读取一行 token 并与捕获值比较，故就地老流水修正仍会阻止发布，而不再付出 100k 行排序、字段编码和哈希成本。捕获出的 token 同时并入 manifest watermark，避免旧 item digest 未覆盖的计算字段修正复用旧 generation identity。触发器和 migration 必须在 SQLite、PostgreSQL 以及 `create_schema` 测试入口保持等价；降级顺序必须先移除触发器，再移除 token 表。
+财富重建的来源 fence 使用 `wealth_source_revisions.revision`：捕获事务读取 token 与正式来源行，触发器覆盖会改变财富 manifest 或计算输入的写入；现金流水只对账户、时间、金额、币种、类型和删除状态变化递增，用户分类修正保持当前。`source_is_current()` 在独立会话读取一行 token 并与捕获值比较，故就地老流水修正仍会阻止发布，而不再付出 100k 行排序、字段编码和哈希成本。捕获出的工作区 token 直接与工作区标识组成 manifest watermark；完整 item 仍按既有顺序持久化为证据输入，但不再为生成身份重复构造 100k-item Python digest。`e72b4e2` 的 ARM64 复核仍测得 SQLite cold p95 `5.1206851s`，因此移除了这段不影响正确性的重复 digest，保留 token 作为唯一生成身份和 fence 输入；预算、样本数和双后端参数不变。触发器和 migration 必须在 SQLite、PostgreSQL 以及 `create_schema` 测试入口保持等价；降级顺序必须先移除触发器，再移除 token 表。
 
 迁移回归只在 `20260729_11` 与 `20260811_26` 之间往返。它验证数据集索引迁移本身可逆，同时不穿越 `20260812_27` 这一明确标记为一次性、不可逆的分类重建迁移。
 

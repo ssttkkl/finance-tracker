@@ -34,6 +34,7 @@
 - [x] 4.16 提交 `efe8a45` 尝试使用 `macos-26-xlarge`，job 因仓库没有可分配的 larger runner 立即失败；改用公开标准 `ubuntu-24.04-arm`，将性能 job 的数据库改为 `postgres:16-alpine` service，保留 40 分钟上限、完整双后端 workload 和原始预算。
 - [x] 4.17 提交 `05f2c70` 的 `ubuntu-24.04-arm` 性能 job 完成但 cold p95 仍为 SQLite/PostgreSQL `8.039s`/`7.717s`；为隔离 hosted 磁盘 I/O，在 CI 性能 job 中为 SQLite 临时目录和 PostgreSQL service 数据目录增加 2 GiB tmpfs，保留完整 workload、样本与原始预算。
 - [x] 4.18 针对 `0cfb74e` 的 x64 性能失败，新增 `wealth_source_revisions` 内部模型与 migration；为 accounts、valuations、lifecycle、cash transactions 和 investment events 安装双后端写入触发器，现金流水仅对财富相关字段递增；捕获和发布前 fence 改用同一工作区 token，保留分类字段不触发和就地类型修正触发的回归。工作区删除流程显式先删账户，触发器在父工作区已不存在时跳过 token upsert，避免破坏级联删除；新建工作区同步创建零值 token。
+- [x] 4.19 `e72b4e2` 的后续 ARM64 复核显示 SQLite cold p95 `5.1206851s`、hot p95 `102.464478ms`，仅 cold 超原始 `5s` 预算；确认是 token 已覆盖后仍重复构造约 100k item digest，移除该重复生成身份哈希，保留完整 item 枚举/持久化、token fence、双后端 workload 和原始预算。SQLite 本地 cold/hot p95 `2.787s/42.4ms`、PostgreSQL `2.903s/56.6ms` 均通过。
 
 ## 5. 审查：范围、工程、设计与安全
 
@@ -47,6 +48,7 @@
 - [x] 5.8 独立复核 `efe8a45` 的 runner finding：larger runner 不可用已由无 runner、即时失败证据确认；采纳公开标准 `ubuntu-24.04-arm` 与既有 PostgreSQL service 模式，避免保留不可执行的 label；接受 ARM64 public-preview 的可用性/镜像漂移风险，仍不改变测试或预算。
 - [x] 5.9 独立复核 `05f2c70` 的性能 finding：hot p95 约 `100ms` 而 cold p95 约 `8s`，与 hosted 磁盘 I/O 成本一致；采纳仅作用于 CI 性能 job 的 2 GiB tmpfs，耐久性契约继续由功能/迁移/事务测试覆盖；未修改预算、测试样本或失败策略。
 - [x] 5.10 独立复核 revision token：覆盖范围为 `accounts`、`valuation_observations`、`account_lifecycle_events`、`cash_transactions`、`investment_events` 的 insert/delete 与财富相关 update；分类修正不递增，类型修正递增；migration 回填既有工作区并可从 35 回退到 34，SQLite/PostgreSQL/`create_schema` 安装契约一致且测试入口幂等。Finding：首轮发现运行时 revision 常量、工作区级联删除和 PostgreSQL 重复 trigger 三个阻断问题，均已修复；迁移回滚保持“先删 trigger、再删 token 表”，无遗留阻断项。
+- [x] 5.11 独立复核后续性能优化：manifest item 仍完整写入，source revision trigger 与发布前一行 token 比较未改变；只删除由同一 token 完整承诺的重复 Python digest，未放宽 `5s`/`6.5s`/`300ms` 预算，未改变证据内容、API 或金额语义。阻断性 finding 仅为 `e72b4e2` ARM64 SQLite cold p95 越过 `0.1206851s`，已由最小实现优化处理，待新远程 run 最终确认。
 
 ## 6. 测试与 QA：本地与 OpenSpec 验证
 
@@ -61,8 +63,8 @@
 
 - [x] 7.1 在提交前确认 `refactor/web` 是基线，最终分支为现有 `feat/cross-platform-experience`，并只选择本变更 tasks 直接相关的文件；无关未跟踪或脏文件不纳入提交、不删除。
 - [x] 7.2 完成本变更的单变更验证后，将本变更作为独立逻辑提交加入 `feat/cross-platform-experience`；不把本变更提交到基线 `refactor/web`。跨平台逻辑提交为 `0b770a5`，质量门禁修复及性能优化已作为独立提交加入并推送到同一分支；revision token 实现、迁移、回归和 ARM runner 恢复已提交为 `0a07a1f`，由证据提交 `d14f14c` 回写验证记录并推送。
-- [x] 7.3 在当前 feature 分支 `d14f14c71543d1ebe8c8ff6ebbfad6eaec2ffb05` 上完成联合验收：`PR Checks` run `35140079261` 的 frontend、backend-sqlite、backend-postgres、backend-performance 四个 job 全部通过；`Mobile CI` run `35140079045` 的 Android、iOS 和 shared JavaScript checks 全部通过。两组 run 的 URL、runner、耗时、测试数和 artifact 结果已在下方最终远程证据记录。
-- [x] 7.4 依据 `0cfb74e` 的失败日志修复 source revision 冷路径并恢复 `ubuntu-24.04-arm` 性能 runner；在 `d14f14c` 的联合 run 中无失败 job，原始性能预算、测试集合和失败策略均未放宽。未执行回滚、数据库事实修改、分支保护或部署变更。
+- [ ] 7.3 `d14f14c` 的首轮联合验收已通过，但证据提交 `e72b4e2` 触发的复核暴露 ARM64 SQLite cold p95 边界失败；完成后续最小性能优化后，需在最终修复 commit 上重新观察 frontend、backend-sqlite、backend-postgres、backend-performance 和 Mobile CI，并回写最终 run。
+- [ ] 7.4 依据 `0cfb74e` 与 `e72b4e2` 的失败日志分别修复 source revision fence 与重复 manifest digest；本地双后端已通过，待新远程 run 确认无失败后勾选。原始性能预算、测试集合和失败策略未放宽；未执行回滚、数据库事实修改、分支保护或部署变更。
 
 ## 8. 反思与交付记录
 
@@ -90,10 +92,11 @@
 - `FT_TEST_POSTGRES_URL=...finance_tracker_test FT_REQUIRE_TEST_POSTGRES=1 PYTHONPATH=tests:.:src uv run pytest -q -s tests/test_wealth_performance.py`：SQLite cold/hot p95 `2927447333ns/46720958ns`（`2.927s/46.7ms`），PostgreSQL `3638882250ns/56860250ns`（`3.639s/56.9ms`），20 samples、3 warmups，原始 cold `5s/6.5s` 与 hot `300ms` 阈值通过。
 - 迁移、触发器和删除回归：`37 passed, 2 skipped`（迁移/财富重建窄套件），工作区删除 API `19 passed, 1 skipped`；`openspec validate add-pr-quality-gates --type change --strict`、`openspec validate --all --strict`、`openspec doctor`、`git diff --check`、`uv run python -m compileall -q src migrations` 和两个 workflow 的 Prettier 检查通过。
 
-## 最终远程 PR 证据（2026-09-17，Asia/Shanghai）
+## 首轮 revision token 远程 PR 证据（2026-09-17，Asia/Shanghai）
 
 - PR：`https://github.com/ssttkkl/finance-tracker/pull/82`；head `feat/cross-platform-experience`，base `refactor/web`，head commit `d14f14c71543d1ebe8c8ff6ebbfad6eaec2ffb05`。`PR Checks` run `https://github.com/ssttkkl/finance-tracker/actions/runs/35140079261` 于 `19:21:37Z` 创建并以 success 结束：Frontend `104942120573`（`macos-26`，2m15s）、Backend (SQLite) `104942120629`（`ubuntu-latest`，4m10s）、Backend (PostgreSQL) `104942120218`（`ubuntu-latest`，10m59s）和 Backend (Performance) `104942120914`（`ubuntu-24.04-arm`，7m12s）全部通过。
 - Backend (SQLite) 远程日志为 `1504 passed, 158 skipped, 52 deselected`；Backend (PostgreSQL) 为 `1688 passed, 2 skipped, 52 deselected`。Backend (Performance) 在 ARM64 Python `3.11.16`、PostgreSQL `16.15 aarch64` service 和 2 GiB tmpfs 隔离环境中运行固定双后端 workload，`tests/test_wealth_performance.py` 为 `2 passed in 402.12s`；原始 SQLite cold `5s`、PostgreSQL cold `6.5s` 和 hot `300ms` 断言通过。该 workflow 未使用 `-s`，因此远程日志没有展开每个 p95 数值；本地同一 fixture 的 p95 已在上方记录。
 - Frontend (Web) 远程 job 通过共享测试、类型检查、构建、E2E、生产预览和视觉回归；日志为共享 `145 passed`、E2E `38 passed`、preview `11 passed`、visual `15 passed`。失败诊断 artifact 未生成，未修改 Web UI。
 - `Mobile CI` run `https://github.com/ssttkkl/finance-tracker/actions/runs/35140079045` 于 `19:21:37Z` 创建并以 success 结束：Shared and JavaScript checks `104942120750`（`ubuntu-latest`，1m18s）、Android Debug APK `104942120513`（`ubuntu-latest`，15m39s）和 iOS Simulator app `104942120896`（`macos-26`，17m14s）全部通过。Android artifact `finance-tracker-android-debug` ID `10465621244`、iOS artifact `finance-tracker-ios-simulator` ID `10465696406` 均成功上传；原生构建日志只有既有依赖弃用 warning 和 GitHub Actions Node 20 annotation，未形成失败项。
+- 后续证据提交 `e72b4e2` 的 `PR Checks` run `https://github.com/ssttkkl/finance-tracker/actions/runs/35142279536` 仍在同一 `ubuntu-24.04-arm` 性能环境执行；Frontend、SQLite、PostgreSQL 通过，Performance job `104949483704` 以 failure 结束。日志为 SQLite cold p95 `5120685100ns`、hot p95 `102464478ns`，断言 `5120685100 < 5000000000` 失败；PostgreSQL 参数通过，结论是实现距预算仅差 `0.1206851s`，不是功能或数据库契约失败。该 finding 已在 4.19/5.11 记录并修复，不能把此 run 当作最终通过证据。
 - 本轮完成后不执行 PR 合并、部署或 OpenSpec 归档；active change 的 `8.3` 保持未勾选，等待明确的发布/归档授权。

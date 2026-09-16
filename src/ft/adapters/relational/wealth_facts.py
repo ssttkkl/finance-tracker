@@ -29,26 +29,6 @@ def _digest_parts(*parts: object) -> str:
     return digest.hexdigest()
 
 
-def _manifest_digest(items: tuple[WealthSourceItem, ...]) -> str:
-    encoded_items = bytearray()
-    for item in items:
-        # The canonical source set includes its direct-evidence projection.  A
-        # changed period, kind, fold identity, or contribution must therefore
-        # yield a new immutable source-manifest identity even if the formal
-        # fact's primary identity is unchanged.  The length-delimited fields
-        # retain unambiguous boundaries while one outer digest avoids a second
-        # SHA-256 invocation for every source item in a large workspace.
-        for part in (
-            item.item_kind, item.identity, item.revision, item.content_digest,
-            item.occurred_at.isoformat() if item.occurred_at else None,
-            item.evidence_kind, item.contribution, item.scope_fold_identity,
-        ):
-            encoded = str(part).encode("utf-8")
-            encoded_items.extend(len(encoded).to_bytes(8, "big"))
-            encoded_items.extend(encoded)
-    return hashlib.sha256(encoded_items).hexdigest()
-
-
 class RelationalWealthFactRepository:
     def __init__(self, session_factory, workspace_id: str) -> None:
         self._sessions = session_factory
@@ -297,12 +277,12 @@ class RelationalWealthFactRepository:
                 None,
             ))
         ordered = tuple(sorted(items, key=lambda item: (item.item_kind, item.identity, item.revision)))
-        # Include the captured database revision in the content digest.  The
-        # token is the O(1) publication fence; keeping it in the manifest ID
-        # also prevents a source correction to a field not represented by a
-        # legacy item digest from colliding with an older immutable generation.
+        # The monotonic workspace token covers every wealth-relevant source
+        # write, so it is already the complete manifest identity.  Item content
+        # remains fully enumerated and persisted below for evidence lookup, but
+        # rebuilding a second 100k-item Python digest adds no correctness.
         watermark = canonical_digest({
-            "manifest": _manifest_digest(ordered),
+            "workspace": self._workspace_id,
             "source_revision": captured_state,
         })
         self._captured_build_inputs = (watermark, accounts, valuations, cashflows, investments, lifecycle)
