@@ -31,6 +31,7 @@
 - [x] 4.13 提交 `0dc364b` 的远程 Web 视觉 job 已通过 `14/15`，唯一失败的 `cash-ledger-all-loaded` 仍只有 `128` 个中文字体栅格像素差异；逐图确认状态与布局一致后补入当前 runner 实际基线，不放宽比较阈值。
 - [x] 4.14 提交 `0dc364b` 的 Intel 性能 job 已确认专用 PostgreSQL 初始化成功，但双后端固定样本在 20 分钟 job 上限内未完成并被取消；将 job 超时调整为 40 分钟以容纳完整执行，保持测试集合、样本数和 `5s`/`6.5s` 原预算不变。
 - [x] 4.15 提交 `d906fcd` 的 Intel 性能 job 已在 40 分钟上限内完成，但 SQLite/PostgreSQL cold p95 为 `32.476s`/`27.437s`、hot p95 为 `581.7ms`/`372.9ms`，确认硬件不满足既有预算；切换到 `macos-26-xlarge`，继续使用同一 Homebrew PostgreSQL 16 双后端矩阵和原始预算。
+- [x] 4.16 提交 `efe8a45` 尝试使用 `macos-26-xlarge`，job 因仓库没有可分配的 larger runner 立即失败；改用公开标准 `ubuntu-24.04-arm`，将性能 job 的数据库改为 `postgres:16-alpine` service，保留 40 分钟上限、完整双后端 workload 和原始预算。
 
 ## 5. 审查：范围、工程、设计与安全
 
@@ -41,6 +42,7 @@
 - [x] 5.5 独立复核 `0dc364b` 后的视觉 finding：`14/15` 通过，剩余 `all-loaded` 实际图只包含已确认的中文字体栅格差异；采纳该单张 CI 基线更新，未扩大到本机基线、未修改 UI、未放宽阈值。
 - [x] 5.6 独立复核 `0dc364b` 的性能 finding：Intel runner 的 PostgreSQL 初始化和依赖安装均成功，失败原因是固定双后端测试超过 20 分钟执行上限而非测试断言；采纳延长 job 上限至 40 分钟，未跳过测试、减少样本或放宽性能预算。
 - [x] 5.7 独立复核 `d906fcd` 的性能 finding：Intel runner 能完成测试但实际 p95 明显超预算，排除单纯超时原因；采纳 `macos-26-xlarge` 作为更接近本机基线的执行环境，保留完整双后端测试、固定 workload、原始样本数和预算；接受 larger runner 的可用性、排队及计费风险，不以允许失败或阈值放宽掩盖。
+- [x] 5.8 独立复核 `efe8a45` 的 runner finding：larger runner 不可用已由无 runner、即时失败证据确认；采纳公开标准 `ubuntu-24.04-arm` 与既有 PostgreSQL service 模式，避免保留不可执行的 label；接受 ARM64 public-preview 的可用性/镜像漂移风险，仍不改变测试或预算。
 
 ## 6. 测试与 QA：本地与 OpenSpec 验证
 
@@ -48,7 +50,7 @@
 - [x] 6.2 运行 SQLite 功能后端全量 pytest（忽略独立性能文件），并记录通过数、跳过数和警告；运行 `uv run python -m compileall -q src`。本次使用锁定主工作树 venv 等价执行入口，结果 `1525 passed, 182 skipped`，1 条既有 deprecation warning，compileall 通过。
 - [x] 6.3 准备专用 `_test` PostgreSQL（本机 Docker 或 `psql`），设置 `FT_TEST_POSTGRES_URL` 与 `FT_REQUIRE_TEST_POSTGRES=1`，运行 PostgreSQL 功能全量测试和独立双后端性能文件并记录结果；本次容器为 `postgres:16-alpine`、`finance_tracker_test`、端口 55432。功能套件 `1731 passed, 2 skipped, 2 failed`，失败为本机既有性能阈值/夹具波动；分类/投资性能单测复跑通过，PostgreSQL 独立性能参数通过，SQLite 独立 100k p95 受本机负载失败（5.664s/9.293s > 5s）。未放宽预算，远程 Linux CI 仍需最终确认。
 - [x] 6.4 运行 `openspec validate add-pr-quality-gates --type change --strict`、`openspec validate --all --strict`、`openspec doctor` 和 `git diff --check`，区分本变更结果与既有无关失败；联合 patch 更新 tasks 后需在提交前再执行一次。
-- [x] 6.5 本轮修复的窄范围验证：工作流 YAML 静态检查通过；`pytest --collect-only -m performance` 收集 `52` 项、`-m 'not performance'` 收集 `1660` 项；默认本机视觉套件 `15 passed`；本机财富性能门禁 SQLite `1 passed, 1 skipped`（约 `123s`）。CI `ci/` 基线先后以旧 run 的 `12` 张、新 run 的 `9` 张和再次 run 的 `1` 张远程实际截图逐张校验，均未发现布局或状态差异；`0dc364b` 已确认 SQLite/PostgreSQL 功能通过、Android Mobile CI 全部通过，Web `14/15` 的单张字体差异已更新基线；`d906fcd` 的 Intel 性能 job 在 40 分钟上限内完成但双后端 p95 均超预算，已切换到 `macos-26-xlarge`，待新 run 产出满足原预算的 p95 证据。
+- [x] 6.5 本轮修复的窄范围验证：工作流 YAML 静态检查通过；`pytest --collect-only -m performance` 收集 `52` 项、`-m 'not performance'` 收集 `1660` 项；默认本机视觉套件 `15 passed`；本机财富性能门禁 SQLite `1 passed, 1 skipped`（约 `123s`）。CI `ci/` 基线先后以旧 run 的 `12` 张、新 run 的 `9` 张和再次 run 的 `1` 张远程实际截图逐张校验，均未发现布局或状态差异；`0dc364b` 已确认 SQLite/PostgreSQL 功能通过、Android Mobile CI 全部通过，Web `14/15` 的单张字体差异已更新基线；`d906fcd` 的 Intel 性能 job 在 40 分钟上限内完成但双后端 p95 均超预算，`efe8a45` 的 xlarge label 无可用 runner，已改为 `ubuntu-24.04-arm` service 模式，待新 run 产出满足原预算的 p95 证据。
 
 ## 7. 发布准备：远程 PR 检查与回滚
 
