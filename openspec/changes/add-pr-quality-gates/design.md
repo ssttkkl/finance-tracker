@@ -50,6 +50,8 @@
 
 `backend-performance` 使用 `ubuntu-24.04-arm` runner，运行在 GitHub 公共仓库标准的 4 核/16 GiB ARM64 环境，并通过与功能 job 相同的 `postgres:16-alpine` service 启动专用 `finance_tracker_test` 数据库；连接仍强制使用同一个 `_test` URL。远程 `ubuntu-latest` 的实际 cold p95 稳定为 SQLite `8.490s`、PostgreSQL `8.745s`，标准 `macos-26` ARM64 runner 的实际 cold p95 又达到 SQLite `11.794s`、PostgreSQL `9.031s`，均超过既有 `5s`/`6.5s` 预算；本机相同 Python 3.11、SQLite 和 Chromium 所在的 macOS 26 ARM64 环境 cold p95 为 `4.386s`。`0dc364b` 的标准 Intel runner 首先在 20 分钟上限内未完成；将上限调至 40 分钟后，`d906fcd` 在 24 分钟完成但 SQLite/PostgreSQL cold p95 分别恶化为 `32.476s`/`27.437s`，因此该 runner 也不满足既有门禁。`efe8a45` 尝试使用 `macos-26-xlarge` 时因仓库当前没有可分配的 larger runner 而立即失败，故改用公开可用的 `ubuntu-24.04-arm`，保留 40 分钟上限以容纳完整 100k 重建。该 runner 的 `05f2c70` 实测 SQLite/PostgreSQL cold p95 为 `8.039s`/`7.717s`、hot p95 为 `99.3ms`/`109.3ms`，确认 cold 路径受 hosted 磁盘 I/O 影响；因此性能 job 在该 job 专用的 2 GiB tmpfs 中运行 SQLite `pytest tmp_path`，并将 PostgreSQL service 的数据目录挂载到同等 tmpfs。tmpfs 仅用于 CI 的短生命周期性能测量，耐久性由其他双后端事务/迁移契约覆盖；它不改变测试集合、样本数或 `5s`/`6.5s` 性能预算。该测试自身包含 SQLite 与 PostgreSQL 参数，因此两个后端的固定 cold/hot 性能预算仍都被执行；把它从功能套件中隔离是为了避免长时间迁移、并发和关系测试污染 p95 样本，不删除测试、不放宽预算。
 
+后续 `cdf2ea7` 已把来源清单写入和 fence 热路径进一步压缩：PostgreSQL cold p95 已通过 `6.5s`，ARM runner 的 SQLite cold p95 由 `6.910s` 降至 `6.238s`，仍未达到 `5s`。下一轮保留相同 tmpfs、样本数和预算，仅将性能 job 的公共 runner 试验性切换为 `ubuntu-24.04`，以验证 x64 hosted CPU 与 tmpfs 组合能否满足原门禁；若仍失败，必须回到实现优化或重新评估门禁环境，不得放宽预算。
+
 功能 job 的 PostgreSQL service container 通过 `pg_isready` 健康检查；性能 job 的本地 PostgreSQL 由同一步骤初始化并创建专用 `_test` 数据库。测试夹具继续负责清理专用 schema、执行 migration 和恢复状态。CI 不自动探测数据库，也不复用开发机或生产连接串；每次 job 的数据库随 runner 销毁。
 
 备选方案是只运行 SQLite，速度更快但会重新留下当前 PostgreSQL skip；或把功能和性能混入同一个长 job，性能样本会受套件负载影响且失败来源不清晰，因此均不采用。
