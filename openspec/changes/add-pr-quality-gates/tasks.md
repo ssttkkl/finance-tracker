@@ -60,7 +60,7 @@
 ## 7. 发布准备：远程 PR 检查与回滚
 
 - [x] 7.1 在提交前确认 `refactor/web` 是基线，最终分支为现有 `feat/cross-platform-experience`，并只选择本变更 tasks 直接相关的文件；无关未跟踪或脏文件不纳入提交、不删除。
-- [x] 7.2 完成本变更的单变更验证后，将本变更作为独立逻辑提交加入 `feat/cross-platform-experience`；不把本变更提交到基线 `refactor/web`。跨平台逻辑提交为 `0b770a5`，质量门禁修复及性能优化已作为独立提交加入并推送到同一分支；revision token 待验证后追加小步提交。
+- [x] 7.2 完成本变更的单变更验证后，将本变更作为独立逻辑提交加入 `feat/cross-platform-experience`；不把本变更提交到基线 `refactor/web`。跨平台逻辑提交为 `0b770a5`，质量门禁修复及性能优化已作为独立提交加入并推送到同一分支；revision token 实现、迁移、回归和 ARM runner 恢复已提交为 `0a07a1f`，待推送并观察新的联合检查。
 - [ ] 7.3 待 `cross-platform-experience` 也完成并合入同一 feature 分支后，只在合并结果上集中运行联合验收；通过后推送 `feat/cross-platform-experience`，观察 `PR Checks` 的 frontend、backend-sqlite、backend-postgres、backend-performance 四个 job，并记录 commit、run URL、runner、耗时和 artifact 结果。
 - [ ] 7.4 若联合远程 job 失败，依据日志修复对应 workflow/测试或 revision migration 并重新验证；若需回滚，保留运行中仍需要的 token 表/触发器，确认旧代码安全后再按 migration 逆序移除，不执行数据库事实、分支保护或部署变更。
 
@@ -85,7 +85,7 @@
 
 ## 本轮本地证据（2026-09-17，Asia/Shanghai）
 
-- 当前实现验证基线为 `HEAD 0cfb74e31960a519d18cc1903876acc8f5d6c7d1`，目标分支 `feat/cross-platform-experience`，比较基线 `refactor/web`；未跟踪的 `docs/superpowers/` 文件未纳入提交。
+- 当前实现验证基线为 `HEAD 0a07a1f`（完整 SHA 以 git 记录为准），目标分支 `feat/cross-platform-experience`，比较基线 `refactor/web`；未跟踪的 `docs/superpowers/` 文件未纳入提交。
 - `PYTHONPATH=tests:.:src uv run pytest -q -m 'not performance'`：SQLite `1504 passed, 158 skipped`；随后以本地 Docker `postgres:16-alpine`、`finance_tracker_test`、端口 55432、`FT_REQUIRE_TEST_POSTGRES=1` 跑同一双后端套件：`1688 passed, 2 skipped`。
 - `FT_TEST_POSTGRES_URL=...finance_tracker_test FT_REQUIRE_TEST_POSTGRES=1 PYTHONPATH=tests:.:src uv run pytest -q -s tests/test_wealth_performance.py`：SQLite cold/hot p95 `2927447333ns/46720958ns`（`2.927s/46.7ms`），PostgreSQL `3638882250ns/56860250ns`（`3.639s/56.9ms`），20 samples、3 warmups，原始 cold `5s/6.5s` 与 hot `300ms` 阈值通过。
 - 迁移、触发器和删除回归：`37 passed, 2 skipped`（迁移/财富重建窄套件），工作区删除 API `19 passed, 1 skipped`；`openspec validate add-pr-quality-gates --type change --strict`、`openspec validate --all --strict`、`openspec doctor`、`git diff --check`、`uv run python -m compileall -q src migrations` 和两个 workflow 的 Prettier 检查通过。
