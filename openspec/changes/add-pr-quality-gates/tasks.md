@@ -28,6 +28,8 @@
 - [x] 4.10 首次提交 `d3c6246` 的远程 Web 视觉 job 发现另外 `9` 个既有 `darwin` 基线与 `macos-26-arm64` 实际图存在中文字体栅格差异（7 个 evidence、filters-expanded、append-error）；逐图确认结构、文案、颜色和状态一致后，补入对应 `ci/` 实际基线，不改变像素阈值。
 - [x] 4.11 首次提交 `d3c6246` 的远程 Android job 已通过 SDK 安装但在 `:app:packageDebug` 因 Java heap OOM 失败；为 Gradle 增加 4 GiB heap、1 GiB Metaspace、UTF-8、`--no-parallel` 和 `--max-workers=2`，保留 40 分钟超时和 unsigned Debug APK 目标。
 - [x] 4.12 首次提交 `d3c6246` 的标准 `macos-26` 性能 job 仍因 runner 资源不足失败（SQLite cold p95 `11.794s`、PostgreSQL `9.031s`，hot p95 `93ms`/`80ms`）；保持原预算不变，切换到标准 `macos-26-intel` 的 4 核/14 GiB runner，仍使用 Homebrew PostgreSQL 16 双后端矩阵。
+- [x] 4.13 提交 `0dc364b` 的远程 Web 视觉 job 已通过 `14/15`，唯一失败的 `cash-ledger-all-loaded` 仍只有 `128` 个中文字体栅格像素差异；逐图确认状态与布局一致后补入当前 runner 实际基线，不放宽比较阈值。
+- [x] 4.14 提交 `0dc364b` 的 Intel 性能 job 已确认专用 PostgreSQL 初始化成功，但双后端固定样本在 20 分钟 job 上限内未完成并被取消；将 job 超时调整为 40 分钟以容纳完整执行，保持测试集合、样本数和 `5s`/`6.5s` 原预算不变。
 
 ## 5. 审查：范围、工程、设计与安全
 
@@ -35,6 +37,8 @@
 - [x] 5.2 工程与安全复核 workflow：确认前端、SQLite/PostgreSQL 功能和独立性能检查职责清晰；功能 job 只使用一次性 `_test` 服务库，性能 job 只使用 runner 上的一次性 `_test` PostgreSQL，Android 只调整 Gradle 构建进程的内存和并行度，权限为 `contents: read`，失败 artifact 仅上传测试诊断目录且不上传环境变量；确认仓库忽略 `uv.lock`，因此 workflow 使用 `uv sync`/`pyproject.toml` 缓存键；workflow Prettier 检查通过，当前环境无 `actionlint`，未声称 actionlint 通过。
 - [x] 5.3 复核视觉基线差异仅包含当前表格列变化或已确认的 CI 中文字体栅格差异，且没有通过放宽像素阈值或跳过视觉测试隐藏差异。跨平台 change 另因共享错误态文案更新其直接相关 `cash-ledger-error-darwin.png`，不归入本 change 的本机或 CI 基线范围。
 - [x] 5.4 独立复核本轮远程 finding：Android 首次失败由 action 默认 `tools` 包确认，第二次失败由 `:app:packageDebug` Java heap OOM 确认；后端功能失败均来自性能模块混入；Web 首次提交的 `12` 个视觉差异以及随后发现的 `9` 个差异，其远程实际图与基线布局、文案和状态一致，仅为中文字体栅格化；独立性能 job 在 Linux 和标准 ARM64 macOS runner 均超预算。采纳显式 action 输入、Gradle 资源限制、测试 marker、环境隔离基线和更接近预算建立环境的标准 Intel macOS runner；不采纳放宽像素阈值、放宽性能预算、删除性能 job 或把失败 job 改为允许失败。
+- [x] 5.5 独立复核 `0dc364b` 后的视觉 finding：`14/15` 通过，剩余 `all-loaded` 实际图只包含已确认的中文字体栅格差异；采纳该单张 CI 基线更新，未扩大到本机基线、未修改 UI、未放宽阈值。
+- [x] 5.6 独立复核 `0dc364b` 的性能 finding：Intel runner 的 PostgreSQL 初始化和依赖安装均成功，失败原因是固定双后端测试超过 20 分钟执行上限而非测试断言；采纳延长 job 上限至 40 分钟，未跳过测试、减少样本或放宽性能预算。
 
 ## 6. 测试与 QA：本地与 OpenSpec 验证
 
@@ -42,7 +46,7 @@
 - [x] 6.2 运行 SQLite 功能后端全量 pytest（忽略独立性能文件），并记录通过数、跳过数和警告；运行 `uv run python -m compileall -q src`。本次使用锁定主工作树 venv 等价执行入口，结果 `1525 passed, 182 skipped`，1 条既有 deprecation warning，compileall 通过。
 - [x] 6.3 准备专用 `_test` PostgreSQL（本机 Docker 或 `psql`），设置 `FT_TEST_POSTGRES_URL` 与 `FT_REQUIRE_TEST_POSTGRES=1`，运行 PostgreSQL 功能全量测试和独立双后端性能文件并记录结果；本次容器为 `postgres:16-alpine`、`finance_tracker_test`、端口 55432。功能套件 `1731 passed, 2 skipped, 2 failed`，失败为本机既有性能阈值/夹具波动；分类/投资性能单测复跑通过，PostgreSQL 独立性能参数通过，SQLite 独立 100k p95 受本机负载失败（5.664s/9.293s > 5s）。未放宽预算，远程 Linux CI 仍需最终确认。
 - [x] 6.4 运行 `openspec validate add-pr-quality-gates --type change --strict`、`openspec validate --all --strict`、`openspec doctor` 和 `git diff --check`，区分本变更结果与既有无关失败；联合 patch 更新 tasks 后需在提交前再执行一次。
-- [x] 6.5 本轮修复的窄范围验证：工作流 YAML 静态检查通过；`pytest --collect-only -m performance` 收集 `52` 项、`-m 'not performance'` 收集 `1660` 项；默认本机视觉套件 `15 passed`；本机财富性能门禁 SQLite `1 passed, 1 skipped`（约 `123s`）。CI `ci/` 基线先后以旧 run 的 `12` 张和新 run 的 `9` 张远程实际截图逐张校验，均未发现布局或状态差异；首次 d3 远程 run 已确认 SQLite/PostgreSQL 功能通过、Android SDK 通过但 APK 打包 OOM，完整联合验证待后续提交远程 run。
+- [x] 6.5 本轮修复的窄范围验证：工作流 YAML 静态检查通过；`pytest --collect-only -m performance` 收集 `52` 项、`-m 'not performance'` 收集 `1660` 项；默认本机视觉套件 `15 passed`；本机财富性能门禁 SQLite `1 passed, 1 skipped`（约 `123s`）。CI `ci/` 基线先后以旧 run 的 `12` 张、新 run 的 `9` 张和再次 run 的 `1` 张远程实际截图逐张校验，均未发现布局或状态差异；`0dc364b` 已确认 SQLite/PostgreSQL 功能通过、Android Mobile CI 全部通过，Web `14/15` 的单张字体差异已更新基线；Intel 性能 job 因 20 分钟上限取消，已将上限调至 40 分钟，待新 run 产出双后端 p95 证据。
 
 ## 7. 发布准备：远程 PR 检查与回滚
 
