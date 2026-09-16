@@ -48,7 +48,7 @@
 
 两个功能 job 都使用 Python 3.11、`astral-sh/setup-uv`、`uv sync` 和 `PYTHONPATH=tests:.:src uv run pytest -q -m "not performance"`。固定规模性能文件显式标记为 `performance`，功能 job 不再误跑分类、投影、投资浏览、工作区和财富性能门禁；现金投影性能文件中的 PostgreSQL 配置回归仍保持未标记并继续属于功能契约。仓库不提交 `uv.lock`，所以 CI 以 `pyproject.toml` 作为 uv cache dependency，依赖解析漂移由后续显式锁文件变更另行治理。SQLite job 不设置 PostgreSQL URL，保留显式的 PostgreSQL skip 作为本地后端基线；PostgreSQL job 提供 `postgres:16-alpine` service container，数据库名为 `finance_tracker_test`，使用 `FT_TEST_POSTGRES_URL=postgresql+psycopg://postgres:postgres@127.0.0.1:5432/finance_tracker_test` 与 `FT_REQUIRE_TEST_POSTGRES=1` 强制运行 PostgreSQL 参数。
 
-`backend-performance` 使用 `ubuntu-24.04-arm` runner，运行在 GitHub 公共仓库标准的 4 核/16 GiB ARM64 环境，并通过与功能 job 相同的 `postgres:16-alpine` service 启动专用 `finance_tracker_test` 数据库；连接仍强制使用同一个 `_test` URL。远程 `ubuntu-latest` 的实际 cold p95 稳定为 SQLite `8.490s`、PostgreSQL `8.745s`，标准 `macos-26` ARM64 runner 的实际 cold p95 又达到 SQLite `11.794s`、PostgreSQL `9.031s`，均超过既有 `5s`/`6.5s` 预算；本机相同 Python 3.11、SQLite 和 Chromium 所在的 macOS 26 ARM64 环境 cold p95 为 `4.386s`。`0dc364b` 的标准 Intel runner 首先在 20 分钟上限内未完成；将上限调至 40 分钟后，`d906fcd` 在 24 分钟完成但 SQLite/PostgreSQL cold p95 分别恶化为 `32.476s`/`27.437s`，因此该 runner 也不满足既有门禁。`efe8a45` 尝试使用 `macos-26-xlarge` 时因仓库当前没有可分配的 larger runner 而立即失败，故改用公开可用的 `ubuntu-24.04-arm`，保留 40 分钟上限以容纳完整 100k 重建；runner 与数据库实现切换不改变测试集合、样本数或 `5s`/`6.5s` 性能预算。该测试自身包含 SQLite 与 PostgreSQL 参数，因此两个后端的固定 cold/hot 性能预算仍都被执行；把它从功能套件中隔离是为了避免长时间迁移、并发和关系测试污染 p95 样本，不删除测试、不放宽预算。
+`backend-performance` 使用 `ubuntu-24.04-arm` runner，运行在 GitHub 公共仓库标准的 4 核/16 GiB ARM64 环境，并通过与功能 job 相同的 `postgres:16-alpine` service 启动专用 `finance_tracker_test` 数据库；连接仍强制使用同一个 `_test` URL。远程 `ubuntu-latest` 的实际 cold p95 稳定为 SQLite `8.490s`、PostgreSQL `8.745s`，标准 `macos-26` ARM64 runner 的实际 cold p95 又达到 SQLite `11.794s`、PostgreSQL `9.031s`，均超过既有 `5s`/`6.5s` 预算；本机相同 Python 3.11、SQLite 和 Chromium 所在的 macOS 26 ARM64 环境 cold p95 为 `4.386s`。`0dc364b` 的标准 Intel runner 首先在 20 分钟上限内未完成；将上限调至 40 分钟后，`d906fcd` 在 24 分钟完成但 SQLite/PostgreSQL cold p95 分别恶化为 `32.476s`/`27.437s`，因此该 runner 也不满足既有门禁。`efe8a45` 尝试使用 `macos-26-xlarge` 时因仓库当前没有可分配的 larger runner 而立即失败，故改用公开可用的 `ubuntu-24.04-arm`，保留 40 分钟上限以容纳完整 100k 重建。该 runner 的 `05f2c70` 实测 SQLite/PostgreSQL cold p95 为 `8.039s`/`7.717s`、hot p95 为 `99.3ms`/`109.3ms`，确认 cold 路径受 hosted 磁盘 I/O 影响；因此性能 job 在该 job 专用的 2 GiB tmpfs 中运行 SQLite `pytest tmp_path`，并将 PostgreSQL service 的数据目录挂载到同等 tmpfs。tmpfs 仅用于 CI 的短生命周期性能测量，耐久性由其他双后端事务/迁移契约覆盖；它不改变测试集合、样本数或 `5s`/`6.5s` 性能预算。该测试自身包含 SQLite 与 PostgreSQL 参数，因此两个后端的固定 cold/hot 性能预算仍都被执行；把它从功能套件中隔离是为了避免长时间迁移、并发和关系测试污染 p95 样本，不删除测试、不放宽预算。
 
 功能 job 的 PostgreSQL service container 通过 `pg_isready` 健康检查；性能 job 的本地 PostgreSQL 由同一步骤初始化并创建专用 `_test` 数据库。测试夹具继续负责清理专用 schema、执行 migration 和恢复状态。CI 不自动探测数据库，也不复用开发机或生产连接串；每次 job 的数据库随 runner 销毁。
 
@@ -70,7 +70,7 @@
 
 - **macOS runner 成本和排队时间较高** → 只在 Pull Request 与手动触发中运行，复用 npm cache；现有 Native CI 继续独立，可按职责单独重跑。
 - **完整 pytest 运行时间较长** → 为功能 job 和独立性能 job 分别设置足够的超时；性能 job 使用 40 分钟上限以覆盖 Intel runner 上固定 100k 重建的完整双后端样本，保留 job 并行，不通过删减测试或放宽性能预算换取表面速度。
-- **PostgreSQL service 或 Actions runner 漂移** → 功能和性能 job 固定 `postgres:16-alpine`、Python 3.11、Node 24 和 action major version，性能 job 使用公开标准 `ubuntu-24.04-arm` 与 40 分钟上限，并在失败时保留完整日志；ARM64 public-preview 镜像可能有排队或镜像漂移，若不可用应在不改变预算语义的前提下选择等效硬件并重新取得双后端 p95 证据。性能预算保持不变，若 runner 的数据库初始化或硬件发生漂移，必须重新取得双后端 p95 证据，不得用放宽预算掩盖。由于仓库当前不提交 `uv.lock`，依赖版本漂移需通过后续锁文件变更治理。
+- **PostgreSQL service 或 Actions runner 漂移** → 功能和性能 job 固定 `postgres:16-alpine`、Python 3.11、Node 24 和 action major version，性能 job 使用公开标准 `ubuntu-24.04-arm`、2 GiB tmpfs 和 40 分钟上限，并在失败时保留完整日志；ARM64 public-preview 镜像可能有排队或镜像漂移，tmpfs 可能受宿主机策略或容量限制，若不可用应在不改变预算语义的前提下选择等效硬件并重新取得双后端 p95 证据。性能预算保持不变，若 runner 的数据库初始化或硬件发生漂移，必须重新取得双后端 p95 证据，不得用放宽预算掩盖。由于仓库当前不提交 `uv.lock`，依赖版本漂移需通过后续锁文件变更治理。
 - **来源指纹读取旧会话状态** → 对指纹查询启用实体刷新，并保留独立事务变更回归；若未来切换到更高隔离级别，应重新验证并发契约。
 - **视觉基线与 macOS 镜像仍可能漂移** → CI 与本机使用明确分离的 `ci/` 和默认快照目录；视觉差异继续阻断对应环境的检查，基线更新必须单独审查并记录，产品 UI 变化需要同时更新两套基线。
 - **测试诊断 artifact 含有意外敏感信息** → 所有夹具使用去标识化数据，上传仅限失败时的测试结果目录，保留期为 7 天，不上传环境变量或凭据。
@@ -80,7 +80,7 @@
 
 1. 先复现并修复 Web 测试误报，更新已审查的 `1024×768` 快照。
 2. 修复 PostgreSQL 投影并发/来源指纹回归，并将迁移测试限制在可逆迁移边界；先运行窄范围红绿验证。
-3. 新增并本地静态校验 `pr-checks.yml`，使用 `uv sync` 安装 `pyproject.toml` 声明的依赖，分别运行标记过滤后的 SQLite/PostgreSQL 功能套件、在 `ubuntu-24.04-arm` runner 的 `postgres:16-alpine` 专用 `_test` service 上以 40 分钟上限隔离运行的双后端财富性能套件和前端全套命令；未来若提交 `uv.lock`，再切换到锁定同步。
+3. 新增并本地静态校验 `pr-checks.yml`，使用 `uv sync` 安装 `pyproject.toml` 声明的依赖，分别运行标记过滤后的 SQLite/PostgreSQL 功能套件、在 `ubuntu-24.04-arm` runner 的 2 GiB tmpfs 与 `postgres:16-alpine` 专用 `_test` service 上以 40 分钟上限隔离运行的双后端财富性能套件和前端全套命令；未来若提交 `uv.lock`，再切换到锁定同步。
 4. 两个 worktree 分别完成各自变更的直接相关文件和单变更验证后，将本变更加入现有 `feat/cross-platform-experience`，保持 `refactor/web` 为基线；合并后的 feature 分支再统一运行联合验收，通过后推送并创建 `feat/cross-platform-experience` → `refactor/web` 的 PR。把 run URL、commit、时间和结果回写任务记录。
 5. 若 CI 失败，优先回滚 workflow 文件或修正对应 job；不需要数据库迁移或应用回滚。若快照变更被拒绝，只恢复该二进制基线，不影响其他测试和 workflow。
 

@@ -162,6 +162,7 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+          --tmpfs /var/lib/postgresql/data:rw,size=2g
     env:
       FT_TEST_POSTGRES_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/finance_tracker_test
       FT_REQUIRE_TEST_POSTGRES: "1"
@@ -186,5 +187,23 @@ jobs:
       - name: Compile Python sources
         run: uv run python -m compileall -q src
 
+      - name: Prepare in-memory SQLite temporary directory
+        shell: bash
+        run: |
+          performance_tmp="$RUNNER_TEMP/finance-tracker-performance-tmp"
+          mkdir -p "$performance_tmp"
+          sudo mount -t tmpfs -o size=2g,mode=1777 tmpfs "$performance_tmp"
+
       - name: Run isolated backend performance tests
+        env:
+          TMPDIR: ${{ runner.temp }}/finance-tracker-performance-tmp
         run: PYTHONPATH=tests:.:src uv run pytest -q tests/test_wealth_performance.py
+
+      - name: Unmount in-memory SQLite temporary directory
+        if: always()
+        shell: bash
+        run: |
+          performance_tmp="$RUNNER_TEMP/finance-tracker-performance-tmp"
+          if mountpoint -q "$performance_tmp"; then
+            sudo umount "$performance_tmp"
+          fi
