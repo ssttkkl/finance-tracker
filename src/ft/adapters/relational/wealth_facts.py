@@ -12,6 +12,10 @@ from ft.repositories.wealth import AccountFact, CashflowFact, InvestmentFact, Li
 from .models import AccountLifecycleEventModel, AccountModel, CashTransactionModel, InvestmentEventModel, ValuationObservationModel
 
 
+def _utc_date(value: datetime) -> date:
+    return value.date() if value.tzinfo is timezone.utc else value.astimezone(timezone.utc).date()
+
+
 def _digest_parts(*parts: object) -> str:
     """Hash a typed-source identity without constructing transient JSON graphs."""
     digest = hashlib.sha256()
@@ -184,7 +188,7 @@ class RelationalWealthFactRepository:
         lifecycle = tuple(LifecycleFact(*row) for row in lifecycle_rows)
         investments = tuple(InvestmentFact(*row) for row in investment_rows)
         fx_by_day = {
-            (value.as_of.astimezone(timezone.utc).date(), value.identity): value.value
+            (_utc_date(value.as_of), value.identity): value.value
             for value in valuations if value.identity_kind == "fx"
         }
 
@@ -250,7 +254,7 @@ class RelationalWealthFactRepository:
             amount = raw_row[4]
             currency = raw_row[5]
             record_type = raw_row[6]
-            occurred = occurred_at.astimezone(timezone.utc).date()
+            occurred = _utc_date(occurred_at)
             event_kind = cash_kind(record_type)
             local_amount = amount.normalize()
             if currency == "CNY":

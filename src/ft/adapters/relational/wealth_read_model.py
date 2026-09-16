@@ -25,15 +25,17 @@ def _manifest_item_id(*parts) -> str:
     return hashlib.sha256(encoded_parts).hexdigest()
 
 
-def _source_manifest_item_id(source_watermark: str, item) -> str:
-    """Derive a bounded item key from the already content-addressed manifest.
+def _source_manifest_item_id(source_watermark: str, ordinal: int, item) -> str:
+    """Derive a compact item key from the already content-addressed manifest.
 
     Source manifests are immutable and the manifest watermark already commits
     to every item's identity, revision, and content.  Keeping those fields in
-    the item key avoids a second SHA-256 call for every large-workspace row;
-    unusually long caller-supplied values retain the previous bounded digest.
+    the manifest key avoids a second SHA-256 call for every large-workspace row.
+    The ordinal is stable because callers pass the canonical ordered manifest;
+    unusually long caller-supplied watermarks retain the previous bounded
+    digest implementation.
     """
-    candidate = f"{source_watermark}:{item.item_kind}:{item.identity}:{item.revision}"
+    candidate = f"{source_watermark}:{ordinal}"
     return candidate if len(candidate) <= 128 else _manifest_item_id(
         source_watermark, item.item_kind, item.identity, item.revision,
     )
@@ -92,9 +94,9 @@ class RelationalWealthReadModel:
                         "evidence_occurred_at, evidence_kind, evidence_contribution, evidence_scope_fold_identity, evidence_safe_metadata) "
                         "FROM STDIN"
                     ) as copy:
-                        for item in items:
+                        for ordinal, item in enumerate(items):
                             copy.write_row((
-                                _source_manifest_item_id(source_watermark, item),
+                                _source_manifest_item_id(source_watermark, ordinal, item),
                                 self._workspace_id, source_watermark, item.item_kind, item.identity,
                                 item.revision, item.content_digest, item.occurred_at, item.evidence_kind,
                                 item.contribution, item.scope_fold_identity,
@@ -117,20 +119,26 @@ class RelationalWealthReadModel:
                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (
                             (
-                                _source_manifest_item_id(source_watermark, item),
+                                _source_manifest_item_id(source_watermark, ordinal, item),
                                 self._workspace_id, source_watermark, item.item_kind, item.identity,
                                 item.revision, item.content_digest,
                                 # Match SQLite DateTime's fixed-width lexical
                                 # representation.  Omitting ``.000000`` makes
                                 # a midnight value sort before a query bound for
                                 # the same instant.
-                                None if item.occurred_at is None else item.occurred_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f"),
+                                None if item.occurred_at is None else (
+                                    item.occurred_at.isoformat(sep=" ", timespec="microseconds")[:-6]
+                                    if item.occurred_at.tzinfo is timezone.utc
+                                    else item.occurred_at.astimezone(timezone.utc).isoformat(
+                                        sep=" ", timespec="microseconds",
+                                    )[:-6]
+                                ),
                                 item.evidence_kind,
                                 None if item.contribution is None else format(item.contribution, "f"),
                                 item.scope_fold_identity,
                                 "{}" if item.safe_metadata is None else canonical_bytes(item.safe_metadata).decode("utf-8"),
                             )
-                            for item in items
+                            for ordinal, item in enumerate(items)
                         ),
                     )
                 finally:
