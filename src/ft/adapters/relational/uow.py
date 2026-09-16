@@ -7,9 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import DBAPIError, OperationalError
 
-from .models import Base, WorkspaceModel
+from .models import Base, WealthSourceRevisionModel, WorkspaceModel
 from .imports import RelationalImportRepository
 from .wealth_facts import RelationalWealthFactWriter
+from .wealth_source_revision import ensure_source_revision_row, install_source_revision_triggers
 from .repositories import (
     RelationalAccountAliasRepository,
     RelationalAccountRepository,
@@ -29,6 +30,8 @@ class UnknownWorkspaceError(ValueError):
 def create_schema(engine) -> None:
     """Create metadata for isolated adapter tests only; runtime uses Alembic."""
     Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        install_source_revision_triggers(connection)
 
 
 def create_session_factory(engine):
@@ -40,8 +43,11 @@ def ensure_workspace(session_factory, workspace_id: str, *, name: str | None = N
         workspace = session.get(WorkspaceModel, workspace_id)
         if workspace is None:
             session.add(WorkspaceModel(id=workspace_id, name=name or workspace_id))
+            session.flush()
         elif name is not None:
             workspace.name = name
+        if session.get(WealthSourceRevisionModel, workspace_id) is None:
+            ensure_source_revision_row(session, workspace_id)
 
 
 class RelationalUnitOfWork:

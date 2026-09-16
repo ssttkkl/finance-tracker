@@ -45,6 +45,7 @@ def test_repository_has_clean_linear_revisions():
                 "20260814_32_statement_account_mappings.py",
                 "20260814_33_cash_import_commits.py",
                 "20260816_34_cash_relation_metadata.py",
+                "20260917_35_wealth_source_revision.py",
             ]
 
 

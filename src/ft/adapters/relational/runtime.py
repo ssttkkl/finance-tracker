@@ -39,13 +39,14 @@ def _utc_today():
     return datetime.now(timezone.utc).date()
 
 
-SCHEMA_REVISION = "20260816_34"
+SCHEMA_REVISION = "20260917_35"
 REQUIRED_TABLES = {
     "workspaces", "accounts", "cash_transactions", "investment_events",
     "ledger_snapshots",
     "transaction_relations", "account_aliases",
     "valuation_observations", "account_lifecycle_events", "wealth_source_manifests",
     "wealth_source_manifest_items", "wealth_generations", "wealth_generation_days",
+    "wealth_source_revisions",
     "wealth_daily_results", "wealth_active_manifests", "wealth_components",
     "wealth_evidence_manifests", "wealth_evidence_items", "wealth_evidence_manifest_items",
     "wealth_coverage_dispositions",

@@ -34,6 +34,42 @@ def test_relational_wealth_facts_are_workspace_scoped_and_revisioned(tmp_path) -
     assert watermark and {item.item_kind for item in items} == {"account", "valuation"}
 
 
+def test_create_schema_source_revision_fence_ignores_category_but_detects_wealth_fields(tmp_path) -> None:
+    from ft.adapters.relational import create_schema, create_session_factory, ensure_workspace
+    from ft.adapters.relational.dialect import create_relational_engine
+    from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashTransactionModel, WorkspaceModel
+    from ft.adapters.relational.wealth_facts import RelationalWealthFactRepository
+
+    engine = create_relational_engine(f"sqlite+pysqlite:///{tmp_path / 'wealth-source-revision.db'}")
+    create_schema(engine)
+    sessions = create_session_factory(engine)
+    ensure_workspace(sessions, "w")
+    with sessions.begin() as session:
+        session.add(AccountModel(id=1, workspace_id="w", name="Cash", type="cash"))
+        session.add(CashCategoryModel(
+            id="food", workspace_id="w", parent_id=None, parent_scope_key="__root__",
+            name="Food", normalized_name="food", category_path="/food/", depth=1, sort_order=1,
+        ))
+        session.add(CashTransactionModel(
+            id=1, workspace_id="w", account_id=1,
+            occurred_at=datetime(2026, 7, 1, tzinfo=timezone.utc),
+            amount=Decimal("1"), currency="CNY", record_id="cash-1", category_id=None,
+        ))
+    facts = RelationalWealthFactRepository(sessions, "w")
+    watermark, _items = facts.capture_source_manifest()
+    with sessions.begin() as session:
+        session.get(CashTransactionModel, 1).category_id = "food"
+    assert facts.source_is_current(watermark) is True
+    with sessions.begin() as session:
+        session.get(CashTransactionModel, 1).record_type = "fee"
+    assert facts.source_is_current(watermark) is False
+    with sessions.begin() as session:
+        session.delete(session.get(WorkspaceModel, "w"))
+    with sessions() as session:
+        assert session.get(WorkspaceModel, "w") is None
+    engine.dispose()
+
+
 def test_multi_currency_cash_checkins_do_not_clobber_identities(tmp_path) -> None:
     from ft.adapters.relational import create_schema, create_session_factory, ensure_workspace
     from ft.adapters.relational.dialect import create_relational_engine

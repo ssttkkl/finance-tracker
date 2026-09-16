@@ -1,18 +1,18 @@
 ## 1. 思考：现状、失败项与边界
 
-- [x] 1.1 阅读 `AGENTS.md`、`openspec/project-context.md`、`DOMAIN_GLOSSARY.md`、现有 Mobile CI、npm/uv 配置和受影响测试，确认本变更只涉及测试与 CI。
+- [x] 1.1 阅读 `AGENTS.md`、`openspec/project-context.md`、`DOMAIN_GLOSSARY.md`、现有 Mobile CI、npm/uv 配置和受影响测试，确认本变更不改变产品语义；为性能 fence 增加的内部 migration 与触发器单独记录。
 - [x] 1.2 记录基线：Web 单测 `143 passed`、Web 构建通过、E2E `37 passed / 1 failed`、视觉 `14 passed / 1 failed`、Python SQLite 全量 `1526 passed / 183 skipped`；记录两个失败的根因和 PostgreSQL skip 原因。
 
 ## 2. 计划：OpenSpec 与执行策略
 
 - [x] 2.1 创建 `add-pr-quality-gates` 变更，写入需求澄清结论、范围、非目标、影响和回滚说明。
 - [x] 2.2 在 `design.md` 固定前端 macOS 快照策略、前后端 job 边界、PostgreSQL service、缓存、诊断 artifact 和安全约束。
-- [x] 2.3 确认本变更设置 `skip_specs: true`，因为不改变产品、API、数据或权限行为；确保不新增虚假的产品 delta 规格。
+- [x] 2.3 确认本变更继续设置 `skip_specs: true`：revision token 只支持既有“安全重建”合同，不改变产品、API、正式事实、金额或权限语义；schema/migration 影响已写入 proposal、design 和本清单，不新增虚假的产品 delta 规格。
 
 ## 3. 任务拆分与一致性
 
-- [x] 3.1 对照 proposal、design 和本清单检查：两个 Web 失败项、前端完整门禁、SQLite、PostgreSQL、触发器、权限、回滚和远程验证均有对应任务。
-- [x] 3.2 运行 OpenSpec 状态检查，确认 `proposal`、`design`、`tasks` 完整且规格按 `skip_specs` 跳过；发现范围变化时先回写 artifact。
+- [x] 3.1 对照 proposal、design 和本清单检查：两个 Web 失败项、前端完整门禁、SQLite、PostgreSQL、来源 revision 触发器、权限、migration 回滚和远程验证均有对应任务。
+- [x] 3.2 运行 OpenSpec 状态检查，确认 `proposal`、`design`、`tasks` 完整且产品规格按 `skip_specs` 跳过；发现内部 schema 范围变化时先回写 artifact。
 
 ## 4. 构建：测试先行与最小实现
 
@@ -33,10 +33,11 @@
 - [x] 4.15 提交 `d906fcd` 的 Intel 性能 job 已在 40 分钟上限内完成，但 SQLite/PostgreSQL cold p95 为 `32.476s`/`27.437s`、hot p95 为 `581.7ms`/`372.9ms`，确认硬件不满足既有预算；切换到 `macos-26-xlarge`，继续使用同一 Homebrew PostgreSQL 16 双后端矩阵和原始预算。
 - [x] 4.16 提交 `efe8a45` 尝试使用 `macos-26-xlarge`，job 因仓库没有可分配的 larger runner 立即失败；改用公开标准 `ubuntu-24.04-arm`，将性能 job 的数据库改为 `postgres:16-alpine` service，保留 40 分钟上限、完整双后端 workload 和原始预算。
 - [x] 4.17 提交 `05f2c70` 的 `ubuntu-24.04-arm` 性能 job 完成但 cold p95 仍为 SQLite/PostgreSQL `8.039s`/`7.717s`；为隔离 hosted 磁盘 I/O，在 CI 性能 job 中为 SQLite 临时目录和 PostgreSQL service 数据目录增加 2 GiB tmpfs，保留完整 workload、样本与原始预算。
+- [x] 4.18 针对 `0cfb74e` 的 x64 性能失败，新增 `wealth_source_revisions` 内部模型与 migration；为 accounts、valuations、lifecycle、cash transactions 和 investment events 安装双后端写入触发器，现金流水仅对财富相关字段递增；捕获和发布前 fence 改用同一工作区 token，保留分类字段不触发和就地类型修正触发的回归。工作区删除流程显式先删账户，触发器在父工作区已不存在时跳过 token upsert，避免破坏级联删除；新建工作区同步创建零值 token。
 
 ## 5. 审查：范围、工程、设计与安全
 
-- [x] 5.1 独立复核最终 diff：确认只包含本变更定义的投影并发/迁移回归、Web 测试稳定性、视觉基线、workflow 与 OpenSpec；Mobile CI 只增加 Android SDK action 的显式包输入，未修改 Native 构建流程、API/schema、分支保护或发布配置，其他工作树脏文件未纳入。Finding：无阻断项；Node 26 jsdom `localStorage` 差异已用测试 setup 的同一内存 Storage 修复。
+- [x] 5.1 独立复核最终 diff：确认只包含本变更定义的投影并发/迁移回归、Web 测试稳定性、视觉基线、workflow、内部 wealth revision migration 与 OpenSpec；Mobile CI 只增加 Android SDK action 的显式包输入，未修改 Native 构建流程、API、正式事实、分支保护或发布配置，其他工作树脏文件未纳入。初始 finding（运行时 revision 常量未更新、级联删除触发器冲突、PostgreSQL `create_schema` 重复安装冲突）已分别在 4.18/5.10 中修复并回归；Node 26 jsdom `localStorage` 差异已用测试 setup 的同一内存 Storage 修复。
 - [x] 5.2 工程与安全复核 workflow：确认前端、SQLite/PostgreSQL 功能和独立性能检查职责清晰；功能 job 只使用一次性 `_test` 服务库，性能 job 只使用 runner 上的一次性 `_test` PostgreSQL，Android 只调整 Gradle 构建进程的内存和并行度，权限为 `contents: read`，失败 artifact 仅上传测试诊断目录且不上传环境变量；确认仓库忽略 `uv.lock`，因此 workflow 使用 `uv sync`/`pyproject.toml` 缓存键；workflow Prettier 检查通过，当前环境无 `actionlint`，未声称 actionlint 通过。
 - [x] 5.3 复核视觉基线差异仅包含当前表格列变化或已确认的 CI 中文字体栅格差异，且没有通过放宽像素阈值或跳过视觉测试隐藏差异。跨平台 change 另因共享错误态文案更新其直接相关 `cash-ledger-error-darwin.png`，不归入本 change 的本机或 CI 基线范围。
 - [x] 5.4 独立复核本轮远程 finding：Android 首次失败由 action 默认 `tools` 包确认，第二次失败由 `:app:packageDebug` Java heap OOM 确认；后端功能失败均来自性能模块混入；Web 首次提交的 `12` 个视觉差异以及随后发现的 `9` 个差异，其远程实际图与基线布局、文案和状态一致，仅为中文字体栅格化；独立性能 job 在 Linux 和标准 ARM64 macOS runner 均超预算。采纳显式 action 输入、Gradle 资源限制、测试 marker、环境隔离基线和更接近预算建立环境的标准 Intel macOS runner；不采纳放宽像素阈值、放宽性能预算、删除性能 job 或把失败 job 改为允许失败。
@@ -45,6 +46,7 @@
 - [x] 5.7 独立复核 `d906fcd` 的性能 finding：Intel runner 能完成测试但实际 p95 明显超预算，排除单纯超时原因；采纳 `macos-26-xlarge` 作为更接近本机基线的执行环境，保留完整双后端测试、固定 workload、原始样本数和预算；接受 larger runner 的可用性、排队及计费风险，不以允许失败或阈值放宽掩盖。
 - [x] 5.8 独立复核 `efe8a45` 的 runner finding：larger runner 不可用已由无 runner、即时失败证据确认；采纳公开标准 `ubuntu-24.04-arm` 与既有 PostgreSQL service 模式，避免保留不可执行的 label；接受 ARM64 public-preview 的可用性/镜像漂移风险，仍不改变测试或预算。
 - [x] 5.9 独立复核 `05f2c70` 的性能 finding：hot p95 约 `100ms` 而 cold p95 约 `8s`，与 hosted 磁盘 I/O 成本一致；采纳仅作用于 CI 性能 job 的 2 GiB tmpfs，耐久性契约继续由功能/迁移/事务测试覆盖；未修改预算、测试样本或失败策略。
+- [x] 5.10 独立复核 revision token：覆盖范围为 `accounts`、`valuation_observations`、`account_lifecycle_events`、`cash_transactions`、`investment_events` 的 insert/delete 与财富相关 update；分类修正不递增，类型修正递增；migration 回填既有工作区并可从 35 回退到 34，SQLite/PostgreSQL/`create_schema` 安装契约一致且测试入口幂等。Finding：首轮发现运行时 revision 常量、工作区级联删除和 PostgreSQL 重复 trigger 三个阻断问题，均已修复；迁移回滚保持“先删 trigger、再删 token 表”，无遗留阻断项。
 
 ## 6. 测试与 QA：本地与 OpenSpec 验证
 
@@ -53,19 +55,20 @@
 - [x] 6.3 准备专用 `_test` PostgreSQL（本机 Docker 或 `psql`），设置 `FT_TEST_POSTGRES_URL` 与 `FT_REQUIRE_TEST_POSTGRES=1`，运行 PostgreSQL 功能全量测试和独立双后端性能文件并记录结果；本次容器为 `postgres:16-alpine`、`finance_tracker_test`、端口 55432。功能套件 `1731 passed, 2 skipped, 2 failed`，失败为本机既有性能阈值/夹具波动；分类/投资性能单测复跑通过，PostgreSQL 独立性能参数通过，SQLite 独立 100k p95 受本机负载失败（5.664s/9.293s > 5s）。未放宽预算，远程 Linux CI 仍需最终确认。
 - [x] 6.4 运行 `openspec validate add-pr-quality-gates --type change --strict`、`openspec validate --all --strict`、`openspec doctor` 和 `git diff --check`，区分本变更结果与既有无关失败；联合 patch 更新 tasks 后需在提交前再执行一次。
 - [x] 6.5 本轮修复的窄范围验证：工作流 YAML 静态检查通过；`pytest --collect-only -m performance` 收集 `52` 项、`-m 'not performance'` 收集 `1660` 项；默认本机视觉套件 `15 passed`；本机财富性能门禁 SQLite `1 passed, 1 skipped`（约 `123s`）。CI `ci/` 基线先后以旧 run 的 `12` 张、新 run 的 `9` 张和再次 run 的 `1` 张远程实际截图逐张校验，均未发现布局或状态差异；`0dc364b` 已确认 SQLite/PostgreSQL 功能通过、Android Mobile CI 全部通过，Web `14/15` 的单张字体差异已更新基线；`d906fcd` 的 Intel 性能 job 在 40 分钟上限内完成但双后端 p95 均超预算，`efe8a45` 的 xlarge label 无可用 runner，`05f2c70` 的 ARM64 service 模式仍受 hosted 磁盘 I/O 影响，已增加 2 GiB tmpfs，待新 run 产出满足原预算的 p95 证据。
+- [x] 6.6 在 revision migration 后运行 SQLite 与 PostgreSQL 的财富 fence/重建契约、迁移升级/降级边界和完整受影响测试；本地 Docker `postgres:16-alpine` 使用专用 `finance_tracker_test`（端口 55432）完成双后端验证。非性能套件：`1688 passed, 2 skipped`；财富性能：SQLite cold/hot p95 `2.927s/46.7ms`，PostgreSQL `3.639s/56.9ms`，固定 20 样本、3 warmup、原始 `5s/6.5s` 与 `300ms` 阈值均通过。CI 性能 job 的 ARM64 远程证据仍由 7.3 追踪；本机不再以 PostgreSQL skip 代替验证。
 
 ## 7. 发布准备：远程 PR 检查与回滚
 
 - [x] 7.1 在提交前确认 `refactor/web` 是基线，最终分支为现有 `feat/cross-platform-experience`，并只选择本变更 tasks 直接相关的文件；无关未跟踪或脏文件不纳入提交、不删除。
-- [x] 7.2 完成本变更的单变更验证后，将本变更作为独立逻辑提交加入 `feat/cross-platform-experience`；不把本变更提交到基线 `refactor/web`。跨平台逻辑提交为 `0b770a5`，质量门禁修复已作为独立提交 `d3c6246` 提交并推送到同一分支。
+- [x] 7.2 完成本变更的单变更验证后，将本变更作为独立逻辑提交加入 `feat/cross-platform-experience`；不把本变更提交到基线 `refactor/web`。跨平台逻辑提交为 `0b770a5`，质量门禁修复及性能优化已作为独立提交加入并推送到同一分支；revision token 待验证后追加小步提交。
 - [ ] 7.3 待 `cross-platform-experience` 也完成并合入同一 feature 分支后，只在合并结果上集中运行联合验收；通过后推送 `feat/cross-platform-experience`，观察 `PR Checks` 的 frontend、backend-sqlite、backend-postgres、backend-performance 四个 job，并记录 commit、run URL、runner、耗时和 artifact 结果。
-- [ ] 7.4 若联合远程 job 失败，依据日志修复对应 workflow/测试并重新验证；若需回滚，恢复测试基线和删除新增 workflow，不执行数据库或分支保护变更。
+- [ ] 7.4 若联合远程 job 失败，依据日志修复对应 workflow/测试或 revision migration 并重新验证；若需回滚，保留运行中仍需要的 token 表/触发器，确认旧代码安全后再按 migration 逆序移除，不执行数据库事实、分支保护或部署变更。
 
 ## 8. 反思与交付记录
 
 - [x] 8.1 在本清单记录本地与远程验证证据、最终 `HEAD`、比较基线、执行时间、未解决风险和审查结论；远程 run URL 与失败 finding 已在下方回写。
 - [x] 8.2 记录可复用经验：浏览器主动取消必须与真实网络失败区分，视觉基线必须绑定 runner 平台，双后端 CI 必须拒绝静默 skip；Node 26 jsdom 需在测试 setup 显式提供一致的 Storage。
-- [ ] 8.3 确认所有实现任务、审查和验证均完成后，按 OpenSpec 规则评估 delta（本变更无 delta）并准备归档；不把归档当作发布授权。
+- [ ] 8.3 确认所有实现任务、审查和验证均完成后，按 OpenSpec 规则评估 delta（产品规格无 delta，内部 migration 已在 artifacts 记录）并准备归档；不把归档当作发布授权。
 
 ## 远程 PR 证据（2026-09-14，Asia/Shanghai）
 
@@ -74,3 +77,15 @@
 - Backend (SQLite)：`1523 passed, 182 skipped, 2 failed`；失败为 `test_large_category_directory_has_constant_query_count[sqlite]`（p95 `408.921767ms` > `250ms`）和 `test_portfolio_query_with_investment_history_meets_p95_budget[sqlite]`（holdings p95 `1484.742273ms` > `1000ms`）。
 - Backend (PostgreSQL)：`1729 passed, 2 skipped, 4 failed`；失败为分类过滤 p95 `542.553125ms` > `500ms`、现金投影重建 p95 `10.635443353s` > `10s`，以及 SQLite/PostgreSQL 投资组合查询 holdings p95 `1.410825496s`/`1.472413056s` > `1s`。
 - Backend (Performance)：独立 `tests/test_wealth_performance.py` 运行双后端均失败；SQLite cold p95 `9.287514056s` > `5s`，PostgreSQL cold p95 `9.199102055s` > `6.5s`，hot p95 分别约 `128ms`/`147ms`，runner 为 Linux `6.17.0-1022-azure-x86_64`。这些 finding 与本地性能波动方向一致，但尚未有不改变预算语义的修复；因此 7.3、7.4、8.3 保持未完成，不归档 active change。
+
+## 远程 PR 证据（2026-09-17，Asia/Shanghai）
+
+- 提交 `0cfb74e` 的 PR Checks run：`https://github.com/ssttkkl/finance-tracker/actions/runs/35132526281`；Frontend、Backend (SQLite)、Backend (PostgreSQL) 均通过，Backend (Performance) 在 x64 + tmpfs 上失败。日志记录 SQLite cold p95 `7.002170279s`、PostgreSQL cold p95 `7.774594841s`，hot p95 `114.657774ms`/`130.022848ms`，平台 `Linux-6.17.0-1022-azure-x86_64`；失败仍为原始 `5s`/`6.5s` 断言，未放宽预算。
+- 同提交 Mobile CI run：`https://github.com/ssttkkl/finance-tracker/actions/runs/35132526247`；Android Debug APK、iOS Simulator app、Shared and JavaScript checks 全部通过。Node `astral-sh/setup-uv@v6` 的 Node 20 弃用提示为非阻断 annotation。
+
+## 本轮本地证据（2026-09-17，Asia/Shanghai）
+
+- 当前实现验证基线为 `HEAD 0cfb74e31960a519d18cc1903876acc8f5d6c7d1`，目标分支 `feat/cross-platform-experience`，比较基线 `refactor/web`；未跟踪的 `docs/superpowers/` 文件未纳入提交。
+- `PYTHONPATH=tests:.:src uv run pytest -q -m 'not performance'`：SQLite `1504 passed, 158 skipped`；随后以本地 Docker `postgres:16-alpine`、`finance_tracker_test`、端口 55432、`FT_REQUIRE_TEST_POSTGRES=1` 跑同一双后端套件：`1688 passed, 2 skipped`。
+- `FT_TEST_POSTGRES_URL=...finance_tracker_test FT_REQUIRE_TEST_POSTGRES=1 PYTHONPATH=tests:.:src uv run pytest -q -s tests/test_wealth_performance.py`：SQLite cold/hot p95 `2927447333ns/46720958ns`（`2.927s/46.7ms`），PostgreSQL `3638882250ns/56860250ns`（`3.639s/56.9ms`），20 samples、3 warmups，原始 cold `5s/6.5s` 与 hot `300ms` 阈值通过。
+- 迁移、触发器和删除回归：`37 passed, 2 skipped`（迁移/财富重建窄套件），工作区删除 API `19 passed, 1 skipped`；`openspec validate add-pr-quality-gates --type change --strict`、`openspec validate --all --strict`、`openspec doctor`、`git diff --check`、`uv run python -m compileall -q src migrations` 和两个 workflow 的 Prettier 检查通过。
