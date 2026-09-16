@@ -262,41 +262,12 @@ def build_relational_services(settings) -> ServiceBundle:
             # walking one WealthEvent for every formal cash fact.  The
             # foreign-cash path below still retains its per-flow pairs because
             # FX attribution uses each flow's local-currency rate.
-            flow_totals_by_day: dict[date, Decimal] = {}
-            external_cash_totals_by_day: dict[date, Decimal] = {}
-            # Foreign-cash FX uses local-currency flow amounts and the FX rate at
-            # flow day (day-start FX series), not opening-balance-only impact.
-            cash_flows_by_day_currency: dict[tuple[date, str], list[tuple[Decimal, Decimal]]] = {}
-            unsupported_by_day: set[date] = set()
-            for value in cashflows:
-                occurred = local_day(value.occurred_at)
-                local_amount = decimal_value(value.amount.normalize())
-                if value.currency == "CNY":
-                    amount = local_amount
-                    flow_rate = Decimal("1")
-                else:
-                    rate = fx_by_day.get((occurred, f"{value.currency}/CNY"))
-                    if rate is None:
-                        unsupported_by_day.add(occurred)
-                        continue
-                    amount = decimal_value((local_amount * rate).normalize())
-                    flow_rate = decimal_value(rate)
-                flow_totals_by_day[occurred] = flow_totals_by_day.get(occurred, Decimal("0")) + amount
-                cat = (value.record_type or "").lower()
-                if cat in {"transfer", "transfer_in", "transfer_out"}:
-                    event_kind = "transfer"
-                elif cat in {"salary", "expense", "refund", "interest", "liability_interest"}:
-                    event_kind = cat
-                else:
-                    event_kind = "external_cashflow"
-                if event_kind != "transfer":
-                    external_cash_totals_by_day[occurred] = (
-                        external_cash_totals_by_day.get(occurred, Decimal("0")) + amount
-                    )
-                if event_kind != "transfer" and value.currency != "CNY":
-                    cash_flows_by_day_currency.setdefault(
-                        (occurred, value.currency), []
-                    ).append((local_amount, flow_rate))
+            # These aggregates were derived while the formal rows were captured,
+            # so the calculation reuses the same snapshot without scanning all
+            # 100k cash facts a second time.  The unsupported set remains mutable
+            # because investment rows can add unsupported dates below.
+            flow_totals_by_day, external_cash_totals_by_day, cash_flows_by_day_currency, captured_unsupported_days = wealth_facts.captured_cashflow_aggregates(source_watermark)
+            unsupported_by_day: set[date] = set(captured_unsupported_days)
             investment_events_by_day: dict[date, list[WealthEvent]] = {}
             # FX attribution uses (local_amount, flow_fx). Dietz capital uses
             # (local_amount, remaining-day time weight) and never reuses FX rates.

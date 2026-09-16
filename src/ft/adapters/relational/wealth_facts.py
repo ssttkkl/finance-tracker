@@ -1,7 +1,7 @@
 """Workspace-bound typed formal facts for the wealth application service."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import hashlib
 from decimal import Decimal
 
@@ -226,6 +226,10 @@ class RelationalWealthFactRepository:
             if kind == "reversal" and row.record_subtype.startswith("expense_"):
                 return "fee", abs(amount)
             return None, None
+        flow_totals_by_day: dict[date, Decimal] = {}
+        external_cash_totals_by_day: dict[date, Decimal] = {}
+        cash_flows_by_day_currency: dict[tuple[date, str], list[tuple[Decimal, Decimal]]] = {}
+        unsupported_cashflow_days: set[date] = set()
         items = [
             WealthSourceItem("account", f"account:{row.account_id}", "account", canonical_digest({"type": row.account_type, "metadata": dict(row.metadata)}))
             for row in accounts
@@ -236,13 +240,39 @@ class RelationalWealthFactRepository:
         items.extend(WealthSourceItem("lifecycle", row.event_id, row.source_revision, _digest_parts(
             row.account_id, row.event_kind, row.effective_at.isoformat(), row.source_revision,
         )) for row in lifecycle)
-        items.extend(WealthSourceItem(
-            "cashflow", f"cashflow:{row.fact_id}", "1", _digest_parts(
-                row.account_id, row.occurred_at.isoformat(), row.amount, row.record_type,
-            ), row.occurred_at, cash_kind(row), projected_amount(row.amount, row.currency, row.occurred_at),
-            f"{row.occurred_at.astimezone(timezone.utc).date().isoformat()}:{cash_kind(row)}:{row.fact_id}",
-            None,
-        ) for row in cashflows)
+        for row in cashflows:
+            occurred = row.occurred_at.astimezone(timezone.utc).date()
+            event_kind = cash_kind(row)
+            local_amount = row.amount.normalize()
+            if row.currency == "CNY":
+                contribution = local_amount
+                flow_rate = Decimal("1")
+            else:
+                rate = fx_by_day.get((occurred, f"{row.currency}/CNY"))
+                if rate is None:
+                    contribution = None
+                    flow_rate = None
+                    unsupported_cashflow_days.add(occurred)
+                else:
+                    contribution = (local_amount * rate).normalize()
+                    flow_rate = rate
+            if contribution is not None:
+                flow_totals_by_day[occurred] = flow_totals_by_day.get(occurred, Decimal("0")) + contribution
+                if event_kind != "transfer":
+                    external_cash_totals_by_day[occurred] = (
+                        external_cash_totals_by_day.get(occurred, Decimal("0")) + contribution
+                    )
+                    if row.currency != "CNY":
+                        cash_flows_by_day_currency.setdefault((occurred, row.currency), []).append(
+                            (local_amount, flow_rate),
+                        )
+            items.append(WealthSourceItem(
+                "cashflow", f"cashflow:{row.fact_id}", "1", _digest_parts(
+                    row.account_id, row.occurred_at.isoformat(), row.amount, row.record_type,
+                ), row.occurred_at, event_kind, contribution,
+                f"{occurred.isoformat()}:{event_kind}:{row.fact_id}",
+                None,
+            ))
         for row in investments:
             evidence_kind, contribution = investment_projection(row)
             items.append(WealthSourceItem(
@@ -256,11 +286,25 @@ class RelationalWealthFactRepository:
         watermark = _manifest_digest(ordered)
         self._captured_build_inputs = (watermark, accounts, valuations, cashflows, investments, lifecycle)
         self._captured_source_state = captured_state
+        self._captured_cashflow_aggregates = (
+            watermark,
+            flow_totals_by_day,
+            external_cash_totals_by_day,
+            {key: tuple(values) for key, values in cash_flows_by_day_currency.items()},
+            frozenset(unsupported_cashflow_days),
+        )
         return watermark, ordered
 
     def captured_build_inputs(self, watermark: str):
         """Use exactly the formal rows enumerated at build capture, never a reread."""
         captured = getattr(self, "_captured_build_inputs", None)
+        if captured is None or captured[0] != watermark:
+            raise ValueError("wealth.source_changed")
+        return captured[1:]
+
+    def captured_cashflow_aggregates(self, watermark: str):
+        """Return cashflow totals derived from the same frozen capture snapshot."""
+        captured = getattr(self, "_captured_cashflow_aggregates", None)
         if captured is None or captured[0] != watermark:
             raise ValueError("wealth.source_changed")
         return captured[1:]
