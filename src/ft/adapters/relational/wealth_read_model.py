@@ -25,6 +25,20 @@ def _manifest_item_id(*parts) -> str:
     return hashlib.sha256(encoded_parts).hexdigest()
 
 
+def _source_manifest_item_id(source_watermark: str, item) -> str:
+    """Derive a bounded item key from the already content-addressed manifest.
+
+    Source manifests are immutable and the manifest watermark already commits
+    to every item's identity, revision, and content.  Keeping those fields in
+    the item key avoids a second SHA-256 call for every large-workspace row;
+    unusually long caller-supplied values retain the previous bounded digest.
+    """
+    candidate = f"{source_watermark}:{item.item_kind}:{item.identity}:{item.revision}"
+    return candidate if len(candidate) <= 128 else _manifest_item_id(
+        source_watermark, item.item_kind, item.identity, item.revision,
+    )
+
+
 
 def _postgres_bulk_write_settings(session) -> None:
     """Speed content-addressed bulk rebuild inserts without changing publish safety.
@@ -80,7 +94,7 @@ class RelationalWealthReadModel:
                     ) as copy:
                         for item in items:
                             copy.write_row((
-                                _manifest_item_id(source_watermark, item.item_kind, item.identity, item.revision),
+                                _source_manifest_item_id(source_watermark, item),
                                 self._workspace_id, source_watermark, item.item_kind, item.identity,
                                 item.revision, item.content_digest, item.occurred_at, item.evidence_kind,
                                 item.contribution, item.scope_fold_identity,
@@ -103,7 +117,7 @@ class RelationalWealthReadModel:
                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (
                             (
-                                _manifest_item_id(source_watermark, item.item_kind, item.identity, item.revision),
+                                _source_manifest_item_id(source_watermark, item),
                                 self._workspace_id, source_watermark, item.item_kind, item.identity,
                                 item.revision, item.content_digest,
                                 # Match SQLite DateTime's fixed-width lexical

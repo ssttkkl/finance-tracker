@@ -158,9 +158,7 @@ class RelationalWealthFactRepository:
             ).where(
                 CashTransactionModel.workspace_id == self._workspace_id,
                 CashTransactionModel.deleted_at.is_(None),
-            ).order_by(
-                CashTransactionModel.occurred_at, CashTransactionModel.id,
-            )).all()
+            ).order_by(CashTransactionModel.id)).all()
             investment_rows = session.execute(select(
                 InvestmentEventModel.workspace_id, InvestmentEventModel.id,
                 InvestmentEventModel.account_id, InvestmentEventModel.occurred_at,
@@ -184,7 +182,6 @@ class RelationalWealthFactRepository:
             row[11], row[12], row[13], None, row[4],
         ) for row in valuation_rows)
         lifecycle = tuple(LifecycleFact(*row) for row in lifecycle_rows)
-        cashflows = tuple(CashflowFact(*row) for row in cash_rows)
         investments = tuple(InvestmentFact(*row) for row in investment_rows)
         fx_by_day = {
             (value.as_of.astimezone(timezone.utc).date(), value.identity): value.value
@@ -198,8 +195,8 @@ class RelationalWealthFactRepository:
                 occurred_at.astimezone(timezone.utc).date(), f"{currency}/CNY"
             ) in fx_by_day else None
 
-        def cash_kind(row: CashflowFact) -> str:
-            cat = (row.record_type or "").lower()
+        def cash_kind(record_type: str) -> str:
+            cat = (record_type or "").lower()
             if cat in {"transfer", "transfer_in", "transfer_out"}:
                 return "transfer"
             return cat if cat in {
@@ -245,15 +242,22 @@ class RelationalWealthFactRepository:
         items.extend(WealthSourceItem("lifecycle", row.event_id, row.source_revision, _digest_parts(
             row.account_id, row.event_kind, row.effective_at.isoformat(), row.source_revision,
         )) for row in lifecycle)
-        for row in cashflows:
-            occurred = row.occurred_at.astimezone(timezone.utc).date()
-            event_kind = cash_kind(row)
-            local_amount = row.amount.normalize()
-            if row.currency == "CNY":
+        cashflows = []
+        for raw_row in cash_rows:
+            row = CashflowFact(*raw_row)
+            cashflows.append(row)
+            occurred_at = raw_row[3]
+            amount = raw_row[4]
+            currency = raw_row[5]
+            record_type = raw_row[6]
+            occurred = occurred_at.astimezone(timezone.utc).date()
+            event_kind = cash_kind(record_type)
+            local_amount = amount.normalize()
+            if currency == "CNY":
                 contribution = local_amount
                 flow_rate = Decimal("1")
             else:
-                rate = fx_by_day.get((occurred, f"{row.currency}/CNY"))
+                rate = fx_by_day.get((occurred, f"{currency}/CNY"))
                 if rate is None:
                     contribution = None
                     flow_rate = None
@@ -267,17 +271,18 @@ class RelationalWealthFactRepository:
                     external_cash_totals_by_day[occurred] = (
                         external_cash_totals_by_day.get(occurred, Decimal("0")) + contribution
                     )
-                    if row.currency != "CNY":
-                        cash_flows_by_day_currency.setdefault((occurred, row.currency), []).append(
+                    if currency != "CNY":
+                        cash_flows_by_day_currency.setdefault((occurred, currency), []).append(
                             (local_amount, flow_rate),
                         )
             items.append(WealthSourceItem(
-                "cashflow", f"cashflow:{row.fact_id}", "1", _digest_parts(
-                    row.account_id, row.occurred_at.isoformat(), row.amount, row.record_type,
-                ), row.occurred_at, event_kind, contribution,
-                f"{occurred.isoformat()}:{event_kind}:{row.fact_id}",
+                "cashflow", f"cashflow:{raw_row[1]}", "1", _digest_parts(
+                    raw_row[2], occurred_at.isoformat(), amount, record_type,
+                ), occurred_at, event_kind, contribution,
+                f"{occurred.isoformat()}:{event_kind}:{raw_row[1]}",
                 None,
             ))
+        cashflows = tuple(cashflows)
         for row in investments:
             evidence_kind, contribution = investment_projection(row)
             items.append(WealthSourceItem(
@@ -354,12 +359,12 @@ class RelationalWealthFactRepository:
         self._absorb_source_state_rows(digest, (
             (row[1], row[6], row[3], row[4]) for row in lifecycle_rows
         ))
-        # Capture orders cash/investments by occurred_at for manifest stability;
-        # the fence orders by primary identity/revision so in-place corrections
-        # that preserve maxima still invalidate.  Sort the already-fetched rows.
+        # Capture orders cash by primary identity so the fence can reuse the
+        # already-fetched rows without another 100k-item Python sort.  The
+        # manifest itself is ordered independently below.
         self._absorb_source_state_rows(digest, (
             (row[1], row[2], row[3], row[4], row[6])
-            for row in sorted(cash_rows, key=lambda item: (item[1],))
+            for row in cash_rows
         ))
         # investment capture: 0ws 1id 2account 3occurred 4record_type
         # 5record_subtype 6currency 7payload ...
