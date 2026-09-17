@@ -15,6 +15,7 @@ def test_wealth_models_expose_all_workspace_scoped_tables() -> None:
     assert {
         "valuation_observations", "account_lifecycle_events", "wealth_source_manifests",
         "wealth_source_manifest_items", "wealth_generations", "wealth_generation_days",
+        "wealth_source_revisions",
         "wealth_daily_results", "wealth_active_manifests", "wealth_components",
         "wealth_evidence_manifests", "wealth_evidence_items", "wealth_evidence_manifest_items",
         "wealth_coverage_dispositions",
@@ -24,6 +25,37 @@ def test_wealth_models_expose_all_workspace_scoped_tables() -> None:
 def test_wealth_migration_is_a_linear_additive_revision() -> None:
     migration = Path("migrations/versions/20260719_02_wealth_attribution.py")
     assert 'down_revision = "20260717_01"' in migration.read_text()
+
+
+def test_wealth_source_revision_migration_round_trips_one_step(tmp_path) -> None:
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, inspect, text
+
+    database = tmp_path / "source-revision.db"
+    root = Path(__file__).parents[1]
+    config = Config(str(root / "alembic.ini")); config.set_main_option("script_location", str(root / "migrations"))
+    config.set_main_option("sqlalchemy.url", f"sqlite+pysqlite:///{database}")
+    command.upgrade(config, "head")
+    engine = create_engine(f"sqlite+pysqlite:///{database}")
+    with engine.connect() as connection:
+        assert "wealth_source_revisions" in inspect(connection).get_table_names()
+        trigger_names = set(connection.scalars(text(
+            "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'wealth_source_revision_%'"
+        )))
+    assert len(trigger_names) == 15
+
+    command.downgrade(config, "20260816_34")
+    with engine.connect() as connection:
+        assert "wealth_source_revisions" not in inspect(connection).get_table_names()
+        assert not connection.scalar(text(
+            "SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'wealth_source_revision_%' LIMIT 1"
+        ))
+
+    command.upgrade(config, "head")
+    with engine.connect() as connection:
+        assert "wealth_source_revisions" in inspect(connection).get_table_names()
+    engine.dispose()
 
 
 def test_wealth_migration_backfills_only_deterministic_opened_events(tmp_path) -> None:

@@ -1,25 +1,78 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import type { Account, CashRecordDetail, Evidence, LedgerOptions } from "@finance-tracker/contracts";
+import type { Account, CashCategory, CashRecordDetail, Evidence, LedgerOptions } from "@finance-tracker/contracts";
 import { buildCashRecordPayload, canWrite } from "@finance-tracker/core";
 import { Button, Header, Label, Screen, StatusMessage, Surface } from "@/components/NativeShell";
 import { errorMessage, useSession } from "@/state/session";
 import { withWriteTimeout } from "@/platform/timeout";
 import { nativeColors, nativeTypography } from "@finance-tracker/design-tokens";
+import { copy, semanticIds } from "@finance-tracker/presentation";
 
 const fallbackTypes = [
-  { value: "consumption", label: "消费", subtypes: [{ value: "not_applicable", label: "普通消费" }] },
-  { value: "income", label: "收入", subtypes: [{ value: "not_applicable", label: "普通收入" }] },
-  { value: "transfer_out", label: "转账转出", subtypes: [{ value: "ordinary_transfer", label: "普通转账" }] },
+  { value: "consumption", label: copy.record.typeLabels.consumption, subtypes: [{ value: "not_applicable", label: copy.record.subtypeLabels.ordinaryConsumption }] },
+  { value: "income", label: copy.record.typeLabels.income, subtypes: [{ value: "not_applicable", label: copy.record.subtypeLabels.ordinaryIncome }] },
+  { value: "transfer_out", label: copy.record.typeLabels.transferOut, subtypes: [{ value: "ordinary_transfer", label: copy.record.subtypeLabels.ordinaryTransfer }] },
 ];
+
+const recordTypeLabels: Record<string, string> = {
+  consumption: copy.record.typeLabels.consumption,
+  expense: copy.record.typeLabels.expense,
+  refund: copy.record.typeLabels.refund,
+  reversal: copy.record.typeLabels.reversal,
+  transfer_reversal: copy.record.typeLabels.transferReversal,
+  withdrawal_in: copy.record.typeLabels.withdrawalIn,
+  withdrawal_out: copy.record.typeLabels.withdrawalOut,
+  transfer_in: copy.record.typeLabels.transferIn,
+  transfer_out: copy.record.typeLabels.transferOut,
+  repayment: copy.record.typeLabels.repayment,
+  income: copy.record.typeLabels.income,
+  investment_in: copy.record.typeLabels.investmentIn,
+  investment_out: copy.record.typeLabels.investmentOut,
+  interest: copy.record.typeLabels.interest,
+  fee: copy.record.typeLabels.fee,
+  fx_in: copy.record.typeLabels.fxIn,
+  fx_out: copy.record.typeLabels.fxOut,
+  other: copy.record.typeLabels.other,
+};
+
+function formatOccurredAt(value: string): string {
+  if (!value || Number.isNaN(new Date(value).getTime())) return copy.record.notProvided;
+  return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function economicTypeLabel(value: Evidence["projection"]): string {
+  if (value.transfer_subtype === "bank_security_transfer") return copy.record.typeLabels.bankSecurityTransfer;
+  return value.economic_type === "expense" ? copy.record.typeLabels.consumption : value.economic_type === "income" ? copy.record.typeLabels.income : copy.record.typeLabels.merged;
+}
+
+function recordTypeLabel(evidence: Evidence): string {
+  const record = evidence.root_record;
+  const fallback = record.record_type ?? (evidence.projection.economic_type === "expense" ? "consumption" : evidence.projection.economic_type === "income" ? "income" : record.amount.startsWith("-") ? "transfer_out" : "transfer_in");
+  return recordTypeLabels[fallback] ?? copy.record.typeLabels.other;
+}
+
+function recordSubtypeLabel(value: string | undefined): string | null {
+  if (!value || value === "not_applicable") return null;
+  const labels: Record<string, string> = {
+    ordinary_transfer: copy.record.subtypeLabels.ordinaryTransfer,
+    cross_border_remittance: copy.record.subtypeLabels.crossBorderRemittance,
+    internal_account_transfer: copy.record.subtypeLabels.internalAccountTransfer,
+    currency_exchange: copy.record.subtypeLabels.currencyExchange,
+    withdraw_to_bank: copy.record.subtypeLabels.withdrawToBank,
+    credit_repayment: copy.record.subtypeLabels.creditRepayment,
+  };
+  return labels[value] ?? value;
+}
 
 export default function RecordScreen() {
   const { client, activeRole } = useSession();
   const params = useLocalSearchParams<{ projectionId?: string; mode?: string }>();
   const projectionId = typeof params.projectionId === "string" ? params.projectionId : undefined;
-  const creating = params.mode === "create" || !projectionId;
+  const editing = params.mode === "edit" && Boolean(projectionId);
+  const creating = params.mode === "create" || (!projectionId && !editing);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [categories, setCategories] = useState<CashCategory[]>([]);
   const [options, setOptions] = useState<LedgerOptions | null>(null);
   const [evidence, setEvidence] = useState<Evidence | null>(null);
   const [loading, setLoading] = useState(!creating);
@@ -33,21 +86,41 @@ export default function RecordScreen() {
   const [recordSubtype, setRecordSubtype] = useState("not_applicable");
   const [occurredAt, setOccurredAt] = useState(() => new Date().toISOString());
   const [counterparty, setCounterparty] = useState("");
+  const [counterpartyAccount, setCounterpartyAccount] = useState("");
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const writable = canWrite(activeRole);
 
   useEffect(() => {
     let active = true;
     if (creating) {
-      Promise.all([client.fetchCashAccounts(), client.fetchLedgerOptions()]).then(([nextAccounts, nextOptions]) => {
+      Promise.all([client.fetchCashAccounts(), client.fetchLedgerOptions(), client.fetchCashCategories()]).then(([nextAccounts, nextOptions, nextCategories]) => {
         if (!active) return;
         setAccounts(nextAccounts);
         setOptions(nextOptions);
+        setCategories(nextCategories.items);
         setAccountId(nextAccounts[0]?.id ?? null);
         setCurrency(nextAccounts[0]?.currencies?.[0] ?? "CNY");
       }).catch((cause: unknown) => { if (active) setLoadError(errorMessage(cause instanceof Error ? cause.message : "request_failed")); });
     } else if (projectionId) {
-      client.fetchEvidence(projectionId).then((nextEvidence) => { if (active) setEvidence(nextEvidence); }).catch((cause: unknown) => { if (active) setLoadError(errorMessage(cause instanceof Error ? cause.message : "request_failed")); }).finally(() => { if (active) setLoading(false); });
+      Promise.all([client.fetchEvidence(projectionId), client.fetchCashAccounts(), client.fetchLedgerOptions(), client.fetchCashCategories()]).then(([nextEvidence, nextAccounts, nextOptions, nextCategories]) => {
+        if (!active) return;
+        const record = nextEvidence.root_record;
+        setEvidence(nextEvidence);
+        setAccounts(nextAccounts);
+        setOptions(nextOptions);
+        setCategories(nextCategories.items);
+        setAmount(record.amount);
+        setCurrency(record.currency);
+        setAccountId(record.account.id);
+        setRecordType(record.record_type ?? (nextEvidence.projection.economic_type === "expense" ? "consumption" : nextEvidence.projection.economic_type === "income" ? "income" : "transfer_out"));
+        setRecordSubtype(record.record_subtype ?? "not_applicable");
+        setOccurredAt(record.occurred_at.slice(0, 16));
+        setCounterparty(record.counterparty);
+        setCounterpartyAccount(record.counterparty_account ?? "");
+        setCategoryId(record.category?.id ?? record.category_id ?? null);
+        setNote(record.note);
+      }).catch((cause: unknown) => { if (active) setLoadError(errorMessage(cause instanceof Error ? cause.message : "request_failed")); }).finally(() => { if (active) setLoading(false); });
     }
     return () => { active = false; };
   }, [client, creating, projectionId]);
@@ -66,33 +139,36 @@ export default function RecordScreen() {
     if (!writable || !selectedAccount) return;
     setWriteError(null); setSubmitting(true);
     try {
-      const payload = buildCashRecordPayload({ accountName: selectedAccount.name, amount, currency, occurredAt, recordType, recordSubtype, counterparty, counterpartyAccount: "", note });
-      await withWriteTimeout(client.createCashRecord(payload));
+      const payload = buildCashRecordPayload({ accountName: selectedAccount.name, amount, currency, occurredAt, recordType, recordSubtype, counterparty, counterpartyAccount, note, categoryId });
+      if (editing && evidence) await withWriteTimeout(client.updateCashRecord(evidence.root_record.id, payload));
+      else await withWriteTimeout(client.createCashRecord(payload));
       router.replace("/(app)/ledger" as never);
     } catch (cause) {
       setWriteError(errorMessage(cause instanceof Error ? cause.message : "request_failed"));
     } finally { setSubmitting(false); }
   }
 
-  if (loading) return <Screen><StatusMessage title="正在读取凭证…" action={<ActivityIndicator color={nativeColors.accent} />} /></Screen>;
-  if (loadError) return <Screen><StatusMessage title={loadError} tone="error" action={<Button onPress={() => router.back()} variant="primary">返回账本</Button>} /></Screen>;
-  if (!creating && evidence) return <Screen><Header title="流水凭证" detail={`${evidence.projection.counterparty || "未填写对方"} · 已记录`} action={<Button onPress={() => router.back()}>返回</Button>} /><Surface><DetailRow label="金额" value={`${evidence.projection.amount} ${evidence.projection.currency}`} /><DetailRow label="账户" value={evidence.projection.account.name} /><DetailRow label="时间" value={evidence.projection.occurred_at} /><DetailRow label="类型" value={evidence.projection.economic_type} /><DetailRow label="来源" value={evidence.projection.source_type ?? "手工"} /><DetailRow label="备注" value={evidence.projection.note || "无备注"} /></Surface><Surface><Text style={styles.sectionTitle}>关系</Text>{evidence.accepted_relations.length === 0 ? <Text style={styles.muted}>暂无已确认关系。</Text> : evidence.accepted_relations.map((relation) => <Text key={relation.id} style={styles.relation}>{relation.kind} · {relation.confidence}</Text>)}</Surface></Screen>;
+  if (loading) return <Screen testID={semanticIds.recordEvidence}><StatusMessage title={copy.record.loading} action={<ActivityIndicator color={nativeColors.accent} />} /></Screen>;
+  if (loadError) return <Screen testID={semanticIds.recordEvidence}><StatusMessage title={loadError} tone="error" action={<Button onPress={() => router.back()} variant="primary">{copy.common.back}</Button>} /></Screen>;
+  if (!creating && evidence && !editing) return <Screen testID={semanticIds.recordEvidence}><Header title={copy.record.evidenceTitle} detail={`${evidence.projection.counterparty || copy.ledger.noCounterparty} · ${copy.record.recorded}`} action={<View style={styles.headerActions}><Button testID={semanticIds.recordCancel} onPress={() => router.back()}>{copy.common.back}</Button>{writable && <Button onPress={() => router.replace({ pathname: "/(app)/record", params: { projectionId: evidence.projection.projection_id, mode: "edit" } } as never)}>{copy.record.editTitle}</Button>}</View>} /><Surface><DetailRow label={copy.record.amount} value={`${evidence.projection.amount} ${evidence.projection.currency}`} /><DetailRow label={copy.record.economicType} value={economicTypeLabel(evidence.projection)} /><DetailRow label={copy.record.counterparty} value={evidence.root_record.counterparty || "-"} /><DetailRow label={copy.record.counterpartyAccount} value={evidence.root_record.counterparty_account || "-"} /><DetailRow label={copy.record.occurredAt} value={formatOccurredAt(evidence.root_record.occurred_at)} /><DetailRow label={copy.record.account} value={evidence.root_record.account.name} /><DetailRow label={copy.record.type} value={recordTypeLabel(evidence)} /><DetailRow label={copy.record.subtype} value={recordSubtypeLabel(evidence.root_record.record_subtype) || "-"} /><DetailRow label={copy.record.category} value={evidence.root_record.category?.path.map(({ name }) => name).join(" / ") || copy.ledger.noCategory} /><DetailRow label={copy.record.note} value={evidence.root_record.note || copy.ledger.noNote} /><DetailRow label={copy.record.source} value={evidence.root_record.source_type ?? copy.ledger.manualSource} /></Surface><Surface><Text style={styles.sectionTitle}>{copy.record.relation}</Text>{evidence.accepted_relations.length === 0 ? <Text style={styles.muted}>{copy.record.noRelations}</Text> : evidence.accepted_relations.map((relation) => <Text key={relation.id} style={styles.relation}>{relation.kind} · {relation.confidence}</Text>)}</Surface></Screen>;
 
-  return <Screen><Header title="记一笔" detail="金额与币种将按记录保存" action={<Button onPress={() => router.back()}>取消</Button>} />
-    {!writable && <StatusMessage title="当前角色仅可查看" detail="请切换到可编辑工作区后再记账。" tone="error" />}
-    {writeError && <StatusMessage title={writeError} detail="请回到账本重新读取。" tone="error" />}
+  return <Screen testID={semanticIds.recordScreen}><Header title={editing ? copy.record.editTitle : copy.record.newTitle} detail={copy.ledger.title} action={<Button testID={semanticIds.recordCancel} onPress={() => router.back()}>{editing ? copy.common.back : copy.common.cancel}</Button>} />
+    {!writable && <StatusMessage title={copy.ledger.readOnly} detail={copy.ledger.readOnlyRecordDetail} tone="error" />}
+    {writeError && <StatusMessage title={writeError} detail={copy.record.writeErrorDetail} tone="error" />}
     <Surface>
       <View style={styles.form}>
-        <View style={styles.field}><Label>金额</Label><TextInput editable={writable && !submitting} keyboardType="decimal-pad" onChangeText={setAmount} style={styles.amountInput} value={amount} /></View>
-        <View style={styles.field}><Label>币种</Label><TextInput editable={writable && !submitting} autoCapitalize="characters" maxLength={3} onChangeText={setCurrency} style={styles.input} value={currency} /></View>
-        <View style={styles.field}><Label>账户</Label><View style={styles.choiceList}>{accounts.map((account) => <Button key={account.id} disabled={!writable || submitting} onPress={() => { setAccountId(account.id); setCurrency(account.currencies?.[0] ?? currency); }} variant={accountId === account.id ? "primary" : "secondary"}>{account.name}</Button>)}</View></View>
-        <View style={styles.field}><Label>流水类型</Label><View style={styles.choiceList}>{typeOptions.map((type) => <Button key={type.value} disabled={!writable || submitting} onPress={() => chooseType(type.value)} variant={recordType === type.value ? "primary" : "secondary"}>{type.label}</Button>)}</View></View>
-        <View style={styles.field}><Label>细分</Label><View style={styles.choiceList}>{(selectedType?.subtypes ?? []).map((subtype) => <Button key={subtype.value} disabled={!writable || submitting} onPress={() => setRecordSubtype(subtype.value)} variant={recordSubtype === subtype.value ? "primary" : "secondary"}>{subtype.label}</Button>)}</View></View>
-        <View style={styles.field}><Label>发生时间</Label><TextInput editable={writable && !submitting} onChangeText={setOccurredAt} style={styles.input} value={occurredAt} /></View>
-        <View style={styles.field}><Label>交易对方</Label><TextInput editable={writable && !submitting} onChangeText={setCounterparty} placeholder="可选" placeholderTextColor={nativeColors.inkFaint} style={styles.input} value={counterparty} /></View>
-        <View style={styles.field}><Label>备注</Label><TextInput editable={writable && !submitting} multiline onChangeText={setNote} placeholder="可选" placeholderTextColor={nativeColors.inkFaint} style={[styles.input, styles.multiline]} value={note} /></View>
+        <View style={styles.field}><Label>{copy.record.amount}</Label><TextInput testID={semanticIds.recordAmount} editable={writable && !submitting} keyboardType="decimal-pad" onChangeText={setAmount} style={styles.amountInput} value={amount} /></View>
+        <View style={styles.field}><Label>{copy.record.currency}</Label><TextInput testID={semanticIds.recordCurrency} editable={writable && !submitting} autoCapitalize="characters" maxLength={3} onChangeText={setCurrency} style={styles.input} value={currency} /></View>
+        <View style={styles.field}><Label>{copy.record.account}</Label><View style={styles.choiceList}>{accounts.map((account) => <Button testID={accountId === account.id ? semanticIds.recordAccount : undefined} key={account.id} disabled={!writable || submitting} onPress={() => { setAccountId(account.id); setCurrency(account.currencies?.[0] ?? currency); }} variant={accountId === account.id ? "primary" : "secondary"}>{account.name}</Button>)}</View></View>
+        <View style={styles.field}><Label>{copy.record.category}</Label><View style={styles.choiceList}><Button testID={categoryId === null ? semanticIds.recordCategory : undefined} disabled={!writable || submitting} onPress={() => setCategoryId(null)} variant={categoryId === null ? "primary" : "secondary"}>{copy.ledger.noCategory}</Button>{categories.map((category) => <Button testID={categoryId === category.id ? semanticIds.recordCategory : undefined} key={category.id} disabled={!writable || submitting} onPress={() => setCategoryId(category.id)} variant={categoryId === category.id ? "primary" : "secondary"}>{category.path.map(({ name }) => name).join(" / ")}</Button>)}</View></View>
+        <View style={styles.field}><Label>{copy.record.type}</Label><View style={styles.choiceList}>{typeOptions.map((type) => <Button key={type.value} disabled={!writable || submitting} onPress={() => chooseType(type.value)} variant={recordType === type.value ? "primary" : "secondary"}>{type.label}</Button>)}</View></View>
+        <View style={styles.field}><Label>{copy.record.subtype}</Label><View style={styles.choiceList}>{(selectedType?.subtypes ?? []).map((subtype) => <Button key={subtype.value} disabled={!writable || submitting} onPress={() => setRecordSubtype(subtype.value)} variant={recordSubtype === subtype.value ? "primary" : "secondary"}>{subtype.label}</Button>)}</View></View>
+        <View style={styles.field}><Label>{copy.record.occurredAt}</Label><TextInput editable={writable && !submitting} onChangeText={setOccurredAt} style={styles.input} value={occurredAt} /></View>
+        <View style={styles.field}><Label>{copy.record.counterparty}</Label><TextInput editable={writable && !submitting} onChangeText={setCounterparty} placeholder={copy.common.optional} placeholderTextColor={nativeColors.inkFaint} style={styles.input} value={counterparty} /></View>
+        <View style={styles.field}><Label>{copy.record.counterpartyAccount}</Label><TextInput editable={writable && !submitting} onChangeText={setCounterpartyAccount} placeholder={copy.common.optional} placeholderTextColor={nativeColors.inkFaint} style={styles.input} value={counterpartyAccount} /></View>
+        <View style={styles.field}><Label>{copy.record.note}</Label><TextInput editable={writable && !submitting} multiline onChangeText={setNote} placeholder={copy.common.optional} placeholderTextColor={nativeColors.inkFaint} style={[styles.input, styles.multiline]} value={note} /></View>
       </View>
-      <Button disabled={!writable || submitting || accountId === null} onPress={() => void save()} variant="primary">{submitting ? "提交中…" : "保存"}</Button>
+      <Button testID={semanticIds.recordSave} disabled={!writable || submitting || accountId === null} onPress={() => void save()} variant="primary">{submitting ? copy.record.saving : copy.record.save}</Button>
     </Surface>
   </Screen>;
 }
@@ -100,6 +176,7 @@ export default function RecordScreen() {
 function DetailRow({ label, value }: { label: string; value: string }) { return <View style={styles.detailRow}><Text style={styles.detailLabel}>{label}</Text><Text style={styles.detailValue}>{value}</Text></View>; }
 
 const styles = StyleSheet.create({
+  headerActions: { flexDirection: "row", gap: 8 },
   form: { gap: 16 },
   field: { gap: 7 },
   input: { minHeight: 48, paddingHorizontal: 12, borderWidth: 1, borderColor: nativeColors.rule, borderRadius: 3, color: nativeColors.ink, backgroundColor: nativeColors.paperRaised, fontSize: 16 },

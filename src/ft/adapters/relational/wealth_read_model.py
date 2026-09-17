@@ -17,12 +17,28 @@ from .models import (
 
 
 def _manifest_item_id(*parts) -> str:
-    digest = hashlib.sha256()
+    encoded_parts = bytearray()
     for part in parts:
         encoded = str(part).encode("utf-8")
-        digest.update(len(encoded).to_bytes(8, "big"))
-        digest.update(encoded)
-    return digest.hexdigest()
+        encoded_parts.extend(len(encoded).to_bytes(8, "big"))
+        encoded_parts.extend(encoded)
+    return hashlib.sha256(encoded_parts).hexdigest()
+
+
+def _source_manifest_item_id(source_watermark: str, ordinal: int, item) -> str:
+    """Derive a compact item key from the already content-addressed manifest.
+
+    Source manifests are immutable and the manifest watermark already commits
+    to every item's identity, revision, and content.  Keeping those fields in
+    the manifest key avoids a second SHA-256 call for every large-workspace row.
+    The ordinal is stable because callers pass the canonical ordered manifest;
+    unusually long caller-supplied watermarks retain the previous bounded
+    digest implementation.
+    """
+    candidate = f"{source_watermark}:{ordinal}"
+    return candidate if len(candidate) <= 128 else _manifest_item_id(
+        source_watermark, item.item_kind, item.identity, item.revision,
+    )
 
 
 
@@ -36,6 +52,17 @@ def _postgres_bulk_write_settings(session) -> None:
     """
     session.execute(text("SET LOCAL synchronous_commit = off"))
     session.execute(text("SET LOCAL session_replication_role = 'replica'"))
+
+
+def _sqlite_bulk_write_settings(session) -> None:
+    """Keep the large immutable manifest insert in the SQLite page cache.
+
+    The cache setting is connection-local and only affects the connection that
+    performs a rebuild; deferred foreign keys are still checked at commit.
+    Neither setting changes the transaction's atomicity or the published data.
+    """
+    session.execute(text("PRAGMA cache_size=-65536"))
+    session.execute(text("PRAGMA defer_foreign_keys=ON"))
 
 
 class RelationalWealthReadModel:
@@ -67,9 +94,9 @@ class RelationalWealthReadModel:
                         "evidence_occurred_at, evidence_kind, evidence_contribution, evidence_scope_fold_identity, evidence_safe_metadata) "
                         "FROM STDIN"
                     ) as copy:
-                        for item in items:
+                        for ordinal, item in enumerate(items):
                             copy.write_row((
-                                _manifest_item_id(source_watermark, item.item_kind, item.identity, item.revision),
+                                _source_manifest_item_id(source_watermark, ordinal, item),
                                 self._workspace_id, source_watermark, item.item_kind, item.identity,
                                 item.revision, item.content_digest, item.occurred_at, item.evidence_kind,
                                 item.contribution, item.scope_fold_identity,
@@ -80,6 +107,7 @@ class RelationalWealthReadModel:
                 # and ORM bind-processing allocations while retaining this
                 # transaction and the same manifest FK.  All values are
                 # converted with the model's SQLite representation.
+                _sqlite_bulk_write_settings(session)
                 session.flush()
                 raw_connection = session.connection().connection.driver_connection
                 cursor = raw_connection.cursor()
@@ -91,20 +119,26 @@ class RelationalWealthReadModel:
                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (
                             (
-                                _manifest_item_id(source_watermark, item.item_kind, item.identity, item.revision),
+                                _source_manifest_item_id(source_watermark, ordinal, item),
                                 self._workspace_id, source_watermark, item.item_kind, item.identity,
                                 item.revision, item.content_digest,
                                 # Match SQLite DateTime's fixed-width lexical
                                 # representation.  Omitting ``.000000`` makes
                                 # a midnight value sort before a query bound for
                                 # the same instant.
-                                None if item.occurred_at is None else item.occurred_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f"),
+                                None if item.occurred_at is None else (
+                                    item.occurred_at.isoformat(sep=" ", timespec="microseconds")[:-6]
+                                    if item.occurred_at.tzinfo is timezone.utc
+                                    else item.occurred_at.astimezone(timezone.utc).isoformat(
+                                        sep=" ", timespec="microseconds",
+                                    )[:-6]
+                                ),
                                 item.evidence_kind,
                                 None if item.contribution is None else format(item.contribution, "f"),
                                 item.scope_fold_identity,
                                 "{}" if item.safe_metadata is None else canonical_bytes(item.safe_metadata).decode("utf-8"),
                             )
-                            for item in items
+                            for ordinal, item in enumerate(items)
                         ),
                     )
                 finally:

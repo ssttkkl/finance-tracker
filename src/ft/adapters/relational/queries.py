@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import Text, and_, cast, func, or_, select
 
 from ft.domain.accounts import AccountDTO
 from .models import AccountModel, CashTransactionModel, InvestmentEventModel
@@ -85,19 +85,95 @@ class RelationalPortfolioRepository:
 
     def load_portfolio(self):
         with self._sessions() as session:
-            accounts = list(session.scalars(select(AccountModel).where(
-                AccountModel.workspace_id == self._workspace_id,
-                AccountModel.type.in_(("security", "crypto")),
-            )))
-            payload = RelationalSnapshotRepository(session, self._workspace_id).load()
-            event_rows = session.execute(
-                select(InvestmentEventModel, AccountModel)
-                .join(AccountModel, (
-                    AccountModel.workspace_id == InvestmentEventModel.workspace_id
-                ) & (AccountModel.id == InvestmentEventModel.account_id))
-                .where(InvestmentEventModel.workspace_id == self._workspace_id)
-                .order_by(InvestmentEventModel.occurred_at, InvestmentEventModel.id)
-            ).all()
+            accounts, payload = self._load_accounts_and_snapshot(session)
+            event_rows = self._load_event_rows(session)
+        return self._build_payload(accounts, payload, event_rows, include_events=True)
+
+    def load_holdings(self):
+        """Load the local holdings projection without materializing event history."""
+        with self._sessions() as session:
+            accounts, payload = self._load_accounts_and_snapshot(session)
+            event_rows = self._load_holdings_metadata(session, accounts, payload)
+        return self._build_payload(accounts, payload, event_rows, include_events=False)
+
+    def _load_accounts_and_snapshot(self, session):
+        accounts = list(session.scalars(select(AccountModel).where(
+            AccountModel.workspace_id == self._workspace_id,
+            AccountModel.type.in_(("security", "crypto")),
+        )))
+        payload = RelationalSnapshotRepository(session, self._workspace_id).load()
+        return accounts, payload
+
+    def _load_event_rows(self, session):
+        return session.execute(
+            select(InvestmentEventModel, AccountModel)
+            .join(AccountModel, (
+                AccountModel.workspace_id == InvestmentEventModel.workspace_id
+            ) & (AccountModel.id == InvestmentEventModel.account_id))
+            .where(InvestmentEventModel.workspace_id == self._workspace_id)
+            .order_by(InvestmentEventModel.occurred_at, InvestmentEventModel.id)
+        ).all()
+
+    @staticmethod
+    def _snapshot_position_tickers(payload) -> set[str]:
+        tickers = set()
+        for account_type in ("security", "crypto"):
+            books = payload.get("accounts", {}).get(account_type, {})
+            if not isinstance(books, dict):
+                continue
+            for book in books.values():
+                if not isinstance(book, dict):
+                    continue
+                positions = book.get("positions", {})
+                if isinstance(positions, dict):
+                    tickers.update(str(ticker).strip().lower() for ticker in positions if str(ticker).strip())
+        return tickers
+
+    def _load_holdings_metadata(self, session, accounts, payload):
+        """Fetch only source metadata needed to label current non-cash positions."""
+        bases_by_name = {
+            account.name: tuple(sorted({
+                str(item).upper()
+                for item in (account.currencies or ())
+            }))
+            for account in accounts
+        }
+        cash_tickers = {
+            str(currency).strip().lower()
+            for currencies in bases_by_name.values()
+            for currency in currencies
+            if str(currency).strip()
+        }
+        position_tickers = self._snapshot_position_tickers(payload) - cash_tickers
+        if not position_tickers:
+            return ()
+        return session.execute(
+            select(
+                InvestmentEventModel.from_ticker,
+                InvestmentEventModel.to_ticker,
+                InvestmentEventModel.source_type,
+                InvestmentEventModel.source_payload,
+                InvestmentEventModel.note,
+            ).where(
+                InvestmentEventModel.workspace_id == self._workspace_id,
+                or_(
+                    func.lower(InvestmentEventModel.from_ticker).in_(position_tickers),
+                    func.lower(InvestmentEventModel.to_ticker).in_(position_tickers),
+                ),
+                or_(
+                    and_(
+                        InvestmentEventModel.source_payload.is_not(None),
+                        cast(InvestmentEventModel.source_payload, Text) != "{}",
+                    ),
+                    and_(
+                        InvestmentEventModel.source_type.in_(("ibkr_csv", "dfzq_pdf")),
+                        InvestmentEventModel.note != "",
+                    ),
+                ),
+            ).order_by(InvestmentEventModel.id)
+        ).all()
+
+    def _build_payload(self, accounts, payload, event_rows, *, include_events):
         # Snapshot may key investment books by name or legacy UUID; collect
         # configured currencies from the account column.
         bases_by_name = {
@@ -118,7 +194,8 @@ class RelationalPortfolioRepository:
             if str(currency).strip()
         }
         instrument_names: dict[str, str] = {}
-        for event, _account in event_rows:
+        events = (event for event, _account in event_rows) if include_events else event_rows
+        for event in events:
             source = event.source_payload if isinstance(event.source_payload, dict) else {}
             source_ticker = str(source.get("ticker") or "").strip().lower()
             candidate_tickers = [source_ticker] if source_ticker else []
@@ -202,5 +279,5 @@ class RelationalPortfolioRepository:
                 "to_amount": event.to_amount,
                 "commission": event.commission,
                 "commission_asset": event.commission_asset,
-            } for event, account in event_rows),
+            } for event, account in event_rows) if include_events else (),
         }

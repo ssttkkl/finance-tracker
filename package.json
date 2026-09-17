@@ -17,8 +17,8 @@
     "start:mobile": "npm run start --workspace finance-tracker-mobile",
     "android": "npm run android --workspace finance-tracker-mobile",
     "ios": "npm run ios --workspace finance-tracker-mobile",
-    "test:shared": "npm run test --workspace @finance-tracker/contracts && npm run test --workspace @finance-tracker/api-client && npm run test --workspace @finance-tracker/core",
-    "typecheck:shared": "npm run typecheck --workspace @finance-tracker/contracts && npm run typecheck --workspace @finance-tracker/api-client && npm run typecheck --workspace @finance-tracker/core && npm run typecheck --workspace @finance-tracker/design-tokens"
+    "test:shared": "npm run test --workspace @finance-tracker/contracts && npm run test --workspace @finance-tracker/api-client && npm run test --workspace @finance-tracker/core && npm run test --workspace @finance-tracker/presentation",
+    "typecheck:shared": "npm run typecheck --workspace @finance-tracker/contracts && npm run typecheck --workspace @finance-tracker/api-client && npm run typecheck --workspace @finance-tracker/core && npm run typecheck --workspace @finance-tracker/design-tokens && npm run typecheck --workspace @finance-tracker/presentation"
   },
   "devDependencies": {
     "jsdom": "^26.0.0",

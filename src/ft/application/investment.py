@@ -286,7 +286,8 @@ class PortfolioQueryService:
 
     def get_holdings(self) -> PortfolioDTO:
         """Return the local portfolio snapshot without contacting valuation sources."""
-        raw = self._repository.load_portfolio()
+        loader = getattr(self._repository, "load_holdings", self._repository.load_portfolio)
+        raw = loader()
         configured = {item.upper() for item in raw.get("configured_currencies", ())}
         accounts = []
         for name, account in raw.get("accounts", {}).items():

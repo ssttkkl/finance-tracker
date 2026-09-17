@@ -13,6 +13,7 @@ from sqlalchemy import delete, select, update
 from ft.adapters.relational.models import (
     AccountAliasModel,
     AccountLifecycleEventModel,
+    AccountModel,
     CashCategoryModel,
     CashCategoryStateModel,
     CashImportCommitModel,
@@ -42,6 +43,7 @@ from ft.adapters.relational.models import (
     WealthGenerationModel,
     WealthSourceManifestItemModel,
     WealthSourceManifestModel,
+    WealthSourceRevisionModel,
     WorkspaceInvitationModel,
     WorkspaceMembershipModel,
     WorkspaceModel,
@@ -159,6 +161,7 @@ class AccessService:
         with self._sessions.begin() as session:
             session.add(WorkspaceModel(id=workspace_id, name=name))
             session.flush()
+            session.add(WealthSourceRevisionModel(workspace_id=workspace_id, revision=0))
             session.add(WorkspaceMembershipModel(workspace_id=workspace_id, user_id=user_id, role="admin"))
             session.flush()
             from ft.application.cash_projections import CashProjectionService
@@ -316,6 +319,7 @@ class AccessService:
             AccountAliasModel,
             SyncCursorModel,
             LedgerSnapshotModel,
+            AccountModel,
         ):
             session.execute(delete(model).where(model.workspace_id == workspace_id))
 

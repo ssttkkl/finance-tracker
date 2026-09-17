@@ -38,7 +38,7 @@ def test_postgresql_rebuild_locks_workspace_before_projection_state(postgres_cas
     ("field", "value"),
     (
         ("counterparty", "并发交易对方"),
-        ("category", "并发分类"),
+        ("category_id", "category-daily"),
         ("note", "并发备注"),
         ("source_type", "concurrent-source"),
         ("source_payload", {"merchant": "并发商户"}),

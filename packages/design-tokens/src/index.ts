@@ -44,6 +44,43 @@ export const designTokens = {
   touchTarget: 44,
 } as const;
 
+export const responsiveTokens = {
+  regularMinWidth: 600,
+  wideMinWidth: 1024,
+  reference: {
+    phone: { width: 390, height: 844 },
+    tabletPortrait: { width: 768, height: 1024 },
+    tabletLandscape: { width: 1024, height: 768 },
+    desktop: { width: 1440, height: 900 },
+  },
+} as const;
+
+export const componentTokens = {
+  page: {
+    mobilePadding: 16,
+    regularPadding: 24,
+    widePadding: 32,
+    maxContentWidth: 1120,
+    formMaxWidth: 720,
+  },
+  shell: {
+    wideRailWidth: 232,
+  },
+  surface: {
+    padding: 16,
+    regularPadding: 20,
+    widePadding: 24,
+  },
+  control: {
+    minTouchTarget: 44,
+    normalHeight: 44,
+    compactHeight: 36,
+  },
+  list: {
+    rowMinHeight: 72,
+  },
+} as const;
+
 export const nativeColors = {
   paper: "#F1F5FA",
   paperRaised: "#FCFDFE",
@@ -104,4 +141,11 @@ export const cssVariableMap = {
   "--radius-2": `${designTokens.radius.two}px`,
   "--dur-fast": `${designTokens.motion.fast}ms`,
   "--dur-panel": `${designTokens.motion.panel}ms`,
+  "--layout-regular-min": `${responsiveTokens.regularMinWidth}px`,
+  "--layout-wide-min": `${responsiveTokens.wideMinWidth}px`,
+  "--page-mobile-padding": `${componentTokens.page.mobilePadding}px`,
+  "--page-regular-padding": `${componentTokens.page.regularPadding}px`,
+  "--page-wide-padding": `${componentTokens.page.widePadding}px`,
+  "--page-form-max-width": `${componentTokens.page.formMaxWidth}px`,
+  "--control-min-touch-target": `${componentTokens.control.minTouchTarget}px`,
 } as const;

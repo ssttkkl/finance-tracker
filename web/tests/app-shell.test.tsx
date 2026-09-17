@@ -68,6 +68,22 @@ describe("统一账本外壳", () => {
     expect(within(navigation).getByRole("link", { name: "投资账本" })).toBeInTheDocument();
   });
 
+  it("路由监听尚未注册时点击导航仍能切换页面", async () => {
+    const originalAddEventListener = window.addEventListener.bind(window);
+    const addEventListenerSpy = vi.spyOn(window, "addEventListener").mockImplementation((type, listener, options) => {
+      if (type === "popstate") return;
+      originalAddEventListener(type, listener, options);
+    });
+
+    try {
+      render(<App />);
+      fireEvent.click(screen.getByRole("link", { name: "分类管理" }));
+      expect(await screen.findByRole("heading", { name: "分类管理", level: 1 })).toBeInTheDocument();
+    } finally {
+      addEventListenerSpy.mockRestore();
+    }
+  });
+
   it("导入账单复用统一应用外壳、导航和移动顶栏", async () => {
     window.history.replaceState({}, "", "/cash-import");
     render(<App mobileAccount={<button type="button" aria-label="账户">S</button>} />);

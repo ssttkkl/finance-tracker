@@ -11,6 +11,8 @@ from pathlib import Path
 import pytest
 from sqlalchemy import event, insert, select
 
+pytestmark = pytest.mark.performance
+
 
 WORKSPACE = "cash-category-performance"
 CATEGORY_COUNT = 1_000

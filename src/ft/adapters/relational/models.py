@@ -682,6 +682,17 @@ class WealthSourceManifestModel(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
 
 
+class WealthSourceRevisionModel(Base):
+    """Monotonic write token for one workspace's formal wealth sources."""
+
+    __tablename__ = "wealth_source_revisions"
+
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), primary_key=True,
+    )
+    revision: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", nullable=False)
+
+
 class WealthSourceManifestItemModel(Base):
     __tablename__ = "wealth_source_manifest_items"
     __table_args__ = (

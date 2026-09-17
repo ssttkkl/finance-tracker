@@ -14,6 +14,7 @@ import { CashCategorySelect } from "./CashCategorySelect";
 import { formatOccurredAt } from "../format";
 import { UiIcon } from "./UiIcon";
 import { PageNavigation } from "./Pagination";
+import { copy, semanticIds } from "@finance-tracker/presentation";
 
 type Props = {
   detail?: CashRecordDetail | null;
@@ -304,29 +305,29 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
 
   const drawerContent = <>
       <header>
-        <div><p className="evidence-eyebrow">收支账本</p><h2>{isNew ? "新建流水" : "编辑收支详情"}</h2></div>
-        <button type="button" className="icon-only-button" aria-label={embedded ? "返回" : "关闭"} title={embedded ? "返回" : "关闭"} autoFocus={embedded} onClick={onClose}><UiIcon name={embedded ? "arrow-left" : "x"} /></button>
+        <div><p className="evidence-eyebrow">{copy.ledger.title}</p><h2>{isNew ? copy.record.newTitle : copy.record.editTitle}</h2></div>
+        <button data-testid={semanticIds.recordCancel} type="button" className="icon-only-button" aria-label={embedded ? copy.common.back : "关闭"} title={embedded ? copy.common.back : "关闭"} autoFocus={embedded} onClick={onClose}><UiIcon name={embedded ? "arrow-left" : "x"} /></button>
       </header>
       <div className="evidence-content">
         {!isNew && !record ? <p className="evidence-state" role={loadError ? "alert" : "status"}>{loadError ? <>无法读取流水，请重试。<br /><button type="button" onClick={onRetry}>重试</button></> : loading ? "正在读取流水…" : "正在准备流水…"}</p> : <>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <section className="evidence-section record-form-section" aria-label="编辑收支详情">
-          <div className="drawer-summary record-edit-summary" aria-label="金额">
-            <div className="summary-edit"><input aria-label="金额" className="mono" inputMode="decimal" value={form.amount} onChange={(event) => set("amount", event.target.value)} /><select aria-label="币种" value={form.currency} onChange={(event) => set("currency", event.target.value)} disabled={!currencies.length}>{currencies.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
+        <section className="evidence-section record-form-section" data-testid={semanticIds.recordScreen} aria-label={copy.record.editTitle}>
+            <div className="drawer-summary record-edit-summary" aria-label={copy.record.amount}>
+            <div className="summary-edit"><input data-testid={semanticIds.recordAmount} aria-label={copy.record.amount} className="mono" inputMode="decimal" value={form.amount} onChange={(event) => set("amount", event.target.value)} /><select data-testid={semanticIds.recordCurrency} aria-label={copy.record.currency} value={form.currency} onChange={(event) => set("currency", event.target.value)} disabled={!currencies.length}>{currencies.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
           </div>
           <div className="edit-fields">
-            <div className="edit-row"><label className="edit-field-label" htmlFor="record-counterparty">交易对方</label><input id="record-counterparty" value={form.counterparty} onChange={(event) => set("counterparty", event.target.value)} /></div>
-            <div className="edit-row"><label className="edit-field-label" htmlFor="record-counterparty-account">对方账号</label><input id="record-counterparty-account" value={form.counterparty_account} onChange={(event) => set("counterparty_account", event.target.value)} /></div>
-            <div className="edit-row"><label className="edit-field-label" htmlFor="record-occurred-at"><UiIcon name="calendar" /><span>发生时间</span></label><input id="record-occurred-at" type="datetime-local" value={form.occurred_at} onChange={(event) => set("occurred_at", event.target.value)} /></div>
-            <div className="edit-row"><label className="edit-field-label" htmlFor="record-account"><UiIcon name="account" /><span>账户</span></label><select id="record-account" value={form.account_name} onChange={(event) => selectAccount(event.target.value)}>{accounts.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></div>
-            <div className="edit-row"><label className="edit-field-label" htmlFor="record-type"><UiIcon name="receipt" /><span>流水类型</span></label><select id="record-type" value={form.record_type} onChange={(event) => selectType(event.target.value)}>{options.record_types.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
+            <div className="edit-row"><label className="edit-field-label" htmlFor="record-counterparty">{copy.record.counterparty}</label><input id="record-counterparty" value={form.counterparty} onChange={(event) => set("counterparty", event.target.value)} /></div>
+            <div className="edit-row"><label className="edit-field-label" htmlFor="record-counterparty-account">{copy.record.counterpartyAccount}</label><input id="record-counterparty-account" value={form.counterparty_account} onChange={(event) => set("counterparty_account", event.target.value)} /></div>
+            <div className="edit-row"><label className="edit-field-label" htmlFor="record-occurred-at"><UiIcon name="calendar" /><span>{copy.record.occurredAt}</span></label><input id="record-occurred-at" type="datetime-local" value={form.occurred_at} onChange={(event) => set("occurred_at", event.target.value)} /></div>
+            <div className="edit-row"><label className="edit-field-label" htmlFor="record-account"><UiIcon name="account" /><span>{copy.record.account}</span></label><select data-testid={semanticIds.recordAccount} id="record-account" value={form.account_name} onChange={(event) => selectAccount(event.target.value)}>{accounts.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></div>
+            <div className="edit-row"><label className="edit-field-label" htmlFor="record-type"><UiIcon name="receipt" /><span>{copy.record.type}</span></label><select id="record-type" value={form.record_type} onChange={(event) => selectType(event.target.value)}>{options.record_types.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
             {subtypeOptions.length > 1 ? <div className="edit-row"><label className="edit-field-label" htmlFor="record-subtype"><UiIcon name="layers" /><span>业务细分</span></label><select id="record-subtype" value={form.record_subtype} onChange={(event) => set("record_subtype", event.target.value)}>{subtypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div> : null}
-            <div className="edit-row category-edit-row"><CashCategorySelect categories={categories} value={form.category_id || null} onChange={(value) => set("category_id", value ?? "")} /></div>
-            <div className="edit-row"><label className="edit-field-label" htmlFor="record-note"><span>备注</span></label><textarea id="record-note" value={form.note} onChange={(event) => set("note", event.target.value)} /></div>
-            {!isNew && record?.source_type ? <div className="edit-row"><span className="edit-field-label"><UiIcon name="layers" /><span>来源</span></span><div className="readonly-value">{record.source_type}</div></div> : null}
+            <div className="edit-row category-edit-row"><CashCategorySelect testID={semanticIds.recordCategory} categories={categories} value={form.category_id || null} onChange={(value) => set("category_id", value ?? "")} /></div>
+            <div className="edit-row"><label className="edit-field-label" htmlFor="record-note"><span>{copy.record.note}</span></label><textarea id="record-note" value={form.note} onChange={(event) => set("note", event.target.value)} /></div>
+            {!isNew && record?.source_type ? <div className="edit-row"><span className="edit-field-label"><UiIcon name="layers" /><span>{copy.record.source}</span></span><div className="readonly-value">{record.source_type}</div></div> : null}
           </div>
           {!currencies.length ? <p className="field-hint">该账户暂未配置可用币种。</p> : null}
-          <div className="drawer-actions"><button type="button" className="button-primary" disabled={saving || !form.account_name || !form.currency} onClick={() => save()}>{saving ? "保存中…" : "保存"}</button>{!isNew ? <button type="button" className="button-danger" onClick={() => setDeleteOpen(true)}>删除流水</button> : null}</div>
+          <div className="drawer-actions"><button data-testid={semanticIds.recordSave} type="button" className="button-primary" disabled={saving || !form.account_name || !form.currency} onClick={() => save()}>{saving ? copy.record.saving : copy.record.save}</button>{!isNew ? <button type="button" className="button-danger" onClick={() => setDeleteOpen(true)}>{copy.record.delete}</button> : null}</div>
         </section>
         {!isNew && record ? <section className="evidence-section evidence-related relation-manager" aria-label="关联流水">
           <div className="section-heading"><h3>关联流水</h3><div className="section-heading-actions">{relations.length > 0 ? <button type="button" className="text-button" disabled={relationSaving} onClick={dissolve}>解散关联</button> : null}{!relationOpen ? <button type="button" className="icon-only-button icon-quiet-button" aria-label="添加关联" title="添加关联" aria-expanded="false" onClick={() => setRelationOpen(true)}><UiIcon name="plus" /></button> : null}</div></div>

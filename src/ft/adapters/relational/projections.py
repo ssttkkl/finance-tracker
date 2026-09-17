@@ -47,30 +47,11 @@ class RelationalCashProjectionRepository:
 
     def _state(self, *, create: bool = False, lock: bool = False) -> CashProjectionStateModel | None:
         statement = select(CashProjectionStateModel).where(CashProjectionStateModel.workspace_id == self._workspace_id)
-        if lock and self._session.bind.dialect.name == "postgresql":
-            # The workspace is already validated by the unit of work. Lock
-            # it together with the projection state in one round trip; the
-            # previous two-query sequence was disproportionately expensive on
-            # the local PostgreSQL test backend.
-            state = self._session.scalar(
-                statement.join(
-                    WorkspaceModel,
-                    WorkspaceModel.id == CashProjectionStateModel.workspace_id,
-                ).with_for_update(of=(CashProjectionStateModel, WorkspaceModel))
-            )
-            if state is not None:
-                return state
-            if not create:
-                return None
-            self._session.execute(
-                select(WorkspaceModel.id)
-                .where(WorkspaceModel.id == self._workspace_id)
-                .with_for_update()
-            ).one()
-        elif lock:
+        if lock:
             workspace = select(WorkspaceModel).where(WorkspaceModel.id == self._workspace_id)
-            workspace = workspace.with_for_update()
-            statement = statement.with_for_update()
+            if self._session.bind.dialect.name == "postgresql":
+                workspace = workspace.with_for_update()
+                statement = statement.with_for_update()
             self._session.execute(workspace).one()
         state = self._session.scalar(statement)
         if state is None and create:
@@ -221,7 +202,7 @@ class RelationalCashProjectionRepository:
                     select(CashTransactionModel).where(
                         CashTransactionModel.workspace_id == self._workspace_id,
                         CashTransactionModel.deleted_at.is_(None),
-                    ).order_by(CashTransactionModel.id)
+                    ).order_by(CashTransactionModel.id).execution_options(populate_existing=True)
                 )
             ],
             "relations": [
@@ -243,7 +224,7 @@ class RelationalCashProjectionRepository:
                         TransactionRelationModel.primary_fact_type == "cash",
                         TransactionRelationModel.secondary_fact_type == "cash",
                         TransactionRelationModel.secondary_fact_id.is_not(None),
-                    ).order_by(TransactionRelationModel.id)
+                    ).order_by(TransactionRelationModel.id).execution_options(populate_existing=True)
                 )
             ],
             "funding_relations": [
@@ -262,7 +243,7 @@ class RelationalCashProjectionRepository:
                         CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
                         CashInvestmentFundingRelationModel.status == "accepted",
                         CashInvestmentFundingRelationModel.active_slot == "active",
-                    ).order_by(CashInvestmentFundingRelationModel.id)
+                    ).order_by(CashInvestmentFundingRelationModel.id).execution_options(populate_existing=True)
                 )
             ],
         }

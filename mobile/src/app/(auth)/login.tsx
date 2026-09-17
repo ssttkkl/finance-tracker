@@ -5,6 +5,7 @@ import type { Session } from "@finance-tracker/contracts";
 import { Button, Screen, StatusMessage, Surface } from "@/components/NativeShell";
 import { errorMessage, useSession } from "@/state/session";
 import { nativeColors, nativeTypography } from "@finance-tracker/design-tokens";
+import { copy, semanticIds } from "@finance-tracker/presentation";
 
 export default function LoginScreen() {
   const { state, login, register } = useSession();
@@ -22,26 +23,25 @@ export default function LoginScreen() {
     } catch (cause) {
       setFormError(cause instanceof Error && cause.message === "api_origin_invalid"
         ? errorMessage("api_origin_invalid")
-        : registering ? "账户创建失败，请检查信息后重试。" : "邮箱或密码不正确，请重试。");
+        : copy.auth.error);
       return;
     }
     router.replace((session.active_workspace_id ? "/(app)/ledger" : "/(app)/workspace") as never);
   }
 
-  return <Screen>
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.wrapper}>
-      <View style={styles.brand}><Text style={styles.brandName}>Finance Tracker</Text><Text style={styles.brandRule}>ANDROID · IOS</Text></View>
+  return <Screen navigation={false} testID={semanticIds.authScreen}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.wrapper}>
+      <View style={styles.brand}><Text style={styles.brandName}>{copy.product.name}</Text></View>
       <Surface style={styles.card}>
-        <Text style={styles.eyebrow}>工作区访问</Text>
-        <Text accessibilityRole="header" style={styles.heading}>{registering ? "创建你的账户" : "登录到你的账本"}</Text>
-        <Text style={styles.description}>同一账户在 Web 和手机上看到相同的账。</Text>
+        <Text style={styles.eyebrow}>{copy.auth.eyebrow}</Text>
+        <Text accessibilityRole="header" style={styles.heading}>{registering ? copy.auth.registerTitle : copy.auth.loginTitle}</Text>
         <View style={styles.form}>
-          <View style={styles.field}><Text style={styles.label}>邮箱</Text><TextInput autoCapitalize="none" autoComplete="email" keyboardType="email-address" editable={!busy} onChangeText={setEmail} placeholder="name@example.com" placeholderTextColor={nativeColors.inkFaint} style={styles.input} value={email} /></View>
-          <View style={styles.field}><Text style={styles.label}>密码</Text><TextInput autoComplete={registering ? "new-password" : "current-password"} editable={!busy} onChangeText={setPassword} placeholder="至少 12 个字符" placeholderTextColor={nativeColors.inkFaint} secureTextEntry style={styles.input} value={password} /></View>
+          <View style={styles.field}><Text style={styles.label}>{copy.auth.email}</Text><TextInput testID={semanticIds.authEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" editable={!busy} onChangeText={setEmail} placeholder="name@example.com" placeholderTextColor={nativeColors.inkFaint} style={styles.input} value={email} /></View>
+          <View style={styles.field}><Text style={styles.label}>{copy.auth.password}</Text><TextInput testID={semanticIds.authPassword} autoComplete={registering ? "new-password" : "current-password"} editable={!busy} onChangeText={setPassword} placeholder="至少 12 个字符" placeholderTextColor={nativeColors.inkFaint} secureTextEntry style={styles.input} value={password} /></View>
           {formError && <StatusMessage title={formError} tone="error" />}
-          <Button disabled={busy || !email.trim() || !password} onPress={() => void submit()} variant="primary">{busy ? "正在处理…" : registering ? "注册" : "登录"}</Button>
+          <Button testID={semanticIds.authSubmit} disabled={busy || !email.trim() || !password} onPress={() => void submit()} variant="primary">{busy ? copy.auth.processing : registering ? copy.auth.register : copy.auth.login}</Button>
         </View>
-        <Button disabled={busy} onPress={() => { setRegistering((value) => !value); setFormError(null); }} variant="secondary">{registering ? "已有账户？登录" : "还没有账户？注册"}</Button>
+        <Button testID={semanticIds.authToggleMode} disabled={busy} onPress={() => { setRegistering((value) => !value); setFormError(null); }} variant="secondary">{registering ? copy.auth.switchToLogin : copy.auth.switchToRegister}</Button>
       </Surface>
     </KeyboardAvoidingView>
   </Screen>;

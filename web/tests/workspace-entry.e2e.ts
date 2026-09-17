@@ -18,7 +18,11 @@ function installAccessFixture(page: Page, session: AccessSession | null, loginSe
   page.on("console", message => {
     if (message.type() === "error" && !message.text().includes("401 (Unauthorized)")) consoleErrors.push(message.text());
   });
-  page.on("requestfailed", request => { requestFailures.push(`${request.method()} ${request.url()}: ${request.failure()?.errorText ?? "failed"}`); });
+  page.on("requestfailed", request => {
+    // CashLedgerPage aborts its in-flight reads when the workspace creation route unmounts it.
+    if (request.failure()?.errorText === "net::ERR_ABORTED") return;
+    requestFailures.push(`${request.method()} ${request.url()}: ${request.failure()?.errorText ?? "failed"}`);
+  });
   void page.route("**/api/v1/**", async route => {
     const request = route.request();
     const url = new URL(request.url());

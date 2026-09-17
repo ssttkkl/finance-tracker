@@ -12,6 +12,8 @@ from pathlib import Path
 import pytest
 from sqlalchemy import delete, func, insert, select
 
+pytestmark = pytest.mark.performance
+
 
 WORKSPACE = "wealth-performance"
 START = date(2025, 7, 1)
@@ -109,14 +111,12 @@ def test_fixed_100k_fact_rebuild_and_active_cache_meet_budgets(performance_runti
     from ft.domain.wealth import WealthSeriesQuery
     import ft.adapters.relational.runtime as relational_runtime
 
-    class FixedDate(date):
-        @classmethod
-        def today(cls): return START + timedelta(days=DAYS - 1)
-
     backend, services, sessions = performance_runtime
     _seed_formal_workload(sessions)
     assert sessions().scalar(select(func.count()).select_from(CashTransactionModel).where(CashTransactionModel.workspace_id == WORKSPACE)) == FACT_COUNT
-    monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
+    monkeypatch.setattr(
+        relational_runtime, "_utc_today", lambda: START + timedelta(days=DAYS - 1),
+    )
     query = WealthSeriesQuery(START, START + timedelta(days=DAYS), "day")
     def cold() -> int:
         _reset_read_model(sessions); started = time.perf_counter_ns(); services.wealth.rebuild(affected_from=START.isoformat()); services.wealth.series(query); return time.perf_counter_ns() - started

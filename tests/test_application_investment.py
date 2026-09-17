@@ -152,6 +152,24 @@ class FakeQuoteProvider:
         raise UnsupportedQuote(identity)
 
 
+def test_holdings_query_uses_repository_holdings_projection_without_history_scan():
+    from ft.application.investment import PortfolioQueryService
+    from ft.application.valuation import ValuationService
+
+    class HoldingsRepository:
+        def load_holdings(self):
+            return FakePortfolioRepository().load_portfolio()
+
+        def load_portfolio(self):
+            raise AssertionError("holdings must not load the full investment history")
+
+    result = PortfolioQueryService(
+        HoldingsRepository(), ValuationService(FakeQuoteProvider()),
+    ).get_holdings()
+
+    assert result.accounts[0].positions[1].ticker == "aapl.us"
+
+
 def test_portfolio_query_uses_valuation_and_never_prices_configured_currency():
     from datetime import datetime, timezone
 

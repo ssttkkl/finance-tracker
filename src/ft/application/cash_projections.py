@@ -39,14 +39,15 @@ class CashProjectionService:
                     session.connection().exec_driver_sql("BEGIN IMMEDIATE")
                 repository = RelationalCashProjectionRepository(session, self._workspace_id)
                 failure_context = repository.rebuild_failure_context()
+                digest = repository.source_digest()
                 facts, relations = repository.read_sources()
                 build = build_cash_projections(facts, relations)
-                self._synchronize_component_categories(session, self._workspace_id, build)
-                digest = repository.source_digest()
                 dataset_id = repository.create_staging_dataset(source_digest=digest, rules_version=RULES_VERSION)
                 next_version = repository.status()["projection_version"] + 1
                 repository.replace_dataset(dataset_id, build, projection_version=next_version)
-                return repository.publish_dataset(dataset_id, source_digest=digest, rules_version=RULES_VERSION)
+                result = repository.publish_dataset(dataset_id, source_digest=digest, rules_version=RULES_VERSION)
+                self._synchronize_component_categories(session, self._workspace_id, build)
+                return result
         except Exception as exc:
             from sqlalchemy.exc import DBAPIError
             if isinstance(exc, DBAPIError):
@@ -76,13 +77,14 @@ class CashProjectionService:
         assert state is not None
         if state.availability == "ready" and state.active_dataset_id:
             return repository.status()
+        digest = repository.source_digest()
         facts, relations = repository.read_sources()
         build = build_cash_projections(facts, relations)
-        CashProjectionService._synchronize_component_categories(session, workspace_id, build)
-        digest = repository.source_digest()
         dataset_id = repository.create_staging_dataset(source_digest=digest, rules_version=RULES_VERSION)
         repository.replace_dataset(dataset_id, build, projection_version=state.projection_version + 1)
-        return repository.publish_dataset(dataset_id, source_digest=digest, rules_version=RULES_VERSION)
+        result = repository.publish_dataset(dataset_id, source_digest=digest, rules_version=RULES_VERSION)
+        CashProjectionService._synchronize_component_categories(session, workspace_id, build)
+        return result
 
     @staticmethod
     def _failure_code(exc: Exception) -> str:
