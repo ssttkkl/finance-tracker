@@ -1852,8 +1852,6 @@ def _can_parse_icbc_pdf(path: str, password: str | None, *, expected: str) -> bo
     """Probe an ICBC PDF title without parsing its transaction pages."""
     from pathlib import Path
 
-    if Path(path).suffix.lower() != ".pdf":
-        return False
     try:
         with Path(path).open("rb") as stream:
             if stream.read(5) != b"%PDF-":

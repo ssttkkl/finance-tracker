@@ -7,7 +7,7 @@ def test_statement_parser_can_parse_distinguishes_icbc_pdf_formats(monkeypatch, 
     from ft.adapters.statement_import import StatementParser
     from ft.importers import pdf_tools
 
-    source = tmp_path / "statement.pdf"
+    source = tmp_path / "statement.bin"
     source.write_bytes(b"%PDF-1.7")
     calls = []
 
@@ -80,3 +80,53 @@ def test_pdf_probe_reads_only_first_page_word_stream(monkeypatch):
     monkeypatch.setattr(pdf_tools, "open_pdf", lambda *_args, **_kwargs: FakePdf())
 
     assert pdf_tools.extract_pdf_first_page_words("statement.pdf") == "中国工商银行\n信用卡"
+
+
+def test_pdf_probe_limits_word_prefix(monkeypatch):
+    from ft.importers import pdf_tools
+
+    class FirstPage:
+        def extract_words(self, *, use_text_flow):
+            assert use_text_flow is True
+            return [{"text": f"word-{index}"} for index in range(10)]
+
+    class FakePdf:
+        pages = [FirstPage()]
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(pdf_tools, "open_pdf", lambda *_args, **_kwargs: FakePdf())
+
+    assert pdf_tools.extract_pdf_first_page_words(
+        "statement.pdf", max_words=2,
+    ) == "word-0\nword-1"
+
+
+def test_statement_parser_can_parse_spreadsheets_by_content_not_suffix(tmp_path):
+    from openpyxl import Workbook
+    import xlwt
+
+    from ft.adapters.statement_import import StatementParser
+
+    wechat_source = tmp_path / "wechat.statement"
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.append(["交易时间", "收/支", "金额(元)"])
+    workbook.save(wechat_source)
+    workbook.close()
+
+    ccb_source = tmp_path / "ccb.statement"
+    ccb_workbook = xlwt.Workbook()
+    ccb_sheet = ccb_workbook.add_sheet("Sheet1")
+    for column, value in enumerate(["序号", "交易日期", "交易金额", "账户余额"]):
+        ccb_sheet.write(3, column, value)
+    ccb_workbook.save(str(ccb_source))
+
+    parser = StatementParser()
+    assert parser.can_parse(
+        StatementImportCommand(str(wechat_source), source="wechat")
+    ) is True
+    assert parser.can_parse(
+        StatementImportCommand(str(ccb_source), source="ccb-debit")
+    ) is True

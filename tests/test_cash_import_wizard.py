@@ -304,6 +304,67 @@ def test_cash_import_detection_does_not_parse_when_no_probe_matches(tmp_path):
     assert parser.parses == []
 
 
+def test_cash_import_probe_password_error_stops_before_full_parse(tmp_path):
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from ft.adapters.relational import ensure_workspace
+    from ft.importers.pdf_tools import PDFPasswordRequiredError
+    from test_postgres_adapter import _database
+
+    source = tmp_path / "statement.pdf"
+    source.write_bytes(b"encrypted statement")
+    sessions, unit_of_work = _database()
+    ensure_workspace(sessions, "wizard-probe-password-workspace")
+    calls = []
+
+    class ProbeParser:
+        def can_parse(self, command):
+            calls.append(("probe", command.source))
+            if command.source == "icbc-debit":
+                raise PDFPasswordRequiredError("PDF password required")
+            return False
+
+        def parse(self, _command):
+            raise AssertionError("password probe must not enter full parsing")
+
+    service = CashLedgerCommandService(
+        sessions, "wizard-probe-password-workspace", parser=ProbeParser(),
+    )
+
+    with pytest.raises(PDFPasswordRequiredError):
+        service.detect_import(source.read_bytes(), filename=source.name)
+
+    assert calls == [
+        ("probe", candidate) for candidate in ("alipay", "wechat", "icbc-debit")
+    ]
+
+
+def test_cash_import_probe_error_is_not_reclassified_as_no_match(tmp_path):
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from ft.adapters.relational import ensure_workspace
+    from test_postgres_adapter import _database
+
+    source = tmp_path / "statement.pdf"
+    source.write_bytes(b"broken statement")
+    sessions, unit_of_work = _database()
+    ensure_workspace(sessions, "wizard-probe-error-workspace")
+
+    class ProbeParser:
+        def can_parse(self, command):
+            if command.source == "icbc-debit":
+                raise ValueError("probe failed")
+            return False
+
+        def parse(self, _command):
+            raise AssertionError("probe error must stop before full parsing")
+
+    service = CashLedgerCommandService(
+        sessions, "wizard-probe-error-workspace", parser=ProbeParser(),
+    )
+
+    with pytest.raises(ValueError, match="probe failed"):
+        service.detect_import(source.read_bytes(), filename=source.name)
+
+
 def test_cash_import_skips_unresolved_alipay_rows_but_imports_other_rows(tmp_path):
     from ft.adapters.relational.models import AccountModel, CashTransactionModel
 

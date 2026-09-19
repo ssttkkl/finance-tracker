@@ -25,4 +25,4 @@
 
 - 影响 `src/ft/application/cash_ledger.py` 的自动识别协调、`src/ft/adapters/statement_import.py` 的解析器契约、现金账单解析器的格式探测及其测试。
 - 不新增依赖、数据库迁移或持久化字段；回滚应用版本即可恢复原实现，不触碰已有账本事实。
-- Web 端需要执行真实浏览器 QA；Native 导入页面未实现本流程，本次只记录 Cross-platform Impact Check，不伪造 Native 覆盖。
+- Web 端需要执行真实浏览器 QA；现有 Native 导入页复用同一扫描 API，本次不修改 Native UI，也不把未执行的 Native 真机 QA 记为已覆盖。

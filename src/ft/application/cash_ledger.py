@@ -1363,8 +1363,6 @@ class CashLedgerCommandService:
             # The runtime StatementParser implements can_parse and never enters this path.
             return None
 
-        from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredError
-
         with self._candidate_commands(
             content,
             currency=currency,
@@ -1374,13 +1372,8 @@ class CashLedgerCommandService:
         ) as commands:
             matches = []
             for command in commands:
-                try:
-                    if can_parse(command):
-                        matches.append(command)
-                except (PDFPasswordRequiredError, PDFPasswordInvalidError):
-                    raise
-                except Exception:  # noqa: BLE001 - an uncertain probe is not a format match.
-                    continue
+                if can_parse(command):
+                    matches.append(command)
             if len(matches) != 1:
                 raise ValueError("import_channel_unrecognized")
             command = matches[0]
