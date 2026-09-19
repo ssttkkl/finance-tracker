@@ -5,6 +5,8 @@ export const semanticIds = {
   authScreen: "auth.screen",
   authEmail: "auth.email",
   authPassword: "auth.password",
+  authApiOrigin: "auth.api-origin",
+  authApiOriginReset: "auth.api-origin-reset",
   authSubmit: "auth.submit",
   authToggleMode: "auth.toggle-mode",
   workspaceScreen: "workspace.screen",

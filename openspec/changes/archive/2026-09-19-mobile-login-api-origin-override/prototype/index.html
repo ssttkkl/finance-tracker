@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Native 登录地址调试控件原型</title>
+  <style>
+    /* Hallmark · pre-emit critique: P4 H5 E4 S5 R5 V4 */
+    /* Hallmark · component: Native auth API origin control · genre: modern-minimal · theme: Cobalt (system-preserved)
+     * states: default · hover · focus · active · disabled · loading · error · success
+     * contrast: pass (46–50)
+     */
+    :root {
+      --color-paper: #F1F5FA;
+      --color-paper-raised: #FCFDFE;
+      --color-paper-muted: #E8EEF6;
+      --color-ink: #1F2933;
+      --color-ink-muted: #66717D;
+      --color-ink-faint: #8B98A8;
+      --color-rule: #C4CEDA;
+      --color-rule-strong: #9EACBC;
+      --color-accent: #0A63B8;
+      --color-accent-ink: #FFFFFF;
+      --color-danger: #B42318;
+      --color-error-surface: #FBEAE8;
+      --color-income: #087443;
+      --color-success-surface: #E8F5EE;
+      --font-body: "Noto Sans SC", system-ui, sans-serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --radius-1: 3px;
+      --dur-fast: 120ms;
+    }
+
+    html,
+    body {
+      overflow-x: clip;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-width: 320px;
+      margin: 0;
+      background: var(--color-paper);
+      color: var(--color-ink);
+      font-family: var(--font-body);
+    }
+
+    main {
+      width: min(100% - 32px, 720px);
+      margin: 0 auto;
+      padding: 32px 0 64px;
+    }
+
+    .intro {
+      display: grid;
+      gap: var(--space-2);
+      margin-bottom: var(--space-6);
+      padding-bottom: var(--space-4);
+      border-bottom: 1px solid var(--color-rule-strong);
+    }
+
+    .eyebrow,
+    .state-label {
+      color: var(--color-accent);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(24px, 6vw, 32px);
+      line-height: 1.15;
+      overflow-wrap: anywhere;
+    }
+
+    .intro p,
+    .state-note {
+      color: var(--color-ink-muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .samples {
+      display: grid;
+      gap: var(--space-4);
+    }
+
+    .sample {
+      display: grid;
+      gap: var(--space-4);
+      padding: var(--space-4);
+      border: 1px solid var(--color-rule);
+      border-radius: var(--radius-1);
+      background: var(--color-paper-raised);
+    }
+
+    .sample-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--space-3);
+      min-width: 0;
+    }
+
+    .sample-heading h2 {
+      min-width: 0;
+      font-size: 17px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .form {
+      display: grid;
+      gap: var(--space-4);
+    }
+
+    .field {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+
+    .field-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      min-width: 0;
+    }
+
+    label {
+      color: var(--color-ink-muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    input {
+      width: 100%;
+      min-height: 48px;
+      min-width: 0;
+      padding: 0 var(--space-3);
+      border: 1px solid var(--color-rule);
+      border-radius: var(--radius-1);
+      background: var(--color-paper-raised);
+      color: var(--color-ink);
+      font: 16px/1.25 var(--font-mono);
+    }
+
+    input::placeholder {
+      color: var(--color-ink-faint);
+    }
+
+    input:hover {
+      border-color: var(--color-rule-strong);
+    }
+
+    input:focus,
+    input.is-focus {
+      border-color: var(--color-accent);
+      outline: 3px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
+      outline-offset: 1px;
+    }
+
+    input[aria-invalid="true"] {
+      border-color: var(--color-danger);
+    }
+
+    input:disabled {
+      background: var(--color-paper-muted);
+      color: var(--color-ink-faint);
+      opacity: .72;
+    }
+
+    .reset {
+      min-height: 44px;
+      padding: 0 var(--space-2);
+      border: 0;
+      background: transparent;
+      color: var(--color-accent);
+      font: 600 13px/1 var(--font-body);
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .reset:hover,
+    .reset.is-hover {
+      color: var(--color-ink);
+    }
+
+    .reset:focus-visible,
+    .reset.is-focus {
+      outline: 3px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
+      outline-offset: 2px;
+    }
+
+    .reset:active,
+    .reset.is-active {
+      transform: translateY(1px);
+    }
+
+    .reset:disabled {
+      color: var(--color-ink-faint);
+      cursor: default;
+    }
+
+    .error,
+    .success,
+    .muted {
+      padding: var(--space-3);
+      border-left: 3px solid var(--color-rule-strong);
+      background: var(--color-paper-muted);
+      color: var(--color-ink-muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .error {
+      border-left-color: var(--color-danger);
+      background: var(--color-error-surface);
+      color: var(--color-danger);
+    }
+
+    .success {
+      border-left-color: var(--color-income);
+      background: var(--color-success-surface);
+      color: var(--color-income);
+    }
+
+    .submit {
+      min-height: 44px;
+      padding: 0 var(--space-4);
+      border: 1px solid var(--color-accent);
+      border-radius: var(--radius-1);
+      background: var(--color-accent);
+      color: var(--color-accent-ink);
+      font: 600 15px/1 var(--font-body);
+      cursor: pointer;
+    }
+
+    .submit:hover,
+    .submit.is-hover {
+      filter: brightness(.92);
+    }
+
+    .submit:focus-visible,
+    .submit.is-focus {
+      outline: 3px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
+      outline-offset: 2px;
+    }
+
+    .submit:active,
+    .submit.is-active {
+      transform: translateY(1px);
+    }
+
+    .submit:disabled {
+      opacity: .45;
+      cursor: default;
+    }
+
+    .hidden-state {
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 768px) {
+      main {
+        padding-top: 48px;
+      }
+
+      .sample {
+        padding: 20px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="intro">
+      <span class="eyebrow">Native / Auth</span>
+      <h1>登录到你的账本</h1>
+      <p>调试构建的地址选择控件</p>
+    </header>
+
+    <section class="samples" aria-label="状态原型">
+      <article class="sample hidden-state">
+        <div class="sample-heading">
+          <h2>默认构建</h2>
+          <span class="state-label">hidden</span>
+        </div>
+        <div class="form">
+          <div class="field"><label for="default-email">邮箱</label><input id="default-email" type="email" placeholder="name@example.com"></div>
+          <div class="field"><label for="default-password">密码</label><input id="default-password" type="password" placeholder="至少 12 个字符"></div>
+          <button class="submit" type="button">登录</button>
+        </div>
+        <p class="state-note">未开启构建开关时不展示后端地址。</p>
+      </article>
+
+      <article class="sample">
+        <div class="sample-heading">
+          <h2>调试构建 · 当前地址</h2>
+          <span class="state-label">default</span>
+        </div>
+        <div class="form">
+          <div class="field"><label for="debug-email">邮箱</label><input id="debug-email" type="email" value="developer@example.com"></div>
+          <div class="field"><label for="debug-password">密码</label><input id="debug-password" type="password" value="password-password"></div>
+          <div class="field">
+            <div class="field-header"><label for="debug-origin">后端地址</label><button class="reset" type="button">恢复默认</button></div>
+            <input id="debug-origin" type="url" value="http://192.168.1.10:8000" spellcheck="false">
+          </div>
+          <button class="submit" type="button">登录</button>
+        </div>
+      </article>
+
+      <article class="sample">
+        <div class="sample-heading">
+          <h2>地址为空 · 输入聚焦</h2>
+          <span class="state-label">empty / focus</span>
+        </div>
+        <div class="form">
+          <div class="field"><div class="field-header"><label for="empty-origin">后端地址</label><button class="reset is-focus" type="button">恢复默认</button></div><input id="empty-origin" class="is-focus" type="url" placeholder="https://api.example.com" spellcheck="false"></div>
+        </div>
+      </article>
+
+      <article class="sample">
+        <div class="sample-heading">
+          <h2>地址无效</h2>
+          <span class="state-label">error</span>
+        </div>
+        <div class="form">
+          <div class="field"><div class="field-header"><label for="error-origin">后端地址</label><button class="reset" type="button">恢复默认</button></div><input id="error-origin" type="url" value="http://api.example.com/path" aria-invalid="true" spellcheck="false"><p class="error" role="alert">请输入有效的后端地址。</p></div>
+          <button class="submit" type="button">登录</button>
+        </div>
+      </article>
+
+      <article class="sample">
+        <div class="sample-heading">
+          <h2>正在登录</h2>
+          <span class="state-label">loading / disabled</span>
+        </div>
+        <div class="form">
+          <div class="field"><div class="field-header"><label for="loading-origin">后端地址</label><button class="reset" type="button" disabled>恢复默认</button></div><input id="loading-origin" type="url" value="https://api.example.com" disabled spellcheck="false"></div>
+          <button class="submit" type="button" disabled>正在处理…</button>
+        </div>
+      </article>
+
+      <article class="sample">
+        <div class="sample-heading">
+          <h2>登录完成</h2>
+          <span class="state-label">success</span>
+        </div>
+        <p class="success" role="status">已登录，当前地址已保存。</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
