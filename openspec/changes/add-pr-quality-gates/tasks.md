@@ -73,6 +73,15 @@
 - [x] 8.2 记录可复用经验：浏览器主动取消必须与真实网络失败区分，视觉基线必须绑定 runner 平台，双后端 CI 必须拒绝静默 skip；Node 26 jsdom 需在测试 setup 显式提供一致的 Storage。
 - [ ] 8.3 确认所有实现任务、审查和验证均完成后，按 OpenSpec 规则评估 delta（产品规格无 delta，内部 migration 已在 artifacts 记录）并准备归档；不把归档当作发布授权。
 
+## 9. 全量性能门禁实验（2026-09-20）
+
+- [x] 9.1 完成需求澄清：恢复全部 `52` 个 `performance` 收集项，保留 SQLite/PostgreSQL 双后端、原始阈值和测试样本；不新增未标记的投资正确性测试；只改变独立性能 job 的选择器与实验超时。
+- [x] 9.2 将 `backend-performance` 的执行命令改为 `PYTHONPATH=tests:.:src uv run pytest -q -m performance`，将实验超时设为 `120` 分钟；功能 job 继续使用 `-m "not performance"`。
+- [x] 9.3 完成 workflow 静态检查、`performance` 收集项核对、OpenSpec strict 校验和 `git diff --check`，确认收集数量为 `52` 且没有修改门禁阈值。证据：`PYTHONPATH=tests:.:src uv run pytest --collect-only -q -m performance` 为 `52/1714`，功能选择器为 `1662/1714`；`npx --yes prettier@3.9.8 --check .github/workflows/pr-checks.yml`、`openspec validate add-pr-quality-gates --type change --strict`、`openspec validate --all --strict`、`openspec doctor` 和 `git diff --check` 均通过。
+- [ ] 9.4 在新分支提交并推送实验变更，创建目标为 `refactor/web` 的 PR，等待一次完整 PR CI 运行。
+- [ ] 9.5 记录远程性能 job 的 wall-clock 时长、收集/通过/失败/超时数量、各失败门禁、runner 资源和其他 PR job 结果。
+- [ ] 9.6 将实验结果交给用户决定是否保留全量门禁、拆分性能 job 或恢复原来的财富单文件选择器；在决定前不归档本变更。
+
 ## 远程 PR 证据（2026-09-14，Asia/Shanghai）
 
 - PR：`https://github.com/ssttkkl/finance-tracker/pull/82`；head `feat/cross-platform-experience`，base `refactor/web`；最终 `HEAD` `b9152f1`，比较基线 `fdb766cd02e0eed7f88d7cea960b966c49963f05`。质量工作流 run：`https://github.com/ssttkkl/finance-tracker/actions/runs/34858540652`；Mobile CI run：`https://github.com/ssttkkl/finance-tracker/actions/runs/34858540801`，Android、iOS 和 shared JavaScript checks 通过。
