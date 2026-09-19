@@ -80,7 +80,16 @@
 - [x] 9.3 完成 workflow 静态检查、`performance` 收集项核对、OpenSpec strict 校验和 `git diff --check`，确认收集数量为 `52` 且没有修改门禁阈值。证据：`PYTHONPATH=tests:.:src uv run pytest --collect-only -q -m performance` 为 `52/1714`，功能选择器为 `1662/1714`；`npx --yes prettier@3.9.8 --check .github/workflows/pr-checks.yml`、`openspec validate add-pr-quality-gates --type change --strict`、`openspec validate --all --strict`、`openspec doctor` 和 `git diff --check` 均通过。
 - [x] 9.4 在新分支提交并推送实验变更，创建目标为 `refactor/web` 的 PR，等待一次完整 PR CI 运行。提交 `cbbf20f` 已推送到 `ci/full-performance-trial`，实验 PR 为 `#85`。
 - [x] 9.5 记录远程性能 job 的 wall-clock 时长、收集/通过/失败/超时数量、各失败门禁、runner 资源和其他 PR job 结果。PR Checks run `35457439770`；`Backend (Performance)` job `105935124679` 于 `17:14:35Z` 开始，`17:30:16Z` 结束，job 用时 `16m15s`，pytest 用时 `939.11s (15m39s)`，收集 `52` 项、`51 passed`、`1 failed`、`1690 deselected`、无超时。唯一失败为 `tests/test_wealth_performance.py::test_fixed_100k_fact_rebuild_and_active_cache_meet_budgets[sqlite]`：cold p95 `5071256396ns (5.071s)` 超过 `5s`，hot p95 `104264933ns (104.3ms)`；PostgreSQL 参数通过。其余 PR Checks：Web `2m0s`、SQLite 功能 `4m26s`、PostgreSQL 功能 `8m49s`；Mobile CI 的 Android `12m14s`、iOS `13m52s` 均通过。性能 run URL：`https://github.com/ssttkkl/finance-tracker/actions/runs/35457439770`。
-- [ ] 9.6 将实验结果交给用户决定是否保留全量门禁、拆分性能 job 或恢复原来的财富单文件选择器；在决定前不归档本变更。
+- [x] 9.6 用户确认保留全量门禁配置，不拆分性能 job，也不恢复财富单文件选择器；另行把 SQLite 财富 cold budget 从 `<5s` 调整为 `<5.5s` 后再合入。
+
+## 10. 财富 cold budget 修订与合入（2026-09-20）
+
+- [x] 10.1 完成需求澄清：仅放宽 SQLite 财富冷重建 p95 到 `<5.5s`；PostgreSQL cold `<6.5s`、SQLite/PostgreSQL hot `<300ms`、其他 49 项性能门禁、全量选择器和 120 分钟 job 超时保持不变。
+- [x] 10.2 修改 `tests/test_wealth_performance.py` 及 proposal/design/tasks，使实现、验收和历史实验记录一致。
+- [x] 10.3 运行财富性能回归、全量性能收集、OpenSpec strict、workflow 格式检查和 `git diff --check`，确认仅发生批准的预算变化。`PYTHONPATH=tests:.:src uv run pytest -q -s tests/test_wealth_performance.py` 为 SQLite `1 passed, 1 skipped`，cold/hot p95 `2.989s/43.7ms`；`pytest --collect-only -m performance` 仍为 `52/1714`；Prettier、OpenSpec strict、doctor 和 `git diff --check` 均通过。
+- [ ] 10.4 提交并推送预算修订，等待 PR #85 的 PR Checks 与 Mobile CI 通过。
+- [ ] 10.5 将 PR #85 合并到 `refactor/web`，记录 merge commit 和合入后的目标分支状态。
+- [ ] 10.6 合入后完成最终 diff/验证证据回写；在用户确认前不做部署、分支保护或其他发布动作。
 
 ## 远程 PR 证据（2026-09-14，Asia/Shanghai）
 
