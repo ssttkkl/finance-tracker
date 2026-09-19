@@ -1,6 +1,7 @@
 """Writable cash-ledger boundary used by the browser workbench."""
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -1280,10 +1281,16 @@ class CashLedgerCommandService:
             command = StatementImportCommand(
                 source_path=handle.name, source=candidate, currency=currency, password=password,
             )
-            rows = self._clean_import_rows(self._parser.parse(command))
+            rows = self._parse_import_command(command)
         if not rows:
             raise ValueError("账单中没有可导入的记录")
         return rows, self._formal_import_channel(rows, candidate)
+
+    def _parse_import_command(self, command) -> list[dict]:
+        rows = self._clean_import_rows(self._parser.parse(command))
+        if not rows:
+            raise ValueError("账单中没有可导入的记录")
+        return rows
 
     def _parse_source_with_candidate(
         self,
@@ -1301,13 +1308,83 @@ class CashLedgerCommandService:
             command = StatementImportCommand(
                 source_path=handle.name, source=candidate, currency=currency, password=password,
             )
-            parser = getattr(self._parser, "parse_source_rows", None)
-            rows = self._clean_import_rows(
-                (parser(command) if parser is not None else self._parser.parse(command))
-            )
+            rows = self._parse_source_command(command)
         if not rows:
             raise ValueError("账单中没有可导入的记录")
         return rows, self._formal_import_channel(rows, candidate)
+
+    def _parse_source_command(self, command) -> list[dict]:
+        parser = getattr(self._parser, "parse_source_rows", None)
+        rows = self._clean_import_rows(
+            (parser(command) if parser is not None else self._parser.parse(command))
+        )
+        if not rows:
+            raise ValueError("账单中没有可导入的记录")
+        return rows
+
+    @staticmethod
+    @contextmanager
+    def _candidate_commands(
+        content: bytes,
+        *,
+        currency: str | None,
+        filename: str,
+        password: str | None,
+        prefix: str,
+    ):
+        suffix = Path(filename or "statement").suffix
+        with tempfile.NamedTemporaryFile(prefix=prefix, suffix=suffix, delete=True) as handle:
+            handle.write(content)
+            handle.flush()
+            yield [
+                StatementImportCommand(
+                    source_path=handle.name,
+                    source=candidate,
+                    currency=currency,
+                    password=password,
+                )
+                for candidate in IMPORT_CHANNEL_CANDIDATES
+            ]
+
+    def _probe_unique_candidate(
+        self,
+        content: bytes,
+        *,
+        currency: str | None,
+        filename: str,
+        password: str | None,
+        prefix: str,
+        parse_command,
+    ):
+        """Probe all production parser candidates before parsing one unique match."""
+        can_parse = getattr(self._parser, "can_parse", None)
+        if not callable(can_parse):
+            # Existing injected test doubles predate the parser probe contract.
+            # The runtime StatementParser implements can_parse and never enters this path.
+            return None
+
+        from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredError
+
+        with self._candidate_commands(
+            content,
+            currency=currency,
+            filename=filename,
+            password=password,
+            prefix=prefix,
+        ) as commands:
+            matches = []
+            for command in commands:
+                try:
+                    if can_parse(command):
+                        matches.append(command)
+                except (PDFPasswordRequiredError, PDFPasswordInvalidError):
+                    raise
+                except Exception:  # noqa: BLE001 - an uncertain probe is not a format match.
+                    continue
+            if len(matches) != 1:
+                raise ValueError("import_channel_unrecognized")
+            command = matches[0]
+            return parse_command(command), command.source
 
     def _detect_source_candidate(
         self,
@@ -1319,6 +1396,22 @@ class CashLedgerCommandService:
     ) -> tuple[list[dict], str, str]:
         if len(content) > 100 * 1024 * 1024:
             raise ValueError("账单超过 100 MiB 输入上限")
+        probed = self._probe_unique_candidate(
+            content,
+            currency=currency,
+            filename=filename,
+            password=password,
+            prefix="ft-web-source-probe-",
+            parse_command=self._parse_source_command,
+        )
+        if probed is not None:
+            rows, candidate = probed
+            channel = self._formal_import_channel(rows, candidate)
+            groups, issues = scan_source_rows_with_issues(rows)
+            if not groups and issues:
+                raise ValueError(issues[0].code)
+            return rows, channel, candidate
+
         matches: list[tuple[list[dict], str, str]] = []
         password_errors = []
         source_identity_failure = False
@@ -1451,6 +1544,21 @@ class CashLedgerCommandService:
     ) -> tuple[list[dict], str, str]:
         if len(content) > 100 * 1024 * 1024:
             raise ValueError("账单超过 100 MiB 输入上限")
+        probed = self._probe_unique_candidate(
+            content,
+            currency=currency,
+            filename=filename,
+            password=password,
+            prefix="ft-web-import-probe-",
+            parse_command=self._parse_import_command,
+        )
+        if probed is not None:
+            rows, candidate = probed
+            channel = self._formal_import_channel(rows, candidate)
+            if not any(item.get("account_name") for item in rows):
+                raise ValueError("import_channel_unrecognized")
+            return rows, channel, candidate
+
         matches: list[tuple[list[dict], str, str]] = []
         password_errors = []
         from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredError

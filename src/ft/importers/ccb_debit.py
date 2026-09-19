@@ -6,6 +6,30 @@ from datetime import datetime, timedelta
 from ft.convert import _normalize_counterparty, _stable_short_hash
 
 
+REQUIRED_HEADERS = frozenset({"序号", "交易日期", "交易金额", "账户余额"})
+
+
+def can_parse_ccb_debit(path) -> bool:
+    """Return whether the XLS header matches the CCB debit format."""
+    if not str(path).lower().endswith(".xls"):
+        return False
+    workbook = None
+    try:
+        workbook = xlrd.open_workbook(path, on_demand=True)
+        sheet = workbook.sheet_by_index(0)
+        if sheet.nrows < 4:
+            return False
+        headers = {
+            _cell_text(sheet.cell_value(3, column)) for column in range(sheet.ncols)
+        }
+        return REQUIRED_HEADERS.issubset(headers)
+    except Exception:  # noqa: BLE001 - a format probe treats unreadable files as no match.
+        return False
+    finally:
+        if workbook is not None:
+            workbook.release_resources()
+
+
 def _cell_text(value: object) -> str:
     """保留 Excel 单元格的可读文本，不为整数引入浮点后缀。"""
     if value is None:

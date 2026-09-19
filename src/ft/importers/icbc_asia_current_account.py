@@ -22,6 +22,24 @@ CURRENCY_MAP = {
     "JPY": "JPY", "日圓": "JPY", "日元": "JPY",
     "EUR": "EUR", "歐元": "EUR", "欧元": "EUR",
 }
+PROBE_MAX_CHARS = 256 * 1024
+
+
+def can_parse_icbc_asia_current_account(path) -> bool:
+    """Return whether a bounded UTF-16 prefix contains the exact table header."""
+    try:
+        with Path(path).open("r", encoding="utf-16", newline="") as stream:
+            text = stream.read(PROBE_MAX_CHARS)
+    except (OSError, UnicodeError):
+        return False
+
+    try:
+        return any(
+            tuple(row) == HEADERS
+            for row in csv.reader(text.splitlines(), delimiter="\t")
+        )
+    except csv.Error:
+        return False
 
 
 def _metadata_value(rows: list[list[str]], label: str) -> str:

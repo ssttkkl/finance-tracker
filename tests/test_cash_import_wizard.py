@@ -164,17 +164,19 @@ def test_cash_import_detection_prefers_icbc_debit_table_parser(tmp_path):
     calls = []
 
     class ProbeParser:
+        def can_parse(self, command):
+            calls.append(("probe", command.source))
+            return command.source == "icbc-debit"
+
         def parse(self, command):
-            calls.append(command.source)
-            if command.source in {"icbc", "icbc-debit"}:
-                return [_row(
-                    record_id=command.source,
-                    account_name="工商银行借记卡",
-                    bill_source="icbc_debit",
-                    source_type="icbc_debit",
-                    source_payload={"交易日期": "2026-08-12"},
-                )]
-            raise ValueError("not this provider")
+            calls.append(("parse", command.source))
+            return [_row(
+                record_id=command.source,
+                account_name="工商银行借记卡",
+                bill_source="icbc_debit",
+                source_type="icbc_debit",
+                source_payload={"交易日期": "2026-08-12"},
+            )]
 
     service = CashLedgerCommandService(
         sessions, "wizard-icbc-detection-workspace", parser=ProbeParser(),
@@ -183,7 +185,123 @@ def test_cash_import_detection_prefers_icbc_debit_table_parser(tmp_path):
     detected = service.detect_import(source.read_bytes(), filename=source.name)
 
     assert detected["channel"] == "icbc_debit"
-    assert calls.index("icbc-debit") < calls.index("icbc")
+    assert calls == [
+        ("probe", candidate)
+        for candidate in (
+            "alipay", "wechat", "icbc-debit", "icbc", "ccb-debit", "icbc-asia",
+        )
+    ] + [("parse", "icbc-debit")]
+
+
+def test_cash_import_scan_uses_probe_before_source_parse(tmp_path):
+    from ft.application.cash_ledger import CashLedgerCommandService, IMPORT_CHANNEL_CANDIDATES
+    from ft.adapters.relational import ensure_workspace
+    from test_postgres_adapter import _database
+
+    source = tmp_path / "statement.pdf"
+    source.write_bytes(b"statement")
+    sessions, unit_of_work = _database()
+    ensure_workspace(sessions, "wizard-source-probe-workspace")
+
+    calls = []
+
+    class ProbeParser:
+        def can_parse(self, command):
+            calls.append(("probe", command.source))
+            return command.source == "icbc"
+
+        def parse_source_rows(self, command):
+            calls.append(("parse-source", command.source))
+            return [_row(
+                record_id="icbc-credit",
+                account_name="工行信用卡",
+                bill_source="icbc_credit",
+                source_type="icbc_credit",
+                _source_account_identifier="622599000000001200",
+                source_payload={"交易日期": "2026-08-12"},
+            )]
+
+    service = CashLedgerCommandService(
+        sessions, "wizard-source-probe-workspace", parser=ProbeParser(),
+    )
+
+    scan = service.scan_import(source.read_bytes(), filename=source.name)
+
+    assert scan["channel"] == "icbc_credit"
+    assert calls == [
+        ("probe", candidate) for candidate in IMPORT_CHANNEL_CANDIDATES
+    ] + [("parse-source", "icbc")]
+    assert scan["groups"][0]["display_name"] == "信用卡"
+
+
+def test_cash_import_detection_does_not_parse_when_probes_are_ambiguous(tmp_path):
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from ft.adapters.relational import ensure_workspace
+    from test_postgres_adapter import _database
+
+    source = tmp_path / "statement.pdf"
+    source.write_bytes(b"statement")
+    sessions, unit_of_work = _database()
+    ensure_workspace(sessions, "wizard-parser-ambiguous-workspace")
+
+    class ProbeParser:
+        def __init__(self):
+            self.parses = []
+
+        def can_parse(self, command):
+            return command.source in {"icbc", "icbc-debit"}
+
+        def parse(self, command):
+            self.parses.append(command.source)
+            return [_row(
+                record_id=command.source,
+                account_name="工商银行借记卡",
+                bill_source="icbc_debit",
+                source_type="icbc_debit",
+                source_payload={"交易日期": "2026-08-12"},
+            )]
+
+    parser = ProbeParser()
+    service = CashLedgerCommandService(
+        sessions, "wizard-parser-ambiguous-workspace", parser=parser,
+    )
+
+    with pytest.raises(ValueError, match="import_channel_unrecognized"):
+        service.detect_import(source.read_bytes(), filename=source.name)
+
+    assert parser.parses == []
+
+
+def test_cash_import_detection_does_not_parse_when_no_probe_matches(tmp_path):
+    from ft.application.cash_ledger import CashLedgerCommandService
+    from ft.adapters.relational import ensure_workspace
+    from test_postgres_adapter import _database
+
+    source = tmp_path / "statement.pdf"
+    source.write_bytes(b"statement")
+    sessions, unit_of_work = _database()
+    ensure_workspace(sessions, "wizard-parser-no-match-workspace")
+
+    class ProbeParser:
+        def __init__(self):
+            self.parses = []
+
+        def can_parse(self, _command):
+            return False
+
+        def parse(self, command):
+            self.parses.append(command.source)
+            return [_row()]
+
+    parser = ProbeParser()
+    service = CashLedgerCommandService(
+        sessions, "wizard-parser-no-match-workspace", parser=parser,
+    )
+
+    with pytest.raises(ValueError, match="import_channel_unrecognized"):
+        service.detect_import(source.read_bytes(), filename=source.name)
+
+    assert parser.parses == []
 
 
 def test_cash_import_skips_unresolved_alipay_rows_but_imports_other_rows(tmp_path):

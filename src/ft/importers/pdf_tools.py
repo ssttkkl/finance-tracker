@@ -117,6 +117,31 @@ def open_pdf(input_path, *, password: str | None = None):
         raise ValueError("PDF parsing failed") from exc
 
 
+def extract_pdf_first_page_words(
+    input_path, *, password: str | None = None, max_bytes: int = 512 * 1024,
+) -> str:
+    """Extract only the first page's word stream for format probing."""
+    pdf = open_pdf(input_path, password=password)
+    try:
+        if not pdf.pages:
+            return ""
+        page = pdf.pages[0]
+        text = "\n".join(
+            str(word.get("text") or "")
+            for word in page.extract_words(use_text_flow=True)
+        )
+        if len(text.encode("utf-8")) > max_bytes:
+            raise ValueError("extracted PDF probe text exceeds 512 KiB limit")
+        return text
+    except ValueError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - normalize provider PDF errors.
+        _raise_pdf_password_error(exc, password)
+        raise ValueError("PDF first-page text extraction failed") from exc
+    finally:
+        pdf.close()
+
+
 def decrypt_pdf(input_path, output_path, password: str | None, *, timeout: int = 30) -> None:
     """Decrypt a PDF without placing the password in process arguments."""
     output = Path(output_path)

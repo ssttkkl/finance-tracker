@@ -601,6 +601,44 @@ test("独立导入处理页面扫描账户并完成四步确认", async ({ page 
   expect(consoleErrors).toEqual([]);
 });
 
+test("导入处理页面可以返回重新选择、取消后再次进入", async ({ page }) => {
+  let scanCalls = 0;
+  await page.route("**/api/v1/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
+    if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
+    if (url.pathname.endsWith("/cash-import/scan")) {
+      scanCalls += 1;
+      return route.fulfill({ json: { contract: "cash-account-mapping-v1", channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.pdf", digest: `digest-${scanCalls}` }, digest: `digest-${scanCalls}`, accounts: [account], groups: [{ group_id: "group-1", display_name: "工银亚洲账户", masked_evidence: "账户尾号：1234", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] } });
+    }
+    return route.fulfill({ json: { projection_version: 1, items: [], next_cursor: null, page_size: 50, filters: {}, filter_options } });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "导入账单" }).click();
+  await page.locator('input[type="file"]').setInputFiles({ name: "first.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7 first") });
+  await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
+  expect(scanCalls).toBe(1);
+
+  await page.getByRole("button", { name: "上一步", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "选择文件" })).toBeVisible();
+  await page.locator('input[type="file"]').setInputFiles({ name: "second.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7 second") });
+  await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
+  expect(scanCalls).toBe(2);
+  await expect(page.getByText("扫描中…", { exact: true })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "上一步", exact: true }).click();
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(page).toHaveURL(/\/w\/workspace-e2e\/$/);
+  await expect(page.getByRole("heading", { name: "收支账本" })).toBeVisible();
+
+  await page.getByRole("button", { name: "导入账单" }).click();
+  await page.locator('input[type="file"]').setInputFiles({ name: "third.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7 third") });
+  await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
+  expect(scanCalls).toBe(3);
+  await expect(page.getByText("扫描中…", { exact: true })).toHaveCount(0);
+});
+
 test("配对阶段使用摘要筛选卡片和连续关系列表，并在移动端切换为卡片", async ({ page }) => {
   const consoleErrors: string[] = [];
   const requestFailures: string[] = [];

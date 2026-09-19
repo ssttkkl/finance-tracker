@@ -1848,6 +1848,31 @@ def _read_icbc_raw(path: str, password: str):
     return records, "icbc_credit" if is_credit else "icbc_debit", tracking_pairs
 
 
+def _can_parse_icbc_pdf(path: str, password: str | None, *, expected: str) -> bool:
+    """Probe an ICBC PDF title without parsing its transaction pages."""
+    from pathlib import Path
+
+    if Path(path).suffix.lower() != ".pdf":
+        return False
+    try:
+        with Path(path).open("rb") as stream:
+            if stream.read(5) != b"%PDF-":
+                return False
+    except OSError:
+        return False
+
+    from ft.importers.pdf_tools import extract_pdf_first_page_words
+
+    normalized = "".join(extract_pdf_first_page_words(path, password=password).split())
+    if "中国工商银行" not in normalized or "历史明细" not in normalized:
+        return False
+    if expected == "credit":
+        return "信用卡" in normalized
+    if expected == "debit":
+        return "借记" in normalized and "账户" in normalized
+    raise ValueError(f"unsupported ICBC PDF probe: {expected}")
+
+
 def _pair_reversals(records: list) -> tuple[list, list]:
     """识别反向冲销交易关系，但保留双方原始事实。"""
     expenses = [(i, r) for i, r in enumerate(records) if r["category"] == "expense"]
