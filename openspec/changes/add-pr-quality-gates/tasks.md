@@ -78,8 +78,8 @@
 - [x] 9.1 完成需求澄清：恢复全部 `52` 个 `performance` 收集项，保留 SQLite/PostgreSQL 双后端、原始阈值和测试样本；不新增未标记的投资正确性测试；只改变独立性能 job 的选择器与实验超时。
 - [x] 9.2 将 `backend-performance` 的执行命令改为 `PYTHONPATH=tests:.:src uv run pytest -q -m performance`，将实验超时设为 `120` 分钟；功能 job 继续使用 `-m "not performance"`。
 - [x] 9.3 完成 workflow 静态检查、`performance` 收集项核对、OpenSpec strict 校验和 `git diff --check`，确认收集数量为 `52` 且没有修改门禁阈值。证据：`PYTHONPATH=tests:.:src uv run pytest --collect-only -q -m performance` 为 `52/1714`，功能选择器为 `1662/1714`；`npx --yes prettier@3.9.8 --check .github/workflows/pr-checks.yml`、`openspec validate add-pr-quality-gates --type change --strict`、`openspec validate --all --strict`、`openspec doctor` 和 `git diff --check` 均通过。
-- [ ] 9.4 在新分支提交并推送实验变更，创建目标为 `refactor/web` 的 PR，等待一次完整 PR CI 运行。
-- [ ] 9.5 记录远程性能 job 的 wall-clock 时长、收集/通过/失败/超时数量、各失败门禁、runner 资源和其他 PR job 结果。
+- [x] 9.4 在新分支提交并推送实验变更，创建目标为 `refactor/web` 的 PR，等待一次完整 PR CI 运行。提交 `cbbf20f` 已推送到 `ci/full-performance-trial`，实验 PR 为 `#85`。
+- [x] 9.5 记录远程性能 job 的 wall-clock 时长、收集/通过/失败/超时数量、各失败门禁、runner 资源和其他 PR job 结果。PR Checks run `35457439770`；`Backend (Performance)` job `105935124679` 于 `17:14:35Z` 开始，`17:30:16Z` 结束，job 用时 `16m15s`，pytest 用时 `939.11s (15m39s)`，收集 `52` 项、`51 passed`、`1 failed`、`1690 deselected`、无超时。唯一失败为 `tests/test_wealth_performance.py::test_fixed_100k_fact_rebuild_and_active_cache_meet_budgets[sqlite]`：cold p95 `5071256396ns (5.071s)` 超过 `5s`，hot p95 `104264933ns (104.3ms)`；PostgreSQL 参数通过。其余 PR Checks：Web `2m0s`、SQLite 功能 `4m26s`、PostgreSQL 功能 `8m49s`；Mobile CI 的 Android `12m14s`、iOS `13m52s` 均通过。性能 run URL：`https://github.com/ssttkkl/finance-tracker/actions/runs/35457439770`。
 - [ ] 9.6 将实验结果交给用户决定是否保留全量门禁、拆分性能 job 或恢复原来的财富单文件选择器；在决定前不归档本变更。
 
 ## 远程 PR 证据（2026-09-14，Asia/Shanghai）
