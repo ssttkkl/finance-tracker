@@ -36,6 +36,7 @@ export const copy = {
     login: "登录",
     register: "注册",
     processing: "正在处理…",
+    loading: "加载中...",
     switchToLogin: "已有账户？登录",
     switchToRegister: "还没有账户？注册",
     apiOrigin: "后端地址",

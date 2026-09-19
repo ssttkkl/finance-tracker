@@ -12,6 +12,9 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:5175",
     viewport: { width: 1440, height: 900 },
     hasTouch: true,
+    storageState: {
+      origins: [{ origin: "http://127.0.0.1:5175", localStorage: [{ name: "finance-tracker:session-token", value: "visual-token" }] }],
+    },
   },
   webServer: {
     command:

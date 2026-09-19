@@ -37,7 +37,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run src/state/guards.test.ts src/state/authentication.test.ts src/platform/config.test.ts src/platform/tokenKey.test.ts src/platform/presentation.test.ts && node plugins/withExpoModulesJsiXcode26.test.cjs",
+    "test": "vitest run src/state/guards.test.ts src/state/authentication.test.ts src/state/session-restore.test.ts src/platform/config.test.ts src/platform/tokenKey.test.ts src/platform/tokenStore.test.ts src/platform/presentation.test.ts && node plugins/withExpoModulesJsiXcode26.test.cjs",
     "export:android": "expo export --platform android",
     "export:ios": "expo export --platform ios"
   }

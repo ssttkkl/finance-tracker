@@ -28,6 +28,10 @@ function BackButton({ onClick, label = "返回" }: { onClick: () => void; label?
   return <button type="button" className="access-back" onClick={onClick}><Icon name="arrow-left" />{label}</button>;
 }
 
+function SessionLoading() {
+  return <main className="access-centered"><p className="access-muted" role="status">{copy.auth.loading}</p></main>;
+}
+
 function Auth({ onSession }: { onSession: (value: Session) => void }) {
   const [registering, setRegistering] = useState(false); const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -183,7 +187,7 @@ function WorkspaceManagement({ activeRole, onSession, onWorkspaceDeleted }: { ac
 }
 
 function AccessAppContent() {
-  const [state, setState] = useState<Session | null>(null); const [route, setRoute] = useState<"ledger" | "create" | "members">(() => routeForPath(location.pathname)); const [inviteToken, setInviteToken] = useState(() => new URLSearchParams(location.search).get("invite")); const [signInForInvite, setSignInForInvite] = useState(false); const [mobileAccountOpen, setMobileAccountOpen] = useState(false); const [workspaceError, setWorkspaceError] = useState("");
+  const [state, setState] = useState<Session | null>(null); const [restoringSession, setRestoringSession] = useState(() => access.hasStoredSessionToken()); const [route, setRoute] = useState<"ledger" | "create" | "members">(() => routeForPath(location.pathname)); const [inviteToken, setInviteToken] = useState(() => new URLSearchParams(location.search).get("invite")); const [signInForInvite, setSignInForInvite] = useState(false); const [mobileAccountOpen, setMobileAccountOpen] = useState(false); const [workspaceError, setWorkspaceError] = useState("");
   const applySession = async (value: Session) => {
     let next = value;
     const requestedWorkspace = parseWorkspacePath(location.pathname)?.workspaceId;
@@ -203,6 +207,7 @@ function AccessAppContent() {
       }
     }
     setState(next);
+    setRestoringSession(false);
     setRoute(routeForPath(location.pathname));
     setSignInForInvite(false);
     if (next.active_workspace_id) {
@@ -211,8 +216,22 @@ function AccessAppContent() {
       if (target !== current) history.replaceState({}, "", target);
     }
   };
-  useEffect(() => { access.session().then(value => void applySession(value)).catch(() => undefined); const close = () => setMobileAccountOpen(false); const syncRoute = () => setRoute(routeForPath(location.pathname)); window.addEventListener("mobile-menu-toggled", close); window.addEventListener("popstate", syncRoute); return () => { window.removeEventListener("mobile-menu-toggled", close); window.removeEventListener("popstate", syncRoute); }; }, []);
+  useEffect(() => {
+    let active = true;
+    if (access.hasStoredSessionToken()) {
+      access.restoreSession().then(value => {
+        if (active) void applySession(value);
+      }).catch((cause: unknown) => {
+        if (!active) return;
+        if (access.isAuthenticationFailure(cause)) access.clearStoredSessionToken();
+        setRestoringSession(false);
+      });
+    }
+    const close = () => setMobileAccountOpen(false); const syncRoute = () => setRoute(routeForPath(location.pathname)); window.addEventListener("mobile-menu-toggled", close); window.addEventListener("popstate", syncRoute);
+    return () => { active = false; window.removeEventListener("mobile-menu-toggled", close); window.removeEventListener("popstate", syncRoute); };
+  }, []);
   const clearInvite = () => { history.replaceState({}, "", location.pathname); setInviteToken(null); setSignInForInvite(false); };
+  if (restoringSession) return <SessionLoading />;
   if (inviteToken && !signInForInvite) return <Invite token={inviteToken} session={state} onSession={value => { setInviteToken(null); void applySession(value); }} onSignIn={() => { if (state) clearInvite(); else setSignInForInvite(true); }} />;
   if (!state) return <Auth onSession={value => void applySession(value)} />;
   if (!state.active_workspace_id && state.workspaces.length > 0) return <WorkspaceSelectionError onRetry={() => void applySession(state)} />;
