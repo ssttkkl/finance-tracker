@@ -18,6 +18,14 @@ describe("cross-platform presentation contract", () => {
     expect(copy.workspace.title).toBe("选择工作区");
   });
 
+  it("keeps the Native-only API origin debug controls addressable", () => {
+    expect(copy.auth.apiOrigin).toBe("后端地址");
+    expect(copy.auth.apiOriginReset).toBe("恢复默认");
+    expect(semanticIds.authApiOrigin).toBe("auth.api-origin");
+    expect(semanticIds.authApiOriginReset).toBe("auth.api-origin-reset");
+    expect(platformDifferences.debugApiOriginOverride.web).toContain("不展示");
+  });
+
   it("keeps responsive boundaries independent from device models", () => {
     expect(layoutClassForWidth(0)).toBe("compact");
     expect(layoutClassForWidth(599.99)).toBe("compact");

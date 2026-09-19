@@ -32,6 +32,25 @@ describe("shared API client", () => {
     expect(store.value).toBe("session-2");
   });
 
+  it("resolves a dynamic base URL for each request", async () => {
+    const requests: string[] = [];
+    const fetcher: FetchLike = async (url) => {
+      requests.push(url);
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    };
+    let origin = "https://build.example.com";
+    const client = createApiClient({ baseUrl: () => origin, fetch: fetcher, tokenStore: tokenStore() });
+
+    await client.request("/api/v1/health");
+    origin = "https://debug.example.com";
+    await client.request("/api/v1/health");
+
+    expect(requests).toEqual([
+      "https://build.example.com/api/v1/health",
+      "https://debug.example.com/api/v1/health",
+    ]);
+  });
+
   it("normalizes server errors without leaking response bodies", async () => {
     const fetcher: FetchLike = async () => new Response(JSON.stringify({ error: { code: "workspace_forbidden", message: "secret detail" } }), { status: 403 });
     const client = createApiClient({ baseUrl: "https://api.example.com", fetch: fetcher, tokenStore: tokenStore() });

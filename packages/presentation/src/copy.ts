@@ -38,6 +38,9 @@ export const copy = {
     processing: "正在处理…",
     switchToLogin: "已有账户？登录",
     switchToRegister: "还没有账户？注册",
+    apiOrigin: "后端地址",
+    apiOriginReset: "恢复默认",
+    apiOriginInvalid: "请输入有效的后端地址。",
     error: "邮箱或密码不正确。请检查后重试。",
   },
   workspace: {

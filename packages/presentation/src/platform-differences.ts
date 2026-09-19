@@ -19,6 +19,11 @@ export const platformDifferences = {
     native: "系统文件选择器",
     invariant: "取消不开始会话，文件名/类型/密码错误和扫描结果语义一致",
   },
+  debugApiOriginOverride: {
+    web: "不展示 Native 调试地址控件",
+    native: "调试构建开启时在登录/注册表单展示后端地址控件",
+    invariant: "关闭调试开关时不展示控件、不读取覆盖地址，认证结果和 Token 语义不变",
+  },
   dateAndChoiceControls: {
     web: "HTML date/select/popover 控件",
     native: "Native picker、sheet 或可滚动选择列表",
