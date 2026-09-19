@@ -201,6 +201,39 @@ def _parse_dfzq_statement(command):
 
 
 class StatementParser:
+    def can_parse(self, command) -> bool:
+        """判断账单格式；不得构造流水或加载账户映射。"""
+        path = Path(command.source_path)
+        if not path.is_file():
+            raise FileNotFoundError(f"找不到账单文件：{path}")
+        if command.source == "alipay":
+            from ft.importers.alipay import can_parse_alipay
+
+            return can_parse_alipay(path)
+        if command.source == "wechat":
+            from ft.importers.wechat import can_parse_wechat
+
+            return can_parse_wechat(path)
+        if command.source == "icbc":
+            from ft.convert import _can_parse_icbc_pdf
+
+            return _can_parse_icbc_pdf(path, command.password, expected="credit")
+        if command.source == "icbc-debit":
+            from ft.convert import _can_parse_icbc_pdf
+
+            return _can_parse_icbc_pdf(path, command.password, expected="debit")
+        if command.source == "ccb-debit":
+            from ft.importers.ccb_debit import can_parse_ccb_debit
+
+            return can_parse_ccb_debit(path)
+        if command.source == "icbc-asia":
+            from ft.importers.icbc_asia_current_account import (
+                can_parse_icbc_asia_current_account,
+            )
+
+            return can_parse_icbc_asia_current_account(path)
+        return False
+
     def parse(self, command):
         path = Path(command.source_path)
         if not path.is_file():
