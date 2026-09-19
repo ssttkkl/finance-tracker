@@ -42,7 +42,7 @@
 
 ## 7. 发布
 
-- [x] 7.1 已记录交付证据、已知残余风险、观察项和回滚方式；delta spec 已同步到主规格；未获用户明确授权，未执行 commit、push、PR、合并或部署。
+- [x] 7.1 已记录交付证据、已知残余风险、观察项和回滚方式；delta spec 已同步到主规格；用户已授权提交、推送和 PR，已创建 `822af41`、`fb218e8` 并推送 `somber-rat`，PR #86 目标为 `refactor/web`，待 CI 通过后合入。
 
 ## 8. 反思
 
@@ -50,10 +50,10 @@
 
 ## 验证证据
 
-- **基线与时间:** 当前 `HEAD` 为 `13db8ac8ae497f70a1c8fc3b6339ae113e355b7b`，工作树基线为该提交；最终验证时间为 `2026-09-20 01:57`（Asia/Shanghai）。未提交，无法用新 commit 作为变更 `HEAD`。
+- **基线与时间:** 比较基线为 `13db8ac8ae497f70a1c8fc3b6339ae113e355b7b`；实现验证提交为 `822af41` 和审查修复提交 `fb218e8`；最终验证时间为 `2026-09-20 03:07`（Asia/Shanghai）。
 - **OpenSpec:** `openspec validate fix-icbc-plain-pdf-scan --strict` → PASS；`openspec/specs/statement-import/spec.md` 已合并快速格式探测 requirement。
 - **Python:** 补正后 `PYTHONPATH=tests:.:src uv run pytest -q tests/test_statement_parser_probe.py tests/test_cash_import_wizard.py tests/test_convert.py tests/test_ccb_debit.py` → `274 passed, 1 skipped`；最终 `PYTHONPATH=tests:.:src uv run pytest -q -m 'not performance'` → `1515 passed, 158 skipped, 52 deselected`，耗时 `141.74 s`。针对性测试还覆盖无后缀文件、探测密码错误、探测异常停止和受控 word/column 边界。
 - **静态检查:** `git diff --check`、`PYTHONPATH=tests:.:src uv run python -m compileall -q src tests/test_statement_parser_probe.py tests/test_cash_import_wizard.py` → PASS。
-- **Web:** `npm ci` 使用仓库锁文件完成；`npm run test:web` → `150 passed`；`npm run build:web` → PASS；`npm run test:e2e --workspace finance-tracker-web` → `44 passed`（含 `导入处理页面可以返回重新选择、取消后再次进入`）；`npm run test:preview --workspace finance-tracker-web` → `16 passed`。真实 Chromium URL 为 `http://127.0.0.1:5174`（E2E）和 `http://127.0.0.1:5173`（生产预览）；覆盖 `320/375/390/414/768/1440 px`，导入主流程、错误/密码、取消/重选和键盘路径，相关截图包括 `/tmp/cash-import-production-1440.png`、`/tmp/cash-import-production-390.png`、`/tmp/cash-import-encrypted-password-390.png`、`/tmp/cash-import-encrypted-password-error-390.png`、`/tmp/cash-import-preview-production-1440.png` 和 `/tmp/cash-import-preview-production-390.png`；受影响导入测试控制台错误和请求失败均为空。
+- **Web:** `npm ci` 使用仓库锁文件完成；补正后 `npm run test:web` → `150 passed`；`npm run build:web` → PASS；`npm run test:e2e --workspace finance-tracker-web` → `44 passed`（含 `导入处理页面可以返回重新选择、取消后再次进入`）；`npm run test:preview --workspace finance-tracker-web` → `16 passed`。真实 Chromium URL 为 `http://127.0.0.1:5174`（E2E）和 `http://127.0.0.1:5173`（生产预览）；覆盖 `320/375/390/414/768/1440 px`，导入主流程、错误/密码、取消/重选和键盘路径，相关截图包括 `/tmp/cash-import-production-1440.png`、`/tmp/cash-import-production-390.png`、`/tmp/cash-import-encrypted-password-390.png`、`/tmp/cash-import-encrypted-password-error-390.png`、`/tmp/cash-import-preview-production-1440.png` 和 `/tmp/cash-import-preview-production-390.png`；受影响导入测试控制台错误和请求失败均为空。
 - **真实 PDF 样本:** 使用项目已有的临时解密流程验证 3 份账单样本：2 份仅匹配信用卡，1 份仅匹配借记卡；首页双探测耗时约 `0.128–0.180 s`，未输出账单内容或密码。
 - **审查结论:** 产品/工程/安全/最终 diff 复核无阻断 finding；独立审查后补正扩展名依赖、探测边界、异常传播、密码测试和 Native 影响记录。Hallmark audit 不适用，因为没有 UI 结构、样式或可见文案变更。回滚方式为回滚应用版本，不需要数据迁移或修复。
