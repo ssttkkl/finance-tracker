@@ -147,7 +147,7 @@ jobs:
   backend-performance:
     name: Backend (Performance)
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 40
+    timeout-minutes: 120
     services:
       postgres:
         image: postgres:16-alpine
@@ -199,7 +199,7 @@ jobs:
           TMPDIR: ${{ runner.temp }}/finance-tracker-performance-tmp
         run: >-
           PYTHONPATH=tests:.:src uv run pytest -q
-          --basetemp "$TMPDIR/pytest" tests/test_wealth_performance.py
+          --basetemp "$TMPDIR/pytest" -m performance
 
       - name: Unmount in-memory SQLite temporary directory
         if: always()

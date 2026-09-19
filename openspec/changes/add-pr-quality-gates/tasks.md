@@ -73,6 +73,24 @@
 - [x] 8.2 记录可复用经验：浏览器主动取消必须与真实网络失败区分，视觉基线必须绑定 runner 平台，双后端 CI 必须拒绝静默 skip；Node 26 jsdom 需在测试 setup 显式提供一致的 Storage。
 - [ ] 8.3 确认所有实现任务、审查和验证均完成后，按 OpenSpec 规则评估 delta（产品规格无 delta，内部 migration 已在 artifacts 记录）并准备归档；不把归档当作发布授权。
 
+## 9. 全量性能门禁实验（2026-09-20）
+
+- [x] 9.1 完成需求澄清：恢复全部 `52` 个 `performance` 收集项，保留 SQLite/PostgreSQL 双后端、原始阈值和测试样本；不新增未标记的投资正确性测试；只改变独立性能 job 的选择器与实验超时。
+- [x] 9.2 将 `backend-performance` 的执行命令改为 `PYTHONPATH=tests:.:src uv run pytest -q -m performance`，将实验超时设为 `120` 分钟；功能 job 继续使用 `-m "not performance"`。
+- [x] 9.3 完成 workflow 静态检查、`performance` 收集项核对、OpenSpec strict 校验和 `git diff --check`，确认收集数量为 `52` 且没有修改门禁阈值。证据：`PYTHONPATH=tests:.:src uv run pytest --collect-only -q -m performance` 为 `52/1714`，功能选择器为 `1662/1714`；`npx --yes prettier@3.9.8 --check .github/workflows/pr-checks.yml`、`openspec validate add-pr-quality-gates --type change --strict`、`openspec validate --all --strict`、`openspec doctor` 和 `git diff --check` 均通过。
+- [x] 9.4 在新分支提交并推送实验变更，创建目标为 `refactor/web` 的 PR，等待一次完整 PR CI 运行。提交 `cbbf20f` 已推送到 `ci/full-performance-trial`，实验 PR 为 `#85`。
+- [x] 9.5 记录远程性能 job 的 wall-clock 时长、收集/通过/失败/超时数量、各失败门禁、runner 资源和其他 PR job 结果。PR Checks run `35457439770`；`Backend (Performance)` job `105935124679` 于 `17:14:35Z` 开始，`17:30:16Z` 结束，job 用时 `16m15s`，pytest 用时 `939.11s (15m39s)`，收集 `52` 项、`51 passed`、`1 failed`、`1690 deselected`、无超时。唯一失败为 `tests/test_wealth_performance.py::test_fixed_100k_fact_rebuild_and_active_cache_meet_budgets[sqlite]`：cold p95 `5071256396ns (5.071s)` 超过 `5s`，hot p95 `104264933ns (104.3ms)`；PostgreSQL 参数通过。其余 PR Checks：Web `2m0s`、SQLite 功能 `4m26s`、PostgreSQL 功能 `8m49s`；Mobile CI 的 Android `12m14s`、iOS `13m52s` 均通过。性能 run URL：`https://github.com/ssttkkl/finance-tracker/actions/runs/35457439770`。
+- [x] 9.6 用户确认保留全量门禁配置，不拆分性能 job，也不恢复财富单文件选择器；另行把 SQLite 财富 cold budget 从 `<5s` 调整为 `<5.5s` 后再合入。
+
+## 10. 财富 cold budget 修订与合入（2026-09-20）
+
+- [x] 10.1 完成需求澄清：仅放宽 SQLite 财富冷重建 p95 到 `<5.5s`；PostgreSQL cold `<6.5s`、SQLite/PostgreSQL hot `<300ms`、其他 49 项性能门禁、全量选择器和 120 分钟 job 超时保持不变。
+- [x] 10.2 修改 `tests/test_wealth_performance.py` 及 proposal/design/tasks，使实现、验收和历史实验记录一致。
+- [x] 10.3 运行财富性能回归、全量性能收集、OpenSpec strict、workflow 格式检查和 `git diff --check`，确认仅发生批准的预算变化。`PYTHONPATH=tests:.:src uv run pytest -q -s tests/test_wealth_performance.py` 为 SQLite `1 passed, 1 skipped`，cold/hot p95 `2.989s/43.7ms`；`pytest --collect-only -m performance` 仍为 `52/1714`；Prettier、OpenSpec strict、doctor 和 `git diff --check` 均通过。
+- [ ] 10.4 提交并推送预算修订，等待 PR #85 的 PR Checks 与 Mobile CI 通过。
+- [ ] 10.5 将 PR #85 合并到 `refactor/web`，记录 merge commit 和合入后的目标分支状态。
+- [ ] 10.6 合入后完成最终 diff/验证证据回写；在用户确认前不做部署、分支保护或其他发布动作。
+
 ## 远程 PR 证据（2026-09-14，Asia/Shanghai）
 
 - PR：`https://github.com/ssttkkl/finance-tracker/pull/82`；head `feat/cross-platform-experience`，base `refactor/web`；最终 `HEAD` `b9152f1`，比较基线 `fdb766cd02e0eed7f88d7cea960b966c49963f05`。质量工作流 run：`https://github.com/ssttkkl/finance-tracker/actions/runs/34858540652`；Mobile CI run：`https://github.com/ssttkkl/finance-tracker/actions/runs/34858540801`，Android、iOS 和 shared JavaScript checks 通过。

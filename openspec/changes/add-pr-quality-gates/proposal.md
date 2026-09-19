@@ -39,3 +39,11 @@
 - 前后端使用独立的 PR workflow，现有 Mobile CI 保持单独职责和触发方式。
 - 两个 OpenSpec 变更分别完成开发和相称的单变更验证后，将本变更的直接相关文件作为独立提交加入现有 `feat/cross-platform-experience`；该分支以 `refactor/web` 为基线，最终 PR 目标为 `refactor/web`。
 - 两个 worktree 中与本变更无关的既有脏文件只保留、不纳入提交、不删除；联合验收在两个变更合并到最终 feature 分支后集中执行一次。
+
+### 全量性能门禁实验补充（2026-09-20）
+
+- 本轮只验证当前代码中已标记为 `performance` 的全部 `52` 个收集项，并保留测试自身的 SQLite/PostgreSQL 双后端参数；不把未标记且没有性能阈值的 `tests/test_investment_performance.py` 新增为性能门禁。
+- 实验阶段保持所有现有 workload、样本数、资源上限和原始性能阈值不变；仅把独立 `backend-performance` job 的选择器临时改为 `pytest -q -m performance`，并将超时临时提高到 `120` 分钟，以获得完整执行耗时而不是提前超时。
+- SQLite/PostgreSQL 功能 job 继续使用 `-m "not performance"`，避免性能样本污染功能套件；本轮结果用于评估完整 PR 门禁的耗时和失败集合，不预先承诺最终 job 拆分或长期超时配置。
+- 实验通过新分支提交并创建目标为 `refactor/web` 的 PR；实验提交在结果确认前保留，未授权合并、部署或分支保护变更。
+- 全量实验唯一失败为 SQLite 财富冷重建 p95 `5.071s` 超过原始 `5s`；经用户确认，将最终 SQLite cold budget 调整为 `<5.5s`，PostgreSQL cold `<6.5s` 和 hot `<300ms` 保持不变，并保留全量性能 job 合入 `refactor/web`。
