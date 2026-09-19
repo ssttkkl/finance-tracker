@@ -68,6 +68,10 @@ export class ApiError extends Error {
   }
 }
 
+export function isAuthenticationError(cause: unknown): boolean {
+  return cause instanceof ApiError && (cause.status === 401 || cause.code === "authentication_required");
+}
+
 type RequestValues = FetchRequestInit & { headers?: Record<string, string> };
 type ImportRequestValues = {
   source?: string;

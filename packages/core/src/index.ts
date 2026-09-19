@@ -41,6 +41,33 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
   }
 }
 
+export const SESSION_RESTORE_ATTEMPTS = 3;
+const SESSION_RESTORE_RETRY_DELAY_MS = 200;
+
+export type SessionRestoreOptions = {
+  isAuthenticationFailure: (cause: unknown) => boolean;
+  attempts?: number;
+  wait?: (retryNumber: number) => Promise<void>;
+};
+
+async function waitBeforeSessionRestoreRetry(): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, SESSION_RESTORE_RETRY_DELAY_MS));
+}
+
+export async function restoreSession<T>(operation: () => Promise<T>, options: SessionRestoreOptions): Promise<T> {
+  const attempts = Math.max(1, Math.floor(options.attempts ?? SESSION_RESTORE_ATTEMPTS));
+  const wait = options.wait ?? waitBeforeSessionRestoreRetry;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (cause) {
+      if (options.isAuthenticationFailure(cause) || attempt === attempts) throw cause;
+      await wait(attempt);
+    }
+  }
+  throw new Error("session_restore_failed");
+}
+
 export function selectActiveWorkspace(session: Session | null): Workspace | null {
   if (!session?.active_workspace_id) return null;
   return session.workspaces.find(({ id }) => id === session.active_workspace_id) ?? null;

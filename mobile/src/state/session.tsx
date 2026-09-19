@@ -1,6 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useReducer, useState, type PropsWithChildren } from "react";
-import type { ApiClient } from "@finance-tracker/api-client";
-import { ApiError } from "@finance-tracker/api-client";
+import { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState, type PropsWithChildren } from "react";
+import { ApiError, isAuthenticationError, type ApiClient } from "@finance-tracker/api-client";
 import type { ApiErrorCode, Role, Session } from "@finance-tracker/contracts";
 import { initialSessionState, sessionReducer, type SessionState } from "@finance-tracker/core";
 import { mobileApiClient } from "@/platform/api";
@@ -13,7 +12,9 @@ import {
   selectNativeApiOrigin,
 } from "@/platform/config";
 import { nativeApiOriginStorage } from "@/platform/apiOriginStorage";
+import { nativeTokenStore, readNativeTokenAtStartup } from "@/platform/tokenStore";
 import { authenticateWithNativeApiOrigin } from "./authentication";
+import { restoreNativeSession, shouldRestoreNativeSession } from "./session-restore";
 
 type SessionContextValue = {
   client: ApiClient;
@@ -36,6 +37,13 @@ type SessionContextValue = {
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
+function initialNativeSessionState(): SessionState {
+  const token = readNativeTokenAtStartup();
+  return (token === null || token === "")
+    ? { status: "signed_out", session: null, errorCode: null }
+    : initialSessionState;
+}
+
 function errorCode(cause: unknown): ApiErrorCode {
   if (cause instanceof ApiError) return cause.code;
   if (cause instanceof Error && cause.message) return cause.message;
@@ -47,7 +55,8 @@ function safeNativeApiOrigin(read: () => string): string {
 }
 
 export function SessionProvider({ children }: PropsWithChildren) {
-  const [state, dispatch] = useReducer(sessionReducer, initialSessionState);
+  const [state, dispatch] = useReducer(sessionReducer, undefined, initialNativeSessionState);
+  const initialSessionStatus = useRef(state.status);
   const [apiOriginValue, setApiOriginValue] = useState(() => safeNativeApiOrigin(nativeApiOrigin));
   const client = useMemo(() => mobileApiClient, []);
   const apiOriginEnabled = nativeApiOriginOverrideEnabled();
@@ -56,14 +65,24 @@ export function SessionProvider({ children }: PropsWithChildren) {
     let active = true;
 
     async function bootstrap() {
-      dispatch({ type: "request_started" });
       try {
         const selectedOrigin = await restoreNativeApiOriginOverride(nativeApiOriginStorage);
         if (!active) return;
         setApiOriginValue(selectedOrigin);
-        const session = await client.session();
+        const token = await nativeTokenStore.get();
+        if (!active) return;
+        if (!shouldRestoreNativeSession(token)) {
+          if (initialSessionStatus.current === "idle") dispatch({ type: "signed_out" });
+          return;
+        }
+        dispatch({ type: "request_started" });
+        const session = await restoreNativeSession(client);
         if (active) dispatch({ type: "request_succeeded", session });
       } catch (cause: unknown) {
+        if (!active) return;
+        if (isAuthenticationError(cause)) {
+          await nativeTokenStore.clear().catch(() => undefined);
+        }
         if (active) dispatch({ type: "request_failed", errorCode: errorCode(cause) });
       }
     }

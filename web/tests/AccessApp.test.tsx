@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccessApp } from "../src/AccessApp";
+import { SESSION_TOKEN_STORAGE_KEY } from "../src/api/access";
 
 const session = {
   user: { email: "member@example.com" },
@@ -61,11 +62,92 @@ function cashItem(counterparty: string) {
 
 beforeEach(() => {
   vi.stubEnv("VITE_FT_API_ORIGIN", "http://127.0.0.1:8000");
+  localStorage.setItem(SESSION_TOKEN_STORAGE_KEY, "stored-session-token");
   history.replaceState({}, "", "/?invite=invite-token");
 });
 afterEach(() => { cleanup(); localStorage.clear(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); history.replaceState({}, "", "/"); });
 
 describe("AccessApp", () => {
+  it("有已保存令牌时恢复期间只显示加载状态", async () => {
+    let resolveSession!: (response: Response) => void;
+    const pendingSession = new Promise<Response>((resolve) => { resolveSession = resolve; });
+    vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/auth/session")
+      ? pendingSession
+      : json({ items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} })));
+    history.replaceState({}, "", "/");
+
+    render(<AccessApp />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("加载中...");
+    expect(screen.queryByLabelText("邮箱")).not.toBeInTheDocument();
+    resolveSession(new Response(JSON.stringify(session), { status: 200, headers: { "Content-Type": "application/json" } }));
+    expect(await screen.findByRole("heading", { name: "收支账本" })).toBeInTheDocument();
+  });
+
+  it("没有已保存令牌时直接显示登录页且不请求会话", async () => {
+    localStorage.clear();
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    history.replaceState({}, "", "/");
+
+    render(<AccessApp />);
+
+    expect(await screen.findByLabelText("邮箱")).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("无效令牌只请求一次会话并进入登录页", async () => {
+    const fetch = vi.fn((input: string) => input.includes("/auth/session")
+      ? json({ error: { code: "authentication_required" } }, 401)
+      : json({}));
+    vi.stubGlobal("fetch", fetch);
+    history.replaceState({}, "", "/");
+
+    render(<AccessApp />);
+
+    expect(await screen.findByLabelText("邮箱")).toBeInTheDocument();
+    expect(fetch.mock.calls.filter(([input]) => input.includes("/auth/session"))).toHaveLength(1);
+    expect(localStorage.getItem(SESSION_TOKEN_STORAGE_KEY)).toBeNull();
+  });
+
+  it("暂时性恢复失败时重试并在第三次成功后进入账本", async () => {
+    let attempts = 0;
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/auth/session")) {
+        attempts += 1;
+        return attempts < 3
+          ? json({ error: { code: "storage.connect" } }, 503)
+          : json(session);
+      }
+      return json({ items: [], projection_version: 1, next_cursor: null, page_size: 50, filters: {} });
+    });
+    vi.stubGlobal("fetch", fetch);
+    history.replaceState({}, "", "/");
+
+    render(<AccessApp />);
+
+    expect(await screen.findByRole("heading", { name: "收支账本" })).toBeInTheDocument();
+    expect(attempts).toBe(3);
+  });
+
+  it("三次暂时性恢复失败后进入登录页", async () => {
+    let attempts = 0;
+    const fetch = vi.fn((input: string) => {
+      if (input.includes("/auth/session")) {
+        attempts += 1;
+        return json({ error: { code: "storage.connect" } }, 503);
+      }
+      return json({});
+    });
+    vi.stubGlobal("fetch", fetch);
+    history.replaceState({}, "", "/");
+
+    render(<AccessApp />);
+
+    expect(await screen.findByLabelText("邮箱")).toBeInTheDocument();
+    expect(attempts).toBe(3);
+  });
+
   it("展示邀请指定的冻结角色，而不提供角色选择", async () => {
     vi.stubGlobal("fetch", vi.fn((input: string) => input.includes("/auth/session")
       ? json({ error: { code: "authentication_required" } }, 401)

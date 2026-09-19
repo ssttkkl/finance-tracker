@@ -15,6 +15,7 @@ describe("cross-platform presentation contract", () => {
     expect(copy.ledger.create).toBe("新建流水");
     expect(copy.import.title).toBe("导入账单");
     expect(copy.auth.loginTitle).toBe("登录到你的账本");
+    expect(copy.auth.loading).toBe("加载中...");
     expect(copy.workspace.title).toBe("选择工作区");
   });
 

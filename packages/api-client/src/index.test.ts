@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ApiError, createApiClient, type FetchLike, type TokenStore } from "./index";
+import { ApiError, createApiClient, isAuthenticationError, type FetchLike, type TokenStore } from "./index";
 
 function tokenStore(initial: string | null = null): TokenStore & { value: string | null } {
   return {
@@ -58,5 +58,11 @@ describe("shared API client", () => {
     await expect(client.session()).rejects.toMatchObject({ code: "workspace_forbidden", status: 403 });
     await expect(client.session()).rejects.not.toThrow("secret detail");
     expect(new ApiError("conflict", 409).code).toBe("conflict");
+  });
+
+  it("identifies only authentication failures as non-retryable session errors", () => {
+    expect(isAuthenticationError(new ApiError("authentication_required", 401))).toBe(true);
+    expect(isAuthenticationError(new ApiError("workspace_forbidden", 403))).toBe(false);
+    expect(isAuthenticationError(new Error("request_failed"))).toBe(false);
   });
 });
