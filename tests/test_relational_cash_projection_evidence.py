@@ -9,7 +9,7 @@ import pytest
 def test_evidence_whitelists_snapshot_and_keeps_hidden_projection_readable(request, runtime_name):
     from decimal import Decimal
     from zoneinfo import ZoneInfo
-    from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
+    from ft.adapters.relational.models import CashTransactionComponentModel, CashTransactionModel, TransactionRelationModel
     from ft.application.cash_projections import CashProjectionService
     from ft.application.web_queries import CashLedgerQueryService
 
@@ -19,6 +19,11 @@ def test_evidence_whitelists_snapshot_and_keeps_hidden_projection_readable(reque
             id=1004, workspace_id=cash_web_runtime.workspace_id, account_id=101,
             occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("UTC")), amount=Decimal("12.50"),
             currency="CNY", counterparty="咖啡店", category_id=None, source_type="fixture", record_id="cash-004",
+        ))
+        session.flush()
+        session.add(CashTransactionComponentModel(
+            id=1004, workspace_id=cash_web_runtime.workspace_id, cash_transaction_id=1004,
+            account_id=101, amount=Decimal("12.50"), currency="CNY", ordinal=0,
         ))
         session.add(TransactionRelationModel(
             workspace_id=cash_web_runtime.workspace_id, kind="refund_offset", subtype="",
@@ -50,11 +55,6 @@ def test_evidence_only_exposes_cash_inactive_relation_hints(cash_web_runtime):
                 workspace_id=cash_web_runtime.workspace_id, kind="transfer_pair", subtype="",
                 primary_fact_id=1003, secondary_fact_id=1002, primary_fact_type="cash", secondary_fact_type="cash",
                 ordered_fact_a=1002, ordered_fact_b=1003, anchor_fact_id=1003, status="pending_review",
-            ),
-            TransactionRelationModel(
-                workspace_id=cash_web_runtime.workspace_id, kind="transfer_pair", subtype="",
-                primary_fact_id=1003, secondary_fact_id=1, primary_fact_type="cash", secondary_fact_type="investment",
-                ordered_fact_a=1, ordered_fact_b=1003, anchor_fact_id=1003, status="pending_review",
             ),
         ))
     evidence = _query_evidence(cash_web_runtime)

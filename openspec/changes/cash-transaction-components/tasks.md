@@ -26,6 +26,8 @@
 
 实施记录（支付宝组合支付导入）：来源账户扫描现在为已验证的 `&` 组成项分别建立映射组；数据库映射解析器保留一条父行并生成带账户的 `component_allocation` 草稿，金额不完整时在确认前返回 `import_component_allocation_incomplete`。修复支付宝单账户草稿使用原始支付方式而不是默认钱包，并将映射后的账户名写入 singleton component。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/test_statement_account_mapping.py tests/test_statement_import_mapping.py tests/test_cash_import_wizard.py tests/test_cash_import_session_service.py tests/test_import_scan_refund_boundary.py tests/contract/test_cash_import_dual_backend.py -q`，结果 `107 passed, 7 skipped`；`git diff --check` 通过。
 
+实施记录（组件外键测试夹具）：为新增现金父流水的关系、投影、证据和分类维护测试补齐 singleton `cash_transaction_components`，并删除无法在新组件端点模型中表达的现金到投资旧关系夹具。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/contract/test_web_api.py::test_projection_api_returns_member_sources_in_member_order_without_duplicates tests/integration/test_web_sqlite.py::test_file_sqlite_evidence_read_uses_one_projection_snapshot tests/test_relational_cash_projection_evidence.py tests/test_relational_cash_projections.py::test_replace_dataset_bulk_writes_restricted_parent_mapping_and_preserves_roles_and_ordinals tests/test_application_web_queries.py::test_projection_page_keeps_version_and_dataset_in_one_read_snapshot tests/test_cash_category_management.py::test_relation_maintenance_adopts_display_root_category_for_all_members -q`，结果 `7 passed, 3 skipped`；`git diff --check` 通过。
+
 ## 2. 失败契约测试（先红）
 
 - [ ] 2.1 新增父流水/组成项守恒、`atomic`/`aggregate` 派生和非法输入测试，先确认当前实现失败。
