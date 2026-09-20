@@ -447,13 +447,25 @@ def _initial_remaining(
         secondary = str(relation.get("secondary_fact_id") or "")
         refund = by_id.get(secondary)
         if primary in remaining and refund is not None:
-            applied = relation.get("applied_amount")
-            try:
-                applied_amount = abs(Decimal(str(applied))) if applied not in (None, "") else abs(refund.signed_amount)
-            except (ArithmeticError, ValueError):
-                applied_amount = abs(refund.signed_amount)
-            remaining[primary] -= applied_amount
+            remaining[primary] -= _refund_relation_amount(relation, refund)
     return remaining
+
+
+def _refund_relation_amount(relation: Mapping[str, Any], refund: FactView) -> Decimal:
+    """Return the amount consumed by an accepted refund relation.
+
+    A refund parent can be split across multiple payment components.  The
+    relation's applied amount is therefore authoritative; only relations that
+    predate that field (or carry an invalid value) fall back to the refund
+    fact's signed amount.
+    """
+    applied = relation.get("applied_amount")
+    if applied not in (None, ""):
+        try:
+            return abs(Decimal(str(applied)))
+        except (ArithmeticError, ValueError):
+            pass
+    return abs(refund.signed_amount)
 
 
 def _append_relation_edge(context: MatchContext, relation: dict) -> None:
@@ -514,7 +526,11 @@ def _refund_blocked_ids(
         if secondary:
             blocked.add(secondary)
         anchor = str(relation.get("anchor_fact_id") or "")
-        if anchor and not refreshable_open_leg:
+        if (
+            anchor
+            and not refreshable_open_leg
+            and not (anchor == primary and keep_expense_candidate)
+        ):
             blocked.add(anchor)
     return blocked
 
@@ -865,7 +881,7 @@ class RelationService:
             candidate_remaining = dict(remaining)
             candidate_remaining[expense_id] = (
                 candidate_remaining.get(expense_id, abs(expense.signed_amount))
-                + abs(refund.signed_amount)
+                + _refund_relation_amount(relation, refund)
             )
             replacement = evaluate_refund_offset(
                 refund,
@@ -970,7 +986,7 @@ class RelationService:
             if expense_id:
                 remaining[expense_id] = (
                     remaining.get(expense_id, Decimal("0"))
-                    - abs(refund.signed_amount)
+                    - _refund_relation_amount(created, refund)
                 )
             occupied_refund_ids.add(refund_id)
             mark_affected(created.get("primary_fact_id"), created.get("secondary_fact_id"))
@@ -1722,7 +1738,7 @@ class RelationService:
                     if expense_id and refund_fact is not None:
                         remaining[expense_id] = (
                             remaining.get(expense_id, Decimal("0"))
-                            - abs(refund_fact.signed_amount)
+                            - _refund_relation_amount(outcome, refund_fact)
                         )
         # The seed-scoped plan may contain a pending mirror that is not part
         # of the canonical all-source assignment. Clean those stale system
@@ -1873,7 +1889,10 @@ class RelationService:
                     refund_id = str(outcome.get("secondary_fact_id") or "")
                     refund_fact = next((fact for fact in plan.facts if str(fact.id) == refund_id), None)
                     if expense_id and refund_fact is not None:
-                        remaining[expense_id] = remaining.get(expense_id, Decimal("0")) - abs(refund_fact.signed_amount)
+                        remaining[expense_id] = (
+                            remaining.get(expense_id, Decimal("0"))
+                            - _refund_relation_amount(outcome, refund_fact)
+                        )
         affected.update(self._reconcile_system_payment_mirrors(
             uow,
             plan.facts,
@@ -1975,14 +1994,11 @@ class RelationService:
                         if outcome.get("kind") == RelationKind.REFUND_OFFSET.value:
                             exp_id = outcome.get("primary_fact_id")
                             refund_id = outcome.get("secondary_fact_id")
-                            refund_amt = (
-                                abs(fact_by_id[refund_id].signed_amount)
-                                if refund_id in fact_by_id else Decimal("0")
-                            )
-                            if exp_id and exp_id in fact_by_id and refund_amt:
+                            refund_fact = fact_by_id.get(refund_id)
+                            if exp_id and exp_id in fact_by_id and refund_fact is not None:
                                 remaining[exp_id] = remaining.get(
                                     exp_id, abs(fact_by_id[exp_id].signed_amount)
-                                ) - refund_amt
+                                ) - _refund_relation_amount(outcome, refund_fact)
                     elif outcome["status"] == RelationStatus.PENDING_REVIEW.value:
                         stats["pending"] += 1
 
@@ -2396,7 +2412,7 @@ class RelationService:
             if refund_fact is None:
                 continue
             if exp in remaining:
-                remaining[exp] -= abs(refund_fact.signed_amount)
+                remaining[exp] -= _refund_relation_amount(rel, refund_fact)
         return remaining
 
     def _candidate_creates_kind_conflict(

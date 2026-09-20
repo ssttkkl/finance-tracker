@@ -89,6 +89,15 @@ def test_aggregate_component_can_mirror_one_bank_component_without_parent_double
                 fact_a=aggregate["id"],
                 fact_b=bank["id"],
             )
+        with pytest.raises(ValueError, match="不属于指定流水"):
+            uow.relations.add({
+                "kind": "payment_mirror",
+                "primary_fact_id": aggregate["id"],
+                "primary_component_id": bank_component,
+                "secondary_fact_id": bank["id"],
+                "secondary_component_id": bank_component,
+                "status": "pending_review",
+            })
         uow.commit()
 
     with service._uow as uow:
@@ -189,6 +198,62 @@ def test_aggregate_refund_components_can_offset_and_mirror_bank_refund(cash_web_
         expense["id"], bank_expense["id"], refund["id"], bank_refund["id"],
     })
     assert projection.net_amount == Decimal("-50.00")
+
+
+def test_partial_component_refund_uses_applied_amount_for_later_matching(cash_web_runtime):
+    _enable_cny(cash_web_runtime, "日常账户")
+    service = _service(cash_web_runtime)
+
+    expense = service.create_record(_payload(
+        account_name="日常账户",
+        amount="-100.00",
+        occurred_at="2026-09-18T09:00:00+00:00",
+    ))["record"]
+    first_refund = service.create_record(_payload(
+        account_name="日常账户",
+        amount="100.00",
+        record_type="refund",
+        occurred_at="2026-09-19T09:00:00+00:00",
+    ))["record"]
+    service.add_relation({
+        "primary_fact_id": expense["id"],
+        "primary_component_id": expense["components"][0]["id"],
+        "secondary_fact_id": first_refund["id"],
+        "secondary_component_id": first_refund["components"][0]["id"],
+        "kind": "refund_offset",
+        "applied_amount": "30.00",
+        "status": "accepted",
+    })
+    with service._uow as uow:
+        facts = service._relation_service._list_active_cash_facts(uow)
+        remaining = service._relation_service._refund_remaining(uow, facts)
+        uow.commit()
+    assert remaining[str(expense["components"][0]["id"])] == Decimal("70.00")
+
+    second_refund = service.create_record(_payload(
+        account_name="日常账户",
+        amount="50.00",
+        record_type="refund",
+        occurred_at="2026-09-20T09:00:00+00:00",
+    ))["record"]
+    checked = service._relation_service.check(
+        seed_fact_ids=[second_refund["id"]],
+        trigger="manual_range",
+    )
+    assert checked.ok, (checked.message, checked.details)
+
+    with service._uow as uow:
+        accepted = uow.relations.list_active(
+            kind="refund_offset",
+            status="accepted",
+        )
+        uow.commit()
+    assert any(
+        item["primary_component_id"] == expense["components"][0]["id"]
+        and item["secondary_component_id"] == second_refund["components"][0]["id"]
+        and item["applied_amount"] == Decimal("50.00")
+        for item in accepted
+    )
 
 
 def test_aggregate_parent_can_be_deleted_without_a_single_account(cash_web_runtime):

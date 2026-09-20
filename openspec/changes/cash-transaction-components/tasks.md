@@ -10,6 +10,8 @@
 
 实施记录（组成项 open-leg 与账单校准）：新增 aggregate 退款的 component 锚点回归，验证待配对关系保存 `anchor_component_id`，同时以 `anchor_record_id` 支持父流水导航。真实样本校准结果：`支付宝交易明细(20230614-20240613).csv` 共 `1368` 行，其中 `17` 行含 `&`，解析为 `11` 个单组成项、`5` 个双组成项、`1` 个三组成项，`11` 行 ready、`6` 行 requires_allocation；`支付宝交易明细(20240614-20250613).csv` 共 `664` 行，`60` 行含 `&` 且均为单账户 ready；`支付宝交易明细(20250614-20260613).csv` 共 `1028` 行，`83` 行含 `&` 且均为单账户 ready。校准仅读取 `~/.ft/bills`，未读取或提交真实账单内容。
 
+实施记录（退款分摊额度）：新增组件退款回归，验证一笔金额 100 的支出通过 `applied_amount=30` 关联首笔退款后，后续金额 50 的退款仍可自动匹配；剩余额度和扫描/导入持久化扣减均改为读取关系 `applied_amount`，并避免部分退款的支出端 anchor 提前屏蔽剩余候选。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/test_cash_transaction_components.py tests/test_transaction_relations_open_leg.py::test_partial_refund_keeps_expense_eligible_across_scans tests/test_import_scan_refund_boundary.py::test_scan_phase_a_allows_multiple_alipay_partial_refunds -q`，结果 `7 passed, 1 skipped`；关系/投影/转账回归 `81 passed, 9 skipped`，其中 `tests/test_transaction_relations_projection.py::test_accept_rejects_a_refund_that_cannot_form_a_cash_projection` 因旧夹具仍写入父流水外键而失败，待组件测试夹具更新；`git diff --check` 通过。
+
 ## 2. 失败契约测试（先红）
 
 - [ ] 2.1 新增父流水/组成项守恒、`atomic`/`aggregate` 派生和非法输入测试，先确认当前实现失败。
