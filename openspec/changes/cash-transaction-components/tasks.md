@@ -83,6 +83,8 @@ UI 信息架构记录：Web/Native 均保留父流水作为单一展示单位，
 
 实施记录（Native 导入分摊）：导入预览对多组成项显示逐项金额输入，缺失或不守恒时阻止进入关系阶段和确认阶段，并通过共享 `component_allocations` 映射提交；新增跨端 presentation 文案和语义 ID。验证命令：`npm test --workspace finance-tracker-mobile`（26 passed）、`npx tsc --noEmit -p mobile/tsconfig.json`、Web 导入/账本受影响测试（48 passed）、`npm run build --workspace finance-tracker-web`、`openspec validate --all --strict` 和 `git diff --check` 均通过。Native 导入真实设备 QA、Web 真实浏览器 QA 与 Hallmark audit 尚未完成。
 
+实施记录（浏览器 QA 与 UI 审查）：补充 aggregate 组件编辑 E2E，验证 1440px 与 390px 视口、金额不守恒时保存禁用、修正后提交两个组件；修复 aggregate 无父账户时错误显示币种缺失，并收窄无障碍标签避免既有键盘定位冲突。真实浏览器命令 `npm run test:e2e --workspace finance-tracker-web -- tests/cash-ledger.e2e.ts`：`18 passed`，覆盖正常/错误/空/加载、键盘焦点、导入流程、1440/1024/768/414/390/375/320 宽度；组件截图：`web/test-results/cash-ledger.e2e.ts-组合流水编辑器校验分配守恒并提交多个组成项/cash-component-editor-1440.png`、`cash-component-editor-390.png`；控制台/网络错误为 0。Hallmark audit（按 UI 规则与技能清单人工审查）无 critical/major finding：保留现有账本密度、组件无多余装饰、焦点/禁用/错误状态可见、移动端无横向溢出。PostgreSQL `FT_TEST_POSTGRES_URL` 仍未配置，Native 真机 QA 未执行。
+
 ## 8. 审查与验证
 
 - [ ] 8.1 运行受影响单元/集成/契约测试、类型检查、构建和 `git diff --check`，逐项记录结果。

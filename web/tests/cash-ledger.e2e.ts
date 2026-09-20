@@ -353,6 +353,53 @@ test("新建流水沿用信息抽屉，不提供收入支出切换并保留零�
   expect(createdBody).toMatchObject({ amount: "0", currency: "CNY", record_type: "expense" });
 });
 
+test("组合流水编辑器校验分配守恒并提交多个组成项", async ({ page }, testInfo) => {
+  const secondAccount = { ...account, id: 102, name: "招商银行" };
+  const options = {
+    record_types: [{ value: "expense", label: "消费", subtypes: [{ value: "not_applicable", label: "—" }] }],
+    relation_types: [{ value: "payment_mirror", label: "同笔支付" }],
+  };
+  const components = [
+    { id: "component-1", account_id: account.id, account_name: account.name, account_type: account.type, amount: "-60.00", currency: "CNY", ordinal: 0 },
+    { id: "component-2", account_id: secondAccount.id, account_name: secondAccount.name, account_type: secondAccount.type, amount: "-40.00", currency: "CNY", ordinal: 1 },
+  ];
+  const root = { id: "1001", occurred_at: "2026-07-03T09:00:00+08:00", account_name: "", account_id: null, account_type: "cash", counterparty: "组合支付商户", category: foodCategory, category_id: foodCategory.id, note: "组合支付", amount: "-100.00", currency: "CNY", source_type: "alipay", record_id: "cash-aggregate", record_type: "expense", record_subtype: "not_applicable", counterparty_account: "", components, cash_granularity: "aggregate" };
+  const detail = { record: root, relations: [], options };
+  let updateBody: Record<string, unknown> | undefined;
+  await page.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
+    if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account, secondAccount] } });
+    if (url.pathname.includes("/evidence/")) return route.fulfill({ json: { projection_version: 1, projection: { ...item("aggregate", "组合支付商户"), account: null, account_name: "多个账户", amount: "-100.00", composition: [], member_count: 1 }, root_record: root, members: [{ ...root, roles: ["root"] }], accepted_relations: [], inactive_relation_hints: [], refund_timeline: [] } });
+    if (url.pathname.endsWith("/cash-ledger/options")) return route.fulfill({ json: options });
+    if (url.pathname.endsWith("/cash-records/1001") && request.method() === "GET") return route.fulfill({ json: detail });
+    if (url.pathname.endsWith("/cash-records/1001") && request.method() === "PUT") {
+      updateBody = request.postDataJSON() as Record<string, unknown>;
+      return route.fulfill({ json: detail });
+    }
+    if (url.pathname.endsWith("/cash-records") && request.method() === "GET") return route.fulfill({ json: { items: [], next_cursor: null } });
+    return route.fulfill({ json: { projection_version: 1, items: [item("aggregate", "组合支付商户")], next_cursor: null, page_size: 50, filters: {}, filter_options } });
+  });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "查看组合支付商户的收支详情" }).click();
+  await page.getByRole("dialog", { name: "收支详情" }).getByRole("button", { name: "编辑", exact: true }).click();
+  const drawer = page.getByRole("dialog", { name: "编辑收支详情" });
+  await expect(drawer.getByTestId("record.allocation")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("cash-component-editor-1440.png"), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const secondAmount = drawer.getByRole("textbox", { name: "分配项2", exact: true });
+  await secondAmount.fill("-30.00");
+  await expect(drawer.getByRole("button", { name: "保存", exact: true })).toBeDisabled();
+  await secondAmount.fill("-40.00");
+  await expect(drawer.getByRole("button", { name: "保存", exact: true })).toBeEnabled();
+  await page.screenshot({ path: testInfo.outputPath("cash-component-editor-390.png"), fullPage: true });
+  await drawer.getByRole("button", { name: "保存", exact: true }).click();
+  await expect.poll(() => updateBody).toMatchObject({ components: [{ account_name: account.name, amount: "-60.00" }, { account_name: secondAccount.name, amount: "-40.00" }] });
+});
+
 test("详情切换编辑、维护关联流水并在删除前展示影响确认", async ({ page }) => {
   const options = {
     record_types: [{ value: "expense", label: "消费", subtypes: [{ value: "not_applicable", label: "—" }] }],
