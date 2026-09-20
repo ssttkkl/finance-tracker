@@ -21,6 +21,21 @@ def upgrade() -> None:
     with op.batch_alter_table("cash_transactions") as batch:
         batch.alter_column("account_id", existing_type=sa.BigInteger(), nullable=True)
 
+    # Earlier SQLite table rebuilds could lose the deleted-row predicate from
+    # the active source identity index. Restore it while the development schema
+    # is already being rebuilt so a soft-deleted import can be re-created.
+    bind = op.get_bind()
+    bind.exec_driver_sql("DROP INDEX IF EXISTS uq_cash_transactions_active_source_record")
+    bind.exec_driver_sql(
+        """
+        CREATE UNIQUE INDEX uq_cash_transactions_active_source_record
+        ON cash_transactions (workspace_id, source_type, record_id)
+        WHERE source_type IS NOT NULL AND source_type <> ''
+          AND record_id IS NOT NULL AND record_id <> ''
+          AND deleted_at IS NULL
+        """
+    )
+
     component_amount_type = (
         sa.Numeric(38, 18) if op.get_bind().dialect.name != "sqlite" else sa.String(96)
     )

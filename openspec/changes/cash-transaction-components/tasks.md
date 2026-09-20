@@ -20,6 +20,8 @@
 
 实施记录（旧版手工现金服务组件化）：`CashflowService.add_manual_transaction` 接受 `components`/`component_allocation`，新增 aggregate 父流水时按 component 写入余额快照，并返回 component 明细。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/test_application_cash_projections.py::test_manual_cash_write_persists_components_and_updates_each_component_balance tests/test_application_cash_projections.py::test_uninitialized_cash_write_commits_then_first_rebuild_publishes_it -q`，结果 `2 passed`；组件金额守恒和父流水 `cash_granularity` 已由仓储校验。
 
+实施记录（活跃来源索引修复）：在组件重建 revision 中恢复 `uq_cash_transactions_active_source_record` 的 `deleted_at IS NULL` 谓词，允许软删除后重新导入相同来源记录。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/test_multi_currency_accounts.py::test_same_account_cny_and_jpy_add_and_checkin_do_not_clobber tests/test_015_idempotency.py::test_soft_delete_then_reimport_allows_new_active -q`，结果 `2 passed`。
+
 ## 2. 失败契约测试（先红）
 
 - [ ] 2.1 新增父流水/组成项守恒、`atomic`/`aggregate` 派生和非法输入测试，先确认当前实现失败。
