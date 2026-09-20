@@ -93,7 +93,7 @@ def _add_investment_events(runtime):
         session.add(CashInvestmentFundingRelationModel(
             id=3001,
             workspace_id=runtime.workspace_id,
-            cash_transaction_id=1001,
+            cash_transaction_component_id=1001,
             investment_event_id=2001,
             direction="cash_to_investment",
             status="accepted",

@@ -16,6 +16,8 @@
 
 实施记录（资金调拨关系测试组件化）：更新现金—投资资金调拨测试夹具，为每条现金流水创建 singleton component，并将关系断言及手工关系构造统一改为 `cash_transaction_component_id`。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/test_cash_investment_funding_relations.py -q`，结果 `10 passed, 10 skipped`；PostgreSQL 因 `FT_TEST_POSTGRES_URL` 未配置而跳过，未计入通过项。
 
+实施记录（投资账本关系夹具组件化）：更新投资账本查询和性能夹具，关系统一引用 `cash_transaction_component_id`，并为性能数据集写入 singleton `cash_transaction_components`。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/test_application_investment_web_queries.py -q`，结果 `4 passed, 1 skipped`；`PYTHONPATH=tests:.:src uv run pytest tests/test_investment_web_performance.py -q`，结果 `2 passed, 2 skipped`；PostgreSQL 因 `FT_TEST_POSTGRES_URL` 未配置而跳过，未计入通过项。
+
 ## 2. 失败契约测试（先红）
 
 - [ ] 2.1 新增父流水/组成项守恒、`atomic`/`aggregate` 派生和非法输入测试，先确认当前实现失败。
@@ -50,7 +52,7 @@
 - [ ] 6.1 将 `payment_mirror` matcher/index 从父 fact 展开为 component 视图，保留父流水的时间、商户和来源证据。
 - [x] 6.2 将 `refund_offset` 剩余金额和 open-leg 锚点改为 component，支持部分退款、分次退款及平台/银行退款镜像。
 - [x] 6.3 将普通 `transfer_pair` 改为 singleton component 端点；aggregate 转账首期失败关闭，换汇保留双币种语义。
-- [ ] 6.4 将现金—投资资金调拨候选、唯一性和投影引用改为 component 端点。
+- [x] 6.4 将现金—投资资金调拨候选、唯一性和投影引用改为 component 端点。
 - [ ] 6.5 更新关系审查、确认、取代、幂等和跨工作区校验，确保不能混入父流水 ID。
 
 ## 7. 投影、财富与客户端
