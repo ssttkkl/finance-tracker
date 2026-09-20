@@ -4,7 +4,7 @@ import { UiIcon } from "./UiIcon";
 import { semanticIds } from "@finance-tracker/presentation";
 
 export type TransactionDirection = "income" | "expense" | "transfer" | "unknown";
-export type TransactionStatusTone = "new" | "existing" | "unsupported" | "unresolved";
+export type TransactionStatusTone = "new" | "existing" | "unsupported" | "unresolved" | "requires_allocation";
 
 export type TransactionTableItem<T = unknown> = {
   id: string;

@@ -55,6 +55,48 @@ def test_scan_source_rows_extracts_declared_identity_for_each_cash_channel(
     assert "对方账号-不应作为来源账户" not in groups[0].masked_evidence
 
 
+def test_alipay_component_draft_requires_amounts_for_verified_composite_payment():
+    from ft.application.statement_account_mapping import (
+        build_component_allocation_draft,
+        parse_alipay_payment_components,
+    )
+
+    row = _row(
+        "alipay",
+        record_id="alipay-1",
+        amount="-30.00",
+        payment_method="账户余额&工商银行储蓄卡(1234)&立减优惠",
+        source_payload={"收/付款方式": "账户余额&工商银行储蓄卡(1234)&立减优惠"},
+    )
+    components = parse_alipay_payment_components(row)
+    assert [item["account_key"] for item in components] == ["支付宝余额", "工商银行储蓄卡(1234)"]
+    assert all(item["amount_required"] for item in components)
+    draft = build_component_allocation_draft(row)
+    assert draft["cash_granularity"] == "aggregate"
+    assert draft["status"] == "requires_allocation"
+    assert draft["conserved"] is False
+
+    ready = build_component_allocation_draft(
+        row,
+        allocations=[{"amount": "10.00"}, {"amount": "20.00"}],
+    )
+    assert ready["status"] == "ready"
+    assert ready["conserved"] is True
+
+
+def test_alipay_atomic_component_uses_parent_amount_and_preserves_raw_payload():
+    from ft.application.statement_account_mapping import build_component_allocation_draft
+
+    payload = {"收/付款方式": "账户余额", "金额": "12.30"}
+    draft = build_component_allocation_draft(_row(
+        "alipay", amount="-12.30", payment_method="账户余额", source_payload=payload,
+    ))
+    assert draft["cash_granularity"] == "atomic"
+    assert draft["status"] == "ready"
+    assert draft["components"][0]["amount"] == "-12.30"
+    assert payload == {"收/付款方式": "账户余额", "金额": "12.30"}
+
+
 def test_scan_keeps_same_display_name_with_different_stable_identity_separate():
     from ft.application.statement_account_mapping import scan_source_rows
 

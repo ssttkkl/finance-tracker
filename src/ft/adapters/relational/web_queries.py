@@ -7,7 +7,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import aliased
 from ft.adapters.relational.dialect import RelationalEngineError
-from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionModel, InvestmentEventModel, TransactionRelationModel
+from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionComponentModel, CashTransactionModel, InvestmentEventModel, TransactionRelationModel
 from ft.adapters.relational.runtime import StorageError, storage_error
 from ft.application.web_queries import CashAccountDTO, CashAccountSummaryDTO, CashCategoryDTO, CashCategoryPathItemDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionUnavailableError, ProjectionUpdatedError, local_bounds
 
@@ -91,6 +91,33 @@ def _record_summary(row, account, categories=None):
     }
 
 
+def _component_summary(component, parent, account, categories=None):
+    """Describe a relation endpoint without losing its parent transaction."""
+    summary = _record_summary(parent, account, categories)
+    if summary is None:
+        return None
+    summary["id"] = str(parent.id)
+    summary["component_id"] = str(component.id)
+    summary["component"] = {
+        "id": str(component.id),
+        "amount": _amount(component.amount),
+        "currency": component.currency,
+        "account_id": component.account_id,
+        "label": component.label,
+        "ordinal": component.ordinal,
+    }
+    summary["amount"] = _amount(component.amount)
+    summary["currency"] = component.currency
+    summary["account"] = {
+        "id": account.id, "name": account.name,
+        "type": account.type, "active": account.active,
+    }
+    summary["account_name"] = account.name
+    summary["account_id"] = account.id
+    summary["account_type"] = account.type
+    return summary
+
+
 class RelationalCashLedgerQueryRepository:
     def __init__(self, sessions, workspace_id):
         self._sessions, self._workspace_id = sessions, workspace_id
@@ -163,16 +190,30 @@ class RelationalCashLedgerQueryRepository:
         projection_row_ids = tuple(projection_row_ids)
         if not projection_row_ids:
             return {}
+        primary_component = aliased(CashTransactionComponentModel)
+        secondary_component = aliased(CashTransactionComponentModel)
         relation_rows = session.execute(
             select(
                 CashProjectionRelationModel.projection_row_id,
-                TransactionRelationModel.primary_fact_id,
-                TransactionRelationModel.secondary_fact_id,
+                primary_component,
+                secondary_component,
             ).join(
                 TransactionRelationModel,
                 and_(
                     TransactionRelationModel.workspace_id == CashProjectionRelationModel.workspace_id,
                     TransactionRelationModel.id == CashProjectionRelationModel.transaction_relation_id,
+                ),
+            ).join(
+                primary_component,
+                and_(
+                    primary_component.workspace_id == TransactionRelationModel.workspace_id,
+                    primary_component.id == TransactionRelationModel.primary_component_id,
+                ),
+            ).join(
+                secondary_component,
+                and_(
+                    secondary_component.workspace_id == TransactionRelationModel.workspace_id,
+                    secondary_component.id == TransactionRelationModel.secondary_component_id,
                 ),
             ).where(
                 CashProjectionRelationModel.workspace_id == self._workspace_id,
@@ -181,23 +222,28 @@ class RelationalCashLedgerQueryRepository:
                 CashProjectionRelationModel.kind == "transfer_pair",
             ).order_by(CashProjectionRelationModel.projection_row_id, CashProjectionRelationModel.ordinal)
         ).all()
-        endpoint_ids = sorted({endpoint for _row_id, primary_id, secondary_id in relation_rows for endpoint in (primary_id, secondary_id)})
+        endpoint_ids = sorted({component.id for _row_id, primary, secondary in relation_rows for component in (primary, secondary)})
         endpoint_rows = session.execute(
-            select(CashTransactionModel, AccountModel).join(
+            select(CashTransactionComponentModel, CashTransactionModel, AccountModel)
+            .join(CashTransactionModel, and_(
+                CashTransactionModel.workspace_id == CashTransactionComponentModel.workspace_id,
+                CashTransactionModel.id == CashTransactionComponentModel.cash_transaction_id,
+            )).join(
                 AccountModel,
-                and_(AccountModel.workspace_id == CashTransactionModel.workspace_id, AccountModel.id == CashTransactionModel.account_id),
+                and_(AccountModel.workspace_id == CashTransactionComponentModel.workspace_id, AccountModel.id == CashTransactionComponentModel.account_id),
             ).where(
-                CashTransactionModel.workspace_id == self._workspace_id,
-                CashTransactionModel.id.in_(endpoint_ids),
+                CashTransactionComponentModel.workspace_id == self._workspace_id,
+                CashTransactionComponentModel.id.in_(endpoint_ids),
             )
         ).all() if endpoint_ids else []
-        endpoints = {cash.id: (cash, account) for cash, account in endpoint_rows}
+        endpoints = {component.id: (component, parent, account) for component, parent, account in endpoint_rows}
         transfers = {}
-        for projection_row_id, primary_id, secondary_id in relation_rows:
+        for projection_row_id, primary_component, secondary_component in relation_rows:
+            primary_id, secondary_id = primary_component.id, secondary_component.id
             if projection_row_id in transfers or primary_id not in endpoints or secondary_id not in endpoints:
                 continue
-            primary, primary_account = endpoints[primary_id]
-            secondary, secondary_account = endpoints[secondary_id]
+            primary, _primary_parent, primary_account = endpoints[primary_id]
+            secondary, _secondary_parent, secondary_account = endpoints[secondary_id]
             transfers[projection_row_id] = CashTransferDTO(
                 CashAccountSummaryDTO(primary_account.id, primary_account.name, primary_account.type, primary_account.active),
                 _amount(primary.amount), primary.currency,
@@ -538,11 +584,24 @@ class RelationalCashLedgerQueryRepository:
                 if endpoint is not None
             })
             endpoints = s.execute(
-                select(CashTransactionModel, AccountModel)
-                .join(AccountModel, and_(AccountModel.workspace_id == CashTransactionModel.workspace_id, AccountModel.id == CashTransactionModel.account_id))
-                .where(CashTransactionModel.workspace_id == self._workspace_id, CashTransactionModel.id.in_(endpoint_ids))
+                select(CashTransactionComponentModel, CashTransactionModel, AccountModel)
+                .join(CashTransactionModel, and_(
+                    CashTransactionModel.workspace_id == CashTransactionComponentModel.workspace_id,
+                    CashTransactionModel.id == CashTransactionComponentModel.cash_transaction_id,
+                ))
+                .join(AccountModel, and_(
+                    AccountModel.workspace_id == CashTransactionComponentModel.workspace_id,
+                    AccountModel.id == CashTransactionComponentModel.account_id,
+                ))
+                .where(
+                    CashTransactionComponentModel.workspace_id == self._workspace_id,
+                    CashTransactionComponentModel.id.in_(endpoint_ids),
+                )
             ).all() if endpoint_ids else []
-            endpoint_rows = {cash.id: (cash, endpoint_account) for cash, endpoint_account in endpoints}
+            endpoint_rows = {
+                component.id: (component, parent, endpoint_account)
+                for component, parent, endpoint_account in endpoints
+            }
             category_ids = {
                 cash.category_id
                 for cash, _account in (*member_rows.values(), *endpoint_rows.values())
@@ -589,16 +648,26 @@ class RelationalCashLedgerQueryRepository:
                     {
                         "id": str(relation.transaction_relation_id), "kind": relation.kind, "subtype": relation.subtype,
                         "rule_id": accepted_by_id[relation.transaction_relation_id].rule_id if relation.transaction_relation_id in accepted_by_id else "",
-                        "primary_record": _record_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].primary_fact_id], categories) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].primary_fact_id in endpoint_rows else None,
-                        "secondary_record": _record_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].secondary_fact_id], categories) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_fact_id in endpoint_rows else None,
+                        "primary_fact_id": str(accepted_by_id[relation.transaction_relation_id].primary_fact_id) if relation.transaction_relation_id in accepted_by_id else None,
+                        "primary_component_id": str(accepted_by_id[relation.transaction_relation_id].primary_component_id) if relation.transaction_relation_id in accepted_by_id else None,
+                        "secondary_fact_id": str(accepted_by_id[relation.transaction_relation_id].secondary_fact_id) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_fact_id is not None else None,
+                        "secondary_component_id": str(accepted_by_id[relation.transaction_relation_id].secondary_component_id) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_component_id is not None else None,
+                        "applied_amount": _amount(accepted_by_id[relation.transaction_relation_id].applied_amount) if relation.transaction_relation_id in accepted_by_id else "0",
+                        "primary_record": _component_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].primary_component_id], categories) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].primary_component_id in endpoint_rows else None,
+                        "secondary_record": _component_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].secondary_component_id], categories) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_component_id in endpoint_rows else None,
                     }
                     for relation in rels
                 ],
                 "inactive_relation_hints": [
                     {
                         "id": str(relation.id), "kind": relation.kind, "subtype": relation.subtype, "status": relation.status,
-                        "primary_record": _record_summary(*endpoint_rows[relation.primary_fact_id], categories) if relation.primary_fact_id in endpoint_rows else None,
-                        "secondary_record": _record_summary(*endpoint_rows[relation.secondary_fact_id], categories) if relation.secondary_fact_id in endpoint_rows else None,
+                        "primary_fact_id": str(relation.primary_fact_id),
+                        "primary_component_id": str(relation.primary_component_id),
+                        "secondary_fact_id": str(relation.secondary_fact_id) if relation.secondary_fact_id is not None else None,
+                        "secondary_component_id": str(relation.secondary_component_id) if relation.secondary_component_id is not None else None,
+                        "applied_amount": _amount(relation.applied_amount),
+                        "primary_record": _component_summary(*endpoint_rows[relation.primary_component_id], categories) if relation.primary_component_id in endpoint_rows else None,
+                        "secondary_record": _component_summary(*endpoint_rows[relation.secondary_component_id], categories) if relation.secondary_component_id in endpoint_rows else None,
                     }
                     for relation in inactive
                 ],

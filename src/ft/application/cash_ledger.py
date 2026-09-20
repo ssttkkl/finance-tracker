@@ -39,6 +39,7 @@ from ft.application.statement_account_mapping import (
     new_account_draft,
     scan_source_rows,
     scan_source_rows_with_issues,
+    source_component_identity_keys,
     source_identity_key,
     suggest_mapping,
 )
@@ -236,25 +237,33 @@ class CashLedgerCommandService:
             return
         snapshot = uow.snapshot.load(lock=True)
         latest = None
+
+        def apply_row(row, multiplier):
+            if not row or str(row.get("record_type") or "other") in {"transfer_in", "transfer_out"}:
+                return
+            components = row.get("components") or []
+            if not components:
+                components = [{
+                    "account_name": row.get("account_name"),
+                    "account_type": row.get("account_type") or "cash",
+                    "amount": row.get("amount"),
+                    "currency": row.get("currency"),
+                }]
+            for component in components:
+                account_name = str(component.get("account_name") or "").strip()
+                if not account_name:
+                    raise ValueError("组成项缺少目标账户")
+                uow.snapshot.update_balance(
+                    snapshot,
+                    account_name,
+                    component.get("account_type") or "cash",
+                    str(component.get("currency") or row.get("currency") or "").upper(),
+                    Decimal(str(component.get("amount") or "0")) * Decimal(str(multiplier)),
+                )
+
         for old, new in changes:
-            if old:
-                old_account_type = old.get("account_type") or "cash"
-                uow.snapshot.update_balance(
-                    snapshot,
-                    old["account_name"],
-                    old_account_type,
-                    old["currency"],
-                    -Decimal(str(old["amount"])),
-                )
-            if new:
-                new_account_type = new.get("account_type") or "cash"
-                uow.snapshot.update_balance(
-                    snapshot,
-                    new["account_name"],
-                    new_account_type,
-                    new["currency"],
-                    Decimal(str(new["amount"])),
-                )
+            apply_row(old, -1)
+            apply_row(new, 1)
             latest = new or old or latest
         snapshot["updated_at"] = (latest or {}).get("occurred_at", "")
         uow.snapshot.save(snapshot)
@@ -350,7 +359,18 @@ class CashLedgerCommandService:
 
     def create_record(self, payload: dict) -> dict:
         with self._uow as uow:
-            account = self._account(uow._state().session, payload.get("account_name"))
+            account_name = str(payload.get("account_name") or "").strip()
+            if not account_name:
+                components = payload.get("components") or []
+                first = components[0] if components and isinstance(components[0], dict) else {}
+                account_name = str(first.get("account_name") or "").strip()
+                if not account_name and first.get("account_id") not in (None, ""):
+                    account_row = uow._state().session.scalar(sa_select(AccountModel).where(
+                        AccountModel.workspace_id == self._workspace_id,
+                        AccountModel.id == int(first["account_id"]),
+                    ))
+                    account_name = account_row.name if account_row is not None else ""
+            account = self._account(uow._state().session, account_name)
             self._require_currency(account, payload.get("currency"))
             amount = exact_decimal(payload.get("amount", "0"), name="amount")
             record_type = str(payload.get("record_type") or "other")
@@ -363,9 +383,12 @@ class CashLedgerCommandService:
             if not record_subtype:
                 record_subtype = default_cash_record_subtype(record_type)
             validate_cash_record_subtype(record_type, record_subtype)
+            supplied_components = payload.get("components")
+            if supplied_components is None and isinstance(payload.get("component_allocation"), dict):
+                supplied_components = payload["component_allocation"].get("components")
             row = {
                 **payload,
-                "account_name": account.name,
+                "account_name": account.name if len(supplied_components or []) <= 1 else "",
                 "amount": amount,
                 "currency": str(payload["currency"]).upper(),
                 "record_type": record_type,
@@ -396,7 +419,7 @@ class CashLedgerCommandService:
         with self._uow as uow:
             current_model_row = uow._state().session.execute(
                 sa_select(CashTransactionModel, AccountModel)
-                .join(AccountModel, (
+                .outerjoin(AccountModel, (
                     AccountModel.workspace_id == CashTransactionModel.workspace_id
                 ) & (AccountModel.id == CashTransactionModel.account_id))
                 .where(
@@ -410,9 +433,25 @@ class CashLedgerCommandService:
             if current_model.deleted_at is not None:
                 raise ValueError("找不到这条流水记录")
             current = uow.cashflows._to_row(current_model, current_account)
-            account = self._account(uow._state().session, payload.get("account_name"))
+            requested_account_name = str(payload.get("account_name") or "").strip()
+            if not requested_account_name:
+                supplied_components = payload.get("components") or current.get("components") or []
+                first = supplied_components[0] if supplied_components and isinstance(supplied_components[0], dict) else {}
+                requested_account_name = str(first.get("account_name") or "").strip()
+                if not requested_account_name and first.get("account_id") not in (None, ""):
+                    account_row = uow._state().session.scalar(sa_select(AccountModel).where(
+                        AccountModel.workspace_id == self._workspace_id,
+                        AccountModel.id == int(first["account_id"]),
+                    ))
+                    requested_account_name = account_row.name if account_row is not None else ""
+            account = self._account(uow._state().session, requested_account_name)
             self._require_currency(account, payload.get("currency"))
             values = {key: payload[key] for key in EDITABLE_FIELDS if key in payload}
+            for key in ("components", "component_allocation"):
+                if key in payload:
+                    values[key] = payload[key]
+            if "components" not in values and "component_allocation" not in values and current.get("cash_granularity") == "aggregate":
+                values["components"] = current.get("components") or []
             values["account_name"] = account.name
             values["source_values"] = payload.get("source_values") or {}
             category_changed = (
@@ -760,8 +799,9 @@ class CashLedgerCommandService:
             for endpoint in (row.primary_fact_id, row.secondary_fact_id)
             if endpoint is not None and int(endpoint) in member_projection_ids
         }
+        cash_repo = RelationalCashflowRepository(session, self._workspace_id)
         previous_rows = [
-            self._uow_cashflow_row(model, account)
+            cash_repo._to_row(model, account)
             for fact_id in member_ids
             for model, account in (models_by_id[fact_id],)
         ]
@@ -778,11 +818,6 @@ class CashLedgerCommandService:
             "transaction_count": len(member_ids),
             "relation_group_count": len(relation_group_projection_ids),
         }
-
-    @staticmethod
-    def _uow_cashflow_row(model, account) -> dict:
-        """Keep the balance snapshot input independent of a repository UoW."""
-        return RelationalCashflowRepository._to_row(model, account)
 
     def preview_delete_projections(self, projection_ids, *, projection_version: int) -> dict:
         """Return the impact of deleting a visible, explicitly selected set."""
@@ -863,6 +898,7 @@ class CashLedgerCommandService:
             "id", "occurred_at", "amount", "currency", "counterparty",
             "counterparty_account", "note", "category_id", "record_type",
             "record_subtype", "account_name", "account_type", "source_type",
+            "cash_granularity", "components",
         )
         return _wire({field: record.get(field) for field in fields if field in record})
 
@@ -910,6 +946,9 @@ class CashLedgerCommandService:
                 "status": relation["status"],
                 "primary_record": endpoints[0],
                 "secondary_record": endpoints[1],
+                "primary_component_id": relation.get("primary_component_id"),
+                "secondary_component_id": relation.get("secondary_component_id"),
+                "applied_amount": relation.get("applied_amount"),
             })
         return {
             "record": self._record_wire(record),
@@ -999,6 +1038,8 @@ class CashLedgerCommandService:
     def add_relation(self, payload: dict) -> dict:
         primary = str(payload.get("primary_fact_id") or "")
         secondary = str(payload.get("secondary_fact_id") or "")
+        primary_component = payload.get("primary_component_id")
+        secondary_component = payload.get("secondary_component_id")
         kind = str(payload.get("kind") or "")
         subtype = str(payload.get("subtype") or "")
         if kind not in RELATION_LABELS:
@@ -1013,6 +1054,10 @@ class CashLedgerCommandService:
             second = records_by_id.get(int(secondary))
             if not first or not second or first.get("deleted") or second.get("deleted"):
                 raise ValueError("关联的流水记录不存在")
+            if primary_component in (None, "") and len(first.get("components") or []) > 1:
+                raise ValueError("组合支付关系必须指定付款组成项")
+            if secondary_component in (None, "") and len(second.get("components") or []) > 1:
+                raise ValueError("组合支付关系必须指定对侧组成项")
             status = str(payload.get("status") or RelationStatus.ACCEPTED.value)
             if status not in {RelationStatus.ACCEPTED.value, RelationStatus.PENDING_REVIEW.value}:
                 raise ValueError("无效的关联状态")
@@ -1056,9 +1101,13 @@ class CashLedgerCommandService:
                     "subtype": subtype,
                     "primary_fact_id": int(primary),
                     "secondary_fact_id": int(secondary),
+                    "primary_component_id": primary_component,
+                    "secondary_component_id": secondary_component,
                     "primary_fact_type": "cash",
                     "secondary_fact_type": "cash",
                     "anchor_fact_id": int(primary),
+                    "anchor_component_id": primary_component,
+                    "applied_amount": payload.get("applied_amount") or "0",
                     "status": status,
                     "rule_id": "manual.web.v1",
                     "created_by": "web",
@@ -1719,6 +1768,7 @@ class CashLedgerCommandService:
         if not isinstance(mapping, list):
             raise ValueError("import_mapping_incomplete")
         decisions = {}
+        allocation_overrides: dict[str, object] = {}
         for decision in mapping:
             if not isinstance(decision, dict) or not decision.get("group_id"):
                 raise ValueError("import_mapping_incomplete")
@@ -1726,6 +1776,21 @@ class CashLedgerCommandService:
             if group_id in decisions or group_id not in by_group_id:
                 raise ValueError("import_mapping_stale")
             decisions[group_id] = decision
+            # The web contract may carry row-level allocation values alongside
+            # the account decision. Accept both names while keeping the
+            # persisted model independent of this transport detail.
+            for key in ("component_allocations", "allocations"):
+                values = decision.get(key)
+                if isinstance(values, dict):
+                    allocation_overrides.update({str(k): v for k, v in values.items()})
+                elif isinstance(values, list):
+                    # Accept [{record_id, components}] alongside the keyed form.
+                    for entry in values:
+                        if not isinstance(entry, dict) or not entry.get("record_id"):
+                            raise ValueError("import_component_allocation_incomplete")
+                        allocation_overrides[str(entry["record_id"])] = (
+                            entry.get("components") or entry.get("allocations")
+                        )
         if set(decisions) != set(by_group_id):
             raise ValueError("import_mapping_incomplete")
 
@@ -1836,17 +1901,56 @@ class CashLedgerCommandService:
                     "code": issue_by_index[row_index].code,
                 })
                 continue
-            group_key = source_identity_key(row)
-            group = groups_by_identity.get(group_key)
-            if group is None:
+            identities = source_component_identity_keys(row)
+            if not identities:
                 raise ValueError("import_mapping_stale")
-            target = resolved[group.group_id]["account"]
+            row_targets = []
+            for identity in identities:
+                group = groups_by_identity.get(identity)
+                if group is None:
+                    raise ValueError("import_mapping_stale")
+                row_targets.append((identity, group, resolved[group.group_id]))
+            target = row_targets[0][2]["account"]
             mapped = dict(row)
             # Preserve the ID computed over the original row sequence.  This
             # keeps re-import idempotency stable when unresolved rows are
             # filtered out before StatementImportService sees the data.
             mapped["record_id"] = record_id
-            mapped["account_name"] = target["name"]
+            if len(row_targets) == 1:
+                mapped["account_name"] = target["name"]
+            else:
+                mapped["account_name"] = ""
+                mapped["component_account_names"] = {
+                    identity[2]: item["account"]["name"]
+                    for identity, _group, item in row_targets
+                }
+                mapped["component_account_ids"] = {
+                    identity[2]: item.get("account_id")
+                    for identity, _group, item in row_targets
+                    if item.get("account_id") is not None
+                }
+                # Keep the source component labels and attach mapped account
+                # IDs. The repository will reject the row if an allocation is
+                # still incomplete, so no amount is guessed here.
+                from ft.application.statement_account_mapping import (
+                    build_component_allocation_draft,
+                )
+                allocations = allocation_overrides.get(record_id)
+                draft = build_component_allocation_draft(row, allocations=allocations) if allocations is not None else build_component_allocation_draft(row)
+                for component in draft["components"]:
+                    key = component.get("account_key")
+                    component["account_id"] = mapped["component_account_ids"].get(key)
+                    component["account_name"] = mapped["component_account_names"].get(key, "")
+                mapped["component_allocation"] = draft
+                mapped["components"] = draft["components"]
+            if len(row_targets) == 1 and allocation_overrides.get(record_id) is not None:
+                from ft.application.statement_account_mapping import build_component_allocation_draft
+                draft = build_component_allocation_draft(row, allocations=allocation_overrides[record_id])
+                component = draft["components"][0]
+                component["account_id"] = row_targets[0][2].get("account_id")
+                component["account_name"] = target["name"]
+                mapped["component_allocation"] = draft
+                mapped["components"] = draft["components"]
             mapped["currency"] = str(mapped.get("currency") or "CNY").upper()
             if "source_payload" not in mapped and isinstance(mapped.get("_source_payload"), dict):
                 mapped["source_payload"] = mapped["_source_payload"]
@@ -1901,7 +2005,10 @@ class CashLedgerCommandService:
             items = []
             for row, rid in prepared:
                 status = "existing" if rid in existing_targets else "new"
-                items.append({
+                allocation = row.get("component_allocation")
+                if isinstance(allocation, dict) and allocation.get("status") == "requires_allocation":
+                    status = "requires_allocation"
+                item = {
                     "record_id": rid,
                     "occurred_at": row.get("occurred_at") or row.get("date") or "",
                     "amount": str(row.get("amount") or "0"),
@@ -1915,8 +2022,13 @@ class CashLedgerCommandService:
                     "note": row.get("note") or "",
                     "channel": channel,
                     "status": status,
-                    "message": "",
-                })
+                    "message": "请补齐组合支付各组成项金额" if status == "requires_allocation" else "",
+                }
+                if isinstance(allocation, dict):
+                    item["cash_granularity"] = allocation.get("cash_granularity")
+                    item["component_allocation"] = _wire(allocation)
+                    item["components"] = _wire(allocation.get("components") or [])
+                items.append(item)
             for unresolved in unresolved_items:
                 row = unresolved["row"]
                 items.append({
@@ -1941,6 +2053,7 @@ class CashLedgerCommandService:
                 "existing": sum(item["status"] == "existing" for item in items),
                 "unsupported": len(unresolved_items),
                 "unresolved": len(unresolved_items),
+                "requires_allocation": sum(item["status"] == "requires_allocation" for item in items),
             }
             mapping_wire = [
                 {
@@ -2024,7 +2137,11 @@ class CashLedgerCommandService:
                     status, message = "unsupported", "请更新账户配置后重新导入"
                 elif rid in targets:
                     status = "existing"
-                items.append({
+                allocation = row.get("component_allocation")
+                if isinstance(allocation, dict) and allocation.get("status") == "requires_allocation":
+                    status = "requires_allocation"
+                    message = "请补齐组合支付各组成项金额"
+                item = {
                     "record_id": rid,
                     "occurred_at": row.get("occurred_at") or row.get("date") or "",
                     "amount": str(row.get("amount") or "0"),
@@ -2039,12 +2156,18 @@ class CashLedgerCommandService:
                     "channel": channel,
                     "status": status,
                     "message": message,
-                })
+                }
+                if isinstance(allocation, dict):
+                    item["cash_granularity"] = allocation.get("cash_granularity")
+                    item["component_allocation"] = _wire(allocation)
+                    item["components"] = _wire(allocation.get("components") or [])
+                items.append(item)
             counts = {
                 "total": len(items),
                 "new": sum(item["status"] == "new" for item in items),
                 "existing": sum(item["status"] == "existing" for item in items),
                 "unsupported": sum(item["status"] == "unsupported" for item in items),
+                "requires_allocation": sum(item["status"] == "requires_allocation" for item in items),
             }
             relations, relation_digest, relation_plan = self._preview_relation_suggestions(
                 uow,

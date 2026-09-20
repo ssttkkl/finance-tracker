@@ -12,6 +12,7 @@ from ft.repositories.wealth import AccountFact, CashflowFact, InvestmentFact, Li
 from .models import (
     AccountLifecycleEventModel, AccountModel, CashTransactionModel,
     InvestmentEventModel, ValuationObservationModel, WealthSourceRevisionModel,
+    CashTransactionComponentModel,
 )
 
 
@@ -86,7 +87,30 @@ class RelationalWealthFactRepository:
                 CashTransactionModel.workspace_id == self._workspace_id,
                 CashTransactionModel.deleted_at.is_(None),
             ).order_by(CashTransactionModel.occurred_at, CashTransactionModel.id)).all()
-        return tuple(CashflowFact(*row) for row in rows)
+            components = session.execute(select(
+                CashTransactionComponentModel.cash_transaction_id,
+                CashTransactionComponentModel.id,
+                CashTransactionComponentModel.account_id,
+                CashTransactionComponentModel.amount,
+                CashTransactionComponentModel.currency,
+            ).join(CashTransactionModel, (
+                CashTransactionModel.workspace_id == CashTransactionComponentModel.workspace_id
+            ) & (CashTransactionModel.id == CashTransactionComponentModel.cash_transaction_id)).where(
+                CashTransactionComponentModel.workspace_id == self._workspace_id,
+                CashTransactionModel.deleted_at.is_(None),
+            )).all()
+        by_parent = {}
+        for parent_id, component_id, account_id, amount, currency in components:
+            by_parent.setdefault(parent_id, []).append((component_id, account_id, amount, currency))
+        result = []
+        for row in rows:
+            parts = by_parent.get(row[1])
+            if not parts:
+                result.append(CashflowFact(*row))
+                continue
+            for component_id, account_id, amount, currency in parts:
+                result.append(CashflowFact(row[0], component_id, account_id, row[3], amount, currency, row[6]))
+        return tuple(sorted(result, key=lambda item: (item.occurred_at, str(item.fact_id))))
 
     def investments(self) -> tuple[InvestmentFact, ...]:
         with self._sessions() as session:
@@ -149,6 +173,18 @@ class RelationalWealthFactRepository:
                 CashTransactionModel.workspace_id == self._workspace_id,
                 CashTransactionModel.deleted_at.is_(None),
             ).order_by(CashTransactionModel.id)).all()
+            component_rows = session.execute(select(
+                CashTransactionComponentModel.cash_transaction_id,
+                CashTransactionComponentModel.id,
+                CashTransactionComponentModel.account_id,
+                CashTransactionComponentModel.amount,
+                CashTransactionComponentModel.currency,
+            ).join(CashTransactionModel, (
+                CashTransactionModel.workspace_id == CashTransactionComponentModel.workspace_id
+            ) & (CashTransactionModel.id == CashTransactionComponentModel.cash_transaction_id)).where(
+                CashTransactionComponentModel.workspace_id == self._workspace_id,
+                CashTransactionModel.deleted_at.is_(None),
+            )).all()
             investment_rows = session.execute(select(
                 InvestmentEventModel.workspace_id, InvestmentEventModel.id,
                 InvestmentEventModel.account_id, InvestmentEventModel.occurred_at,
@@ -226,8 +262,18 @@ class RelationalWealthFactRepository:
         items.extend(WealthSourceItem("lifecycle", row.event_id, row.source_revision, _digest_parts(
             row.account_id, row.event_kind, row.effective_at.isoformat(), row.source_revision,
         )) for row in lifecycle)
-        cashflows = []
+        component_by_parent = {}
+        for parent_id, component_id, account_id, amount, currency in component_rows:
+            component_by_parent.setdefault(parent_id, []).append((component_id, account_id, amount, currency))
+        expanded_cash_rows = []
         for raw_row in cash_rows:
+            parts = component_by_parent.get(raw_row[1])
+            if not parts:
+                expanded_cash_rows.append(raw_row)
+            else:
+                expanded_cash_rows.extend((raw_row[0], component_id, account_id, raw_row[3], amount, currency, raw_row[6]) for component_id, account_id, amount, currency in parts)
+        cashflows = []
+        for raw_row in expanded_cash_rows:
             row = CashflowFact(*raw_row)
             cashflows.append(row)
             occurred_at = raw_row[3]

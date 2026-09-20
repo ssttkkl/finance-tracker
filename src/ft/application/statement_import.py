@@ -28,6 +28,31 @@ def _counts_toward_balance(row: dict | None) -> bool:
     }
 
 
+def _snapshot_components(snapshot, uow, row: dict, multiplier) -> None:
+    """Apply one parent row's component allocations to the balance snapshot."""
+    if not row or not _counts_toward_balance(row):
+        return
+    components = row.get("components") or []
+    if not components:
+        components = [{
+            "account_name": row.get("account_name"),
+            "account_type": row.get("account_type") or "cash",
+            "amount": row.get("amount"),
+            "currency": row.get("currency"),
+        }]
+    for component in components:
+        account_name = str(component.get("account_name") or "").strip()
+        if not account_name:
+            raise ValueError("组成项缺少目标账户")
+        uow.snapshot.update_balance(
+            snapshot,
+            account_name,
+            component.get("account_type") or "cash",
+            str(component.get("currency") or row.get("currency") or "").upper(),
+            Decimal(str(component.get("amount") or "0")) * Decimal(str(multiplier)),
+        )
+
+
 def _json_safe(value):
     if isinstance(value, Decimal):
         return format(value, "f")
@@ -299,27 +324,38 @@ class StatementImportService:
             raise ValueError("同一账单不能混合多个正式导入渠道")
         source_type = next(iter(parsed_source_types))
         for row in rows:
-            if not row.get("account_name"):
+            has_components = isinstance(row.get("components"), (list, tuple)) or isinstance(row.get("component_allocation"), dict)
+            if not row.get("account_name") and not has_components:
                 raise ValueError(
                     "账单记录缺少 account_name；账户映射规则必须为每条记录解析目标账户"
                 )
             raw_currency = row.get("currency") or command.currency or "CNY"
             row["currency"] = str(raw_currency).upper()
+            allocation = row.get("component_allocation")
+            if isinstance(allocation, dict) and allocation.get("status") == "requires_allocation":
+                # Reject before opening the write transaction below.
+                raise ValueError("import_component_allocation_incomplete")
 
         with self._uow as uow:
             account_cache: dict[str, object] = {}
             for row in rows:
-                key = row["account_name"]
-                if key in account_cache:
-                    continue
-                account = uow.accounts.find(row["account_name"])
-                if account is None:
-                    raise ValueError(f"找不到账户：{row['account_name']}")
-                if self._enforce_account_currencies and str(row["currency"]).upper() not in set(account.currencies):
-                    raise ValueError(
-                        f"账户 {account.name} 暂不支持 {row['currency']}，请更新账户配置后重新导入"
-                    )
-                account_cache[key] = account
+                names = [row.get("account_name")]
+                names.extend(
+                    item.get("account_name") for item in (row.get("components") or [])
+                    if isinstance(item, dict)
+                )
+                names.extend((row.get("component_account_names") or {}).values())
+                for key in {str(name or "").strip() for name in names if str(name or "").strip()}:
+                    if key in account_cache:
+                        continue
+                    account = uow.accounts.find(key)
+                    if account is None:
+                        raise ValueError(f"找不到账户：{key}")
+                    if self._enforce_account_currencies and str(row["currency"]).upper() not in set(account.currencies):
+                        raise ValueError(
+                            f"账户 {account.name} 暂不支持 {row['currency']}，请更新账户配置后重新导入"
+                        )
+                    account_cache[key] = account
 
             occurrences: dict[str, int] = {}
             prepared: list[tuple[dict, str]] = []
@@ -332,7 +368,7 @@ class StatementImportService:
                 record_ids=[rid for _, rid in prepared],
             )
             for row, record_id in prepared:
-                expected = (row["account_name"], row["currency"])
+                expected = (row.get("account_name") or "", row["currency"])
                 existing_target = existing_targets.get(record_id)
                 if existing_target is not None and existing_target != expected:
                     raise ValueError(
@@ -342,7 +378,23 @@ class StatementImportService:
             formal_rows: list[tuple[dict, str, object, dict]] = []
             cash_items: list[tuple[str, dict]] = []
             for row, record_id in prepared:
-                account = account_cache[row["account_name"]]
+                account_name = str(row.get("account_name") or "").strip()
+                if account_name:
+                    account = account_cache[account_name]
+                else:
+                    component_names = [
+                        str(item.get("account_name") or "").strip()
+                        for item in (row.get("components") or [])
+                        if isinstance(item, dict) and str(item.get("account_name") or "").strip()
+                    ]
+                    component_names.extend(
+                        str(value or "").strip()
+                        for value in (row.get("component_account_names") or {}).values()
+                        if str(value or "").strip()
+                    )
+                    if not component_names:
+                        raise ValueError("组合支付缺少组成项账户")
+                    account = account_cache[component_names[0]]
                 payload = row.get("source_payload")
                 if account.type in {"cash", "loan", "lend"} and (
                     not isinstance(payload, dict) or not payload
@@ -388,26 +440,12 @@ class StatementImportService:
                     if not created and source_changed:
                         updated_count += 1
                     if created and _counts_toward_balance(row):
-                        uow.snapshot.update_balance(
-                            snapshot, account.name, account.type, row["currency"], row["amount"]
-                        )
+                        _snapshot_components(snapshot, uow, current or formal, 1)
                     elif not created and source_changed and current is not None:
                         if previous and _counts_toward_balance(previous):
-                            uow.snapshot.update_balance(
-                                snapshot,
-                                previous["account_name"],
-                                previous.get("account_type") or account.type,
-                                previous["currency"],
-                                -previous["amount"],
-                            )
+                            _snapshot_components(snapshot, uow, previous, -1)
                         if _counts_toward_balance(current):
-                            uow.snapshot.update_balance(
-                                snapshot,
-                                current["account_name"],
-                                current.get("account_type") or account.type,
-                                current["currency"],
-                                current["amount"],
-                            )
+                            _snapshot_components(snapshot, uow, current, 1)
                 elif account.type in {"security", "crypto"}:
                     if record_id in existing_targets:
                         continue

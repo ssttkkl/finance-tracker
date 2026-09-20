@@ -7,6 +7,7 @@ import json
 from uuid import uuid4
 
 from sqlalchemy import and_, delete, insert, select
+from sqlalchemy.orm import aliased
 
 from ft.domain.cash_projection import (
     CashProjectionBuild,
@@ -26,6 +27,7 @@ from .models import (
     CashInvestmentFundingRelationModel,
     CashCategoryModel,
     CashTransactionModel,
+    CashTransactionComponentModel,
     TransactionRelationModel,
     WorkspaceModel,
 )
@@ -85,7 +87,13 @@ class RelationalCashProjectionRepository:
         return self.read_sources_for_facts(None)
 
     def accepted_relation_component_ids(self, fact_ids: set[int]) -> set[int]:
-        """Expand a set of cash facts to its current accepted relation component."""
+        """Expand parent transaction IDs through accepted component relations.
+
+        Relation endpoints are component IDs while projection maintenance is
+        keyed by parent transaction IDs.  Keep that translation at the
+        repository boundary so callers never accidentally use a component ID
+        as a ``cash_transactions`` primary key.
+        """
         members = {int(item) for item in fact_ids if item is not None}
         if not members:
             return members
@@ -105,20 +113,24 @@ class RelationalCashProjectionRepository:
                 TransactionRelationModel.primary_fact_id.label("target"),
             ).where(*relation_filters)
         ).cte("cash_relation_edges")
+        # SQLAlchemy's recursive CTE reference must be made against the CTE
+        # itself; this form works on both SQLite and PostgreSQL.
         reachable = select(
-            CashTransactionModel.id.label("node"),
+            CashTransactionComponentModel.id.label("node"),
         ).where(
-            CashTransactionModel.workspace_id == self._workspace_id,
-            CashTransactionModel.id.in_(members),
+            CashTransactionComponentModel.workspace_id == self._workspace_id,
+            CashTransactionComponentModel.cash_transaction_id.in_(members),
         ).cte("cash_relation_reachable", recursive=True)
         reachable = reachable.union(
-            select(edges.c.target).join(
-                reachable, edges.c.source == reachable.c.node,
-            )
+            select(edges.c.target).join(reachable, edges.c.source == reachable.c.node)
         )
         return {
             int(item) for item in self._session.scalars(
-                select(reachable.c.node).distinct()
+                select(CashTransactionComponentModel.cash_transaction_id)
+                .where(
+                    CashTransactionComponentModel.workspace_id == self._workspace_id,
+                    CashTransactionComponentModel.id.in_(select(reachable.c.node)),
+                ).distinct()
             ).all()
         }
 
@@ -141,9 +153,13 @@ class RelationalCashProjectionRepository:
             if not requested_ids:
                 return (), ()
             fact_filter.append(CashTransactionModel.id.in_(requested_ids))
+            requested_components = select(CashTransactionComponentModel.id).where(
+                CashTransactionComponentModel.workspace_id == self._workspace_id,
+                CashTransactionComponentModel.cash_transaction_id.in_(requested_ids),
+            )
             relation_filter.append(and_(
-                TransactionRelationModel.primary_fact_id.in_(requested_ids),
-                TransactionRelationModel.secondary_fact_id.in_(requested_ids),
+                TransactionRelationModel.primary_fact_id.in_(requested_components),
+                TransactionRelationModel.secondary_fact_id.in_(requested_components),
             ))
         fact_rows = self._session.execute(
             select(
@@ -171,14 +187,37 @@ class RelationalCashProjectionRepository:
             )
             for row, funding_relation_id in fact_rows
         )
+        secondary_component = aliased(CashTransactionComponentModel)
+        relation_rows = self._session.execute(
+            select(
+                TransactionRelationModel,
+                CashTransactionComponentModel.cash_transaction_id.label("primary_parent_id"),
+                secondary_component.cash_transaction_id.label("secondary_parent_id"),
+            )
+            .join(
+                CashTransactionComponentModel,
+                and_(
+                    CashTransactionComponentModel.workspace_id == TransactionRelationModel.workspace_id,
+                    CashTransactionComponentModel.id == TransactionRelationModel.primary_fact_id,
+                ),
+            )
+            .join(
+                secondary_component,
+                and_(
+                    secondary_component.workspace_id == TransactionRelationModel.workspace_id,
+                    secondary_component.id == TransactionRelationModel.secondary_fact_id,
+                ),
+            )
+            .where(*relation_filter)
+            .order_by(TransactionRelationModel.id)
+        ).all()
         relations = tuple(
             ProjectionRelation(
-                id=row.id, kind=row.kind, primary_fact_id=row.primary_fact_id,
-                secondary_fact_id=row.secondary_fact_id, status=row.status, subtype=row.subtype,
+                id=row.id, kind=row.kind, primary_fact_id=primary_parent_id,
+                secondary_fact_id=secondary_parent_id, status=row.status, subtype=row.subtype,
             )
-            for row in self._session.scalars(
-                select(TransactionRelationModel).where(*relation_filter).order_by(TransactionRelationModel.id)
-            )
+            for row, primary_parent_id, secondary_parent_id in relation_rows
+            if primary_parent_id != secondary_parent_id
         )
         return facts, relations
 

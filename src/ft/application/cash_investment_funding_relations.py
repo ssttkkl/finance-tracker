@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from types import SimpleNamespace
 
 from sqlalchemy import or_, select
 
@@ -38,6 +39,7 @@ class CashInvestmentFundingRelationService:
         return {
             "id": row.id,
             "cash_transaction_id": row.cash_transaction_id,
+            "cash_transaction_component_id": row.cash_transaction_component_id,
             "investment_event_id": row.investment_event_id,
             "direction": row.direction,
             "status": row.status,
@@ -110,18 +112,50 @@ class CashInvestmentFundingRelationService:
             ).order_by(InvestmentEventModel.occurred_at, InvestmentEventModel.id)
         ).all()
 
+    def _ensure_atomic_components(self, session) -> None:
+        """Materialize the singleton component required by the new contract.
+
+        Aggregate parents are intentionally excluded: funding must identify a
+        concrete account-level component rather than silently choosing a
+        parent account.
+        """
+        from ft.adapters.relational.models import CashTransactionComponentModel, CashTransactionModel
+
+        rows = session.execute(select(CashTransactionModel).where(
+            CashTransactionModel.workspace_id == self._workspace_id,
+            CashTransactionModel.deleted_at.is_(None),
+            CashTransactionModel.cash_granularity == "atomic",
+            ~select(CashTransactionComponentModel.id).where(
+                CashTransactionComponentModel.workspace_id == CashTransactionModel.workspace_id,
+                CashTransactionComponentModel.cash_transaction_id == CashTransactionModel.id,
+            ).exists(),
+        )).scalars().all()
+        for cash in rows:
+            if cash.account_id is None:
+                continue
+            session.add(CashTransactionComponentModel(
+                workspace_id=self._workspace_id, cash_transaction_id=cash.id,
+                account_id=cash.account_id, amount=cash.amount, currency=cash.currency,
+                ordinal=0, label="atomic",
+            ))
+        if rows:
+            session.flush()
+
     def _candidate_cash(self, session, event):
-        from ft.adapters.relational.models import AccountModel, CashTransactionModel
+        from ft.adapters.relational.models import AccountModel, CashTransactionComponentModel, CashTransactionModel
 
         incoming = self._investment_is_incoming(event)
         expected_types = _CANDIDATE_CASH_TYPES[incoming]
         expected_negative = incoming
         candidates = []
-        for cash, _account_type in session.execute(
-            select(CashTransactionModel, AccountModel.type)
+        for parent, component, _account_type in session.execute(
+            select(CashTransactionModel, CashTransactionComponentModel, AccountModel.type)
+            .join(CashTransactionComponentModel, (
+                CashTransactionComponentModel.workspace_id == CashTransactionModel.workspace_id
+            ) & (CashTransactionComponentModel.cash_transaction_id == CashTransactionModel.id))
             .join(AccountModel, (
-                AccountModel.workspace_id == CashTransactionModel.workspace_id
-            ) & (AccountModel.id == CashTransactionModel.account_id))
+                AccountModel.workspace_id == CashTransactionComponentModel.workspace_id
+            ) & (AccountModel.id == CashTransactionComponentModel.account_id))
             .where(
                 CashTransactionModel.workspace_id == self._workspace_id,
                 CashTransactionModel.deleted_at.is_(None),
@@ -129,6 +163,14 @@ class CashInvestmentFundingRelationService:
                 CashTransactionModel.record_type.in_(expected_types),
             ).order_by(CashTransactionModel.occurred_at, CashTransactionModel.id)
         ):
+            # Relations are anchored to the account-level component. Keep the
+            # parent event fields for the existing matching rules.
+            cash = SimpleNamespace(
+                id=component.id, parent_id=parent.id, account_id=component.account_id,
+                amount=component.amount, currency=component.currency,
+                occurred_at=parent.occurred_at, record_type=parent.record_type,
+                counterparty=parent.counterparty,
+            )
             cash_amount = Decimal(str(cash.amount))
             if (cash_amount < 0) != expected_negative:
                 continue
@@ -176,8 +218,8 @@ class CashInvestmentFundingRelationService:
             TransactionRelationModel.workspace_id == self._workspace_id,
             TransactionRelationModel.status == "accepted",
             or_(
-                TransactionRelationModel.primary_fact_id == cash_transaction_id,
-                TransactionRelationModel.secondary_fact_id == cash_transaction_id,
+                TransactionRelationModel.primary_component_id == cash_transaction_id,
+                TransactionRelationModel.secondary_component_id == cash_transaction_id,
             ),
         ).limit(1)) is not None
 
@@ -247,6 +289,7 @@ class CashInvestmentFundingRelationService:
         changed: list[object] = []
         affected_cash_ids: set[int] = set()
         with self._sessions.begin() as session:
+            self._ensure_atomic_components(session)
             accepted_cash, accepted_investment = self._accepted_endpoint_ids(session)
             existing = {
                 (row.cash_transaction_id, row.investment_event_id): row
@@ -338,13 +381,23 @@ class CashInvestmentFundingRelationService:
         ))
 
     def _assert_available(self, session, relation) -> None:
-        from ft.adapters.relational.models import CashInvestmentFundingRelationModel, CashTransactionModel, InvestmentEventModel
+        from ft.adapters.relational.models import CashInvestmentFundingRelationModel, CashTransactionComponentModel, CashTransactionModel, InvestmentEventModel
 
-        cash = session.scalar(select(CashTransactionModel).where(
+        row = session.execute(select(CashTransactionModel, CashTransactionComponentModel).join(
+            CashTransactionComponentModel,
+            (CashTransactionComponentModel.workspace_id == CashTransactionModel.workspace_id)
+            & (CashTransactionComponentModel.cash_transaction_id == CashTransactionModel.id),
+        ).where(
             CashTransactionModel.workspace_id == self._workspace_id,
-            CashTransactionModel.id == relation.cash_transaction_id,
+            CashTransactionComponentModel.id == relation.cash_transaction_id,
             CashTransactionModel.deleted_at.is_(None),
-        ))
+        )).first()
+        cash = None if row is None else SimpleNamespace(
+            id=row[1].id, parent_id=row[0].id, account_id=row[1].account_id,
+            amount=row[1].amount, currency=row[1].currency,
+            occurred_at=row[0].occurred_at, record_type=row[0].record_type,
+            counterparty=row[0].counterparty,
+        )
         investment = session.scalar(select(InvestmentEventModel).where(
             InvestmentEventModel.workspace_id == self._workspace_id,
             InvestmentEventModel.id == relation.investment_event_id,

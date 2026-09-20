@@ -40,7 +40,7 @@ class ProjectionComposition(str, Enum):
 @dataclass(frozen=True)
 class CashProjectionFact:
     id: int
-    account_id: int
+    account_id: int | None
     occurred_at: datetime
     amount: Decimal
     currency: str
@@ -56,7 +56,7 @@ class CashProjectionFact:
             amount = exact_decimal(self.amount, "amount")
         except ValueError as exc:
             raise CashProjectionError("projection.invalid_fact") from exc
-        if self.id <= 0 or self.account_id <= 0 or self.occurred_at.tzinfo is None:
+        if self.id <= 0 or (self.account_id is not None and self.account_id <= 0) or self.occurred_at.tzinfo is None:
             raise CashProjectionError("projection.invalid_fact")
         currency = self.currency.upper()
         if len(currency) != 3 or not currency.isalpha():

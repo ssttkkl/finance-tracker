@@ -198,8 +198,30 @@ export type ImportPreviewItem = {
   category: string;
   note: string;
   channel: string;
-  status: "new" | "existing" | "unsupported" | "unresolved";
+  status: "new" | "existing" | "unsupported" | "unresolved" | "requires_allocation";
   message: string;
+  components?: ImportComponent[];
+  component_allocation?: ImportComponentAllocation;
+};
+
+export type ImportComponent = {
+  ordinal: number;
+  source_label: string;
+  account_key: string;
+  account_id?: number | null;
+  account_name?: string;
+  amount: string | null;
+  amount_required: boolean;
+  kind: "atomic" | "aggregate" | string;
+};
+
+export type ImportComponentAllocation = {
+  record_id?: string;
+  cash_granularity: "atomic" | "aggregate" | string;
+  status: "ready" | "requires_allocation" | string;
+  total_amount: string;
+  conserved: boolean;
+  components: ImportComponent[];
 };
 
 export type ImportRelationRecord = ImportPreviewItem & {
@@ -229,7 +251,7 @@ export type ImportPreview = {
   relation_digest?: string;
   columns: string[];
   items: ImportPreviewItem[];
-  summary: { total: number; new: number; existing: number; unsupported: number; unresolved?: number };
+  summary: { total: number; new: number; existing: number; unsupported: number; unresolved?: number; requires_allocation?: number };
   mapping?: ImportMappingResult[];
   relations: ImportRelation[];
 };
@@ -246,6 +268,7 @@ export type ImportMappingDecision = {
   account_id?: number | null;
   mapping_revision?: number | null;
   new_account?: { draft_id?: string; name: string; type: string; currencies: string[] } | null;
+  component_allocations?: Record<string, Array<{ amount: string }>>;
 };
 
 export type ImportSourceGroup = {

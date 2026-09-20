@@ -80,6 +80,7 @@ def _fact_view_from_row(row: dict) -> FactView:
         record_id=str(row.get("record_id") or ""),
         raw_payload=payload,
         relation_metadata=relation_metadata,
+        parent_id=str(row.get("parent_id")) if row.get("parent_id") not in (None, "") else None,
     )
 
 
@@ -171,6 +172,7 @@ def _fact_detail_row(fact: FactView) -> dict:
         "fact_type": fact.fact_type,
         "raw_payload": fact.raw_payload,
         "relation_metadata": fact.relation_metadata,
+        "parent_id": fact.parent_id,
     }
 
 
@@ -444,7 +446,12 @@ def _initial_remaining(
         secondary = str(relation.get("secondary_fact_id") or "")
         refund = by_id.get(secondary)
         if primary in remaining and refund is not None:
-            remaining[primary] -= abs(refund.signed_amount)
+            applied = relation.get("applied_amount")
+            try:
+                applied_amount = abs(Decimal(str(applied))) if applied not in (None, "") else abs(refund.signed_amount)
+            except (ArithmeticError, ValueError):
+                applied_amount = abs(refund.signed_amount)
+            remaining[primary] -= applied_amount
     return remaining
 
 
@@ -570,7 +577,7 @@ def plan_relation_proposals(
         expense = fact_by_id.get(str(expense_id))
         refund = fact_by_id.get(str(proposal.secondary_fact_id or ""))
         if expense is not None and refund is not None and expense.signed_amount < 0:
-            remaining[expense.id] = remaining.get(expense.id, abs(expense.signed_amount)) - abs(refund.signed_amount)
+            remaining[expense.id] = remaining.get(expense.id, abs(expense.signed_amount)) - abs(proposal.refund_amount)
 
     context = MatchContext(workspace_id=workspace_id)
     context.remaining_by_expense = dict(remaining)
@@ -980,17 +987,23 @@ class RelationService:
             dict(row)
             for row in uow.cashflows.list_detailed(include_deleted=False)
         ] if hasattr(uow.cashflows, "list_detailed") else []
+        existing_rows = self._expand_component_rows(existing_rows)
         existing_facts = self._list_active_cash_facts(uow)
         virtual_facts: list[FactView] = []
         virtual_rows: list[dict] = []
         for row in preview_rows:
             item = dict(row)
-            if not item.get("id"):
-                item["id"] = f"preview:{item.get('record_id') or len(virtual_rows)}"
             item.setdefault("source_type", item.get("bill_source") or "")
             item.setdefault("bill_source", item.get("source_type") or "")
-            virtual_rows.append(item)
-            virtual_facts.append(_fact_view_from_row(item))
+            component_rows = self._expand_component_rows([item])
+            if not component_rows:
+                component_rows = [item]
+            for ordinal, component_row in enumerate(component_rows):
+                if not component_row.get("id"):
+                    base = item.get("record_id") or len(virtual_rows)
+                    component_row["id"] = f"preview:{base}:{ordinal}"
+                virtual_rows.append(component_row)
+                virtual_facts.append(_fact_view_from_row(component_row))
         facts = [*existing_facts, *virtual_facts]
         relations = [dict(item) for item in uow.relations.list_active()]
         aliases_by_tail, account_identifiers_by_value = self._alias_indexes(uow)
@@ -2250,12 +2263,35 @@ class RelationService:
             # attach ids if missing — require extended repository
             if rows and "id" not in rows[0]:
                 rows = self._hydrate_cash_rows(uow, rows, include_deleted=include_deleted)
-        views = []
+        return [_fact_view_from_row(row) for row in self._expand_component_rows(rows)
+                if include_deleted or not (row.get("deleted_at") or row.get("deleted"))]
+
+    @staticmethod
+    def _expand_component_rows(rows: Sequence[dict]) -> list[dict]:
+        """Expose one matching fact per persisted cash component.
+
+        The parent row remains the browser/audit unit, but relation matching
+        must never compare an aggregate total with a bank component.
+        """
+        expanded: list[dict] = []
         for row in rows:
-            if not include_deleted and (row.get("deleted_at") or row.get("deleted")):
+            components = row.get("components") or []
+            if not components:
+                expanded.append(dict(row))
                 continue
-            views.append(_fact_view_from_row(row))
-        return views
+            for component in components:
+                if not isinstance(component, dict):
+                    continue
+                item = dict(row)
+                item["parent_id"] = row.get("id")
+                item["id"] = component.get("id")
+                item["amount"] = component.get("amount")
+                item["currency"] = component.get("currency") or row.get("currency")
+                item["account_id"] = component.get("account_id")
+                item["account_name"] = component.get("account_name") or ""
+                item["account_type"] = component.get("account_type") or row.get("account_type") or "cash"
+                expanded.append(item)
+        return expanded
 
     def _hydrate_cash_rows(self, uow, rows, include_deleted=False) -> list[dict]:
         # Fallback using session through imports/models is not available; use detailed listing.
@@ -2522,6 +2558,11 @@ class RelationService:
                 list(proposal.evidence.candidate_fact_ids) if open_leg else []
             ),
             "created_by": proposal.created_by,
+            "applied_amount": (
+                abs(proposal.refund_amount)
+                if proposal.kind == RelationKind.REFUND_OFFSET.value and proposal.secondary_fact_id
+                else Decimal("0")
+            ),
         }
         new_id = uow.relations.add(payload)
         return uow.relations.get(new_id)

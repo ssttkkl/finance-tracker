@@ -1,7 +1,7 @@
 """Database-maintained revision tokens for formal wealth source rows."""
 from __future__ import annotations
 
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
 
 _TRIGGERED_TABLES = (
@@ -9,6 +9,7 @@ _TRIGGERED_TABLES = (
     "valuation_observations",
     "account_lifecycle_events",
     "cash_transactions",
+    "cash_transaction_components",
     "investment_events",
 )
 
@@ -46,13 +47,18 @@ END
 
 
 def _install_sqlite_triggers(connection) -> None:
+    tables = set(inspect(connection).get_table_names())
     for table in _TRIGGERED_TABLES:
+        if table not in tables:
+            continue
         connection.exec_driver_sql(_sqlite_revision_trigger(table, "INSERT", "ai"))
         connection.exec_driver_sql(_sqlite_revision_trigger(table, "DELETE", "ad"))
         update_columns = (
             "type, metadata_json" if table == "accounts" else
             "account_id, occurred_at, amount, currency, record_type, deleted_at"
-            if table == "cash_transactions" else ""
+            if table == "cash_transactions" else
+            "account_id, amount, currency"
+            if table == "cash_transaction_components" else ""
         )
         connection.exec_driver_sql(_sqlite_revision_trigger(
             table, "UPDATE", "au", update_columns,
@@ -86,7 +92,10 @@ $$
 
 def _install_postgresql_triggers(connection) -> None:
     connection.exec_driver_sql(_POSTGRES_FUNCTION)
+    tables = set(inspect(connection).get_table_names())
     for table in _TRIGGERED_TABLES:
+        if table not in tables:
+            continue
         # ``create_schema`` is an idempotent test-only entry point and several
         # PostgreSQL contract fixtures reuse one database.  PostgreSQL has no
         # CREATE TRIGGER IF NOT EXISTS, so replace only these owned names.
@@ -108,6 +117,8 @@ def _install_postgresql_triggers(connection) -> None:
             update_of = " OF type, metadata_json"
         elif table == "cash_transactions":
             update_of = " OF account_id, occurred_at, amount, currency, record_type, deleted_at"
+        elif table == "cash_transaction_components":
+            update_of = " OF account_id, amount, currency"
         else:
             update_of = ""
         connection.exec_driver_sql(
