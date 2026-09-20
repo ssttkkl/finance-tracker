@@ -1629,6 +1629,32 @@ class RelationalRelationRepository:
             )).all()
             if any(applied_amount > abs(exact_decimal(amount)) for amount in component_amounts):
                 raise ValueError("关系分摊金额超过组成项金额")
+            if relation.get("kind") == "refund_offset":
+                endpoint_ids = [primary_component]
+                if secondary_component is not None:
+                    endpoint_ids.append(secondary_component)
+                component_amount_by_id = dict(self._session.execute(select(
+                    CashTransactionComponentModel.id,
+                    CashTransactionComponentModel.amount,
+                ).where(
+                    CashTransactionComponentModel.workspace_id == self._workspace_id,
+                    CashTransactionComponentModel.id.in_(endpoint_ids),
+                )).all())
+                for component_id in endpoint_ids:
+                    existing_total = self._session.scalar(select(
+                        func.coalesce(func.sum(TransactionRelationModel.applied_amount), 0)
+                    ).where(
+                        TransactionRelationModel.workspace_id == self._workspace_id,
+                        TransactionRelationModel.kind == "refund_offset",
+                        TransactionRelationModel.status == RelationStatus.ACCEPTED.value,
+                        TransactionRelationModel.active_slot == "active",
+                        (
+                            (TransactionRelationModel.primary_component_id == component_id)
+                            | (TransactionRelationModel.secondary_component_id == component_id)
+                        ),
+                    ))
+                    if exact_decimal(existing_total or "0") + applied_amount > abs(exact_decimal(component_amount_by_id[component_id])):
+                        raise ValueError("组成项退款分摊金额超过可用金额")
         left, right = ordered_fact_pair(primary_component, secondary_component)
         from ft.domain.relations.core.types import OPEN_LEG_ORDERED_B_SENTINEL
         if right in ("", None, OPEN_LEG_ORDERED_B_SENTINEL):
