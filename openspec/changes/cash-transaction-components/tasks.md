@@ -12,6 +12,8 @@
 
 实施记录（退款分摊额度）：新增组件退款回归，验证一笔金额 100 的支出通过 `applied_amount=30` 关联首笔退款后，后续金额 50 的退款仍可自动匹配；剩余额度和扫描/导入持久化扣减均改为读取关系 `applied_amount`，并避免部分退款的支出端 anchor 提前屏蔽剩余候选。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/test_cash_transaction_components.py tests/test_transaction_relations_open_leg.py::test_partial_refund_keeps_expense_eligible_across_scans tests/test_import_scan_refund_boundary.py::test_scan_phase_a_allows_multiple_alipay_partial_refunds -q`，结果 `7 passed, 1 skipped`；关系/投影/转账回归 `81 passed, 9 skipped`，其中 `tests/test_transaction_relations_projection.py::test_accept_rejects_a_refund_that_cannot_form_a_cash_projection` 因旧夹具仍写入父流水外键而失败，待组件测试夹具更新；`git diff --check` 通过。
 
+实施记录（测试夹具组件化）：更新 `cash_web_runtime` 夹具，为固定种子现金流水建立 singleton `cash_transaction_components`，并在父流水 flush 后写入，修复关系模型切换到组件外键后旧测试直接引用父 ID 导致的外键失败。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/test_transaction_relations_projection.py tests/test_cash_ledger_management.py tests/test_application_cash_projections.py -q`，结果 `48 passed, 7 skipped`；完整关系/投影/转账回归 `82 passed, 9 skipped`；`git diff --check` 通过。
+
 ## 2. 失败契约测试（先红）
 
 - [ ] 2.1 新增父流水/组成项守恒、`atomic`/`aggregate` 派生和非法输入测试，先确认当前实现失败。

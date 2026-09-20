@@ -174,7 +174,12 @@ def cash_web_runtime(tmp_path):
     from alembic import command
     from alembic.config import Config
     from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace
-    from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashTransactionModel
+    from ft.adapters.relational.models import (
+        AccountModel,
+        CashCategoryModel,
+        CashTransactionComponentModel,
+        CashTransactionModel,
+    )
 
     root = Path(__file__).parents[1]
     database_url = f"sqlite+pysqlite:///{tmp_path / 'cash-web.db'}"
@@ -236,6 +241,21 @@ def cash_web_runtime(tmp_path):
                 id=1001, workspace_id=workspace_id, account_id=101,
                 occurred_at=datetime(2026, 7, 1, 8, tzinfo=utc), amount=Decimal("2000"),
                 currency="CNY", counterparty="工资", category_id="category-income", source_type="fixture", record_id="cash-001",
+            ),
+        ))
+        session.flush()
+        session.add_all((
+            CashTransactionComponentModel(
+                id=1003, workspace_id=workspace_id, cash_transaction_id=1003,
+                account_id=101, amount=Decimal("-12.50"), currency="CNY", ordinal=0,
+            ),
+            CashTransactionComponentModel(
+                id=1002, workspace_id=workspace_id, cash_transaction_id=1002,
+                account_id=102, amount=Decimal("-100"), currency="CNY", ordinal=0,
+            ),
+            CashTransactionComponentModel(
+                id=1001, workspace_id=workspace_id, cash_transaction_id=1001,
+                account_id=101, amount=Decimal("2000"), currency="CNY", ordinal=0,
             ),
         ))
     try:
