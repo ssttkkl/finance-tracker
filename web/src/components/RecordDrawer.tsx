@@ -57,6 +57,30 @@ function browserTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 }
 
+type ComponentDraft = { account_name: string; amount: string };
+
+function componentDrafts(record: CashRecord | null | undefined, defaultAccount?: Account): ComponentDraft[] {
+  if (record?.components?.length) return record.components.map((component) => ({ account_name: component.account_name, amount: component.amount }));
+  return [{ account_name: record?.account_name ?? defaultAccount?.name ?? "", amount: record?.amount ?? "0" }];
+}
+
+function decimalParts(value: string): { integer: bigint; scale: number } | null {
+  const trimmed = value.trim();
+  if (!/^[+-]?\d+(?:\.\d+)?$/.test(trimmed)) return null;
+  const sign = trimmed.startsWith("-") ? -1n : 1n;
+  const unsigned = trimmed.replace(/^[+-]/, "");
+  const [whole, fraction = ""] = unsigned.split(".");
+  return { integer: sign * BigInt(`${whole}${fraction}`), scale: fraction.length };
+}
+
+function decimalEqualsTotal(values: string[], total: string): boolean {
+  const parsed = [...values, total].map(decimalParts);
+  if (parsed.some((item) => !item)) return false;
+  const scale = Math.max(...parsed.map((item) => item!.scale));
+  const scaled = parsed.map((item) => item!.integer * 10n ** BigInt(scale - item!.scale));
+  return scaled.slice(0, -1).reduce((sum, value) => sum + value, 0n) === scaled.at(-1)!;
+}
+
 function initialForm(record: CashRecord | null | undefined, defaultAccount?: Account, defaultRecordType?: string): Record<string, string> {
   return {
     account_name: record?.account_name ?? defaultAccount?.name ?? "",
@@ -76,6 +100,7 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
   const record = detail?.record;
   const isNew = mode ? mode === "new" : !record;
   const [form, setForm] = useState(() => initialForm(record, accounts[0], options.record_types[0]?.value));
+  const [components, setComponents] = useState<ComponentDraft[]>(() => componentDrafts(record, accounts[0]));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
   const [deleteOpen, setDeleteOpen] = useState(initialDeleteOpen);
@@ -101,6 +126,7 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
 
   useEffect(() => {
     setForm(initialForm(record, accounts[0], options.record_types[0]?.value));
+    setComponents(componentDrafts(record, accounts[0]));
     setRelationImpactOpen(false);
     setDeleteOpen(initialDeleteOpen);
   }, [initialDeleteOpen, record?.id]);
@@ -164,6 +190,7 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
   const selectAccount = (value: string) => {
     const next = accounts.find((item) => item.name === value);
     setForm((current) => ({ ...current, account_name: value, currency: next?.currencies?.[0] ?? "" }));
+    setComponents((current) => current.length === 1 ? [{ ...current[0], account_name: value }] : current);
   };
   const selectType = (value: string) => {
     const type = options.record_types.find((item) => item.value === value);
@@ -171,10 +198,16 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
   };
 
   const save = async (confirmRelationImpact = false) => {
+    if (!components.length || components.some((component) => !component.account_name.trim()) || !decimalEqualsTotal(components.map((component) => component.amount), form.amount)) {
+      setError("请补齐账户分配，并确保金额合计等于流水金额。");
+      return;
+    }
     setSaving(true); setError(undefined);
     try {
       const body = {
         ...form,
+        account_name: components.length === 1 ? components[0].account_name : "",
+        components: components.map((component) => ({ account_name: component.account_name, amount: component.amount })),
         amount: form.amount || "0",
         record_subtype: form.record_subtype || "not_applicable",
         ...(!isNew && form.category_id !== (record?.category_id ?? record?.category?.id ?? "") && projectionVersion !== null ? { projection_version: projectionVersion } : {}),
@@ -186,10 +219,21 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
       if (cause instanceof Error && cause.message === "relation_impact_required") {
         setRelationImpactOpen(true);
       } else {
-        setError(cause instanceof Error && cause.message === "invalid_record" ? "请检查标记的字段。" : "保存失败，请稍后重试。" );
+        setError(cause instanceof Error && cause.message === "invalid_record"
+          ? "请检查标记的字段。"
+          : cause instanceof Error && cause.message === "cash_transaction_components_in_use"
+            ? "这条流水的账户分配已参与关联，请先解散关联后再修改。"
+            : "保存失败，请稍后重试。" );
       }
     } finally { setSaving(false); }
   };
+
+  const updateComponent = (index: number, field: keyof ComponentDraft, value: string) => {
+    setComponents((current) => current.map((component, currentIndex) => currentIndex === index ? { ...component, [field]: value } : component));
+  };
+  const addComponent = () => setComponents((current) => [...current, { account_name: "", amount: "" }]);
+  const removeComponent = (index: number) => setComponents((current) => current.length > 1 ? current.filter((_, currentIndex) => currentIndex !== index) : current);
+  const allocationMatches = components.length > 0 && components.every((component) => component.account_name.trim()) && decimalEqualsTotal(components.map((component) => component.amount), form.amount);
 
   const addRelation = async () => {
     if (!record || !relationTarget) return;
@@ -319,7 +363,7 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
             <div className="edit-row"><label className="edit-field-label" htmlFor="record-counterparty">{copy.record.counterparty}</label><input id="record-counterparty" value={form.counterparty} onChange={(event) => set("counterparty", event.target.value)} /></div>
             <div className="edit-row"><label className="edit-field-label" htmlFor="record-counterparty-account">{copy.record.counterpartyAccount}</label><input id="record-counterparty-account" value={form.counterparty_account} onChange={(event) => set("counterparty_account", event.target.value)} /></div>
             <div className="edit-row"><label className="edit-field-label" htmlFor="record-occurred-at"><UiIcon name="calendar" /><span>{copy.record.occurredAt}</span></label><input id="record-occurred-at" type="datetime-local" value={form.occurred_at} onChange={(event) => set("occurred_at", event.target.value)} /></div>
-            <div className="edit-row"><label className="edit-field-label" htmlFor="record-account"><UiIcon name="account" /><span>{copy.record.account}</span></label><select data-testid={semanticIds.recordAccount} id="record-account" value={form.account_name} onChange={(event) => selectAccount(event.target.value)}>{accounts.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></div>
+            <div className="edit-row component-editor-row"><span className="edit-field-label"><UiIcon name="account" /><span>账户分配</span></span><div className="component-editor" aria-label="账户分配">{components.map((component, index) => <div className="component-editor-item" key={`${index}-${component.account_name}`}><select data-testid={index === 0 ? semanticIds.recordAccount : undefined} aria-label={index === 0 ? "账户" : `第${index + 1}个账户`} value={component.account_name} onChange={(event) => updateComponent(index, "account_name", event.target.value)}><option value="">选择账户</option>{accounts.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select><input className="mono" inputMode="decimal" aria-label={`第${index + 1}个账户分配金额`} value={component.amount} onChange={(event) => updateComponent(index, "amount", event.target.value)} /><button type="button" className="icon-only-button icon-quiet-button" aria-label="删除账户分配" title="删除账户分配" disabled={components.length <= 1} onClick={() => removeComponent(index)}><UiIcon name="x" /></button></div>)}<button type="button" className="text-button component-add-button" onClick={addComponent}>添加账户</button><p className={`component-total ${allocationMatches ? "is-complete" : "is-incomplete"}`} role="status">{allocationMatches ? "金额已匹配" : "金额合计需等于流水金额"}</p></div></div>
             <div className="edit-row"><label className="edit-field-label" htmlFor="record-type"><UiIcon name="receipt" /><span>{copy.record.type}</span></label><select id="record-type" value={form.record_type} onChange={(event) => selectType(event.target.value)}>{options.record_types.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
             {subtypeOptions.length > 1 ? <div className="edit-row"><label className="edit-field-label" htmlFor="record-subtype"><UiIcon name="layers" /><span>业务细分</span></label><select id="record-subtype" value={form.record_subtype} onChange={(event) => set("record_subtype", event.target.value)}>{subtypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div> : null}
             <div className="edit-row category-edit-row"><CashCategorySelect testID={semanticIds.recordCategory} categories={categories} value={form.category_id || null} onChange={(value) => set("category_id", value ?? "")} /></div>
@@ -327,7 +371,7 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
             {!isNew && record?.source_type ? <div className="edit-row"><span className="edit-field-label"><UiIcon name="layers" /><span>{copy.record.source}</span></span><div className="readonly-value">{record.source_type}</div></div> : null}
           </div>
           {!currencies.length ? <p className="field-hint">该账户暂未配置可用币种。</p> : null}
-          <div className="drawer-actions"><button data-testid={semanticIds.recordSave} type="button" className="button-primary" disabled={saving || !form.account_name || !form.currency} onClick={() => save()}>{saving ? copy.record.saving : copy.record.save}</button>{!isNew ? <button type="button" className="button-danger" onClick={() => setDeleteOpen(true)}>{copy.record.delete}</button> : null}</div>
+          <div className="drawer-actions"><button data-testid={semanticIds.recordSave} type="button" className="button-primary" disabled={saving || !form.currency || !allocationMatches} onClick={() => save()}>{saving ? copy.record.saving : copy.record.save}</button>{!isNew ? <button type="button" className="button-danger" onClick={() => setDeleteOpen(true)}>{copy.record.delete}</button> : null}</div>
         </section>
         {!isNew && record ? <section className="evidence-section evidence-related relation-manager" aria-label="关联流水">
           <div className="section-heading"><h3>关联流水</h3><div className="section-heading-actions">{relations.length > 0 ? <button type="button" className="text-button" disabled={relationSaving} onClick={dissolve}>解散关联</button> : null}{!relationOpen ? <button type="button" className="icon-only-button icon-quiet-button" aria-label="添加关联" title="添加关联" aria-expanded="false" onClick={() => setRelationOpen(true)}><UiIcon name="plus" /></button> : null}</div></div>

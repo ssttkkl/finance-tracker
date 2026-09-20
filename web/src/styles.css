@@ -170,6 +170,7 @@ textarea{min-height:44px;padding:6px var(--space-2);border:var(--rule-1) solid v
 .allocation-source{display:grid;gap:var(--space-1);min-width:0}.allocation-source strong{font-size:13px;overflow-wrap:anywhere}.allocation-source small{color:var(--color-ink-muted);font-size:11px}
 .allocation-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-2)}.allocation-fields label{display:grid;gap:var(--space-1);min-width:0;color:var(--color-ink-muted);font-size:11px}.allocation-fields label span{overflow-wrap:anywhere}.allocation-fields input{width:100%;min-width:0}
 .allocation-status{font-size:11px;white-space:nowrap}.allocation-status.is-complete{color:var(--color-income)}.allocation-status.is-incomplete{color:var(--color-danger)}
+.component-editor{display:grid;gap:8px;width:100%}.component-editor-item{display:grid;grid-template-columns:minmax(0,1fr) minmax(110px,150px) 34px;gap:8px;align-items:center}.component-editor-item select,.component-editor-item input{width:100%;min-width:0}.component-add-button{justify-self:start}.component-total{margin:0;font-size:11px}.component-total.is-complete{color:var(--color-income)}.component-total.is-incomplete{color:var(--color-danger)}
 
 @media(max-width:820px){
   .cash-import-shell{max-width:none;padding:var(--space-6) var(--space-4)}
@@ -187,6 +188,7 @@ textarea{min-height:44px;padding:6px var(--space-2);border:var(--rule-1) solid v
   .import-summary-card strong{font-size:22px}
   .allocation-row{grid-template-columns:minmax(0,1fr);gap:var(--space-2)}
   .allocation-fields{grid-template-columns:minmax(0,1fr)}
+  .component-editor-item{grid-template-columns:minmax(0,1fr) 110px 34px}
 }
 
 /* Summary cards are filters, so their selected state must be visible and keyboard reachable. */

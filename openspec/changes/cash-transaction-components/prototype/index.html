@@ -1,0 +1,23 @@
+<!doctype html>
+<!-- hallmark: cash component allocation prototype; self-check: 320/375/414/768px -->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>现金流水分配原型</title>
+  <style>
+    :root{font-family:Inter,system-ui,sans-serif;color:#242424;background:#f5f3ef}*{box-sizing:border-box}body{margin:0;padding:24px}.sheet{width:min(720px,100%);margin:auto;background:#fff;border:1px solid #d8d4cd;padding:24px}.eyebrow{color:#756f66;font-size:12px;margin:0 0 6px}.title{font-size:24px;margin:0 0 20px}.summary{display:flex;justify-content:space-between;border-bottom:1px solid #e2ded7;padding-bottom:16px;margin-bottom:18px}.mono{font-family:ui-monospace,monospace}.section{border-top:1px solid #e2ded7;padding-top:16px;margin-top:16px}.section h2{font-size:16px;margin:0}.hint{font-size:12px;color:#756f66}.row{display:grid;grid-template-columns:minmax(0,1fr) 150px auto;gap:10px;align-items:center;margin-top:10px}.row select,.row input{width:100%;min-height:40px;border:1px solid #bcb6ad;padding:8px;background:#fff}.icon{border:0;background:transparent;font-size:20px}.status{font-size:12px;margin-top:12px}.error{color:#a33f32}.ok{color:#36714b}.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:22px}.button{border:1px solid #928b80;background:#fff;padding:10px 14px}.primary{background:#1d5b50;color:#fff;border-color:#1d5b50}.empty{border:1px dashed #bcb6ad;padding:16px;color:#756f66;font-size:13px}@media(max-width:600px){body{padding:12px}.sheet{padding:18px}.summary{display:block}.row{grid-template-columns:minmax(0,1fr) 110px auto}}
+  </style>
+</head>
+<body>
+  <main class="sheet">
+    <p class="eyebrow">现金流水</p><h1 class="title">编辑流水</h1>
+    <div class="summary"><span>便利店</span><strong class="mono">-¥100.00</strong></div>
+    <label>账户分配</label><p class="hint">金额合计需等于流水金额。</p>
+    <section class="section" aria-label="普通流水单项分配"><h2>普通流水</h2><div class="row"><select aria-label="账户"><option>支付宝余额</option></select><input aria-label="分配金额" value="-100.00"><button class="icon" aria-label="删除分配">×</button></div><p class="status ok">金额已匹配</p></section>
+    <section class="section" aria-label="组合支付多项分配"><h2>组合支付</h2><div class="row"><select aria-label="账户"><option>支付宝余额</option></select><input aria-label="支付宝余额分配金额" value="-60.00"><button class="icon" aria-label="删除分配">×</button></div><div class="row"><select aria-label="账户"><option>招商银行</option></select><input aria-label="招商银行分配金额" value="-30.00"><button class="icon" aria-label="删除分配">×</button></div><button class="button">添加账户</button><p class="status error" role="alert">金额合计 -90.00，与流水金额 -100.00 不一致。</p></section>
+    <section class="section" aria-label="空分配状态"><h2>尚未添加账户</h2><div class="empty">请添加至少一个账户分配。</div></section>
+    <div class="actions"><button class="button">取消</button><button class="button primary">保存</button></div>
+  </main>
+</body>
+</html>
