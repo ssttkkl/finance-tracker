@@ -384,6 +384,7 @@ class FactView:
     # Relation matching uses component IDs; the browser and audit views still
     # address the parent transaction. Keep both identities explicit.
     parent_id: str | None = None
+    cash_granularity: str = "atomic"
 
     def __post_init__(self) -> None:
         attrs = self.counterparty_account_attrs

@@ -6,11 +6,13 @@
 
 实施记录：当前 `HEAD=4f4633d`，比较基线为 `origin/refactor/web`（同一提交）；工作树保留未提交的本变更文件。OpenSpec 全量严格校验已通过。未解决风险包括旧应用服务仍使用父流水关系端点，以及 PostgreSQL 专用测试库尚未配置。
 
+实施记录（转账端点小步）：`FactView` 及关系展开保留父级 `cash_granularity`；普通转账与个人换汇 matcher 只接受 `atomic` 组成项，aggregate 组成项首期失败关闭。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/test_source_agnostic_transfer_matching.py tests/test_transaction_relations_transfer.py tests/test_transfer_phase_c.py tests/test_transaction_relations_open_leg.py tests/test_cash_transaction_components.py -q`，结果 `36 passed, 7 skipped`；`git diff --check` 通过。完成提交后记录实际 `HEAD`。
+
 ## 2. 失败契约测试（先红）
 
 - [ ] 2.1 新增父流水/组成项守恒、`atomic`/`aggregate` 派生和非法输入测试，先确认当前实现失败。
 - [ ] 2.2 新增支付宝 `&` 多账户预览阻塞、Decimal 分摊确认、重复确认幂等和 `source_payload` 保留测试。
-- [ ] 2.3 新增 component-to-component `payment_mirror`、部分/多笔 `refund_offset`、singleton `transfer_pair` 和 applied amount 超额拒绝测试。
+- [x] 2.3 新增 component-to-component `payment_mirror`、部分/多笔 `refund_offset`、singleton `transfer_pair` 和 applied amount 超额拒绝测试。
 - [ ] 2.4 新增组成项余额快照、账户筛选、父级投影展示和财富现金流来源 revision 测试。
 - [ ] 2.5 新增 SQLite/PostgreSQL 同一契约矩阵测试，覆盖工作区外键、精确金额和关系端点类型。
 
@@ -39,7 +41,7 @@
 
 - [ ] 6.1 将 `payment_mirror` matcher/index 从父 fact 展开为 component 视图，保留父流水的时间、商户和来源证据。
 - [ ] 6.2 将 `refund_offset` 剩余金额和 open-leg 锚点改为 component，支持部分退款、分次退款及平台/银行退款镜像。
-- [ ] 6.3 将普通 `transfer_pair` 改为 singleton component 端点；aggregate 转账首期失败关闭，换汇保留双币种语义。
+- [x] 6.3 将普通 `transfer_pair` 改为 singleton component 端点；aggregate 转账首期失败关闭，换汇保留双币种语义。
 - [ ] 6.4 将现金—投资资金调拨候选、唯一性和投影引用改为 component 端点。
 - [ ] 6.5 更新关系审查、确认、取代、幂等和跨工作区校验，确保不能混入父流水 ID。
 

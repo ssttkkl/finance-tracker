@@ -81,6 +81,7 @@ def _fact_view_from_row(row: dict) -> FactView:
         raw_payload=payload,
         relation_metadata=relation_metadata,
         parent_id=str(row.get("parent_id")) if row.get("parent_id") not in (None, "") else None,
+        cash_granularity=str(row.get("cash_granularity") or "atomic"),
     )
 
 
@@ -2352,6 +2353,7 @@ class RelationService:
                 item["account_id"] = component.get("account_id")
                 item["account_name"] = component.get("account_name") or ""
                 item["account_type"] = component.get("account_type") or row.get("account_type") or "cash"
+                item["cash_granularity"] = row.get("cash_granularity") or "atomic"
                 expanded.append(item)
         return expanded
 
