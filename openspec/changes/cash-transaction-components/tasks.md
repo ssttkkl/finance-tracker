@@ -28,6 +28,8 @@
 
 实施记录（组件外键测试夹具）：为新增现金父流水的关系、投影、证据和分类维护测试补齐 singleton `cash_transaction_components`，并删除无法在新组件端点模型中表达的现金到投资旧关系夹具。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/contract/test_web_api.py::test_projection_api_returns_member_sources_in_member_order_without_duplicates tests/integration/test_web_sqlite.py::test_file_sqlite_evidence_read_uses_one_projection_snapshot tests/test_relational_cash_projection_evidence.py tests/test_relational_cash_projections.py::test_replace_dataset_bulk_writes_restricted_parent_mapping_and_preserves_roles_and_ordinals tests/test_application_web_queries.py::test_projection_page_keeps_version_and_dataset_in_one_read_snapshot tests/test_cash_category_management.py::test_relation_maintenance_adopts_display_root_category_for_all_members -q`，结果 `7 passed, 3 skipped`；`git diff --check` 通过。
 
+实施记录（幂等来源元数据清理）：重复导入来源行不再携带 `relation_metadata` 时，现金仓储会清空旧的派生关系元数据，避免 stale hint 残留；来源快照仍保持不变。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/test_015_idempotency.py::test_relation_metadata_is_separate_and_refreshes_on_idempotent_reimport -q`，结果 `1 passed`；`git diff --check` 通过。
+
 ## 2. 失败契约测试（先红）
 
 - [ ] 2.1 新增父流水/组成项守恒、`atomic`/`aggregate` 派生和非法输入测试，先确认当前实现失败。

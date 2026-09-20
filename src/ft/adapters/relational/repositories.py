@@ -913,8 +913,10 @@ class RelationalCashflowRepository:
                     "_account": account,
                 }
             previous = self._to_row(existing, account)
-            if "relation_metadata" in row:
-                existing.relation_metadata = incoming_relation_metadata
+            # Relation metadata is derived from the current source row.  A
+            # re-import that omits it explicitly clears stale derived hints;
+            # source_payload remains untouched for audit purposes.
+            existing.relation_metadata = incoming_relation_metadata
             return {
                 "fact_id": existing.id,
                 "created": False,
