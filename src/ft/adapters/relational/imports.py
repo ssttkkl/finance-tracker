@@ -1,7 +1,7 @@
 """Import identity helpers (no batch/raw tables after 015)."""
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from .models import AccountModel, CashTransactionModel, InvestmentEventModel, SyncCursorModel
 
@@ -39,9 +39,9 @@ class RelationalImportRepository:
             cash_rows = self._session.execute(
                 select(
                     CashTransactionModel.record_id,
-                    AccountModel.name,
+                    func.coalesce(AccountModel.name, ""),
                     CashTransactionModel.currency,
-                ).join(AccountModel, (
+                ).outerjoin(AccountModel, (
                     AccountModel.workspace_id == CashTransactionModel.workspace_id
                 ) & (AccountModel.id == CashTransactionModel.account_id)).where(
                     CashTransactionModel.workspace_id == self._workspace_id,

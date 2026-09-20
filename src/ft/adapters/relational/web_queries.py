@@ -568,12 +568,18 @@ class RelationalCashLedgerQueryRepository:
             members=s.execute(
                 select(CashProjectionMemberModel, CashTransactionModel, AccountModel)
                 .join(CashTransactionModel, and_(CashTransactionModel.workspace_id==CashProjectionMemberModel.workspace_id, CashTransactionModel.id==CashProjectionMemberModel.cash_transaction_id))
-                .join(AccountModel, and_(AccountModel.workspace_id==CashTransactionModel.workspace_id, AccountModel.id==CashTransactionModel.account_id))
+                .outerjoin(AccountModel, and_(AccountModel.workspace_id==CashTransactionModel.workspace_id, AccountModel.id==CashTransactionModel.account_id))
                 .where(CashProjectionMemberModel.projection_row_id==row.id)
                 .order_by(CashProjectionMemberModel.ordinal)
             ).all()
             member_ids = [cash.id for _, cash, _ in members]
             member_rows = {cash.id: (cash, member_account) for _, cash, member_account in members}
+            member_component_ids = s.scalars(
+                select(CashTransactionComponentModel.id).where(
+                    CashTransactionComponentModel.workspace_id == self._workspace_id,
+                    CashTransactionComponentModel.cash_transaction_id.in_(member_ids),
+                )
+            ).all()
             root, root_account = member_rows[row.root_cash_transaction_id]
             accepted_by_id = {
                 relation.id: relation for relation in s.scalars(
@@ -589,7 +595,7 @@ class RelationalCashLedgerQueryRepository:
                     TransactionRelationModel.status.in_(("pending_review", "rejected", "superseded")),
                     TransactionRelationModel.primary_fact_type == "cash",
                     or_(TransactionRelationModel.secondary_fact_id.is_(None), TransactionRelationModel.secondary_fact_type == "cash"),
-                    or_(TransactionRelationModel.primary_fact_id.in_(member_ids), TransactionRelationModel.secondary_fact_id.in_(member_ids)),
+                    or_(TransactionRelationModel.primary_fact_id.in_(member_component_ids), TransactionRelationModel.secondary_fact_id.in_(member_component_ids)),
                 ).order_by(TransactionRelationModel.status, TransactionRelationModel.id)
             ).all()
             endpoint_ids = sorted({

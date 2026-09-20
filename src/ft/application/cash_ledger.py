@@ -545,7 +545,7 @@ class CashLedgerCommandService:
             session = uow._state().session
             current_model_row = session.execute(
                 sa_select(CashTransactionModel, AccountModel)
-                .join(AccountModel, (
+                .outerjoin(AccountModel, (
                     AccountModel.workspace_id == CashTransactionModel.workspace_id
                 ) & (AccountModel.id == CashTransactionModel.account_id))
                 .where(
@@ -579,7 +579,7 @@ class CashLedgerCommandService:
             if remaining_target_ids:
                 model_rows = session.execute(
                     sa_select(CashTransactionModel, AccountModel)
-                    .join(AccountModel, (
+                    .outerjoin(AccountModel, (
                         AccountModel.workspace_id == CashTransactionModel.workspace_id
                     ) & (AccountModel.id == CashTransactionModel.account_id))
                     .where(
@@ -766,7 +766,7 @@ class CashLedgerCommandService:
 
         model_rows = session.execute(
             sa_select(CashTransactionModel, AccountModel)
-            .join(AccountModel, (
+            .outerjoin(AccountModel, (
                 AccountModel.workspace_id == CashTransactionModel.workspace_id
             ) & (AccountModel.id == CashTransactionModel.account_id))
             .where(

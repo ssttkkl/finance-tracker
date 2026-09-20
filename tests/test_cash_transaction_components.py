@@ -180,3 +180,27 @@ def test_aggregate_refund_components_can_offset_and_mirror_bank_refund(cash_web_
         expense["id"], bank_expense["id"], refund["id"], bank_refund["id"],
     })
     assert projection.net_amount == Decimal("-50.00")
+
+
+def test_aggregate_parent_can_be_deleted_without_a_single_account(cash_web_runtime):
+    from ft.adapters.relational.models import CashTransactionModel, AccountModel
+
+    with cash_web_runtime.sessions.begin() as session:
+        session.add(AccountModel(
+            workspace_id=cash_web_runtime.workspace_id,
+            name="工商银行储蓄卡", type="cash", currencies=["CNY"],
+        ))
+    _enable_cny(cash_web_runtime, "日常账户", "工商银行储蓄卡")
+    service = _service(cash_web_runtime)
+    record = service.create_record(_payload(
+        account_name="日常账户",
+        components=[
+            {"account_name": "日常账户", "amount": "-60.00"},
+            {"account_name": "工商银行储蓄卡", "amount": "-40.00"},
+        ],
+    ))["record"]
+
+    deleted = service.delete_record(str(record["id"]))
+    assert deleted["deleted"] is True
+    with cash_web_runtime.sessions() as session:
+        assert session.get(CashTransactionModel, record["id"]) is None
