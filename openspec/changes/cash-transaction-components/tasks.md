@@ -14,6 +14,8 @@
 
 实施记录（测试夹具组件化）：更新 `cash_web_runtime` 夹具，为固定种子现金流水建立 singleton `cash_transaction_components`，并在父流水 flush 后写入，修复关系模型切换到组件外键后旧测试直接引用父 ID 导致的外键失败。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/test_transaction_relations_projection.py tests/test_cash_ledger_management.py tests/test_application_cash_projections.py -q`，结果 `48 passed, 7 skipped`；完整关系/投影/转账回归 `82 passed, 9 skipped`；`git diff --check` 通过。
 
+实施记录（资金调拨关系测试组件化）：更新现金—投资资金调拨测试夹具，为每条现金流水创建 singleton component，并将关系断言及手工关系构造统一改为 `cash_transaction_component_id`。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/test_cash_investment_funding_relations.py -q`，结果 `10 passed, 10 skipped`；PostgreSQL 因 `FT_TEST_POSTGRES_URL` 未配置而跳过，未计入通过项。
+
 ## 2. 失败契约测试（先红）
 
 - [ ] 2.1 新增父流水/组成项守恒、`atomic`/`aggregate` 派生和非法输入测试，先确认当前实现失败。

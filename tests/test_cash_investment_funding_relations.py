@@ -60,6 +60,8 @@ def _add_cash(
     session, model, *, account_id, record_id, amount, record_type,
     day="2026-08-04", currency="USD", counterparty="", workspace_id="funding",
 ):
+    from ft.adapters.relational.models import CashTransactionComponentModel
+
     row = model(
         workspace_id=workspace_id,
         account_id=account_id,
@@ -76,7 +78,31 @@ def _add_cash(
     )
     session.add(row)
     session.flush()
+    session.add(CashTransactionComponentModel(
+        workspace_id=workspace_id,
+        cash_transaction_id=row.id,
+        account_id=account_id,
+        amount=Decimal(amount),
+        currency=currency,
+        ordinal=0,
+        label="singleton",
+        source_key=record_id,
+    ))
+    session.flush()
     return row
+
+
+def _component_id(sessions_or_session, cash_transaction_id):
+    from sqlalchemy import select
+
+    from ft.adapters.relational.models import CashTransactionComponentModel
+
+    if hasattr(sessions_or_session, "scalar"):
+        return sessions_or_session.scalar(select(CashTransactionComponentModel.id).where(
+            CashTransactionComponentModel.cash_transaction_id == cash_transaction_id,
+        ))
+    with sessions_or_session() as session:
+        return _component_id(session, cash_transaction_id)
 
 
 def _add_investment(
@@ -130,7 +156,7 @@ def test_unique_strong_candidate_is_idempotently_confirmed_and_projects_as_bank_
     assert first == second
     relation = first[0]
     assert relation["status"] == "accepted"
-    assert relation["cash_transaction_id"] == cash.id
+    assert relation["cash_transaction_component_id"] == _component_id(sessions, cash.id)
     assert relation["investment_event_id"] == investment.id
     assert relation["rule_id"] == "cash-investment-funding-v1"
     assert relation["evidence"] == {
@@ -175,7 +201,7 @@ def test_unique_institution_name_candidate_allows_cross_currency_and_amount_diff
     relation = CashInvestmentFundingRelationService(sessions, "funding").scan()[0]
 
     assert relation["status"] == "accepted"
-    assert relation["cash_transaction_id"] == cash.id
+    assert relation["cash_transaction_component_id"] == _component_id(sessions, cash.id)
     assert relation["investment_event_id"] == investment.id
     assert relation["decision_reason"] == "unique_institution_name_candidate"
     assert relation["evidence"] == {
@@ -209,7 +235,7 @@ def test_schwab_institution_name_candidate_allows_bank_fee_difference(funding_ru
     relation = CashInvestmentFundingRelationService(sessions, "funding").scan()[0]
 
     assert relation["status"] == "accepted"
-    assert relation["cash_transaction_id"] == cash.id
+    assert relation["cash_transaction_component_id"] == _component_id(sessions, cash.id)
     assert relation["investment_event_id"] == investment.id
     assert relation["decision_reason"] == "unique_institution_name_candidate"
     assert relation["evidence"] == {
@@ -247,7 +273,7 @@ def test_institution_name_prefers_the_unique_exact_candidate_over_generic_transf
 
     assert len(relations) == 1
     assert relations[0]["status"] == "accepted"
-    assert relations[0]["cash_transaction_id"] == institution_cash.id
+    assert relations[0]["cash_transaction_component_id"] == _component_id(sessions, institution_cash.id)
     assert relations[0]["investment_event_id"] == investment.id
 
 
@@ -295,7 +321,8 @@ def test_institution_name_candidate_upgrades_unreviewed_system_candidate(funding
             amount="1275.50", currency="USD", source_type="ibkr_csv", day="2026-08-04",
         )
         session.add(CashInvestmentFundingRelationModel(
-            workspace_id="funding", cash_transaction_id=cash.id, investment_event_id=investment.id,
+            workspace_id="funding", cash_transaction_component_id=_component_id(session, cash.id),
+            investment_event_id=investment.id,
             direction="cash_to_investment", status="pending_review",
             rule_id="cash-investment-funding-v1", created_by="system",
             evidence={"business_day_window": 6, "candidate_count": 1},
@@ -333,13 +360,13 @@ def test_stronger_institution_candidate_archives_legacy_generic_candidate(fundin
         )
         session.add_all([
             CashInvestmentFundingRelationModel(
-                workspace_id="funding", cash_transaction_id=generic_cash.id,
+                workspace_id="funding", cash_transaction_component_id=_component_id(session, generic_cash.id),
                 investment_event_id=investment.id, direction="cash_to_investment",
                 status="pending_review", rule_id="cash-investment-funding-v1", created_by="system",
                 evidence={"business_day_window": 0, "candidate_count": 2},
             ),
             CashInvestmentFundingRelationModel(
-                workspace_id="funding", cash_transaction_id=institution_cash.id,
+                workspace_id="funding", cash_transaction_component_id=_component_id(session, institution_cash.id),
                 investment_event_id=investment.id, direction="cash_to_investment",
                 status="pending_review", rule_id="cash-investment-funding-v1", created_by="system",
                 evidence={"business_day_window": 0, "candidate_count": 2},
@@ -348,10 +375,12 @@ def test_stronger_institution_candidate_archives_legacy_generic_candidate(fundin
 
     results = CashInvestmentFundingRelationService(sessions, "funding").scan()
 
-    by_cash_id = {relation["cash_transaction_id"]: relation for relation in results}
-    assert by_cash_id[generic_cash.id]["status"] == "rejected"
-    assert by_cash_id[generic_cash.id]["decision_reason"] == "no_longer_candidate"
-    assert by_cash_id[institution_cash.id]["status"] == "accepted"
+    generic_component_id = _component_id(sessions, generic_cash.id)
+    institution_component_id = _component_id(sessions, institution_cash.id)
+    by_component_id = {relation["cash_transaction_component_id"]: relation for relation in results}
+    assert by_component_id[generic_component_id]["status"] == "rejected"
+    assert by_component_id[generic_component_id]["decision_reason"] == "no_longer_candidate"
+    assert by_component_id[institution_component_id]["status"] == "accepted"
 
 
 def test_ordinary_or_ambiguous_candidates_require_manual_decision_and_consume_endpoints_once(funding_runtime):
@@ -374,13 +403,17 @@ def test_ordinary_or_ambiguous_candidates_require_manual_decision_and_consume_en
     accepted = service.confirm(candidates[0]["id"], actor="tester", reason="matched receipt")
     assert accepted["status"] == "accepted"
     assert accepted["decided_by"] == "tester"
-    other = next(item for item in candidates if item["cash_transaction_id"] != accepted["cash_transaction_id"])
+    other = next(
+        item for item in candidates
+        if item["cash_transaction_component_id"] != accepted["cash_transaction_component_id"]
+    )
     with pytest.raises(ValueError, match="端点已被确认关系占用"):
         service.confirm(other["id"], actor="tester")
 
     rejected = service.reject(other["id"], actor="tester", reason="not the funding transfer")
     assert rejected["status"] == "rejected"
-    assert rejected["cash_transaction_id"] != first_cash.id or accepted["cash_transaction_id"] == first_cash.id
+    assert rejected["cash_transaction_component_id"] != _component_id(sessions, first_cash.id) \
+        or accepted["cash_transaction_component_id"] == _component_id(sessions, first_cash.id)
 
 
 def test_non_external_funding_and_other_workspace_endpoints_fail_closed(funding_runtime):
@@ -438,7 +471,7 @@ def test_non_external_funding_and_other_workspace_endpoints_fail_closed(funding_
         with sessions.begin() as session:
             session.add(CashInvestmentFundingRelationModel(
                 workspace_id="funding",
-                cash_transaction_id=cash.id,
+                cash_transaction_component_id=_component_id(session, cash.id),
                 investment_event_id=other_investment.id,
                 direction="cash_to_investment",
                 status="pending_review",
