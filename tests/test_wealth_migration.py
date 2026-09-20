@@ -43,7 +43,9 @@ def test_wealth_source_revision_migration_round_trips_one_step(tmp_path) -> None
         trigger_names = set(connection.scalars(text(
             "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'wealth_source_revision_%'"
         )))
-    assert len(trigger_names) == 15
+    # The component revision adds three component-backed cash source triggers
+    # to the original wealth-source set.
+    assert len(trigger_names) == 18
 
     command.downgrade(config, "20260816_34")
     with engine.connect() as connection:

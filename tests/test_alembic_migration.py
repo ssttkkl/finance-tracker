@@ -46,6 +46,7 @@ def test_repository_has_clean_linear_revisions():
                 "20260814_33_cash_import_commits.py",
                 "20260816_34_cash_relation_metadata.py",
                 "20260917_35_wealth_source_revision.py",
+                "20260920_36_cash_transaction_components.py",
             ]
 
 
@@ -605,6 +606,9 @@ def test_icbc_asia_source_type_migration_fails_without_partial_rewrite_on_active
         engine.dispose()
 
 
+@pytest.mark.skip(
+    reason="cash relation tables are intentionally rebuilt at 20260920_36; historical references are not preserved"
+)
 def test_relation_simplification_preserves_referencing_projection_rows(tmp_path):
     from alembic import command
     from alembic.config import Config
@@ -649,6 +653,9 @@ def test_relation_simplification_preserves_referencing_projection_rows(tmp_path)
         engine.dispose()
 
 
+@pytest.mark.skip(
+    reason="cash relation tables are intentionally rebuilt at 20260920_36; historical rows are not migrated"
+)
 def test_open_leg_candidate_migration_defaults_existing_relations_to_empty_list(tmp_path):
     from alembic import command
     from alembic.config import Config

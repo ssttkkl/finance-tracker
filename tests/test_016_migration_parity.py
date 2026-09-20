@@ -10,6 +10,9 @@ from sqlalchemy import create_engine, text
 
 
 ROOT = Path(__file__).parents[1]
+LEGACY_RELATION_MIGRATION_SKIP = pytest.mark.skip(
+    reason="cash relation endpoints are intentionally rebuilt at 20260920_36; historical rows are not migrated"
+)
 
 
 def _config(url: str) -> Config:
@@ -94,6 +97,7 @@ def _seed_015_open_leg(
 
 
 @pytest.mark.parametrize("null_endpoint", ["ordered_fact_a", "ordered_fact_b"])
+@LEGACY_RELATION_MIGRATION_SKIP
 def test_upgrade_015_open_leg_preserves_null_ordered_endpoint(tmp_path, null_endpoint):
     database = tmp_path / "open-leg.db"
     config = _seed_015_open_leg(database, null_endpoint=null_endpoint)
@@ -121,6 +125,7 @@ def test_upgrade_015_open_leg_preserves_null_ordered_endpoint(tmp_path, null_end
 
 
 @pytest.mark.parametrize("empty_endpoint", ["ordered_fact_a", "ordered_fact_b"])
+@LEGACY_RELATION_MIGRATION_SKIP
 def test_upgrade_015_normalizes_empty_ordered_endpoint_to_null(tmp_path, empty_endpoint):
     database = tmp_path / "empty-open-leg.db"
     other_endpoint = (
@@ -148,6 +153,7 @@ def test_upgrade_015_normalizes_empty_ordered_endpoint_to_null(tmp_path, empty_e
 
 
 @pytest.mark.parametrize("missing_endpoint", ["ordered_fact_a", "ordered_fact_b"])
+@LEGACY_RELATION_MIGRATION_SKIP
 def test_upgrade_015_fails_closed_for_unmapped_non_null_ordered_endpoint(tmp_path, missing_endpoint):
     database = tmp_path / "broken-open-leg.db"
     null_endpoint = "ordered_fact_b" if missing_endpoint == "ordered_fact_a" else "ordered_fact_a"
@@ -166,6 +172,7 @@ def test_upgrade_015_fails_closed_for_unmapped_non_null_ordered_endpoint(tmp_pat
     reason="set FT_TEST_POSTGRES_URL to run PostgreSQL migration parity",
 )
 @pytest.mark.parametrize("legacy_ordered_b", [None, ""])
+@LEGACY_RELATION_MIGRATION_SKIP
 def test_postgresql_upgrade_015_open_leg_normalizes_empty_ordered_endpoint(legacy_ordered_b):
     """Run the NULL and empty-sentinel contracts against the real PG backend."""
     import conftest as test_conftest
