@@ -55,6 +55,49 @@ def _decimal(payload: dict, key: str, *, required: bool = True) -> Decimal | Non
     return result
 
 
+def _component_items(value, *, field: str = "components") -> list[dict] | None:
+    """Parse component amounts without allowing JSON floats into the domain."""
+    if value is None:
+        return None
+    if not isinstance(value, list) or not value:
+        raise ValueError(f"{field}_must_be_non_empty_array")
+    parsed: list[dict] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            raise ValueError(f"{field}_{index}_must_be_object")
+        account_name = item.get("account_name", item.get("account"))
+        if account_name is not None and not isinstance(account_name, str):
+            raise ValueError(f"{field}_{index}_account_must_be_string")
+        amount = item.get("amount")
+        if not isinstance(amount, str) or not amount.strip():
+            raise ValueError(f"{field}_{index}_amount_must_be_decimal_string")
+        parsed_item = {
+            key: item[key]
+            for key in ("account_id", "account_name", "account", "currency", "label", "source_key", "metadata", "metadata_json")
+            if key in item
+        }
+        parsed_item["amount"] = _decimal({"amount": amount}, "amount")
+        parsed.append(parsed_item)
+    return parsed
+
+
+def _cashflow_components(payload: dict) -> tuple[list[dict] | None, dict | None]:
+    """Normalize manual component input while preserving allocation status."""
+    raw_components = payload.get("components")
+    allocation = payload.get("component_allocation")
+    if allocation is not None and not isinstance(allocation, dict):
+        raise ValueError("component_allocation_must_be_object")
+    if raw_components is None and isinstance(allocation, dict):
+        raw_components = allocation.get("components")
+    components = _component_items(raw_components)
+    if allocation is None:
+        return components, None
+    normalized_allocation = dict(allocation)
+    if raw_components is not None:
+        normalized_allocation["components"] = components
+    return components, normalized_allocation
+
+
 def _json_body_error(cause: BaseException) -> JSONResponse:
     if isinstance(cause, ValueError):
         return _payload_error(cause)
@@ -158,16 +201,19 @@ def operation_router(services) -> APIRouter:
             payload = await request.json()
             if not isinstance(payload, dict):
                 raise ValueError("cashflow_payload_invalid")
+            components, component_allocation = _cashflow_components(payload)
             result = services.legacy_cashflow().add_manual_transaction(
                 amount=_decimal(payload, "amount"),
                 counterparty=_text(payload, "counterparty"),
-                account_name=_text(payload, "account"),
+                account_name=_text(payload, "account", required=False) or "",
                 currency=_text(payload, "currency"),
                 note=_text(payload, "note", required=False) or "",
                 source=_text(payload, "source", required=False) or "",
                 date=_text(payload, "date", required=False),
                 record_type=_text(payload, "record_type", required=False) or "other",
                 category_id=_text(payload, "category_id", required=False),
+                components=components,
+                component_allocation=component_allocation,
             )
             return _application_result(result, success_status=201)
         except ValueError as exc:

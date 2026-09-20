@@ -22,6 +22,8 @@
 
 实施记录（活跃来源索引修复）：在组件重建 revision 中恢复 `uq_cash_transactions_active_source_record` 的 `deleted_at IS NULL` 谓词，允许软删除后重新导入相同来源记录。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/test_multi_currency_accounts.py::test_same_account_cny_and_jpy_add_and_checkin_do_not_clobber tests/test_015_idempotency.py::test_soft_delete_then_reimport_allows_new_active -q`，结果 `2 passed`。
 
+实施记录（现金流 HTTP 组件输入）：`/api/v1/cashflow/add` 现在接受 `components` / `component_allocation`，按 Decimal 字符串解析组成项金额；组合流水可省略父级账户并由服务层从首个组成项推导。列表 JSON 序列化补齐递归，确保响应中的组成项 Decimal 始终输出为精确字符串。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/contract/test_cli_replacement_api.py -q`，结果 `8 passed, 1 skipped`；`git diff --check` 通过。
+
 ## 2. 失败契约测试（先红）
 
 - [ ] 2.1 新增父流水/组成项守恒、`atomic`/`aggregate` 派生和非法输入测试，先确认当前实现失败。

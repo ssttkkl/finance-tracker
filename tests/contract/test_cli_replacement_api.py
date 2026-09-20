@@ -287,6 +287,40 @@ def test_cashflow_replacement_rejects_numeric_amounts_to_preserve_decimal_contra
     assert response.json()["error"]["code"] == "amount_must_be_decimal_string"
 
 
+def test_cashflow_replacement_accepts_component_allocations_without_parent_account():
+    operations = _Operations()
+    response = _client(operations).post("/api/v1/cashflow/add", json={
+        "amount": "-100.00",
+        "counterparty": "组合支付",
+        "currency": "CNY",
+        "components": [
+            {"account_name": "支付宝零钱", "amount": "-40.00", "label": "余额"},
+            {"account_name": "工商银行", "amount": "-60.00", "label": "银行卡"},
+        ],
+    })
+
+    assert response.status_code == 201
+    call = operations.calls[-1]
+    assert call[0] == "cashflow.add"
+    assert call[1]["account_name"] == ""
+    assert [item["amount"] for item in call[1]["components"]] == [Decimal("-40.00"), Decimal("-60.00")]
+
+
+def test_cashflow_replacement_rejects_component_float_amounts():
+    operations = _Operations()
+    response = _client(operations).post("/api/v1/cashflow/add", json={
+        "amount": "-100.00",
+        "counterparty": "组合支付",
+        "currency": "CNY",
+        "components": [
+            {"account_name": "支付宝零钱", "amount": -40.0},
+        ],
+    })
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "components_0_amount_must_be_decimal_string"
+
+
 def test_http_replacement_matrix_covers_queries_relations_investments_and_fact_delete():
     operations = _Operations()
     client = _client(operations)
