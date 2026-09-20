@@ -78,7 +78,7 @@ export function canWrite(role: Role | null | undefined): boolean {
 }
 
 export type CashRecordDraft = {
-  accountName: string;
+  accountName?: string;
   amount: DecimalString;
   currency: string;
   occurredAt: string;
@@ -88,6 +88,12 @@ export type CashRecordDraft = {
   counterpartyAccount: string;
   note: string;
   categoryId?: string | null;
+  components?: CashRecordComponentDraft[];
+};
+
+export type CashRecordComponentDraft = {
+  accountName: string;
+  amount: DecimalString;
 };
 
 const DECIMAL_PATTERN = /^[+-]?\d+(?:\.\d+)?$/;
@@ -96,13 +102,31 @@ export function isExactDecimalString(value: unknown): value is DecimalString {
   return typeof value === "string" && DECIMAL_PATTERN.test(value);
 }
 
+function decimalParts(value: string): { integer: bigint; scale: number } | null {
+  if (!DECIMAL_PATTERN.test(value)) return null;
+  const sign = value.startsWith("-") ? -1n : 1n;
+  const unsigned = value.replace(/^[+-]/, "");
+  const [whole, fraction = ""] = unsigned.split(".");
+  return { integer: sign * BigInt(`${whole}${fraction}`), scale: fraction.length };
+}
+
+export function cashComponentsConserve(components: readonly CashRecordComponentDraft[], amount: DecimalString): boolean {
+  if (!components.length || components.some((component) => !component.accountName.trim() || !isExactDecimalString(component.amount))) return false;
+  const parsed = [...components.map((component) => component.amount), amount].map(decimalParts);
+  if (parsed.some((item) => !item)) return false;
+  const scale = Math.max(...parsed.map((item) => item!.scale));
+  const scaled = parsed.map((item) => item!.integer * 10n ** BigInt(scale - item!.scale));
+  return scaled.slice(0, -1).reduce((sum, value) => sum + value, 0n) === scaled.at(-1)!;
+}
+
 export function buildCashRecordPayload(draft: CashRecordDraft): Record<string, unknown> {
   if (!isExactDecimalString(draft.amount)) throw new Error("amount_invalid");
-  if (!draft.accountName || !draft.currency || !draft.occurredAt || !draft.recordType || !draft.recordSubtype) {
+  if ((!draft.accountName && !draft.components?.length) || !draft.currency || !draft.occurredAt || !draft.recordType || !draft.recordSubtype) {
     throw new Error("cash_record_incomplete");
   }
+  if (draft.components && !cashComponentsConserve(draft.components, draft.amount)) throw new Error("cash_components_not_conserved");
   return {
-    account_name: draft.accountName,
+    account_name: draft.accountName ?? "",
     amount: draft.amount,
     currency: draft.currency,
     occurred_at: draft.occurredAt,
@@ -112,6 +136,7 @@ export function buildCashRecordPayload(draft: CashRecordDraft): Record<string, u
     counterparty_account: draft.counterpartyAccount,
     note: draft.note,
     category_id: draft.categoryId ?? null,
+    ...(draft.components ? { components: draft.components.map((component) => ({ account_name: component.accountName, amount: component.amount })) } : {}),
   };
 }
 

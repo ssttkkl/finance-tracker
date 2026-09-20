@@ -79,6 +79,8 @@ UI 信息架构记录：Web/Native 均保留父流水作为单一展示单位，
 
 实施记录（Web 手工流水组件编辑）：`RecordDrawer` 以父流水为编辑单位，新增/删除/修改账户分配并提交 `components`；保存按钮和服务端错误均阻止金额不守恒写入，首项保留 `账户` 无障碍标签以兼容既有键盘流程。原型与 Web 构建验证：`npm run build --workspace finance-tracker-web` 通过；`npm test --workspace finance-tracker-web -- --run` 最终 `150 passed`；`npm test --workspace finance-tracker-web -- --run tests/CashLedgerPage.test.tsx` `29 passed`；`openspec validate --all --strict` 通过；`git diff --check` 通过。跨端影响：共享字段语义和守恒规则已记录，Native 编辑/导入尚待实现；真实浏览器 QA 与 Hallmark audit 尚未完成。
 
+实施记录（共享 payload 与 Native 手工流水编辑）：`CashRecordDraft`/`buildCashRecordPayload` 支持可选 `components`，共享层以 BigInt 对齐小数位校验父金额守恒；Native 新建、编辑和详情按同一父流水 + 账户分配信息架构实现，未暴露粒度字段。验证命令：`npm test --workspace @finance-tracker/core`（9 passed）、`npm run typecheck --workspace @finance-tracker/core`、`npx tsc --noEmit -p mobile/tsconfig.json`、`npm test --workspace finance-tracker-mobile`（26 passed）均通过；Native 导入分摊、真实设备/浏览器 QA 与 Hallmark audit 尚未完成。
+
 ## 8. 审查与验证
 
 - [ ] 8.1 运行受影响单元/集成/契约测试、类型检查、构建和 `git diff --check`，逐项记录结果。

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import type { Account, CashCategory, CashRecordDetail, Evidence, LedgerOptions } from "@finance-tracker/contracts";
-import { buildCashRecordPayload, canWrite } from "@finance-tracker/core";
+import { buildCashRecordPayload, canWrite, type CashRecordComponentDraft } from "@finance-tracker/core";
 import { Button, Header, Label, Screen, StatusMessage, Surface } from "@/components/NativeShell";
 import { errorMessage, useSession } from "@/state/session";
 import { withWriteTimeout } from "@/platform/timeout";
@@ -81,7 +81,7 @@ export default function RecordScreen() {
   const [writeError, setWriteError] = useState<string | null>(null);
   const [amount, setAmount] = useState("0.00");
   const [currency, setCurrency] = useState("CNY");
-  const [accountId, setAccountId] = useState<number | null>(null);
+  const [components, setComponents] = useState<CashRecordComponentDraft[]>([{ accountName: "", amount: "0.00" }]);
   const [recordType, setRecordType] = useState("consumption");
   const [recordSubtype, setRecordSubtype] = useState("not_applicable");
   const [occurredAt, setOccurredAt] = useState(() => new Date().toISOString());
@@ -99,8 +99,9 @@ export default function RecordScreen() {
         setAccounts(nextAccounts);
         setOptions(nextOptions);
         setCategories(nextCategories.items);
-        setAccountId(nextAccounts[0]?.id ?? null);
-        setCurrency(nextAccounts[0]?.currencies?.[0] ?? "CNY");
+        const firstAccount = nextAccounts[0];
+        setCurrency(firstAccount?.currencies?.[0] ?? "CNY");
+        setComponents([{ accountName: firstAccount?.name ?? "", amount: "0.00" }]);
       }).catch((cause: unknown) => { if (active) setLoadError(errorMessage(cause instanceof Error ? cause.message : "request_failed")); });
     } else if (projectionId) {
       Promise.all([client.fetchEvidence(projectionId), client.fetchCashAccounts(), client.fetchLedgerOptions(), client.fetchCashCategories()]).then(([nextEvidence, nextAccounts, nextOptions, nextCategories]) => {
@@ -112,7 +113,9 @@ export default function RecordScreen() {
         setCategories(nextCategories.items);
         setAmount(record.amount);
         setCurrency(record.currency);
-        setAccountId(record.account?.id ?? record.account_id ?? null);
+        setComponents(record.components?.length
+          ? record.components.map((component) => ({ accountName: component.account_name, amount: component.amount }))
+          : [{ accountName: record.account?.name ?? record.account_name ?? "", amount: record.amount }]);
         setRecordType(record.record_type ?? (nextEvidence.projection.economic_type === "expense" ? "consumption" : nextEvidence.projection.economic_type === "income" ? "income" : "transfer_out"));
         setRecordSubtype(record.record_subtype ?? "not_applicable");
         setOccurredAt(record.occurred_at.slice(0, 16));
@@ -135,11 +138,10 @@ export default function RecordScreen() {
   }
 
   async function save() {
-    const selectedAccount = accounts.find(({ id }) => id === accountId);
-    if (!writable || !selectedAccount) return;
+    if (!writable) return;
     setWriteError(null); setSubmitting(true);
     try {
-      const payload = buildCashRecordPayload({ accountName: selectedAccount.name, amount, currency, occurredAt, recordType, recordSubtype, counterparty, counterpartyAccount, note, categoryId });
+      const payload = buildCashRecordPayload({ accountName: components.length === 1 ? components[0].accountName : "", amount, currency, occurredAt, recordType, recordSubtype, counterparty, counterpartyAccount, note, categoryId, components });
       if (editing && evidence) await withWriteTimeout(client.updateCashRecord(evidence.root_record.id, payload));
       else await withWriteTimeout(client.createCashRecord(payload));
       router.replace("/(app)/ledger" as never);
@@ -148,18 +150,39 @@ export default function RecordScreen() {
     } finally { setSubmitting(false); }
   }
 
+  function updateComponent(index: number, value: Partial<CashRecordComponentDraft>) {
+    setComponents((current) => current.map((component, currentIndex) => currentIndex === index ? { ...component, ...value } : component));
+  }
+
+  function addComponent() {
+    setComponents((current) => [...current, { accountName: "", amount: "" }]);
+  }
+
+  function removeComponent(index: number) {
+    setComponents((current) => current.length > 1 ? current.filter((_, currentIndex) => currentIndex !== index) : current);
+  }
+
+  const allocationReady = components.length > 0 && components.every((component) => component.accountName.trim() && component.amount.trim()) && (() => {
+    try {
+      buildCashRecordPayload({ accountName: components.length === 1 ? components[0].accountName : "", amount, currency, occurredAt, recordType, recordSubtype, counterparty, counterpartyAccount, note, categoryId, components });
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
   if (loading) return <Screen testID={semanticIds.recordEvidence}><StatusMessage title={copy.record.loading} action={<ActivityIndicator color={nativeColors.accent} />} /></Screen>;
   if (loadError) return <Screen testID={semanticIds.recordEvidence}><StatusMessage title={loadError} tone="error" action={<Button onPress={() => router.back()} variant="primary">{copy.common.back}</Button>} /></Screen>;
-  if (!creating && evidence && !editing) return <Screen testID={semanticIds.recordEvidence}><Header title={copy.record.evidenceTitle} detail={`${evidence.projection.counterparty || copy.ledger.noCounterparty} · ${copy.record.recorded}`} action={<View style={styles.headerActions}><Button testID={semanticIds.recordCancel} onPress={() => router.back()}>{copy.common.back}</Button>{writable && <Button onPress={() => router.replace({ pathname: "/(app)/record", params: { projectionId: evidence.projection.projection_id, mode: "edit" } } as never)}>{copy.record.editTitle}</Button>}</View>} /><Surface><DetailRow label={copy.record.amount} value={`${evidence.projection.amount} ${evidence.projection.currency}`} /><DetailRow label={copy.record.economicType} value={economicTypeLabel(evidence.projection)} /><DetailRow label={copy.record.counterparty} value={evidence.root_record.counterparty || "-"} /><DetailRow label={copy.record.counterpartyAccount} value={evidence.root_record.counterparty_account || "-"} /><DetailRow label={copy.record.occurredAt} value={formatOccurredAt(evidence.root_record.occurred_at)} /><DetailRow label={copy.record.account} value={evidence.root_record.account?.name ?? "多个账户"} /><DetailRow label={copy.record.type} value={recordTypeLabel(evidence)} /><DetailRow label={copy.record.subtype} value={recordSubtypeLabel(evidence.root_record.record_subtype) || "-"} /><DetailRow label={copy.record.category} value={evidence.root_record.category?.path.map(({ name }) => name).join(" / ") || copy.ledger.noCategory} /><DetailRow label={copy.record.note} value={evidence.root_record.note || copy.ledger.noNote} /><DetailRow label={copy.record.source} value={evidence.root_record.source_type ?? copy.ledger.manualSource} /></Surface><Surface><Text style={styles.sectionTitle}>{copy.record.relation}</Text>{evidence.accepted_relations.length === 0 ? <Text style={styles.muted}>{copy.record.noRelations}</Text> : evidence.accepted_relations.map((relation) => <Text key={relation.id} style={styles.relation}>{relation.kind} · {relation.confidence}</Text>)}</Surface></Screen>;
+  if (!creating && evidence && !editing) return <Screen testID={semanticIds.recordEvidence}><Header title={copy.record.evidenceTitle} detail={`${evidence.projection.counterparty || copy.ledger.noCounterparty} · ${copy.record.recorded}`} action={<View style={styles.headerActions}><Button testID={semanticIds.recordCancel} onPress={() => router.back()}>{copy.common.back}</Button>{writable && <Button onPress={() => router.replace({ pathname: "/(app)/record", params: { projectionId: evidence.projection.projection_id, mode: "edit" } } as never)}>{copy.record.editTitle}</Button>}</View>} /><Surface><DetailRow label={copy.record.amount} value={`${evidence.projection.amount} ${evidence.projection.currency}`} /><DetailRow label={copy.record.economicType} value={economicTypeLabel(evidence.projection)} /><DetailRow label={copy.record.counterparty} value={evidence.root_record.counterparty || "-"} /><DetailRow label={copy.record.counterpartyAccount} value={evidence.root_record.counterparty_account || "-"} /><DetailRow label={copy.record.occurredAt} value={formatOccurredAt(evidence.root_record.occurred_at)} /><DetailRow label={copy.record.account} value={evidence.root_record.account?.name ?? "多个账户"} />{evidence.root_record.components?.length ? <View style={styles.componentDetail}><Text style={styles.detailLabel}>账户分配</Text>{evidence.root_record.components.map((component) => <Text key={component.id} style={styles.componentDetailValue}>{component.account_name} · {component.amount} {component.currency}</Text>)}</View> : null}<DetailRow label={copy.record.type} value={recordTypeLabel(evidence)} /><DetailRow label={copy.record.subtype} value={recordSubtypeLabel(evidence.root_record.record_subtype) || "-"} /><DetailRow label={copy.record.category} value={evidence.root_record.category?.path.map(({ name }) => name).join(" / ") || copy.ledger.noCategory} /><DetailRow label={copy.record.note} value={evidence.root_record.note || copy.ledger.noNote} /><DetailRow label={copy.record.source} value={evidence.root_record.source_type ?? copy.ledger.manualSource} /></Surface><Surface><Text style={styles.sectionTitle}>{copy.record.relation}</Text>{evidence.accepted_relations.length === 0 ? <Text style={styles.muted}>{copy.record.noRelations}</Text> : evidence.accepted_relations.map((relation) => <Text key={relation.id} style={styles.relation}>{relation.kind} · {relation.confidence}</Text>)}</Surface></Screen>;
 
   return <Screen testID={semanticIds.recordScreen}><Header title={editing ? copy.record.editTitle : copy.record.newTitle} detail={copy.ledger.title} action={<Button testID={semanticIds.recordCancel} onPress={() => router.back()}>{editing ? copy.common.back : copy.common.cancel}</Button>} />
     {!writable && <StatusMessage title={copy.ledger.readOnly} detail={copy.ledger.readOnlyRecordDetail} tone="error" />}
     {writeError && <StatusMessage title={writeError} detail={copy.record.writeErrorDetail} tone="error" />}
     <Surface>
       <View style={styles.form}>
-        <View style={styles.field}><Label>{copy.record.amount}</Label><TextInput testID={semanticIds.recordAmount} editable={writable && !submitting} keyboardType="decimal-pad" onChangeText={setAmount} style={styles.amountInput} value={amount} /></View>
+        <View style={styles.field}><Label>{copy.record.amount}</Label><TextInput testID={semanticIds.recordAmount} editable={writable && !submitting} keyboardType="decimal-pad" onChangeText={(value) => { setAmount(value); if (components.length === 1) updateComponent(0, { amount: value }); }} style={styles.amountInput} value={amount} /></View>
         <View style={styles.field}><Label>{copy.record.currency}</Label><TextInput testID={semanticIds.recordCurrency} editable={writable && !submitting} autoCapitalize="characters" maxLength={3} onChangeText={setCurrency} style={styles.input} value={currency} /></View>
-        <View style={styles.field}><Label>{copy.record.account}</Label><View style={styles.choiceList}>{accounts.map((account) => <Button testID={accountId === account.id ? semanticIds.recordAccount : undefined} key={account.id} disabled={!writable || submitting} onPress={() => { setAccountId(account.id); setCurrency(account.currencies?.[0] ?? currency); }} variant={accountId === account.id ? "primary" : "secondary"}>{account.name}</Button>)}</View></View>
+        <View style={styles.field}><Label>账户分配</Label>{components.map((component, index) => <View style={styles.componentEditor} key={`${index}-${component.accountName}`}><View style={styles.choiceList}>{accounts.map((account) => <Button testID={index === 0 && component.accountName === account.name ? semanticIds.recordAccount : undefined} key={account.id} disabled={!writable || submitting} onPress={() => updateComponent(index, { accountName: account.name })} variant={component.accountName === account.name ? "primary" : "secondary"}>{account.name}</Button>)}</View><View style={styles.componentAmountRow}><TextInput editable={writable && !submitting} keyboardType="decimal-pad" accessibilityLabel={`第${index + 1}个账户分配金额`} onChangeText={(value) => { updateComponent(index, { amount: value }); if (components.length === 1) setAmount(value); }} style={styles.input} value={component.amount} /><Button accessibilityLabel="删除账户分配" disabled={!writable || submitting || components.length <= 1} onPress={() => removeComponent(index)} variant="danger">×</Button></View></View>)}<Button disabled={!writable || submitting} onPress={addComponent}>添加账户</Button><Text style={[styles.muted, allocationReady ? styles.valid : styles.invalid]}>{allocationReady ? "金额已匹配" : "金额合计需等于流水金额"}</Text></View>
         <View style={styles.field}><Label>{copy.record.category}</Label><View style={styles.choiceList}><Button testID={categoryId === null ? semanticIds.recordCategory : undefined} disabled={!writable || submitting} onPress={() => setCategoryId(null)} variant={categoryId === null ? "primary" : "secondary"}>{copy.ledger.noCategory}</Button>{categories.map((category) => <Button testID={categoryId === category.id ? semanticIds.recordCategory : undefined} key={category.id} disabled={!writable || submitting} onPress={() => setCategoryId(category.id)} variant={categoryId === category.id ? "primary" : "secondary"}>{category.path.map(({ name }) => name).join(" / ")}</Button>)}</View></View>
         <View style={styles.field}><Label>{copy.record.type}</Label><View style={styles.choiceList}>{typeOptions.map((type) => <Button key={type.value} disabled={!writable || submitting} onPress={() => chooseType(type.value)} variant={recordType === type.value ? "primary" : "secondary"}>{type.label}</Button>)}</View></View>
         <View style={styles.field}><Label>{copy.record.subtype}</Label><View style={styles.choiceList}>{(selectedType?.subtypes ?? []).map((subtype) => <Button key={subtype.value} disabled={!writable || submitting} onPress={() => setRecordSubtype(subtype.value)} variant={recordSubtype === subtype.value ? "primary" : "secondary"}>{subtype.label}</Button>)}</View></View>
@@ -168,7 +191,7 @@ export default function RecordScreen() {
         <View style={styles.field}><Label>{copy.record.counterpartyAccount}</Label><TextInput editable={writable && !submitting} onChangeText={setCounterpartyAccount} placeholder={copy.common.optional} placeholderTextColor={nativeColors.inkFaint} style={styles.input} value={counterpartyAccount} /></View>
         <View style={styles.field}><Label>{copy.record.note}</Label><TextInput editable={writable && !submitting} multiline onChangeText={setNote} placeholder={copy.common.optional} placeholderTextColor={nativeColors.inkFaint} style={[styles.input, styles.multiline]} value={note} /></View>
       </View>
-      <Button testID={semanticIds.recordSave} disabled={!writable || submitting || accountId === null} onPress={() => void save()} variant="primary">{submitting ? copy.record.saving : copy.record.save}</Button>
+      <Button testID={semanticIds.recordSave} disabled={!writable || submitting || !allocationReady} onPress={() => void save()} variant="primary">{submitting ? copy.record.saving : copy.record.save}</Button>
     </Surface>
   </Screen>;
 }
@@ -189,4 +212,10 @@ const styles = StyleSheet.create({
   sectionTitle: { color: nativeColors.ink, fontSize: 16, fontWeight: "700" },
   muted: { color: nativeColors.inkMuted, fontSize: 13 },
   relation: { color: nativeColors.ink, fontSize: 13 },
+  componentEditor: { gap: 8, paddingBottom: 8 },
+  componentAmountRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  componentDetail: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: nativeColors.rule, gap: 5 },
+  componentDetailValue: { color: nativeColors.ink, fontFamily: nativeTypography.mono, fontSize: 13 },
+  valid: { color: nativeColors.income },
+  invalid: { color: nativeColors.danger },
 });

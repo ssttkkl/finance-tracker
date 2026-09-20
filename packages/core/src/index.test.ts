@@ -27,6 +27,45 @@ describe("shared finance state", () => {
     expect(payload).not.toHaveProperty("account_id");
   });
 
+  it("builds an aggregate cash payload from exact component allocations", () => {
+    const payload = buildCashRecordPayload({
+      accountName: "",
+      amount: "-100.00",
+      currency: "CNY",
+      occurredAt: "2026-09-05T10:00:00+08:00",
+      recordType: "expense",
+      recordSubtype: "purchase",
+      counterparty: "便利店",
+      counterpartyAccount: "",
+      note: "",
+      components: [
+        { accountName: "支付宝余额", amount: "-60.00" },
+        { accountName: "招商银行", amount: "-40" },
+      ],
+    });
+
+    expect(payload.account_name).toBe("");
+    expect(payload.components).toEqual([
+      { account_name: "支付宝余额", amount: "-60.00" },
+      { account_name: "招商银行", amount: "-40" },
+    ]);
+  });
+
+  it("rejects component allocations that do not conserve the parent amount", () => {
+    expect(() => buildCashRecordPayload({
+      accountName: "",
+      amount: "-100.00",
+      currency: "CNY",
+      occurredAt: "2026-09-05T10:00:00+08:00",
+      recordType: "expense",
+      recordSubtype: "purchase",
+      counterparty: "便利店",
+      counterpartyAccount: "",
+      note: "",
+      components: [{ accountName: "支付宝余额", amount: "-99.99" }],
+    })).toThrow("cash_components_not_conserved");
+  });
+
   it("does not mark an import as started when file selection is cancelled", () => {
     const initial = createImportSession();
     expect(importSessionReducer(initial, { type: "file_cancelled" })).toEqual(initial);
