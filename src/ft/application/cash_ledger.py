@@ -25,6 +25,7 @@ from ft.adapters.relational.models import (
     CashProjectionModel,
     CashProjectionStateModel,
     CashTransactionModel,
+    CashTransactionComponentModel,
     TransactionRelationModel,
     WorkspaceModel,
 )
@@ -302,7 +303,11 @@ class CashLedgerCommandService:
             and relation.get("primary_fact_type") == "cash"
             and relation.get("secondary_fact_type") in {"cash", None}
             and relation.get("secondary_fact_id") not in (None, "")
-            and self._relation_endpoints(relation) <= members
+            and {
+                int(item)
+                for item in (relation.get("primary_record_id"), relation.get("secondary_record_id"))
+                if item not in (None, "")
+            } <= members
         ]
         return members, relations
 
@@ -335,12 +340,6 @@ class CashLedgerCommandService:
         facts, relations = RelationalCashProjectionRepository(
             uow._state().session, uow.workspace_id,
         ).read_sources_for_facts(fact_ids)
-        component = {int(item) for item in fact_ids}
-        facts = tuple(item for item in facts if item.id in component)
-        relations = tuple(
-            item for item in relations
-            if item.primary_fact_id in component and item.secondary_fact_id in component
-        )
         try:
             build_cash_projections(facts, relations)
         except CashProjectionError as exc:
@@ -522,8 +521,7 @@ class CashLedgerCommandService:
                 CashProjectionService.maintain_if_ready_in_session(
                     uow._state().session,
                     uow.workspace_id,
-                    {int(fact_id)},
-                    known_component_ids=component_ids,
+                    component_ids,
                 )
             else:
                 CashProjectionService.refresh_display_fields_if_ready_in_session(
@@ -619,7 +617,12 @@ class CashLedgerCommandService:
                 ))
             session.execute(sa_delete(CashInvestmentFundingRelationModel).where(
                 CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
-                CashInvestmentFundingRelationModel.cash_transaction_id.in_(target_id_list),
+                CashInvestmentFundingRelationModel.cash_transaction_component_id.in_(
+                    sa_select(CashTransactionComponentModel.id).where(
+                        CashTransactionComponentModel.workspace_id == self._workspace_id,
+                        CashTransactionComponentModel.cash_transaction_id.in_(target_id_list),
+                    )
+                ),
             ))
             if standalone_delete:
                 CashProjectionService.remove_if_ready_in_session(
@@ -869,7 +872,12 @@ class CashLedgerCommandService:
                 ))
             session.execute(sa_delete(CashInvestmentFundingRelationModel).where(
                 CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
-                CashInvestmentFundingRelationModel.cash_transaction_id.in_(member_ids),
+                CashInvestmentFundingRelationModel.cash_transaction_component_id.in_(
+                    sa_select(CashTransactionComponentModel.id).where(
+                        CashTransactionComponentModel.workspace_id == self._workspace_id,
+                        CashTransactionComponentModel.cash_transaction_id.in_(member_ids),
+                    )
+                ),
             ))
             self._snapshot_deltas(uow, [(row, None) for row in targets["previous_rows"]])
             session.execute(
@@ -923,7 +931,7 @@ class CashLedgerCommandService:
         endpoint_ids = {
             int(endpoint)
             for relation in relations
-            for endpoint in (relation.get("primary_fact_id"), relation.get("secondary_fact_id"))
+            for endpoint in (relation.get("primary_record_id"), relation.get("secondary_record_id"))
             if endpoint not in (None, "")
         }
         records_by_id = prefetched_records or uow.cashflows.get_many(endpoint_ids | {target_id})
@@ -931,13 +939,40 @@ class CashLedgerCommandService:
         if record is None or record.get("deleted"):
             raise ValueError("找不到这条流水记录")
         relation_wire = []
+
+        def endpoint_wire(record_id, component_id):
+            if record_id in (None, ""):
+                return None
+            parent = records_by_id.get(int(record_id))
+            if parent is None:
+                return None
+            if component_id in (None, ""):
+                return self._record_wire(parent)
+            component = next(
+                (
+                    item for item in (parent.get("components") or [])
+                    if str(item.get("id")) == str(component_id)
+                ),
+                None,
+            )
+            if component is None:
+                return self._record_wire(parent)
+            wire = self._record_wire(parent) or {}
+            wire.update({
+                "component_id": str(component_id),
+                "amount": component.get("amount"),
+                "currency": component.get("currency") or wire.get("currency"),
+                "account_name": component.get("account_name") or "",
+                "account_id": component.get("account_id"),
+                "account_type": component.get("account_type") or "cash",
+            })
+            return wire
+
         for relation in relations:
-            endpoints = []
-            for endpoint in (relation.get("primary_fact_id"), relation.get("secondary_fact_id")):
-                if endpoint in (None, ""):
-                    endpoints.append(None)
-                else:
-                    endpoints.append(self._record_wire(records_by_id.get(int(endpoint))))
+            endpoints = [
+                endpoint_wire(relation.get("primary_record_id"), relation.get("primary_component_id")),
+                endpoint_wire(relation.get("secondary_record_id"), relation.get("secondary_component_id")),
+            ]
             relation_wire.append({
                 "id": str(relation["id"]),
                 "kind": relation["kind"],
@@ -1058,13 +1093,19 @@ class CashLedgerCommandService:
                 raise ValueError("组合支付关系必须指定付款组成项")
             if secondary_component in (None, "") and len(second.get("components") or []) > 1:
                 raise ValueError("组合支付关系必须指定对侧组成项")
+            if primary_component in (None, ""):
+                primary_component = (first.get("components") or [{}])[0].get("id")
+            if secondary_component in (None, ""):
+                secondary_component = (second.get("components") or [{}])[0].get("id")
+            if primary_component in (None, "") or secondary_component in (None, ""):
+                raise ValueError("流水缺少组成项分配")
             status = str(payload.get("status") or RelationStatus.ACCEPTED.value)
             if status not in {RelationStatus.ACCEPTED.value, RelationStatus.PENDING_REVIEW.value}:
                 raise ValueError("无效的关联状态")
             endpoint_relations = uow.relations.list_for_facts(
                 [int(primary), int(secondary)], active_only=False,
             )
-            left, right = ordered_fact_pair(int(primary), int(secondary))
+            left, right = ordered_fact_pair(int(primary_component), int(secondary_component))
             existing = next(
                 (
                     item for item in endpoint_relations
@@ -1083,7 +1124,7 @@ class CashLedgerCommandService:
                 if status == RelationStatus.ACCEPTED.value and self._relation_service is not None:
                     self._relation_service._validate_transfer_endpoint_availability(
                         uow,
-                        [int(primary), int(secondary)],
+                        [int(primary_component), int(secondary_component)],
                         str(relation_id),
                         relations=endpoint_relations,
                     )
@@ -1118,6 +1159,8 @@ class CashLedgerCommandService:
                     "subtype": subtype,
                     "primary_fact_id": int(primary),
                     "secondary_fact_id": int(secondary),
+                    "primary_component_id": int(primary_component),
+                    "secondary_component_id": int(secondary_component),
                     "primary_fact_type": "cash",
                     "secondary_fact_type": "cash",
                     "status": status,
@@ -1129,7 +1172,7 @@ class CashLedgerCommandService:
                     if existing is None or existing.get("status") != RelationStatus.REJECTED.value:
                         self._relation_service._validate_transfer_endpoint_availability(
                             uow,
-                            [int(primary), int(secondary)],
+                            [int(primary_component), int(secondary_component)],
                             str(relation_id),
                             relations=endpoint_relations,
                         )
@@ -1138,7 +1181,7 @@ class CashLedgerCommandService:
                         uow._state().session,
                         uow.workspace_id,
                         {int(primary), int(secondary)},
-                        known_component_ids={int(primary), int(secondary)},
+                        known_component_ids={int(primary_component), int(secondary_component)},
                     )
                 except CashProjectionError as exc:
                     raise ValueError("该关系无法形成有效收支投影") from exc
@@ -1170,7 +1213,7 @@ class CashLedgerCommandService:
             CashProjectionService.maintain_if_ready_in_session(
                 uow._state().session,
                 uow.workspace_id,
-                fact_ids,
+                set(),
                 known_component_ids=fact_ids,
             )
             uow.commit()
@@ -1178,22 +1221,7 @@ class CashLedgerCommandService:
 
     def dissolve_relations(self, fact_id: str) -> dict:
         with self._uow as uow:
-            direct_relations = [
-                relation for relation in uow.relations.list_for_facts([fact_id], active_only=True)
-                if relation.get("status") == RelationStatus.ACCEPTED.value
-            ]
-            if len(direct_relations) == 1:
-                component_ids = self._relation_endpoints(direct_relations[0])
-                relations = [
-                    relation for relation in uow.relations.list_for_facts(
-                        sorted(component_ids), active_only=True,
-                    )
-                    if relation.get("status") == RelationStatus.ACCEPTED.value
-                ]
-                if len(relations) != 1:
-                    component_ids, relations = self._accepted_relation_component(uow, fact_id)
-            else:
-                component_ids, relations = self._accepted_relation_component(uow, fact_id)
+            component_ids, relations = self._accepted_relation_component(uow, fact_id)
             if not relations:
                 raise ValueError("这条流水没有可解散的关联")
             self._reject_relations(uow, relations, reason="user_dissolved")
@@ -1201,7 +1229,6 @@ class CashLedgerCommandService:
                 uow._state().session,
                 uow.workspace_id,
                 component_ids,
-                known_component_ids=component_ids,
             )
             result = self._record_detail_in_uow(
                 uow, fact_id, prefetched_relations=[],
@@ -1224,16 +1251,18 @@ class CashLedgerCommandService:
             subtype = str(payload.get("subtype") or relation.get("subtype") or "")
             if kind == RelationKind.TRANSFER_PAIR.value and not subtype:
                 subtype = "ordinary_transfer"
-            primary = int(relation["primary_fact_id"])
-            secondary_value = relation.get("secondary_fact_id")
-            if secondary_value in (None, "") and kind == RelationKind.PAYMENT_MIRROR.value:
+            primary_component = int(relation["primary_component_id"] or relation["primary_fact_id"])
+            primary = int(relation.get("primary_record_id") or relation["primary_fact_id"])
+            secondary_component_value = relation.get("secondary_component_id") or relation.get("secondary_fact_id")
+            secondary_component = int(secondary_component_value) if secondary_component_value not in (None, "") else None
+            secondary_record = int(relation.get("secondary_record_id") or secondary_component) if secondary_component is not None else None
+            if secondary_component is None and kind == RelationKind.PAYMENT_MIRROR.value:
                 raise ValueError("同笔支付需要两条流水记录")
-            secondary = int(secondary_value) if secondary_value not in (None, "") else None
             endpoint_relations = uow.relations.list_for_facts(
-                [primary, secondary] if secondary is not None else [primary],
+                [primary, secondary_record] if secondary_record is not None else [primary],
                 active_only=True,
             )
-            wanted_endpoints = {primary} if secondary is None else {primary, secondary}
+            wanted_endpoints = {primary_component} if secondary_component is None else {primary_component, secondary_component}
             conflict = next(
                 (
                     item for item in endpoint_relations
@@ -1265,7 +1294,7 @@ class CashLedgerCommandService:
                 if self._relation_service is not None:
                     self._relation_service._validate_transfer_endpoint_availability(
                         uow,
-                        [primary, secondary],
+                        [primary_component, secondary_component],
                         str(relation_id),
                         relations=endpoint_relations,
                     )
@@ -1273,8 +1302,8 @@ class CashLedgerCommandService:
                     projection_status = CashProjectionService.maintain_if_ready_in_session(
                         session,
                         uow.workspace_id,
-                        {primary, secondary},
-                        known_component_ids={primary, secondary},
+                        {primary, secondary_record} if secondary_record is not None else {primary},
+                        known_component_ids={primary_component, secondary_component},
                     )
                 except CashProjectionError as exc:
                     raise ValueError("该关系无法形成有效收支投影") from exc

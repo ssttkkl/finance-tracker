@@ -73,12 +73,21 @@ class ProjectionRelation:
     secondary_fact_id: int
     status: str = "accepted"
     subtype: str = ""
+    applied_amount: Decimal | None = None
 
     def __post_init__(self) -> None:
         if self.kind not in _RELATION_KINDS or self.id <= 0 or self.primary_fact_id <= 0 or self.secondary_fact_id <= 0:
             raise CashProjectionError("projection.invalid_relation")
         if self.kind == "transfer_pair" and self.subtype not in _TRANSFER_SUBTYPES:
             raise CashProjectionError("projection.invalid_relation")
+        if self.applied_amount is not None:
+            try:
+                amount = exact_decimal(self.applied_amount, "applied_amount")
+            except ValueError as exc:
+                raise CashProjectionError("projection.invalid_relation") from exc
+            if amount < 0:
+                raise CashProjectionError("projection.invalid_relation")
+            object.__setattr__(self, "applied_amount", amount)
 
 
 @dataclass(frozen=True)
@@ -197,6 +206,28 @@ def _validate_group(group: list[int], facts: dict[int, CashProjectionFact], rela
         if primary == secondary or key in seen_edges:
             continue
         seen_edges.add(key)
+        if relation.kind == "refund_offset":
+            same_edge = tuple(
+                item for item in contained
+                if item.kind == relation.kind
+                and item.subtype == relation.subtype
+                and canonical[item.primary_fact_id] == primary
+                and canonical[item.secondary_fact_id] == secondary
+            )
+            explicit_amounts = tuple(
+                item.applied_amount for item in same_edge
+                if item.applied_amount is not None and item.applied_amount > 0
+            )
+            if explicit_amounts:
+                relation = ProjectionRelation(
+                    id=relation.id,
+                    kind=relation.kind,
+                    primary_fact_id=relation.primary_fact_id,
+                    secondary_fact_id=relation.secondary_fact_id,
+                    status=relation.status,
+                    subtype=relation.subtype,
+                    applied_amount=sum(explicit_amounts, Decimal("0")),
+                )
         logical.append((relation, primary, secondary))
     nodes = sorted(set(canonical.values()))
     incoming = {item: 0 for item in nodes}
@@ -261,7 +292,17 @@ def _validate_group(group: list[int], facts: dict[int, CashProjectionFact], rela
                 expense.amount >= 0 or refund.amount <= 0 or expense.currency != refund.currency
             ):
                 raise CashProjectionError("projection.invalid_relation")
-            refunded += refund.amount
+            applied = next(
+                (
+                    item.applied_amount
+                    for item, _primary, _secondary in logical
+                    if item.kind == "refund_offset"
+                    and item.primary_fact_id == expense.id
+                    and item.secondary_fact_id == refund.id
+                ),
+                None,
+            )
+            refunded += applied if applied is not None and applied > 0 else refund.amount
         if refunded > -root.amount:
             raise CashProjectionError("projection.invalid_relation")
         amount = root.amount + refunded

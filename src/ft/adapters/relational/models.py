@@ -637,9 +637,6 @@ class CashInvestmentFundingRelationModel(Base):
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
     workspace_id: Mapped[str] = mapped_column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
     cash_transaction_component_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
-    # Python-side alias retained while application services migrate to the
-    # explicit component name; no legacy database column is created.
-    cash_transaction_id = synonym("cash_transaction_component_id")
     investment_event_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     direction: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)

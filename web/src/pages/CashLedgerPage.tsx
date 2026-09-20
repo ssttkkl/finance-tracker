@@ -52,9 +52,9 @@ function cashRecordFromEvidence(record: EvidenceRecord, projection: CashProjecti
     category_id: record.category_id ?? projection.category?.id ?? null,
     record_type: fallbackRecordType(record, projection),
     record_subtype: record.record_subtype ?? projection.transfer_subtype ?? "not_applicable",
-    account_name: record.account_name ?? record.account.name,
-    account_id: record.account_id ?? record.account.id,
-    account_type: record.account_type ?? record.account.type,
+    account_name: record.account_name ?? record.account?.name ?? "多个账户",
+    account_id: record.account_id ?? record.account?.id ?? 0,
+    account_type: record.account_type ?? record.account?.type ?? "cash",
     source_type: record.source_type ?? "",
   };
 }

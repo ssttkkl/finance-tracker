@@ -1272,6 +1272,8 @@ class RelationService:
             fact_a=proposal.primary_fact_id,
             fact_b=proposal.secondary_fact_id,
             subtype=subtype,
+            component_a=proposal.primary_fact_id,
+            component_b=proposal.secondary_fact_id,
         )
         if existing is not None:
             if _is_human_decision(existing):
@@ -2001,6 +2003,7 @@ class RelationService:
                         uow._state().session,
                         uow.workspace_id,
                         affected_fact_ids,
+                        known_component_ids=affected_fact_ids,
                     )
                 # 015: no relation_check_runs table; still must commit persisted relations.
                 uow.commit()
@@ -2119,6 +2122,7 @@ class RelationService:
             CashProjectionService.maintain_if_ready_in_session(
                 uow._state().session, uow.workspace_id,
                 {int(item) for item in fact_ids},
+                known_component_ids={int(item) for item in fact_ids},
             )
             uow.commit()
         return OperationResult(ok=True, count=1, message="关系已确认", details=updated)
@@ -2126,20 +2130,40 @@ class RelationService:
     def _validate_projection_acceptance(self, uow, relation: dict, *, other_fact_id: str | None) -> None:
         """确认前将候选关系纳入完整收支投影，非法图必须失败关闭。"""
         from ft.adapters.relational.projections import RelationalCashProjectionRepository
+        from ft.adapters.relational.models import CashTransactionComponentModel
         from ft.domain.cash_projection import CashProjectionError, ProjectionRelation, build_cash_projections
+        from sqlalchemy import select
 
         repository = RelationalCashProjectionRepository(uow._state().session, uow.workspace_id)
-        primary_id = int(relation["primary_fact_id"])
-        secondary_id = int(other_fact_id or relation.get("secondary_fact_id") or 0)
+        primary_id = int(relation.get("primary_component_id") or relation["primary_fact_id"])
+        secondary_id = int(
+            other_fact_id
+            or relation.get("secondary_component_id")
+            or relation.get("secondary_fact_id")
+            or 0
+        )
         if not secondary_id:
             raise ValueError("关系缺少对侧流水，无法形成有效收支投影")
         if is_open_leg_relation(relation) and relation["kind"] == RelationKind.REFUND_OFFSET.value:
             primary_id, secondary_id = secondary_id, primary_id
-        component_ids = repository.accepted_relation_component_ids({primary_id, secondary_id})
-        facts, accepted = repository.read_sources_for_facts(component_ids)
+        parent_ids = repository.accepted_relation_component_ids(
+            {primary_id, secondary_id}, input_is_components=True,
+        )
+        facts, accepted = repository.read_sources_for_facts(parent_ids)
+        parent_by_component = {
+            int(item.id): int(item.cash_transaction_id)
+            for item in uow._state().session.scalars(select(CashTransactionComponentModel).where(
+                CashTransactionComponentModel.workspace_id == uow.workspace_id,
+                CashTransactionComponentModel.id.in_({primary_id, secondary_id}),
+            ))
+        }
+        candidate_primary = parent_by_component.get(primary_id)
+        candidate_secondary = parent_by_component.get(secondary_id)
+        if candidate_primary is None or candidate_secondary is None:
+            raise ValueError("关系组成项不存在")
         candidate = ProjectionRelation(
-            id=int(relation["id"]), kind=relation["kind"], primary_fact_id=primary_id,
-            secondary_fact_id=secondary_id, status=RelationStatus.ACCEPTED.value,
+            id=int(relation["id"]), kind=relation["kind"], primary_fact_id=candidate_primary,
+            secondary_fact_id=candidate_secondary, status=RelationStatus.ACCEPTED.value,
             subtype=relation.get("subtype") or "",
         )
         try:
@@ -2167,7 +2191,14 @@ class RelationService:
                 decision_reason=reason or "rejected",
             )
             from ft.application.cash_projections import CashProjectionService
-            CashProjectionService.maintain_if_ready_in_session(uow._state().session, uow.workspace_id, {int(item) for item in (rel["primary_fact_id"], rel.get("secondary_fact_id")) if item not in (None, "")})
+            relation_component_ids = {
+                int(item) for item in (rel["primary_fact_id"], rel.get("secondary_fact_id"))
+                if item not in (None, "")
+            }
+            CashProjectionService.maintain_if_ready_in_session(
+                uow._state().session, uow.workspace_id, set(),
+                known_component_ids=relation_component_ids,
+            )
             uow.commit()
         return OperationResult(ok=True, count=1, message="关系已驳回", details=updated)
 
@@ -2205,6 +2236,7 @@ class RelationService:
             CashProjectionService.maintain_if_ready_in_session(
                 uow._state().session, uow.workspace_id,
                 {int(item) for item in (old["primary_fact_id"], old.get("secondary_fact_id"), replacement.get("primary_fact_id"), replacement.get("secondary_fact_id")) if item not in (None, "")},
+                known_component_ids={int(item) for item in (old["primary_fact_id"], old.get("secondary_fact_id"), replacement.get("primary_fact_id"), replacement.get("secondary_fact_id")) if item not in (None, "")},
             )
             uow.commit()
         return OperationResult(
@@ -2229,7 +2261,12 @@ class RelationService:
             from ft.application.cash_projections import CashProjectionService
             CashProjectionService.maintain_if_ready_in_session(
                 uow._state().session, uow.workspace_id,
-                {int(item) for relation in related for item in (fact_id, relation.get("primary_fact_id"), relation.get("secondary_fact_id")) if item not in (None, "")},
+                {int(fact_id)},
+                known_component_ids={
+                    int(item) for relation in related
+                    for item in (relation.get("primary_fact_id"), relation.get("secondary_fact_id"))
+                    if item not in (None, "")
+                },
             )
             uow.commit()
         return OperationResult(ok=True, count=1, message="现金流水已逻辑删除", details=result)
@@ -2415,6 +2452,7 @@ class RelationService:
                 kind=proposal.kind,
                 anchor_fact_id=anchor_id,
                 subtype=subtype,
+                anchor_component_id=anchor_id,
             )
             if existing is None:
                 # Also block if rejected open occupancy still holds bilateral key (active_slot=id).
@@ -2423,6 +2461,7 @@ class RelationService:
                     fact_a=anchor_id,
                     fact_b=None,
                     subtype=subtype,
+                    component_a=anchor_id,
                 )
         else:
             existing = uow.relations.find_by_business_key(
@@ -2430,6 +2469,8 @@ class RelationService:
                 fact_a=proposal.primary_fact_id,
                 fact_b=proposal.secondary_fact_id,
                 subtype=subtype,
+                component_a=proposal.primary_fact_id,
+                component_b=proposal.secondary_fact_id,
             )
             # If a system unpaired relation pending occupies this anchor, upgrade/bind it
             # instead of creating a second row (FX rate score after rates available).
@@ -2438,6 +2479,7 @@ class RelationService:
                     kind=proposal.kind,
                     anchor_fact_id=anchor_id,
                     subtype=subtype,
+                    anchor_component_id=anchor_id,
                 )
                 if (
                     open_existing is not None
@@ -2614,7 +2656,7 @@ class RelationService:
         endpoints = {str(fact_id) for fact_id in fact_ids if fact_id not in (None, "")}
         candidates = relations
         if candidates is None:
-            candidates = uow.relations.list_for_facts(list(endpoints), active_only=True)
+            candidates = uow.relations.list_for_components(list(endpoints), active_only=True)
         for relation in candidates:
             if relation.get("status") == RelationStatus.SUPERSEDED.value:
                 continue

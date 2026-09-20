@@ -360,6 +360,22 @@ class RelationalCashflowRepository:
             ]
             if normalized_existing == normalized_specs:
                 return existing
+            stable_shape = [
+                (int(item.account_id), int(item.ordinal), str(item.currency).upper())
+                for item in existing
+            ] == [
+                (int(item["account"].id), int(item["ordinal"]), parent.currency.upper())
+                for item in specs
+            ]
+            if stable_shape:
+                for component, spec in zip(existing, specs):
+                    component.amount = spec["amount"]
+                    component.label = spec["label"]
+                    component.source_key = spec["source_key"]
+                    component.metadata_json = spec["metadata_json"]
+                parent.cash_granularity = "aggregate" if len(existing) > 1 else "atomic"
+                parent.account_id = existing[0].account_id if len(existing) == 1 else None
+                return existing
             component_ids = [int(item.id) for item in existing]
             relation_exists = self._session.scalar(select(TransactionRelationModel.id).where(
                 TransactionRelationModel.workspace_id == self._workspace_id,
@@ -403,18 +419,11 @@ class RelationalCashflowRepository:
         parent.account_id = components[0].account_id if len(components) == 1 else None
         return components
 
-    def _ensure_components(self, parent: CashTransactionModel, account: AccountModel | None = None):
+    def _require_components(self, parent: CashTransactionModel):
         existing = self._component_models(parent.id)
         if existing:
             return existing
-        if account is None and parent.account_id is not None:
-            account = self._session.scalar(select(AccountModel).where(
-                AccountModel.workspace_id == self._workspace_id,
-                AccountModel.id == parent.account_id,
-            ))
-        if account is None:
-            raise ValueError("现金流水缺少组成项分配")
-        return self._sync_components(parent, row={}, default_account=account)
+        raise ValueError("现金流水缺少组成项分配")
 
     def list(self, account_type: str | None = None, *, include_deleted: bool = False) -> list[dict]:
         return [
@@ -820,7 +829,7 @@ class RelationalCashflowRepository:
         if allocation_fields.intersection(values):
             self._sync_components(row, row=values, default_account=account)
         else:
-            self._ensure_components(row, account)
+            self._require_components(row)
         if _flush:
             self._session.flush()
         current = self._to_row(row, account)
@@ -1071,7 +1080,7 @@ class RelationalCashflowRepository:
             if result["created"] or result["source_changed"]:
                 self._sync_components(model, row=row, default_account=account)
             else:
-                self._ensure_components(model, account)
+                self._require_components(model)
         self._session.flush()
         for result in results:
             model = result.pop("_model")
@@ -1437,7 +1446,7 @@ class RelationalRelationRepository:
                     CashTransactionComponentModel.workspace_id == self._workspace_id,
                     CashTransactionComponentModel.id == component.id,
                 ))
-                if parent_id != _as_int_id(fact_id):
+                if _as_int_id(fact_id) not in {int(parent_id), int(component.id)}:
                     raise ValueError("关系组成项不属于指定流水")
             return int(component.id)
         components = self._session.scalars(select(CashTransactionComponentModel.id).where(
@@ -1451,22 +1460,14 @@ class RelationalRelationRepository:
     def _resolve_component_endpoint(self, fact_id, explicit_component_id=None) -> int:
         """Resolve a relation endpoint without guessing across ID namespaces.
 
-        Matching facts are component IDs and manual/browser callers normally
-        provide parent transaction IDs.  Explicit component IDs always win;
-        otherwise an existing component ID is treated as a component before
-        falling back to a singleton parent transaction.
+        Manual/browser callers provide parent transaction IDs. Relation
+        matching passes the component ID explicitly, so an integer is never
+        guessed across the two ID namespaces.
         """
         if explicit_component_id is not None:
             return self._resolve_component(fact_id, explicit_component_id)
         if fact_id in (None, ""):
             raise ValueError("关系端点不能为空")
-        value = _as_int_id(fact_id)
-        component = self._session.scalar(select(CashTransactionComponentModel.id).where(
-            CashTransactionComponentModel.workspace_id == self._workspace_id,
-            CashTransactionComponentModel.id == value,
-        ))
-        if component is not None:
-            return int(component)
         return self._resolve_component(fact_id)
 
     def _to_dict(self, row: TransactionRelationModel) -> dict:
@@ -1527,12 +1528,14 @@ class RelationalRelationRepository:
 
     def find_by_business_key(
         self, *, kind: str, fact_a, fact_b, subtype: str = "",
+        component_a=None, component_b=None,
     ) -> dict | None:
-        # Relation matching now supplies component IDs. Try that explicit
-        # endpoint shape first; the parent fallback is only for browser/manual
-        # callers that address singleton parent records.
-        left = _as_int_id(fact_a) if fact_a not in (None, "") else None
-        right = _as_int_id(fact_b) if fact_b not in (None, "") else None
+        # Relation matching supplies explicit component IDs. Manual callers
+        # address parent records and are resolved only when no component
+        # endpoint is provided.
+        left = _as_int_id(component_a if component_a is not None else fact_a) if fact_a not in (None, "") or component_a not in (None, "") else None
+        right_value = component_b if component_b is not None else fact_b
+        right = _as_int_id(right_value) if right_value not in (None, "") else None
         right_column = (
             TransactionRelationModel.ordered_component_b.is_(None)
             if right is None
@@ -1548,8 +1551,8 @@ class RelationalRelationRepository:
         ))
         if exact is not None:
             return self._to_dict(exact)
-        left = self._resolve_component_endpoint(fact_a)
-        right = None if fact_b in (None, "") else self._resolve_component_endpoint(fact_b)
+        left = self._resolve_component_endpoint(fact_a, component_a)
+        right = None if fact_b in (None, "") and component_b in (None, "") else self._resolve_component_endpoint(fact_b, component_b)
         left, right = ordered_fact_pair(left, right)
         right_column = (
             TransactionRelationModel.ordered_component_b.is_(None)
@@ -1569,23 +1572,16 @@ class RelationalRelationRepository:
     def list_for_facts(self, fact_ids: list, *, active_only: bool = True) -> list[dict]:
         if not fact_ids:
             return []
-        ids: list[int] = []
-        for value in fact_ids:
-            parent_components = self._session.scalars(select(CashTransactionComponentModel.id).where(
-                CashTransactionComponentModel.workspace_id == self._workspace_id,
-                CashTransactionComponentModel.cash_transaction_id == _as_int_id(value),
-            ).order_by(CashTransactionComponentModel.ordinal)).all()
-            ids.extend(int(item) for item in parent_components)
-            # A component ID can numerically collide with a parent ID. Include
-            # the exact component endpoint as well; callers decide the type at
-            # the write boundary via the explicit *_component_id fields.
-            component_exists = self._session.scalar(select(CashTransactionComponentModel.id).where(
-                CashTransactionComponentModel.workspace_id == self._workspace_id,
-                CashTransactionComponentModel.id == _as_int_id(value),
-            ))
-            if component_exists is not None:
-                ids.append(int(component_exists))
-        ids = list(dict.fromkeys(ids))
+        ids = self._session.scalars(select(CashTransactionComponentModel.id).where(
+            CashTransactionComponentModel.workspace_id == self._workspace_id,
+            CashTransactionComponentModel.cash_transaction_id.in_([_as_int_id(value) for value in fact_ids]),
+        ).order_by(CashTransactionComponentModel.ordinal, CashTransactionComponentModel.id)).all()
+        return self.list_for_components([int(item) for item in ids], active_only=active_only)
+
+    def list_for_components(self, component_ids: list, *, active_only: bool = True) -> list[dict]:
+        if not component_ids:
+            return []
+        ids = list(dict.fromkeys(_as_int_id(value) for value in component_ids))
         if not ids:
             return []
         statement = select(TransactionRelationModel).where(
@@ -1670,9 +1666,11 @@ class RelationalRelationRepository:
         return model.id
 
     def find_open_leg(
-        self, *, kind: str, anchor_fact_id, subtype: str = "",
+        self, *, kind: str, anchor_fact_id, subtype: str = "", anchor_component_id=None,
     ) -> dict | None:
-        anchor_component = _as_int_id(anchor_fact_id)
+        anchor_component = _as_int_id(anchor_component_id) if anchor_component_id is not None else None
+        if anchor_component is None:
+            anchor_component = _as_int_id(anchor_fact_id)
         exact = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
             TransactionRelationModel.kind == kind,
@@ -1684,7 +1682,7 @@ class RelationalRelationRepository:
         ))
         if exact is not None:
             return self._to_dict(exact)
-        anchor_component = self._resolve_component_endpoint(anchor_fact_id)
+        anchor_component = self._resolve_component_endpoint(anchor_fact_id, anchor_component_id)
         row = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
             TransactionRelationModel.kind == kind,

@@ -94,11 +94,21 @@ class RelationRepository(Protocol):
         ...
 
     def find_by_business_key(
-        self, *, kind: str, fact_a: str, fact_b: str, subtype: str = "",
+        self, *, kind: str, fact_a: str, fact_b: str | None, subtype: str = "",
+        component_a: str | None = None, component_b: str | None = None,
     ) -> dict | None:
         ...
 
     def list_for_facts(self, fact_ids: list[str], *, active_only: bool = True) -> list[dict]:
+        ...
+
+    def list_for_components(self, component_ids: list[str], *, active_only: bool = True) -> list[dict]:
+        ...
+
+    def find_open_leg(
+        self, *, kind: str, anchor_fact_id: str, subtype: str = "",
+        anchor_component_id: str | None = None,
+    ) -> dict | None:
         ...
 
     def add(self, relation: dict) -> str:

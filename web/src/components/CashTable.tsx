@@ -24,7 +24,7 @@ function economicTypeLabel(item: CashProjection): string {
 function transferFor(item: CashProjection) { return item.economic_type === "internal_transfer" ? item.transfer ?? null : null; }
 function accountLabel(item: CashProjection): string {
   const transfer = transferFor(item);
-  return transfer ? `${transfer.from_account.name} → ${transfer.to_account.name}` : item.account.name;
+  return transfer ? `${transfer.from_account.name} → ${transfer.to_account.name}` : item.account?.name ?? "多个账户";
 }
 function unsignedAmount(amount: string): string { return amount.startsWith("-") || amount.startsWith("+") ? amount.slice(1) : amount; }
 function amountLabel(item: CashProjection): string {

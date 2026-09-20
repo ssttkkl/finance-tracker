@@ -177,11 +177,12 @@ class CashProjectionService:
         state = repository.ready_state_lock_or_none()
         if state is None:
             return None
-        component_ids = (
-            {int(item) for item in known_component_ids}
-            if known_component_ids is not None
-            else repository.accepted_relation_component_ids(affected_fact_ids)
-        )
+        component_ids = repository.accepted_relation_component_ids(affected_fact_ids)
+        if known_component_ids is not None:
+            component_ids |= repository.accepted_relation_component_ids(
+                {int(item) for item in known_component_ids},
+                input_is_components=True,
+            )
         facts, relations = repository.read_sources_for_facts(component_ids)
         build = build_cash_projections(facts, relations)
         CashProjectionService._synchronize_component_categories(session, workspace_id, build)

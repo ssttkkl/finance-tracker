@@ -31,7 +31,7 @@ export type CashTransfer = {
 export type CashProjection = {
   projection_id: string;
   occurred_at: string;
-  account: Account;
+  account: Account | null;
   counterparty: string;
   category: CashCategory | null;
   note: string;
@@ -96,7 +96,7 @@ export type CashProjectionDeleteResult = CashProjectionDeleteImpact & {
 export type EvidenceRecord = {
   id: string;
   occurred_at: string;
-  account: Account;
+  account: Account | null;
   account_name?: string;
   account_id?: number;
   account_type?: string;

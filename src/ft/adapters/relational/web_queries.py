@@ -77,12 +77,17 @@ def _category_rows(session, workspace_id: str) -> dict[str, CashCategoryModel]:
 
 
 def _record_summary(row, account, categories=None):
-    if row is None or account is None:
+    if row is None:
         return None
+    account_payload = None if account is None else {
+        "id": account.id, "name": account.name, "type": account.type, "active": account.active,
+    }
     return {
         "id": str(row.id), "occurred_at": row.occurred_at.isoformat(),
-        "account": {"id": account.id, "name": account.name, "type": account.type, "active": account.active},
-        "account_name": account.name, "account_id": account.id, "account_type": account.type,
+        "account": account_payload,
+        "account_name": account.name if account is not None else "",
+        "account_id": account.id if account is not None else None,
+        "account_type": account.type if account is not None else "cash",
         "counterparty": row.counterparty, "category": _category_dto(categories or {}, row.category_id), "note": row.note,
         "amount": _amount(row.amount), "currency": row.currency,
         "source_type": row.source_type,
@@ -162,7 +167,8 @@ class RelationalCashLedgerQueryRepository:
         with self._session() as s: return self._active(s).projection_version
     def _dto(self, row, account, relations, source_types=(), transfer=None, categories=None):
         kinds=tuple(sorted({r.kind for r in relations})); summary=tuple({"kind":kind,"subtype":subtype,"count":sum(r.kind==kind and r.subtype==subtype for r in relations)} for kind,subtype in sorted({(r.kind,r.subtype) for r in relations}))
-        return ProjectionDTO(row.projection_id,row.occurred_at.isoformat(),CashAccountSummaryDTO(account.id,account.name,account.type,account.active),row.counterparty,_category_dto(categories or {}, row.category_id),row.note,_amount(row.net_amount),row.currency,row.economic_type,row.transfer_subtype,kinds,row.member_count,summary,row.source_type,tuple(source_types),row.record_id,row.visible,row.hidden_reason,transfer)
+        account_summary = None if account is None else CashAccountSummaryDTO(account.id,account.name,account.type,account.active)
+        return ProjectionDTO(row.projection_id,row.occurred_at.isoformat(),account_summary,row.counterparty,_category_dto(categories or {}, row.category_id),row.note,_amount(row.net_amount),row.currency,row.economic_type,row.transfer_subtype,kinds,row.member_count,summary,row.source_type,tuple(source_types),row.record_id,row.visible,row.hidden_reason,transfer)
     def _member_source_types(self, session, dataset_id, projection_row_ids):
         projection_row_ids = tuple(projection_row_ids)
         source_types = {projection_row_id: [] for projection_row_id in projection_row_ids}
@@ -255,6 +261,7 @@ class RelationalCashLedgerQueryRepository:
             select(
                 CashProjectionModel.id,
                 CashInvestmentFundingRelationModel.direction,
+                CashTransactionComponentModel,
                 CashTransactionModel,
                 AccountModel,
                 InvestmentEventModel,
@@ -268,16 +275,22 @@ class RelationalCashLedgerQueryRepository:
                     CashInvestmentFundingRelationModel.active_slot == "active",
                 ),
             ).join(
+                CashTransactionComponentModel,
+                and_(
+                    CashTransactionComponentModel.workspace_id == CashInvestmentFundingRelationModel.workspace_id,
+                    CashTransactionComponentModel.id == CashInvestmentFundingRelationModel.cash_transaction_component_id,
+                ),
+            ).join(
                 CashTransactionModel,
                 and_(
-                    CashTransactionModel.workspace_id == CashInvestmentFundingRelationModel.workspace_id,
-                    CashTransactionModel.id == CashInvestmentFundingRelationModel.cash_transaction_id,
+                    CashTransactionModel.workspace_id == CashTransactionComponentModel.workspace_id,
+                    CashTransactionModel.id == CashTransactionComponentModel.cash_transaction_id,
                 ),
             ).join(
                 AccountModel,
                 and_(
                     AccountModel.workspace_id == CashTransactionModel.workspace_id,
-                    AccountModel.id == CashTransactionModel.account_id,
+                    AccountModel.id == CashTransactionComponentModel.account_id,
                 ),
             ).join(
                 InvestmentEventModel,
@@ -299,7 +312,7 @@ class RelationalCashLedgerQueryRepository:
                 CashProjectionModel.transfer_subtype == "bank_security_transfer",
             )
         ).all()
-        for projection_row_id, direction, cash, cash_account, investment, investment_account_row in funding_rows:
+        for projection_row_id, direction, component, cash, cash_account, investment, investment_account_row in funding_rows:
             if projection_row_id in transfers:
                 continue
             investment_amount = investment.to_amount if direction == "cash_to_investment" else investment.from_amount
@@ -314,13 +327,13 @@ class RelationalCashLedgerQueryRepository:
             )
             if direction == "cash_to_investment":
                 transfers[projection_row_id] = CashTransferDTO(
-                    cash_dto, _amount(cash.amount), cash.currency,
+                    cash_dto, _amount(component.amount), component.currency,
                     investment_dto, _amount(investment_amount), investment.currency,
                 )
             elif direction == "investment_to_cash":
                 transfers[projection_row_id] = CashTransferDTO(
                     investment_dto, _amount(investment_amount), investment.currency,
-                    cash_dto, _amount(cash.amount), cash.currency,
+                    cash_dto, _amount(component.amount), component.currency,
                 )
         return transfers
     def _filter_options(self, session, dataset_id, *, version=None, categories=None):
@@ -604,9 +617,14 @@ class RelationalCashLedgerQueryRepository:
             }
             category_ids = {
                 cash.category_id
-                for cash, _account in (*member_rows.values(), *endpoint_rows.values())
+                for cash, _account in member_rows.values()
                 if cash.category_id
             }
+            category_ids.update(
+                parent.category_id
+                for _component, parent, _account in endpoint_rows.values()
+                if parent.category_id
+            )
             categories = _category_rows(s, self._workspace_id) if category_ids else {}
             root_record = _record_summary(root, root_account, categories)
             assert root_record is not None

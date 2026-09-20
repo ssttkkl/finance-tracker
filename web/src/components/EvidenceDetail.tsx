@@ -119,7 +119,7 @@ function RelatedMember({ member, evidence, relation, onEditRecord, onCancelRelat
       <dt>关联类型</dt><dd>{relatedRecordLabel(member)}</dd>
       <dt>金额</dt><dd className="mono">{signedAmount(member.amount)} {member.currency}</dd>
       <dt>发生时间</dt><dd className="mono">{formatOccurredAt(member.occurred_at)}</dd>
-      <dt>账户</dt><dd>{member.account.name}</dd>
+      <dt>账户</dt><dd>{member.account?.name ?? "多个账户"}</dd>
       <dt>交易对方</dt><dd>{member.counterparty || "-"}</dd>
       {member.counterparty_account ? <><dt>对方账号</dt><dd>{member.counterparty_account}</dd></> : null}
       <dt>流水类型</dt><dd>{recordTypeLabel(member, evidence.projection)}</dd>
@@ -181,7 +181,7 @@ export function EvidenceDetail({ evidence, loading, error, editing = false, edit
             <p className={`evidence-amount ${evidence.projection.economic_type === "income" ? "inflow" : "outflow"}`}>{evidence.projection.amount} <span>{evidence.projection.currency}</span></p>
             <p className="evidence-economic-type">{economicTypeLabel(evidence.projection)}</p>
             {isRelatedProjection(evidence.projection) ? <p className="projection-source-detail">{projectionRelationLabel(evidence.projection)}</p> : null}
-            <dl><dt>交易对方</dt><dd>{root.counterparty || "-"}</dd>{root.counterparty_account ? <><dt>对方账号</dt><dd>{root.counterparty_account}</dd></> : null}<dt>发生时间</dt><dd className="mono">{formatOccurredAt(root.occurred_at)}</dd><dt>账户</dt><dd>{root.account.name}</dd><dt>流水类型</dt><dd>{recordTypeLabel(root, evidence.projection)}</dd>{recordSubtypeLabel(root, evidence.projection) ? <><dt>业务细分</dt><dd>{recordSubtypeLabel(root, evidence.projection)}</dd></> : null}<dt>分类</dt><dd>{categoryLabel(root.category)}</dd><dt>备注</dt><dd>{root.note || "-"}</dd><dt>来源</dt><dd>{projectionSourceLabel(evidence)}</dd></dl>
+            <dl><dt>交易对方</dt><dd>{root.counterparty || "-"}</dd>{root.counterparty_account ? <><dt>对方账号</dt><dd>{root.counterparty_account}</dd></> : null}<dt>发生时间</dt><dd className="mono">{formatOccurredAt(root.occurred_at)}</dd><dt>账户</dt><dd>{root.account?.name ?? "多个账户"}</dd><dt>流水类型</dt><dd>{recordTypeLabel(root, evidence.projection)}</dd>{recordSubtypeLabel(root, evidence.projection) ? <><dt>业务细分</dt><dd>{recordSubtypeLabel(root, evidence.projection)}</dd></> : null}<dt>分类</dt><dd>{categoryLabel(root.category)}</dd><dt>备注</dt><dd>{root.note || "-"}</dd><dt>来源</dt><dd>{projectionSourceLabel(evidence)}</dd></dl>
           </section>
           {relatedMembers.length ? <section className="evidence-section evidence-related" aria-label="关联流水">
             <div className="section-heading"><h3>关联流水</h3>{root ? <button type="button" className="icon-only-button icon-quiet-button" aria-label="添加关联" title="添加关联" onClick={() => onAddRelation?.(root.id)}><UiIcon name="plus" /></button> : null}</div>
