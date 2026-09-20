@@ -92,7 +92,11 @@ def test_evidence_exposes_only_whitelisted_funding_relation_fields(
     from decimal import Decimal
     from zoneinfo import ZoneInfo
 
-    from ft.adapters.relational.models import CashTransactionModel, InvestmentEventModel
+    from ft.adapters.relational.models import (
+        CashTransactionComponentModel,
+        CashTransactionModel,
+        InvestmentEventModel,
+    )
     from ft.application.cash_investment_funding_relations import CashInvestmentFundingRelationService
     from ft.application.cash_projections import CashProjectionService
     from ft.application.web_queries import CashLedgerQueryService
@@ -102,8 +106,11 @@ def test_evidence_exposes_only_whitelisted_funding_relation_fields(
     cash_web_runtime = request.getfixturevalue(runtime_name)
     with cash_web_runtime.sessions.begin() as session:
         cash = session.get(CashTransactionModel, 1003)
+        component = session.get(CashTransactionComponentModel, 1003)
         cash.amount = Decimal(cash_amount)
         cash.currency = "HKD"
+        component.amount = Decimal(cash_amount)
+        component.currency = "HKD"
         cash.counterparty = "Interactive Brokers LLC"
         cash.record_type = cash_record_type
         cash.record_subtype = "ordinary_transfer"

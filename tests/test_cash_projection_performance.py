@@ -195,7 +195,12 @@ def _peak_rss_delta_bytes(baseline: int) -> int:
 
 
 def _seed_cash_projection_workload(sessions) -> None:
-    from ft.adapters.relational.models import AccountModel, CashTransactionModel, TransactionRelationModel
+    from ft.adapters.relational.models import (
+        AccountModel,
+        CashTransactionComponentModel,
+        CashTransactionModel,
+        TransactionRelationModel,
+    )
 
     utc = ZoneInfo("UTC")
 
@@ -204,6 +209,7 @@ def _seed_cash_projection_workload(sessions) -> None:
         return datetime(day.year, day.month, day.day, number % 23, tzinfo=utc)
 
     transactions: list[dict] = []
+    components: list[dict] = []
     relations: list[dict] = []
 
     def add_transaction(identifier: int, account_id: int, amount: Decimal, category: str) -> None:
@@ -220,19 +226,28 @@ def _seed_cash_projection_workload(sessions) -> None:
             "note": "固定性能夹具",
             "category": category,
         })
+        components.append({
+            "id": identifier,
+            "workspace_id": WORKSPACE,
+            "cash_transaction_id": identifier,
+            "account_id": account_id,
+            "amount": amount,
+            "currency": "CNY",
+            "ordinal": 0,
+        })
 
     def add_relation(kind: str, primary_fact_id: int, secondary_fact_id: int, subtype: str = "") -> None:
         relations.append({
             "workspace_id": WORKSPACE,
             "kind": kind,
             "subtype": subtype,
-            "primary_fact_id": primary_fact_id,
-            "secondary_fact_id": secondary_fact_id,
+            "primary_component_id": primary_fact_id,
+            "secondary_component_id": secondary_fact_id,
             "primary_fact_type": "cash",
             "secondary_fact_type": "cash",
-            "ordered_fact_a": min(primary_fact_id, secondary_fact_id),
-            "ordered_fact_b": max(primary_fact_id, secondary_fact_id),
-            "anchor_fact_id": secondary_fact_id,
+            "ordered_component_a": min(primary_fact_id, secondary_fact_id),
+            "ordered_component_b": max(primary_fact_id, secondary_fact_id),
+            "anchor_component_id": secondary_fact_id,
             "status": "accepted",
             "rule_id": "performance_fixture",
             "confidence": "strong",
@@ -279,6 +294,8 @@ def _seed_cash_projection_workload(sessions) -> None:
         ])
         for start in range(0, len(transactions), 2_000):
             session.execute(insert(CashTransactionModel), transactions[start:start + 2_000])
+        for start in range(0, len(components), 2_000):
+            session.execute(insert(CashTransactionComponentModel), components[start:start + 2_000])
         session.execute(insert(TransactionRelationModel), relations)
         if session.bind.dialect.name == "postgresql":
             session.execute(text(
@@ -806,10 +823,10 @@ def test_fixed_10k_cash_page_lookup_plans_use_pagination_indexes(performance_run
             "AND visible = TRUE ORDER BY occurred_at DESC, projection_id DESC LIMIT 50)",
             "SELECT id FROM transaction_relations "
                 "WHERE workspace_id = :workspace_id AND status = 'accepted' "
-                "AND primary_fact_id IN (7001, 7003, 7005)",
+                "AND primary_component_id IN (7001, 7003, 7005)",
             "SELECT id FROM transaction_relations "
                 "WHERE workspace_id = :workspace_id AND status = 'accepted' "
-                "AND secondary_fact_id IN (7002, 7004, 7006)",
+                "AND secondary_component_id IN (7002, 7004, 7006)",
         ):
             result = session.execute(text(explain + statement), params)
             if session.bind.dialect.name == "sqlite":
@@ -840,13 +857,18 @@ def test_fixed_10k_cash_page_lookup_plans_use_pagination_indexes(performance_run
 @pytest.mark.performance
 def test_cash_relation_group_mutations_scale_with_affected_group_size(performance_runtime) -> None:
     """关联取消和解散必须记录组规模，并保持近似按组规模增长。"""
-    from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
+    from ft.adapters.relational.models import (
+        CashTransactionComponentModel,
+        CashTransactionModel,
+        TransactionRelationModel,
+    )
     from ft.application.cash_projections import CashProjectionService
 
     backend, sessions = performance_runtime
     _seed_cash_projection_workload(sessions)
     group_sizes = (2, 10, 100, 1_000)
     extra_transactions = []
+    extra_components = []
     relation_rows = []
     next_fact_id = FACT_COUNT + 1
     bases: dict[str, dict[int, int]] = {"cancel": {}, "dissolve": {}}
@@ -868,27 +890,37 @@ def test_cash_relation_group_mutations_scale_with_affected_group_size(performanc
                 "note": "固定关联规模性能夹具",
                 "category": "日常",
             } for offset in range(size))
+            extra_components.extend({
+                "id": base + offset,
+                "workspace_id": WORKSPACE,
+                "cash_transaction_id": base + offset,
+                "account_id": 1,
+                "amount": Decimal("-10.00"),
+                "currency": "CNY",
+                "ordinal": 0,
+            } for offset in range(size))
             relation_rows.extend({
                 "workspace_id": WORKSPACE,
                 "kind": "payment_mirror",
                 "subtype": "",
-                "primary_fact_id": base + offset,
-                "secondary_fact_id": base + offset + 1,
+                "primary_component_id": base + offset,
+                "secondary_component_id": base + offset + 1,
                 "primary_fact_type": "cash",
                 "secondary_fact_type": "cash",
-                "ordered_fact_a": base + offset,
-                "ordered_fact_b": base + offset + 1,
+                "ordered_component_a": base + offset,
+                "ordered_component_b": base + offset + 1,
                 "status": "accepted",
                 "rule_id": "relation_group_performance",
                 "candidate_fact_ids": [],
                 "created_by": "performance",
                 "decided_by": "performance",
                 "decision_reason": "",
-                "anchor_fact_id": base + offset,
+                "anchor_component_id": base + offset,
             } for offset in range(size - 1))
             next_fact_id += size
     with sessions.begin() as session:
         session.execute(insert(CashTransactionModel), extra_transactions)
+        session.execute(insert(CashTransactionComponentModel), extra_components)
         session.execute(insert(TransactionRelationModel), relation_rows)
     CashProjectionService(sessions, WORKSPACE).rebuild()
     service = _cash_command_service(sessions)

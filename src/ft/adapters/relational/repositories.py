@@ -1051,6 +1051,7 @@ class RelationalCashflowRepository:
 
         results = []
         changed_existing_ids: list[int] = []
+        pending_created_by_key: dict[tuple[str, str], dict] = {}
         with self._session.no_autoflush:
             for account_type, row in items:
                 key = (
@@ -1063,6 +1064,22 @@ class RelationalCashflowRepository:
                     if existing is not None
                     else accounts_by_name_type.get((str(row.get("account_name") or ""), account_type))
                 )
+                # A statement can contain duplicate provider IDs.  The first
+                # row is still pending flush, so its model has no database ID
+                # and cannot yet have components.  Treat later rows with the
+                # same key as idempotent duplicates of that pending model.
+                if existing is not None and existing.id is None:
+                    created = pending_created_by_key[key]
+                    results.append({
+                        "fact_id": None,
+                        "created": False,
+                        "source_changed": False,
+                        "previous": None,
+                        "current": None,
+                        "_model": created["_model"],
+                        "_account": created["_account"],
+                    })
+                    continue
                 result = self._merge_import_model(
                     account_type,
                     row,
@@ -1072,6 +1089,7 @@ class RelationalCashflowRepository:
                 results.append(result)
                 if result["created"]:
                     existing_by_key[key] = result["_model"]
+                    pending_created_by_key[key] = result
                 elif result["source_changed"]:
                     changed_existing_ids.append(int(result["_model"].id))
 
