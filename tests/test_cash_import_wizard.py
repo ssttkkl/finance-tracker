@@ -75,6 +75,7 @@ def test_cash_import_detects_unique_channel_and_preview_is_read_only(tmp_path):
     assert preview["channel"] == "alipay"
     assert preview["summary"] == {
         "total": 1, "new": 1, "existing": 0, "unsupported": 0,
+        "requires_allocation": 0,
     }
     assert set(preview["columns"]) == {
         "occurred_at", "amount", "currency", "account_name", "counterparty",
@@ -365,8 +366,8 @@ def test_cash_import_probe_error_is_not_reclassified_as_no_match(tmp_path):
         service.detect_import(source.read_bytes(), filename=source.name)
 
 
-def test_cash_import_skips_unresolved_alipay_rows_but_imports_other_rows(tmp_path):
-    from ft.adapters.relational.models import AccountModel, CashTransactionModel
+def test_cash_import_requires_allocation_then_writes_one_parent_with_components(tmp_path):
+    from ft.adapters.relational.models import AccountModel, CashTransactionComponentModel, CashTransactionModel
 
     source = tmp_path / "alipay.csv"
     source.write_bytes(b"mixed composite payment")
@@ -380,44 +381,74 @@ def test_cash_import_skips_unresolved_alipay_rows_but_imports_other_rows(tmp_pat
     ]})
 
     scan = service.scan_import(source.read_bytes(), filename=source.name)
-    assert scan["unresolved_count"] == 1
-    group = scan["groups"][0]
+    assert scan["unresolved_count"] == 0
+    assert {group["display_name"] for group in scan["groups"]} == {"支付宝余额", "花呗"}
+    with service._uow as uow:
+        uow.accounts.add_raw({"name": "花呗账户", "type": "loan", "currency": "CNY"})
+        uow.commit()
     with sessions() as session:
-        account_id = session.query(AccountModel.id).filter_by(
-            workspace_id="wizard-workspace", name="支付宝余额",
-        ).scalar()
+        account_ids = {
+            name: session.query(AccountModel.id).filter_by(
+                workspace_id="wizard-workspace", name=name,
+            ).scalar()
+            for name in ("支付宝余额", "花呗账户")
+        }
 
-    mapping = [{
-        "group_id": group["group_id"],
-        "account_id": account_id,
-        "mapping_revision": group["suggestion"]["mapping_revision"],
-    }]
+    mapping = [
+        {
+            "group_id": group["group_id"],
+            "account_id": account_ids["支付宝余额" if group["display_name"] == "支付宝余额" else "花呗账户"],
+            "mapping_revision": group["suggestion"]["mapping_revision"],
+        }
+        for group in scan["groups"]
+    ]
     preview = service.preview_import(
         source.read_bytes(), source="", currency=None, filename=source.name,
         mapping=mapping,
     )
     assert preview["summary"] == {
-        "total": 2, "new": 1, "existing": 0, "unsupported": 1, "unresolved": 1,
+        "total": 2, "new": 1, "existing": 0, "unsupported": 0,
+        "requires_allocation": 1, "unresolved": 0,
     }
-    assert {item["status"] for item in preview["items"]} == {"new", "unresolved"}
-    unresolved = next(item for item in preview["items"] if item["status"] == "unresolved")
-    assert unresolved["account_name"] == ""
-    assert unresolved["record_id"] == "ambiguous"
+    assert {item["status"] for item in preview["items"]} == {"new", "requires_allocation"}
+    blocked = next(item for item in preview["items"] if item["status"] == "requires_allocation")
+    assert blocked["record_id"] == "ambiguous"
+    assert [item["account_name"] for item in blocked["components"]] == ["支付宝余额", "花呗账户"]
     assert preview["relations"] == []
+
+    confirmed_mapping = [
+        {
+            **decision,
+            "component_allocations": {
+                "ambiguous": [{"amount": "1000.00"}, {"amount": "2020.00"}],
+            },
+        }
+        for decision in mapping
+    ]
+    ready = service.preview_import(
+        source.read_bytes(), source="", currency=None, filename=source.name,
+        mapping=confirmed_mapping,
+    )
+    assert ready["summary"]["requires_allocation"] == 0
 
     result = service.commit_import(
         source.read_bytes(), source="", currency=None, filename=source.name,
-        preview_digest=scan["digest"], preview_channel="alipay", mapping=mapping,
+        preview_digest=scan["digest"], preview_channel="alipay", mapping=confirmed_mapping,
     )
-    assert result["new_rows"] == 1
-    assert result["skipped_rows"] == 1
+    assert result["new_rows"] == 2
+    assert result["skipped_rows"] == 0
     with sessions() as session:
         rows = session.query(CashTransactionModel).all()
-        assert len(rows) == 1
-        assert rows[0].record_id == "valid"
+        assert len(rows) == 2
+        aggregate = session.query(CashTransactionModel).filter_by(record_id="ambiguous").one()
+        assert aggregate.cash_granularity == "aggregate"
+        components = session.query(CashTransactionComponentModel).filter_by(
+            cash_transaction_id=aggregate.id,
+        ).order_by(CashTransactionComponentModel.ordinal).all()
+        assert [component.amount for component in components] == [Decimal("-1000.00"), Decimal("-2020.00")]
 
 
-def test_cash_import_rejects_file_with_only_unresolved_alipay_rows_without_writes(tmp_path):
+def test_cash_import_scans_composite_alipay_rows_without_writes(tmp_path):
     from ft.adapters.relational.models import AccountModel, CashTransactionModel, StatementAccountMappingModel
 
     source = tmp_path / "alipay.csv"
@@ -427,8 +458,9 @@ def test_cash_import_rejects_file_with_only_unresolved_alipay_rows_without_write
         amount="-3020.00",
     )]})
 
-    with pytest.raises(ValueError, match="import_composite_payment_unresolved"):
-        service.scan_import(source.read_bytes(), filename=source.name)
+    scan = service.scan_import(source.read_bytes(), filename=source.name)
+    assert scan["unresolved_count"] == 0
+    assert {group["display_name"] for group in scan["groups"]} == {"支付宝余额", "花呗"}
 
     with sessions() as session:
         assert session.query(AccountModel).count() == 1
@@ -1303,7 +1335,10 @@ def test_cash_import_preview_does_not_duplicate_existing_facts_for_relation_matc
         source.read_bytes(), source="alipay", currency=None, filename=source.name,
     )
 
-    assert preview["summary"] == {"total": 2, "new": 0, "existing": 2, "unsupported": 0}
+    assert preview["summary"] == {
+        "total": 2, "new": 0, "existing": 2, "unsupported": 0,
+        "requires_allocation": 0,
+    }
     assert preview["relations"] == []
 
 

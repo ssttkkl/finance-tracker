@@ -92,12 +92,6 @@ def _parse_cash_statement(command, *, resolve_accounts: bool = True):
         if not isinstance(source_payload, dict) or not source_payload:
             raise ValueError("账单行缺少完整来源行快照")
         item["source_payload"] = source_payload
-        # Component drafts are derived from the normalized payment-method
-        # evidence while the untouched source row remains the audit payload.
-        if bill_type == "alipay":
-            from ft.application.statement_account_mapping import build_component_allocation_draft
-
-            item["component_allocation"] = build_component_allocation_draft(item)
         relation_metadata = {
             key: row[key]
             for key in (
@@ -123,6 +117,17 @@ def _parse_cash_statement(command, *, resolve_accounts: bool = True):
                 item[key] = row[key]
             elif key in row and not item.get(key):
                 item[key] = row[key]
+        # Component drafts are derived from the normalized payment-method
+        # evidence while the untouched source row remains the audit payload.
+        # Copy platform metadata first so the draft sees the actual Alipay
+        # payment-method field instead of falling back to wallet.
+        if bill_type == "alipay":
+            from ft.application.statement_account_mapping import build_component_allocation_draft
+
+            draft = build_component_allocation_draft(item)
+            if len(draft["components"]) == 1 and item.get("account_name"):
+                draft["components"][0]["account_name"] = item["account_name"]
+            item["component_allocation"] = draft
         output.append(item)
     if skipped and resolve_accounts:
         raise ValueError(

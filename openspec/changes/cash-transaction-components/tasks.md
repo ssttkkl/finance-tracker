@@ -24,6 +24,8 @@
 
 实施记录（现金流 HTTP 组件输入）：`/api/v1/cashflow/add` 现在接受 `components` / `component_allocation`，按 Decimal 字符串解析组成项金额；组合流水可省略父级账户并由服务层从首个组成项推导。列表 JSON 序列化补齐递归，确保响应中的组成项 Decimal 始终输出为精确字符串。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/contract/test_cli_replacement_api.py -q`，结果 `8 passed, 1 skipped`；`git diff --check` 通过。
 
+实施记录（支付宝组合支付导入）：来源账户扫描现在为已验证的 `&` 组成项分别建立映射组；数据库映射解析器保留一条父行并生成带账户的 `component_allocation` 草稿，金额不完整时在确认前返回 `import_component_allocation_incomplete`。修复支付宝单账户草稿使用原始支付方式而不是默认钱包，并将映射后的账户名写入 singleton component。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/test_statement_account_mapping.py tests/test_statement_import_mapping.py tests/test_cash_import_wizard.py tests/test_cash_import_session_service.py tests/test_import_scan_refund_boundary.py tests/contract/test_cash_import_dual_backend.py -q`，结果 `107 passed, 7 skipped`；`git diff --check` 通过。
+
 ## 2. 失败契约测试（先红）
 
 - [ ] 2.1 新增父流水/组成项守恒、`atomic`/`aggregate` 派生和非法输入测试，先确认当前实现失败。

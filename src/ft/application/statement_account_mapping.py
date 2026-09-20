@@ -537,6 +537,25 @@ def apply_saved_mappings(uow, rows: list[dict]) -> list[dict]:
                     **dict(row.get("component_account_ids") or {}),
                     group.source_account_key: int(account["id"]),
                 }
+    # Keep composite rows as one parent import item while making the mapped
+    # account choices explicit in the component draft.  Amounts remain absent
+    # when the source only exposes a total; confirmation will then stop on the
+    # allocation guard instead of silently choosing one account.
+    for row in rows:
+        identities = source_component_identity_keys(row)
+        if len(identities) <= 1:
+            continue
+        draft = build_component_allocation_draft(row)
+        names = dict(row.get("component_account_names") or {})
+        ids = dict(row.get("component_account_ids") or {})
+        for component in draft["components"]:
+            key = str(component.get("account_key") or "")
+            component["account_name"] = names.get(key, "")
+            if key in ids:
+                component["account_id"] = ids[key]
+        row["account_name"] = ""
+        row["component_allocation"] = draft
+        row["components"] = draft["components"]
     return rows
 
 

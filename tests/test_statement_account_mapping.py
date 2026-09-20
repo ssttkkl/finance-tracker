@@ -361,22 +361,20 @@ def test_scan_alipay_wallet_aliases_share_canonical_group_without_mutating_sourc
     assert short_balance["payment_method"] == "余额"
 
 
-def test_scan_alipay_multiple_funding_accounts_fails_closed():
+def test_scan_alipay_multiple_funding_accounts_are_grouped_as_components():
     from ft.application.statement_account_mapping import scan_source_rows
 
-    with pytest.raises(ValueError, match="import_composite_payment_unresolved"):
-        scan_source_rows([_row(
-            "alipay",
-            amount="-3020.00",
-            payment_method="账户余额&花呗分期(3期)",
-        )])
+    groups = scan_source_rows([_row(
+        "alipay",
+        amount="-3020.00",
+        payment_method="账户余额&花呗分期(3期)",
+    )])
+
+    assert [group.source_account_key for group in groups] == ["支付宝余额", "花呗"]
 
 
 def test_scan_alipay_multiple_funding_accounts_are_reported_per_row():
-    from ft.application.statement_account_mapping import (
-        SourceRowIssue,
-        scan_source_rows_with_issues,
-    )
+    from ft.application.statement_account_mapping import scan_source_rows_with_issues
 
     groups, issues = scan_source_rows_with_issues([
         _row(
@@ -388,10 +386,8 @@ def test_scan_alipay_multiple_funding_accounts_are_reported_per_row():
         _row("alipay", record_id="valid", payment_method="账户余额"),
     ])
 
-    assert [group.source_account_key for group in groups] == ["支付宝余额"]
-    assert issues == (
-        SourceRowIssue(row_index=0, code="import_composite_payment_unresolved"),
-    )
+    assert [group.source_account_key for group in groups] == ["支付宝余额", "花呗"]
+    assert issues == ()
 
 
 def test_scan_alipay_zero_amount_non_funding_component_uses_wallet_group():
@@ -747,7 +743,7 @@ def test_database_mapped_parser_uses_confirmed_mapping_without_yaml(tmp_path, mo
     assert rows[0]["account_name"] == "数据库账户"
 
 
-def test_database_mapped_parser_skips_only_alipay_composite_rows(tmp_path):
+def test_database_mapped_parser_keeps_alipay_composite_rows_as_allocation_drafts(tmp_path):
     from sqlalchemy import select
 
     from ft.application.statement_account_mapping import DatabaseMappedStatementParser
@@ -774,16 +770,25 @@ def test_database_mapped_parser_skips_only_alipay_composite_rows(tmp_path):
     ensure_workspace(sessions, "composite-workspace")
     with unit_of_work(sessions, "composite-workspace") as uow:
         uow.accounts.add_raw({"name": "数据库账户", "type": "cash", "currency": "CNY"})
+        uow.accounts.add_raw({"name": "花呗账户", "type": "cash", "currency": "CNY"})
         uow.commit()
     with sessions() as session:
         account_id = session.scalar(select(AccountModel.id).where(
             AccountModel.workspace_id == "composite-workspace",
             AccountModel.name == "数据库账户",
         ))
+        huabei_id = session.scalar(select(AccountModel.id).where(
+            AccountModel.workspace_id == "composite-workspace",
+            AccountModel.name == "花呗账户",
+        ))
     with unit_of_work(sessions, "composite-workspace") as uow:
         uow.statement_account_mappings.upsert(
             source_type="alipay", identity_kind="payment_method",
             source_account_key="支付宝余额", account_id=account_id, confirmed_by="web",
+        )
+        uow.statement_account_mappings.upsert(
+            source_type="alipay", identity_kind="payment_method",
+            source_account_key="花呗", account_id=huabei_id, confirmed_by="web",
         )
         uow.commit()
 
@@ -791,18 +796,15 @@ def test_database_mapped_parser_skips_only_alipay_composite_rows(tmp_path):
         SourceParser(), unit_of_work(sessions, "composite-workspace")
     ).parse(StatementImportCommand(source_path=str(source), source="alipay"))
 
-    assert len(rows) == 1
-    assert rows[0]["record_id"] == "valid"
-    meta = rows[0]["_import_meta"]
-    assert meta["skipped_composite_payment"] == 1
-    assert meta["skipped_rows"] == [{
-        "row_index": 0,
-        "record_id": "ambiguous",
-        "code": "import_composite_payment_unresolved",
-    }]
+    assert len(rows) == 2
+    composite = next(row for row in rows if row["record_id"] == "ambiguous")
+    assert composite["account_name"] == ""
+    assert composite["component_allocation"]["status"] == "requires_allocation"
+    assert [item["account_name"] for item in composite["components"]] == ["数据库账户", "花呗账户"]
+    assert next(row for row in rows if row["record_id"] == "valid")["account_name"] == "数据库账户"
 
 
-def test_import_service_reports_composite_skip_and_keeps_unknown_mapping_fail_closed(tmp_path):
+def test_import_service_blocks_composite_without_allocation_and_keeps_atomic_rows_unwritten(tmp_path):
     from sqlalchemy import func, select
 
     from ft.adapters.relational import ensure_workspace
@@ -818,16 +820,25 @@ def test_import_service_reports_composite_skip_and_keeps_unknown_mapping_fail_cl
     ensure_workspace(sessions, "composite-service-workspace")
     with unit_of_work(sessions, "composite-service-workspace") as uow:
         uow.accounts.add_raw({"name": "数据库账户", "type": "cash", "currency": "CNY"})
+        uow.accounts.add_raw({"name": "花呗账户", "type": "cash", "currency": "CNY"})
         uow.commit()
     with sessions() as session:
         account_id = session.scalar(select(AccountModel.id).where(
             AccountModel.workspace_id == "composite-service-workspace",
             AccountModel.name == "数据库账户",
         ))
+        huabei_id = session.scalar(select(AccountModel.id).where(
+            AccountModel.workspace_id == "composite-service-workspace",
+            AccountModel.name == "花呗账户",
+        ))
     with unit_of_work(sessions, "composite-service-workspace") as uow:
         uow.statement_account_mappings.upsert(
             source_type="alipay", identity_kind="payment_method",
             source_account_key="支付宝余额", account_id=account_id, confirmed_by="web",
+        )
+        uow.statement_account_mappings.upsert(
+            source_type="alipay", identity_kind="payment_method",
+            source_account_key="花呗", account_id=huabei_id, confirmed_by="web",
         )
         uow.commit()
 
@@ -854,37 +865,13 @@ def test_import_service_reports_composite_skip_and_keeps_unknown_mapping_fail_cl
         SourceParser([composite, valid]),
         unit_of_work(sessions, "composite-service-workspace"),
     )
-    result = StatementImportService(
-        unit_of_work(sessions, "composite-service-workspace"), parser,
-        enforce_account_currencies=True,
-    ).import_statement(StatementImportCommand(source_path=str(source), source="alipay"))
-
-    assert result.ok is True
-    assert result.count == 1
-    assert result.details["skipped_rows"] == 1
-    assert result.details["skipped_composite_payment"] == 1
+    with pytest.raises(ValueError, match="import_component_allocation_incomplete"):
+        StatementImportService(
+            unit_of_work(sessions, "composite-service-workspace"), parser,
+            enforce_account_currencies=True,
+        ).import_statement(StatementImportCommand(source_path=str(source), source="alipay"))
     with sessions() as session:
-        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 1
-
-    all_composite_parser = DatabaseMappedStatementParser(
-        SourceParser([composite]),
-        unit_of_work(sessions, "composite-service-workspace"),
-    )
-    all_skipped_source = tmp_path / "all-composite.csv"
-    all_skipped_source.write_text("fixture", encoding="utf-8")
-    all_skipped = StatementImportService(
-        unit_of_work(sessions, "composite-service-workspace"),
-        all_composite_parser,
-        enforce_account_currencies=True,
-    ).import_statement(StatementImportCommand(
-        source_path=str(all_skipped_source), source="alipay",
-    ))
-    assert all_skipped.ok is True
-    assert all_skipped.count == 0
-    assert all_skipped.details["skipped_rows"] == 1
-    assert all_skipped.details["skipped_composite_payment"] == 1
-    with sessions() as session:
-        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 1
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == 0
 
     bad = _row("alipay", record_id="bad", payment_method="")
     with pytest.raises(ValueError, match="业务行无法识别来源账户"):
