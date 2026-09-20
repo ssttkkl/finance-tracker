@@ -53,9 +53,11 @@ function cashRecordFromEvidence(record: EvidenceRecord, projection: CashProjecti
     record_type: fallbackRecordType(record, projection),
     record_subtype: record.record_subtype ?? projection.transfer_subtype ?? "not_applicable",
     account_name: record.account_name ?? record.account?.name ?? "多个账户",
-    account_id: record.account_id ?? record.account?.id ?? 0,
+    account_id: record.account_id ?? record.account?.id ?? null,
     account_type: record.account_type ?? record.account?.type ?? "cash",
     source_type: record.source_type ?? "",
+    cash_granularity: record.cash_granularity ?? (record.components && record.components.length > 1 ? "aggregate" : "atomic"),
+    components: record.components ?? [],
   };
 }
 
@@ -77,6 +79,9 @@ function detailFromEvidence(evidence: Evidence, recordId: string, options: Ledge
       status: relation.status,
       primary_record: relation.primary_record ? cashRecordFromEvidence(relation.primary_record, evidence.projection) : null,
       secondary_record: relation.secondary_record ? cashRecordFromEvidence(relation.secondary_record, evidence.projection) : null,
+      primary_component_id: relation.primary_component_id,
+      secondary_component_id: relation.secondary_component_id,
+      applied_amount: relation.applied_amount,
     })),
     options,
   };

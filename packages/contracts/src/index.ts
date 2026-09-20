@@ -98,7 +98,7 @@ export type EvidenceRecord = {
   occurred_at: string;
   account: Account | null;
   account_name?: string;
-  account_id?: number;
+  account_id?: number | null;
   account_type?: string;
   counterparty: string;
   counterparty_account?: string;
@@ -111,6 +111,8 @@ export type EvidenceRecord = {
   record_id?: string;
   record_type?: string;
   record_subtype?: string;
+  cash_granularity?: "atomic" | "aggregate" | string;
+  components?: CashRecordComponent[];
 };
 
 export type EvidenceMember = EvidenceRecord & { roles: string[] };
@@ -120,6 +122,9 @@ export type EndpointRelation = {
   subtype: string;
   primary_record: EvidenceRecord | null;
   secondary_record: EvidenceRecord | null;
+  primary_component_id?: string | number | null;
+  secondary_component_id?: string | number | null;
+  applied_amount?: string | null;
 };
 export type AcceptedEvidenceRelation = EndpointRelation & {
   rule_id: string;
@@ -128,6 +133,20 @@ export type AcceptedEvidenceRelation = EndpointRelation & {
 };
 export type InactiveRelationHint = EndpointRelation & {
   status: "pending_review" | "rejected" | "superseded";
+};
+
+export type CashRecordComponent = {
+  id: string;
+  cash_transaction_id?: string | number;
+  account_id: number;
+  account_name: string;
+  account_type: string;
+  amount: string;
+  currency: string;
+  ordinal: number;
+  label?: string;
+  source_key?: string;
+  metadata?: Record<string, unknown>;
 };
 export type RefundTimelineItem = {
   record_id: string;
@@ -159,9 +178,11 @@ export type CashRecord = {
   record_type: string;
   record_subtype: string;
   account_name: string;
-  account_id: number;
+  account_id: number | null;
   account_type: string;
   source_type: string | null;
+  cash_granularity: "atomic" | "aggregate" | string;
+  components: CashRecordComponent[];
 };
 
 export type CashRelation = {
@@ -172,6 +193,9 @@ export type CashRelation = {
   status: "pending_review" | "accepted" | "rejected" | "superseded";
   primary_record: CashRecord | null;
   secondary_record: CashRecord | null;
+  primary_component_id?: string | number | null;
+  secondary_component_id?: string | number | null;
+  applied_amount?: string | null;
 };
 
 export type CashRecordDetail = {
