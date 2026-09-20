@@ -904,6 +904,7 @@ class RelationService:
                 replacement,
                 candidate_remaining,
                 accepted_relations=accepted_without_old,
+                exclude_relation_id=int(relation["id"]),
             )
             if (
                 created is None
@@ -2461,6 +2462,7 @@ class RelationService:
     def _persist_proposal(
         self, uow, proposal, remaining: dict[str, Decimal], *,
         accepted_relations: Sequence[dict] | None = None,
+        exclude_relation_id: int | None = None,
     ) -> dict | None:
         open_leg = bool(getattr(proposal, "open_leg", False) or proposal.secondary_fact_id in (None, ""))
         subtype = proposal.subtype or SUBTYPE_NONE
@@ -2652,6 +2654,8 @@ class RelationService:
                 else Decimal("0")
             ),
         }
+        if exclude_relation_id is not None:
+            payload["_exclude_relation_id"] = exclude_relation_id
         new_id = uow.relations.add(payload)
         return uow.relations.get(new_id)
 

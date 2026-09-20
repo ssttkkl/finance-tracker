@@ -1660,8 +1660,9 @@ class RelationalRelationRepository:
                     CashTransactionComponentModel.workspace_id == self._workspace_id,
                     CashTransactionComponentModel.id.in_(endpoint_ids),
                 )).all())
+                excluded_relation_id = relation.get("_exclude_relation_id")
                 for component_id in endpoint_ids:
-                    existing_total = self._session.scalar(select(
+                    existing_total_query = select(
                         func.coalesce(func.sum(TransactionRelationModel.applied_amount), 0)
                     ).where(
                         TransactionRelationModel.workspace_id == self._workspace_id,
@@ -1672,7 +1673,12 @@ class RelationalRelationRepository:
                             (TransactionRelationModel.primary_component_id == component_id)
                             | (TransactionRelationModel.secondary_component_id == component_id)
                         ),
-                    ))
+                    )
+                    if excluded_relation_id not in (None, ""):
+                        existing_total_query = existing_total_query.where(
+                            TransactionRelationModel.id != _as_int_id(excluded_relation_id)
+                        )
+                    existing_total = self._session.scalar(existing_total_query)
                     if exact_decimal(existing_total or "0") + applied_amount > abs(exact_decimal(component_amount_by_id[component_id])):
                         raise ValueError("组成项退款分摊金额超过可用金额")
         left, right = ordered_fact_pair(primary_component, secondary_component)
