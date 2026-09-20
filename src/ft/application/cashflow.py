@@ -34,6 +34,8 @@ class CashflowService:
                                currency: str | None = None,
                                bill_source: str = "", record_id: str = "",
                                record_type: str = "other", category_id: str | None = None,
+                               components: list[dict] | None = None,
+                               component_allocation: dict | None = None,
                                **_extra) -> CashflowResult:
         try:
             operation_currency = normalize_currency(currency or "")
@@ -41,6 +43,12 @@ class CashflowService:
             return CashflowResult.fail("cashflow.currency_required", "必须显式提供有效的 3 位币种码")
         date_str = date or datetime.now(timezone.utc).isoformat()
         with self._uow as uow:
+            supplied_components = components
+            if supplied_components is None and isinstance(component_allocation, dict):
+                supplied_components = component_allocation.get("components")
+            if not account_name and supplied_components:
+                first = supplied_components[0] if isinstance(supplied_components[0], dict) else {}
+                account_name = str(first.get("account_name") or "").strip()
             account = uow.accounts.find(account_name)
             if account is None:
                 uow.rollback()
@@ -65,10 +73,27 @@ class CashflowService:
                 "source_type": bill_source or source or "",
                 "record_id": record_id,
             }
-            fact_id = uow.cashflows.add(account.type, row)
+            if components is not None:
+                row["components"] = components
+            if component_allocation is not None:
+                row["component_allocation"] = component_allocation
+            fact_model, _account_model = uow.cashflows.add(
+                account.type, row, account=None, return_model=True,
+            )
+            fact_id = fact_model.id
+            current = uow.cashflows._to_row(fact_model, None)
             snap = uow.snapshot.load(lock=True)
-            _ensure_snapshot_account(snap, account.type, account_name, operation_currency)
-            uow.snapshot.update_balance(snap, account_name, account.type, operation_currency, amount)
+            for component in current.get("components") or ():
+                component_account = str(component.get("account_name") or "").strip()
+                if not component_account:
+                    raise ValueError("组成项缺少目标账户")
+                component_type = component.get("account_type") or account.type
+                component_currency = str(component.get("currency") or operation_currency).upper()
+                _ensure_snapshot_account(snap, component_type, component_account, component_currency)
+                uow.snapshot.update_balance(
+                    snap, component_account, component_type, component_currency,
+                    component.get("amount") or 0,
+                )
             snap["updated_at"] = date_str
             uow.snapshot.save(snap)
             from ft.application.cash_projections import CashProjectionService
@@ -76,7 +101,12 @@ class CashflowService:
                 uow._state().session, uow.workspace_id, {int(fact_id)},
             )
             uow.commit()
-            return CashflowResult.success(row={**row, "amount": format(amount, "f")}, account=account)
+            return CashflowResult.success(
+                row={**row, "amount": format(amount, "f"),
+                     "cash_granularity": current.get("cash_granularity"),
+                     "components": current.get("components") or []},
+                account=account,
+            )
 
     def checkin_balance(self, *, account_name: str, balance: Decimal, date: str | None = None,
                         currency: str | None = None) -> CashflowResult:

@@ -238,6 +238,49 @@ def test_manual_cash_write_and_balance_checkin_maintain_complete_projection(cash
     assert members == 5
 
 
+def test_manual_cash_write_persists_components_and_updates_each_component_balance(cash_web_runtime):
+    from decimal import Decimal
+
+    from ft.adapters.relational.uow import RelationalUnitOfWork
+    from ft.application.cashflow import CashflowService
+
+    result = CashflowService(
+        RelationalUnitOfWork(cash_web_runtime.sessions, cash_web_runtime.workspace_id),
+    ).add_manual_transaction(
+        amount=Decimal("-20"),
+        counterparty="组合手工流水",
+        account_name="日常账户",
+        currency="CNY",
+        components=[
+            {"account_name": "日常账户", "amount": "-12", "label": "余额"},
+            {"account_name": "信用账户", "amount": "-8", "label": "信用卡"},
+        ],
+    )
+
+    assert result.ok
+    assert result.row["cash_granularity"] == "aggregate"
+    assert [item["amount"] for item in result.row["components"]] == [Decimal("-12"), Decimal("-8")]
+    with cash_web_runtime.sessions() as session:
+        from sqlalchemy import select
+        from ft.adapters.relational.models import CashTransactionComponentModel, CashTransactionModel
+
+        parent = session.scalar(select(CashTransactionModel).where(
+            CashTransactionModel.record_id == "",
+            CashTransactionModel.counterparty == "组合手工流水",
+        ).order_by(CashTransactionModel.id.desc()))
+        components = session.scalars(select(CashTransactionComponentModel).where(
+            CashTransactionComponentModel.cash_transaction_id == parent.id,
+        ).order_by(CashTransactionComponentModel.ordinal)).all()
+    assert parent.account_id is None
+    assert [component.amount for component in components] == [Decimal("-12"), Decimal("-8")]
+
+    with RelationalUnitOfWork(cash_web_runtime.sessions, cash_web_runtime.workspace_id) as uow:
+        snapshot = uow.snapshot.load()
+        assert snapshot["accounts"]["cash"]["日常账户"]["CNY"] == "-12"
+        assert snapshot["accounts"]["loan"]["信用账户"]["CNY"] == "-8"
+        uow.rollback()
+
+
 def test_statement_import_maintains_complete_projection(cash_web_runtime, tmp_path):
     from sqlalchemy import func, select
     from ft.adapters.relational.models import CashProjectionMemberModel, CashProjectionStateModel

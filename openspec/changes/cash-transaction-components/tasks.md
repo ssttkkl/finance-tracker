@@ -18,6 +18,8 @@
 
 实施记录（投资账本关系夹具组件化）：更新投资账本查询和性能夹具，关系统一引用 `cash_transaction_component_id`，并为性能数据集写入 singleton `cash_transaction_components`。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/test_application_investment_web_queries.py -q`，结果 `4 passed, 1 skipped`；`PYTHONPATH=tests:.:src uv run pytest tests/test_investment_web_performance.py -q`，结果 `2 passed, 2 skipped`；PostgreSQL 因 `FT_TEST_POSTGRES_URL` 未配置而跳过，未计入通过项。
 
+实施记录（旧版手工现金服务组件化）：`CashflowService.add_manual_transaction` 接受 `components`/`component_allocation`，新增 aggregate 父流水时按 component 写入余额快照，并返回 component 明细。验证命令：`PYTHONPATH=tests:.:src uv run pytest tests/test_application_cash_projections.py::test_manual_cash_write_persists_components_and_updates_each_component_balance tests/test_application_cash_projections.py::test_uninitialized_cash_write_commits_then_first_rebuild_publishes_it -q`，结果 `2 passed`；组件金额守恒和父流水 `cash_granularity` 已由仓储校验。
+
 ## 2. 失败契约测试（先红）
 
 - [ ] 2.1 新增父流水/组成项守恒、`atomic`/`aggregate` 派生和非法输入测试，先确认当前实现失败。
