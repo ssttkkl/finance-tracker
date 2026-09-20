@@ -12,6 +12,7 @@ import type {
 } from "@finance-tracker/contracts";
 import { ApiError } from "@finance-tracker/api-client";
 import {
+  cashComponentsConserve,
   createImportSession,
   importSessionReducer,
   type ImportSessionState,
@@ -65,6 +66,7 @@ function errorText(code: string | null): string | null {
   if (code === "import_account_name_conflict") return "账户名称已存在，请修改后重试。";
   if (code === "import_account_draft_invalid") return "新账户信息无效，请修改后重试。";
   if (code === "import_mapping_stale") return "账户映射已变化，请重新扫描。";
+  if (code === "import_component_allocation_incomplete") return copy.import.allocationConfirmPrompt;
   if (code === "import_preview_stale") return "文件内容已经变化，请重新选择文件。";
   if (code === "import_relation_reconfirmation_required" || code === "import_relation_preview_stale" || code === "import_relation_candidate_invalid") {
     return "相关流水已变化，请重新确认配对。";
@@ -154,6 +156,38 @@ function ordinaryUnsupportedCount(preview: ImportPreview): number {
   return Math.max(0, preview.summary.unsupported - (preview.summary.unresolved ?? 0));
 }
 
+type AllocationDrafts = Record<string, string[]>;
+
+function allocationDraftsFor(preview: ImportPreview): AllocationDrafts {
+  return Object.fromEntries(preview.items
+    .filter((item) => (item.components?.length ?? 0) > 1)
+    .map((item) => [item.record_id, (item.components ?? []).map((component) => component.amount ?? "")]));
+}
+
+function allocationMatches(item: ImportPreview["items"][number], values: string[]): boolean {
+  const components = item.components ?? [];
+  if (components.length < 2 || values.length !== components.length) return components.length < 2;
+  return cashComponentsConserve(
+    components.map((component, index) => ({ accountName: component.account_name || component.source_label, amount: values[index] ?? "" })),
+    item.amount,
+  );
+}
+
+function allocationRequiredCount(preview: ImportPreview, drafts: AllocationDrafts): number {
+  return preview.items.filter((item) => (item.components?.length ?? 0) > 1 && !allocationMatches(item, drafts[item.record_id] ?? [])).length;
+}
+
+function mappingWithAllocations(scan: ImportScan, drafts: Record<string, MappingDraft>, allocations: AllocationDrafts = {}): ImportMappingDecision[] {
+  const decisions = mappingDecision(scan, drafts);
+  const componentAllocations = Object.fromEntries(Object.entries(allocations)
+    .filter(([, values]) => values.length > 1)
+    .map(([recordId, values]) => [recordId, values.map((amount) => ({ amount }))]));
+  if (decisions.length > 0 && Object.keys(componentAllocations).length > 0) {
+    decisions[0] = { ...decisions[0], component_allocations: componentAllocations };
+  }
+  return decisions;
+}
+
 export default function ImportScreen() {
   const { client, activeRole } = useSession();
   const [importState, dispatch] = useReducer(importSessionReducer, undefined, createImportSession);
@@ -162,6 +196,7 @@ export default function ImportScreen() {
   const [scan, setScan] = useState<ImportScan | null>(null);
   const [drafts, setDrafts] = useState<Record<string, MappingDraft>>({});
   const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [allocationDrafts, setAllocationDrafts] = useState<AllocationDrafts>({});
   const [relationDrafts, setRelationDrafts] = useState<Record<string, RelationDraft>>({});
   const [password, setPassword] = useState("");
   const [passwordRequired, setPasswordRequired] = useState(false);
@@ -186,6 +221,7 @@ export default function ImportScreen() {
       setScan(nextScan);
       setDrafts(mappingFor(nextScan));
       setPreview(null);
+      setAllocationDrafts({});
       setRelationDrafts({});
       setImportToken(nextScan.import_token ?? nextToken ?? null);
       if (nextScan.import_token || nextToken) setIdempotencyKey((current) => current ?? newIdempotencyKey());
@@ -221,6 +257,7 @@ export default function ImportScreen() {
       setScan(null);
       setDrafts({});
       setPreview(null);
+      setAllocationDrafts({});
       setRelationDrafts({});
       setResult(null);
       setImportToken(null);
@@ -256,6 +293,7 @@ export default function ImportScreen() {
         importToken ?? undefined,
       );
       setPreview(nextPreview);
+      setAllocationDrafts(allocationDraftsFor(nextPreview));
       setImportToken(nextPreview.import_token ?? importToken);
       setRelationDrafts({});
       dispatch({ type: "preview_ready", preview: nextPreview });
@@ -274,7 +312,7 @@ export default function ImportScreen() {
   }
 
   function openRelations() {
-    if (!preview) return;
+    if (!preview || allocationRequiredCount(preview, allocationDrafts) > 0) return;
     setRelationDrafts(Object.fromEntries(preview.relations.map((relation) => [relation.id, relationDrafts[relation.id] ?? relationDraftFor(relation)])));
     setStage("relations");
   }
@@ -298,7 +336,7 @@ export default function ImportScreen() {
   }
 
   async function confirmImport() {
-    if (!file || !preview || ordinaryUnsupportedCount(preview) > 0 || !writable) return;
+    if (!file || !preview || ordinaryUnsupportedCount(preview) > 0 || allocationRequiredCount(preview, allocationDrafts) > 0 || !writable) return;
     const decisions = preview.relations.flatMap((relation) => {
       const draft = relationDrafts[relation.id] ?? relationDraftFor(relation);
       const decision = relationDecision(relation, draft);
@@ -315,7 +353,7 @@ export default function ImportScreen() {
         previewRelationDigest: preview.relation_digest,
         previewChannel: preview.channel,
         relations: decisions,
-        mapping: mappingDecision(scan as ImportScan, drafts),
+        mapping: mappingWithAllocations(scan as ImportScan, drafts, allocationDrafts),
         importToken: importToken ?? undefined,
         idempotencyKey: commitKey,
       }));
@@ -395,12 +433,18 @@ export default function ImportScreen() {
 
     {stage === "preview" && preview && <Surface testID={semanticIds.importPreview}>
       <View style={styles.stageHeader}><Text style={styles.sectionTitle}>{copy.import.preview}</Text><Text style={styles.mono}>{preview.channel_label}</Text></View>
-      <View style={styles.summary}><Summary label={copy.import.all} value={preview.summary.total} /><Summary label={copy.import.new} value={preview.summary.new} /><Summary label={copy.import.existing} value={preview.summary.existing} /><Summary label={copy.import.statusUnresolved} value={preview.summary.unresolved ?? 0} /></View>
-      {preview.items.length === 0 ? <StatusMessage title={copy.import.noPreviewRecords} /> : <View style={styles.previewList}>{preview.items.slice(0, 40).map((item) => <View key={item.record_id} style={styles.previewRow}><View style={styles.rowMain}><Text style={styles.groupName}>{item.counterparty || copy.ledger.noCounterparty}</Text><Text style={styles.muted}>{item.account_name} · {item.occurred_at}</Text><Text style={styles.muted}>{recordTypeLabels[item.record_type] ?? copy.record.typeLabels.other} · {item.status === "new" ? copy.import.statusNew : item.status === "existing" ? copy.import.statusExisting : item.status === "unresolved" ? copy.import.statusUnresolved : copy.import.statusUnsupported}</Text></View><Text style={styles.amount}>{item.amount} {item.currency}</Text></View>)}</View>}
+      <View style={styles.summary}><Summary label={copy.import.all} value={preview.summary.total} /><Summary label={copy.import.new} value={preview.summary.new} /><Summary label={copy.import.existing} value={preview.summary.existing} /><Summary label={copy.import.statusUnresolved} value={preview.summary.unresolved ?? 0} /><Summary label={copy.import.allocationRequired} value={allocationRequiredCount(preview, allocationDrafts)} /></View>
+      {preview.items.length === 0 ? <StatusMessage title={copy.import.noPreviewRecords} /> : <View style={styles.previewList}>{preview.items.slice(0, 40).map((item) => <View key={item.record_id} style={styles.previewRow}><View style={styles.rowMain}><Text style={styles.groupName}>{item.counterparty || copy.ledger.noCounterparty}</Text><Text style={styles.muted}>{item.account_name || "多个账户"} · {item.occurred_at}</Text><Text style={styles.muted}>{recordTypeLabels[item.record_type] ?? copy.record.typeLabels.other} · {item.status === "new" ? copy.import.statusNew : item.status === "existing" ? copy.import.statusExisting : item.status === "unresolved" ? copy.import.statusUnresolved : item.status === "requires_allocation" ? "待补分摊" : copy.import.statusUnsupported}</Text></View><Text style={styles.amount}>{item.amount} {item.currency}</Text></View>)}</View>}
+      {preview.items.filter((item) => (item.components?.length ?? 0) > 1).map((item) => {
+        const values = allocationDrafts[item.record_id] ?? [];
+        const complete = allocationMatches(item, values);
+        return <View testID={semanticIds.importAllocation} key={`allocation-${item.record_id}`} style={styles.allocationCard}><View style={styles.stageHeader}><Text style={styles.groupName}>{item.counterparty || copy.ledger.noCounterparty}</Text><Text style={styles.mono}>{item.amount} {item.currency}</Text></View>{(item.components ?? []).map((component, index) => <View key={`${item.record_id}-${component.ordinal}`} style={styles.allocationRow}><Text style={styles.muted}>{component.account_name || component.source_label}</Text><TextInput accessibilityLabel={`${component.account_name || component.source_label}${copy.import.allocationInputLabelSuffix}`} editable={writable && importState.status !== "loading"} keyboardType="decimal-pad" onChangeText={(value) => setAllocationDrafts((current) => ({ ...current, [item.record_id]: (current[item.record_id] ?? []).map((amount, currentIndex) => currentIndex === index ? value : amount) }))} style={styles.allocationInput} value={values[index] ?? ""} /></View>)}<Text style={complete ? styles.valid : styles.warning}>{complete ? copy.record.allocationMatch : `${copy.record.allocationIncomplete}。`}</Text></View>;
+      })}
       {preview.items.length > 40 && <Text style={styles.muted}>{copy.import.previewFirst40}</Text>}
       {preview.summary.unresolved ? <Text style={styles.warning}>{preview.summary.unresolved} 条无法识别，确认后会跳过。</Text> : null}
       {ordinaryUnsupportedCount(preview) > 0 ? <Text style={styles.warning}>{copy.import.unsupportedCannotConfirm}</Text> : null}
-      <View style={styles.stageActions}><Button testID={semanticIds.importPrevious} disabled={importState.status === "loading"} onPress={() => setStage("mapping")}>{copy.import.previous}</Button><Button testID={semanticIds.importNext} disabled={importState.status === "loading"} onPress={() => openRelations()} variant="primary">{copy.import.next}</Button></View>
+      {allocationRequiredCount(preview, allocationDrafts) > 0 && <Text style={styles.warning}>{copy.import.allocationPrompt}</Text>}
+      <View style={styles.stageActions}><Button testID={semanticIds.importPrevious} disabled={importState.status === "loading"} onPress={() => setStage("mapping")}>{copy.import.previous}</Button><Button testID={semanticIds.importNext} disabled={importState.status === "loading" || allocationRequiredCount(preview, allocationDrafts) > 0} onPress={() => openRelations()} variant="primary">{copy.import.next}</Button></View>
     </Surface>}
 
     {stage === "relations" && preview && <Surface testID={semanticIds.importRelations}>
@@ -419,8 +463,9 @@ export default function ImportScreen() {
         </View>;
       })}</View>}
       {ordinaryUnsupportedCount(preview) > 0 && <Text style={styles.warning}>{copy.import.unsupportedCannotConfirm}</Text>}
+      {allocationRequiredCount(preview, allocationDrafts) > 0 && <Text style={styles.warning}>{copy.import.allocationConfirmPrompt}</Text>}
       {importState.status === "committing" && <StatusMessage title={copy.import.committing} detail={copy.import.committingDetail} action={<ActivityIndicator color={nativeColors.accent} />} />}
-      <View style={styles.stageActions}><Button testID={semanticIds.importPrevious} disabled={importState.status === "committing"} onPress={() => setStage("preview")}>{copy.import.previous}</Button><Button testID={semanticIds.importConfirm} disabled={!writable || importState.status === "committing" || ordinaryUnsupportedCount(preview) > 0} onPress={() => void confirmImport()} variant="primary">{copy.import.confirm}</Button></View>
+      <View style={styles.stageActions}><Button testID={semanticIds.importPrevious} disabled={importState.status === "committing"} onPress={() => setStage("preview")}>{copy.import.previous}</Button><Button testID={semanticIds.importConfirm} disabled={!writable || importState.status === "committing" || ordinaryUnsupportedCount(preview) > 0 || allocationRequiredCount(preview, allocationDrafts) > 0} onPress={() => void confirmImport()} variant="primary">{copy.import.confirm}</Button></View>
     </Surface>}
   </Screen>;
 }
@@ -456,6 +501,10 @@ const styles = StyleSheet.create({
   previewRow: { minHeight: 72, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, padding: 12, borderWidth: 1, borderColor: nativeColors.rule, backgroundColor: nativeColors.paperRaised },
   rowMain: { flex: 1, gap: 3 },
   amount: { color: nativeColors.ink, fontFamily: nativeTypography.mono, fontSize: 13, fontWeight: "700" },
+  allocationCard: { gap: 8, padding: 12, borderWidth: 1, borderColor: nativeColors.accent, backgroundColor: nativeColors.accentSoft },
+  allocationRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  allocationInput: { flex: 1, minHeight: 44, paddingHorizontal: 10, borderWidth: 1, borderColor: nativeColors.rule, borderRadius: 3, color: nativeColors.ink, backgroundColor: nativeColors.paperRaised, fontFamily: nativeTypography.mono, fontSize: 15 },
+  valid: { color: nativeColors.income, fontSize: 13 },
   relationList: { gap: 10 },
   relationCard: { gap: 8, padding: 12, borderWidth: 1, borderColor: nativeColors.rule, backgroundColor: nativeColors.paperRaised },
   relationRejected: { borderColor: nativeColors.danger, opacity: 0.72 },

@@ -81,6 +81,8 @@ UI 信息架构记录：Web/Native 均保留父流水作为单一展示单位，
 
 实施记录（共享 payload 与 Native 手工流水编辑）：`CashRecordDraft`/`buildCashRecordPayload` 支持可选 `components`，共享层以 BigInt 对齐小数位校验父金额守恒；Native 新建、编辑和详情按同一父流水 + 账户分配信息架构实现，未暴露粒度字段。验证命令：`npm test --workspace @finance-tracker/core`（9 passed）、`npm run typecheck --workspace @finance-tracker/core`、`npx tsc --noEmit -p mobile/tsconfig.json`、`npm test --workspace finance-tracker-mobile`（26 passed）均通过；Native 导入分摊、真实设备/浏览器 QA 与 Hallmark audit 尚未完成。
 
+实施记录（Native 导入分摊）：导入预览对多组成项显示逐项金额输入，缺失或不守恒时阻止进入关系阶段和确认阶段，并通过共享 `component_allocations` 映射提交；新增跨端 presentation 文案和语义 ID。验证命令：`npm test --workspace finance-tracker-mobile`（26 passed）、`npx tsc --noEmit -p mobile/tsconfig.json`、Web 导入/账本受影响测试（48 passed）、`npm run build --workspace finance-tracker-web`、`openspec validate --all --strict` 和 `git diff --check` 均通过。Native 导入真实设备 QA、Web 真实浏览器 QA 与 Hallmark audit 尚未完成。
+
 ## 8. 审查与验证
 
 - [ ] 8.1 运行受影响单元/集成/契约测试、类型检查、构建和 `git diff --check`，逐项记录结果。
