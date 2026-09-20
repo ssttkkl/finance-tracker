@@ -25,6 +25,8 @@ npm run ios
 npm run android
 ```
 
+需要在同一个调试构建中切换后端时，额外设置 `EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED='1'`。登录页会显示“后端地址”，成功登录或注册后保存本机选择；不设置该开关时不会显示该控件，也不会使用历史调试地址。
+
 ## Native 路由
 
 ```text

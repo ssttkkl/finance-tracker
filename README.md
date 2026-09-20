@@ -59,7 +59,7 @@ npm run android       # Android development build
 npm run ios           # iOS development build
 ```
 
-真机调试时将 `EXPO_PUBLIC_FT_API_ORIGIN` 设置为开发机局域网 HTTPS 或 HTTP 地址；生产 Native 构建只接受 HTTPS。Web 本地开发默认通过 Vite 代理访问 `http://127.0.0.1:8000`。
+真机调试时将 `EXPO_PUBLIC_FT_API_ORIGIN` 设置为开发机局域网 HTTPS 或 HTTP 地址；生产 Native 构建只接受 HTTPS。需要在同一个调试构建中切换后端时，再设置 `EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED='1'`，登录页会显示地址输入框；缺省时该调试入口关闭。Web 本地开发默认通过 Vite 代理访问 `http://127.0.0.1:8000`。
 
 ## API 能力
 

@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Finance Tracker · Cross-platform presentation prototype</title>
+  <style>
+/* Hallmark · macrostructure: Index-First · genre: modern-minimal · theme: Cobalt · enrichment: none · nav: N3 Side-rail · footer: Ft1 Mast-headed · pre-emit critique: P5 H5 E4 S5 R5 V4 · contrast: pass (40–41) · responsive: pass (34, 49, 50–57) */
+    :root {
+      --paper: oklch(.965 .008 250);
+      --paper-raised: oklch(.995 .004 250);
+      --paper-muted: oklch(.975 .007 250);
+      --ink: oklch(.25 .02 250);
+      --muted: oklch(.48 .018 250);
+      --faint: oklch(.59 .014 250);
+      --rule: oklch(.87 .012 250);
+      --rule-strong: oklch(.74 .02 250);
+      --accent: oklch(.48 .16 252);
+      --accent-soft: oklch(.94 .03 252);
+      --danger: oklch(.5 .17 28);
+      --income: oklch(.45 .12 155);
+      --sidebar: oklch(.25 .02 250);
+      --sidebar-link: oklch(.86 .02 250);
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --radius-1: 3px;
+      --font-body: "Noto Sans SC", system-ui, sans-serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+    }
+    html, body { margin: 0; min-width: 0; overflow-x: clip; background: var(--paper); color: var(--ink); font-family: var(--font-body); }
+    * { box-sizing: border-box; }
+    button, input, select, textarea { font: inherit; }
+    button { min-height: 44px; cursor: pointer; }
+    .app { min-height: 100svh; display: grid; grid-template-columns: 232px minmax(0, 1fr); }
+    .rail { display: flex; flex-direction: column; gap: var(--space-8); padding: var(--space-6) var(--space-4); background: var(--sidebar); color: var(--sidebar-link); }
+    .brand { color: white; font-size: 16px; font-weight: 700; }
+    .rail nav { display: grid; gap: var(--space-4); }
+    .nav-group { display: grid; gap: 4px; }
+    .nav-parent, .nav-child { border: 0; background: transparent; color: var(--sidebar-link); text-align: left; white-space: nowrap; }
+    .nav-parent { font-weight: 700; }
+    .nav-child { min-height: 36px; padding-left: var(--space-4); color: color-mix(in oklch, var(--sidebar-link) 75%, transparent); font-size: 13px; }
+    .nav-parent[aria-current="page"], .nav-child[aria-current="page"] { color: white; text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 5px; }
+    .rail-status { margin-top: auto; padding-top: var(--space-4); border-top: 1px solid color-mix(in oklch, var(--sidebar-link) 24%, transparent); color: color-mix(in oklch, var(--sidebar-link) 72%, transparent); font-size: 12px; line-height: 1.5; }
+    .main { min-width: 0; padding: var(--space-8) clamp(16px, 4vw, 48px); }
+    .mobile-head { display: none; }
+    .content { width: min(100%, 1120px); margin: 0 auto; }
+    .page-head { display: flex; align-items: end; justify-content: space-between; gap: var(--space-4); padding-bottom: var(--space-6); border-bottom: 1px solid var(--rule-strong); }
+    .eyebrow { margin: 0 0 var(--space-2); color: var(--accent); font: 600 11px/1.2 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { min-width: 0; overflow-wrap: anywhere; font-size: clamp(24px, 2vw + 12px, 36px); letter-spacing: -.035em; }
+    h2 { font-size: 18px; letter-spacing: -.02em; }
+    .head-detail { margin-top: var(--space-2); color: var(--muted); font-size: 13px; }
+    .actions, .stage-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: var(--space-2); }
+    .button { border: 1px solid var(--rule-strong); border-radius: var(--radius-1); padding: 0 var(--space-4); background: var(--paper-raised); color: var(--ink); white-space: nowrap; }
+    .button.primary { border-color: var(--accent); background: var(--accent); color: white; }
+    .button.danger { border-color: var(--danger); color: var(--danger); }
+    .button:disabled { cursor: not-allowed; opacity: .45; }
+    .button:focus-visible, .nav-parent:focus-visible, .nav-child:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-6) 0 var(--space-4); }
+    .metric, .surface { border: 1px solid var(--rule); background: var(--paper-raised); }
+    .metric { padding: var(--space-4); }
+    .metric small { display: block; color: var(--muted); font-size: 12px; }
+    .metric strong { display: block; margin-top: var(--space-2); font: 600 20px/1.2 var(--font-mono); }
+    .filters { margin-bottom: var(--space-4); border: 1px solid var(--rule); background: var(--paper-raised); }
+    .filters summary { display: flex; align-items: center; gap: var(--space-3); min-height: 52px; padding: 0 var(--space-4); cursor: pointer; list-style: none; }
+    .filters summary::-webkit-details-marker { display: none; }
+    .filter-copy { display: grid; gap: 2px; min-width: 0; }
+    .filter-copy strong { white-space: nowrap; }
+    .filter-copy small { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+    .filter-toggle { margin-left: auto; color: var(--accent); font-family: var(--font-mono); }
+    .filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); padding: var(--space-4); border-top: 1px solid var(--rule); }
+    label { display: grid; gap: var(--space-2); color: var(--muted); font-size: 12px; }
+    input, select { min-width: 0; min-height: 44px; border: 1px solid var(--rule); border-radius: var(--radius-1); padding: 0 var(--space-3); background: var(--paper); color: var(--ink); }
+    .ledger { display: grid; gap: var(--space-3); }
+    .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-4); padding: var(--space-4); border: 1px solid var(--rule); background: var(--paper-raised); }
+    .row-main, .row-side { min-width: 0; display: grid; gap: var(--space-2); }
+    .row-side { justify-items: end; align-content: start; }
+    .row-title { font-weight: 700; }
+    .row-meta, .row-note, .row-source { color: var(--muted); font-size: 12px; }
+    .row-amount { font: 600 14px/1.3 var(--font-mono); color: var(--income); white-space: nowrap; }
+    .row-action { min-height: 36px; border: 0; background: transparent; color: var(--accent); white-space: nowrap; }
+    .status { display: grid; gap: var(--space-2); padding: var(--space-5); border-left: 3px solid var(--rule-strong); background: var(--paper-muted); }
+    .status.error { border-left-color: var(--danger); }
+    .status.success { border-left-color: var(--income); }
+    .status p { color: var(--muted); font-size: 13px; }
+    .status strong { font-size: 16px; }
+    .flow { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, .9fr); gap: var(--space-6); margin-top: var(--space-8); }
+    .surface { padding: var(--space-5); }
+    .surface-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); }
+    .surface-head small { color: var(--muted); }
+    .form { display: grid; gap: var(--space-4); }
+    .form .wide { grid-column: 1 / -1; }
+    .stage-list { display: grid; gap: var(--space-2); }
+    .stage { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: var(--space-3); min-height: 52px; padding: 0 var(--space-3); border-bottom: 1px solid var(--rule); }
+    .stage:last-child { border-bottom: 0; }
+    .stage-number { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--paper-muted); color: var(--muted); font: 600 12px var(--font-mono); }
+    .stage.current .stage-number { background: var(--accent); color: white; }
+    .stage-copy { display: grid; gap: 2px; min-width: 0; }
+    .stage-copy strong { white-space: nowrap; }
+    .stage-copy small { color: var(--muted); font-size: 12px; }
+    .footer { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--rule); color: var(--muted); font-size: 12px; }
+    .state-switcher { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-5) 0; }
+    .state-switcher button { min-height: 36px; }
+    [hidden] { display: none !important; }
+    @media (max-width: 1023px) {
+      .app { display: block; }
+      .rail { display: none; }
+      .mobile-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 60px; padding: 0 16px; background: var(--sidebar); color: white; }
+      .main { padding-top: var(--space-6); }
+      .flow { grid-template-columns: minmax(0, 1fr); }
+      .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 599px) {
+      .main { padding: var(--space-4) 16px var(--space-6); }
+      .mobile-head { margin: 0 -16px; }
+      .page-head { display: grid; align-items: start; gap: var(--space-4); padding-bottom: var(--space-4); }
+      .page-head .actions { justify-content: stretch; }
+      .page-head .button { flex: 1 1 auto; }
+      .summary { grid-template-columns: minmax(0, 1fr); margin-top: var(--space-4); }
+      .filter-grid { grid-template-columns: minmax(0, 1fr); }
+      .row { grid-template-columns: minmax(0, 1fr); }
+      .row-side { justify-items: start; }
+      .row-action { justify-self: stretch; border-top: 1px solid var(--rule); text-align: left; }
+      .surface { padding: var(--space-4); }
+      .form { grid-template-columns: minmax(0, 1fr); }
+      .actions, .stage-actions { justify-content: stretch; }
+      .actions .button, .stage-actions .button { flex: 1 1 100%; }
+      h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="rail" aria-label="主要导航">
+      <strong class="brand">Finance Tracker</strong>
+      <nav>
+        <div class="nav-group"><button class="nav-parent" aria-current="page">收支账本</button><button class="nav-child" aria-current="page">账本记录</button><button class="nav-child">导入账单</button></div>
+        <div class="nav-group"><button class="nav-parent">投资账本</button><button class="nav-child">当前持仓</button><button class="nav-child">投资事件</button></div>
+        <button class="nav-parent">工作区管理</button>
+      </nav>
+      <div class="rail-status">当前工作区<br><strong>家庭账本</strong></div>
+    </aside>
+    <header class="mobile-head"><strong>Finance Tracker</strong><button class="button" id="menu" type="button">菜单</button></header>
+    <main class="main"><div class="content">
+      <section class="page-head" aria-labelledby="ledger-title">
+        <div><p class="eyebrow">收支账本</p><h1 id="ledger-title">收支账本</h1><p class="head-detail">家庭账本 · 最新账本状态</p></div>
+        <div class="actions"><button class="button" data-testid="ledger.import">导入账单</button><button class="button primary" data-testid="ledger.add">新建流水</button></div>
+      </section>
+      <div class="state-switcher" aria-label="原型状态"><button class="button" data-state="normal">正常</button><button class="button" data-state="loading">加载</button><button class="button" data-state="empty">空状态</button><button class="button" data-state="error">错误</button><button class="button" data-state="disabled">只读</button><button class="button" data-state="success">成功</button></div>
+      <section class="summary" aria-label="账本摘要"><div class="metric"><small>本月收入</small><strong>¥ 8,600.00</strong></div><div class="metric"><small>本月支出</small><strong>¥ 3,240.00</strong></div><div class="metric"><small>记录</small><strong>24 笔</strong></div></section>
+      <details class="filters" open><summary><span aria-hidden="true">◈</span><span class="filter-copy"><strong>筛选</strong><small>全部账户 · 全部收支</small></span><span class="filter-toggle" aria-hidden="true">⌄</span></summary><div class="filter-grid"><label>开始日期<input type="date" value="2026-09-01"></label><label>结束日期<input type="date" value="2026-09-30"></label><label>账户<select><option>全部账户</option><option>现金账户</option></select></label><label>交易信息<input value=""></label></div></details>
+      <section class="ledger" id="normal-state" aria-label="收支记录"><article class="row"><div class="row-main"><strong class="row-title">超市购物</strong><span class="row-meta">现金账户 · 消费 · 2026-09-06 18:30</span><span class="row-note">家庭日常</span></div><div class="row-side"><strong class="row-amount">-¥ 128.00</strong><span class="row-source">手工</span><button class="row-action" data-testid="ledger.open-record">查看详情</button></div></article><article class="row"><div class="row-main"><strong class="row-title">工资</strong><span class="row-meta">银行卡 · 收入 · 2026-09-05 09:00</span><span class="row-note">—</span></div><div class="row-side"><strong class="row-amount">+¥ 8,600.00</strong><span class="row-source">银行账单</span><button class="row-action">查看详情</button></div></article></section>
+      <section class="status" id="loading-state" hidden role="status"><strong>正在读取账本…</strong><p>请稍候。</p></section>
+      <section class="status" id="empty-state" hidden><strong>还没有收支记录</strong><p>记下第一笔，账本就会开始工作。</p><button class="button primary" data-testid="ledger.add-empty">新建流水</button></section>
+      <section class="status error" id="error-state" hidden role="alert"><strong>无法读取账本，请稍后重试。</strong><p>当前列表没有被本地草稿替代。</p><button class="button primary">重新读取</button></section>
+      <section class="status success" id="success-state" hidden><strong>流水已保存</strong><p>收支账本已刷新，金额以服务端结果为准。</p><button class="button primary">返回收支账本</button></section>
+      <section class="flow" aria-label="核心任务"><article class="surface"><div class="surface-head"><h2>记一笔</h2><small>保存前可取消</small></div><form class="form"><label>金额<input value="100.00" inputmode="decimal"></label><label>币种<select><option>CNY</option><option>USD</option></select></label><label>账户<select><option>现金账户</option></select></label><label>流水类型<select><option>消费</option><option>收入</option></select></label><label class="wide">交易对方<input placeholder="可选"></label><label class="wide">备注<input placeholder="可选"></label><div class="stage-actions wide"><button class="button" type="button">取消</button><button class="button primary" data-testid="record.save" type="button">保存</button></div></form></article><article class="surface"><div class="surface-head"><h2>导入账单</h2><small>当前步骤</small></div><div class="stage-list"><div class="stage current"><span class="stage-number">1</span><span class="stage-copy"><strong>选择文件</strong><small>原文件只用于本次导入</small></span></div><div class="stage"><span class="stage-number">2</span><span class="stage-copy"><strong>映射账户</strong><small>确认来源账户归属</small></span></div><div class="stage"><span class="stage-number">3</span><span class="stage-copy"><strong>核对流水</strong><small>查看新增和已存在记录</small></span></div><div class="stage"><span class="stage-number">4</span><span class="stage-copy"><strong>配对</strong><small>处理待确认关系</small></span></div></div><div class="stage-actions" style="margin-top:16px"><button class="button primary" data-testid="import.choose-file">选择文件</button></div></article></section>
+      <footer class="footer"><strong>Finance Tracker</strong><span>当前工作区：家庭账本</span><span>Web Compact / Native Phone parity prototype</span></footer>
+    </div></main>
+  </div>
+  <script>
+    const ids = ["normal-state", "loading-state", "empty-state", "error-state", "success-state"];
+    const buttons = [...document.querySelectorAll("[data-state]")];
+    const setState = (state) => {
+      ids.forEach((id) => document.getElementById(id).hidden = id !== `${state}-state`);
+      if (state === "normal" || state === "disabled") document.getElementById("normal-state").hidden = false;
+      document.querySelectorAll("[data-testid='ledger.add'], [data-testid='ledger.import'], [data-testid='ledger.add-empty'], [data-testid='record.save'], [data-testid='import.choose-file']").forEach((button) => button.disabled = state === "disabled");
+      buttons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.state === state)));
+    };
+    buttons.forEach((button) => button.addEventListener("click", () => setState(button.dataset.state)));
+    setState("normal");
+  </script>
+</body>
+</html>

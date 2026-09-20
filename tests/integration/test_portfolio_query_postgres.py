@@ -127,3 +127,45 @@ def test_postgres_portfolio_quote_contract_deduplicates_and_preserves_display_va
     finally:
         engine.dispose()
         reset_postgres_schema(url)
+
+
+@pytest.mark.skipif(not os.environ.get("FT_TEST_POSTGRES_URL"), reason="set FT_TEST_POSTGRES_URL")
+def test_postgres_portfolio_repository_load_holdings_keeps_names_without_history_payload():
+    from ft.adapters.relational.models import AccountModel, InvestmentEventModel
+
+    url = os.environ["FT_TEST_POSTGRES_URL"]
+    reset_postgres_schema(url)
+    engine = create_relational_engine(url)
+    try:
+        create_schema(engine)
+        sessions = create_session_factory(engine)
+        ensure_workspace(sessions, "portfolio-holdings")
+        uow = RelationalUnitOfWork(sessions, "portfolio-holdings")
+        assert AccountService(uow).create_account("IBKR", "security", "USD").ok
+        with uow as entered:
+            snapshot = entered.snapshot.load()
+            apply_investment_event(snapshot, {
+                "date": "2026-08-01", "record_type": "snapshot", "record_subtype": "position",
+                "account_name": "IBKR", "currency": "USD", "to_ticker": "aapl.us",
+                "to_amount": "1", "price": "100",
+            }, default_currency="USD")
+            entered.snapshot.save(snapshot)
+            entered.commit()
+        with sessions.begin() as session:
+            account_id = session.query(AccountModel).filter_by(name="IBKR").one().id
+            session.add(InvestmentEventModel(
+                id=99, workspace_id="portfolio-holdings", account_id=account_id,
+                source_type="test", record_id="trade-99", occurred_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+                record_type="trade", record_subtype="security", currency="USD", note="",
+                from_ticker="usd", from_amount=Decimal("100"), to_ticker="aapl.us", to_amount=Decimal("1"),
+                commission=Decimal("0"), commission_asset="usd", payload={},
+                source_payload={"ticker": "aapl.us", "name": "Apple Inc."},
+            ))
+
+        raw = RelationalPortfolioRepository(sessions, "portfolio-holdings").load_holdings()
+
+        assert raw["investment_events"] == ()
+        assert raw["accounts"]["IBKR"]["positions"]["aapl.us"]["display_name"] == "Apple Inc."
+    finally:
+        engine.dispose()
+        reset_postgres_schema(url)

@@ -26,6 +26,14 @@
 - 优先使用生产构建预览和仓库实际浏览器工具；浏览器不可用时必须记录为未完成或阻断，不得宣称“已通过”。
 - 在对应 OpenSpec `tasks.md` 记录浏览器、URL、视口尺寸、测试步骤、截图路径、控制台/网络错误和结果；代码或依赖变化后必须重新运行受影响的浏览器 QA。
 
+## 跨平台产品一致性门禁
+
+- Web `compact` presentation 与 Native Phone 属于同一份产品合同；Native `regular`/`wide` 必须按逻辑窗口宽度适配 Android 多设备形态、iPhone 和 iPad，且 Native `wide` 的导航层级、信息区域顺序、筛选/详情/操作关系与 Web 大屏保持一致。
+- 任何涉及 Web 或 Mobile UI、用户可见文案、页面结构/导航、用户操作、loading/empty/error/disabled 状态、表单校验、modal/sheet/menu 或响应式布局的变更，均必须执行 Cross-platform Impact Check，并在 `tasks.md` 写明 Web、Native、共享层各自是否受影响及理由。
+- 禁止只修改一个平台后默认另一个平台不受影响。除明确登记在 `presentation` 合同或 OpenSpec 的平台差异外，用户可观察差异默认按 defect 处理。
+- 跨端共享的是文案、页面区域、操作、状态、语义测试 ID 和响应式不变量，不要求 Web DOM 与 React Native 组件实现相同；平台特有控件必须保持相同的值、标签、确认语义、错误处理和业务结果。
+- 第一阶段未覆盖的 Native 页面必须明确登记为缺口，不得用不可完成任务的伪页面或静默跳转掩盖覆盖不足。
+
 ## 中文术语与文案
 
 修改文档、注释、docstring 或程序文案时，先使用 `$domain-glossary` 读取词表、主规格、active change 和代码上下文；新概念、语义变化或歧义先更新 `DOMAIN_GLOSSARY.md`。随后按 `$chinese-documentation` 复核本次适用文本。代码标识符、字段、参数、枚举、协议字面量和原文引用保持原样并使用反引号；`leg` 按业务语境写为**现金部分**、**证券部分**、**付出资产**、**换入资产**或具体流水。

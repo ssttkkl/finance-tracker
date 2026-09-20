@@ -1,0 +1,87 @@
+{
+  "name": "finance-tracker-fullstack",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/node:2": {
+      "version": "24"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    },
+    "ghcr.io/jsburckhardt/devcontainer-features/uv:1": {},
+    "ghcr.io/itsmechlark/features/postgresql:1": {
+      "version": "16"
+    },
+    "ghcr.io/jrussellsmyth/devcontainer-features/openspec:1": {
+      "toolSupport": "none"
+    }
+  },
+  "containerEnv": {
+    "FT_DATABASE_URL": "postgresql+psycopg://postgres@127.0.0.1:5432/finance_tracker",
+    "FT_TEST_POSTGRES_URL": "postgresql+psycopg://postgres@127.0.0.1:5432/finance_tracker_test",
+    "FT_REQUIRE_TEST_POSTGRES": "1",
+    "FT_WEB_ORIGIN": "http://127.0.0.1:5174",
+    "EXPO_PUBLIC_FT_API_ORIGIN": "http://127.0.0.1:8000"
+  },
+  "forwardPorts": [
+    8000,
+    5174,
+    8081,
+    19000,
+    19001,
+    19002,
+    5432
+  ],
+  "portsAttributes": {
+    "8000": {
+      "label": "FastAPI",
+      "onAutoForward": "notify"
+    },
+    "5174": {
+      "label": "Vite Web",
+      "onAutoForward": "openPreview"
+    },
+    "8081": {
+      "label": "Expo Metro",
+      "onAutoForward": "silent"
+    },
+    "19000": {
+      "label": "Expo Dev Server",
+      "onAutoForward": "silent"
+    },
+    "19001": {
+      "label": "Expo Dev Server",
+      "onAutoForward": "silent"
+    },
+    "19002": {
+      "label": "Expo Dev Server",
+      "onAutoForward": "silent"
+    },
+    "5432": {
+      "label": "PostgreSQL",
+      "onAutoForward": "silent"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-playwright.playwright"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": [
+          "tests"
+        ],
+        "typescript.tsdk": "node_modules/typescript/lib"
+      }
+    }
+  }
+}

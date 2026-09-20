@@ -84,3 +84,48 @@ When a workspace is active, client-side navigation MUST keep the active workspac
 - **GIVEN** the active URL is `/w/workspace-1/`
 - **WHEN** the user opens cash category management
 - **THEN** the URL becomes `/w/workspace-1/cash-categories` and the page changes without a full document request
+
+### Requirement: 会话恢复期间不展示登录表单
+
+Web MUST 根据本机是否存在登录令牌区分直接登录和会话恢复：有令牌时，在认证会话确认完成前 MUST 展示中性的「加载中...」恢复加载态；没有令牌时 MUST 直接展示登录表单。
+
+#### Scenario: 刷新时等待已保存会话
+
+- **WHEN** 使用者刷新页面且浏览器存在登录令牌，但会话请求尚未完成
+- **THEN** Web MUST 展示「加载中...」，不得展示邮箱、密码、登录或注册控件
+
+#### Scenario: 没有登录令牌时启动
+
+- **WHEN** 使用者打开页面且浏览器没有登录令牌
+- **THEN** Web MUST 直接展示登录表单，且不得为恢复会话发起请求
+
+#### Scenario: 登录令牌无效
+
+- **WHEN** 会话请求返回 `authentication_required` 或 HTTP `401`
+- **THEN** Web MUST 停止恢复并展示登录表单
+
+#### Scenario: 暂时性恢复失败后成功
+
+- **WHEN** 前两次会话请求因网络或服务端暂时失败，第三次请求成功
+- **THEN** Web MUST 进入认证会话对应的工作区页面，且整个恢复过程最多发起 3 次请求
+
+#### Scenario: 三次恢复均失败
+
+- **WHEN** 3 次会话请求均因网络或服务端暂时失败
+- **THEN** Web MUST 停止恢复并展示登录表单，且不得展示工作区内容
+
+### Requirement: Native workspace entry follows the Web access presentation
+
+Android 和 iOS 的认证、工作区选择及工作区创建入口 MUST 使用 Web 已验证的标题、字段标签、权限文案、加载/错误状态和成功后的导航语义。Native 可以使用系统输入控件和导航过渡，但不得把工作区访问失败误显示成无工作区或把未完成创建标记为成功。
+
+#### Scenario: Restore an existing workspace on Native
+
+- **WHEN** Native 恢复会话并收到至少一个可访问工作区
+- **THEN** 客户端 MUST 使用活动工作区或按 Web 规则选择第一个工作区后进入收支账本
+- **AND** 选择失败时 MUST 显示可重试的工作区访问错误
+
+#### Scenario: Create a workspace on a narrow or wide device
+
+- **WHEN** 已认证用户在 Native phone、tablet 或 iPad 大窗口创建工作区
+- **THEN** 表单 MUST 保持 Web 的字段、创建动作、禁用状态和错误语义
+- **AND** 布局 MUST 按窗口宽度适配，不得出现横向滚动或只在某一设备型号可用

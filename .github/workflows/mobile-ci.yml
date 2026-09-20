@@ -88,6 +88,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install Android build toolchain
         shell: bash
@@ -102,7 +104,10 @@ jobs:
         working-directory: mobile/android
         env:
           ORG_GRADLE_PROJECT_ndkVersion: ${{ env.ANDROID_NDK_VERSION }}
-        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+          GRADLE_OPTS: >-
+            -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g
+            -Dfile.encoding=UTF-8
+        run: ./gradlew :app:assembleDebug --no-daemon --no-parallel --max-workers=2 --stacktrace
 
       - name: Upload Android Debug APK
         uses: actions/upload-artifact@v4

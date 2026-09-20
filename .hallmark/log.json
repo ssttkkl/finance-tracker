@@ -1,4 +1,10 @@
-[
+[{
+    "date": "2026-09-07",
+    "macrostructure": "Index-First",
+    "theme": "Cobalt (system-preserved)",
+    "enrichment": "none",
+    "brief": "Cross-platform presentation contract prototype for Web and responsive Expo Native"
+  },
   {
     "date": "2026-09-06",
     "macrostructure": "Narrative Workflow",

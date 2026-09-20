@@ -292,6 +292,7 @@ def _p95(samples: list[int]) -> int:
     return sorted(samples)[((len(samples) * 95 + 99) // 100) - 1]
 
 
+@pytest.mark.performance
 def test_fixed_10k_cash_projection_rebuild_meets_budget(performance_runtime) -> None:
     from ft.adapters.relational.models import CashTransactionModel
     from ft.application.cash_projections import CashProjectionService
@@ -340,6 +341,7 @@ def test_fixed_10k_cash_projection_rebuild_meets_budget(performance_runtime) -> 
     assert p95 <= P95_BUDGET_NS
 
 
+@pytest.mark.performance
 def test_fixed_10k_cash_record_edit_meets_100ms_budget(performance_runtime) -> None:
     """普通字段保存只应维护受影响的收支详情，而不是全量重建账本。"""
     from ft.adapters.relational.uow import RelationalUnitOfWork
@@ -387,6 +389,7 @@ def test_fixed_10k_cash_record_edit_meets_100ms_budget(performance_runtime) -> N
     assert p95 <= EDIT_P95_BUDGET_NS
 
 
+@pytest.mark.performance
 def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime) -> None:
     """关联流水的新增、修改、取消和解散都只维护受影响的小组。"""
     from ft.adapters.relational.uow import RelationalUnitOfWork
@@ -468,6 +471,7 @@ def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime
     assert all(value <= RELATION_P95_BUDGET_NS for value in p95.values())
 
 
+@pytest.mark.performance
 def test_fixed_10k_cash_create_key_edit_and_unrelated_delete_meet_100ms_budget(performance_runtime) -> None:
     """新建、关键字段保存和无关联删除都必须完成事务与返回结果。"""
     from ft.application.cash_projections import CashProjectionService
@@ -547,6 +551,7 @@ def test_fixed_10k_cash_create_key_edit_and_unrelated_delete_meet_100ms_budget(p
     assert all(value <= EDIT_P95_BUDGET_NS for value in p95.values())
 
 
+@pytest.mark.performance
 def test_fixed_10k_cash_related_delete_modes_meet_100ms_budget(performance_runtime) -> None:
     """有关联流水的两种删除结果都必须在同一事务内完成。"""
     from ft.application.cash_projections import CashProjectionService
@@ -647,6 +652,7 @@ def test_fixed_10k_cash_related_delete_modes_meet_100ms_budget(performance_runti
     assert all(value <= EDIT_P95_BUDGET_NS for value in p95.values())
 
 
+@pytest.mark.performance
 def test_fixed_10k_cash_read_paths_meet_100ms_budget(performance_runtime) -> None:
     """主账单、候选搜索和收支详情读取不能因账本总量增长而退化。"""
     from ft.application.cash_ledger import CashLedgerCommandService
@@ -761,6 +767,7 @@ def test_fixed_10k_cash_read_paths_meet_100ms_budget(performance_runtime) -> Non
     assert p95["ten_ledger_pages"] <= READ_TEN_PAGE_BUDGET_NS
 
 
+@pytest.mark.performance
 def test_fixed_10k_cash_page_lookup_plans_use_pagination_indexes(performance_runtime) -> None:
     """分页附属查询必须命中针对当前数据集和投影行的复合索引。"""
     from ft.adapters.relational.models import CashProjectionStateModel
@@ -830,6 +837,7 @@ def test_fixed_10k_cash_page_lookup_plans_use_pagination_indexes(performance_run
     assert "ix_transaction_relations_component_secondary" in plan_text
 
 
+@pytest.mark.performance
 def test_cash_relation_group_mutations_scale_with_affected_group_size(performance_runtime) -> None:
     """关联取消和解散必须记录组规模，并保持近似按组规模增长。"""
     from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
@@ -924,6 +932,7 @@ def test_cash_relation_group_mutations_scale_with_affected_group_size(performanc
             assert current_per_member <= previous_per_member * 5
 
 
+@pytest.mark.performance
 def test_fixed_1k_cash_import_preview_and_idempotency_have_bounded_cost(performance_runtime) -> None:
     """预览、首次导入、重复导入和来源变化合并都必须有固定批量基线。"""
     from ft.application.cash_projections import CashProjectionService
@@ -986,6 +995,7 @@ def test_fixed_1k_cash_import_preview_and_idempotency_have_bounded_cost(performa
     assert max(item["peak_bytes"] for item in metrics.values()) - baseline_peak <= IMPORT_MAX_RSS_BYTES
 
 
+@pytest.mark.performance
 def test_fixed_10k_cash_import_preview_scales_with_batch_size(performance_runtime) -> None:
     """10,000 行预览保留明确的批量耗时、吞吐和内存观测。"""
     from ft.application.cash_ledger import CashLedgerCommandService

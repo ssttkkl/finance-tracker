@@ -8,7 +8,13 @@ const previewApiUrl = `http://127.0.0.1:${previewApiPort}`;
 export default defineConfig({
   testDir: "./tests",
   testMatch: /(?:runtime-preview|workspace-entry)\.e2e\.ts/,
-  use: { baseURL: previewWebUrl, viewport: { width: 1440, height: 900 } },
+  use: {
+    baseURL: previewWebUrl,
+    viewport: { width: 1440, height: 900 },
+    storageState: {
+      origins: [{ origin: previewWebUrl, localStorage: [{ name: "finance-tracker:session-token", value: "preview-token" }] }],
+    },
+  },
   webServer: [
     {
       command: `FT_PREVIEW_API_PORT=${previewApiPort} FT_PREVIEW_WEB_ORIGIN=${previewWebUrl} node tests/preview-api-server.mjs`,

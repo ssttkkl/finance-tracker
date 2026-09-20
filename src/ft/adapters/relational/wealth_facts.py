@@ -1,15 +1,22 @@
 """Workspace-bound typed formal facts for the wealth application service."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import hashlib
 from decimal import Decimal
 
-from sqlalchemy import func, select, text
+from sqlalchemy import select, text
 
 from ft.domain.wealth import canonical_digest
 from ft.repositories.wealth import AccountFact, CashflowFact, InvestmentFact, LifecycleFact, ValuationFact, WealthSourceItem
-from .models import AccountLifecycleEventModel, AccountModel, CashTransactionModel, InvestmentEventModel, ValuationObservationModel
+from .models import (
+    AccountLifecycleEventModel, AccountModel, CashTransactionModel,
+    InvestmentEventModel, ValuationObservationModel, WealthSourceRevisionModel,
+)
+
+
+def _utc_date(value: datetime) -> date:
+    return value.date() if value.tzinfo is timezone.utc else value.astimezone(timezone.utc).date()
 
 
 def _digest_parts(*parts: object) -> str:
@@ -19,21 +26,6 @@ def _digest_parts(*parts: object) -> str:
         encoded = str(part).encode("utf-8")
         digest.update(len(encoded).to_bytes(8, "big"))
         digest.update(encoded)
-    return digest.hexdigest()
-
-
-def _manifest_digest(items: tuple[WealthSourceItem, ...]) -> str:
-    digest = hashlib.sha256()
-    for item in items:
-        # The canonical source set includes its direct-evidence projection.  A
-        # changed period, kind, fold identity, or contribution must therefore
-        # yield a new immutable source-manifest identity even if the formal
-        # fact's primary identity is unchanged.
-        digest.update(bytes.fromhex(_digest_parts(
-            item.item_kind, item.identity, item.revision, item.content_digest,
-            item.occurred_at.isoformat() if item.occurred_at else None,
-            item.evidence_kind, item.contribution, item.scope_fold_identity,
-        )))
     return digest.hexdigest()
 
 
@@ -121,6 +113,9 @@ class RelationalWealthFactRepository:
                 session.connection().exec_driver_sql("BEGIN IMMEDIATE")
             elif session.bind.dialect.name == "postgresql":
                 session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
+            captured_state = self._source_revision(session)
+            if captured_state is None:
+                raise ValueError("wealth.source_revision_unavailable")
             account_rows = session.execute(select(
                 AccountModel.workspace_id, AccountModel.id, AccountModel.type,
                 AccountModel.metadata_json,
@@ -153,9 +148,7 @@ class RelationalWealthFactRepository:
             ).where(
                 CashTransactionModel.workspace_id == self._workspace_id,
                 CashTransactionModel.deleted_at.is_(None),
-            ).order_by(
-                CashTransactionModel.occurred_at, CashTransactionModel.id,
-            )).all()
+            ).order_by(CashTransactionModel.id)).all()
             investment_rows = session.execute(select(
                 InvestmentEventModel.workspace_id, InvestmentEventModel.id,
                 InvestmentEventModel.account_id, InvestmentEventModel.occurred_at,
@@ -167,22 +160,15 @@ class RelationalWealthFactRepository:
             ).where(InvestmentEventModel.workspace_id == self._workspace_id).order_by(
                 InvestmentEventModel.occurred_at, InvestmentEventModel.id,
             )).all()
-            # Fence digest is derived from the same snapshot rows just read so a
-            # cold rebuild never pays a second full formal-source table scan at
-            # capture time.  publish-time source_is_current still re-reads.
-            captured_state = self._source_state_from_capture_rows(
-                account_rows, valuation_rows, lifecycle_rows, cash_rows, investment_rows,
-            )
         accounts = tuple(AccountFact(*row) for row in account_rows)
         valuations = tuple(ValuationFact(
             row[0], row[1], row[2], row[3], row[5], row[6], row[7], row[8], row[9], row[10],
             row[11], row[12], row[13], None, row[4],
         ) for row in valuation_rows)
         lifecycle = tuple(LifecycleFact(*row) for row in lifecycle_rows)
-        cashflows = tuple(CashflowFact(*row) for row in cash_rows)
         investments = tuple(InvestmentFact(*row) for row in investment_rows)
         fx_by_day = {
-            (value.as_of.astimezone(timezone.utc).date(), value.identity): value.value
+            (_utc_date(value.as_of), value.identity): value.value
             for value in valuations if value.identity_kind == "fx"
         }
 
@@ -193,8 +179,8 @@ class RelationalWealthFactRepository:
                 occurred_at.astimezone(timezone.utc).date(), f"{currency}/CNY"
             ) in fx_by_day else None
 
-        def cash_kind(row: CashflowFact) -> str:
-            cat = (row.record_type or "").lower()
+        def cash_kind(record_type: str) -> str:
+            cat = (record_type or "").lower()
             if cat in {"transfer", "transfer_in", "transfer_out"}:
                 return "transfer"
             return cat if cat in {
@@ -226,6 +212,10 @@ class RelationalWealthFactRepository:
             if kind == "reversal" and row.record_subtype.startswith("expense_"):
                 return "fee", abs(amount)
             return None, None
+        flow_totals_by_day: dict[date, Decimal] = {}
+        external_cash_totals_by_day: dict[date, Decimal] = {}
+        cash_flows_by_day_currency: dict[tuple[date, str], list[tuple[Decimal, Decimal]]] = {}
+        unsupported_cashflow_days: set[date] = set()
         items = [
             WealthSourceItem("account", f"account:{row.account_id}", "account", canonical_digest({"type": row.account_type, "metadata": dict(row.metadata)}))
             for row in accounts
@@ -236,13 +226,47 @@ class RelationalWealthFactRepository:
         items.extend(WealthSourceItem("lifecycle", row.event_id, row.source_revision, _digest_parts(
             row.account_id, row.event_kind, row.effective_at.isoformat(), row.source_revision,
         )) for row in lifecycle)
-        items.extend(WealthSourceItem(
-            "cashflow", f"cashflow:{row.fact_id}", "1", _digest_parts(
-                row.account_id, row.occurred_at.isoformat(), row.amount, row.record_type,
-            ), row.occurred_at, cash_kind(row), projected_amount(row.amount, row.currency, row.occurred_at),
-            f"{row.occurred_at.astimezone(timezone.utc).date().isoformat()}:{cash_kind(row)}:{row.fact_id}",
-            None,
-        ) for row in cashflows)
+        cashflows = []
+        for raw_row in cash_rows:
+            row = CashflowFact(*raw_row)
+            cashflows.append(row)
+            occurred_at = raw_row[3]
+            amount = raw_row[4]
+            currency = raw_row[5]
+            record_type = raw_row[6]
+            occurred = _utc_date(occurred_at)
+            event_kind = cash_kind(record_type)
+            local_amount = amount.normalize()
+            if currency == "CNY":
+                contribution = local_amount
+                flow_rate = Decimal("1")
+            else:
+                rate = fx_by_day.get((occurred, f"{currency}/CNY"))
+                if rate is None:
+                    contribution = None
+                    flow_rate = None
+                    unsupported_cashflow_days.add(occurred)
+                else:
+                    contribution = (local_amount * rate).normalize()
+                    flow_rate = rate
+            if contribution is not None:
+                flow_totals_by_day[occurred] = flow_totals_by_day.get(occurred, Decimal("0")) + contribution
+                if event_kind != "transfer":
+                    external_cash_totals_by_day[occurred] = (
+                        external_cash_totals_by_day.get(occurred, Decimal("0")) + contribution
+                    )
+                    if currency != "CNY":
+                        cash_flows_by_day_currency.setdefault((occurred, currency), []).append(
+                            (local_amount, flow_rate),
+                        )
+            items.append(WealthSourceItem(
+                "cashflow", f"cashflow:{raw_row[1]}", "1", _digest_parts(
+                    raw_row[2], occurred_at.isoformat(), amount, record_type,
+                ), occurred_at, event_kind, contribution,
+                f"{occurred.isoformat()}:{event_kind}:{raw_row[1]}",
+                None,
+            ))
+        cashflows = tuple(cashflows)
         for row in investments:
             evidence_kind, contribution = investment_projection(row)
             items.append(WealthSourceItem(
@@ -253,9 +277,23 @@ class RelationalWealthFactRepository:
                 None,
             ))
         ordered = tuple(sorted(items, key=lambda item: (item.item_kind, item.identity, item.revision)))
-        watermark = _manifest_digest(ordered)
+        # The monotonic workspace token covers every wealth-relevant source
+        # write, so it is already the complete manifest identity.  Item content
+        # remains fully enumerated and persisted below for evidence lookup, but
+        # rebuilding a second 100k-item Python digest adds no correctness.
+        watermark = canonical_digest({
+            "workspace": self._workspace_id,
+            "source_revision": captured_state,
+        })
         self._captured_build_inputs = (watermark, accounts, valuations, cashflows, investments, lifecycle)
         self._captured_source_state = captured_state
+        self._captured_cashflow_aggregates = (
+            watermark,
+            flow_totals_by_day,
+            external_cash_totals_by_day,
+            {key: tuple(values) for key, values in cash_flows_by_day_currency.items()},
+            frozenset(unsupported_cashflow_days),
+        )
         return watermark, ordered
 
     def captured_build_inputs(self, watermark: str):
@@ -265,98 +303,26 @@ class RelationalWealthFactRepository:
             raise ValueError("wealth.source_changed")
         return captured[1:]
 
+    def captured_cashflow_aggregates(self, watermark: str):
+        """Return cashflow totals derived from the same frozen capture snapshot."""
+        captured = getattr(self, "_captured_cashflow_aggregates", None)
+        if captured is None or captured[0] != watermark:
+            raise ValueError("wealth.source_changed")
+        return captured[1:]
+
     def source_is_current(self, watermark: str) -> bool:
-        # Formal wealth inputs are append-only revisions.  A compact relational
-        # state vector detects any new fact/revision without rematerializing and
-        # re-canonicalizing a 100k-item manifest at publish time.
-        return (
-            getattr(self, "_captured_build_inputs", (None,))[0] == watermark
-            and getattr(self, "_captured_source_state", None) == self._source_state()
-        )
+        if getattr(self, "_captured_build_inputs", (None,))[0] != watermark:
+            return False
+        captured_state = getattr(self, "_captured_source_state", None)
+        current_state = self._source_revision()
+        return captured_state is not None and current_state is not None and captured_state == current_state
 
-    def _absorb_source_state_rows(self, digest, rows) -> None:
-        for row in rows:
-            for part in row:
-                encoded = str(part).encode("utf-8")
-                digest.update(len(encoded).to_bytes(8, "big"))
-                digest.update(encoded)
-            digest.update(b"\n")
-        digest.update(b"|")
-
-    def _source_state_from_capture_rows(
-        self, account_rows, valuation_rows, lifecycle_rows, cash_rows, investment_rows,
-    ) -> tuple[object, ...]:
-        """Same fence digest as ``_source_state``, built from capture snapshot rows.
-
-        Capture already materializes the full formal projection under the snapshot
-        isolation window.  Re-deriving the fence from those rows preserves the
-        correction-sensitive digest without a second table scan at capture time.
-        """
-        digest = hashlib.sha256()
-        # Match the column projection and ordering used by ``_source_state``.
-        self._absorb_source_state_rows(digest, (
-            (row[1], row[2], row[3]) for row in account_rows
-        ))
-        self._absorb_source_state_rows(digest, (
-            (row[1], row[12], row[6], row[4], row[9], row[10]) for row in valuation_rows
-        ))
-        self._absorb_source_state_rows(digest, (
-            (row[1], row[6], row[3], row[4]) for row in lifecycle_rows
-        ))
-        # Capture orders cash/investments by occurred_at for manifest stability;
-        # the fence orders by primary identity/revision so in-place corrections
-        # that preserve maxima still invalidate.  Sort the already-fetched rows.
-        self._absorb_source_state_rows(digest, (
-            (row[1], row[2], row[3], row[4], row[6])
-            for row in sorted(cash_rows, key=lambda item: (item[1],))
-        ))
-        # investment capture: 0ws 1id 2account 3occurred 4record_type
-        # 5record_subtype 6currency 7payload ...
-        self._absorb_source_state_rows(digest, (
-            (row[1], row[2], row[3], row[4], row[5], row[7])
-            for row in sorted(investment_rows, key=lambda item: (item[1],))
-        ))
-        return (digest.hexdigest(),)
-
-    def _source_state(self, session=None) -> tuple[object, ...]:
+    def _source_revision(self, session=None) -> tuple[int, ...] | None:
         def read(active_session):
-            # A correction can preserve every count and maximum.  Fence against
-            # the complete workspace-qualified immutable input projection, but
-            # stream the digest so publish-time fencing stays within the cold
-            # rebuild budget even at 100k formal facts.
-            digest = hashlib.sha256()
-            self._absorb_source_state_rows(digest, active_session.execute(select(
-            AccountModel.id, AccountModel.type, AccountModel.metadata_json,
-            ).where(AccountModel.workspace_id == self._workspace_id).order_by(AccountModel.id)).yield_per(2_000))
-            self._absorb_source_state_rows(digest, active_session.execute(select(
-                ValuationObservationModel.observation_id, ValuationObservationModel.source_revision,
-                ValuationObservationModel.value, ValuationObservationModel.owner_account_id,
-                ValuationObservationModel.as_of, ValuationObservationModel.observed_at,
-            ).where(ValuationObservationModel.workspace_id == self._workspace_id).order_by(
-                ValuationObservationModel.observation_id, ValuationObservationModel.source_revision,
-            )).yield_per(2_000))
-            self._absorb_source_state_rows(digest, active_session.execute(select(
-                AccountLifecycleEventModel.event_id, AccountLifecycleEventModel.source_revision,
-                AccountLifecycleEventModel.event_kind, AccountLifecycleEventModel.effective_at,
-            ).where(AccountLifecycleEventModel.workspace_id == self._workspace_id).order_by(
-                AccountLifecycleEventModel.event_id, AccountLifecycleEventModel.source_revision,
-            )).yield_per(2_000))
-            self._absorb_source_state_rows(digest, active_session.execute(select(
-                CashTransactionModel.id, CashTransactionModel.account_id,
-                CashTransactionModel.occurred_at, CashTransactionModel.amount, CashTransactionModel.record_type,
-            ).where(
-                CashTransactionModel.workspace_id == self._workspace_id,
-                CashTransactionModel.deleted_at.is_(None),
-            ).order_by(
-                CashTransactionModel.id,
-            )).yield_per(2_000))
-            self._absorb_source_state_rows(digest, active_session.execute(select(
-                InvestmentEventModel.id, InvestmentEventModel.account_id,
-                InvestmentEventModel.occurred_at, InvestmentEventModel.record_type, InvestmentEventModel.record_subtype, InvestmentEventModel.payload,
-            ).where(InvestmentEventModel.workspace_id == self._workspace_id).order_by(
-                InvestmentEventModel.id,
-            )).yield_per(2_000))
-            return (digest.hexdigest(),)
+            revision = active_session.scalar(select(WealthSourceRevisionModel.revision).where(
+                WealthSourceRevisionModel.workspace_id == self._workspace_id,
+            ))
+            return None if revision is None else (int(revision),)
         if session is not None:
             return read(session)
         with self._sessions() as fresh_session:

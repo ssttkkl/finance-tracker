@@ -118,7 +118,7 @@ def test_dataset_index_revision_is_reversible_on_postgresql():
             connection.execute(text("INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', CURRENT_TIMESTAMP)"))
             connection.execute(text("INSERT INTO accounts (id, workspace_id, name, type, active, metadata_json, created_at, updated_at) VALUES (1, 'w', '现金', 'cash', TRUE, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
             connection.execute(text("INSERT INTO cash_transactions (id, workspace_id, account_id, record_id, occurred_at, amount, currency, counterparty, note, category, created_at) VALUES (1, 'w', 1, 'source', CURRENT_TIMESTAMP, '-10', 'CNY', '', '', '', CURRENT_TIMESTAMP)"))
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260811_26")
         _assert_dataset_indexes(engine)
         command.downgrade(config, "20260729_11")
         inspector = inspect(engine)
@@ -130,7 +130,7 @@ def test_dataset_index_revision_is_reversible_on_postgresql():
         assert "ix_transaction_relations_component_secondary" not in {item["name"] for item in inspector.get_indexes("transaction_relations")}
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT amount FROM cash_transactions WHERE id = 1")) == -10
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260811_26")
         _assert_dataset_indexes(engine)
     finally:
         engine.dispose()

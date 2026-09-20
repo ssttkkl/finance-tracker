@@ -1,4 +1,5 @@
-import { createApiClient, type FetchRequestInit } from "@finance-tracker/api-client";
+import { createApiClient, isAuthenticationError, type FetchRequestInit } from "@finance-tracker/api-client";
+import { restoreSession as restoreSessionWithRetry } from "@finance-tracker/core";
 import {
   roleLabel,
   SESSION_TOKEN_STORAGE_KEY,
@@ -26,7 +27,7 @@ export function apiOrigin(): string {
 
 const webTokenStore = {
   async get(): Promise<string | null> {
-    try { return window.localStorage.getItem(SESSION_TOKEN_STORAGE_KEY); } catch { return null; }
+    return storedSessionToken();
   },
   async set(value: string): Promise<void> {
     try { window.localStorage.setItem(SESSION_TOKEN_STORAGE_KEY, value); } catch { /* 存储不可用时由当前页面继续使用会话。 */ }
@@ -35,6 +36,22 @@ const webTokenStore = {
     try { window.localStorage.removeItem(SESSION_TOKEN_STORAGE_KEY); } catch { /* 存储不可用时忽略清理失败。 */ }
   },
 };
+
+function storedSessionToken(): string | null {
+  try { return window.localStorage.getItem(SESSION_TOKEN_STORAGE_KEY); } catch { return null; }
+}
+
+export function hasStoredSessionToken(): boolean {
+  return Boolean(storedSessionToken());
+}
+
+export function clearStoredSessionToken(): void {
+  try { window.localStorage.removeItem(SESSION_TOKEN_STORAGE_KEY); } catch { /* 存储不可用时忽略清理失败。 */ }
+}
+
+export function isAuthenticationFailure(cause: unknown): boolean {
+  return isAuthenticationError(cause);
+}
 
 function webFetch(input: string, init?: FetchRequestInit): Promise<Response> {
   return fetch(input, {
@@ -51,14 +68,13 @@ export function apiClient() {
 
 export function authHeaders(init?: HeadersInit): Headers {
   const headers = new Headers(init);
-  const token = (() => {
-    try { return window.localStorage.getItem(SESSION_TOKEN_STORAGE_KEY); } catch { return null; }
-  })();
+  const token = storedSessionToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
   return headers;
 }
 
 export const session = (): Promise<Session> => apiClient().session();
+export const restoreSession = (): Promise<Session> => restoreSessionWithRetry(session, { isAuthenticationFailure });
 export const login = (email: string, password: string): Promise<Session> => apiClient().login(email, password);
 export const register = (email: string, password: string): Promise<Session> => apiClient().register(email, password);
 export const logout = (): Promise<{ ok: boolean }> => apiClient().logout();

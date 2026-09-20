@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ApiError, createApiClient, type FetchLike, type TokenStore } from "./index";
+import { ApiError, createApiClient, isAuthenticationError, type FetchLike, type TokenStore } from "./index";
 
 function tokenStore(initial: string | null = null): TokenStore & { value: string | null } {
   return {
@@ -32,6 +32,25 @@ describe("shared API client", () => {
     expect(store.value).toBe("session-2");
   });
 
+  it("resolves a dynamic base URL for each request", async () => {
+    const requests: string[] = [];
+    const fetcher: FetchLike = async (url) => {
+      requests.push(url);
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    };
+    let origin = "https://build.example.com";
+    const client = createApiClient({ baseUrl: () => origin, fetch: fetcher, tokenStore: tokenStore() });
+
+    await client.request("/api/v1/health");
+    origin = "https://debug.example.com";
+    await client.request("/api/v1/health");
+
+    expect(requests).toEqual([
+      "https://build.example.com/api/v1/health",
+      "https://debug.example.com/api/v1/health",
+    ]);
+  });
+
   it("normalizes server errors without leaking response bodies", async () => {
     const fetcher: FetchLike = async () => new Response(JSON.stringify({ error: { code: "workspace_forbidden", message: "secret detail" } }), { status: 403 });
     const client = createApiClient({ baseUrl: "https://api.example.com", fetch: fetcher, tokenStore: tokenStore() });
@@ -39,5 +58,11 @@ describe("shared API client", () => {
     await expect(client.session()).rejects.toMatchObject({ code: "workspace_forbidden", status: 403 });
     await expect(client.session()).rejects.not.toThrow("secret detail");
     expect(new ApiError("conflict", 409).code).toBe("conflict");
+  });
+
+  it("identifies only authentication failures as non-retryable session errors", () => {
+    expect(isAuthenticationError(new ApiError("authentication_required", 401))).toBe(true);
+    expect(isAuthenticationError(new ApiError("workspace_forbidden", 403))).toBe(false);
+    expect(isAuthenticationError(new Error("request_failed"))).toBe(false);
   });
 });

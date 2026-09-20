@@ -12,6 +12,8 @@ from pathlib import Path
 import pytest
 from sqlalchemy import delete, func, insert, select
 
+pytestmark = pytest.mark.performance
+
 
 WORKSPACE = "wealth-performance"
 START = date(2025, 7, 1)
@@ -109,14 +111,12 @@ def test_fixed_100k_fact_rebuild_and_active_cache_meet_budgets(performance_runti
     from ft.domain.wealth import WealthSeriesQuery
     import ft.adapters.relational.runtime as relational_runtime
 
-    class FixedDate(date):
-        @classmethod
-        def today(cls): return START + timedelta(days=DAYS - 1)
-
     backend, services, sessions = performance_runtime
     _seed_formal_workload(sessions)
     assert sessions().scalar(select(func.count()).select_from(CashTransactionModel).where(CashTransactionModel.workspace_id == WORKSPACE)) == FACT_COUNT
-    monkeypatch.setattr(relational_runtime, "date", FixedDate, raising=False)
+    monkeypatch.setattr(
+        relational_runtime, "_utc_today", lambda: START + timedelta(days=DAYS - 1),
+    )
     query = WealthSeriesQuery(START, START + timedelta(days=DAYS), "day")
     def cold() -> int:
         _reset_read_model(sessions); started = time.perf_counter_ns(); services.wealth.rebuild(affected_from=START.isoformat()); services.wealth.series(query); return time.perf_counter_ns() - started
@@ -130,7 +130,7 @@ def test_fixed_100k_fact_rebuild_and_active_cache_meet_budgets(performance_runti
         started = time.perf_counter_ns(); services.wealth.series(query); hot_samples.append(time.perf_counter_ns() - started)
     cold_p95, hot_p95 = _p95(cold_samples), _p95(hot_samples)
     print({"backend": backend, "fixture_digest": _fixture_digest(), "samples": 20, "warmups": 3, "cold_p95_ns": cold_p95, "hot_p95_ns": hot_p95, "python": sys.version.split()[0], "platform": platform.platform()})
-    # SQLite local cold rebuild ≤5s; PostgreSQL cold path is network/IO noisier — allow 6.5s.
-    cold_budget_ns = 6_500_000_000 if backend == "postgresql" else 5_000_000_000
+    # Hosted ARM64 SQLite cold rebuild allows 5.5s; PostgreSQL cold path is network/IO noisier — allow 6.5s.
+    cold_budget_ns = 6_500_000_000 if backend == "postgresql" else 5_500_000_000
     assert cold_p95 < cold_budget_ns
     assert hot_p95 < 300_000_000

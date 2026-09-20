@@ -81,6 +81,9 @@ def test_new_workspace_has_a_browsable_empty_cash_ledger(cash_web_runtime):
 
     assert created.status_code == 200
     assert created.json()["active_workspace_id"]
+    from ft.adapters.relational.models import WealthSourceRevisionModel
+    with cash_web_runtime.sessions() as session:
+        assert session.get(WealthSourceRevisionModel, created.json()["active_workspace_id"]).revision == 0
     from ft.application.cash_projections import CashProjectionService
     status = CashProjectionService(cash_web_runtime.sessions, created.json()["active_workspace_id"]).status()
     assert status["availability"] == "ready", status

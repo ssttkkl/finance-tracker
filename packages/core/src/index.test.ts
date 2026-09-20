@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildCashRecordPayload,
   createImportSession,
   importSessionReducer,
+  restoreSession,
   sessionReducer,
 } from "./index";
 
@@ -47,5 +48,37 @@ describe("shared finance state", () => {
       session: null,
       errorCode: null,
     });
+  });
+
+  it("stops session restoration immediately for an authentication failure", async () => {
+    const request = vi.fn(async () => { throw new Error("authentication_required"); });
+    const wait = vi.fn(async () => undefined);
+
+    await expect(restoreSession(request, { isAuthenticationFailure: () => true, wait })).rejects.toThrow("authentication_required");
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(wait).not.toHaveBeenCalled();
+  });
+
+  it("retries temporary session failures and succeeds on the third request", async () => {
+    let attempts = 0;
+    const request = vi.fn(async () => {
+      attempts += 1;
+      if (attempts < 3) throw new Error("request_failed");
+      return "session";
+    });
+    const wait = vi.fn(async () => undefined);
+
+    await expect(restoreSession(request, { isAuthenticationFailure: () => false, wait })).resolves.toBe("session");
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(wait).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops after three temporary session failures", async () => {
+    const request = vi.fn(async () => { throw new Error("request_failed"); });
+    const wait = vi.fn(async () => undefined);
+
+    await expect(restoreSession(request, { isAuthenticationFailure: () => false, wait })).rejects.toThrow("request_failed");
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(wait).toHaveBeenCalledTimes(2);
   });
 });

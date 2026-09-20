@@ -69,6 +69,28 @@ const PATCHES = [
       ],
     ],
   },
+  {
+    packageName: "expo-constants",
+    relativePath: path.join("scripts", "get-app-config-ios.sh"),
+    replacements: [
+      [
+        `# For classic main project build phases integration, will be no-op to prevent duplicated app.config creation.
+#
+# \`$PROJECT_DIR\` is passed by Xcode as the directory to the xcodeproj file.
+# in classic main project setup it is something like /path/to/app/ios
+# in new style pod project setup it is something like /path/to/app/ios/Pods
+PROJECT_DIR_BASENAME=$(basename $PROJECT_DIR)
+if [ "x$PROJECT_DIR_BASENAME" != "xPods" ]; then
+  exit 0
+fi
+`,
+        `# Xcode 26 may expose the workspace directory as PROJECT_DIR even while executing
+# the EXConstants pod target. Keep the app config generation enabled for that build.
+`,
+        "# Xcode 26 may expose the workspace directory as PROJECT_DIR",
+      ],
+    ],
+  },
 ];
 
 function countOccurrences(source, needle) {
