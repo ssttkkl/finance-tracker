@@ -1288,9 +1288,12 @@ class RelationService:
                 "subtype": subtype,
                 "primary_fact_id": proposal.primary_fact_id,
                 "secondary_fact_id": proposal.secondary_fact_id,
+                "primary_component_id": proposal.primary_fact_id,
+                "secondary_component_id": proposal.secondary_fact_id,
                 "primary_fact_type": proposal.primary_fact_type,
                 "secondary_fact_type": proposal.secondary_fact_type,
                 "anchor_fact_id": proposal.anchor_fact_id or proposal.primary_fact_id,
+                "anchor_component_id": proposal.anchor_fact_id or proposal.primary_fact_id,
                 "status": RelationStatus.REJECTED.value,
                 "rule_id": proposal.rule_id,
                 "candidate_fact_ids": list(proposal.evidence.candidate_fact_ids),
@@ -2250,7 +2253,28 @@ class RelationService:
 
     def _resolve_seeds(self, uow, *, seed_fact_ids, seed_batch_id) -> list[str]:
         if seed_fact_ids:
-            return list(dict.fromkeys(seed_fact_ids))
+            # Public callers use parent cash transaction IDs, while the
+            # matcher operates on component facts. Expand each parent seed
+            # to all of its components; direct component IDs remain accepted
+            # when no parent with the same numeric ID is present.
+            facts = self._list_active_cash_facts(uow)
+            by_parent: dict[str, list[str]] = defaultdict(list)
+            component_ids: set[str] = set()
+            for fact in facts:
+                component_ids.add(str(fact.id))
+                if fact.parent_id not in (None, ""):
+                    by_parent[str(fact.parent_id)].append(str(fact.id))
+            resolved: list[str] = []
+            for value in seed_fact_ids:
+                key = str(value)
+                parent_components = by_parent.get(key)
+                if parent_components:
+                    resolved.extend(parent_components)
+                elif key in component_ids:
+                    resolved.append(key)
+                else:
+                    resolved.append(key)
+            return list(dict.fromkeys(resolved))
         # 015: seed_batch_id is ignored (no import_batches); full workspace when no seeds.
         return [f.id for f in self._list_active_cash_facts(uow)]
 
@@ -2549,9 +2573,12 @@ class RelationService:
             "subtype": subtype,
             "primary_fact_id": proposal.primary_fact_id,
             "secondary_fact_id": None if open_leg else proposal.secondary_fact_id,
+            "primary_component_id": proposal.primary_fact_id,
+            "secondary_component_id": None if open_leg else proposal.secondary_fact_id,
             "primary_fact_type": proposal.primary_fact_type,
             "secondary_fact_type": None if open_leg else proposal.secondary_fact_type,
             "anchor_fact_id": anchor_id,
+            "anchor_component_id": anchor_id,
             "status": status,
             "rule_id": proposal.rule_id,
             "candidate_fact_ids": (

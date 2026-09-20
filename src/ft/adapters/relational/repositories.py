@@ -1448,6 +1448,27 @@ class RelationalRelationRepository:
             raise ValueError("组合支付关系必须指定组成项")
         return int(components[0])
 
+    def _resolve_component_endpoint(self, fact_id, explicit_component_id=None) -> int:
+        """Resolve a relation endpoint without guessing across ID namespaces.
+
+        Matching facts are component IDs and manual/browser callers normally
+        provide parent transaction IDs.  Explicit component IDs always win;
+        otherwise an existing component ID is treated as a component before
+        falling back to a singleton parent transaction.
+        """
+        if explicit_component_id is not None:
+            return self._resolve_component(fact_id, explicit_component_id)
+        if fact_id in (None, ""):
+            raise ValueError("关系端点不能为空")
+        value = _as_int_id(fact_id)
+        component = self._session.scalar(select(CashTransactionComponentModel.id).where(
+            CashTransactionComponentModel.workspace_id == self._workspace_id,
+            CashTransactionComponentModel.id == value,
+        ))
+        if component is not None:
+            return int(component)
+        return self._resolve_component(fact_id)
+
     def _to_dict(self, row: TransactionRelationModel) -> dict:
         primary_parent = self._component_parent(row.primary_component_id)
         secondary_parent = self._component_parent(row.secondary_component_id)
@@ -1512,24 +1533,34 @@ class RelationalRelationRepository:
         # callers that address singleton parent records.
         left = _as_int_id(fact_a) if fact_a not in (None, "") else None
         right = _as_int_id(fact_b) if fact_b not in (None, "") else None
+        right_column = (
+            TransactionRelationModel.ordered_component_b.is_(None)
+            if right is None
+            else TransactionRelationModel.ordered_component_b == right
+        )
         exact = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
             TransactionRelationModel.kind == kind,
             TransactionRelationModel.ordered_component_a == left,
-            TransactionRelationModel.ordered_component_b == (right if right is not None else OPEN_LEG_ORDERED_B_SENTINEL),
+            right_column,
             TransactionRelationModel.subtype == (subtype or ""),
             TransactionRelationModel.active_slot == "active",
         ))
         if exact is not None:
             return self._to_dict(exact)
-        left = self._resolve_component(fact_a)
-        right = self._resolve_component(fact_b)
+        left = self._resolve_component_endpoint(fact_a)
+        right = None if fact_b in (None, "") else self._resolve_component_endpoint(fact_b)
         left, right = ordered_fact_pair(left, right)
+        right_column = (
+            TransactionRelationModel.ordered_component_b.is_(None)
+            if right == OPEN_LEG_ORDERED_B_SENTINEL
+            else TransactionRelationModel.ordered_component_b == _as_int_id(right)
+        )
         row = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
             TransactionRelationModel.kind == kind,
             TransactionRelationModel.ordered_component_a == _as_int_id(left),
-            TransactionRelationModel.ordered_component_b == _as_int_id(right),
+            right_column,
             TransactionRelationModel.subtype == (subtype or ""),
             TransactionRelationModel.active_slot == "active",
         ))
@@ -1577,10 +1608,10 @@ class RelationalRelationRepository:
         secondary = relation.get("secondary_fact_id")
         if secondary == "":
             secondary = None
-        primary_component = self._resolve_component(
+        primary_component = self._resolve_component_endpoint(
             relation.get("primary_fact_id"), relation.get("primary_component_id")
         )
-        secondary_component = None if secondary is None else self._resolve_component(
+        secondary_component = None if secondary is None else self._resolve_component_endpoint(
             secondary, relation.get("secondary_component_id")
         )
         applied_amount = exact_decimal(relation.get("applied_amount") or "0")
@@ -1595,8 +1626,8 @@ class RelationalRelationRepository:
                 raise ValueError("关系分摊金额超过组成项金额")
         left, right = ordered_fact_pair(primary_component, secondary_component)
         from ft.domain.relations.core.types import OPEN_LEG_ORDERED_B_SENTINEL
-        if right in ("", None):
-            right = OPEN_LEG_ORDERED_B_SENTINEL
+        if right in ("", None, OPEN_LEG_ORDERED_B_SENTINEL):
+            right = None
         status = relation.get("status") or RelationStatus.PENDING_REVIEW.value
         active_slot = "active" if status != RelationStatus.SUPERSEDED.value else str(relation.get("id") or "superseded")
         anchor = relation.get("anchor_fact_id") or relation["primary_fact_id"]
@@ -1632,7 +1663,7 @@ class RelationalRelationRepository:
             decided_by=str(relation.get("decided_by") or ""),
             decision_reason=str(relation.get("decision_reason") or ""),
             superseded_by_id=_as_int_id(relation.get("superseded_by_id")),
-            anchor_component_id=self._resolve_component(anchor, relation.get("anchor_component_id")),
+            anchor_component_id=self._resolve_component_endpoint(anchor, relation.get("anchor_component_id")),
         )
         self._session.add(model)
         self._session.flush()
@@ -1653,7 +1684,7 @@ class RelationalRelationRepository:
         ))
         if exact is not None:
             return self._to_dict(exact)
-        anchor_component = self._resolve_component(anchor_fact_id)
+        anchor_component = self._resolve_component_endpoint(anchor_fact_id)
         row = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
             TransactionRelationModel.kind == kind,
@@ -1684,8 +1715,8 @@ class RelationalRelationRepository:
             raise ValueError(f"relation not found: {relation_id}")
         if row.secondary_fact_id is not None:
             raise ValueError("该关系已有对侧流水")
-        other = self._resolve_component(other_fact_id)
-        primary = self._resolve_component(primary_fact_id) if primary_fact_id is not None else row.primary_component_id
+        other = self._resolve_component_endpoint(other_fact_id)
+        primary = self._resolve_component_endpoint(primary_fact_id) if primary_fact_id is not None else row.primary_component_id
         secondary = row.primary_component_id if primary_fact_id is not None else other
         left, right = ordered_fact_pair(primary, secondary)
         conflict = self._session.scalar(select(TransactionRelationModel).where(
