@@ -558,7 +558,7 @@ class RelationalCashflowRepository:
             return {}
         rows = self._session.execute(
             select(CashTransactionModel, AccountModel)
-            .join(AccountModel, (
+            .outerjoin(AccountModel, (
                 AccountModel.workspace_id == CashTransactionModel.workspace_id
             ) & (AccountModel.id == CashTransactionModel.account_id))
             .where(
@@ -585,7 +585,7 @@ class RelationalCashflowRepository:
             AccountModel.workspace_id == self._workspace_id,
             AccountModel.id == model.account_id,
         ))
-        return None if account is None else self._to_row(model, account)
+        return self._to_row(model, account)
 
     @staticmethod
     def _public_row(row: dict) -> dict:
@@ -1613,6 +1613,15 @@ class RelationalRelationRepository:
         applied_amount = exact_decimal(relation.get("applied_amount") or "0")
         if applied_amount < 0:
             raise ValueError("关系分摊金额不能为负数")
+        if relation.get("kind") == "payment_mirror" and secondary_component is not None:
+            component_amounts = self._session.scalars(select(CashTransactionComponentModel.amount).where(
+                CashTransactionComponentModel.workspace_id == self._workspace_id,
+                CashTransactionComponentModel.id.in_([primary_component, secondary_component]),
+            )).all()
+            if len(component_amounts) != 2:
+                raise ValueError("关系组成项不存在")
+            if applied_amount == 0:
+                applied_amount = min(abs(exact_decimal(amount)) for amount in component_amounts)
         if applied_amount:
             component_amounts = self._session.scalars(select(CashTransactionComponentModel.amount).where(
                 CashTransactionComponentModel.workspace_id == self._workspace_id,

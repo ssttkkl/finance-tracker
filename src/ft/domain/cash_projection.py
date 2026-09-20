@@ -50,6 +50,7 @@ class CashProjectionFact:
     source_type: str | None
     record_id: str
     funding_relation_id: int | None = None
+    cash_granularity: str = "atomic"
 
     def __post_init__(self) -> None:
         try:
@@ -57,6 +58,8 @@ class CashProjectionFact:
         except ValueError as exc:
             raise CashProjectionError("projection.invalid_fact") from exc
         if self.id <= 0 or (self.account_id is not None and self.account_id <= 0) or self.occurred_at.tzinfo is None:
+            raise CashProjectionError("projection.invalid_fact")
+        if self.cash_granularity not in {"atomic", "aggregate"}:
             raise CashProjectionError("projection.invalid_fact")
         currency = self.currency.upper()
         if len(currency) != 3 or not currency.isalpha():
@@ -147,7 +150,17 @@ def _validate_group(group: list[int], facts: dict[int, CashProjectionFact], rela
     mirror_relations = tuple(item for item in contained if item.kind == "payment_mirror")
     for relation in mirror_relations:
         primary, secondary = facts[relation.primary_fact_id], facts[relation.secondary_fact_id]
-        if primary.amount != secondary.amount or primary.currency != secondary.currency or (primary.amount < 0) != (secondary.amount < 0):
+        covered_amount = relation.applied_amount
+        if primary.cash_granularity == "atomic" and secondary.cash_granularity == "atomic":
+            amounts_match = primary.amount == secondary.amount
+        else:
+            amounts_match = (
+                covered_amount is not None
+                and covered_amount > 0
+                and covered_amount <= abs(primary.amount)
+                and covered_amount <= abs(secondary.amount)
+            ) or primary.amount == secondary.amount
+        if not amounts_match or primary.currency != secondary.currency or (primary.amount < 0) != (secondary.amount < 0):
             raise CashProjectionError("projection.invalid_relation")
     transfer_relations = tuple(item for item in contained if item.kind == "transfer_pair")
     for relation in transfer_relations:

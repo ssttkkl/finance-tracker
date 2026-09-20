@@ -2165,6 +2165,7 @@ class RelationService:
             id=int(relation["id"]), kind=relation["kind"], primary_fact_id=candidate_primary,
             secondary_fact_id=candidate_secondary, status=RelationStatus.ACCEPTED.value,
             subtype=relation.get("subtype") or "",
+            applied_amount=relation.get("applied_amount"),
         )
         try:
             # A web relation is inserted before this validation.  Do not add

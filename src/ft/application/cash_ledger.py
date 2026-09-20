@@ -779,12 +779,31 @@ class CashLedgerCommandService:
         if len(models_by_id) != len(member_ids):
             raise ValueError("projection.version_conflict")
 
-        relation_rows = session.scalars(
-            sa_select(TransactionRelationModel).where(
+        from sqlalchemy.orm import aliased
+
+        primary_component = aliased(CashTransactionComponentModel)
+        secondary_component = aliased(CashTransactionComponentModel)
+        relation_rows = session.execute(
+            sa_select(
+                TransactionRelationModel,
+                primary_component.cash_transaction_id.label("primary_parent_id"),
+                secondary_component.cash_transaction_id.label("secondary_parent_id"),
+            )
+            .join(
+                primary_component,
+                (primary_component.workspace_id == TransactionRelationModel.workspace_id)
+                & (primary_component.id == TransactionRelationModel.primary_component_id),
+            )
+            .outerjoin(
+                secondary_component,
+                (secondary_component.workspace_id == TransactionRelationModel.workspace_id)
+                & (secondary_component.id == TransactionRelationModel.secondary_component_id),
+            )
+            .where(
                 TransactionRelationModel.workspace_id == self._workspace_id,
                 (
-                    TransactionRelationModel.primary_fact_id.in_(member_ids)
-                    | TransactionRelationModel.secondary_fact_id.in_(member_ids)
+                    primary_component.cash_transaction_id.in_(member_ids)
+                    | secondary_component.cash_transaction_id.in_(member_ids)
                 ),
             )
         ).all()
@@ -794,12 +813,12 @@ class CashLedgerCommandService:
         }
         relation_group_projection_ids = {
             member_projection_ids[int(endpoint)]
-            for row in relation_rows
+            for row, primary_parent_id, secondary_parent_id in relation_rows
             if row.status in {
                 RelationStatus.ACCEPTED.value,
                 RelationStatus.PENDING_REVIEW.value,
             }
-            for endpoint in (row.primary_fact_id, row.secondary_fact_id)
+            for endpoint in (primary_parent_id, secondary_parent_id)
             if endpoint is not None and int(endpoint) in member_projection_ids
         }
         cash_repo = RelationalCashflowRepository(session, self._workspace_id)
@@ -1153,18 +1172,7 @@ class CashLedgerCommandService:
                     "rule_id": "manual.web.v1",
                     "created_by": "web",
                 })
-                relation = {
-                    "id": relation_id,
-                    "kind": kind,
-                    "subtype": subtype,
-                    "primary_fact_id": int(primary),
-                    "secondary_fact_id": int(secondary),
-                    "primary_component_id": int(primary_component),
-                    "secondary_component_id": int(secondary_component),
-                    "primary_fact_type": "cash",
-                    "secondary_fact_type": "cash",
-                    "status": status,
-                }
+                relation = uow.relations.get(relation_id)
             if status == RelationStatus.ACCEPTED.value:
                 # Build the candidate projection before commit so an illegal
                 # relation rolls back instead of leaving a half-state.

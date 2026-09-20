@@ -206,6 +206,7 @@ class RelationalCashProjectionRepository:
                 id=row.id, account_id=row.account_id, occurred_at=row.occurred_at, amount=row.amount,
                 currency=row.currency, counterparty=row.counterparty, category_id=row.category_id, note=row.note,
                 source_type=row.source_type, record_id=row.record_id,
+                cash_granularity=row.cash_granularity,
                 funding_relation_id=funding_relation_id,
             )
             for row, funding_relation_id in fact_rows
@@ -641,6 +642,7 @@ class RelationalCashProjectionRepository:
             note=row.note,
             source_type=row.source_type,
             record_id=row.record_id,
+            cash_granularity=row.cash_granularity,
         )
 
     def replace_standalone_fact(
