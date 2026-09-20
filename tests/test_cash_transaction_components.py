@@ -83,6 +83,15 @@ def test_aggregate_component_can_mirror_one_bank_component_without_parent_double
     assert relation["applied_amount"] == Decimal("40.00")
 
     with service._uow as uow:
+        with pytest.raises(ValueError, match="组合支付关系必须指定组成项"):
+            uow.relations.find_by_business_key(
+                kind="payment_mirror",
+                fact_a=aggregate["id"],
+                fact_b=bank["id"],
+            )
+        uow.commit()
+
+    with service._uow as uow:
         snapshot = uow.snapshot.load()
         uow.commit()
     assert snapshot["accounts"]["cash"]["日常账户"]["CNY"] == "-60.00"
@@ -204,3 +213,44 @@ def test_aggregate_parent_can_be_deleted_without_a_single_account(cash_web_runti
     assert deleted["deleted"] is True
     with cash_web_runtime.sessions() as session:
         assert session.get(CashTransactionModel, record["id"]) is None
+
+
+def test_aggregate_refund_open_leg_is_anchored_to_the_refund_component(cash_web_runtime):
+    from ft.adapters.relational.models import AccountModel
+    from ft.domain.relations import RelationKind
+
+    with cash_web_runtime.sessions.begin() as session:
+        session.add(AccountModel(
+            workspace_id=cash_web_runtime.workspace_id,
+            name="备用现金账户", type="cash", currencies=["CNY"],
+        ))
+    _enable_cny(cash_web_runtime, "日常账户", "备用现金账户")
+    service = _service(cash_web_runtime)
+
+    first = service.create_record(_payload(
+        account_name="日常账户", amount="-100.00", counterparty="京东",
+    ))["record"]
+    second = service.create_record(_payload(
+        account_name="日常账户", amount="-100.00", counterparty="京东",
+    ))["record"]
+    refund = service.create_record(_payload(
+        account_name="日常账户", amount="120.00", record_type="refund",
+        counterparty="京东",
+        components=[
+            {"account_name": "日常账户", "amount": "100.00", "label": "余额"},
+            {"account_name": "备用现金账户", "amount": "20.00", "label": "银行卡"},
+        ],
+    ))["record"]
+
+    checked = service._relation_service.check(
+        seed_fact_ids=[first["id"], second["id"], refund["id"]],
+        trigger="manual_range",
+    )
+    assert checked.ok is True
+    pending = service._relation_service.list_pending(kind=RelationKind.REFUND_OFFSET.value)
+    open_rows = [item for item in pending if item.get("secondary_component_id") in (None, "")]
+    refund_open = next(
+        item for item in open_rows
+        if item["anchor_component_id"] == refund["components"][0]["id"]
+    )
+    assert refund_open["anchor_record_id"] == refund["id"]
