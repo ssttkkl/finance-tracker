@@ -126,6 +126,7 @@ Web 自动化与构建仍未完成：`npm run test:web -- --run` 因工作树无
 
 ### 交付前门禁与发布准备
 
-- `openspec validate --all --strict` → 42 项通过；`openspec doctor` 通过；`python3 -m compileall -q src tests` 和 `git diff --check` 通过。
+- `openspec validate --all --strict` → 合入最新目标分支后 32 项通过；此前在目标分支同步前为 42 项通过。`openspec doctor`、`python3 -m compileall -q src tests` 和 `git diff --check` 均通过。
 - 产品/工程/安全/最终 diff 复核无阻断 finding；已采纳 `CashRecord.account_id` 可空契约和组件端点显式类型修正。未引入凭据、原始账单输出、外部写入或新依赖。
 - 发布/回滚：在目标环境删除旧开发数据库并从当前 schema 重建；不对迁移 36 执行降级。若回滚，回退合并提交后按旧代码重新创建旧 schema；专用 PostgreSQL 容器可直接销毁，不承载生产数据。
+- 目标分支同步：`git fetch origin` 后确认 `origin/refactor/web=48a733f`，以无冲突 merge 合入本分支，产生 merge commit `b56dd5b`；合入内容为目标分支的 OpenSpec 归档/主规格同步，未覆盖本变更实现。提交实现 commit 为 `e2f987d`。
