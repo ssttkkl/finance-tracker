@@ -1,4 +1,10 @@
-## ADDED Requirements
+# workspace-management Specification
+
+## Purpose
+
+为工作区成员提供统一的工作区信息、成员、邀请和安全删除管理能力，使管理操作集中在清晰、可访问且可审计的页面中。
+
+## Requirements
 
 ### Requirement: 工作区管理作为一级页面提供管理任务
 
