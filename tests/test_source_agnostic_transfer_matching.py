@@ -150,3 +150,55 @@ def test_conflicting_tail_does_not_expand_ordinary_transfer_window():
     assert match_transfer_pairs_phase_c(
         [outgoing, incoming], card_tails_by_value={"4245": ["asia", "other"]},
     ) == []
+
+
+def test_transfer_pair_matching_is_component_aware_and_rejects_aggregate_parents():
+    aggregate_out = _fact(
+        id="aggregate-out-component", parent_id="aggregate-out",
+        cash_granularity="aggregate", amount="-100.00", account_id="cash-a",
+        occurred_at="2026-09-20 09:00:00", record_type="transfer_out",
+        record_subtype="ordinary_transfer",
+    )
+    atomic_in = _fact(
+        id="atomic-in-component", parent_id="atomic-in",
+        cash_granularity="atomic", amount="100.00", account_id="cash-b",
+        occurred_at="2026-09-20 09:02:00", record_type="transfer_in",
+        record_subtype="ordinary_transfer",
+    )
+
+    assert match_transfer_pairs_phase_c([aggregate_out, atomic_in]) == []
+
+    atomic_out = _fact(
+        id="atomic-out-component", parent_id="atomic-out",
+        cash_granularity="atomic", amount="-100.00", account_id="cash-a",
+        occurred_at="2026-09-20 09:00:00", record_type="transfer_out",
+        record_subtype="ordinary_transfer",
+    )
+    aggregate_in = _fact(
+        id="aggregate-in-component", parent_id="aggregate-in",
+        cash_granularity="aggregate", amount="100.00", account_id="cash-b",
+        occurred_at="2026-09-20 09:02:00", record_type="transfer_in",
+        record_subtype="ordinary_transfer",
+    )
+
+    assert match_transfer_pairs_phase_c([atomic_out, aggregate_in]) == []
+
+
+def test_aggregate_component_cannot_be_personal_fx_transfer_endpoint():
+    from ft.domain.relations import match_personal_fx_exchange
+
+    outgoing = _fact(
+        id="aggregate-fx-out-component", parent_id="aggregate-fx-out",
+        cash_granularity="aggregate", amount="-100.00", currency="CNY",
+        account_id="cash", occurred_at="2026-09-20 09:00:00",
+        record_type="fx_out", record_subtype="currency_exchange",
+    )
+    incoming = _fact(
+        id="atomic-fx-in-component", parent_id="atomic-fx-in",
+        cash_granularity="atomic", amount="100.00", currency="HKD",
+        account_id="cash", occurred_at="2026-09-20 09:01:00",
+        record_type="fx_in", record_subtype="currency_exchange",
+    )
+
+    assert match_personal_fx_exchange(outgoing, [incoming]) is None
+    assert match_personal_fx_exchange(incoming, [outgoing]) is None

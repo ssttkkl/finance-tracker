@@ -92,6 +92,19 @@ def _parse_cash_statement(command, *, resolve_accounts: bool = True):
         if not isinstance(source_payload, dict) or not source_payload:
             raise ValueError("账单行缺少完整来源行快照")
         item["source_payload"] = source_payload
+        # Component drafts are derived from the normalized payment-method
+        # evidence while the untouched source row remains the audit payload.
+        if bill_type == "alipay":
+            from ft.application.statement_account_mapping import build_component_allocation_draft
+
+            # `_build_output_row` intentionally returns the mapped account, but
+            # the component draft must still see the original payment-method
+            # evidence (especially for single-card rows).
+            item["payment_method"] = row.get("payment_method")
+            allocation = build_component_allocation_draft(item)
+            if len(allocation["components"]) == 1 and item.get("account_name"):
+                allocation["components"][0]["account_name"] = item["account_name"]
+            item["component_allocation"] = allocation
         relation_metadata = {
             key: row[key]
             for key in (

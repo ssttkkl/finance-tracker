@@ -72,6 +72,19 @@ function initialForm(record: CashRecord | null | undefined, defaultAccount?: Acc
   };
 }
 
+function ComponentAllocationSummary({ components }: { components: NonNullable<CashRecord["components"]> }) {
+  if (components.length < 2) return null;
+  return <div className="record-component-summary" aria-label="支付组成项">
+    <span className="edit-field-label">支付组成项</span>
+    <div className="record-component-list">
+      {components.map((component) => <div className="record-component-row" key={component.id}>
+        <span>{component.account?.name ?? component.account_name ?? "未指定账户"}</span>
+        <span className="mono">{component.amount} {component.currency}</span>
+      </div>)}
+    </div>
+  </div>;
+}
+
 export function RecordDrawer({ detail, mode, embedded = false, loading = false, loadError = false, initialRelationOpen = false, initialDeleteOpen = false, accounts, options, categories = [], projectionVersion = null, onClose, onRetry, onSaved, onDeleted }: Props) {
   const record = detail?.record;
   const isNew = mode ? mode === "new" : !record;
@@ -315,6 +328,7 @@ export function RecordDrawer({ detail, mode, embedded = false, loading = false, 
             <div className="drawer-summary record-edit-summary" aria-label={copy.record.amount}>
             <div className="summary-edit"><input data-testid={semanticIds.recordAmount} aria-label={copy.record.amount} className="mono" inputMode="decimal" value={form.amount} onChange={(event) => set("amount", event.target.value)} /><select data-testid={semanticIds.recordCurrency} aria-label={copy.record.currency} value={form.currency} onChange={(event) => set("currency", event.target.value)} disabled={!currencies.length}>{currencies.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
           </div>
+          {!isNew && record ? <ComponentAllocationSummary components={record.components ?? []} /> : null}
           <div className="edit-fields">
             <div className="edit-row"><label className="edit-field-label" htmlFor="record-counterparty">{copy.record.counterparty}</label><input id="record-counterparty" value={form.counterparty} onChange={(event) => set("counterparty", event.target.value)} /></div>
             <div className="edit-row"><label className="edit-field-label" htmlFor="record-counterparty-account">{copy.record.counterpartyAccount}</label><input id="record-counterparty-account" value={form.counterparty_account} onChange={(event) => set("counterparty_account", event.target.value)} /></div>

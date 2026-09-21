@@ -13,11 +13,12 @@ import type {
 } from "../api/types";
 import { formatOccurredAt, isZeroAmount } from "../format";
 import { buildTransactionMonthlySummaries, TransactionTable, type TransactionTableItem } from "../components/TransactionTable";
+import { allocationBalance, allocationMatches, type AllocationBalance } from "@finance-tracker/core";
 import { copy, semanticIds } from "@finance-tracker/presentation";
 
 type Stage = "select" | "mapping" | "preview" | "relations" | "success";
 type RelationFilter = "all" | "automatic" | "pending";
-type ImportPreviewFilter = "all" | "new" | "existing" | "unresolved";
+type ImportPreviewFilter = "all" | "new" | "existing" | "unresolved" | "requires_allocation";
 type RelationState = "automatic" | "pending" | "accepted" | "rejected";
 
 type RelationDraft = {
@@ -67,6 +68,22 @@ function ordinaryUnsupportedCount(preview: ImportPreview): number {
   return Math.max(0, preview.summary.unsupported - unresolvedCount(preview));
 }
 
+function allocationRequiredCount(preview: ImportPreview): number {
+  return preview.summary.requires_allocation
+    ?? preview.items.filter((item) => item.status === "requires_allocation").length;
+}
+
+function unsignedAmount(value: string | null | undefined): string {
+  return String(value ?? "").trim().replace(/^[+-]/, "");
+}
+
+function allocationStatusLabel(item: ImportPreviewItem, balance: AllocationBalance): string {
+  if (balance.state === "invalid") return "金额无效";
+  if (balance.state === "complete") return `已匹配 ${balance.total} ${item.currency}`;
+  if (balance.difference.startsWith("-")) return `超出 ${balance.difference.slice(1)} ${item.currency}`;
+  return `还差 ${balance.difference} ${item.currency}`;
+}
+
 function recordDate(value: string): string {
   return formatOccurredAt(value);
 }
@@ -76,6 +93,7 @@ const importStatusLabels = {
   existing: copy.import.statusExisting,
   unsupported: copy.import.statusUnsupported,
   unresolved: copy.import.statusUnresolved,
+  requires_allocation: "待补分配",
 } as const;
 
 function importDirection(item: ImportPreviewItem): TransactionTableItem<ImportPreviewItem>["direction"] {
@@ -150,6 +168,8 @@ function mappingErrorMessage(cause: unknown): string | null {
     import_account_draft_invalid: "新账户信息无效，请修改后重试。",
     import_mapping_incomplete: "请为每个来源账户选择系统账户。",
     import_composite_payment_unresolved: "账单包含无法准确归属的组合支付，请拆分后重试。",
+    import_component_allocation_incomplete: "请补齐组合支付各组成项金额。",
+    import_component_amount_invalid: "分摊金额格式无效，请检查后重试。",
   };
   return messages[cause.message] ?? null;
 }
@@ -208,6 +228,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const [mappingDrafts, setMappingDrafts] = useState<Record<string, MappingDraft>>({});
   const [editingGroup, setEditingGroup] = useState<ImportSourceGroup | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [allocationDrafts, setAllocationDrafts] = useState<Record<string, string[]>>({});
   const [previewFilter, setPreviewFilter] = useState<ImportPreviewFilter>("all");
   const [relationDrafts, setRelationDrafts] = useState<Record<string, RelationDraft>>({});
   const [relationFilter, setRelationFilter] = useState<RelationFilter>("all");
@@ -233,6 +254,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setScan(null);
     setMappingDrafts({});
     setPreview(null);
+    setAllocationDrafts({});
     setPreviewFilter("all");
     setRelationDrafts({});
     setPassword("");
@@ -248,6 +270,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setScan(null);
     setMappingDrafts({});
     setPreview(null);
+    setAllocationDrafts({});
     setPreviewFilter("all");
     setRelationDrafts({});
     setResult(null);
@@ -333,22 +356,33 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     void chooseFile(file);
   };
 
-  const mappingPayload = (): ImportMappingDecision[] => (scan?.groups ?? []).map((group) => {
-    const draft = mappingDrafts[group.group_id];
-    return {
-      group_id: group.group_id,
-      account_id: draft?.newAccount ? null : draft?.accountId,
-      mapping_revision: group.suggestion.mapping_revision,
-      new_account: draft?.newAccount
-        ? {
-            draft_id: draft.newAccount.draftId,
-            name: draft.newAccount.name,
-            type: draft.newAccount.type,
-            currencies: draft.newAccount.currencies,
-          }
-        : null,
-    };
-  });
+  const mappingPayload = (): ImportMappingDecision[] => {
+    const decisions: ImportMappingDecision[] = (scan?.groups ?? []).map((group) => {
+      const draft = mappingDrafts[group.group_id];
+      return {
+        group_id: group.group_id,
+        account_id: draft?.newAccount ? null : draft?.accountId,
+        mapping_revision: group.suggestion.mapping_revision,
+        new_account: draft?.newAccount
+          ? {
+              draft_id: draft.newAccount.draftId,
+              name: draft.newAccount.name,
+              type: draft.newAccount.type,
+              currencies: draft.newAccount.currencies,
+            }
+          : null,
+      };
+    });
+    const componentAllocations = Object.fromEntries(
+      Object.entries(allocationDrafts)
+        .filter(([, values]) => values.length > 1)
+        .map(([recordId, values]) => [recordId, values.map((amount) => ({ amount }))]),
+    );
+    if (decisions.length > 0 && Object.keys(componentAllocations).length > 0) {
+      decisions[0] = { ...decisions[0], component_allocations: componentAllocations };
+    }
+    return decisions;
+  };
 
   const mappingComplete = Boolean(scan && scan.groups.length > 0 && scan.groups.every((group) => {
     const draft = mappingDrafts[group.group_id];
@@ -361,6 +395,29 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     type: group.display_name.includes("花呗") || group.display_name.includes("信用卡") ? "loan" : "cash",
     currencies: [...group.currencies],
   });
+
+  const syncAllocationDrafts = (nextPreview: ImportPreview) => {
+    setAllocationDrafts((current) => {
+      const next = { ...current };
+      for (const item of nextPreview.items) {
+        const components = item.components ?? [];
+        if (components.length < 2) continue;
+        next[item.record_id] = components.map((component, index) => (
+          current[item.record_id]?.[index] ?? unsignedAmount(component.amount)
+        ));
+      }
+      return next;
+    });
+  };
+
+  const updateAllocation = (recordId: string, ordinal: number, value: string) => {
+    setAllocationDrafts((current) => {
+      const next = [...(current[recordId] ?? [])];
+      next[ordinal] = value;
+      return { ...current, [recordId]: next };
+    });
+    setError(undefined);
+  };
 
   const selectMapping = (group: ImportSourceGroup, value: string) => {
     setMappingDrafts((current) => {
@@ -386,6 +443,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       return { ...current, [group.group_id]: { accountId: Number(value), newAccount: null } };
     });
     setPreview(null);
+    setAllocationDrafts({});
     setPreviewFilter("all");
     setRelationDrafts({});
   };
@@ -401,6 +459,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       )));
     });
     setPreview(null);
+    setAllocationDrafts({});
     setPreviewFilter("all");
     setRelationDrafts({});
   };
@@ -412,6 +471,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     try {
       const nextPreview = await previewCashImport(file, "", undefined, password, mappingPayload(), importToken ?? undefined);
       setPreview(nextPreview);
+      syncAllocationDrafts(nextPreview);
       setImportToken(nextPreview.import_token ?? importToken);
       setRelationDrafts({});
       setRelationFilter("all");
@@ -437,6 +497,16 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
 
   const openRelations = () => {
     if (!preview) return;
+    const aggregateItems = preview.items.filter((item) => (item.components?.length ?? 0) > 1);
+    const incomplete = aggregateItems.some((item) => !allocationMatches(item, allocationDrafts[item.record_id] ?? []));
+    if (incomplete) {
+      setError("请补齐组合支付各组成项金额，且合计等于流水金额。");
+      return;
+    }
+    if (aggregateItems.length > 0) {
+      void loadPreview("relations");
+      return;
+    }
     setRelationDrafts((current) => Object.fromEntries(
       preview.relations.map((relation) => [relation.id, current[relation.id] ?? relationDraftFor(relation)]),
     ));
@@ -473,6 +543,13 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
 
   const confirmImport = async () => {
     if (!file || !preview || ordinaryUnsupportedCount(preview) > 0) return;
+    const incomplete = preview.items
+      .filter((item) => (item.components?.length ?? 0) > 1)
+      .some((item) => !allocationMatches(item, allocationDrafts[item.record_id] ?? []));
+    if (incomplete || allocationRequiredCount(preview) > 0) {
+      setError("请补齐组合支付各组成项金额，且合计等于流水金额。");
+      return;
+    }
     setBusy(true);
     setError(undefined);
     const decisions = preview.relations.flatMap((relation) => {
@@ -532,6 +609,10 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   };
 
   const relationItems = preview?.relations ?? [];
+  const allocationItems = useMemo(
+    () => (preview?.items ?? []).filter((item) => (item.components?.length ?? 0) > 1),
+    [preview],
+  );
   const importTableItems = useMemo(() => (preview?.items ?? []).map(importTableItem), [preview]);
   const filteredImportTableItems = useMemo(() => {
     if (previewFilter === "all") return importTableItems;
@@ -552,6 +633,37 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     (relationDrafts[relation.id] ?? relationDraftFor(relation)).state === "pending"
   )).length;
   const automaticCount = relationItems.filter((relation) => relation.automatic).length;
+  const allocationComplete = allocationItems.length > 0
+    ? allocationItems.every((item) => allocationMatches(item, allocationDrafts[item.record_id] ?? []))
+    : Boolean(preview && allocationRequiredCount(preview) === 0);
+  const renderAllocationDetail = (tableItem: TransactionTableItem<ImportPreviewItem>) => {
+    const item = tableItem.source;
+    const components = item?.components ?? [];
+    if (!item || components.length < 2) return null;
+    const values = allocationDrafts[item.record_id] ?? [];
+    const balance = allocationBalance(item, values);
+    return <div
+      className={balance.state === "complete" ? "import-allocation-detail is-complete" : "import-allocation-detail"}
+      data-testid={`${semanticIds.importAllocation}.${item.record_id}`}
+    >
+      <div className="import-allocation-fields">
+        {components.map((component, index) => <label className="import-allocation-field" key={item.record_id + "-" + component.ordinal}>
+          <span>{component.account_name || component.source_label}<small>账户 · {item.currency}</small></span>
+          <input
+            type="text"
+            inputMode="decimal"
+            aria-label={(component.account_name || component.source_label) + "分摊金额"}
+            aria-invalid={balance.state !== "complete"}
+            value={values[index] ?? ""}
+            onChange={(event) => updateAllocation(item.record_id, index, event.target.value)}
+          />
+        </label>)}
+      </div>
+      <div className="import-allocation-summary">
+        <span className={balance.state === "complete" ? "is-complete" : "is-incomplete"} role="status">{allocationStatusLabel(item, balance)}</span>
+      </div>
+    </div>;
+  };
   const stageIndex = stage === "select" ? 1 : stage === "mapping" ? 2 : stage === "preview" ? 3 : 4;
 
   const restartAfterCompletedImport = () => {
@@ -560,6 +672,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setMappingDrafts({});
     setEditingGroup(null);
     setPreview(null);
+    setAllocationDrafts({});
     setPreviewFilter("all");
     setRelationDrafts({});
     setRelationFilter("all");
@@ -645,12 +758,13 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
 
           {stage === "preview" && preview ? <section className="import-stage import-preview-stage" data-testid={semanticIds.importPreview} aria-labelledby="import-preview-heading">
             <div className="import-stage-heading"><h2 id="import-preview-heading">{copy.import.preview}</h2><span className="channel-badge">{preview.channel_label}</span></div>
-            <div className="stage-actions-top"><button data-testid={semanticIds.importPrevious} type="button" className="button-secondary" onClick={() => setStage("mapping")}>{copy.import.previous}</button><button data-testid={semanticIds.importNext} type="button" className="button-primary" disabled={busy} onClick={openRelations}>{copy.import.next}</button></div>
+            <div className="stage-actions-top"><button data-testid={semanticIds.importPrevious} type="button" className="button-secondary" onClick={() => setStage("mapping")}>{copy.import.previous}</button><button data-testid={semanticIds.importNext} type="button" className="button-primary" disabled={busy || !allocationComplete} onClick={openRelations}>{copy.import.next}</button></div>
             <div className="import-summary-cards" role="group" aria-label="预览流水筛选">{[
               { filter: "all" as const, label: "全部", value: preview.summary.total, tone: "total" },
               { filter: "new" as const, label: "待新增", value: preview.summary.new, tone: "new" },
               { filter: "existing" as const, label: "已存在", value: preview.summary.existing, tone: "existing" },
               { filter: "unresolved" as const, label: "无法识别", value: preview.summary.unresolved ?? 0, tone: "unsupported" },
+              { filter: "requires_allocation" as const, label: "待补分配", value: allocationRequiredCount(preview), tone: "unsupported" },
             ].map((summary) => <button
               type="button"
               key={summary.label}
@@ -668,6 +782,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
                   groupByMonth
                   monthlySummaries={importMonthlySummaries}
                   showStatus
+                  rowDetail={renderAllocationDetail}
                   wrapperClassName="standard-table-wrap"
                   wrapperProps={{ role: "region", "aria-label": "账单流水表格", tabIndex: 0 }}
                   caption="账单流水"
@@ -680,7 +795,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
 
           {stage === "relations" && preview ? <section className="import-stage" data-testid={semanticIds.importRelations} aria-labelledby="import-relations-heading">
             <div className="import-stage-heading"><h2 id="import-relations-heading" ref={relationHeadingRef} tabIndex={-1}>{copy.import.relations}</h2></div>
-            <div className="stage-actions-top"><button data-testid={semanticIds.importPrevious} type="button" className="button-secondary" onClick={() => setStage("preview")}>{copy.import.previous}</button><button data-testid={semanticIds.importConfirm} type="button" className="button-primary" disabled={busy || ordinaryUnsupportedCount(preview) > 0} onClick={() => void confirmImport()}>{busy ? copy.import.importing : copy.import.confirm}</button></div>
+            <div className="stage-actions-top"><button data-testid={semanticIds.importPrevious} type="button" className="button-secondary" onClick={() => setStage("preview")}>{copy.import.previous}</button><button data-testid={semanticIds.importConfirm} type="button" className="button-primary" disabled={busy || ordinaryUnsupportedCount(preview) > 0 || allocationRequiredCount(preview) > 0} onClick={() => void confirmImport()}>{busy ? copy.import.importing : copy.import.confirm}</button></div>
             {relationItems.length === 0 ? <div className="import-empty-state"><strong>没有配对</strong></div> : <>
               <div className="import-summary-cards relation-summary-cards" role="group" aria-label="配对筛选">
                 {[

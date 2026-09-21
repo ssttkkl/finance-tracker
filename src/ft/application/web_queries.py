@@ -50,7 +50,7 @@ class CashCategoryDTO:
 
 @dataclass(frozen=True)
 class ProjectionDTO:
-    projection_id: str; occurred_at: str; account: CashAccountSummaryDTO; counterparty: str; category: CashCategoryDTO | None; note: str
+    projection_id: str; occurred_at: str; account: CashAccountSummaryDTO | None; counterparty: str; category: CashCategoryDTO | None; note: str
     amount: str; currency: str; economic_type: str; transfer_subtype: str | None; composition: tuple[str, ...]
     member_count: int; accepted_relation_summary: tuple[dict, ...]; source_type: str | None; source_types: tuple[str, ...]; record_id: str
     visible: bool = True; hidden_reason: str | None = None; transfer: CashTransferDTO | None = None

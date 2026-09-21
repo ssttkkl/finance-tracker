@@ -107,6 +107,8 @@ def test_supersede_preserves_history(relation_runtime):
     replacement = {
         **{k: rels[0][k] for k in (
             "kind", "subtype", "primary_fact_id", "secondary_fact_id",
+            "primary_component_id", "secondary_component_id",
+            "anchor_fact_id", "anchor_component_id",
             "primary_fact_type", "secondary_fact_type",
         )},
         "status": "accepted",

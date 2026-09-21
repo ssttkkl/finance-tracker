@@ -72,6 +72,7 @@ def _seed_workload(sessions) -> None:
     from ft.adapters.relational.models import (
         AccountModel,
         CashInvestmentFundingRelationModel,
+        CashTransactionComponentModel,
         CashTransactionModel,
         InvestmentEventModel,
         LedgerSnapshotModel,
@@ -115,6 +116,7 @@ def _seed_workload(sessions) -> None:
     start = datetime(2025, 1, 1, tzinfo=UTC)
     events = []
     cash_transactions = []
+    cash_components = []
     relations = []
     for number in range(1, EVENT_COUNT + 1):
         ticker = f"perf{number % POSITION_COUNT:03d}.us"
@@ -161,10 +163,19 @@ def _seed_workload(sessions) -> None:
                 "record_type": "investment_out",
                 "record_subtype": "not_applicable",
             })
-            relations.append({
+            cash_components.append({
                 "id": cash_id,
                 "workspace_id": WORKSPACE,
                 "cash_transaction_id": cash_id,
+                "account_id": 200,
+                "amount": Decimal("-100"),
+                "currency": "USD",
+                "ordinal": 0,
+            })
+            relations.append({
+                "id": cash_id,
+                "workspace_id": WORKSPACE,
+                "cash_transaction_component_id": cash_id,
                 "investment_event_id": number,
                 "direction": "cash_to_investment",
                 "status": "accepted",
@@ -182,6 +193,7 @@ def _seed_workload(sessions) -> None:
         for start_index in range(0, len(events), 2_000):
             session.execute(insert(InvestmentEventModel), events[start_index:start_index + 2_000])
         session.execute(insert(CashTransactionModel), cash_transactions)
+        session.execute(insert(CashTransactionComponentModel), cash_components)
         session.execute(insert(CashInvestmentFundingRelationModel), relations)
 
     with sessions() as session:

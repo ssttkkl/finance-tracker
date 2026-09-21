@@ -18,7 +18,7 @@ def test_cross_batch_seed_matches_prior_facts(relation_runtime):
         record_type="consumption",
     )
     with services.uow as uow:
-        bank_ids = [r["id"] for r in uow.cashflows.list_detailed()]
+        bank_ids = [_component_id(r) for r in uow.cashflows.list_detailed()]
     # no platform yet
     services.relations.check(seed_fact_ids=bank_ids)
     # batch B: platform view of same card payment
@@ -29,7 +29,7 @@ def test_cross_batch_seed_matches_prior_facts(relation_runtime):
         record_type="consumption",
     )
     with services.uow as uow:
-        all_ids = [r["id"] for r in uow.cashflows.list_detailed()]
+        all_ids = [_component_id(r) for r in uow.cashflows.list_detailed()]
         platform_ids = [i for i in all_ids if i not in bank_ids]
     result = services.relations.check(seed_fact_ids=platform_ids, trigger="import_batch")
     assert result.ok
@@ -54,9 +54,6 @@ def test_human_rejected_payment_mirror_blocks_future_reconciliation(relation_run
     )
     ids = _ids_by_record(services)
     with services.uow as uow:
-        facts = {
-            str(row["id"]): row for row in uow.cashflows.list_detailed()
-        }
         fact_views = services.relations._list_active_cash_facts(uow)
         proposal = evaluate_payment_mirror(
             next(fact for fact in fact_views if str(fact.id) == str(ids["human-reject-platform"])),
@@ -67,7 +64,10 @@ def test_human_rejected_payment_mirror_blocks_future_reconciliation(relation_run
             "kind": "payment_mirror", "status": "accepted",
             "primary_fact_id": proposal.primary_fact_id,
             "secondary_fact_id": proposal.secondary_fact_id,
+            "primary_component_id": proposal.primary_fact_id,
+            "secondary_component_id": proposal.secondary_fact_id,
             "anchor_fact_id": proposal.primary_fact_id,
+            "anchor_component_id": proposal.primary_fact_id,
             "rule_id": proposal.rule_id, "created_by": "system",
         })
         rejected = services.relations._persist_rejected_proposal(uow, proposal)
@@ -105,14 +105,20 @@ def test_human_payment_mirror_supersedes_competing_system_edge(relation_runtime)
             "kind": "payment_mirror", "status": "accepted",
             "primary_fact_id": ids["human-select-platform"],
             "secondary_fact_id": ids["human-select-bank-old"],
+            "primary_component_id": ids["human-select-platform"],
+            "secondary_component_id": ids["human-select-bank-old"],
             "anchor_fact_id": ids["human-select-platform"],
+            "anchor_component_id": ids["human-select-platform"],
             "rule_id": "test.system", "created_by": "system",
         })
         pending_id = uow.relations.add({
             "kind": "payment_mirror", "status": "pending_review",
             "primary_fact_id": ids["human-select-platform"],
             "secondary_fact_id": ids["human-select-bank-new"],
+            "primary_component_id": ids["human-select-platform"],
+            "secondary_component_id": ids["human-select-bank-new"],
             "anchor_fact_id": ids["human-select-platform"],
+            "anchor_component_id": ids["human-select-platform"],
             "rule_id": "test.pending", "created_by": "system",
         })
         uow.commit()
@@ -146,13 +152,19 @@ def test_cross_batch_refund_does_not_cross_match_same_amount_different_merchant(
     )
     with services.uow as uow:
         facts = uow.cashflows.list_detailed()
-        by_record = {row["record_id"]: row["id"] for row in facts}
+        by_record = {
+            row["record_id"]: _component_id(row)
+            for row in facts
+        }
     with services.uow as uow:
         uow.relations.add({
             "kind": "payment_mirror", "status": "accepted",
             "primary_fact_id": by_record["alipay-gaode-expense"],
             "secondary_fact_id": by_record["ccb-gaode-expense"],
+            "primary_component_id": by_record["alipay-gaode-expense"],
+            "secondary_component_id": by_record["ccb-gaode-expense"],
             "anchor_fact_id": by_record["alipay-gaode-expense"],
+            "anchor_component_id": by_record["alipay-gaode-expense"],
             "rule_id": "test.accepted-overlap", "created_by": "test",
         })
         uow.commit()
@@ -162,12 +174,20 @@ def test_cross_batch_refund_does_not_cross_match_same_amount_different_merchant(
         record_id="ccb-gaode-refund", record_type="refund", **common,
     )
     with services.uow as uow:
-        refund_id = next(row["id"] for row in uow.cashflows.list_detailed() if row["record_id"] == "ccb-gaode-refund")
+        refund_id = next(
+            _component_id(row)
+            for row in uow.cashflows.list_detailed()
+            if row["record_id"] == "ccb-gaode-refund"
+        )
     result = services.relations.check(seed_fact_ids=[refund_id])
     assert result.ok
     with services.uow as uow:
         refunds = uow.relations.list_active(kind="refund_offset", status="accepted")
-        facts = {row["id"]: row for row in uow.cashflows.list_detailed()}
+        facts = {
+            int(component["id"]): row
+            for row in uow.cashflows.list_detailed()
+            for component in row.get("components") or ()
+        }
     matching = [row for row in refunds if int(row["secondary_fact_id"] or 0) == int(refund_id)]
     assert matching
     assert all(facts[int(row["primary_fact_id"])]["counterparty"] == "高德" for row in matching)
@@ -175,7 +195,16 @@ def test_cross_batch_refund_does_not_cross_match_same_amount_different_merchant(
 
 def _ids_by_record(services):
     with services.uow as uow:
-        return {row["record_id"]: row["id"] for row in uow.cashflows.list_detailed()}
+        return {
+            row["record_id"]: _component_id(row)
+            for row in uow.cashflows.list_detailed()
+        }
+
+
+def _component_id(row):
+    components = row.get("components") or ()
+    assert len(components) == 1, row
+    return int(components[0]["id"])
 
 
 def _accepted_refund_rows(services):
@@ -223,7 +252,11 @@ def test_reverse_order_bank_refund_remains_on_its_merchant_after_platform_mirror
     ).ok
 
     with services.uow as uow:
-        facts = {row["id"]: row for row in uow.cashflows.list_detailed()}
+        facts = {
+            int(component["id"]): row
+            for row in uow.cashflows.list_detailed()
+            for component in row.get("components") or ()
+        }
     matching = [
         row for row in _accepted_refund_rows(services)
         if int(row["secondary_fact_id"] or 0) == int(ids["reverse-bank-refund"])
@@ -404,7 +437,10 @@ def test_refund_rescan_is_idempotent_with_an_accepted_expense_mirror(relation_ru
             "kind": "payment_mirror", "status": "accepted",
             "primary_fact_id": ids["rescan-platform-expense"],
             "secondary_fact_id": ids["rescan-bank-expense"],
+            "primary_component_id": ids["rescan-platform-expense"],
+            "secondary_component_id": ids["rescan-bank-expense"],
             "anchor_fact_id": ids["rescan-platform-expense"],
+            "anchor_component_id": ids["rescan-platform-expense"],
             "rule_id": "test.accepted-overlap", "created_by": "test",
         })
         uow.commit()
@@ -448,14 +484,20 @@ def test_accepted_refund_mirror_does_not_create_a_second_refund_offset(relation_
             "kind": "refund_offset", "status": "accepted",
             "primary_fact_id": ids["mirror-expense"],
             "secondary_fact_id": ids["mirror-platform-refund"],
+            "primary_component_id": ids["mirror-expense"],
+            "secondary_component_id": ids["mirror-platform-refund"],
             "anchor_fact_id": ids["mirror-platform-refund"],
+            "anchor_component_id": ids["mirror-platform-refund"],
             "rule_id": "test.accepted-refund", "created_by": "test",
         })
         uow.relations.add({
             "kind": "payment_mirror", "status": "accepted",
             "primary_fact_id": ids["mirror-platform-refund"],
             "secondary_fact_id": ids["mirror-bank-refund"],
+            "primary_component_id": ids["mirror-platform-refund"],
+            "secondary_component_id": ids["mirror-bank-refund"],
             "anchor_fact_id": ids["mirror-platform-refund"],
+            "anchor_component_id": ids["mirror-platform-refund"],
             "rule_id": "test.accepted-refund-mirror", "created_by": "test",
         })
         uow.commit()

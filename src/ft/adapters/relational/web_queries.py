@@ -7,7 +7,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import aliased
 from ft.adapters.relational.dialect import RelationalEngineError
-from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionModel, InvestmentEventModel, TransactionRelationModel
+from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionComponentModel, CashTransactionModel, InvestmentEventModel, TransactionRelationModel
 from ft.adapters.relational.runtime import StorageError, storage_error
 from ft.application.web_queries import CashAccountDTO, CashAccountSummaryDTO, CashCategoryDTO, CashCategoryPathItemDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionUnavailableError, ProjectionUpdatedError, local_bounds
 
@@ -77,18 +77,70 @@ def _category_rows(session, workspace_id: str) -> dict[str, CashCategoryModel]:
 
 
 def _record_summary(row, account, categories=None):
-    if row is None or account is None:
+    if row is None:
         return None
+    account_payload = None if account is None else {
+        "id": account.id, "name": account.name, "type": account.type, "active": account.active,
+    }
     return {
         "id": str(row.id), "occurred_at": row.occurred_at.isoformat(),
-        "account": {"id": account.id, "name": account.name, "type": account.type, "active": account.active},
-        "account_name": account.name, "account_id": account.id, "account_type": account.type,
+        "account": account_payload,
+        "account_name": account.name if account is not None else "",
+        "account_id": account.id if account is not None else None,
+        "account_type": account.type if account is not None else "cash",
         "counterparty": row.counterparty, "category": _category_dto(categories or {}, row.category_id), "note": row.note,
         "amount": _amount(row.amount), "currency": row.currency,
         "source_type": row.source_type,
         "counterparty_account": row.counterparty_account or "",
         "record_type": row.record_type, "record_subtype": row.record_subtype or "not_applicable",
     }
+
+
+def _component_detail(component, account):
+    return {
+        "id": str(component.id),
+        "cash_transaction_id": str(component.cash_transaction_id),
+        "account": {
+            "id": account.id,
+            "name": account.name,
+            "type": account.type,
+            "active": account.active,
+        },
+        "account_id": account.id,
+        "account_name": account.name,
+        "account_type": account.type,
+        "amount": _amount(component.amount),
+        "currency": component.currency,
+        "ordinal": component.ordinal,
+        "label": component.label,
+    }
+
+
+def _component_summary(component, parent, account, categories=None):
+    """Describe a relation endpoint without losing its parent transaction."""
+    summary = _record_summary(parent, account, categories)
+    if summary is None:
+        return None
+    summary["id"] = str(parent.id)
+    summary["component_id"] = str(component.id)
+    summary["component"] = {
+        "id": str(component.id),
+        "amount": _amount(component.amount),
+        "currency": component.currency,
+        "account_id": component.account_id,
+        "label": component.label,
+        "ordinal": component.ordinal,
+    }
+    summary["amount"] = _amount(component.amount)
+    summary["currency"] = component.currency
+    summary["account"] = {
+        "id": account.id, "name": account.name,
+        "type": account.type, "active": account.active,
+    }
+    summary["account_name"] = account.name
+    summary["account_id"] = account.id
+    summary["account_type"] = account.type
+    return summary
 
 
 class RelationalCashLedgerQueryRepository:
@@ -135,7 +187,8 @@ class RelationalCashLedgerQueryRepository:
         with self._session() as s: return self._active(s).projection_version
     def _dto(self, row, account, relations, source_types=(), transfer=None, categories=None):
         kinds=tuple(sorted({r.kind for r in relations})); summary=tuple({"kind":kind,"subtype":subtype,"count":sum(r.kind==kind and r.subtype==subtype for r in relations)} for kind,subtype in sorted({(r.kind,r.subtype) for r in relations}))
-        return ProjectionDTO(row.projection_id,row.occurred_at.isoformat(),CashAccountSummaryDTO(account.id,account.name,account.type,account.active),row.counterparty,_category_dto(categories or {}, row.category_id),row.note,_amount(row.net_amount),row.currency,row.economic_type,row.transfer_subtype,kinds,row.member_count,summary,row.source_type,tuple(source_types),row.record_id,row.visible,row.hidden_reason,transfer)
+        account_summary = None if account is None else CashAccountSummaryDTO(account.id,account.name,account.type,account.active)
+        return ProjectionDTO(row.projection_id,row.occurred_at.isoformat(),account_summary,row.counterparty,_category_dto(categories or {}, row.category_id),row.note,_amount(row.net_amount),row.currency,row.economic_type,row.transfer_subtype,kinds,row.member_count,summary,row.source_type,tuple(source_types),row.record_id,row.visible,row.hidden_reason,transfer)
     def _member_source_types(self, session, dataset_id, projection_row_ids):
         projection_row_ids = tuple(projection_row_ids)
         source_types = {projection_row_id: [] for projection_row_id in projection_row_ids}
@@ -163,16 +216,30 @@ class RelationalCashLedgerQueryRepository:
         projection_row_ids = tuple(projection_row_ids)
         if not projection_row_ids:
             return {}
+        primary_component = aliased(CashTransactionComponentModel)
+        secondary_component = aliased(CashTransactionComponentModel)
         relation_rows = session.execute(
             select(
                 CashProjectionRelationModel.projection_row_id,
-                TransactionRelationModel.primary_fact_id,
-                TransactionRelationModel.secondary_fact_id,
+                primary_component,
+                secondary_component,
             ).join(
                 TransactionRelationModel,
                 and_(
                     TransactionRelationModel.workspace_id == CashProjectionRelationModel.workspace_id,
                     TransactionRelationModel.id == CashProjectionRelationModel.transaction_relation_id,
+                ),
+            ).join(
+                primary_component,
+                and_(
+                    primary_component.workspace_id == TransactionRelationModel.workspace_id,
+                    primary_component.id == TransactionRelationModel.primary_component_id,
+                ),
+            ).join(
+                secondary_component,
+                and_(
+                    secondary_component.workspace_id == TransactionRelationModel.workspace_id,
+                    secondary_component.id == TransactionRelationModel.secondary_component_id,
                 ),
             ).where(
                 CashProjectionRelationModel.workspace_id == self._workspace_id,
@@ -181,23 +248,28 @@ class RelationalCashLedgerQueryRepository:
                 CashProjectionRelationModel.kind == "transfer_pair",
             ).order_by(CashProjectionRelationModel.projection_row_id, CashProjectionRelationModel.ordinal)
         ).all()
-        endpoint_ids = sorted({endpoint for _row_id, primary_id, secondary_id in relation_rows for endpoint in (primary_id, secondary_id)})
+        endpoint_ids = sorted({component.id for _row_id, primary, secondary in relation_rows for component in (primary, secondary)})
         endpoint_rows = session.execute(
-            select(CashTransactionModel, AccountModel).join(
+            select(CashTransactionComponentModel, CashTransactionModel, AccountModel)
+            .join(CashTransactionModel, and_(
+                CashTransactionModel.workspace_id == CashTransactionComponentModel.workspace_id,
+                CashTransactionModel.id == CashTransactionComponentModel.cash_transaction_id,
+            )).join(
                 AccountModel,
-                and_(AccountModel.workspace_id == CashTransactionModel.workspace_id, AccountModel.id == CashTransactionModel.account_id),
+                and_(AccountModel.workspace_id == CashTransactionComponentModel.workspace_id, AccountModel.id == CashTransactionComponentModel.account_id),
             ).where(
-                CashTransactionModel.workspace_id == self._workspace_id,
-                CashTransactionModel.id.in_(endpoint_ids),
+                CashTransactionComponentModel.workspace_id == self._workspace_id,
+                CashTransactionComponentModel.id.in_(endpoint_ids),
             )
         ).all() if endpoint_ids else []
-        endpoints = {cash.id: (cash, account) for cash, account in endpoint_rows}
+        endpoints = {component.id: (component, parent, account) for component, parent, account in endpoint_rows}
         transfers = {}
-        for projection_row_id, primary_id, secondary_id in relation_rows:
+        for projection_row_id, primary_component, secondary_component in relation_rows:
+            primary_id, secondary_id = primary_component.id, secondary_component.id
             if projection_row_id in transfers or primary_id not in endpoints or secondary_id not in endpoints:
                 continue
-            primary, primary_account = endpoints[primary_id]
-            secondary, secondary_account = endpoints[secondary_id]
+            primary, _primary_parent, primary_account = endpoints[primary_id]
+            secondary, _secondary_parent, secondary_account = endpoints[secondary_id]
             transfers[projection_row_id] = CashTransferDTO(
                 CashAccountSummaryDTO(primary_account.id, primary_account.name, primary_account.type, primary_account.active),
                 _amount(primary.amount), primary.currency,
@@ -209,6 +281,7 @@ class RelationalCashLedgerQueryRepository:
             select(
                 CashProjectionModel.id,
                 CashInvestmentFundingRelationModel.direction,
+                CashTransactionComponentModel,
                 CashTransactionModel,
                 AccountModel,
                 InvestmentEventModel,
@@ -222,16 +295,22 @@ class RelationalCashLedgerQueryRepository:
                     CashInvestmentFundingRelationModel.active_slot == "active",
                 ),
             ).join(
+                CashTransactionComponentModel,
+                and_(
+                    CashTransactionComponentModel.workspace_id == CashInvestmentFundingRelationModel.workspace_id,
+                    CashTransactionComponentModel.id == CashInvestmentFundingRelationModel.cash_transaction_component_id,
+                ),
+            ).join(
                 CashTransactionModel,
                 and_(
-                    CashTransactionModel.workspace_id == CashInvestmentFundingRelationModel.workspace_id,
-                    CashTransactionModel.id == CashInvestmentFundingRelationModel.cash_transaction_id,
+                    CashTransactionModel.workspace_id == CashTransactionComponentModel.workspace_id,
+                    CashTransactionModel.id == CashTransactionComponentModel.cash_transaction_id,
                 ),
             ).join(
                 AccountModel,
                 and_(
                     AccountModel.workspace_id == CashTransactionModel.workspace_id,
-                    AccountModel.id == CashTransactionModel.account_id,
+                    AccountModel.id == CashTransactionComponentModel.account_id,
                 ),
             ).join(
                 InvestmentEventModel,
@@ -253,7 +332,7 @@ class RelationalCashLedgerQueryRepository:
                 CashProjectionModel.transfer_subtype == "bank_security_transfer",
             )
         ).all()
-        for projection_row_id, direction, cash, cash_account, investment, investment_account_row in funding_rows:
+        for projection_row_id, direction, component, cash, cash_account, investment, investment_account_row in funding_rows:
             if projection_row_id in transfers:
                 continue
             investment_amount = investment.to_amount if direction == "cash_to_investment" else investment.from_amount
@@ -268,13 +347,13 @@ class RelationalCashLedgerQueryRepository:
             )
             if direction == "cash_to_investment":
                 transfers[projection_row_id] = CashTransferDTO(
-                    cash_dto, _amount(cash.amount), cash.currency,
+                    cash_dto, _amount(component.amount), component.currency,
                     investment_dto, _amount(investment_amount), investment.currency,
                 )
             elif direction == "investment_to_cash":
                 transfers[projection_row_id] = CashTransferDTO(
                     investment_dto, _amount(investment_amount), investment.currency,
-                    cash_dto, _amount(cash.amount), cash.currency,
+                    cash_dto, _amount(component.amount), component.currency,
                 )
         return transfers
     def _filter_options(self, session, dataset_id, *, version=None, categories=None):
@@ -367,9 +446,26 @@ class RelationalCashLedgerQueryRepository:
             start,end=local_bounds(filters)
             if start:filter_conditions.append(CashProjectionModel.occurred_at>=start)
             if end:filter_conditions.append(CashProjectionModel.occurred_at<end)
-            for field in ("account_id","currency"):
-                value=getattr(filters,field)
-                if value is not None:filter_conditions.append(getattr(CashProjectionModel,field)==value)
+            if filters.account_id is not None:
+                component_account = select(CashTransactionComponentModel.id).join(
+                    CashProjectionMemberModel,
+                    and_(
+                        CashProjectionMemberModel.workspace_id == CashTransactionComponentModel.workspace_id,
+                        CashProjectionMemberModel.cash_transaction_id == CashTransactionComponentModel.cash_transaction_id,
+                    ),
+                ).where(
+                    CashTransactionComponentModel.workspace_id == self._workspace_id,
+                    CashTransactionComponentModel.account_id == filters.account_id,
+                    CashProjectionMemberModel.workspace_id == CashProjectionModel.workspace_id,
+                    CashProjectionMemberModel.dataset_id == CashProjectionModel.dataset_id,
+                    CashProjectionMemberModel.projection_row_id == CashProjectionModel.id,
+                )
+                filter_conditions.append(or_(
+                    CashProjectionModel.account_id == filters.account_id,
+                    component_account.exists(),
+                ))
+            if filters.currency is not None:
+                filter_conditions.append(CashProjectionModel.currency == filters.currency)
             categories = _category_rows(s, self._workspace_id) if filters.category_id is not None else None
             if filters.category_id is not None:
                 selected = categories.get(filters.category_id)
@@ -506,15 +602,55 @@ class RelationalCashLedgerQueryRepository:
             if row is None: raise LookupError(projection_id)
             account=s.scalar(select(AccountModel).where(AccountModel.workspace_id==self._workspace_id,AccountModel.id==row.account_id))
             rels=s.scalars(select(CashProjectionRelationModel).where(CashProjectionRelationModel.projection_row_id==row.id).order_by(CashProjectionRelationModel.ordinal)).all()
+            component_account = aliased(AccountModel)
             members=s.execute(
-                select(CashProjectionMemberModel, CashTransactionModel, AccountModel)
+                select(
+                    CashProjectionMemberModel,
+                    CashTransactionModel,
+                    AccountModel,
+                    CashTransactionComponentModel,
+                    component_account,
+                )
                 .join(CashTransactionModel, and_(CashTransactionModel.workspace_id==CashProjectionMemberModel.workspace_id, CashTransactionModel.id==CashProjectionMemberModel.cash_transaction_id))
-                .join(AccountModel, and_(AccountModel.workspace_id==CashTransactionModel.workspace_id, AccountModel.id==CashTransactionModel.account_id))
+                .outerjoin(AccountModel, and_(AccountModel.workspace_id==CashTransactionModel.workspace_id, AccountModel.id==CashTransactionModel.account_id))
+                .outerjoin(
+                    CashTransactionComponentModel,
+                    and_(
+                        CashTransactionComponentModel.workspace_id == CashTransactionModel.workspace_id,
+                        CashTransactionComponentModel.cash_transaction_id == CashTransactionModel.id,
+                    ),
+                )
+                .outerjoin(
+                    component_account,
+                    and_(
+                        component_account.workspace_id == CashTransactionComponentModel.workspace_id,
+                        component_account.id == CashTransactionComponentModel.account_id,
+                    ),
+                )
                 .where(CashProjectionMemberModel.projection_row_id==row.id)
-                .order_by(CashProjectionMemberModel.ordinal)
+                .order_by(
+                    CashProjectionMemberModel.ordinal,
+                    CashTransactionComponentModel.ordinal,
+                    CashTransactionComponentModel.id,
+                )
             ).all()
-            member_ids = [cash.id for _, cash, _ in members]
-            member_rows = {cash.id: (cash, member_account) for _, cash, member_account in members}
+            member_records = []
+            member_rows = {}
+            components_by_parent = {}
+            for member, cash, member_account, component, component_account_row in members:
+                if cash.id not in member_rows:
+                    member_rows[cash.id] = (cash, member_account)
+                    member_records.append((member, cash, member_account))
+                if component is not None and component_account_row is not None:
+                    components_by_parent.setdefault(component.cash_transaction_id, []).append(
+                        _component_detail(component, component_account_row)
+                    )
+            member_ids = list(member_rows)
+            member_component_ids = [
+                int(component["id"])
+                for details in components_by_parent.values()
+                for component in details
+            ]
             root, root_account = member_rows[row.root_cash_transaction_id]
             accepted_by_id = {
                 relation.id: relation for relation in s.scalars(
@@ -530,7 +666,7 @@ class RelationalCashLedgerQueryRepository:
                     TransactionRelationModel.status.in_(("pending_review", "rejected", "superseded")),
                     TransactionRelationModel.primary_fact_type == "cash",
                     or_(TransactionRelationModel.secondary_fact_id.is_(None), TransactionRelationModel.secondary_fact_type == "cash"),
-                    or_(TransactionRelationModel.primary_fact_id.in_(member_ids), TransactionRelationModel.secondary_fact_id.in_(member_ids)),
+                    or_(TransactionRelationModel.primary_fact_id.in_(member_component_ids), TransactionRelationModel.secondary_fact_id.in_(member_component_ids)),
                 ).order_by(TransactionRelationModel.status, TransactionRelationModel.id)
             ).all()
             endpoint_ids = sorted({
@@ -538,21 +674,41 @@ class RelationalCashLedgerQueryRepository:
                 if endpoint is not None
             })
             endpoints = s.execute(
-                select(CashTransactionModel, AccountModel)
-                .join(AccountModel, and_(AccountModel.workspace_id == CashTransactionModel.workspace_id, AccountModel.id == CashTransactionModel.account_id))
-                .where(CashTransactionModel.workspace_id == self._workspace_id, CashTransactionModel.id.in_(endpoint_ids))
+                select(CashTransactionComponentModel, CashTransactionModel, AccountModel)
+                .join(CashTransactionModel, and_(
+                    CashTransactionModel.workspace_id == CashTransactionComponentModel.workspace_id,
+                    CashTransactionModel.id == CashTransactionComponentModel.cash_transaction_id,
+                ))
+                .join(AccountModel, and_(
+                    AccountModel.workspace_id == CashTransactionComponentModel.workspace_id,
+                    AccountModel.id == CashTransactionComponentModel.account_id,
+                ))
+                .where(
+                    CashTransactionComponentModel.workspace_id == self._workspace_id,
+                    CashTransactionComponentModel.id.in_(endpoint_ids),
+                )
             ).all() if endpoint_ids else []
-            endpoint_rows = {cash.id: (cash, endpoint_account) for cash, endpoint_account in endpoints}
+            endpoint_rows = {
+                component.id: (component, parent, endpoint_account)
+                for component, parent, endpoint_account in endpoints
+            }
             category_ids = {
                 cash.category_id
-                for cash, _account in (*member_rows.values(), *endpoint_rows.values())
+                for cash, _account in member_rows.values()
                 if cash.category_id
             }
+            category_ids.update(
+                parent.category_id
+                for _component, parent, _account in endpoint_rows.values()
+                if parent.category_id
+            )
             categories = _category_rows(s, self._workspace_id) if category_ids else {}
             root_record = _record_summary(root, root_account, categories)
             assert root_record is not None
+            root_record["cash_granularity"] = root.cash_granularity
+            root_record["components"] = list(components_by_parent.get(root.id, ()))
             source_types = tuple(dict.fromkeys(
-                cash.source_type for _member, cash, _member_account in members if cash.source_type
+                cash.source_type for _member, cash, _member_account in member_records if cash.source_type
             ))
             transfer = (
                 self._transfer_details(s, state.active_dataset_id, [row.id]).get(row.id)
@@ -582,29 +738,44 @@ class RelationalCashLedgerQueryRepository:
                 "projection": self._dto(row, account, rels, source_types, transfer, categories),
                 "root_record": root_record,
                 "members": [
-                    {**_record_summary(cash, member_account, categories), "roles": list(member.roles_json)}
-                    for member, cash, member_account in members
+                    {
+                        **_record_summary(cash, member_account, categories),
+                        "cash_granularity": cash.cash_granularity,
+                        "components": list(components_by_parent.get(cash.id, ())),
+                        "roles": list(member.roles_json),
+                    }
+                    for member, cash, member_account in member_records
                 ],
                 "accepted_relations": [
                     {
                         "id": str(relation.transaction_relation_id), "kind": relation.kind, "subtype": relation.subtype,
                         "rule_id": accepted_by_id[relation.transaction_relation_id].rule_id if relation.transaction_relation_id in accepted_by_id else "",
-                        "primary_record": _record_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].primary_fact_id], categories) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].primary_fact_id in endpoint_rows else None,
-                        "secondary_record": _record_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].secondary_fact_id], categories) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_fact_id in endpoint_rows else None,
+                        "primary_fact_id": str(accepted_by_id[relation.transaction_relation_id].primary_fact_id) if relation.transaction_relation_id in accepted_by_id else None,
+                        "primary_component_id": str(accepted_by_id[relation.transaction_relation_id].primary_component_id) if relation.transaction_relation_id in accepted_by_id else None,
+                        "secondary_fact_id": str(accepted_by_id[relation.transaction_relation_id].secondary_fact_id) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_fact_id is not None else None,
+                        "secondary_component_id": str(accepted_by_id[relation.transaction_relation_id].secondary_component_id) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_component_id is not None else None,
+                        "applied_amount": _amount(accepted_by_id[relation.transaction_relation_id].applied_amount) if relation.transaction_relation_id in accepted_by_id else "0",
+                        "primary_record": _component_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].primary_component_id], categories) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].primary_component_id in endpoint_rows else None,
+                        "secondary_record": _component_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].secondary_component_id], categories) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_component_id in endpoint_rows else None,
                     }
                     for relation in rels
                 ],
                 "inactive_relation_hints": [
                     {
                         "id": str(relation.id), "kind": relation.kind, "subtype": relation.subtype, "status": relation.status,
-                        "primary_record": _record_summary(*endpoint_rows[relation.primary_fact_id], categories) if relation.primary_fact_id in endpoint_rows else None,
-                        "secondary_record": _record_summary(*endpoint_rows[relation.secondary_fact_id], categories) if relation.secondary_fact_id in endpoint_rows else None,
+                        "primary_fact_id": str(relation.primary_fact_id),
+                        "primary_component_id": str(relation.primary_component_id),
+                        "secondary_fact_id": str(relation.secondary_fact_id) if relation.secondary_fact_id is not None else None,
+                        "secondary_component_id": str(relation.secondary_component_id) if relation.secondary_component_id is not None else None,
+                        "applied_amount": _amount(relation.applied_amount),
+                        "primary_record": _component_summary(*endpoint_rows[relation.primary_component_id], categories) if relation.primary_component_id in endpoint_rows else None,
+                        "secondary_record": _component_summary(*endpoint_rows[relation.secondary_component_id], categories) if relation.secondary_component_id in endpoint_rows else None,
                     }
                     for relation in inactive
                 ],
                 "refund_timeline": [
                     {"record_id": cash.record_id, "occurred_at": cash.occurred_at.isoformat(), "amount": _amount(cash.amount), "currency": cash.currency, "source_type": cash.source_type}
-                    for member, cash, _ in members if "refund" in member.roles_json
+                    for member, cash, _ in member_records if "refund" in member.roles_json
                 ],
                 "funding_relation": funding_relation,
             }

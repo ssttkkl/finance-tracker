@@ -52,14 +52,17 @@ def add_cash_fact(
             and counterparty in (r.get("counterparty") or "")
         ]
     assert matches, "fact not found after insert"
-    fact_id = matches[-1]["id"]
+    parent_id = matches[-1]["id"]
+    components = matches[-1].get("components") or []
+    assert len(components) == 1, "relation fixture expects one atomic component"
+    fact_id = components[0]["id"]
     if source_type:
         # Ensure identity fields for relations routing via direct repo update if needed
         with services.uow as uow:
             from ft.adapters.relational.models import CashTransactionModel
             from sqlalchemy import select
             row = uow._state().session.scalar(  # type: ignore[attr-defined]
-                select(CashTransactionModel).where(CashTransactionModel.id == fact_id)
+                select(CashTransactionModel).where(CashTransactionModel.id == parent_id)
             ) if hasattr(uow, "_state") else None
             # fallback: use list_detailed payload already has source_type from add
             if row is not None and not row.source_type:

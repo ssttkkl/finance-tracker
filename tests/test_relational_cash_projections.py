@@ -44,6 +44,7 @@ def test_replace_dataset_bulk_writes_restricted_parent_mapping_and_preserves_rol
         CashProjectionMemberModel,
         CashProjectionModel,
         CashProjectionRelationModel,
+        CashTransactionComponentModel,
         CashTransactionModel,
         TransactionRelationModel,
     )
@@ -66,6 +67,16 @@ def test_replace_dataset_bulk_writes_restricted_parent_mapping_and_preserves_rol
             category_id=None,
             source_type="fixture",
             record_id="cash-004",
+        ))
+        session.flush()
+        session.add(CashTransactionComponentModel(
+            id=1004,
+            workspace_id=cash_web_runtime.workspace_id,
+            cash_transaction_id=1004,
+            account_id=101,
+            amount=Decimal("-12.50"),
+            currency="CNY",
+            ordinal=0,
         ))
         session.add(TransactionRelationModel(
             id=501,

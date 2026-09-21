@@ -244,7 +244,8 @@ def test_relation_maintenance_adopts_display_root_category_for_all_members(tmp_p
     from sqlalchemy import event
 
     from ft.adapters.relational.models import (
-        AccountModel, CashCategoryModel, CashTransactionModel, TransactionRelationModel,
+        AccountModel, CashCategoryModel, CashTransactionComponentModel,
+        CashTransactionModel, TransactionRelationModel,
     )
     from ft.application.cash_categories import CashCategoryService
     from ft.application.cash_projections import CashProjectionService
@@ -267,6 +268,17 @@ def test_relation_maintenance_adopts_display_root_category_for_all_members(tmp_p
                     id=2102, workspace_id="category-workspace", account_id=2001,
                     occurred_at=now, amount=Decimal("-10"), currency="CNY", counterparty="商家",
                     category_id=other["id"], record_type="consumption", record_subtype="not_applicable",
+                ),
+            ))
+            session.flush()
+            session.add_all((
+                CashTransactionComponentModel(
+                    id=2101, workspace_id="category-workspace", cash_transaction_id=2101,
+                    account_id=2001, amount=Decimal("-10"), currency="CNY", ordinal=0,
+                ),
+                CashTransactionComponentModel(
+                    id=2102, workspace_id="category-workspace", cash_transaction_id=2102,
+                    account_id=2001, amount=Decimal("-10"), currency="CNY", ordinal=0,
                 ),
                 TransactionRelationModel(
                     workspace_id="category-workspace", kind="payment_mirror", subtype="",

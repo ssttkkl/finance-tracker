@@ -12,6 +12,7 @@ from ft.adapters.relational.dialect import RelationalEngineError
 from ft.adapters.relational.models import (
     AccountModel,
     CashInvestmentFundingRelationModel,
+    CashTransactionComponentModel,
     CashTransactionModel,
     InvestmentEventModel,
     LedgerSnapshotModel,
@@ -167,20 +168,31 @@ class RelationalInvestmentLedgerQueryRepository:
         if not event_ids:
             return {}
         rows = session.execute(
-            select(CashInvestmentFundingRelationModel, CashTransactionModel, AccountModel)
+            select(
+                CashInvestmentFundingRelationModel,
+                CashTransactionComponentModel,
+                CashTransactionModel,
+                AccountModel,
+            )
             .join(
+                CashTransactionComponentModel,
+                and_(
+                    CashTransactionComponentModel.workspace_id == CashInvestmentFundingRelationModel.workspace_id,
+                    CashTransactionComponentModel.id == CashInvestmentFundingRelationModel.cash_transaction_component_id,
+                ),
+            ).join(
                 CashTransactionModel,
                 and_(
-                    CashTransactionModel.workspace_id == CashInvestmentFundingRelationModel.workspace_id,
-                    CashTransactionModel.id == CashInvestmentFundingRelationModel.cash_transaction_id,
+                    CashTransactionModel.workspace_id == CashTransactionComponentModel.workspace_id,
+                    CashTransactionModel.id == CashTransactionComponentModel.cash_transaction_id,
                     CashTransactionModel.deleted_at.is_(None),
                 ),
             )
             .join(
                 AccountModel,
                 and_(
-                    AccountModel.workspace_id == CashTransactionModel.workspace_id,
-                    AccountModel.id == CashTransactionModel.account_id,
+                    AccountModel.workspace_id == CashTransactionComponentModel.workspace_id,
+                    AccountModel.id == CashTransactionComponentModel.account_id,
                 ),
             )
             .where(
@@ -191,15 +203,15 @@ class RelationalInvestmentLedgerQueryRepository:
             )
             .order_by(CashInvestmentFundingRelationModel.investment_event_id, CashInvestmentFundingRelationModel.id)
         ).all()
-        for relation, cash, account in rows:
+        for relation, component, cash, account in rows:
             result[relation.investment_event_id].append(InvestmentRelationDTO(
                 kind="cash_investment_funding",
                 status=relation.status,
                 direction=relation.direction,
                 rule_id=relation.rule_id,
                 cash_account=self._account(account),
-                cash_amount=_decimal_string(cash.amount) or "0",
-                cash_currency=cash.currency,
+                cash_amount=_decimal_string(component.amount) or "0",
+                cash_currency=component.currency,
                 cash_occurred_at=cash.occurred_at.isoformat(),
                 cash_counterparty=cash.counterparty,
                 cash_note=cash.note,

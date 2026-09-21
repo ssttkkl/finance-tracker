@@ -42,6 +42,12 @@ def _fv(**kwargs):
     return FactView(**base)
 
 
+def _component_id(row):
+    components = row.get("components") or ()
+    assert len(components) == 1, row
+    return int(components[0]["id"])
+
+
 def test_multi_candidate_refund_is_single_open_leg_pending():
     expenses = [
         _fv(
@@ -334,15 +340,15 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
     with services.uow as uow:
         all_rows = uow.cashflows.list_detailed()
     refund_id = next(
-        r["id"] for r in all_rows if Decimal(str(r["amount"])) > 0
+        _component_id(r) for r in all_rows if Decimal(str(r["amount"])) > 0
     )
     expense_ids = [
-        r["id"]
+        _component_id(r)
         for r in all_rows
         if Decimal(str(r["amount"])) < 0 and r["counterparty"] == "京东"
     ]
     non_candidate_id = next(
-        r["id"] for r in all_rows if r["counterparty"] == "无关商户"
+        _component_id(r) for r in all_rows if r["counterparty"] == "无关商户"
     )
     assert open_row["candidate_fact_ids"] == sorted(expense_ids)
 
@@ -407,15 +413,27 @@ def test_system_open_refund_auto_accept_keeps_expense_as_primary(relation_runtim
 
     with services.uow as uow:
         rows = uow.cashflows.list_detailed()
-        expense_id = next(row["id"] for row in rows if Decimal(str(row["amount"])) < 0)
-        refund_id = next(row["id"] for row in rows if Decimal(str(row["amount"])) > 0)
+        expense_parent_id = next(
+            row["id"] for row in rows if Decimal(str(row["amount"])) < 0
+        )
+        refund_parent_id = next(
+            row["id"] for row in rows if Decimal(str(row["amount"])) > 0
+        )
+        expense_id = next(
+            _component_id(row) for row in rows if Decimal(str(row["amount"])) < 0
+        )
+        refund_id = next(
+            _component_id(row) for row in rows if Decimal(str(row["amount"])) > 0
+        )
         open_relation_id = uow.relations.add({
             "kind": RelationKind.REFUND_OFFSET.value,
             "primary_fact_id": refund_id,
             "secondary_fact_id": None,
+            "primary_component_id": refund_id,
             "primary_fact_type": "cash",
             "secondary_fact_type": None,
             "anchor_fact_id": refund_id,
+            "anchor_component_id": refund_id,
             "status": RelationStatus.PENDING_REVIEW.value,
             "rule_id": "refund_offset.open_leg",
             "confidence": "weak",
@@ -457,7 +475,7 @@ def test_system_open_refund_auto_accept_keeps_expense_as_primary(relation_runtim
             relation_runtime.workspace_id,
         ).read_sources()
     assert [(relation.primary_fact_id, relation.secondary_fact_id) for relation in relations] == [
-        (expense_id, refund_id),
+        (expense_parent_id, refund_parent_id),
     ]
 
 
@@ -487,10 +505,16 @@ def test_partial_refund_keeps_expense_eligible_across_scans(relation_runtime):
 
     with services.uow as uow:
         rows = uow.cashflows.list_detailed()
-        expense_id = next(row["id"] for row in rows if row["note"] == "原消费")
-        first_refund_id = next(row["id"] for row in rows if row["note"] == "退款一")
+        expense_parent_id = next(row["id"] for row in rows if row["note"] == "原消费")
+        first_refund_parent_id = next(row["id"] for row in rows if row["note"] == "退款一")
+        expense_id = next(
+            _component_id(row) for row in rows if row["note"] == "原消费"
+        )
+        first_refund_id = next(
+            _component_id(row) for row in rows if row["note"] == "退款一"
+        )
     first = services.relations.check(
-        seed_fact_ids=[expense_id, first_refund_id],
+        seed_fact_ids=[expense_parent_id, first_refund_parent_id],
         trigger="manual_range",
     )
     assert first.ok, first.message
@@ -507,9 +531,12 @@ def test_partial_refund_keeps_expense_eligible_across_scans(relation_runtime):
     ).ok
     with services.uow as uow:
         rows = uow.cashflows.list_detailed()
-        second_refund_id = next(row["id"] for row in rows if row["note"] == "退款二")
+        second_refund_parent_id = next(row["id"] for row in rows if row["note"] == "退款二")
+        second_refund_id = next(
+            _component_id(row) for row in rows if row["note"] == "退款二"
+        )
     second = services.relations.check(
-        seed_fact_ids=[second_refund_id],
+        seed_fact_ids=[second_refund_parent_id],
         trigger="manual_range",
     )
     assert second.ok, second.message
@@ -603,9 +630,7 @@ def test_personal_fx_open_leg_accepts_a_legal_candidate(relation_runtime):
         date="2026-05-02 09:36:56", description="个人购汇", bill_source="icbc_debit",
         record_id="fx-hkd", record_type="fx_in", category="income",
     )
-    result = services.relations.check(
-        seed_fact_ids=[out_id, usd_id, hkd_id], trigger="manual_range",
-    )
+    result = services.relations.check(trigger="manual_range")
     assert result.ok, result.message
     pending = services.relations.list_pending(kind=RelationKind.TRANSFER_PAIR.value)
     assert len(pending) == 1
@@ -649,9 +674,7 @@ def test_personal_fx_open_leg_accept_rejects_non_candidate_and_occupied_endpoint
         record_id="ordinary-income", record_type="income", category="income",
     )
 
-    result = services.relations.check(
-        seed_fact_ids=[out_id, usd_id, hkd_id, unrelated_id], trigger="manual_range",
-    )
+    result = services.relations.check(trigger="manual_range")
     assert result.ok, result.message
     pending = services.relations.list_pending(kind=RelationKind.TRANSFER_PAIR.value)
     assert len(pending) == 1
@@ -670,8 +693,12 @@ def test_personal_fx_open_leg_accept_rejects_non_candidate_and_occupied_endpoint
             "subtype": "currency_exchange",
             "primary_fact_id": out_id,
             "secondary_fact_id": usd_id,
+            "primary_component_id": out_id,
+            "secondary_component_id": usd_id,
             "primary_fact_type": "cash",
             "secondary_fact_type": "cash",
+            "anchor_fact_id": out_id,
+            "anchor_component_id": out_id,
             "status": RelationStatus.ACCEPTED.value,
             "rule_id": "fixture.occupied",
             "confidence": "strong",
@@ -725,8 +752,8 @@ def test_transfer_open_leg_persisted_and_accept(relation_runtime):
     with services.uow as uow:
         rows = uow.cashflows.list_detailed()
     ids = [r["id"] for r in rows]
-    out_id = next(r["id"] for r in rows if Decimal(str(r["amount"])) < 0)
-    in_ids = [r["id"] for r in rows if Decimal(str(r["amount"])) > 0]
+    out_id = next(_component_id(r) for r in rows if Decimal(str(r["amount"])) < 0)
+    in_ids = [_component_id(r) for r in rows if Decimal(str(r["amount"])) > 0]
     services.relations.check(seed_fact_ids=ids, trigger="manual_range")
     pending = [
         p

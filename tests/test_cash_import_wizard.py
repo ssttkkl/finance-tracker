@@ -75,6 +75,7 @@ def test_cash_import_detects_unique_channel_and_preview_is_read_only(tmp_path):
     assert preview["channel"] == "alipay"
     assert preview["summary"] == {
         "total": 1, "new": 1, "existing": 0, "unsupported": 0,
+        "requires_allocation": 0,
     }
     assert set(preview["columns"]) == {
         "occurred_at", "amount", "currency", "account_name", "counterparty",
@@ -365,7 +366,7 @@ def test_cash_import_probe_error_is_not_reclassified_as_no_match(tmp_path):
         service.detect_import(source.read_bytes(), filename=source.name)
 
 
-def test_cash_import_skips_unresolved_alipay_rows_but_imports_other_rows(tmp_path):
+def test_cash_import_previews_composite_alipay_rows_but_blocks_unallocated_confirmation(tmp_path):
     from ft.adapters.relational.models import AccountModel, CashTransactionModel
 
     source = tmp_path / "alipay.csv"
@@ -379,45 +380,50 @@ def test_cash_import_skips_unresolved_alipay_rows_but_imports_other_rows(tmp_pat
         _row("valid", payment_method="账户余额"),
     ]})
 
-    scan = service.scan_import(source.read_bytes(), filename=source.name)
-    assert scan["unresolved_count"] == 1
-    group = scan["groups"][0]
-    with sessions() as session:
-        account_id = session.query(AccountModel.id).filter_by(
-            workspace_id="wizard-workspace", name="支付宝余额",
-        ).scalar()
+    with service._uow as uow:
+        uow.accounts.add_raw({"name": "花呗", "type": "loan", "currency": "CNY"})
+        uow.commit()
 
-    mapping = [{
-        "group_id": group["group_id"],
-        "account_id": account_id,
-        "mapping_revision": group["suggestion"]["mapping_revision"],
-    }]
+    scan = service.scan_import(source.read_bytes(), filename=source.name)
+    assert scan["unresolved_count"] == 0
+    account_ids = {
+        account["name"]: account["id"]
+        for account in scan["accounts"]
+    }
+    groups_by_name = {group["display_name"]: group for group in scan["groups"]}
+    mapping = [
+        {
+            "group_id": groups_by_name[name]["group_id"],
+            "account_id": account_ids[name],
+            "mapping_revision": groups_by_name[name]["suggestion"]["mapping_revision"],
+        }
+        for name in ("支付宝余额", "花呗")
+    ]
     preview = service.preview_import(
         source.read_bytes(), source="", currency=None, filename=source.name,
         mapping=mapping,
     )
     assert preview["summary"] == {
-        "total": 2, "new": 1, "existing": 0, "unsupported": 1, "unresolved": 1,
+        "total": 2, "new": 1, "existing": 0, "unsupported": 0,
+        "unresolved": 0, "requires_allocation": 1,
     }
-    assert {item["status"] for item in preview["items"]} == {"new", "unresolved"}
-    unresolved = next(item for item in preview["items"] if item["status"] == "unresolved")
+    assert {item["status"] for item in preview["items"]} == {"new", "requires_allocation"}
+    unresolved = next(item for item in preview["items"] if item["status"] == "requires_allocation")
     assert unresolved["account_name"] == ""
     assert unresolved["record_id"] == "ambiguous"
     assert preview["relations"] == []
 
-    result = service.commit_import(
-        source.read_bytes(), source="", currency=None, filename=source.name,
-        preview_digest=scan["digest"], preview_channel="alipay", mapping=mapping,
-    )
-    assert result["new_rows"] == 1
-    assert result["skipped_rows"] == 1
+    with pytest.raises(ValueError, match="import_component_allocation_incomplete"):
+        service.commit_import(
+            source.read_bytes(), source="", currency=None, filename=source.name,
+            preview_digest=preview["file"]["digest"], preview_channel="alipay", mapping=mapping,
+        )
     with sessions() as session:
         rows = session.query(CashTransactionModel).all()
-        assert len(rows) == 1
-        assert rows[0].record_id == "valid"
+        assert rows == []
 
 
-def test_cash_import_rejects_file_with_only_unresolved_alipay_rows_without_writes(tmp_path):
+def test_cash_import_blocks_file_with_only_unallocated_alipay_rows_without_writes(tmp_path):
     from ft.adapters.relational.models import AccountModel, CashTransactionModel, StatementAccountMappingModel
 
     source = tmp_path / "alipay.csv"
@@ -427,11 +433,31 @@ def test_cash_import_rejects_file_with_only_unresolved_alipay_rows_without_write
         amount="-3020.00",
     )]})
 
-    with pytest.raises(ValueError, match="import_composite_payment_unresolved"):
-        service.scan_import(source.read_bytes(), filename=source.name)
+    with service._uow as uow:
+        uow.accounts.add_raw({"name": "花呗", "type": "loan", "currency": "CNY"})
+        uow.commit()
+    scan = service.scan_import(source.read_bytes(), filename=source.name)
+    accounts = {account["name"]: account["id"] for account in scan["accounts"]}
+    groups = {group["display_name"]: group for group in scan["groups"]}
+    mapping = [
+        {
+            "group_id": groups[name]["group_id"],
+            "account_id": accounts[name],
+            "mapping_revision": groups[name]["suggestion"]["mapping_revision"],
+        }
+        for name in ("支付宝余额", "花呗")
+    ]
+    preview = service.preview_import(
+        source.read_bytes(), source="", currency=None, filename=source.name, mapping=mapping,
+    )
+    with pytest.raises(ValueError, match="import_component_allocation_incomplete"):
+        service.commit_import(
+            source.read_bytes(), source="", currency=None, filename=source.name,
+            preview_digest=preview["file"]["digest"], preview_channel="alipay", mapping=mapping,
+        )
 
     with sessions() as session:
-        assert session.query(AccountModel).count() == 1
+        assert session.query(AccountModel).count() == 2
         assert session.query(StatementAccountMappingModel).count() == 0
         assert session.query(CashTransactionModel).count() == 0
 
@@ -1303,7 +1329,10 @@ def test_cash_import_preview_does_not_duplicate_existing_facts_for_relation_matc
         source.read_bytes(), source="alipay", currency=None, filename=source.name,
     )
 
-    assert preview["summary"] == {"total": 2, "new": 0, "existing": 2, "unsupported": 0}
+    assert preview["summary"] == {
+        "total": 2, "new": 0, "existing": 2, "unsupported": 0,
+        "requires_allocation": 0,
+    }
     assert preview["relations"] == []
 
 
@@ -1339,6 +1368,128 @@ def test_cash_import_repeat_does_not_apply_relation_decisions_for_existing_facts
     assert result["new_rows"] == 0
     with sessions() as session:
         assert session.query(TransactionRelationModel).count() == 0
+
+
+def test_alipay_composite_payment_preview_blocks_confirmation_without_allocation(tmp_path):
+    from ft.adapters.relational.models import CashTransactionModel, AccountModel, CashTransactionComponentModel
+
+    source = tmp_path / "alipay-composite.csv"
+    source.write_bytes(b"alipay composite fixture")
+    raw_payload = {
+        "交易时间": "2026-08-12 17:24:00",
+        "金额": "30.00",
+        "收/付款方式": "账户余额&工商银行储蓄卡(1234)&立减优惠",
+    }
+    row = _row(
+        record_id="composite-1",
+        amount="-30.00",
+        payment_method="账户余额&工商银行储蓄卡(1234)&立减优惠",
+        source_payload=raw_payload,
+    )
+    sessions, service = _service(tmp_path, {"alipay": [row]})
+    with service._uow as uow:
+        uow.accounts.add_raw({"name": "工商银行储蓄卡", "type": "cash", "currency": "CNY"})
+        uow.commit()
+
+    scan = service.scan_import(source.read_bytes(), filename=source.name)
+    assert len(scan["groups"]) == 2
+    accounts = {
+        account["name"]: account["id"]
+        for account in scan["accounts"]
+    }
+    mapping = [
+        {
+            "group_id": group["group_id"],
+            "account_id": accounts["支付宝余额" if index == 0 else "工商银行储蓄卡"],
+            "mapping_revision": group["suggestion"]["mapping_revision"],
+        }
+        for index, group in enumerate(scan["groups"])
+    ]
+
+    preview = service.preview_import(
+        source.read_bytes(), source="", currency=None, filename=source.name, mapping=mapping,
+    )
+    assert preview["summary"]["requires_allocation"] == 1
+    item = preview["items"][0]
+    assert item["status"] == "requires_allocation"
+    assert item["cash_granularity"] == "aggregate"
+    assert [component["amount"] for component in item["components"]] == [None, None]
+
+    with pytest.raises(ValueError, match="import_component_allocation_incomplete"):
+        service.commit_import(
+            source.read_bytes(), source="", currency=None, filename=source.name,
+            preview_digest=preview["file"]["digest"], mapping=mapping,
+        )
+
+    with sessions() as session:
+        assert session.query(CashTransactionModel).count() == 0
+        assert session.query(CashTransactionComponentModel).count() == 0
+
+
+def test_alipay_composite_payment_decimal_allocation_is_idempotent_and_preserves_source_payload(tmp_path):
+    from ft.adapters.relational.models import CashTransactionModel, CashTransactionComponentModel
+
+    source = tmp_path / "alipay-composite.csv"
+    source.write_bytes(b"alipay composite fixture")
+    raw_payload = {
+        "交易时间": "2026-08-12 17:24:00",
+        "金额": "30.00",
+        "收/付款方式": "账户余额&工商银行储蓄卡(1234)&立减优惠",
+    }
+    row = _row(
+        record_id="composite-1",
+        amount="-30.00",
+        payment_method="账户余额&工商银行储蓄卡(1234)&立减优惠",
+        source_payload=raw_payload,
+    )
+    sessions, service = _service(tmp_path, {"alipay": [row]})
+    with service._uow as uow:
+        uow.accounts.add_raw({"name": "工商银行储蓄卡", "type": "cash", "currency": "CNY"})
+        uow.commit()
+
+    scan = service.scan_import(source.read_bytes(), filename=source.name)
+    accounts = {account["name"]: account["id"] for account in scan["accounts"]}
+    mapping = [
+        {
+            "group_id": group["group_id"],
+            "account_id": accounts["支付宝余额" if index == 0 else "工商银行储蓄卡"],
+            "mapping_revision": group["suggestion"]["mapping_revision"],
+            "component_allocations": {
+                "composite-1": [{"amount": "10.10"}, {"amount": "19.90"}],
+            },
+        }
+        for index, group in enumerate(scan["groups"])
+    ]
+
+    preview = service.preview_import(
+        source.read_bytes(), source="", currency=None, filename=source.name, mapping=mapping,
+    )
+    assert preview["items"][0]["status"] == "new"
+    assert preview["items"][0]["component_allocation"]["conserved"] is True
+    assert [component["amount"] for component in preview["items"][0]["components"]] == ["-10.10", "-19.90"]
+
+    kwargs = {
+        "source": "",
+        "currency": None,
+        "filename": source.name,
+        "preview_digest": preview["file"]["digest"],
+        "mapping": mapping,
+        "idempotency_key": "composite-confirm-1",
+    }
+    first = service.commit_import(source.read_bytes(), **kwargs)
+    second = service.commit_import(source.read_bytes(), **kwargs)
+    assert second == first
+    assert first["new_rows"] == 1
+
+    with sessions() as session:
+        parent = session.query(CashTransactionModel).one()
+        components = session.query(CashTransactionComponentModel).filter_by(
+            workspace_id="wizard-workspace", cash_transaction_id=parent.id,
+        ).order_by(CashTransactionComponentModel.ordinal).all()
+        assert parent.source_payload == raw_payload
+        assert parent.cash_granularity == "aggregate"
+        assert [str(item.amount) for item in components] == ["-10.10", "-19.90"]
+        assert session.query(CashTransactionModel).count() == 1
 
 
 def test_cash_import_mixed_batch_can_pair_new_fact_with_existing_fact(tmp_path):

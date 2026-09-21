@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from sqlalchemy import Text, and_, cast, func, or_, select
 
 from ft.domain.accounts import AccountDTO
-from .models import AccountModel, CashTransactionModel, InvestmentEventModel
+from .models import AccountModel, CashTransactionModel, InvestmentEventModel, CashTransactionComponentModel
 from .repositories import RelationalCashflowRepository, RelationalSnapshotRepository, _parse_timestamp
 
 
@@ -40,7 +40,7 @@ class RelationalTransactionQueryRepository:
         with self._sessions() as session:
             statement = (
                 select(CashTransactionModel, AccountModel)
-                .join(AccountModel, (
+                .outerjoin(AccountModel, (
                     AccountModel.workspace_id == CashTransactionModel.workspace_id
                 ) & (AccountModel.id == CashTransactionModel.account_id))
                 .where(CashTransactionModel.workspace_id == self._workspace_id)
@@ -56,7 +56,18 @@ class RelationalTransactionQueryRepository:
                     CashTransactionModel.occurred_at < _parse_timestamp(end_local),
                 )
             if account:
-                statement = statement.where(AccountModel.name == account)
+                statement = statement.where(or_(
+                    AccountModel.name == account,
+                    select(CashTransactionComponentModel.id).join(
+                        AccountModel,
+                        (AccountModel.workspace_id == CashTransactionComponentModel.workspace_id)
+                        & (AccountModel.id == CashTransactionComponentModel.account_id),
+                    ).where(
+                        CashTransactionComponentModel.workspace_id == CashTransactionModel.workspace_id,
+                        CashTransactionComponentModel.cash_transaction_id == CashTransactionModel.id,
+                        AccountModel.name == account,
+                    ).exists(),
+                ))
             if category_id:
                 statement = statement.where(CashTransactionModel.category_id == category_id)
             statement = statement.order_by(
@@ -65,7 +76,8 @@ class RelationalTransactionQueryRepository:
             if limit is not None:
                 statement = statement.limit(limit)
             rows = session.execute(statement)
-            return [RelationalCashflowRepository._to_row(row, account_row) for row, account_row in rows]
+            repository = RelationalCashflowRepository(session, self._workspace_id)
+            return [repository._to_row(row, account_row) for row, account_row in rows]
 
 
 class RelationalSnapshotQueryRepository:

@@ -46,6 +46,7 @@ def test_repository_has_clean_linear_revisions():
                 "20260814_33_cash_import_commits.py",
                 "20260816_34_cash_relation_metadata.py",
                 "20260917_35_wealth_source_revision.py",
+                "20260920_36_cash_transaction_components.py",
             ]
 
 
@@ -641,7 +642,7 @@ def test_relation_simplification_preserves_referencing_projection_rows(tmp_path)
             ))
             connection.execute(text("INSERT INTO relation_reference (relation_id) VALUES (1)"))
 
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260917_35")
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT relation_id FROM relation_reference")) == 1
             assert connection.execute(text("PRAGMA foreign_key_check")).all() == []
@@ -678,7 +679,7 @@ def test_open_leg_candidate_migration_defaults_existing_relations_to_empty_list(
                     'system', CURRENT_TIMESTAMP, 1
                 )"""
             ))
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260917_35")
         with engine.connect() as connection:
             raw_value = connection.scalar(text(
                 "SELECT candidate_fact_ids FROM transaction_relations"
@@ -739,7 +740,14 @@ def test_initial_revision_upgrades_dedicated_postgresql():
                 "counterparty_account_attrs",
             } <= cash_cols
             rel_cols = {c["name"] for c in inspect(engine).get_columns("transaction_relations")}
-            assert "anchor_fact_id" in rel_cols
+            assert {
+                "primary_component_id", "secondary_component_id",
+                "ordered_component_a", "ordered_component_b", "anchor_component_id",
+            } <= rel_cols
+            assert {
+                "primary_fact_id", "secondary_fact_id",
+                "ordered_fact_a", "ordered_fact_b", "anchor_fact_id",
+            }.isdisjoint(rel_cols)
             assert "candidate_fact_ids" in rel_cols
             assert {"evidence_json", "confidence", "later_marker"}.isdisjoint(rel_cols)
             # Multi-currency (20260720_04) and fact-field unify (20260724_07) are one-shot.

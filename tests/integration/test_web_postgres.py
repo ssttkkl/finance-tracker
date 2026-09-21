@@ -91,7 +91,11 @@ def test_postgres_evidence_read_uses_one_projection_snapshot(postgres_cash_web_r
     from decimal import Decimal
     from zoneinfo import ZoneInfo
 
-    from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
+    from ft.adapters.relational.models import (
+        CashTransactionComponentModel,
+        CashTransactionModel,
+        TransactionRelationModel,
+    )
     from ft.application.cash_projections import CashProjectionService
     from ft.application.web_queries import CashLedgerQueryService
 
@@ -108,6 +112,16 @@ def test_postgres_evidence_read_uses_one_projection_snapshot(postgres_cash_web_r
             category_id="category-food",
             source_type="fixture",
             record_id="cash-004",
+        ))
+        session.flush()
+        session.add(CashTransactionComponentModel(
+            id=1004,
+            workspace_id=runtime.workspace_id,
+            cash_transaction_id=1004,
+            account_id=101,
+            amount=Decimal("2.50"),
+            currency="CNY",
+            ordinal=0,
         ))
         session.add(TransactionRelationModel(
             workspace_id=runtime.workspace_id,

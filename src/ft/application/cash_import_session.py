@@ -69,6 +69,8 @@ class CashImportSessionService:
                         else str(item.get("mapping_revision"))
                     ),
                     "new_account": normalized_new_account,
+                    "component_allocations": item.get("component_allocations"),
+                    "allocations": item.get("allocations"),
                 })
             canonical = sorted(
                 entries,

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from types import SimpleNamespace
 
 from sqlalchemy import or_, select
 
@@ -37,7 +38,7 @@ class CashInvestmentFundingRelationService:
     def _to_dict(row) -> dict:
         return {
             "id": row.id,
-            "cash_transaction_id": row.cash_transaction_id,
+            "cash_transaction_component_id": row.cash_transaction_component_id,
             "investment_event_id": row.investment_event_id,
             "direction": row.direction,
             "status": row.status,
@@ -111,17 +112,20 @@ class CashInvestmentFundingRelationService:
         ).all()
 
     def _candidate_cash(self, session, event):
-        from ft.adapters.relational.models import AccountModel, CashTransactionModel
+        from ft.adapters.relational.models import AccountModel, CashTransactionComponentModel, CashTransactionModel
 
         incoming = self._investment_is_incoming(event)
         expected_types = _CANDIDATE_CASH_TYPES[incoming]
         expected_negative = incoming
         candidates = []
-        for cash, _account_type in session.execute(
-            select(CashTransactionModel, AccountModel.type)
+        for parent, component, _account_type in session.execute(
+            select(CashTransactionModel, CashTransactionComponentModel, AccountModel.type)
+            .join(CashTransactionComponentModel, (
+                CashTransactionComponentModel.workspace_id == CashTransactionModel.workspace_id
+            ) & (CashTransactionComponentModel.cash_transaction_id == CashTransactionModel.id))
             .join(AccountModel, (
-                AccountModel.workspace_id == CashTransactionModel.workspace_id
-            ) & (AccountModel.id == CashTransactionModel.account_id))
+                AccountModel.workspace_id == CashTransactionComponentModel.workspace_id
+            ) & (AccountModel.id == CashTransactionComponentModel.account_id))
             .where(
                 CashTransactionModel.workspace_id == self._workspace_id,
                 CashTransactionModel.deleted_at.is_(None),
@@ -129,6 +133,14 @@ class CashInvestmentFundingRelationService:
                 CashTransactionModel.record_type.in_(expected_types),
             ).order_by(CashTransactionModel.occurred_at, CashTransactionModel.id)
         ):
+            # Relations are anchored to the account-level component. Keep the
+            # parent event fields for the existing matching rules.
+            cash = SimpleNamespace(
+                id=component.id, parent_id=parent.id, account_id=component.account_id,
+                amount=component.amount, currency=component.currency,
+                occurred_at=parent.occurred_at, record_type=parent.record_type,
+                counterparty=parent.counterparty,
+            )
             cash_amount = Decimal(str(cash.amount))
             if (cash_amount < 0) != expected_negative:
                 continue
@@ -160,7 +172,7 @@ class CashInvestmentFundingRelationService:
         from ft.adapters.relational.models import CashInvestmentFundingRelationModel
 
         rows = session.execute(select(
-            CashInvestmentFundingRelationModel.cash_transaction_id,
+            CashInvestmentFundingRelationModel.cash_transaction_component_id,
             CashInvestmentFundingRelationModel.investment_event_id,
         ).where(
             CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
@@ -169,15 +181,15 @@ class CashInvestmentFundingRelationService:
         )).all()
         return {row[0] for row in rows}, {row[1] for row in rows}
 
-    def _cash_has_accepted_cash_relation(self, session, cash_transaction_id: int) -> bool:
+    def _cash_has_accepted_cash_relation(self, session, cash_component_id: int) -> bool:
         from ft.adapters.relational.models import TransactionRelationModel
 
         return session.scalar(select(TransactionRelationModel.id).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
             TransactionRelationModel.status == "accepted",
             or_(
-                TransactionRelationModel.primary_fact_id == cash_transaction_id,
-                TransactionRelationModel.secondary_fact_id == cash_transaction_id,
+                TransactionRelationModel.primary_component_id == cash_component_id,
+                TransactionRelationModel.secondary_component_id == cash_component_id,
             ),
         ).limit(1)) is not None
 
@@ -232,7 +244,7 @@ class CashInvestmentFundingRelationService:
             if (
                 relation.investment_event_id != investment_id
                 or not self._is_unreviewed_system_candidate(relation)
-                or relation.cash_transaction_id in candidate_cash_ids
+                or relation.cash_transaction_component_id in candidate_cash_ids
             ):
                 continue
             relation.status = "rejected"
@@ -249,7 +261,7 @@ class CashInvestmentFundingRelationService:
         with self._sessions.begin() as session:
             accepted_cash, accepted_investment = self._accepted_endpoint_ids(session)
             existing = {
-                (row.cash_transaction_id, row.investment_event_id): row
+                (row.cash_transaction_component_id, row.investment_event_id): row
                 for row in session.scalars(select(CashInvestmentFundingRelationModel).where(
                     CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
                     CashInvestmentFundingRelationModel.active_slot == "active",
@@ -302,7 +314,7 @@ class CashInvestmentFundingRelationService:
                         continue
                     relation = CashInvestmentFundingRelationModel(
                         workspace_id=self._workspace_id,
-                        cash_transaction_id=cash.id,
+                        cash_transaction_component_id=cash.id,
                         investment_event_id=investment.id,
                         direction="cash_to_investment" if self._investment_is_incoming(investment) else "investment_to_cash",
                         status="accepted" if decision_reason else "pending_review",
@@ -325,7 +337,8 @@ class CashInvestmentFundingRelationService:
                 from ft.application.cash_projections import CashProjectionService
 
                 CashProjectionService.maintain_if_ready_in_session(
-                    session, self._workspace_id, affected_cash_ids,
+                    session, self._workspace_id, set(),
+                    known_component_ids=affected_cash_ids,
                 )
             return [self._to_dict(item) for item in changed]
 
@@ -338,13 +351,23 @@ class CashInvestmentFundingRelationService:
         ))
 
     def _assert_available(self, session, relation) -> None:
-        from ft.adapters.relational.models import CashInvestmentFundingRelationModel, CashTransactionModel, InvestmentEventModel
+        from ft.adapters.relational.models import CashInvestmentFundingRelationModel, CashTransactionComponentModel, CashTransactionModel, InvestmentEventModel
 
-        cash = session.scalar(select(CashTransactionModel).where(
+        row = session.execute(select(CashTransactionModel, CashTransactionComponentModel).join(
+            CashTransactionComponentModel,
+            (CashTransactionComponentModel.workspace_id == CashTransactionModel.workspace_id)
+            & (CashTransactionComponentModel.cash_transaction_id == CashTransactionModel.id),
+        ).where(
             CashTransactionModel.workspace_id == self._workspace_id,
-            CashTransactionModel.id == relation.cash_transaction_id,
+            CashTransactionComponentModel.id == relation.cash_transaction_component_id,
             CashTransactionModel.deleted_at.is_(None),
-        ))
+        )).first()
+        cash = None if row is None else SimpleNamespace(
+            id=row[1].id, parent_id=row[0].id, account_id=row[1].account_id,
+            amount=row[1].amount, currency=row[1].currency,
+            occurred_at=row[0].occurred_at, record_type=row[0].record_type,
+            counterparty=row[0].counterparty,
+        )
         investment = session.scalar(select(InvestmentEventModel).where(
             InvestmentEventModel.workspace_id == self._workspace_id,
             InvestmentEventModel.id == relation.investment_event_id,
@@ -361,7 +384,7 @@ class CashInvestmentFundingRelationService:
             CashInvestmentFundingRelationModel.active_slot == "active",
             CashInvestmentFundingRelationModel.id != relation.id,
             or_(
-                CashInvestmentFundingRelationModel.cash_transaction_id == cash.id,
+                CashInvestmentFundingRelationModel.cash_transaction_component_id == cash.id,
                 CashInvestmentFundingRelationModel.investment_event_id == investment.id,
             ),
         ).limit(1))
@@ -383,7 +406,8 @@ class CashInvestmentFundingRelationService:
             from ft.application.cash_projections import CashProjectionService
 
             CashProjectionService.maintain_if_ready_in_session(
-                session, self._workspace_id, {relation.cash_transaction_id},
+                session, self._workspace_id, set(),
+                known_component_ids={relation.cash_transaction_component_id},
             )
             session.flush()
             return self._to_dict(relation)

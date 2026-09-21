@@ -95,8 +95,8 @@ def _run_multi_account_and_jpy(sessions, unit_of_work_cls, workspace: str, tmp_p
     assert result.count == 2
     with unit_of_work_cls(sessions, workspace) as uow:
         snap = uow.snapshot.load()
-        assert snap["accounts"]["cash"]["支付宝余额"]["CNY"] == "-1.00"
-        assert snap["accounts"]["loan"]["工行信用卡(1200)"]["JPY"] == "-200.00"
+        assert Decimal(str(snap["accounts"]["cash"]["支付宝余额"]["CNY"])) == Decimal("-1.00")
+        assert Decimal(str(snap["accounts"]["loan"]["工行信用卡(1200)"]["JPY"])) == Decimal("-200.00")
         uow.commit()
     with sessions() as session:
         facts = list(session.scalars(

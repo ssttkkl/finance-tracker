@@ -245,7 +245,7 @@ def evaluate_transfer_pair(
     此函数刻意不读取账单文本、来源、来源快照和账户类型。信用还款的入账
     端也必须在导入时标记为 ``credit_repayment``，避免由账户类别反推语义。
     """
-    if seed.deleted or seed.signed_amount >= 0:
+    if seed.deleted or seed.cash_granularity == "aggregate" or seed.signed_amount >= 0:
         return None
     subtype = str(seed.record_subtype or "")
     if subtype not in _STANDARD_SUBTYPES:
@@ -253,7 +253,12 @@ def evaluate_transfer_pair(
     eligible: list[FactView] = []
     counterpart_unique = True
     for candidate in candidates:
-        if candidate.id == seed.id or candidate.deleted or candidate.signed_amount <= 0:
+        if (
+            candidate.id == seed.id
+            or candidate.deleted
+            or candidate.cash_granularity == "aggregate"
+            or candidate.signed_amount <= 0
+        ):
             continue
         if str(candidate.record_subtype or "") != subtype:
             continue
@@ -302,6 +307,7 @@ def match_personal_fx_exchange(
     """匹配导入期明确分类的换入/换出资产。"""
     if (
         seed.deleted
+        or seed.cash_granularity == "aggregate"
         or not is_fx_out_record(seed)
         or str(seed.record_subtype or "") != "currency_exchange"
     ):
@@ -310,6 +316,7 @@ def match_personal_fx_exchange(
         candidate
         for candidate in candidates
         if not candidate.deleted
+        and candidate.cash_granularity != "aggregate"
         and is_fx_in_record(candidate)
         and str(candidate.record_subtype or "") == "currency_exchange"
         and str(candidate.currency).upper() != str(seed.currency).upper()
@@ -349,7 +356,11 @@ def match_normalized_subtype_transfers(
     """按唯一对方账号目标全局分配长窗口资金移动。"""
     active = [
         fact for fact in facts
-        if not fact.deleted and fact.fact_type == FactType.CASH.value
+        if (
+            not fact.deleted
+            and fact.fact_type == FactType.CASH.value
+            and fact.cash_granularity != "aggregate"
+        )
     ]
     selected = {str(item) for item in seed_ids} if seed_ids is not None else None
     edges: list[tuple[int, str, str, FactView, FactView, str, str, bool]] = []

@@ -3,6 +3,7 @@ import type {
   CashPage,
   DecimalString,
   ImportCommitResult,
+  ImportPreviewItem,
   ImportPreview,
   Role,
   Session,
@@ -94,6 +95,66 @@ const DECIMAL_PATTERN = /^[+-]?\d+(?:\.\d+)?$/;
 
 export function isExactDecimalString(value: unknown): value is DecimalString {
   return typeof value === "string" && DECIMAL_PATTERN.test(value);
+}
+
+type AllocationPreviewItem = Pick<ImportPreviewItem, "amount" | "components">;
+type ExactDecimalParts = { digits: bigint; scale: number };
+
+export type AllocationBalance = {
+  state: "complete" | "incomplete" | "invalid";
+  difference: string;
+  total: string;
+};
+
+function parseUnsignedDecimal(value: string): ExactDecimalParts | null {
+  const normalized = value.trim();
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return null;
+  const [integer, fraction = ""] = normalized.split(".");
+  return { digits: BigInt(`${integer}${fraction}`), scale: fraction.length };
+}
+
+function unsignedAmount(value: string | null | undefined): string {
+  return String(value ?? "").trim().replace(/^[+-]/, "");
+}
+
+function formatExactDecimal(digits: bigint, scale: number): string {
+  const sign = digits < 0n ? "-" : "";
+  const raw = (digits < 0n ? -digits : digits).toString().padStart(scale + 1, "0");
+  if (scale === 0) return sign + raw;
+  return sign + raw.slice(0, -scale) + "." + raw.slice(-scale);
+}
+
+export function allocationBalance(item: AllocationPreviewItem, values: string[]): AllocationBalance {
+  const components = item.components ?? [];
+  const target = parseUnsignedDecimal(unsignedAmount(item.amount));
+  if (components.length < 2 || values.length !== components.length || !target) {
+    return { state: "invalid", difference: "", total: "" };
+  }
+
+  let hasEmptyValue = false;
+  const amounts = values.map((value) => {
+    if (value.trim() === "") {
+      hasEmptyValue = true;
+      return { digits: 0n, scale: 0 };
+    }
+    return parseUnsignedDecimal(value);
+  });
+  if (amounts.some((value): value is null => value === null)) {
+    return { state: "invalid", difference: "", total: "" };
+  }
+
+  const scale = Math.max(target.scale, ...amounts.map((value) => value?.scale ?? 0));
+  const factor = (part: ExactDecimalParts) => part.digits * 10n ** BigInt(scale - part.scale);
+  const difference = factor(target) - amounts.reduce((sum, value) => sum + factor(value!), 0n);
+  return {
+    state: difference === 0n && !hasEmptyValue ? "complete" : "incomplete",
+    difference: formatExactDecimal(difference, scale),
+    total: formatExactDecimal(factor(target), scale),
+  };
+}
+
+export function allocationMatches(item: AllocationPreviewItem, values: string[]): boolean {
+  return allocationBalance(item, values).state === "complete";
 }
 
 export function buildCashRecordPayload(draft: CashRecordDraft): Record<string, unknown> {

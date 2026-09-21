@@ -80,6 +80,8 @@ def _fact_view_from_row(row: dict) -> FactView:
         record_id=str(row.get("record_id") or ""),
         raw_payload=payload,
         relation_metadata=relation_metadata,
+        parent_id=str(row.get("parent_id")) if row.get("parent_id") not in (None, "") else None,
+        cash_granularity=str(row.get("cash_granularity") or "atomic"),
     )
 
 
@@ -171,6 +173,7 @@ def _fact_detail_row(fact: FactView) -> dict:
         "fact_type": fact.fact_type,
         "raw_payload": fact.raw_payload,
         "relation_metadata": fact.relation_metadata,
+        "parent_id": fact.parent_id,
     }
 
 
@@ -444,7 +447,12 @@ def _initial_remaining(
         secondary = str(relation.get("secondary_fact_id") or "")
         refund = by_id.get(secondary)
         if primary in remaining and refund is not None:
-            remaining[primary] -= abs(refund.signed_amount)
+            applied = relation.get("applied_amount")
+            try:
+                applied_amount = abs(Decimal(str(applied))) if applied not in (None, "") else abs(refund.signed_amount)
+            except (ArithmeticError, ValueError):
+                applied_amount = abs(refund.signed_amount)
+            remaining[primary] -= applied_amount
     return remaining
 
 
@@ -570,7 +578,7 @@ def plan_relation_proposals(
         expense = fact_by_id.get(str(expense_id))
         refund = fact_by_id.get(str(proposal.secondary_fact_id or ""))
         if expense is not None and refund is not None and expense.signed_amount < 0:
-            remaining[expense.id] = remaining.get(expense.id, abs(expense.signed_amount)) - abs(refund.signed_amount)
+            remaining[expense.id] = remaining.get(expense.id, abs(expense.signed_amount)) - abs(proposal.refund_amount)
 
     context = MatchContext(workspace_id=workspace_id)
     context.remaining_by_expense = dict(remaining)
@@ -875,6 +883,16 @@ class RelationService:
                 item for item in accepted_relations
                 if item.get("id") != relation.get("id")
             ]
+            # The component-level applied-amount invariant is enforced by the
+            # repository against currently accepted rows.  Retire the old
+            # automatic edge while staging its replacement so a full refund
+            # can move between expenses atomically without being counted twice.
+            uow.relations.update_status(
+                relation["id"],
+                status=RelationStatus.SUPERSEDED.value,
+                decided_by="system",
+                decision_reason="replacing_later_refund_evidence",
+            )
             created = self._persist_proposal(
                 uow,
                 replacement,
@@ -885,6 +903,11 @@ class RelationService:
                 created is None
                 or created.get("status") != RelationStatus.ACCEPTED.value
             ):
+                uow.relations.update_status(
+                    relation["id"],
+                    status=RelationStatus.ACCEPTED.value,
+                    decision_reason=relation.get("decision_reason") or "",
+                )
                 continue
             uow.relations.update_status(
                 relation["id"],
@@ -980,17 +1003,23 @@ class RelationService:
             dict(row)
             for row in uow.cashflows.list_detailed(include_deleted=False)
         ] if hasattr(uow.cashflows, "list_detailed") else []
+        existing_rows = self._expand_component_rows(existing_rows)
         existing_facts = self._list_active_cash_facts(uow)
         virtual_facts: list[FactView] = []
         virtual_rows: list[dict] = []
         for row in preview_rows:
             item = dict(row)
-            if not item.get("id"):
-                item["id"] = f"preview:{item.get('record_id') or len(virtual_rows)}"
             item.setdefault("source_type", item.get("bill_source") or "")
             item.setdefault("bill_source", item.get("source_type") or "")
-            virtual_rows.append(item)
-            virtual_facts.append(_fact_view_from_row(item))
+            component_rows = self._expand_component_rows([item])
+            if not component_rows:
+                component_rows = [item]
+            for ordinal, component_row in enumerate(component_rows):
+                if not component_row.get("id"):
+                    base = item.get("record_id") or len(virtual_rows)
+                    component_row["id"] = f"preview:{base}:{ordinal}"
+                virtual_rows.append(component_row)
+                virtual_facts.append(_fact_view_from_row(component_row))
         facts = [*existing_facts, *virtual_facts]
         relations = [dict(item) for item in uow.relations.list_active()]
         aliases_by_tail, account_identifiers_by_value = self._alias_indexes(uow)
@@ -1259,6 +1288,8 @@ class RelationService:
             fact_a=proposal.primary_fact_id,
             fact_b=proposal.secondary_fact_id,
             subtype=subtype,
+            component_a=proposal.primary_fact_id,
+            component_b=proposal.secondary_fact_id,
         )
         if existing is not None:
             if _is_human_decision(existing):
@@ -1275,9 +1306,12 @@ class RelationService:
                 "subtype": subtype,
                 "primary_fact_id": proposal.primary_fact_id,
                 "secondary_fact_id": proposal.secondary_fact_id,
+                "primary_component_id": proposal.primary_fact_id,
+                "secondary_component_id": proposal.secondary_fact_id,
                 "primary_fact_type": proposal.primary_fact_type,
                 "secondary_fact_type": proposal.secondary_fact_type,
                 "anchor_fact_id": proposal.anchor_fact_id or proposal.primary_fact_id,
+                "anchor_component_id": proposal.anchor_fact_id or proposal.primary_fact_id,
                 "status": RelationStatus.REJECTED.value,
                 "rule_id": proposal.rule_id,
                 "candidate_fact_ids": list(proposal.evidence.candidate_fact_ids),
@@ -1985,6 +2019,7 @@ class RelationService:
                         uow._state().session,
                         uow.workspace_id,
                         affected_fact_ids,
+                        known_component_ids=affected_fact_ids,
                     )
                 # 015: no relation_check_runs table; still must commit persisted relations.
                 uow.commit()
@@ -2082,9 +2117,15 @@ class RelationService:
                 updated = uow.relations.bind_other_leg(
                     relation_id,
                     other_fact_id=other_fact_id,
+                    other_component_id=other.id,
                     other_fact_type="cash",
                     primary_fact_id=(
                         other_fact_id
+                        if rel["kind"] == RelationKind.REFUND_OFFSET.value
+                        else None
+                    ),
+                    primary_component_id=(
+                        other.id
                         if rel["kind"] == RelationKind.REFUND_OFFSET.value
                         else None
                     ),
@@ -2103,6 +2144,7 @@ class RelationService:
             CashProjectionService.maintain_if_ready_in_session(
                 uow._state().session, uow.workspace_id,
                 {int(item) for item in fact_ids},
+                known_component_ids={int(item) for item in fact_ids},
             )
             uow.commit()
         return OperationResult(ok=True, count=1, message="关系已确认", details=updated)
@@ -2110,21 +2152,42 @@ class RelationService:
     def _validate_projection_acceptance(self, uow, relation: dict, *, other_fact_id: str | None) -> None:
         """确认前将候选关系纳入完整收支投影，非法图必须失败关闭。"""
         from ft.adapters.relational.projections import RelationalCashProjectionRepository
+        from ft.adapters.relational.models import CashTransactionComponentModel
         from ft.domain.cash_projection import CashProjectionError, ProjectionRelation, build_cash_projections
+        from sqlalchemy import select
 
         repository = RelationalCashProjectionRepository(uow._state().session, uow.workspace_id)
-        primary_id = int(relation["primary_fact_id"])
-        secondary_id = int(other_fact_id or relation.get("secondary_fact_id") or 0)
+        primary_id = int(relation.get("primary_component_id") or relation["primary_fact_id"])
+        secondary_id = int(
+            other_fact_id
+            or relation.get("secondary_component_id")
+            or relation.get("secondary_fact_id")
+            or 0
+        )
         if not secondary_id:
             raise ValueError("关系缺少对侧流水，无法形成有效收支投影")
         if is_open_leg_relation(relation) and relation["kind"] == RelationKind.REFUND_OFFSET.value:
             primary_id, secondary_id = secondary_id, primary_id
-        component_ids = repository.accepted_relation_component_ids({primary_id, secondary_id})
-        facts, accepted = repository.read_sources_for_facts(component_ids)
+        parent_ids = repository.accepted_relation_component_ids(
+            {primary_id, secondary_id}, input_is_components=True,
+        )
+        facts, accepted = repository.read_sources_for_facts(parent_ids)
+        parent_by_component = {
+            int(item.id): int(item.cash_transaction_id)
+            for item in uow._state().session.scalars(select(CashTransactionComponentModel).where(
+                CashTransactionComponentModel.workspace_id == uow.workspace_id,
+                CashTransactionComponentModel.id.in_({primary_id, secondary_id}),
+            ))
+        }
+        candidate_primary = parent_by_component.get(primary_id)
+        candidate_secondary = parent_by_component.get(secondary_id)
+        if candidate_primary is None or candidate_secondary is None:
+            raise ValueError("关系组成项不存在")
         candidate = ProjectionRelation(
-            id=int(relation["id"]), kind=relation["kind"], primary_fact_id=primary_id,
-            secondary_fact_id=secondary_id, status=RelationStatus.ACCEPTED.value,
+            id=int(relation["id"]), kind=relation["kind"], primary_fact_id=candidate_primary,
+            secondary_fact_id=candidate_secondary, status=RelationStatus.ACCEPTED.value,
             subtype=relation.get("subtype") or "",
+            applied_amount=relation.get("applied_amount"),
         )
         try:
             # A web relation is inserted before this validation.  Do not add
@@ -2151,7 +2214,14 @@ class RelationService:
                 decision_reason=reason or "rejected",
             )
             from ft.application.cash_projections import CashProjectionService
-            CashProjectionService.maintain_if_ready_in_session(uow._state().session, uow.workspace_id, {int(item) for item in (rel["primary_fact_id"], rel.get("secondary_fact_id")) if item not in (None, "")})
+            relation_component_ids = {
+                int(item) for item in (rel["primary_fact_id"], rel.get("secondary_fact_id"))
+                if item not in (None, "")
+            }
+            CashProjectionService.maintain_if_ready_in_session(
+                uow._state().session, uow.workspace_id, set(),
+                known_component_ids=relation_component_ids,
+            )
             uow.commit()
         return OperationResult(ok=True, count=1, message="关系已驳回", details=updated)
 
@@ -2189,6 +2259,7 @@ class RelationService:
             CashProjectionService.maintain_if_ready_in_session(
                 uow._state().session, uow.workspace_id,
                 {int(item) for item in (old["primary_fact_id"], old.get("secondary_fact_id"), replacement.get("primary_fact_id"), replacement.get("secondary_fact_id")) if item not in (None, "")},
+                known_component_ids={int(item) for item in (old["primary_fact_id"], old.get("secondary_fact_id"), replacement.get("primary_fact_id"), replacement.get("secondary_fact_id")) if item not in (None, "")},
             )
             uow.commit()
         return OperationResult(
@@ -2213,7 +2284,12 @@ class RelationService:
             from ft.application.cash_projections import CashProjectionService
             CashProjectionService.maintain_if_ready_in_session(
                 uow._state().session, uow.workspace_id,
-                {int(item) for relation in related for item in (fact_id, relation.get("primary_fact_id"), relation.get("secondary_fact_id")) if item not in (None, "")},
+                {int(fact_id)},
+                known_component_ids={
+                    int(item) for relation in related
+                    for item in (relation.get("primary_fact_id"), relation.get("secondary_fact_id"))
+                    if item not in (None, "")
+                },
             )
             uow.commit()
         return OperationResult(ok=True, count=1, message="现金流水已逻辑删除", details=result)
@@ -2237,7 +2313,28 @@ class RelationService:
 
     def _resolve_seeds(self, uow, *, seed_fact_ids, seed_batch_id) -> list[str]:
         if seed_fact_ids:
-            return list(dict.fromkeys(seed_fact_ids))
+            # Public callers use parent cash transaction IDs, while the
+            # matcher operates on component facts. Expand each parent seed
+            # to all of its components; direct component IDs remain accepted
+            # when no parent with the same numeric ID is present.
+            facts = self._list_active_cash_facts(uow)
+            by_parent: dict[str, list[str]] = defaultdict(list)
+            component_ids: set[str] = set()
+            for fact in facts:
+                component_ids.add(str(fact.id))
+                if fact.parent_id not in (None, ""):
+                    by_parent[str(fact.parent_id)].append(str(fact.id))
+            resolved: list[str] = []
+            for value in seed_fact_ids:
+                key = str(value)
+                parent_components = by_parent.get(key)
+                if parent_components:
+                    resolved.extend(parent_components)
+                elif key in component_ids:
+                    resolved.append(key)
+                else:
+                    resolved.append(key)
+            return list(dict.fromkeys(resolved))
         # 015: seed_batch_id is ignored (no import_batches); full workspace when no seeds.
         return [f.id for f in self._list_active_cash_facts(uow)]
 
@@ -2250,12 +2347,36 @@ class RelationService:
             # attach ids if missing — require extended repository
             if rows and "id" not in rows[0]:
                 rows = self._hydrate_cash_rows(uow, rows, include_deleted=include_deleted)
-        views = []
+        return [_fact_view_from_row(row) for row in self._expand_component_rows(rows)
+                if include_deleted or not (row.get("deleted_at") or row.get("deleted"))]
+
+    @staticmethod
+    def _expand_component_rows(rows: Sequence[dict]) -> list[dict]:
+        """Expose one matching fact per persisted cash component.
+
+        The parent row remains the browser/audit unit, but relation matching
+        must never compare an aggregate total with a bank component.
+        """
+        expanded: list[dict] = []
         for row in rows:
-            if not include_deleted and (row.get("deleted_at") or row.get("deleted")):
+            components = row.get("components") or []
+            if not components:
+                expanded.append(dict(row))
                 continue
-            views.append(_fact_view_from_row(row))
-        return views
+            for component in components:
+                if not isinstance(component, dict):
+                    continue
+                item = dict(row)
+                item["parent_id"] = row.get("id")
+                item["id"] = component.get("id")
+                item["amount"] = component.get("amount")
+                item["currency"] = component.get("currency") or row.get("currency")
+                item["account_id"] = component.get("account_id")
+                item["account_name"] = component.get("account_name") or ""
+                item["account_type"] = component.get("account_type") or row.get("account_type") or "cash"
+                item["cash_granularity"] = row.get("cash_granularity") or "atomic"
+                expanded.append(item)
+        return expanded
 
     def _hydrate_cash_rows(self, uow, rows, include_deleted=False) -> list[dict]:
         # Fallback using session through imports/models is not available; use detailed listing.
@@ -2355,6 +2476,7 @@ class RelationService:
                 kind=proposal.kind,
                 anchor_fact_id=anchor_id,
                 subtype=subtype,
+                anchor_component_id=anchor_id,
             )
             if existing is None:
                 # Also block if rejected open occupancy still holds bilateral key (active_slot=id).
@@ -2363,6 +2485,7 @@ class RelationService:
                     fact_a=anchor_id,
                     fact_b=None,
                     subtype=subtype,
+                    component_a=anchor_id,
                 )
         else:
             existing = uow.relations.find_by_business_key(
@@ -2370,6 +2493,8 @@ class RelationService:
                 fact_a=proposal.primary_fact_id,
                 fact_b=proposal.secondary_fact_id,
                 subtype=subtype,
+                component_a=proposal.primary_fact_id,
+                component_b=proposal.secondary_fact_id,
             )
             # If a system unpaired relation pending occupies this anchor, upgrade/bind it
             # instead of creating a second row (FX rate score after rates available).
@@ -2378,6 +2503,7 @@ class RelationService:
                     kind=proposal.kind,
                     anchor_fact_id=anchor_id,
                     subtype=subtype,
+                    anchor_component_id=anchor_id,
                 )
                 if (
                     open_existing is not None
@@ -2397,7 +2523,17 @@ class RelationService:
                             if proposal.kind == RelationKind.REFUND_OFFSET.value
                             else proposal.secondary_fact_id
                         ),
+                        other_component_id=(
+                            proposal.primary_fact_id
+                            if proposal.kind == RelationKind.REFUND_OFFSET.value
+                            else proposal.secondary_fact_id
+                        ),
                         primary_fact_id=(
+                            proposal.primary_fact_id
+                            if proposal.kind == RelationKind.REFUND_OFFSET.value
+                            else None
+                        ),
+                        primary_component_id=(
                             proposal.primary_fact_id
                             if proposal.kind == RelationKind.REFUND_OFFSET.value
                             else None
@@ -2447,7 +2583,17 @@ class RelationService:
                         if proposal.kind == RelationKind.REFUND_OFFSET.value
                         else proposal.secondary_fact_id
                     ),
+                    other_component_id=(
+                        proposal.primary_fact_id
+                        if proposal.kind == RelationKind.REFUND_OFFSET.value
+                        else proposal.secondary_fact_id
+                    ),
                     primary_fact_id=(
+                        proposal.primary_fact_id
+                        if proposal.kind == RelationKind.REFUND_OFFSET.value
+                        else None
+                    ),
+                    primary_component_id=(
                         proposal.primary_fact_id
                         if proposal.kind == RelationKind.REFUND_OFFSET.value
                         else None
@@ -2513,15 +2659,23 @@ class RelationService:
             "subtype": subtype,
             "primary_fact_id": proposal.primary_fact_id,
             "secondary_fact_id": None if open_leg else proposal.secondary_fact_id,
+            "primary_component_id": proposal.primary_fact_id,
+            "secondary_component_id": None if open_leg else proposal.secondary_fact_id,
             "primary_fact_type": proposal.primary_fact_type,
             "secondary_fact_type": None if open_leg else proposal.secondary_fact_type,
             "anchor_fact_id": anchor_id,
+            "anchor_component_id": anchor_id,
             "status": status,
             "rule_id": proposal.rule_id,
             "candidate_fact_ids": (
                 list(proposal.evidence.candidate_fact_ids) if open_leg else []
             ),
             "created_by": proposal.created_by,
+            "applied_amount": (
+                abs(proposal.refund_amount)
+                if proposal.kind == RelationKind.REFUND_OFFSET.value and proposal.secondary_fact_id
+                else Decimal("0")
+            ),
         }
         new_id = uow.relations.add(payload)
         return uow.relations.get(new_id)
@@ -2546,7 +2700,7 @@ class RelationService:
         endpoints = {str(fact_id) for fact_id in fact_ids if fact_id not in (None, "")}
         candidates = relations
         if candidates is None:
-            candidates = uow.relations.list_for_facts(list(endpoints), active_only=True)
+            candidates = uow.relations.list_for_components(list(endpoints), active_only=True)
         for relation in candidates:
             if relation.get("status") == RelationStatus.SUPERSEDED.value:
                 continue

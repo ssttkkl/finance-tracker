@@ -4,6 +4,23 @@ from __future__ import annotations
 import pytest
 
 
+def _add_singleton_component(session, transaction):
+    """为直接构造的现金父流水补齐关系端点需要的唯一组成项。"""
+    from ft.adapters.relational.models import CashTransactionComponentModel
+
+    component = CashTransactionComponentModel(
+        id=transaction.id,
+        workspace_id=transaction.workspace_id,
+        cash_transaction_id=transaction.id,
+        account_id=transaction.account_id,
+        amount=transaction.amount,
+        currency=transaction.currency,
+        ordinal=0,
+    )
+    session.add(component)
+    return component
+
+
 def _snapshot(runtime):
     from ft.application.cash_projections import CashProjectionService
     from ft.application.web_queries import CashLedgerQueryService
@@ -84,6 +101,7 @@ def test_transfer_pair_endpoint_invariants_are_identical_on_both_backends(
             )
             session.add(counterparty)
             session.flush()
+            _add_singleton_component(session, counterparty)
             session.add(TransactionRelationModel(
                 workspace_id=runtime.workspace_id,
                 kind="transfer_pair",
@@ -117,6 +135,7 @@ def test_cross_currency_transfer_pair_is_visible_on_both_backends(
     from sqlalchemy import select
 
     from ft.adapters.relational.models import (
+        CashTransactionComponentModel,
         CashProjectionMemberModel,
         CashProjectionModel,
         CashProjectionStateModel,
@@ -141,6 +160,7 @@ def test_cross_currency_transfer_pair_is_visible_on_both_backends(
             )
             session.add(counterparty)
             session.flush()
+            _add_singleton_component(session, counterparty)
             session.add(TransactionRelationModel(
                 workspace_id=runtime.workspace_id,
                 kind="transfer_pair",
@@ -222,6 +242,7 @@ def test_currency_exchange_endpoint_invariants_are_identical_on_both_backends(
             )
             session.add(counterparty)
             session.flush()
+            _add_singleton_component(session, counterparty)
             session.add(TransactionRelationModel(
                 workspace_id=runtime.workspace_id,
                 kind="transfer_pair",
@@ -269,6 +290,7 @@ def test_zero_amount_refund_contract_is_identical_on_both_backends(
     from sqlalchemy import select
 
     from ft.adapters.relational.models import (
+        CashTransactionComponentModel,
         CashProjectionMemberModel,
         CashProjectionModel,
         CashProjectionRelationModel,
@@ -285,6 +307,15 @@ def test_zero_amount_refund_contract_is_identical_on_both_backends(
             expense = session.get(CashTransactionModel, 1003)
             expense.amount = Decimal(expense_amount)
             expense.currency = expense_currency
+            component = session.scalar(
+                select(CashTransactionComponentModel).where(
+                    CashTransactionComponentModel.workspace_id == runtime.workspace_id,
+                    CashTransactionComponentModel.cash_transaction_id == expense.id,
+                    CashTransactionComponentModel.ordinal == 0,
+                )
+            )
+            component.amount = expense.amount
+            component.currency = expense.currency
             refund = CashTransactionModel(
                 workspace_id=runtime.workspace_id,
                 account_id=102,
@@ -298,6 +329,7 @@ def test_zero_amount_refund_contract_is_identical_on_both_backends(
             )
             session.add(refund)
             session.flush()
+            _add_singleton_component(session, refund)
             relation = TransactionRelationModel(
                 workspace_id=runtime.workspace_id,
                 kind="refund_offset",
@@ -401,6 +433,9 @@ def test_relation_kind_conflict_is_pending_for_auto_scan_but_rejected_on_confirm
             )
             session.add_all((refund, mirrored_refund, transfer))
             session.flush()
+            _add_singleton_component(session, refund)
+            _add_singleton_component(session, mirrored_refund)
+            _add_singleton_component(session, transfer)
             session.add_all((
                 TransactionRelationModel(
                     workspace_id=runtime.workspace_id,

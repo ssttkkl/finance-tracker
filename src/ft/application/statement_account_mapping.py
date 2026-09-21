@@ -94,6 +94,120 @@ def _normalize_alipay_payment_component(value: str) -> str:
     return component
 
 
+def parse_alipay_payment_components(row: dict) -> list[dict]:
+    """Return stable component drafts for an Alipay source row.
+
+    Alipay's payment-method column is evidence, not an allocation ledger.  In
+    particular, values such as ``银行卡(1200)`` contain a card tail rather than
+    an amount.  We therefore only accept an amount when the source explicitly
+    labels it with ``元`` or a currency sign; all other funding components are
+    returned with ``amount=None`` so the import confirmation can require the
+    user to complete the allocation.
+
+    Discount/non-funding tokens remain in ``source_label`` for audit display but
+    do not become balance components.  The raw source row remains untouched in
+    ``_source_payload``/``source_payload``.
+    """
+    if str(row.get("bill_source") or row.get("source_type") or "").strip() != "alipay":
+        return []
+    raw = _text(row.get("payment_method"))
+    if not raw:
+        raw = "支付宝余额"
+    result: list[dict] = []
+    for ordinal, token in enumerate(raw.split("&")):
+        source_label = _text(token)
+        normalized = _normalize_alipay_payment_component(source_label)
+        if not normalized:
+            # Non-funding promotions are deliberately evidence-only.
+            continue
+        explicit_amount = None
+        match = re.search(r"(?:¥|￥)\s*(\d+(?:\.\d+)?)|\b(\d+(?:\.\d+)?)\s*元", source_label)
+        if match:
+            explicit_amount = format(Decimal(match.group(1) or match.group(2)), "f")
+        result.append({
+            "ordinal": len(result),
+            "source_label": source_label,
+            "account_key": normalized,
+            "amount": explicit_amount,
+            "amount_required": explicit_amount is None,
+        })
+    if not result:
+        result.append({
+            "ordinal": 0,
+            "source_label": raw,
+            "account_key": "支付宝余额",
+            "amount": None,
+            "amount_required": True,
+        })
+    aggregate = len(result) > 1
+    for component in result:
+        component["kind"] = "aggregate" if aggregate else "atomic"
+    return result
+
+
+def alipay_component_allocation_status(row: dict) -> str:
+    """Return ``atomic``, ``ready`` or ``requires_allocation`` for a row."""
+    components = parse_alipay_payment_components(row)
+    if len(components) == 1:
+        return "atomic"
+    return "ready" if all(not item["amount_required"] for item in components) else "requires_allocation"
+
+
+def build_component_allocation_draft(row: dict, *, allocations=None) -> dict:
+    """Build the import wire contract for a row's account allocations.
+
+    ``allocations`` is an optional confirmation payload keyed by account key or
+    ordinal.  The helper validates only decimal syntax and exact conservation;
+    account existence and persistence remain application-service concerns.
+    """
+    components = parse_alipay_payment_components(row)
+    total = Decimal(str(row.get("amount") or "0"))
+    signed_total = total
+    if len(components) == 1 and components[0].get("amount") is None:
+        components[0]["amount"] = format(signed_total, "f")
+        components[0]["amount_required"] = False
+    if isinstance(allocations, dict):
+        supplied = allocations.get("components") or allocations.get("allocations")
+    else:
+        supplied = allocations
+    supplied = supplied if isinstance(supplied, (list, tuple)) else None
+    if supplied is not None:
+        if len(supplied) != len(components):
+            raise ValueError("import_component_allocation_incomplete")
+        for component, value in zip(components, supplied, strict=True):
+            raw_amount = value.get("amount") if isinstance(value, dict) else value
+            try:
+                amount = Decimal(str(raw_amount))
+            except (InvalidOperation, ValueError, TypeError) as exc:
+                raise ValueError("import_component_amount_invalid") from exc
+            if not amount.is_finite() or amount < 0:
+                raise ValueError("import_component_amount_invalid")
+            # The wire form accepts non-negative allocation magnitudes; the
+            # ledger stores the parent's direction on every component.
+            component["amount"] = format(amount if total >= 0 else -amount, "f")
+            component["amount_required"] = False
+            if isinstance(value, dict) and value.get("account_id") not in (None, ""):
+                component["account_id"] = int(value["account_id"])
+    elif total < 0 and all(
+        item.get("amount") is None or Decimal(str(item["amount"])) >= 0
+        for item in components
+    ):
+        for component in components:
+            if component.get("amount") is not None:
+                component["amount"] = format(-Decimal(str(component["amount"])), "f")
+    amounts = [Decimal(str(item["amount"])) for item in components if item.get("amount") is not None]
+    complete = len(amounts) == len(components)
+    conserved = complete and sum(amounts, Decimal("0")) == signed_total
+    return {
+        "record_id": str(row.get("record_id") or row.get("_fact_id") or ""),
+        "cash_granularity": "aggregate" if len(components) > 1 else "atomic",
+        "status": "ready" if conserved else ("requires_allocation" if len(components) > 1 else "ready"),
+        "total_amount": format(signed_total, "f"),
+        "components": components,
+        "conserved": conserved,
+    }
+
+
 def _normalize_wechat_payment_identity(value: object) -> str:
     payment_method = _text(value)
     return "微信零钱" if payment_method in {"零钱", "微信零钱"} else payment_method
@@ -120,6 +234,40 @@ def _alipay_payment_identity(row: dict) -> str:
     raise ValueError("import_composite_payment_unresolved")
 
 
+def source_component_identity_keys(row: dict) -> tuple[tuple[str, str, str], ...]:
+    """Return one mapping identity for every real funding component.
+
+    A composite Alipay row belongs to several source-account groups.  The
+    parent row remains a single import item; these identities only drive the
+    account mapping UI and are later attached to the component allocation.
+    """
+    source_type = _text(row.get("bill_source") or row.get("source_type"))
+    if source_type == "alipay":
+        # A missing payment-method value is not evidence for the default
+        # wallet.  Only zero-value informational rows may fall back to the
+        # wallet label; financial rows must stop for explicit mapping.
+        if not _text(row.get("payment_method")) and not _alipay_amount_is_zero(row):
+            return ()
+        components = parse_alipay_payment_components(row)
+        keys: list[tuple[str, str, str]] = []
+        for component in components:
+            key = _text(component.get("account_key"))
+            if not key:
+                continue
+            identity = (source_type, "payment_method", key)
+            if identity not in keys:
+                keys.append(identity)
+        return tuple(keys)
+    if source_type == "wechat":
+        key = _normalize_wechat_payment_identity(row.get("payment_method"))
+        return ((source_type, "payment_method", key),) if key else ()
+    try:
+        source, identity_kind, source_key, _display, _evidence = _identity_for_row(row)
+    except ValueError:
+        return ()
+    return ((source, identity_kind, source_key),)
+
+
 def _identity_for_row(row: dict) -> tuple[str, str, str, str, str]:
     source_type = _text(row.get("bill_source") or row.get("source_type"))
     if source_type not in _CASH_SOURCES:
@@ -127,11 +275,10 @@ def _identity_for_row(row: dict) -> tuple[str, str, str, str, str]:
 
     display_name = _text(row.get("source_display_name"))
     if source_type in {"alipay", "wechat"}:
-        source_key = (
-            _alipay_payment_identity(row)
-            if source_type == "alipay"
-            else _normalize_wechat_payment_identity(row.get("payment_method"))
-        )
+        keys = source_component_identity_keys(row)
+        if len(keys) != 1:
+            raise ValueError("import_composite_payment_unresolved")
+        source_key = keys[0][2]
         identity_kind = "payment_method"
         if not source_key:
             raise ValueError("业务行无法识别来源账户")
@@ -218,28 +365,36 @@ def scan_source_rows_with_issues(
     issues: list[SourceRowIssue] = []
     for row_index, row in enumerate(rows):
         try:
-            source_type, identity_kind, source_key, display_name, evidence = _identity_for_row(row)
+            identities = source_component_identity_keys(row)
+            if not identities:
+                raise ValueError("业务行无法识别来源账户")
         except ValueError as exc:
             if str(exc) != "import_composite_payment_unresolved":
                 raise
             issues.append(SourceRowIssue(row_index=row_index, code=str(exc)))
             continue
-        key = (source_type, identity_kind, source_key)
-        entry = groups.setdefault(
-            key,
-            {
-                "display_name": display_name,
-                "evidence": evidence,
-                "currencies": set(),
-                "row_count": 0,
-                "legacy_source_account_keys": set(),
-            },
-        )
-        entry["currencies"].add(_text(row.get("currency") or "CNY").upper())
-        entry["row_count"] += 1
-        entry["legacy_source_account_keys"].update(
-            _legacy_source_account_keys(row, source_key)
-        )
+        for source_type, identity_kind, source_key in identities:
+            if source_type == "alipay":
+                display_name = source_key
+                evidence = source_key
+            else:
+                _source, _kind, _key, display_name, evidence = _identity_for_row({**row, "payment_method": source_key}) if source_type in {"wechat"} else _identity_for_row(row)
+            key = (source_type, identity_kind, source_key)
+            entry = groups.setdefault(
+                key,
+                {
+                    "display_name": display_name,
+                    "evidence": evidence,
+                    "currencies": set(),
+                    "row_count": 0,
+                    "legacy_source_account_keys": set(),
+                },
+            )
+            entry["currencies"].add(_text(row.get("currency") or "CNY").upper())
+            entry["row_count"] += 1
+            entry["legacy_source_account_keys"].update(
+                _legacy_source_account_keys(row, source_key)
+            )
 
     return [
         SourceAccountGroup(
@@ -368,9 +523,39 @@ def apply_saved_mappings(uow, rows: list[dict]) -> list[dict]:
         if account is None or not account.get("active") or account.get("type") not in {"cash", "loan", "lend"}:
             raise ValueError("账单账户映射目标不可用，请先在导入页面重新确认账户映射")
         for row in rows:
-            if source_identity_key(row) != (group.source_type, group.identity_kind, group.source_account_key):
+            identities = source_component_identity_keys(row)
+            target_key = (group.source_type, group.identity_kind, group.source_account_key)
+            if target_key not in identities:
                 continue
-            row["account_name"] = account["name"]
+            if len(identities) == 1:
+                row["account_name"] = account["name"]
+            else:
+                mappings = dict(row.get("component_account_names") or {})
+                mappings[group.source_account_key] = account["name"]
+                row["component_account_names"] = mappings
+                row["component_account_ids"] = {
+                    **dict(row.get("component_account_ids") or {}),
+                    group.source_account_key: int(account["id"]),
+                }
+
+    # Saved mappings identify component accounts but cannot infer an amount
+    # absent from the source row. Materialize the same draft used by the
+    # interactive preview so non-interactive import fails before any write
+    # with the actionable allocation error.
+    for row in rows:
+        identities = source_component_identity_keys(row)
+        if len(identities) <= 1:
+            continue
+        draft = build_component_allocation_draft(row)
+        names = dict(row.get("component_account_names") or {})
+        ids = dict(row.get("component_account_ids") or {})
+        for component in draft["components"]:
+            key = component.get("account_key")
+            component["account_id"] = ids.get(key)
+            component["account_name"] = names.get(key, "")
+        row["account_name"] = ""
+        row["component_allocation"] = draft
+        row["components"] = draft["components"]
     return rows
 
 

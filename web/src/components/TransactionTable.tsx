@@ -4,7 +4,7 @@ import { UiIcon } from "./UiIcon";
 import { semanticIds } from "@finance-tracker/presentation";
 
 export type TransactionDirection = "income" | "expense" | "transfer" | "unknown";
-export type TransactionStatusTone = "new" | "existing" | "unsupported" | "unresolved";
+export type TransactionStatusTone = "new" | "existing" | "unsupported" | "unresolved" | "requires_allocation";
 
 export type TransactionTableItem<T = unknown> = {
   id: string;
@@ -54,6 +54,7 @@ type Props<T> = {
   columnIdPrefix?: string;
   showCategory?: boolean;
   showStatus?: boolean;
+  rowDetail?: (item: TransactionTableItem<T>) => ReactNode;
 };
 
 const monthKeyFormatter = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit" });
@@ -159,6 +160,7 @@ export function TransactionTable<T>({
   columnIdPrefix = "transaction",
   showCategory = variant === "ledger",
   showStatus = variant === "import",
+  rowDetail,
 }: Props<T>) {
   const selectAllRef = useRef<HTMLInputElement>(null);
   const selectedCount = items.filter((item) => selectedIds.has(item.id)).length;
@@ -183,21 +185,26 @@ export function TransactionTable<T>({
       ? <MonthDivider key={`month-${currentMonth}`} month={currentMonth} summary={summaries.get(currentMonth)} colSpan={columnCount} />
       : null;
     previousMonth = currentMonth;
-    return [divider, <TransactionRow
-      key={item.id}
-      item={item}
-      variant={variant}
-      columnIdPrefix={columnIdPrefix}
-      selectable={selectable}
-      selected={selectedIds.has(item.id)}
-      showCategory={showCategory}
-      showStatus={showStatus}
-      showActions={showActions}
-      onToggleSelection={onToggleSelection}
-      onEvidence={onEvidence}
-      actions={actions}
-      onAction={onAction}
-    />];
+    const detail = rowDetail?.(item);
+    return [
+      divider,
+      <TransactionRow
+        key={item.id}
+        item={item}
+        variant={variant}
+        columnIdPrefix={columnIdPrefix}
+        selectable={selectable}
+        selected={selectedIds.has(item.id)}
+        showCategory={showCategory}
+        showStatus={showStatus}
+        showActions={showActions}
+        onToggleSelection={onToggleSelection}
+        onEvidence={onEvidence}
+        actions={actions}
+        onAction={onAction}
+      />,
+      detail ? <tr className="cash-row-detail" data-detail-for={item.id} key={item.id + "-detail"}><td colSpan={columnCount}>{detail}</td></tr> : null,
+    ];
   });
 
   return <div className={`table-wrap transaction-table-wrap transaction-table-wrap--${variant}${wrapperClassName ? ` ${wrapperClassName}` : ""}`} {...wrapperProps}>
