@@ -247,6 +247,23 @@ class RelationalCashProjectionRepository:
         return facts, relations
 
     def source_digest(self) -> str:
+        cash_transactions = self._session.scalars(
+            select(CashTransactionModel).where(
+                CashTransactionModel.workspace_id == self._workspace_id,
+                CashTransactionModel.deleted_at.is_(None),
+            ).order_by(CashTransactionModel.id).execution_options(populate_existing=True)
+        ).all()
+        components_by_parent: dict[int, list[CashTransactionComponentModel]] = {}
+        for component in self._session.scalars(
+            select(CashTransactionComponentModel).where(
+                CashTransactionComponentModel.workspace_id == self._workspace_id,
+            ).order_by(
+                CashTransactionComponentModel.cash_transaction_id,
+                CashTransactionComponentModel.ordinal,
+                CashTransactionComponentModel.id,
+            ).execution_options(populate_existing=True)
+        ):
+            components_by_parent.setdefault(component.cash_transaction_id, []).append(component)
         payload = {
             "facts": [
                 {
@@ -272,20 +289,10 @@ class RelationalCashProjectionRepository:
                             "label": component.label,
                             "source_key": component.source_key,
                         }
-                        for component in self._session.scalars(
-                            select(CashTransactionComponentModel).where(
-                                CashTransactionComponentModel.workspace_id == self._workspace_id,
-                                CashTransactionComponentModel.cash_transaction_id == item.id,
-                            ).order_by(CashTransactionComponentModel.ordinal)
-                        )
+                        for component in components_by_parent.get(item.id, ())
                     ],
                 }
-                for item in self._session.scalars(
-                    select(CashTransactionModel).where(
-                        CashTransactionModel.workspace_id == self._workspace_id,
-                        CashTransactionModel.deleted_at.is_(None),
-                    ).order_by(CashTransactionModel.id).execution_options(populate_existing=True)
-                )
+                for item in cash_transactions
             ],
             "relations": [
                 {
