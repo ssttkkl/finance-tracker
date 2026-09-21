@@ -97,7 +97,14 @@ def _parse_cash_statement(command, *, resolve_accounts: bool = True):
         if bill_type == "alipay":
             from ft.application.statement_account_mapping import build_component_allocation_draft
 
-            item["component_allocation"] = build_component_allocation_draft(item)
+            # `_build_output_row` intentionally returns the mapped account, but
+            # the component draft must still see the original payment-method
+            # evidence (especially for single-card rows).
+            item["payment_method"] = row.get("payment_method")
+            allocation = build_component_allocation_draft(item)
+            if len(allocation["components"]) == 1 and item.get("account_name"):
+                allocation["components"][0]["account_name"] = item["account_name"]
+            item["component_allocation"] = allocation
         relation_metadata = {
             key: row[key]
             for key in (

@@ -75,9 +75,17 @@ def test_personal_fx_relation_check_replaces_income_and_expense_projections(rela
     evidence = CashLedgerQueryService(
         relation_runtime.sessions, "relations-workspace",
     ).get_projection_evidence(projection.projection_id)
-    assert {member["id"] for member in evidence["members"]} == {str(out_id), str(in_id)}
-    assert projection.projection_id == f"cash:{out_id}"
-    assert f"cash:{in_id}" not in {item.projection_id for item in page.items}
+    with services.uow as uow:
+        parent_by_component = {
+            str(component["id"]): str(row["id"])
+            for row in uow.cashflows.list_detailed()
+            for component in row.get("components") or ()
+        }
+    out_parent_id = parent_by_component[str(out_id)]
+    in_parent_id = parent_by_component[str(in_id)]
+    assert {member["id"] for member in evidence["members"]} == {out_parent_id, in_parent_id}
+    assert projection.projection_id == f"cash:{out_parent_id}"
+    assert f"cash:{in_parent_id}" not in {item.projection_id for item in page.items}
 
 
 def test_relation_check_hides_internal_error_and_does_not_open_a_second_unit_of_work():
@@ -155,20 +163,42 @@ def test_auto_scan_keeps_indirect_relation_kind_conflict_pending_and_commits_imp
             "kind": "refund_offset",
             "primary_fact_id": expense_id,
             "secondary_fact_id": refund_id,
+            "primary_component_id": expense_id,
+            "secondary_component_id": refund_id,
+            "anchor_fact_id": expense_id,
+            "anchor_component_id": expense_id,
             "status": "accepted",
         })
         uow.relations.add({
             "kind": "payment_mirror",
             "primary_fact_id": refund_id,
             "secondary_fact_id": mirrored_refund_id,
+            "primary_component_id": refund_id,
+            "secondary_component_id": mirrored_refund_id,
+            "anchor_fact_id": refund_id,
+            "anchor_component_id": refund_id,
             "status": "accepted",
         })
         uow.commit()
 
+    with services.uow as uow:
+        from ft.adapters.relational.models import CashTransactionComponentModel
+        from sqlalchemy import select
+
+        component_ids = dict(uow._state().session.execute(select(
+            CashTransactionComponentModel.cash_transaction_id,
+            CashTransactionComponentModel.id,
+        ).where(
+            CashTransactionComponentModel.workspace_id == "relations-workspace",
+            CashTransactionComponentModel.cash_transaction_id.in_(
+                [expense_id, refund_id, mirrored_refund_id, transfer_id]
+            ),
+        )).all())
+
     candidate = RelationProposal(
         kind="transfer_pair",
-        primary_fact_id=transfer_id,
-        secondary_fact_id=mirrored_refund_id,
+        primary_fact_id=str(component_ids[int(transfer_id)]),
+        secondary_fact_id=str(component_ids[int(mirrored_refund_id)]),
         status=RelationStatus.ACCEPTED.value,
         rule_id="fixture.transfer",
         confidence="strong",

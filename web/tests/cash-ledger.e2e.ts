@@ -601,6 +601,62 @@ test("独立导入处理页面扫描账户并完成四步确认", async ({ page 
   expect(consoleErrors).toEqual([]);
 });
 
+test("核对流水内未分配组合支付始终展开并按组成项逐行补齐金额", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  const requestFailures: string[] = [];
+  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  page.on("pageerror", (error) => consoleErrors.push(error.message));
+  page.on("requestfailed", (request) => requestFailures.push(`${request.method()} ${request.url()}`));
+  const aggregate = {
+    ...importPreview.items[0],
+    record_id: "aggregate-1",
+    amount: "-92.00",
+    account_name: "",
+    counterparty: "城市超市",
+    status: "requires_allocation",
+    components: [
+      { ordinal: 0, source_label: "花呗", account_key: "huabei", account_id: 101, account_name: "花呗", amount: null, amount_required: true, kind: "aggregate" },
+      { ordinal: 1, source_label: "招商银行", account_key: "cmb", account_id: 102, account_name: "招商银行", amount: null, amount_required: true, kind: "aggregate" },
+    ],
+    component_allocation: {
+      record_id: "aggregate-1", cash_granularity: "aggregate", status: "requires_allocation",
+      total_amount: "-92.00", conserved: false, components: [],
+    },
+  };
+  await mockImport(page, {
+    ...importPreview,
+    items: [aggregate],
+    summary: { total: 1, new: 1, existing: 0, unsupported: 0, requires_allocation: 1 },
+    relations: [],
+  });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/cash-import");
+  await page.locator('input[type="file"]').setInputFiles({ name: "statement.csv", mimeType: "text/csv", buffer: Buffer.from("fixture") });
+  await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
+  await page.getByRole("button", { name: "确认映射", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "核对流水" })).toBeVisible();
+
+  await expect(page.locator(".transaction-table--import .cash-row-detail")).toHaveCount(1);
+  await expect(page.locator(".import-allocation-field")).toHaveCount(2);
+  await expect(page.getByLabel("花呗分摊金额")).toBeVisible();
+  await expect(page.getByLabel("招商银行分摊金额")).toBeVisible();
+  await expect(page.getByText("还差 92.00 CNY")).toBeVisible();
+  await expect(page.getByRole("button", { name: "下一步", exact: true })).toBeDisabled();
+  await page.screenshot({ path: "/tmp/cash-import-allocation-1440.png", fullPage: true });
+
+  await page.getByLabel("花呗分摊金额").fill("40.00");
+  await page.getByLabel("招商银行分摊金额").fill("52.00");
+  await expect(page.getByText("已匹配 92.00 CNY")).toBeVisible();
+  await expect(page.getByRole("button", { name: "下一步", exact: true })).toBeEnabled();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
+  await page.screenshot({ path: "/tmp/cash-import-allocation-390.png", fullPage: true });
+  expect(consoleErrors).toEqual([]);
+  expect(requestFailures).toEqual([]);
+});
+
 test("导入处理页面可以返回重新选择、取消后再次进入", async ({ page }) => {
   let scanCalls = 0;
   await page.route("**/api/v1/**", async (route) => {

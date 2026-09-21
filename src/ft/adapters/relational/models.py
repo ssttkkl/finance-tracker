@@ -324,6 +324,21 @@ class CashTransactionModel(Base):
         Index("ix_cash_transactions_workspace_account", "workspace_id", "account_id"),
         Index("ix_cash_transactions_workspace_category", "workspace_id", "category_id"),
         Index("ix_cash_transactions_workspace_source_record", "workspace_id", "source_type", "record_id"),
+        Index(
+            "uq_cash_transactions_active_source_record",
+            "workspace_id", "source_type", "record_id",
+            unique=True,
+            sqlite_where=text(
+                "source_type IS NOT NULL AND source_type <> '' "
+                "AND record_id IS NOT NULL AND record_id <> '' "
+                "AND deleted_at IS NULL"
+            ),
+            postgresql_where=text(
+                "source_type IS NOT NULL AND source_type <> '' "
+                "AND record_id IS NOT NULL AND record_id <> '' "
+                "AND deleted_at IS NULL"
+            ),
+        ),
     )
 
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)

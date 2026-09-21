@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>核对流水 · 行内分摊原型</title>
+  <style>
+    /* Hallmark · macrostructure: Existing import flow / inline allocation row · genre: modern-minimal · theme: Cobalt · enrichment: none · nav: N9 · footer: none · audience: multi-account finance users · use: complete component amounts in import step 3 · tone: restrained, utilitarian, trustworthy · contrast: pass · responsive: pass */
+    /* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4 */
+    :root {
+      --paper: oklch(96.5% 0.008 250);
+      --paper-raised: oklch(99.5% 0.004 250);
+      --paper-muted: oklch(97.5% 0.007 250);
+      --ink: oklch(25% 0.02 250);
+      --ink-muted: oklch(48% 0.018 250);
+      --ink-faint: oklch(59% 0.014 250);
+      --rule: oklch(87% 0.012 250);
+      --rule-strong: oklch(74% 0.02 250);
+      --accent: oklch(48% 0.16 252);
+      --accent-ink: oklch(99% 0.004 250);
+      --accent-soft: oklch(94% 0.03 252);
+      --income: oklch(45% 0.12 155);
+      --expense: oklch(48% 0.15 28);
+      --danger: oklch(50% 0.17 28);
+      --danger-soft: oklch(95% 0.035 28);
+      --warning: oklch(46% 0.12 72);
+      --success-soft: oklch(94% 0.035 155);
+      --sidebar: oklch(25% 0.02 250);
+      --sidebar-raised: oklch(31% 0.025 250);
+      --sidebar-link: oklch(86% 0.02 250);
+      --sidebar-rule: oklch(72% 0.13 252);
+      --shadow: oklch(25% 0.02 250 / 12%);
+      --font-body: "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+      --font-mono: "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
+      --s1: 4px;
+      --s2: 8px;
+      --s3: 12px;
+      --s4: 16px;
+      --s5: 20px;
+      --s6: 24px;
+      --radius: 4px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-width: 0; overflow-x: clip; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-body);
+      line-height: 1.45;
+    }
+    button, input { font: inherit; }
+    button {
+      min-height: 40px;
+      padding: 0 var(--s3);
+      border: 1px solid var(--rule-strong);
+      border-radius: var(--radius);
+      background: var(--paper-raised);
+      color: var(--ink);
+      cursor: pointer;
+      transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+      white-space: nowrap;
+    }
+    button:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+    button:active:not(:disabled) { transform: translateY(1px); }
+    button:disabled { cursor: not-allowed; opacity: .52; }
+    button:focus-visible, input:focus-visible, a:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 2px;
+    }
+    input {
+      width: 100%;
+      min-height: 40px;
+      padding: 7px 10px;
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      background: var(--paper-raised);
+      color: var(--ink);
+    }
+    input:hover:not(:disabled) { border-color: var(--rule-strong); }
+    input:disabled { background: var(--paper-muted); }
+    .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .hidden { display: none !important; }
+
+    .app-shell { display: grid; min-height: 100vh; grid-template-columns: 208px minmax(0, 1fr); }
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: var(--s6);
+      padding: 28px 18px;
+      background: var(--sidebar);
+      color: var(--sidebar-link);
+    }
+    .brand { font: 600 13px/1 var(--font-mono); letter-spacing: .08em; }
+    .sidebar nav { display: grid; gap: var(--s2); }
+    .sidebar a {
+      padding: 10px 12px;
+      border-left: 2px solid transparent;
+      color: var(--sidebar-link);
+      font-size: 13px;
+      text-decoration: none;
+    }
+    .sidebar a[aria-current="page"] { border-color: var(--sidebar-rule); background: var(--sidebar-raised); }
+    .sidebar-note { margin-top: auto; padding-top: var(--s4); border-top: 1px solid var(--sidebar-raised); color: var(--ink-faint); font-size: 11px; }
+
+    .main { min-width: 0; padding: 34px clamp(16px, 4vw, 64px) 56px; }
+    .page-header, .stepper, .prototype-controls, .preview-card {
+      width: min(1240px, 100%);
+      margin-right: auto;
+      margin-left: auto;
+    }
+    .page-header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: var(--s4);
+      margin-bottom: var(--s5);
+      padding-bottom: var(--s5);
+      border-bottom: 1px solid var(--rule-strong);
+    }
+    .eyebrow {
+      margin: 0 0 6px;
+      color: var(--accent);
+      font: 600 11px/1.2 var(--font-mono);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 0; font-size: clamp(24px, 3vw, 32px); letter-spacing: -.04em; line-height: 1.15; }
+    .header-meta { display: grid; gap: 2px; justify-items: end; color: var(--ink-muted); font-size: 12px; }
+
+    .stepper {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1px;
+      margin-bottom: var(--s4);
+      border-bottom: 1px solid var(--rule-strong);
+      background: var(--rule);
+    }
+    .step {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--s2);
+      min-height: 48px;
+      border: 0;
+      border-radius: 0;
+      background: var(--paper-muted);
+      color: var(--ink-muted);
+      font-size: 12px;
+    }
+    .step b {
+      display: grid;
+      width: 22px;
+      height: 22px;
+      place-items: center;
+      border: 1px solid var(--rule-strong);
+      border-radius: 50%;
+      color: var(--ink-muted);
+      font: 11px var(--font-mono);
+    }
+    .step.is-complete { color: var(--ink); }
+    .step.is-current { background: var(--paper-raised); color: var(--accent); }
+    .step.is-current b { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+
+    .prototype-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--s2);
+      margin-bottom: var(--s4);
+      padding: 10px 12px;
+      border: 1px solid var(--rule);
+      background: var(--paper-muted);
+    }
+    .prototype-controls strong { margin-right: var(--s1); color: var(--ink-muted); font-size: 11px; font-weight: 600; }
+    .state-button { min-height: 30px; padding: 0 10px; font-size: 11px; }
+    .state-button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+
+    .preview-card {
+      overflow: hidden;
+      border: 1px solid var(--rule-strong);
+      background: var(--paper-raised);
+      box-shadow: 0 10px 28px var(--shadow);
+    }
+    .preview-head {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: var(--s4);
+      padding: var(--s5) var(--s6);
+      border-bottom: 1px solid var(--rule);
+    }
+    .preview-head h2 { margin: 0 0 4px; font-size: 20px; letter-spacing: -.03em; }
+    .preview-head p { margin: 0; color: var(--ink-muted); font-size: 12px; }
+    .channel-badge { color: var(--accent); font: 11px var(--font-mono); }
+    .summary-strip {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 1px;
+      border-bottom: 1px solid var(--rule);
+      background: var(--rule);
+    }
+    .summary-card {
+      display: grid;
+      gap: 3px;
+      min-height: 70px;
+      padding: var(--s3) var(--s4);
+      border: 0;
+      border-radius: 0;
+      background: var(--paper-raised);
+      text-align: left;
+    }
+    .summary-card small { color: var(--ink-muted); font-size: 11px; }
+    .summary-card strong { font: 600 20px var(--font-mono); }
+    .summary-card.is-alert strong { color: var(--danger); }
+    .summary-card[aria-pressed="true"] { box-shadow: inset 0 -3px 0 var(--accent); }
+
+    .state-content { padding: var(--s5) var(--s6) var(--s6); }
+    .state-notice {
+      display: flex;
+      align-items: start;
+      gap: 9px;
+      margin-bottom: var(--s4);
+      padding: 10px 12px;
+      border-left: 3px solid var(--danger);
+      background: var(--danger-soft);
+      color: var(--danger);
+      font-size: 12px;
+    }
+    .state-notice p { margin: 0; }
+    .state-notice strong { color: var(--ink); }
+    .table-frame { border: 1px solid var(--rule); }
+    .preview-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .preview-table th, .preview-table td { padding: 12px 14px; text-align: left; vertical-align: middle; }
+    .preview-table thead { background: var(--paper-muted); }
+    .preview-table th {
+      border-bottom: 1px solid var(--rule-strong);
+      color: var(--ink-muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .preview-table th:nth-child(1) { width: 13%; }
+    .preview-table th:nth-child(2) { width: 25%; }
+    .preview-table th:nth-child(3) { width: 22%; }
+    .preview-table th:nth-child(4) { width: 18%; }
+    .preview-table th:nth-child(5) { width: 12%; }
+    .preview-table th:nth-child(6) { width: 10%; }
+    .transaction-row td { border-bottom: 1px solid var(--rule); font-size: 12px; }
+    .transaction-row:last-child td { border-bottom: 0; }
+    .transaction-row.is-needs-allocation td { background: oklch(99% 0.008 72); }
+    .transaction-cell { display: grid; gap: 2px; min-width: 0; }
+    .transaction-cell strong, .transaction-cell span { overflow-wrap: anywhere; }
+    .transaction-cell small { color: var(--ink-muted); font-size: 11px; }
+    .amount { font: 500 13px var(--font-mono); white-space: nowrap; }
+    .amount-out { color: var(--expense); }
+    .amount-in { color: var(--income); }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      min-height: 22px;
+      padding: 2px 7px;
+      border: 1px solid var(--rule);
+      border-radius: 999px;
+      color: var(--ink-muted);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+    .status.is-ready { border-color: oklch(74% 0.08 155); background: var(--success-soft); color: var(--income); }
+    .status.is-blocked { border-color: oklch(76% 0.1 28); background: var(--danger-soft); color: var(--danger); }
+    .allocation-detail-row td { padding: 0; border-bottom: 1px solid var(--rule-strong); }
+    .inline-allocation {
+      display: grid;
+      gap: var(--s3);
+      padding: 14px 16px 16px 52px;
+      border-left: 3px solid var(--warning);
+      background: var(--paper-muted);
+    }
+    .inline-allocation.is-complete { border-left-color: var(--income); background: var(--success-soft); }
+    .allocation-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .allocation-field {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(100px, 132px);
+      align-items: center;
+      gap: var(--s3);
+      min-width: 0;
+      padding: 10px 0;
+      border-top: 1px solid var(--rule);
+    }
+    .allocation-field:first-child { padding-top: 0; border-top: 0; }
+    .allocation-field span { min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
+    .allocation-field small { display: block; margin-top: 2px; color: var(--ink-muted); font-size: 10px; }
+    .allocation-field input { min-height: 36px; text-align: right; font: 12px var(--font-mono); }
+    .allocation-field input.focus-demo { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .allocation-summary {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--s2) var(--s4);
+      padding-top: var(--s3);
+      border-top: 1px solid var(--rule);
+      color: var(--ink-muted);
+      font-size: 11px;
+    }
+    .allocation-summary strong { color: var(--ink); font: 500 12px var(--font-mono); }
+    .allocation-summary .is-warning { color: var(--danger); }
+    .allocation-summary .is-complete { color: var(--income); }
+    .allocation-summary .is-warning strong, .allocation-summary .is-complete strong { color: inherit; }
+    .stage-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--s3);
+      margin-top: var(--s5);
+      padding-top: var(--s4);
+      border-top: 1px solid var(--rule);
+    }
+    .stage-actions small { color: var(--ink-muted); font-size: 11px; }
+    .primary { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 650; }
+    .primary:hover:not(:disabled) { border-color: var(--accent); background: var(--accent); filter: brightness(.92); }
+
+    .state-view {
+      display: grid;
+      min-height: 360px;
+      place-content: center;
+      justify-items: center;
+      gap: var(--s3);
+      padding: var(--s6);
+      color: var(--ink-muted);
+      text-align: center;
+    }
+    .state-view strong { color: var(--ink); font-size: 16px; }
+    .state-view p { max-width: 310px; margin: 0; font-size: 12px; }
+    .state-icon {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      place-items: center;
+      border: 1px solid var(--rule-strong);
+      border-radius: 50%;
+      color: var(--accent);
+      font: 18px var(--font-mono);
+    }
+    .state-icon.is-success { border-color: var(--income); color: var(--income); }
+    .loader {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--rule);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 850ms linear infinite;
+    }
+    .skeleton-stack { display: grid; gap: var(--s3); width: min(520px, 100%); }
+    .skeleton { height: 14px; border-radius: 2px; background: var(--rule); }
+    .skeleton.short { width: 62%; }
+    .skeleton.tall { height: 72px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 1023px) {
+      .app-shell { display: block; }
+      .sidebar {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 60px;
+        padding: 0 18px;
+      }
+      .sidebar nav { display: flex; gap: var(--s2); }
+      .sidebar-note { display: none; }
+      .sidebar a { border-bottom: 2px solid transparent; border-left: 0; padding: 8px 10px; }
+      .sidebar a[aria-current="page"] { border-bottom-color: var(--sidebar-rule); border-left: 0; }
+    }
+    @media (max-width: 760px) {
+      .main { padding: 24px 16px 40px; }
+      .page-header { align-items: start; flex-direction: column; }
+      .header-meta { justify-items: start; }
+      .preview-head { display: block; padding: var(--s4); }
+      .channel-badge { display: block; margin-top: var(--s3); }
+      .summary-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .state-content { padding: var(--s4); }
+      .table-frame { border-right: 0; border-left: 0; }
+      .preview-table, .preview-table tbody, .preview-table tr, .preview-table td { display: block; }
+      .preview-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+      .transaction-row { padding: 12px 14px; }
+      .transaction-row td { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3); padding: 4px 0; border: 0; }
+      .transaction-row td::before { flex: 0 0 auto; color: var(--ink-muted); content: attr(data-label); font-size: 10px; }
+      .transaction-row td:first-child { padding-top: 0; }
+      .transaction-row td:last-child { padding-bottom: 0; }
+      .allocation-detail-row td { padding: 0; }
+      .allocation-detail-row td::before { content: none; }
+      .inline-allocation { padding: 14px; border-left: 0; border-top: 3px solid var(--warning); }
+      .inline-allocation.is-complete { border-top-color: var(--income); }
+      .allocation-grid { grid-template-columns: 1fr; }
+      .allocation-field { grid-template-columns: minmax(0, 1fr) minmax(112px, .8fr); }
+      .stage-actions { align-items: stretch; flex-direction: column; }
+      .stage-actions button { width: 100%; }
+      .stage-actions small { order: -1; }
+    }
+    @media (max-width: 520px) {
+      .sidebar { min-height: 56px; padding: 0 12px; }
+      .brand { font-size: 11px; }
+      .sidebar nav { gap: 0; }
+      .sidebar a { padding: 8px; font-size: 11px; }
+      .stepper { grid-template-columns: repeat(4, minmax(74px, 1fr)); overflow: hidden; }
+      .step { min-height: 44px; gap: 4px; padding: 0 4px; font-size: 10px; }
+      .step b { width: 19px; height: 19px; font-size: 10px; }
+      .prototype-controls { align-items: stretch; flex-direction: column; }
+      .prototype-controls strong { margin: 0; }
+      .state-button { width: 100%; text-align: left; }
+      .summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .summary-card { min-height: 62px; padding: 9px 10px; }
+      .summary-card strong { font-size: 18px; }
+      .allocation-field { grid-template-columns: minmax(0, 1fr) minmax(106px, .75fr); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">FINANCE TRACKER</div>
+      <nav aria-label="主要导航">
+        <a href="#ledger" aria-current="page">收支账本</a>
+        <a href="#investments">投资账本</a>
+      </nav>
+      <p class="sidebar-note">工作区 · 个人账本</p>
+    </aside>
+
+    <main class="main">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">账单导入 / 第 3 步</p>
+          <h1>核对流水</h1>
+        </div>
+        <div class="header-meta">
+          <span>支付宝账单</span>
+          <span class="mono">2026-09-20 · 4 笔记录</span>
+        </div>
+      </header>
+
+      <nav class="stepper" aria-label="导入步骤">
+        <button class="step is-complete" type="button"><b>1</b><span>选择文件</span></button>
+        <button class="step is-complete" type="button"><b>2</b><span>映射账户</span></button>
+        <button class="step is-current" type="button" aria-current="step"><b>3</b><span>核对流水</span></button>
+        <button class="step" type="button" disabled><b>4</b><span>配对</span></button>
+      </nav>
+
+      <div class="prototype-controls" aria-label="原型状态切换">
+        <strong>原型状态</strong>
+        <button class="state-button" type="button" data-state="ready" aria-pressed="true">已就绪</button>
+        <button class="state-button" type="button" data-state="blocked" aria-pressed="false">待补分配</button>
+        <button class="state-button" type="button" data-state="loading" aria-pressed="false">加载</button>
+        <button class="state-button" type="button" data-state="empty" aria-pressed="false">空状态</button>
+        <button class="state-button" type="button" data-state="error" aria-pressed="false">错误</button>
+        <button class="state-button" type="button" data-state="success" aria-pressed="false">成功</button>
+        <button class="state-button" type="button" data-state="focus" aria-pressed="false">焦点</button>
+        <button class="state-button" type="button" data-state="disabled" aria-pressed="false">禁用</button>
+      </div>
+
+      <section class="preview-card" aria-label="流水核对">
+        <header class="preview-head">
+          <div>
+            <h2>核对流水</h2>
+          </div>
+          <span class="channel-badge">支付宝账单 · 4 笔</span>
+        </header>
+
+        <div class="summary-strip" role="group" aria-label="流水筛选">
+          <button class="summary-card" type="button" aria-pressed="true"><small>全部</small><strong>4</strong></button>
+          <button class="summary-card" type="button" aria-pressed="false"><small>待新增</small><strong>4</strong></button>
+          <button class="summary-card" type="button" aria-pressed="false"><small>已存在</small><strong>0</strong></button>
+          <button class="summary-card is-alert" type="button" aria-pressed="false"><small>待补分配</small><strong>2</strong></button>
+          <button class="summary-card" type="button" aria-pressed="false"><small>无法识别</small><strong>0</strong></button>
+        </div>
+
+        <div class="state-content" data-state-content="ready">
+          <div class="table-frame">
+            <table class="preview-table">
+              <caption class="sr-only">已就绪的账单流水</caption>
+              <thead><tr><th scope="col">发生时间</th><th scope="col">对方</th><th scope="col">账户</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">金额</th></tr></thead>
+              <tbody>
+                <tr class="transaction-row">
+                  <td data-label="发生时间"><span class="mono">12:35</span></td>
+                  <td data-label="对方"><span class="transaction-cell"><strong>叮咚买菜</strong><small>日常消费</small></span></td>
+                  <td data-label="账户"><span>支付宝零钱 · 招商银行</span></td>
+                  <td data-label="类型"><span>消费</span></td>
+                  <td data-label="状态"><span class="status is-ready">已就绪</span></td>
+                  <td data-label="金额"><span class="amount amount-out">−186.40 CNY</span></td>
+                </tr>
+                <tr class="transaction-row">
+                  <td data-label="发生时间"><span class="mono">09:42</span></td>
+                  <td data-label="对方"><span class="transaction-cell"><strong>退款到账</strong><small>订单退款</small></span></td>
+                  <td data-label="账户"><span>支付宝零钱</span></td>
+                  <td data-label="类型"><span>退款</span></td>
+                  <td data-label="状态"><span class="status is-ready">已就绪</span></td>
+                  <td data-label="金额"><span class="amount amount-in">+45.00 CNY</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="stage-actions">
+            <small>没有待补分配流水。</small>
+            <button class="primary" type="button" data-next-button>下一步</button>
+          </div>
+        </div>
+
+        <div class="state-content hidden" data-state-content="blocked">
+          <div class="table-frame">
+            <table class="preview-table">
+              <caption class="sr-only">包含待补分配流水的账单</caption>
+              <thead><tr><th scope="col">发生时间</th><th scope="col">对方</th><th scope="col">账户</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">金额</th></tr></thead>
+              <tbody>
+                <tr class="transaction-row">
+                  <td data-label="发生时间"><span class="mono">12:35</span></td>
+                  <td data-label="对方"><span class="transaction-cell"><strong>叮咚买菜</strong><small>日常消费</small></span></td>
+                  <td data-label="账户"><span>支付宝零钱 · 招商银行</span></td>
+                  <td data-label="类型"><span>消费</span></td>
+                  <td data-label="状态"><span class="status is-ready">已就绪</span></td>
+                  <td data-label="金额"><span class="amount amount-out">−186.40 CNY</span></td>
+                </tr>
+                <tr class="transaction-row is-needs-allocation">
+                  <td data-label="发生时间"><span class="mono">11:08</span></td>
+                  <td data-label="对方"><span class="transaction-cell"><strong>城市超市</strong></span></td>
+                  <td data-label="账户"><span>—</span></td>
+                  <td data-label="类型"><span>消费</span></td>
+                  <td data-label="状态"><span class="status is-blocked">待补分配</span></td>
+                  <td data-label="金额"><span class="amount amount-out">−92.00 CNY</span></td>
+                </tr>
+                <tr class="allocation-detail-row">
+                  <td colspan="6">
+                    <div class="inline-allocation" data-allocation-group="city" data-target="92.00">
+                      <div class="allocation-grid">
+                        <label class="allocation-field"><span>花呗<small>账户 · CNY</small></span><input data-allocation-input value="40.00" inputmode="decimal" aria-label="城市超市 · 花呗金额" /></label>
+                        <label class="allocation-field"><span>招商银行<small>账户 · CNY</small></span><input data-allocation-input value="" placeholder="输入金额" inputmode="decimal" aria-label="城市超市 · 招商银行金额" /></label>
+                      </div>
+                      <div class="allocation-summary"><span class="is-warning" data-remaining>还差 <strong>52.00 CNY</strong></span></div>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="transaction-row is-needs-allocation">
+                  <td data-label="发生时间"><span class="mono">10:16</span></td>
+                  <td data-label="对方"><span class="transaction-cell"><strong>便利店</strong></span></td>
+                  <td data-label="账户"><span>—</span></td>
+                  <td data-label="类型"><span>消费</span></td>
+                  <td data-label="状态"><span class="status is-blocked">待补分配</span></td>
+                  <td data-label="金额"><span class="amount amount-out">−58.00 CNY</span></td>
+                </tr>
+                <tr class="allocation-detail-row">
+                  <td colspan="6">
+                    <div class="inline-allocation" data-allocation-group="store" data-target="58.00">
+                      <div class="allocation-grid">
+                        <label class="allocation-field"><span>支付宝零钱<small>账户 · CNY</small></span><input data-allocation-input value="" placeholder="输入金额" inputmode="decimal" aria-label="便利店 · 支付宝零钱金额" /></label>
+                        <label class="allocation-field"><span>银行卡<small>账户 · CNY</small></span><input data-allocation-input value="" placeholder="输入金额" inputmode="decimal" aria-label="便利店 · 银行卡金额" /></label>
+                      </div>
+                      <div class="allocation-summary"><span class="is-warning" data-remaining>还差 <strong>58.00 CNY</strong></span></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="stage-actions">
+            <small>下一步会进入配对。</small>
+            <button class="primary" type="button" data-next-button disabled>下一步</button>
+          </div>
+        </div>
+
+        <div class="state-content hidden" data-state-content="focus">
+          <div class="state-notice" role="status"><span aria-hidden="true">!</span><p><strong>焦点示例</strong><br />金额输入框保留清晰焦点环。</p></div>
+          <div class="table-frame">
+            <table class="preview-table">
+              <caption class="sr-only">键盘焦点示例</caption>
+              <thead><tr><th scope="col">发生时间</th><th scope="col">对方</th><th scope="col">账户</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">金额</th></tr></thead>
+              <tbody>
+                <tr class="transaction-row is-needs-allocation">
+                  <td data-label="发生时间"><span class="mono">11:08</span></td>
+                  <td data-label="对方"><span class="transaction-cell"><strong>城市超市</strong></span></td>
+                  <td data-label="账户"><span>—</span></td>
+                  <td data-label="类型"><span>消费</span></td>
+                  <td data-label="状态"><span class="status is-blocked">待补分配</span></td>
+                  <td data-label="金额"><span class="amount amount-out">−92.00 CNY</span></td>
+                </tr>
+                <tr class="allocation-detail-row">
+                  <td colspan="6">
+                    <div class="inline-allocation" data-allocation-group="focus" data-target="92.00">
+                      <div class="allocation-grid">
+                        <label class="allocation-field"><span>花呗<small>账户 · CNY</small></span><input class="focus-demo" data-allocation-input value="40.00" inputmode="decimal" aria-label="焦点示例 · 花呗金额" /></label>
+                        <label class="allocation-field"><span>招商银行<small>账户 · CNY</small></span><input data-allocation-input value="" placeholder="输入金额" inputmode="decimal" aria-label="焦点示例 · 招商银行金额" /></label>
+                      </div>
+                      <div class="allocation-summary"><span class="is-warning" data-remaining>还差 <strong>52.00 CNY</strong></span></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="stage-actions"><small>Tab 顺序进入下一个金额输入。</small><button class="primary" type="button" data-next-button disabled>下一步</button></div>
+        </div>
+
+        <div class="state-content hidden" data-state-content="disabled">
+          <div class="state-notice" role="status"><span aria-hidden="true">—</span><p><strong>当前不可编辑</strong><br />输入框和下一步按钮均保持禁用。</p></div>
+          <div class="table-frame">
+            <table class="preview-table">
+              <caption class="sr-only">不可编辑的待补分配流水</caption>
+              <thead><tr><th scope="col">发生时间</th><th scope="col">对方</th><th scope="col">账户</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">金额</th></tr></thead>
+              <tbody>
+                <tr class="transaction-row is-needs-allocation">
+                  <td data-label="发生时间"><span class="mono">11:08</span></td>
+                  <td data-label="对方"><span class="transaction-cell"><strong>城市超市</strong></span></td>
+                  <td data-label="账户"><span>—</span></td>
+                  <td data-label="类型"><span>消费</span></td>
+                  <td data-label="状态"><span class="status is-blocked">待补分配</span></td>
+                  <td data-label="金额"><span class="amount amount-out">−92.00 CNY</span></td>
+                </tr>
+                <tr class="allocation-detail-row">
+                  <td colspan="6">
+                    <div class="inline-allocation" data-allocation-group="disabled" data-target="92.00">
+                      <div class="allocation-grid">
+                        <label class="allocation-field"><span>花呗<small>账户 · CNY</small></span><input data-allocation-input value="" placeholder="输入金额" inputmode="decimal" aria-label="禁用示例 · 花呗金额" disabled /></label>
+                        <label class="allocation-field"><span>招商银行<small>账户 · CNY</small></span><input data-allocation-input value="" placeholder="输入金额" inputmode="decimal" aria-label="禁用示例 · 招商银行金额" disabled /></label>
+                      </div>
+                      <div class="allocation-summary"><span class="is-warning" data-remaining>还差 <strong>92.00 CNY</strong></span></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="stage-actions"><small>完成账户映射后才能编辑。</small><button class="primary" type="button" data-next-button disabled>下一步</button></div>
+        </div>
+
+        <div class="state-content hidden" data-state-content="loading" role="status" aria-live="polite">
+          <div class="loader" aria-hidden="true"></div>
+          <strong>正在读取账单</strong>
+          <p>流水即将显示。</p>
+          <div class="skeleton-stack" aria-hidden="true"><span class="skeleton short"></span><span class="skeleton tall"></span><span class="skeleton"></span></div>
+        </div>
+        <div class="state-content hidden" data-state-content="empty">
+          <div class="state-view"><span class="state-icon" aria-hidden="true">—</span><strong>没有可核对流水</strong><p>当前账单没有需要确认的内容。</p><button type="button">返回上一步</button></div>
+        </div>
+        <div class="state-content hidden" data-state-content="error" role="alert">
+          <div class="state-view"><span class="state-icon" aria-hidden="true">!</span><strong>流水读取失败</strong><p>请重新尝试，已填写的金额会保留。</p><button type="button">重试</button></div>
+        </div>
+        <div class="state-content hidden" data-state-content="success" role="status">
+          <div class="state-view"><span class="state-icon is-success" aria-hidden="true">✓</span><strong>流水已确认</strong><p>账单已进入下一步配对。</p><button class="primary" type="button">继续配对</button></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const stateButtons = [...document.querySelectorAll('[data-state]')];
+    const statePanels = [...document.querySelectorAll('[data-state-content]')];
+
+    function money(value) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function formatMoney(value) {
+      return value.toFixed(2);
+    }
+
+    function updateAllocation(group) {
+      const fields = [...document.querySelectorAll('[data-allocation-group="' + group + '"]')];
+      fields.forEach((allocation) => {
+        const target = money(allocation.dataset.target);
+        const inputs = [...allocation.querySelectorAll('[data-allocation-input]')];
+        const filled = inputs.reduce((sum, input) => sum + money(input.value), 0);
+        const delta = target - filled;
+        const complete = inputs.every((input) => input.value.trim() !== '') && Math.abs(filled - target) < 0.005;
+        const remainingElement = allocation.querySelector('[data-remaining]');
+        if (remainingElement) {
+          const label = complete ? '已匹配' : delta < 0 ? '超出' : '还差';
+          remainingElement.innerHTML = label + ' <strong>' + formatMoney(Math.abs(delta)) + ' CNY</strong>';
+          remainingElement.classList.toggle('is-warning', !complete);
+          remainingElement.classList.toggle('is-complete', complete);
+        }
+        allocation.classList.toggle('is-complete', complete);
+        inputs.forEach((input) => input.setAttribute('aria-invalid', String(!complete)));
+      });
+    }
+
+    function updateAllAllocations() {
+      [...new Set([...document.querySelectorAll('[data-allocation-group]')].map((item) => item.dataset.allocationGroup))].forEach(updateAllocation);
+    }
+
+    function setState(state) {
+      stateButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.state === state)));
+      statePanels.forEach((panel) => panel.classList.toggle('hidden', panel.dataset.stateContent !== state));
+      if (state === 'focus') {
+        document.querySelector('.focus-demo')?.focus();
+      }
+      updateAllAllocations();
+    }
+
+    document.querySelectorAll('[data-allocation-input]').forEach((input) => {
+      input.addEventListener('input', () => updateAllocation(input.closest('[data-allocation-group]')?.dataset.allocationGroup || ''));
+    });
+    stateButtons.forEach((button) => button.addEventListener('click', () => setState(button.dataset.state)));
+    setState('ready');
+  </script>
+</body>
+</html>

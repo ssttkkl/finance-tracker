@@ -41,6 +41,7 @@ export const semanticIds = {
   importPassword: "import.password",
   importMapping: "import.mapping",
   importPreview: "import.preview",
+  importAllocation: "import.allocation",
   importRelations: "import.relations",
   importChooseFile: "import.choose-file",
   importNext: "import.next",

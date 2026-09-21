@@ -76,3 +76,26 @@
 ## Migration Plan
 
 开发环境删除旧数据库并重新运行 schema 创建；不提供旧数据迁移或自动回填。部署前必须确认所有测试 fixture、种子账户和本地账单导入均使用新组成项模型。若实现回归，回滚方式是回到旧代码并重新创建旧 schema，不在新 schema 上执行降级迁移。
+
+## UI information architecture and presentation gate
+
+The user task is to complete account amounts without leaving the existing import flow. The UI therefore keeps the existing import stepper and the existing preview table:
+
+1. Step 3 remains `核对流水`, with the current summary filters, preview table, previous action, and next action.
+2. A composite payment row whose account amounts are missing is marked `待补分配`.
+3. Directly below that parent row, an inline compact allocation area lists every account component and its amount input on its own row. Every unresolved row is expanded at the same time; there is no collapsed state, row disclosure control, side panel, queue, or separate workbench.
+4. The inline summary keeps only the right-aligned remaining amount, or the matched amount when complete. The existing next-step action remains blocked while any row is incomplete or does not conserve to the parent amount.
+
+On narrow screens the preview row becomes a one-column record followed immediately by its allocation area. The account inputs also become one column; the page must not introduce horizontal scrolling. The information order remains stepper → preview summary → source row → inline component amounts → conservation result → next step.
+
+The design intentionally removes implementation-facing or repeated information from the task surface: `cash_granularity`, parent/component terminology, database/source identifiers, raw source payload, a separate allocation heading outside the table, duplicate amount summaries, duplicate import instructions, and a row collapse affordance. Source evidence remains a detail concern rather than a preview-field dump.
+
+Hallmark preflight found the existing Cobalt palette, Noto Sans SC / IBM Plex Mono typography, compact spacing scale, restrained motion, and application navigation in `web/src/styles.css`. The revised prototype preserves those tokens and uses the existing import-flow / inline-row structure. Prototype path: `openspec/changes/cash-transaction-components/prototype/index.html`. It includes ready, allocation-blocked with all unresolved rows expanded, loading, empty, error, success, disabled, and keyboard-focus states, with local-only data and no production dependency.
+
+Responsive preflight is required at 320, 375, 390, 414, 768, and 1440 px; 390 and 1440 px require screenshots. The user confirmed the inline interaction contract on 2026-09-21, and the production Web and Native implementations now follow the revised prototype. Runtime screenshots remain a release verification item because the current environment has no available browser runtime.
+
+Cross-platform impact check:
+
+- Web: affected by the import preview row layout, inline component editor, allocation status, next-step blocking, and keyboard/responsive behavior; no separate page or workbench is added.
+- Native: `mobile/src/app/(app)/import.tsx` now exposes the same account values, labels, blocking rule, confirmation semantics, and success/error behavior using a mobile-appropriate one-column inline row. Native record detail/edit surfaces also show component amounts as read-only evidence.
+- Shared layer: affected by preview/confirmation DTOs, semantic test IDs, copy, and the allocation validation invariant. Platform-specific controls may differ, but all unresolved rows must be editable in the current third step and the resulting allocation must match.

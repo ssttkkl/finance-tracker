@@ -859,6 +859,20 @@ class RelationalCashflowRepository:
                 "_model": model,
                 "_account": account,
             }
+        # A repeated provider record in the same import batch can point at a
+        # model that has not received its database ID yet.  The first row wins
+        # by import order; defer the normal current-row projection until the
+        # batch flush rather than dereferencing the transient parent ID.
+        if existing.id is None:
+            return {
+                "fact_id": None,
+                "created": False,
+                "source_changed": False,
+                "previous": None,
+                "current": None,
+                "_model": existing,
+                "_account": account,
+            }
         if account is None and existing.account_id is not None:
             account = self._session.get(AccountModel, existing.account_id)
         if account is None and row.get("account_name"):
@@ -913,8 +927,10 @@ class RelationalCashflowRepository:
                     "_account": account,
                 }
             previous = self._to_row(existing, account)
-            if "relation_metadata" in row:
-                existing.relation_metadata = incoming_relation_metadata
+            # The imported row is the complete relation-derived snapshot.  An
+            # omitted field therefore means the current relation metadata was
+            # cleared, rather than that the previous value should be retained.
+            existing.relation_metadata = incoming_relation_metadata
             return {
                 "fact_id": existing.id,
                 "created": False,
@@ -1734,8 +1750,10 @@ class RelationalRelationRepository:
         relation_id,
         *,
         other_fact_id,
+        other_component_id=None,
         other_fact_type: str = "cash",
         primary_fact_id=None,
+        primary_component_id=None,
         status: str,
         decided_by: str,
         decision_reason: str = "",
@@ -1748,8 +1766,12 @@ class RelationalRelationRepository:
             raise ValueError(f"relation not found: {relation_id}")
         if row.secondary_fact_id is not None:
             raise ValueError("该关系已有对侧流水")
-        other = self._resolve_component_endpoint(other_fact_id)
-        primary = self._resolve_component_endpoint(primary_fact_id) if primary_fact_id is not None else row.primary_component_id
+        other = self._resolve_component_endpoint(other_fact_id, other_component_id)
+        primary = (
+            self._resolve_component_endpoint(primary_fact_id, primary_component_id)
+            if primary_fact_id is not None
+            else row.primary_component_id
+        )
         secondary = row.primary_component_id if primary_fact_id is not None else other
         left, right = ordered_fact_pair(primary, secondary)
         conflict = self._session.scalar(select(TransactionRelationModel).where(

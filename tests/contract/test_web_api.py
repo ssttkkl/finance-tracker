@@ -330,7 +330,7 @@ def test_projection_api_returns_member_sources_in_member_order_without_duplicate
     from decimal import Decimal
     from zoneinfo import ZoneInfo
 
-    from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
+    from ft.adapters.relational.models import CashTransactionComponentModel, CashTransactionModel, TransactionRelationModel
 
     runtime = request.getfixturevalue(runtime_name)
     with runtime.sessions.begin() as session:
@@ -338,6 +338,11 @@ def test_projection_api_returns_member_sources_in_member_order_without_duplicate
             id=1004, workspace_id=runtime.workspace_id, account_id=101,
             occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("UTC")), amount=Decimal("3"),
             currency="CNY", counterparty="咖啡店", category_id="category-food", source_type="bank", record_id="cash-004",
+        ))
+        session.flush()
+        session.add(CashTransactionComponentModel(
+            id=1004, workspace_id=runtime.workspace_id, cash_transaction_id=1004,
+            account_id=101, amount=Decimal("3"), currency="CNY", ordinal=0,
         ))
         session.add(TransactionRelationModel(
             workspace_id=runtime.workspace_id, kind="refund_offset", subtype="",

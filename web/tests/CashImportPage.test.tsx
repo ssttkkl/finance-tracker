@@ -120,6 +120,72 @@ describe("CashImportPage", () => {
     expect(commitBody.relations).toEqual([]);
   });
 
+  it("在流水行内展开所有未分配组合支付，并让组成项各占一行", async () => {
+    const composite = {
+      ...item,
+      record_id: "aggregate-1",
+      amount: "-92.00",
+      account_name: "",
+      counterparty: "城市超市",
+      status: "requires_allocation" as const,
+      components: [
+        { ordinal: 0, source_label: "花呗", account_key: "huabei", account_id: 101, account_name: "花呗", amount: null, amount_required: true, kind: "aggregate" },
+        { ordinal: 1, source_label: "招商银行", account_key: "cmb", account_id: 102, account_name: "招商银行", amount: null, amount_required: true, kind: "aggregate" },
+      ],
+      component_allocation: {
+        record_id: "aggregate-1",
+        cash_granularity: "aggregate",
+        status: "requires_allocation",
+        total_amount: "-92.00",
+        conserved: false,
+        components: [],
+      },
+    };
+    const secondComposite = {
+      ...composite,
+      record_id: "aggregate-2",
+      counterparty: "便利店",
+      amount: "-58.00",
+      components: [
+        { ...composite.components[0], account_name: "支付宝余额" },
+        { ...composite.components[1], account_name: "银行卡" },
+      ],
+    };
+    const aggregatePreview = {
+      ...preview,
+      items: [composite, secondComposite],
+      summary: { total: 2, new: 2, existing: 0, unsupported: 0, requires_allocation: 2 },
+      relations: [],
+    };
+    const fetch = vi.fn((input: string) => input.includes("/scan")
+      ? response(scan)
+      : input.includes("/preview")
+        ? response(aggregatePreview)
+        : response({ message: "导入完成", new_rows: 2, updated_rows: 0, channel: "alipay", digest: "digest-1" }));
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, {
+      target: { files: [new File(["fixture"], "statement.csv")] },
+    });
+    await screen.findByRole("heading", { name: "映射账户" });
+    fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
+    await screen.findByRole("heading", { name: "核对流水" });
+
+    const previewStage = screen.getByRole("heading", { name: "核对流水" }).closest("section")!;
+    expect(previewStage.querySelector(".allocation-editor")).not.toBeInTheDocument();
+    expect(previewStage.querySelectorAll(".cash-row-detail")).toHaveLength(2);
+    expect(previewStage.querySelectorAll(".import-allocation-fields label")).toHaveLength(4);
+    expect(screen.getByText("还差 92.00 CNY")).toBeInTheDocument();
+    expect(screen.getByText("还差 58.00 CNY")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^下一步$/ })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("花呗分摊金额"), { target: { value: "40.00" } });
+    fireEvent.change(screen.getByLabelText("招商银行分摊金额"), { target: { value: "52.00" } });
+    expect(screen.getByText("已匹配 92.00 CNY")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^下一步$/ })).toBeDisabled();
+  });
+
   it("流水预览将业务细分显示为中文名称而不是内部枚举", async () => {
     const subtypePreview = {
       ...preview,

@@ -204,3 +204,257 @@ def test_aggregate_parent_can_be_deleted_without_a_single_account(cash_web_runti
     assert deleted["deleted"] is True
     with cash_web_runtime.sessions() as session:
         assert session.get(CashTransactionModel, record["id"]) is None
+
+
+def test_component_count_derives_cash_granularity_and_ignores_client_value(cash_web_runtime):
+    from ft.adapters.relational.models import CashTransactionModel
+
+    _enable_cny(cash_web_runtime, "日常账户")
+    service = _service(cash_web_runtime)
+
+    atomic = service.create_record(_payload(
+        account_name="日常账户",
+        cash_granularity="aggregate",
+        components=[{"account_name": "日常账户", "amount": "-100.00"}],
+    ))["record"]
+    assert atomic["cash_granularity"] == "atomic"
+
+    with cash_web_runtime.sessions() as session:
+        parent = session.get(CashTransactionModel, atomic["id"])
+        assert parent.cash_granularity == "atomic"
+        assert parent.account_id is not None
+
+
+def test_component_validation_rejects_invalid_shape_atomically(cash_web_runtime):
+    from ft.adapters.relational.models import CashTransactionComponentModel, CashTransactionModel
+
+    with cash_web_runtime.sessions.begin() as session:
+        from ft.adapters.relational.models import AccountModel
+
+        session.add(AccountModel(
+            workspace_id=cash_web_runtime.workspace_id,
+            name="第二账户", type="cash", currencies=["CNY"],
+        ))
+    _enable_cny(cash_web_runtime, "日常账户", "第二账户")
+    service = _service(cash_web_runtime)
+    with cash_web_runtime.sessions() as session:
+        initial_component_count = session.query(CashTransactionComponentModel).filter(
+            CashTransactionComponentModel.workspace_id == cash_web_runtime.workspace_id,
+        ).count()
+
+    invalid_cases = (
+        (
+            "组成项金额之和必须等于父流水金额",
+            [{"account_name": "日常账户", "amount": "-60.00"}, {"account_name": "第二账户", "amount": "-30.00"}],
+            {},
+        ),
+        (
+            "组成项币种必须与父流水一致",
+            [{"account_name": "日常账户", "amount": "-100.00", "currency": "USD"}],
+            {},
+        ),
+        (
+            "组成项金额方向必须与父流水一致",
+            [{"account_name": "日常账户", "amount": "-100.00"}],
+            {"amount": "100.00", "record_type": "income"},
+        ),
+        (
+            "cash transaction requires at least one component",
+            [],
+            {},
+        ),
+    )
+
+    for error, components, payload in invalid_cases:
+        with pytest.raises(ValueError, match=error):
+            service.create_record(_payload(account_name="日常账户", components=components, **payload))
+
+        with cash_web_runtime.sessions() as session:
+            assert session.query(CashTransactionModel).filter(
+                CashTransactionModel.workspace_id == cash_web_runtime.workspace_id,
+                CashTransactionModel.note == "组合支付",
+            ).count() == 0
+            assert session.query(CashTransactionComponentModel).filter(
+                CashTransactionComponentModel.workspace_id == cash_web_runtime.workspace_id,
+            ).count() == initial_component_count
+
+
+def test_component_update_preserves_endpoint_identity_and_rechecks_conservation(cash_web_runtime):
+    from ft.adapters.relational.models import CashTransactionComponentModel
+
+    with cash_web_runtime.sessions.begin() as session:
+        from ft.adapters.relational.models import AccountModel
+
+        session.add(AccountModel(
+            workspace_id=cash_web_runtime.workspace_id,
+            name="第二账户", type="cash", currencies=["CNY"],
+        ))
+    _enable_cny(cash_web_runtime, "日常账户", "第二账户")
+    service = _service(cash_web_runtime)
+    record = service.create_record(_payload(
+        account_name="日常账户",
+        components=[
+            {"account_name": "日常账户", "amount": "-60.00"},
+            {"account_name": "第二账户", "amount": "-40.00"},
+        ],
+    ))["record"]
+    component_ids = [item["id"] for item in record["components"]]
+
+    updated = service.update_record(record["id"], {
+        "account_name": "日常账户",
+        "amount": "-100.00",
+        "currency": "CNY",
+        "components": [
+            {"account_name": "日常账户", "amount": "-70.00"},
+            {"account_name": "第二账户", "amount": "-30.00"},
+        ],
+    })["record"]
+    assert [item["id"] for item in updated["components"]] == component_ids
+    assert [item["amount"] for item in updated["components"]] == ["-70.00", "-30.00"]
+
+    with pytest.raises(ValueError, match="组成项金额之和必须等于父流水金额"):
+        service.update_record(record["id"], {
+            "account_name": "日常账户",
+            "amount": "-100.00",
+            "currency": "CNY",
+            "components": [
+                {"account_name": "日常账户", "amount": "-71.00"},
+                {"account_name": "第二账户", "amount": "-30.00"},
+            ],
+        })
+
+    with cash_web_runtime.sessions() as session:
+        rows = session.query(CashTransactionComponentModel).filter(
+            CashTransactionComponentModel.workspace_id == cash_web_runtime.workspace_id,
+            CashTransactionComponentModel.cash_transaction_id == record["id"],
+        ).order_by(CashTransactionComponentModel.ordinal).all()
+        assert [row.id for row in rows] == component_ids
+        assert [str(row.amount) for row in rows] == ["-70.00", "-30.00"]
+
+
+def test_component_update_rebuilds_each_account_balance_without_parent_double_count(cash_web_runtime):
+    from ft.adapters.relational.models import AccountModel
+
+    with cash_web_runtime.sessions.begin() as session:
+        session.add(AccountModel(
+            workspace_id=cash_web_runtime.workspace_id,
+            name="第二账户", type="cash", currencies=["CNY"],
+        ))
+    _enable_cny(cash_web_runtime, "日常账户", "第二账户")
+    service = _service(cash_web_runtime)
+    record = service.create_record(_payload(
+        account_name="日常账户",
+        components=[
+            {"account_name": "日常账户", "amount": "-60.00"},
+            {"account_name": "第二账户", "amount": "-40.00"},
+        ],
+    ))["record"]
+
+    with service._uow as uow:
+        initial = uow.snapshot.load()
+        uow.commit()
+    assert initial["accounts"]["cash"]["日常账户"]["CNY"] == "-60.00"
+    assert initial["accounts"]["cash"]["第二账户"]["CNY"] == "-40.00"
+
+    service.update_record(record["id"], {
+        "account_name": "日常账户",
+        "amount": "-100.00",
+        "currency": "CNY",
+        "components": [
+            {"account_name": "日常账户", "amount": "-75.00"},
+            {"account_name": "第二账户", "amount": "-25.00"},
+        ],
+    })
+
+    with service._uow as uow:
+        updated = uow.snapshot.load()
+        uow.commit()
+    assert updated["accounts"]["cash"]["日常账户"]["CNY"] == "-75.00"
+    assert updated["accounts"]["cash"]["第二账户"]["CNY"] == "-25.00"
+
+
+def test_aggregate_projection_is_parent_row_with_component_detail_and_account_filter(cash_web_runtime):
+    from sqlalchemy import select
+
+    from ft.adapters.relational.models import AccountModel
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.web_queries import CashLedgerQueryService
+
+    with cash_web_runtime.sessions.begin() as session:
+        session.add(AccountModel(
+            workspace_id=cash_web_runtime.workspace_id,
+            name="第二账户", type="cash", currencies=["CNY"],
+        ))
+    _enable_cny(cash_web_runtime, "日常账户", "第二账户")
+    service = _service(cash_web_runtime)
+    record = service.create_record(_payload(
+        account_name="日常账户",
+        components=[
+            {"account_name": "日常账户", "amount": "-60.00", "label": "余额"},
+            {"account_name": "第二账户", "amount": "-40.00", "label": "银行卡"},
+        ],
+    ))["record"]
+    with cash_web_runtime.sessions() as session:
+        second_account_id = session.scalar(select(AccountModel.id).where(
+            AccountModel.workspace_id == cash_web_runtime.workspace_id,
+            AccountModel.name == "第二账户",
+        ))
+
+    CashProjectionService(
+        cash_web_runtime.sessions, cash_web_runtime.workspace_id,
+    ).rebuild()
+    query = CashLedgerQueryService(
+        cash_web_runtime.sessions, cash_web_runtime.workspace_id,
+    )
+    page = query.list_cash_projections(account_id=second_account_id, limit=50)
+    item = next(item for item in page.items if item.projection_id == f"cash:{record['id']}")
+    assert item.account is None
+    assert item.amount == "-100"
+    assert item.member_count == 1
+
+    evidence = query.get_projection_evidence(f"cash:{record['id']}")
+    assert [component["account_name"] for component in evidence["root_record"]["components"]] == [
+        "日常账户", "第二账户",
+    ]
+    assert [component["amount"] for component in evidence["root_record"]["components"]] == [
+        "-60", "-40",
+    ]
+
+
+def test_wealth_cashflows_expand_components_and_component_revision_invalidates_capture(cash_web_runtime):
+    from ft.adapters.relational.models import AccountModel, CashTransactionComponentModel
+    from ft.adapters.relational.wealth_facts import RelationalWealthFactRepository
+
+    with cash_web_runtime.sessions.begin() as session:
+        session.add(AccountModel(
+            workspace_id=cash_web_runtime.workspace_id,
+            name="第二账户", type="cash", currencies=["CNY"],
+        ))
+    _enable_cny(cash_web_runtime, "日常账户", "第二账户")
+    service = _service(cash_web_runtime)
+    record = service.create_record(_payload(
+        account_name="日常账户",
+        components=[
+            {"account_name": "日常账户", "amount": "-60.00"},
+            {"account_name": "第二账户", "amount": "-40.00"},
+        ],
+    ))["record"]
+
+    facts = RelationalWealthFactRepository(
+        cash_web_runtime.sessions, cash_web_runtime.workspace_id,
+    )
+    watermark, _items = facts.capture_source_manifest()
+    _accounts, _valuations, cashflows, _investments, _lifecycle = facts.captured_build_inputs(watermark)
+    component_ids = {component["id"] for component in record["components"]}
+    expanded = [item for item in cashflows if item.fact_id in component_ids]
+    assert [item.amount for item in expanded] == [Decimal("-60.00"), Decimal("-40.00")]
+    assert all(item.account_id is not None for item in expanded)
+
+    with cash_web_runtime.sessions.begin() as session:
+        component = session.query(CashTransactionComponentModel).filter_by(
+            workspace_id=cash_web_runtime.workspace_id,
+            cash_transaction_id=record["id"],
+            ordinal=0,
+        ).one()
+        component.amount = Decimal("-70.00")
+    assert facts.source_is_current(watermark) is False

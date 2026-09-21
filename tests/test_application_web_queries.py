@@ -306,7 +306,9 @@ def test_old_version_cursor_requires_refresh(cash_web_runtime):
 @pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
 def test_projection_page_keeps_version_and_dataset_in_one_read_snapshot(request, runtime_name):
     from sqlalchemy import event
-    from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
+    from ft.adapters.relational.models import (
+        CashTransactionComponentModel, CashTransactionModel, TransactionRelationModel,
+    )
     from ft.application.cash_projections import CashProjectionService
     from ft.application.web_queries import CashLedgerQueryService, ProjectionUpdatedError
 
@@ -336,6 +338,16 @@ def test_projection_page_keeps_version_and_dataset_in_one_read_snapshot(request,
                 category_id="category-food",
                 source_type="fixture",
                 record_id="cash-004",
+            ))
+            session.flush()
+            session.add(CashTransactionComponentModel(
+                id=1004,
+                workspace_id=runtime.workspace_id,
+                cash_transaction_id=1004,
+                account_id=101,
+                amount=Decimal("3"),
+                currency="CNY",
+                ordinal=0,
             ))
             session.add(TransactionRelationModel(
                 workspace_id=runtime.workspace_id,

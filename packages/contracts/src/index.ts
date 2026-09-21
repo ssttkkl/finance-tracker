@@ -93,6 +93,19 @@ export type CashProjectionDeleteResult = CashProjectionDeleteImpact & {
   projection_version: number;
 };
 
+export type CashComponentDetail = {
+  id: string;
+  cash_transaction_id?: string;
+  account: Account | null;
+  account_name?: string;
+  account_id?: number | null;
+  account_type?: string;
+  amount: string;
+  currency: string;
+  ordinal: number;
+  label?: string | null;
+};
+
 export type EvidenceRecord = {
   id: string;
   occurred_at: string;
@@ -111,6 +124,8 @@ export type EvidenceRecord = {
   record_id?: string;
   record_type?: string;
   record_subtype?: string;
+  cash_granularity?: string;
+  components?: CashComponentDetail[];
 };
 
 export type EvidenceMember = EvidenceRecord & { roles: string[] };
@@ -159,9 +174,11 @@ export type CashRecord = {
   record_type: string;
   record_subtype: string;
   account_name: string;
-  account_id: number;
+  account_id: number | null;
   account_type: string;
   source_type: string | null;
+  cash_granularity?: string;
+  components?: CashComponentDetail[];
 };
 
 export type CashRelation = {

@@ -21,6 +21,22 @@ def upgrade() -> None:
     with op.batch_alter_table("cash_transactions") as batch:
         batch.alter_column("account_id", existing_type=sa.BigInteger(), nullable=True)
 
+    # Reassert the pre-existing soft-delete idempotency contract after the
+    # SQLite table rebuilds in the historical migration chain.  Some fresh
+    # SQLite upgrades otherwise retain an unfiltered unique index and reject
+    # re-importing a logically deleted source row.
+    bind = op.get_bind()
+    bind.exec_driver_sql("DROP INDEX IF EXISTS uq_cash_transactions_active_source_record")
+    bind.exec_driver_sql(
+        """
+        CREATE UNIQUE INDEX uq_cash_transactions_active_source_record
+        ON cash_transactions (workspace_id, source_type, record_id)
+        WHERE source_type IS NOT NULL AND source_type <> ''
+          AND record_id IS NOT NULL AND record_id <> ''
+          AND deleted_at IS NULL
+        """
+    )
+
     component_amount_type = (
         sa.Numeric(38, 18) if op.get_bind().dialect.name != "sqlite" else sa.String(96)
     )
@@ -280,9 +296,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_cash_transaction_components_workspace_transaction", table_name="cash_transaction_components")
-    op.drop_index("ix_cash_transaction_components_workspace_account", table_name="cash_transaction_components")
-    op.drop_table("cash_transaction_components")
-    with op.batch_alter_table("cash_transactions") as batch:
-        batch.alter_column("account_id", existing_type=sa.BigInteger(), nullable=False)
-        batch.drop_column("cash_granularity")
+    raise NotImplementedError(
+        "cash transaction components is a development-only one-shot cutover; no downgrade"
+    )

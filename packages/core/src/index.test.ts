@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  allocationBalance,
+  allocationMatches,
   buildCashRecordPayload,
   createImportSession,
   importSessionReducer,
@@ -8,6 +10,48 @@ import {
 } from "./index";
 
 describe("shared finance state", () => {
+  it("validates component allocations with exact decimal conservation", () => {
+    const item = {
+      amount: "-92.00",
+      currency: "CNY",
+      components: [
+        { ordinal: 0, source_label: "A", account_key: "a", amount: null, amount_required: true, kind: "aggregate" },
+        { ordinal: 1, source_label: "B", account_key: "b", amount: null, amount_required: true, kind: "aggregate" },
+      ],
+    };
+
+    expect(allocationMatches(item, ["40.00", "52"])).toBe(true);
+    expect(allocationBalance(item, ["40.00", ""])).toEqual({
+      state: "incomplete",
+      difference: "52.00",
+      total: "92.00",
+    });
+    expect(allocationBalance(item, ["40.00", "52"])).toEqual({
+      state: "complete",
+      difference: "0.00",
+      total: "92.00",
+    });
+    expect(allocationBalance(item, ["40.00", "53"])).toEqual({
+      state: "incomplete",
+      difference: "-1.00",
+      total: "92.00",
+    });
+  });
+
+  it("rejects negative or malformed component amounts", () => {
+    const item = {
+      amount: "-12.50",
+      currency: "CNY",
+      components: [
+        { ordinal: 0, source_label: "A", account_key: "a", amount: null, amount_required: true, kind: "aggregate" },
+        { ordinal: 1, source_label: "B", account_key: "b", amount: null, amount_required: true, kind: "aggregate" },
+      ],
+    };
+
+    expect(allocationMatches(item, ["-1.00", "13.50"])).toBe(false);
+    expect(allocationBalance(item, ["1.00", "not-a-number"]).state).toBe("invalid");
+  });
+
   it("keeps decimal input as an exact string when building a cash payload", () => {
     const payload = buildCashRecordPayload({
       accountName: "支付宝余额",

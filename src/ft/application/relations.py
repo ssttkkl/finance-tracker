@@ -883,6 +883,16 @@ class RelationService:
                 item for item in accepted_relations
                 if item.get("id") != relation.get("id")
             ]
+            # The component-level applied-amount invariant is enforced by the
+            # repository against currently accepted rows.  Retire the old
+            # automatic edge while staging its replacement so a full refund
+            # can move between expenses atomically without being counted twice.
+            uow.relations.update_status(
+                relation["id"],
+                status=RelationStatus.SUPERSEDED.value,
+                decided_by="system",
+                decision_reason="replacing_later_refund_evidence",
+            )
             created = self._persist_proposal(
                 uow,
                 replacement,
@@ -893,6 +903,11 @@ class RelationService:
                 created is None
                 or created.get("status") != RelationStatus.ACCEPTED.value
             ):
+                uow.relations.update_status(
+                    relation["id"],
+                    status=RelationStatus.ACCEPTED.value,
+                    decision_reason=relation.get("decision_reason") or "",
+                )
                 continue
             uow.relations.update_status(
                 relation["id"],
@@ -2102,9 +2117,15 @@ class RelationService:
                 updated = uow.relations.bind_other_leg(
                     relation_id,
                     other_fact_id=other_fact_id,
+                    other_component_id=other.id,
                     other_fact_type="cash",
                     primary_fact_id=(
                         other_fact_id
+                        if rel["kind"] == RelationKind.REFUND_OFFSET.value
+                        else None
+                    ),
+                    primary_component_id=(
+                        other.id
                         if rel["kind"] == RelationKind.REFUND_OFFSET.value
                         else None
                     ),
@@ -2502,7 +2523,17 @@ class RelationService:
                             if proposal.kind == RelationKind.REFUND_OFFSET.value
                             else proposal.secondary_fact_id
                         ),
+                        other_component_id=(
+                            proposal.primary_fact_id
+                            if proposal.kind == RelationKind.REFUND_OFFSET.value
+                            else proposal.secondary_fact_id
+                        ),
                         primary_fact_id=(
+                            proposal.primary_fact_id
+                            if proposal.kind == RelationKind.REFUND_OFFSET.value
+                            else None
+                        ),
+                        primary_component_id=(
                             proposal.primary_fact_id
                             if proposal.kind == RelationKind.REFUND_OFFSET.value
                             else None
@@ -2552,7 +2583,17 @@ class RelationService:
                         if proposal.kind == RelationKind.REFUND_OFFSET.value
                         else proposal.secondary_fact_id
                     ),
+                    other_component_id=(
+                        proposal.primary_fact_id
+                        if proposal.kind == RelationKind.REFUND_OFFSET.value
+                        else proposal.secondary_fact_id
+                    ),
                     primary_fact_id=(
+                        proposal.primary_fact_id
+                        if proposal.kind == RelationKind.REFUND_OFFSET.value
+                        else None
+                    ),
+                    primary_component_id=(
                         proposal.primary_fact_id
                         if proposal.kind == RelationKind.REFUND_OFFSET.value
                         else None

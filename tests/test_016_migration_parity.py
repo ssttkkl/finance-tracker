@@ -98,7 +98,10 @@ def test_upgrade_015_open_leg_preserves_null_ordered_endpoint(tmp_path, null_end
     database = tmp_path / "open-leg.db"
     config = _seed_015_open_leg(database, null_endpoint=null_endpoint)
 
-    command.upgrade(config, "head")
+    # This contract covers the legacy 015/016 endpoint migration.  Revision
+    # 36 intentionally rebuilds relation storage around cash components and
+    # discards the old development rows.
+    command.upgrade(config, "20260917_35")
 
     engine = create_engine(f"sqlite+pysqlite:///{database}")
     try:
@@ -133,7 +136,7 @@ def test_upgrade_015_normalizes_empty_ordered_endpoint_to_null(tmp_path, empty_e
         allow_null_endpoints=False,
     )
 
-    command.upgrade(config, "head")
+    command.upgrade(config, "20260917_35")
 
     engine = create_engine(f"sqlite+pysqlite:///{database}")
     try:
@@ -158,7 +161,7 @@ def test_upgrade_015_fails_closed_for_unmapped_non_null_ordered_endpoint(tmp_pat
     )
 
     with pytest.raises(RuntimeError, match=f"{missing_endpoint} mapping"):
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260917_35")
 
 
 @pytest.mark.skipif(
@@ -202,7 +205,7 @@ def test_postgresql_upgrade_015_open_leg_normalizes_empty_ordered_endpoint(legac
                 "ordered_b": legacy_ordered_b,
             })
 
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260917_35")
         with engine.connect() as conn:
             assert conn.execute(text(
                 "SELECT ordered_fact_a, ordered_fact_b FROM transaction_relations"

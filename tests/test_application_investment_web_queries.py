@@ -5,6 +5,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 import pytest
+from sqlalchemy import select
 
 
 def _service(runtime):
@@ -17,6 +18,7 @@ def _add_investment_events(runtime):
     from ft.adapters.relational.models import (
         AccountModel,
         CashInvestmentFundingRelationModel,
+        CashTransactionComponentModel,
         InvestmentEventModel,
         LedgerSnapshotModel,
     )
@@ -90,10 +92,18 @@ def _add_investment_events(runtime):
             ),
         ))
         session.flush()
+        cash_component_id = session.scalar(
+            select(CashTransactionComponentModel.id).where(
+                CashTransactionComponentModel.workspace_id == runtime.workspace_id,
+                CashTransactionComponentModel.cash_transaction_id == 1001,
+                CashTransactionComponentModel.ordinal == 0,
+            )
+        )
+        assert cash_component_id is not None
         session.add(CashInvestmentFundingRelationModel(
             id=3001,
             workspace_id=runtime.workspace_id,
-            cash_transaction_id=1001,
+            cash_transaction_component_id=cash_component_id,
             investment_event_id=2001,
             direction="cash_to_investment",
             status="accepted",

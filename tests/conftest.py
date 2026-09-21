@@ -173,8 +173,14 @@ def cash_web_runtime(tmp_path):
 
     from alembic import command
     from alembic.config import Config
+    from sqlalchemy import select
     from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace
-    from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashTransactionModel
+    from ft.adapters.relational.models import (
+        AccountModel,
+        CashCategoryModel,
+        CashTransactionComponentModel,
+        CashTransactionModel,
+    )
 
     root = Path(__file__).parents[1]
     database_url = f"sqlite+pysqlite:///{tmp_path / 'cash-web.db'}"
@@ -238,6 +244,23 @@ def cash_web_runtime(tmp_path):
                 currency="CNY", counterparty="工资", category_id="category-income", source_type="fixture", record_id="cash-001",
             ),
         ))
+        session.flush()
+        session.add_all(
+            CashTransactionComponentModel(
+                id=parent.id,
+                workspace_id=workspace_id,
+                cash_transaction_id=parent.id,
+                account_id=parent.account_id,
+                amount=parent.amount,
+                currency=parent.currency,
+                ordinal=0,
+            )
+            for parent in session.scalars(
+                select(CashTransactionModel).where(
+                    CashTransactionModel.workspace_id == workspace_id,
+                )
+            )
+        )
     try:
         yield CashWebRuntime(sessions=sessions, workspace_id=workspace_id, database_url=database_url)
     finally:
@@ -253,8 +276,14 @@ def postgres_cash_web_runtime():
 
     from alembic import command
     from alembic.config import Config
+    from sqlalchemy import select
     from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace
-    from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashTransactionModel
+    from ft.adapters.relational.models import (
+        AccountModel,
+        CashCategoryModel,
+        CashTransactionComponentModel,
+        CashTransactionModel,
+    )
 
     database_url = require_test_postgres_url()
     if database_url is None:
@@ -316,6 +345,23 @@ def postgres_cash_web_runtime():
                 currency="CNY", counterparty="工资", category_id="category-income", source_type="fixture", record_id="cash-001",
             ),
         ))
+        session.flush()
+        session.add_all(
+            CashTransactionComponentModel(
+                id=parent.id,
+                workspace_id=workspace_id,
+                cash_transaction_id=parent.id,
+                account_id=parent.account_id,
+                amount=parent.amount,
+                currency=parent.currency,
+                ordinal=0,
+            )
+            for parent in session.scalars(
+                select(CashTransactionModel).where(
+                    CashTransactionModel.workspace_id == workspace_id,
+                )
+            )
+        )
     try:
         yield CashWebRuntime(sessions=sessions, workspace_id=workspace_id, database_url=database_url)
     finally:

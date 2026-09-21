@@ -72,6 +72,19 @@ function categoryLabel(category: EvidenceRecord["category"] | string | null | un
   return category?.path?.map((item) => item.name).join(" / ") || "未分类";
 }
 
+function ComponentAllocation({ components }: { components: NonNullable<EvidenceRecord["components"]> }) {
+  if (components.length < 2) return null;
+  return <section className="evidence-section evidence-components" aria-label="支付组成项">
+    <h3>支付组成项</h3>
+    <ul className="evidence-component-list">
+      {components.map((component) => <li key={component.id}>
+        <span>{component.account?.name ?? component.account_name ?? "未指定账户"}</span>
+        <span className="mono">{signedAmount(component.amount)} {component.currency}</span>
+      </li>)}
+    </ul>
+  </section>;
+}
+
 const recordTypeLabels: Record<string, string> = {
   consumption: "消费", expense: "消费", refund: "退款", reversal: "冲正",
   transfer_reversal: "转账退回", withdrawal_in: "提现入账", withdrawal_out: "提现",
@@ -183,6 +196,7 @@ export function EvidenceDetail({ evidence, loading, error, editing = false, edit
             {isRelatedProjection(evidence.projection) ? <p className="projection-source-detail">{projectionRelationLabel(evidence.projection)}</p> : null}
             <dl><dt>交易对方</dt><dd>{root.counterparty || "-"}</dd>{root.counterparty_account ? <><dt>对方账号</dt><dd>{root.counterparty_account}</dd></> : null}<dt>发生时间</dt><dd className="mono">{formatOccurredAt(root.occurred_at)}</dd><dt>账户</dt><dd>{root.account?.name ?? "多个账户"}</dd><dt>流水类型</dt><dd>{recordTypeLabel(root, evidence.projection)}</dd>{recordSubtypeLabel(root, evidence.projection) ? <><dt>业务细分</dt><dd>{recordSubtypeLabel(root, evidence.projection)}</dd></> : null}<dt>分类</dt><dd>{categoryLabel(root.category)}</dd><dt>备注</dt><dd>{root.note || "-"}</dd><dt>来源</dt><dd>{projectionSourceLabel(evidence)}</dd></dl>
           </section>
+          <ComponentAllocation components={root.components ?? []} />
           {relatedMembers.length ? <section className="evidence-section evidence-related" aria-label="关联流水">
             <div className="section-heading"><h3>关联流水</h3>{root ? <button type="button" className="icon-only-button icon-quiet-button" aria-label="添加关联" title="添加关联" onClick={() => onAddRelation?.(root.id)}><UiIcon name="plus" /></button> : null}</div>
             <ul className="evidence-record-list">{relatedMembers.map((member) => <RelatedMember key={member.id} member={member} evidence={evidence} relation={evidence.accepted_relations.find((item) => item.primary_record?.id === member.id || item.secondary_record?.id === member.id)} onEditRecord={onEditRecord} onCancelRelation={onCancelRelation} />)}</ul>

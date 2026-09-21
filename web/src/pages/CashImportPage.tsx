@@ -13,6 +13,7 @@ import type {
 } from "../api/types";
 import { formatOccurredAt, isZeroAmount } from "../format";
 import { buildTransactionMonthlySummaries, TransactionTable, type TransactionTableItem } from "../components/TransactionTable";
+import { allocationBalance, allocationMatches, type AllocationBalance } from "@finance-tracker/core";
 import { copy, semanticIds } from "@finance-tracker/presentation";
 
 type Stage = "select" | "mapping" | "preview" | "relations" | "success";
@@ -76,22 +77,11 @@ function unsignedAmount(value: string | null | undefined): string {
   return String(value ?? "").trim().replace(/^[+-]/, "");
 }
 
-function decimalParts(value: string): { digits: bigint; scale: number } | null {
-  const normalized = value.trim();
-  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return null;
-  const [integer, fraction = ""] = normalized.split(".");
-  return { digits: BigInt(`${integer}${fraction}`), scale: fraction.length };
-}
-
-function allocationMatches(item: ImportPreviewItem, values: string[]): boolean {
-  const components = item.components ?? [];
-  if (components.length < 2 || values.length !== components.length) return false;
-  const target = decimalParts(unsignedAmount(item.amount));
-  const amounts = values.map(decimalParts);
-  if (!target || amounts.some((value) => !value)) return false;
-  const scale = Math.max(target.scale, ...amounts.map((value) => value?.scale ?? 0));
-  const factor = (part: { digits: bigint; scale: number }) => part.digits * 10n ** BigInt(scale - part.scale);
-  return amounts.reduce((sum, value) => sum + factor(value!), 0n) === factor(target);
+function allocationStatusLabel(item: ImportPreviewItem, balance: AllocationBalance): string {
+  if (balance.state === "invalid") return "金额无效";
+  if (balance.state === "complete") return `已匹配 ${balance.total} ${item.currency}`;
+  if (balance.difference.startsWith("-")) return `超出 ${balance.difference.slice(1)} ${item.currency}`;
+  return `还差 ${balance.difference} ${item.currency}`;
 }
 
 function recordDate(value: string): string {
@@ -103,7 +93,7 @@ const importStatusLabels = {
   existing: copy.import.statusExisting,
   unsupported: copy.import.statusUnsupported,
   unresolved: copy.import.statusUnresolved,
-  requires_allocation: "待补分摊",
+  requires_allocation: "待补分配",
 } as const;
 
 function importDirection(item: ImportPreviewItem): TransactionTableItem<ImportPreviewItem>["direction"] {
@@ -643,6 +633,37 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     (relationDrafts[relation.id] ?? relationDraftFor(relation)).state === "pending"
   )).length;
   const automaticCount = relationItems.filter((relation) => relation.automatic).length;
+  const allocationComplete = allocationItems.length > 0
+    ? allocationItems.every((item) => allocationMatches(item, allocationDrafts[item.record_id] ?? []))
+    : Boolean(preview && allocationRequiredCount(preview) === 0);
+  const renderAllocationDetail = (tableItem: TransactionTableItem<ImportPreviewItem>) => {
+    const item = tableItem.source;
+    const components = item?.components ?? [];
+    if (!item || components.length < 2) return null;
+    const values = allocationDrafts[item.record_id] ?? [];
+    const balance = allocationBalance(item, values);
+    return <div
+      className={balance.state === "complete" ? "import-allocation-detail is-complete" : "import-allocation-detail"}
+      data-testid={`${semanticIds.importAllocation}.${item.record_id}`}
+    >
+      <div className="import-allocation-fields">
+        {components.map((component, index) => <label className="import-allocation-field" key={item.record_id + "-" + component.ordinal}>
+          <span>{component.account_name || component.source_label}<small>账户 · {item.currency}</small></span>
+          <input
+            type="text"
+            inputMode="decimal"
+            aria-label={(component.account_name || component.source_label) + "分摊金额"}
+            aria-invalid={balance.state !== "complete"}
+            value={values[index] ?? ""}
+            onChange={(event) => updateAllocation(item.record_id, index, event.target.value)}
+          />
+        </label>)}
+      </div>
+      <div className="import-allocation-summary">
+        <span className={balance.state === "complete" ? "is-complete" : "is-incomplete"} role="status">{allocationStatusLabel(item, balance)}</span>
+      </div>
+    </div>;
+  };
   const stageIndex = stage === "select" ? 1 : stage === "mapping" ? 2 : stage === "preview" ? 3 : 4;
 
   const restartAfterCompletedImport = () => {
@@ -737,13 +758,13 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
 
           {stage === "preview" && preview ? <section className="import-stage import-preview-stage" data-testid={semanticIds.importPreview} aria-labelledby="import-preview-heading">
             <div className="import-stage-heading"><h2 id="import-preview-heading">{copy.import.preview}</h2><span className="channel-badge">{preview.channel_label}</span></div>
-            <div className="stage-actions-top"><button data-testid={semanticIds.importPrevious} type="button" className="button-secondary" onClick={() => setStage("mapping")}>{copy.import.previous}</button><button data-testid={semanticIds.importNext} type="button" className="button-primary" disabled={busy} onClick={openRelations}>{copy.import.next}</button></div>
+            <div className="stage-actions-top"><button data-testid={semanticIds.importPrevious} type="button" className="button-secondary" onClick={() => setStage("mapping")}>{copy.import.previous}</button><button data-testid={semanticIds.importNext} type="button" className="button-primary" disabled={busy || !allocationComplete} onClick={openRelations}>{copy.import.next}</button></div>
             <div className="import-summary-cards" role="group" aria-label="预览流水筛选">{[
               { filter: "all" as const, label: "全部", value: preview.summary.total, tone: "total" },
               { filter: "new" as const, label: "待新增", value: preview.summary.new, tone: "new" },
               { filter: "existing" as const, label: "已存在", value: preview.summary.existing, tone: "existing" },
               { filter: "unresolved" as const, label: "无法识别", value: preview.summary.unresolved ?? 0, tone: "unsupported" },
-              { filter: "requires_allocation" as const, label: "待补分摊", value: allocationRequiredCount(preview), tone: "unsupported" },
+              { filter: "requires_allocation" as const, label: "待补分配", value: allocationRequiredCount(preview), tone: "unsupported" },
             ].map((summary) => <button
               type="button"
               key={summary.label}
@@ -752,31 +773,6 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
               aria-controls="import-preview-table"
               onClick={() => setPreviewFilter(summary.filter)}
             ><small>{summary.label}</small><strong>{summary.value}</strong></button>)}</div>
-            {allocationItems.length > 0 ? <section className="allocation-editor" aria-labelledby="allocation-editor-heading">
-              <div className="allocation-editor-heading"><h3 id="allocation-editor-heading">组合支付</h3><span>金额合计需等于流水金额</span></div>
-              <div className="allocation-list">
-                {allocationItems.map((item) => {
-                  const values = allocationDrafts[item.record_id] ?? [];
-                  const complete = allocationMatches(item, values);
-                  return <article className="allocation-row" key={item.record_id}>
-                    <div className="allocation-source"><strong>{item.counterparty || "未填写对方"}</strong><small>{recordDate(item.occurred_at)} · {item.amount} {item.currency}</small></div>
-                    <div className="allocation-fields">
-                      {(item.components ?? []).map((component, index) => <label key={`${item.record_id}-${component.ordinal}`}>
-                        <span>{component.account_name || component.source_label}</span>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          aria-label={`${component.account_name || component.source_label}分摊金额`}
-                          value={values[index] ?? ""}
-                          onChange={(event) => updateAllocation(item.record_id, index, event.target.value)}
-                        />
-                      </label>)}
-                    </div>
-                    <span className={complete ? "allocation-status is-complete" : "allocation-status is-incomplete"} role="status">{complete ? "金额已匹配" : "请补齐金额"}</span>
-                  </article>;
-                })}
-              </div>
-            </section> : null}
             <div id="import-preview-table">
               {filteredImportTableItems.length === 0
                 ? <div className="import-empty-state" role="status"><strong>{preview.items.length === 0 ? "没有可核对流水" : "没有符合条件的流水"}</strong></div>
@@ -786,6 +782,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
                   groupByMonth
                   monthlySummaries={importMonthlySummaries}
                   showStatus
+                  rowDetail={renderAllocationDetail}
                   wrapperClassName="standard-table-wrap"
                   wrapperProps={{ role: "region", "aria-label": "账单流水表格", tabIndex: 0 }}
                   caption="账单流水"
@@ -793,7 +790,6 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
                 />}
             </div>
             {unresolvedCount(preview) > 0 ? <p className="import-stage-warning" role="status">有 {unresolvedCount(preview)} 条流水无法准确归属，确认后将跳过；其他流水正常导入。</p> : null}
-            {allocationRequiredCount(preview) > 0 ? <p className="import-stage-warning" role="status">请补齐组合支付分摊后再继续。</p> : null}
             {ordinaryUnsupportedCount(preview) > 0 ? <p className="import-stage-warning" role="status">有流水暂不支持。</p> : null}
           </section> : null}
 

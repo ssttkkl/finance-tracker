@@ -36,7 +36,9 @@ def test_wealth_source_revision_migration_round_trips_one_step(tmp_path) -> None
     root = Path(__file__).parents[1]
     config = Config(str(root / "alembic.ini")); config.set_main_option("script_location", str(root / "migrations"))
     config.set_main_option("sqlalchemy.url", f"sqlite+pysqlite:///{database}")
-    command.upgrade(config, "head")
+    # Keep this round-trip focused on the reversible wealth-source revision;
+    # the following cash-component cutover is intentionally one-shot.
+    command.upgrade(config, "20260917_35")
     engine = create_engine(f"sqlite+pysqlite:///{database}")
     with engine.connect() as connection:
         assert "wealth_source_revisions" in inspect(connection).get_table_names()
@@ -55,6 +57,13 @@ def test_wealth_source_revision_migration_round_trips_one_step(tmp_path) -> None
     command.upgrade(config, "head")
     with engine.connect() as connection:
         assert "wealth_source_revisions" in inspect(connection).get_table_names()
+        assert "cash_transaction_components" in inspect(connection).get_table_names()
+        upgraded_trigger_names = set(connection.scalars(text(
+            "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'wealth_source_revision_%'"
+        )))
+    assert len(upgraded_trigger_names) == 18
+    with pytest.raises(NotImplementedError, match="one-shot"):
+        command.downgrade(config, "20260917_35")
     engine.dispose()
 
 

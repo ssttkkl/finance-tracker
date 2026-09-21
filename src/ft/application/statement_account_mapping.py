@@ -537,6 +537,25 @@ def apply_saved_mappings(uow, rows: list[dict]) -> list[dict]:
                     **dict(row.get("component_account_ids") or {}),
                     group.source_account_key: int(account["id"]),
                 }
+
+    # Saved mappings identify component accounts but cannot infer an amount
+    # absent from the source row. Materialize the same draft used by the
+    # interactive preview so non-interactive import fails before any write
+    # with the actionable allocation error.
+    for row in rows:
+        identities = source_component_identity_keys(row)
+        if len(identities) <= 1:
+            continue
+        draft = build_component_allocation_draft(row)
+        names = dict(row.get("component_account_names") or {})
+        ids = dict(row.get("component_account_ids") or {})
+        for component in draft["components"]:
+            key = component.get("account_key")
+            component["account_id"] = ids.get(key)
+            component["account_name"] = names.get(key, "")
+        row["account_name"] = ""
+        row["component_allocation"] = draft
+        row["components"] = draft["components"]
     return rows
 
 

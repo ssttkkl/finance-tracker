@@ -12,8 +12,11 @@ import type {
 } from "@finance-tracker/contracts";
 import { ApiError } from "@finance-tracker/api-client";
 import {
+  allocationBalance,
+  allocationMatches,
   createImportSession,
   importSessionReducer,
+  type AllocationBalance,
   type ImportSessionState,
 } from "@finance-tracker/core";
 import { Button, Header, Label, Screen, StatusMessage, Surface } from "@/components/NativeShell";
@@ -66,6 +69,7 @@ function errorText(code: string | null): string | null {
   if (code === "import_account_draft_invalid") return "新账户信息无效，请修改后重试。";
   if (code === "import_mapping_stale") return "账户映射已变化，请重新扫描。";
   if (code === "import_preview_stale") return "文件内容已经变化，请重新选择文件。";
+  if (code === "import_component_allocation_incomplete") return "请补齐组合支付各组成项金额。";
   if (code === "import_relation_reconfirmation_required" || code === "import_relation_preview_stale" || code === "import_relation_candidate_invalid") {
     return "相关流水已变化，请重新确认配对。";
   }
@@ -124,8 +128,8 @@ function recordLabel(record: ImportRelationRecord | null): string {
   return `${record.counterparty || copy.ledger.noCounterparty} · ${record.amount} ${record.currency}`;
 }
 
-function mappingDecision(scan: ImportScan, drafts: Record<string, MappingDraft>): ImportMappingDecision[] {
-  return scan.groups.map((group) => {
+function mappingDecision(scan: ImportScan, drafts: Record<string, MappingDraft>, allocationDrafts: Record<string, string[]> = {}): ImportMappingDecision[] {
+  const decisions: ImportMappingDecision[] = scan.groups.map((group) => {
     const draft = drafts[group.group_id];
     return {
       group_id: group.group_id,
@@ -141,6 +145,15 @@ function mappingDecision(scan: ImportScan, drafts: Record<string, MappingDraft>)
         : null,
     };
   });
+  const componentAllocations = Object.fromEntries(
+    Object.entries(allocationDrafts)
+      .filter(([, values]) => values.length > 1)
+      .map(([recordId, values]) => [recordId, values.map((amount) => ({ amount }))]),
+  );
+  if (decisions.length > 0 && Object.keys(componentAllocations).length > 0) {
+    decisions[0] = { ...decisions[0], component_allocations: componentAllocations };
+  }
+  return decisions;
 }
 
 function incompleteMapping(scan: ImportScan | null, drafts: Record<string, MappingDraft>): boolean {
@@ -154,6 +167,22 @@ function ordinaryUnsupportedCount(preview: ImportPreview): number {
   return Math.max(0, preview.summary.unsupported - (preview.summary.unresolved ?? 0));
 }
 
+function allocationRequiredCount(preview: ImportPreview): number {
+  return preview.summary.requires_allocation
+    ?? preview.items.filter((item) => item.status === "requires_allocation").length;
+}
+
+function unsignedAmount(value: string | null | undefined): string {
+  return String(value ?? "").trim().replace(/^[+-]/, "");
+}
+
+function allocationStatusLabel(item: ImportPreview["items"][number], balance: AllocationBalance): string {
+  if (balance.state === "invalid") return "金额无效";
+  if (balance.state === "complete") return `已匹配 ${balance.total} ${item.currency}`;
+  if (balance.difference.startsWith("-")) return `超出 ${balance.difference.slice(1)} ${item.currency}`;
+  return `还差 ${balance.difference} ${item.currency}`;
+}
+
 export default function ImportScreen() {
   const { client, activeRole } = useSession();
   const [importState, dispatch] = useReducer(importSessionReducer, undefined, createImportSession);
@@ -162,6 +191,7 @@ export default function ImportScreen() {
   const [scan, setScan] = useState<ImportScan | null>(null);
   const [drafts, setDrafts] = useState<Record<string, MappingDraft>>({});
   const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [allocationDrafts, setAllocationDrafts] = useState<Record<string, string[]>>({});
   const [relationDrafts, setRelationDrafts] = useState<Record<string, RelationDraft>>({});
   const [password, setPassword] = useState("");
   const [passwordRequired, setPasswordRequired] = useState(false);
@@ -186,6 +216,7 @@ export default function ImportScreen() {
       setScan(nextScan);
       setDrafts(mappingFor(nextScan));
       setPreview(null);
+      setAllocationDrafts({});
       setRelationDrafts({});
       setImportToken(nextScan.import_token ?? nextToken ?? null);
       if (nextScan.import_token || nextToken) setIdempotencyKey((current) => current ?? newIdempotencyKey());
@@ -221,6 +252,7 @@ export default function ImportScreen() {
       setScan(null);
       setDrafts({});
       setPreview(null);
+      setAllocationDrafts({});
       setRelationDrafts({});
       setResult(null);
       setImportToken(null);
@@ -242,7 +274,7 @@ export default function ImportScreen() {
     await scanFile(file, password, importToken ?? undefined);
   }
 
-  async function loadPreview() {
+  async function loadPreview(nextStage: "preview" | "relations" = "preview") {
     if (!file || !scan || !mappingComplete) return;
     dispatch({ type: "request_started" });
     setErrorOverride(null);
@@ -252,14 +284,23 @@ export default function ImportScreen() {
         "",
         undefined,
         password || undefined,
-        mappingDecision(scan, drafts),
+        mappingDecision(scan, drafts, allocationDrafts),
         importToken ?? undefined,
       );
       setPreview(nextPreview);
+      setAllocationDrafts((current) => {
+        const next = { ...current };
+        for (const item of nextPreview.items) {
+          const components = item.components ?? [];
+          if (components.length < 2) continue;
+          next[item.record_id] = components.map((component, index) => current[item.record_id]?.[index] ?? unsignedAmount(component.amount));
+        }
+        return next;
+      });
       setImportToken(nextPreview.import_token ?? importToken);
       setRelationDrafts({});
       dispatch({ type: "preview_ready", preview: nextPreview });
-      setStage("preview");
+      setStage(nextStage);
     } catch (cause) {
       const token = importTokenFrom(cause);
       if (token) setImportToken(token);
@@ -275,6 +316,18 @@ export default function ImportScreen() {
 
   function openRelations() {
     if (!preview) return;
+    const aggregateItems = preview.items.filter((item) => (item.components?.length ?? 0) > 1);
+    const allocationReady = aggregateItems.length > 0
+      ? aggregateItems.every((item) => allocationMatches(item, allocationDrafts[item.record_id] ?? []))
+      : allocationRequiredCount(preview) === 0;
+    if (!allocationReady) {
+      setErrorOverride("请补齐组合支付各组成项金额，且合计等于流水金额。");
+      return;
+    }
+    if (aggregateItems.length > 0) {
+      void loadPreview("relations");
+      return;
+    }
     setRelationDrafts(Object.fromEntries(preview.relations.map((relation) => [relation.id, relationDrafts[relation.id] ?? relationDraftFor(relation)])));
     setStage("relations");
   }
@@ -299,6 +352,14 @@ export default function ImportScreen() {
 
   async function confirmImport() {
     if (!file || !preview || ordinaryUnsupportedCount(preview) > 0 || !writable) return;
+    const aggregateItems = preview.items.filter((item) => (item.components?.length ?? 0) > 1);
+    const allocationReady = aggregateItems.length > 0
+      ? aggregateItems.every((item) => allocationMatches(item, allocationDrafts[item.record_id] ?? []))
+      : allocationRequiredCount(preview) === 0;
+    if (!allocationReady) {
+      setErrorOverride("请补齐组合支付各组成项金额，且合计等于流水金额。");
+      return;
+    }
     const decisions = preview.relations.flatMap((relation) => {
       const draft = relationDrafts[relation.id] ?? relationDraftFor(relation);
       const decision = relationDecision(relation, draft);
@@ -315,7 +376,7 @@ export default function ImportScreen() {
         previewRelationDigest: preview.relation_digest,
         previewChannel: preview.channel,
         relations: decisions,
-        mapping: mappingDecision(scan as ImportScan, drafts),
+        mapping: mappingDecision(scan as ImportScan, drafts, allocationDrafts),
         importToken: importToken ?? undefined,
         idempotencyKey: commitKey,
       }));
@@ -335,6 +396,45 @@ export default function ImportScreen() {
   }
 
   const currentError = errorOverride ?? errorText(importState.errorCode);
+  const allocationItems = preview?.items.filter((item) => (item.components?.length ?? 0) > 1) ?? [];
+  const allocationComplete = preview
+    ? allocationItems.length > 0
+      ? allocationItems.every((item) => allocationMatches(item, allocationDrafts[item.record_id] ?? []))
+      : allocationRequiredCount(preview) === 0
+    : false;
+  const renderAllocationDetail = (item: ImportPreview["items"][number]) => {
+    const components = item.components ?? [];
+    if (components.length < 2) return null;
+    const values = allocationDrafts[item.record_id] ?? [];
+    const balance = allocationBalance(item, values);
+    return <View
+      testID={`${semanticIds.importAllocation}.${item.record_id}`}
+      style={[styles.allocationDetail, balance.state === "complete" && styles.allocationDetailComplete]}
+    >
+      <View style={styles.allocationFields}>
+        {components.map((component, index) => <View key={`${item.record_id}-${component.ordinal}`} style={styles.allocationField}>
+          <View style={styles.allocationLabel}><Text style={styles.muted}>{component.account_name || component.source_label}</Text><Text style={styles.allocationHint}>账户 · {item.currency}</Text></View>
+          <TextInput
+            testID={`import-allocation-${item.record_id}-${component.ordinal}`}
+            accessibilityLabel={`${component.account_name || component.source_label}分摊金额`}
+            editable={writable && importState.status !== "loading" && importState.status !== "committing"}
+            keyboardType="decimal-pad"
+            onChangeText={(value) => {
+              setAllocationDrafts((current) => {
+                const next = [...(current[item.record_id] ?? [])];
+                next[index] = value;
+                return { ...current, [item.record_id]: next };
+              });
+              setErrorOverride(null);
+            }}
+            style={styles.allocationInput}
+            value={values[index] ?? ""}
+          />
+        </View>)}
+      </View>
+      <View style={styles.allocationSummary}><Text style={balance.state === "complete" ? styles.allocationComplete : styles.allocationIncomplete}>{allocationStatusLabel(item, balance)}</Text></View>
+    </View>;
+  };
   const stageIndex = stage === "select" ? 1 : stage === "mapping" ? 2 : stage === "preview" ? 3 : 4;
   if (importState.status === "success" && result) {
     return <Screen testID={semanticIds.importSuccess}>
@@ -383,9 +483,9 @@ export default function ImportScreen() {
         return <View key={group.group_id} style={styles.mappingGroup}>
           <Text style={styles.groupName}>{group.display_name}</Text>
           <Text style={styles.muted}>{group.masked_evidence} · {group.currencies.join(" / ")} · {group.row_count} 条流水</Text>
-          <View style={styles.choiceList}>{scan.accounts.map((account) => <Button key={account.id} disabled={!writable || importState.status === "loading"} onPress={() => setDrafts((current) => ({ ...current, [group.group_id]: { accountId: account.id, newAccount: null } }))} variant={draft.accountId === account.id ? "primary" : "secondary"}>{account.name}</Button>)}</View>
-          <Button disabled={!writable || importState.status === "loading"} onPress={() => setDrafts((current) => ({ ...current, [group.group_id]: { accountId: null, newAccount: draft.newAccount ?? { draftId: `draft-${group.group_id}`, name: group.display_name, type: "cash", currencies: [...group.currencies] } } }))} variant={draft.newAccount ? "primary" : "secondary"}>{draft.newAccount ? `${copy.import.newAccountPrefix}${draft.newAccount.name}` : copy.import.createNamedAccount}</Button>
-          {draft.newAccount && <View style={styles.newAccountBox}><Label>{copy.import.newAccountName}</Label><TextInput editable={writable} onChangeText={(name) => setDrafts((current) => ({ ...current, [group.group_id]: { ...draft, newAccount: draft.newAccount ? { ...draft.newAccount, name } : null } }))} style={styles.input} value={draft.newAccount.name} /><Label>{copy.import.accountType}</Label><View style={styles.choiceList}>{[["cash", copy.import.cashAccount], ["loan", copy.import.loanAccount], ["lend", copy.import.lendAccount]].map(([value, label]) => <Button key={value} disabled={!writable} onPress={() => setDrafts((current) => ({ ...current, [group.group_id]: { ...draft, newAccount: draft.newAccount ? { ...draft.newAccount, type: value } : null } }))} variant={draft.newAccount?.type === value ? "primary" : "secondary"}>{label}</Button>)}</View></View>}
+          <View style={styles.choiceList}>{scan.accounts.map((account) => <Button key={account.id} disabled={!writable || importState.status === "loading"} onPress={() => { setDrafts((current) => ({ ...current, [group.group_id]: { accountId: account.id, newAccount: null } })); setPreview(null); setAllocationDrafts({}); setRelationDrafts({}); }} variant={draft.accountId === account.id ? "primary" : "secondary"}>{account.name}</Button>)}</View>
+          <Button disabled={!writable || importState.status === "loading"} onPress={() => { setDrafts((current) => ({ ...current, [group.group_id]: { accountId: null, newAccount: draft.newAccount ?? { draftId: `draft-${group.group_id}`, name: group.display_name, type: "cash", currencies: [...group.currencies] } } })); setPreview(null); setAllocationDrafts({}); setRelationDrafts({}); }} variant={draft.newAccount ? "primary" : "secondary"}>{draft.newAccount ? `${copy.import.newAccountPrefix}${draft.newAccount.name}` : copy.import.createNamedAccount}</Button>
+          {draft.newAccount && <View style={styles.newAccountBox}><Label>{copy.import.newAccountName}</Label><TextInput editable={writable} onChangeText={(name) => { setDrafts((current) => ({ ...current, [group.group_id]: { ...draft, newAccount: draft.newAccount ? { ...draft.newAccount, name } : null } })); setPreview(null); setAllocationDrafts({}); setRelationDrafts({}); }} style={styles.input} value={draft.newAccount.name} /><Label>{copy.import.accountType}</Label><View style={styles.choiceList}>{[["cash", copy.import.cashAccount], ["loan", copy.import.loanAccount], ["lend", copy.import.lendAccount]].map(([value, label]) => <Button key={value} disabled={!writable} onPress={() => { setDrafts((current) => ({ ...current, [group.group_id]: { ...draft, newAccount: draft.newAccount ? { ...draft.newAccount, type: value } : null } })); setPreview(null); setAllocationDrafts({}); setRelationDrafts({}); }} variant={draft.newAccount?.type === value ? "primary" : "secondary"}>{label}</Button>)}</View></View>}
           {missingCurrencies.length > 0 && <Text style={styles.warning}>{copy.import.currencySupplementPrefix}「{selected?.name}」{copy.import.currencySupplementSuffix}：{missingCurrencies.join("、")}</Text>}
           {!draft.accountId && !draft.newAccount && <Text style={styles.warning}>{copy.import.selectMapping}</Text>}
         </View>;
@@ -396,11 +496,10 @@ export default function ImportScreen() {
     {stage === "preview" && preview && <Surface testID={semanticIds.importPreview}>
       <View style={styles.stageHeader}><Text style={styles.sectionTitle}>{copy.import.preview}</Text><Text style={styles.mono}>{preview.channel_label}</Text></View>
       <View style={styles.summary}><Summary label={copy.import.all} value={preview.summary.total} /><Summary label={copy.import.new} value={preview.summary.new} /><Summary label={copy.import.existing} value={preview.summary.existing} /><Summary label={copy.import.statusUnresolved} value={preview.summary.unresolved ?? 0} /></View>
-      {preview.items.length === 0 ? <StatusMessage title={copy.import.noPreviewRecords} /> : <View style={styles.previewList}>{preview.items.slice(0, 40).map((item) => <View key={item.record_id} style={styles.previewRow}><View style={styles.rowMain}><Text style={styles.groupName}>{item.counterparty || copy.ledger.noCounterparty}</Text><Text style={styles.muted}>{item.account_name} · {item.occurred_at}</Text><Text style={styles.muted}>{recordTypeLabels[item.record_type] ?? copy.record.typeLabels.other} · {item.status === "new" ? copy.import.statusNew : item.status === "existing" ? copy.import.statusExisting : item.status === "unresolved" ? copy.import.statusUnresolved : copy.import.statusUnsupported}</Text></View><Text style={styles.amount}>{item.amount} {item.currency}</Text></View>)}</View>}
-      {preview.items.length > 40 && <Text style={styles.muted}>{copy.import.previewFirst40}</Text>}
+      {preview.items.length === 0 ? <StatusMessage title={copy.import.noPreviewRecords} /> : <View style={styles.previewList}>{preview.items.map((item) => <View key={item.record_id} style={styles.previewItem}><View style={styles.previewRow}><View style={styles.rowMain}><Text style={styles.groupName}>{item.counterparty || copy.ledger.noCounterparty}</Text><Text style={styles.muted}>{item.account_name} · {item.occurred_at}</Text><Text style={styles.muted}>{recordTypeLabels[item.record_type] ?? copy.record.typeLabels.other} · {item.status === "new" ? copy.import.statusNew : item.status === "existing" ? copy.import.statusExisting : item.status === "unresolved" ? copy.import.statusUnresolved : item.status === "requires_allocation" ? "待补分配" : copy.import.statusUnsupported}</Text></View><Text style={styles.amount}>{item.amount} {item.currency}</Text></View>{renderAllocationDetail(item)}</View>)}</View>}
       {preview.summary.unresolved ? <Text style={styles.warning}>{preview.summary.unresolved} 条无法识别，确认后会跳过。</Text> : null}
       {ordinaryUnsupportedCount(preview) > 0 ? <Text style={styles.warning}>{copy.import.unsupportedCannotConfirm}</Text> : null}
-      <View style={styles.stageActions}><Button testID={semanticIds.importPrevious} disabled={importState.status === "loading"} onPress={() => setStage("mapping")}>{copy.import.previous}</Button><Button testID={semanticIds.importNext} disabled={importState.status === "loading"} onPress={() => openRelations()} variant="primary">{copy.import.next}</Button></View>
+      <View style={styles.stageActions}><Button testID={semanticIds.importPrevious} disabled={importState.status === "loading"} onPress={() => setStage("mapping")}>{copy.import.previous}</Button><Button testID={semanticIds.importNext} disabled={importState.status === "loading" || !allocationComplete || !writable} onPress={() => openRelations()} variant="primary">{copy.import.next}</Button></View>
     </Surface>}
 
     {stage === "relations" && preview && <Surface testID={semanticIds.importRelations}>
@@ -420,7 +519,7 @@ export default function ImportScreen() {
       })}</View>}
       {ordinaryUnsupportedCount(preview) > 0 && <Text style={styles.warning}>{copy.import.unsupportedCannotConfirm}</Text>}
       {importState.status === "committing" && <StatusMessage title={copy.import.committing} detail={copy.import.committingDetail} action={<ActivityIndicator color={nativeColors.accent} />} />}
-      <View style={styles.stageActions}><Button testID={semanticIds.importPrevious} disabled={importState.status === "committing"} onPress={() => setStage("preview")}>{copy.import.previous}</Button><Button testID={semanticIds.importConfirm} disabled={!writable || importState.status === "committing" || ordinaryUnsupportedCount(preview) > 0} onPress={() => void confirmImport()} variant="primary">{copy.import.confirm}</Button></View>
+      <View style={styles.stageActions}><Button testID={semanticIds.importPrevious} disabled={importState.status === "committing"} onPress={() => setStage("preview")}>{copy.import.previous}</Button><Button testID={semanticIds.importConfirm} disabled={!writable || importState.status === "committing" || ordinaryUnsupportedCount(preview) > 0 || !allocationComplete} onPress={() => void confirmImport()} variant="primary">{copy.import.confirm}</Button></View>
     </Surface>}
   </Screen>;
 }
@@ -453,9 +552,20 @@ const styles = StyleSheet.create({
   summaryItem: { minWidth: 76, flex: 1, gap: 3, padding: 10, borderWidth: 1, borderColor: nativeColors.rule, backgroundColor: nativeColors.paperMuted },
   summaryValue: { color: nativeColors.ink, fontFamily: nativeTypography.mono, fontSize: 20, fontWeight: "700" },
   previewList: { gap: 8 },
+  previewItem: { gap: 0 },
   previewRow: { minHeight: 72, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, padding: 12, borderWidth: 1, borderColor: nativeColors.rule, backgroundColor: nativeColors.paperRaised },
   rowMain: { flex: 1, gap: 3 },
   amount: { color: nativeColors.ink, fontFamily: nativeTypography.mono, fontSize: 13, fontWeight: "700" },
+  allocationDetail: { gap: 8, padding: 12, borderWidth: 1, borderTopWidth: 0, borderColor: nativeColors.rule, borderLeftWidth: 3, borderLeftColor: nativeColors.ruleStrong, backgroundColor: nativeColors.paperMuted },
+  allocationDetailComplete: { borderLeftColor: nativeColors.income, backgroundColor: nativeColors.successSurface },
+  allocationFields: { gap: 0 },
+  allocationField: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: nativeColors.rule },
+  allocationLabel: { flex: 1, gap: 2 },
+  allocationHint: { color: nativeColors.inkFaint, fontSize: 11 },
+  allocationInput: { width: 132, minHeight: 44, paddingHorizontal: 10, borderWidth: 1, borderColor: nativeColors.rule, borderRadius: 3, color: nativeColors.ink, backgroundColor: nativeColors.paperRaised, fontFamily: nativeTypography.mono, fontSize: 16, textAlign: "right" },
+  allocationSummary: { alignItems: "flex-end", paddingTop: 8, borderTopWidth: 1, borderTopColor: nativeColors.rule },
+  allocationComplete: { color: nativeColors.income, fontFamily: nativeTypography.mono, fontSize: 12 },
+  allocationIncomplete: { color: nativeColors.danger, fontFamily: nativeTypography.mono, fontSize: 12 },
   relationList: { gap: 10 },
   relationCard: { gap: 8, padding: 12, borderWidth: 1, borderColor: nativeColors.rule, backgroundColor: nativeColors.paperRaised },
   relationRejected: { borderColor: nativeColors.danger, opacity: 0.72 },

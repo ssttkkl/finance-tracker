@@ -48,7 +48,7 @@ export default function LedgerScreen() {
     const negative = item.amount.startsWith("-") || item.economic_type === "expense";
     const category = item.category?.path.map(({ name }) => name).join(" / ") || copy.ledger.noCategory;
     return <View testID={semanticIds.ledgerRecord}><Pressable testID={semanticIds.ledgerOpenRecord} accessibilityLabel={`${copy.ledger.view}：${item.counterparty || copy.ledger.noCounterparty}`} accessibilityRole="button" onPress={() => openRecord(item)} style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
-      <View style={styles.rowMain}><Text style={styles.counterparty}>{item.counterparty || copy.ledger.noCounterparty}</Text><Text style={styles.meta}>{item.account.name} · {category} · {item.occurred_at}</Text><Text style={styles.note}>{item.note || copy.ledger.noNote}</Text></View>
+      <View style={styles.rowMain}><Text style={styles.counterparty}>{item.counterparty || copy.ledger.noCounterparty}</Text><Text style={styles.meta}>{item.account?.name ?? "多个账户"} · {category} · {item.occurred_at}</Text><Text style={styles.note}>{item.note || copy.ledger.noNote}</Text></View>
       <View style={styles.rowAmount}><Text style={[styles.amount, negative ? styles.expense : styles.income]}>{item.amount} {item.currency}</Text><Text style={styles.source}>{item.source_type ?? copy.ledger.manualSource}</Text><Text style={styles.viewAction}>{copy.ledger.view}</Text></View>
     </Pressable></View>;
   }
