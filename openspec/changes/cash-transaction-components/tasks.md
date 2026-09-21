@@ -130,3 +130,11 @@ Web 自动化与构建仍未完成：`npm run test:web -- --run` 因工作树无
 - 产品/工程/安全/最终 diff 复核无阻断 finding；已采纳 `CashRecord.account_id` 可空契约和组件端点显式类型修正。未引入凭据、原始账单输出、外部写入或新依赖。
 - 发布/回滚：在目标环境删除旧开发数据库并从当前 schema 重建；不对迁移 36 执行降级。若回滚，回退合并提交后按旧代码重新创建旧 schema；专用 PostgreSQL 容器可直接销毁，不承载生产数据。
 - 目标分支同步：`git fetch origin` 后确认 `origin/refactor/web=48a733f`，以无冲突 merge 合入本分支，产生 merge commit `b56dd5b`；合入内容为目标分支的 OpenSpec 归档/主规格同步，未覆盖本变更实现。提交实现 commit 为 `e2f987d`。
+
+### PR 性能门禁修复（2026-09-21）
+
+- GitHub PR #88 的初次检查 `35572429246` 中，唯一失败为 `Backend (Performance)`：`tests/test_cash_projection_performance.py::test_fixed_10k_cash_projection_rebuild_meets_budget[postgresql]` 在 ARM runner 上报告 `rebuild_p95_ns=16824375661`（16.824 秒），超过 10 秒预算；其余 6 个检查通过。失败日志未显示功能断言或数据正确性错误。
+- 根因复核：`RelationalCashProjectionRepository.source_digest()` 在每次全量投影重建及发布前校验中，对 10,000 条现金父流水逐条查询 `cash_transaction_components`，产生可避免的 N+1 查询。修复为按工作区一次性读取组件、按父流水分组后组装完全相同的 digest payload；保留未删除父流水过滤、ordinal/id 顺序和并发 source digest 校验语义。修复提交为 `3ecc95c`（`perf: batch cash projection component digest reads`）。
+- 受影响回归：`env -u FT_TEST_POSTGRES_URL -u FT_REQUIRE_TEST_POSTGRES PYTHONPATH=tests:.:src uv run pytest tests/test_relational_cash_projections.py tests/test_cash_investment_funding_relations.py -q --tb=short` → `16 passed, 10 skipped`；`git diff --check`、目标文件 `compileall` 通过。
+- 同一固定 10k 重建门禁在专用 `_test` PostgreSQL 上：`env FT_TEST_POSTGRES_URL='<redacted>' FT_REQUIRE_TEST_POSTGRES=1 PYTHONPATH=tests:.:src uv run pytest tests/test_cash_projection_performance.py::test_fixed_10k_cash_projection_rebuild_meets_budget -q -s --tb=short` → SQLite `p95=2.272773166s`、PostgreSQL `p95=3.754515583s`，`2 passed`；修复前同一 PostgreSQL 环境 p95 为 `7.806308042s`。两端均低于 10 秒预算。
+- 修复后待执行：推送 `3ecc95c` 及本记录，等待 PR 检查重新完成；仅在所有 required checks 通过后合入 `refactor/web`，并回写最终 merge commit、检查 URL 和当前目标分支 HEAD。原有 PostgreSQL 财富 100k 冷重建 p95 宿主机抖动仍作为独立环境残余风险记录，不属于本次 cash projection 修复范围。
