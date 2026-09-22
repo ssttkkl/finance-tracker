@@ -1,6 +1,6 @@
 # Finance Tracker Agent 工作流
 
-本仓库采用 **OpenSpec + 仓库自有工作流**。`AGENTS.md` 是变更流程、审查、验证和外部写授权的唯一规则；`openspec/project-context.md` 是跨变更的财务、持久化与安全工程原则；`openspec/specs/` 是当前行为的唯一事实源。`CLAUDE.md` 是本文件的符号链接，修改 Agent 约定时只编辑本文件。
+本仓库的代码改动采用 **OpenSpec + 仓库自有工作流**。`AGENTS.md` 是变更流程、审查、验证和外部写授权的唯一规则；`openspec/project-context.md` 是跨变更的财务、持久化与安全工程原则；`openspec/specs/` 是当前行为的唯一事实源。纯文档、术语、功能地图和 Agent 约定改动不创建 OpenSpec 变更。`CLAUDE.md` 是本文件的符号链接，修改 Agent 约定时只编辑本文件。
 
 所有门禁均为强约束。任务持续推进，直到完成、缺少关键决策、外部授权或必需环境条件。项目 Skill 只承载领域知识、OpenSpec CLI 或外部工具操作，不取代本文件的 artifact、审查、QA、验证或授权。
 
@@ -8,7 +8,7 @@
 
 - 每项变更在开始实施前，都必须显式调用项目内的 `grill-me` 技能，并确保其依赖的 `grilling` skill 已安装；持续进行需求澄清，直到目标、范围、非目标、具体内容、验收标准、边界条件和关键风险明确。`grill-me` 是用户入口，`grilling` 是实际访谈 skill；在 Codex 中使用 `$grill-me` / `$grilling` 调用，不要把它们当作 shell 命令。
 - 该门禁适用于代码、测试、规格、文档、配置、技能、依赖和迁移等所有仓库变更；仅阅读、查询状态和运行只读验证不属于实施变更。
-- 澄清结论必须写入对应的 OpenSpec `proposal.md`、`design.md`、`tasks.md` 或其他正式变更记录。若仍存在会改变范围、语义或验收标准的歧义，必须暂停实施并请求用户决策。
+- 涉及代码改动时，澄清结论必须写入对应的 OpenSpec `proposal.md`、`design.md`、`tasks.md` 或其他正式变更记录；纯文档改动将结论直接写入目标文档即可。若仍存在会改变范围、语义或验收标准的歧义，必须暂停实施并请求用户决策。
 - `grill-me` 默认禁止隐式调用，代理必须显式调用该技能并由 `grilling` 执行逐轮澄清，不能以自行推测或简短确认替代需求澄清。
 
 ## 工具边界
@@ -17,7 +17,7 @@
 - 项目不依赖 gstack 或其他仓库外 Skill。唯一例外是 Hallmark：A 类 UI 原型调用 `$hallmark` 技能，任何等级的 UI 审查调用 Hallmark 的 `audit` 技能动作（通常写作 `$hallmark audit`）。Hallmark 是由代理运行时提供的技能，不要求仓库内存在 `hallmark` CLI；`$hallmark` / `$hallmark audit` 都是技能调用，不得改写成 shell 命令或以 `command -v hallmark` 作为技能是否可用的判据。若当前运行时未提供该技能，必须记录技能不可用并完成可替代的人工审查，不得声称已执行 Hallmark。
 - Web QA 使用仓库实际提供的 Vitest、Playwright、生产预览和适用浏览器工具；缺少某个浏览器 Skill 时，改用可用工具完成同等检查。
 - PostgreSQL 双后端验证属于交付前门禁，不由测试代码自动发现或自动启动数据库。完成开发和 SQLite 回归后，执行者必须在本机准备专用测试库：优先使用本地 Docker PostgreSQL 或本机 `psql` 可连接的数据库，将连接配置到 `FT_TEST_POSTGRES_URL` 后补跑同一契约矩阵；数据库名必须以 `_test` 结尾。未配置时只能记录为未完成，不能把跳过项计入完整验证。
-- 必须提交 `openspec/`、`.agents/skills/openspec-*`、`openspec/specs/` 与 `openspec/changes/`；运行缓存、凭据、浏览器状态与真实财务数据留在仓库外。
+- 代码改动必须提交相应的 `openspec/`、`.agents/skills/openspec-*`、`openspec/specs/` 与 `openspec/changes/` 记录；纯文档改动不创建空的 OpenSpec scaffolding。运行缓存、凭据、浏览器状态与真实财务数据留在仓库外。
 
 ## Web 浏览器 QA 必须门禁
 
@@ -34,13 +34,20 @@
 - 跨端共享的是文案、页面区域、操作、状态、语义测试 ID 和响应式不变量，不要求 Web DOM 与 React Native 组件实现相同；平台特有控件必须保持相同的值、标签、确认语义、错误处理和业务结果。
 - 第一阶段未覆盖的 Native 页面必须明确登记为缺口，不得用不可完成任务的伪页面或静默跳转掩盖覆盖不足。
 
+## 功能地图维护门禁
+
+- [`docs/feature-map.md`](docs/feature-map.md) 是 Web 与 Native 页面级功能、实现证据、跨端覆盖关系和对齐 TODO 的唯一盘点文档；它不替代 `openspec/specs/` 的行为规格。
+- 所有功能改动（包括后端能力新增客户端入口，以及 Web、Native 或共享 presentation 层改动），都必须在同一组改动中更新功能地图，检查页面总数、双端/单端覆盖状态、实现证据和跨端对齐 TODO。
+- 新增页面级功能时，必须同时登记两端实现状态；只实现一端时，必须新增另一端的对齐 TODO。补齐另一端后，只有在真实客户端入口、API 流程和相称验证完成后，才可移除对应 TODO。
+- Web 抽屉与 Native 页面、Web HTML 控件与 Native 原生控件等已登记的 presentation 差异不自动视为缺口；未登记且影响用户可观察行为的差异按缺陷处理。
+
 ## 中文术语与文案
 
 修改文档、注释、docstring 或程序文案时，先使用 `$domain-glossary` 读取词表、主规格、active change 和代码上下文；新概念、语义变化或歧义先更新 `DOMAIN_GLOSSARY.md`。随后按 `$chinese-documentation` 复核本次适用文本。代码标识符、字段、参数、枚举、协议字面量和原文引用保持原样并使用反引号；`leg` 按业务语境写为**现金部分**、**证券部分**、**付出资产**、**换入资产**或具体流水。
 
 ## 变更分级
 
-分级只调整八阶段的深度，不降低财务正确性、数据安全、公共契约或可回滚性。分类存疑时使用 A 类。
+以下分级和 OpenSpec 强度矩阵适用于包含代码改动的变更；纯文档、术语、功能地图和 Agent 约定改动不创建 OpenSpec 变更，按目标文档范围执行审查与验证。分级只调整八阶段的深度，不降低财务正确性、数据安全、公共契约或可回滚性。分类存疑时使用 A 类。
 
 | 等级 | 适用条件 | OpenSpec 与最小验证 |
 |------|----------|--------------------|
@@ -54,12 +61,12 @@
 
 - `project-context.md` 定义工程原则；`specs/<capability>/spec.md` 定义当前行为；`changes/<name>/` 定义未完成变更；`changes/archive/YYYY-MM-DD-<name>/` 保留完成变更的审计记录。
 - `proposal.md` 记录价值、范围、非目标和验收，delta spec 记录行为变化，`design.md` 记录架构、数据流、接口、风险、部署和 UI 策略，`tasks.md` 记录阶段、实施、审查、验证与发布准备。
-- 需求、领域语义、架构、数据库、接口或风险发生变化时，先更新相应 artifact 再实施。归档前同步 delta；纯实现细节只更新 design、tasks 或代码，纯工具或文档变更使用 `skip_specs: true`。
+- 代码改动导致需求、领域语义、架构、数据库、接口或风险发生变化时，先更新相应 artifact 再实施。归档前同步 delta；纯实现细节只更新 design、tasks 或代码。纯工具或文档改动不创建 OpenSpec 变更，也不需要生成 `skip_specs: true` 的空 scaffolding。
 - 新能力使用 `$openspec-propose`，当前 active change 变更范围、验收或财务语义时使用 `$openspec-update-change`。`MODIFIED` delta requirement 必须包含完整更新后的 requirement 和场景。
 
 ## 八阶段强度矩阵
 
-所有 A/B/C 变更按「思考、计划、任务拆分与一致性、构建、审查、测试与 QA、发布、反思」组织；每个阶段在 `tasks.md` 记录动作、结论或不适用理由。B/C 可以合并相邻轻量动作，但必须保留八阶段、测试先行、审查、验证证据与外部写授权。发现新需求、架构决策、规格缺口或阻断性 finding 时，Flow-Back 到最近正确的阶段和 artifact。
+所有包含代码改动的 A/B/C 变更按「思考、计划、任务拆分与一致性、构建、审查、测试与 QA、发布、反思」组织；每个阶段在 `tasks.md` 记录动作、结论或不适用理由。B/C 可以合并相邻轻量动作，但必须保留八阶段、测试先行、审查、验证证据与外部写授权。发现新需求、架构决策、规格缺口或阻断性 finding 时，Flow-Back 到最近正确的阶段和 artifact。
 
 | 阶段 | A：完整变更 | B：轻量变更 | C：局部缺陷修复 |
 |------|-------------|-------------|-----------------|

@@ -138,6 +138,7 @@ PYTHONPATH=tests:.:src uv run pytest
 
 | 文档 | 内容 |
 |---|---|
+| [Web / Native 功能地图](docs/feature-map.md) | 页面级功能盘点、双端覆盖状态和跨端对齐 TODO |
 | [docs/README.md](docs/README.md) | 文档索引 |
 | [docs/import-flow.md](docs/import-flow.md) | 导入、关系、同步事务语义 |
 | [docs/export-csv-format.md](docs/export-csv-format.md) | 预览/交换 CSV 字段 |
