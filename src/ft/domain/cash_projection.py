@@ -232,6 +232,17 @@ def _validate_group(group: list[int], facts: dict[int, CashProjectionFact], rela
                 if item.applied_amount is not None and item.applied_amount > 0
             )
             if explicit_amounts:
+                component_amounts = tuple(
+                    (
+                        abs(facts[item.primary_fact_id].amount),
+                        abs(facts[item.secondary_fact_id].amount),
+                    )
+                    for item in same_edge
+                )
+                mirrored_duplicate = (
+                    len(set(explicit_amounts)) == 1
+                    and len(set(component_amounts)) == 1
+                )
                 relation = ProjectionRelation(
                     id=relation.id,
                     kind=relation.kind,
@@ -239,7 +250,15 @@ def _validate_group(group: list[int], facts: dict[int, CashProjectionFact], rela
                     secondary_fact_id=relation.secondary_fact_id,
                     status=relation.status,
                     subtype=relation.subtype,
-                    applied_amount=sum(explicit_amounts, Decimal("0")),
+                    # Payment mirrors describe the same economic refund from
+                    # different source rows.  Equal component allocations are
+                    # duplicate evidence; distinct component allocations are
+                    # portions of one aggregate parent and must be summed.
+                    applied_amount=(
+                        explicit_amounts[0]
+                        if mirrored_duplicate
+                        else sum(explicit_amounts, Decimal("0"))
+                    ),
                 )
         logical.append((relation, primary, secondary))
     nodes = sorted(set(canonical.values()))

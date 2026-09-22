@@ -132,8 +132,8 @@ def test_mirrored_expense_and_refund_diamond_offsets_once():
         (
             ProjectionRelation(1, "payment_mirror", 1, 2),
             ProjectionRelation(2, "payment_mirror", 3, 4),
-            ProjectionRelation(3, "refund_offset", 1, 3),
-            ProjectionRelation(4, "refund_offset", 2, 4),
+            ProjectionRelation(3, "refund_offset", 1, 3, applied_amount=Decimal("45.21")),
+            ProjectionRelation(4, "refund_offset", 2, 4, applied_amount=Decimal("45.21")),
         ),
     )
 

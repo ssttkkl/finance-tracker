@@ -7,9 +7,17 @@ from datetime import datetime
 from decimal import Decimal
 import hashlib
 import json
+import logging
+from functools import lru_cache
 from typing import Any, Mapping, Sequence
 
 from ft.domain.application import OperationResult
+from ft.domain.cash_projection import (
+    CashProjectionError,
+    CashProjectionFact,
+    ProjectionRelation,
+    build_cash_projections,
+)
 from ft.domain.relations import (
     CONFIDENCE_STRONG,
     CONFIDENCE_WEAK,
@@ -42,6 +50,38 @@ from ft.domain.relations import (
 from ft.domain.import_time import normalize_timestamp
 from ft.domain.relations.core.keys import stable_fact_order_key, stable_fact_reference
 from ft.domain.relations.pipeline import _demote_overlapping_phase_a_refunds
+
+
+logger = logging.getLogger(__name__)
+
+_AUTO_RELATION_WARNING_CODES = frozenset({
+    "projection_invalid",
+    "refund_exceeds_event_remaining",
+    "relation_kind_conflict",
+    "ambiguous_event",
+    "incomplete_refund_bundle",
+})
+
+
+@dataclass(frozen=True)
+class ProjectionValidationSnapshot:
+    """Normalized projection input shared by preview and persistence gates."""
+
+    facts: tuple[CashProjectionFact, ...]
+    relations: tuple[ProjectionRelation, ...]
+    component_to_parent: tuple[tuple[str, int], ...]
+
+    def parent_id_for_component(self, component_id: str) -> int | None:
+        return dict(self.component_to_parent).get(str(component_id))
+
+
+@dataclass(frozen=True)
+class ProjectionValidationContext:
+    """Reusable fact-side of a projection snapshot for one planning batch."""
+
+    active_facts: tuple[FactView, ...]
+    projection_facts: tuple[CashProjectionFact, ...]
+    component_to_parent: tuple[tuple[str, int], ...]
 
 
 def _fact_view_from_row(row: dict) -> FactView:
@@ -456,6 +496,321 @@ def _initial_remaining(
     return remaining
 
 
+def _projection_snapshot_id(reference: str, used: set[int]) -> int:
+    """Return a deterministic positive projection id for persisted or preview facts."""
+    digest = hashlib.sha256(reference.encode("utf-8")).digest()
+    candidate = int.from_bytes(digest[:8], "big") & ((1 << 63) - 1)
+    candidate = candidate or 1
+    while candidate in used:
+        candidate = candidate + 1 if candidate < (1 << 63) - 1 else 1
+    used.add(candidate)
+    return candidate
+
+
+def _projection_parent_key(fact: FactView) -> str:
+    if fact.parent_id not in (None, ""):
+        return f"parent:{fact.parent_id}"
+    return f"fact:{_stable_fact_ref(str(fact.id), {str(fact.id): fact})}"
+
+
+def _projection_relation_payload_from_proposal(proposal: RelationProposal) -> dict:
+    applied_amount = None
+    if proposal.kind == RelationKind.REFUND_OFFSET.value:
+        amount = abs(proposal.refund_amount)
+        if amount > 0:
+            applied_amount = amount
+    return {
+        "kind": proposal.kind,
+        "subtype": proposal.subtype or "",
+        "primary_fact_id": proposal.primary_fact_id,
+        "secondary_fact_id": proposal.secondary_fact_id,
+        "status": RelationStatus.ACCEPTED.value,
+        "applied_amount": applied_amount,
+    }
+
+
+def _projection_relation_payload_from_row(relation: Mapping[str, Any]) -> dict:
+    return {
+        "kind": relation.get("kind"),
+        "subtype": relation.get("subtype") or "",
+        "primary_fact_id": relation.get("primary_component_id") or relation.get("primary_fact_id"),
+        "secondary_fact_id": relation.get("secondary_component_id") or relation.get("secondary_fact_id"),
+        "status": relation.get("status"),
+        "applied_amount": relation.get("applied_amount"),
+    }
+
+
+def _projection_relation_key(payload: Mapping[str, Any]) -> tuple:
+    kind = str(payload.get("kind") or "")
+    endpoints = (
+        str(payload.get("primary_fact_id") or ""),
+        str(payload.get("secondary_fact_id") or ""),
+    )
+    if kind == RelationKind.PAYMENT_MIRROR.value:
+        endpoints = tuple(sorted(endpoints))
+    return kind, str(payload.get("subtype") or ""), *endpoints
+
+
+def _build_projection_validation_context(
+    facts: Sequence[FactView],
+) -> ProjectionValidationContext:
+    active_facts = tuple(fact for fact in facts if not fact.deleted)
+    by_component = {str(fact.id): fact for fact in active_facts}
+    groups: dict[str, list[FactView]] = defaultdict(list)
+    for fact in active_facts:
+        groups[_projection_parent_key(fact)].append(fact)
+    used_fact_ids: set[int] = set()
+    component_to_parent: dict[str, int] = {}
+    projection_facts: list[CashProjectionFact] = []
+    for parent_key, members in sorted(groups.items()):
+        ordered = sorted(members, key=stable_fact_order_key)
+        first = ordered[0]
+        currency = str(first.currency or "").upper()
+        if any(str(item.currency or "").upper() != currency for item in ordered):
+            raise CashProjectionError("projection.invalid_fact")
+        projection_id = _projection_snapshot_id(parent_key, used_fact_ids)
+        for member in ordered:
+            component_to_parent[str(member.id)] = projection_id
+        occurred_at = datetime.fromisoformat(
+            normalize_timestamp(first.occurred_at, default_timezone="UTC")
+        )
+        projection_facts.append(
+            CashProjectionFact(
+                id=projection_id,
+                account_id=None,
+                occurred_at=occurred_at,
+                amount=sum((item.signed_amount for item in ordered), Decimal("0")),
+                currency=currency,
+                counterparty=first.counterparty,
+                category_id=None,
+                note=first.note,
+                source_type=first.bill_source or first.source,
+                record_id=_stable_fact_ref(str(first.id), by_component),
+                cash_granularity=(
+                    "aggregate"
+                    if len(ordered) > 1
+                    or any(item.cash_granularity == "aggregate" for item in ordered)
+                    else "atomic"
+                ),
+            )
+        )
+    return ProjectionValidationContext(
+        active_facts=active_facts,
+        projection_facts=tuple(projection_facts),
+        component_to_parent=tuple(sorted(component_to_parent.items())),
+    )
+
+
+def _projection_validation_reason(
+    facts: Sequence[FactView],
+    accepted_relations: Sequence[Mapping[str, Any]],
+    proposal: RelationProposal,
+    companion_proposals: Sequence[RelationProposal] = (),
+    *,
+    validation_context: ProjectionValidationContext | None = None,
+) -> str | None:
+    """Validate an automatic result using the same pure projection contract.
+
+    Matching still owns candidate discovery.  This adapter only translates
+    component facts and candidate edges into the parent-level projection model
+    so preview ids and persisted ids use the same semantic check.
+    """
+    if proposal.secondary_fact_id in (None, "") or proposal.open_leg:
+        return None
+    try:
+        context = validation_context or _build_projection_validation_context(facts)
+        active_facts = context.active_facts
+        component_to_parent = dict(context.component_to_parent)
+
+        relation_payloads = [
+            _projection_relation_payload_from_row(item)
+            for item in accepted_relations
+            if item.get("status") == RelationStatus.ACCEPTED.value
+        ]
+        seen_proposals: set[str] = set()
+        seen_relation_keys = {
+            _projection_relation_key(payload)
+            for payload in relation_payloads
+        }
+        for candidate in companion_proposals:
+            if candidate.secondary_fact_id in (None, "") or candidate.open_leg:
+                continue
+            key = relation_proposal_key(candidate, active_facts)
+            if key in seen_proposals:
+                continue
+            seen_proposals.add(key)
+            payload = _projection_relation_payload_from_proposal(candidate)
+            if _projection_relation_key(payload) not in seen_relation_keys:
+                relation_payloads.append(payload)
+                seen_relation_keys.add(_projection_relation_key(payload))
+        candidate_key = relation_proposal_key(proposal, active_facts)
+        if candidate_key not in seen_proposals:
+            payload = _projection_relation_payload_from_proposal(proposal)
+            if _projection_relation_key(payload) not in seen_relation_keys:
+                relation_payloads.append(payload)
+
+        projection_relations: list[ProjectionRelation] = []
+        used_relation_ids: set[int] = set()
+        for index, payload in enumerate(relation_payloads):
+            primary_component = str(payload.get("primary_fact_id") or "")
+            secondary_component = str(payload.get("secondary_fact_id") or "")
+            primary = component_to_parent.get(primary_component)
+            secondary = component_to_parent.get(secondary_component)
+            if primary is None or secondary is None:
+                return "projection_invalid"
+            relation_ref = json.dumps(
+                {
+                    "kind": payload.get("kind"),
+                    "subtype": payload.get("subtype") or "",
+                    "primary": primary_component,
+                    "secondary": secondary_component,
+                    "index": index,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            relation_id = _projection_snapshot_id(relation_ref, used_relation_ids)
+            projection_relations.append(
+                ProjectionRelation(
+                    id=relation_id,
+                    kind=str(payload.get("kind") or ""),
+                    primary_fact_id=primary,
+                    secondary_fact_id=secondary,
+                    status=RelationStatus.ACCEPTED.value,
+                    subtype=str(payload.get("subtype") or ""),
+                    applied_amount=payload.get("applied_amount"),
+                )
+            )
+        snapshot = ProjectionValidationSnapshot(
+            facts=context.projection_facts,
+            relations=tuple(projection_relations),
+            component_to_parent=context.component_to_parent,
+        )
+        build_cash_projections(snapshot.facts, snapshot.relations)
+    except (CashProjectionError, TypeError, ValueError, ArithmeticError):
+        return "projection_invalid"
+    return None
+
+
+def _warn_illegal_automatic_proposal(
+    proposal: RelationProposal,
+    facts: Sequence[FactView],
+    *,
+    reason: str,
+    workspace_id: str = "",
+) -> None:
+    reason = reason if reason in _AUTO_RELATION_WARNING_CODES else "projection_invalid"
+    proposal_key = relation_proposal_key(proposal, facts)
+    workspace_digest = hashlib.sha256(str(workspace_id).encode("utf-8")).hexdigest()[:16]
+    _log_illegal_automatic_proposal_once(
+        f"{workspace_digest}:{reason}:{proposal_key}",
+        reason_code=reason,
+        proposal_key=proposal_key,
+        workspace_digest=workspace_digest,
+    )
+
+
+@lru_cache(maxsize=4096)
+def _log_illegal_automatic_proposal_once(
+    dedup_key: str,
+    *,
+    reason_code: str,
+    proposal_key: str,
+    workspace_digest: str,
+) -> None:
+    """Bound repeated retries to a process-local, redacted diagnostic stream."""
+    logger.warning(
+        "自动关系候选因完整关系图校验失败而被过滤",
+        extra={
+            "reason_code": reason_code,
+            "proposal_key": proposal_key,
+            "workspace_digest": workspace_digest,
+        },
+    )
+
+
+def _filter_illegal_automatic_proposals(
+    facts: Sequence[FactView],
+    active_relations: Sequence[Mapping[str, Any]],
+    proposals: Sequence[RelationProposal],
+    *,
+    workspace_id: str = "",
+    validation_context: ProjectionValidationContext | None = None,
+) -> tuple[RelationProposal, ...]:
+    """Drop invalid automatic results without changing matcher semantics."""
+    validation_context = validation_context or _build_projection_validation_context(facts)
+    accepted_batch = tuple(
+        item
+        for item in proposals
+        if item.created_by == "system"
+        and item.status == RelationStatus.ACCEPTED.value
+        and item.secondary_fact_id not in (None, "")
+        and not item.open_leg
+    )
+    filtered: list[RelationProposal] = []
+    for proposal in proposals:
+        if proposal.created_by != "system" or proposal.secondary_fact_id in (None, "") or proposal.open_leg:
+            filtered.append(proposal)
+            continue
+        companions = accepted_batch if proposal.status == RelationStatus.ACCEPTED.value else (*accepted_batch, proposal)
+        reason = _projection_validation_reason(
+            facts,
+            active_relations,
+            proposal,
+            companions,
+            validation_context=validation_context,
+        )
+        if reason is not None:
+            _warn_illegal_automatic_proposal(
+                proposal,
+                facts,
+                reason=reason,
+                workspace_id=workspace_id,
+            )
+            continue
+        filtered.append(proposal)
+    return tuple(filtered)
+
+
+def _validate_automatic_replacement_batch(
+    facts: Sequence[FactView],
+    accepted_relations: Sequence[Mapping[str, Any]],
+    replacement_proposals: Sequence[RelationProposal],
+    *,
+    workspace_id: str = "",
+    validation_context: ProjectionValidationContext | None = None,
+) -> bool:
+    """Validate an entire automatic replacement before changing old edges."""
+    replacements = tuple(
+        proposal
+        for proposal in replacement_proposals
+        if proposal.created_by == "system"
+        and proposal.status == RelationStatus.ACCEPTED.value
+        and proposal.secondary_fact_id not in (None, "")
+        and not proposal.open_leg
+    )
+    validation_context = validation_context or _build_projection_validation_context(facts)
+    for proposal in replacements:
+        reason = _projection_validation_reason(
+            facts,
+            accepted_relations,
+            proposal,
+            replacements,
+            validation_context=validation_context,
+        )
+        if reason is None:
+            continue
+        _warn_illegal_automatic_proposal(
+            proposal,
+            facts,
+            reason=reason,
+            workspace_id=workspace_id,
+        )
+        return False
+    return True
+
+
 def _append_relation_edge(context: MatchContext, relation: dict) -> None:
     primary = relation.get("primary_fact_id")
     secondary = relation.get("secondary_fact_id")
@@ -651,6 +1006,14 @@ def plan_relation_proposals(
         (*phase_a, *proposals),
         key=lambda item: relation_proposal_key(item, normalized_facts),
     ))
+    validation_context = _build_projection_validation_context(normalized_facts)
+    all_proposals = _filter_illegal_automatic_proposals(
+        normalized_facts,
+        active_relations,
+        all_proposals,
+        workspace_id=workspace_id,
+        validation_context=validation_context,
+    )
     return RelationPlan(
         facts=normalized_facts,
         proposals=all_proposals,
@@ -748,6 +1111,37 @@ class RelationService:
                 }
             )
         ]
+        obsolete_automatic_ids = {
+            str(relation["id"])
+            for relation in automatic_mirrors
+            if relation.get("primary_fact_id") not in (None, "")
+            and relation.get("secondary_fact_id") not in (None, "")
+            and frozenset((
+                str(relation.get("primary_fact_id") or ""),
+                str(relation.get("secondary_fact_id") or ""),
+            )) not in canonical_pairs
+        }
+        replacement_base = [
+            relation for relation in active_relations
+            if str(relation.get("id")) not in obsolete_automatic_ids
+        ]
+        canonical_replacements = tuple(
+            proposal
+            for proposal in canonical
+            if proposal.status == RelationStatus.ACCEPTED.value
+        )
+        validation_context = _build_projection_validation_context(facts)
+        if not _validate_automatic_replacement_batch(
+            facts,
+            replacement_base,
+            canonical_replacements,
+            workspace_id=str(getattr(uow, "workspace_id", "") or ""),
+            validation_context=validation_context,
+        ):
+            # Do not retire any old edge when the complete replacement graph
+            # is invalid.  The warning above is internal; the prior graph is
+            # left untouched for the caller's transaction to continue.
+            return affected
         for relation in automatic_mirrors:
             if (
                 relation.get("primary_fact_id") in (None, "")
@@ -784,10 +1178,11 @@ class RelationService:
         for proposal in canonical:
             if proposal.status != RelationStatus.ACCEPTED.value:
                 continue
-            outcome = self._persist_proposal(
+            outcome = self._persist_automatic_proposal(
                 uow,
                 proposal,
                 {},
+                facts=facts,
                 accepted_relations=accepted_relations,
             )
             if outcome is not None and outcome.get("status") == RelationStatus.ACCEPTED.value:
@@ -883,6 +1278,19 @@ class RelationService:
                 item for item in accepted_relations
                 if item.get("id") != relation.get("id")
             ]
+            replacement_reason = _projection_validation_reason(
+                facts,
+                accepted_without_old,
+                replacement,
+            )
+            if replacement_reason is not None:
+                _warn_illegal_automatic_proposal(
+                    replacement,
+                    facts,
+                    reason=replacement_reason,
+                    workspace_id=str(getattr(uow, "workspace_id", "") or ""),
+                )
+                continue
             # The component-level applied-amount invariant is enforced by the
             # repository against currently accepted rows.  Retire the old
             # automatic edge while staging its replacement so a full refund
@@ -893,10 +1301,11 @@ class RelationService:
                 decided_by="system",
                 decision_reason="replacing_later_refund_evidence",
             )
-            created = self._persist_proposal(
+            created = self._persist_automatic_proposal(
                 uow,
                 replacement,
                 candidate_remaining,
+                facts=facts,
                 accepted_relations=accepted_without_old,
             )
             if (
@@ -972,10 +1381,11 @@ class RelationService:
                 or proposal.status != RelationStatus.ACCEPTED.value
             ):
                 continue
-            created = self._persist_proposal(
+            created = self._persist_automatic_proposal(
                 uow,
                 proposal,
                 remaining,
+                facts=facts,
                 accepted_relations=accepted_relations,
             )
             if created is None or created.get("status") != RelationStatus.ACCEPTED.value:
@@ -1188,6 +1598,55 @@ class RelationService:
                 raise ValueError("import_relation_reconfirmation_required")
             proposals.append(proposal)
         return facts, tuple(proposals)
+
+    def _validate_cached_plan_legality_in_uow(
+        self,
+        uow,
+        facts: Sequence[FactView],
+        proposals: Sequence[RelationProposal],
+    ) -> None:
+        """Reject a stale cached graph before any relation write is possible."""
+        accepted_relations = [
+            dict(item)
+            for item in uow.relations.list_active()
+            if item.get("status") == RelationStatus.ACCEPTED.value
+        ]
+        validation_context = _build_projection_validation_context(facts)
+        for proposal in proposals:
+            if (
+                proposal.created_by != "system"
+                or proposal.secondary_fact_id in (None, "")
+                or proposal.open_leg
+            ):
+                continue
+            companions = tuple(
+                item
+                for item in proposals
+                if (
+                    item.created_by == "system"
+                    and item.status == RelationStatus.ACCEPTED.value
+                    and item.secondary_fact_id not in (None, "")
+                    and not item.open_leg
+                )
+            )
+            if proposal.status != RelationStatus.ACCEPTED.value:
+                companions = (*companions, proposal)
+            reason = _projection_validation_reason(
+                facts,
+                accepted_relations,
+                proposal,
+                companions,
+                validation_context=validation_context,
+            )
+            if reason is None:
+                continue
+            _warn_illegal_automatic_proposal(
+                proposal,
+                facts,
+                reason=reason,
+                workspace_id=str(getattr(uow, "workspace_id", "") or ""),
+            )
+            raise ValueError("import_relation_reconfirmation_required")
 
     @staticmethod
     def _resolve_fact_reference(value, facts: Sequence[FactView]) -> str:
@@ -1500,11 +1959,13 @@ class RelationService:
                 if proposal.status == RelationStatus.PENDING_REVIEW.value
                 else proposal
             )
-            created = self._persist_proposal(
+            created = self._persist_automatic_proposal(
                 uow,
                 persistable_proposal,
                 {},
+                facts=facts,
                 accepted_relations=accepted_for_helper,
+                validation_proposals=proposals,
             )
             if created is not None and created.get("status") == RelationStatus.ACCEPTED.value:
                 accepted_for_helper.append(created)
@@ -1599,6 +2060,7 @@ class RelationService:
         if not plan_digest or (expected_digest is not None and plan_digest != str(expected_digest)):
             raise ValueError("import_relation_reconfirmation_required")
         facts, proposals = self._cached_proposals_in_uow(uow, cached_plan)
+        self._validate_cached_plan_legality_in_uow(uow, facts, proposals)
         if relation_decisions is not None and not isinstance(relation_decisions, (list, tuple)):
             raise ValueError("import_relation_candidate_invalid")
         decisions = list(relation_decisions or ())
@@ -1713,11 +2175,13 @@ class RelationService:
                     continue
                 # Skipped/ignored suggestions retain the normal pending or
                 # automatic cache behaviour below.
-            outcome = self._persist_proposal(
+            outcome = self._persist_automatic_proposal(
                 uow,
                 proposal,
                 remaining,
+                facts=facts,
                 accepted_relations=accepted_relations,
+                validation_proposals=proposals,
             )
             if outcome is None:
                 continue
@@ -1869,11 +2333,13 @@ class RelationService:
                     # available for the normal pending-review persistence below.
                     if status == "accepted":
                         continue
-            outcome = self._persist_proposal(
+            outcome = self._persist_automatic_proposal(
                 uow,
                 proposal,
                 remaining,
+                facts=plan.facts,
                 accepted_relations=accepted_relations,
+                validation_proposals=plan.proposals,
             )
             if outcome is None:
                 continue
@@ -1973,8 +2439,10 @@ class RelationService:
                         stats["phase_c_transfers"] = stats.get("phase_c_transfers", 0) + 1
                     if proposal.rule_id and "diamond" in (proposal.rule_id or ""):
                         stats["phase_d_diamond"] = stats.get("phase_d_diamond", 0) + 1
-                    outcome = self._persist_proposal(
+                    outcome = self._persist_automatic_proposal(
                         uow, proposal, remaining, accepted_relations=accepted_relations,
+                        facts=plan.facts,
+                        validation_proposals=plan.proposals,
                     )
                     if outcome is None:
                         stats["skipped"] += 1
@@ -2462,6 +2930,38 @@ class RelationService:
             RelationKind.REFUND_OFFSET.value,
             RelationKind.TRANSFER_PAIR.value,
         }.issubset(kinds)
+
+    def _persist_automatic_proposal(
+        self,
+        uow,
+        proposal: RelationProposal,
+        remaining: dict[str, Decimal],
+        *,
+        facts: Sequence[FactView],
+        accepted_relations: Sequence[dict] | None = None,
+        validation_proposals: Sequence[RelationProposal] = (),
+    ) -> dict | None:
+        """Validate a system result immediately before it can be persisted."""
+        reason = _projection_validation_reason(
+            facts,
+            accepted_relations or (),
+            proposal,
+            validation_proposals,
+        )
+        if reason is not None:
+            _warn_illegal_automatic_proposal(
+                proposal,
+                facts,
+                reason=reason,
+                workspace_id=str(getattr(uow, "workspace_id", "") or ""),
+            )
+            return None
+        return self._persist_proposal(
+            uow,
+            proposal,
+            remaining,
+            accepted_relations=accepted_relations,
+        )
 
     def _persist_proposal(
         self, uow, proposal, remaining: dict[str, Decimal], *,

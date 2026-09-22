@@ -1,8 +1,12 @@
 from decimal import Decimal
 
+import pytest
+
 from ft.application.relations import (
     RelationService,
     RelationPlan,
+    _filter_illegal_automatic_proposals,
+    _log_illegal_automatic_proposal_once,
     _relation_context_digest,
     plan_relation_proposals,
     relation_proposal_key,
@@ -69,6 +73,110 @@ def _row(fact: FactView) -> dict:
     }
 
 
+def _proposal(kind: str, primary: str, secondary: str, *, rule_id: str = "test.rule", refund_amount: str = "0") -> RelationProposal:
+    return RelationProposal(
+        kind=kind,
+        primary_fact_id=primary,
+        secondary_fact_id=secondary,
+        status=RelationStatus.ACCEPTED.value,
+        rule_id=rule_id,
+        evidence=RelationEvidence(
+            rule_id=rule_id,
+            source_pair=("alipay", "icbc_credit"),
+            extras={"refund_amount": refund_amount},
+        ),
+    )
+
+
+def _diamond_facts() -> list[FactView]:
+    return [
+        _fact("expense-platform", amount="-100.00", counterparty="商户", record_type="consumption", occurred_at="2024-01-01T10:00:00+08:00"),
+        _fact("expense-bank", amount="-100.00", counterparty="商户", record_type="consumption", occurred_at="2024-01-01T10:01:00+08:00"),
+        _fact("refund-platform", amount="100.00", counterparty="商户", record_type="refund", occurred_at="2024-01-02T10:00:00+08:00"),
+        _fact("refund-bank", amount="100.00", counterparty="商户", record_type="refund", occurred_at="2024-01-02T10:01:00+08:00"),
+    ]
+
+
+def test_illegal_automatic_refund_is_filtered_and_warned(monkeypatch):
+    _log_illegal_automatic_proposal_once.cache_clear()
+    warnings = []
+    monkeypatch.setattr(
+        "ft.application.relations.logger.warning",
+        lambda _message, *, extra: warnings.append(extra),
+    )
+    facts = _diamond_facts()[:3]
+    active_relations = [{
+        "kind": RelationKind.REFUND_OFFSET.value,
+        "status": RelationStatus.ACCEPTED.value,
+        "primary_fact_id": "expense-platform",
+        "secondary_fact_id": "refund-platform",
+        "primary_component_id": "expense-platform",
+        "secondary_component_id": "refund-platform",
+        "applied_amount": Decimal("100.00"),
+    }]
+    illegal = _proposal(
+        RelationKind.REFUND_OFFSET.value,
+        "expense-platform",
+        "refund-bank",
+        refund_amount="100.00",
+    )
+
+    filtered = _filter_illegal_automatic_proposals(
+        facts, active_relations, (illegal,), workspace_id="test-workspace",
+    )
+
+    assert filtered == ()
+    assert any(
+        item["reason_code"] == "projection_invalid"
+        for item in warnings
+    )
+    assert all("refund-bank" not in str(item) for item in warnings)
+
+
+def test_complete_refund_diamond_candidate_is_accepted_without_changing_matching_semantics():
+    facts = _diamond_facts()
+    active_relations = [
+        {
+            "kind": RelationKind.PAYMENT_MIRROR.value,
+            "status": RelationStatus.ACCEPTED.value,
+            "primary_fact_id": "expense-platform",
+            "secondary_fact_id": "expense-bank",
+            "primary_component_id": "expense-platform",
+            "secondary_component_id": "expense-bank",
+        },
+        {
+            "kind": RelationKind.REFUND_OFFSET.value,
+            "status": RelationStatus.ACCEPTED.value,
+            "primary_fact_id": "expense-platform",
+            "secondary_fact_id": "refund-platform",
+            "primary_component_id": "expense-platform",
+            "secondary_component_id": "refund-platform",
+            "applied_amount": Decimal("100.00"),
+        },
+        {
+            "kind": RelationKind.REFUND_OFFSET.value,
+            "status": RelationStatus.ACCEPTED.value,
+            "primary_fact_id": "expense-bank",
+            "secondary_fact_id": "refund-bank",
+            "primary_component_id": "expense-bank",
+            "secondary_component_id": "refund-bank",
+            "applied_amount": Decimal("100.00"),
+        },
+    ]
+    refund_mirror = _proposal(
+        RelationKind.PAYMENT_MIRROR.value,
+        "refund-platform",
+        "refund-bank",
+        rule_id="payment_mirror.refund_dual_source.v1",
+    )
+
+    filtered = _filter_illegal_automatic_proposals(
+        facts, active_relations, (refund_mirror,), workspace_id="test-workspace",
+    )
+
+    assert filtered == (refund_mirror,)
+
+
 def test_wechat_hard_refund_occupies_pair_before_same_amount_merchant_matching():
     origin = _fact(
         "wechat-origin",
@@ -128,8 +236,14 @@ def test_wechat_hard_refund_occupies_pair_before_same_amount_merchant_matching()
     assert refund_pairs[0].rule_id.startswith("scan.wechat")
 
 
-def test_alipay_hard_refund_is_pending_when_mirror_event_already_refunded():
-    """A reverse import must not auto-accept a second refund for one event."""
+def test_alipay_hard_refund_is_filtered_when_mirror_event_already_refunded(monkeypatch):
+    """An illegal reverse-import refund is warned and never exposed as pending."""
+    _log_illegal_automatic_proposal_once.cache_clear()
+    warnings = []
+    monkeypatch.setattr(
+        "ft.application.relations.logger.warning",
+        lambda _message, *, extra: warnings.append(extra),
+    )
     account = "shared-cash"
     alipay_origin_id = "2024041822001112651418895633"
     facts = [
@@ -211,15 +325,16 @@ def test_alipay_hard_refund_is_pending_when_mirror_event_already_refunded():
         accepted_relations=accepted_relations,
     )
 
-    hard_key = next(
-        proposal
-        for proposal in plan.proposals
-        if proposal.kind == RelationKind.REFUND_OFFSET.value
+    assert not any(
+        proposal.kind == RelationKind.REFUND_OFFSET.value
         and proposal.primary_fact_id == "alipay-expense"
         and proposal.secondary_fact_id == "alipay-refund"
+        for proposal in plan.proposals
     )
-    assert hard_key.rule_id == "scan.alipay.order_prefix.v1"
-    assert hard_key.status == RelationStatus.PENDING_REVIEW.value
+    assert any(
+        item["reason_code"] == "projection_invalid"
+        for item in warnings
+    )
     assert any(
         proposal.kind == RelationKind.PAYMENT_MIRROR.value
         and proposal.primary_fact_id == "alipay-expense"
