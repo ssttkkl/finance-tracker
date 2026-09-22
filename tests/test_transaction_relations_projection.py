@@ -113,7 +113,7 @@ def test_relation_check_hides_internal_error_and_does_not_open_a_second_unit_of_
     assert unit_of_work.entered == 1
 
 
-def test_auto_scan_keeps_indirect_relation_kind_conflict_pending_and_commits_import(
+def test_auto_scan_filters_indirect_relation_kind_conflict_without_persisting_it(
     relation_runtime,
     monkeypatch,
 ):
@@ -216,13 +216,12 @@ def test_auto_scan_keeps_indirect_relation_kind_conflict_pending_and_commits_imp
     )
 
     assert result.ok
-    assert result.details["stats"]["pending"] == 1
+    assert result.details["stats"]["pending"] == 0
     with services.uow as uow:
         relations = uow.relations.list_active(kind="transfer_pair")
         facts = uow.cashflows.list_detailed()
     assert len(facts) == 4
-    assert len(relations) == 1
-    assert relations[0]["status"] == "pending_review"
+    assert relations == []
 
     rescan = services.relations.check(
         seed_fact_ids=[expense_id, refund_id, mirrored_refund_id, transfer_id],
@@ -233,5 +232,4 @@ def test_auto_scan_keeps_indirect_relation_kind_conflict_pending_and_commits_imp
     assert rescan.ok
     with services.uow as uow:
         relations = uow.relations.list_active(kind="transfer_pair")
-    assert len(relations) == 1
-    assert relations[0]["status"] == "pending_review"
+    assert relations == []

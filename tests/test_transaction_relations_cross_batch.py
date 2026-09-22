@@ -3,7 +3,13 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from ft.domain.relations import evaluate_payment_mirror
+from ft.domain.relations import (
+    RelationEvidence,
+    RelationKind,
+    RelationProposal,
+    RelationStatus,
+    evaluate_payment_mirror,
+)
 
 
 def test_cross_batch_seed_matches_prior_facts(relation_runtime):
@@ -508,3 +514,129 @@ def test_accepted_refund_mirror_does_not_create_a_second_refund_offset(relation_
     accepted = _accepted_refund_rows(services)
     assert len(accepted) == 1
     assert int(accepted[0]["secondary_fact_id"] or 0) == int(ids["mirror-platform-refund"])
+
+
+def test_invalid_payment_mirror_replacement_keeps_old_relation_untouched(
+    relation_runtime, monkeypatch,
+):
+    services = relation_runtime.services
+    assert services.accounts.create_account("镜像重配原子账户", "cash", "CNY").ok
+    common = dict(account_name="镜像重配原子账户", currency="CNY")
+    for row in (
+        dict(
+            amount=Decimal("-12.00"), counterparty="商家F", note="平台消费",
+            source="alipay", bill_source="alipay", date="2024-08-01 10:00:00",
+            record_id="atomic-platform-expense", record_type="consumption",
+        ),
+        dict(
+            amount=Decimal("-12.00"), counterparty="商家F", note="旧银行卡消费",
+            source="ccb_debit", bill_source="ccb_debit", date="2024-08-01 10:00:01",
+            record_id="atomic-old-bank-expense", record_type="consumption",
+        ),
+        dict(
+            amount=Decimal("-12.00"), counterparty="商家F", note="新银行卡消费",
+            source="ccb_debit", bill_source="ccb_debit", date="2024-08-01 10:00:02",
+            record_id="atomic-new-bank-expense", record_type="consumption",
+        ),
+    ):
+        services.cashflow.add_manual_transaction(**row, **common)
+    ids = _ids_by_record(services)
+    with services.uow as uow:
+        old_id = uow.relations.add({
+            "kind": RelationKind.PAYMENT_MIRROR.value,
+            "status": RelationStatus.ACCEPTED.value,
+            "primary_fact_id": ids["atomic-platform-expense"],
+            "secondary_fact_id": ids["atomic-old-bank-expense"],
+            "primary_component_id": ids["atomic-platform-expense"],
+            "secondary_component_id": ids["atomic-old-bank-expense"],
+            "anchor_fact_id": ids["atomic-platform-expense"],
+            "anchor_component_id": ids["atomic-platform-expense"],
+            "created_by": "system",
+        })
+        facts = services.relations._list_active_cash_facts(uow)
+        by_id = {str(fact.id): fact for fact in facts}
+        replacement = evaluate_payment_mirror(
+            by_id[str(ids["atomic-platform-expense"])],
+            [by_id[str(ids["atomic-new-bank-expense"])]],
+        )
+        assert replacement is not None
+
+        monkeypatch.setattr(
+            "ft.application.relations.match_canonical_payment_mirrors",
+            lambda *_args, **_kwargs: [replacement],
+        )
+        monkeypatch.setattr(
+            "ft.application.relations._projection_validation_reason",
+            lambda *_args, **_kwargs: "projection_invalid",
+        )
+        services.relations._reconcile_system_payment_mirrors(uow, facts)
+
+        assert uow.relations.get(old_id)["status"] == RelationStatus.ACCEPTED.value
+        assert uow.relations.list_active(kind=RelationKind.PAYMENT_MIRROR.value) == [
+            uow.relations.get(old_id)
+        ]
+
+
+def test_invalid_refund_replacement_keeps_old_relation_untouched(
+    relation_runtime, monkeypatch,
+):
+    services = relation_runtime.services
+    assert services.accounts.create_account("退款重配原子账户", "cash", "CNY").ok
+    common = dict(account_name="退款重配原子账户", currency="CNY")
+    for row in (
+        dict(
+            amount=Decimal("-12.00"), counterparty="商家G", note="银行卡消费",
+            source="ccb_debit", bill_source="ccb_debit", date="2024-08-02 10:00:00",
+            record_id="atomic-refund-bank-expense", record_type="consumption",
+        ),
+        dict(
+            amount=Decimal("12.00"), counterparty="商家G", note="银行卡退款",
+            source="ccb_debit", bill_source="ccb_debit", date="2024-08-03 10:00:00",
+            record_id="atomic-refund-bank-refund", record_type="refund",
+        ),
+        dict(
+            amount=Decimal("-12.00"), counterparty="商家G", note="平台消费",
+            source="alipay", bill_source="alipay", date="2024-08-02 10:00:01",
+            record_id="atomic-refund-platform-expense", record_type="consumption",
+        ),
+    ):
+        services.cashflow.add_manual_transaction(**row, **common)
+    ids = _ids_by_record(services)
+    with services.uow as uow:
+        old_id = uow.relations.add({
+            "kind": RelationKind.REFUND_OFFSET.value,
+            "status": RelationStatus.ACCEPTED.value,
+            "primary_fact_id": ids["atomic-refund-bank-expense"],
+            "secondary_fact_id": ids["atomic-refund-bank-refund"],
+            "primary_component_id": ids["atomic-refund-bank-expense"],
+            "secondary_component_id": ids["atomic-refund-bank-refund"],
+            "anchor_fact_id": ids["atomic-refund-bank-expense"],
+            "anchor_component_id": ids["atomic-refund-bank-expense"],
+            "created_by": "system",
+            "applied_amount": Decimal("12.00"),
+        })
+        facts = services.relations._list_active_cash_facts(uow)
+        replacement = RelationProposal(
+            kind=RelationKind.REFUND_OFFSET.value,
+            primary_fact_id=str(ids["atomic-refund-platform-expense"]),
+            secondary_fact_id=str(ids["atomic-refund-bank-refund"]),
+            status=RelationStatus.ACCEPTED.value,
+            rule_id="test.atomic.refund",
+            evidence=RelationEvidence(
+                extras={"refund_amount": "12.00"},
+            ),
+        )
+        monkeypatch.setattr(
+            "ft.application.relations.evaluate_refund_offset",
+            lambda *_args, **_kwargs: replacement,
+        )
+        monkeypatch.setattr(
+            "ft.application.relations._projection_validation_reason",
+            lambda *_args, **_kwargs: "projection_invalid",
+        )
+        services.relations._reconcile_system_refund_offsets(uow, facts)
+
+        assert uow.relations.get(old_id)["status"] == RelationStatus.ACCEPTED.value
+        assert uow.relations.list_active(kind=RelationKind.REFUND_OFFSET.value) == [
+            uow.relations.get(old_id)
+        ]
