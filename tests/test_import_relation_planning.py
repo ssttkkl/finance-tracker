@@ -5,8 +5,10 @@ import pytest
 from ft.application.relations import (
     RelationService,
     RelationPlan,
+    _fact_view_from_row,
     _filter_illegal_automatic_proposals,
     _log_illegal_automatic_proposal_once,
+    _stable_fact_ref,
     _relation_context_digest,
     plan_relation_proposals,
     relation_proposal_key,
@@ -473,6 +475,46 @@ def test_relation_plan_uses_business_row_order_when_preview_ids_become_database_
         ]
 
     assert stable_pairs(preview) == stable_pairs(actual)
+
+
+def test_component_fact_references_are_equivalent_between_preview_and_persistence():
+    preview_parent = {
+        "id": "preview:composite-1",
+        "record_id": "composite-1",
+        "source_type": "alipay",
+        "bill_source": "alipay",
+        "amount": "-30.00",
+        "currency": "CNY",
+        "cash_granularity": "aggregate",
+        "occurred_at": "2026-08-12T17:24:00+08:00",
+        "record_type": "consumption",
+        "components": [
+            {"id": None, "ordinal": 0, "amount": "-10.10", "account_name": "支付宝余额"},
+            {"id": None, "ordinal": 1, "amount": "-19.90", "account_name": "工商银行储蓄卡"},
+        ],
+    }
+    persisted_parent = {**preview_parent, "id": 501}
+    persisted_parent["components"] = [
+        {"id": 701, "ordinal": 0, "amount": "-10.10", "account_name": "支付宝余额"},
+        {"id": 702, "ordinal": 1, "amount": "-19.90", "account_name": "工商银行储蓄卡"},
+    ]
+
+    preview_rows = RelationService._expand_component_rows([preview_parent])
+    for ordinal, row in enumerate(preview_rows):
+        row["id"] = f"preview:composite-1:{ordinal}"
+    persisted_rows = RelationService._expand_component_rows([persisted_parent])
+    preview_facts = [_fact_view_from_row(row) for row in preview_rows]
+    persisted_facts = [_fact_view_from_row(row) for row in persisted_rows]
+
+    assert [
+        _stable_fact_ref(str(fact.id), {str(item.id): item for item in preview_facts})
+        for fact in preview_facts
+    ] == ["alipay:composite-1#component:0", "alipay:composite-1#component:1"]
+    assert [
+        _stable_fact_ref(str(fact.id), {str(item.id): item for item in persisted_facts})
+        for fact in persisted_facts
+    ] == ["alipay:composite-1#component:0", "alipay:composite-1#component:1"]
+    assert len(RelationService._facts_by_cached_reference(persisted_facts)) == 4
 
 
 def test_cached_relation_plan_normalizes_database_fact_ids_to_strings(monkeypatch):

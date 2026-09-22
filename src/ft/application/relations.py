@@ -92,6 +92,11 @@ def _fact_view_from_row(row: dict) -> FactView:
     if not isinstance(relation_metadata, dict):
         relation_metadata = None
     source_type = str(row.get("source_type") or row.get("bill_source") or row.get("source") or "")
+    component_ordinal = row.get("component_ordinal", row.get("ordinal"))
+    try:
+        component_ordinal = int(component_ordinal) if component_ordinal is not None else None
+    except (TypeError, ValueError):
+        component_ordinal = None
     return FactView(
         id=row["id"],
         amount=Decimal(str(row["amount"])),
@@ -121,6 +126,7 @@ def _fact_view_from_row(row: dict) -> FactView:
         raw_payload=payload,
         relation_metadata=relation_metadata,
         parent_id=str(row.get("parent_id")) if row.get("parent_id") not in (None, "") else None,
+        component_ordinal=component_ordinal,
         cash_granularity=str(row.get("cash_granularity") or "atomic"),
     )
 
@@ -2831,11 +2837,18 @@ class RelationService:
             if not components:
                 expanded.append(dict(row))
                 continue
-            for component in components:
+            for ordinal, component in enumerate(components):
                 if not isinstance(component, dict):
                     continue
                 item = dict(row)
                 item["parent_id"] = row.get("id")
+                # A one-component cash row is the existing atomic fact and
+                # keeps its parent-level stable reference.  Only aggregate
+                # rows need component-qualified references to distinguish
+                # multiple relationship endpoints sharing one record_id.
+                item["component_ordinal"] = (
+                    component.get("ordinal", ordinal) if len(components) > 1 else None
+                )
                 item["id"] = component.get("id")
                 item["amount"] = component.get("amount")
                 item["currency"] = component.get("currency") or row.get("currency")

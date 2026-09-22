@@ -33,6 +33,7 @@
 - [x] 4.9 实现自动 reconcile/upgrade/replace 的先验证后变更顺序；完整替换图校验失败时旧关系、取代链、投影版本和占用集合必须零写入变化。
 - [x] 4.10 在导入确认解析缓存计划后重新验证候选；上下文或组合法性变化时失败关闭，不替换对侧、不补关系、不拆解降级、不产生部分关系写入。
 - [x] 4.11 通过现有安全诊断通道记录 `projection_invalid` 等内部脱敏原因码/计数，不扩展预览协议，不记录密码、Token、完整账号、文件路径或原始整行账单。
+- [x] 4.12 为多组成项建立预览/持久化等价的 `component_ordinal` 稳定引用；保留父流水 `record_id` 作为导入幂等身份，并覆盖缓存关系计划确认回归。
 
 ## 5. 审查
 
@@ -55,7 +56,7 @@
 
 - [x] 7.1 记录发布前检查、完整退款钻石自动接受成功率、非法自动结果告警率、半图 `projection.invalid_relation` 发生率、合法候选数量变化、重配失败零写入和人工配对成功率观察项；确认无需数据库迁移或外部资源写入。
 - [x] 7.2 记录回滚策略：代码回滚会重新开放非法自动结果进入用户流程，不能作为安全业务回滚；如需回滚必须暂停受影响自动关系导入并安排修复版本。
-- [x] 7.3 完成最终 diff、artifact 偏离、测试证据和未解决风险复核；未经用户明确授权不执行提交、推送、PR、合并或部署。
+- [x] 7.3 完成最终 diff、artifact 偏离、测试证据和未解决风险复核；用户已明确授权本次提交、推送和创建 PR，合并与部署未执行。
 
 ## 8. 反思
 
@@ -78,3 +79,4 @@
 - Hallmark `audit`：复核 `web/src/pages/CashImportPage.tsx` 关系建议区域及对应样式；本 change 未改变布局、路由、交互结构或用户可见文案，无视觉/交互 finding。Native 复用同一过滤协议，但本次未启动 Native 客户端，保留为覆盖缺口。
 - 未完成项与补跑条件：`6.4` 未完成，因为当前未设置 `FT_TEST_POSTGRES_URL`；准备名称以 `_test` 结尾的专用 PostgreSQL 数据库并设置该变量后，补跑同一契约矩阵。`6.7` 未完成，因为尚未准备约 `2,500` 条事实、约 `1,532` 个 proposal 的去标识化专项夹具；现有规划已复用事实快照并做告警有界去重，但专项基线仍需单独补跑。
 - 发布与回滚观察：上线前观察完整退款钻石接受成功率、`projection_invalid` 告警率、半图 `projection.invalid_relation` 发生率、合法候选数量和人工配对成功率。代码回滚可能重新开放非法自动结果，不能作为业务安全回滚；如需回滚，先暂停受影响自动关系导入并安排修复版本。
+- 增量修复与本地账单验证：发现组合支付的多组成项在预览与持久化后的稳定引用碰撞后，新增 `component_ordinal` 并保持单组成项既有引用不变；`PYTHONPATH=tests:src uv run pytest -q tests/test_import_relation_planning.py tests/test_cash_import_wizard.py tests/test_transaction_relations_cross_batch.py tests/test_transaction_relations_projection.py`：`61 passed, 14 skipped`。在隔离 SQLite 临时库和临时工作区中启动后端 `127.0.0.1:8011`、Web `127.0.0.1:5186`，使用用户提供的 6 条组成项分摊确认 4 份支付宝账单；4 份均通过缓存关系计划确认，未再出现 `import_relation_reconfirmation_required`。库内父流水/组成项计数一致性通过，6 条分摊守恒检查通过，`CashLedgerQueryService.list_cash_projections(limit=1)` 成功返回投影。

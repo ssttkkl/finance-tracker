@@ -23,7 +23,14 @@ def stable_fact_reference(fact) -> str:
     source = str(getattr(fact, "bill_source", "") or getattr(fact, "source", ""))
     record_id = str(getattr(fact, "record_id", "") or "")
     if source and record_id:
-        return f"{source}:{record_id}"
+        component_ordinal = getattr(fact, "component_ordinal", None)
+        suffix = (
+            f"#component:{int(component_ordinal)}"
+            if getattr(fact, "parent_id", None) not in (None, "")
+            and component_ordinal is not None
+            else ""
+        )
+        return f"{source}:{record_id}{suffix}"
     return str(getattr(fact, "id", "") or "")
 
 
