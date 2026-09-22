@@ -66,11 +66,12 @@
 
 ## 执行记录
 
-- 当前工作树基线与变更范围：`HEAD=f9a194b647ec1d9a8423c1f9d29c202d103d0280`，以该提交作为本次工作树比较基线；未提交、未推送、未创建 PR。本 change 未增加数据库迁移或外部资源写入。提交、推送、PR、合并和部署均等待用户明确授权。
+- 当前工作树基线与变更范围：`HEAD=f9a194b647ec1d9a8423c1f9d29c202d103d0280`，以该提交作为本次工作树比较基线；实现提交为 `bfc168d`，组件稳定引用修复提交为 `36f468b`，已推送到 `codex/prevent-illegal-auto-relations`，并创建 PR `#89` 指向 `refactor/web`。本 change 未增加数据库迁移或外部资源写入；合并与部署未执行。
 - 需求与范围复核结论：完整退款钻石是合法投影语义；自动匹配器仍按原规则、证据、对侧选择和排序产出内部候选，合法性闸门只负责校验和过滤，不补边、不换对侧、不改变合法候选的待审核语义。
 - 受影响测试：
   - `PYTHONPATH=tests uv run pytest -q tests/test_import_relation_planning.py tests/test_cash_projection.py tests/test_transaction_relations_open_leg.py tests/test_transaction_relations_payment_mirror.py tests/test_transaction_relations_refund.py tests/test_transaction_relations_cross_batch.py tests/test_cash_import_wizard.py tests/test_cash_import_session_service.py`：`185 passed, 21 skipped`。
-  - 完整 Python 集：`PYTHONPATH=tests uv run pytest -q` 首次结果 `1559 passed, 186 skipped`，仅 `tests/test_wealth_performance.py::test_fixed_100k_fact_rebuild_and_active_cache_meet_budgets[sqlite]` 冷启动性能断言受环境噪声影响失败；隔离重跑该测试为 `1 passed, 1 skipped`（PostgreSQL 跳过）。
+- 完整 Python 集：`PYTHONPATH=tests uv run pytest -q` 首次结果 `1559 passed, 186 skipped`，仅 `tests/test_wealth_performance.py::test_fixed_100k_fact_rebuild_and_active_cache_meet_budgets[sqlite]` 冷启动性能断言受环境噪声影响失败；隔离重跑该测试为 `1 passed, 1 skipped`（PostgreSQL 跳过）。
+- 组件引用修复后的完整 Python 集：`PYTHONPATH=tests:src uv run pytest -q`：`1561 passed, 186 skipped`，仅有既有 `httpx`/Starlette 弃用警告。
   - 四个关键回归：完整退款钻石、非法自动退款过滤/告警、重复退款镜像过滤、关系类型冲突过滤：`4 passed, 1 skipped`。
   - `git diff --check`、`uv run python -m compileall -q src tests`：通过。
   - `openspec validate --all --strict`：`33 passed, 0 failed`；`openspec doctor`：Root 通过，References 无问题。
