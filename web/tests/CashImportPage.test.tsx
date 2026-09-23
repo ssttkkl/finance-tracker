@@ -11,6 +11,7 @@ const item = {
 const columns = ["occurred_at", "amount", "currency", "account_name", "counterparty", "counterparty_account", "record_type", "record_subtype", "category", "note", "channel", "status"];
 const scan = {
   contract: "cash-account-mapping-v1",
+  import_token: "batch-token",
   channel: "alipay",
   channel_label: "支付宝",
   file: { name: "statement.csv", digest: "digest-1" },
@@ -59,9 +60,32 @@ function response(value: unknown, status = 200) {
 beforeEach(() => vi.stubEnv("VITE_FT_API_ORIGIN", "http://127.0.0.1:8000"));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
+function addSelectedFiles(files: File[]) {
+  fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, {
+    target: { files },
+  });
+}
+
+function testFile(content: string, name: string): File {
+  const file = new File([content], name);
+  Object.defineProperty(file, "arrayBuffer", {
+    configurable: true,
+    value: async () => new TextEncoder().encode(content).buffer,
+  });
+  return file;
+}
+
+async function selectAndScan(files: File[]) {
+  addSelectedFiles(files);
+  const next = screen.getByTestId("import.next");
+  await waitFor(() => expect(next).not.toBeDisabled());
+  fireEvent.click(next);
+  return screen.findByRole("heading", { name: "映射账户" });
+}
+
 describe("CashImportPage", () => {
   it("自动识别渠道、只展示标准字段，并允许跳过手动配对后确认", async () => {
-    const fetch = vi.fn((input: string) => input.includes("/scan")
+    const fetch = vi.fn((input: string, _init?: RequestInit) => input.includes("/scan")
       ? response(scan)
       : input.includes("/preview")
         ? response(preview)
@@ -71,7 +95,7 @@ describe("CashImportPage", () => {
 
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     const file = new File(["standardized"], "statement.csv", { type: "text/csv" });
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
+    await selectAndScan([file]);
     expect(await screen.findByRole("heading", { name: "映射账户" })).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: /^确认映射$/ }));
     expect(await screen.findByRole("heading", { name: "核对流水" })).toBeInTheDocument();
@@ -120,6 +144,28 @@ describe("CashImportPage", () => {
     expect(commitBody.relations).toEqual([]);
   });
 
+  it("选择阶段累积文件、按本地 SHA-1 去重，并在下一步才开始批量扫描", async () => {
+    const fetch = vi.fn((input: string, _init?: RequestInit) => input.includes("/scan") ? response(scan) : response(preview));
+    vi.stubGlobal("fetch", fetch);
+    render(<CashImportPage onBack={vi.fn()} />);
+
+    addSelectedFiles([
+      testFile("same-content", "statement.csv"),
+      testFile("same-content", "statement-copy.csv"),
+      testFile("different-content", "statement.csv"),
+    ]);
+    await waitFor(() => expect(screen.getByTestId("import.selected-files").querySelectorAll("li")).toHaveLength(2));
+    expect(screen.queryByText("statement-copy.csv")).not.toBeInTheDocument();
+    expect(screen.getAllByText("statement.csv")).toHaveLength(2);
+    expect(fetch).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+    await screen.findByRole("heading", { name: "映射账户" });
+    const scanRequest = fetch.mock.calls.find(([input]) => String(input).includes("/cash-import/scan"));
+    const scanBody = JSON.parse(String(scanRequest?.[1]?.body)) as { files?: Array<{ filename: string }> };
+    expect(scanBody.files?.map((file) => file.filename)).toEqual(["statement.csv", "statement.csv"]);
+  });
+
   it("在流水行内展开所有未分配组合支付，并让组成项各占一行", async () => {
     const composite = {
       ...item,
@@ -157,7 +203,7 @@ describe("CashImportPage", () => {
       summary: { total: 2, new: 2, existing: 0, unsupported: 0, requires_allocation: 2 },
       relations: [],
     };
-    const fetch = vi.fn((input: string) => input.includes("/scan")
+    const fetch = vi.fn((input: string, _init?: RequestInit) => input.includes("/scan")
       ? response(scan)
       : input.includes("/preview")
         ? response(aggregatePreview)
@@ -165,9 +211,7 @@ describe("CashImportPage", () => {
     vi.stubGlobal("fetch", fetch);
     render(<CashImportPage onBack={vi.fn()} />);
 
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, {
-      target: { files: [new File(["fixture"], "statement.csv")] },
-    });
+    await selectAndScan([new File(["fixture"], "statement.csv")]);
     await screen.findByRole("heading", { name: "映射账户" });
     fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
     await screen.findByRole("heading", { name: "核对流水" });
@@ -192,7 +236,7 @@ describe("CashImportPage", () => {
       items: [{ ...item, record_type: "transfer_out", record_subtype: "ordinary_transfer" }],
       relations: [],
     };
-    const fetch = vi.fn((input: string) => input.includes("/scan")
+    const fetch = vi.fn((input: string, _init?: RequestInit) => input.includes("/scan")
       ? response(scan)
       : input.includes("/preview")
         ? response(subtypePreview)
@@ -200,7 +244,7 @@ describe("CashImportPage", () => {
     vi.stubGlobal("fetch", fetch);
     render(<CashImportPage onBack={vi.fn()} />);
 
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [new File(["fixture"], "statement.csv")] } });
+    await selectAndScan([new File(["fixture"], "statement.csv")]);
     await screen.findByRole("heading", { name: "映射账户" });
     fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
 
@@ -230,7 +274,7 @@ describe("CashImportPage", () => {
     vi.stubGlobal("fetch", fetch);
     render(<CashImportPage onBack={vi.fn()} />);
 
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [new File(["fixture"], "statement.csv")] } });
+    await selectAndScan([new File(["fixture"], "statement.csv")]);
     await screen.findByRole("heading", { name: "映射账户" });
     fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
     await screen.findByRole("heading", { name: "核对流水" });
@@ -259,7 +303,7 @@ describe("CashImportPage", () => {
     vi.stubGlobal("fetch", fetch);
     render(<CashImportPage onBack={vi.fn()} />);
 
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [new File(["fixture"], "statement.csv")] } });
+    await selectAndScan([new File(["fixture"], "statement.csv")]);
     await screen.findByRole("heading", { name: "映射账户" });
     fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
     await screen.findByRole("heading", { name: "核对流水" });
@@ -284,7 +328,7 @@ describe("CashImportPage", () => {
     vi.stubGlobal("fetch", fetch);
     render(<CashImportPage onBack={vi.fn()} />);
 
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [new File(["fixture"], "statement.csv")] } });
+    await selectAndScan([new File(["fixture"], "statement.csv")]);
     await screen.findByRole("heading", { name: "映射账户" });
     fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
     await screen.findByRole("heading", { name: "核对流水" });
@@ -314,7 +358,7 @@ describe("CashImportPage", () => {
     render(<CashImportPage onBack={vi.fn()} />);
 
     const file = new File(["standardized"], "statement.csv", { type: "text/csv" });
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
+    await selectAndScan([file]);
     await screen.findByRole("heading", { name: "映射账户" });
     fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
     await screen.findByRole("heading", { name: "核对流水" });
@@ -359,7 +403,7 @@ describe("CashImportPage", () => {
     vi.stubGlobal("fetch", fetch);
     render(<CashImportPage onBack={vi.fn()} />);
 
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [new File(["fixture"], "statement.csv")] } });
+    await selectAndScan([new File(["fixture"], "statement.csv")]);
     await screen.findByRole("heading", { name: "映射账户" });
     fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
     await screen.findByRole("heading", { name: "核对流水" });
@@ -383,7 +427,7 @@ describe("CashImportPage", () => {
     vi.stubGlobal("fetch", fetch);
     render(<CashImportPage onBack={vi.fn()} />);
 
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [new File(["fixture"], "statement.csv")] } });
+    await selectAndScan([new File(["fixture"], "statement.csv")]);
     await screen.findByRole("heading", { name: "映射账户" });
     fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
     await screen.findByRole("heading", { name: "核对流水" });
@@ -427,9 +471,7 @@ describe("CashImportPage", () => {
     vi.stubGlobal("fetch", fetch);
     render(<CashImportPage onBack={vi.fn()} />);
 
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, {
-      target: { files: [new File(["fixture"], "statement.csv")] },
-    });
+    await selectAndScan([new File(["fixture"], "statement.csv")]);
     await screen.findByRole("heading", { name: "映射账户" });
     fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
     await screen.findByRole("heading", { name: "核对流水" });
@@ -463,7 +505,7 @@ describe("CashImportPage", () => {
         { ...scan.groups[0], group_id: "group-currency", display_name: "招商银行", currencies: ["USD"], suggestion: { ...scan.groups[0].suggestion, account_id: 101, account: { ...scan.accounts[0], name: "人民币账户", currencies: ["CNY"] }, missing_currencies: ["USD"], mapping_revision: 1 } },
       ],
     };
-    const fetch = vi.fn((input: string) => input.includes("/scan")
+    const fetch = vi.fn((input: string, _init?: RequestInit) => input.includes("/scan")
       ? response(mappingScan)
       : input.includes("/preview")
         ? response({ ...preview, file: { ...preview.file, digest: "digest-1" } })
@@ -471,7 +513,7 @@ describe("CashImportPage", () => {
     vi.stubGlobal("fetch", fetch);
     render(<CashImportPage onBack={vi.fn()} />);
 
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [new File(["fixture"], "statement.csv")] } });
+    await selectAndScan([new File(["fixture"], "statement.csv")]);
     await screen.findByRole("heading", { name: "映射账户" });
     fireEvent.change(screen.getByLabelText("花呗系统账户"), { target: { value: "__create__" } });
 
@@ -492,7 +534,8 @@ describe("CashImportPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "确认映射" }));
     await screen.findByRole("heading", { name: "核对流水" });
     const previewRequest = fetch.mock.calls.find(([input]) => String(input).includes("/cash-import/preview"));
-    expect(String(previewRequest?.[0])).toContain(encodeURIComponent('"name":"花呗新账户"'));
+    const previewBody = JSON.parse(String(previewRequest?.[1]?.body)) as { mapping?: Array<{ new_account?: { name?: string } }> };
+    expect(previewBody.mapping?.[0]?.new_account?.name).toBe("花呗新账户");
   });
 
   it("允许多个来源账户选择同一个会话内待创建账户并同步编辑", async () => {
@@ -504,7 +547,7 @@ describe("CashImportPage", () => {
         { ...scan.groups[0], group_id: "group-huabei", display_name: "花呗", suggestion: { ...scan.groups[0].suggestion, account_id: null, account: null } },
       ],
     };
-    const fetch = vi.fn((input: string) => input.includes("/scan")
+    const fetch = vi.fn((input: string, _init?: RequestInit) => input.includes("/scan")
       ? response(sharedDraftScan)
       : input.includes("/preview")
         ? response({ ...preview, relations: [] })
@@ -512,7 +555,7 @@ describe("CashImportPage", () => {
     vi.stubGlobal("fetch", fetch);
     render(<CashImportPage onBack={vi.fn()} />);
 
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [new File(["fixture"], "statement.csv")] } });
+    await selectAndScan([new File(["fixture"], "statement.csv")]);
     await screen.findByRole("heading", { name: "映射账户" });
     const walletGroup = screen.getByText("支付宝余额").closest("article")!;
     const huabeiGroup = screen.getByText("花呗").closest("article")!;
@@ -532,8 +575,7 @@ describe("CashImportPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
     await screen.findByRole("heading", { name: "核对流水" });
     const previewRequest = fetch.mock.calls.find(([input]) => String(input).includes("/cash-import/preview"));
-    const mappingText = new URL(String(previewRequest?.[0])).searchParams.get("mapping");
-    const mapping = JSON.parse(mappingText ?? "[]") as Array<{ new_account?: { draft_id?: string; name?: string } }>;
+    const mapping = (JSON.parse(String(previewRequest?.[1]?.body)) as { mapping?: Array<{ new_account?: { draft_id?: string; name?: string } }> }).mapping ?? [];
     expect(mapping).toHaveLength(2);
     expect(new Set(mapping.map((item) => item.new_account?.draft_id))).toEqual(new Set(["draft-group-wallet"]));
     expect(mapping.every((item) => item.new_account?.name === "共享钱包")).toBe(true);
@@ -550,7 +592,7 @@ describe("CashImportPage", () => {
     render(<CashImportPage onBack={vi.fn()} />);
 
     const file = new File(["standardized"], "statement.csv", { type: "text/csv" });
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
+    await selectAndScan([file]);
     await screen.findByRole("heading", { name: "映射账户" });
     fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
     fireEvent.click(await screen.findByRole("button", { name: /^下一步$/ }));
@@ -600,7 +642,7 @@ describe("CashImportPage", () => {
     render(<CashImportPage onBack={vi.fn()} />);
 
     const file = new File(["standardized"], "statement.csv", { type: "text/csv" });
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
+    await selectAndScan([file]);
     await screen.findByRole("heading", { name: "映射账户" });
     fireEvent.click(screen.getByRole("button", { name: /^确认映射$/ }));
     fireEvent.click(await screen.findByRole("button", { name: /^下一步$/ }));
@@ -620,10 +662,15 @@ describe("CashImportPage", () => {
     const fetch = vi.fn((input: string, init?: RequestInit) => {
       if (input.includes("/scan")) {
         detectCalls += 1;
-        if (detectCalls === 1) return response({ error: { code: "import_password_required" }, import_token: "token-locked" }, 400);
+        if (detectCalls === 1) return response({
+          ...scan,
+          ready: false,
+          import_token: "token-locked",
+          files: [{ index: 0, name: "locked.pdf", filename: "locked.pdf", digest: "digest-1", size: 9, status: "password_required", error_code: "password_required" }],
+        });
         expect(input).not.toContain("correct-password");
-        expect(new Headers(init?.headers).get("X-FT-Statement-Password")).toBe("correct-password");
-        return response({ ...scan, import_token: "token-locked", channel: "icbc", channel_label: "工行信用卡", file: { name: "locked.pdf", digest: "digest-1" }, groups: [{ ...scan.groups[0], display_name: "工行信用卡" }] });
+        expect(new Headers(init?.headers).get("X-FT-Statement-Passwords")).toBe(JSON.stringify({ "0": "correct-password" }));
+        return response({ ...scan, ready: true, import_token: "token-locked", channel: "icbc", channel_label: "工行信用卡", file: { name: "locked.pdf", digest: "digest-1" }, files: [{ index: 0, name: "locked.pdf", filename: "locked.pdf", digest: "digest-1", size: 9, status: "ready", channel: "icbc", channel_label: "工行信用卡" }], groups: [{ ...scan.groups[0], display_name: "工行信用卡" }] });
       }
       return response({ message: "ok", new_rows: 1, updated_rows: 0 });
     });
@@ -631,14 +678,17 @@ describe("CashImportPage", () => {
     render(<CashImportPage onBack={vi.fn()} />);
 
     const file = new File(["encrypted"], "locked.pdf", { type: "application/pdf" });
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
-    expect(await screen.findByLabelText("账单密码")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("账单密码"), { target: { value: "correct-password" } });
+    addSelectedFiles([file]);
+    await waitFor(() => expect(screen.getByRole("button", { name: "下一步" })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+    const passwordInput = await screen.findByTestId("import.file-password.0");
+    fireEvent.change(passwordInput, { target: { value: "correct-password" } });
     fireEvent.click(screen.getByRole("button", { name: "下一步" }));
     expect(await screen.findByRole("heading", { name: "映射账户" })).toBeInTheDocument();
     const scanRequests = fetch.mock.calls.filter(([input]) => String(input).includes("/scan"));
     expect(JSON.parse(String(scanRequests[1]?.[1]?.body))).toEqual({
       import_token: "token-locked",
+      batch: true,
       source: "",
       currency: null,
       preview_digest: null,
@@ -650,11 +700,17 @@ describe("CashImportPage", () => {
   });
 
   it("选中带加密标记的 PDF 后先在本地显示密码，不提前上传扫描", async () => {
+    let scanCalls = 0;
     const fetch = vi.fn((input: string, init?: RequestInit) => {
       if (input.includes("/scan")) {
+        scanCalls += 1;
+        if (scanCalls === 1) {
+          expect(new Headers(init?.headers).get("X-FT-Statement-Passwords")).toBeNull();
+          return response({ ...scan, ready: false, files: [{ index: 0, name: "locked.pdf", filename: "locked.pdf", digest: "digest-1", size: 32, status: "password_required", error_code: "password_required" }] });
+        }
         expect(input).not.toContain("local-password");
-        expect(new Headers(init?.headers).get("X-FT-Statement-Password")).toBe("local-password");
-        return response(scan);
+        expect(new Headers(init?.headers).get("X-FT-Statement-Passwords")).toBe(JSON.stringify({ "0": "local-password" }));
+        return response({ ...scan, ready: true, files: [{ index: 0, name: "locked.pdf", filename: "locked.pdf", digest: "digest-1", size: 32, status: "ready" }] });
       }
       return response({ message: "ok", new_rows: 1, updated_rows: 0 });
     });
@@ -664,15 +720,16 @@ describe("CashImportPage", () => {
     const file = new File(["%PDF-1.7\ntrailer\n<< /Encrypt 8 0 R >>"], "locked.pdf", {
       type: "application/pdf",
     });
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
-
-    expect(await screen.findByLabelText("账单密码")).toBeInTheDocument();
+    addSelectedFiles([file]);
+    await waitFor(() => expect(screen.getByRole("button", { name: "下一步" })).not.toBeDisabled());
     expect(fetch).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText("账单密码"), { target: { value: "local-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+    const passwordInput = await screen.findByTestId("import.file-password.0");
+    fireEvent.change(passwordInput, { target: { value: "local-password" } });
     fireEvent.click(screen.getByRole("button", { name: "下一步" }));
 
     expect(await screen.findByRole("heading", { name: "映射账户" })).toBeInTheDocument();
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it("预览阶段密码失效时回到选择文件并清空密码", async () => {
@@ -680,9 +737,9 @@ describe("CashImportPage", () => {
     const fetch = vi.fn((input: string, init?: RequestInit) => {
       if (input.includes("/scan")) {
         detectCalls += 1;
-        if (detectCalls === 1) return response({ error: { code: "import_password_required" } }, 400);
-        expect(new Headers(init?.headers).get("X-FT-Statement-Password")).toBe("wrong-password");
-        return response({ ...scan, channel: "icbc", channel_label: "工行信用卡", file: { name: "locked.pdf", digest: "digest-1" }, groups: [{ ...scan.groups[0], display_name: "工行信用卡" }] });
+        if (detectCalls === 1) return response({ ...scan, ready: false, files: [{ index: 0, name: "locked.pdf", filename: "locked.pdf", digest: "digest-1", size: 9, status: "password_required", error_code: "password_required" }] });
+        expect(new Headers(init?.headers).get("X-FT-Statement-Passwords")).toBe(JSON.stringify({ "0": "wrong-password" }));
+        return response({ ...scan, ready: true, channel: "icbc", channel_label: "工行信用卡", file: { name: "locked.pdf", digest: "digest-1" }, files: [{ index: 0, name: "locked.pdf", filename: "locked.pdf", digest: "digest-1", size: 9, status: "ready" }], groups: [{ ...scan.groups[0], display_name: "工行信用卡" }] });
       }
       if (input.includes("/preview")) return response({ error: { code: "import_password_invalid" } }, 400);
       return response({ message: "ok", new_rows: 1, updated_rows: 0 });
@@ -691,14 +748,16 @@ describe("CashImportPage", () => {
     render(<CashImportPage onBack={vi.fn()} />);
 
     const file = new File(["encrypted"], "locked.pdf", { type: "application/pdf" });
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
-    const passwordInput = await screen.findByLabelText("账单密码");
+    addSelectedFiles([file]);
+    await waitFor(() => expect(screen.getByRole("button", { name: "下一步" })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+    const passwordInput = await screen.findByTestId("import.file-password.0");
     fireEvent.change(passwordInput, { target: { value: "wrong-password" } });
     fireEvent.click(screen.getByRole("button", { name: "下一步" }));
     fireEvent.click(await screen.findByRole("button", { name: /^确认映射$/ }));
 
     expect(await screen.findByRole("heading", { name: "选择文件" })).toBeInTheDocument();
-    expect(screen.getByLabelText("账单密码")).toHaveValue("");
+    expect(screen.getByTestId("import.file-password.0")).toHaveValue("");
     expect(screen.getByText("账单密码错误，请重试。")).toBeInTheDocument();
     expect(screen.queryByText("账单预览失败，请重试。")).not.toBeInTheDocument();
   });
@@ -708,9 +767,9 @@ describe("CashImportPage", () => {
     const fetch = vi.fn((input: string, init?: RequestInit) => {
       if (input.includes("/scan")) {
         detectCalls += 1;
-        if (detectCalls === 1) return response({ error: { code: "import_password_required" } }, 400);
-        expect(new Headers(init?.headers).get("X-FT-Statement-Password")).toBe("correct-password");
-        return response({ ...scan, file: { name: "locked.pdf", digest: "locked.pdf" } });
+        if (detectCalls === 1) return response({ ...scan, ready: false, files: [{ index: 0, name: "locked.pdf", filename: "locked.pdf", digest: "digest-1", size: 9, status: "password_required", error_code: "password_required" }] });
+        expect(new Headers(init?.headers).get("X-FT-Statement-Passwords")).toBe(JSON.stringify({ "0": "correct-password" }));
+        return response({ ...scan, ready: true, file: { name: "locked.pdf", digest: "locked.pdf" }, files: [{ index: 0, name: "locked.pdf", filename: "locked.pdf", digest: "locked.pdf", size: 9, status: "ready" }] });
       }
       if (input.includes("/preview")) return response(preview);
       if (input.includes("/commit")) return response({ error: { code: "import_password_required" } }, 400);
@@ -720,8 +779,10 @@ describe("CashImportPage", () => {
     render(<CashImportPage onBack={vi.fn()} />);
 
     const file = new File(["encrypted"], "locked.pdf", { type: "application/pdf" });
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
-    const passwordInput = await screen.findByLabelText("账单密码");
+    addSelectedFiles([file]);
+    await waitFor(() => expect(screen.getByRole("button", { name: "下一步" })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+    const passwordInput = await screen.findByTestId("import.file-password.0");
     fireEvent.change(passwordInput, { target: { value: "correct-password" } });
     fireEvent.click(screen.getByRole("button", { name: "下一步" }));
     fireEvent.click(await screen.findByRole("button", { name: /^确认映射$/ }));
@@ -729,7 +790,7 @@ describe("CashImportPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "确认导入" }));
 
     expect(await screen.findByRole("heading", { name: "选择文件" })).toBeInTheDocument();
-    expect(screen.getByLabelText("账单密码")).toHaveValue("");
+    expect(screen.getByTestId("import.file-password.0")).toHaveValue("");
     expect(screen.getByText("请输入账单密码。")).toBeInTheDocument();
     expect(screen.queryByText("确认导入失败，请重试。")).not.toBeInTheDocument();
   });
@@ -760,9 +821,7 @@ describe("CashImportPage", () => {
     vi.stubGlobal("fetch", fetch);
     render(<CashImportPage onBack={vi.fn()} />);
 
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, {
-      target: { files: [new File(["fixture"], "alipay.csv", { type: "text/csv" })] },
-    });
+    await selectAndScan([new File(["fixture"], "alipay.csv", { type: "text/csv" })]);
 
     expect(await screen.findByRole("heading", { name: "映射账户" })).toBeInTheDocument();
     expect(screen.getByText("有 1 条流水无法准确归属，确认导入时会跳过；其余流水可正常导入。"))
@@ -784,7 +843,7 @@ describe("CashImportPage", () => {
     render(<CashImportPage onBack={vi.fn()} />);
 
     const file = new File(["standardized"], "statement.csv", { type: "text/csv" });
-    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } });
+    await selectAndScan([file]);
     await screen.findByRole("heading", { name: "映射账户" });
     fireEvent.click(screen.getByRole("button", { name: "上一步" }));
 

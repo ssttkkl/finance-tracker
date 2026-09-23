@@ -2,8 +2,8 @@ import { useMemo, useReducer, useState } from "react";
 import { router } from "expo-router";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type {
-  Account,
   ImportCommitResult,
+  FileSource,
   ImportMappingDecision,
   ImportPreview,
   ImportRelation,
@@ -16,11 +16,11 @@ import {
   allocationMatches,
   createImportSession,
   importSessionReducer,
+  sha1Hex,
   type AllocationBalance,
-  type ImportSessionState,
 } from "@finance-tracker/core";
 import { Button, Header, Label, Screen, StatusMessage, Surface } from "@/components/NativeShell";
-import { pickStatementFile } from "@/platform/fileSource";
+import { pickStatementFiles } from "@/platform/fileSource";
 import { withWriteTimeout } from "@/platform/timeout";
 import { errorMessage, useSession } from "@/state/session";
 import { nativeColors, nativeTypography } from "@finance-tracker/design-tokens";
@@ -36,6 +36,11 @@ type RelationDraft = {
   state: RelationState;
   kind: string;
   secondary: ImportRelationRecord | null;
+};
+
+type SelectedImportFile = {
+  source: FileSource;
+  sha1: string;
 };
 
 const recordTypeLabels: Record<string, string> = {
@@ -109,6 +114,8 @@ function relationDecision(relation: ImportRelation, draft: RelationDraft): Recor
     if (!record) return {};
     return record.fact_id
       ? { [`${key}_fact_id`]: record.fact_id }
+      : record.relation_ref
+        ? { [`${key}_record_ref`]: record.relation_ref }
       : { [`${key}_record_id`]: record.record_id };
   };
   const base = {
@@ -187,14 +194,13 @@ export default function ImportScreen() {
   const { client, activeRole } = useSession();
   const [importState, dispatch] = useReducer(importSessionReducer, undefined, createImportSession);
   const [stage, setStage] = useState<Stage>("select");
-  const [file, setFile] = useState<import("@finance-tracker/contracts").FileSource | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<SelectedImportFile[]>([]);
   const [scan, setScan] = useState<ImportScan | null>(null);
   const [drafts, setDrafts] = useState<Record<string, MappingDraft>>({});
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [allocationDrafts, setAllocationDrafts] = useState<Record<string, string[]>>({});
   const [relationDrafts, setRelationDrafts] = useState<Record<string, RelationDraft>>({});
-  const [password, setPassword] = useState("");
-  const [passwordRequired, setPasswordRequired] = useState(false);
+  const [passwords, setPasswords] = useState<Record<string, string>>({});
   const [importToken, setImportToken] = useState<string | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
   const [errorOverride, setErrorOverride] = useState<string | null>(null);
@@ -207,23 +213,42 @@ export default function ImportScreen() {
     return draft.state === "pending";
   }).length, [preview, relationDrafts]);
 
-  async function scanFile(nextFile: import("@finance-tracker/contracts").FileSource, nextPassword = "", nextToken?: string) {
+  function clearImportProgress() {
+    setScan(null);
+    setDrafts({});
+    setPreview(null);
+    setAllocationDrafts({});
+    setRelationDrafts({});
+    setResult(null);
+    setImportToken(null);
+    setIdempotencyKey(null);
+    setPasswords({});
+    setStage("select");
+  }
+
+  async function scanSelectedFiles(nextPasswords = passwords, nextToken = importToken) {
+    if (selectedFiles.length === 0 || importState.status === "loading") return;
     dispatch({ type: "request_started" });
     setErrorOverride(null);
     try {
-      const nextScan = await client.scanCashImport(nextFile, undefined, nextPassword || undefined, nextToken);
-      setFile(nextFile);
+      const nextScan = await client.scanCashImportBatch(
+        selectedFiles.map((item) => item.source),
+        undefined,
+        nextPasswords,
+        nextToken ?? undefined,
+      );
       setScan(nextScan);
-      setDrafts(mappingFor(nextScan));
       setPreview(null);
       setAllocationDrafts({});
       setRelationDrafts({});
       setImportToken(nextScan.import_token ?? nextToken ?? null);
       if (nextScan.import_token || nextToken) setIdempotencyKey((current) => current ?? newIdempotencyKey());
-      setPasswordRequired(false);
-      setPassword("");
-      setStage("mapping");
-      dispatch({ type: "file_selected", fileName: nextFile.name });
+      const ready = nextScan.ready !== false && !(nextScan.files ?? []).some((item) => item.status !== "ready");
+      if (ready) {
+        setDrafts(mappingFor(nextScan));
+        setStage("mapping");
+      }
+      dispatch({ type: "file_selected", fileName: selectedFiles[0]?.source.name ?? "statement" });
     } catch (cause) {
       const token = importTokenFrom(cause);
       if (token) {
@@ -232,36 +257,37 @@ export default function ImportScreen() {
       }
       const code = errorCode(cause);
       dispatch({ type: "request_failed", errorCode: code, importToken: token ?? undefined });
-      if (code === "import_password_required" || code === "import_password_invalid") {
-        setPasswordRequired(true);
-        setPassword("");
-      }
-      setErrorOverride(null);
+      setErrorOverride(code === "import_channel_unrecognized"
+        ? "无法识别账单渠道，请删除对应文件后重试。"
+        : code === "import_files_not_ready"
+          ? "请先补充密码或删除无法识别的文件。"
+          : "文件识别失败，请重试。");
     }
   }
 
   async function chooseFile() {
     setErrorOverride(null);
     try {
-      const nextFile = await pickStatementFile();
-      if (!nextFile) {
+      const picked = await pickStatementFiles();
+      if (picked.length === 0) {
         dispatch({ type: "file_cancelled" });
         return;
       }
-      setFile(nextFile);
-      setScan(null);
-      setDrafts({});
-      setPreview(null);
-      setAllocationDrafts({});
-      setRelationDrafts({});
-      setResult(null);
-      setImportToken(null);
-      setIdempotencyKey(null);
-      setPassword("");
-      setPasswordRequired(false);
-      setStage("select");
-      dispatch({ type: "file_selected", fileName: nextFile.name });
-      await scanFile(nextFile);
+      const existing = new Set(selectedFiles.map((item) => item.sha1));
+      const next: SelectedImportFile[] = [];
+      for (const source of picked) {
+        if (selectedFiles.length + next.length >= 20) break;
+        const bytes = await source.read();
+        const sha1 = sha1Hex(bytes);
+        if (existing.has(sha1)) continue;
+        const cached = { ...source, size: source.size ?? bytes.byteLength, read: async () => bytes };
+        next.push({ source: cached, sha1 });
+        existing.add(sha1);
+      }
+      if (next.length > 0) {
+        setSelectedFiles((current) => [...current, ...next]);
+        clearImportProgress();
+      }
     } catch (cause) {
       const code = errorCode(cause);
       dispatch({ type: "request_failed", errorCode: code });
@@ -269,21 +295,19 @@ export default function ImportScreen() {
     }
   }
 
-  async function scanWithPassword() {
-    if (!file || !password) return;
-    await scanFile(file, password, importToken ?? undefined);
+  function removeFile(sha1: string) {
+    setSelectedFiles((current) => current.filter((item) => item.sha1 !== sha1));
+    clearImportProgress();
   }
 
   async function loadPreview(nextStage: "preview" | "relations" = "preview") {
-    if (!file || !scan || !mappingComplete) return;
+    if (selectedFiles.length === 0 || !scan || !mappingComplete) return;
     dispatch({ type: "request_started" });
     setErrorOverride(null);
     try {
-      const nextPreview = await client.previewCashImport(
-        file,
-        "",
+      const nextPreview = await client.previewCashImportBatch(
         undefined,
-        password || undefined,
+        passwords,
         mappingDecision(scan, drafts, allocationDrafts),
         importToken ?? undefined,
       );
@@ -293,7 +317,8 @@ export default function ImportScreen() {
         for (const item of nextPreview.items) {
           const components = item.components ?? [];
           if (components.length < 2) continue;
-          next[item.record_id] = components.map((component, index) => current[item.record_id]?.[index] ?? unsignedAmount(component.amount));
+          const key = item.relation_ref ?? item.record_id;
+          next[key] = components.map((component, index) => current[key]?.[index] ?? unsignedAmount(component.amount));
         }
         return next;
       });
@@ -307,8 +332,7 @@ export default function ImportScreen() {
       const code = errorCode(cause);
       dispatch({ type: "request_failed", errorCode: code, importToken: token ?? undefined });
       if (code === "import_password_required" || code === "import_password_invalid") {
-        setPasswordRequired(true);
-        setPassword("");
+        setPasswords({});
         setStage("select");
       }
     }
@@ -318,7 +342,7 @@ export default function ImportScreen() {
     if (!preview) return;
     const aggregateItems = preview.items.filter((item) => (item.components?.length ?? 0) > 1);
     const allocationReady = aggregateItems.length > 0
-      ? aggregateItems.every((item) => allocationMatches(item, allocationDrafts[item.record_id] ?? []))
+      ? aggregateItems.every((item) => allocationMatches(item, allocationDrafts[item.relation_ref ?? item.record_id] ?? []))
       : allocationRequiredCount(preview) === 0;
     if (!allocationReady) {
       setErrorOverride("请补齐组合支付各组成项金额，且合计等于流水金额。");
@@ -351,10 +375,10 @@ export default function ImportScreen() {
   }
 
   async function confirmImport() {
-    if (!file || !preview || ordinaryUnsupportedCount(preview) > 0 || !writable) return;
+    if (selectedFiles.length === 0 || !preview || ordinaryUnsupportedCount(preview) > 0 || !writable) return;
     const aggregateItems = preview.items.filter((item) => (item.components?.length ?? 0) > 1);
     const allocationReady = aggregateItems.length > 0
-      ? aggregateItems.every((item) => allocationMatches(item, allocationDrafts[item.record_id] ?? []))
+      ? aggregateItems.every((item) => allocationMatches(item, allocationDrafts[item.relation_ref ?? item.record_id] ?? []))
       : allocationRequiredCount(preview) === 0;
     if (!allocationReady) {
       setErrorOverride("请补齐组合支付各组成项金额，且合计等于流水金额。");
@@ -370,8 +394,8 @@ export default function ImportScreen() {
     dispatch({ type: "commit_started" });
     setErrorOverride(null);
     try {
-      const committed = await withWriteTimeout(client.commitCashImport(file, "", undefined, {
-        password: password || undefined,
+      const committed = await withWriteTimeout(client.commitCashImportBatch(undefined, {
+        passwords,
         previewDigest: preview.file.digest,
         previewRelationDigest: preview.relation_digest,
         previewChannel: preview.channel,
@@ -388,8 +412,7 @@ export default function ImportScreen() {
       const code = errorCode(cause);
       dispatch({ type: "request_failed", errorCode: code, importToken: token ?? undefined });
       if (code === "import_password_required" || code === "import_password_invalid") {
-        setPasswordRequired(true);
-        setPassword("");
+        setPasswords({});
         setStage("select");
       }
     }
@@ -399,31 +422,32 @@ export default function ImportScreen() {
   const allocationItems = preview?.items.filter((item) => (item.components?.length ?? 0) > 1) ?? [];
   const allocationComplete = preview
     ? allocationItems.length > 0
-      ? allocationItems.every((item) => allocationMatches(item, allocationDrafts[item.record_id] ?? []))
+      ? allocationItems.every((item) => allocationMatches(item, allocationDrafts[item.relation_ref ?? item.record_id] ?? []))
       : allocationRequiredCount(preview) === 0
     : false;
   const renderAllocationDetail = (item: ImportPreview["items"][number]) => {
     const components = item.components ?? [];
     if (components.length < 2) return null;
-    const values = allocationDrafts[item.record_id] ?? [];
+    const allocationKey = item.relation_ref ?? item.record_id;
+    const values = allocationDrafts[allocationKey] ?? [];
     const balance = allocationBalance(item, values);
     return <View
-      testID={`${semanticIds.importAllocation}.${item.record_id}`}
+      testID={`${semanticIds.importAllocation}.${allocationKey}`}
       style={[styles.allocationDetail, balance.state === "complete" && styles.allocationDetailComplete]}
     >
       <View style={styles.allocationFields}>
-        {components.map((component, index) => <View key={`${item.record_id}-${component.ordinal}`} style={styles.allocationField}>
+        {components.map((component, index) => <View key={`${allocationKey}-${component.ordinal}`} style={styles.allocationField}>
           <View style={styles.allocationLabel}><Text style={styles.muted}>{component.account_name || component.source_label}</Text><Text style={styles.allocationHint}>账户 · {item.currency}</Text></View>
           <TextInput
-            testID={`import-allocation-${item.record_id}-${component.ordinal}`}
+            testID={`import-allocation-${allocationKey}-${component.ordinal}`}
             accessibilityLabel={`${component.account_name || component.source_label}分摊金额`}
             editable={writable && importState.status !== "loading" && importState.status !== "committing"}
             keyboardType="decimal-pad"
             onChangeText={(value) => {
               setAllocationDrafts((current) => {
-                const next = [...(current[item.record_id] ?? [])];
+                const next = [...(current[allocationKey] ?? [])];
                 next[index] = value;
-                return { ...current, [item.record_id]: next };
+                return { ...current, [allocationKey]: next };
               });
               setErrorOverride(null);
             }}
@@ -467,9 +491,28 @@ export default function ImportScreen() {
     {stage === "select" && <Surface testID={semanticIds.importFile}>
       <Text style={styles.sectionTitle}>{copy.import.chooseFile}</Text>
       <Text style={styles.muted}>{copy.import.supportedFiles}</Text>
-      {file && <View style={styles.fileCard}><Text style={styles.fileName}>{file.name}</Text></View>}
-      <Button testID={semanticIds.importChooseFile} disabled={!writable || importState.status === "loading"} onPress={() => void chooseFile()} variant="primary">{importState.status === "loading" ? copy.import.scanning : file ? copy.import.rescan : copy.import.selectFile}</Button>
-      {passwordRequired && <View style={styles.passwordBox}><Label>{copy.import.password}</Label><TextInput testID={semanticIds.importPassword} autoCapitalize="none" editable={importState.status !== "loading"} onChangeText={setPassword} placeholder="输入密码后重新扫描" placeholderTextColor={nativeColors.inkFaint} secureTextEntry style={styles.input} value={password} /><Button disabled={!password || importState.status === "loading"} onPress={() => void scanWithPassword()} variant="secondary">{copy.import.usePassword}</Button></View>}
+      <Button testID={semanticIds.importChooseFile} disabled={!writable || importState.status === "loading" || selectedFiles.length >= 20} onPress={() => void chooseFile()} variant="primary">{selectedFiles.length > 0 ? copy.import.chooseMore : copy.import.selectFile}</Button>
+      {selectedFiles.length > 0 && <View testID={semanticIds.importSelectedFiles} style={styles.selectedFilesBox}>
+        <View style={styles.stageHeader}><Text style={styles.muted}>{copy.import.selectedFiles} {selectedFiles.length}/20</Text><Text style={styles.muted}>SHA-1 去重</Text></View>
+        {selectedFiles.map((entry, index) => {
+          const status = scan?.files?.find((item) => item.index === index);
+          return <View key={entry.sha1} style={styles.fileRow}>
+            <View style={styles.fileRowMain}><Text style={styles.fileName}>{entry.source.name}</Text><Text style={styles.muted}>{status?.channel_label ?? (entry.source.size ? `${Math.ceil(entry.source.size / 1024)} KB` : "")}</Text></View>
+            <Text style={styles.fileStatus}>{status?.status === "ready" ? copy.import.fileReady : status?.status === "error" ? copy.import.fileScanError : status?.status === "password_required" ? copy.import.password : ""}</Text>
+            <Button testID={`${semanticIds.importRemoveFile}.${entry.sha1}`} disabled={importState.status === "loading"} onPress={() => removeFile(entry.sha1)} variant="secondary">{copy.import.removeFile}</Button>
+          </View>;
+        })}
+      </View>}
+      {scan?.files?.filter((item) => item.status === "password_required").map((item) => {
+        const selected = selectedFiles[item.index];
+        if (!selected) return null;
+        return <View key={item.index} style={styles.passwordBox}>
+          <Label>{selected.source.name} · {copy.import.filePassword}</Label>
+          <TextInput testID={`${semanticIds.importFilePassword}.${item.index}`} autoCapitalize="none" editable={importState.status !== "loading"} onChangeText={(value) => setPasswords((current) => ({ ...current, [String(item.index)]: value }))} placeholder={copy.import.filePassword} placeholderTextColor={nativeColors.inkFaint} secureTextEntry style={styles.input} value={passwords[String(item.index)] ?? ""} />
+        </View>;
+      })}
+      {scan?.files?.filter((item) => item.status === "error").map((item) => <Text key={item.index} style={styles.warning}>{item.filename ?? selectedFiles[item.index]?.source.name}：{copy.import.fileScanError}</Text>)}
+      <View style={styles.stageActions}><Button disabled={importState.status === "loading"} onPress={() => router.back()}>{copy.common.cancel}</Button><Button testID={semanticIds.importNext} disabled={!writable || selectedFiles.length === 0 || importState.status === "loading" || Boolean(scan?.files?.some((item) => item.status === "error" || (item.status === "password_required" && !(passwords[String(item.index)] ?? "").trim())))} onPress={() => void scanSelectedFiles()} variant="primary">{importState.status === "loading" ? copy.import.scanning : copy.import.next}</Button></View>
     </Surface>}
 
     {stage === "mapping" && scan && <Surface testID={semanticIds.importMapping}>
@@ -496,7 +539,7 @@ export default function ImportScreen() {
     {stage === "preview" && preview && <Surface testID={semanticIds.importPreview}>
       <View style={styles.stageHeader}><Text style={styles.sectionTitle}>{copy.import.preview}</Text><Text style={styles.mono}>{preview.channel_label}</Text></View>
       <View style={styles.summary}><Summary label={copy.import.all} value={preview.summary.total} /><Summary label={copy.import.new} value={preview.summary.new} /><Summary label={copy.import.existing} value={preview.summary.existing} /><Summary label={copy.import.statusUnresolved} value={preview.summary.unresolved ?? 0} /></View>
-      {preview.items.length === 0 ? <StatusMessage title={copy.import.noPreviewRecords} /> : <View style={styles.previewList}>{preview.items.map((item) => <View key={item.record_id} style={styles.previewItem}><View style={styles.previewRow}><View style={styles.rowMain}><Text style={styles.groupName}>{item.counterparty || copy.ledger.noCounterparty}</Text><Text style={styles.muted}>{item.account_name} · {item.occurred_at}</Text><Text style={styles.muted}>{recordTypeLabels[item.record_type] ?? copy.record.typeLabels.other} · {item.status === "new" ? copy.import.statusNew : item.status === "existing" ? copy.import.statusExisting : item.status === "unresolved" ? copy.import.statusUnresolved : item.status === "requires_allocation" ? "待补分配" : copy.import.statusUnsupported}</Text></View><Text style={styles.amount}>{item.amount} {item.currency}</Text></View>{renderAllocationDetail(item)}</View>)}</View>}
+      {preview.items.length === 0 ? <StatusMessage title={copy.import.noPreviewRecords} /> : <View style={styles.previewList}>{preview.items.map((item) => <View key={item.relation_ref ?? item.record_id} style={styles.previewItem}><View style={styles.previewRow}><View style={styles.rowMain}><Text style={styles.groupName}>{item.counterparty || copy.ledger.noCounterparty}</Text><Text style={styles.muted}>{item.account_name} · {item.occurred_at}</Text><Text style={styles.muted}>{recordTypeLabels[item.record_type] ?? copy.record.typeLabels.other} · {item.status === "new" ? copy.import.statusNew : item.status === "existing" ? copy.import.statusExisting : item.status === "unresolved" ? copy.import.statusUnresolved : item.status === "requires_allocation" ? "待补分配" : copy.import.statusUnsupported}</Text></View><Text style={styles.amount}>{item.amount} {item.currency}</Text></View>{renderAllocationDetail(item)}</View>)}</View>}
       {preview.summary.unresolved ? <Text style={styles.warning}>{preview.summary.unresolved} 条无法识别，确认后会跳过。</Text> : null}
       {ordinaryUnsupportedCount(preview) > 0 ? <Text style={styles.warning}>{copy.import.unsupportedCannotConfirm}</Text> : null}
       <View style={styles.stageActions}><Button testID={semanticIds.importPrevious} disabled={importState.status === "loading"} onPress={() => setStage("mapping")}>{copy.import.previous}</Button><Button testID={semanticIds.importNext} disabled={importState.status === "loading" || !allocationComplete || !writable} onPress={() => openRelations()} variant="primary">{copy.import.next}</Button></View>
@@ -541,6 +584,10 @@ const styles = StyleSheet.create({
   mono: { color: nativeColors.accent, fontFamily: nativeTypography.mono, fontSize: 11 },
   fileCard: { gap: 4, padding: 12, borderWidth: 1, borderColor: nativeColors.rule, backgroundColor: nativeColors.paperMuted },
   fileName: { color: nativeColors.ink, fontSize: 15, fontWeight: "700" },
+  selectedFilesBox: { gap: 8, paddingTop: 8 },
+  fileRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: nativeColors.rule },
+  fileRowMain: { flex: 1, gap: 2 },
+  fileStatus: { color: nativeColors.inkFaint, fontSize: 11 },
   passwordBox: { gap: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: nativeColors.rule },
   input: { minHeight: 48, paddingHorizontal: 12, borderWidth: 1, borderColor: nativeColors.rule, borderRadius: 3, color: nativeColors.ink, backgroundColor: nativeColors.paperRaised, fontSize: 16 },
   mappingGroup: { gap: 8, paddingTop: 14, paddingBottom: 14, borderTopWidth: 1, borderTopColor: nativeColors.rule },

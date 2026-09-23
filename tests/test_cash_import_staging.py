@@ -167,3 +167,25 @@ def test_r2_not_found_errors_are_mapped_without_provider_details():
     store = R2ImportStagingStore(NotFoundS3(), bucket="private-imports")
     with pytest.raises(ImportSessionNotFound):
         store._get("cash-import/missing/source")
+
+
+def test_staging_store_keeps_batch_files_in_order_and_cleans_each_source_object():
+    store = InMemoryImportStagingStore(ttl_seconds=1800)
+    session = store.create_batch(
+        workspace_id="workspace-a",
+        user_id="user-a",
+        files=[
+            {"filename": "alipay.csv", "digest": "digest-a", "content": b"a"},
+            {"filename": "wechat.pdf", "digest": "digest-b", "content": b"b"},
+        ],
+        batch_digest="batch-digest",
+    )
+
+    assert session.batch_digest == "batch-digest"
+    assert [item.filename for item in session.files] == ["alipay.csv", "wechat.pdf"]
+    assert store.read_bytes(session.token, "source-0", workspace_id="workspace-a", user_id="user-a") == b"a"
+    assert store.read_bytes(session.token, "source-1", workspace_id="workspace-a", user_id="user-a") == b"b"
+
+    store.complete(session.token, workspace_id="workspace-a", user_id="user-a")
+    with pytest.raises(ImportSessionNotFound):
+        store.read_bytes(session.token, "source-1", workspace_id="workspace-a", user_id="user-a")

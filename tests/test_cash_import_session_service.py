@@ -274,3 +274,56 @@ def test_session_fails_closed_when_a_relation_digest_loses_its_cached_plan():
         )
 
     assert backend.commit_kwargs is None
+
+
+class _BatchRecordingCashImport:
+    def __init__(self):
+        self.calls = []
+
+    def scan_import_batch(self, files, **kwargs):
+        self.calls.append(("scan", [item["content"] for item in files], kwargs.get("passwords") or {}))
+        statuses = []
+        for index, item in enumerate(files):
+            if item["filename"].endswith(".pdf") and not (kwargs.get("passwords") or {}).get(str(index)):
+                statuses.append({"index": index, "name": item["filename"], "status": "password_required"})
+            else:
+                statuses.append({"index": index, "name": item["filename"], "status": "ready", "channel": "alipay"})
+        return {"files": statuses, "ready": all(item["status"] == "ready" for item in statuses), "groups": []}
+
+    def preview_import_batch(self, files, **kwargs):
+        self.calls.append(("preview", [item["content"] for item in files], kwargs.get("passwords") or {}))
+        return {"files": [], "items": [], "relations": [], "summary": {"total": 0}, "batch_digest": files[0]["batch_digest"]}
+
+    def commit_import_batch(self, files, **kwargs):
+        self.calls.append(("commit", [item["content"] for item in files], kwargs.get("passwords") or {}))
+        return {"message": "导入完成", "new_rows": 2, "batch_digest": files[0]["batch_digest"]}
+
+
+def test_batch_session_keeps_password_file_and_only_enters_preview_when_all_ready():
+    backend = _BatchRecordingCashImport()
+    service = CashImportSessionService(
+        backend,
+        InMemoryImportStagingStore(),
+        workspace_id="workspace-a",
+        user_id="user-a",
+    )
+
+    scan = service.scan_import_batch([
+        {"filename": "alipay.csv", "content": b"a"},
+        {"filename": "wechat.pdf", "content": b"b"},
+    ])
+    assert scan["ready"] is False
+    assert scan["files"][1]["status"] == "password_required"
+    with pytest.raises(ValueError, match="import_files_not_ready"):
+        service.preview_import_batch_session(scan["import_token"], mapping=[])
+
+    ready = service.scan_import_batch_session(scan["import_token"], passwords={"1": "secret"})
+    assert ready["ready"] is True
+    preview = service.preview_import_batch_session(scan["import_token"], mapping=[])
+    result = service.commit_import_batch_session(
+        scan["import_token"], mapping=[], relation_decisions=[], idempotency_key="batch-commit-1",
+    )
+    assert preview["import_token"] == scan["import_token"]
+    assert result["new_rows"] == 2
+    assert [kind for kind, _contents, _passwords in backend.calls] == ["scan", "scan", "preview", "commit"]
+    assert backend.calls[1][2] == {"1": "secret"}

@@ -77,6 +77,7 @@ type ImportRequestValues = {
   source?: string;
   currency?: string;
   password?: string;
+  passwords?: Record<string, string>;
   previewDigest?: string;
   previewRelationDigest?: string;
   previewChannel?: string;
@@ -84,6 +85,7 @@ type ImportRequestValues = {
   mapping?: ImportMappingDecision[];
   importToken?: string;
   idempotencyKey?: string;
+  batch?: boolean;
 };
 
 type ImportRequestError = ApiError & { importToken?: string };
@@ -129,8 +131,11 @@ export type ApiClient = {
   dissolveCashRelations(factId: string, signal?: unknown): Promise<CashRecordDetail>;
   detectCashImport(file: FileSource, currency?: string, password?: string): Promise<ImportDetection>;
   scanCashImport(file: FileSource, currency?: string, password?: string, importToken?: string): Promise<ImportScan>;
+  scanCashImportBatch(files: FileSource[], currency?: string, passwords?: Record<string, string>, importToken?: string): Promise<ImportScan>;
   previewCashImport(file: FileSource | undefined, source?: string, currency?: string, password?: string, mapping?: ImportMappingDecision[], importToken?: string): Promise<ImportPreview>;
+  previewCashImportBatch(currency?: string, passwords?: Record<string, string>, mapping?: ImportMappingDecision[], importToken?: string): Promise<ImportPreview>;
   commitCashImport(file: FileSource | undefined, source?: string, currency?: string, options?: ImportRequestValues): Promise<ImportCommitResult>;
+  commitCashImportBatch(currency?: string, options?: ImportRequestValues): Promise<ImportCommitResult>;
   fetchInvestmentPage(filters: InvestmentFilters, cursor?: string | null, signal?: unknown): Promise<InvestmentPage>;
   fetchInvestmentAccounts(signal?: unknown): Promise<Account[]>;
   fetchInvestmentEvidence(eventId: string, signal?: unknown): Promise<InvestmentEvidence>;
@@ -276,6 +281,9 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     const headers: Record<string, string> = { Authorization: token ? `Bearer ${token}` : "" };
     if (!token) delete headers.Authorization;
     if (values.password) headers["X-FT-Statement-Password"] = values.password;
+    if (values.passwords && Object.keys(values.passwords).length > 0) {
+      headers["X-FT-Statement-Passwords"] = JSON.stringify(values.passwords);
+    }
     if (values.importToken) {
       headers["Content-Type"] = "application/json";
       if (values.idempotencyKey) headers["Idempotency-Key"] = values.idempotencyKey;
@@ -284,6 +292,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         headers,
         body: JSON.stringify({
           import_token: values.importToken,
+          ...(values.batch ? { batch: true } : {}),
           source: values.source ?? "",
           currency: values.currency ?? null,
           preview_digest: values.previewDigest ?? null,
@@ -323,6 +332,35 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       method: "POST",
       headers,
       body: bytes,
+    });
+    if (!response.ok) await importFailure(response);
+    return await response.json() as T;
+  }
+
+  async function importBatchRequest<T>(path: string, files: FileSource[], values: ImportRequestValues = {}): Promise<T> {
+    const baseUrl = getBaseUrl();
+    const token = await options.tokenStore.get();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    if (values.passwords && Object.keys(values.passwords).length > 0) {
+      headers["X-FT-Statement-Passwords"] = JSON.stringify(values.passwords);
+    }
+    const encoded = [];
+    for (const file of files) {
+      encoded.push({
+        filename: file.name,
+        content_base64: base64FromBytes(await file.read()),
+      });
+    }
+    const response = await options.fetch(`${baseUrl}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        files: encoded,
+        currency: values.currency ?? null,
+      }),
     });
     if (!response.ok) await importFailure(response);
     return await response.json() as T;
@@ -383,8 +421,13 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     dissolveCashRelations: (factId, signal) => jsonRequest<CashRecordDetail>("/api/v1/cash-relations/dissolve", { fact_id: factId }, { signal }),
     detectCashImport: (file, currency, password) => importRequest<ImportDetection>("/api/v1/cash-import/detect", file, { currency, password }),
     scanCashImport: (file, currency, password, importToken) => importRequest<ImportScan>("/api/v1/cash-import/scan", file, { currency, password, importToken }),
+    scanCashImportBatch: (files, currency, passwords, importToken) => importToken
+      ? importRequest<ImportScan>("/api/v1/cash-import/scan", undefined, { currency, passwords, importToken, batch: true })
+      : importBatchRequest<ImportScan>("/api/v1/cash-import/scan", files, { currency, passwords }),
     previewCashImport: (file, source, currency, password, mapping, importToken) => importRequest<ImportPreview>("/api/v1/cash-import/preview", file, { source, currency, password, mapping, importToken }),
+    previewCashImportBatch: (currency, passwords, mapping, importToken) => importRequest<ImportPreview>("/api/v1/cash-import/preview", undefined, { currency, passwords, mapping, importToken, batch: true }),
     commitCashImport: (file, source, currency, options = {}) => importRequest<ImportCommitResult>("/api/v1/cash-import/commit", file, { source, currency, ...options }),
+    commitCashImportBatch: (currency, options = {}) => importRequest<ImportCommitResult>("/api/v1/cash-import/commit", undefined, { currency, ...options, batch: true }),
     fetchInvestmentPage: (filters, cursor, signal) => request<InvestmentPage>(appendQuery("/api/v1/investment-events", { ...filters, timezone, cursor }), { signal }),
     fetchInvestmentAccounts: (signal) => request<{ items: Account[] }>("/api/v1/accounts?view=investment", { signal }).then((payload) => payload.items),
     fetchInvestmentEvidence: (eventId, signal) => request<InvestmentEvidence>(`/api/v1/evidence/investment-events/${encodeURIComponent(eventId)}`, { signal }),

@@ -1660,6 +1660,13 @@ class RelationService:
         by_id = {str(fact.id): fact for fact in facts}
         if text in by_id:
             return text
+        by_reference = {
+            stable_fact_reference(fact): str(fact.id)
+            for fact in facts
+            if stable_fact_reference(fact)
+        }
+        if text in by_reference:
+            return by_reference[text]
         return next(
             (str(fact.id) for fact in facts if str(fact.record_id or "") == text),
             text,
@@ -1678,7 +1685,11 @@ class RelationService:
             or proposal.secondary_fact_id in (None, "")
         ):
             return None
-        secondary = decision.get("secondary_fact_id") or decision.get("secondary_record_id")
+        secondary = (
+            decision.get("secondary_fact_id")
+            or decision.get("secondary_record_ref")
+            or decision.get("secondary_record_id")
+        )
         secondary = secondary or proposal.secondary_fact_id
         return (
             str(proposal.primary_fact_id),
@@ -1695,22 +1706,39 @@ class RelationService:
         if proposal_key and proposal_key != relation_proposal_key(proposal, facts):
             return False
         by_id = {str(fact.id): fact for fact in facts}
+        by_reference = {
+            stable_fact_reference(fact): str(fact.id)
+            for fact in facts
+            if stable_fact_reference(fact)
+        }
 
         def ref(value) -> str:
             text = str(value or "")
             if text in by_id:
                 return _stable_fact_ref(text, by_id)
+            if text.removeprefix("preview:") in by_reference:
+                return _stable_fact_ref(
+                    by_reference[text.removeprefix("preview:")], by_id,
+                )
             for fact in facts:
                 if str(fact.record_id or "") == text:
                     return _stable_fact_ref(str(fact.id), by_id)
             return text.removeprefix("preview:")
 
-        primary = decision.get("primary_fact_id") or decision.get("primary_record_id")
+        primary = (
+            decision.get("primary_fact_id")
+            or decision.get("primary_record_ref")
+            or decision.get("primary_record_id")
+        )
         if not primary:
             return False
         if ref(primary) != _stable_fact_ref(str(proposal.primary_fact_id), by_id):
             return False
-        secondary = decision.get("secondary_fact_id") or decision.get("secondary_record_id")
+        secondary = (
+            decision.get("secondary_fact_id")
+            or decision.get("secondary_record_ref")
+            or decision.get("secondary_record_id")
+        )
         if not secondary:
             return True
         return ref(secondary) in {
@@ -1730,7 +1758,11 @@ class RelationService:
         proposal_key = str(decision.get("proposal_key") or "")
         if proposal_key and proposal_key != relation_proposal_key(proposal, facts):
             return False
-        primary = decision.get("primary_fact_id") or decision.get("primary_record_id")
+        primary = (
+            decision.get("primary_fact_id")
+            or decision.get("primary_record_ref")
+            or decision.get("primary_record_id")
+        )
         if not primary:
             return False
         by_id = {str(fact.id): fact for fact in facts}
@@ -1738,10 +1770,16 @@ class RelationService:
         if text in by_id:
             resolved = text
         else:
-            resolved = next(
+            normalized = text.removeprefix("preview:")
+            by_reference = {
+                stable_fact_reference(fact): str(fact.id)
+                for fact in facts
+                if stable_fact_reference(fact)
+            }
+            resolved = by_reference.get(normalized, next(
                 (str(fact.id) for fact in facts if str(fact.record_id or "") == text),
-                text.removeprefix("preview:"),
-            )
+                normalized,
+            ))
         return _stable_fact_ref(resolved, by_id) == _stable_fact_ref(
             str(proposal.primary_fact_id), by_id,
         )

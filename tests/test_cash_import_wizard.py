@@ -58,11 +58,11 @@ def _service(tmp_path, rows_by_source):
 
 
 def test_cash_import_detects_unique_channel_and_preview_is_read_only(tmp_path):
-    from ft.adapters.relational.models import CashTransactionModel
+    from ft.adapters.relational.models import AccountModel, CashTransactionModel
 
     source = tmp_path / "statement.csv"
     source.write_bytes(b"test statement")
-    sessions, service = _service(tmp_path, {"alipay": [_row()]})
+    sessions, service = _service(tmp_path, {"alipay": [_row(payment_method="账户余额")]})
 
     detected = service.detect_import(source.read_bytes(), filename=source.name)
     assert detected["channel"] == "alipay"
@@ -1538,3 +1538,147 @@ def test_cash_import_mixed_batch_can_pair_new_fact_with_existing_fact(tmp_path):
     assert result["new_rows"] == 1
     with sessions() as session:
         assert session.query(TransactionRelationModel).count() == 1
+
+
+def test_cash_import_batch_accepts_mixed_channels_and_uses_channel_scoped_ids(tmp_path):
+    from ft.adapters.relational.models import AccountModel, CashTransactionModel
+
+    sessions, service = _service(tmp_path, {
+        "alipay": [_row(record_id="same-id", account_name="支付宝余额", payment_method="账户余额")],
+        "wechat": [_row(record_id="same-id", account_name="微信钱包", payment_method="零钱", bill_source="wechat", source_type="wechat")],
+    })
+    with service._uow as uow:
+        uow.accounts.add_raw({"name": "微信钱包", "type": "cash", "currency": "CNY"})
+        uow.commit()
+
+    files = [
+        {"filename": "alipay.csv", "content": b"alipay", "source": "alipay"},
+        {"filename": "wechat.csv", "content": b"wechat", "source": "wechat"},
+    ]
+    scan = service.scan_import_batch(files)
+    assert scan["ready"] is True
+    assert scan["channel"] == "mixed"
+    assert scan["channels"] == ["alipay", "wechat"]
+    assert {group["source_type"] for group in scan["groups"]} == {"alipay", "wechat"}
+
+    with sessions() as session:
+        account_ids = {
+            row.name: row.id
+            for row in session.query(AccountModel).filter_by(workspace_id="wizard-workspace").all()
+        }
+    mapping = [{
+        "group_id": group["group_id"],
+        "account_id": account_ids["支付宝余额" if group["source_type"] == "alipay" else "微信钱包"],
+        "mapping_revision": None,
+    } for group in scan["groups"]]
+    preview = service.preview_import_batch(files, mapping=mapping)
+    assert preview["channel"] == "mixed"
+    assert {item["channel"] for item in preview["items"]} == {"alipay", "wechat"}
+    assert {item["relation_ref"] for item in preview["items"]} == {"alipay:same-id", "wechat:same-id"}
+
+    result = service.commit_import_batch(
+        files,
+        mapping=mapping,
+        preview_digest=preview["batch_digest"],
+        preview_channel="mixed",
+        relation_decisions=[],
+        idempotency_key="mixed-batch-1",
+        idempotency_scope="mixed-batch-scope",
+        idempotency_user_id="user-a",
+    )
+    assert result["new_rows"] == 2
+    with sessions() as session:
+        assert session.query(CashTransactionModel).count() == 2
+
+
+def test_cash_import_batch_matches_relations_across_all_files(tmp_path):
+    from ft.application.relations import RelationService
+
+    expense = _row(
+        record_id="expense-from-alipay",
+        account_name="支付宝余额",
+        payment_method="账户余额",
+        amount="-9.90",
+        counterparty="瑞幸",
+        occurred_at="2026-08-12T09:24:00+08:00",
+    )
+    refund = _row(
+        record_id="refund-from-wechat",
+        account_name="微信钱包",
+        payment_method="零钱",
+        bill_source="wechat",
+        source_type="wechat",
+        amount="9.90",
+        counterparty="瑞幸",
+        record_type="refund",
+        occurred_at="2026-08-12T09:24:20+08:00",
+    )
+    sessions, service = _service(tmp_path, {"alipay": [expense], "wechat": [refund]})
+    service._relation_service = RelationService(service._uow)
+    with service._uow as uow:
+        uow.accounts.add_raw({"name": "微信钱包", "type": "cash", "currency": "CNY"})
+        uow.commit()
+
+    files = [
+        {"filename": "alipay.csv", "content": b"alipay", "source": "alipay"},
+        {"filename": "wechat.csv", "content": b"wechat", "source": "wechat"},
+    ]
+    scan = service.scan_import_batch(files)
+    shared_account_id = next(account["id"] for account in scan["accounts"] if account["name"] == "支付宝余额")
+    mapping = [{
+        "group_id": group["group_id"],
+        "account_id": shared_account_id,
+        "mapping_revision": group["suggestion"]["mapping_revision"],
+    } for group in scan["groups"]]
+
+    preview = service.preview_import_batch(files, mapping=mapping)
+    refund_relations = [relation for relation in preview["relations"] if relation["kind"] == "refund_offset"]
+    assert len(refund_relations) == 1
+    relation = refund_relations[0]
+    assert {relation["primary"]["relation_ref"], relation["secondary"]["relation_ref"]} == {
+        "alipay:expense-from-alipay", "wechat:refund-from-wechat",
+    }
+
+
+def test_cash_import_batch_rolls_back_everything_when_final_commit_fails(tmp_path, monkeypatch):
+    from ft.adapters.relational.models import (
+        CashImportCommitModel, CashTransactionModel, StatementAccountMappingModel,
+    )
+    import ft.application.cash_ledger as cash_ledger_module
+
+    sessions, service = _service(tmp_path, {"alipay": [_row(payment_method="账户余额")]})
+    files = [{"filename": "alipay.csv", "content": b"alipay", "source": "alipay"}]
+    scan = service.scan_import_batch(files)
+    mapping = [{
+        "group_id": scan["groups"][0]["group_id"],
+        "account_id": scan["accounts"][0]["id"],
+        "mapping_revision": scan["groups"][0]["suggestion"]["mapping_revision"],
+    }]
+    preview = service.preview_import_batch(files, mapping=mapping)
+    original_import_statement = cash_ledger_module.StatementImportService.import_statement
+
+    def fail_after_import(importer, *args, **kwargs):
+        result = original_import_statement(importer, *args, **kwargs)
+        assert result.ok is True
+        raise RuntimeError("forced_batch_commit_failure")
+
+    monkeypatch.setattr(
+        cash_ledger_module.StatementImportService,
+        "import_statement",
+        fail_after_import,
+    )
+
+    with pytest.raises(RuntimeError, match="forced_batch_commit_failure"):
+        service.commit_import_batch(
+            files,
+            mapping=mapping,
+            preview_digest=preview["batch_digest"],
+            preview_channel=preview["channel"],
+            relation_decisions=[],
+            idempotency_key="batch-rollback-1",
+        )
+
+    with sessions() as session:
+        assert session.query(CashTransactionModel).count() == 0
+        assert session.query(StatementAccountMappingModel).count() == 0
+        assert session.query(CashImportCommitModel).count() == 0

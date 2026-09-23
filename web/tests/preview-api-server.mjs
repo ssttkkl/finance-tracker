@@ -88,6 +88,19 @@ const previewSession = {
   workspaces: [{ id: "preview-workspace", name: "预览工作区", role: "admin" }],
 };
 const records = new Map();
+const importToken = "preview-import-token";
+const previewImportFiles = [
+  { index: 0, name: "现金账单.csv", filename: "现金账单.csv", digest: "preview-cash-file-digest", size: 371, channel: "cash", status: "ready" },
+  { index: 1, name: "券商流水.csv", filename: "券商流水.csv", digest: "preview-broker-file-digest", size: 5106, channel: "broker", status: "ready" },
+];
+const previewImportGroups = [
+  { group_id: "preview-group-1", display_name: "预览现金账户", masked_evidence: "账户尾号：0001", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } },
+  { group_id: "preview-group-2", display_name: "预览券商账户", masked_evidence: "账户尾号：0002", currencies: ["USD"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } },
+];
+const lockedImportToken = "preview-password-token";
+const commitFailureImportToken = "preview-commit-failure-token";
+const lockedImportFile = { index: 0, name: "locked.pdf", filename: "locked.pdf", digest: "preview-locked-file-digest", size: 9, channel: "cash", status: "ready" };
+const brokenImportFile = { index: 0, name: "broken.pdf", filename: "broken.pdf", digest: "preview-broken-file-digest", size: 7, channel: "cash", status: "error", error_code: "import_file_parse_failed" };
 const manualRecord = {
   id: "preview-manual-001", occurred_at: "2026-07-01T09:00:00+00:00", account_name: account.name,
   account_id: account.id, account_type: account.type, amount: "0", currency: "CNY",
@@ -128,7 +141,7 @@ const server = createServer(async (request, response) => {
   response.setHeader("Access-Control-Allow-Origin", allowedOrigin);
   response.setHeader("Access-Control-Allow-Credentials", "true");
   response.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-FT-Statement-Password, X-FT-Statement-Passwords, Idempotency-Key");
   response.setHeader("Content-Type", "application/json");
   if (request.method === "OPTIONS") {
     response.statusCode = 204;
@@ -255,15 +268,39 @@ const server = createServer(async (request, response) => {
     return;
   }
   if (request.url?.startsWith("/api/v1/cash-import/scan")) {
-    send(response, { contract: "cash-account-mapping-v1", channel: "preview", channel_label: "预览渠道", file: { name: "preview.csv", digest: "preview-digest" }, digest: "preview-digest", accounts: [account], groups: [{ group_id: "preview-group-1", display_name: "预览账单账户", masked_evidence: "账户尾号：0001", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] });
+    const body = JSON.parse(await readBody(request) || "{}");
+    const filenames = Array.isArray(body.files) ? body.files.map((item) => item?.filename) : [];
+    const isLocked = filenames.includes("locked.pdf") || body.import_token === lockedImportToken;
+    const isBroken = filenames.includes("broken.pdf");
+    const isCommitFailure = filenames.includes("commit-failure.pdf") || body.import_token === commitFailureImportToken;
+    if (isBroken) {
+      send(response, { contract: "cash-account-mapping-v1", ready: false, import_token: importToken, channel: "cash", channel_label: "现金账单", file: { name: "1 个文件", digest: "preview-broken-digest" }, digest: "preview-broken-digest", batch_digest: "preview-broken-digest", channels: ["cash"], files: [brokenImportFile], accounts: [], groups: [] });
+      return;
+    }
+    if (isLocked && !request.headers["x-ft-statement-passwords"]) {
+      send(response, { contract: "cash-account-mapping-v1", ready: false, import_token: lockedImportToken, channel: "cash", channel_label: "现金账单", file: { name: "1 个文件", digest: "preview-locked-digest" }, digest: "preview-locked-digest", batch_digest: "preview-locked-digest", channels: ["cash"], files: [{ ...lockedImportFile, status: "password_required", error_code: "password_required" }], accounts: [], groups: [] });
+      return;
+    }
+    if (isLocked || isCommitFailure) {
+      send(response, { contract: "cash-account-mapping-v1", ready: true, import_token: isCommitFailure ? commitFailureImportToken : lockedImportToken, channel: "cash", channel_label: "现金账单", file: { name: "1 个文件", digest: "preview-scenario-digest" }, digest: "preview-scenario-digest", batch_digest: "preview-scenario-digest", channels: ["cash"], files: [isLocked ? lockedImportFile : { ...previewImportFiles[0], filename: "commit-failure.pdf", name: "commit-failure.pdf" }], accounts: [account], groups: [previewImportGroups[0]] });
+      return;
+    }
+    send(response, { contract: "cash-account-mapping-v1", ready: true, import_token: importToken, channel: "mixed", channel_label: "多渠道", file: { name: "2 个文件", digest: "preview-digest" }, digest: "preview-digest", batch_digest: "preview-digest", channels: ["cash", "broker"], files: previewImportFiles, accounts: [account], groups: previewImportGroups });
     return;
   }
   if (request.url?.startsWith("/api/v1/cash-import/preview")) {
-    send(response, { channel: "preview", channel_label: "预览渠道", file: { name: "preview.csv", digest: "preview-digest" }, columns: ["occurred_at", "amount", "currency", "account_name", "counterparty", "counterparty_account", "record_type", "record_subtype", "category", "note", "channel", "status"], items: [{ record_id: "preview-import-1", occurred_at: "2026-07-03T09:00", counterparty: "预览导入记录", counterparty_account: "", amount: "-1", currency: "CNY", account_name: account.name, record_type: "consumption", record_subtype: "not_applicable", category: "测试", note: "", channel: "preview", status: "new", message: "" }], summary: { total: 1, new: 1, existing: 0, unsupported: 0 }, relations: [] });
+    const body = JSON.parse(await readBody(request) || "{}");
+    const scenarioToken = body.import_token === commitFailureImportToken ? commitFailureImportToken : importToken;
+    send(response, { import_token: scenarioToken, channel: "mixed", channel_label: "多渠道", file: { name: "2 个文件", digest: "preview-digest" }, batch_digest: "preview-digest", channels: ["cash", "broker"], files: previewImportFiles, columns: ["occurred_at", "amount", "currency", "account_name", "counterparty", "counterparty_account", "record_type", "record_subtype", "category", "note", "channel", "status"], items: [{ record_id: "preview-import-1", relation_ref: "cash:preview-import-1", occurred_at: "2026-07-03T09:00", counterparty: "预览现金记录", counterparty_account: "", amount: "-1", currency: "CNY", account_name: account.name, record_type: "consumption", record_subtype: "not_applicable", category: "测试", note: "", channel: "cash", status: "new", message: "" }, { record_id: "preview-import-2", relation_ref: "broker:preview-import-2", occurred_at: "2026-07-04T09:00", counterparty: "预览券商记录", counterparty_account: "", amount: "-2", currency: "USD", account_name: account.name, record_type: "consumption", record_subtype: "not_applicable", category: "测试", note: "", channel: "broker", status: "new", message: "" }], summary: { total: 2, new: 2, existing: 0, unsupported: 0 }, relations: [] });
     return;
   }
   if (request.url?.startsWith("/api/v1/cash-import/commit")) {
-    send(response, { message: "已导入预览记录", new_rows: 1, updated_rows: 0 });
+    const body = JSON.parse(await readBody(request) || "{}");
+    if (body.import_token === commitFailureImportToken) {
+      send(response, { error: { code: "import_commit_failed" } }, 500);
+      return;
+    }
+    send(response, { message: "已导入预览记录", new_rows: 2, updated_rows: 0 });
     return;
   }
   if (request.url?.startsWith("/api/v1/evidence/cash-projections/")) {

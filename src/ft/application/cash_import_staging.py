@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import os
+import re
 from secrets import token_urlsafe
 from threading import RLock
 from typing import Callable, Protocol
@@ -13,6 +14,7 @@ from urllib.parse import urlparse
 
 
 _ALLOWED_OBJECTS = frozenset({"source", "scan", "preview", "result"})
+_MAX_BATCH_FILES = 20
 _DEFAULT_SOURCE_MAX_BYTES = 100 * 1024 * 1024
 _DEFAULT_DRAFT_MAX_BYTES = 25 * 1024 * 1024
 
@@ -48,6 +50,18 @@ class ImportSessionPasswordRequired(ImportSessionError):
 
 
 @dataclass(frozen=True)
+class ImportSessionFile:
+    index: int
+    filename: str
+    digest: str
+    size: int
+    source: str = ""
+    channel: str | None = None
+    status: str = "pending"
+    error_code: str | None = None
+
+
+@dataclass(frozen=True)
 class ImportSession:
     token: str
     workspace_id: str
@@ -57,6 +71,8 @@ class ImportSession:
     source: str = ""
     currency: str | None = None
     channel: str | None = None
+    files: tuple[ImportSessionFile, ...] = ()
+    batch_digest: str | None = None
     created_at: datetime = datetime.min.replace(tzinfo=timezone.utc)
     expires_at: datetime = datetime.min.replace(tzinfo=timezone.utc)
 
@@ -71,6 +87,16 @@ class ImportStagingStore(Protocol):
         digest: str,
         content: bytes,
         source: str = "",
+        currency: str | None = None,
+    ) -> ImportSession: ...
+
+    def create_batch(
+        self,
+        *,
+        workspace_id: str,
+        user_id: str,
+        files: list[dict],
+        batch_digest: str,
         currency: str | None = None,
     ) -> ImportSession: ...
 
@@ -94,18 +120,58 @@ def _utc_now() -> datetime:
 
 
 def _check_object_name(name: str) -> str:
-    if name not in _ALLOWED_OBJECTS:
+    source_match = re.fullmatch(r"source-(\d+)", str(name))
+    if name not in _ALLOWED_OBJECTS and not (
+        source_match is not None and int(source_match.group(1)) < _MAX_BATCH_FILES
+    ):
         raise ValueError("import_session_object_invalid")
     return name
 
 
+def _source_object_name(index: int) -> str:
+    if not 0 <= int(index) < _MAX_BATCH_FILES:
+        raise ValueError("import_session_file_index_invalid")
+    return f"source-{int(index)}"
+
+
 def _check_object_size(name: str, content: bytes, *, source_limit: int, draft_limit: int) -> bytes:
     value = bytes(content)
-    limit = source_limit if name == "source" else draft_limit
+    is_source = name == "source" or re.fullmatch(r"source-\d+", str(name)) is not None
+    limit = source_limit if is_source else draft_limit
     if len(value) > limit:
-        code = "import_session_source_too_large" if name == "source" else "import_session_draft_too_large"
+        code = "import_session_source_too_large" if is_source else "import_session_draft_too_large"
         raise ValueError(code)
     return value
+
+
+def _prepare_batch_files(files: list[dict], *, source_limit: int) -> tuple[tuple[ImportSessionFile, ...], dict[str, bytes]]:
+    if not isinstance(files, list) or not files or len(files) > _MAX_BATCH_FILES:
+        raise ValueError("import_session_file_count_invalid")
+    metadata: list[ImportSessionFile] = []
+    objects: dict[str, bytes] = {}
+    for index, item in enumerate(files):
+        if not isinstance(item, dict):
+            raise ValueError("import_session_file_invalid")
+        content = _check_object_size(
+            _source_object_name(index),
+            item.get("content") or b"",
+            source_limit=source_limit,
+            draft_limit=_DEFAULT_DRAFT_MAX_BYTES,
+        )
+        filename = str(item.get("filename") or "statement").strip() or "statement"
+        digest = str(item.get("digest") or hashlib.sha256(content).hexdigest())
+        if len(digest) > 128:
+            raise ValueError("import_session_digest_invalid")
+        metadata.append(ImportSessionFile(
+            index=index,
+            filename=filename,
+            digest=digest,
+            size=len(content),
+            source=str(item.get("source") or ""),
+            channel=(str(item["channel"]) if item.get("channel") not in (None, "") else None),
+        ))
+        objects[_source_object_name(index)] = content
+    return tuple(metadata), objects
 
 
 @dataclass
@@ -170,6 +236,40 @@ class InMemoryImportStagingStore:
             self._entries[token] = _MemoryEntry(session=session, objects={"source": bytes(content)})
         return session
 
+    def create_batch(
+        self,
+        *,
+        workspace_id: str,
+        user_id: str,
+        files: list[dict],
+        batch_digest: str,
+        currency: str | None = None,
+    ) -> ImportSession:
+        metadata, objects = _prepare_batch_files(files, source_limit=self._source_limit)
+        now = self._clock()
+        token = token_urlsafe(32)
+        session = ImportSession(
+            token=token,
+            workspace_id=str(workspace_id),
+            user_id=str(user_id),
+            filename=metadata[0].filename,
+            digest=str(batch_digest),
+            source="",
+            currency=currency,
+            files=metadata,
+            batch_digest=str(batch_digest),
+            created_at=now,
+            expires_at=now + timedelta(seconds=self._ttl),
+        )
+        with self._lock:
+            expired = [token for token, entry in self._entries.items() if now >= entry.session.expires_at]
+            for expired_token in expired:
+                del self._entries[expired_token]
+            if len(self._entries) >= self._max_sessions:
+                raise ValueError("import_session_capacity_exceeded")
+            self._entries[token] = _MemoryEntry(session=session, objects=objects)
+        return session
+
     def _entry(self, token: str, *, workspace_id: str, user_id: str) -> _MemoryEntry:
         with self._lock:
             entry = self._entries.get(str(token))
@@ -188,7 +288,7 @@ class InMemoryImportStagingStore:
     def update(self, token: str, *, workspace_id: str, user_id: str, **changes: object) -> ImportSession:
         with self._lock:
             entry = self._entry(token, workspace_id=workspace_id, user_id=user_id)
-            allowed = {"source", "currency", "channel"}
+            allowed = {"source", "currency", "channel", "files", "batch_digest"}
             if set(changes) - allowed:
                 raise ValueError("import_session_metadata_invalid")
             entry.session = replace(entry.session, **changes)
@@ -368,6 +468,46 @@ class R2ImportStagingStore:
                 raise
         return session
 
+    def create_batch(
+        self,
+        *,
+        workspace_id: str,
+        user_id: str,
+        files: list[dict],
+        batch_digest: str,
+        currency: str | None = None,
+    ) -> ImportSession:
+        metadata, objects = _prepare_batch_files(files, source_limit=self._source_limit)
+        now = self._clock()
+        token = token_urlsafe(32)
+        session = ImportSession(
+            token=token,
+            workspace_id=str(workspace_id),
+            user_id=str(user_id),
+            filename=metadata[0].filename,
+            digest=str(batch_digest),
+            source="",
+            currency=currency,
+            files=metadata,
+            batch_digest=str(batch_digest),
+            created_at=now,
+            expires_at=now + timedelta(seconds=self._ttl),
+        )
+        written: list[str] = []
+        try:
+            for name, content in objects.items():
+                self._put(self._key(token, name), content)
+                written.append(name)
+            self._put(self._manifest_key(token), self._manifest(session), "application/json")
+        except Exception:
+            for name in written:
+                try:
+                    self._delete(self._key(token, name))
+                except Exception:
+                    pass
+            raise
+        return session
+
     @staticmethod
     def _manifest(session: ImportSession) -> bytes:
         payload = {
@@ -379,6 +519,20 @@ class R2ImportStagingStore:
             "source": session.source,
             "currency": session.currency,
             "channel": session.channel,
+            "batch_digest": session.batch_digest,
+            "files": [
+                {
+                    "index": item.index,
+                    "filename": item.filename,
+                    "digest": item.digest,
+                    "size": item.size,
+                    "source": item.source,
+                    "channel": item.channel,
+                    "status": item.status,
+                    "error_code": item.error_code,
+                }
+                for item in session.files
+            ],
             "created_at": session.created_at.isoformat(),
             "expires_at": session.expires_at.isoformat(),
         }
@@ -387,6 +541,20 @@ class R2ImportStagingStore:
     def get(self, token: str, *, workspace_id: str, user_id: str) -> ImportSession:
         payload = self._read_manifest(token)
         try:
+            files = tuple(
+                ImportSessionFile(
+                    index=int(item["index"]),
+                    filename=str(item["filename"]),
+                    digest=str(item["digest"]),
+                    size=int(item.get("size") or 0),
+                    source=str(item.get("source") or ""),
+                    channel=(str(item["channel"]) if item.get("channel") not in (None, "") else None),
+                    status=str(item.get("status") or "pending"),
+                    error_code=(str(item["error_code"]) if item.get("error_code") not in (None, "") else None),
+                )
+                for item in (payload.get("files") or ())
+                if isinstance(item, dict)
+            )
             session = ImportSession(
                 token=str(token),
                 workspace_id=str(payload["workspace_id"]),
@@ -396,6 +564,8 @@ class R2ImportStagingStore:
                 source=str(payload.get("source") or ""),
                 currency=payload.get("currency"),
                 channel=payload.get("channel"),
+                files=files,
+                batch_digest=(str(payload["batch_digest"]) if payload.get("batch_digest") not in (None, "") else None),
                 created_at=datetime.fromisoformat(payload["created_at"]),
                 expires_at=datetime.fromisoformat(payload["expires_at"]),
             )
@@ -419,7 +589,7 @@ class R2ImportStagingStore:
 
     def update(self, token: str, *, workspace_id: str, user_id: str, **changes: object) -> ImportSession:
         session = self.get(token, workspace_id=workspace_id, user_id=user_id)
-        allowed = {"source", "currency", "channel"}
+        allowed = {"source", "currency", "channel", "files", "batch_digest"}
         if set(changes) - allowed:
             raise ValueError("import_session_metadata_invalid")
         session = replace(session, **changes)
@@ -457,7 +627,15 @@ class R2ImportStagingStore:
         )
 
     def _delete_all(self, token: str) -> None:
-        for name in (*_ALLOWED_OBJECTS,):
+        names = set(_ALLOWED_OBJECTS)
+        try:
+            payload = self._read_manifest(token)
+            for item in payload.get("files") or ():
+                if isinstance(item, dict):
+                    names.add(_source_object_name(int(item["index"])))
+        except (ImportSessionNotFound, KeyError, TypeError, ValueError):
+            pass
+        for name in names:
             self._delete(self._key(token, name))
         self._delete(self._manifest_key(token))
 
