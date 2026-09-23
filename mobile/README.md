@@ -54,9 +54,15 @@ npm run export:ios --workspace finance-tracker-mobile
 
 ## GitHub Actions Native CI
 
-`.github/workflows/mobile-ci.yml` 会在 Pull Request、推送到 `refactor/web` 或手动触发时运行共享包和 Mobile 校验，并生成未签名的测试产物：
+`.github/workflows/mobile-ci.yml` 会在 Pull Request、推送到 `refactor/web` 或手动触发时运行共享包和 Mobile 校验，并生成不依赖 Metro 的 Release-like 测试产物。原生构建前必须在 GitHub Repository Variables 中配置：
 
-- `finance-tracker-android-debug`：Android Debug APK。
-- `finance-tracker-ios-simulator`：iOS Simulator `.app` 压缩包。
+```text
+EXPO_PUBLIC_FT_API_ORIGIN=https://api.example.com
+```
 
-这些产物仅用于开发和测试，不包含 App Store 或 Google Play 发布所需的签名；商店发布需要后续单独配置 EAS、证书和受保护的 CI secrets。
+该值必须是非空的 HTTPS origin，不得包含用户凭据、路径、查询参数或片段。缺失或不合法时，CI 会在构建和上传 artifact 前失败。JavaScript bundle 和资源会直接内置到 Android APK 与 iOS Simulator App 中，启动这些产物不需要运行 Metro。
+
+- `finance-tracker-android-release`：内置 JavaScript、使用仓库测试密钥签名的 Android Release-like APK。
+- `finance-tracker-ios-simulator-release`：内置 JavaScript、未签名的 iOS Simulator Release-like `.app` 压缩包。
+
+Android 测试签名文件位于 `mobile/ci/finance-tracker-test.keystore`，alias 为 `finance-tracker-test`，store/key password 均为 `finance-tracker-test`。这是故意提交到仓库的非生产测试凭据，只用于 CI 安装和签名校验，不能用于发布、升级正式包或保护真实用户数据。iOS 产物不使用生产签名；商店发布需要后续单独配置 EAS、证书和受保护的 CI secrets。
