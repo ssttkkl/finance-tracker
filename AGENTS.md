@@ -14,6 +14,7 @@
 ## 工具边界
 
 - 环境必须提供 OpenSpec CLI `1.7.0+` 与 Node.js `20.19.0+`；初始化或升级后以 `openspec --version` 确认。OpenSpec CLI 在终端运行，`$openspec-*` 必须按 Codex Skill 调用，不能作为 shell 子命令。
+- 在 Xcode 26.x 环境下编译本地 iOS 包（包括真机开发包）时，必须先在 `mobile/` 目录执行 `CI=1 npx expo prebuild --platform ios --no-install`，再在 `mobile/ios/` 执行 `pod install --no-repo-update` 后编译。该步骤通过 `mobile/app.json` 注册的 `withExpoModulesJsiXcode26` 复用 `.github/workflows/mobile-ci.yml` 的兼容处理；禁止跳过 `prebuild` 直接编译已有 iOS 工程，或另加仅本机运行的兼容补丁。真机目标仍须使用适用的开发者签名，不能照搬 CI 的模拟器目标和关闭签名参数。
 - 项目不依赖 gstack 或其他仓库外 Skill。唯一例外是 Hallmark：A 类 UI 原型调用 `$hallmark` 技能，任何等级的 UI 审查调用 Hallmark 的 `audit` 技能动作（通常写作 `$hallmark audit`）。Hallmark 是由代理运行时提供的技能，不要求仓库内存在 `hallmark` CLI；`$hallmark` / `$hallmark audit` 都是技能调用，不得改写成 shell 命令或以 `command -v hallmark` 作为技能是否可用的判据。若当前运行时未提供该技能，必须记录技能不可用并完成可替代的人工审查，不得声称已执行 Hallmark。
 - Web QA 使用仓库实际提供的 Vitest、Playwright、生产预览和适用浏览器工具；缺少某个浏览器 Skill 时，改用可用工具完成同等检查。
 - PostgreSQL 双后端验证属于交付前门禁，不由测试代码自动发现或自动启动数据库。完成开发和 SQLite 回归后，执行者必须在本机准备专用测试库：优先使用本地 Docker PostgreSQL 或本机 `psql` 可连接的数据库，将连接配置到 `FT_TEST_POSTGRES_URL` 后补跑同一契约矩阵；数据库名必须以 `_test` 结尾。未配置时只能记录为未完成，不能把跳过项计入完整验证。
