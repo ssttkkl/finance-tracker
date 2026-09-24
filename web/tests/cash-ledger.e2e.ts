@@ -148,7 +148,7 @@ async function mockImport(page: Page, previewBody: unknown, previewStatus = 200,
     const url = new URL(route.request().url());
     if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
-    if (url.pathname.endsWith("/cash-import/scan")) return route.fulfill({ json: { contract: "cash-account-mapping-v1", channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", accounts: [account], groups: [{ group_id: "group-1", display_name: "工银亚洲账户", masked_evidence: "账户尾号：1234", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] } });
+    if (url.pathname.endsWith("/cash-import/scan")) return route.fulfill({ json: { contract: "cash-account-mapping-v1", import_token: "token-import", channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", accounts: [account], groups: [{ group_id: "group-1", display_name: "工银亚洲账户", masked_evidence: "账户尾号：1234", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] } });
     if (url.pathname.endsWith("/cash-import/preview")) {
       if (previewDelay) await new Promise((resolve) => setTimeout(resolve, previewDelay));
       return route.fulfill({ status: previewStatus, json: previewBody });
@@ -518,7 +518,7 @@ test("独立导入处理页面扫描账户并完成四步确认", async ({ page 
     const url = new URL(request.url());
     if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
-    if (url.pathname.endsWith("/cash-import/scan")) return route.fulfill({ json: { contract: "cash-account-mapping-v1", channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", accounts: [account], groups: [{ group_id: "group-1", display_name: "工银亚洲账户", masked_evidence: "账户尾号：1234", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] } });
+    if (url.pathname.endsWith("/cash-import/scan")) return route.fulfill({ json: { contract: "cash-account-mapping-v1", import_token: "token-import", channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", accounts: [account], groups: [{ group_id: "group-1", display_name: "工银亚洲账户", masked_evidence: "账户尾号：1234", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] } });
     if (url.pathname.endsWith("/cash-import/preview")) return route.fulfill({ json: { channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, columns: ["occurred_at", "amount", "currency", "account_name", "counterparty", "counterparty_account", "record_type", "record_subtype", "category", "note", "channel", "status"], items: [
       { record_id: "row-1", occurred_at: "2026-07-03T09:00", counterparty: "咖啡店", counterparty_account: "", amount: "-12.50", currency: "CNY", account_name: "日常账户", record_type: "consumption", record_subtype: "not_applicable", category: "餐饮", note: "", channel: "icbc-asia", status: "new", message: "" },
       { record_id: "row-2", occurred_at: "2026-07-02T09:00", counterparty: "零金额流水", counterparty_account: "", amount: "0.00", currency: "CNY", account_name: "日常账户", record_type: "consumption", record_subtype: "not_applicable", category: "餐饮", note: "不表达方向", channel: "icbc-asia", status: "existing", message: "" },
@@ -531,6 +531,7 @@ test("独立导入处理页面扫描账户并完成四步确认", async ({ page 
   await page.getByRole("button", { name: "导入账单" }).click();
   await expect(page).toHaveURL(/\/w\/workspace-e2e\/cash-import$/);
   await page.locator('input[type="file"]').setInputFiles({ name: "statement.csv", mimeType: "text/csv", buffer: Buffer.from("fixture") });
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
   await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
   await page.screenshot({ path: "/tmp/cash-import-production-1440.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -633,6 +634,7 @@ test("核对流水内未分配组合支付始终展开并按组成项逐行补�
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/cash-import");
   await page.locator('input[type="file"]').setInputFiles({ name: "statement.csv", mimeType: "text/csv", buffer: Buffer.from("fixture") });
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
   await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
   await page.getByRole("button", { name: "确认映射", exact: true }).click();
   await expect(page.getByRole("heading", { name: "核对流水" })).toBeVisible();
@@ -665,7 +667,7 @@ test("导入处理页面可以返回重新选择、取消后再次进入", async
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
     if (url.pathname.endsWith("/cash-import/scan")) {
       scanCalls += 1;
-      return route.fulfill({ json: { contract: "cash-account-mapping-v1", channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.pdf", digest: `digest-${scanCalls}` }, digest: `digest-${scanCalls}`, accounts: [account], groups: [{ group_id: "group-1", display_name: "工银亚洲账户", masked_evidence: "账户尾号：1234", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] } });
+      return route.fulfill({ json: { contract: "cash-account-mapping-v1", import_token: `token-import-${scanCalls}`, channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.pdf", digest: `digest-${scanCalls}` }, digest: `digest-${scanCalls}`, accounts: [account], groups: [{ group_id: "group-1", display_name: "工银亚洲账户", masked_evidence: "账户尾号：1234", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] } });
     }
     return route.fulfill({ json: { projection_version: 1, items: [], next_cursor: null, page_size: 50, filters: {}, filter_options } });
   });
@@ -673,12 +675,14 @@ test("导入处理页面可以返回重新选择、取消后再次进入", async
   await page.goto("/");
   await page.getByRole("button", { name: "导入账单" }).click();
   await page.locator('input[type="file"]').setInputFiles({ name: "first.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7 first") });
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
   await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
   expect(scanCalls).toBe(1);
 
   await page.getByRole("button", { name: "上一步", exact: true }).click();
   await expect(page.getByRole("heading", { name: "选择文件" })).toBeVisible();
   await page.locator('input[type="file"]').setInputFiles({ name: "second.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7 second") });
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
   await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
   expect(scanCalls).toBe(2);
   await expect(page.getByText("扫描中…", { exact: true })).toHaveCount(0);
@@ -690,6 +694,7 @@ test("导入处理页面可以返回重新选择、取消后再次进入", async
 
   await page.getByRole("button", { name: "导入账单" }).click();
   await page.locator('input[type="file"]').setInputFiles({ name: "third.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7 third") });
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
   await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
   expect(scanCalls).toBe(3);
   await expect(page.getByText("扫描中…", { exact: true })).toHaveCount(0);
@@ -705,6 +710,7 @@ test("配对阶段使用摘要筛选卡片和连续关系列表，并在移动�
 
   await page.goto("/cash-import");
   await page.locator('input[type="file"]').setInputFiles({ name: "statement.csv", mimeType: "text/csv", buffer: Buffer.from("fixture") });
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
   await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
   await page.getByRole("button", { name: "确认映射", exact: true }).click();
   await expect(page.getByRole("heading", { name: "核对流水" })).toBeVisible();
@@ -768,6 +774,7 @@ test("导入预览加载、空和错误状态保持统一表格语义", async ({
     await mockImport(page, scenario.body, scenario.status, scenario.delay);
     await page.goto("/cash-import");
     await page.locator('input[type="file"]').setInputFiles({ name: "statement.csv", mimeType: "text/csv", buffer: Buffer.from("fixture") });
+    await page.getByRole("button", { name: "下一步", exact: true }).click();
     await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
     const confirmMapping = page.locator(".import-mapping-stage .stage-actions-top .button-primary");
     await confirmMapping.click();
@@ -788,9 +795,9 @@ test("导入预览加载、空和错误状态保持统一表格语义", async ({
   }
 });
 
-test("加密 PDF 先在浏览器提示密码，点击下一步后才开始扫描", async ({ page }) => {
+test("加密 PDF 在批量扫描后提示密码，并通过请求头重试", async ({ page }) => {
   let scanCalls = 0;
-  let receivedPassword = "";
+  const receivedPasswordHeaders: string[] = [];
   const pageErrors: string[] = [];
   const failedRequests: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -802,10 +809,24 @@ test("加密 PDF 先在浏览器提示密码，点击下一步后才开始扫描
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
     if (url.pathname.endsWith("/cash-import/scan")) {
       scanCalls += 1;
-      receivedPassword = request.headers()["x-ft-statement-password"] ?? "";
-      if (!receivedPassword) return route.fulfill({ status: 400, json: { error: { code: "import_password_required" } } });
-      if (receivedPassword === "wrong-password") return route.fulfill({ status: 400, json: { error: { code: "import_password_invalid" } } });
-      return route.fulfill({ json: { contract: "cash-account-mapping-v1", channel: "icbc-debit", channel_label: "工行借记卡", file: { name: "locked.pdf", digest: "digest-1" }, digest: "digest-1", accounts: [account], groups: [{ group_id: "group-1", display_name: "工行借记卡", masked_evidence: "账户尾号：3697", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] } });
+      receivedPasswordHeaders.push(request.headers()["x-ft-statement-passwords"] ?? "");
+      const file = { index: 0, name: "locked.pdf", filename: "locked.pdf", digest: "digest-1", size: 32 };
+      if (scanCalls === 1) {
+        return route.fulfill({ json: {
+          contract: "cash-account-mapping-v1", ready: false, import_token: "token-locked",
+          channel: "icbc-debit", channel_label: "工行借记卡", file: { name: "1 个文件", digest: "digest-1" },
+          digest: "digest-1", batch_digest: "digest-1", channels: ["icbc-debit"],
+          files: [{ ...file, status: "password_required", error_code: "password_required" }], accounts: [], groups: [],
+        } });
+      }
+      expect(receivedPasswordHeaders[1]).toBe(JSON.stringify({ "0": "browser-password" }));
+      return route.fulfill({ json: {
+        contract: "cash-account-mapping-v1", ready: true, import_token: "token-locked",
+        channel: "icbc-debit", channel_label: "工行借记卡", file: { name: "1 个文件", digest: "digest-1" },
+        digest: "digest-1", batch_digest: "digest-1", channels: ["icbc-debit"],
+        files: [{ ...file, status: "ready", channel: "icbc-debit", channel_label: "工行借记卡" }],
+        accounts: [account], groups: [{ group_id: "group-1", display_name: "工行借记卡", masked_evidence: "账户尾号：3697", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }],
+      } });
     }
     return route.fulfill({ json: { projection_version: 1, items: [], next_cursor: null, page_size: 50, filters: {}, filter_options } });
   });
@@ -817,32 +838,22 @@ test("加密 PDF 先在浏览器提示密码，点击下一步后才开始扫描
     mimeType: "application/pdf",
     buffer: Buffer.from("%PDF-1.7\ntrailer\n<< /Encrypt 8 0 R >>"),
   });
-  await expect(page.getByLabel("账单密码")).toBeVisible();
   expect(scanCalls).toBe(0);
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
+  await expect(page.getByTestId("import.file-password.0")).toBeVisible();
+  expect(scanCalls).toBe(1);
   await expect(page.getByRole("button", { name: "下一步", exact: true })).toBeDisabled();
   await page.screenshot({ path: "/tmp/cash-import-encrypted-password-390.png", fullPage: true });
-  await page.getByLabel("账单密码").fill("wrong-password");
-  await page.getByRole("button", { name: "下一步", exact: true }).click();
-  await expect(page.getByText("账单密码错误，请重试。")).toBeVisible();
-  await expect(page.getByLabel("账单密码")).toHaveValue("");
-  expect(scanCalls).toBe(1);
-  await page.screenshot({ path: "/tmp/cash-import-encrypted-password-error-390.png", fullPage: true });
-  await page.locator('input[type="file"]').setInputFiles({
-    name: "locked.pdf",
-    mimeType: "application/pdf",
-    buffer: Buffer.from("%PDF-1.7\ntrailer\n<< /Encrypt 8 0 R >>"),
-  });
-  await expect(page.getByLabel("账单密码")).toBeVisible();
-  await page.getByLabel("账单密码").fill("browser-password");
+  await page.getByTestId("import.file-password.0").fill("browser-password");
   await page.getByRole("button", { name: "下一步", exact: true }).click();
   await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
   expect(scanCalls).toBe(2);
-  expect(receivedPassword).toBe("browser-password");
+  expect(receivedPasswordHeaders).toEqual(["", JSON.stringify({ "0": "browser-password" })]);
   expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "上一步", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("已识别");
-  await expect(page.getByLabel("账单密码")).toHaveCount(0);
+  await expect(page.locator(".import-selected-file-status")).toHaveText("已识别");
+  await expect(page.getByTestId("import.file-password.0")).toHaveCount(0);
   expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
   await page.screenshot({ path: "/tmp/cash-import-encrypted-password-1440.png", fullPage: true });
   await page.getByRole("button", { name: "下一步", exact: true }).click();
@@ -858,13 +869,14 @@ test("导入处理页面在四个目标宽度不产生页面级横向滚动", as
     const url = new URL(request.url());
     if (url.pathname.endsWith("/auth/session")) return route.fulfill({ json: authSession });
     if (url.pathname.endsWith("/accounts")) return route.fulfill({ json: { items: [account] } });
-    if (url.pathname.endsWith("/cash-import/scan")) return route.fulfill({ json: { contract: "cash-account-mapping-v1", channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", accounts: [account], groups: [{ group_id: "group-1", display_name: "工银亚洲账户", masked_evidence: "账户尾号：1234", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] } });
+    if (url.pathname.endsWith("/cash-import/scan")) return route.fulfill({ json: { contract: "cash-account-mapping-v1", import_token: "token-import", channel: "icbc-asia", channel_label: "工银亚洲", file: { name: "statement.csv", digest: "digest-1" }, digest: "digest-1", accounts: [account], groups: [{ group_id: "group-1", display_name: "工银亚洲账户", masked_evidence: "账户尾号：1234", currencies: ["CNY"], row_count: 1, suggestion: { account_id: account.id, account, missing_currencies: [], mapping_revision: null } }] } });
     return route.fulfill({ json: { projection_version: 1, items: [], next_cursor: null, page_size: 50, filters: {}, filter_options } });
   });
   for (const width of [320, 375, 414, 768]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/cash-import");
     await page.locator('input[type="file"]').setInputFiles({ name: "statement.csv", mimeType: "text/csv", buffer: Buffer.from("fixture") });
+    await page.getByRole("button", { name: "下一步", exact: true }).click();
     await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
     expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBeTruthy();
   }

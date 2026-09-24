@@ -19,6 +19,7 @@ env:
   ANDROID_API_LEVEL: "36"
   ANDROID_BUILD_TOOLS: "36.0.0"
   ANDROID_NDK_VERSION: "30.0.14904198"
+  EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED: "1"
 
 jobs:
   quality:
@@ -52,15 +53,20 @@ jobs:
         run: npm run typecheck --workspace finance-tracker-mobile
 
       - name: Export Android JavaScript bundle
-        run: npm run export:android --workspace finance-tracker-mobile
+        run: NODE_ENV=production npm run export:android --workspace finance-tracker-mobile
 
       - name: Export iOS JavaScript bundle
-        run: npm run export:ios --workspace finance-tracker-mobile
+        run: NODE_ENV=production npm run export:ios --workspace finance-tracker-mobile
 
   android:
-    name: Android Debug APK
+    name: Android Release APK (embedded JS)
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      NODE_ENV: production
+      FT_TEST_KEYSTORE_PASSWORD: finance-tracker-test
+      FT_TEST_KEY_ALIAS: finance-tracker-test
+      FT_TEST_KEY_PASSWORD: finance-tracker-test
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -100,27 +106,59 @@ jobs:
             "build-tools;${ANDROID_BUILD_TOOLS}" \
             "ndk;${ANDROID_NDK_VERSION}"
 
-      - name: Assemble unsigned Debug APK
+      - name: Assemble test-signed Release APK with embedded JavaScript
         working-directory: mobile/android
         env:
           ORG_GRADLE_PROJECT_ndkVersion: ${{ env.ANDROID_NDK_VERSION }}
           GRADLE_OPTS: >-
             -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g
             -Dfile.encoding=UTF-8
-        run: ./gradlew :app:assembleDebug --no-daemon --no-parallel --max-workers=2 --stacktrace
+        run: ./gradlew :app:assembleRelease --no-daemon --no-parallel --max-workers=2 --stacktrace
 
-      - name: Upload Android Debug APK
+      - name: Verify and prepare Android release artifact
+        shell: bash
+        env:
+          FT_TEST_KEYSTORE_PASSWORD: ${{ env.FT_TEST_KEYSTORE_PASSWORD }}
+          FT_TEST_KEY_ALIAS: ${{ env.FT_TEST_KEY_ALIAS }}
+          FT_TEST_KEY_PASSWORD: ${{ env.FT_TEST_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          android_apk="$(find mobile/android/app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          test -n "$android_apk"
+          test -f mobile/ci/finance-tracker-test.keystore
+          android_sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$android_sdk"
+          apksigner="$android_sdk/build-tools/${ANDROID_BUILD_TOOLS}/apksigner"
+          test -x "$apksigner"
+          signer_output="$($apksigner verify --verbose --print-certs "$android_apk" 2>&1)"
+          expected_fingerprint="$(LC_ALL=C keytool -list -v -J-Duser.language=en -J-Duser.country=US \
+            -keystore mobile/ci/finance-tracker-test.keystore \
+            -storepass "$FT_TEST_KEYSTORE_PASSWORD" \
+            -alias "$FT_TEST_KEY_ALIAS" | awk '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          actual_fingerprint="$(printf '%s\n' "$signer_output" | awk -F': ' '/certificate SHA-256 digest:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          test -n "$expected_fingerprint"
+          test "$actual_fingerprint" = "$expected_fingerprint"
+          if ! unzip -l "$android_apk" | grep -q 'index.android.bundle'; then
+            echo "Android APK does not contain an embedded JavaScript bundle" >&2
+            exit 1
+          fi
+          mkdir -p mobile/dist
+          cp "$android_apk" mobile/dist/finance-tracker-android-release.apk
+
+      - name: Upload Android Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: finance-tracker-android-debug
-          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          name: finance-tracker-android-release
+          path: mobile/dist/finance-tracker-android-release.apk
           if-no-files-found: error
           retention-days: 7
 
   ios:
-    name: iOS Simulator app
+    name: iOS Device Release IPA (unsigned, embedded JS)
     runs-on: macos-26
     timeout-minutes: 45
+    env:
+      NODE_ENV: production
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -146,7 +184,7 @@ jobs:
         working-directory: mobile/ios
         run: pod install --no-repo-update
 
-      - name: Build unsigned iOS Simulator app
+      - name: Build unsigned iOS Device Release app and package IPA with embedded JavaScript
         shell: bash
         run: |
           set -euo pipefail
@@ -157,25 +195,39 @@ jobs:
           xcodebuild \
             -workspace "$ios_workspace" \
             -scheme "$ios_scheme" \
-            -configuration Debug \
-            -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             -derivedDataPath mobile/ios/build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
             build
 
-          ios_app="$(find mobile/ios/build/Build/Products/Debug-iphonesimulator -maxdepth 1 -type d -name '*.app' -print -quit)"
+          ios_app="$(find mobile/ios/build/Build/Products/Release-iphoneos -maxdepth 1 -type d -name '*.app' -print -quit)"
           test -n "$ios_app"
+          test ! -d "$ios_app/_CodeSignature"
+          ios_bundle="$(find "$ios_app" -maxdepth 2 -type f \( -name 'main.jsbundle' -o -name '*.jsbundle' \) -print -quit)"
+          test -n "$ios_bundle"
           mkdir -p mobile/dist
-          ditto -c -k --sequesterRsrc --keepParent \
-            "$ios_app" \
-            mobile/dist/finance-tracker-ios-simulator.zip
+          ios_ipa_root="mobile/ios/ipa"
+          rm -rf "$ios_ipa_root"
+          mkdir -p "$ios_ipa_root/Payload"
+          ditto "$ios_app" "$ios_ipa_root/Payload/$(basename "$ios_app")"
+          (
+            cd "$ios_ipa_root"
+            /usr/bin/zip -qry \
+              "$GITHUB_WORKSPACE/mobile/dist/finance-tracker-ios-device-release-unsigned.ipa" \
+              Payload
+          )
+          test -f mobile/dist/finance-tracker-ios-device-release-unsigned.ipa
+          unzip -l mobile/dist/finance-tracker-ios-device-release-unsigned.ipa \
+            | grep -Eq 'Payload/[^/]+\.app/(main\.jsbundle|[^/]+\.jsbundle)'
 
-      - name: Upload iOS Simulator app
+      - name: Upload unsigned iOS Device Release IPA
         uses: actions/upload-artifact@v4
         with:
-          name: finance-tracker-ios-simulator
-          path: mobile/dist/finance-tracker-ios-simulator.zip
+          name: finance-tracker-ios-device-release-unsigned
+          path: mobile/dist/finance-tracker-ios-device-release-unsigned.ipa
           if-no-files-found: error
           retention-days: 7

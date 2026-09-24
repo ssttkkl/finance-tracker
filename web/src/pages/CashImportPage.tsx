@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { commitCashImport, previewCashImport, scanCashImport } from "../api/cashLedger";
-import { detectPdfPasswordRequirement } from "../import/pdfPassword";
+import { commitCashImportBatch, previewCashImportBatch, scanCashImportBatch } from "../api/cashLedger";
 import type {
   ImportCommitResult,
   ImportMappingDecision,
@@ -13,7 +12,7 @@ import type {
 } from "../api/types";
 import { formatOccurredAt, isZeroAmount } from "../format";
 import { buildTransactionMonthlySummaries, TransactionTable, type TransactionTableItem } from "../components/TransactionTable";
-import { allocationBalance, allocationMatches, type AllocationBalance } from "@finance-tracker/core";
+import { allocationBalance, allocationMatches, sha1Hex, type AllocationBalance } from "@finance-tracker/core";
 import { copy, semanticIds } from "@finance-tracker/presentation";
 
 type Stage = "select" | "mapping" | "preview" | "relations" | "success";
@@ -35,6 +34,11 @@ type RelationDraft = {
 type MappingDraft = {
   accountId: number | null;
   newAccount: { draftId: string; name: string; type: string; currencies: string[] } | null;
+};
+
+type SelectedImportFile = {
+  file: File;
+  sha1: string;
 };
 
 const recordTypeLabels: Record<string, string> = {
@@ -112,7 +116,7 @@ function importAmountLabel(item: ImportPreviewItem): string {
 
 function importTableItem(item: ImportPreviewItem): TransactionTableItem<ImportPreviewItem> {
   return {
-    id: item.record_id,
+    id: item.relation_ref ?? item.record_id,
     source: item,
     occurredAt: item.occurred_at,
     accountLabel: item.account_name,
@@ -126,6 +130,16 @@ function importTableItem(item: ImportPreviewItem): TransactionTableItem<ImportPr
     summaryAmount: item.amount,
     summaryCurrency: item.currency,
   };
+}
+
+function importItemKey(item: Pick<ImportPreviewItem, "record_id" | "relation_ref">): string {
+  return item.relation_ref ?? item.record_id;
+}
+
+function fileSizeLabel(size: number): string {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.ceil(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function relationRecordLabel(record: ImportRelationRecord): string {
@@ -185,7 +199,9 @@ function relationDecision(
     if (!record) return {};
     return record.fact_id
       ? { [factKey]: record.fact_id }
-      : { [`${factKey === "primary_fact_id" ? "primary" : "secondary"}_record_id`]: record.record_id };
+      : record.relation_ref
+        ? { [`${factKey === "primary_fact_id" ? "primary" : "secondary"}_record_ref`]: record.relation_ref }
+        : { [`${factKey === "primary_fact_id" ? "primary" : "secondary"}_record_id`]: record.record_id };
   };
   const base = {
     proposal_key: relation.id,
@@ -223,7 +239,7 @@ function RelationActionIcon({ undo }: { undo: boolean }) {
 
 export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?: () => void }) {
   const [stage, setStage] = useState<Stage>("select");
-  const [file, setFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<SelectedImportFile[]>([]);
   const [scan, setScan] = useState<ImportScan | null>(null);
   const [mappingDrafts, setMappingDrafts] = useState<Record<string, MappingDraft>>({});
   const [editingGroup, setEditingGroup] = useState<ImportSourceGroup | null>(null);
@@ -235,8 +251,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const [result, setResult] = useState<ImportCommitResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [password, setPassword] = useState("");
-  const [passwordRequired, setPasswordRequired] = useState(false);
+  const [passwords, setPasswords] = useState<Record<string, string>>({});
   const [importToken, setImportToken] = useState<string | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
   const [focusRelations, setFocusRelations] = useState(false);
@@ -251,22 +266,30 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const returnToPasswordEntry = (cause: unknown): boolean => {
     const message = passwordErrorMessage(cause);
     if (!message) return false;
-    setScan(null);
+    setScan((current) => current ? {
+      ...current,
+      ready: false,
+      files: (current.files?.length ? current.files : selectedFiles.map((entry, index) => ({
+        index,
+        name: entry.file.name,
+        filename: entry.file.name,
+        digest: entry.sha1,
+        size: entry.file.size,
+        status: "password_required" as const,
+      }))).map((file) => ({ ...file, status: "password_required" as const, error_code: "password_invalid" })),
+    } : current);
     setMappingDrafts({});
     setPreview(null);
     setAllocationDrafts({});
     setPreviewFilter("all");
     setRelationDrafts({});
-    setPassword("");
-    setPasswordRequired(true);
+    setPasswords({});
     setStage("select");
     setError(message);
     return true;
   };
 
-  const chooseFile = async (nextFile: File | undefined) => {
-    if (!nextFile) return;
-    setFile(nextFile);
+  const clearImportProgress = () => {
     setScan(null);
     setMappingDrafts({});
     setPreview(null);
@@ -275,35 +298,78 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setRelationDrafts({});
     setResult(null);
     setError(undefined);
-    setPassword("");
-    setPasswordRequired(false);
+    setPasswords({});
     setImportToken(null);
     setIdempotencyKey(null);
     setStage("select");
-    setBusy(true);
-    try {
-      if (await detectPdfPasswordRequirement(nextFile)) {
-        setPasswordRequired(true);
-        return;
+  };
+
+  const addFiles = async (incoming: File[]) => {
+    if (incoming.length === 0) return;
+    setError(undefined);
+    const existing = new Set(selectedFiles.map((item) => item.sha1));
+    const next: SelectedImportFile[] = [];
+    const rejected: string[] = [];
+    for (const file of incoming) {
+      if (file.size > 100 * 1024 * 1024) {
+        rejected.push(`${file.name} 超过 100 MB`);
+        continue;
       }
-      const nextScan = await scanCashImport(nextFile);
+      const bytes = typeof file.arrayBuffer === "function"
+        ? await file.arrayBuffer()
+        : await new Response(file).arrayBuffer();
+      const sha1 = sha1Hex(new Uint8Array(bytes));
+      if (existing.has(sha1)) continue;
+      if (selectedFiles.length + next.length >= 20) {
+        rejected.push("一次最多选择 20 个文件");
+        break;
+      }
+      next.push({ file, sha1 });
+      existing.add(sha1);
+    }
+    if (next.length > 0) {
+      setSelectedFiles((current) => [...current, ...next]);
+      clearImportProgress();
+    }
+    if (rejected.length > 0) setError(rejected[0]);
+  };
+
+  const removeFile = (sha1: string) => {
+    setSelectedFiles((current) => current.filter((item) => item.sha1 !== sha1));
+    clearImportProgress();
+    setError(undefined);
+  };
+
+  const scanSelectedFiles = async () => {
+    if (selectedFiles.length === 0 || busy) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      const nextScan = await scanCashImportBatch(
+        selectedFiles.map((item) => item.file),
+        undefined,
+        passwords,
+        importToken ?? undefined,
+      );
       setScan(nextScan);
-      setImportToken(nextScan.import_token ?? null);
-      setIdempotencyKey(nextScan.import_token ? newImportIdempotencyKey() : null);
-      setMappingDrafts(Object.fromEntries(nextScan.groups.map((group) => [
-        group.group_id,
-        { accountId: group.suggestion.account_id, newAccount: null },
-      ])));
-      setStage("mapping");
+      setImportToken(nextScan.import_token ?? importToken);
+      if (nextScan.import_token || importToken) setIdempotencyKey((current) => current ?? newImportIdempotencyKey());
+      const ready = nextScan.ready !== false && !(nextScan.files ?? []).some((item) => item.status !== "ready");
+      if (ready) {
+        setMappingDrafts(Object.fromEntries(nextScan.groups.map((group) => [
+          group.group_id,
+          { accountId: group.suggestion.account_id, newAccount: null },
+        ])));
+        setStage("mapping");
+      }
     } catch (cause) {
       const token = importTokenFromError(cause);
       if (token) {
         setImportToken(token);
         setIdempotencyKey((current) => current ?? newImportIdempotencyKey());
       }
-      if (cause instanceof Error && cause.message === "import_password_required") {
-        setPasswordRequired(true);
-        setError(undefined);
+      if (cause instanceof Error && ["import_password_required", "import_password_invalid"].includes(cause.message)) {
+        setError(cause.message === "import_password_invalid" ? "账单密码错误，请重试。" : "请输入账单密码。");
       } else {
         setError(cause instanceof Error && cause.message === "import_channel_unrecognized"
           ? "无法识别账单渠道，请重新选择文件。"
@@ -314,46 +380,17 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     }
   };
 
-  const detectWithPassword = async () => {
-    if (!file || !password) return;
-    setBusy(true);
-    setError(undefined);
-    try {
-      const nextScan = await scanCashImport(file, undefined, password, importToken ?? undefined);
-      setScan(nextScan);
-      setImportToken(nextScan.import_token ?? importToken);
-      if (nextScan.import_token || importToken) setIdempotencyKey((current) => current ?? newImportIdempotencyKey());
-      setMappingDrafts(Object.fromEntries(nextScan.groups.map((group) => [
-        group.group_id,
-        { accountId: group.suggestion.account_id, newAccount: null },
-      ])));
-      setStage("mapping");
-      setPasswordRequired(false);
-    } catch (cause) {
-      const token = importTokenFromError(cause);
-      if (token) setImportToken(token);
-      if (!returnToPasswordEntry(cause)) {
-        setError(cause instanceof Error && cause.message === "import_password_invalid"
-          ? "账单密码错误，请重试。"
-          : mappingErrorMessage(cause) ?? "文件识别失败，请重试。");
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const continueFromSelect = () => {
-    if (!file || busy) return;
+    if (selectedFiles.length === 0 || busy) return;
     setError(undefined);
     if (scan) {
-      setStage("mapping");
-      return;
+      const ready = scan.ready !== false && !(scan.files ?? []).some((item) => item.status !== "ready");
+      if (ready) {
+        setStage("mapping");
+        return;
+      }
     }
-    if (passwordRequired) {
-      void detectWithPassword();
-      return;
-    }
-    void chooseFile(file);
+    void scanSelectedFiles();
   };
 
   const mappingPayload = (): ImportMappingDecision[] => {
@@ -402,8 +439,9 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
       for (const item of nextPreview.items) {
         const components = item.components ?? [];
         if (components.length < 2) continue;
-        next[item.record_id] = components.map((component, index) => (
-          current[item.record_id]?.[index] ?? unsignedAmount(component.amount)
+        const key = importItemKey(item);
+        next[key] = components.map((component, index) => (
+          current[key]?.[index] ?? unsignedAmount(component.amount)
         ));
       }
       return next;
@@ -465,11 +503,16 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   };
 
   const loadPreview = async (nextStage: "preview" | "relations" = "preview"): Promise<boolean> => {
-    if (!file || !scan || !mappingComplete) return false;
+    if (selectedFiles.length === 0 || !scan || !mappingComplete) return false;
     setBusy(true);
     setError(undefined);
     try {
-      const nextPreview = await previewCashImport(file, "", undefined, password, mappingPayload(), importToken ?? undefined);
+      const nextPreview = await previewCashImportBatch(
+        undefined,
+        passwords,
+        mappingPayload(),
+        importToken ?? undefined,
+      );
       setPreview(nextPreview);
       syncAllocationDrafts(nextPreview);
       setImportToken(nextPreview.import_token ?? importToken);
@@ -498,7 +541,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const openRelations = () => {
     if (!preview) return;
     const aggregateItems = preview.items.filter((item) => (item.components?.length ?? 0) > 1);
-    const incomplete = aggregateItems.some((item) => !allocationMatches(item, allocationDrafts[item.record_id] ?? []));
+    const incomplete = aggregateItems.some((item) => !allocationMatches(item, allocationDrafts[importItemKey(item)] ?? []));
     if (incomplete) {
       setError("请补齐组合支付各组成项金额，且合计等于流水金额。");
       return;
@@ -524,7 +567,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const setKind = (relation: ImportRelation, kind: string) => updateDraft(relation, { kind });
 
   const setSecondary = (relation: ImportRelation, value: string) => {
-    const secondary = relation.candidates.find((candidate) => candidate.record_id === value) ?? null;
+    const secondary = relation.candidates.find((candidate) => importItemKey(candidate) === value) ?? null;
     updateDraft(relation, { state: secondary ? "accepted" : "pending", secondary });
   };
 
@@ -542,10 +585,10 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   };
 
   const confirmImport = async () => {
-    if (!file || !preview || ordinaryUnsupportedCount(preview) > 0) return;
+    if (selectedFiles.length === 0 || !preview || ordinaryUnsupportedCount(preview) > 0) return;
     const incomplete = preview.items
       .filter((item) => (item.components?.length ?? 0) > 1)
-      .some((item) => !allocationMatches(item, allocationDrafts[item.record_id] ?? []));
+      .some((item) => !allocationMatches(item, allocationDrafts[importItemKey(item)] ?? []));
     if (incomplete || allocationRequiredCount(preview) > 0) {
       setError("请补齐组合支付各组成项金额，且合计等于流水金额。");
       return;
@@ -560,11 +603,11 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     try {
       const commitKey = importToken ? (idempotencyKey ?? newImportIdempotencyKey()) : undefined;
       if (commitKey && !idempotencyKey) setIdempotencyKey(commitKey);
-      const committed = await commitCashImport(file, "", undefined, {
+      const committed = await commitCashImportBatch(undefined, {
         previewDigest: preview.file.digest,
         previewRelationDigest: preview.relation_digest,
         previewChannel: preview.channel,
-        password,
+        passwords,
         relations: decisions,
         mapping: mappingPayload(),
         importToken: importToken ?? undefined,
@@ -634,13 +677,13 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   )).length;
   const automaticCount = relationItems.filter((relation) => relation.automatic).length;
   const allocationComplete = allocationItems.length > 0
-    ? allocationItems.every((item) => allocationMatches(item, allocationDrafts[item.record_id] ?? []))
+    ? allocationItems.every((item) => allocationMatches(item, allocationDrafts[importItemKey(item)] ?? []))
     : Boolean(preview && allocationRequiredCount(preview) === 0);
   const renderAllocationDetail = (tableItem: TransactionTableItem<ImportPreviewItem>) => {
     const item = tableItem.source;
     const components = item?.components ?? [];
     if (!item || components.length < 2) return null;
-    const values = allocationDrafts[item.record_id] ?? [];
+    const values = allocationDrafts[importItemKey(item)] ?? [];
     const balance = allocationBalance(item, values);
     return <div
       className={balance.state === "complete" ? "import-allocation-detail is-complete" : "import-allocation-detail"}
@@ -655,7 +698,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
             aria-label={(component.account_name || component.source_label) + "分摊金额"}
             aria-invalid={balance.state !== "complete"}
             value={values[index] ?? ""}
-            onChange={(event) => updateAllocation(item.record_id, index, event.target.value)}
+            onChange={(event) => updateAllocation(importItemKey(item), index, event.target.value)}
           />
         </label>)}
       </div>
@@ -667,7 +710,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
   const stageIndex = stage === "select" ? 1 : stage === "mapping" ? 2 : stage === "preview" ? 3 : 4;
 
   const restartAfterCompletedImport = () => {
-    setFile(null);
+    setSelectedFiles([]);
     setScan(null);
     setMappingDrafts({});
     setEditingGroup(null);
@@ -678,8 +721,7 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
     setRelationFilter("all");
     setResult(null);
     setError(undefined);
-    setPassword("");
-    setPasswordRequired(false);
+    setPasswords({});
     setImportToken(null);
     setIdempotencyKey(null);
     setFocusRelations(false);
@@ -716,19 +758,49 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
           {stage === "select" ? <section className="import-stage" data-testid={semanticIds.importFile} aria-labelledby="import-select-heading">
             <h2 id="import-select-heading">{copy.import.selectFile}</h2>
             <label className="import-dropzone">
-              <input data-testid={semanticIds.importChooseFile} type="file" aria-label={copy.import.chooseFile} onChange={(event) => void chooseFile(event.target.files?.[0])} />
+              <input
+                data-testid={semanticIds.importChooseFile}
+                type="file"
+                multiple
+                accept=".csv,.xls,.xlsx,.pdf,text/csv,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                aria-label={selectedFiles.length > 0 ? copy.import.chooseMore : copy.import.chooseFile}
+                onChange={(event) => {
+                  const files = Array.from(event.currentTarget.files ?? []);
+                  event.currentTarget.value = "";
+                  void addFiles(files);
+                }}
+              />
               <span className="dropzone-mark">↑</span>
-              <strong>{file ? file.name : copy.import.dropFile}</strong>
+              <strong>{selectedFiles.length > 0 ? copy.import.chooseMore : copy.import.dropFile}</strong>
               <small>{copy.import.supportedFiles}</small>
             </label>
-            {scan ? <div className="detection-result" role="status"><strong>{scan.channel_label}账单</strong><span className="status-chip">已识别</span></div> : null}
-            {passwordRequired ? <div className="import-password-panel">
-              <label htmlFor="cash-import-password">账单密码</label>
-              <div className="import-password-row">
-                <input id="cash-import-password" type="password" value={password} autoComplete="off" onChange={(event) => setPassword(event.target.value)} />
-              </div>
+            {selectedFiles.length > 0 ? <div className="import-selected-files" data-testid={semanticIds.importSelectedFiles}>
+              <div className="import-selected-files-heading"><span>{copy.import.selectedFiles} {selectedFiles.length}/20</span><small>SHA-1 相同的文件已自动去重</small></div>
+              <ul>
+                {selectedFiles.map((entry, index) => {
+                  const status = scan?.files?.find((item) => item.index === index);
+                  return <li key={entry.sha1}>
+                    <span className="import-selected-file-name"><strong>{entry.file.name}</strong><small>{fileSizeLabel(entry.file.size)}{status?.channel_label ? ` · ${status.channel_label}` : ""}</small></span>
+                    <span className="import-selected-file-status">{status?.status === "ready" ? copy.import.fileReady : status?.status === "error" ? copy.import.fileScanError : status?.status === "password_required" ? copy.import.password : ""}</span>
+                    <button data-testid={`${semanticIds.importRemoveFile}.${entry.sha1}`} type="button" className="import-file-remove" onClick={() => removeFile(entry.sha1)}>{copy.import.removeFile}</button>
+                  </li>;
+                })}
+              </ul>
             </div> : null}
-            <div className="stage-actions"><button type="button" className="button-secondary" onClick={onBack}>{copy.common.cancel}</button><button data-testid={semanticIds.importNext} type="button" className="button-primary" disabled={!file || busy || (passwordRequired && !password)} onClick={continueFromSelect}>{busy ? copy.import.scanning : copy.import.next}</button></div>
+            {scan?.files?.filter((item) => item.status === "password_required").map((item) => {
+              const selected = selectedFiles[item.index];
+              if (!selected) return null;
+              const inputId = `cash-import-password-${item.index}`;
+              return <div className="import-password-panel" key={item.index}>
+                <label htmlFor={inputId}><strong>{selected.file.name}</strong><span>{copy.import.filePassword}</span></label>
+                <div className="import-password-row">
+                  <input data-testid={`${semanticIds.importFilePassword}.${item.index}`} id={inputId} type="password" value={passwords[String(item.index)] ?? ""} autoComplete="off" onChange={(event) => setPasswords((current) => ({ ...current, [String(item.index)]: event.target.value }))} />
+                </div>
+              </div>;
+            })}
+            {scan?.files?.filter((item) => item.status === "error").map((item) => <div className="import-file-error" key={item.index} role="alert"><strong>{item.filename ?? selectedFiles[item.index]?.file.name}</strong><span>{copy.import.fileScanError}</span></div>)}
+            {scan && (!scan.files || scan.files.length === 0) ? <div className="detection-result" role="status"><strong>{scan.channel_label}账单</strong><span className="status-chip">已识别</span></div> : null}
+            <div className="stage-actions"><button type="button" className="button-secondary" onClick={onBack}>{copy.common.cancel}</button><button data-testid={semanticIds.importNext} type="button" className="button-primary" disabled={selectedFiles.length === 0 || busy || Boolean(scan?.files?.some((item) => item.status === "error" || (item.status === "password_required" && !(passwords[String(item.index)] ?? "").trim())))} onClick={continueFromSelect}>{busy ? copy.import.scanning : copy.import.next}</button></div>
           </section> : null}
 
           {stage === "mapping" && scan ? <section className="import-stage import-mapping-stage" data-testid={semanticIds.importMapping} aria-labelledby="import-mapping-heading">
@@ -808,12 +880,12 @@ export function CashImportPage({ onBack, onDone }: { onBack: () => void; onDone?
                 {filteredRelations.map((relation) => {
                   const draft = relationDrafts[relation.id] ?? relationDraftFor(relation);
                   const rejected = draft.state === "rejected";
-                  const selectedValue = draft.secondary?.record_id ?? "";
+                  const selectedValue = draft.secondary ? importItemKey(draft.secondary) : "";
                   return <tr key={relation.id} className={rejected ? "is-rejected" : undefined}>
                     <td data-label="状态"><span className={`status ${draft.state === "rejected" ? "is-rejected" : draft.state === "pending" ? "is-pending" : "is-auto"}`}>{relationStateLabels[draft.state]}</span></td>
                     <td data-label="类型">{relation.automatic ? <span className="relation-kind-label">{relationKindLabels[draft.kind] ?? draft.kind}</span> : <select className="relation-kind-select" aria-label={`${relation.label}关系类型`} value={draft.kind} disabled={rejected} onChange={(event) => setKind(relation, event.target.value)}>{Object.entries(relationKindLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>}</td>
                     <td data-label="现金流水"><RelationRecord record={relation.primary} /></td>
-                    <td data-label="对侧流水">{relation.automatic ? <RelationRecord record={draft.secondary ?? relation.secondary} /> : <select className="compact-select" aria-label={`${relation.label}对侧流水`} value={selectedValue} disabled={rejected} onChange={(event) => setSecondary(relation, event.target.value)}><option value="">选择对侧流水</option><option value="skip">暂不处理</option>{relation.candidates.map((candidate) => <option value={candidate.record_id} key={candidate.record_id}>{relationRecordLabel(candidate)}</option>)}</select>}</td>
+                    <td data-label="对侧流水">{relation.automatic ? <RelationRecord record={draft.secondary ?? relation.secondary} /> : <select className="compact-select" aria-label={`${relation.label}对侧流水`} value={selectedValue} disabled={rejected} onChange={(event) => setSecondary(relation, event.target.value)}><option value="">选择对侧流水</option><option value="skip">暂不处理</option>{relation.candidates.map((candidate) => <option value={importItemKey(candidate)} key={importItemKey(candidate)}>{relationRecordLabel(candidate)}</option>)}</select>}</td>
                     <td data-label="金额"><span className="compact-amount">{relation.primary.amount}{draft.secondary ? ` / ${draft.secondary.amount}` : ""} {relation.primary.currency}</span></td>
                     <td data-label="拒绝或撤销"><button type="button" className="icon-only-button icon-quiet-button relation-action" aria-label={rejected ? "撤销拒绝" : "拒绝配对"} title={rejected ? "撤销拒绝" : "拒绝配对"} onClick={() => toggleRejected(relation)}><span className="relation-action-label">{rejected ? "撤销拒绝" : "拒绝配对"}</span><RelationActionIcon undo={rejected} /></button></td>
                   </tr>;

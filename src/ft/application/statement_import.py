@@ -76,6 +76,7 @@ def _row_record_id(row: dict, occurrences: dict[str, int]) -> str:
             "raw_record_id",
             "source_payload",
             "source_type",
+            "_import_file_index",
             "_counterparty_account_reconstruction_proof",
         }
     }
@@ -96,12 +97,14 @@ class StatementImportService:
         *,
         enforce_account_currencies: bool = False,
         run_relation_check: bool = True,
+        allow_mixed_sources: bool = False,
     ):
         self._uow = unit_of_work
         self._parser = parser
         self._relations = relation_service
         self._enforce_account_currencies = enforce_account_currencies
         self._run_relation_check = run_relation_check
+        self._allow_mixed_sources = allow_mixed_sources
 
     def _apply_relation_decisions(
         self,
@@ -109,6 +112,7 @@ class StatementImportService:
         decisions,
         *,
         fact_id_by_record_id: dict[str, int],
+        fact_id_by_source_record_ref: dict[str, int] | None = None,
         new_fact_ids: set[int] | None = None,
     ) -> list[str]:
         if not decisions:
@@ -130,6 +134,8 @@ class StatementImportService:
                     raise ValueError("导入关系缺少流水记录")
                 return None
             text = str(value)
+            if fact_id_by_source_record_ref and text in fact_id_by_source_record_ref:
+                return int(fact_id_by_source_record_ref[text])
             if text.startswith("preview:"):
                 text = text.removeprefix("preview:")
             if text in fact_id_by_record_id:
@@ -149,10 +155,16 @@ class StatementImportService:
             if kind not in {item.value for item in RelationKind}:
                 raise ValueError("导入关系类型无效")
             primary = resolve(
-                decision.get("primary_fact_id") or decision.get("primary_record_id")
+                decision.get("primary_fact_id")
+                or decision.get("primary_record_ref")
+                or decision.get("primary_relation_ref")
+                or decision.get("primary_record_id")
             )
             secondary = resolve(
-                decision.get("secondary_fact_id") or decision.get("secondary_record_id"),
+                decision.get("secondary_fact_id")
+                or decision.get("secondary_record_ref")
+                or decision.get("secondary_relation_ref")
+                or decision.get("secondary_record_id"),
                 required=decision_status != "rejected",
             )
             if primary == secondary:
@@ -320,9 +332,9 @@ class StatementImportService:
             parsed_source_types.add(parsed_source_type)
         if not parsed_source_types or "" in parsed_source_types:
             raise ValueError("账单记录缺少 bill_source，无法确定正式导入渠道")
-        if len(parsed_source_types) != 1:
+        if len(parsed_source_types) != 1 and not self._allow_mixed_sources:
             raise ValueError("同一账单不能混合多个正式导入渠道")
-        source_type = next(iter(parsed_source_types))
+        source_type = next(iter(parsed_source_types)) if len(parsed_source_types) == 1 else ""
         for row in rows:
             has_components = isinstance(row.get("components"), (list, tuple)) or isinstance(row.get("component_allocation"), dict)
             if not row.get("account_name") and not has_components:
@@ -363,13 +375,30 @@ class StatementImportService:
                 record_id = _row_record_id(row, occurrences)
                 prepared.append((row, record_id))
 
-            existing_targets = uow.imports.existing_fact_targets(
-                source_type=source_type,
-                record_ids=[rid for _, rid in prepared],
-            )
+            if self._allow_mixed_sources:
+                existing_targets = {}
+                record_ids_by_source: dict[str, list[str]] = {}
+                for row, record_id in prepared:
+                    row_source_type = str(row.get("bill_source") or row.get("source_type") or "").strip()
+                    record_ids_by_source.setdefault(row_source_type, []).append(record_id)
+                for row_source_type, source_record_ids in record_ids_by_source.items():
+                    existing_targets.update({
+                        (row_source_type, record_id): target
+                        for record_id, target in uow.imports.existing_fact_targets(
+                            source_type=row_source_type,
+                            record_ids=source_record_ids,
+                        ).items()
+                    })
+            else:
+                existing_targets = uow.imports.existing_fact_targets(
+                    source_type=source_type,
+                    record_ids=[rid for _, rid in prepared],
+                )
             for row, record_id in prepared:
                 expected = (row.get("account_name") or "", row["currency"])
-                existing_target = existing_targets.get(record_id)
+                row_source_type = str(row.get("bill_source") or row.get("source_type") or source_type).strip()
+                target_key = (row_source_type, record_id) if self._allow_mixed_sources else record_id
+                existing_target = existing_targets.get(target_key)
                 if existing_target is not None and existing_target != expected:
                     raise ValueError(
                         "该账单记录已导入其他账户，不能更改归属"
@@ -402,9 +431,11 @@ class StatementImportService:
                     raise ValueError("账单记录缺少完整来源行快照")
                 if payload is None:
                     payload = _json_safe(row)
+                row_source_type = str(row.get("bill_source") or row.get("source_type") or source_type).strip()
                 formal = {
                     **row,
-                    "source_type": source_type,
+                    "source_type": row_source_type,
+                    "bill_source": row_source_type,
                     "record_id": record_id,
                     "source_payload": _json_safe(payload),
                 }
@@ -447,17 +478,24 @@ class StatementImportService:
                         if _counts_toward_balance(current):
                             _snapshot_components(snapshot, uow, current, 1)
                 elif account.type in {"security", "crypto"}:
-                    if record_id in existing_targets:
+                    target_key = (str(formal.get("source_type") or source_type), record_id) if self._allow_mixed_sources else record_id
+                    if target_key in existing_targets:
                         continue
                     apply_investment_event(snapshot, formal, default_currency=row["currency"])
                     uow.investments.add(account.type, formal)
                     imported_count += 1
                 else:
                     raise ValueError(f"不支持导入到 {account.type} 类型的账户")
-                existing_targets[record_id] = (row["account_name"], row["currency"])
+                target_key = (str(formal.get("source_type") or source_type), record_id) if self._allow_mixed_sources else record_id
+                existing_targets[target_key] = (row["account_name"], row["currency"])
                 by_account[account.name] += 1
             fact_id_by_record_id = {
                 str(record_id): int(cash_result_by_formal_id[id(formal)]["fact_id"])
+                for row, record_id, account, formal in formal_rows
+                if account.type in {"cash", "loan", "lend"}
+            }
+            fact_id_by_source_record_ref = {
+                f"{str(formal.get('source_type') or source_type)}:{record_id}": int(cash_result_by_formal_id[id(formal)]["fact_id"])
                 for row, record_id, account, formal in formal_rows
                 if account.type in {"cash", "loan", "lend"}
             }
@@ -497,6 +535,7 @@ class StatementImportService:
                         uow,
                         explicit_decisions,
                         fact_id_by_record_id=fact_id_by_record_id,
+                        fact_id_by_source_record_ref=fact_id_by_source_record_ref,
                         new_fact_ids={int(item) for item in created_cash_fact_ids},
                     )
                 )
@@ -509,6 +548,7 @@ class StatementImportService:
                     uow,
                     relation_decisions,
                     fact_id_by_record_id=fact_id_by_record_id,
+                    fact_id_by_source_record_ref=fact_id_by_source_record_ref,
                     new_fact_ids={int(item) for item in created_cash_fact_ids},
                 )
             if imported_count or updated_count:

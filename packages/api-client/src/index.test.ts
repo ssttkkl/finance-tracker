@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { FileSource } from "@finance-tracker/contracts";
 import { ApiError, createApiClient, isAuthenticationError, type FetchLike, type TokenStore } from "./index";
 
 function tokenStore(initial: string | null = null): TokenStore & { value: string | null } {
@@ -64,5 +65,51 @@ describe("shared API client", () => {
     expect(isAuthenticationError(new ApiError("authentication_required", 401))).toBe(true);
     expect(isAuthenticationError(new ApiError("workspace_forbidden", 403))).toBe(false);
     expect(isAuthenticationError(new Error("request_failed"))).toBe(false);
+  });
+
+  it("uploads a batch once and sends later passwords without re-uploading files", async () => {
+    const requests: Array<{ url: string; init?: Parameters<FetchLike>[1] }> = [];
+    const fetcher: FetchLike = async (url, init) => {
+      requests.push({ url, init });
+      return new Response(JSON.stringify({ ready: true, files: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+    const client = createApiClient({
+      baseUrl: "https://api.example.com",
+      fetch: fetcher,
+      tokenStore: tokenStore("session-1"),
+    });
+    const files: FileSource[] = [
+      { name: "alipay.csv", mediaType: "text/csv", size: 1, read: async () => new Uint8Array([97]) },
+      { name: "wechat.csv", mediaType: "text/csv", size: 1, read: async () => new Uint8Array([98]) },
+    ];
+
+    await client.scanCashImportBatch(files, "CNY", { "1": "second-password" });
+    const firstBody = JSON.parse(String(requests[0]?.init?.body));
+    expect(requests[0]?.url).toBe("https://api.example.com/api/v1/cash-import/scan");
+    expect(requests[0]?.init?.headers?.["X-FT-Statement-Passwords"]).toBe(JSON.stringify({ "1": "second-password" }));
+    expect(firstBody).toEqual({
+      files: [
+        { filename: "alipay.csv", content_base64: "YQ==" },
+        { filename: "wechat.csv", content_base64: "Yg==" },
+      ],
+      currency: "CNY",
+    });
+
+    await client.scanCashImportBatch(files, "CNY", { "0": "first-password" }, "batch-token");
+    const secondBody = JSON.parse(String(requests[1]?.init?.body));
+    expect(secondBody).toEqual({
+      import_token: "batch-token",
+      batch: true,
+      source: "",
+      currency: "CNY",
+      preview_digest: null,
+      preview_channel: null,
+      relations: null,
+      mapping: null,
+    });
+    expect(requests[1]?.init?.headers?.["X-FT-Statement-Passwords"]).toBe(JSON.stringify({ "0": "first-password" }));
   });
 });

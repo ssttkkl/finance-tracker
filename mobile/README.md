@@ -19,7 +19,7 @@ EXPO_PUBLIC_FT_API_ORIGIN='http://127.0.0.1:8000' npm run start:mobile
 npm run ios
 ```
 
-真机调试时将地址换成开发机局域网地址，例如 `http://192.168.1.10:8000`；生产 Native 构建必须使用 HTTPS。Android development build 使用：
+真机调试时将地址换成开发机局域网地址，例如 `http://192.168.1.10:8000`；普通生产 Native 构建必须使用 HTTPS。Android development build 使用：
 
 ```bash
 npm run android
@@ -54,9 +54,9 @@ npm run export:ios --workspace finance-tracker-mobile
 
 ## GitHub Actions Native CI
 
-`.github/workflows/mobile-ci.yml` 会在 Pull Request、推送到 `refactor/web` 或手动触发时运行共享包和 Mobile 校验，并生成未签名的测试产物：
+`.github/workflows/mobile-ci.yml` 会在 Pull Request、推送到 `refactor/web` 或手动触发时运行共享包和 Mobile 校验，并生成不依赖 Metro 的 Release-like 测试产物。CI 不需要配置 `EXPO_PUBLIC_FT_API_ORIGIN`，而是开启 `EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED=1`。安装或签名后使用 artifact 时，在登录或注册页面输入实际后端地址；地址可以是 HTTPS origin，也可以是带显式端口的 HTTP origin。地址为空、包含路径、查询参数、片段或凭据时，认证请求会被阻止。JavaScript bundle 和资源会直接内置到 Android APK 与面向 `iphoneos` 构建的 iOS 真机 `.ipa` 中；Android artifact 可直接按测试签名使用，iOS `.ipa` 保持未签名，需后续签名后才能安装到真机。
 
-- `finance-tracker-android-debug`：Android Debug APK。
-- `finance-tracker-ios-simulator`：iOS Simulator `.app` 压缩包。
+- `finance-tracker-android-release`：内置 JavaScript、使用仓库测试密钥签名的 Android Release-like APK。
+- `finance-tracker-ios-device-release-unsigned`：内置 JavaScript、面向 `iphoneos` 的未签名 iOS 真机 Release-like `.ipa`，采用标准 `Payload/*.app` 结构；需要后续签名后才能安装。
 
-这些产物仅用于开发和测试，不包含 App Store 或 Google Play 发布所需的签名；商店发布需要后续单独配置 EAS、证书和受保护的 CI secrets。
+Android 测试签名文件位于 `mobile/ci/finance-tracker-test.keystore`，alias 为 `finance-tracker-test`，store/key password 均为 `finance-tracker-test`。这是故意提交到仓库的非生产测试凭据，只用于 CI 安装和签名校验，不能用于发布、升级正式包或保护真实用户数据。iOS CI 不读取 Apple 证书或描述文件，真机 `.ipa` 故意保持未签名；如需安装到真机，必须在外部使用适用的 Apple 签名，商店发布另行配置受保护的凭据和流程。

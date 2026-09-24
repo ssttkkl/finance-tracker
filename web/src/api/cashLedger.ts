@@ -23,7 +23,7 @@ export type { Account, CashCategory, CashCategoryDirectory, CashFilters, CashPag
 
 const importChannelLabels: Record<string, string> = {
   alipay: "支付宝", wechat: "微信", icbc: "工行信用卡", "icbc-debit": "工行借记卡",
-  "ccb-debit": "建行借记卡", "icbc-asia": "工银亚洲",
+  "ccb-debit": "建行借记卡", "icbc-asia": "工银亚洲", mixed: "多渠道",
 };
 export { importChannelLabels };
 
@@ -37,6 +37,10 @@ function browserFileSource(file: File): FileSource {
       return new Uint8Array(await new Response(file).arrayBuffer());
     },
   };
+}
+
+export function browserFileSources(files: File[]): FileSource[] {
+  return files.map(browserFileSource);
 }
 
 export function fetchCashPage(filters: CashFilters, cursor?: string | null, signal?: AbortSignal): Promise<CashPage> {
@@ -142,8 +146,16 @@ export function scanCashImport(file: File, currency?: string, password?: string,
   return apiClient().scanCashImport(browserFileSource(file), currency, password, importToken);
 }
 
+export function scanCashImportBatch(files: File[], currency?: string, passwords?: Record<string, string>, importToken?: string): Promise<ImportScan> {
+  return apiClient().scanCashImportBatch(browserFileSources(files), currency, passwords, importToken);
+}
+
 export function previewCashImport(file: File, source = "", currency?: string, password?: string, mapping?: ImportMappingDecision[], importToken?: string): Promise<ImportPreview> {
   return apiClient().previewCashImport(browserFileSource(file), source, currency, password, mapping, importToken);
+}
+
+export function previewCashImportBatch(currency?: string, passwords?: Record<string, string>, mapping?: ImportMappingDecision[], importToken?: string): Promise<ImportPreview> {
+  return apiClient().previewCashImportBatch(currency, passwords, mapping, importToken);
 }
 
 export function commitCashImport(
@@ -153,4 +165,11 @@ export function commitCashImport(
   options: { password?: string; previewDigest?: string; previewRelationDigest?: string; previewChannel?: string; relations?: Record<string, unknown>[]; mapping?: ImportMappingDecision[]; importToken?: string; idempotencyKey?: string } = {},
 ): Promise<ImportCommitResult> {
   return apiClient().commitCashImport(browserFileSource(file), source, currency, options);
+}
+
+export function commitCashImportBatch(
+  currency?: string,
+  options: { passwords?: Record<string, string>; previewDigest?: string; previewRelationDigest?: string; previewChannel?: string; relations?: Record<string, unknown>[]; mapping?: ImportMappingDecision[]; importToken?: string; idempotencyKey?: string } = {},
+): Promise<ImportCommitResult> {
+  return apiClient().commitCashImportBatch(currency, options);
 }

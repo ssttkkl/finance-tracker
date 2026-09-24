@@ -42,8 +42,8 @@
 
 | 规范术语 | 定义 | 应避免的别名 |
 |----------|------|--------------|
-| **构建地址** (new) | Native 构建通过 `EXPO_PUBLIC_FT_API_ORIGIN` 固定的默认 API origin，调试覆盖被清除或关闭时使用该地址。 | 默认后端、构建 URL、生产地址（未说明环境时） |
-| **调试地址** (new) | 在开启 `EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED` 的 Native 登录或注册页面中由使用者选择、通过 origin 校验并可在本机保留的 API origin。 | 临时后端、切换地址、后端 URL（作为规范术语时） |
+| **构建地址** (new) | Native 构建通过 `EXPO_PUBLIC_FT_API_ORIGIN` 提供的默认 API origin；该值可以为空，地址覆盖被清除或关闭时使用它。 | 默认后端、构建 URL、生产地址（未说明环境时） |
+| **调试地址** (new) | 在开启 `EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED` 的 Native 登录或注册页面中由使用者选择、通过 origin 校验并可在本机保留的 API origin；测试场景允许使用带显式端口的 HTTP origin。 | 临时后端、切换地址、后端 URL（作为规范术语时） |
 | **地址覆盖** (new) | 当前 Native 会话优先于**构建地址**使用**调试地址**的本机配置；关闭调试开关时该配置不生效。 | 改后端、切环境、动态配置（未说明作用范围时） |
 
 ## 账本与账户

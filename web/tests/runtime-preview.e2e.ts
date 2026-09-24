@@ -1,3 +1,4 @@
+import path from "node:path";
 import { expect, test } from "@playwright/test";
 
 test("生产预览读取自包含 API 的账户和收支投影", async ({ page }) => {
@@ -102,7 +103,88 @@ test("生产预览可打开流水编辑和独立导入处理页面", async ({ pa
   await page.getByRole("button", { name: "导入账单" }).click();
   await expect(page).toHaveURL(/\/w\/preview-workspace\/cash-import$/);
   await expect(page.getByRole("heading", { name: "选择文件" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "下一步", exact: true })).toBeDisabled();
   await expect(page.getByRole("heading", { name: "核对流水" })).toHaveCount(0);
+});
+
+test("生产预览支持混合渠道批量选择、统一预览和提交", async ({ page }) => {
+  await page.goto("/cash-import");
+
+  const cashFile = path.resolve(process.cwd(), "../tests/fixtures/cash_import_browser_refund.csv");
+  const brokerFile = path.resolve(process.cwd(), "../tests/fixtures/ibkr/transactions_1y_sample.csv");
+  const fileInput = page.locator('input[type="file"]');
+  const scanRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/api/v1/cash-import/scan")) scanRequests.push(request.url());
+  });
+
+  await fileInput.setInputFiles([cashFile, cashFile]);
+  await expect(page.getByText(/已选择 1\/20/)).toBeVisible();
+  await expect(page.getByText("cash_import_browser_refund.csv", { exact: true })).toHaveCount(1);
+
+  await fileInput.setInputFiles(brokerFile);
+  await expect(page.getByText(/已选择 2\/20/)).toBeVisible();
+  await expect(page.getByText("transactions_1y_sample.csv", { exact: true })).toHaveCount(1);
+  expect(scanRequests).toEqual([]);
+
+  await page.getByRole("button", { name: "删除" }).nth(1).click();
+  await expect(page.getByText(/已选择 1\/20/)).toBeVisible();
+  await fileInput.setInputFiles(brokerFile);
+  await expect(page.getByText(/已选择 2\/20/)).toBeVisible();
+
+  await page.getByRole("button", { name: "下一步" }).click();
+  await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
+  await expect(page.getByText("多渠道", { exact: true })).toBeVisible();
+  await expect(page.getByText("预览现金账户", { exact: true })).toBeVisible();
+  await expect(page.getByText("预览券商账户", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "确认映射" }).click();
+  await expect(page.getByRole("heading", { name: "核对流水" })).toBeVisible();
+  await expect(page.getByRole("row", { name: /预览现金记录/ })).toBeVisible();
+  await expect(page.getByRole("row", { name: /预览券商记录/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "下一步" }).click();
+  await expect(page.getByRole("heading", { name: "配对" })).toBeVisible();
+  await page.getByRole("button", { name: "确认导入" }).click();
+  const completedRegion = page.getByRole("region", { name: "导入完成" });
+  await expect(completedRegion).toBeVisible();
+  await expect(completedRegion.getByText("2", { exact: true })).toHaveCount(1);
+});
+
+test("生产预览在批量导入中逐文件处理密码并阻止解析失败文件继续", async ({ page }) => {
+  await page.goto("/cash-import");
+  const fileInput = page.locator('input[type="file"]');
+  await fileInput.setInputFiles({ name: "locked.pdf", mimeType: "application/pdf", buffer: Buffer.from("encrypted") });
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
+
+  const passwordInput = page.getByTestId("import.file-password.0");
+  await expect(passwordInput).toBeVisible();
+  await expect(page.getByRole("button", { name: "下一步", exact: true })).toBeDisabled();
+  await passwordInput.fill("preview-password");
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
+
+  await page.getByRole("button", { name: "1 选择文件" }).click();
+  await page.getByRole("button", { name: "删除", exact: true }).click();
+  await fileInput.setInputFiles({ name: "broken.pdf", mimeType: "application/pdf", buffer: Buffer.from("broken") });
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("broken.pdf");
+  await expect(page.getByRole("button", { name: "下一步", exact: true })).toBeDisabled();
+});
+
+test("生产预览提交失败时保留批量确认上下文并提示重试", async ({ page }) => {
+  await page.goto("/cash-import");
+  const fileInput = page.locator('input[type="file"]');
+  await fileInput.setInputFiles({ name: "commit-failure.pdf", mimeType: "application/pdf", buffer: Buffer.from("commit failure") });
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "映射账户" })).toBeVisible();
+  await page.getByRole("button", { name: "确认映射" }).click();
+  await expect(page.getByRole("heading", { name: "核对流水" })).toBeVisible();
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "配对" })).toBeVisible();
+  await page.getByRole("button", { name: "确认导入" }).click();
+  await expect(page.getByRole("alert")).toContainText("确认导入失败，请重试");
+  await expect(page.getByRole("heading", { name: "配对" })).toBeVisible();
 });
 
 test("生产预览完成分类创建和批量分类流程", async ({ page }) => {

@@ -39,6 +39,43 @@ def _import_mapping_payload(value: str | None):
     return payload
 
 
+def _import_passwords(request: Request) -> dict[str, str]:
+    raw = request.headers.get("x-ft-statement-passwords", "").strip()
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("import_passwords_invalid") from exc
+    if not isinstance(payload, dict) or len(payload) > 20:
+        raise ValueError("import_passwords_invalid")
+    return {
+        str(key): str(value)
+        for key, value in payload.items()
+        if str(value or "")
+    }
+
+
+def _import_batch_files(payload: dict) -> list[dict]:
+    files = payload.get("files")
+    if not isinstance(files, list) or not files or len(files) > 20:
+        raise ValueError("import_session_file_count_invalid")
+    decoded = []
+    for item in files:
+        if not isinstance(item, dict) or not isinstance(item.get("content_base64"), str):
+            raise ValueError("import_session_file_invalid")
+        try:
+            content = base64.b64decode(item["content_base64"], validate=True)
+        except (ValueError, TypeError):
+            raise ValueError("import_session_file_invalid") from None
+        decoded.append({
+            "filename": str(item.get("filename") or item.get("name") or "statement"),
+            "content": content,
+            "source": str(item.get("source") or ""),
+        })
+    return decoded
+
+
 def _cash_import_error(exc: ValueError) -> JSONResponse:
     code = str(exc)
     messages = {
@@ -69,6 +106,11 @@ def _cash_import_error(exc: ValueError) -> JSONResponse:
         "import_session_source_too_large": "账单文件过大，请选择较小的文件。",
         "import_session_draft_too_large": "导入预览过大，请缩小账单范围后重试。",
         "import_session_capacity_exceeded": "当前导入任务过多，请稍后重试。",
+        "import_files_not_ready": "仍有文件需要处理，请完成后再继续。",
+        "import_passwords_invalid": "文件密码格式无效，请重试。",
+        "import_session_file_count_invalid": "一次最多选择 20 个文件。",
+        "import_session_file_invalid": "文件内容无效，请重新选择。",
+        "import_session_digest_invalid": "文件摘要无效，请重新选择。",
     }
     status = (
         503
@@ -419,8 +461,21 @@ def cash_router(
                 content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
                 if content_type == "application/json":
                     payload = await request.json()
-                    if not isinstance(payload, dict) or not isinstance(payload.get("import_token"), str):
+                    if not isinstance(payload, dict):
                         raise ValueError("import_session_not_found")
+                    passwords = _import_passwords(request)
+                    if isinstance(payload.get("files"), list):
+                        return json_value(mutation_service.scan_import_batch(
+                            _import_batch_files(payload),
+                            currency=payload.get("currency") or currency,
+                            passwords=passwords,
+                        ))
+                    if not isinstance(payload.get("import_token"), str):
+                        raise ValueError("import_session_not_found")
+                    if payload.get("batch") is True:
+                        return json_value(mutation_service.scan_import_batch_session(
+                            payload["import_token"], passwords=passwords,
+                        ))
                     return json_value(mutation_service.scan_import_session(
                         payload["import_token"],
                         password=request.headers.get("x-ft-statement-password"),
@@ -447,6 +502,14 @@ def cash_router(
                     mapping_payload = payload.get("mapping")
                     if mapping_payload is not None and not isinstance(mapping_payload, list):
                         raise ValueError("import_mapping_incomplete")
+                    passwords = _import_passwords(request)
+                    if payload.get("batch") is True:
+                        return json_value(mutation_service.preview_import_batch_session(
+                            payload["import_token"],
+                            currency=payload.get("currency") or currency,
+                            passwords=passwords,
+                            mapping=mapping_payload,
+                        ))
                     return json_value(mutation_service.preview_import_session(
                         payload["import_token"], source=str(payload.get("source") or source),
                         currency=payload.get("currency") or currency,
@@ -491,6 +554,18 @@ def cash_router(
                         idempotency_key = request.headers.get("idempotency-key", "").strip()
                         if not idempotency_key:
                             raise ValueError("import_idempotency_key_required")
+                        if payload.get("batch") is True:
+                            return json_value(mutation_service.commit_import_batch_session(
+                                payload["import_token"],
+                                currency=payload.get("currency") or currency,
+                                passwords=_import_passwords(request),
+                                preview_digest=payload.get("preview_digest") or preview_digest,
+                                preview_relation_digest=payload.get("preview_relation_digest") or preview_relation_digest,
+                                preview_channel=payload.get("preview_channel") or preview_channel,
+                                relation_decisions=relation_decisions or [],
+                                mapping=mapping_payload,
+                                idempotency_key=idempotency_key,
+                            ))
                         return json_value(mutation_service.commit_import_session(
                             payload["import_token"],
                             source=str(payload.get("source") or source),

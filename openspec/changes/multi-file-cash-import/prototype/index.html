@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>多文件导入原型</title>
+    <style>
+      /* Hallmark · prototype: multi-file-import · genre: utilitarian · theme: existing-finance-tracker
+       * Pre-emit critique: P4 H4 E4 S4 R5 V4. Keep the quiet file list, one primary action,
+       * no decorative gradients, and no file preview surface.
+       */
+      :root {
+        color-scheme: light;
+        --canvas: #f5f6f8;
+        --surface: #ffffff;
+        --ink: #1f2937;
+        --muted: #6b7280;
+        --line: #e5e7eb;
+        --line-strong: #cfd4dc;
+        --accent: #2563eb;
+        --accent-soft: #eff6ff;
+        --danger: #b42318;
+        --danger-soft: #fff4f2;
+        --success: #16794c;
+        --success-soft: #eefaf3;
+        --radius: 12px;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-width: 0;
+        background: var(--canvas);
+        color: var(--ink);
+        font: 15px/1.55 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      button, input { font: inherit; }
+      button { cursor: pointer; }
+      .page { width: min(100% - 32px, 720px); margin: 0 auto; padding: 48px 0 72px; }
+      .eyebrow { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+      h1 { margin: 0; font-size: clamp(25px, 5vw, 32px); letter-spacing: -.02em; }
+      .intro { margin: 10px 0 28px; color: var(--muted); }
+      .steps { display: flex; gap: 8px; align-items: center; margin-bottom: 24px; color: var(--muted); font-size: 13px; }
+      .step { display: inline-flex; gap: 6px; align-items: center; }
+      .step strong { display: grid; place-items: center; width: 23px; height: 23px; border: 1px solid var(--line-strong); border-radius: 50%; font-size: 12px; }
+      .step.active { color: var(--ink); }
+      .step.active strong { border-color: var(--accent); background: var(--accent); color: white; }
+      .step.done strong { border-color: var(--success); color: var(--success); }
+      .divider { height: 1px; flex: 1; background: var(--line); }
+      .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+      .toolbar button { border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--muted); padding: 6px 11px; font-size: 13px; }
+      .toolbar button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+      .card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 8px 24px rgba(31, 41, 55, .04); }
+      .card-body { padding: clamp(18px, 5vw, 28px); }
+      .dropzone { display: grid; place-items: center; min-height: 194px; border: 1px dashed var(--line-strong); border-radius: 10px; background: #fbfcfd; text-align: center; }
+      .dropzone p { margin: 0; }
+      .dropzone .hint { margin-top: 5px; color: var(--muted); font-size: 13px; }
+      .button { border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 9px 14px; font-weight: 600; }
+      .button.primary { border-color: var(--accent); background: var(--accent); color: white; }
+      .button.primary:disabled { border-color: var(--line); background: #eef0f3; color: #9aa1ad; cursor: not-allowed; }
+      .button.ghost { border-color: transparent; color: var(--muted); font-weight: 500; }
+      .selected { margin-top: 19px; }
+      .selected-heading { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; color: var(--muted); font-size: 13px; }
+      .file-list { display: grid; gap: 2px; margin-top: 6px; }
+      .file-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; min-width: 0; padding: 7px 0; border-bottom: 1px solid #f0f1f3; }
+      .file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .file-meta { flex: none; color: var(--muted); font-size: 12px; }
+      .remove { border: 0; background: transparent; color: var(--muted); padding: 4px; }
+      .remove:hover, .remove:focus-visible { color: var(--danger); }
+      .notice { display: flex; gap: 9px; margin-top: 18px; padding: 11px 12px; border-radius: 8px; background: var(--accent-soft); color: #1d4ed8; font-size: 13px; }
+      .notice.error { background: var(--danger-soft); color: var(--danger); }
+      .notice.success { background: var(--success-soft); color: var(--success); }
+      .password-list { display: grid; gap: 12px; margin-top: 18px; }
+      .password-row { display: grid; gap: 5px; }
+      label { font-weight: 600; }
+      label span { display: block; color: var(--muted); font-size: 13px; font-weight: 400; }
+      input[type=password] { width: 100%; border: 1px solid var(--line-strong); border-radius: 8px; padding: 9px 11px; outline: none; }
+      input[type=password]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37, 99, 235, .14); }
+      .footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 22px; }
+      .footer .left { min-width: 0; color: var(--muted); font-size: 13px; }
+      .mapping { display: grid; gap: 12px; }
+      .mapping-row { display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+      .mapping-row small { display: block; color: var(--muted); }
+      .mapping-row select { min-width: 150px; border: 1px solid var(--line-strong); border-radius: 7px; background: white; padding: 7px; }
+      .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+      @media (max-width: 500px) {
+        .page { width: min(100% - 24px, 720px); padding-top: 28px; }
+        .steps { gap: 5px; font-size: 12px; }
+        .step strong { width: 21px; height: 21px; }
+        .step:not(.active) span { display: none; }
+        .dropzone { min-height: 160px; }
+        .footer { align-items: stretch; flex-direction: column-reverse; }
+        .footer button { width: 100%; }
+        .mapping-row { align-items: flex-start; flex-direction: column; gap: 8px; }
+        .mapping-row select { width: 100%; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <p class="eyebrow">账单</p>
+      <h1>导入账单</h1>
+      <p class="intro">选择完成后统一扫描。</p>
+
+      <div class="steps" aria-label="导入步骤">
+        <div class="step active"><strong>1</strong><span>选择文件</span></div>
+        <div class="divider"></div>
+        <div class="step"><strong>2</strong><span>账户映射</span></div>
+        <div class="divider"></div>
+        <div class="step"><strong>3</strong><span>确认导入</span></div>
+      </div>
+
+      <div class="toolbar" aria-label="原型状态">
+        <button type="button" data-state="empty" aria-pressed="false">空状态</button>
+        <button type="button" data-state="selected" aria-pressed="true">已选文件</button>
+        <button type="button" data-state="loading" aria-pressed="false">扫描中</button>
+        <button type="button" data-state="password" aria-pressed="false">需要处理</button>
+        <button type="button" data-state="ready" aria-pressed="false">已就绪</button>
+      </div>
+
+      <section class="card" aria-live="polite">
+        <div class="card-body" id="select-panel">
+          <div class="dropzone" id="dropzone">
+            <div>
+              <p><button type="button" class="button" id="choose">选择账单文件</button></p>
+              <p class="hint">可继续添加，最多 20 个</p>
+            </div>
+          </div>
+
+          <div class="selected" id="selected" hidden>
+            <div class="selected-heading"><span>已选文件</span><span id="count">2 / 20</span></div>
+            <div class="file-list" id="file-list">
+              <div class="file-row"><span class="file-name">2026-08 支付宝账单.xlsx</span><span class="file-meta">12 MB <button type="button" class="remove" aria-label="删除 2026-08 支付宝账单.xlsx">删除</button></span></div>
+              <div class="file-row"><span class="file-name">微信支付流水.pdf</span><span class="file-meta">4 MB <button type="button" class="remove" aria-label="删除 微信支付流水.pdf">删除</button></span></div>
+            </div>
+          </div>
+
+          <div class="notice" id="notice">点击「下一步」后开始扫描所有文件。</div>
+
+          <div class="password-list" id="passwords" hidden>
+            <div class="password-row">
+              <label for="password-1">微信支付流水.pdf <span>请输入文件密码</span></label>
+              <input id="password-1" type="password" placeholder="文件密码" />
+            </div>
+            <div class="password-row">
+              <label for="password-2">2026-07 支付宝账单.pdf <span>请输入文件密码</span></label>
+              <input id="password-2" type="password" placeholder="文件密码" />
+            </div>
+          </div>
+
+          <div class="footer">
+            <div class="left" id="footer-copy">已选择 2 个文件</div>
+            <button type="button" class="button primary" id="next">下一步</button>
+          </div>
+        </div>
+
+        <div class="card-body" id="mapping-panel" hidden>
+          <div class="selected-heading"><span>账户映射</span><span>2 个渠道 · 3 个来源账户</span></div>
+          <div class="mapping" aria-label="来源账户映射">
+            <div class="mapping-row"><div>支付宝账户 <small>尾号 1024 · 18 条流水</small></div><select aria-label="支付宝账户"><option>日常开支</option></select></div>
+            <div class="mapping-row"><div>微信支付账户 <small>尾号 8812 · 23 条流水</small></div><select aria-label="微信支付账户"><option>日常开支</option></select></div>
+            <div class="mapping-row"><div>工商银行信用卡 <small>尾号 3098 · 9 条流水</small></div><select aria-label="工商银行信用卡"><option>信用卡</option></select></div>
+          </div>
+          <div class="notice success">所有文件已扫描完成，后续预览将合并全部流水。</div>
+          <div class="footer"><button type="button" class="button ghost">返回</button><button type="button" class="button primary">查看流水</button></div>
+        </div>
+      </section>
+    </main>
+    <script>
+      const states = {
+        empty: { selected: false, notice: '先选择至少一个账单文件。', noticeClass: '', footer: '尚未选择文件', nextDisabled: true, passwords: false },
+        selected: { selected: true, notice: '点击「下一步」后开始扫描所有文件。', noticeClass: '', footer: '已选择 2 个文件', nextDisabled: false, passwords: false },
+        loading: { selected: true, notice: '正在扫描 2 个文件…', noticeClass: '', footer: '请稍候', nextDisabled: true, passwords: false },
+        password: { selected: true, notice: '有文件需要密码，完成后继续扫描。', noticeClass: 'error', footer: '等待 2 个文件', nextDisabled: true, passwords: true },
+        ready: { selected: true, notice: '所有文件已扫描完成，可以进入账户映射。', noticeClass: 'success', footer: '已准备好 2 个文件', nextDisabled: false, passwords: false }
+      };
+      const selected = document.querySelector('#selected');
+      const passwords = document.querySelector('#passwords');
+      const notice = document.querySelector('#notice');
+      const footer = document.querySelector('#footer-copy');
+      const next = document.querySelector('#next');
+      const mapping = document.querySelector('#mapping-panel');
+      function setState(name) {
+        const state = states[name];
+        document.querySelectorAll('[data-state]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.state === name)));
+        selected.hidden = !state.selected;
+        passwords.hidden = !state.passwords;
+        notice.textContent = state.notice;
+        notice.className = `notice ${state.noticeClass}`.trim();
+        footer.textContent = state.footer;
+        next.disabled = state.nextDisabled;
+        mapping.hidden = name !== 'ready';
+        document.querySelector('#select-panel').hidden = name === 'ready';
+      }
+      document.querySelectorAll('[data-state]').forEach((button) => button.addEventListener('click', () => setState(button.dataset.state)));
+      document.querySelector('#next').addEventListener('click', () => setState('loading'));
+      document.querySelectorAll('.remove').forEach((button) => button.addEventListener('click', (event) => event.currentTarget.closest('.file-row').remove()));
+      setState('selected');
+    </script>
+  </body>
+</html>

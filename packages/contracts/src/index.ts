@@ -204,6 +204,7 @@ export type CashRecordPage = {
 
 export type ImportPreviewItem = {
   record_id: string;
+  relation_ref?: string;
   occurred_at: string;
   amount: string;
   currency: string;
@@ -265,6 +266,9 @@ export type ImportPreview = {
   channel: string;
   channel_label: string;
   file: { name: string; digest: string };
+  batch_digest?: string;
+  channels?: string[];
+  files?: ImportFileScan[];
   relation_digest?: string;
   columns: string[];
   items: ImportPreviewItem[];
@@ -275,6 +279,9 @@ export type ImportPreview = {
 
 export type ImportMappingResult = {
   group_id: string;
+  source_type?: string;
+  channel?: string;
+  channel_label?: string;
   account_id: number | null;
   missing_currencies: string[];
   new_account: { draft_id?: string; name: string; type: string; currencies: string[] } | null;
@@ -290,6 +297,9 @@ export type ImportMappingDecision = {
 
 export type ImportSourceGroup = {
   group_id: string;
+  source_type?: string;
+  channel?: string;
+  channel_label?: string;
   display_name: string;
   masked_evidence: string;
   currencies: string[];
@@ -307,11 +317,28 @@ export type ImportScan = {
   contract: string;
   channel: string;
   channel_label: string;
+  ready?: boolean;
+  batch_digest?: string;
+  channels?: string[];
+  files?: ImportFileScan[];
   file: { name: string; digest: string };
   digest: string;
   unresolved_count?: number;
   accounts: Account[];
   groups: ImportSourceGroup[];
+};
+
+export type ImportFileScan = {
+  index: number;
+  name: string;
+  filename?: string;
+  digest: string;
+  size: number;
+  channel?: string;
+  channel_label?: string;
+  row_count?: number;
+  status: "ready" | "password_required" | "error" | "pending";
+  error_code?: string;
 };
 
 export type ImportDetection = {
@@ -329,6 +356,9 @@ export type ImportCommitResult = {
   skipped_rows?: number;
   channel: string;
   digest: string;
+  batch_digest?: string;
+  channels?: string[];
+  files?: ImportFileScan[];
   pending_relations?: number;
 };
 

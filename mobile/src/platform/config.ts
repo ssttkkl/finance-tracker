@@ -19,16 +19,18 @@ export function normalizeNativeApiOrigin(value: string): string {
   let parsed: URL;
   try { parsed = new URL(candidate); } catch { throw new Error("api_origin_invalid"); }
   const localHttp = parsed.protocol === "http:" && parsed.hostname !== "" && parsed.port !== "" && process.env.NODE_ENV !== "production";
+  const overrideHttp = parsed.protocol === "http:" && parsed.hostname !== "" && parsed.port !== "" && nativeApiOriginOverrideEnabled();
   const hostedHttps = parsed.protocol === "https:" && parsed.hostname !== "";
   const hasUnexpectedPath = parsed.pathname !== "/" && parsed.pathname !== "";
-  if ((!localHttp && !hostedHttps) || parsed.username || parsed.password || hasUnexpectedPath || parsed.search || parsed.hash) {
+  if ((!localHttp && !overrideHttp && !hostedHttps) || parsed.username || parsed.password || hasUnexpectedPath || parsed.search || parsed.hash) {
     throw new Error("api_origin_invalid");
   }
   return candidate.replace(/\/$/, "");
 }
 
 export function nativeBuildApiOrigin(): string {
-  return normalizeNativeApiOrigin(process.env.EXPO_PUBLIC_FT_API_ORIGIN ?? "");
+  const configured = process.env.EXPO_PUBLIC_FT_API_ORIGIN?.trim() ?? "";
+  return configured ? normalizeNativeApiOrigin(configured) : "";
 }
 
 export function nativeApiOrigin(): string {
