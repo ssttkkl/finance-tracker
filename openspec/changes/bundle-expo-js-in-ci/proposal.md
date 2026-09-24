@@ -1,6 +1,6 @@
 ## Why
 
-当前 GitHub Actions 的 Mobile CI 只在独立的 quality job 中导出 Expo JavaScript bundle；Android 和 iOS 原生构建在隔离 job 中重新生成原生工程，并使用 Debug 配置打包，因此上传的应用产物不能保证脱离 Metro 直接启动。CI 需要产出可安装、可启动的独立测试包，并让测试者在登录时选择实际后端，避免把工作流变量当成测试入口。
+当前 GitHub Actions 的 Mobile CI 只在独立的 quality job 中导出 Expo JavaScript bundle；Android 和 iOS 原生构建在隔离 job 中重新生成原生工程，并使用 Debug 配置打包，因此上传的应用产物不能保证脱离 Metro 直接启动。CI 需要产出包含内置 bundle 的独立测试包，并让测试者在登录时选择实际后端，避免把工作流变量当成测试入口。
 
 ## What Changes
 
@@ -8,7 +8,7 @@
 - 在 quality、Android 和 iOS job 中开启 `EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED=1`，不设置 `EXPO_PUBLIC_FT_API_ORIGIN`。
 - 允许构建地址为空；Native 测试包在登录和注册页面展示后端地址控件，由测试者输入实际 API origin。
 - 在启用地址覆盖的测试包中允许带显式端口的 HTTP origin；空值、路径、查询、片段和凭据仍不得提交认证请求。
-- Android 测试产物使用提交到仓库的专用非生产测试 keystore 签名；iOS Simulator 测试产物继续不签名，不引入 App Store 或 Google Play 生产签名流程。
+- Android 测试产物使用提交到仓库的专用非生产测试 keystore 签名；iOS 真机 `.ipa` 面向 `iphoneos` 构建但继续不签名，不引入 Apple、App Store 或 Google Play 生产签名流程。
 - 更新 Mobile CI 文档和验证任务，说明产物不依赖 Metro、登录时地址选择方式以及回滚路径。
 
 ## Capabilities

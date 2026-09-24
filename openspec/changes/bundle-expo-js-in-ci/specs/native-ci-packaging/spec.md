@@ -6,17 +6,18 @@
 
 ### Requirement: Native CI artifacts embed the Expo JavaScript bundle
 
-GitHub Actions 的 Android 与 iOS Native 构建 MUST 使用会把 Expo JavaScript bundle 及其资源写入应用包的 Release-like 配置。上传的应用产物 MUST 能在没有 Metro 开发服务器的环境中启动并加载应用入口；CI 不得只上传独立的 JavaScript 导出目录来代替应用内置 bundle。
+GitHub Actions 的 Android 与 iOS Native 构建 MUST 使用会把 Expo JavaScript bundle 及其资源写入应用包的 Release-like 配置。上传的应用产物 MUST 包含应用内置 bundle；Android artifact 应能在没有 Metro 开发服务器的环境中启动，iOS 真机 artifact 在完成适用的外部签名后应能启动。CI 不得只上传独立的 JavaScript 导出目录来代替应用内置 bundle。
 
 #### Scenario: Android artifact starts without Metro
 
 - **WHEN** CI 生成 Android 使用仓库测试密钥签名的 Release-like APK，安装该 APK 时没有运行 Metro
 - **THEN** 应用 MUST 从 APK 内加载 Expo JavaScript 与资源并进入应用入口，不得依赖开发服务器提供 bundle
 
-#### Scenario: iOS simulator artifact starts without Metro
+#### Scenario: Unsigned iOS device IPA contains the bundle
 
-- **WHEN** CI 生成 iOS Simulator 未签名 Release-like App，启动该 App 时没有运行 Metro
-- **THEN** 应用 MUST 从 App 包内加载 Expo JavaScript 与资源并进入应用入口，不得依赖开发服务器提供 bundle
+- **WHEN** CI 生成面向 `iphoneos` 的未签名 Release-like `.ipa`
+- **THEN** `.ipa` MUST 以标准 `Payload/*.app` 结构包含 iOS App 和 Expo JavaScript 与资源
+- **AND** CI MUST 明确该 artifact 需要外部签名后才能安装到真机
 
 ### Requirement: Native CI artifacts expose login-time API origin selection
 
@@ -42,14 +43,15 @@ Native CI MUST 开启 `EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED=1`，且 MUST 
 
 ### Requirement: Native test signing boundaries are explicit and truthfully identified
 
-Native CI MUST use the committed `mobile/ci/finance-tracker-test.keystore` and its fixed non-production test credentials to sign the Android Release-like APK. The iOS Simulator app MUST remain unsigned. Neither platform may read production, App Store, TestFlight, or Google Play signing credentials. Artifact names and Mobile README MUST clearly state the actual signing boundary, Release-like configuration, embedded JavaScript, and development/test-only purpose.
+Native CI MUST use the committed `mobile/ci/finance-tracker-test.keystore` and its fixed non-production test credentials to sign the Android Release-like APK. The iOS device `.ipa` MUST remain unsigned and MUST target `iphoneos`; its job MUST NOT require or read Apple certificates, provisioning profiles, or other production signing credentials. Artifact names and Mobile README MUST clearly state the actual signing boundary, Release-like configuration, embedded JavaScript, and development/test-only purpose.
 
 #### Scenario: Android artifact uses the repository test key
 
 - **WHEN** Android Release-like 构建成功
 - **THEN** CI MUST upload an APK signed by the committed repository test keystore, verify that signature before upload, and use an artifact name that identifies it as a test release artifact
 
-#### Scenario: iOS simulator artifact remains unsigned
+#### Scenario: iOS device IPA remains unsigned
 
-- **WHEN** iOS Simulator Release-like 构建成功
-- **THEN** CI MUST upload an unsigned simulator app archive and MUST NOT require or use a production signing credential
+- **WHEN** iOS `iphoneos` Release-like 构建成功
+- **THEN** CI MUST upload an unsigned `.ipa` containing `Payload/*.app`
+- **AND** CI MUST NOT require or use Apple signing credentials

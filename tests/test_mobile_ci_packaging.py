@@ -26,7 +26,17 @@ def test_mobile_ci_builds_release_like_artifacts_with_embedded_js():
     assert "NODE_ENV=production npm run export:ios" in workflow
     assert workflow.count("NODE_ENV: production") == 2
     assert "finance-tracker-android-release" in workflow
-    assert "finance-tracker-ios-simulator-release" in workflow
+    assert "-sdk iphoneos" in workflow
+    assert "-destination 'generic/platform=iOS'" in workflow
+    assert "Release-iphoneos" in workflow
+    assert "CODE_SIGNING_ALLOWED=NO" in workflow
+    assert "CODE_SIGNING_REQUIRED=NO" in workflow
+    assert 'CODE_SIGN_IDENTITY=""' in workflow
+    assert "Payload" in workflow
+    assert "finance-tracker-ios-device-release-unsigned.ipa" in workflow
+    assert "finance-tracker-ios-device-release-unsigned" in workflow
+    assert "iphonesimulator" not in workflow
+    assert "ios-simulator" not in workflow
     assert "assembleDebug" not in workflow
 
 
@@ -38,7 +48,9 @@ def test_mobile_ci_docs_describe_login_origin_and_standalone_artifacts():
     assert "后端地址" in readme
     assert "HTTP" in readme
     assert "finance-tracker-android-release" in readme
-    assert "finance-tracker-ios-simulator-release" in readme
+    assert "finance-tracker-ios-device-release" in readme
+    assert "真机" in readme
+    assert ".ipa" in readme
     assert "Metro" in readme
     assert "未签名" in readme
     assert "finance-tracker-test.keystore" in readme

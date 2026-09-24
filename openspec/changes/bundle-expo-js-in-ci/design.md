@@ -8,7 +8,7 @@ Native API origin 由 `EXPO_PUBLIC_FT_API_ORIGIN` 提供构建地址。该值可
 
 **Goals:**
 
-- 让 Android APK 和 iOS Simulator App 都在 Release-like 配置中内置 Expo JavaScript 与静态资源；Android 使用仓库内非生产测试 keystore，iOS 保持未签名。
+- 让 Android APK 和 iOS 真机 `.ipa` 都在 Release-like 配置中内置 Expo JavaScript 与静态资源；Android 使用仓库内非生产测试 keystore，iOS 面向 `iphoneos` 构建并保持未签名。
 - 让 quality、Android 和 iOS job 开启登录时的 API origin 输入，不依赖 `EXPO_PUBLIC_FT_API_ORIGIN` 或真实后端账号。
 - 允许构建地址为空；启用地址覆盖时允许使用带显式端口的 HTTP origin，供测试后端使用。
 - 让 Expo export 和两个 Native release job 明确使用 `NODE_ENV=production`，避免 bundler 依赖 runner 默认环境。
@@ -26,7 +26,7 @@ Native API origin 由 `EXPO_PUBLIC_FT_API_ORIGIN` 提供构建地址。该值可
 
 ### 1. 使用 Release-like 原生构建触发内置 bundle
 
-Android 改用 `assembleRelease`，并由 Android config plugin 将生成的 Android `release` build type 指向 `mobile/ci/finance-tracker-test.keystore`；iOS 改用 Xcode `Release` configuration 并显式关闭 code signing。Expo/React Native 的原生构建流程会在非 Debug 配置中执行 bundle embed，产物可直接验证；相比在 Debug 构建上额外覆盖 bundling 开关，这条路径更接近真实分发行为，且减少对 Gradle/Xcode 内部脚本的定制。
+Android 改用 `assembleRelease`，并由 Android config plugin 将生成的 Android `release` build type 指向 `mobile/ci/finance-tracker-test.keystore`；iOS 改用 Xcode `Release` configuration、`iphoneos` SDK 和 generic device destination，并显式关闭 code signing。构建出的 `.app` 放入标准 `Payload/` 目录后压缩为未签名 `.ipa`。Expo/React Native 的原生构建流程会在非 Debug 配置中执行 bundle embed，产物可直接检查；iOS `.ipa` 需要后续外部签名后才能安装到真机。
 
 备选方案是保留 Debug 配置并强制开启 bundle。该方案会继续携带开发构建语义，容易让 artifact 名称、调试菜单和实际运行依赖产生误导，因此不采用。
 
@@ -56,7 +56,7 @@ workflow 顶层只设置 `EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED=1`，不设
 
 ### 6. 用真实构建类型命名 artifact
 
-Android artifact 改名为 `finance-tracker-android-release`；iOS artifact 改名为 `finance-tracker-ios-simulator-release`。文件名也使用 `finance-tracker-android-release.apk` 与 `finance-tracker-ios-simulator-release.zip`，README 同步说明 Android 为测试签名、iOS 未签名、已内置 JavaScript、登录时需要填写后端地址，不能用于商店发布。
+Android artifact 使用 `finance-tracker-android-release`；iOS artifact 使用 `finance-tracker-ios-device-release-unsigned`。文件名使用 `finance-tracker-android-release.apk` 与 `finance-tracker-ios-device-release-unsigned.ipa`，README 同步说明 Android 为测试签名、iOS 为面向 `iphoneos` 的未签名 `.ipa`、已内置 JavaScript、登录时需要填写后端地址，iOS 需要后续签名才能安装，不能直接用于商店发布。
 
 ## Cross-platform Impact Check
 
@@ -69,14 +69,15 @@ Android artifact 改名为 `finance-tracker-android-release`；iOS artifact 改�
 - **测试者未填写地址** → 登录页保持空值并在提交前显示地址校验错误；API client 不会向空 URL 发请求。
 - **HTTP 测试流量未加密** → 只在显式开启地址覆盖的测试 artifact 中允许带端口 HTTP；README 标明该包仅用于测试，不改变普通生产构建的 HTTPS 约束。
 - **Release-like artifact 暴露地址输入控件** → 该控件由 workflow 明确写入的构建开关开启，artifact 名称和文档均标记为测试用途；没有该开关的构建保持隐藏。
+- **未签名 iOS `.ipa` 不能直接安装** → workflow 使用 `iphoneos` 和标准 `Payload/*.app` 结构生成可供后续签名的真机包，artifact 名称和 README 明确标注 unsigned；不伪称其为可直接安装包。
 - **测试 keystore 被误用于生产** → 路径、alias、workflow job 和 README 均明确标注 test-only；不读取 Secret、不配置商店发布，签名验证只作为 CI 测试包门禁。
 - **Expo/React Native 后续改变 bundling 脚本** → CI 保留独立 export 检查，并在原生构建后检查 APK/App 产物存在内置 bundle；后续若发现离线启动回归，优先在对应平台 job 增加 bundle 内容验证。
 
 ## Migration Plan
 
 1. 合并 workflow 和 Native 配置变更；不需要设置 `EXPO_PUBLIC_FT_API_ORIGIN` Repository Variable。
-2. 后续 PR、`refactor/web` push 或手动运行会生成新的 release artifact；安装者在登录页输入 HTTPS 或带端口的 HTTP API origin。
-3. 先验证 APK/App 在没有 Metro 的模拟器中启动，再按测试后端执行登录和多文件导入验证。
+2. 后续 PR、`refactor/web` push 或手动运行会生成新的 release artifact；Android 安装者或完成外部签名的 iOS 使用者在登录页输入 HTTPS 或带端口的 HTTP API origin。
+3. 先检查 APK 与未签名 iOS `.ipa` 内置 JavaScript；Android 可在没有 Metro 的环境中启动，iOS 在外部签名后再按测试后端执行真机登录和多文件导入验证。
 4. 回滚时移除地址覆盖开关、恢复构建地址校验脚本和旧 artifact 名称；Native 业务数据与 API 不需要迁移。
 
 ## Open Questions

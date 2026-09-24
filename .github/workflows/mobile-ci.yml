@@ -154,7 +154,7 @@ jobs:
           retention-days: 7
 
   ios:
-    name: iOS Simulator Release app (embedded JS)
+    name: iOS Device Release IPA (unsigned, embedded JS)
     runs-on: macos-26
     timeout-minutes: 45
     env:
@@ -184,7 +184,7 @@ jobs:
         working-directory: mobile/ios
         run: pod install --no-repo-update
 
-      - name: Build unsigned iOS Simulator Release app with embedded JavaScript
+      - name: Build unsigned iOS Device Release app and package IPA with embedded JavaScript
         shell: bash
         run: |
           set -euo pipefail
@@ -196,26 +196,38 @@ jobs:
             -workspace "$ios_workspace" \
             -scheme "$ios_scheme" \
             -configuration Release \
-            -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             -derivedDataPath mobile/ios/build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
             build
 
-          ios_app="$(find mobile/ios/build/Build/Products/Release-iphonesimulator -maxdepth 1 -type d -name '*.app' -print -quit)"
+          ios_app="$(find mobile/ios/build/Build/Products/Release-iphoneos -maxdepth 1 -type d -name '*.app' -print -quit)"
           test -n "$ios_app"
+          test ! -d "$ios_app/_CodeSignature"
           ios_bundle="$(find "$ios_app" -maxdepth 2 -type f \( -name 'main.jsbundle' -o -name '*.jsbundle' \) -print -quit)"
           test -n "$ios_bundle"
           mkdir -p mobile/dist
-          ditto -c -k --sequesterRsrc --keepParent \
-            "$ios_app" \
-            mobile/dist/finance-tracker-ios-simulator-release.zip
+          ios_ipa_root="mobile/ios/ipa"
+          rm -rf "$ios_ipa_root"
+          mkdir -p "$ios_ipa_root/Payload"
+          ditto "$ios_app" "$ios_ipa_root/Payload/$(basename "$ios_app")"
+          (
+            cd "$ios_ipa_root"
+            /usr/bin/zip -qry \
+              "$GITHUB_WORKSPACE/mobile/dist/finance-tracker-ios-device-release-unsigned.ipa" \
+              Payload
+          )
+          test -f mobile/dist/finance-tracker-ios-device-release-unsigned.ipa
+          unzip -l mobile/dist/finance-tracker-ios-device-release-unsigned.ipa \
+            | grep -Eq 'Payload/[^/]+\.app/(main\.jsbundle|[^/]+\.jsbundle)'
 
-      - name: Upload iOS Simulator Release app
+      - name: Upload unsigned iOS Device Release IPA
         uses: actions/upload-artifact@v4
         with:
-          name: finance-tracker-ios-simulator-release
-          path: mobile/dist/finance-tracker-ios-simulator-release.zip
+          name: finance-tracker-ios-device-release-unsigned
+          path: mobile/dist/finance-tracker-ios-device-release-unsigned.ipa
           if-no-files-found: error
           retention-days: 7
