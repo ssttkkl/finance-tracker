@@ -1,6 +1,6 @@
 ## Purpose
 
-为 GitHub Actions 的 Android 与 iOS Native 测试产物提供可独立启动的应用包，使安装者不需要运行 Metro 就能加载 Expo JavaScript 与资源，并明确构建时使用的 API origin。
+定义 GitHub Actions 生成可脱离 Metro 运行的 Android/iOS Native 测试产物，以及通过登录时输入 API origin 连接测试后端的边界。
 
 ## ADDED Requirements
 
@@ -18,19 +18,27 @@ GitHub Actions 的 Android 与 iOS Native 构建 MUST 使用会把 Expo JavaScri
 - **WHEN** CI 生成 iOS Simulator 未签名 Release-like App，启动该 App 时没有运行 Metro
 - **THEN** 应用 MUST 从 App 包内加载 Expo JavaScript 与资源并进入应用入口，不得依赖开发服务器提供 bundle
 
-### Requirement: Native CI builds use an explicit and valid API origin
+### Requirement: Native CI artifacts expose login-time API origin selection
 
-Native CI 构建 MUST 在 JavaScript bundle 生成时注入 GitHub Repository Variable `EXPO_PUBLIC_FT_API_ORIGIN`。该值 MUST 是非空的 HTTPS origin，不得包含用户凭据、路径、查询参数或片段；变量缺失或不合法时，CI MUST 在原生构建或 artifact 上传前失败，并且不得上传该构建产物。
+Native CI MUST 开启 `EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED=1`，且 MUST NOT 要求设置 `EXPO_PUBLIC_FT_API_ORIGIN` 才能生成测试 artifact。缺失或为空的构建地址 MUST 作为空值传入 Native 登录配置；测试 artifact MUST 在登录和注册页面展示 API origin 输入，使使用者可以在认证前指定测试后端。CI MUST NOT 使用账号或真实后端执行登录作为产物生成条件。
 
-#### Scenario: Valid repository variable is shared by both platforms
+#### Scenario: Missing build origin still produces a test artifact
 
-- **WHEN** GitHub Repository Variable `EXPO_PUBLIC_FT_API_ORIGIN` 配置为合法的 HTTPS origin
-- **THEN** Android 与 iOS Native job MUST 使用同一个构建时 API origin 生成各自的 JavaScript bundle
+- **WHEN** GitHub Actions 未配置 `EXPO_PUBLIC_FT_API_ORIGIN` 且启用了 `EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED=1`
+- **THEN** Android 与 iOS Native job MUST 继续执行构建，不得因空构建地址在上传前失败
+- **AND** 生成的测试 artifact 登录和注册页面 MUST 展示 API origin 输入
 
-#### Scenario: Missing API origin fails closed
+#### Scenario: Empty origin blocks authentication until the user chooses an address
 
-- **WHEN** `EXPO_PUBLIC_FT_API_ORIGIN` 未配置、为空或不符合 HTTPS origin 约束
-- **THEN** 受影响的 CI job MUST 失败，且 MUST NOT 上传 Android 或 iOS 应用 artifact
+- **WHEN** 测试 artifact 的构建地址为空且使用者未在登录页面输入 API origin
+- **THEN** Native MUST 在提交登录或注册前显示地址校验错误
+- **AND** Native MUST NOT 发送认证请求
+
+#### Scenario: Test artifact accepts an HTTP backend with an explicit port
+
+- **WHEN** 测试 artifact 的使用者输入带显式端口的 `http://` API origin
+- **THEN** Native MUST 按该 origin 发送认证请求并保留其规范化结果
+- **AND** 没有显式端口、包含凭据、非根路径、查询参数或片段的值 MUST 被拒绝
 
 ### Requirement: Native test signing boundaries are explicit and truthfully identified
 
@@ -38,10 +46,10 @@ Native CI MUST use the committed `mobile/ci/finance-tracker-test.keystore` and i
 
 #### Scenario: Android artifact uses the repository test key
 
-- **WHEN** API origin 校验通过且 Android Release-like 构建成功
+- **WHEN** Android Release-like 构建成功
 - **THEN** CI MUST upload an APK signed by the committed repository test keystore, verify that signature before upload, and use an artifact name that identifies it as a test release artifact
 
 #### Scenario: iOS simulator artifact remains unsigned
 
-- **WHEN** API origin 校验通过且 iOS Simulator Release-like 构建成功
+- **WHEN** iOS Simulator Release-like 构建成功
 - **THEN** CI MUST upload an unsigned simulator app archive and MUST NOT require or use a production signing credential

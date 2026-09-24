@@ -19,7 +19,7 @@ EXPO_PUBLIC_FT_API_ORIGIN='http://127.0.0.1:8000' npm run start:mobile
 npm run ios
 ```
 
-真机调试时将地址换成开发机局域网地址，例如 `http://192.168.1.10:8000`；生产 Native 构建必须使用 HTTPS。Android development build 使用：
+真机调试时将地址换成开发机局域网地址，例如 `http://192.168.1.10:8000`；普通生产 Native 构建必须使用 HTTPS。Android development build 使用：
 
 ```bash
 npm run android
@@ -54,13 +54,7 @@ npm run export:ios --workspace finance-tracker-mobile
 
 ## GitHub Actions Native CI
 
-`.github/workflows/mobile-ci.yml` 会在 Pull Request、推送到 `refactor/web` 或手动触发时运行共享包和 Mobile 校验，并生成不依赖 Metro 的 Release-like 测试产物。原生构建前必须在 GitHub Repository Variables 中配置：
-
-```text
-EXPO_PUBLIC_FT_API_ORIGIN=https://api.example.com
-```
-
-该值必须是非空的 HTTPS origin，不得包含用户凭据、路径、查询参数或片段。缺失或不合法时，CI 会在构建和上传 artifact 前失败。JavaScript bundle 和资源会直接内置到 Android APK 与 iOS Simulator App 中，启动这些产物不需要运行 Metro。
+`.github/workflows/mobile-ci.yml` 会在 Pull Request、推送到 `refactor/web` 或手动触发时运行共享包和 Mobile 校验，并生成不依赖 Metro 的 Release-like 测试产物。CI 不需要配置 `EXPO_PUBLIC_FT_API_ORIGIN`，而是开启 `EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED=1`。安装 artifact 后，在登录或注册页面输入实际后端地址；地址可以是 HTTPS origin，也可以是带显式端口的 HTTP origin。地址为空、包含路径、查询参数、片段或凭据时，认证请求会被阻止。JavaScript bundle 和资源会直接内置到 Android APK 与 iOS Simulator App 中，启动这些产物不需要运行 Metro。
 
 - `finance-tracker-android-release`：内置 JavaScript、使用仓库测试密钥签名的 Android Release-like APK。
 - `finance-tracker-ios-simulator-release`：内置 JavaScript、未签名的 iOS Simulator Release-like `.app` 压缩包。

@@ -1,8 +1,4 @@
-## Purpose
-
-让 Native 使用者在明确开启的调试或测试构建中，于登录前选择要连接的后端 origin，便于在同一构建中联调不同后端实例；默认构建仍隐藏该控件，正式构建仅允许 HTTPS。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Native API origin override is build-gated
 
@@ -12,19 +8,13 @@ Native MUST only expose the API origin override control when `EXPO_PUBLIC_FT_API
 
 - **WHEN** a Native build does not enable `EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED`
 - **THEN** the authentication surface MUST NOT show an API origin input or reset control
-- **AND** authentication requests MUST use the build address
+- **AND** authentication requests MUST use the build address, or fail before network transmission when that address is empty
 
-#### Scenario: Debug build shows the override
-
-- **WHEN** a Native build sets `EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED` to `1` or `true`
-- **THEN** the login and registration modes MUST show one shared API origin input
-- **AND** the input MUST initially contain the current address
-
-#### Scenario: Override build permits an empty build address
+#### Scenario: Test build shows an initially empty override
 
 - **WHEN** a Native build sets `EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED` to `1` or `true` and does not provide `EXPO_PUBLIC_FT_API_ORIGIN`
 - **THEN** the login and registration modes MUST show one shared API origin input
-- **AND** the input MUST initially be empty
+- **AND** the input MUST initially be empty until the user selects an origin or a saved valid override is restored
 
 ### Requirement: Native authentication can use a validated origin override
 
@@ -36,9 +26,9 @@ When the debug control is visible, Native MUST validate the entered value as an 
 - **THEN** the authentication request MUST be sent to that origin
 - **AND** the origin MUST be normalized without a trailing slash
 
-#### Scenario: Invalid address blocks submission
+#### Scenario: Invalid or empty address blocks submission
 
-- **WHEN** the user enters an empty or invalid origin and submits login or registration while the override control is visible
+- **WHEN** the user submits login or registration with an empty or invalid origin while the override control is visible
 - **THEN** Native MUST show an API origin validation error
 - **AND** Native MUST NOT send a login or registration request
 
@@ -48,37 +38,9 @@ When the debug control is visible, Native MUST validate the entered value as an 
 - **THEN** the same entered API origin MUST remain selected
 - **AND** the selected origin MUST apply to the next authentication submission
 
-### Requirement: Successful debug authentication persists the selected address locally
-
-When the debug control is enabled, Native MUST persist only the validated origin used by a successful login or registration to controlled local device storage. The origin MUST not be sent to the server as an additional field and MUST not be written to application logs.
-
-#### Scenario: Successful authentication saves the origin
-
-- **WHEN** login or registration succeeds using a validated debug address
-- **THEN** the address MUST be available as the current Native API origin
-- **AND** the address MUST be saved for the next launch
-
-#### Scenario: Failed authentication does not replace the saved origin
-
-- **WHEN** login or registration fails after the user enters a different valid debug address
-- **THEN** Native MUST leave the existing saved address unchanged
-- **AND** the entered address MAY remain selected for an immediate retry without being persisted
-
-#### Scenario: Relaunch restores the saved origin
-
-- **WHEN** a debug-enabled Native build starts with a previously saved valid address
-- **THEN** Native MUST restore that address before its first session request
-- **AND** the authentication surface MUST prefill the restored address
-
 ### Requirement: Reset and logout preserve the selected configuration semantics
 
 When debug mode is enabled, Native MUST provide a “恢复默认” operation that clears the local address override and returns to the build address, which MAY be empty. If the returned build address is empty, the next authentication submission MUST require a new valid origin. Logout MUST clear the session token and protected session state but MUST NOT clear the selected debug address. When debug mode is disabled, any stored override MUST be ignored.
-
-#### Scenario: Reset returns to the build address
-
-- **WHEN** the user activates “恢复默认”
-- **THEN** the input MUST show the build address
-- **AND** the local address override MUST be cleared
 
 #### Scenario: Reset returns to an empty build address
 

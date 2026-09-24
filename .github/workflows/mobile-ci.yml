@@ -19,7 +19,7 @@ env:
   ANDROID_API_LEVEL: "36"
   ANDROID_BUILD_TOOLS: "36.0.0"
   ANDROID_NDK_VERSION: "30.0.14904198"
-  EXPO_PUBLIC_FT_API_ORIGIN: ${{ vars.EXPO_PUBLIC_FT_API_ORIGIN }}
+  EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED: "1"
 
 jobs:
   quality:
@@ -36,9 +36,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: package-lock.json
-
-      - name: Validate build-time API origin
-        run: node mobile/scripts/validate-build-time-api-origin.mjs
 
       - name: Install JavaScript dependencies
         run: npm ci --no-audit --no-fund
@@ -80,9 +77,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: package-lock.json
-
-      - name: Validate build-time API origin
-        run: node mobile/scripts/validate-build-time-api-origin.mjs
 
       - name: Install JavaScript dependencies
         run: npm ci --no-audit --no-fund
@@ -175,9 +169,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: package-lock.json
-
-      - name: Validate build-time API origin
-        run: node mobile/scripts/validate-build-time-api-origin.mjs
 
       - name: Install JavaScript dependencies
         run: npm ci --no-audit --no-fund

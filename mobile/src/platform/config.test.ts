@@ -83,6 +83,27 @@ describe("Native API origin configuration", () => {
     expect(normalizeNativeApiOrigin("https://api.example.com:8443")).toBe("https://api.example.com:8443");
   });
 
+  it("allows an empty build origin and validates a production HTTP override", () => {
+    vi.stubEnv("EXPO_PUBLIC_FT_API_ORIGIN", "");
+    vi.stubEnv("EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED", "1");
+    vi.stubEnv("NODE_ENV", "production");
+
+    expect(nativeBuildApiOrigin()).toBe("");
+    expect(nativeApiOrigin()).toBe("");
+    expect(() => selectNativeApiOrigin("")).toThrow("api_origin_invalid");
+    expect(normalizeNativeApiOrigin("http://192.168.1.10:8000/")).toBe("http://192.168.1.10:8000");
+    expect(() => normalizeNativeApiOrigin("http://192.168.1.10")).toThrow("api_origin_invalid");
+    expect(() => normalizeNativeApiOrigin("http://192.168.1.10:8000/api")).toThrow("api_origin_invalid");
+  });
+
+  it("keeps a missing build origin empty when override mode is disabled", () => {
+    vi.stubEnv("EXPO_PUBLIC_FT_API_ORIGIN", "");
+    vi.stubEnv("EXPO_PUBLIC_FT_API_ORIGIN_OVERRIDE_ENABLED", "0");
+
+    expect(nativeBuildApiOrigin()).toBe("");
+    expect(nativeApiOrigin()).toBe("");
+  });
+
   it("uses the selected origin only while debug mode is enabled", () => {
     expect(nativeBuildApiOrigin()).toBe("https://build.example.com");
     expect(nativeApiOrigin()).toBe("https://build.example.com");
