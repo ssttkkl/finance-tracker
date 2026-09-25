@@ -9,8 +9,10 @@
     "dev": "VITE_FT_API_ORIGIN=${VITE_FT_API_ORIGIN:-http://127.0.0.1:5174} vite --host 127.0.0.1 --port 5174 --strictPort",
     "build": "tsc -b && vite build",
     "start": "vite preview --host 127.0.0.1 --port 5173 --strictPort",
+    "demo:compose": "node ./scripts/start-compose-demo.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:compose": "playwright test -c playwright.compose.config.ts",
     "test:visual": "playwright test -c playwright.visual.config.ts",
     "test:preview": "playwright test -c playwright.preview.config.ts"
   },

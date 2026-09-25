@@ -1,6 +1,8 @@
 # Web / Native 功能地图
 
-> 盘点日期：2026-09-22。本文记录当前客户端实际可访问的页面级功能、实现证据和跨端对齐 TODO；它不是产品行为规格。代码改动仍以 `openspec/specs/` 和对应变更记录为行为事实源。
+> 盘点日期：2026-09-25。本文记录当前 React Web / Expo 客户端状态，以及 Compose Multiplatform 迁移实现进度；它不是产品行为规格。代码改动仍以 `openspec/specs/` 和对应变更记录为行为事实源。
+
+本表前半部分的「Web / Native」统计描述现有 React Web 与 Expo 客户端。迁移中的 Compose 实现状态单独列在下方；三端平台验收完成前，不把迁移实现计为已验收覆盖。
 
 ## 统计结论
 
@@ -16,6 +18,27 @@
 | 去重后的页面级功能总数 | 10 |
 
 “都有实现”表示两端都具备可运行的客户端入口，并已接入真实 API；仅有后端接口、共享文案、原型、规格或 Native 的“暂不可用”导航均不算已实现。
+
+## Compose Multiplatform 迁移状态
+
+F-01 至 F-10 的共享页面、状态和 API 流程已放入 `compose/shared/src/commonMain`；Web、Android、iOS target 使用同一套页面实现。旧 React Web 与 Expo 客户端仍保留作为回退。各 target 的已验收范围和待补 QA 记录在下表。
+
+| ID | Compose 共享实现 | Web / Android / iOS 工程入口 | 当前状态 |
+|----|------------------|------------------------------|----------|
+| F-01 | [`AccessScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/AccessScreens.kt) | [`webApp`](../compose/webApp/build.gradle.kts)、[`androidApp`](../compose/androidApp/src/main/kotlin/com/finance/tracker/MainActivity.kt)、[`iosApp`](../compose/iosApp/iosApp/ContentView.swift) | 登录 / 注册已实现；Web Chrome 与 Android phone 登录 QA 通过；iOS 已运行原生会话和 API 流程，认证边界场景仍需补验 |
+| F-02 | [`App.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/App.kt)、[`AccessScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/AccessScreens.kt) | 同上 | 工作区选择、创建和恢复已实现；Chrome 生产 E2E 与 Android 旧深链接拒绝后选择可访问工作区回归通过；iOS 邀请接受后返回账本，选择/创建/恢复边界仍需补验 |
+| F-03 | [`CashLedgerScreen.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/CashLedgerScreen.kt) | 同上 | 收支筛选、分页、摘要和状态已实现；Web Chrome 与 Android compact/regular/wide 页面 QA 通过；iPhone 17 已验筛选、离线错误与重试，iPad 11 已验账本视图 |
+| F-04 | [`CashLedgerScreen.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/CashLedgerScreen.kt) | 同上 | 流水新建、编辑、详情、证据和关系操作已实现；Web E2E、Android 新建/编辑流程通过；iPhone 17 已验详情、编辑和取消返回，完整 CRUD 仍需补验 |
+| F-05 | [`CashImportScreen.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/CashImportScreen.kt)、[`ImportWorkflow.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/ImportWorkflow.kt) | 同上 | 文件选择、扫描、映射、预览、关系审查和确认已实现；Web E2E 与 Android 系统 CSV 选择器流程通过；iOS 已显示并选中本地虚构 CSV，但点「打开」后未确认文件回到 Compose 页面，端到端导入仍待验证 |
+| F-06 | [`WorkspaceScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/WorkspaceScreens.kt)、[`AppRouting.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/AppRouting.kt) | 同上 | 邀请预览、接受、取消及内部 URI 路由已实现；Web E2E、Android 邀请 URI 与 iPhone 17 `finance-tracker://invite/<token>` 预览/接受通过；HTTPS Universal Links 仍需域名和签名配置 |
+| F-07 | [`CashCategoryScreen.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/CashCategoryScreen.kt)、[`CashCategoryLogic.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/CashCategoryLogic.kt) | 同上 | 分类目录、层级编辑、搜索、排序和删除确认已实现；Web Chrome 与 Android 搜索/创建 QA 通过；iPad 11 已验无结果搜索和创建，其他操作仍需补验 |
+| F-08 | [`InvestmentScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/InvestmentScreens.kt)、[`InvestmentDisplayLogic.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/InvestmentDisplayLogic.kt) | 同上 | 持仓筛选、估值、表现和详情已实现；Web E2E 与 Android compact/regular/wide 主题布局 QA 通过；iPad 11 已验估值/详情，iPad 13 wide 已验深色布局 |
+| F-09 | [`InvestmentScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/InvestmentScreens.kt)、[`InvestmentDisplayLogic.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/InvestmentDisplayLogic.kt) | 同上 | 事件筛选、分页和证据详情已实现；Web E2E 与 Android 详情/分页 QA 通过；iPad 11 已验详情与加载更多 |
+| F-10 | [`WorkspaceScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/WorkspaceScreens.kt) | 同上 | 名称、成员、角色、邀请和删除流程已实现；Web E2E 与 Android 管理流程 QA 通过；iOS 已验改名、成员角色和邀请，iPhone/iPad 11 regular/iPad 13 wide 复核了邮箱布局，删除流程仍需补验 |
+
+浏览器用例位于 [`compose-access.e2e.ts`](../web/tests/compose-access.e2e.ts) 和 [`compose-pages.e2e.ts`](../web/tests/compose-pages.e2e.ts)，当前共 24 项；Playwright 路由提供 API fixture，Chrome 153 的最新生产 Wasm 回归 24/24 通过。此前 Chrome 153、Edge 154、Playwright WebKit 26.5 的结果属于早期检查点；用户指定本次 Web 验收使用 Chrome，不使用 Safari。Android 原生 F-01 至 F-10 QA 已通过；iOS 已完成 iPhone 17、iPad 11、iPad 13 的功能抽查及 compact/regular/wide 关键页面审查。iOS F-05 已用虚构 CSV 验证文件可见和选中，但点击「打开」后的系统截图仍停留在文件选择器，未确认文件交回应用；端到端导入仍待补验。iOS 其余页面操作和完整三端×窗口尺寸 parity matrix 仍待补验。Web Vitest 152 项、共享 Kotlin 65 项、Android device 67 项通过；Wasm 测试及 JS/Wasm production 构建已通过，最新复验记录见 Compose 变更的 `tasks.md`。F-03/F-04/F-07 在 320、375、390、414、768、1440 px 下检查无水平溢出；浅/深色 390×1800 和 1440×1000 截图经目视复核，包含 F-05 关系卡片与 F-08 持仓页面。Web 字体使用同源 Noto Sans SC 资源，Chrome 截图未发现缺字，未请求 `fonts.gstatic.com`。Playwright 用例通过本地 API fixture 检查 Compose UI 与请求流程，不替代 FastAPI 后端契约测试。
+
+原 `ALIGN-N-001` 至 `ALIGN-N-005` 继续表示当前 Expo 客户端缺少的功能。Compose 迁移实现已补齐这些页面，但在三端验收并完成切换前不能删除旧端 TODO 或退场文件。
 
 ## 统计口径
 

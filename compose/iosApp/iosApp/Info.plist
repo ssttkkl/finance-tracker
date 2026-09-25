@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>finance-tracker</string>
+			</array>
+		</dict>
+	</array>
+	<key>FT_API_ORIGIN</key>
+	<string>$(FT_API_ORIGIN)</string>
+	<key>FT_WEB_ORIGIN</key>
+	<string>$(FT_WEB_ORIGIN)</string>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+</dict>
+</plist>
