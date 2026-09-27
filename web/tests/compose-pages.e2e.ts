@@ -379,7 +379,7 @@ async function openBatchRelationFilter(page: Page) {
   const chooser = await chooserPromise;
   await chooser.setFiles([
     { name: "bank.csv", mimeType: "text/csv", buffer: Buffer.from("date,amount\n2026-09-24,-28.50\n") },
-    { name: "wallet.csv", mimeType: "text/csv", buffer: Buffer.from("date,amount\n2026-09-24,-28.50\n") },
+    { name: "wallet.csv", mimeType: "text/csv", buffer: Buffer.from("date,amount\n2026-09-24,-17.25\n") },
   ]);
   await expect(page.getByText("bank.csv", { exact: true })).toBeVisible();
   await expect(page.getByText("wallet.csv", { exact: true })).toBeVisible();
@@ -431,7 +431,7 @@ test("F-05 跨渠道多文件会聚合关系候选，提交重试复用幂等键
   await expect(page.getByText(/钱包咖啡店 · 28\.50 CNY/).last()).toBeVisible();
 
   await clickComposeTarget(page, page.locator('[id="import.confirm"]').last());
-  await expect(page.getByText("暂时无法完成操作，请稍后重试。", { exact: true })).toBeVisible();
+  await expect(page.getByText("暂时无法完成导入，请稍后重试。", { exact: true })).toBeVisible();
   await expect(page.locator('[id="import.confirm"]').last()).toBeEnabled();
   await clickComposeTarget(page, page.locator('[id="import.confirm"]').last());
   await expect(page.getByText("导入完成", { exact: true })).toBeVisible();

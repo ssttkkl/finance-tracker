@@ -8,9 +8,13 @@
 - 按 Web 当前 10 项页面级功能补齐三端入口与流程：认证、工作区入口、收支账本、收支流水、账单导入、工作区邀请、收支分类、投资持仓、投资事件和工作区管理。
 - Web 保留现有工作区路径、账本子页面路径、邀请查询参数和浏览器前进/后退语义。
 - 三端使用 Material 3 与现有 Cobalt 品牌色，跟随系统浅色或深色主题，并按 `compact <600`、`regular 600–1023`、`wide ≥1024` 的逻辑窗口宽度自适应。
-- 把文件选择、登录令牌存储和浏览器 URL 等平台 API 收敛到平台适配边界；选择结果、确认时机、错误与服务端结果保持一致。
-- 本地 demo 开发期间保留 React Web 和 Expo 源码；本次不做线上入口切换或旧端退场，后续发布/清理需另行决定。
-- 不改造 Python/FastAPI 后端或现有 API。本次只完成三端 demo 开发、构建和本地启动；不修改 Render/云端托管配置，不做 CI 发布、正式入口切换、提交、推送或部署。
+- 将约 7,700 行共享客户端按全局 layer-first 职责重构到 `app/`、`core/`、`data/`、`domain/` 和 `presentation/`；以手动装配连接依赖，以 Lifecycle ViewModel + `StateFlow` 管理页面状态，不增加 DI 框架。
+- `domain` 使用不依赖 Compose、Ktor 或 JSON 的领域模型与用例；`data` 独立维护 API DTO、Repository 实现及 DTO/领域模型映射。
+- 所有 Compose 用户可见文案改用 Compose Resources，首期支持简体中文和英语；自动跟随系统或浏览器语言，无法匹配时回退到简体中文。
+- 认证及其他错误只向用户展示可恢复的友好提示，意外异常统一显示未知错误。错误详情同时写入开发者日志和本地持久化日志；日志仅包含时间、功能操作、错误码/状态和异常类型，不记录邮箱、密码、登录令牌、金额或账单内容，最多保存 30 天且总量不超过 1 MB，先达到者触发清理，不增加日志查看或导出界面。
+- 修复本地 Compose demo 预览服务器对 API 写请求返回 405 的问题，使代理按原样转发认证与其他 API 请求；不改变 FastAPI 或既有 API 合同。
+- 迁移期间保留 React Web 和 Expo 源码作为回退；Web、Android、iOS 的 10 项功能与跨端验收全部完成后，按 `tasks.md` 记录的精确文件清单退场旧客户端。
+- 不改造 Python/FastAPI 后端或现有 API，不修改 Render/云端托管配置，不进行线上发布、入口切换或部署；仅完成 demo 开发、跨端验证和本地启动。
 - 用户明确要求不创建 HTML 原型；改用可运行的 Compose 纵向切片验证 Web、Android、iOS 的实际渲染与关键平台能力。
 
 ## Capabilities
@@ -25,7 +29,9 @@
 
 ## Impact
 
-- 新增 Wizard 生成的 Kotlin/Gradle 项目：共享 API/领域/状态/UI 的 `shared` 模块，以及 Android、iOS 和 Kotlin/Wasm Web 应用入口；现有 npm 根工程与客户端保持并存。
+- 重构 Wizard 生成的 Kotlin/Gradle 项目：`shared` 中约 7,700 行 `commonMain` 代码按 app、core、data、domain、presentation 职责拆分，Android、iOS 和 Kotlin/Wasm Web 共用页面状态与业务流程。
 - 提供可重复的本地 Compose Web 构建与深链接预览启动入口，并记录 Android/iOS 本地运行方法；现有 Python/FastAPI 接口和数据库均不变。
-- 迁移现有 TypeScript 客户端合同与共享包中的请求、精确金额、校验、状态和语义标识；React Web、Expo 与 TypeScript 共享包先保留。
+- 为 Compose 增加中英文 Compose Resources、跨平台错误分类和有界脱敏日志；本地 Node 预览服务需代理 API 写请求。
+- React Web、Expo 与 TypeScript 共享包在三端验收前保留；验收后按任务记录的精确清单退场。
 - Compose Multiplatform Web 基于 Kotlin/Wasm 且仍处于 Beta。兼容门槛以官方支持的 WasmGC 浏览器版本为准：Chrome/Edge 119+、Safari 18.2+；Web 可访问性、浏览器历史、文件选择和本地 production preview 作为验收项。本次 Web 浏览器 QA 按用户要求只使用 Chrome。
+- 完成功能后按 Web（Chrome）、Android、iOS 顺序验证；不使用 Safari。金额、数量、价格、汇率的精确值语义及现有服务端权限和持久化行为保持不变。

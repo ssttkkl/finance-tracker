@@ -1,5 +1,10 @@
 package com.finance.tracker
 
+import com.finance.tracker.app.*
+import com.finance.tracker.core.*
+import com.finance.tracker.domain.*
+import com.finance.tracker.presentation.*
+
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -8,12 +13,12 @@ import kotlin.test.assertTrue
 class WorkspaceFlowLogicTest {
     @Test
     fun invitationFailuresPreserveExpiredVersusRetryableMeaning() {
-        val expired = ApiFailure("invitation_expired", 410)
-        val temporary = ApiFailure("api_request_failed", 503)
+        val expired = DomainFailure("invitation_expired", 410, FailureCategory.RECOVERABLE)
+        val temporary = DomainFailure("api_request_failed", 503, FailureCategory.RECOVERABLE)
 
-        assertEquals("此邀请无效、已被使用或已过期。", invitationErrorMessage(expired))
+        assertEquals("copy_40d123e2b5", invitationErrorResourceKey(expired))
         assertTrue(isTerminalInvitationFailure(expired))
-        assertEquals("暂时无法完成操作，请稍后重试。", invitationErrorMessage(temporary))
+        assertEquals("copy_e6a62f3e45", invitationErrorResourceKey(temporary))
         assertFalse(isTerminalInvitationFailure(temporary))
     }
 }

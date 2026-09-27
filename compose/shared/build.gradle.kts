@@ -97,6 +97,7 @@ dependencies {
 }
 
 compose.resources {
+    packageOfResClass = "com.finance.tracker.resources"
     customDirectory(
         sourceSetName = "wasmJsMain",
         directoryProvider = provider { layout.projectDirectory.dir("src/wasmJsMain/composeResources") },

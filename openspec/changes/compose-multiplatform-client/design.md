@@ -11,17 +11,19 @@ Compose Multiplatform Web 使用 Kotlin/Wasm，官方平台稳定级别仍为 Be
 **Goals:**
 
 - 用同一份 Compose 页面和状态实现 Web、Android、iOS 的 10 项页面级功能。
+- 将现有共享客户端整体按全局 layer-first 职责分包，并以 Lifecycle ViewModel + `StateFlow` 承载页面状态。
+- 让领域模型与序列化/API 依赖隔离，所有页面固定文案进入 Compose Resources，并提供有界脱敏的本地错误日志。
 - 保留既有 Web 路径、邀请链接和浏览器历史语义。
 - 用 Material 3 重做视觉层级，保留 Cobalt 品牌色、系统深色模式和按窗口宽度适配。
 - 继续使用现有 API、权限边界、精确金额语义与持久化事实源。
 - 提供本地 Compose Web 一条命令构建并启动 demo；三端都保留本地构建和运行入口。
-- 在 demo 开发期间保留旧 React Web 与 Expo 源码，不切换线上入口。
+- 在三端 Compose 验收前保留 React Web、Expo 和 TypeScript 共享包；验收通过后按明确文件清单退场旧客户端，不切换线上入口。
 
 **Non-Goals:**
 
 - Kotlin/Spring 后端、API 形状、数据模型、数据库迁移或导入解析器重写。
 - 桌面原生应用；`wide` 只覆盖浏览器大窗口、Android 平板和 iPad。
-- 在本次变更中修改 Render/云端托管配置、添加 CI 发布流程、切换线上入口，删除 React、Expo 或 TypeScript 共享包，或执行外部提交、推送和部署。
+- 修改 Render/云端托管配置、添加 CI 发布流程、切换线上入口、提交/推送或部署。
 - 保留 Native-only 的可编辑 API origin 调试 UI；各 target 改用显式构建配置提供 API origin。
 
 ## Decisions
@@ -32,7 +34,17 @@ Compose Multiplatform Web 使用 Kotlin/Wasm，官方平台稳定级别仍为 Be
 
 Wizard 下载时使用项目名 `FinanceTracker`、包名 `com.finance.tracker`、Gradle 构建、Android + Compose UI、iOS + Compose UI、Web + Compose UI 和默认测试源集。初始版本集中在 `compose/gradle/libs.versions.toml`：Kotlin `2.4.20`、Compose Multiplatform `1.12.1`、Android Gradle Plugin `9.1.1`、Material 3 `1.12.0-alpha03`。这是生成模板的版本基线；先运行模板构建核实仓库的 Java/Android SDK 和依赖解析，再锁定并保持兼容，不在页面迁移中途升级。`compose/local.properties` 仅包含本机 Android SDK 路径，不纳入版本控制。
 
-`shared/src/commonMain` 持有 API DTO/序列化、请求合同、精确十进制字符串计算、业务状态、页面状态、路由模型、语义 ID、Material 3 主题和页面组合。文件选择使用 FileKit `0.16.0` 的 `PlatformFile` 与 Compose picker，在 Android、iOS、JS 和 Wasm 共享一套选择与业务状态；iOS picker launcher 必须保留在稳定的根组合位置。登录令牌存储、浏览器地址栏/历史、剪贴板、平台返回动作及系统外观读取由 `expect/actual` 或小接口隔离。API transport 使用 Ktor 多平台客户端：锁定 Ktor `3.6.0`，JSON 使用 Kotlin serialization `1.10.0`；`ktor-client-engine-defaults` 为各 target 选择引擎，通用认证头、超时、JSON、错误映射和重试策略留在共享层。Ktor 3.6 官方支持 WasmJs 与 multiplatform 默认引擎，见 [Ktor client engines](https://ktor.io/docs/client-engines.html)。
+`shared/src/commonMain` 按职责全局分层，包根顺序固定为 `app/`、`core/`、`data/`、`domain/` 和 `presentation/`；每层可以在自身根目录下按业务区域分子包，但不得改成 feature-first 的顶层结构。`:shared` 继续作为一个 KMP module，不拆成大量 Gradle 子模块。
+
+- `app/` 是组合根：创建平台依赖、Repository 实现、UseCase 和 ViewModel，并把依赖显式传入 presentation；不加 DI 框架。
+- `core/` 放跨功能的导航/路由、主题、平台接口、网络基础设施、错误类型、精确十进制与格式化、诊断日志接口等共享能力。
+- `domain/` 放纯 Kotlin 领域模型、Repository 接口、UseCase 和业务规则；不得依赖 Compose、Ktor、serialization/JSON 或平台 UI API。
+- `data/` 放 Ktor API 数据源、可序列化请求/响应 DTO、Repository 实现和 DTO↔Domain mapper。Transport DTO 不再被 Composable 或 ViewModel 直接使用。
+- `presentation/` 放 Compose shell、按业务区拆开的页面/组件、ViewModel、`StateFlow` UI state 与用户意图；Composable 只收集状态、渲染并派发意图，不直接调用 API client。
+
+ViewModel 调用 UseCase，UseCase 依赖 `domain` Repository 接口，`data` 提供实现，`app` 手动组装完整依赖图。生命周期由已引入的 Lifecycle ViewModel 支持；状态暴露为只读 `StateFlow`，UI collect 并把用户事件交回 ViewModel。这样各页面可以独立拆文件，同时保持层边界和跨 target 复用。
+
+文件选择使用 FileKit `0.16.0` 的 `PlatformFile` 与 Compose picker，在 Android、iOS、JS 和 Wasm 共享一套选择与业务状态；iOS picker launcher 必须保留在稳定的根组合位置。登录令牌存储、浏览器地址栏/历史、剪贴板、平台返回动作及系统外观读取由 `expect/actual` 或小接口隔离。API transport 使用 Ktor 多平台客户端：锁定 Ktor `3.6.0`，JSON 使用 Kotlin serialization `1.10.0`；`ktor-client-engine-defaults` 为各 target 选择引擎，通用认证头、超时、JSON、错误映射和重试策略留在共享层。Ktor 3.6 官方支持 WasmJs 与 multiplatform 默认引擎，见 [Ktor client engines](https://ktor.io/docs/client-engines.html)。
 
 **考虑过的替代方案：**保留 TypeScript packages 并从 Kotlin 调 JavaScript 会继续产生两套运行时和 DTO；为 React Native、React Web 分别创建 Material 3 页面则不能满足“一份 Compose UI”的目标，所以都不采用。
 
@@ -42,7 +54,7 @@ Web 目标使用 `wasmJs` 和 Compose Multiplatform。公共 `AppRoute` 与现�
 
 Native 将当前 `AppRoute` 与页面返回栈作为一个可保存的 `AppNavigationState` 一起恢复，避免 Activity/视图重建后当前页面与 Android 系统 Back 或 iOS 页面返回栈分离。启动参数只用于没有已保存状态时的初始路由；Web 仍以浏览器 path 与 history 为事实源，不使用 Native 页面返回栈。
 
-Render 与任何线上托管配置保持不变。Compose Web demo 由本地 Gradle 命令生成 `wasmJs` production distribution，再启动仓库内本地预览服务器；服务器先返回 JS/Wasm/font/resource 文件，再将未知客户端路径回退至本地 `index.html`。本地 Chrome QA 验证 `/w/<id>/...`、账本页面、`?invite=<token>` 直达/刷新及 `.wasm` MIME。旧 `render.yaml` 与 React `web/` 保持原样并留作现状回退，不进行线上入口切换。
+Render 与任何线上托管配置保持不变。Compose Web demo 由本地 Gradle 命令生成 `wasmJs` production distribution，再启动仓库内本地预览服务器；未设置 `FT_API_ORIGIN` 时，`/config.js` 将客户端 API origin 指向预览同源地址，服务器再把 `/api/*` 按原 HTTP 方法、路径、请求体和必要请求头代理到 `FT_API_PROXY_ORIGIN` 指定的 FastAPI origin。显式设置 `FT_API_ORIGIN` 时，客户端直接使用该 API origin。代理响应状态与正文回传给 Compose；不能在到达 API 分支前拒绝 `POST`，不得记录请求/响应内容。静态请求返回 JS/Wasm/font/resource 文件，未知客户端路径回退至本地 `index.html`。本地 Chrome QA 验证注册 POST 已到达 FastAPI、`/w/<id>/...`、账本页面、`?invite=<token>` 直达/刷新及 `.wasm` MIME。`render.yaml` 和旧 React/Expo 源码在三端 Compose 验收前保留，验收后按任务中的清单移除旧客户端源码，不进行线上入口切换。
 
 **考虑过的替代方案：**继续用哈希路由不能保留既有 URL；把 `#` 映射到 path 也会令分享链接、刷新和服务端回退不完整。自行管理 path 与 history 的代码很小，而且能明确覆盖当前契约。
 
@@ -64,7 +76,9 @@ Chrome 生产截图发现中文字符显示为缺字方框。根因是 Compose W
 
 ### 5. API 和财务数值模型只迁移客户端实现
 
-以当前 TypeScript `contracts`、`api-client`、`core`、`design-tokens`、`presentation` 及 Web 行为为逐项迁移基线。DTO 使用明确的 JSON 序列化；所有金额、投资数量、单价和汇率继续由十进制字符串承担。共享计算不得先转 `Double` 再序列化。Native 令牌由 Android Keystore 加密值与 iOS Keychain 存储，Web 继续使用既有 `localStorage` 合同；安全存储失败时停止受保护请求。
+以当前 TypeScript `contracts`、`api-client`、`core`、`design-tokens`、`presentation` 及 Web 行为为逐项迁移基线。`data` 层用独立的 JSON DTO 表达 FastAPI 请求/响应，并在 mapper 中转换为 `domain` 纯 Kotlin 模型；Repository 将 API 失败转换为领域错误，Composable 和 ViewModel 不接触 transport DTO、Ktor response 或序列化类型。所有金额、投资数量、单价和汇率继续以十进制字符串穿过 API 边界，领域计算不得先转 `Double` 再比较或序列化。
+
+Native 登录令牌由 Android Keystore 加密值与 iOS Keychain 存储，Web 继续使用既有 `localStorage` 合同；令牌与错误日志隔离，安全存储失败时停止受保护请求。数据层对已知输入校验、认证失败、HTTP 状态和网络不可用做封闭分类；ViewModel 将可恢复错误映射为本地化资源键，未分类异常统一映射为未知错误。原始异常消息、调用栈、请求/响应正文不得传入 UI 或诊断日志。
 
 Android 应用显式声明 `android.permission.INTERNET`。正式变体通过构建参数注入 HTTPS `FT_API_ORIGIN`；Debug 变体单独携带网络安全配置，只允许 `localhost` 的明文连接，以便连到本机虚构 API fixture。iOS Debug 使用单独的 Info.plist 声明 `NSAllowsLocalNetworking`，支持本机 fixture 的回环地址；Release 继续使用默认 ATS 策略。不得把本地网络例外合并到 Release，也不得放宽远程主机的明文策略。
 
@@ -84,6 +98,26 @@ Material 3 重排时不删除用户业务字段、来源证据、筛选项、状
 
 **原型与设计审查：**用户明确免除了 HTML 原型，因为它无法展示 Compose 渲染。本变更不创建静态 HTML demo；以真实 Compose 纵向切片表达设计，并在最终 UI 上运行 Hallmark `audit`。截图宽度按 UI 规则覆盖 320、375、390、414、768、1440 px，其中 390 和 1440 px 必须存图审查。
 
+### 7. 页面状态与错误按 ViewModel 边界流动
+
+每项有状态的页面由 Lifecycle ViewModel 持有不可变 UI state，并通过只读 `StateFlow` 暴露；ViewModel 只调用 UseCase 和诊断日志接口。Composable 用 lifecycle-aware collection 观察状态，把点击、输入、提交、取消等用户意图发送给 ViewModel，不创建 `FinanceApiClient`、Repository 或 service locator。独立状态测试验证 loading、empty、success、recoverable failure、unknown failure 及重试时表单数据保留。App composition root 显式创建依赖并注入 ViewModel 工厂，避免全局单例和 DI 框架。
+
+API 层定义的 `RemoteFailure` 先映射成无异常文本的领域失败类别，presentation 再映射为 `UiMessage` 中的 Compose resource key。已知无效登录仍使用不暴露账户存在性的通用提示；注册校验、网络不可用、服务端拒绝和暂时性服务故障分别用可操作文案；无法分类的错误统一给出未知错误。异常的 message、stack trace、用户输入和响应正文不得进入 `UiMessage`。
+
+### 8. 使用 Compose Resources 和系统语言，不加语言设置
+
+Compose 产品文案统一进入 `compose/shared/src/commonMain/composeResources/` 的字符串资源。简体中文作为默认资源，英语放入 `values-en`，并提供 `zh` 与 `zh-Hans` 目录以覆盖浏览器/系统返回通用中文或脚本中文的情况；Web、Android 和 iOS 共用同一组资源键。应用从 Compose resource environment 读取系统/浏览器语言；平台报告英语时选英语，中文时选简体中文，其他语言没有资源匹配时由默认中文目录回退。不添加语言菜单或本机偏好设置。
+
+所有固定产品文案，包括按钮、菜单、输入标签、辅助技术名称、加载/空/成功/错误提示、验证规则和确认问题，都必须经 Compose Resources 查找；不得在业务源码中内联显示文案。来自服务端或用户输入的工作区名称、分类名、账单说明等仍按业务数据原值呈现，不伪装为翻译资源。资源键在三端共享，Web Chrome、Android 和 iOS 各选中文/英语执行一条核心 journey，检查无原始 key、遗漏或语言混杂；代码审查用范围化搜索找出剩余用户可见字面量。
+
+### 9. 脱敏日志双写并按时间和容量清理
+
+共享 `core` 暴露固定字段的 `DiagnosticEvent` 与 logger API：ISO-8601 时间、固定 feature/action 标识、可空错误码或 HTTP status、异常类型。不得附加异常 message、stack trace、请求/响应 headers 或 body、URL query、邮箱、密码、登录令牌、金额、账单内容或文件名；`Throwable` 进入 logger 前只提取异常类型。错误边界、Repository failure 和 ViewModel 捕获点都走同一 logger，因此一次错误只形成一条不重复的事件。
+
+每个平台使用一对 sink：Web 同时写 Chrome Console 和浏览器 `localStorage`；Android 同时写 Logcat 和应用私有文件；iOS 同时写系统日志和应用私有文件。所有 sink 使用同一已脱敏事件，不传原始 exception。追加记录前按 UTF-8 序列化后的字节数和时间戳清理：先删除超过 30 天的条目，再在总量超过 1 MiB 时从最旧记录开始移除，直到保留限制内的最新条目。存储访问由串行 writer 保护，文件更新以临时写入/原子替换避免中途损坏；浏览器可用配额不足或存储被用户清理时，仍写开发者日志且不影响业务请求，也不递归记录 logger 自身失败。
+
+本地日志仅供开发诊断，没有 app 内查看、搜索、导出或上传功能；不写远程服务。单测构造包含真实邮箱、密码、令牌、金额和账单正文的异常上下文，断言序列化事件完全不含这些字段和值，并验证 TTL、1 MiB oldest-first 清理和存储失败降级。
+
 ## Risks / Trade-offs
 
 - **Compose Web 仍为 Beta 且不是浏览器 DOM 布局 →** 先实现可运行的 Compose 路由/文件选择/输入/语义切片，在 Chrome 中核验键盘、辅助技术名称、文本输入、裁切、滚动、文件上传和深路径历史；用户要求 Web QA 使用 Chrome，不运行 Safari。未覆盖的浏览器兼容性明确保留为发布前风险；任何关键 Chrome 任务不能完整完成时暂停该平台的全量迁移并记录阻断项。
@@ -91,17 +125,20 @@ Material 3 重排时不删除用户业务字段、来源证据、筛选项、状
 - **路径路由与 workspace 上下文容易分离 →** `AppRoute` 统一负责规范化，分别对 root、workspace root、子路由、邀请 query、权限拒绝、刷新、Back/Forward 编写单测和 Playwright E2E。
 - **账单批量 JSON/base64 请求可能放大大文件内存占用 →** 不改变现有 API；通过 FileKit 文件句柄共享选择与读取，单份上限 100 MB；在性能阶段覆盖多文件峰值，并记录当前批量协议的内存上界与处置条件。正文不写入日志。
 - **三个 target 共用组件仍可能出现语义或无障碍差异 →** 稳定语义 ID、屏幕阅读器/键盘走查和跨端 parity journey；允许系统状态栏与平台控件外观不同，不允许页面区域和业务行为不同。
-- **旧新客户端并行期间容易只更新一端 →** React/Expo 在本地 demo 验收前后都保留；每个 Compose 功能开发同步 Cross-platform Impact Check 与 parity test。本次不切换生产入口，也不演练 Render 回滚。
+- **旧新客户端并行期间容易只更新一端 →** Compose 验收完成前保留 React/Expo/TypeScript 回退；每个功能同步 Cross-platform Impact Check 与 parity test。三端全部验收后仅按已盘点的精确文件清单退场，不切换生产入口或演练 Render 回滚。
+- **日志元数据可能从异常正文或平台回调意外夹带敏感值 →** 诊断事件只接受固定字段和枚举 action，禁止接收原始异常消息；在写入前白名单序列化并用包含敏感测试值的用例检查开发者 sink、本地存储字节和回收逻辑。
+- **日志写入失败或 localStorage 配额不足 →** 日志是尽力诊断通道，不阻断原操作；平台开发者 sink 独立写入，持久化 sink 失败不触发递归 logger 调用。
+- **资源目录有遗漏或 API 返回文案造成中英文混杂 →** 未知 API 异常不透传原始文本；ViewModel 使用封闭 `UiMessage` resource key；每个页面按 zh/en 各跑核心状态并静态扫描硬编码用户文案。
 - **Native 邀请链接打开需要应用链接登记与签名 →** 路由解析同时接受现有邀请 token 和 `finance-tracker` scheme；Android App Links、iOS Universal Links 必须用真实 bundle/package ID 和签名证书在验收设备核验，外部域名关联配置缺失时不得宣称 Native 邀请深链验收通过。
 
 ## Migration Plan
 
 1. 把 Kotlin Wizard 生成的 Gradle 根落在 `compose/`，先验证 Android、iOS、Wasm 和 JS 模板构建，再实现真实 Compose 纵向切片；锁定模板插件/库版本。
-2. 迁移共享合同、API 传输、精确十进制、主题、响应式路由及状态；完成认证/工作区、收支账本/流水、导入、分类、邀请、投资持仓/事件和工作区管理的全部功能实现。页面、API 与交互尽量复用 `commonMain`，按 WindowSizeClass 自适应。
-3. 所有 10 项功能实现后冻结功能范围，再按 Web、Android、iOS 的顺序分别构建、运行单测和完成平台 QA；最后做跨端 parity matrix。开发期保留测试先行的共享合同测试，但不把某个平台的阶段性烟测当作平台验收。
-4. 更新功能地图与本地运行说明，提供 Compose Web production distribution 构建与本地 SPA fallback 预览启动命令；用 Chrome 完成本地浏览器 QA，不配置 Render 或云端发布。
-5. 完成 Web、Android、iOS demo 的本地构建与运行验证；旧 React/Expo 源码和线上入口保持原状，不触发正式 cutover 或删除。
-6. 本次不清理旧客户端；如之后另行决定正式迁移和退场，再生成精确文件清单并单独确认。
+2. 先按 global layer-first 建好 app/core/data/domain/presentation 边界、手动依赖装配、DTO↔Domain mapper、ViewModel/StateFlow、错误类型、Compose Resources 资源目录与跨平台日志 sink；为边界、数据映射、资源回退、隐私字段和日志上限添加共享回归测试。
+3. 按功能复用上述层完成认证/工作区、收支账本/流水、导入、分类、邀请、投资持仓/事件和工作区管理的全部功能；所有固定文案改用资源，所有错误经过分类与脱敏日志；修复本地 preview 的 API POST/写请求代理。
+4. 在功能冻结后按 **Web（Chrome）→ Android → iOS** 分别进行构建、共享/平台测试和真浏览器/设备 QA，检查 10 项功能、三种 WindowSizeClass、中英资源、错误/空/成功状态、日志脱敏和导航；不使用 Safari。完成后再运行跨端 parity matrix、性能/安全检查与 Hallmark 最终 UI audit。
+5. 更新 `docs/feature-map.md`、本地运行说明和 OpenSpec 验收证据；记录每个平台命令、设备/视口、日志与性能结果。Web 生产预览使用 Chrome，不配置 Render 或云端发布。
+6. Web、Android 和 iOS 全部验收通过后，按 `tasks.md` 列出的精确文件清单移除 React Web、Expo Native 与 TypeScript 共享客户端；再构建/验证 Compose 本地入口，确认 FastAPI、API、数据库、Render 配置和生产入口未被改动。
 
 ## Open Questions
 

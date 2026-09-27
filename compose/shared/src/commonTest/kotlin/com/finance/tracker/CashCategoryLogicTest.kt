@@ -1,5 +1,11 @@
 package com.finance.tracker
 
+import com.finance.tracker.app.*
+import com.finance.tracker.core.*
+import com.finance.tracker.data.*
+import com.finance.tracker.domain.*
+import com.finance.tracker.presentation.*
+
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -9,12 +15,12 @@ class CashCategoryLogicTest {
     @Test
     fun parentChoicesExcludeSelfDescendantsAndMovesThatWouldExceedDepthLimit() {
         val items = listOf(
-            CashCategoryDto("root", name = "餐饮", depth = 1),
-            CashCategoryDto("work", parentId = "root", name = "工作餐", path = listOf(CashCategoryPathItemDto("root", "餐饮")), depth = 2),
-            CashCategoryDto("deep", parentId = "work", name = "深层", path = listOf(CashCategoryPathItemDto("root", "餐饮"), CashCategoryPathItemDto("work", "工作餐")), depth = 3),
-            CashCategoryDto("other", name = "工作", depth = 1),
-            CashCategoryDto("level4", name = "第四层", depth = 4),
-            CashCategoryDto("level5", name = "第五层", depth = 5),
+            CashCategory("root", name = "餐饮", depth = 1),
+            CashCategory("work", parentId = "root", name = "工作餐", path = listOf(CashCategoryPathItem("root", "餐饮")), depth = 2),
+            CashCategory("deep", parentId = "work", name = "深层", path = listOf(CashCategoryPathItem("root", "餐饮"), CashCategoryPathItem("work", "工作餐")), depth = 3),
+            CashCategory("other", name = "工作", depth = 1),
+            CashCategory("level4", name = "第四层", depth = 4),
+            CashCategory("level5", name = "第五层", depth = 5),
         )
 
         val choices = availableCategoryParents(items, editingCategoryId = "work")
@@ -28,21 +34,21 @@ class CashCategoryLogicTest {
 
     @Test
     fun rootCategoryCanBeCreatedAsTheFinalDirectoryAction() {
-        val items = listOf(CashCategoryDto("last", name = "最后一项", depth = 1))
+        val items = listOf(CashCategory("last", name = "最后一项", depth = 1))
 
         assertEquals(listOf("last"), items.map { it.id })
-        assertTrue(canDeleteCashCategory(CashCategoryDeleteImpactDto("leaf", 1, 1, childCount = 0, directUsageCount = 12)))
-        assertFalse(canDeleteCashCategory(CashCategoryDeleteImpactDto("parent", 1, 1, childCount = 2, directUsageCount = 0)))
+        assertTrue(canDeleteCashCategory(CashCategoryDeleteImpact("leaf", 1, 1, childCount = 0, directUsageCount = 12)))
+        assertFalse(canDeleteCashCategory(CashCategoryDeleteImpact("parent", 1, 1, childCount = 2, directUsageCount = 0)))
     }
 
     @Test
     fun categorySearchMatchesTheAncestorPathLikeTheWebPage() {
         val items = listOf(
-            CashCategoryDto("food", name = "餐饮", depth = 1),
-            CashCategoryDto("coffee", parentId = "food", name = "咖啡", path = listOf(CashCategoryPathItemDto("food", "餐饮")), depth = 2),
-            CashCategoryDto("latte", parentId = "coffee", name = "拿铁", path = listOf(
-                CashCategoryPathItemDto("food", "餐饮"),
-                CashCategoryPathItemDto("coffee", "咖啡"),
+            CashCategory("food", name = "餐饮", depth = 1),
+            CashCategory("coffee", parentId = "food", name = "咖啡", path = listOf(CashCategoryPathItem("food", "餐饮")), depth = 2),
+            CashCategory("latte", parentId = "coffee", name = "拿铁", path = listOf(
+                CashCategoryPathItem("food", "餐饮"),
+                CashCategoryPathItem("coffee", "咖啡"),
             ), depth = 3),
         )
 

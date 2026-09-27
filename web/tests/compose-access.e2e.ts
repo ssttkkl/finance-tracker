@@ -16,6 +16,7 @@ test.afterEach(async ({ page }, testInfo) => {
       type: "browser-diagnostics",
       description: JSON.stringify({
         consoleErrors: diagnostics.consoleErrors,
+        diagnosticLogs: diagnostics.diagnosticLogs,
         failedRequests: diagnostics.failedRequests,
         expectedBrowserMessages: diagnostics.expectedBrowserMessages,
         expectedApiErrors: diagnostics.expectedApiErrors,
@@ -30,6 +31,10 @@ test.afterEach(async ({ page }, testInfo) => {
     expect(diagnostics.staticHttpErrors).toEqual([]);
     expect(diagnostics.wasmContentTypes.length).toBeGreaterThan(0);
     expect(diagnostics.wasmContentTypes.every((value) => value.startsWith("application/wasm"))).toBe(true);
+    for (const line of diagnostics.diagnosticLogs) {
+      expect(line).toMatch(/^\[Finance Tracker diagnostic\] \d+\t[A-Z_]+\t[A-Z_]+\t[a-z0-9_]+\t(?:\d+)?\t[A-Za-z0-9]+$/);
+      expect(line).not.toContain("@");
+    }
   }
 });
 
@@ -96,10 +101,52 @@ test("Compose 登录显示提交错误并可切换注册", async ({ page }) => {
   await typeIntoComposeInput(page, '[id="auth.password"]', "Sample-password-123");
   await page.locator('[id="auth.submit"]').last().click({ force: true });
   await expect(page.locator('[id="auth.error"]')).toContainText("邮箱或密码不正确。请检查后重试。", { timeout: 10_000 });
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("finance-tracker:diagnostics") ?? ""))
+    .toContain("AUTHENTICATION\tAUTHENTICATE\tinvalid_credentials\t401\tDomainFailure");
+  const diagnosticLog = await page.evaluate(() => window.localStorage.getItem("finance-tracker:diagnostics") ?? "");
+  expect(diagnosticLog).not.toContain("owner@example.com");
+  expect(diagnosticLog).not.toContain("Sample-password-123");
+  expect(diagnosticLog).not.toContain("access-token");
+  expect(browserDiagnostics.get(page)?.diagnosticLogs.join("\n")).toContain("AUTHENTICATION\tAUTHENTICATE\tinvalid_credentials\t401\tDomainFailure");
 
   await page.locator('[id="auth.toggle-mode"]').last().click({ force: true });
   await expect(page.getByText("创建你的账户", { exact: true })).toBeVisible();
   await expect(page.locator('[id="auth.toggle-mode"]')).toContainText("已有账户？登录");
+});
+
+test("Compose 认证必填校验写入不含输入值的诊断日志", async ({ page }) => {
+  await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
+  await page.goto("/");
+  await page.locator('[id="auth.submit"]').last().click({ force: true });
+
+  await expect(page.locator('[id="auth.error"]')).toContainText("请输入邮箱。");
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("finance-tracker:diagnostics") ?? ""))
+    .toContain("AUTHENTICATION\tVALIDATE_INPUT\tauth_input_invalid_emailrequired\t\tInputValidationFailure");
+  const diagnosticLog = await page.evaluate(() => window.localStorage.getItem("finance-tracker:diagnostics") ?? "");
+  expect(diagnosticLog).not.toContain("@");
+  expect(browserDiagnostics.get(page)?.diagnosticLogs.join("\n"))
+    .toContain("AUTHENTICATION\tVALIDATE_INPUT\tauth_input_invalid_emailrequired\t\tInputValidationFailure");
+});
+
+test("Compose 工作区名称校验写入固定字段的诊断日志", async ({ page }) => {
+  await installComposeApiFixtures(page, {
+    seedToken: false,
+    initialSession: null,
+    loginSession: { user: { email: "qa@example.com" }, active_workspace_id: null, workspaces: [] },
+  });
+  await page.goto("/");
+  await typeIntoComposeInput(page, '[id="auth.email"]', "qa@example.com");
+  await typeIntoComposeInput(page, '[id="auth.password"]', "Sample-password-123");
+  await page.locator('[id="auth.submit"]').last().click({ force: true });
+  await expect(page.locator('[id="workspace.screen"]')).toBeVisible();
+  await page.locator('[id="workspace.create"]').last().click({ force: true });
+
+  await expect(page.getByText("请输入不超过 255 个字符的名称。", { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("finance-tracker:diagnostics") ?? ""))
+    .toContain("WORKSPACE\tVALIDATE_INPUT\tinvalid_workspace_name\t\tInputValidationFailure");
+  const diagnosticLog = await page.evaluate(() => window.localStorage.getItem("finance-tracker:diagnostics") ?? "");
+  expect(diagnosticLog).not.toContain("qa@example.com");
+  expect(diagnosticLog).not.toContain("Sample-password-123");
 });
 
 test("viewer 登录遇到不可访问的 URL 工作区后仍可选择有权限的工作区", async ({ page }) => {

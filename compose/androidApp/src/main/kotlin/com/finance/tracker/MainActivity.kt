@@ -1,5 +1,8 @@
 package com.finance.tracker
 
+import com.finance.tracker.app.App
+import com.finance.tracker.core.*
+
 import android.os.Bundle
 import android.content.Intent
 import androidx.activity.ComponentActivity

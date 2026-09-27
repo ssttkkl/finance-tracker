@@ -134,6 +134,16 @@ Compose Web MUST 提供可复现的本地构建与启动方式。本地预览 MU
 - **THEN** 应用入口和 Wasm/静态资源 MUST 返回正确内容与 MIME 类型
 - **AND** 页面 MUST 成功启动且保留请求路径
 
+#### Scenario: 本地预览代理注册 POST 请求
+- **WHEN** 使用者在 Compose Web 本地预览中提交注册或登录请求
+- **THEN** 预览服务器 MUST 将 `POST` 请求及其路径、请求体和必要请求头转发到配置的 FastAPI origin
+- **AND** MUST 将后端响应状态和内容返回给 Compose 客户端，不得在代理层误报 `405`
+
+#### Scenario: 未单独配置 API origin 时使用本地预览代理
+- **WHEN** `FT_API_ORIGIN` 未设置且本地 demo 配置完成
+- **THEN** Compose 客户端 MUST 使用本地预览同源地址发送 API 请求
+- **AND** 预览服务器 MUST 将 `/api/*` 请求代理到 `FT_API_PROXY_ORIGIN` 指定的 FastAPI origin
+
 #### Scenario: 键盘完成核心任务
 - **WHEN** 用户只使用键盘访问认证、创建流水、分类管理、导入确认和工作区管理
 - **THEN** 所有主要操作 MUST 可聚焦、焦点可见且顺序可理解
@@ -144,16 +154,78 @@ Compose Web MUST 提供可复现的本地构建与启动方式。本地预览 MU
 - **THEN** 页面 MUST 显示可操作的兼容提示或进入经验证的 Web 回退构建
 - **AND** 不得渲染空白页面或假装已进入应用
 
-### Requirement: 本地 demo 验收期间保留旧客户端源代码
+### Requirement: Compose 验收前保留旧客户端并在验收后退场
 
-React Web 和 Expo Native 源码 MUST 在 Compose demo 的本地功能与设备验收期间保留，不得因本地构建或启动改动而覆盖或删除。线上托管、生产入口切换与旧客户端退场不属于本次变更。
+React Web、Expo Native 和 TypeScript 共享包 MUST 在 Compose 三端的功能与设备验收完成前保留，不得因本地构建或启动改动而覆盖或删除。三端全部 10 项功能、对应 API 流程、窗口等级和关键错误/空状态验收完成后，MUST 按任务记录的精确文件清单退场旧客户端。此项退场只影响仓库源码和本地工程，不得切换线上入口或修改托管配置。
 
-#### Scenario: 本地 Compose demo 构建或启动失败
-- **WHEN** Compose Web 本地构建或启动失败
-- **THEN** 现有 React Web、Expo Native 源码 MUST 保持原样
-- **AND** 不得修改线上托管配置、生产入口或现有发布产物
+#### Scenario: Compose 验收未完成
+- **WHEN** 任一平台仍缺少页面级功能、API 流程或必需的 parity 验收
+- **THEN** React Web、Expo Native 和 TypeScript 共享包 MUST 保持原样
+- **AND** 不得把未完成页面计为通过或修改线上托管配置
 
-#### Scenario: 退场旧客户端前检查覆盖
-- **WHEN** 准备删除 React Web、Expo Native 或 TypeScript 共享包
-- **THEN** 必须先证明 Compose 三端已完成 10 项功能、对应 API 流程和任务矩阵
-- **AND** 删除范围 MUST 列出精确文件并以独立批准为门槛
+#### Scenario: 三端验收后退场旧客户端
+- **WHEN** Compose Web、Android 和 iOS 的 10 项功能及跨端验收均通过
+- **THEN** MUST 按任务记录的精确文件清单移除 React Web、Expo Native 和 TypeScript 共享包
+- **AND** MUST 保留 FastAPI、数据库、既有 API 和非客户端工程文件
+
+### Requirement: Compose 用户可见文案支持中文和英语
+
+Compose Web、Android 和 iOS MUST 为所有固定用户可见文案提供简体中文与英语，包括页面标题、导航项、按钮、字段标签、辅助技术名称、加载/空/成功/错误状态和表单校验提示。客户端 MUST 按系统或浏览器语言选择文案；语言无法匹配时 MUST 使用简体中文。工作区名称、分类名称等使用者或服务端提供的业务数据仍按原值显示，不属于产品文案翻译。
+
+#### Scenario: 使用简体中文系统或浏览器语言
+- **WHEN** 任一平台启动时语言为简体中文或通用中文
+- **THEN** Compose 页面和交互提示 MUST 使用简体中文
+- **AND** 页面状态、辅助技术名称和错误提示 MUST 使用同一语言
+
+#### Scenario: 使用英语系统或浏览器语言
+- **WHEN** 任一平台启动时语言为英语
+- **THEN** Compose 页面和交互提示 MUST 使用英语
+- **AND** 页面状态、辅助技术名称和错误提示 MUST 使用英语
+
+#### Scenario: 系统或浏览器语言不受支持
+- **WHEN** 任一平台启动时语言不属于简体中文或英语
+- **THEN** Compose 页面和交互提示 MUST 回退到简体中文
+- **AND** 不得混用缺失资源键、原始错误文本或另一种语言的固定文案
+
+### Requirement: 错误按可恢复性分类并提供友好提示
+
+Compose 客户端 MUST 将认证、输入、服务不可用和意外异常区分处理。可由使用者修正或重试的错误 MUST 提供简短、可操作且已本地化的提示；登录凭据错误 MUST 保持不泄露账户存在性的通用提示；无法识别或不可恢复的异常 MUST 统一显示未知错误提示。HTTP 状态、网络错误和代理错误 MUST NOT 被误报为邮箱或密码错误。
+
+#### Scenario: 注册输入可以修正
+- **WHEN** 注册请求因必填项、格式或密码规则未通过而被拒绝
+- **THEN** 页面 MUST 指出可修正的输入项并保留安全的表单内容
+- **AND** MUST NOT 将输入错误显示为登录凭据错误
+
+#### Scenario: 登录凭据无效
+- **WHEN** 服务端因邮箱或密码无效而拒绝登录
+- **THEN** 页面 MUST 显示相同的通用认证失败提示
+- **AND** MUST NOT 暴露邮箱是否已注册
+
+#### Scenario: 服务不可用或请求无法送达
+- **WHEN** 注册、登录或其他操作因网络不可用、服务端失败或 HTTP 错误未成功完成
+- **THEN** 页面 MUST 显示可重试或稍后重试的提示并保留安全重试所需输入
+- **AND** MUST NOT 显示注册或登录成功
+
+#### Scenario: 客户端遇到意外异常
+- **WHEN** 错误无法归类为已知且可恢复的用户错误
+- **THEN** 页面 MUST 显示统一的未知错误提示
+- **AND** 不得将原始异常消息、调用栈或实现细节显示给使用者
+
+### Requirement: 错误写入受限的本地诊断日志
+
+Compose 客户端 MUST 将应用错误同时写入当前平台开发者日志与平台本地持久化存储。日志记录仅包含时间、固定的功能操作标识、可用的错误码或 HTTP 状态、异常类型；不得保存错误消息、调用栈、邮箱、密码、登录令牌、金额、账单内容、文件名或其他请求/响应数据。Web 使用浏览器本地存储，Android 与 iOS 使用应用私有存储。日志累计保留时间不得超过 30 天、占用不得超过 1 MB；任一上限先达到时 MUST 删除最旧记录，且 MUST NOT 提供应用内查看或导出界面。
+
+#### Scenario: 记录认证或业务错误
+- **WHEN** Web、Android 或 iOS 捕获一个认证、API、平台能力或意外异常
+- **THEN** 对应平台 MUST 同时写入开发者日志和本地持久化日志
+- **AND** 记录字段仅包含时间、功能操作标识、可用错误码/HTTP 状态和异常类型
+
+#### Scenario: 日志触及任一保留上限
+- **WHEN** 本地日志包含超过 30 天的记录或总量超过 1 MB
+- **THEN** 客户端 MUST 删除最旧记录，直到同时满足两个上限
+- **AND** 最新错误记录在可写入时 MUST 保留
+
+#### Scenario: 错误上下文含敏感业务值
+- **WHEN** 失败请求或异常上下文包含邮箱、密码、登录令牌、金额或账单内容
+- **THEN** 开发者日志和本地持久化日志 MUST 不包含这些上下文值
+- **AND** 日志记录 MUST NOT 包含请求/响应正文、原始异常文本或调用栈

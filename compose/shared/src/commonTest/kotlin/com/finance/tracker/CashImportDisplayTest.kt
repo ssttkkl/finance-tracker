@@ -1,5 +1,10 @@
 package com.finance.tracker
 
+import com.finance.tracker.app.*
+import com.finance.tracker.core.*
+import com.finance.tracker.domain.*
+import com.finance.tracker.presentation.*
+
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -16,7 +21,7 @@ class CashImportDisplayTest {
         assertEquals("income", importPreviewDirection(income))
         assertEquals("0.00 CNY", importPreviewAmountLabel(zero))
         assertEquals("unknown", importPreviewDirection(zero))
-        assertEquals("2026年4月15日", importPreviewDateTimeLabel("2026-04-15T12:00:00Z").takeWhile { it != ' ' })
+        assertEquals(LocalDateDisplayParts(2026, 4, 15), localDateTimeDisplayParts("2026-04-15T12:00:00Z")?.date)
     }
 
     @Test
@@ -39,7 +44,7 @@ class CashImportDisplayTest {
         currency: String,
         recordType: String,
         occurredAt: String = "2026-04-01T00:00:00Z",
-    ) = ImportPreviewItemDto(
+    ) = ImportPreviewItem(
         recordId = id,
         occurredAt = occurredAt,
         amount = amount,

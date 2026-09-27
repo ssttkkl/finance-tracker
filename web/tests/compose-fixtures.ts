@@ -28,6 +28,7 @@ export type ComposeApiFixtures = {
 
 export type BrowserDiagnostics = {
   consoleErrors: string[];
+  diagnosticLogs: string[];
   failedRequests: string[];
   expectedBrowserMessages: string[];
   expectedApiErrors: string[];
@@ -38,6 +39,7 @@ export type BrowserDiagnostics = {
 
 export function captureBrowserDiagnostics(page: Page, options: { expectedErrorStatuses?: number[] } = {}): BrowserDiagnostics {
   const consoleErrors: string[] = [];
+  const diagnosticLogs: string[] = [];
   const failedRequests: string[] = [];
   const expectedBrowserMessages: string[] = [];
   const expectedApiErrors: string[] = [];
@@ -47,6 +49,10 @@ export function captureBrowserDiagnostics(page: Page, options: { expectedErrorSt
   const expectedErrorStatuses = new Set([401, 503, ...(options.expectedErrorStatuses ?? [])]);
   const wasmMemoryDeprecation = "Accessing `memory` via `wasmExports` is deprecated. Use `kotlin.wasm.unsafe.wasmMemory` or update dependencies. Read more: https://kotl.in/vr3szr";
   const recordMessage = (message: string) => {
+    if (message.startsWith("[Finance Tracker diagnostic] ")) {
+      diagnosticLogs.push(message);
+      return;
+    }
     const failedResourceStatus = /Failed to load resource: the server responded with a status of (\d+) \(/.exec(message);
     if (/WebGL: INVALID_ENUM: getParameter: invalid parameter name, WEBGL_debug_renderer_info not enabled/.test(message)
       || message === wasmMemoryDeprecation) {
@@ -85,6 +91,7 @@ export function captureBrowserDiagnostics(page: Page, options: { expectedErrorSt
 
   return {
     consoleErrors,
+    diagnosticLogs,
     failedRequests,
     expectedBrowserMessages,
     expectedApiErrors,

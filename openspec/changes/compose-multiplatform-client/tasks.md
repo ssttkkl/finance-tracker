@@ -1,7 +1,7 @@
 ## 1. 思考
 
 - [x] 1.1 阅读 `openspec/project-context.md`、领域词表、相关主规格、功能地图、Web/Native 页面与客户端 packages；确认 FastAPI、API 和数据库不在范围内。
-- [x] 1.2 完成 `$grill-me` / `$grilling` 需求访谈；用户确认三端 10 项功能、原 URL/邀请链接、Material 3 + Cobalt、系统深色模式、`WindowSizeClass` 阈值和旧端退场边界。
+- [x] 1.2 完成 `$grill-me` / `$grilling` 需求访谈；用户确认三端 10 项功能、原 URL/邀请链接、Material 3 + Cobalt、系统深色模式、`WindowSizeClass` 阈值、global layer-first + ViewModel/StateFlow、严格 DTO/Domain 映射、中英 Compose Resources 自动选语言、可恢复错误提示与脱敏本地日志、先完成功能再按 Web/Android/iOS 验收，以及验收后按文件清单退场旧客户端。
 - [x] 1.3 记录 Compose Web 技术基线：Kotlin/Wasm 仍为 Beta；Chrome/Edge 119+、Safari 18.2+；默认浏览器导航使用 hash，因此须以真实 Compose 切片验证自定义 path/history。
 
 ## 2. 计划
@@ -11,6 +11,7 @@
 - [x] 2.3 记录冗余处理边界：用真实功能替代 Expo 的「暂不可用」入口；删去装饰性卡片套层和违反 UI 规则的重复常驻解释，不删除业务信息。
 - [x] 2.4 用户明确免除 HTML 原型；本次以真实 Compose 纵向切片和最终 UI 浏览器/设备审查替代静态 HTML demo 与原型审批。
 - [x] 2.5 按 Hallmark 设计准则和 `docs/ui-design-rules.md` 人工复核 Material 3/Cobalt token、10 项导航和 WindowSizeClass 排布；此阶段未形成最终 UI，最终审查保留在 5.3。
+- [x] 2.6 更新范围设计：共享 `commonMain` 按 app/core/data/domain/presentation 全局分层、Composable 只接收状态与发送意图、DTO 映射纯领域模型；覆盖 Compose Resources 双语、可恢复错误分类、三端本地诊断日志和本地预览 POST 转发。
 
 ## 3. 任务拆分与一致性
 
@@ -18,6 +19,7 @@
 - [x] 3.2 Cross-platform Impact Check：Web 是目标及事实源；Android、iOS 需要全部页面；共享层覆盖 API、财务值、路由、语义 ID、页面状态、主题和窗口分类；FastAPI、API、数据库不受影响。
 - [x] 3.3 将现有 Web 单测约 143 项、共享 packages 单测 24 项、Expo 单测约 28 项及 Playwright E2E 约 64 项纳入迁移盘点；按现有场景移植或提供 Compose 等价证据，不把静态页面算成功能覆盖。
 - [x] 3.4 运行 `openspec validate compose-multiplatform-client --strict`；变更通过，proposal、delta specs、design、tasks 无阻断不一致。
+- [x] 3.5 Cross-platform Impact Check：本次层边界、ViewModel、Compose Resources、错误态和共享日志影响 Web、Android、iOS 的全部页面；本地 Node API 代理只影响 Web demo；FastAPI、API、数据库、React/Expo 在 Compose 验收前保持不变。
 
 ## 4. 构建
 
@@ -61,19 +63,62 @@
 
 ### 4.6 本地 demo 构建与启动
 
-- [x] 4.6.1 增加 `npm run demo:compose --workspace=finance-tracker-web`，构建 `wasmJs` production distribution 并启动支持 SPA 深链回退的本地预览；`FT_API_PROXY_ORIGIN` 可选设定本机 FastAPI 地址，默认 `127.0.0.1:8000`。命令实跑成功，`/health`、入口、`config.js` 与工作区投资深路径均响应正确；Chrome 实际显示登录页，地址为 `http://127.0.0.1:5186/`。Cross-platform Impact Check：本次只增加 Web 本地运行入口/API 代理，Compose 页面和既有 API path 不变；Android/iOS app 与 FastAPI/API 合同无改动。
+- [x] 4.6.1 增加 `npm run demo:compose --workspace=finance-tracker-web`，构建 `wasmJs` production distribution 并启动支持 SPA 深链回退的本地预览；未设置 `FT_API_ORIGIN` 时，客户端使用预览同源地址，由代理转发到 `FT_API_PROXY_ORIGIN` 指定的 FastAPI；代理 origin 默认 `127.0.0.1:8000`。Chrome 本地预览与真实注册 POST 实测见 6.10。Cross-platform Impact Check：本次只修复 Web 本地 API origin 与代理连接；Android/iOS app 与 FastAPI/API 合同无改动。
 - [x] 4.6.2 在根 `README.md` 和 `compose/README.md` 记录本地 Compose Web demo 命令、Android emulator 与 iOS Simulator 的运行方法、API origin 和可选仓库外 Gradle init script；CI、Render 与云端部署不属于本次 demo 范围。
 - [x] 4.6.3a 更新 `docs/feature-map.md`，分别记录 React/Expo 现状和 Compose F-01 至 F-10 实现证据；明确三端 QA 尚未完成，并保留旧 Expo 的 ALIGN-N TODO。
-- [x] 4.6.3b 本次只交付本地 demo，不切换线上入口或退场旧端；功能地图保留旧 React/Expo 覆盖事实和 Compose QA 状态，后续发布/清理需另行授权。
+- [x] 4.6.3b 先保留旧 React/Expo 源码和线上入口，直至三端 Compose 验收完成；退场在本变更内执行，任务清单与精确文件范围见 7.5。
+- [x] 4.6.4 先新增 `node --test web/tests/compose-preview-proxy.node-test.mjs`，修复前得到 `405 !== 422` 且假 API 未收到请求；修复方法门禁后验证注册 POST 的 path/query/body/content-type 到达假 API，`422` 状态与 JSON body 原样返回。随后真实 Chrome 注册流程发现空 `FT_API_ORIGIN` 会令客户端在发送 POST 前拒绝请求；改为默认使用 preview 同源，并由该 Node 测试检查 `/config.js` 的默认值。Chrome 真实 FastAPI 注册请求和 Node 1/1 通过，记录于 6.10。
+
+### 4.7 共享客户端分层与状态管理
+
+- [x] 4.7.1 新增 `compose/tools/layer-boundaries.node-test.mjs`，检查全部 commonMain 文件使用 `app/`、`core/`、`data/`、`domain/`、`presentation/` layer-first 包名，Domain 不依赖 Compose/Ktor/serialization/上层包，Data 不依赖 App/Presentation。重排 commonMain 与平台 source set 包路径，并把令牌/文件抽象放入 Core；Node 边界测试 3/3、`:shared:compileTestKotlinWasmJs` 通过。`:shared` 仍是单 KMP module，无 DI 或 Gradle 子模块。
+- [x] 4.7.2 建立纯 Kotlin 会话、账本、分类、导入、投资领域模型及 Repository 接口与认证/会话 UseCase；生成的 67 个财务 DTO 对应 Domain 模型保留金额/数量字符串，Domain 无 Compose、Ktor、serialization/JSON 导入。
+- [x] 4.7.3 增加 67 组双向 DTO↔Domain 映射、纯 Kotlin 结构化 JSON 值适配、`KtorSessionRepository` 与 `KtorFinanceRepository`；共享 Wasm 测试验证会话角色、嵌套投影和精确金额往返、JSON 数值往返、API 错误码/status 映射与敏感 import token 丢弃。
+- [x] 4.7.4 在 `app/FinanceTrackerGraph.kt` 作为手动组合根显式构造 Ktor API client、Session/Finance Repository；使用 Compose Lifecycle `viewModelFactory` 创建 ViewModel，并由应用级 `ViewModelStoreOwner` 管理生命周期；未新增 service locator、DI 框架或 Gradle 子模块。
+- [x] 4.7.5 认证、会话恢复、登录/注册、工作区选择/创建与邀请预览/接受由 `AccessViewModel`、`InvitationViewModel` 及 `StateFlow` 驱动，Compose 通过 Lifecycle 收集状态并派发意图。修复登录失败仍保留 `AUTHENTICATED` 状态的回归；Wasm 单测 74 项全通过。未知错误 code 保持为通用提示路径；持久化诊断日志在 4.9 实施。
+- [x] 4.7.6 迁移收支账本、收支流水和分类页面状态/操作到对应 ViewModel/UseCase/Repository；保持 WindowSizeClass、深链、viewer 权限和三端操作结果。
+  - F-03/F-04 共用 `CashLedgerViewModel`、Domain Repository 与 `SaveCashRecordUseCase`；覆盖筛选、分页、viewer 写权限、流水创建/编辑/删除、凭证和关系操作。F-07 由 `CashCategoryViewModel`、`CashCategoryUseCases` 和 Domain Repository 管理目录、搜索、编辑、排序及删除影响确认；Composable 只收集 Lifecycle `StateFlow` 并派发操作。
+  - Cross-platform Impact Check：三个功能都使用 Web、Android、iOS 共用的页面状态、筛选值、权限和操作结果；presentation 继续通过 `WindowSizeClass` 自适应。深链接由共享 `AppRouting` 保留；FastAPI/API 合同和旧 React/Expo 未改。实际平台流程验收仍按 6.10–6.12 顺序执行。
+  - Domain 文件读取端口已从 `core` 移入 `domain`；Presentation 不导入 Data、Ktor 或传输 DTO。`CashLedgerViewModel` 的状态模型已拆到独立文件；分类新增/编辑/删除和流水状态由相应 VM 管理。
+  - 验证：2026-09-26（Asia/Shanghai），`./gradlew -I /tmp/ft-gradle-mirror.init.gradle :shared:wasmJsTest --no-configuration-cache` 通过（105/105）；Node 边界、资源、POST 代理检查 7/7 通过；`git diff --check` 通过。最终三端用户流程验证仍见 6.10–6.12。
+- [x] 4.7.7 迁移导入的文件/扫描/映射/预览/确认状态及投资持仓/事件、工作区管理到对应 ViewModel/UseCase/Repository；保留文件索引、精确数值、筛选分页和幂等流程。
+  - F-05 使用 `CashImportViewModel` 与 `CashImportRepository` 管理多文件身份、扫描、映射、预览、关系审查、幂等 key 和确认结果；F-08/F-09 使用投资 ViewModel/Repository 保留精确数值与事件/持仓筛选分页；F-10 使用 `WorkspaceManagementViewModel` 和 Session Repository 承载成员权限、邀请与工作区操作。
+  - Cross-platform Impact Check：三个页面使用同一套 commonMain ViewModel、Domain 值与 API 映射；原生文件选择器表面可不同，文件值、错误、确认时机及结果不变。三端端到端验收仍按 6.10–6.12 执行；后端与 API 合同未改。
+  - 验证：Wasm 共享测试覆盖 105 项且全部通过，含 Import、Investment、Workspace ViewModel、DTO 映射与 API 流程回归；三端设备端到端证据仍见 6.10–6.12。
+- [x] 4.7.8 拆分 `App.kt`、`FinanceApiClient.kt`、`FinanceDtos.kt`、`CashLedgerScreen.kt`、`CashImportScreen.kt`、`InvestmentScreens.kt` 等大文件，删除 Composable 对 Ktor、transport DTO 与 API client 的直接引用并检查层循环依赖。
+  - API 客户端现按认证、账本投影、分类、流水关系、导入、投资 endpoint 拆分，HTTP 请求核心和编码工具独立；账本、导入、投资 UI state 声明已与 ViewModel 文件分离，流水详情和投资事件页面也独立拆文件。
+  - `presentation` 无 Data/Ktor/DTO/API client 导入；Data 只依赖 Core/Domain，Domain 不依赖 Compose/Ktor/serialization/JSON，上层 Data 访问仅从 `app/FinanceTrackerGraph.kt` 手动组合根进入。扩展层边界 Node 测试检查包名、允许边及层依赖环。
+  - 验证：2026-09-26（Asia/Shanghai），`node --test compose/tools/layer-boundaries.node-test.mjs` 通过 5/5；`./gradlew -I /tmp/ft-gradle-mirror.init.gradle :shared:wasmJsTest --no-configuration-cache` 通过（105/105）；`git diff --check` 通过。当前最大共享 Kotlin 文件约 763 行；仍待阶段 5 独立 diff/工程复核。
+
+### 4.8 Compose Resources 中英文
+
+- [x] 4.8.1 盘点 10 项页面中的固定 UI、表单校验、错误/空/加载/成功文案及辅助技术名称；确定共享资源 key，不把服务端数据或用户内容伪装成产品字符串。4 份目录各含 497 个资源 key；账户/账单/user data 仍原样展示。
+- [x] 4.8.2 新建 Compose Resources 简体中文默认目录与英语目录，补通用 `zh`/`zh-Hans` 选择，接入系统/浏览器 locale 自动选择和中文默认回退；不新增语言设置 UI。资源位于 `values`、`values-zh`、`values-b+zh+Hans`、`values-en`，运行时语言选择尚待 6.15 三端验证。
+- [x] 4.8.3 把所有 Compose 固定用户可见文案迁移为 `stringResource`/对应 resource API，包含表单、导航、对话框、Sheet、日期/文件选择器外壳与 accessibility 文本；保持服务端/user data 原样展示。追加复核补齐了应用名和邮箱示例占位符。
+- [x] 4.8.4 为 zh/en 和未匹配语言回退补资源/状态测试；运行范围化静态搜索，确认产品固定文案没有遗留在 Kotlin 代码字面量中，且没有原始资源 key 或语言混用。资源 Node 测试验证四份目录 key/占位符完全一致、英语不含汉字、Compose `Text`/placeholder/accessibility 无硬编码；实际 locale 运行时回退仍待 6.15。
+
+### 4.9 错误分类与本地诊断日志
+
+- [x] 4.9.1 先添加认证、注册输入、网络不可用、服务端失败和未知异常的分类回归；修复 UI 将任意异常都显示为“邮箱或密码不正确”的问题，所有文案通过本地化资源。另将 API `temporarily_unavailable` 归类为可恢复导入错误并本地化；共享回归证明重试保留导入 token 与幂等 key。Wasm 测试及 Chrome F-05 多文件重试 E2E 均通过。
+- [x] 4.9.2 建立白名单 `DiagnosticEvent`，仅含时间、固定 feature/action、可用错误码/HTTP 状态、异常类型；统一由共享错误边界双写到 developer sink 与 local sink，不序列化 message、stack、URL、headers、body 或业务数据。
+- [x] 4.9.3 实现 Chrome Console + `localStorage`、Android Logcat + 应用私有文件、iOS 系统日志 + 应用私有文件；本地存储按 30 天和 1 MiB 双上限 oldest-first 清理，无查看/导出界面。实际三端 sink 检查仍见 6.14。
+- [x] 4.9.4 新增脱敏、限时、容量、最旧优先删除和存储失败不阻断业务的测试；含邮箱、密码、令牌、金额和账单正文的虚构异常在白名单记录边界回归中均不出现在 sinks；平台适配器实测仍见 6.14。
+- [x] 4.9.5 执行 Cross-platform Impact Check：共享错误提示与日志记录逻辑影响 Web/Android/iOS；`localStorage`、Logcat/私有文件、iOS 系统日志/私有存储由各 target adapter 提供；平台文件/日期选择器保持值、确认语义、错误和结果一致；FastAPI/API 不变。
 
 ## 5. 审查
 
-- [x] 5.1 产品范围复核：逐项对照用户已确认的 10 项 Web 功能、三端入口、Material 3/Cobalt、窗口分类与原 URL 合同；本轮明确仅本地 demo，不改 Render、CI、后端、线上入口或旧端文件。未发现超范围页面/字段/用户流程；残余验收缺口单列于 6.4、6.5、6.7。
-- [x] 5.2 工程复核：共享页面与 API/金额逻辑仍在 KMP `commonMain`，平台文件/令牌/导航边界独立；新预览只监听 `127.0.0.1`，默认仅把同源 `/api/*` 流式转发到本机 API，不改变 API schema、FastAPI、数据库或 financial data。build/start failure 留存旧源码且不碰线上；没有新依赖或凭据。未发现 critical/major 工程问题；性能峰值与 iOS 文件实测保留为验证风险。
-- [x] 5.3 按 Hallmark `audit` 规则复核共享页面、UI 组件和最终 Chrome/iOS 截图。认证输入框辅助技术名称和 F-05 字形 finding 已修复；本轮 F-10 regular 邮箱溢出 finding 已修复，并复审 compact、regular、wide 页面。最终 finding：0 critical、0 major、0 minor；修复前后证据及范围记录见下方 2026-09-25 F-10 复审。
-- [x] 5.4 最终差异复核：改动限于 Compose KMP 工程/OpenSpec、功能地图和 Web 本地预览启动文件；`web/package-lock.json`、Render 配置、FastAPI/API/database、旧 React/Expo 文件无本次修改。镜像 init script 与模拟器 Keychain signing entitlement 均留在仓库外，无新真实 token/账单内容。`node --check`、TypeScript、Chrome E2E、OpenSpec strict 和 `git diff --check` 均通过；无待修 diff finding。明确遗留限制见 6.4、6.5、6.7、7.3。
+- [x] 5.1 历史产品范围复核：初始迁移范围为 10 项 Web 功能、三端入口、Material 3/Cobalt、窗口分类与原 URL；本次执行合同另扩展到共享层重构、双语资源、错误分类/本地日志、demo POST 代理修复以及验收后退场。最终范围复核待 5.5。
+- [x] 5.2 历史工程复核：最初共享实现和本地 demo 的依赖/网络边界已记录；本次架构重构后的纯 Domain 依赖边界、Repository 映射、日志隐私、存储回收及 POST 代理须在 5.6 重新独立复核。
+- [x] 5.3 历史 Hallmark `audit`：认证语义名称、F-05 字形和 F-10 regular 邮箱宽度 finding 已修复，历史复审为 0 critical、0 major、0 minor；共享 UI 和本次国际化完成后的最终 UI audit 在 5.7 重新执行。
+- [x] 5.4 历史差异复核仅适用于 2026-09-25 基线；本次 Compose 架构、资源、测试和本地 proxy 变化后的最终差异复核在 5.8 重新执行。
+- [x] 5.5 产品范围复核：复核 `docs/feature-map.md`、10 项页面功能与执行合同。Web Chrome 和 Android 已覆盖 F-01–F-10；iOS 已走通 F-01–F-04、F-06–F-10，F-05 文件选择→扫描→映射→确认仍有明确 QA 缺口并保留在 6.12。语言回退与错误/空/加载状态有 Web/Android 证据；iOS locale 已做账本界面抽样。诊断日志没有用户查看/导出界面；React/Expo 仍保留；不改 FastAPI/API、不部署。Cross-platform Impact Check 见 3.5、4.9.5、6.10.1、6.10.2 和 6.12.1。范围检查完成，未把未验收的 iOS 导入记为已覆盖。
+- [ ] 5.6 工程与安全复核：独立检查 `presentation→domain`、`data→domain`、`app` 手动装配依赖方向，Domain 无 Compose/Ktor/JSON，DTO mapper 完整；验证异常不携带到 UI/log message、所有日志 sink 白名单字段、30 天/1 MiB oldest-first 回收与 POST 代理隔离。
+- [x] 5.7 最终 UI 复核：当前运行时未暴露可调用的 Hallmark `audit` 动作，未运行 CLI；按本地 Hallmark audit 规则及 `docs/ui-design-rules.md` 人工检查截图。范围：Web F-03/F-05/F-08 的 390/1440 px 浅/深截图；Android compact 登录、F-05 导入、F-07 分类、F-08 持仓深色、F-10 工作区；iPhone 17 邀请/错误态/英语与未支持语言回退、iPad 11 分类/事件、iPad 13 持仓深色/工作区宽屏。Finding：0 critical、0 major、1 minor。Minor：Web 1440 px 收支账本筛选区按 4 组纵向展示，首屏只能看到首条流水的一部分（`CashLedgerScreen.kt:273–289`）；接受当前布局，保留完整筛选项可见与跨端顺序一致，后续可再评估收起低频筛选。无 major，因此不需要修复后复审。该记录为人工审查，不声称运行了 Hallmark 工具动作。
+- [ ] 5.8 由非实施上下文复核最终 diff 与 OpenSpec；检查旧客户端清单、依赖删除、构建脚本/CI、feature map、无新增后端合同、无错误地暴露异常内容以及所有未勾选 task 的原因。
 
 ## 6. 测试与 QA
+
+下方 6.1–6.9 中 2026-09-25 的通过结果是当前重构前历史基线，不代替本轮最终验证。完成全部功能与分层/资源/日志实现后，严格依次执行 6.10 Web Chrome、6.11 Android、6.12 iOS，再完成 6.13 parity 和专项检查。
 
 - [x] 6.1 运行共享单测，覆盖迁移的 contracts/API/presentation 行为、精确金额、路由、SizeClass、导入边界、分类搜索和投资展示逻辑；最近一次 `:shared:wasmJsTest` 通过。
 - [x] 6.2 **Web 第一阶段：**按用户指示使用 Chrome 153，不运行 Safari。`FT_GRADLE_INIT_SCRIPT=/tmp/ft-gradle-mirror.init.gradle npm run demo:compose --workspace=finance-tracker-web` 本地构建并启动成功；Vitest 152/152、`npx tsc -p web/tsconfig.json --noEmit` 通过；生产预览 Chrome E2E 最新 24/24 通过，URL `http://127.0.0.1:5186/`。新增 F-10 在 834 px regular 下邮箱最小宽度回归，修复前失败、修复后通过。覆盖 F-01 至 F-10、viewer 旧工作区深链接被拒后选择可访问工作区、viewer 写入限制、工作区深路径和浏览器 Back/Forward；预期 API 403 已单独记录，非预期控制台/网络/静态 HTTP 错误为 0，Wasm MIME 为 `application/wasm`。Gradle 使用仓库外 init script 的阿里云/腾讯镜像；未修改项目仓库源。Web 阶段完成。
@@ -84,20 +129,40 @@
 - [x] 6.6.1 Cross-platform Impact Check：Noto 同源回退只改变 Web/Wasm 字体加载和字形绘制；共享 F-05 将关系标签的缺字箭头改为等义文字“与”，Web、Android、iOS 文案一致；Native 仍使用系统字体。API、FastAPI、数据库和业务结果不受影响。Web QA 使用 Chrome，不运行 Safari；最新截图无缺字。
 - [ ] 6.7 检查 Wasm/JS/APK/iOS 产物大小、首屏启动和大列表滚动；实测多文件 JSON/base64 内存峰值，并确认日志与测试产物不含令牌、密码或原始账单内容。
 - [x] 6.8 记录数据库矩阵不适用：本次未修改 API、持久化、数据库语义或后端代码；若发现间接存储行为变化则升级 A 类并补 SQLite 与显式 PostgreSQL `_test` 矩阵。
-- [x] 6.9 最终验证通过：`openspec validate --all --strict` 36/36、`openspec doctor` root ok、`git diff --check` 退出码 0；Web Vitest 152/152、TypeScript 检查、Chrome 153 Playwright E2E 24/24 通过。Wasm production demo 本地构建成功；Android host 65/65、connected device 67/67 与 Debug APK 构建通过；iOS Simulator shared tests、framework link 和 Xcode Debug app build 通过。当前尚未完成的 iOS 文件导入、全矩阵 parity、性能/大文件峰值仍分别见 6.4、6.5、6.7。
+- [x] 6.9 历史验证基线（2026-09-25）：当时 OpenSpec strict 36/36、doctor root ok、Web Vitest 152/152、Chrome E2E 24/24、Android host 65/65/device 67/67、iOS shared tests/framework/Xcode Debug build 通过。该结果不覆盖本次分层、资源、日志和 proxy 改动；iOS F-05、全矩阵和性能未完成，最终验证转由 6.10–6.17 记录。
+- [x] 6.10 **Web 第一阶段，全部功能实现后：**2026-09-26（Asia/Shanghai）在隔离 FastAPI SQLite demo（`127.0.0.1:8000`）和 Compose production preview（`http://127.0.0.1:5187/`）上完成最终复验。命令：`FT_COMPOSE_PREVIEW_PORT=5187 FT_API_PROXY_ORIGIN=http://127.0.0.1:8000 FT_GRADLE_INIT_SCRIPT=/tmp/ft-gradle-mirror.init.gradle npm run demo:compose --workspace=finance-tracker-web`；`./gradlew -I /tmp/ft-gradle-mirror.init.gradle :shared:wasmJsBrowserTest --no-configuration-cache`（最新 111/111，0 failure）；`npm run test --workspace=finance-tracker-web`（152/152）；`npx tsc -p web/tsconfig.json --noEmit`；`node --test web/tests/compose-preview-proxy.node-test.mjs`（1/1）；`FT_COMPOSE_PREVIEW_PORT=5187 PLAYWRIGHT_CHROME_PATH='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm run test:e2e:compose --workspace=finance-tracker-web -- --browser=chromium`（Chrome 154.0.8037.57，28/28）。真实注册 POST 到达 FastAPI 并进入工作区；覆盖 F-01–F-10、登录错误/本地认证校验、工作区名称校验、恢复/导入失败重试、locale 自动选择与中文 fallback、诊断日志双写脱敏、深链接/history、键盘可达性及响应式宽度。F-03/F-05/F-08 浅深色截图各 3/3 更新并目视复核；视口 390×844、1440×1000，另检查 320/375/414/768 px 无水平溢出。截图为 `screenshots/web-final-{390,1440}{,-dark}.png`、`web-choice-card-{390,1440}{,-dark}.png`、`web-holdings-{390,1440}{,-dark}.png`。非预期 console/network/静态资源错误 0，Wasm MIME 为 `application/wasm`；日志 E2E 确认错误包含固定 feature/action/code/type 且不含邮箱、密码或 Token。Web 阶段完成，Native 最终验证见 6.11–6.12。
+- [x] 6.10.1 Cross-platform Impact Check：账本共享 `CashLedgerViewModel` 的异步引用数据合并修复和 `temporarily_unavailable` 可恢复导入错误影响 Web/Android/iOS 的相同状态与用户文案，重试仍使用原导入 token/幂等 key；`delayedReferenceLoadCannotReplaceTheLoadedPageState` 与 transient commit retry 回归修复前失败、修复后通过。相关文案位于 Compose Resources。Chrome Preview 的 `<base href="/">`、默认同源 API origin、POST 代理只影响 Web 本地预览，不改变用户 URL、FastAPI/API 合同或数据库；Chrome 实际注册已到达隔离 FastAPI。旧 React/Expo 未改。Web 终验完成后按用户指定进入 Android，再 iOS。
+- [x] 6.10.2 Cross-platform Impact Check：Android QA 显示认证必填字段、工作区名称、持仓币种、账本金额/日期时间及金额筛选错误此前仅在界面显示。修复后 ViewModel 通过固定 feature/action/code/type 记录，禁止记录输入值；Web/Android/iOS 共用相同校验与日志语义，平台只更换双写 sink；不改变页面流程、API/FastAPI、财务结果或文案。三个 ViewModel 回归在修复前因日志记录入口缺失而编译失败，修复后 Wasm 110/110 通过；Chrome 校验日志目标 E2E 2/2、全量 E2E 28/28、Vitest 152/152、TypeScript 与 Node proxy test 通过。已按要求 Flow-back 重跑 Web Chrome，后续继续 Android、iOS；原生文件日志验收见 6.11–6.14。
+- [x] 6.11 **Android 第二阶段：**2026-09-26 在 `FTComposeQA_API36` / `emulator-5554` 完成 Android 最终验证。`./gradlew -I /tmp/ft-gradle-mirror.init.gradle :shared:testAndroidHostTest :shared:compileAndroidDeviceTest :androidApp:assembleDebug -PftApiOrigin=http://localhost:8000 --no-configuration-cache` 成功：Android host 111/111、device-test 编译和 Debug APK 构建通过；`./gradlew -I /tmp/ft-gradle-mirror.init.gradle :shared:connectedAndroidDeviceTest --no-configuration-cache` 为 113/113。此前设备 fixture UI 走通 F-01–F-10、Android 文件/日期选择器、邀请 URI、viewer 只读、错误恢复及账户/工作区操作；用例截图见本节 Android 执行记录。AVD compact 411 dp、regular 960×640 dp、wide 1200×640 dp 均检查导航和页面内容；系统 Back 从 F-08 返回 F-03。locale 已验证 `zh-CN` 中文、`en-US` 英文、`fr-FR` 回退简体中文。空邮箱校验提示可操作，Logcat 与 app-private 文件都只含时间、功能、操作、错误码和异常类型；未见邮箱、密码或令牌。镜像来自仓库外 init script；未改 Release 网络策略。Android 阶段完成，随后进入 iOS。
+- [ ] 6.12 **iOS 第三阶段（部分完成，F-05 端到端仍未验收）：**2026-09-26 在 Xcode 26.3 / iOS 26.3 Simulator 继续验收。`./gradlew -I /tmp/ft-gradle-mirror.init.gradle :shared:iosSimulatorArm64Test :shared:linkDebugFrameworkIosSimulatorArm64 --no-configuration-cache` 对应结果 XML 为 112/112、0 failure，framework link 成功；本轮 `xcodebuild -quiet -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -destination 'platform=iOS Simulator,id=70A46354-A489-4A58-BDA8-D59EE8B4BF94' -derivedDataPath /private/tmp/ft-compose-ios-final FT_API_ORIGIN=http://localhost:8181 CODE_SIGN_ENTITLEMENTS=/private/tmp/ft-compose-ios.entitlements CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual CODE_SIGNING_ALLOWED=YES INFOPLIST_FILE=/private/tmp/ft-compose-ios-debug.plist build` 成功（仅有 Xcode destination 元数据 warning）；签名 entitlement、文件共享 plist 和 API 地址均为仓库外 QA 临时配置。iPhone 17（402×874 compact）、iPad Pro 11（834×1210 regular）、iPad Pro 13（1032×1376 wide）已有页面/截图证据；F-01–F-04、F-06–F-10 的本地 fixture 流程、邀请 deep link/返回、账本错误恢复、详情编辑、分类/持仓/事件与工作区操作此前已走通；iOS 本地日志写入 app-private `NSUserDefaults` 和系统日志，校验字段符合白名单。将 Simulator 系统语言依次切换为 `en-US`、`fr-FR` 再恢复 `zh-Hans-CN`，账本主界面验证英语及简体中文 fallback；截图为 `screenshots/ios-iphone17-en-20260926.png`、`screenshots/ios-iphone17-fallback-fr-20260926.png`。F-05 继续使用虚构 CSV `QA-Import-Fixture.csv`（371 字节）：选择器可打开、浏览 app 的 `FinanceTracker` 文件夹并显示和选中文件；点击系统「打开」后画面仍停在文件选择器，底层 Compose 页面仍显示 `0/20`。`agent-device` AX 快照把 picker 作为 `AXRemoteElement`，并在点击后报告底层页面；实际截图仍显示 picker，尚无法分辨模拟器跨进程自动化限制与 FileKit 回调缺陷。最新证据 `screenshots/ios-iphone17-import-picker-after-open-20260926.png` 显示所选文件与系统「打开」控件；日志未出现 picker 错误事件。文件选择→扫描→映射→确认尚未完成，因此本项保持未勾选；不得用 Safari 替代原生 iOS QA。
+- [x] 6.12.1 Cross-platform Impact Check：为修复 Kotlin/Native 下 `NSDate` 时间戳编译失败，将 iOS 诊断日志毫秒时间改为 `Clock.System.now().toEpochMilliseconds()`，并新增 epoch 范围单测；只影响 iOS 日志适配器与共享测试，不改变 Web/Android 行为、页面、API、后端或功能地图。Flow-back 后 Web Wasm 111/111、Android host 111/111、Android device 113/113 通过；iOS shared 112/112、framework link 与 Xcode Debug app build 通过。
+- [ ] 6.13 在 6.10–6.12 通过后完成 10 功能 × Web/Android/iOS × compact/regular/wide parity matrix；对每格记录真实入口、用户动作、空/错/成功状态、API 结果、文案/标签及有登记的平台控件差异。未运行项保持未完成并说明真实阻断条件。
+- [x] 6.13.1 当前覆盖盘点：Web Chrome 与 Android fixture UI 都走过 F-01–F-10；iOS fixture UI 走过 F-01–F-04、F-06–F-10，F-05 已打开并选中样本文件但没有确认返回结果。compact/regular/wide 已覆盖三个平台的代表页面和响应式检查，但不是每个功能在每个窗口等级的完整 90 格 parity 矩阵；未覆盖格仍保留在 6.5/6.13，不推断为通过。
+- [x] 6.14 日志专项验证：Chrome E2E 检查 Console 与 `localStorage`；Android 设备检查 Logcat 与 app-private 文件；iOS 设备检查系统日志与 app-private `NSUserDefaults`。三端样例仅含时间、feature/action/code/status/异常类型，不含邮箱、密码、Token 或账单内容。`DiagnosticLoggingTest` 6 项测试覆盖双 sink 白名单、未知码/异常类型净化、过期与损坏条目清理、1 MiB oldest-first、存储写入失败不阻断开发者日志；Chrome E2E 再检查本地记录不含敏感输入。iOS 使用私有偏好存储而非单独日志文件，符合 app-private 本地存储合同。
+- [ ] 6.15 国际化专项验证：三端分别设置简体中文、英语和未支持 locale；对 F-01–F-10 的可见固定文案、a11y labels、验证和所有请求状态抽样核对一致翻译，无混语/资源 key/字形缺失；只使用系统/浏览器语言，不增加设置入口。
+- [x] 6.15.1 国际化 locale 冒烟：Chrome 与 Android 已验证 `zh-CN`、`en-US` 和未支持 locale 回退；2026-09-26 在 iPhone 17 Simulator 全局语言切换为 `en-US` 与 `fr-FR`，分别看到英文账本过滤界面和简体中文回退，之后恢复原 `zh-Hans-CN` 系统语言。截图见 6.12。该抽样不覆盖 F-01–F-10 所有状态/无障碍标签，故 6.15 仍未完成。
+- [ ] 6.16 性能与发布前安全：测 Wasm/JS/APK/iOS 产物、Chrome 首屏启动、大列表滚动和多文件 JSON/base64 峰值；扫描日志/fixtures/screenshots/build 产物无真实个人财务值、凭据或原始异常正文；记录命令、数据集和结果。
+- [x] 6.17 2026-09-26（Asia/Shanghai）运行 `openspec --version`（1.7.0）、`openspec validate --all --strict`（36/36）、`openspec doctor`（Root ok）、`git diff --check`（通过）；受影响验证为 Wasm 111/111、Android host 111/111、Android device 113/113、iOS Simulator 112/112、iOS framework link/Xcode Debug build 成功；Web 结果见 6.10（Vitest 152/152、TypeScript、proxy test 1/1、Chrome 154 E2E 28/28）。最终 `HEAD=e716c01f945350daaf03590d648adeb9a7e12afb`，比较基线 `beda546f6fcf2e3a69634af38d9afe54d459260b`；本轮未提交、推送或部署。未运行/未完成项及补跑条件：iOS F-05 在「打开」后仍停留系统 picker，须先在可交互 Simulator 会话确认选择器回调，再走扫描/映射/确认；6.13 的 90 格 parity、6.15 全功能多语言与无障碍标签核查、6.16 产物/启动/滚动/多文件内存测量仍需专项执行；5.6/5.8 工程安全及独立最终 diff 复核仍待完成。FastAPI 未变，数据库矩阵不适用。
 
 ## 7. 发布准备
 
-- [x] 7.1 记录基线与交付状态：当前 `HEAD` 和比较基线均为 `beda546f6fcf2e3a69634af38d9afe54d459260b`，工作树有未提交改动；本次无提交、推送、Render/云端配置或部署。2026-09-25（Asia/Shanghai）按 Web → Android → iOS 执行：Web `npm run demo:compose --workspace=finance-tracker-web`（镜像 init script）、Vitest、TypeScript、Chrome Playwright；Android `:shared:testAndroidHostTest :shared:compileAndroidDeviceTest :androidApp:assembleDebug` 与 `:shared:connectedAndroidDeviceTest`；iOS `:shared:iosSimulatorArm64Test :shared:linkDebugFrameworkIosSimulatorArm64` 及 `xcodebuild ... Debug build`；最终 OpenSpec strict 36/36、doctor 和 diff check 通过。未解决风险为 iOS F-05 无本地选择样本、10×3×3 parity matrix 未完成、导入峰值/性能未测、HTTPS Universal Links 未配正式域名/签名。
+- [x] 7.1 记录本地交付状态：当前分支 `refactor/kmp`，`HEAD=e716c01f945350daaf03590d648adeb9a7e12afb`，比较基线 `beda546f6fcf2e3a69634af38d9afe54d459260b`，本轮工作树有未提交改动；本轮不新增提交/推送，不配置 Render、不部署。Compose Web preview 与本地 FastAPI demo 保持运行。2026-09-26 按 Web → Android → iOS 重跑受影响共享测试、原生构建和 iOS locale；当前未完成项见 6.12、6.13、6.15、6.16、5.6/5.8。旧 React/Expo 仍保留，待三端验收与 parity 完成后才按 7.5 文件清单退场。
 - [x] 7.2 不适用：用户要求只完成 demo 开发和本地启动，本次不配置 Render、云端托管或线上回滚。
 - [x] 7.3 本地 demo 已验证 Native `finance-tracker://invite/<token>`；真实 HTTPS App Links/Universal Links 域名关联与正式签名材料属于线上分发条件，不纳入本次本地交付。
-- [x] 7.4 本次仅交付本地工作树和验证记录；无提交、推送、生产部署、流量切换或旧目录删除。
-- [ ] 7.5 Compose 三端验收后生成旧 React、Expo 与 TypeScript shared packages 的准确删除清单；将其交用户批准后才执行退场。
+- [x] 7.4 仅执行本地开发和验证；不部署 Render/云端、不切换线上入口。提交/推送遵守现有分支授权边界。
+- [ ] 7.5 三端功能与 6.10–6.17 验收完成后，按下列精确路径退场旧客户端。保留 Compose Web demo 所需的 `web/scripts/start-compose-demo.mjs`、`web/tests/compose-preview-server.mjs`、`web/tests/compose-preview-proxy.node-test.mjs`、`web/tests/compose-fixtures.ts`、`web/tests/compose-access.e2e.ts`、`web/tests/compose-pages.e2e.ts` 和 `web/playwright.compose.config.ts`。
+  - Expo：`mobile/` 下全部已跟踪文件。
+  - TypeScript shared packages：`packages/api-client/`、`packages/contracts/`、`packages/core/`、`packages/design-tokens/`、`packages/presentation/` 下全部已跟踪文件。
+  - React Web app：`web/src/` 下全部已跟踪文件、`web/index.html`、`web/vite.config.ts`、`web/playwright.config.ts`、`web/playwright.preview.config.ts`、`web/playwright.visual.config.ts`。
+  - React Web tests/config：`web/tests/AccessApp.test.tsx`、`CashCategoriesPage.test.tsx`、`CashImportPage.test.tsx`、`CashLedgerPage.test.tsx`、`CashTable.test.tsx`、`InvestmentLedgerPage.test.tsx`、`accessibility.test.tsx`、`api-access.test.ts`、`app-shell.test.tsx`、`cash-category-management.e2e.ts`、`cash-ledger.e2e.ts`、`cash-ledger.visual.e2e.ts`、`cash-ledger.visual.e2e.ts-snapshots/` 下全部快照、`index-html.test.ts`、`pdfPassword.test.ts`、`presentation-parity.test.tsx`、`preview-api-server.mjs`、`render-spa-config.test.ts`、`runtime-preview.e2e.ts`、`runtime.test.tsx`、`setup.ts`、`workspace-entry.e2e.ts`、`workspace-navigation.e2e.ts`、`workspace-routing.test.ts`、`web/tests/playwright.visual.config.ts`。
+  - Expo-only CI：`.github/workflows/mobile-ci.yml`。
+  - 同步精简根 `package.json`、`web/package.json`、`package-lock.json`、`README.md`、`.github/workflows/pr-checks.yml` 和 `.gitignore`；保留 FastAPI/backend、Compose Gradle 工程和 Compose Web production preview/Chrome E2E 工具。仅在功能地图、10×3×3 parity、三端构建及最终 diff 均通过后删除。
 
 ## 8. 反思
 
 - [ ] 8.1 记录 Wasm、Material 3、跨端测试中可复用的工具或规则，并把必要变更回写项目文档、主规格或工作流规则。
-- [x] 8.2 代码盘点：Compose production Kotlin 共 8,349 行（`commonMain` 7,705 行；含 Android/iOS/JS/Wasm 与 app 壳；不含 Swift、测试和生成资源）。验证规模：共享 commonTest 有 64 个 `@Test` 声明，Android host 65/65、Android device 67/67、Web Vitest 152/152、Chrome E2E 24/24；iOS Simulator shared-test task 通过。缺口：iOS 文件选择→扫描→确认没有可选样本，6.5 的 10 功能×3 平台×3 尺寸完整 parity matrix 与 6.7 启动/滚动/大文件内存峰值未完成；真实 HTTPS App/Universal Links 与线上部署不属于本地 demo 范围。
+- [x] 8.2 历史代码盘点（2026-09-25）：Compose production Kotlin 共 8,349 行（`commonMain` 7,705 行；含 Android/iOS/JS/Wasm 与 app 壳；不含 Swift、测试和生成资源）。当时 shared commonTest 64 个 `@Test` 声明，Android host 65/65、Android device 67/67、Web Vitest 152/152、Chrome E2E 24/24；iOS Simulator shared-test task 通过。缺口仍有 iOS F-05 全路径、10×3×3 parity 和性能/大文件峰值；分层重构后的行数和测试数由 8.3 重新盘点。
+- [ ] 8.3 重构里程碑反思：复盘 7,700 行共享层迁移后的实际 Kotlin 行数、文件最大行数、层间依赖检查、ViewModel/Repository/UseCase 覆盖、commonTest/Android/iOS/Web Chrome 用例数量、Compose Resources 覆盖率与日志隐私回归；总结可复用的构建/QA 做法，并在 6.17 与最终 diff 记录中回写未解决事项。
 
 ## 执行证据
 

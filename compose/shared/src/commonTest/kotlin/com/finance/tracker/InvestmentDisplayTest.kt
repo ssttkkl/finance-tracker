@@ -1,5 +1,10 @@
 package com.finance.tracker
 
+import com.finance.tracker.app.*
+import com.finance.tracker.core.*
+import com.finance.tracker.domain.*
+import com.finance.tracker.presentation.*
+
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -27,13 +32,13 @@ class InvestmentDisplayTest {
 
     @Test
     fun holdingsMergeAndSortWithoutBinaryFloatingPoint() {
-        val accounts = listOf(AccountDto(1, "Broker A", "investment"), AccountDto(2, "Broker B", "investment"))
-        val portfolio = PortfolioDto(accounts = listOf(
-            PortfolioAccountDto("Broker A", "USD", listOf(
+        val accounts = listOf(Account(1, "Broker A", "investment"), Account(2, "Broker B", "investment"))
+        val portfolio = Portfolio(accounts = listOf(
+            PortfolioAccount("Broker A", "USD", listOf(
                 position("AAPL", shares = "2", cost = "20", price = "12", value = "24", profit = "4", quoteAt = "2026-09-24T12:00:00Z"),
                 position("MSFT", shares = "1", cost = "30", price = "50", value = "50", profit = "20"),
             )),
-            PortfolioAccountDto("Broker B", "USD", listOf(
+            PortfolioAccount("Broker B", "USD", listOf(
                 position("AAPL", shares = "1", cost = "12", price = "15", value = "15", profit = "3", quoteAt = "2026-09-25T12:00:00Z"),
             )),
         ))
@@ -54,15 +59,15 @@ class InvestmentDisplayTest {
 
     @Test
     fun selectedAccountSummaryUsesExactValuesAndRetainsKnownQuotes() {
-        val account = AccountDto(1, "Broker A", "investment")
+        val account = Account(1, "Broker A", "investment")
         val oldPosition = position("AAPL", shares = "2", cost = "20", price = "12", value = "24", profit = "4", quoteAt = "2026-09-24T12:00:00Z")
-        val previous = PortfolioDto(
-            accounts = listOf(PortfolioAccountDto("Broker A", "USD", listOf(oldPosition))),
+        val previous = Portfolio(
+            accounts = listOf(PortfolioAccount("Broker A", "USD", listOf(oldPosition))),
             totalMarketValue = "24",
             totalProfit = "4",
         )
         val incomingPosition = oldPosition.copy(currentPrice = null, marketValue = null, profit = null)
-        val incoming = PortfolioDto(accounts = listOf(PortfolioAccountDto("Broker A", "USD", listOf(incomingPosition))))
+        val incoming = Portfolio(accounts = listOf(PortfolioAccount("Broker A", "USD", listOf(incomingPosition))))
 
         val retained = retainKnownInvestmentValuation(previous, incoming)
         val summary = investmentDisplayData(retained, listOf(account), InvestmentDisplayOptions(accountId = "1"))
@@ -76,41 +81,41 @@ class InvestmentDisplayTest {
 
     @Test
     fun investmentEventLabelsAndAssetDirectionsMatchTheWebPresentation() {
-        val event = InvestmentEventDto(
+        val event = InvestmentEvent(
             eventId = "event-1",
             occurredAt = "2026-09-25T10:30:00Z",
-            account = AccountDto(1, "Broker", "investment"),
+            account = Account(1, "Broker", "investment"),
             recordType = "trade",
             currency = "USD",
-            fromAsset = InvestmentAssetDto("USD", "10.25"),
-            toAsset = InvestmentAssetDto("AAPL", "1"),
+            fromAsset = InvestmentAsset("USD", "10.25"),
+            toAsset = InvestmentAsset("AAPL", "1"),
             recordId = "record-1",
         )
 
-        assertEquals("买入", eventTitle(event))
-        assertEquals(listOf("流出" to "−10.25 USD", "流入" to "+1 AAPL"), investmentAssetLines(event))
+        assertEquals("copy_839b83828f", investmentEventTitleResourceKey(event))
+        assertEquals(listOf("copy_e3863e1f11" to "−10.25 USD", "copy_db47592d34" to "+1 AAPL"), investmentAssetLineFacts(event))
     }
 
     @Test
     fun investmentEvidenceAvoidsDuplicateCashFactsAndAddsSourceContext() {
-        val account = AccountDto(1, "现金", "cash")
-        val event = InvestmentEventDto(
+        val account = Account(1, "现金", "cash")
+        val event = InvestmentEvent(
             eventId = "event-2",
             occurredAt = "2026-09-25T10:30:00Z",
-            account = AccountDto(2, "Broker", "investment"),
+            account = Account(2, "Broker", "investment"),
             recordType = "funding",
             currency = "USD",
-            fromAsset = InvestmentAssetDto("USD", "-100"),
+            fromAsset = InvestmentAsset("USD", "-100"),
             sourceType = "import",
             recordId = "record-2",
         )
         val relations = listOf(
-            InvestmentRelationDto(
+            InvestmentRelation(
                 kind = "cash_investment_funding", status = "accepted", direction = "investment_to_cash",
                 cashAccount = account, cashAmount = "100", cashCurrency = "USD",
                 cashOccurredAt = event.occurredAt, cashRecordId = "cash-1",
             ),
-            InvestmentRelationDto(
+            InvestmentRelation(
                 kind = "cash_investment_funding", status = "accepted", direction = "cash_to_investment",
                 cashAccount = account, cashAmount = "10", cashCurrency = "USD",
                 cashOccurredAt = "2026-09-25T10:45:00Z", cashRecordId = "cash-2",
@@ -118,11 +123,11 @@ class InvestmentDisplayTest {
         )
 
         val facts = investmentEvidenceFacts(event, relations)
-        assertEquals(listOf("现金账户", "现金金额", "现金时间", "备注"), facts.map(InvestmentEvidenceFact::label))
+        assertEquals(listOf("investment_fact_cash_account", "investment_fact_cash_amount", "investment_fact_cash_time", "investment_fact_note"), facts.map(InvestmentEvidenceFact::labelResourceKey))
         assertEquals("现金", facts[0].value)
         assertEquals("−10 USD", facts[1].value)
         assertTrue(Regex("^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}$").matches(facts[2].value))
-        assertEquals("导入记录", facts[3].value)
+        assertEquals("copy_6d33d6cd64", facts[3].valueResourceKey)
     }
 
     @Test
@@ -146,7 +151,7 @@ class InvestmentDisplayTest {
         value: String,
         profit: String,
         quoteAt: String? = null,
-    ) = PortfolioPositionDto(
+    ) = PortfolioPosition(
         ticker = ticker,
         shares = shares,
         totalCost = cost,

@@ -1,5 +1,11 @@
 package com.finance.tracker
 
+import com.finance.tracker.app.*
+import com.finance.tracker.core.*
+import com.finance.tracker.data.*
+import com.finance.tracker.domain.*
+import com.finance.tracker.presentation.*
+
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -31,11 +37,11 @@ class CashRelationLogicTest {
     @Test
     fun categoryMovesStayWithinTheirSiblingGroup() {
         val items = listOf(
-            CashCategoryDto("root-a", name = "甲", depth = 1),
-            CashCategoryDto("child-a", parentId = "root-a", name = "甲一", depth = 2),
-            CashCategoryDto("root-b", name = "乙", depth = 1),
-            CashCategoryDto("child-b", parentId = "root-b", name = "乙一", depth = 2),
-            CashCategoryDto("child-b2", parentId = "root-b", name = "乙二", depth = 2),
+            CashCategory("root-a", name = "甲", depth = 1),
+            CashCategory("child-a", parentId = "root-a", name = "甲一", depth = 2),
+            CashCategory("root-b", name = "乙", depth = 1),
+            CashCategory("child-b", parentId = "root-b", name = "乙一", depth = 2),
+            CashCategory("child-b2", parentId = "root-b", name = "乙二", depth = 2),
         )
 
         assertFalse(categoryCanMove(items, "child-a", "before"))

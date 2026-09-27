@@ -32,28 +32,8 @@ if (!existsSync(path.join(bundleRoot, "webApp.js"))) {
 }
 
 createServer((request, response) => {
-  if (request.method !== "GET" && request.method !== "HEAD") {
-    response.writeHead(405).end("Method not allowed");
-    return;
-  }
-  const sendBody = request.method === "GET";
-
   const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
   const pathname = requestUrl.pathname;
-  if (pathname === "/health") {
-    response.writeHead(200, { "content-type": "text/plain; charset=utf-8", "content-length": 2 }).end(sendBody ? "ok" : undefined);
-    return;
-  }
-
-  if (pathname === "/config.js") {
-    const body = Buffer.from(`window.FT_API_ORIGIN = window.FT_API_ORIGIN || ${JSON.stringify(configuredApiOrigin)};`);
-    response.writeHead(200, {
-      "content-type": "text/javascript; charset=utf-8",
-      "content-length": body.byteLength,
-      "cache-control": "no-store",
-    }).end(sendBody ? body : undefined);
-    return;
-  }
 
   if (pathname === "/api" || pathname.startsWith("/api/")) {
     const upstreamUrl = new URL(`${pathname}${requestUrl.search}`, apiProxyOrigin);
@@ -73,6 +53,27 @@ createServer((request, response) => {
       response.end(JSON.stringify({ error: { code: "local_api_unavailable" } }));
     });
     request.pipe(upstream);
+    return;
+  }
+
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    response.writeHead(405).end("Method not allowed");
+    return;
+  }
+  const sendBody = request.method === "GET";
+
+  if (pathname === "/health") {
+    response.writeHead(200, { "content-type": "text/plain; charset=utf-8", "content-length": 2 }).end(sendBody ? "ok" : undefined);
+    return;
+  }
+
+  if (pathname === "/config.js") {
+    const body = Buffer.from(`window.FT_API_ORIGIN = window.FT_API_ORIGIN || ${JSON.stringify(configuredApiOrigin)} || window.location.origin;`);
+    response.writeHead(200, {
+      "content-type": "text/javascript; charset=utf-8",
+      "content-length": body.byteLength,
+      "cache-control": "no-store",
+    }).end(sendBody ? body : undefined);
     return;
   }
 

@@ -38,10 +38,28 @@ Web、Android 和 iOS MUST 使用同一套由逻辑窗口宽度决定的 `Window
 - **THEN** 迁移验收 MUST 将该任务标记为未完成
 - **AND** 不得以其他平台通过或静态页面存在替代真实流程验证
 
+## ADDED Requirements
+
+### Requirement: 三端本地化文案与操作反馈保持语义一致
+
+Compose Web、Android 和 iOS MUST 为同一页面区域、操作、表单字段、辅助技术名称及加载、空、成功、错误状态提供语义等价的简体中文和英语文案。用户选择的系统或浏览器语言相同且属于已支持语言时，三端 MUST 显示同一语义的对应翻译；平台控件表面不同不得改变选项标签、确认提示、错误恢复动作或结果说明。
+
+#### Scenario: 同一语言下比较三端页面文案
+
+- **WHEN** parity journey 在 Web、Android 和 iOS 上以同一种受支持语言打开同一功能
+- **THEN** 相同语义的标题、操作、字段、状态和辅助技术名称 MUST 使用语义等价的翻译
+- **AND** 不得出现一端遗漏、使用另一种语言或暴露原始资源键的固定文案
+
+#### Scenario: 同一 API 错误在三端显示
+
+- **WHEN** 同一操作在 Web、Android 和 iOS 收到同类可恢复 API 错误
+- **THEN** 每端 MUST 使用当前语言显示语义相同的恢复提示
+- **AND** 平台控件不同不得改变重试、取消或保留输入的时机和结果
+
 ## REMOVED Requirements
 
 ### Requirement: Platform differences and unsupported surfaces are explicit
 
 **Reason**: 用户已把目标范围调整为 Compose Web、Android 和 iOS 均覆盖 Web 当前全部 10 项页面级功能。原来把分类管理、投资账本和工作区管理登记为 Native 缺口的要求不再符合目标合同。
 
-**Migration**: 由 `compose-multiplatform-client` 的「三个平台都提供 Web 的全部页面级功能」及「平台控件差异保留相同用户语义」替代。迁移期间旧 Expo 客户端仍作为回退；Compose 验收后才退场。
+**Migration**: 由 `compose-multiplatform-client` 的「三个平台都提供 Web 的全部页面级功能」及「平台控件差异保留相同用户语义」替代。迁移期间旧 React Web、Expo Native 和 TypeScript 共享包仍作为回退；三端 Compose 验收后按任务中记录的精确文件清单退场。

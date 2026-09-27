@@ -1,5 +1,11 @@
 package com.finance.tracker
 
+import com.finance.tracker.app.*
+import com.finance.tracker.core.*
+import com.finance.tracker.data.*
+import com.finance.tracker.domain.*
+import com.finance.tracker.presentation.*
+
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.engine.mock.MockRequestHandleScope

@@ -1,5 +1,11 @@
 package com.finance.tracker
 
+import com.finance.tracker.app.*
+import com.finance.tracker.core.*
+import com.finance.tracker.data.*
+import com.finance.tracker.domain.*
+import com.finance.tracker.presentation.*
+
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -23,8 +29,8 @@ class AppNavigationTest {
 
     @Test
     fun invitationAndUnknownRoutesHaveTitlesButAreNotPrimaryNavigation() {
-        assertEquals("接受邀请", titleFor(AppPage.INVITATION))
-        assertEquals("页面不存在", titleFor(AppPage.NOT_FOUND))
+        assertEquals("navigation_invitation", titleKeyFor(AppPage.INVITATION))
+        assertEquals("navigation_not_found", titleKeyFor(AppPage.NOT_FOUND))
         assertFalse(appDestinations.any { it.page == AppPage.INVITATION })
         assertFalse(appDestinations.any { it.page == AppPage.NOT_FOUND })
     }
@@ -41,6 +47,7 @@ class AppNavigationTest {
     fun everyPrimaryDestinationHasAStableSemanticId() {
         assertTrue(appDestinations.all { it.semanticId.startsWith("navigation-item-") })
         assertEquals(appDestinations.size, appDestinations.map(AppDestination::semanticId).toSet().size)
+        assertTrue(appDestinations.all { it.titleKey.startsWith("navigation_") })
     }
 
     @Test
