@@ -12,6 +12,8 @@
 
 ## 本地 bootstrap
 
+pen.dev CLI 需要 Node.js 22.19+；其余仓库 Node 工作流仍以根 `package.json` 声明的 20.19+ 为准。
+
 ```bash
 npm install --global @pen.dev/cli
 pen version

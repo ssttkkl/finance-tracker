@@ -12,7 +12,7 @@
 
 ## 环境准备
 
-需要 Python 3.11+、`uv`、Node.js 20.19+，以及 PostgreSQL 或本地可写 SQLite 路径。
+需要 Python 3.11+、`uv`、Node.js 20.19+，以及 PostgreSQL 或本地可写 SQLite 路径。pen.dev CLI 另需 Node.js 22.19+，详见 [`design/README.md`](design/README.md)。
 
 ```bash
 uv sync

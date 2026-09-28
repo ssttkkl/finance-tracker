@@ -16,7 +16,6 @@ concurrency:
 
 env:
   NODE_VERSION: "24"
-  PEN_CLI_VERSION: "0.3.9"
 
 jobs:
   compose:
@@ -71,12 +70,16 @@ jobs:
       - name: Run pen.dev validation and export
         if: ${{ env.PEN_CLI_KEY != '' }}
         run: |
-          npx --no-install pen status
+          if ! npx --no-install pen status >/dev/null 2>&1; then
+            echo "pen.dev authentication check failed"
+            exit 1
+          fi
           export_dir="$RUNNER_TEMP/pen-export"
           mkdir -p "$export_dir"
           for source in design/finance-design-system.lib.pen design/login.pen; do
             label="$(basename "$source" .pen)"
             commands_file="$RUNNER_TEMP/pen-$label.commands"
+            before_count="$(find "$export_dir" -maxdepth 1 -name '*.png' | wc -l | tr -d ' ')"
             node - "$source" "$export_dir" > "$commands_file" <<'NODE'
           const fs = require('node:fs');
           const [source, exportDir] = process.argv.slice(2);
@@ -87,9 +90,10 @@ jobs:
           process.stdout.write(`execute({input: ${JSON.stringify(input)}})\nexit()\n`);
           NODE
             npx --no-install pen interactive --in "$source" --out "$RUNNER_TEMP/$label.pen" < "$commands_file"
-            test "$(find "$export_dir" -maxdepth 1 -name '*.png' | wc -l | tr -d ' ')" -ge 1
+            after_count="$(find "$export_dir" -maxdepth 1 -name '*.png' | wc -l | tr -d ' ')"
+            test "$((after_count - before_count))" -eq "$(node -e 'const fs=require("node:fs");const document=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(String((document.children||[]).filter((node)=>node.type==="frame").length))' "$source")"
           done
 
       - name: Record pen.dev validation skip
         if: ${{ env.PEN_CLI_KEY == '' }}
-        run: echo "pen.dev validation skipped: PEN_CLI_KEY is not configured"
+        run: echo "pen.dev validation skipped (PEN_CLI_KEY is not configured)"
