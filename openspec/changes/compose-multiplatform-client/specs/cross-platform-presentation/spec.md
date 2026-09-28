@@ -56,10 +56,19 @@ Compose Web、Android 和 iOS MUST 为同一页面区域、操作、表单字段
 - **THEN** 每端 MUST 使用当前语言显示语义相同的恢复提示
 - **AND** 平台控件不同不得改变重试、取消或保留输入的时机和结果
 
+### Requirement: 设计合同跨端共享，视觉实现允许平台差异
+
+Web、Android 和 iOS MUST 共享同一页面合同、token 名称、组件语义 ID、状态集合和响应式不变量；`.pen` 视觉设计作为跨端参考，允许系统状态栏、原生选择器和字体栅格化存在平台差异。任何差异 MUST 在页面合同或平台差异清单中声明，不得改变字段、操作、确认语义、错误恢复或业务结果。
+
+#### Scenario: 登录页在三端使用同一合同
+- **WHEN** Web、Android 和 iOS 打开登录页
+- **THEN** 三端 MUST 提供同一组邮箱/密码字段、登录/注册切换、提交、校验和错误恢复语义
+- **AND** compact/regular/wide 的信息顺序和主要操作 MUST 与 `design/login.pen` 及页面合同一致
+
 ## REMOVED Requirements
 
 ### Requirement: Platform differences and unsupported surfaces are explicit
 
 **Reason**: 用户已把目标范围调整为 Compose Web、Android 和 iOS 均覆盖 Web 当前全部 10 项页面级功能。原来把分类管理、投资账本和工作区管理登记为 Native 缺口的要求不再符合目标合同。
 
-**Migration**: 由 `compose-multiplatform-client` 的「三个平台都提供 Web 的全部页面级功能」及「平台控件差异保留相同用户语义」替代。迁移期间旧 React Web、Expo Native 和 TypeScript 共享包仍作为回退；三端 Compose 验收后按任务中记录的精确文件清单退场。
+**Migration**: 由 `compose-multiplatform-client` 的「三个平台都提供 Web 的全部页面级功能」及「平台控件差异保留相同用户语义」替代。旧 React Web、Expo Native 和 TypeScript 共享包保留为迁移参考，但立即移出主动工作流；删除旧源码或切换线上入口另行决策。

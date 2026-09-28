@@ -1,7 +1,7 @@
 ## 1. 思考
 
 - [x] 1.1 阅读 `openspec/project-context.md`、领域词表、相关主规格、功能地图、Web/Native 页面与客户端 packages；确认 FastAPI、API 和数据库不在范围内。
-- [x] 1.2 完成 `$grill-me` / `$grilling` 需求访谈；用户确认三端 10 项功能、原 URL/邀请链接、Material 3 + Cobalt、系统深色模式、`WindowSizeClass` 阈值、global layer-first + ViewModel/StateFlow、严格 DTO/Domain 映射、中英 Compose Resources 自动选语言、可恢复错误提示与脱敏本地日志、先完成功能再按 Web/Android/iOS 验收，以及验收后按文件清单退场旧客户端。
+- [x] 1.2 完成 `$grill-me` / `$grilling` 需求访谈；用户确认三端 10 项功能、原 URL/邀请链接、Material 3 + Cobalt、系统深色模式、`WindowSizeClass` 阈值、global layer-first + ViewModel/StateFlow、严格 DTO/Domain 映射、中英 Compose Resources 自动选语言、可恢复错误提示与脱敏本地日志、Compose 唯一主动工作流、pen.dev 双层接入、`ui-spec` token 事实源和登录页首个设计样板。
 - [x] 1.3 记录 Compose Web 技术基线：Kotlin/Wasm 仍为 Beta；Chrome/Edge 119+、Safari 18.2+；默认浏览器导航使用 hash，因此须以真实 Compose 切片验证自定义 path/history。
 
 ## 2. 计划
@@ -63,10 +63,10 @@
 
 ### 4.6 本地 demo 构建与启动
 
-- [x] 4.6.1 增加 `npm run demo:compose --workspace=finance-tracker-web`，构建 `wasmJs` production distribution 并启动支持 SPA 深链回退的本地预览；未设置 `FT_API_ORIGIN` 时，客户端使用预览同源地址，由代理转发到 `FT_API_PROXY_ORIGIN` 指定的 FastAPI；代理 origin 默认 `127.0.0.1:8000`。Chrome 本地预览与真实注册 POST 实测见 6.10。Cross-platform Impact Check：本次只修复 Web 本地 API origin 与代理连接；Android/iOS app 与 FastAPI/API 合同无改动。
+- [x] 4.6.1 增加 `npm run compose:demo`，构建 `wasmJs` production distribution 并启动支持 SPA 深链回退的本地预览；未设置 `FT_API_ORIGIN` 时，客户端使用预览同源地址，由代理转发到 `FT_API_PROXY_ORIGIN` 指定的 FastAPI；代理 origin 默认 `127.0.0.1:8000`。Chrome 本地预览与真实注册 POST 实测见 6.10。Cross-platform Impact Check：本次只修复 Web 本地 API origin 与代理连接；Android/iOS app 与 FastAPI/API 合同无改动。
 - [x] 4.6.2 在根 `README.md` 和 `compose/README.md` 记录本地 Compose Web demo 命令、Android emulator 与 iOS Simulator 的运行方法、API origin 和可选仓库外 Gradle init script；CI、Render 与云端部署不属于本次 demo 范围。
-- [x] 4.6.3a 更新 `docs/feature-map.md`，分别记录 React/Expo 现状和 Compose F-01 至 F-10 实现证据；明确三端 QA 尚未完成，并保留旧 Expo 的 ALIGN-N TODO。
-- [x] 4.6.3b 先保留旧 React/Expo 源码和线上入口，直至三端 Compose 验收完成；退场在本变更内执行，任务清单与精确文件范围见 7.5。
+- [x] 4.6.3a 更新 `docs/feature-map.md`，将 Compose F-01 至 F-10 登记为主动实现证据；旧 React/Expo 仅标记为 legacy 参考，不再作为主动实现或验证入口，保留既有 ALIGN-N 历史说明。
+- [x] 4.6.3b 保留旧 React/Expo 源码、manifest 和线上入口作为迁移参考，但立即移出根 workspace、默认依赖、CI、启动命令和功能地图主动统计；源码删除和线上入口切换另行决策。
 - [x] 4.6.4 先新增 `node --test web/tests/compose-preview-proxy.node-test.mjs`，修复前得到 `405 !== 422` 且假 API 未收到请求；修复方法门禁后验证注册 POST 的 path/query/body/content-type 到达假 API，`422` 状态与 JSON body 原样返回。随后真实 Chrome 注册流程发现空 `FT_API_ORIGIN` 会令客户端在发送 POST 前拒绝请求；改为默认使用 preview 同源，并由该 Node 测试检查 `/config.js` 的默认值。Chrome 真实 FastAPI 注册请求和 Node 1/1 通过，记录于 6.10。
 
 ### 4.7 共享客户端分层与状态管理
@@ -105,6 +105,20 @@
 - [x] 4.9.4 新增脱敏、限时、容量、最旧优先删除和存储失败不阻断业务的测试；含邮箱、密码、令牌、金额和账单正文的虚构异常在白名单记录边界回归中均不出现在 sinks；平台适配器实测仍见 6.14。
 - [x] 4.9.5 执行 Cross-platform Impact Check：共享错误提示与日志记录逻辑影响 Web/Android/iOS；`localStorage`、Logcat/私有文件、iOS 系统日志/私有存储由各 target adapter 提供；平台文件/日期选择器保持值、确认语义、错误和结果一致；FastAPI/API 不变。
 
+### 4.10 pen.dev 设计工作区与 token 合同
+
+- [x] 4.10.1 建立 `ui-spec/tokens/`、`ui-spec/components/`、`ui-spec/patterns/` 和 `ui-spec/screens/` 目录；用 `ui-spec/tokens/*.json` 固定跨平台 token 事实源，并为登录/注册页写出字段、操作、权限、正常/加载/空/错误/禁用/成功状态及 compact/regular/wide 约束。
+- [x] 4.10.2 安装并固定 `@pen.dev/cli` 版本，提供 `pen status`、本地 `pen interactive`、Codex MCP bootstrap 和 CI `PEN_CLI_KEY` 配置说明；不提交 session、CLI key、模型 key 或 workspace 私密信息。已核验 `pen 0.3.9`、认证状态和 Personal workspace；凭据留在用户目录。
+- [x] 4.10.3 通过官方 pen CLI/MCP 生成合法的 `design/finance-design-system.lib.pen` 与 `design/login.pen`，包含登录/注册切换、校验错误、服务错误、提交中/禁用及 light/dark、compact/regular/wide 视觉状态；记录生成命令和认证前置条件。
+- [x] 4.10.4 实现确定性 token 生成器：从 `ui-spec/tokens/*.json` 生成 Compose Kotlin token 和 pen.dev 变量同步清单；生成器不得直接修改 `.pen` 内部节点 JSON，并添加稳定输出检查。
+- [x] 4.10.5 更新 `docs/ui-design-rules.md` 引用的工作流说明、根 README、Compose README 和 `docs/feature-map.md`，明确 Spec → `.pen` → Compose 的关系、登录样板入口和旧端 legacy 边界。
+
+### 4.11 Compose 主动工作流切换
+
+- [x] 4.11.1 从根 `package.json` 和 lockfile 移除 `web`/`mobile` workspace、Expo/React 默认依赖及旧启动命令；保留旧端目录和 manifest，不让根安装流程解析其依赖。干净 `npm ci --no-audit --no-fund` 通过，lockfile 不含 legacy workspace 或 Expo/React 包。
+- [x] 4.11.2 用 `.github/workflows/compose-ci.yml` 替换 `.github/workflows/mobile-ci.yml`，执行 Compose 共享测试、Web/Android/iOS 适用构建，并在 `PEN_CLI_KEY` 存在时运行 pen CLI 校验/导出；无 key 时非阻断跳过且输出明确原因。`pr-checks.yml` 的客户端 job 已同步切换。
+- [x] 4.11.3 清理 `.devcontainer` 的 Expo 端口和环境变量，更新 `docs/feature-map.md` 将 Compose 标为主动实现、React/Expo 标为 legacy 参考，并更新根 README 的启动、能力表和安全存储描述。
+
 ## 5. 审查
 
 - [x] 5.1 历史产品范围复核：初始迁移范围为 10 项 Web 功能、三端入口、Material 3/Cobalt、窗口分类与原 URL；本次执行合同另扩展到共享层重构、双语资源、错误分类/本地日志、demo POST 代理修复以及验收后退场。最终范围复核待 5.5。
@@ -115,6 +129,7 @@
 - [ ] 5.6 工程与安全复核：独立检查 `presentation→domain`、`data→domain`、`app` 手动装配依赖方向，Domain 无 Compose/Ktor/JSON，DTO mapper 完整；验证异常不携带到 UI/log message、所有日志 sink 白名单字段、30 天/1 MiB oldest-first 回收与 POST 代理隔离。
 - [x] 5.7 最终 UI 复核：当前运行时未暴露可调用的 Hallmark `audit` 动作，未运行 CLI；按本地 Hallmark audit 规则及 `docs/ui-design-rules.md` 人工检查截图。范围：Web F-03/F-05/F-08 的 390/1440 px 浅/深截图；Android compact 登录、F-05 导入、F-07 分类、F-08 持仓深色、F-10 工作区；iPhone 17 邀请/错误态/英语与未支持语言回退、iPad 11 分类/事件、iPad 13 持仓深色/工作区宽屏。Finding：0 critical、0 major、1 minor。Minor：Web 1440 px 收支账本筛选区按 4 组纵向展示，首屏只能看到首条流水的一部分（`CashLedgerScreen.kt:273–289`）；接受当前布局，保留完整筛选项可见与跨端顺序一致，后续可再评估收起低频筛选。无 major，因此不需要修复后复审。该记录为人工审查，不声称运行了 Hallmark 工具动作。
 - [ ] 5.8 由非实施上下文复核最终 diff 与 OpenSpec；检查旧客户端清单、依赖删除、构建脚本/CI、feature map、无新增后端合同、无错误地暴露异常内容以及所有未勾选 task 的原因。
+- [x] 5.9 独立复核 pen.dev 接入：确认 `.pen` 由官方 CLI/MCP 生成、token 事实源没有重复定义、CLI secrets 不入 Git、旧端仅退出主动工作流且没有误删源码；finding：0 critical、0 major、0 minor。`.pen` 仅通过 interactive MCP 生成，token 生成器只写 Kotlin/变量清单；凭据和 workspace 信息未入仓库。
 
 ## 6. 测试与 QA
 
@@ -143,26 +158,22 @@
 - [x] 6.15.1 国际化 locale 冒烟：Chrome 与 Android 已验证 `zh-CN`、`en-US` 和未支持 locale 回退；2026-09-26 在 iPhone 17 Simulator 全局语言切换为 `en-US` 与 `fr-FR`，分别看到英文账本过滤界面和简体中文回退，之后恢复原 `zh-Hans-CN` 系统语言。截图见 6.12。该抽样不覆盖 F-01–F-10 所有状态/无障碍标签，故 6.15 仍未完成。
 - [ ] 6.16 性能与发布前安全：测 Wasm/JS/APK/iOS 产物、Chrome 首屏启动、大列表滚动和多文件 JSON/base64 峰值；扫描日志/fixtures/screenshots/build 产物无真实个人财务值、凭据或原始异常正文；记录命令、数据集和结果。
 - [x] 6.17 2026-09-26（Asia/Shanghai）运行 `openspec --version`（1.7.0）、`openspec validate --all --strict`（36/36）、`openspec doctor`（Root ok）、`git diff --check`（通过）；受影响验证为 Wasm 111/111、Android host 111/111、Android device 113/113、iOS Simulator 112/112、iOS framework link/Xcode Debug build 成功；Web 结果见 6.10（Vitest 152/152、TypeScript、proxy test 1/1、Chrome 154 E2E 28/28）。最终 `HEAD=e716c01f945350daaf03590d648adeb9a7e12afb`，比较基线 `beda546f6fcf2e3a69634af38d9afe54d459260b`；本轮未提交、推送或部署。未运行/未完成项及补跑条件：iOS F-05 在「打开」后仍停留系统 picker，须先在可交互 Simulator 会话确认选择器回调，再走扫描/映射/确认；6.13 的 90 格 parity、6.15 全功能多语言与无障碍标签核查、6.16 产物/启动/滚动/多文件内存测量仍需专项执行；5.6/5.8 工程安全及独立最终 diff 复核仍待完成。FastAPI 未变，数据库矩阵不适用。
+- [x] 6.18 pen.dev/规范验证：2026-09-28（Asia/Shanghai）运行 `pen version`（0.3.9）、`pen status`（Active，Personal workspace）、`npm run tokens:generate` 与生成物 `git diff --exit-code`；官方 interactive MCP 生成 `design/finance-design-system.lib.pen`、`design/login.pen`，JSON 结构均为 schema `2.19`，登录页 8 个顶层状态画布，最终画布由 `Export` 导出为 PNG。实测 CI 原 `pen --export` 会误入 Agent 模式，且传入 `document` 作为节点 ID 的导出失败；修订工作流改用各 `.pen` 文件的顶层 frame ID，通过 interactive shell 无模型导出。`npm run compose:test`、`openspec validate --all --strict` 36/36、干净 `npm ci --no-audit --no-fund`、`git diff --check` 通过。CI 在无 `PEN_CLI_KEY` 时准确记录非阻断跳过；本地未配置 CI key，不将该项当作 CI 远端执行证据。
 
 ## 7. 发布准备
 
-- [x] 7.1 记录本地交付状态：当前分支 `refactor/kmp`，`HEAD=e716c01f945350daaf03590d648adeb9a7e12afb`，比较基线 `beda546f6fcf2e3a69634af38d9afe54d459260b`，本轮工作树有未提交改动；本轮不新增提交/推送，不配置 Render、不部署。Compose Web preview 与本地 FastAPI demo 保持运行。2026-09-26 按 Web → Android → iOS 重跑受影响共享测试、原生构建和 iOS locale；当前未完成项见 6.12、6.13、6.15、6.16、5.6/5.8。旧 React/Expo 仍保留，待三端验收与 parity 完成后才按 7.5 文件清单退场。
+- [x] 7.1 记录交付状态：当前分支 `refactor/kmp`；用户授权本次提交并推送至同一分支。不配置 Render、不部署。Compose 是主动入口；旧 React/Expo 源码保留为参考，不按本变更自动删除或切换线上入口。
 - [x] 7.2 不适用：用户要求只完成 demo 开发和本地启动，本次不配置 Render、云端托管或线上回滚。
 - [x] 7.3 本地 demo 已验证 Native `finance-tracker://invite/<token>`；真实 HTTPS App Links/Universal Links 域名关联与正式签名材料属于线上分发条件，不纳入本次本地交付。
 - [x] 7.4 仅执行本地开发和验证；不部署 Render/云端、不切换线上入口。提交/推送遵守现有分支授权边界。
-- [ ] 7.5 三端功能与 6.10–6.17 验收完成后，按下列精确路径退场旧客户端。保留 Compose Web demo 所需的 `web/scripts/start-compose-demo.mjs`、`web/tests/compose-preview-server.mjs`、`web/tests/compose-preview-proxy.node-test.mjs`、`web/tests/compose-fixtures.ts`、`web/tests/compose-access.e2e.ts`、`web/tests/compose-pages.e2e.ts` 和 `web/playwright.compose.config.ts`。
-  - Expo：`mobile/` 下全部已跟踪文件。
-  - TypeScript shared packages：`packages/api-client/`、`packages/contracts/`、`packages/core/`、`packages/design-tokens/`、`packages/presentation/` 下全部已跟踪文件。
-  - React Web app：`web/src/` 下全部已跟踪文件、`web/index.html`、`web/vite.config.ts`、`web/playwright.config.ts`、`web/playwright.preview.config.ts`、`web/playwright.visual.config.ts`。
-  - React Web tests/config：`web/tests/AccessApp.test.tsx`、`CashCategoriesPage.test.tsx`、`CashImportPage.test.tsx`、`CashLedgerPage.test.tsx`、`CashTable.test.tsx`、`InvestmentLedgerPage.test.tsx`、`accessibility.test.tsx`、`api-access.test.ts`、`app-shell.test.tsx`、`cash-category-management.e2e.ts`、`cash-ledger.e2e.ts`、`cash-ledger.visual.e2e.ts`、`cash-ledger.visual.e2e.ts-snapshots/` 下全部快照、`index-html.test.ts`、`pdfPassword.test.ts`、`presentation-parity.test.tsx`、`preview-api-server.mjs`、`render-spa-config.test.ts`、`runtime-preview.e2e.ts`、`runtime.test.tsx`、`setup.ts`、`workspace-entry.e2e.ts`、`workspace-navigation.e2e.ts`、`workspace-routing.test.ts`、`web/tests/playwright.visual.config.ts`。
-  - Expo-only CI：`.github/workflows/mobile-ci.yml`。
-  - 同步精简根 `package.json`、`web/package.json`、`package-lock.json`、`README.md`、`.github/workflows/pr-checks.yml` 和 `.gitignore`；保留 FastAPI/backend、Compose Gradle 工程和 Compose Web production preview/Chrome E2E 工具。仅在功能地图、10×3×3 parity、三端构建及最终 diff 均通过后删除。
+- [x] 7.5 按用户决策取消本变更内的旧客户端源码删除清单；`mobile/`、`web/` 和 TypeScript shared packages 保留为迁移参考，只有根主动依赖图、CI、启动命令和功能地图主动统计退场。未来删除源码或切换线上入口必须另开明确变更。
 
 ## 8. 反思
 
 - [ ] 8.1 记录 Wasm、Material 3、跨端测试中可复用的工具或规则，并把必要变更回写项目文档、主规格或工作流规则。
 - [x] 8.2 历史代码盘点（2026-09-25）：Compose production Kotlin 共 8,349 行（`commonMain` 7,705 行；含 Android/iOS/JS/Wasm 与 app 壳；不含 Swift、测试和生成资源）。当时 shared commonTest 64 个 `@Test` 声明，Android host 65/65、Android device 67/67、Web Vitest 152/152、Chrome E2E 24/24；iOS Simulator shared-test task 通过。缺口仍有 iOS F-05 全路径、10×3×3 parity 和性能/大文件峰值；分层重构后的行数和测试数由 8.3 重新盘点。
 - [ ] 8.3 重构里程碑反思：复盘 7,700 行共享层迁移后的实际 Kotlin 行数、文件最大行数、层间依赖检查、ViewModel/Repository/UseCase 覆盖、commonTest/Android/iOS/Web Chrome 用例数量、Compose Resources 覆盖率与日志隐私回归；总结可复用的构建/QA 做法，并在 6.17 与最终 diff 记录中回写未解决事项。
+- [x] 8.4 记录 pen.dev 接入和 Compose 唯一工作流的可复用约定：`.pen` 版本管理、MCP/CLI 认证、token 生成、CI 跳过语义和旧端参考边界已写入 `design/README.md`、根 `README.md`、`proposal.md`、`design.md` 和本任务记录。
 
 ## 执行证据
 

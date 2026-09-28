@@ -5,12 +5,14 @@ This is a Kotlin Multiplatform project targeting Android, iOS, Web.
 在仓库根目录运行：
 
 ```sh
-npm run demo:compose --workspace=finance-tracker-web
+npm run compose:demo
 ```
 
 命令会构建 Wasm production distribution，并启动本地 SPA 预览，默认地址为 <http://127.0.0.1:5186/>；按 `Ctrl+C` 停止。预览服务器把同源 `/api/*` 请求转发到现有 FastAPI，默认目标为 `http://127.0.0.1:8000`，因此需要 API 流程时请另行启动仓库现有后端。可用 `FT_API_PROXY_ORIGIN=http://127.0.0.1:<端口>` 指向本机其他 API 端口，或用 `FT_COMPOSE_PREVIEW_PORT=<端口>` 更改 demo 端口。构建依赖需要镜像时，可通过 `FT_GRADLE_INIT_SCRIPT=/本机路径/gradle-mirror.init.gradle` 提供仓库外 Gradle init script。
 
 Android 可在 Android Studio 打开本目录并运行 `androidApp`；本机后端通过模拟器访问时，先执行 `adb reverse tcp:8000 tcp:8000`，再用构建参数 `ftApiOrigin=http://localhost:8000`。iOS 可在 Xcode 打开 `iosApp/iosApp.xcodeproj`，选择 `iosApp` scheme 和本地 Simulator 运行；需要 API 流程时，在 Debug Build Settings 将 `FT_API_ORIGIN` 设为 `http://localhost:8000`。这些步骤只运行本地 demo，不会启动或修改云端服务。
+
+设计工作区位于仓库根目录的 `design/`，语义合同和 token 位于 `ui-spec/`。登录样板使用 `design/login.pen`，组件库使用 `design/finance-design-system.lib.pen`；通过 pen.dev CLI/MCP 修改后，再按同一合同实现 Compose。
 
 * [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
   you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.

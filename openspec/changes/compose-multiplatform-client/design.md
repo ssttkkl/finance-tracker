@@ -143,3 +143,21 @@ Compose 产品文案统一进入 `compose/shared/src/commonMain/composeResources
 ## Open Questions
 
 本地 demo 使用已验证的 `finance-tracker://invite/<token>` Native scheme。真实 HTTPS App Links/Universal Links 关联域名和正式签名材料不包含在本次范围内；后续只有需要正式分发时再补充。
+
+### 10. 以 pen.dev 作为可视化设计工作区
+
+`ui-spec/` 是语义设计合同，`design/` 是可视化设计工作区，Compose `commonMain` 是运行实现。三者通过页面 ID、组件语义 ID、状态名和响应式不变量关联，不要求 DOM、Compose 节点和 `.pen` 节点逐一相同。
+
+- `ui-spec/tokens/*.json` 按 DTCG 风格保存颜色、字号、间距、圆角、触控目标和主题别名；该目录是唯一 token 事实源。
+- `ui-spec/components/`、`ui-spec/patterns/` 和 `ui-spec/screens/` 只记录语义、字段、操作、状态、权限和响应式约束，不记录只能在画布中表达的绝对坐标。
+- `design/finance-design-system.lib.pen` 是可复用组件和变量库；`design/login.pen` 是首个页面设计，覆盖登录/注册切换、正常、输入校验错误、服务端错误、提交中/禁用及 compact/regular/wide、light/dark 变体。
+- pen.dev Desktop/IDE 通过 MCP 读取和修改这些文件；CLI 的 `interactive` 模式用于无头确定性编辑，Agent 模式只在存在用户登录态或 CI secrets 时使用。
+- 不直接用 `sed`、JSON patch 或自定义脚本修改 `.pen` 内部节点 ID；token 生成器只产出 Kotlin token 和供 CLI/MCP 消费的变量清单，变量写入由官方工具完成。
+
+**替代方案：**把 `.pen` 当作唯一规格会让 API 状态、权限和跨端不变量无法审查；把 pen.dev 当作截图导出器又失去 Git/MCP 协作价值，因此采用语义合同、视觉文件和 Compose 实现三层分工。
+
+### 11. Compose 唯一主动工作流与旧端退场边界
+
+根 `package.json` 移除 `web`、`mobile` npm workspace、Expo/React 默认依赖和旧启动命令；`.github/workflows/mobile-ci.yml` 改为 Compose 主线工作流，执行 Gradle/Compose Web、Android、iOS 相关检查，并可选执行 pen CLI 校验。`.devcontainer` 不再暴露 Expo 端口或设置 Expo 环境变量。`web/`、`mobile/` 和 TypeScript 共享包源码及 manifest 保留，但不在根安装、默认构建或功能地图的主动实现统计中。
+
+该切换只改变本地开发和 CI 入口，不删除源码、不切换 Render 或其他线上入口；需要删除旧端时另行创建明确的迁移决策和回滚清单。

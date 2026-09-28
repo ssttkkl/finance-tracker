@@ -61,3 +61,11 @@
 - 是否存在只在开发环境成立的布局、路径或浏览器行为。
 
 最终 UI 必须运行 Hallmark `audit`，并在对应 OpenSpec `tasks.md` 记录审查范围、按严重级别排序的 finding、采纳或拒绝理由和修复结果。critical 或 major finding 修复后必须重新审查。
+
+## 6. Spec、pen.dev 与 Compose
+
+- `ui-spec/` 保存页面、模式、组件和跨平台 token 的语义合同；`ui-spec/tokens/*.json` 是 token 唯一事实源。
+- `design/*.pen` 只保存视觉层级、组件组合和状态排布，必须通过 pen.dev 官方 CLI、Desktop 或 MCP 生成和修改，不直接编辑内部 JSON、节点 ID 或引用。
+- `design/finance-design-system.lib.pen` 是可复用的视觉组件库；页面设计优先引用库组件，缺失组件先补合同和库组件，再进入页面。
+- 生成器 `scripts/generate_ui_tokens.py` 只同步 Compose Kotlin token 和 `design/generated/pen-variables.json`；pen.dev variables 是消费镜像，不得成为第二套 token 事实源。
+- 设计确认后由 Compose `commonMain` 实现；Web、Android、iOS 共享页面语义、状态、文案和响应式不变量。React、Expo 和 TypeScript shared packages 仅作迁移参考，不进入默认设计或实现工作流。

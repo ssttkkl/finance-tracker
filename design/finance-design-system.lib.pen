@@ -1,0 +1,216 @@
+{
+  "version": "2.19",
+  "children": [
+    {
+      "type": "frame",
+      "id": "oaVFD",
+      "x": 80,
+      "y": 80,
+      "name": "Finance Button",
+      "reusable": true,
+      "width": 240,
+      "height": 48,
+      "fill": "$core.color.brand.primary",
+      "cornerRadius": "$core.radius.1",
+      "padding": [
+        0,
+        16
+      ],
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "doYcc",
+          "name": "Button Label",
+          "fill": "$core.color.brand.onPrimary",
+          "content": "Primary action",
+          "fontFamily": "$core.font.family.body",
+          "fontSize": 16,
+          "fontWeight": "600"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Xr0Vf",
+      "x": 80,
+      "y": 180,
+      "name": "Finance Text Field",
+      "reusable": true,
+      "width": 360,
+      "layout": "vertical",
+      "gap": "$core.space.2",
+      "children": [
+        {
+          "type": "text",
+          "id": "tPeGT",
+          "name": "Field Label",
+          "fill": "$color.content.primary",
+          "content": "Label",
+          "fontFamily": "$core.font.family.body",
+          "fontSize": 14,
+          "fontWeight": "600"
+        },
+        {
+          "type": "frame",
+          "id": "xTczD",
+          "name": "Field Control",
+          "width": "fill_container",
+          "height": 48,
+          "fill": "$color.surface.raised",
+          "cornerRadius": "$core.radius.1",
+          "stroke": "$color.border.default",
+          "strokeWidth": 1,
+          "padding": [
+            0,
+            12
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "kvsWW",
+              "name": "Field Value",
+              "fill": "$color.content.muted",
+              "content": "Value",
+              "fontFamily": "$core.font.family.body",
+              "fontSize": 16,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "themes": {
+    "mode": [
+      "light",
+      "dark"
+    ]
+  },
+  "variables": {
+    "core.color.brand.primary": {
+      "type": "color",
+      "value": "#0A63B8"
+    },
+    "core.color.brand.onPrimary": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "core.control.minTouchTarget": {
+      "type": "number",
+      "value": 44
+    },
+    "core.font.family.body": {
+      "type": "string",
+      "value": "Noto Sans SC"
+    },
+    "core.layout.formMaxWidth": {
+      "type": "number",
+      "value": 720
+    },
+    "core.radius.1": {
+      "type": "number",
+      "value": 3
+    },
+    "core.space.2": {
+      "type": "number",
+      "value": 8
+    },
+    "core.space.4": {
+      "type": "number",
+      "value": 16
+    },
+    "core.space.6": {
+      "type": "number",
+      "value": 24
+    },
+    "color.content.primary": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#1F2933",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#E2E2E9",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "color.content.muted": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#66717D",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#C3C7D0",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "color.surface.background": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#F1F5FA",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#111318",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "color.surface.raised": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#FCFDFE",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#1B1D24",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "color.border.default": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#C4CEDA",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#434850",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    }
+  },
+  "fileToken": "d1c7dd2f-17d0-4eee-b542-8a22abda2b50"
+}

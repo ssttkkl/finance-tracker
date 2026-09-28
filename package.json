@@ -5,31 +5,17 @@
   "engines": {
     "node": ">=20.19.0"
   },
-  "workspaces": [
-    "web",
-    "mobile",
-    "packages/*"
-  ],
+  "workspaces": [],
   "scripts": {
-    "dev:web": "npm run dev --workspace finance-tracker-web",
-    "test:web": "npm run test --workspace finance-tracker-web",
-    "build:web": "npm run build --workspace finance-tracker-web",
-    "start:mobile": "npm run start --workspace finance-tracker-mobile",
-    "android": "npm run android --workspace finance-tracker-mobile",
-    "ios": "npm run ios --workspace finance-tracker-mobile",
-    "test:shared": "npm run test --workspace @finance-tracker/contracts && npm run test --workspace @finance-tracker/api-client && npm run test --workspace @finance-tracker/core && npm run test --workspace @finance-tracker/presentation",
-    "typecheck:shared": "npm run typecheck --workspace @finance-tracker/contracts && npm run typecheck --workspace @finance-tracker/api-client && npm run typecheck --workspace @finance-tracker/core && npm run typecheck --workspace @finance-tracker/design-tokens && npm run typecheck --workspace @finance-tracker/presentation"
+    "tokens:generate": "python scripts/generate_ui_tokens.py",
+    "compose:test": "cd compose && ./gradlew :shared:wasmJsTest --no-configuration-cache",
+    "compose:build:web": "cd compose && ./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache",
+    "compose:build:android": "cd compose && ./gradlew :androidApp:assembleDebug --no-configuration-cache",
+    "compose:build:ios": "cd compose && ./gradlew :shared:iosSimulatorArm64Test :shared:linkDebugFrameworkIosSimulatorArm64 --no-configuration-cache",
+    "compose:demo": "node web/scripts/start-compose-demo.mjs",
+    "pen:version": "pen version"
   },
   "devDependencies": {
-    "jsdom": "^26.0.0",
-    "typescript": "^5.7.2",
-    "vite": "^6.0.0",
-    "vitest": "^3.0.0"
-  },
-  "dependencies": {
-    "expo": "~57.0.20",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "react-native": "0.86.3"
+    "@pen.dev/cli": "0.3.9"
   }
 }

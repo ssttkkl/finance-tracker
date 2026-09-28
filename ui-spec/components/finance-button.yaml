@@ -1,0 +1,18 @@
+id: finance-button
+kind: component
+purpose: 统一主要、次要和危险操作的按钮语义与状态
+states: [enabled, pressed, focused, disabled, loading]
+inputs:
+  - name: label
+    type: localized-string
+  - name: variant
+    values: [primary, secondary, danger]
+  - name: enabled
+    type: boolean
+accessibility:
+  role: button
+  label: label
+tokens:
+  - color.brand.primary
+  - color.brand.onPrimary
+  - control.minTouchTarget

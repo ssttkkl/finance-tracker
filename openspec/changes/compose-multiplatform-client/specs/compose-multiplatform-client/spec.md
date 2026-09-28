@@ -154,19 +154,56 @@ Compose Web MUST 提供可复现的本地构建与启动方式。本地预览 MU
 - **THEN** 页面 MUST 显示可操作的兼容提示或进入经验证的 Web 回退构建
 - **AND** 不得渲染空白页面或假装已进入应用
 
-### Requirement: Compose 验收前保留旧客户端并在验收后退场
+### Requirement: Compose 是唯一主动客户端工作流，旧端源码保留为迁移参考
 
-React Web、Expo Native 和 TypeScript 共享包 MUST 在 Compose 三端的功能与设备验收完成前保留，不得因本地构建或启动改动而覆盖或删除。三端全部 10 项功能、对应 API 流程、窗口等级和关键错误/空状态验收完成后，MUST 按任务记录的精确文件清单退场旧客户端。此项退场只影响仓库源码和本地工程，不得切换线上入口或修改托管配置。
+Compose Web、Android 和 iOS MUST 作为仓库唯一主动开发、构建、测试和功能地图实现入口。根 Node workspace、默认依赖、启动命令、CI 和开发容器 MUST NOT 安装或执行 Expo/React 客户端。React Web、Expo Native 和 TypeScript 共享包的源码及各自 manifest MUST 暂时保留在仓库中作为迁移参考，但不属于主动实现统计；删除旧源码、切换线上入口或修改托管配置必须另行决策。
 
-#### Scenario: Compose 验收未完成
-- **WHEN** 任一平台仍缺少页面级功能、API 流程或必需的 parity 验收
-- **THEN** React Web、Expo Native 和 TypeScript 共享包 MUST 保持原样
-- **AND** 不得把未完成页面计为通过或修改线上托管配置
+#### Scenario: Compose 工作流成为主动入口
+- **WHEN** 开发者安装依赖、启动本地客户端或触发仓库 CI
+- **THEN** 默认流程 MUST 只安装、构建和测试 Compose 工程
+- **AND** 不得因为旧端源码仍在仓库而重新启用 Expo/React 工作流
 
-#### Scenario: 三端验收后退场旧客户端
-- **WHEN** Compose Web、Android 和 iOS 的 10 项功能及跨端验收均通过
-- **THEN** MUST 按任务记录的精确文件清单移除 React Web、Expo Native 和 TypeScript 共享包
-- **AND** MUST 保留 FastAPI、数据库、既有 API 和非客户端工程文件
+#### Scenario: 需要查阅旧端迁移参考
+- **WHEN** 开发者需要对照历史 React/Expo 行为或迁移未覆盖的边界
+- **THEN** 可以直接读取保留的旧端源码和 manifest
+- **AND** 读取旧端不得改变 Compose 的构建、测试、设计和发布入口
+
+### Requirement: 设计合同、pen.dev 文件和 Compose 实现保持可追踪
+
+每个重新设计的 Compose 页面 MUST 有对应的 `ui-spec/screens/<screen>.yaml` 语义合同和 `design/<screen>.pen` 设计文件；共享视觉组件 MUST 优先来自 `design/finance-design-system.lib.pen`。合同 MUST 描述字段、操作、权限、正常/加载/空/错误/禁用/成功状态和 `compact`/`regular`/`wide` 不变量，`.pen` MUST 表达视觉层级与组件组合，Compose MUST 复用现有 `commonMain` 组件或先补齐组件实现。
+
+#### Scenario: 设计登录页
+- **WHEN** 设计者或 Agent 开始修改登录/注册页面
+- **THEN** MUST 先读取登录合同和 token 源，再通过 pen.dev Desktop/IDE MCP 或官方 CLI 修改 `.pen`
+- **AND** 设计 MUST 覆盖认证切换、输入校验、服务错误、提交中/禁用以及三种窗口等级和两种主题
+
+#### Scenario: 设计文件与实现提交
+- **WHEN** 页面设计进入代码评审
+- **THEN** PR MUST 能从页面合同链接到 `.pen` 和 Compose 实现
+- **AND** 不得以手写 `.pen` 内部 JSON 或像素截图替代语义合同和真实 Compose 验证
+
+### Requirement: token 源生成 Compose 和 pen.dev 消费变量
+
+`ui-spec/tokens/*.json` MUST 是跨平台颜色、字号、间距、圆角、触控目标和主题别名的唯一事实源。确定性生成器 MUST 从 token 源生成 Compose Kotlin token 代码，并生成供 pen.dev CLI/MCP 应用的变量清单；任何平台和 `.pen` 设计不得创建未登记的硬编码 token。生成器 MUST 可重复运行且在源未变化时产生稳定输出。
+
+#### Scenario: 更新主题 token
+- **WHEN** 设计者修改 token 源中的浅色或深色值
+- **THEN** 生成器 MUST 更新 Compose Kotlin token 和 pen.dev 变量同步输入
+- **AND** 旧的生成文件不得静默保留与源不一致的值
+
+### Requirement: pen.dev 本地 MCP 与 CI CLI 接入不泄露凭据
+
+仓库 MUST 提供 pen.dev Desktop/IDE MCP 的本地 bootstrap 文档和固定版本 CLI 的可复现安装入口。CI MUST 在存在 `PEN_CLI_KEY` 时执行 `.pen` 状态检查、结构校验和 PNG 导出；缺少该 secret 时 MUST 明确跳过并将原因写入任务记录，不得伪报通过。CLI key、模型 API key、session 文件和真实设计 workspace 信息 MUST 不进入 Git。
+
+#### Scenario: 本地通过 MCP 编辑设计
+- **WHEN** 开发者在 pen.dev 中打开仓库设计文件并启用 Codex MCP
+- **THEN** MCP MUST 能读取设计库、登录页 `.pen` 和 token 同步说明
+- **AND** 修改后文件可以由 Git 追踪，Compose 仍以源码和合同作为运行事实
+
+#### Scenario: CI 无 pen.dev 凭据
+- **WHEN** Pull Request 没有 `PEN_CLI_KEY`
+- **THEN** Compose 构建和测试 MUST 继续执行
+- **AND** pen CLI 校验 MUST 标记为未配置并返回非阻断的明确结果，不得尝试交互登录
 
 ### Requirement: Compose 用户可见文案支持中文和英语
 

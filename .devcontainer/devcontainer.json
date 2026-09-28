@@ -23,15 +23,11 @@
     "FT_TEST_POSTGRES_URL": "postgresql+psycopg://postgres@127.0.0.1:5432/finance_tracker_test",
     "FT_REQUIRE_TEST_POSTGRES": "1",
     "FT_WEB_ORIGIN": "http://127.0.0.1:5174",
-    "EXPO_PUBLIC_FT_API_ORIGIN": "http://127.0.0.1:8000"
+    "FT_API_PROXY_ORIGIN": "http://127.0.0.1:8000"
   },
   "forwardPorts": [
     8000,
     5174,
-    8081,
-    19000,
-    19001,
-    19002,
     5432
   ],
   "portsAttributes": {
@@ -40,24 +36,8 @@
       "onAutoForward": "notify"
     },
     "5174": {
-      "label": "Vite Web",
+      "label": "Compose Web",
       "onAutoForward": "openPreview"
-    },
-    "8081": {
-      "label": "Expo Metro",
-      "onAutoForward": "silent"
-    },
-    "19000": {
-      "label": "Expo Dev Server",
-      "onAutoForward": "silent"
-    },
-    "19001": {
-      "label": "Expo Dev Server",
-      "onAutoForward": "silent"
-    },
-    "19002": {
-      "label": "Expo Dev Server",
-      "onAutoForward": "silent"
     },
     "5432": {
       "label": "PostgreSQL",

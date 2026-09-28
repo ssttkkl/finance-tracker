@@ -1,0 +1,25 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "tokens": {
+    "color.brand.primary": { "type": "color", "value": "#0A63B8" },
+    "color.brand.onPrimary": { "type": "color", "value": "#FFFFFF" },
+    "color.semantic.income": { "type": "color", "value": "#087443" },
+    "color.semantic.expense": { "type": "color", "value": "#B3442C" },
+    "color.semantic.danger": { "type": "color", "value": "#B42318" },
+    "font.family.body": { "type": "fontFamily", "value": "Noto Sans SC" },
+    "font.family.mono": { "type": "fontFamily", "value": "IBM Plex Mono" },
+    "space.1": { "type": "dimension", "value": "4px" },
+    "space.2": { "type": "dimension", "value": "8px" },
+    "space.3": { "type": "dimension", "value": "12px" },
+    "space.4": { "type": "dimension", "value": "16px" },
+    "space.5": { "type": "dimension", "value": "20px" },
+    "space.6": { "type": "dimension", "value": "24px" },
+    "space.8": { "type": "dimension", "value": "32px" },
+    "radius.1": { "type": "dimension", "value": "3px" },
+    "radius.2": { "type": "dimension", "value": "5px" },
+    "control.minTouchTarget": { "type": "dimension", "value": "44px" },
+    "layout.regularMinWidth": { "type": "number", "value": 600 },
+    "layout.wideMinWidth": { "type": "number", "value": 1024 },
+    "layout.formMaxWidth": { "type": "dimension", "value": "720px" }
+  }
+}

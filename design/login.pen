@@ -1,0 +1,1081 @@
+{
+  "version": "2.19",
+  "children": [
+    {
+      "type": "frame",
+      "id": "TP2X7",
+      "x": 0,
+      "y": 0,
+      "name": "登录页 / 正常",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "#000000",
+      "children": [
+        {
+          "type": "frame",
+          "id": "dL73z",
+          "name": "品牌区域",
+          "width": 520,
+          "height": "fill_container",
+          "fill": "#000000",
+          "layout": "vertical",
+          "gap": 24,
+          "padding": 64,
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "xkGZP",
+              "name": "品牌标记",
+              "fill": "#000000",
+              "content": "FINANCE TRACKER",
+              "fontFamily": "Inter",
+              "fontSize": 18,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "X9zGCW",
+              "name": "品牌标题",
+              "fill": "#000000",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "把每一笔钱，放回可审计的账本。",
+              "fontFamily": "Inter",
+              "fontSize": 40,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "FLUUx",
+              "name": "品牌副标题",
+              "fill": "#D9ECFF",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "从登录开始，管理账户、现金流与投资。",
+              "fontFamily": "Inter",
+              "fontSize": 17,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "fwtgx",
+          "name": "认证表单区域",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "padding": 64,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "pg4xW",
+              "name": "登录认证表单",
+              "width": 560,
+              "layout": "vertical",
+              "gap": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "HWc4H",
+                  "name": "登录标题",
+                  "fill": "#000000",
+                  "content": "欢迎回来",
+                  "fontFamily": "Inter",
+                  "fontSize": 32,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "jx6QN",
+                  "name": "登录说明",
+                  "fill": "#000000",
+                  "content": "登录以继续访问你的工作区。",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "Jp5hU",
+                  "name": "模式切换",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "vPNyf",
+                      "name": "登录模式",
+                      "fill": "#000000",
+                      "content": "登录",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "b4ExQO",
+                      "name": "注册模式",
+                      "fill": "#000000",
+                      "content": "注册",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "id": "wntuC",
+                  "type": "ref",
+                  "ref": "n:Xr0Vf",
+                  "name": "邮箱字段",
+                  "width": "fill_container",
+                  "descendants": {
+                    "n:tPeGT": {
+                      "content": "邮箱"
+                    },
+                    "n:kvsWW": {
+                      "content": "请输入邮箱"
+                    }
+                  }
+                },
+                {
+                  "id": "KgM3V",
+                  "type": "ref",
+                  "ref": "n:Xr0Vf",
+                  "name": "密码字段",
+                  "width": "fill_container",
+                  "descendants": {
+                    "n:tPeGT": {
+                      "content": "密码"
+                    },
+                    "n:kvsWW": {
+                      "content": "请输入密码"
+                    }
+                  }
+                },
+                {
+                  "id": "bCBQL",
+                  "type": "ref",
+                  "ref": "n:oaVFD",
+                  "name": "登录按钮",
+                  "width": "fill_container",
+                  "descendants": {
+                    "n:doYcc": {
+                      "content": "登录"
+                    }
+                  }
+                },
+                {
+                  "type": "text",
+                  "id": "TmfNn",
+                  "name": "辅助链接",
+                  "fill": "#000000",
+                  "content": "忘记密码？",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "ekzyo",
+      "x": 1520,
+      "y": 0,
+      "name": "登录页 / 校验错误",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "#000000",
+      "children": [
+        {
+          "type": "frame",
+          "id": "Xgv4R",
+          "name": "登录页 / 校验错误 / 品牌区域",
+          "width": 520,
+          "height": "fill_container",
+          "fill": "#000000",
+          "layout": "vertical",
+          "gap": 24,
+          "padding": 64,
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "O01sQ",
+              "name": "登录页 / 校验错误 / 品牌标记",
+              "fill": "#000000",
+              "content": "FINANCE TRACKER",
+              "fontFamily": "Inter",
+              "fontSize": 18,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "gljrV",
+              "name": "登录页 / 校验错误 / 品牌标题",
+              "fill": "#000000",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "把每一笔钱，放回可审计的账本。",
+              "fontFamily": "Inter",
+              "fontSize": 40,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "TADXS",
+              "name": "登录页 / 校验错误 / 品牌副标题",
+              "fill": "#D9ECFF",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "从登录开始，管理账户、现金流与投资。",
+              "fontFamily": "Inter",
+              "fontSize": 17,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "JT4hM",
+          "name": "登录页 / 校验错误 / 表单区域",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "padding": 64,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "p1vff",
+              "name": "登录页 / 校验错误 / 认证表单",
+              "width": 560,
+              "layout": "vertical",
+              "gap": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "pNdZP",
+                  "name": "登录页 / 校验错误 / 标题",
+                  "fill": "#000000",
+                  "content": "欢迎回来",
+                  "fontFamily": "Inter",
+                  "fontSize": 32,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "gXKFw",
+                  "name": "登录页 / 校验错误 / 说明",
+                  "fill": "#000000",
+                  "content": "请检查输入后重试。",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "B1VCk",
+                  "name": "登录页 / 校验错误 / 模式切换",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "hwPcH",
+                      "name": "登录页 / 校验错误 / 登录模式",
+                      "fill": "#000000",
+                      "content": "登录",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "d5BGQS",
+                      "name": "登录页 / 校验错误 / 注册模式",
+                      "fill": "#000000",
+                      "content": "注册",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "id": "UsI8D",
+                  "type": "ref",
+                  "ref": "n:Xr0Vf",
+                  "name": "登录页 / 校验错误 / 邮箱字段",
+                  "width": "fill_container",
+                  "descendants": {
+                    "n:tPeGT": {
+                      "content": "邮箱"
+                    },
+                    "n:kvsWW": {
+                      "content": "邮箱格式不正确"
+                    }
+                  }
+                },
+                {
+                  "id": "txnFT",
+                  "type": "ref",
+                  "ref": "n:Xr0Vf",
+                  "name": "登录页 / 校验错误 / 密码字段",
+                  "width": "fill_container",
+                  "descendants": {
+                    "n:tPeGT": {
+                      "content": "密码"
+                    },
+                    "n:kvsWW": {
+                      "content": "请输入密码"
+                    }
+                  }
+                },
+                {
+                  "type": "frame",
+                  "id": "ur6El",
+                  "name": "登录页 / 校验错误 / 错误提示",
+                  "width": "fill_container",
+                  "fill": "#FBEAE8",
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "pzPBp",
+                      "name": "登录页 / 校验错误 / 错误文案",
+                      "fill": "#B42318",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "请输入有效的邮箱地址。",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "id": "KJvkS",
+                  "type": "ref",
+                  "ref": "n:oaVFD",
+                  "name": "登录页 / 校验错误 / 提交按钮",
+                  "width": "fill_container",
+                  "descendants": {
+                    "n:doYcc": {
+                      "content": "登录"
+                    }
+                  }
+                },
+                {
+                  "type": "text",
+                  "id": "WN0bJ",
+                  "name": "登录页 / 校验错误 / 辅助链接",
+                  "fill": "#000000",
+                  "content": "忘记密码？",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "JGWhV",
+      "x": 3040,
+      "y": 0,
+      "name": "注册页 / 正常",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "#000000",
+      "children": [
+        {
+          "type": "frame",
+          "id": "U3ZYwU",
+          "name": "注册页 / 正常 / 品牌区域",
+          "width": 520,
+          "height": "fill_container",
+          "fill": "#000000",
+          "layout": "vertical",
+          "gap": 24,
+          "padding": 64,
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "pXgsc",
+              "name": "注册页 / 正常 / 品牌标记",
+              "fill": "#000000",
+              "content": "FINANCE TRACKER",
+              "fontFamily": "Inter",
+              "fontSize": 18,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "sfqUA",
+              "name": "注册页 / 正常 / 品牌标题",
+              "fill": "#000000",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "把每一笔钱，放回可审计的账本。",
+              "fontFamily": "Inter",
+              "fontSize": 40,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "u6a6or",
+              "name": "注册页 / 正常 / 品牌副标题",
+              "fill": "#D9ECFF",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "从登录开始，管理账户、现金流与投资。",
+              "fontFamily": "Inter",
+              "fontSize": 17,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "p8iYDB",
+          "name": "注册页 / 正常 / 表单区域",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "padding": 64,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "S574LR",
+              "name": "注册页 / 正常 / 认证表单",
+              "width": 560,
+              "layout": "vertical",
+              "gap": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "r6SEe",
+                  "name": "注册页 / 正常 / 标题",
+                  "fill": "#000000",
+                  "content": "创建账户",
+                  "fontFamily": "Inter",
+                  "fontSize": 32,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "q7JoS7",
+                  "name": "注册页 / 正常 / 说明",
+                  "fill": "#000000",
+                  "content": "登录以继续访问你的工作区。",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "J8sH1",
+                  "name": "注册页 / 正常 / 模式切换",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "VSFI3",
+                      "name": "注册页 / 正常 / 登录模式",
+                      "fill": "#000000",
+                      "content": "登录",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "cakpo",
+                      "name": "注册页 / 正常 / 注册模式",
+                      "fill": "#000000",
+                      "content": "注册",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "id": "wDhUh",
+                  "type": "ref",
+                  "ref": "n:Xr0Vf",
+                  "name": "注册页 / 正常 / 邮箱字段",
+                  "width": "fill_container",
+                  "descendants": {
+                    "n:tPeGT": {
+                      "content": "邮箱"
+                    },
+                    "n:kvsWW": {
+                      "content": "请输入邮箱"
+                    }
+                  }
+                },
+                {
+                  "id": "WA43y",
+                  "type": "ref",
+                  "ref": "n:Xr0Vf",
+                  "name": "注册页 / 正常 / 密码字段",
+                  "width": "fill_container",
+                  "descendants": {
+                    "n:tPeGT": {
+                      "content": "密码"
+                    },
+                    "n:kvsWW": {
+                      "content": "请输入密码"
+                    }
+                  }
+                },
+                {
+                  "id": "dRi1s",
+                  "type": "ref",
+                  "ref": "n:oaVFD",
+                  "name": "注册页 / 正常 / 提交按钮",
+                  "width": "fill_container",
+                  "descendants": {
+                    "n:doYcc": {
+                      "content": "注册"
+                    }
+                  }
+                },
+                {
+                  "type": "text",
+                  "id": "D542W",
+                  "name": "注册页 / 正常 / 辅助链接",
+                  "fill": "#000000",
+                  "content": "忘记密码？",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "tkRNu",
+      "x": 4560,
+      "y": 960,
+      "name": "登录页 / Compact",
+      "metadata": {
+        "type": "state",
+        "state": "normal",
+        "theme": "light"
+      },
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "#000000",
+      "layout": "vertical",
+      "gap": 16,
+      "padding": 24,
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "uqws8",
+          "name": "登录页 / Compact / 标题",
+          "fill": "#000000",
+          "content": "欢迎回来",
+          "fontFamily": "Inter",
+          "fontSize": 28,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "fC0my",
+          "name": "登录页 / Compact / 状态说明",
+          "fill": "#000000",
+          "content": "登录以继续访问你的工作区。",
+          "fontFamily": "Inter",
+          "fontSize": 16,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "U5ajIR",
+          "name": "登录页 / Compact / 模式切换",
+          "gap": 16,
+          "children": [
+            {
+              "type": "text",
+              "id": "pCk2L",
+              "name": "模式提示",
+              "fill": "#000000",
+              "content": "登录 / 注册",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "id": "fa5V2",
+          "type": "ref",
+          "ref": "n:Xr0Vf",
+          "name": "登录页 / Compact / 邮箱字段",
+          "width": "fill_container",
+          "descendants": {
+            "n:tPeGT": {
+              "content": "邮箱"
+            },
+            "n:kvsWW": {
+              "content": "请输入邮箱"
+            }
+          }
+        },
+        {
+          "id": "kGywj",
+          "type": "ref",
+          "ref": "n:Xr0Vf",
+          "name": "登录页 / Compact / 密码字段",
+          "width": "fill_container",
+          "descendants": {
+            "n:tPeGT": {
+              "content": "密码"
+            },
+            "n:kvsWW": {
+              "content": "请输入密码"
+            }
+          }
+        },
+        {
+          "id": "TnTuk",
+          "type": "ref",
+          "ref": "n:oaVFD",
+          "name": "登录页 / Compact / 提交按钮",
+          "width": "fill_container",
+          "descendants": {
+            "n:doYcc": {
+              "content": "登录"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "mOmVE",
+      "x": 5000,
+      "y": 960,
+      "name": "登录页 / Regular",
+      "metadata": {
+        "type": "state",
+        "state": "normal",
+        "theme": "light"
+      },
+      "clip": true,
+      "width": 768,
+      "height": 900,
+      "fill": "#000000",
+      "layout": "vertical",
+      "gap": 16,
+      "padding": 48,
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "efLVH",
+          "name": "登录页 / Regular / 标题",
+          "fill": "#000000",
+          "content": "欢迎回来",
+          "fontFamily": "Inter",
+          "fontSize": 32,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "WPwvw",
+          "name": "登录页 / Regular / 状态说明",
+          "fill": "#000000",
+          "content": "登录以继续访问你的工作区。",
+          "fontFamily": "Inter",
+          "fontSize": 16,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "r3cUZL",
+          "name": "登录页 / Regular / 模式切换",
+          "gap": 16,
+          "children": [
+            {
+              "type": "text",
+              "id": "PYkK3",
+              "name": "模式提示",
+              "fill": "#000000",
+              "content": "登录 / 注册",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "id": "EAMnT",
+          "type": "ref",
+          "ref": "n:Xr0Vf",
+          "name": "登录页 / Regular / 邮箱字段",
+          "width": 420,
+          "descendants": {
+            "n:tPeGT": {
+              "content": "邮箱"
+            },
+            "n:kvsWW": {
+              "content": "请输入邮箱"
+            }
+          }
+        },
+        {
+          "id": "kOcfB",
+          "type": "ref",
+          "ref": "n:Xr0Vf",
+          "name": "登录页 / Regular / 密码字段",
+          "width": 420,
+          "descendants": {
+            "n:tPeGT": {
+              "content": "密码"
+            },
+            "n:kvsWW": {
+              "content": "请输入密码"
+            }
+          }
+        },
+        {
+          "id": "YKhFA",
+          "type": "ref",
+          "ref": "n:oaVFD",
+          "name": "登录页 / Regular / 提交按钮",
+          "width": 420,
+          "descendants": {
+            "n:doYcc": {
+              "content": "登录"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "PPMzL",
+      "x": 5840,
+      "y": 960,
+      "name": "登录页 / Dark Wide",
+      "metadata": {
+        "type": "state",
+        "state": "normal",
+        "theme": "dark"
+      },
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "#111318",
+      "layout": "vertical",
+      "gap": 16,
+      "padding": 48,
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "cbD9o",
+          "name": "登录页 / Dark Wide / 标题",
+          "fill": "#E2E2E9",
+          "content": "欢迎回来",
+          "fontFamily": "Inter",
+          "fontSize": 32,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "C9WO4I",
+          "name": "登录页 / Dark Wide / 状态说明",
+          "fill": "#C3C7D0",
+          "content": "登录以继续访问你的工作区。",
+          "fontFamily": "Inter",
+          "fontSize": 16,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "LTg0i",
+          "name": "登录页 / Dark Wide / 模式切换",
+          "gap": 16,
+          "children": [
+            {
+              "type": "text",
+              "id": "wp4dV",
+              "name": "模式提示",
+              "fill": "#C3C7D0",
+              "content": "登录 / 注册",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "id": "sXnSu",
+          "type": "ref",
+          "ref": "n:Xr0Vf",
+          "name": "登录页 / Dark Wide / 邮箱字段",
+          "width": 420,
+          "descendants": {
+            "n:tPeGT": {
+              "content": "邮箱"
+            },
+            "n:kvsWW": {
+              "content": "请输入邮箱"
+            }
+          }
+        },
+        {
+          "id": "b8Tc1f",
+          "type": "ref",
+          "ref": "n:Xr0Vf",
+          "name": "登录页 / Dark Wide / 密码字段",
+          "width": 420,
+          "descendants": {
+            "n:tPeGT": {
+              "content": "密码"
+            },
+            "n:kvsWW": {
+              "content": "请输入密码"
+            }
+          }
+        },
+        {
+          "id": "GTmCk",
+          "type": "ref",
+          "ref": "n:oaVFD",
+          "name": "登录页 / Dark Wide / 提交按钮",
+          "width": 420,
+          "descendants": {
+            "n:doYcc": {
+              "content": "登录"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "TI8uz",
+      "x": 7360,
+      "y": 960,
+      "name": "登录页 / 提交中禁用",
+      "metadata": {
+        "type": "state",
+        "state": "submitting",
+        "theme": "light"
+      },
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "#000000",
+      "layout": "vertical",
+      "gap": 16,
+      "padding": 48,
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "Vnmk2",
+          "name": "登录页 / 提交中禁用 / 标题",
+          "fill": "#000000",
+          "content": "正在登录...",
+          "fontFamily": "Inter",
+          "fontSize": 32,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "R3Mhy1",
+          "name": "登录页 / 提交中禁用 / 状态说明",
+          "fill": "#000000",
+          "content": "正在验证账号，请稍候。",
+          "fontFamily": "Inter",
+          "fontSize": 16,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "K0F9H",
+          "name": "登录页 / 提交中禁用 / 模式切换",
+          "gap": 16,
+          "children": [
+            {
+              "type": "text",
+              "id": "P7wSga",
+              "name": "模式提示",
+              "fill": "#000000",
+              "content": "登录 / 注册",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "id": "uV5mE",
+          "type": "ref",
+          "ref": "n:Xr0Vf",
+          "name": "登录页 / 提交中禁用 / 邮箱字段",
+          "width": 420,
+          "descendants": {
+            "n:tPeGT": {
+              "content": "邮箱"
+            },
+            "n:kvsWW": {
+              "content": "请输入邮箱"
+            }
+          }
+        },
+        {
+          "id": "yxsGW",
+          "type": "ref",
+          "ref": "n:Xr0Vf",
+          "name": "登录页 / 提交中禁用 / 密码字段",
+          "width": 420,
+          "descendants": {
+            "n:tPeGT": {
+              "content": "密码"
+            },
+            "n:kvsWW": {
+              "content": "请输入密码"
+            }
+          }
+        },
+        {
+          "id": "V3Pnv1",
+          "type": "ref",
+          "ref": "n:oaVFD",
+          "name": "登录页 / 提交中禁用 / 提交按钮",
+          "width": 420,
+          "opacity": 0.6,
+          "descendants": {
+            "n:doYcc": {
+              "content": "正在登录..."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "mAVww",
+      "x": 8880,
+      "y": 960,
+      "name": "登录页 / 服务错误",
+      "metadata": {
+        "type": "state",
+        "state": "service-error"
+      },
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "#000000",
+      "layout": "vertical",
+      "gap": 16,
+      "padding": 64,
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "rguvy",
+          "name": "服务错误 / 标题",
+          "fill": "#000000",
+          "content": "暂时无法登录",
+          "fontFamily": "Inter",
+          "fontSize": 32,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "SydXR",
+          "name": "服务错误 / 文案",
+          "fill": "#000000",
+          "content": "服务暂时不可用，请稍后重试。",
+          "fontFamily": "Inter",
+          "fontSize": 16,
+          "fontWeight": "normal"
+        },
+        {
+          "id": "mUxwW",
+          "type": "ref",
+          "ref": "n:Xr0Vf",
+          "name": "服务错误 / 邮箱字段",
+          "width": 520,
+          "descendants": {
+            "n:tPeGT": {
+              "content": "邮箱"
+            },
+            "n:kvsWW": {
+              "content": "请输入邮箱"
+            }
+          }
+        },
+        {
+          "id": "oUotz",
+          "type": "ref",
+          "ref": "n:Xr0Vf",
+          "name": "服务错误 / 密码字段",
+          "width": 520,
+          "descendants": {
+            "n:tPeGT": {
+              "content": "密码"
+            },
+            "n:kvsWW": {
+              "content": "请输入密码"
+            }
+          }
+        },
+        {
+          "id": "YPP5P",
+          "type": "ref",
+          "ref": "n:oaVFD",
+          "name": "服务错误 / 提交按钮",
+          "width": 520,
+          "opacity": 0.5,
+          "descendants": {
+            "n:doYcc": {
+              "content": "登录"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "imports": {
+    "n": "finance-design-system.lib.pen"
+  },
+  "fileToken": "0ea4d542-5276-48de-adce-32584ce1a072"
+}

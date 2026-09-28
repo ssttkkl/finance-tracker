@@ -1,0 +1,13 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "tokens": {
+    "color.surface.background": { "type": "color", "value": "#111318" },
+    "color.surface.raised": { "type": "color", "value": "#1B1D24" },
+    "color.surface.muted": { "type": "color", "value": "#2B2F38" },
+    "color.content.primary": { "type": "color", "value": "#E2E2E9" },
+    "color.content.muted": { "type": "color", "value": "#C3C7D0" },
+    "color.border.default": { "type": "color", "value": "#434850" },
+    "color.state.errorSurface": { "type": "color", "value": "#93000A" },
+    "color.state.successSurface": { "type": "color", "value": "#1C4A35" }
+  }
+}

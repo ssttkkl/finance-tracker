@@ -16,12 +16,10 @@ env:
   PYTHON_VERSION: "3.11"
 
 jobs:
-  frontend:
-    name: Frontend (Web)
+  compose:
+    name: Compose client
     runs-on: macos-26
-    timeout-minutes: 35
-    env:
-      TZ: Asia/Shanghai
+    timeout-minutes: 45
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -33,43 +31,29 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - name: Install JavaScript dependencies
+      - name: Install workflow tools
         run: npm ci --no-audit --no-fund
 
-      - name: Install Playwright Chromium
-        run: npm exec --workspace finance-tracker-web -- playwright install chromium
+      - name: Generate UI tokens
+        run: npm run tokens:generate
 
-      - name: Test shared packages
-        run: npm run test:shared
+      - name: Check generated UI tokens
+        run: git diff --exit-code -- compose/shared/src/commonMain/kotlin/com/finance/tracker/core/design/GeneratedTokens.kt design/generated/pen-variables.json
 
-      - name: Typecheck shared packages
-        run: npm run typecheck:shared
-
-      - name: Test Web workspace
-        run: npm run test:web
-
-      - name: Build Web workspace
-        run: npm run build:web
-
-      - name: Run Web E2E tests
-        run: npm run test:e2e --workspace finance-tracker-web
-
-      - name: Run production preview tests
-        run: npm run test:preview --workspace finance-tracker-web
-
-      - name: Run Web visual regression tests
-        run: npm run test:visual --workspace finance-tracker-web
-
-      - name: Upload Playwright diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v7
+      - name: Set up Java
+        uses: actions/setup-java@v5
         with:
-          name: frontend-playwright-diagnostics
-          path: |
-            web/test-results/
-            web/playwright-report/
-          if-no-files-found: ignore
-          retention-days: 7
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Run Compose shared tests
+        working-directory: compose
+        run: ./gradlew :shared:wasmJsTest --no-configuration-cache
+
+      - name: Build Compose Web distribution
+        working-directory: compose
+        run: ./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache
 
   backend-sqlite:
     name: Backend (SQLite)

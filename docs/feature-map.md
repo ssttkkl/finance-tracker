@@ -1,8 +1,8 @@
-# Web / Native 功能地图
+# Compose / Legacy 功能地图
 
-> 盘点日期：2026-09-26。本文记录当前 React Web / Expo 客户端状态，以及 Compose Multiplatform 迁移实现进度；它不是产品行为规格。代码改动仍以 `openspec/specs/` 和对应变更记录为行为事实源。
+> 盘点日期：2026-09-28。本文记录 Compose Multiplatform 主线的页面级功能、实现证据和跨端覆盖关系；React Web、Expo 和 TypeScript shared packages 仅作为迁移参考。本文不是产品行为规格，代码改动仍以 `openspec/specs/` 和对应变更记录为行为事实源。
 
-本表前半部分的「Web / Native」统计描述现有 React Web 与 Expo 客户端。迁移中的 Compose 实现状态单独列在下方；三端平台验收完成前，不把迁移实现计为已验收覆盖。
+Compose Web、Android、iOS 共用 `compose/shared` 的页面、状态和 API 流程。旧端实现证据保留在文档末尾，便于迁移时核对行为，不代表默认启动、构建、测试或发布入口。
 
 ## 统计结论
 
@@ -10,18 +10,18 @@
 
 | 指标 | 数量 |
 |------|------:|
-| Web 页面级功能 | 10 |
-| Native 页面级功能 | 5 |
-| Web 与 Native 都已实现 | 5 |
-| 仅 Web 已实现 | 5 |
-| 仅 Native 已实现 | 0 |
+| Compose 页面级功能 | 10 |
+| Compose 共享实现覆盖 | 10 |
+| Compose 活跃目标 | Web / Android / iOS |
+| Legacy React Web 页面级功能（参考） | 10 |
+| Legacy Expo 页面级功能（参考） | 5 |
 | 去重后的页面级功能总数 | 10 |
 
-“都有实现”表示两端都具备可运行的客户端入口，并已接入真实 API；仅有后端接口、共享文案、原型、规格或 Native 的“暂不可用”导航均不算已实现。
+“Compose 共享实现覆盖”表示页面具备可运行的 Compose 入口，并接入真实 API；仅有后端接口、共享文案、原型、规格或 legacy 端导航均不算当前主线实现。
 
-## Compose Multiplatform 迁移状态
+## Compose Multiplatform 主线
 
-F-01 至 F-10 的共享页面、状态和 API 流程已放入 `compose/shared/src/commonMain`；Web、Android、iOS target 使用同一套页面实现。旧 React Web 与 Expo 客户端仍保留作为回退。各 target 的已验收范围和待补 QA 记录在下表。
+F-01 至 F-10 的共享页面、状态和 API 流程已放入 `compose/shared/src/commonMain`；Web、Android、iOS target 使用同一套页面实现。旧 React Web、Expo 客户端和 TypeScript shared packages 保留作为迁移参考，不作为回退实现或默认 CI 目标。各 target 的已验收范围和待补 QA 记录在下表。
 
 | ID | Compose 共享实现 | Web / Android / iOS 工程入口 | 当前状态 |
 |----|------------------|------------------------------|----------|
@@ -38,7 +38,7 @@ F-01 至 F-10 的共享页面、状态和 API 流程已放入 `compose/shared/sr
 
 浏览器用例位于 [`compose-access.e2e.ts`](../web/tests/compose-access.e2e.ts)、[`compose-pages.e2e.ts`](../web/tests/compose-pages.e2e.ts)、[`compose-live-demo.e2e.ts`](../web/tests/compose-live-demo.e2e.ts) 和 [`compose-locale.e2e.ts`](../web/tests/compose-locale.e2e.ts)，当前共 28 项；Playwright 路由提供 API fixture，Chrome 154.0.8037.57 的最新生产 Wasm 回归 28/28 通过，另有隔离 FastAPI 注册 POST 实测。此前 Chrome 153、Edge 154、Playwright WebKit 26.5 的结果属于早期检查点；用户指定本次 Web 验收使用 Chrome，不使用 Safari。Android 原生 F-01 至 F-10 早期 QA 已通过，本轮 shared 变更后最终复验进行中；iOS 已完成 iPhone 17、iPad 11、iPad 13 的功能抽查及 compact/regular/wide 关键页面审查。iOS F-05 已用虚构 CSV 验证文件可见和选中，但点击「打开」后的系统截图仍停留在文件选择器，未确认文件交回应用；端到端导入仍待补验。iOS 其余页面操作和完整三端×窗口尺寸 parity matrix 仍待补验。Web Vitest 152 项、Wasm shared browser test 110 项通过；Android device 109 项为本轮校验日志修复前检查点，Native 最终复验仍待进行。F-03/F-04/F-07 在 320、375、390、414、768、1440 px 下检查无水平溢出；浅/深色 390×844 和 1440×1000 截图经目视复核，包含 F-05 关系卡片与 F-08 持仓页面。Web 字体使用同源 Noto Sans SC 资源，Chrome 截图未发现缺字，未请求 `fonts.gstatic.com`。Playwright fixture 检查 UI/API 请求，本地 registration E2E 另通过 FastAPI demo 实测；两者都不替代 FastAPI 后端契约测试。
 
-原 `ALIGN-N-001` 至 `ALIGN-N-005` 继续表示当前 Expo 客户端缺少的功能。Compose 迁移实现已补齐这些页面，但在三端验收并完成切换前不能删除旧端 TODO 或退场文件。
+原 `ALIGN-N-001` 至 `ALIGN-N-005` 是 Expo 时代的迁移历史记录，说明旧 Native 客户端曾缺少的功能。Compose 主线已补齐这些页面；这些条目保留用于审计旧端行为，不是当前 Compose 工作队列，也不要求恢复 Expo 页面。
 
 ## 统计口径
 
@@ -48,7 +48,9 @@ F-01 至 F-10 的共享页面、状态和 API 流程已放入 `compose/shared/sr
 - 计入邀请页、工作区管理、分类管理和投资的持仓/事件页面；不把它们合并成一个泛化的“工作区”或“投资账本”页面。
 - 不计入 `index.tsx` 重定向、`_layout.tsx` 路由守卫、导航 shell、加载态、错误态、确认弹窗和其他不能独立完成任务的容器。
 
-## 页面级功能清单
+## Legacy 页面级功能证据（迁移参考）
+
+以下清单保留 React Web / Expo 页面入口和历史覆盖状态，帮助 Compose 实现核对已有用户行为。它不改变 Compose 主线的实现状态，也不把 legacy 代码加入根工作流。
 
 | ID | 页面级功能 | Web 实现 | Native 实现 | 覆盖状态 |
 |----|------------|----------|-------------|----------|
