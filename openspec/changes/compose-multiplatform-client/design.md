@@ -146,18 +146,30 @@ Compose 产品文案统一进入 `compose/shared/src/commonMain/composeResources
 
 ### 10. 以 pen.dev 作为可视化设计工作区
 
-`ui-spec/` 是语义设计合同，`design/` 是可视化设计工作区，Compose `commonMain` 是运行实现。三者通过页面 ID、组件语义 ID、状态名和响应式不变量关联，不要求 DOM、Compose 节点和 `.pen` 节点逐一相同。
+OpenSpec 保存业务行为与验收，`design/` 中的 `.pen` 保存页面与组件设计，Compose `commonMain` 是运行实现。三者通过页面 ID、组件语义 ID、状态名和响应式不变量关联，不要求 DOM、Compose 节点和 `.pen` 节点逐一相同。
 
-- `ui-spec/tokens/*.json` 按 DTCG 风格保存颜色、字号、间距、圆角、触控目标和主题别名；该目录是唯一 token 事实源。
-- `ui-spec/components/`、`ui-spec/patterns/` 和 `ui-spec/screens/` 只记录语义、字段、操作、状态、权限和响应式约束，不记录只能在画布中表达的绝对坐标。
+- `openspec/specs/shared/design-system/tokens/*.json` 按 DTCG 风格保存颜色、字号、间距、圆角、触控目标和主题别名；该目录是唯一 token 事实源。
+- 页面、表单、组件、反馈位置、无障碍设计和状态画面由 `.pen` 维护，不另设重复 YAML。权限、校验条件与操作结果继续由对应业务 OpenSpec 定义。
 - `design/finance-design-system.lib.pen` 是可复用组件和变量库；`design/login.pen` 是首个页面设计，覆盖登录/注册切换、正常、输入校验错误、服务端错误、提交中/禁用及 compact/regular/wide、light/dark 变体。
 - pen.dev Desktop/IDE 通过 MCP 读取和修改这些文件；CLI 的 `interactive` 模式用于无头确定性编辑，Agent 模式只在存在用户登录态或 CI secrets 时使用。
 - 不直接用 `sed`、JSON patch 或自定义脚本修改 `.pen` 内部节点 ID；token 生成器只产出 Kotlin token 和供 CLI/MCP 消费的变量清单，变量写入由官方工具完成。
 
-**替代方案：**把 `.pen` 当作唯一规格会让 API 状态、权限和跨端不变量无法审查；把 pen.dev 当作截图导出器又失去 Git/MCP 协作价值，因此采用语义合同、视觉文件和 Compose 实现三层分工。
+**职责分工：**OpenSpec 定义业务行为，`.pen` 定义页面与组件设计，Compose 负责运行实现。token JSON 暂时保留为既有生成器输入，本次不切换为读取 `.pen`，也不增加自动校验或同步工具。
 
 ### 11. Compose 唯一主动工作流与旧端退场边界
 
 根 `package.json` 移除 `web`、`mobile` npm workspace、Expo/React 默认依赖和旧启动命令；`.github/workflows/mobile-ci.yml` 改为 Compose 主线工作流，执行 Gradle/Compose Web、Android、iOS 相关检查，并可选执行 pen CLI 校验。`.devcontainer` 不再暴露 Expo 端口或设置 Expo 环境变量。`web/`、`mobile/` 和 TypeScript 共享包源码及 manifest 保留，但不在根安装、默认构建或功能地图的主动实现统计中。
 
 该切换只改变本地开发和 CI 入口，不删除源码、不切换 Render 或其他线上入口；需要删除旧端时另行创建明确的迁移决策和回滚清单。
+
+### 12. 全页面重设计与多尺寸实现
+
+本轮把功能地图中的 F-01 至 F-10 作为完整页面设计范围，通过 `docs/feature-map.md` 定位每页任务与实现证据，通过 `design/README.md` 定位设计稿；页面区域和状态在 `.pen` 中维护。登录页已经通过 `design/login.pen` 完成首个闭环；其余页面已按“工作区入口 → 收支账本/记录/导入 → 分类 → 投资持仓/事件 → 工作区管理”的顺序生成独立 `.pen` 文件。每个新增文件包含 compact（390×844）、regular（768×1024）和 wide（1440×1000）画布，登录页另有 light/dark 和完整状态画布；新增页面的深色状态在审查确认后补入相应稿件。
+
+设计访谈结论：整体气质为专业金融工作台；信息密度为中高，但 UI 装饰密度降低以容纳更多数据；标题和常驻说明文字收敛；保存、编辑、筛选、分页等操作优先使用带无障碍名称的图标按钮；页面共享 Cobalt 视觉系统而按任务结构区分；深色主题作为完整工作模式维护。
+
+页面不会复制已有组件。所有页面继续使用 `finance-design-system.lib.pen` 中的组件语义和 Compose `FeaturePage`、`SectionCard`、表单与导航组件；缺失的组件先补入 `.pen` 组件库，再进入页面；业务行为变化同步更新对应 OpenSpec。页面首屏只保留当前任务所需的区域，移除装饰性卡片套层、重复帮助说明和旧端“暂不可用”占位。compact 使用单列和移动导航抽屉，regular 保留 80dp 导航栏与内容并列，wide 使用 256dp 常驻导航；业务字段、文案资源、状态和操作语义跨三端保持一致。
+
+实现采用共享 Compose 页面代码的视觉基线：主题颜色来自生成 token，形状统一为 4dp/8dp，触控目标至少 44dp，表单最大宽度 720dp，数据页面在宽屏使用剩余空间。每组页面完成后必须同步 `.pen`、Compose、尺寸截图、Cross-platform Impact Check 和 `tasks.md` 证据；页面实现后的 Hallmark `audit` 必须记录 finding 和修复结果。
+
+本轮最终设计稿以当前 Web Compose 生产实现为基准，未新增、删除或改造 Web 已有的布局和元素。10 个 `.pen` 文件由官方 pen.dev interactive MCP 生成并通过 `pen export` 导出到 `openspec/changes/compose-multiplatform-client/screenshots/pen-web/final/`；Web 对照截图保存在 `screenshots/web-baseline/` 与 `screenshots/web-final-*.png`。登录和账本在 390/1440 px、浅/深色下完成逐项视觉对比。独立 `gpt-6-astra` 复审在修复登录响应式覆盖、账本 Compact 排布、记录边界、操作项和筛选项边框后最终为 P0=0、P1=0、P2=1、P3=0；P2 仅为示例记录数量差异。

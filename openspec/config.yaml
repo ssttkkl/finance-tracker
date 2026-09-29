@@ -11,9 +11,11 @@ context: |
 
 rules:
   proposal:
+    - 从 openspec/specs/README.md 定位业务模块，能力 ID 使用 <module>/<capability>，与主规格和 delta 的相对路径一致。
     - Write intent, scope, non-goals, capabilities, impact, and migration or rollback notes.
     - Keep product behavior in the capability specs and implementation details in design.md.
   specs:
+    - 主规格和 delta 均使用 specs/<module>/<capability>/spec.md，保留完整能力 ID；跨模块合同通过导航链接，不复制需求。
     - Use Chinese for new or substantially revised prose, with code identifiers and protocol literals unchanged.
     - Every requirement must contain MUST or SHALL and at least one WHEN/THEN scenario.
     - State exact Decimal, currency, idempotency, provenance, workspace, and PostgreSQL/SQLite behavior when applicable.

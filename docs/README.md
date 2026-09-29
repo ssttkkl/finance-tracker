@@ -1,6 +1,6 @@
 # 文档索引
 
-可执行行为的唯一事实源是 [`openspec/project-context.md`](../openspec/project-context.md) 与 `openspec/specs/<capability>/spec.md`。本目录只保存使用说明、顶层路线和冻结的产品决策记录。
+可执行行为的唯一事实源是 [`openspec/project-context.md`](../openspec/project-context.md) 与 `openspec/specs/<module>/<capability>/spec.md`。本目录只保存使用说明、顶层路线和冻结的产品决策记录。
 
 运行时：`FT_DATABASE_URL` 选择 **PostgreSQL 或文件型 SQLite** 之一——不得自动回退（no fallback）、不得双写（dual-write）、不得隐式迁移（implicit migration）。
 SQLite 遇到繁忙、读写权限或 schema 错误时会直接报告，不会静默改用其他存储后端。
@@ -25,7 +25,7 @@ active change 通过 `openspec list` 查看。`cash-ledger-browser` 只包含收
 | 文档 | 说明 |
 |---|---|
 | [项目说明](../README.md) | 安装、API、Web、Expo、导入、同步与验证 |
-| [收支账本 Web 规格](../openspec/specs/cash-ledger-browser/spec.md) | 只读收支投影浏览与本机双进程运行形态 |
+| [收支账本 Web 规格](../openspec/specs/cash-ledger/cash-ledger-browser/spec.md) | 只读收支投影浏览与本机双进程运行形态 |
 | [投资账本 active change](../openspec/changes/investment-ledger-browser/proposal.md) | 尚未实现的投资事件与持仓浏览规划 |
 | [导入 / 关系 / 同步流程](import-flow.md) | 事务语义与 API（015 后） |
 | [显式 CSV 导出格式](export-csv-format.md) | 只读预览，非账本 |
@@ -43,15 +43,15 @@ active change 通过 `openspec list` 查看。`cash-ledger-browser` 只包含收
 
 ## OpenSpec
 
-`openspec/specs/` 保存当前能力主规格，`openspec/changes/` 保存 active change，完成后归档到
+[业务能力规格导航](../openspec/specs/README.md) 按模块列出当前主规格，`openspec/specs/` 保存当前能力主规格，`openspec/changes/` 保存 active change，完成后归档到
 `openspec/changes/archive/`。迁移清单和每个旧 feature 的完整产物见 [`openspec/MIGRATION.md`](../openspec/MIGRATION.md)。约定见 [`openspec/project-context.md`](../openspec/project-context.md) 与根目录 [AGENTS.md](../AGENTS.md)。
 
 已完成能力（节选）：
 
-- [运行时数据库](../openspec/specs/runtime-database/spec.md)、[账本记录](../openspec/specs/ledger-records/spec.md)
-- [账单导入](../openspec/specs/statement-import/spec.md)、[交易关系](../openspec/specs/transaction-relations/spec.md)
-- [投资事件模型](../openspec/specs/investment-event-model/spec.md)、[投资组合估值](../openspec/specs/portfolio-valuation/spec.md)
-- [财富归因](../openspec/specs/wealth-attribution/spec.md)、[收支账本浏览](../openspec/specs/cash-ledger-browser/spec.md)
+- [运行时数据库](../openspec/specs/shared/runtime-database/spec.md)、[账本记录](../openspec/specs/shared/ledger-records/spec.md)
+- [账单导入](../openspec/specs/import/statement-import/spec.md)、[交易关系](../openspec/specs/cash-ledger/transaction-relations/spec.md)
+- [投资事件模型](../openspec/specs/investment/investment-event-model/spec.md)、[投资组合估值](../openspec/specs/investment/portfolio-valuation/spec.md)
+- [财富归因](../openspec/specs/wealth/wealth-attribution/spec.md)、[收支账本浏览](../openspec/specs/cash-ledger/cash-ledger-browser/spec.md)
 
 完整列表以 `openspec/` 目录和 `openspec list --specs` 为准；本索引不维护平行任务清单。
 

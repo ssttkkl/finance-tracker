@@ -1,0 +1,3514 @@
+{
+  "version": "2.19",
+  "children": [
+    {
+      "type": "frame",
+      "id": "brLpv",
+      "x": 0,
+      "y": 0,
+      "name": "收支分类 / Compact / 浅色",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$paper",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "W037rE",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 48,
+          "gap": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "WcVMh",
+              "name": "菜单",
+              "width": 20,
+              "height": 20,
+              "icon": "menu",
+              "library": "lucide",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "wJyas",
+              "name": "产品名",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "W7oAY",
+              "name": "当前工作区",
+              "fill": "$accent",
+              "content": "家庭账本",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "LDJfQ",
+          "name": "主工作区",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "coSHE",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "GONmr",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "收支分类",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "sWi64",
+              "name": "分类布局",
+              "width": "fill_container",
+              "gap": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "wBV9S",
+                  "name": "分类目录",
+                  "width": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 18,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "anh9i",
+                      "name": "目录标题",
+                      "fill": "$ink",
+                      "content": "分类目录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "e12SsM",
+                      "name": "搜索分类",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Xt07J",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "搜索分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "e83sQe",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "bW2a4",
+                      "name": "分类项 餐饮",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "O9lHY",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "餐饮",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "vAH4k",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "X4OSe",
+                      "name": "分类项 交通",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "kBCNL",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "交通",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "EEXLz",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "D2KUeQ",
+                      "name": "分类项 住房",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "MwP3k",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "住房",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "JK3PY",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "E2yUMa",
+                      "name": "分类项 未分类",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "xeFcB",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "未分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "z2yQjd",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "msezZ",
+                      "name": "新建分类",
+                      "height": 40,
+                      "fill": "$raised",
+                      "cornerRadius": 20,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Qhprd",
+                          "name": "按钮文字",
+                          "fill": "$ink",
+                          "content": "新建一级分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "b1mGY8",
+                  "name": "分类编辑器",
+                  "width": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 18,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "cyaJG",
+                      "name": "编辑标题",
+                      "fill": "$ink",
+                      "content": "编辑分类",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "kc9RQ",
+                      "name": "分类名称",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "gUFPk",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "分类名称",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "e2a6o",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "餐饮",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Nrkzt",
+                      "name": "上级分类",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "gBEOa",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "上级分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "zTggA",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "无  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "gUaVC",
+                      "name": "分类描述",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "hTuWX",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "分类描述",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "oG1Yn",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "k8Ox0",
+                      "name": "编辑操作",
+                      "width": "fill_container",
+                      "height": 40,
+                      "gap": 8,
+                      "justifyContent": "end",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "D2QD3b",
+                          "name": "删除",
+                          "height": 40,
+                          "fill": "$raised",
+                          "cornerRadius": 20,
+                          "stroke": "$rule",
+                          "strokeWidth": 1,
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "TO10C",
+                              "name": "按钮文字",
+                              "fill": "$ink",
+                              "content": "删除",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "DrHqx",
+                          "name": "保存",
+                          "height": 40,
+                          "fill": "$accent",
+                          "cornerRadius": 20,
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "AVEkQ",
+                              "name": "按钮文字",
+                              "fill": "#FFFFFF",
+                              "content": "保存",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "T3ihxb",
+      "x": 460,
+      "y": 0,
+      "name": "收支分类 / Regular / 浅色",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 768,
+      "height": 1024,
+      "fill": "$paper",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "iOcwc",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 48,
+          "gap": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "WPgvt",
+              "name": "菜单",
+              "width": 20,
+              "height": 20,
+              "icon": "menu",
+              "library": "lucide",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "Vat6t",
+              "name": "产品名",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "r2aHb9",
+              "name": "当前工作区",
+              "fill": "$accent",
+              "content": "家庭账本",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "cm8ZM",
+          "name": "主工作区",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "IRqH8",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ktlWc",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "收支分类",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "oZOhr",
+              "name": "分类布局",
+              "width": "fill_container",
+              "gap": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "wrxip",
+                  "name": "分类目录",
+                  "width": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 18,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "EmKBE",
+                      "name": "目录标题",
+                      "fill": "$ink",
+                      "content": "分类目录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "gPlOj",
+                      "name": "搜索分类",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "uXgpG",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "搜索分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "hB1SE",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "F5vQ3f",
+                      "name": "分类项 餐饮",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "j3Mn7",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "餐饮",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "N1jQOk",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "DhdHc",
+                      "name": "分类项 交通",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ynola",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "交通",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "eTKUX",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ugnwm",
+                      "name": "分类项 住房",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "igVdD",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "住房",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "c2uzXH",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "KV2Jp",
+                      "name": "分类项 未分类",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "IYcRK",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "未分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "UXBRv",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "wMoal",
+                      "name": "新建分类",
+                      "height": 40,
+                      "fill": "$raised",
+                      "cornerRadius": 20,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "W87m0",
+                          "name": "按钮文字",
+                          "fill": "$ink",
+                          "content": "新建一级分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "xn6Xf",
+                  "name": "分类编辑器",
+                  "width": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 18,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "QFmgO",
+                      "name": "编辑标题",
+                      "fill": "$ink",
+                      "content": "编辑分类",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "EDp1v",
+                      "name": "分类名称",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "AMMSU",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "分类名称",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "Mme4j",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "餐饮",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "YFEUl",
+                      "name": "上级分类",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "w3ITYR",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "上级分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "H12XA",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "无  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "M6OQD",
+                      "name": "分类描述",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "G7jvXn",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "分类描述",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "Ay4IS",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "c3eE0o",
+                      "name": "编辑操作",
+                      "width": "fill_container",
+                      "height": 40,
+                      "gap": 8,
+                      "justifyContent": "end",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "cmJnH",
+                          "name": "删除",
+                          "height": 40,
+                          "fill": "$raised",
+                          "cornerRadius": 20,
+                          "stroke": "$rule",
+                          "strokeWidth": 1,
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "HDPBz",
+                              "name": "按钮文字",
+                              "fill": "$ink",
+                              "content": "删除",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "mDF6u",
+                          "name": "保存",
+                          "height": 40,
+                          "fill": "$accent",
+                          "cornerRadius": 20,
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "xREDj",
+                              "name": "按钮文字",
+                              "fill": "#FFFFFF",
+                              "content": "保存",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "kEy3G",
+      "x": 1280,
+      "y": 0,
+      "name": "收支分类 / Wide / 浅色",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 1440,
+      "height": 1000,
+      "fill": "$paper",
+      "gap": 24,
+      "children": [
+        {
+          "type": "frame",
+          "id": "Eb2qj",
+          "name": "侧边栏",
+          "width": 224,
+          "height": "fill_container",
+          "fill": "$paper",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "F6lYXy",
+              "name": "品牌",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 16,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "c859B",
+              "name": "导航 收支账本",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "BcF9m",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "收支账本",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "H2AMw",
+              "name": "导航 账单导入",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "PAJ5a",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "账单导入",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "nEAJ9",
+              "name": "导航 收支分类",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "g3X6I",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "收支分类",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "iRdyU",
+              "name": "导航 当前持仓",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "UbK40",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "当前持仓",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "U5oW7",
+              "name": "导航 投资事件",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "HMyBS",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "投资事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "YfcxJ",
+              "name": "导航 工作区管理",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "qKYNU",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "工作区管理",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "OJRgs",
+          "name": "主工作区",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            28,
+            36
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "AC4uV",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "c9tMoo",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "收支分类",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "BSEcR",
+              "name": "分类布局",
+              "width": "fill_container",
+              "gap": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "XuXBc",
+                  "name": "分类目录",
+                  "width": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 18,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "g8kK4",
+                      "name": "目录标题",
+                      "fill": "$ink",
+                      "content": "分类目录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "yNJuI",
+                      "name": "搜索分类",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "fDX20",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "搜索分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "ydUEM",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "dow2h",
+                      "name": "分类项 餐饮",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "uj8uz",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "餐饮",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "bGdAg",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "GNBe0",
+                      "name": "分类项 交通",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "gbAAS",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "交通",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "jCQHq",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "B3eqzA",
+                      "name": "分类项 住房",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "lsqrO",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "住房",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "QgXDl",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "GSEO0",
+                      "name": "分类项 未分类",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Nq43z",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "未分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "c63I4",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "XkEf4",
+                      "name": "新建分类",
+                      "height": 40,
+                      "fill": "$raised",
+                      "cornerRadius": 20,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "LtrHM",
+                          "name": "按钮文字",
+                          "fill": "$ink",
+                          "content": "新建一级分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "B5Mxx",
+                  "name": "分类编辑器",
+                  "width": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 18,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "aZYVr",
+                      "name": "编辑标题",
+                      "fill": "$ink",
+                      "content": "编辑分类",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Z6bDqd",
+                      "name": "分类名称",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "SHINv",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "分类名称",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "I7sRh",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "餐饮",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "zsXga",
+                      "name": "上级分类",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "hghMA",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "上级分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "KTHWJ",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "无  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "GGwBe",
+                      "name": "分类描述",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "WA6Ki",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "分类描述",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "YqPXn",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "EQ6WG",
+                      "name": "编辑操作",
+                      "width": "fill_container",
+                      "height": 40,
+                      "gap": 8,
+                      "justifyContent": "end",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "iC6rj",
+                          "name": "删除",
+                          "height": 40,
+                          "fill": "$raised",
+                          "cornerRadius": 20,
+                          "stroke": "$rule",
+                          "strokeWidth": 1,
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "GW9uS",
+                              "name": "按钮文字",
+                              "fill": "$ink",
+                              "content": "删除",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "crLmB",
+                          "name": "保存",
+                          "height": 40,
+                          "fill": "$accent",
+                          "cornerRadius": 20,
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "nzZyL",
+                              "name": "按钮文字",
+                              "fill": "#FFFFFF",
+                              "content": "保存",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "c6cdyD",
+      "x": 0,
+      "y": 924,
+      "name": "收支分类 / Compact / 深色",
+      "theme": {
+        "mode": "dark"
+      },
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$paper",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "FPSHy",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 48,
+          "gap": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "bTa3f",
+              "name": "菜单",
+              "width": 20,
+              "height": 20,
+              "icon": "menu",
+              "library": "lucide",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "Pi9Lh",
+              "name": "产品名",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "YeeQH",
+              "name": "当前工作区",
+              "fill": "$accent",
+              "content": "家庭账本",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "APy17",
+          "name": "主工作区",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "DwBoH",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "vcapn",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "收支分类",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "dN854",
+              "name": "分类布局",
+              "width": "fill_container",
+              "gap": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "vtYBB",
+                  "name": "分类目录",
+                  "width": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 18,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "g3apmz",
+                      "name": "目录标题",
+                      "fill": "$ink",
+                      "content": "分类目录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "w0Dawy",
+                      "name": "搜索分类",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "xuGLl",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "搜索分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "H1ZMrr",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "lgTrd",
+                      "name": "分类项 餐饮",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "tRm81",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "餐饮",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "I5C5uh",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "MGiTh",
+                      "name": "分类项 交通",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n89shb",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "交通",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "g20FXi",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "fyJbF",
+                      "name": "分类项 住房",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "UavCm",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "住房",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "nvIWk",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Gf58G",
+                      "name": "分类项 未分类",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "YIYwi",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "未分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "iCcLi",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "wL63H",
+                      "name": "新建分类",
+                      "height": 40,
+                      "fill": "$raised",
+                      "cornerRadius": 20,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n1J90",
+                          "name": "按钮文字",
+                          "fill": "$ink",
+                          "content": "新建一级分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "s1j9IU",
+                  "name": "分类编辑器",
+                  "width": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 18,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "R3SAN",
+                      "name": "编辑标题",
+                      "fill": "$ink",
+                      "content": "编辑分类",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ZVXMF",
+                      "name": "分类名称",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "h8ShV",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "分类名称",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "ICHHS",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "餐饮",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "O93v5a",
+                      "name": "上级分类",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Twhjl",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "上级分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "lKxcv",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "无  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "XWWIv",
+                      "name": "分类描述",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "wFf2n",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "分类描述",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "K2xpKm",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "d2lDR",
+                      "name": "编辑操作",
+                      "width": "fill_container",
+                      "height": 40,
+                      "gap": 8,
+                      "justifyContent": "end",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "WCK9N",
+                          "name": "删除",
+                          "height": 40,
+                          "fill": "$raised",
+                          "cornerRadius": 20,
+                          "stroke": "$rule",
+                          "strokeWidth": 1,
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "W5XASy",
+                              "name": "按钮文字",
+                              "fill": "$ink",
+                              "content": "删除",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "i42KGH",
+                          "name": "保存",
+                          "height": 40,
+                          "fill": "$accent",
+                          "cornerRadius": 20,
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "mJ727",
+                              "name": "按钮文字",
+                              "fill": "#FFFFFF",
+                              "content": "保存",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "dRbXG",
+      "x": 460,
+      "y": 1104,
+      "name": "收支分类 / Regular / 深色",
+      "theme": {
+        "mode": "dark"
+      },
+      "clip": true,
+      "width": 768,
+      "height": 1024,
+      "fill": "$paper",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "CJhKA",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 48,
+          "gap": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "pcNfH",
+              "name": "菜单",
+              "width": 20,
+              "height": 20,
+              "icon": "menu",
+              "library": "lucide",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "zEYdV",
+              "name": "产品名",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "qxTB1",
+              "name": "当前工作区",
+              "fill": "$accent",
+              "content": "家庭账本",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "qgFUd",
+          "name": "主工作区",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "bvQZA",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "pyV9p",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "收支分类",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "v6DZ1",
+              "name": "分类布局",
+              "width": "fill_container",
+              "gap": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "FXSID",
+                  "name": "分类目录",
+                  "width": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 18,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "I4fuH",
+                      "name": "目录标题",
+                      "fill": "$ink",
+                      "content": "分类目录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "gSpM8",
+                      "name": "搜索分类",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "RjGty",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "搜索分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "mFERo",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "F7bxo",
+                      "name": "分类项 餐饮",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "nLJCo",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "餐饮",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "sJnyT",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "FbJEO",
+                      "name": "分类项 交通",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "V5ZIU",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "交通",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "bOSqk",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "NsURX",
+                      "name": "分类项 住房",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Sesaw",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "住房",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "TrYnq",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Qbi7R",
+                      "name": "分类项 未分类",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "otwnW",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "未分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "j2Yfu",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "O867M",
+                      "name": "新建分类",
+                      "height": 40,
+                      "fill": "$raised",
+                      "cornerRadius": 20,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "uzPFr",
+                          "name": "按钮文字",
+                          "fill": "$ink",
+                          "content": "新建一级分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "GSW11",
+                  "name": "分类编辑器",
+                  "width": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 18,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "GhBKs",
+                      "name": "编辑标题",
+                      "fill": "$ink",
+                      "content": "编辑分类",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Z47oe2",
+                      "name": "分类名称",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "baRjU",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "分类名称",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "SJg9o",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "餐饮",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "vmeL0",
+                      "name": "上级分类",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "rLUNh",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "上级分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "QdR0F",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "无  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "S5zuOi",
+                      "name": "分类描述",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "kMkCv",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "分类描述",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "k4IHIa",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Qje8I",
+                      "name": "编辑操作",
+                      "width": "fill_container",
+                      "height": 40,
+                      "gap": 8,
+                      "justifyContent": "end",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "HyZfr",
+                          "name": "删除",
+                          "height": 40,
+                          "fill": "$raised",
+                          "cornerRadius": 20,
+                          "stroke": "$rule",
+                          "strokeWidth": 1,
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "zFHdF",
+                              "name": "按钮文字",
+                              "fill": "$ink",
+                              "content": "删除",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "h1QZ0",
+                          "name": "保存",
+                          "height": 40,
+                          "fill": "$accent",
+                          "cornerRadius": 20,
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "Ui42E",
+                              "name": "按钮文字",
+                              "fill": "#FFFFFF",
+                              "content": "保存",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "n2d6pq",
+      "x": 1280,
+      "y": 1080,
+      "name": "收支分类 / Wide / 深色",
+      "theme": {
+        "mode": "dark"
+      },
+      "clip": true,
+      "width": 1440,
+      "height": 1000,
+      "fill": "$paper",
+      "gap": 24,
+      "children": [
+        {
+          "type": "frame",
+          "id": "qPfKD",
+          "name": "侧边栏",
+          "width": 224,
+          "height": "fill_container",
+          "fill": "$paper",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "OCmeQ",
+              "name": "品牌",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 16,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "EJHbn",
+              "name": "导航 收支账本",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "R00ykx",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "收支账本",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "bKr7j",
+              "name": "导航 账单导入",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "mFBfW",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "账单导入",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "EnSAS",
+              "name": "导航 收支分类",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "xZrbv",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "收支分类",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "JdbC9",
+              "name": "导航 当前持仓",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "NfV4P",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "当前持仓",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "INeE2",
+              "name": "导航 投资事件",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "cNkZM",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "投资事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "UcZ3r",
+              "name": "导航 工作区管理",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "DetOe",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "工作区管理",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Y6Z3b",
+          "name": "主工作区",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            28,
+            36
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "e9BBMj",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "cKPJP",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "收支分类",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "k56145",
+              "name": "分类布局",
+              "width": "fill_container",
+              "gap": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "hzVIf",
+                  "name": "分类目录",
+                  "width": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 18,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "xAAlc",
+                      "name": "目录标题",
+                      "fill": "$ink",
+                      "content": "分类目录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "OYpbU",
+                      "name": "搜索分类",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "JnTSx",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "搜索分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "TKWWu",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "HYFEO",
+                      "name": "分类项 餐饮",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "z6Mohj",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "餐饮",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "Hcsd0",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "VL4Kc",
+                      "name": "分类项 交通",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "jpqsW",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "交通",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "h45Lz",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "NCQw2",
+                      "name": "分类项 住房",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "R2QXTT",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "住房",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "uYwlO",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "nemr3",
+                      "name": "分类项 未分类",
+                      "width": "fill_container",
+                      "height": 40,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "VvLc5",
+                          "name": "分类名称",
+                          "fill": "$ink",
+                          "content": "未分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "ex8EK",
+                          "name": "编辑",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "pencil",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "hN2d5",
+                      "name": "新建分类",
+                      "height": 40,
+                      "fill": "$raised",
+                      "cornerRadius": 20,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "zGbbo",
+                          "name": "按钮文字",
+                          "fill": "$ink",
+                          "content": "新建一级分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "eNdzb",
+                  "name": "分类编辑器",
+                  "width": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 18,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "M5DAdl",
+                      "name": "编辑标题",
+                      "fill": "$ink",
+                      "content": "编辑分类",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "vI8n4",
+                      "name": "分类名称",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "jopmQ",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "分类名称",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "jpGvb",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "餐饮",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "p6c3h",
+                      "name": "上级分类",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "nPDz3",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "上级分类",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "vfr9k",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "无  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "XCuUw",
+                      "name": "分类描述",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "jBHJp",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "分类描述",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "Bc8nL",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "mt9uM",
+                      "name": "编辑操作",
+                      "width": "fill_container",
+                      "height": 40,
+                      "gap": 8,
+                      "justifyContent": "end",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "XUoF7",
+                          "name": "删除",
+                          "height": 40,
+                          "fill": "$raised",
+                          "cornerRadius": 20,
+                          "stroke": "$rule",
+                          "strokeWidth": 1,
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "WM2Hq",
+                              "name": "按钮文字",
+                              "fill": "$ink",
+                              "content": "删除",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "FroA5",
+                          "name": "保存",
+                          "height": 40,
+                          "fill": "$accent",
+                          "cornerRadius": 20,
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "jWwzJ",
+                              "name": "按钮文字",
+                              "fill": "#FFFFFF",
+                              "content": "保存",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "themes": {
+    "mode": [
+      "light",
+      "dark"
+    ]
+  },
+  "variables": {
+    "paper": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#F6F8FB",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#101216",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "raised": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#FFFFFF",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#1B1D23",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "muted": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#E7E1EA",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#35333B",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "ink": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#1B2028",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#F2F4F8",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "subtle": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#5F6672",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#B8BFCC",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "accent": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#0A63B8",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#9FC3FF",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "rule": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#B8C0CC",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#687180",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    }
+  },
+  "imports": {
+    "W": "finance-design-system.lib.pen"
+  },
+  "fileToken": "dd85a40e-f709-49fe-a4fe-d779bbbd96bd"
+}

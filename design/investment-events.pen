@@ -1,0 +1,3310 @@
+{
+  "version": "2.19",
+  "children": [
+    {
+      "type": "frame",
+      "id": "ajog0",
+      "x": 0,
+      "y": 0,
+      "name": "投资事件 / Compact / 浅色",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$paper",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "pPWlN",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 48,
+          "gap": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "B732dF",
+              "name": "菜单",
+              "width": 20,
+              "height": 20,
+              "icon": "menu",
+              "library": "lucide",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "cSFrf",
+              "name": "产品名",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "wUKbm",
+              "name": "当前工作区",
+              "fill": "$accent",
+              "content": "家庭账本",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "CZbey",
+          "name": "主工作区",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "tEQai",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "QUbsX",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "投资事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "EoSFZ",
+                  "name": "筛选",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "filter",
+                  "library": "lucide",
+                  "fill": "$ink"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "oh9jS",
+              "name": "事件筛选",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "pAVdN",
+                  "name": "账户",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "YYcGT",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "RUodH",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部账户  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "HkOoV",
+                  "name": "事件类型",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "zYhHG",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "事件类型",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "S2mXa",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部事件  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "VAo6Z",
+                  "name": "日期范围",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "x5BmC",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "日期范围",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Lo3MC",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部时间  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "f5u5Aj",
+              "name": "投资事件列表",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "kOyd7",
+                  "name": "表头 发生时间",
+                  "fill": "$subtle",
+                  "content": "发生时间",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "omScL",
+                  "name": "表头 账户",
+                  "fill": "$subtle",
+                  "content": "账户",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "QZRkI",
+                  "name": "表头 事件",
+                  "fill": "$subtle",
+                  "content": "事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "grdQX",
+                  "name": "表头 资产变化",
+                  "fill": "$subtle",
+                  "content": "资产变化",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "EPpGY",
+                  "name": "表头 手续费",
+                  "fill": "$subtle",
+                  "content": "手续费",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "w4DA9",
+                  "name": "表头 备注",
+                  "fill": "$subtle",
+                  "content": "备注",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "zBiy2",
+                  "name": "表头 操作",
+                  "fill": "$subtle",
+                  "content": "操作",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "vaFVY",
+                  "name": "投资事件行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "J6qDS",
+                      "name": "发生时间",
+                      "fill": "$ink",
+                      "content": "2026年9月24日",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "wjgIT",
+                      "name": "账户",
+                      "fill": "$ink",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Jt0qh",
+                      "name": "事件",
+                      "fill": "$ink",
+                      "content": "买入",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "QbPh4",
+                      "name": "资产变化",
+                      "fill": "$ink",
+                      "content": "沪深300 100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "AxvW1",
+                      "name": "手续费",
+                      "fill": "$ink",
+                      "content": "¥ 2.40",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "JUDa3",
+                      "name": "备注",
+                      "fill": "$subtle",
+                      "content": "导入记录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "Y4bAO2",
+                      "name": "查看详情",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "file-text",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "C8dNz",
+                  "name": "投资事件行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "yfpjJ",
+                      "name": "发生时间",
+                      "fill": "$ink",
+                      "content": "2026年9月12日",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "fu3vy",
+                      "name": "账户",
+                      "fill": "$ink",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "i3dZc9",
+                      "name": "事件",
+                      "fill": "$ink",
+                      "content": "买入",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "y72cl",
+                      "name": "资产变化",
+                      "fill": "$ink",
+                      "content": "沪深300 100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "m1JbrN",
+                      "name": "手续费",
+                      "fill": "$ink",
+                      "content": "¥ 2.40",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "t7ITH",
+                      "name": "备注",
+                      "fill": "$subtle",
+                      "content": "导入记录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "Ml9an",
+                      "name": "查看详情",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "file-text",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "EtP2j",
+                  "name": "加载更多",
+                  "fill": "$accent",
+                  "content": "加载更多",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "CDuR9",
+      "x": 460,
+      "y": 0,
+      "name": "投资事件 / Regular / 浅色",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 768,
+      "height": 1024,
+      "fill": "$paper",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "J6ZCw",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 48,
+          "gap": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "TZtSw",
+              "name": "菜单",
+              "width": 20,
+              "height": 20,
+              "icon": "menu",
+              "library": "lucide",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "jVezM",
+              "name": "产品名",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "lo6xZ",
+              "name": "当前工作区",
+              "fill": "$accent",
+              "content": "家庭账本",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "IlNlL",
+          "name": "主工作区",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "PhF8m",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ovJnA",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "投资事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "U4mrx",
+                  "name": "筛选",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "filter",
+                  "library": "lucide",
+                  "fill": "$ink"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "uKlYE",
+              "name": "事件筛选",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "AHzSk",
+                  "name": "账户",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "aD725",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "QTOL2",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部账户  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Qrdc0",
+                  "name": "事件类型",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "c0gdsh",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "事件类型",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "AGthm",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部事件  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "paZei",
+                  "name": "日期范围",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "oFw1m",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "日期范围",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "UdCuI",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部时间  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "AwIoU",
+              "name": "投资事件列表",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "CLQVh",
+                  "name": "表头 发生时间",
+                  "fill": "$subtle",
+                  "content": "发生时间",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "SBglA",
+                  "name": "表头 账户",
+                  "fill": "$subtle",
+                  "content": "账户",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "kDBgL",
+                  "name": "表头 事件",
+                  "fill": "$subtle",
+                  "content": "事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "T1BW3",
+                  "name": "表头 资产变化",
+                  "fill": "$subtle",
+                  "content": "资产变化",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "L3oMCH",
+                  "name": "表头 手续费",
+                  "fill": "$subtle",
+                  "content": "手续费",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "tGDb8",
+                  "name": "表头 备注",
+                  "fill": "$subtle",
+                  "content": "备注",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "DOJOu",
+                  "name": "表头 操作",
+                  "fill": "$subtle",
+                  "content": "操作",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "qNx4R",
+                  "name": "投资事件行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "SILfJ",
+                      "name": "发生时间",
+                      "fill": "$ink",
+                      "content": "2026年9月24日",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "L0Twk",
+                      "name": "账户",
+                      "fill": "$ink",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "cteW6",
+                      "name": "事件",
+                      "fill": "$ink",
+                      "content": "买入",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Ev5f7",
+                      "name": "资产变化",
+                      "fill": "$ink",
+                      "content": "沪深300 100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "YngkD",
+                      "name": "手续费",
+                      "fill": "$ink",
+                      "content": "¥ 2.40",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Uf2bw",
+                      "name": "备注",
+                      "fill": "$subtle",
+                      "content": "导入记录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "o5JWb",
+                      "name": "查看详情",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "file-text",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "PmuVu",
+                  "name": "投资事件行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "oOWw0",
+                      "name": "发生时间",
+                      "fill": "$ink",
+                      "content": "2026年9月12日",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "T9dOo",
+                      "name": "账户",
+                      "fill": "$ink",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "L3XxGW",
+                      "name": "事件",
+                      "fill": "$ink",
+                      "content": "买入",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ckE0N",
+                      "name": "资产变化",
+                      "fill": "$ink",
+                      "content": "沪深300 100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "cKGv1",
+                      "name": "手续费",
+                      "fill": "$ink",
+                      "content": "¥ 2.40",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "KT0tn",
+                      "name": "备注",
+                      "fill": "$subtle",
+                      "content": "导入记录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "zUXGj",
+                      "name": "查看详情",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "file-text",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "g9kweU",
+                  "name": "加载更多",
+                  "fill": "$accent",
+                  "content": "加载更多",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "bYFGl",
+      "x": 1280,
+      "y": 0,
+      "name": "投资事件 / Wide / 浅色",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 1440,
+      "height": 1000,
+      "fill": "$paper",
+      "gap": 24,
+      "children": [
+        {
+          "type": "frame",
+          "id": "hSKWC",
+          "name": "侧边栏",
+          "width": 224,
+          "height": "fill_container",
+          "fill": "$paper",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "hqabb",
+              "name": "品牌",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 16,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "TxN2Q",
+              "name": "导航 收支账本",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "VFrej",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "收支账本",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "nq98Z",
+              "name": "导航 账单导入",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "knKeP",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "账单导入",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "u1Q2C",
+              "name": "导航 收支分类",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "WlsOd",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "收支分类",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "WpijU",
+              "name": "导航 当前持仓",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "oQdjN",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "当前持仓",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "foj5G",
+              "name": "导航 投资事件",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "gRTNQ",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "投资事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "JzW1b",
+              "name": "导航 工作区管理",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "vYFNF",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "工作区管理",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "EUvwZ",
+          "name": "主工作区",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            28,
+            36
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "h3Q29z",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "VWR2t",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "投资事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "slFwm",
+                  "name": "筛选",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "filter",
+                  "library": "lucide",
+                  "fill": "$ink"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "P8Chs",
+              "name": "事件筛选",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "i7lrJ",
+                  "name": "账户",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Gh5x2",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "l7Gz1",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部账户  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "rIzuQ",
+                  "name": "事件类型",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "x0Dxe",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "事件类型",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "sfyo3",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部事件  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "nKpCN",
+                  "name": "日期范围",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "EQLld",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "日期范围",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "pk3ma",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部时间  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "N3gcmT",
+              "name": "投资事件列表",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "v77Wel",
+                  "name": "表头 发生时间",
+                  "fill": "$subtle",
+                  "content": "发生时间",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "NxmbM",
+                  "name": "表头 账户",
+                  "fill": "$subtle",
+                  "content": "账户",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "DJhRc",
+                  "name": "表头 事件",
+                  "fill": "$subtle",
+                  "content": "事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "KhTJl",
+                  "name": "表头 资产变化",
+                  "fill": "$subtle",
+                  "content": "资产变化",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "xIdic",
+                  "name": "表头 手续费",
+                  "fill": "$subtle",
+                  "content": "手续费",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "f3zXW",
+                  "name": "表头 备注",
+                  "fill": "$subtle",
+                  "content": "备注",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "EuYIj",
+                  "name": "表头 操作",
+                  "fill": "$subtle",
+                  "content": "操作",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "d5X7dh",
+                  "name": "投资事件行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "G6hQR4",
+                      "name": "发生时间",
+                      "fill": "$ink",
+                      "content": "2026年9月24日",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "S9OD3",
+                      "name": "账户",
+                      "fill": "$ink",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "leavN",
+                      "name": "事件",
+                      "fill": "$ink",
+                      "content": "买入",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Xmwtk",
+                      "name": "资产变化",
+                      "fill": "$ink",
+                      "content": "沪深300 100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "E6rSwv",
+                      "name": "手续费",
+                      "fill": "$ink",
+                      "content": "¥ 2.40",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "rMi2y",
+                      "name": "备注",
+                      "fill": "$subtle",
+                      "content": "导入记录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "GzugW",
+                      "name": "查看详情",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "file-text",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Q9Ck4E",
+                  "name": "投资事件行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "z852kj",
+                      "name": "发生时间",
+                      "fill": "$ink",
+                      "content": "2026年9月12日",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "SUnid",
+                      "name": "账户",
+                      "fill": "$ink",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "kIm6d",
+                      "name": "事件",
+                      "fill": "$ink",
+                      "content": "买入",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "veYZ5",
+                      "name": "资产变化",
+                      "fill": "$ink",
+                      "content": "沪深300 100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "NBi9A",
+                      "name": "手续费",
+                      "fill": "$ink",
+                      "content": "¥ 2.40",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "kumB9",
+                      "name": "备注",
+                      "fill": "$subtle",
+                      "content": "导入记录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "F4HJHH",
+                      "name": "查看详情",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "file-text",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "ZeUBK",
+                  "name": "加载更多",
+                  "fill": "$accent",
+                  "content": "加载更多",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "vPsHr",
+      "x": 0,
+      "y": 924,
+      "name": "投资事件 / Compact / 深色",
+      "theme": {
+        "mode": "dark"
+      },
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$paper",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "u7O0hb",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 48,
+          "gap": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "J2fph",
+              "name": "菜单",
+              "width": 20,
+              "height": 20,
+              "icon": "menu",
+              "library": "lucide",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "QXe2I",
+              "name": "产品名",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "JtuNH",
+              "name": "当前工作区",
+              "fill": "$accent",
+              "content": "家庭账本",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "EELCQ",
+          "name": "主工作区",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "XefSV",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "HvRH2",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "投资事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "NHIKT",
+                  "name": "筛选",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "filter",
+                  "library": "lucide",
+                  "fill": "$ink"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "VTeXW",
+              "name": "事件筛选",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "PDk6j",
+                  "name": "账户",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "s2vEh",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "e38xa",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部账户  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "g1I4JN",
+                  "name": "事件类型",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "EUCvU",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "事件类型",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "kEkfm",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部事件  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "o6jmFh",
+                  "name": "日期范围",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "U4vZS",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "日期范围",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "bQ905",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部时间  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "mdr1l",
+              "name": "投资事件列表",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "KFEg0",
+                  "name": "表头 发生时间",
+                  "fill": "$subtle",
+                  "content": "发生时间",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "RIYya",
+                  "name": "表头 账户",
+                  "fill": "$subtle",
+                  "content": "账户",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "jiIJg",
+                  "name": "表头 事件",
+                  "fill": "$subtle",
+                  "content": "事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "OiwPp",
+                  "name": "表头 资产变化",
+                  "fill": "$subtle",
+                  "content": "资产变化",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "CKcr8",
+                  "name": "表头 手续费",
+                  "fill": "$subtle",
+                  "content": "手续费",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "emPlt",
+                  "name": "表头 备注",
+                  "fill": "$subtle",
+                  "content": "备注",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "z663s",
+                  "name": "表头 操作",
+                  "fill": "$subtle",
+                  "content": "操作",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "xUvFp",
+                  "name": "投资事件行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Gvb4n",
+                      "name": "发生时间",
+                      "fill": "$ink",
+                      "content": "2026年9月24日",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "hUrXV",
+                      "name": "账户",
+                      "fill": "$ink",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "y0ceN",
+                      "name": "事件",
+                      "fill": "$ink",
+                      "content": "买入",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "y8Jxye",
+                      "name": "资产变化",
+                      "fill": "$ink",
+                      "content": "沪深300 100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "M7g63",
+                      "name": "手续费",
+                      "fill": "$ink",
+                      "content": "¥ 2.40",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "pXp5K",
+                      "name": "备注",
+                      "fill": "$subtle",
+                      "content": "导入记录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "Yvckw",
+                      "name": "查看详情",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "file-text",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n2IH73",
+                  "name": "投资事件行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "whStp",
+                      "name": "发生时间",
+                      "fill": "$ink",
+                      "content": "2026年9月12日",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "e9YoKO",
+                      "name": "账户",
+                      "fill": "$ink",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "HIKmC",
+                      "name": "事件",
+                      "fill": "$ink",
+                      "content": "买入",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "hccpo",
+                      "name": "资产变化",
+                      "fill": "$ink",
+                      "content": "沪深300 100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "QkQnG",
+                      "name": "手续费",
+                      "fill": "$ink",
+                      "content": "¥ 2.40",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "VCuYn",
+                      "name": "备注",
+                      "fill": "$subtle",
+                      "content": "导入记录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "ohYA5",
+                      "name": "查看详情",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "file-text",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "UFCud",
+                  "name": "加载更多",
+                  "fill": "$accent",
+                  "content": "加载更多",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Sob2h",
+      "x": 460,
+      "y": 1104,
+      "name": "投资事件 / Regular / 深色",
+      "theme": {
+        "mode": "dark"
+      },
+      "clip": true,
+      "width": 768,
+      "height": 1024,
+      "fill": "$paper",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "T5azC",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 48,
+          "gap": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "Ho7T6",
+              "name": "菜单",
+              "width": 20,
+              "height": 20,
+              "icon": "menu",
+              "library": "lucide",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "b8XYUL",
+              "name": "产品名",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "LarTH",
+              "name": "当前工作区",
+              "fill": "$accent",
+              "content": "家庭账本",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "mNxKL",
+          "name": "主工作区",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "rOKAM",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Mj8Lj",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "投资事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "J24GQ",
+                  "name": "筛选",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "filter",
+                  "library": "lucide",
+                  "fill": "$ink"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "gVzzH",
+              "name": "事件筛选",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Troyl",
+                  "name": "账户",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "nxzsy",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "q0OUgz",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部账户  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "RlfQB",
+                  "name": "事件类型",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Ocru1",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "事件类型",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "rweAt",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部事件  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "i49un",
+                  "name": "日期范围",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "z6i5A",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "日期范围",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ZdZhm",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部时间  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "jY7xj",
+              "name": "投资事件列表",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "eropU",
+                  "name": "表头 发生时间",
+                  "fill": "$subtle",
+                  "content": "发生时间",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "V2LHy",
+                  "name": "表头 账户",
+                  "fill": "$subtle",
+                  "content": "账户",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "QpDBb",
+                  "name": "表头 事件",
+                  "fill": "$subtle",
+                  "content": "事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "kLcQK",
+                  "name": "表头 资产变化",
+                  "fill": "$subtle",
+                  "content": "资产变化",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "y29s3q",
+                  "name": "表头 手续费",
+                  "fill": "$subtle",
+                  "content": "手续费",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "x41JM",
+                  "name": "表头 备注",
+                  "fill": "$subtle",
+                  "content": "备注",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "kXFwH",
+                  "name": "表头 操作",
+                  "fill": "$subtle",
+                  "content": "操作",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "YmoLF",
+                  "name": "投资事件行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ZjlSO",
+                      "name": "发生时间",
+                      "fill": "$ink",
+                      "content": "2026年9月24日",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "FWdSk",
+                      "name": "账户",
+                      "fill": "$ink",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Nc05F",
+                      "name": "事件",
+                      "fill": "$ink",
+                      "content": "买入",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "K6xd5",
+                      "name": "资产变化",
+                      "fill": "$ink",
+                      "content": "沪深300 100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "hh6Km",
+                      "name": "手续费",
+                      "fill": "$ink",
+                      "content": "¥ 2.40",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "OpxcN",
+                      "name": "备注",
+                      "fill": "$subtle",
+                      "content": "导入记录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "r5wnk",
+                      "name": "查看详情",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "file-text",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "z3uVIf",
+                  "name": "投资事件行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "jSnet",
+                      "name": "发生时间",
+                      "fill": "$ink",
+                      "content": "2026年9月12日",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "aiE5X",
+                      "name": "账户",
+                      "fill": "$ink",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ACmwM",
+                      "name": "事件",
+                      "fill": "$ink",
+                      "content": "买入",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "G99jB5",
+                      "name": "资产变化",
+                      "fill": "$ink",
+                      "content": "沪深300 100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "CozeM",
+                      "name": "手续费",
+                      "fill": "$ink",
+                      "content": "¥ 2.40",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "VFYKK",
+                      "name": "备注",
+                      "fill": "$subtle",
+                      "content": "导入记录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "hBBeg",
+                      "name": "查看详情",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "file-text",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "tmoVc",
+                  "name": "加载更多",
+                  "fill": "$accent",
+                  "content": "加载更多",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "c8wlf",
+      "x": 1280,
+      "y": 1080,
+      "name": "投资事件 / Wide / 深色",
+      "theme": {
+        "mode": "dark"
+      },
+      "clip": true,
+      "width": 1440,
+      "height": 1000,
+      "fill": "$paper",
+      "gap": 24,
+      "children": [
+        {
+          "type": "frame",
+          "id": "KCGBG",
+          "name": "侧边栏",
+          "width": 224,
+          "height": "fill_container",
+          "fill": "$paper",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "dn2WA",
+              "name": "品牌",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 16,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "sYNpz",
+              "name": "导航 收支账本",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "aNm9I",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "收支账本",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "LFHWq",
+              "name": "导航 账单导入",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "a3RHhA",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "账单导入",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "jTVvk",
+              "name": "导航 收支分类",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "MbE1h",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "收支分类",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "A3bdf",
+              "name": "导航 当前持仓",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "XMiJ8",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "当前持仓",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "N88K8x",
+              "name": "导航 投资事件",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "A4sPy",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "投资事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "z1hi3V",
+              "name": "导航 工作区管理",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Q5sFrv",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "工作区管理",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "iiZzO",
+          "name": "主工作区",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            28,
+            36
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "bUBH2",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "o7Myfn",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "投资事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "R0vOpb",
+                  "name": "筛选",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "filter",
+                  "library": "lucide",
+                  "fill": "$ink"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "BSAqc",
+              "name": "事件筛选",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "QkXMZ",
+                  "name": "账户",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ljqM2",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Surgm",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部账户  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "GVH7p",
+                  "name": "事件类型",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "F60bg",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "事件类型",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "x8zEJ",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部事件  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "YEx3D",
+                  "name": "日期范围",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "SFaBT",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "日期范围",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "h1skb",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部时间  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "WALZt",
+              "name": "投资事件列表",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "m9BxM",
+                  "name": "表头 发生时间",
+                  "fill": "$subtle",
+                  "content": "发生时间",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "P8shO",
+                  "name": "表头 账户",
+                  "fill": "$subtle",
+                  "content": "账户",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "gz1K4",
+                  "name": "表头 事件",
+                  "fill": "$subtle",
+                  "content": "事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "PRm0K",
+                  "name": "表头 资产变化",
+                  "fill": "$subtle",
+                  "content": "资产变化",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "I6OYYc",
+                  "name": "表头 手续费",
+                  "fill": "$subtle",
+                  "content": "手续费",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "YPCcL",
+                  "name": "表头 备注",
+                  "fill": "$subtle",
+                  "content": "备注",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "EW8fU",
+                  "name": "表头 操作",
+                  "fill": "$subtle",
+                  "content": "操作",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "bhcZH",
+                  "name": "投资事件行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "acClE",
+                      "name": "发生时间",
+                      "fill": "$ink",
+                      "content": "2026年9月24日",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "kREn2",
+                      "name": "账户",
+                      "fill": "$ink",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "MENsm",
+                      "name": "事件",
+                      "fill": "$ink",
+                      "content": "买入",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "CT5ea",
+                      "name": "资产变化",
+                      "fill": "$ink",
+                      "content": "沪深300 100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "gII8C",
+                      "name": "手续费",
+                      "fill": "$ink",
+                      "content": "¥ 2.40",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "sTnIC",
+                      "name": "备注",
+                      "fill": "$subtle",
+                      "content": "导入记录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "T0IWKb",
+                      "name": "查看详情",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "file-text",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "bZ2Wz",
+                  "name": "投资事件行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "wTezw",
+                      "name": "发生时间",
+                      "fill": "$ink",
+                      "content": "2026年9月12日",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "wljDI",
+                      "name": "账户",
+                      "fill": "$ink",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "M6avN",
+                      "name": "事件",
+                      "fill": "$ink",
+                      "content": "买入",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "bTopn",
+                      "name": "资产变化",
+                      "fill": "$ink",
+                      "content": "沪深300 100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Y251mO",
+                      "name": "手续费",
+                      "fill": "$ink",
+                      "content": "¥ 2.40",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "M131e",
+                      "name": "备注",
+                      "fill": "$subtle",
+                      "content": "导入记录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "U4NtiU",
+                      "name": "查看详情",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "file-text",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "ZB1nh",
+                  "name": "加载更多",
+                  "fill": "$accent",
+                  "content": "加载更多",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "themes": {
+    "mode": [
+      "light",
+      "dark"
+    ]
+  },
+  "variables": {
+    "paper": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#F6F8FB",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#101216",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "raised": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#FFFFFF",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#1B1D23",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "muted": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#E7E1EA",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#35333B",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "ink": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#1B2028",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#F2F4F8",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "subtle": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#5F6672",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#B8BFCC",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "accent": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#0A63B8",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#9FC3FF",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "rule": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#B8C0CC",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#687180",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    }
+  },
+  "imports": {
+    "0": "finance-design-system.lib.pen"
+  },
+  "fileToken": "75ba0245-b765-458e-818a-48d0e2af90de"
+}

@@ -254,7 +254,7 @@ internal fun DestinationScaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(localizedText("copy_2e5de483d7")) },
+                title = { Text(localizedText(titleKeyFor(state.route.page))) },
                 navigationIcon = state.navigationIcon,
                 actions = {
                     if (state.canNavigateBack) {

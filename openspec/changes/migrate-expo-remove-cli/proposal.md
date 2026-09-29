@@ -20,8 +20,8 @@
 
 ### New Capabilities
 
-- `expo-client`: 定义 Android/iOS Expo 客户端、共享客户端层、平台适配、首个移动端纵向切片和 online-first 写入边界。
-- `cli-free-runtime`: 定义 CLI 删除后的显式服务启动入口、用户侧能力替代要求和仓库中不得残留的 CLI 公共面。
+- `shared/expo-client`: 定义 Android/iOS Expo 客户端、共享客户端层、平台适配、首个移动端纵向切片和 online-first 写入边界。
+- `shared/cli-free-runtime`: 定义 CLI 删除后的显式服务启动入口、用户侧能力替代要求和仓库中不得残留的 CLI 公共面。
 
 ### Modified Capabilities
 

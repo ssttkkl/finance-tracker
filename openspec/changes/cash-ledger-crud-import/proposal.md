@@ -93,9 +93,9 @@
 
 ### Modified Capabilities
 
-- `020-cash-ledger-browser-web`：为既有收支账本增加实际流水维护、现金账单导入校准和当前关系管理，并让零金额流水按自身流水类型在账本中可见。
-- `004-mapping-import-open-currency`：开放币种从“任意三位字母”收敛为系统币种目录，并由账户支持币种约束导入写入。
-- `005-multi-currency-accounts`：账户正式保存多币种支持集合，替代通过 `metadata_json` 承载的 `base_currencies` 配置语义；本期只读取数据库配置，不提供币种管理 UI。
+- `cash-ledger/cash-ledger-browser`：为既有收支账本增加实际流水维护、现金账单导入校准和当前关系管理，并让零金额流水按自身流水类型在账本中可见。
+- `import/statement-import`：开放币种从“任意三位字母”收敛为系统币种目录，并由账户支持币种约束导入写入。
+- `accounts/multi-currency-accounts`：账户正式保存多币种支持集合，替代通过 `metadata_json` 承载的 `base_currencies` 配置语义；本期只读取数据库配置，不提供币种管理 UI。
 
 ## 已确认的产品决策
 

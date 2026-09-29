@@ -24,9 +24,9 @@
 
 ### Modified Capabilities
 
-- `cash-import-session`：临时导入会话从单份来源扩展为最多 20 份来源，要求按文件保存摘要、文件名和扫描结果，并保持工作区隔离、密码隐私、预览计划和最终确认幂等。
-- `statement-import`：允许混合渠道文件在同一导入流程中统一解析、映射、预览、幂等判断和关系识别，并要求所有来源集合参与最终输入校验。
-- `cross-platform-presentation`：Web 与 Native 的文件选择、文件列表、逐文件密码、错误重试和聚合导入状态保持相同业务语义。
+- `import/cash-import-session`：临时导入会话从单份来源扩展为最多 20 份来源，要求按文件保存摘要、文件名和扫描结果，并保持工作区隔离、密码隐私、预览计划和最终确认幂等。
+- `import/statement-import`：允许混合渠道文件在同一导入流程中统一解析、映射、预览、幂等判断和关系识别，并要求所有来源集合参与最终输入校验。
+- `shared/cross-platform-presentation`：Web 与 Native 的文件选择、文件列表、逐文件密码、错误重试和聚合导入状态保持相同业务语义。
 
 ## Impact
 

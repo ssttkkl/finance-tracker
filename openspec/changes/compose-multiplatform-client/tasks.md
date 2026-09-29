@@ -1,7 +1,7 @@
 ## 1. 思考
 
 - [x] 1.1 阅读 `openspec/project-context.md`、领域词表、相关主规格、功能地图、Web/Native 页面与客户端 packages；确认 FastAPI、API 和数据库不在范围内。
-- [x] 1.2 完成 `$grill-me` / `$grilling` 需求访谈；用户确认三端 10 项功能、原 URL/邀请链接、Material 3 + Cobalt、系统深色模式、`WindowSizeClass` 阈值、global layer-first + ViewModel/StateFlow、严格 DTO/Domain 映射、中英 Compose Resources 自动选语言、可恢复错误提示与脱敏本地日志、Compose 唯一主动工作流、pen.dev 双层接入、`ui-spec` token 事实源和登录页首个设计样板。
+- [x] 1.2 完成 `$grill-me` / `$grilling` 需求访谈；用户确认三端 10 项功能、原 URL/邀请链接、Material 3 + Cobalt、系统深色模式、`WindowSizeClass` 阈值、global layer-first + ViewModel/StateFlow、严格 DTO/Domain 映射、中英 Compose Resources 自动选语言、可恢复错误提示与脱敏本地日志、Compose 唯一主动工作流、pen.dev 双层接入、JSON token 事实源（目录已按下方收口记录迁移）和登录页首个设计样板。
 - [x] 1.3 记录 Compose Web 技术基线：Kotlin/Wasm 仍为 Beta；Chrome/Edge 119+、Safari 18.2+；默认浏览器导航使用 hash，因此须以真实 Compose 切片验证自定义 path/history。
 
 ## 2. 计划
@@ -107,10 +107,10 @@
 
 ### 4.10 pen.dev 设计工作区与 token 合同
 
-- [x] 4.10.1 建立 `ui-spec/tokens/`、`ui-spec/components/`、`ui-spec/patterns/` 和 `ui-spec/screens/` 目录；用 `ui-spec/tokens/*.json` 固定跨平台 token 事实源，并为登录/注册页写出字段、操作、权限、正常/加载/空/错误/禁用/成功状态及 compact/regular/wide 约束。
+- [x] 4.10.1 建立设计文件与 JSON token 输入；原有页面、模式和组件 YAML 已按下方收口决定移除，页面与组件设计统一由 `.pen` 维护。
 - [x] 4.10.2 安装并固定 `@pen.dev/cli` 版本，提供 `pen status`、本地 `pen interactive`、Codex MCP bootstrap 和 CI `PEN_CLI_KEY` 配置说明；不提交 session、CLI key、模型 key 或 workspace 私密信息。已核验 `pen 0.3.9`、认证状态和 Personal workspace；凭据留在用户目录。
 - [x] 4.10.3 通过官方 pen CLI/MCP 生成合法的 `design/finance-design-system.lib.pen` 与 `design/login.pen`，包含登录/注册切换、校验错误、服务错误、提交中/禁用及 light/dark、compact/regular/wide 视觉状态；记录生成命令和认证前置条件。
-- [x] 4.10.4 实现确定性 token 生成器：从 `ui-spec/tokens/*.json` 生成 Compose Kotlin token 和 pen.dev 变量同步清单；生成器不得直接修改 `.pen` 内部节点 JSON，并添加稳定输出检查。
+- [x] 4.10.4 实现确定性 token 生成器：从 `openspec/specs/shared/design-system/tokens/*.json` 生成 Compose Kotlin token 和 pen.dev 变量同步清单；生成器不得直接修改 `.pen` 内部节点 JSON，并添加稳定输出检查。
 - [x] 4.10.5 更新 `docs/ui-design-rules.md` 引用的工作流说明、根 README、Compose README 和 `docs/feature-map.md`，明确 Spec → `.pen` → Compose 的关系、登录样板入口和旧端 legacy 边界。
 
 ### 4.11 Compose 主动工作流切换
@@ -118,6 +118,14 @@
 - [x] 4.11.1 从根 `package.json` 和 lockfile 移除 `web`/`mobile` workspace、Expo/React 默认依赖及旧启动命令；保留旧端目录和 manifest，不让根安装流程解析其依赖。干净 `npm ci --no-audit --no-fund` 通过，lockfile 不含 legacy workspace 或 Expo/React 包。
 - [x] 4.11.2 用 `.github/workflows/compose-ci.yml` 替换 `.github/workflows/mobile-ci.yml`，执行 Compose 共享测试、Web/Android/iOS 适用构建，并在 `PEN_CLI_KEY` 存在时运行 pen CLI 校验/导出；无 key 时非阻断跳过且输出明确原因。`pr-checks.yml` 的客户端 job 已同步切换。
 - [x] 4.11.3 清理 `.devcontainer` 的 Expo 端口和环境变量，更新 `docs/feature-map.md` 将 Compose 标为主动实现、React/Expo 标为 legacy 参考，并更新根 README 的启动、能力表和安全存储描述。
+
+### 4.12 全页面重设计与多尺寸实现
+
+- [x] 4.12.1 按用户已确认的设计约束收敛范围（本轮用户明确免除 `$grill-me` / `$grilling`）：范围为 F-01 至 F-10 全部页面；以当前 Web Compose 实现为唯一布局和元素基准；共享 Finance/Cobalt 视觉系统；每页覆盖 compact、regular、wide 与 light/dark；源码保留为迁移参考。
+- [x] 4.12.2 为 10 个页面登记用户任务、区域、状态、响应式不变量、设计文件和实现证据；原页面重设计 YAML 已撤销，当前以功能地图、设计索引、`.pen` 和本变更记录定位。
+- [x] 4.12.3 收敛 Compose 视觉基线：主题颜色引用生成 token，Material 形状使用 4dp/8dp，页面内容区使用统一间距和表单宽度，顶部栏显示当前页面标题；覆盖 Web、Android、iOS 共享实现。
+- [x] 4.12.4 通过 pen.dev interactive MCP 生成并保存 10 个合法 `.pen` 文件（登录、工作区入口、账本、记录、导入、邀请、分类、持仓、事件、工作区管理）；普通页面均包含 390/768/1440 画布，登录页另含登录/注册状态和响应式副本，文件 schema 均为 2.19。最终 PNG 导出位于 `screenshots/pen-web/final/`。
+- [x] 4.12.5 以 Web Compose 生产实现的元素、布局、状态和响应式行为逐组复核 `.pen`；修复账本 Compact 筛选布局、记录详情裁切、缺少操作项和多余输入框边框，并重新导出 PNG。Web 基准截图位于 `screenshots/web-baseline/` 与 `screenshots/web-final-*.png`；对比覆盖登录和账本的 390/1440、浅/深色。
 
 ## 5. 审查
 
@@ -130,6 +138,7 @@
 - [x] 5.7 最终 UI 复核：当前运行时未暴露可调用的 Hallmark `audit` 动作，未运行 CLI；按本地 Hallmark audit 规则及 `docs/ui-design-rules.md` 人工检查截图。范围：Web F-03/F-05/F-08 的 390/1440 px 浅/深截图；Android compact 登录、F-05 导入、F-07 分类、F-08 持仓深色、F-10 工作区；iPhone 17 邀请/错误态/英语与未支持语言回退、iPad 11 分类/事件、iPad 13 持仓深色/工作区宽屏。Finding：0 critical、0 major、1 minor。Minor：Web 1440 px 收支账本筛选区按 4 组纵向展示，首屏只能看到首条流水的一部分（`CashLedgerScreen.kt:273–289`）；接受当前布局，保留完整筛选项可见与跨端顺序一致，后续可再评估收起低频筛选。无 major，因此不需要修复后复审。该记录为人工审查，不声称运行了 Hallmark 工具动作。
 - [ ] 5.8 由非实施上下文复核最终 diff 与 OpenSpec；检查旧客户端清单、依赖删除、构建脚本/CI、feature map、无新增后端合同、无错误地暴露异常内容以及所有未勾选 task 的原因。
 - [x] 5.9 独立复核 pen.dev 接入：确认 `.pen` 由官方 CLI/MCP 生成、token 事实源没有重复定义、CLI secrets 不入 Git、旧端仅退出主动工作流且没有误删源码；finding：0 critical、0 major、0 minor。`.pen` 仅通过 interactive MCP 生成，token 生成器只写 Kotlin/变量清单；凭据和 workspace 信息未入仓库。
+- [x] 5.10 独立 `gpt-6-astra` UI 复审最终 `.pen` 与 Web 对比截图：首轮发现 2 个 P1（登录响应式覆盖、账本 Compact 筛选/记录布局），随后又发现账本记录边界、缺少“查看详情/更改分类”和多余筛选输入框边框；均已修复并重新导出。最终复审结果为 P0=0、P1=0、P2=1、P3=0；唯一 P2 为示例记录数量差异，不阻断交付。复审范围覆盖 `design/*.pen`、最终 PNG、Web 390/1440 浅/深截图和 10 页 Compact contact sheet。
 
 ## 6. 测试与 QA
 
@@ -142,6 +151,7 @@
 - [ ] 6.5 完成 parity matrix：10 项功能 × Web/Android/iOS × compact/regular/wide；记录登记的平台控件差异及相同值、标签、确认语义、流程和结果。
 - [x] 6.6 Web 在 Chrome 153 的 320、375、390、414、768、1440 px 检查无水平溢出；F-03/F-04/F-07 页面宽度循环通过。浅/深色截图覆盖 390×1800、1440×1000，并包括 F-05 关系卡片与 F-08 持仓；Android 已在 compact 411 dp、regular 960×640 dp、wide 1200×640 dp 检查导航和内容并存；iOS 已在 iPhone 17 compact、iPad 11 regular、iPad 13 wide 检查账本/持仓/工作区管理代表页，并留存浅/深色截图。此尺寸样本检查不等同于 6.5 的全页面 parity matrix。
 - [x] 6.6.1 Cross-platform Impact Check：Noto 同源回退只改变 Web/Wasm 字体加载和字形绘制；共享 F-05 将关系标签的缺字箭头改为等义文字“与”，Web、Android、iOS 文案一致；Native 仍使用系统字体。API、FastAPI、数据库和业务结果不受影响。Web QA 使用 Chrome，不运行 Safari；最新截图无缺字。
+- [x] 6.6.2 pen.dev 与 Web 视觉对比：通过官方 `pen export` 导出最终 `.pen` PNG 到 `screenshots/pen-web/final/`，与 Compose Web 生产预览截图 `screenshots/web-baseline/`、`screenshots/web-final-*.png` 对照检查。登录、账本覆盖 390×844/1440×1000 及浅/深色；10 页设计稿覆盖 Compact/Regular/Wide。修复后的 Astra 复审结论为 P0/P1 清零，剩余示例数据数量差异为 P2。
 - [ ] 6.7 检查 Wasm/JS/APK/iOS 产物大小、首屏启动和大列表滚动；实测多文件 JSON/base64 内存峰值，并确认日志与测试产物不含令牌、密码或原始账单内容。
 - [x] 6.8 记录数据库矩阵不适用：本次未修改 API、持久化、数据库语义或后端代码；若发现间接存储行为变化则升级 A 类并补 SQLite 与显式 PostgreSQL `_test` 矩阵。
 - [x] 6.9 历史验证基线（2026-09-25）：当时 OpenSpec strict 36/36、doctor root ok、Web Vitest 152/152、Chrome E2E 24/24、Android host 65/65/device 67/67、iOS shared tests/framework/Xcode Debug build 通过。该结果不覆盖本次分层、资源、日志和 proxy 改动；iOS F-05、全矩阵和性能未完成，最终验证转由 6.10–6.17 记录。
@@ -159,6 +169,8 @@
 - [ ] 6.16 性能与发布前安全：测 Wasm/JS/APK/iOS 产物、Chrome 首屏启动、大列表滚动和多文件 JSON/base64 峰值；扫描日志/fixtures/screenshots/build 产物无真实个人财务值、凭据或原始异常正文；记录命令、数据集和结果。
 - [x] 6.17 2026-09-26（Asia/Shanghai）运行 `openspec --version`（1.7.0）、`openspec validate --all --strict`（36/36）、`openspec doctor`（Root ok）、`git diff --check`（通过）；受影响验证为 Wasm 111/111、Android host 111/111、Android device 113/113、iOS Simulator 112/112、iOS framework link/Xcode Debug build 成功；Web 结果见 6.10（Vitest 152/152、TypeScript、proxy test 1/1、Chrome 154 E2E 28/28）。最终 `HEAD=e716c01f945350daaf03590d648adeb9a7e12afb`，比较基线 `beda546f6fcf2e3a69634af38d9afe54d459260b`；本轮未提交、推送或部署。未运行/未完成项及补跑条件：iOS F-05 在「打开」后仍停留系统 picker，须先在可交互 Simulator 会话确认选择器回调，再走扫描/映射/确认；6.13 的 90 格 parity、6.15 全功能多语言与无障碍标签核查、6.16 产物/启动/滚动/多文件内存测量仍需专项执行；5.6/5.8 工程安全及独立最终 diff 复核仍待完成。FastAPI 未变，数据库矩阵不适用。
 - [x] 6.18 pen.dev/规范验证：2026-09-28（Asia/Shanghai）运行 `pen version`（0.3.9）、`pen status`（Active，Personal workspace）、`npm run tokens:generate` 与生成物 `git diff --exit-code`；官方 interactive MCP 生成 `design/finance-design-system.lib.pen`、`design/login.pen`，JSON 结构均为 schema `2.19`，登录页 8 个顶层状态画布，最终画布由 `Export` 导出为 PNG。实测 CI 原 `pen --export` 会误入 Agent 模式，且传入 `document` 作为节点 ID 的导出失败；修订工作流改用各 `.pen` 文件的顶层 frame ID，通过 interactive shell 无模型导出。`npm run compose:test`、`openspec validate --all --strict` 34/34、干净 `npm ci --no-audit --no-fund`、`git diff --check` 通过。CI 在无 `PEN_CLI_KEY` 时准确记录非阻断跳过；本地未配置 CI key，不将该项当作 CI 远端执行证据。
+- [x] 6.18 pen.dev/规范验证：2026-09-28（Asia/Shanghai）运行 `pen version`（0.3.9）、`pen status`（Active，Personal workspace）、`npm run tokens:generate` 与生成物 `git diff --exit-code`；官方 interactive MCP 生成 `design/finance-design-system.lib.pen`、`design/login.pen`，JSON 结构均为 schema `2.19`，登录页 8 个顶层状态画布，最终画布由 `Export` 导出为 PNG。实测 CI 原 `pen --export` 会误入 Agent 模式，且传入 `document` 作为节点 ID 的导出失败；修订工作流改用各 `.pen` 文件的顶层 frame ID，通过 interactive shell 无模型导出。`npm run compose:test`、`openspec validate --all --strict`、干净 `npm ci --no-audit --no-fund`、`git diff --check` 通过。CI 在无 `PEN_CLI_KEY` 时准确记录非阻断跳过；本地未配置 CI key，不将该项当作 CI 远端执行证据。
+- [ ] 6.19 全页面设计 QA：针对 10 个 `.pen` 文件和 Compose 页面运行 320/375/390/414/768/1440 px 检查，保存 390/1440 截图；验证 light/dark、loading/empty/error/disabled/success 状态、键盘焦点和无横向滚动；对最终页面执行 Hallmark `audit`，记录并修复所有 critical/major finding。
 
 ## 7. 发布准备
 
@@ -276,3 +288,20 @@
 - iOS F-05：已在 iPhone 17 打开 FileKit 系统文件选择器，系统截图显示「最近项目」为空；关闭 picker 回到选择步骤后点击应用内「取消」，返回工作区管理页。截图为 `screenshots/ios-iphone17-import-picker-empty-20260925.png` 与 `ios-iphone17-import-select-step-20260925.png`。缺少模拟器可选文件，F-05 完整文件内容/扫描/导入结果未验证；这是 6.4 未完成的阻断项。
 - 修复后 F-10 Hallmark `audit` 复审目标：共享 `WorkspaceScreens.kt` 与 Chrome 834 px 邮箱宽度 E2E；iPad 11 834×1210 regular、iPad 13 1032×1376 wide、iPhone 17 402×874 compact 截图。首轮 1 major（邮箱宽度被权限选择器挤压）已通过限宽修复并重拍；复审 0 critical、0 major、0 minor。成员邮箱保持一行，操作顺序、标签和角色选择可读；compact 堆叠布局保留。证据包括 `screenshots/android-f10-regular-after-fix.png`、`android-f10-wide-after-fix.png` 及以上 iOS F-10 截图。
 - Cross-platform Impact Check（F-10 修复）：共享成员行影响 Web、Android、iOS regular/wide；Chrome、Android AVD、iOS Simulator 均复测。compact、API、权限语义、FastAPI 和数据库不变。
+
+## 2026-09-29 UI 资料收口
+
+用户在本轮澄清中明确：页面、表单顺序、错误反馈位置、组件及无障碍设计由 `.pen` 表达，不再维护重复 YAML；OpenSpec 保留业务行为。token JSON 暂时保留现有生成链路，仅迁移目录，不补充校验、同步、归档或 `.pen` 读取工具。此前要求逐页 YAML 的约定由本决定取代。
+
+- [x] 思考与计划：核对 YAML 和消费者，回写 proposal、design、delta 与设计规范的职责和路径。页面与组件交给 `.pen`，不向主规格提前发布未完成设计。
+- [x] 一致性与实施：移除 `screens/login.yaml`、`screens/page-redesign.yaml`、`patterns/auth-form.yaml`、`components/finance-button.yaml`；原文件在仓库外备份。3 份 token JSON 原样迁至 `openspec/specs/shared/design-system/tokens/`，空的 `ui-spec/` 已移除。
+- [x] 测试先行：迁移后以 `runpy.run_path('scripts/generate_ui_tokens.py')['load_tokens']()` 非空断言复现旧路径返回空集合；修正生成器两处路径后断言通过，未增加工具能力。
+- [x] 审查：独立只读复核消费者、文档与 active artifact，未发现阻断性 finding；没有残留的页面 YAML 必须要求或旧 token 路径消费者。
+- [x] 验证：执行 `python3 scripts/generate_ui_tokens.py`，读取 36 项 token；3 份源 JSON、生成 Kotlin 和所有 `.pen` 与本轮开始时逐字节或 SHA-256 比较一致，变量清单仅 `source` 路径变化。重复生成结果稳定。
+- [x] 规格验证：`openspec validate --all --strict --json` 为 34/34 通过；`openspec doctor` 与 `git diff --check` 通过。
+- [x] 发布准备：保留原有工作树编辑，未提交、推送或发布。回退时一起恢复 token 目录、生成器两处路径及引用；被删除 YAML 可由仓库外备份恢复。
+- [x] 反思：业务行为、设计文件和生成输入分别维护，不为 `.pen` 已表达的设计增加 YAML 副本。
+
+验证时间为 2026-09-29 11:14 CST，当前 HEAD 与比较基线为 `67e26d7c1363ce31e18f0a0d749255a1c87ad6d7`；另使用本轮开始前的工作树快照区分已有编辑。
+
+Cross-platform Impact Check：Web、Android、iOS 的实现与可观察行为均未修改；共享 token 仅迁移路径，值和生成 Kotlin 不变。功能地图页面数、覆盖状态和 TODO 不变。此次为文档与既有工具路径整理，无新增界面设计、业务规则、API 或持久化变化，原型、Hallmark audit、浏览器 QA、客户端构建及双后端矩阵不适用。独立设计文件的状态覆盖不在此次重新验收范围内。

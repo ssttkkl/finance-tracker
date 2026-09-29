@@ -15,11 +15,11 @@
 
 ### New Capabilities
 
-- `native-ci-packaging`: 定义 GitHub Actions 生成可脱离 Metro 运行的 Android/iOS Native 测试产物及其构建地址配置。
+- `shared/native-ci-packaging`: 定义 GitHub Actions 生成可脱离 Metro 运行的 Android/iOS Native 测试产物及其构建地址配置。
 
 ### Modified Capabilities
 
-- `mobile-login-api-origin`：构建地址可以为空；启用地址覆盖的 Native 测试包允许使用带显式端口的 HTTP origin，并在登录前要求输入有效地址。
+- `authentication/mobile-login-api-origin`：构建地址可以为空；启用地址覆盖的 Native 测试包允许使用带显式端口的 HTTP origin，并在登录前要求输入有效地址。
 
 ## Impact
 

@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TOKEN_DIR = ROOT / "ui-spec" / "tokens"
+TOKEN_DIR = ROOT / "openspec" / "specs" / "shared" / "design-system" / "tokens"
 KOTLIN_OUT = ROOT / "compose" / "shared" / "src" / "commonMain" / "kotlin" / "com" / "finance" / "tracker" / "core" / "design" / "GeneratedTokens.kt"
 PEN_OUT = ROOT / "design" / "generated" / "pen-variables.json"
 
@@ -78,7 +78,7 @@ def generate() -> None:
     PEN_OUT.write_text(
         json.dumps(
             {
-                "source": "ui-spec/tokens/*.tokens.json",
+                "source": "openspec/specs/shared/design-system/tokens/*.tokens.json",
                 "variables": [
                     {"name": name, "type": token["type"], "value": token["value"], "source": token["source"]}
                     for name, token in tokens.items()

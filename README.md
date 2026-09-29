@@ -133,7 +133,7 @@ export FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test'
 PYTHONPATH=tests:.:src uv run pytest
 ```
 
-不要把测试指向业务库或非 `_test` 库名。项目规则、变更记录和当前行为事实源见 [`AGENTS.md`](AGENTS.md)、[`openspec/project-context.md`](openspec/project-context.md) 和 [`openspec/specs/`](openspec/specs/)。
+不要把测试指向业务库或非 `_test` 库名。项目规则、变更记录和当前行为事实源见 [`AGENTS.md`](AGENTS.md)、[`openspec/project-context.md`](openspec/project-context.md) 和 [业务能力规格导航](openspec/specs/README.md)。
 
 ## 文档
 

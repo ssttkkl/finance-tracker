@@ -1,0 +1,4114 @@
+{
+  "version": "2.19",
+  "children": [
+    {
+      "type": "frame",
+      "id": "qQQoy",
+      "x": 0,
+      "y": 0,
+      "name": "当前持仓 / Compact / 浅色",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$paper",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "qeIIh",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 48,
+          "gap": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "s0A8Z",
+              "name": "菜单",
+              "width": 20,
+              "height": 20,
+              "icon": "menu",
+              "library": "lucide",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "xIJVt",
+              "name": "产品名",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "SSLwp",
+              "name": "当前工作区",
+              "fill": "$accent",
+              "content": "家庭账本",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Ek0ae",
+          "name": "主工作区",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "QbNaq",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "VL00m",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "当前持仓",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "gUw1h",
+              "name": "持仓筛选",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "YM9Du",
+                  "name": "账户",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "T4c9l9",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "mUnIR",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部账户  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "h5FKl5",
+                  "name": "估值日期",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "wd3dW",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "估值日期",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "URSP0",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "2026年9月  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "bcBds",
+              "name": "持仓概览",
+              "width": "fill_container",
+              "height": 80,
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "dpIOT",
+                  "name": "概览 总市值",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Qfdjr",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "总市值",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "WDGfX",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "¥ 128,400",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "I1i9J",
+                  "name": "概览 浮盈亏",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "rHIHw",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "浮盈亏",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "SbteF",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "+¥ 8,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "GMwAK",
+                  "name": "概览 持仓数量",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "i997mp",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "持仓数量",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "w0Wuy6",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "6",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "TyzjU",
+              "name": "持仓列表",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "WQsx3",
+                  "name": "表头 资产",
+                  "fill": "$subtle",
+                  "content": "资产",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "J7BWC",
+                  "name": "表头 账户",
+                  "fill": "$subtle",
+                  "content": "账户",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "MbD2z",
+                  "name": "表头 数量",
+                  "fill": "$subtle",
+                  "content": "数量",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "KHp8v",
+                  "name": "表头 当前市值",
+                  "fill": "$subtle",
+                  "content": "当前市值",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "dHEa6",
+                  "name": "表头 仓位",
+                  "fill": "$subtle",
+                  "content": "仓位",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "ES0t3",
+                  "name": "表头 浮盈亏",
+                  "fill": "$subtle",
+                  "content": "浮盈亏",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "dzXV2",
+                  "name": "表头 浮盈亏率",
+                  "fill": "$subtle",
+                  "content": "浮盈亏率",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "Ww21V",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "oHHpd",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "沪深300",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "w14zUP",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "SmXIY",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "V3sFv",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "rORml",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "GXVVu",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "cbov5",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "BHrbT",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "SAuvn",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "全球科技",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Zq8bF",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "jCspx",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Vhzhg",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "VXP52",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "exCMu",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "KBGFT",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "cqi45",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "b51hHZ",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "货币基金",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ezrZ2",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ALeQG",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "zGVb3",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "I0RRYF",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "dN1ee",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "pNSlO",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "giUGi",
+      "x": 460,
+      "y": 0,
+      "name": "当前持仓 / Regular / 浅色",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 768,
+      "height": 1024,
+      "fill": "$paper",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "TbO81",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 48,
+          "gap": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "v0UnP",
+              "name": "菜单",
+              "width": 20,
+              "height": 20,
+              "icon": "menu",
+              "library": "lucide",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "pfBUd",
+              "name": "产品名",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "myh5j",
+              "name": "当前工作区",
+              "fill": "$accent",
+              "content": "家庭账本",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "hdtiB",
+          "name": "主工作区",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "e5inb",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "gEz8F",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "当前持仓",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "y8F9FF",
+              "name": "持仓筛选",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "labau",
+                  "name": "账户",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "QjuSu",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "d1Nu6",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部账户  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "D6Mbz",
+                  "name": "估值日期",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "G4lr3",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "估值日期",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "TkFBt",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "2026年9月  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "mLIRD",
+              "name": "持仓概览",
+              "width": "fill_container",
+              "height": 80,
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "c4X2M",
+                  "name": "概览 总市值",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "fHKEF",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "总市值",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "tZUZj",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "¥ 128,400",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "f169n",
+                  "name": "概览 浮盈亏",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "cEE2j",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "浮盈亏",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "w35ZM",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "+¥ 8,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "t5iPTc",
+                  "name": "概览 持仓数量",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Cwvcp",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "持仓数量",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "V0sYpn",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "6",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "s6Gte0",
+              "name": "持仓列表",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Vmfu9",
+                  "name": "表头 资产",
+                  "fill": "$subtle",
+                  "content": "资产",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "PyDgd",
+                  "name": "表头 账户",
+                  "fill": "$subtle",
+                  "content": "账户",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "TDnh2",
+                  "name": "表头 数量",
+                  "fill": "$subtle",
+                  "content": "数量",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "p84dQ",
+                  "name": "表头 当前市值",
+                  "fill": "$subtle",
+                  "content": "当前市值",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "PBvoo",
+                  "name": "表头 仓位",
+                  "fill": "$subtle",
+                  "content": "仓位",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "UzSJZ",
+                  "name": "表头 浮盈亏",
+                  "fill": "$subtle",
+                  "content": "浮盈亏",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "KZpGD",
+                  "name": "表头 浮盈亏率",
+                  "fill": "$subtle",
+                  "content": "浮盈亏率",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "s1vvE",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "p1z9y",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "沪深300",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "DeYWT",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "blfVb",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "R85ren",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "r6NJa",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ZPXab",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "a0qjb",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "rbpC1",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "znNKG",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "全球科技",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "LHB98",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "L1Xno",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "kmRCy",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ln1kY",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "J7WdsL",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "jCjoO",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "MYNll",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "e7pLaT",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "货币基金",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "cXkJQ",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "OLFBv",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "bsSEn",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "C6rviO",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "A0U9V4",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Q2G1o",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "C8tcL",
+      "x": 1280,
+      "y": 0,
+      "name": "当前持仓 / Wide / 浅色",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 1440,
+      "height": 1000,
+      "fill": "$paper",
+      "gap": 24,
+      "children": [
+        {
+          "type": "frame",
+          "id": "x51Jkn",
+          "name": "侧边栏",
+          "width": 224,
+          "height": "fill_container",
+          "fill": "$paper",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "N5oML",
+              "name": "品牌",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 16,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "aNaKs",
+              "name": "导航 收支账本",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "itHSU",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "收支账本",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "R1uyxk",
+              "name": "导航 账单导入",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Dg01Q",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "账单导入",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "XG9kp",
+              "name": "导航 收支分类",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "pyRyt",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "收支分类",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "oAugW",
+              "name": "导航 当前持仓",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "RVztu",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "当前持仓",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "V2QL3",
+              "name": "导航 投资事件",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "FCXg3",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "投资事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Vge8X",
+              "name": "导航 工作区管理",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "sHXsr",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "工作区管理",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "o0YcKL",
+          "name": "主工作区",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            28,
+            36
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "bVKTI",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "QbF0x",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "当前持仓",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "S6sAb",
+              "name": "持仓筛选",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "gNIGv",
+                  "name": "账户",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "K5hPEI",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "hYcrJ",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部账户  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "fsdr1",
+                  "name": "估值日期",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "d1deM",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "估值日期",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "lQSTt",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "2026年9月  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "gKdPb",
+              "name": "持仓概览",
+              "width": "fill_container",
+              "height": 80,
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "fVVe1",
+                  "name": "概览 总市值",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "H4XEJp",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "总市值",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "E74lu",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "¥ 128,400",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "iB3ll",
+                  "name": "概览 浮盈亏",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Y6FPY3",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "浮盈亏",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "CS8pw",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "+¥ 8,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "eEqcc",
+                  "name": "概览 持仓数量",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "I1pX7d",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "持仓数量",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "TqY1u",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "6",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "uxLCV",
+              "name": "持仓列表",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "K4NMB",
+                  "name": "表头 资产",
+                  "fill": "$subtle",
+                  "content": "资产",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "Yg8Hn",
+                  "name": "表头 账户",
+                  "fill": "$subtle",
+                  "content": "账户",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "zWXO5",
+                  "name": "表头 数量",
+                  "fill": "$subtle",
+                  "content": "数量",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "iNSGC",
+                  "name": "表头 当前市值",
+                  "fill": "$subtle",
+                  "content": "当前市值",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "ybgbr",
+                  "name": "表头 仓位",
+                  "fill": "$subtle",
+                  "content": "仓位",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "z82C3",
+                  "name": "表头 浮盈亏",
+                  "fill": "$subtle",
+                  "content": "浮盈亏",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "W4QJo",
+                  "name": "表头 浮盈亏率",
+                  "fill": "$subtle",
+                  "content": "浮盈亏率",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "G6Xqa",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "keMEx",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "沪深300",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "SnsDa",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "N8Qpam",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "GbyZY",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "nlpPp",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "PKCo2",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "t5jv0",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "H632B",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "x6Xdj0",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "全球科技",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "S2Eehp",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "zeZKT",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "lhOYx",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "YrwUY",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "g7NiY",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "pYePE",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "DwO2U",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "T7JEWd",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "货币基金",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "f5GMq",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "lVqNY",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "vc91U",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "BwRpV",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "fDSNR",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "IIlhL",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "m0wYs8",
+      "x": 0,
+      "y": 924,
+      "name": "当前持仓 / Compact / 深色",
+      "theme": {
+        "mode": "dark"
+      },
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$paper",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "teLEm",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 48,
+          "gap": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "T1QZTl",
+              "name": "菜单",
+              "width": 20,
+              "height": 20,
+              "icon": "menu",
+              "library": "lucide",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "RUgto",
+              "name": "产品名",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "BhJ93",
+              "name": "当前工作区",
+              "fill": "$accent",
+              "content": "家庭账本",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "opB3P",
+          "name": "主工作区",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "M1AYv",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "R02aUh",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "当前持仓",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "JimLa",
+              "name": "持仓筛选",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "p4c6oO",
+                  "name": "账户",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "qkGqR",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "v87yK",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部账户  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "NODXL",
+                  "name": "估值日期",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "a0D5jp",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "估值日期",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "VUnyS",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "2026年9月  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "i3DjKc",
+              "name": "持仓概览",
+              "width": "fill_container",
+              "height": 80,
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "KYRGe",
+                  "name": "概览 总市值",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "XLhCW",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "总市值",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "oebl9",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "¥ 128,400",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "P41l4m",
+                  "name": "概览 浮盈亏",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Nr0Tx",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "浮盈亏",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ORT74",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "+¥ 8,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "S2OsT7",
+                  "name": "概览 持仓数量",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "DmWvK",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "持仓数量",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "pMPIN",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "6",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "A6o503",
+              "name": "持仓列表",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "FuTzh",
+                  "name": "表头 资产",
+                  "fill": "$subtle",
+                  "content": "资产",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "OY7A6",
+                  "name": "表头 账户",
+                  "fill": "$subtle",
+                  "content": "账户",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "xVSBb",
+                  "name": "表头 数量",
+                  "fill": "$subtle",
+                  "content": "数量",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "gm38d",
+                  "name": "表头 当前市值",
+                  "fill": "$subtle",
+                  "content": "当前市值",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "mk7Ah",
+                  "name": "表头 仓位",
+                  "fill": "$subtle",
+                  "content": "仓位",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "bTs6U",
+                  "name": "表头 浮盈亏",
+                  "fill": "$subtle",
+                  "content": "浮盈亏",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "K6AhD",
+                  "name": "表头 浮盈亏率",
+                  "fill": "$subtle",
+                  "content": "浮盈亏率",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "cvFuz",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "RTYPe",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "沪深300",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "paTNi",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "xAZQk",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "t8W8KR",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "czvRb",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "XQap5",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "DqrLM",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "qGhOQ",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "MXrfQ",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "全球科技",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "zZoEc",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "jCalZ",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "CZUcJ",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "N7H0i8",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "umgiM",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "A8WBL",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "kXGNI",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "WXVsk",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "货币基金",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "m4Rmnx",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "sDYuZ",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "pRXnu",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "YVl65",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "y1yKe",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "HD2mH",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "q52AW7",
+      "x": 460,
+      "y": 1104,
+      "name": "当前持仓 / Regular / 深色",
+      "theme": {
+        "mode": "dark"
+      },
+      "clip": true,
+      "width": 768,
+      "height": 1024,
+      "fill": "$paper",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "Fqghg",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 48,
+          "gap": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "kVX5h",
+              "name": "菜单",
+              "width": 20,
+              "height": 20,
+              "icon": "menu",
+              "library": "lucide",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "aiqSt",
+              "name": "产品名",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "rxsc2",
+              "name": "当前工作区",
+              "fill": "$accent",
+              "content": "家庭账本",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "vKi4R",
+          "name": "主工作区",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "Hpy54",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "RV5zd",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "当前持仓",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "laEis",
+              "name": "持仓筛选",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "mHQkK",
+                  "name": "账户",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "iqnwP",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Ui5HY",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部账户  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "eFDXQ",
+                  "name": "估值日期",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "l3KOJs",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "估值日期",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "d1zf3Y",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "2026年9月  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "TCWja",
+              "name": "持仓概览",
+              "width": "fill_container",
+              "height": 80,
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "rcJO2",
+                  "name": "概览 总市值",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "iHu2Q",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "总市值",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "IsBwO",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "¥ 128,400",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Sw0FX",
+                  "name": "概览 浮盈亏",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "C84OXY",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "浮盈亏",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "i1rF1",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "+¥ 8,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "XgLS6",
+                  "name": "概览 持仓数量",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "iH4QE",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "持仓数量",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "DqOvg",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "6",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "BLl58",
+              "name": "持仓列表",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ZciTI",
+                  "name": "表头 资产",
+                  "fill": "$subtle",
+                  "content": "资产",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "naPem",
+                  "name": "表头 账户",
+                  "fill": "$subtle",
+                  "content": "账户",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "dasAv",
+                  "name": "表头 数量",
+                  "fill": "$subtle",
+                  "content": "数量",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "WJfnh",
+                  "name": "表头 当前市值",
+                  "fill": "$subtle",
+                  "content": "当前市值",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "q2GXmb",
+                  "name": "表头 仓位",
+                  "fill": "$subtle",
+                  "content": "仓位",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "a2nGN",
+                  "name": "表头 浮盈亏",
+                  "fill": "$subtle",
+                  "content": "浮盈亏",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "jbsVR",
+                  "name": "表头 浮盈亏率",
+                  "fill": "$subtle",
+                  "content": "浮盈亏率",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "nOFGc",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "lzmeW",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "沪深300",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Zy1RZ",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "DV9LN",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "B36D00",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "MjJ4c",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "xS0yg",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "x7vBta",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "cgJ7u",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "O9ZqZ",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "全球科技",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "N9zO4",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "QN3so",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "I9RPt",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Y9qiq",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "fbSnn",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "CGGBk",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "SY59h",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "OFs7r",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "货币基金",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "L1sEvU",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Jgd5i",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "nNUWB",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "zTLMc",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "L2XuG",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "XsxkQ",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "d1WEA9",
+      "x": 1280,
+      "y": 1080,
+      "name": "当前持仓 / Wide / 深色",
+      "theme": {
+        "mode": "dark"
+      },
+      "clip": true,
+      "width": 1440,
+      "height": 1000,
+      "fill": "$paper",
+      "gap": 24,
+      "children": [
+        {
+          "type": "frame",
+          "id": "dpeLs",
+          "name": "侧边栏",
+          "width": 224,
+          "height": "fill_container",
+          "fill": "$paper",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "HXHus",
+              "name": "品牌",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 16,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "HAGlF",
+              "name": "导航 收支账本",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "eS6hx",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "收支账本",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "yx423",
+              "name": "导航 账单导入",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "M3mP0R",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "账单导入",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "DPRss",
+              "name": "导航 收支分类",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "mlMif",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "收支分类",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "zGrAo",
+              "name": "导航 当前持仓",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "tKWhk",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "当前持仓",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Nehq8",
+              "name": "导航 投资事件",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "pI3m5",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "投资事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "jwaaZ",
+              "name": "导航 工作区管理",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "sgT9R",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "工作区管理",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "iZA62",
+          "name": "主工作区",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            28,
+            36
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "RtU2Z",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "yFwdf",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "当前持仓",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Q092H",
+              "name": "持仓筛选",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "JSsMF",
+                  "name": "账户",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "phjks",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "m9cXYC",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "全部账户  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "O3wuoF",
+                  "name": "估值日期",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Ja0Gf",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "估值日期",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "hUwEQ",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "2026年9月  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "o2UsVz",
+              "name": "持仓概览",
+              "width": "fill_container",
+              "height": 80,
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "ouAt8",
+                  "name": "概览 总市值",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "znfsF",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "总市值",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "MYuMF",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "¥ 128,400",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "d094Ks",
+                  "name": "概览 浮盈亏",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "HTL64",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "浮盈亏",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ejGJZ",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "+¥ 8,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "z7TzCq",
+                  "name": "概览 持仓数量",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$muted",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "RbjWX",
+                      "name": "概览标签",
+                      "fill": "$subtle",
+                      "content": "持仓数量",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ZPxCn",
+                      "name": "概览值",
+                      "fill": "$ink",
+                      "content": "6",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "NpXzJ",
+              "name": "持仓列表",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "E7l4kd",
+                  "name": "表头 资产",
+                  "fill": "$subtle",
+                  "content": "资产",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "l5Fx9",
+                  "name": "表头 账户",
+                  "fill": "$subtle",
+                  "content": "账户",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "uQnDx",
+                  "name": "表头 数量",
+                  "fill": "$subtle",
+                  "content": "数量",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "To7OV",
+                  "name": "表头 当前市值",
+                  "fill": "$subtle",
+                  "content": "当前市值",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "RZfhA",
+                  "name": "表头 仓位",
+                  "fill": "$subtle",
+                  "content": "仓位",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "bEdQw",
+                  "name": "表头 浮盈亏",
+                  "fill": "$subtle",
+                  "content": "浮盈亏",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "ieg3r",
+                  "name": "表头 浮盈亏率",
+                  "fill": "$subtle",
+                  "content": "浮盈亏率",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "an3Mb",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "VSrvC",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "沪深300",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "y3Tw8k",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "cMJnS",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "s8Vdu0",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "VlFUd",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "j5GW3T",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "TKmj1",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "WHHpg",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "FTesc",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "全球科技",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "syKbJ",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "RFPQ3",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Q2LY67",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Z6N0ng",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "HMnim",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "vzfXN",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "WDwkt",
+                  "name": "持仓行",
+                  "width": "fill_container",
+                  "height": 56,
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "M5U73I",
+                      "name": "资产",
+                      "fill": "$ink",
+                      "content": "货币基金",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "hce9H",
+                      "name": "账户",
+                      "fill": "$subtle",
+                      "content": "投资账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "n5D6P1",
+                      "name": "数量",
+                      "fill": "$ink",
+                      "content": "100",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "E1eTDJ",
+                      "name": "当前市值",
+                      "fill": "$ink",
+                      "content": "¥ 42,800",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "C65Bk",
+                      "name": "仓位",
+                      "fill": "$ink",
+                      "content": "33.3%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "f3ODnr",
+                      "name": "浮盈亏",
+                      "fill": "$accent",
+                      "content": "+¥ 1,240",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "DU5t3",
+                      "name": "浮盈亏率",
+                      "fill": "$accent",
+                      "content": "+4.2%",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "themes": {
+    "mode": [
+      "light",
+      "dark"
+    ]
+  },
+  "variables": {
+    "paper": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#F6F8FB",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#101216",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "raised": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#FFFFFF",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#1B1D23",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "muted": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#E7E1EA",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#35333B",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "ink": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#1B2028",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#F2F4F8",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "subtle": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#5F6672",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#B8BFCC",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "accent": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#0A63B8",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#9FC3FF",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "rule": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#B8C0CC",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#687180",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    }
+  },
+  "imports": {
+    "f": "finance-design-system.lib.pen"
+  },
+  "fileToken": "6f2b679a-40d4-45af-9d10-d3b5a39b8ae7"
+}

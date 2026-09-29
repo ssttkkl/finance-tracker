@@ -10,6 +10,10 @@ metadata:
   generatedBy: "1.7.0"
 ---
 
+## 本仓库规格目录约定
+
+从 `openspec/specs/README.md` 按业务模块定位规格。完整能力 ID 为 `<module>/<capability>`；主规格与 delta 均使用 `specs/<module>/<capability>/spec.md`。叙述中的能力 ID 指完整相对路径，路径模板里的 `<capability>` 仅指子能力名，不得重复添加模块前缀。proposal 的能力声明、查询、同步和归档均保留完整相对路径，不能只取目录末段。未完成能力不提前写入主规格。
+
 Archive a completed change in the experimental workflow.
 
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
@@ -92,7 +96,7 @@ Archive a completed change in the experimental workflow.
    delta specs from other artifacts.
 
    **If delta specs exist:**
-   - Compare each delta spec with its corresponding main spec at `<planningHome.root>/openspec/specs/<capability>/spec.md` (use the store-aware `planningHome.root` from step 2, not a hardcoded repo path)
+   - Compare each delta spec with its corresponding main spec at `<planningHome.root>/openspec/specs/<module>/<capability>/spec.md` (use the store-aware `planningHome.root` from step 2, not a hardcoded repo path)
    - Determine what changes would be applied (adds, modifications, removals, renames)
    - Show a combined summary before prompting
 

@@ -10,6 +10,10 @@ metadata:
   generatedBy: "1.7.0"
 ---
 
+## 本仓库规格目录约定
+
+从 `openspec/specs/README.md` 按业务模块定位规格。完整能力 ID 为 `<module>/<capability>`；主规格与 delta 均使用 `specs/<module>/<capability>/spec.md`。叙述中的能力 ID 指完整相对路径，路径模板里的 `<capability>` 仅指子能力名，不得重复添加模块前缀。proposal 的能力声明、查询、同步和归档均保留完整相对路径，不能只取目录末段。未完成能力不提前写入主规格。
+
 Sync delta specs from a change to main specs.
 
 This is an **agent-driven** operation - you will read delta specs and directly edit main specs to apply the changes. This allows intelligent merging (e.g., adding a scenario without copying the entire requirement).
@@ -90,7 +94,7 @@ This is an **agent-driven** operation - you will read delta specs and directly e
 
    a. **Read the delta spec** to understand the intended changes
 
-   b. **Read the main spec** at `<planningHome.root>/openspec/specs/<capability>/spec.md` (may not exist yet)
+   b. **Read the main spec** at `<planningHome.root>/openspec/specs/<module>/<capability>/spec.md` (may not exist yet)
 
    c. **Apply changes intelligently**:
 
@@ -117,7 +121,7 @@ This is an **agent-driven** operation - you will read delta specs and directly e
         (this is what `openspec archive` does; it warns and moves on)
 
    d. **Create new main spec** if capability doesn't exist yet:
-      - Create `<planningHome.root>/openspec/specs/<capability>/spec.md`
+      - Create `<planningHome.root>/openspec/specs/<module>/<capability>/spec.md`
       - Add Purpose section: copy the delta's `## Purpose` body verbatim when it has one
         (this is what `openspec archive` does); only write a brief TBD placeholder when it does not
       - Add Requirements section with the ADDED requirements

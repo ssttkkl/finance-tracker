@@ -48,6 +48,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.collect
+import com.finance.tracker.core.design.GeneratedTokens
 
 @Composable
 internal fun FeaturePage(
@@ -61,9 +62,9 @@ internal fun FeaturePage(
             .fillMaxWidth()
             .widthIn(max = 1480.dp)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 4.dp, vertical = 4.dp)
+            .padding(horizontal = GeneratedTokens.Core.Space.Token4, vertical = GeneratedTokens.Core.Space.Token3)
             .testTag(semanticId),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(GeneratedTokens.Core.Space.Token4),
     ) {
         Text(title, modifier = Modifier.testTag("app-page-title"), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
         content()
@@ -75,10 +76,10 @@ internal fun SectionCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Card(modifier = modifier, shape = RoundedCornerShape(20.dp)) {
+    Card(modifier = modifier, shape = MaterialTheme.shapes.medium) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(GeneratedTokens.Core.Space.Token4),
+            verticalArrangement = Arrangement.spacedBy(GeneratedTokens.Core.Space.Token3),
         ) { content() }
     }
 }
@@ -112,7 +113,7 @@ internal fun LabeledInput(
         singleLine = singleLine,
         enabled = enabled,
         isError = isError,
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.small,
     )
 }
 
@@ -154,7 +155,7 @@ internal fun DatePickerInput(
             .fillMaxWidth()
             .clickable(enabled) { pickerState.selectedDateMillis = isoDateToUtcMillis(value); open = true },
         trailingIcon = { TextButton(onClick = { pickerState.selectedDateMillis = isoDateToUtcMillis(value); open = true }, enabled = enabled) { Text(localizedText("copy_70b208202c")) } },
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.small,
     )
     if (open) {
         DatePickerDialog(

@@ -1,0 +1,3952 @@
+{
+  "version": "2.19",
+  "children": [
+    {
+      "type": "frame",
+      "id": "bQdpg",
+      "x": 0,
+      "y": 0,
+      "name": "工作区管理 / Compact / 浅色",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$paper",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "A2IxRW",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 48,
+          "gap": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "PZwQ8",
+              "name": "菜单",
+              "width": 20,
+              "height": 20,
+              "icon": "menu",
+              "library": "lucide",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "Dp6YG",
+              "name": "产品名",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "lYxSq",
+              "name": "当前工作区",
+              "fill": "$accent",
+              "content": "家庭账本",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "M2gMm",
+          "name": "主工作区",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "qIPaQ",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "O6KWkC",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "工作区管理",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "ZNX3F",
+              "name": "工作区身份",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "TZbhk",
+                  "name": "身份标题",
+                  "fill": "$ink",
+                  "content": "工作区",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "PeaAA",
+                  "name": "名称",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "cgrL0",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "名称",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "j286j",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "家庭账本",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "jI6Y1",
+                  "name": "保存名称",
+                  "height": 40,
+                  "fill": "$accent",
+                  "cornerRadius": 20,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "MX2hp",
+                      "name": "按钮文字",
+                      "fill": "#FFFFFF",
+                      "content": "保存",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "cfaYj",
+              "name": "成员",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "f2cI5Q",
+                  "name": "成员标题",
+                  "fill": "$ink",
+                  "content": "成员",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "T5jwuo",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "mlgBd",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "陈明 · owner",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "K8e8j",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Bf2jq",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "fautm",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "dk7ra",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "vP6YD",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "kQ2bp",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "林晓 · editor",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "UhSSa",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "h9V99l",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "Av4Bq",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "o17g21",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "O7y6P",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "cprsH",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "周宁 · viewer",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "qjrHH",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Q1M5ZS",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "fBXfr",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "e8URV",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Q8HRG",
+              "name": "邀请成员",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "f2V4he",
+                  "name": "邀请标题",
+                  "fill": "$ink",
+                  "content": "邀请成员",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "TmRiO",
+                  "name": "权限",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "NKMFG",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "权限",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "STMZG",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "viewer  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "h3opu",
+                  "name": "创建链接",
+                  "height": 40,
+                  "fill": "$accent",
+                  "cornerRadius": 20,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Y7THoe",
+                      "name": "按钮文字",
+                      "fill": "#FFFFFF",
+                      "content": "创建邀请链接",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "GPavH",
+                  "name": "邀请链接",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "FzEU6",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "邀请链接",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "WNZNi",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "EoHKL",
+              "name": "危险操作",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "M7kKQ",
+                  "name": "危险标题",
+                  "fill": "#B42318",
+                  "content": "危险区域",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "g3BPOX",
+                  "name": "删除工作区",
+                  "height": 40,
+                  "fill": "$raised",
+                  "cornerRadius": 20,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "AqW0K",
+                      "name": "按钮文字",
+                      "fill": "$ink",
+                      "content": "删除工作区",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "gHUTy",
+      "x": 460,
+      "y": 0,
+      "name": "工作区管理 / Regular / 浅色",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 768,
+      "height": 1024,
+      "fill": "$paper",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "cjtDf",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 48,
+          "gap": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "p0wrl",
+              "name": "菜单",
+              "width": 20,
+              "height": 20,
+              "icon": "menu",
+              "library": "lucide",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "N1kj8",
+              "name": "产品名",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "T0pGC",
+              "name": "当前工作区",
+              "fill": "$accent",
+              "content": "家庭账本",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "kN33f",
+          "name": "主工作区",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "Hpwbp",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "e5ZQM",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "工作区管理",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "GBxmq",
+              "name": "工作区身份",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Ofgx1",
+                  "name": "身份标题",
+                  "fill": "$ink",
+                  "content": "工作区",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "t12Hk",
+                  "name": "名称",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "u6wpi",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "名称",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "l7no4",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "家庭账本",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "F1Tasa",
+                  "name": "保存名称",
+                  "height": 40,
+                  "fill": "$accent",
+                  "cornerRadius": 20,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "nSlsg",
+                      "name": "按钮文字",
+                      "fill": "#FFFFFF",
+                      "content": "保存",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "h2s9tY",
+              "name": "成员",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "YLaIu",
+                  "name": "成员标题",
+                  "fill": "$ink",
+                  "content": "成员",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "Nodr7",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "WrVFd",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "陈明 · owner",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "MgntG",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "XNhAu",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "Mm7dv",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "UyK2R",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "laFZV",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "t6STi",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "林晓 · editor",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "B1oBwZ",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ZqkcB",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "caWnC",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "kOWSb",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "CjRF3",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "bCJPu",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "周宁 · viewer",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "cSBqi",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "xyJpY",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "C22IiU",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "K2MCQ",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "e7BiV",
+              "name": "邀请成员",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "KytQ7",
+                  "name": "邀请标题",
+                  "fill": "$ink",
+                  "content": "邀请成员",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "HQ9Nw",
+                  "name": "权限",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "IsPBo",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "权限",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Lf94L",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "viewer  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "i7GVrh",
+                  "name": "创建链接",
+                  "height": 40,
+                  "fill": "$accent",
+                  "cornerRadius": 20,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "sy29l",
+                      "name": "按钮文字",
+                      "fill": "#FFFFFF",
+                      "content": "创建邀请链接",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "E8cqrF",
+                  "name": "邀请链接",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Wb12l",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "邀请链接",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "HUE93",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "CF9HW",
+              "name": "危险操作",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "K4xfV",
+                  "name": "危险标题",
+                  "fill": "#B42318",
+                  "content": "危险区域",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "meTXw",
+                  "name": "删除工作区",
+                  "height": 40,
+                  "fill": "$raised",
+                  "cornerRadius": 20,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "GAwaH",
+                      "name": "按钮文字",
+                      "fill": "$ink",
+                      "content": "删除工作区",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "igGj4",
+      "x": 1280,
+      "y": 0,
+      "name": "工作区管理 / Wide / 浅色",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 1440,
+      "height": 1000,
+      "fill": "$paper",
+      "gap": 24,
+      "children": [
+        {
+          "type": "frame",
+          "id": "ueOpw",
+          "name": "侧边栏",
+          "width": 224,
+          "height": "fill_container",
+          "fill": "$paper",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "ZPsZR",
+              "name": "品牌",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 16,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "EQl5y",
+              "name": "导航 收支账本",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "s5mK9",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "收支账本",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "uXy12",
+              "name": "导航 账单导入",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "UEueP",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "账单导入",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "nBMHB",
+              "name": "导航 收支分类",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "DQN2H",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "收支分类",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "sdb7z",
+              "name": "导航 当前持仓",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Lsl5e",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "当前持仓",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "X4lZI8",
+              "name": "导航 投资事件",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "F8h2w0",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "投资事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "O6tR5",
+              "name": "导航 工作区管理",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "v0KE6V",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "工作区管理",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "pdES8",
+          "name": "主工作区",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            28,
+            36
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "xE83Q",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "BcQgq",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "工作区管理",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "r8qqet",
+              "name": "工作区身份",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "zi40T",
+                  "name": "身份标题",
+                  "fill": "$ink",
+                  "content": "工作区",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "h5SsZ9",
+                  "name": "名称",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "TtnO4",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "名称",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "nWAnR",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "家庭账本",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "a3hxkD",
+                  "name": "保存名称",
+                  "height": 40,
+                  "fill": "$accent",
+                  "cornerRadius": 20,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "x0Ne0",
+                      "name": "按钮文字",
+                      "fill": "#FFFFFF",
+                      "content": "保存",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "AZwhc",
+              "name": "成员",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "BiKEG",
+                  "name": "成员标题",
+                  "fill": "$ink",
+                  "content": "成员",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "xm2pg",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "b0n9Al",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "陈明 · owner",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "YF8Pc",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ew55f",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "c2A3R",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "P0vK6",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "xniZa",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "gvT52",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "林晓 · editor",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Om1oM",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "F2jb8",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "vseYj",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "kJ2ZN",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "OQj0J",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "LTRSB",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "周宁 · viewer",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "q677wx",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "xcYGj",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "rlvu9",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "FOEjS",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "TS7sx",
+              "name": "邀请成员",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "YCyzd",
+                  "name": "邀请标题",
+                  "fill": "$ink",
+                  "content": "邀请成员",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "L1hNmG",
+                  "name": "权限",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "AeZHK",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "权限",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "dxhsA",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "viewer  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "q33AjI",
+                  "name": "创建链接",
+                  "height": 40,
+                  "fill": "$accent",
+                  "cornerRadius": 20,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "N1UKt2",
+                      "name": "按钮文字",
+                      "fill": "#FFFFFF",
+                      "content": "创建邀请链接",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "WpcOH",
+                  "name": "邀请链接",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Y5y7e",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "邀请链接",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "mKqPd",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "AKwFX",
+              "name": "危险操作",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "RUGl9",
+                  "name": "危险标题",
+                  "fill": "#B42318",
+                  "content": "危险区域",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "opznO",
+                  "name": "删除工作区",
+                  "height": 40,
+                  "fill": "$raised",
+                  "cornerRadius": 20,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "MmI4P",
+                      "name": "按钮文字",
+                      "fill": "$ink",
+                      "content": "删除工作区",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "qVUad",
+      "x": 0,
+      "y": 924,
+      "name": "工作区管理 / Compact / 深色",
+      "theme": {
+        "mode": "dark"
+      },
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$paper",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "aDU4k",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 48,
+          "gap": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "TwM9O",
+              "name": "菜单",
+              "width": 20,
+              "height": 20,
+              "icon": "menu",
+              "library": "lucide",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "Cdf7Y",
+              "name": "产品名",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "zHVGK",
+              "name": "当前工作区",
+              "fill": "$accent",
+              "content": "家庭账本",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "yErOj",
+          "name": "主工作区",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "aGej7",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "t0ORi",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "工作区管理",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "e5VGp",
+              "name": "工作区身份",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "NWJt1",
+                  "name": "身份标题",
+                  "fill": "$ink",
+                  "content": "工作区",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "fHvMC",
+                  "name": "名称",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ZqpL0",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "名称",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "JNDe1",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "家庭账本",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "T2aX1",
+                  "name": "保存名称",
+                  "height": 40,
+                  "fill": "$accent",
+                  "cornerRadius": 20,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "XlLmg",
+                      "name": "按钮文字",
+                      "fill": "#FFFFFF",
+                      "content": "保存",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "zmET6",
+              "name": "成员",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "m3Zovj",
+                  "name": "成员标题",
+                  "fill": "$ink",
+                  "content": "成员",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "A96Pzg",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "LhDHL",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "陈明 · owner",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "k8R9G",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "UnZeh",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "kmZuV",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "mdtN4",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "c4sC8",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "aYwz2",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "林晓 · editor",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "MI5e7",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "BEeK5",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "Lx1Sp",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "Y1TrGA",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "xVb6H",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ssoJ0",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "周宁 · viewer",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "xajKB",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ugpaQ",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "LRIB0",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "Bqtik",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "j2QJD",
+              "name": "邀请成员",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ckefc",
+                  "name": "邀请标题",
+                  "fill": "$ink",
+                  "content": "邀请成员",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "c3HU0",
+                  "name": "权限",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "vmTXP",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "权限",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "P3ZhO",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "viewer  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "fCgzD",
+                  "name": "创建链接",
+                  "height": 40,
+                  "fill": "$accent",
+                  "cornerRadius": 20,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "q1hGz",
+                      "name": "按钮文字",
+                      "fill": "#FFFFFF",
+                      "content": "创建邀请链接",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ImaWL",
+                  "name": "邀请链接",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "uq6be",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "邀请链接",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "YD4Hr",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "kSgvm",
+              "name": "危险操作",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "BF5Vf",
+                  "name": "危险标题",
+                  "fill": "#B42318",
+                  "content": "危险区域",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "ONwy1",
+                  "name": "删除工作区",
+                  "height": 40,
+                  "fill": "$raised",
+                  "cornerRadius": 20,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "QqFme",
+                      "name": "按钮文字",
+                      "fill": "$ink",
+                      "content": "删除工作区",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "orE3S",
+      "x": 460,
+      "y": 1104,
+      "name": "工作区管理 / Regular / 深色",
+      "theme": {
+        "mode": "dark"
+      },
+      "clip": true,
+      "width": 768,
+      "height": 1024,
+      "fill": "$paper",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "KZQ79",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 48,
+          "gap": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "jNIVL",
+              "name": "菜单",
+              "width": 20,
+              "height": 20,
+              "icon": "menu",
+              "library": "lucide",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "mgwEA",
+              "name": "产品名",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "L97Eu",
+              "name": "当前工作区",
+              "fill": "$accent",
+              "content": "家庭账本",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "shVy2",
+          "name": "主工作区",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "b7wAR0",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Agok1",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "工作区管理",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "ZqHDF",
+              "name": "工作区身份",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "c1cmO",
+                  "name": "身份标题",
+                  "fill": "$ink",
+                  "content": "工作区",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "yKwn6",
+                  "name": "名称",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "U1DE0",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "名称",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "osgl2",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "家庭账本",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "RkecV",
+                  "name": "保存名称",
+                  "height": 40,
+                  "fill": "$accent",
+                  "cornerRadius": 20,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Fmlp1",
+                      "name": "按钮文字",
+                      "fill": "#FFFFFF",
+                      "content": "保存",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "a0ldUP",
+              "name": "成员",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "SDMaa",
+                  "name": "成员标题",
+                  "fill": "$ink",
+                  "content": "成员",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "apd0y",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "B5gpdb",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "陈明 · owner",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "cBFTL",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "v8ERaH",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "norJI",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "Tr9ji",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "lrrPG",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "RyJaV",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "林晓 · editor",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "LZR0m",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "xb5gi",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "lJI28",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "Y9c41",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "mCB2Y",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "LZxc9",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "周宁 · viewer",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "E13r6A",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "oL6Ua",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "pJe3B",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "N0XMC",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "nrT2z",
+              "name": "邀请成员",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "J4erUx",
+                  "name": "邀请标题",
+                  "fill": "$ink",
+                  "content": "邀请成员",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "nB1wY",
+                  "name": "权限",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "XpIg2",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "权限",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "rZLpw",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "viewer  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "eWt6w",
+                  "name": "创建链接",
+                  "height": 40,
+                  "fill": "$accent",
+                  "cornerRadius": 20,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ckEaZ",
+                      "name": "按钮文字",
+                      "fill": "#FFFFFF",
+                      "content": "创建邀请链接",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Y6eIH",
+                  "name": "邀请链接",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "mMkWq",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "邀请链接",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "FdSsh",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "mbenv",
+              "name": "危险操作",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "K0bwf8",
+                  "name": "危险标题",
+                  "fill": "#B42318",
+                  "content": "危险区域",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "Yjg0I",
+                  "name": "删除工作区",
+                  "height": 40,
+                  "fill": "$raised",
+                  "cornerRadius": 20,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "xoDBM",
+                      "name": "按钮文字",
+                      "fill": "$ink",
+                      "content": "删除工作区",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "WQpr8",
+      "x": 1280,
+      "y": 1080,
+      "name": "工作区管理 / Wide / 深色",
+      "theme": {
+        "mode": "dark"
+      },
+      "clip": true,
+      "width": 1440,
+      "height": 1000,
+      "fill": "$paper",
+      "gap": 24,
+      "children": [
+        {
+          "type": "frame",
+          "id": "Q3tsw",
+          "name": "侧边栏",
+          "width": 224,
+          "height": "fill_container",
+          "fill": "$paper",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "PLOQV",
+              "name": "品牌",
+              "fill": "$ink",
+              "content": "Finance Tracker",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 16,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "S3JtkC",
+              "name": "导航 收支账本",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "NGQvZ",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "收支账本",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "GaGDA",
+              "name": "导航 账单导入",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ZB3j8",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "账单导入",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Bk7Fi",
+              "name": "导航 收支分类",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "nD7uf",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "收支分类",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "VeGvN",
+              "name": "导航 当前持仓",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "FMVIj",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "当前持仓",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "b1hMs",
+              "name": "导航 投资事件",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "hidrt",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "投资事件",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "r0ThOb",
+              "name": "导航 工作区管理",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "CRDJX",
+                  "name": "导航文字",
+                  "fill": "$ink",
+                  "content": "工作区管理",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "EhPvE",
+          "name": "主工作区",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            28,
+            36
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "k997A",
+              "name": "页面头部",
+              "width": "fill_container",
+              "gap": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "c7YJuI",
+                  "name": "页面标题",
+                  "fill": "$ink",
+                  "content": "工作区管理",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "WeMiu",
+              "name": "工作区身份",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "V14IEe",
+                  "name": "身份标题",
+                  "fill": "$ink",
+                  "content": "工作区",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "uuI35",
+                  "name": "名称",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "occeg",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "名称",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "d0NiX",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "家庭账本",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Geh4t",
+                  "name": "保存名称",
+                  "height": 40,
+                  "fill": "$accent",
+                  "cornerRadius": 20,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "NJ9wQ",
+                      "name": "按钮文字",
+                      "fill": "#FFFFFF",
+                      "content": "保存",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "oCJ8o",
+              "name": "成员",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "kS1aL",
+                  "name": "成员标题",
+                  "fill": "$ink",
+                  "content": "成员",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "GuavO",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "f28woZ",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "陈明 · owner",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "lmgjT",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "m9IfjA",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "wNIEI",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "Y9e5f",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Hussv",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Y1sxk",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "林晓 · editor",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ZlRlL",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "NNAjT",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "v1O8Vq",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "SzWmN",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "weeIK",
+                  "name": "成员行",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "EYf2o",
+                      "name": "成员邮箱",
+                      "fill": "$ink",
+                      "content": "周宁 · viewer",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "yZM2O",
+                      "name": "角色",
+                      "width": "fill_container",
+                      "height": 54,
+                      "fill": "$raised",
+                      "cornerRadius": 10,
+                      "stroke": "$rule",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "eokTV",
+                          "name": "字段标签",
+                          "fill": "$subtle",
+                          "content": "角色",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "a55w1X",
+                          "name": "字段值",
+                          "fill": "$ink",
+                          "content": "viewer  ▾",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "EEiPu",
+                      "name": "移除",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "cH9IQ",
+              "name": "邀请成员",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "inzKu",
+                  "name": "邀请标题",
+                  "fill": "$ink",
+                  "content": "邀请成员",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "rAAyv",
+                  "name": "权限",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "vsd3Q",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "权限",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "l1hgt",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "viewer  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "yK2iy",
+                  "name": "创建链接",
+                  "height": 40,
+                  "fill": "$accent",
+                  "cornerRadius": 20,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "gzLWa",
+                      "name": "按钮文字",
+                      "fill": "#FFFFFF",
+                      "content": "创建邀请链接",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "fXSmT",
+                  "name": "邀请链接",
+                  "width": "fill_container",
+                  "height": 54,
+                  "fill": "$raised",
+                  "cornerRadius": 10,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "SMKlj",
+                      "name": "字段标签",
+                      "fill": "$subtle",
+                      "content": "邀请链接",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Y5XrPn",
+                      "name": "字段值",
+                      "fill": "$ink",
+                      "content": "  ▾",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "zOfvL",
+              "name": "危险操作",
+              "width": "fill_container",
+              "fill": "$muted",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "yBJ4z",
+                  "name": "危险标题",
+                  "fill": "#B42318",
+                  "content": "危险区域",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "fsByB",
+                  "name": "删除工作区",
+                  "height": 40,
+                  "fill": "$raised",
+                  "cornerRadius": 20,
+                  "stroke": "$rule",
+                  "strokeWidth": 1,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Y5WGz",
+                      "name": "按钮文字",
+                      "fill": "$ink",
+                      "content": "删除工作区",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "themes": {
+    "mode": [
+      "light",
+      "dark"
+    ]
+  },
+  "variables": {
+    "paper": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#F6F8FB",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#101216",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "raised": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#FFFFFF",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#1B1D23",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "muted": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#E7E1EA",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#35333B",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "ink": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#1B2028",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#F2F4F8",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "subtle": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#5F6672",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#B8BFCC",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "accent": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#0A63B8",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#9FC3FF",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "rule": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#B8C0CC",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#687180",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    }
+  },
+  "imports": {
+    "6": "finance-design-system.lib.pen"
+  },
+  "fileToken": "e811c147-cbbc-4e82-8782-b9edc160df6a"
+}

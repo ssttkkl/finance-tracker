@@ -4,7 +4,7 @@
 > `cash-ledger-browser` 主规格与 `investment-ledger-browser` active change 的正式 artifacts。
 >
 > 本文不是需求、技术方案或任务的事实源。历史中的 `020-transaction-browser-web` 路径和“单一
-> feature”约束均已失效；新会话必须以 `openspec/specs/cash-ledger-browser/spec.md` 和
+> feature”约束均已失效；新会话必须以 `openspec/specs/cash-ledger/cash-ledger-browser/spec.md` 和
 > `openspec/changes/investment-ledger-browser/` 为准。后文编号只表示历史决策过程。
 
 ## 1. 用户已经确认的产品决策
@@ -49,7 +49,7 @@ Phase 2 是可信、可追溯的本地账本浏览器，不是财富分析大屏
 本文写入时的基线已包含 019 的产品代码，但 OpenSpec 状态仍需单独核对和关账。新会话不得默认 019
 已经在 artifacts 层完成，应先检查：
 
-- `openspec/specs/portfolio-valuation/spec.md` 的当前合同，以及 `openspec/MIGRATION.md` 中旧 019 的归档映射；
+- `openspec/specs/investment/portfolio-valuation/spec.md` 的当前合同，以及 `openspec/MIGRATION.md` 中旧 019 的归档映射；
 - `tasks.md`、收敛结果与验证证据；
 - `openspec list` 的活跃 feature 指针；
 - 是否已有 019 关账分支或 PR，避免重复提交。

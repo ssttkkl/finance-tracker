@@ -16,7 +16,7 @@
 
 | 规范术语 | 定义 | 应避免的别名 |
 |----------|------|--------------|
-| **OpenSpec 主规格** (new) | 位于 `openspec/specs/`、描述当前系统可观察行为并作为后续变更基线的规格文件。 | 当前 spec、需求文档、实现说明 |
+| **OpenSpec 主规格** (new) | 位于 `openspec/specs/<module>/<capability>/spec.md`、描述当前系统可观察行为并作为后续变更基线的规格文件；按业务模块归组，完整能力 ID 包含模块前缀。 | 当前 spec、需求文档、实现说明 |
 | **OpenSpec 变更** (new) | 位于 `openspec/changes/`、集中记录一次行为调整的提案、delta 规格、设计和任务的工作单元。 | feature 目录、临时计划、聊天记录 |
 | **delta 规格** (new) | 只描述相对于 OpenSpec 主规格新增、修改、移除或重命名的需求与场景。 | 全量 spec、补丁文档、复制版需求 |
 | **变更归档** (new) | 已完成变更在 `openspec/changes/archive/` 中保留的审计历史记录；归档后的更正必须显式标注，且不能伪造完成时间。 | 删除的 feature、过期计划、临时备份 |

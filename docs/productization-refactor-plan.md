@@ -11,7 +11,7 @@
 本文只回答“产品往哪里走、为什么按这个顺序走”，不是可直接实施的 feature spec。
 
 - `openspec/project-context.md` 定义不可妥协的工程原则。
-- `openspec/specs/<capability>/spec.md` 定义当前能力行为；`openspec/changes/<name>/proposal.md` 定义未完成变更做什么和为什么。
+- `openspec/specs/<module>/<capability>/spec.md` 定义当前能力行为；`openspec/changes/<name>/proposal.md` 定义未完成变更做什么和为什么。
 - `design.md` 定义技术方案、数据模型和 contracts。
 - `tasks.md` 定义测试先行的执行顺序和完成状态，并位于对应的 OpenSpec change 中。
 - gstack 产品或架构评审结论必须回写上述 artifacts，不能在 `docs/` 独立演进。
@@ -20,8 +20,8 @@
 
 - [项目 README](../README.md)：运行时、API、Web/Expo、导入与同步。
 - [文档索引](README.md)
-- [运行时数据库](../openspec/specs/runtime-database/spec.md)：PostgreSQL 与 SQLite 的显式选择和等价行为。
-- [投资组合估值](../openspec/specs/portfolio-valuation/spec.md) / [投资连接器同步](../openspec/specs/investment-connector-sync/spec.md)：估值与连接器当前合同。
+- [运行时数据库](../openspec/specs/shared/runtime-database/spec.md)：PostgreSQL 与 SQLite 的显式选择和等价行为。
+- [投资组合估值](../openspec/specs/investment/portfolio-valuation/spec.md) / [投资连接器同步](../openspec/specs/import/investment-connector-sync/spec.md)：估值与连接器当前合同。
 - [OpenSpec 迁移清单](../openspec/MIGRATION.md)：旧编号 feature、当前 capability 和历史归档的映射。
 - [database-schema.md](database-schema.md)：账本记录、来源行溯源与连接器游标的落地态结构速查（Alembic `20260726_10`）。
 - [财富解释与趋势对比设计](productization-wealth-report-design.md)：已批准、但非实施权威的产品决策输入。
@@ -171,7 +171,7 @@ PostgreSQL 与文件型 SQLite 均为正式运行时后端，由 `FT_DATABASE_UR
   每日原子桶与日/周/月聚合；投资市场收益率、coverage、partial/stale/unsupported；
   component、evidence 和 canonical DTO；PostgreSQL/SQLite 等价 contract、性能基线和重建测试。
   非目标：Web、认证、关系审查列表、Connector、AI 和 MCP。
-  实现交接以 [`wealth-attribution`](../openspec/specs/wealth-attribution/spec.md) 的
+  实现交接以 [`wealth-attribution`](../openspec/specs/wealth/wealth-attribution/spec.md) 的
   OpenSpec artifacts 为唯一事实源。内核保持 transport-neutral：Web/API 适配和展示 URL 不属于该
   feature；正式估值、账户生命周期和不可变 generation/evidence 是 PostgreSQL 与 SQLite 共享的
   可重建输入/读模型边界。

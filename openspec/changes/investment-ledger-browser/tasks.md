@@ -14,7 +14,7 @@
 
 ## 1. 思考
 
-- [x] 1.1 阅读 `investment-event-model`、`ledger-records`、`portfolio-valuation`、`time-semantics`、现有收支账本 Web、投资查询代码和测试，确认当前行为与缺口。
+- [x] 1.1 阅读 `investment/investment-event-model`、`shared/ledger-records`、`investment/portfolio-valuation`、`shared/time-semantics`、现有收支账本 Web、投资查询代码和测试，确认当前行为与缺口。
 - [x] 1.2 使用 `$openspec-explore` 复核核心任务、范围、失败模式、数据隐私和不改变投资事实的边界。
 - [x] 1.3 以首次使用且不了解内部模型的用户视角逐项扫查两页原型，识别过度解释、内部术语、重复指标、不可自由输入的币种控件和不必要更新时间卡片。
 

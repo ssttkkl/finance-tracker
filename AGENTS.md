@@ -60,7 +60,8 @@
 
 ## OpenSpec 事实源与回写
 
-- `project-context.md` 定义工程原则；`specs/<capability>/spec.md` 定义当前行为；`changes/<name>/` 定义未完成变更；`changes/archive/YYYY-MM-DD-<name>/` 保留完成变更的审计记录。
+- 从 [`openspec/specs/README.md`](openspec/specs/README.md) 按业务模块定位规格。完整能力 ID 为 `<module>/<capability>`，proposal、主规格与 delta 必须使用同一 ID；跨模块合同保留一个主归属，其余模块通过导航链接。
+- `project-context.md` 定义工程原则；`specs/<module>/<capability>/spec.md` 定义当前行为；`changes/<name>/` 定义未完成变更；`changes/archive/YYYY-MM-DD-<name>/` 保留完成变更的审计记录。
 - `proposal.md` 记录价值、范围、非目标和验收，delta spec 记录行为变化，`design.md` 记录架构、数据流、接口、风险、部署和 UI 策略，`tasks.md` 记录阶段、实施、审查、验证与发布准备。
 - 代码改动导致需求、领域语义、架构、数据库、接口或风险发生变化时，先更新相应 artifact 再实施。归档前同步 delta；纯实现细节只更新 design、tasks 或代码。纯工具或文档改动不创建 OpenSpec 变更，也不需要生成 `skip_specs: true` 的空 scaffolding。
 - 新能力使用 `$openspec-propose`，当前 active change 变更范围、验收或财务语义时使用 `$openspec-update-change`。`MODIFIED` delta requirement 必须包含完整更新后的 requirement 和场景。

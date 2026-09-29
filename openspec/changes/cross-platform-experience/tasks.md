@@ -6,7 +6,7 @@
 
 ## 2. 计划与设计
 
-- [x] 2.1 创建 proposal、`cross-platform-presentation`/`cash-ledger-browser`/`workspace-entry` delta specs 和 design。
+- [x] 2.1 创建 proposal、`shared/cross-platform-presentation`、`cash-ledger/cash-ledger-browser`、`workspace/workspace-entry` delta specs 和 design。
 - [x] 2.2 完成 Hallmark 预检，确定 Cobalt、`Index-First`、N3 Side-rail、Ft1 session/status footer，并创建 `prototype/index.html`。
 - [x] 2.3 更新 `DOMAIN_GLOSSARY.md` 的 `presentation 契约`、响应式布局等级、跨端 parity journey 和平台差异登记术语。
 - [x] 2.4 记录 UI 原型状态、验收尺寸、平台差异、Native 缺口和回滚策略。

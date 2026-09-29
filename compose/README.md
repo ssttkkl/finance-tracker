@@ -12,7 +12,7 @@ npm run compose:demo
 
 Android 可在 Android Studio 打开本目录并运行 `androidApp`；本机后端通过模拟器访问时，先执行 `adb reverse tcp:8000 tcp:8000`，再用构建参数 `ftApiOrigin=http://localhost:8000`。iOS 可在 Xcode 打开 `iosApp/iosApp.xcodeproj`，选择 `iosApp` scheme 和本地 Simulator 运行；需要 API 流程时，在 Debug Build Settings 将 `FT_API_ORIGIN` 设为 `http://localhost:8000`。这些步骤只运行本地 demo，不会启动或修改云端服务。
 
-设计工作区位于仓库根目录的 `design/`，语义合同和 token 位于 `ui-spec/`。登录样板使用 `design/login.pen`，组件库使用 `design/finance-design-system.lib.pen`；通过 pen.dev CLI/MCP 修改后，再按同一合同实现 Compose。
+设计工作区位于仓库根目录的 `design/`，业务行为位于 `openspec/specs/`，页面与组件设计由 `.pen` 维护，token 位于 `openspec/specs/shared/design-system/tokens/`。登录样板使用 `design/login.pen`，组件库使用 `design/finance-design-system.lib.pen`；通过 pen.dev CLI/MCP 修改后，再按同一合同实现 Compose。
 
 * [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
   you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.

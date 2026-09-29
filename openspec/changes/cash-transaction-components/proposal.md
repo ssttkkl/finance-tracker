@@ -18,16 +18,16 @@
 
 ### New Capabilities
 
-- `cash-transaction-components`: 现金流水父记录、支付组成项、账户余额分录和守恒规则。
+- `cash-ledger/cash-transaction-components`: 现金流水父记录、支付组成项、账户余额分录和守恒规则。
 
 ### Modified Capabilities
 
-- `ledger-records`: 现金流水的父记录、组成项和精确金额语义。
-- `statement-import`: 组合支付解析、分摊补齐、幂等写入和来源快照。
-- `transaction-relations`: 现金关系改用组成项端点及部分金额约束。
-- `cash-investment-funding-relations`: 资金调拨改用组成项端点。
-- `cash-ledger-browser`: 父流水展示与组成项账户筛选、详情证据。
-- `wealth-attribution`: 现金来源和失效触发包含组成项。
+- `shared/ledger-records`: 现金流水的父记录、组成项和精确金额语义。
+- `import/statement-import`: 组合支付解析、分摊补齐、幂等写入和来源快照。
+- `cash-ledger/transaction-relations`: 现金关系改用组成项端点及部分金额约束。
+- `investment/cash-investment-funding-relations`: 资金调拨改用组成项端点。
+- `cash-ledger/cash-ledger-browser`: 父流水展示与组成项账户筛选、详情证据。
+- `wealth/wealth-attribution`: 现金来源和失效触发包含组成项。
 
 ## Impact
 

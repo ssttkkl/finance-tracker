@@ -38,8 +38,8 @@
 
 ## OpenSpec 工作约定
 
-- `openspec/specs/` 是当前行为的唯一规格事实源；每个能力一个目录，按领域名称组织，不再使用 sequential feature 目录作为运行入口。
-- `openspec/changes/<name>/` 是未完成变更，至少包含 `proposal.md`、`specs/<capability>/spec.md`、`design.md`（适用时）和 `tasks.md`。
+- `openspec/specs/` 是当前行为的唯一规格事实源；按 `<module>/<capability>/spec.md` 组织；从 [业务能力导航](specs/README.md) 定位当前合同，不再使用 sequential feature 目录作为运行入口。
+- `openspec/changes/<name>/` 是未完成变更，至少包含 `proposal.md`、`specs/<module>/<capability>/spec.md`、`design.md`（适用时）和 `tasks.md`。
 - `openspec/changes/archive/YYYY-MM-DD-<name>/` 是已完成变更的审计记录；归档前必须把 delta 同步到主规格，不能把未完成工作伪装成完成。
 - 主规格写行为合同：使用 `### Requirement:` 和 `#### Scenario:`，每条 requirement 至少有一个可验证场景，使用 `MUST` 或 `SHALL` 表示规范性要求。
 - 设计细节进入 `design.md`，执行顺序进入 `tasks.md`；不要把内部类名、框架选择或逐行实现步骤塞进主规格。

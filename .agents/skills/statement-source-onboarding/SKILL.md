@@ -144,8 +144,8 @@ weak mirror noise.
 
 #### 1.5 Worked references in-repo
 
-- Alipay status×direction map: `openspec/specs/007-closed-trade-refund-import/spec.md` appendix
-- WeChat dual-row / status×type: same spec appendix  
+- 支付宝状态与方向语义：`openspec/specs/cash-ledger/cash-record-classification/spec.md`；旧 `007-closed-trade-refund-import` 的迁移归属见 `openspec/MIGRATION.md`。
+- 微信双行及状态与类型语义：`openspec/specs/cash-ledger/cash-record-classification/spec.md` 与 `openspec/specs/cash-ledger/transaction-relations/spec.md`；旧附录保留在上述历史变更中。
 - Transfer buckets: `openspec/changes/archive/2026-08-01-007-closed-trade-refund-import/legacy/007-closed-trade-refund-import/attachments/transfer-source-taxonomy.md`
 - Calibration: fresh DB, full import, `relations check`, pending by rule_id  
 

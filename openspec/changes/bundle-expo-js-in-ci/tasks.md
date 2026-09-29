@@ -7,7 +7,7 @@
 ## 2. 计划、设计与规格
 
 - [x] 2.1 创建 `proposal.md`，记录目标、非目标、影响、兼容和回滚边界。
-- [x] 2.2 创建 `specs/native-ci-packaging/spec.md`，覆盖 JS 内置、API origin fail-closed、Android 测试签名、iOS `iphoneos` 未签名 `.ipa` 和可验证场景。
+- [x] 2.2 创建 `specs/shared/native-ci-packaging/spec.md`，覆盖 JS 内置、API origin fail-closed、Android 测试签名、iOS `iphoneos` 未签名 `.ipa` 和可验证场景。
 - [x] 2.3 创建 `design.md`，锁定 Release-like 构建、登录时地址选择、空构建地址、HTTP 测试地址、原生 job 自行 bundling、Android 测试 keystore、iOS 真机 IPA 打包、artifact 命名和风险缓解方案。
 - [x] 2.4 运行 OpenSpec 变更校验，确认 proposal、spec、design、tasks 依赖关系完整后再修改 workflow。
 
@@ -24,7 +24,7 @@
 - [x] 4.3 将 iOS job 改为 `Release` `iphoneos` 构建，要求 App 包内包含 JS bundle，关闭代码签名并按标准 `Payload/*.app` 结构生成未签名 `.ipa` artifact。
 - [x] 4.4 更新 Mobile README、根 README 和领域词表，说明空构建地址、登录时地址选择、HTTP 测试地址、Metro 独立运行、Android 测试签名、iOS 未签名真机 `.ipa` 和新的 artifact 名称。
 - [x] 4.5 调整 Native API origin 配置：构建地址可为空；启用地址覆盖时允许带显式端口的 HTTP origin；用户输入仍拒绝空值、路径、查询、片段和凭据。
-- [x] 4.6 将 `mobile-login-api-origin` delta 与当前主规格同步到空构建地址、HTTP 测试地址和空值提交阻断语义。
+- [x] 4.6 将 `authentication/mobile-login-api-origin` delta 与当前主规格同步到空构建地址、HTTP 测试地址和空值提交阻断语义。
 
 ## 5. 审查与一致性
 

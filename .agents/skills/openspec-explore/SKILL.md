@@ -10,6 +10,10 @@ metadata:
   generatedBy: "1.7.0"
 ---
 
+## 本仓库规格目录约定
+
+从 `openspec/specs/README.md` 按业务模块定位规格。完整能力 ID 为 `<module>/<capability>`；主规格与 delta 均使用 `specs/<module>/<capability>/spec.md`。叙述中的能力 ID 指完整相对路径，路径模板里的 `<capability>` 仅指子能力名，不得重复添加模块前缀。proposal 的能力声明、查询、同步和归档均保留完整相对路径，不能只取目录末段。未完成能力不提前写入主规格。
+
 Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
 
 **IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER write code or implement features. If the user asks you to implement something, remind them to exit explore mode first and create a change proposal. You MAY create OpenSpec artifacts (proposals, designs, specs) if the user asks—that's capturing thinking, not implementing.
@@ -124,8 +128,8 @@ If the user mentions a change or you detect one is relevant:
 
     | Insight Type               | Where to Capture               |
     |----------------------------|--------------------------------|
-    | New requirement discovered | `specs/<capability>/spec.md` |
-    | Requirement changed        | `specs/<capability>/spec.md` |
+    | New requirement discovered | `specs/<module>/<capability>/spec.md` |
+    | Requirement changed        | `specs/<module>/<capability>/spec.md` |
     | Design decision made       | `design.md`                  |
     | Scope changed              | `proposal.md`                |
     | New work identified        | `tasks.md`                   |

@@ -10,11 +10,15 @@ metadata:
   generatedBy: "1.7.0"
 ---
 
+## 本仓库规格目录约定
+
+从 `openspec/specs/README.md` 按业务模块定位规格。完整能力 ID 为 `<module>/<capability>`；主规格与 delta 均使用 `specs/<module>/<capability>/spec.md`。叙述中的能力 ID 指完整相对路径，路径模板里的 `<capability>` 仅指子能力名，不得重复添加模块前缀。proposal 的能力声明、查询、同步和归档均保留完整相对路径，不能只取目录末段。未完成能力不提前写入主规格。
+
 Propose a new change - create the change and generate all artifacts in one step.
 
 I'll create a change with the artifacts your schema defines. With the default spec-driven schema that is:
 - proposal.md (what & why)
-- `specs/<capability>/spec.md` (what the system must do - a delta, not the main spec)
+- `specs/<module>/<capability>/spec.md` (what the system must do - a delta, not the main spec)
 - design.md (how)
 - tasks.md (implementation steps)
 

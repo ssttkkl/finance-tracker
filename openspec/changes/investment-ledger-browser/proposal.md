@@ -58,15 +58,15 @@
 
 ### New Capabilities
 
-- `investment-ledger-browser`: 投资事件浏览、证据核对、持仓估值展示和只读 Web 交互。
+- `investment/investment-ledger-browser`: 投资事件浏览、证据核对、持仓估值展示和只读 Web 交互。
 
 ### Modified Capabilities
 
-- 无。该能力消费 `investment-event-model`、`ledger-records`、`portfolio-valuation` 与 `time-semantics` 的既有合同。
+- 无。该能力消费 `investment/investment-event-model`、`shared/ledger-records`、`investment/portfolio-valuation` 与 `shared/time-semantics` 的既有合同。
 
 ## Impact
 
 - 预计影响投资查询 Application Service、持仓表现查询、行情历史/24 小时基准读取、Web API、Web 页面、测试与 OpenSpec artifact。
 - 浏览器本地存储新增展示偏好，不写入账本、账户或投资事件数据。
 - 涉及工作区隐私、精确金额、时间、稳定分页、行情局部失败、PostgreSQL/SQLite 等价和用户可见 UI，按 A 类变更执行。
-- 完成实现、验证和归档前，`openspec/specs/` 不得出现 `investment-ledger-browser` 主规格。
+- 完成实现、验证和归档前，`openspec/specs/` 不得出现 `investment/investment-ledger-browser` 主规格。

@@ -1,5 +1,5 @@
 {
-  "source": "ui-spec/tokens/*.tokens.json",
+  "source": "openspec/specs/shared/design-system/tokens/*.tokens.json",
   "variables": [
     {
       "name": "core.color.brand.onPrimary",

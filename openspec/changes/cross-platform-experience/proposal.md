@@ -15,12 +15,12 @@
 
 ### New Capabilities
 
-- `cross-platform-presentation`: 定义 Web 与 Native 共用的用户可观察 presentation、文案、语义 ID、响应式等级、平台差异和 parity journey 合同。
+- `shared/cross-platform-presentation`: 定义 Web 与 Native 共用的用户可观察 presentation、文案、语义 ID、响应式等级、平台差异和 parity journey 合同。
 
 ### Modified Capabilities
 
-- `cash-ledger-browser`: 为已有的 Web 响应式账本浏览行为补充跨端语义标识，并明确 Native 复用相同信息结构与状态语义。
-- `workspace-entry`: 让认证和工作区入口的 Native 渲染遵循 Web 已验证的文案、状态和响应式 presentation 合同。
+- `cash-ledger/cash-ledger-browser`: 为已有的 Web 响应式账本浏览行为补充跨端语义标识，并明确 Native 复用相同信息结构与状态语义。
+- `workspace/workspace-entry`: 让认证和工作区入口的 Native 渲染遵循 Web 已验证的文案、状态和响应式 presentation 合同。
 
 ## Impact
 

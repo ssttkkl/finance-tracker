@@ -8,7 +8,7 @@
 ## 2. 计划：OpenSpec 与 UI 原型
 
 - [x] 2.1 创建 `proposal.md`，记录价值、范围、非目标、迁移顺序、回滚和影响面。
-- [x] 2.2 创建 `specs/expo-client/spec.md` 和 `specs/cli-free-runtime/spec.md`，覆盖正常、权限、错误、空状态、幂等和显式数据库配置场景。
+- [x] 2.2 创建 `specs/shared/expo-client/spec.md` 和 `specs/shared/cli-free-runtime/spec.md`，覆盖正常、权限、错误、空状态、幂等和显式数据库配置场景。
 - [x] 2.3 创建 `prototype/index.html`，表达进入工作区、看收支、记一笔、导入账单四步及正常/空/加载/错误/成功/禁用/删除确认状态。
 - [x] 2.4 按 UI 规则检查原型 320 px、375 px、414 px、768 px、390 px 和 1440 px 的布局目标，并把结果写入本任务文件。
 - [x] 2.5 创建 `design.md`，锁定 npm workspace、共享边界、Expo Router、平台适配、CLI 能力替代、事务与回滚方案。

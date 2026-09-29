@@ -659,4 +659,4 @@ uv run alembic upgrade head
 | ORM | `src/ft/adapters/relational/models.py` |
 | 导入语义 | `docs/import-flow.md` |
 | README | `README.md` |
-| 当前规格 | `openspec/specs/statement-import/`、`ledger-records/`、`investment-connector-sync/` |
+| 当前规格 | `openspec/specs/import/statement-import/`、`openspec/specs/shared/ledger-records/`、`openspec/specs/import/investment-connector-sync/` |
