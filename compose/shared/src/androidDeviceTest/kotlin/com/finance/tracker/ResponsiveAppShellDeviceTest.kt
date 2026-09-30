@@ -14,6 +14,7 @@ import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
@@ -26,10 +27,10 @@ class ResponsiveAppShellDeviceTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun regularRailKeepsPageContentVisible() {
+    fun regularNavigationKeepsPageContentVisible() {
         composeRule.setContent {
             MaterialTheme {
-                RegularAppShell(AppRoute(AppPage.CASH_LEDGER), onNavigate = {}) {
+                RegularAppShell(AppRoute(AppPage.CASH_LEDGER), onNavigate = {}) { _ ->
                     Text("页面内容检查点")
                 }
             }
@@ -49,6 +50,17 @@ class ResponsiveAppShellDeviceTest {
         }
 
         composeRule.onNodeWithText("页面内容检查点").assertIsDisplayed()
+    }
+
+    @Test
+    fun financeButtonPassesDisabledStateToUnstyledPrimitive() {
+        composeRule.setContent {
+            MaterialTheme {
+                FinanceButton(onClick = {}, enabled = false) { Text("保存") }
+            }
+        }
+
+        composeRule.onNodeWithText("保存").assertIsDisplayed().assertIsNotEnabled()
     }
 
     @Test

@@ -19,6 +19,7 @@ ktor = "3.6.0"
 kotlinxSerialization = "1.10.0"
 kotlinxCoroutines = "1.10.2"
 filekit = "0.16.0"
+composeUnstyled = "2.10.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -49,6 +50,10 @@ ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 filekit-dialogs-compose = { module = "io.github.vinceglb:filekit-dialogs-compose", version.ref = "filekit" }
+composeunstyled-button = { module = "com.composables:composeunstyled-button", version.ref = "composeUnstyled" }
+composeunstyled-text-field = { module = "com.composables:composeunstyled-text-field", version.ref = "composeUnstyled" }
+composeunstyled-dropdown-menu = { module = "com.composables:composeunstyled-dropdown-menu", version.ref = "composeUnstyled" }
+composeunstyled-dialog = { module = "com.composables:composeunstyled-dialog", version.ref = "composeUnstyled" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

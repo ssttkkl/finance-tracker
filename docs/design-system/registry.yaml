@@ -1,0 +1,41 @@
+version: 1
+source: design/finance-ui.lib.pen
+reference: design/heroui.lib.pen
+upstream:
+  implementation: HeroUI v3 official code and @heroui/styles
+  tokens: HeroUI CSS variables, copied into project token JSON before generation
+  componentCapture: Browser Import from a temporary HeroUI Gallery
+  figmaKit: optional visual-check source; never the Finance UI or token source
+pageSource: design/cash-ledger.pen follows Web Cash Ledger region order and responsive classes
+components:
+  Finance/Button:
+    compose: FinanceButton
+    heroUi: HeroUI/Button/Primary, HeroUI/Button/Secondary
+    variants: [primary, secondary, tertiary, danger]
+    sizes: [sm, md, lg]
+    states: [default, hover, pressed, focus, disabled, loading]
+    slots: [leadingIcon, content, trailingIcon]
+  Finance/TextField:
+    compose: FinanceTextField
+    heroUi: HeroUI/Input
+    variants: [default, error]
+    states: [default, focus, disabled, readOnly]
+    slots: [label, leadingIcon, trailingIcon, supportingText]
+  Finance/Select:
+    compose: FinanceSelect
+    heroUi: HeroUI/Select
+    variants: [default, error]
+    states: [default, expanded, disabled]
+  Finance/DataTable:
+    compose: FinanceDataTable
+    heroUi: HeroUI/Table
+    penVariants: [Finance/DataTable/InvestmentHoldings, Finance/DataTable/InvestmentEvents]
+    states: [loading, ready, empty, error]
+  Finance/FilterBar:
+    compose: FinanceFilterBar
+    heroUi: HeroUI/Select
+    states: [default, dirty, disabled]
+  Finance/Amount:
+    compose: FinanceAmount
+    heroUi: semantic amount treatment using HeroUI foreground/accent tokens
+    variants: [income, expense, neutral]

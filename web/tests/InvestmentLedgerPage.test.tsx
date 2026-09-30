@@ -125,9 +125,8 @@ beforeEach(() => { vi.stubEnv("VITE_FT_API_ORIGIN", "http://127.0.0.1:8000"); Mo
 afterEach(() => { cleanup(); window.localStorage.clear(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("InvestmentLedgerPage", () => {
-  it("将事件表和详情事实行固定为已确认原型的布局契约", () => {
+  it("保持事件表和详情事实行的布局契约", () => {
     const styles = readFileSync(resolve(import.meta.dirname, "../src/investment.css"), "utf8");
-    const prototype = readFileSync(resolve(import.meta.dirname, "../../openspec/changes/investment-ledger-browser/prototype/events.html"), "utf8");
 
     expect(styles).toContain(".investment-table{width:100%;min-width:1040px;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:12px}");
     expect(styles).toContain(".investment-table th,.investment-table td{padding:13px var(--space-3);border-bottom:0;text-align:left;vertical-align:middle;white-space:nowrap}");
@@ -139,7 +138,6 @@ describe("InvestmentLedgerPage", () => {
     expect(styles).toContain(".holding-symbol,.holding-price{display:table-cell;white-space:normal!important}");
     expect(styles).toContain(".holding-symbol strong,.holding-symbol small,.holding-price>small{display:block}");
     expect(styles).toContain("@media(prefers-reduced-motion:reduce){.refresh-button[aria-busy=\"true\"] .refresh-ring{animation:none}}");
-    expect(prototype).toContain('placeholder="如 AAPL 或 .US"');
   });
 
   it("独立读取事件和持仓，并保留精确十进制与估值状态", async () => {

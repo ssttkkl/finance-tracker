@@ -9,6 +9,8 @@ object GeneratedTokens {
         object Color {
             val BrandOnPrimary = Color(0xFFFFFFFF)
             val BrandPrimary = Color(0xFF0A63B8)
+            val SemanticAccent = Color(0xFF0485F7)
+            val SemanticAccentForeground = Color(0xFFFFFFFF)
             val SemanticDanger = Color(0xFFB42318)
             val SemanticExpense = Color(0xFFB3442C)
             val SemanticIncome = Color(0xFF087443)
@@ -41,26 +43,43 @@ object GeneratedTokens {
     }
     object Dark {
         object Color {
-            val BorderDefault = Color(0xFF434850)
-            val ContentMuted = Color(0xFFC3C7D0)
-            val ContentPrimary = Color(0xFFE2E2E9)
+            val BorderDefault = Color(0xFF3F3F46)
+            val ContentMuted = Color(0xFFA1A1AA)
+            val ContentPrimary = Color(0xFFFCFCFC)
+            val SemanticBackground = Color(0xFF060607)
+            val SemanticDanger = Color(0xFFF04438)
+            val SemanticDisabled = Color(0xFF27272A)
+            val SemanticField = Color(0xFF18181B)
+            val SemanticFieldBorder = Color(0xFF3F3F46)
+            val SemanticFocus = Color(0xFF0485F7)
+            val SemanticForeground = Color(0xFFFCFCFC)
+            val SemanticOverlay = Color(0xFF18181B)
+            val SemanticSurface = Color(0xFF18181B)
             val StateErrorSurface = Color(0xFF93000A)
             val StateSuccessSurface = Color(0xFF1C4A35)
-            val SurfaceBackground = Color(0xFF111318)
-            val SurfaceMuted = Color(0xFF2B2F38)
-            val SurfaceRaised = Color(0xFF1B1D24)
+            val SurfaceBackground = Color(0xFF060607)
+            val SurfaceMuted = Color(0xFF27272A)
+            val SurfaceRaised = Color(0xFF18181B)
         }
     }
     object Light {
         object Color {
-            val BorderDefault = Color(0xFFC4CEDA)
-            val ContentMuted = Color(0xFF66717D)
-            val ContentPrimary = Color(0xFF1F2933)
+            val BorderDefault = Color(0xFFE4E4E7)
+            val ContentMuted = Color(0xFF71717A)
+            val ContentPrimary = Color(0xFF18181B)
+            val SemanticBackground = Color(0xFFF5F5F5)
+            val SemanticDisabled = Color(0xFFE4E4E7)
+            val SemanticField = Color(0xFFFFFFFF)
+            val SemanticFieldBorder = Color(0xFFE4E4E7)
+            val SemanticFocus = Color(0xFF0485F7)
+            val SemanticForeground = Color(0xFF18181B)
+            val SemanticOverlay = Color(0xFFFFFFFF)
+            val SemanticSurface = Color(0xFFFFFFFF)
             val StateErrorSurface = Color(0xFFFBEAE8)
             val StateSuccessSurface = Color(0xFFE8F5EE)
-            val SurfaceBackground = Color(0xFFF1F5FA)
-            val SurfaceMuted = Color(0xFFE8EEF6)
-            val SurfaceRaised = Color(0xFFFCFDFE)
+            val SurfaceBackground = Color(0xFFF5F5F5)
+            val SurfaceMuted = Color(0xFFE4E4E7)
+            val SurfaceRaised = Color(0xFFFFFFFF)
         }
     }
 }

@@ -123,7 +123,11 @@ export async function typeIntoComposeInput(
   options: { replace?: boolean } = {},
 ): Promise<void> {
   const input = page.locator(selector).last();
-  const box = await input.boundingBox();
+  let box = await input.boundingBox();
+  for (let attempt = 0; !box && attempt < 10; attempt += 1) {
+    await page.waitForTimeout(100);
+    box = await input.boundingBox();
+  }
   if (!box) throw new Error(`Missing Compose input bounds: ${selector}`);
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   if (options.replace) {
@@ -154,7 +158,7 @@ const cashProjection = {
   counterparty: "咖啡店",
   category: categoryItems[1],
   note: "拿铁",
-  amount: "28.50",
+  amount: "-28.50",
   currency: "CNY",
   economic_type: "expense",
   member_count: 1,

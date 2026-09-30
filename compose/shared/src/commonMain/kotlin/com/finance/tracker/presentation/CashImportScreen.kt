@@ -4,26 +4,28 @@ import com.finance.tracker.core.*
 import com.finance.tracker.domain.*
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -87,20 +89,27 @@ internal fun CashImportScreen(
     FeaturePage(localizedText("copy_26dc37229c"), SemanticIds.importScreen) {
         if (!canWrite) {
             StateMessage(localizedText("copy_459f937086"))
-            TextButton(onClick = onBack) { Text(localizedText("copy_855fa817d2")) }
+            FinanceTertiaryButton(onClick = onBack) { Text(localizedText("copy_855fa817d2")) }
         } else {
         ImportStepper(stage, sizeClass, busy, scan != null, preview != null) { target -> viewModel.stage(target) }
         InlineError(error)
         when (stage) {
             ImportStage.SELECT -> {
                 SectionCard {
-                    Text(localizedText("copy_1074712074"), style = MaterialTheme.typography.titleLarge)
-                    Text(localizedText("copy_a490e6f06c"))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { filePicker.launch() }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importChooseFile)) {
+                    Text(localizedText("copy_21a6f5a8d9"), style = MaterialTheme.typography.titleLarge)
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                            .padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text("↑", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.headlineMedium)
+                        Text(localizedText("copy_a490e6f06c"), style = MaterialTheme.typography.bodySmall)
+                        FinanceButton(onClick = { filePicker.launch() }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importChooseFile)) {
                             Text(if (selectedFiles.isEmpty()) localizedText("copy_21a6f5a8d9") else localizedText("copy_7c3a726882"))
                         }
-                        Text("${selectedFiles.size}/$MAX_IMPORT_FILES")
+                        if (selectedFiles.isNotEmpty()) Text("${selectedFiles.size}/$MAX_IMPORT_FILES")
                     }
                     if (selectedFiles.isNotEmpty()) {
                         selectedFiles.forEachIndexed { index, picked ->
@@ -113,7 +122,7 @@ internal fun CashImportScreen(
                                         Text(importFileStatus(status))
                                     }
                                 }
-                                TextButton(onClick = {
+                                FinanceTertiaryButton(onClick = {
                                     viewModel.removeFile(picked.identity.digest)
                                 }, enabled = !busy, modifier = Modifier.testTag("${SemanticIds.importRemoveFile}.${picked.identity.digest}")) { Text(localizedText("copy_2f752c005e")) }
                             }
@@ -136,12 +145,13 @@ internal fun CashImportScreen(
                     scan?.files?.filter { it.status == "error" }?.forEach { fileStatus ->
                         InlineError("${selectedFiles.getOrNull(fileStatus.index)?.identity?.name ?: fileStatus.filename}：${importFileStatus(fileStatus)}")
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = onBack, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) }
-                        Button(
+                    HorizontalDivider()
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FinanceSecondaryButton(onClick = onBack, enabled = !busy, modifier = Modifier.weight(1f)) { Text(localizedText("copy_4d0b4688c7")) }
+                        FinanceButton(
                             onClick = { viewModel.scanSelectedFiles() },
                             enabled = selectedFiles.isNotEmpty() && !busy && scan?.files?.none { it.status == "error" || (it.status == "password_required" && passwords[it.index.toString()].isNullOrBlank()) } != false,
-                            modifier = Modifier.testTag(SemanticIds.importNext),
+                            modifier = Modifier.weight(1f).testTag(SemanticIds.importNext),
                         ) { Text(if (busy) localizedText("copy_4a5e035eb9") else localizedText("copy_ce6f2afe85")) }
                     }
                 }
@@ -177,8 +187,8 @@ internal fun CashImportScreen(
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { viewModel.stage(ImportStage.SELECT) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
-                        Button(onClick = { viewModel.loadPreview() }, enabled = state.mappingComplete() && !busy, modifier = Modifier.testTag(SemanticIds.importNext)) { Text(if (busy) localizedText("copy_a99736a830") else localizedText("copy_b8a3f85115")) }
+                        FinanceTertiaryButton(onClick = { viewModel.stage(ImportStage.SELECT) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
+                        FinanceButton(onClick = { viewModel.loadPreview() }, enabled = state.mappingComplete() && !busy, modifier = Modifier.testTag(SemanticIds.importNext)) { Text(if (busy) localizedText("copy_a99736a830") else localizedText("copy_b8a3f85115")) }
                     }
                 }
             }
@@ -255,8 +265,8 @@ internal fun CashImportScreen(
                     if (importUnresolvedCount(current) > 0) Text(localizedText("copy_3652352085", importUnresolvedCount(current)))
                     if (importUnsupportedCount(current) > 0) InlineError(localizedText("copy_1b89edc1fd"))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { viewModel.stage(ImportStage.MAPPING) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
-                        Button(onClick = {
+                        FinanceTertiaryButton(onClick = { viewModel.stage(ImportStage.MAPPING) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
+                        FinanceButton(onClick = {
                             if (hasIncompleteAllocations(current, allocationDrafts)) {
                                 viewModel.setErrorCode("import_component_allocation_incomplete")
                             } else if (current.items.any { it.components.orEmpty().size > 1 }) {
@@ -299,14 +309,14 @@ internal fun CashImportScreen(
                                     viewModel.setRelationDraft(relation, draft.copy(status = if (selected == null) "pending" else "accepted", secondary = selected, restoreStatus = null, restoreSecondary = null))
                                 })
                             }
-                            TextButton(onClick = { viewModel.toggleRelationRejected(relation, draft) }) {
+                            FinanceTertiaryButton(onClick = { viewModel.toggleRelationRejected(relation, draft) }) {
                                 Text(if (draft.status == "rejected") localizedText("copy_3290b42bd1") else localizedText("copy_86ab462000"))
                             }
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { viewModel.stage(ImportStage.PREVIEW) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
-                        Button(onClick = { viewModel.commitImport() }, enabled = state.canCommit(), modifier = Modifier.testTag(SemanticIds.importConfirm)) { Text(if (busy) localizedText("copy_cd74f09629") else localizedText("copy_de6433b70d")) }
+                        FinanceTertiaryButton(onClick = { viewModel.stage(ImportStage.PREVIEW) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
+                        FinanceButton(onClick = { viewModel.commitImport() }, enabled = state.canCommit(), modifier = Modifier.testTag(SemanticIds.importConfirm)) { Text(if (busy) localizedText("copy_cd74f09629") else localizedText("copy_de6433b70d")) }
                     }
                 }
             }
@@ -314,7 +324,7 @@ internal fun CashImportScreen(
                 SectionCard {
                     Text(localizedText("copy_75c33f5c2e"), style = MaterialTheme.typography.titleLarge)
                     Text(localizedText("copy_07c4b4b5e5", committed.newRows, committed.updatedRows, preview?.summary?.existing ?: 0, committed.skippedRows))
-                    Button(onClick = onBack) { Text(localizedText("copy_855fa817d2")) }
+                    FinanceButton(onClick = onBack) { Text(localizedText("copy_855fa817d2")) }
                 }
             }
         }
@@ -332,19 +342,27 @@ private fun ImportStepper(
     onSelect: (ImportStage) -> Unit,
 ) {
     val steps = listOf(ImportStage.SELECT to localizedText("copy_1074712074"), ImportStage.MAPPING to localizedText("copy_bab3b7ef76"), ImportStage.PREVIEW to localizedText("copy_0433a1c196"), ImportStage.RELATIONS to localizedText("copy_88e2dc4ef7"))
-    val content: @Composable () -> Unit = {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         steps.forEachIndexed { index, (step, label) ->
             val current = stage == step
             val enabled = !busy && index <= steps.indexOfFirst { it.first == stage } &&
                 (step == ImportStage.SELECT || hasScan && index == 1 || hasPreview && index >= 2)
-            TextButton(onClick = { onSelect(step) }, enabled = enabled, modifier = Modifier.testTag("${SemanticIds.importStepper}.$index")) {
-                Text("${index + 1}. ${label}${if (current) localizedText("copy_97408d8b74") else ""}")
+            FinanceTertiaryButton(
+                onClick = { onSelect(step) },
+                enabled = enabled,
+                modifier = Modifier.weight(1f).testTag("${SemanticIds.importStepper}.$index"),
+            ) {
+                Text(
+                    "${index + 1} ${label}",
+                    color = if (current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = if (sizeClass == WindowSizeClass.COMPACT) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
-    SectionCard {
-        if (sizeClass == WindowSizeClass.COMPACT) Column { content() } else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { content() }
-    }
+    HorizontalDivider()
 }
 
 @Composable

@@ -4,6 +4,8 @@ import com.finance.tracker.core.*
 import com.finance.tracker.domain.*
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,12 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -79,43 +78,58 @@ internal fun InvestmentHoldingsScreen(
     }
     FeaturePage(localizedText("copy_724084b56b"), SemanticIds.investmentHoldingsScreen) {
         if (accountsError) StateMessage(localizedText("copy_13f8ed4623"), isError = true) {
-            TextButton(onClick = { viewModel.reload() }) { Text(localizedText("copy_e2d53a6d3a")) }
+            FinanceTertiaryButton(onClick = { viewModel.reload() }) { Text(localizedText("copy_e2d53a6d3a")) }
         }
-        if (sizeClass == WindowSizeClass.COMPACT) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ChoicePicker(localizedText("copy_c3d92b20c8"), displayOptions.accountId, accountOptions, { viewModel.updateDisplayOptions(displayOptions.copy(accountId = it)) })
-                ChoicePicker(localizedText("copy_dc35af8d69"), displayOptions.sort, listOf("market_value_desc" to localizedText("copy_78cce8bd24"), "profit_desc" to localizedText("copy_b3d9d1f6e9"), "ticker_asc" to localizedText("copy_d93f4c9f05")), { viewModel.updateDisplayOptions(displayOptions.copy(sort = it)) })
-                ChoicePicker(localizedText("copy_4f3f8fb53f"), displayOptions.grouping, listOf("split" to localizedText("copy_0f296cc8d7"), "merge" to localizedText("copy_3296293efd")), { viewModel.updateDisplayOptions(displayOptions.copy(grouping = it)) })
-                LabeledInput(currencyDraft, { value ->
-                    viewModel.updateCurrencyDraft(value)
-                }, localizedText("copy_4b29018db3"), isError = currencyError, onBlur = { if (currencyError) viewModel.reportInvalidCurrencyDraft() })
-                ChoicePicker(localizedText("copy_2be9040878"), displayOptions.period, portfolioPeriods, { viewModel.updateDisplayOptions(displayOptions.copy(period = it)) })
-                LabeledInput(tickerFilter, viewModel::updateTickerFilter, localizedText("copy_d362355ab7"))
-            }
-        } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ChoicePicker(localizedText("copy_c3d92b20c8"), displayOptions.accountId, accountOptions, { viewModel.updateDisplayOptions(displayOptions.copy(accountId = it)) })
-                ChoicePicker(localizedText("copy_dc35af8d69"), displayOptions.sort, listOf("market_value_desc" to localizedText("copy_78cce8bd24"), "profit_desc" to localizedText("copy_b3d9d1f6e9"), "ticker_asc" to localizedText("copy_d93f4c9f05")), { viewModel.updateDisplayOptions(displayOptions.copy(sort = it)) })
-                ChoicePicker(localizedText("copy_4f3f8fb53f"), displayOptions.grouping, listOf("split" to localizedText("copy_0f296cc8d7"), "merge" to localizedText("copy_3296293efd")), { viewModel.updateDisplayOptions(displayOptions.copy(grouping = it)) })
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                LabeledInput(currencyDraft, { value ->
-                    viewModel.updateCurrencyDraft(value)
-                }, localizedText("copy_4b29018db3"), isError = currencyError, onBlur = { if (currencyError) viewModel.reportInvalidCurrencyDraft() })
-                ChoicePicker(localizedText("copy_2be9040878"), displayOptions.period, portfolioPeriods, { viewModel.updateDisplayOptions(displayOptions.copy(period = it)) })
-                LabeledInput(tickerFilter, viewModel::updateTickerFilter, localizedText("copy_d362355ab7"))
-            }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(localizedText("copy_724084b56b"), style = MaterialTheme.typography.titleMedium)
+            FinanceButton(onClick = viewModel::refresh, enabled = !refreshing, modifier = Modifier.testTag("investment-holdings-refresh")) { Text(if (refreshing) localizedText("copy_70c184c284") else localizedText("copy_be4cd1a365")) }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = viewModel::refresh, enabled = !refreshing, modifier = Modifier.testTag("investment-holdings-refresh")) { Text(if (refreshing) localizedText("copy_70c184c284") else localizedText("copy_be4cd1a365")) }
-            TextButton(onClick = { viewModel.reload() }) { Text(localizedText("copy_7784972fc8")) }
+        FinanceSurface {
+            Text(localizedText("copy_dcce9a144a"), style = MaterialTheme.typography.titleMedium)
+            if (sizeClass != WindowSizeClass.WIDE) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ChoicePicker(localizedText("copy_c3d92b20c8"), displayOptions.accountId, accountOptions, { viewModel.updateDisplayOptions(displayOptions.copy(accountId = it)) })
+                    ChoicePicker(localizedText("copy_dc35af8d69"), displayOptions.sort, listOf("market_value_desc" to localizedText("copy_78cce8bd24"), "profit_desc" to localizedText("copy_b3d9d1f6e9"), "ticker_asc" to localizedText("copy_d93f4c9f05")), { viewModel.updateDisplayOptions(displayOptions.copy(sort = it)) })
+                    ChoicePicker(localizedText("copy_4f3f8fb53f"), displayOptions.grouping, listOf("split" to localizedText("copy_0f296cc8d7"), "merge" to localizedText("copy_3296293efd")), { viewModel.updateDisplayOptions(displayOptions.copy(grouping = it)) })
+                    LabeledInput(currencyDraft, viewModel::updateCurrencyDraft, localizedText("copy_4b29018db3"), isError = currencyError, onBlur = { if (currencyError) viewModel.reportInvalidCurrencyDraft() })
+                    ChoicePicker(localizedText("copy_2be9040878"), displayOptions.period, portfolioPeriods, { viewModel.updateDisplayOptions(displayOptions.copy(period = it)) })
+                    LabeledInput(tickerFilter, viewModel::updateTickerFilter, localizedText("copy_d362355ab7"))
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    ChoicePicker(localizedText("copy_c3d92b20c8"), displayOptions.accountId, accountOptions, { viewModel.updateDisplayOptions(displayOptions.copy(accountId = it)) }, Modifier.weight(1f))
+                    ChoicePicker(localizedText("copy_dc35af8d69"), displayOptions.sort, listOf("market_value_desc" to localizedText("copy_78cce8bd24"), "profit_desc" to localizedText("copy_b3d9d1f6e9"), "ticker_asc" to localizedText("copy_d93f4c9f05")), { viewModel.updateDisplayOptions(displayOptions.copy(sort = it)) }, Modifier.weight(1f))
+                    ChoicePicker(localizedText("copy_4f3f8fb53f"), displayOptions.grouping, listOf("split" to localizedText("copy_0f296cc8d7"), "merge" to localizedText("copy_3296293efd")), { viewModel.updateDisplayOptions(displayOptions.copy(grouping = it)) }, Modifier.weight(1f))
+                    LabeledInput(currencyDraft, viewModel::updateCurrencyDraft, localizedText("copy_4b29018db3"), modifier = Modifier.weight(1f), isError = currencyError, onBlur = { if (currencyError) viewModel.reportInvalidCurrencyDraft() })
+                    ChoicePicker(localizedText("copy_2be9040878"), displayOptions.period, portfolioPeriods, { viewModel.updateDisplayOptions(displayOptions.copy(period = it)) }, Modifier.weight(1f))
+                }
+                LabeledInput(tickerFilter, viewModel::updateTickerFilter, localizedText("copy_d362355ab7"), modifier = Modifier.widthIn(max = 280.dp))
+            }
         }
         if (currencyError) InlineError(localizedText("copy_9a648f5e4a"))
         InlineError(refreshMessage)
         if (loading && portfolio == null) StateMessage(localizedText("copy_ff4fcccbb6"))
-        if (error != null) StateMessage(error.orEmpty(), isError = true) { TextButton(onClick = { viewModel.reload() }) { Text(localizedText("copy_e2d53a6d3a")) } }
+        if (error != null) StateMessage(error.orEmpty(), isError = true) { FinanceTertiaryButton(onClick = { viewModel.reload() }) { Text(localizedText("copy_e2d53a6d3a")) } }
         portfolio?.let {
-            SectionCard {
+            if (sizeClass == WindowSizeClass.WIDE && (displayOptions.currency.isNotBlank() || display.currencies.size <= 1)) {
+                val periodLabel = portfolioPeriods.firstOrNull { it.first == displayOptions.period }?.second ?: displayOptions.period
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SectionCard(Modifier.weight(1f)) {
+                        Text(localizedText("copy_c752dd73a7"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(formatPortfolioMoney(display.profit, summaryCurrency, signed = true), style = MaterialTheme.typography.titleLarge)
+                        Text(formatPortfolioPercent(display.profitRate))
+                    }
+                    SectionCard(Modifier.weight(1f)) {
+                        Text(localizedText("copy_39f0350af6", periodLabel), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(formatPortfolioMoney(display.periodProfit, summaryCurrency, signed = true), style = MaterialTheme.typography.titleLarge)
+                        Text(formatPortfolioPercent(display.periodProfitRate))
+                    }
+                    SectionCard(Modifier.weight(1f)) {
+                        Text(localizedText("copy_da5342f351"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(formatPortfolioMoney(display.marketValue, summaryCurrency), style = MaterialTheme.typography.titleLarge)
+                    }
+                }
+            } else SectionCard {
                 Text(localizedText("copy_cb290e2725"), style = MaterialTheme.typography.titleLarge)
                 if (displayOptions.currency.isBlank() && display.currencies.size > 1) {
                     Text(localizedText("copy_d722b16702"))
@@ -145,6 +159,17 @@ internal fun InvestmentHoldingsScreen(
             }
         }
         if (!loading && error == null && visibleRows.isEmpty()) StateMessage(localizedText("copy_ddbb43b6dd"))
+        if (sizeClass == WindowSizeClass.WIDE && visibleRows.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant)) {
+                FinanceTableCell(localizedText("copy_d93f4c9f05") + " / " + localizedText("copy_c3d92b20c8"), 1.6f, header = true)
+                FinanceTableCell(localizedText("copy_48b17a0d07") + " / " + localizedText("copy_ca3cd3a270"), 1.5f, header = true)
+                FinanceTableCell(localizedText("copy_7988639007"), 0.7f, header = true)
+                FinanceTableCell(localizedText("copy_d722b16702"), 1f, header = true)
+                FinanceTableCell(localizedText("copy_25a424cad9"), 0.7f, header = true)
+                FinanceTableCell(localizedText("copy_abb2a6d4dd"), 1f, header = true)
+                FinanceTableCell(localizedText("copy_39f0350af6", portfolioPeriods.firstOrNull { it.first == displayOptions.period }?.second ?: displayOptions.period), 1f, header = true)
+            }
+        }
         visibleRows.forEach { holding ->
             val position = holding.position
             val accountName = holding.accountName
@@ -170,7 +195,23 @@ internal fun InvestmentHoldingsScreen(
                 localizedText("copy_39f0350af6", periodLabel) to formatPortfolioMoney(displayedPeriodProfit, rowCurrency, signed = true),
                 localizedText("copy_13cbd23050", periodLabel) to formatPortfolioPercent(position.periodProfitRate),
             )
-            SectionCard(modifier = Modifier.testTag("${SemanticIds.investmentHoldingsScreen}-${position.ticker}")) {
+            if (sizeClass == WindowSizeClass.WIDE) {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .testTag("${SemanticIds.investmentHoldingsScreen}-${position.ticker}")
+                        .background(MaterialTheme.colorScheme.surface)
+                        .clickable { viewModel.showPosition(holding) },
+                ) {
+                    FinanceTableCell("${position.displayName?.takeIf(String::isNotBlank) ?: currencyDisplayName(position.ticker, position.isCash)} · ${position.ticker}\n${displayInvestmentAccountName(accountName)}", 1.6f)
+                    FinanceTableCell("${formatPortfolioMoney(currentPrice, rowCurrency)} / ${formatPortfolioMoney(averageCost, rowCurrency)}", 1.5f)
+                    FinanceTableCell(formatInvestmentAmount(position.shares), 0.7f)
+                    FinanceTableCell(formatPortfolioMoney(marketValue, rowCurrency), 1f)
+                    FinanceTableCell(formatPortfolioPercent(positionWeight), 0.7f)
+                    FinanceTableCell("${formatPortfolioMoney(displayedProfit, rowCurrency, signed = true)}\n${formatPortfolioPercent(positionRate)}", 1f)
+                    FinanceTableCell("${formatPortfolioMoney(displayedPeriodProfit, rowCurrency, signed = true)}\n${formatPortfolioPercent(position.periodProfitRate)}", 1f)
+                }
+                HorizontalDivider()
+            } else SectionCard(modifier = Modifier.testTag("${SemanticIds.investmentHoldingsScreen}-${position.ticker}")) {
                 Column {
                     Text(position.displayName?.takeIf(String::isNotBlank) ?: currencyDisplayName(position.ticker, position.isCash), style = MaterialTheme.typography.titleMedium)
                     Text("${position.ticker} · ${displayInvestmentAccountName(accountName)}", style = MaterialTheme.typography.bodySmall)
@@ -178,7 +219,7 @@ internal fun InvestmentHoldingsScreen(
                 PositionFacts(facts, sizeClass)
                 if (!position.isCash) Text("${quoteStatusLabel(position.quoteStatus)} · ${position.quoteSession?.let { quoteSessionLabel(it) } ?: localizedText("copy_9778909c7e")} · ${position.quoteObservedAt?.let { formatRelativeQuoteTime(it) } ?: localizedText("copy_ff06d0514f")}", style = MaterialTheme.typography.bodySmall)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(onClick = { viewModel.showPosition(holding) }) { Text(localizedText("copy_54d721fae2")) }
+                    FinanceTertiaryButton(onClick = { viewModel.showPosition(holding) }) { Text(localizedText("copy_54d721fae2")) }
                     Text(formatPortfolioMoney(marketValue, rowCurrency), style = MaterialTheme.typography.titleMedium)
                 }
             }
@@ -205,7 +246,7 @@ internal fun InvestmentHoldingsScreen(
                     position.fxReason?.let { PositionFact(localizedText("copy_26670dda42"), readableValuationReason(it)) }
                     position.periodBaselines.forEach { baseline -> PositionFact(localizedText("copy_5c8868c56c"), "${baseline.account} · ${baseline.ticker} · ${formatLocalDateTime(baseline.occurredAt)}") }
                 }
-                TextButton(onClick = viewModel::closePosition) { Text(localizedText("copy_6c14bd7f6f")) }
+                FinanceTertiaryButton(onClick = viewModel::closePosition) { Text(localizedText("copy_6c14bd7f6f")) }
             }
         }
     }

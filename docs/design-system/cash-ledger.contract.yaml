@@ -1,0 +1,23 @@
+screen: CashLedger
+semanticId: cash-ledger-screen
+components:
+  - id: cash-ledger-add
+    component: Finance/Button
+    compose: FinanceButton
+  - id: cash-ledger-filters
+    component: Finance/FilterBar
+    compose: FinanceFilterBar
+  - id: cash-ledger-account-filter
+    component: Finance/Select
+    compose: FinanceSelect
+  - id: cash-ledger-table
+    component: Finance/DataTable
+    compose: FinanceDataTable
+  - id: cash-ledger-amount
+    component: Finance/Amount
+    compose: FinanceAmount
+states: [loading, ready, empty, error, disabled, success]
+responsive:
+  compact: single-column
+  regular: two-column-filter
+  wide: navigation-filter-table-detail

@@ -40,16 +40,16 @@
 - 设计与 QA 至少检查 320 px、375 px、414 px、768 px、1440 px 和 390 px 宽度；1440 px 与 390 px 必须截取页面截图并进行视觉审查。
 - 页面内容区、侧边导航和移动顶栏的滚动边界必须明确；瀑布流内容不得带着固定导航或账户区一起滚动。
 
-## 4. 原型、确认和实现门禁
+## 4. Pen 设计稿、确认和实现门禁
 
-重大 UI 变更必须先完成可打开的原型。原型至少覆盖：
+新增或调整用户可见 UI 时，必须先通过 pen.dev 官方工具生成或更新对应的 `.pen` 设计稿。设计稿至少覆盖：
 
 - 核心任务的正常状态；
 - 空状态、错误状态、加载状态、成功状态；
 - 禁用状态、焦点状态和适用的危险操作确认；
 - 适用的桌面与移动布局。
 
-原型确认前不得继续实现页面。若用户修改信息架构、核心任务、文案预算或关键交互，必须先回写原型和设计记录，再继续开发。
+重大 UI 变更须取得用户对设计稿的确认后才能继续实现页面。若用户修改信息架构、核心任务、文案预算或关键交互，必须先回写 Pen 设计稿和设计记录，再继续开发。
 
 ## 5. 实现后自检和独立审查
 
@@ -60,12 +60,12 @@
 - 是否为新增或修改的用户可见字符串运行范围化静态搜索。
 - 是否存在只在开发环境成立的布局、路径或浏览器行为。
 
-最终 UI 必须运行 Hallmark `audit`，并在对应 OpenSpec `tasks.md` 记录审查范围、按严重级别排序的 finding、采纳或拒绝理由和修复结果。critical 或 major finding 修复后必须重新审查。
+最终 UI 必须对照 Pen 设计稿和实际页面执行独立设计复核，并在对应 OpenSpec `tasks.md` 记录审查范围、按严重级别排序的 finding、采纳或拒绝理由和修复结果。阻断性或重大 finding 修复后必须重新审查。
 
 ## 6. Spec、pen.dev 与 Compose
 
 - OpenSpec 保存业务行为和验收规则；页面、表单、组件、状态画面、反馈位置和无障碍设计由 `.pen` 维护，不再重复保存页面或组件 YAML；`openspec/specs/shared/design-system/tokens/*.json` 是 token 唯一事实源。
 - `design/*.pen` 保存页面结构、表单顺序、反馈位置、组件语义、无障碍设计和状态排布，必须通过 pen.dev 官方 CLI、Desktop 或 MCP 生成和修改，不直接编辑内部 JSON、节点 ID 或引用。
-- `design/finance-design-system.lib.pen` 是可复用的视觉组件库；页面设计优先引用库组件，缺失组件先补库组件；涉及业务行为变化时更新对应 OpenSpec，再进入页面。
+- `design/finance-ui.lib.pen` 是当前可复用的视觉组件库；页面设计优先引用库组件，缺失组件先补库组件；涉及业务行为变化时更新对应 OpenSpec，再进入页面。`finance-design-system.lib.pen` 仅保留历史资料。
 - 生成器 `scripts/generate_ui_tokens.py` 只同步 Compose Kotlin token 和 `design/generated/pen-variables.json`；pen.dev variables 是消费镜像，不得成为第二套 token 事实源。
 - 设计确认后由 Compose `commonMain` 实现；Web、Android、iOS 共享页面语义、状态、文案和响应式不变量。React、Expo 和 TypeScript shared packages 仅作迁移参考，不进入默认设计或实现工作流。

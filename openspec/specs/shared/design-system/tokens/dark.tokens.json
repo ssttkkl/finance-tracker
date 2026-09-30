@@ -1,12 +1,21 @@
 {
   "$schema": "https://design-tokens.github.io/community-group/format/",
   "tokens": {
-    "color.surface.background": { "type": "color", "value": "#111318" },
-    "color.surface.raised": { "type": "color", "value": "#1B1D24" },
-    "color.surface.muted": { "type": "color", "value": "#2B2F38" },
-    "color.content.primary": { "type": "color", "value": "#E2E2E9" },
-    "color.content.muted": { "type": "color", "value": "#C3C7D0" },
-    "color.border.default": { "type": "color", "value": "#434850" },
+    "color.surface.background": { "type": "color", "value": "#060607" },
+    "color.surface.raised": { "type": "color", "value": "#18181B" },
+    "color.surface.muted": { "type": "color", "value": "#27272A" },
+    "color.content.primary": { "type": "color", "value": "#FCFCFC" },
+    "color.content.muted": { "type": "color", "value": "#A1A1AA" },
+    "color.border.default": { "type": "color", "value": "#3F3F46" },
+    "color.semantic.background": { "type": "color", "value": "#060607" },
+    "color.semantic.foreground": { "type": "color", "value": "#FCFCFC" },
+    "color.semantic.surface": { "type": "color", "value": "#18181B" },
+    "color.semantic.overlay": { "type": "color", "value": "#18181B" },
+    "color.semantic.field": { "type": "color", "value": "#18181B" },
+    "color.semantic.fieldBorder": { "type": "color", "value": "#3F3F46" },
+    "color.semantic.focus": { "type": "color", "value": "#0485F7" },
+    "color.semantic.danger": { "type": "color", "value": "#F04438" },
+    "color.semantic.disabled": { "type": "color", "value": "#27272A" },
     "color.state.errorSurface": { "type": "color", "value": "#93000A" },
     "color.state.successSurface": { "type": "color", "value": "#1C4A35" }
   }

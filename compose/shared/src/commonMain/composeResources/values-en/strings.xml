@@ -375,6 +375,8 @@
     <string name="copy_db47592d34">Inflow</string>
     <string name="copy_dc35af8d69">Sort</string>
     <string name="copy_dcce9a144a">Filter</string>
+    <string name="ledger_more_filters">More filters</string>
+    <string name="ledger_less_filters">Fewer filters</string>
     <string name="copy_dd1212991d">Loading investment events…</string>
     <string name="copy_dd8fbdc06f">%1$s with %2$s</string>
     <string name="copy_dd9a4bdee0">You don't have permission to access this workspace.</string>
@@ -498,4 +500,5 @@
     <string name="cash_impact_transfer">Merged as a personal transfer.</string>
     <string name="cash_impact_merged">Included in this cash flow.</string>
     <string name="workspace_access_denied">You cannot open this workspace. Check your access and try again.</string>
+    <string name="finance_table_asset_change">Asset change</string>
 </resources>

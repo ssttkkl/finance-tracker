@@ -3,169 +3,157 @@
   "children": [
     {
       "type": "frame",
-      "id": "rX4Vv",
+      "id": "U8eII",
       "x": 0,
       "y": 0,
-      "name": "访问页 / 登录",
-      "theme": {
-        "mode": "light"
-      },
+      "name": "登录到你的账本 / 320",
       "clip": true,
-      "width": 1440,
+      "width": 320,
       "height": 900,
-      "fill": "#F7F9FC",
+      "fill": "#f5f5f5",
       "layout": "vertical",
-      "gap": 24,
-      "padding": 24,
+      "padding": [
+        20,
+        16
+      ],
       "justifyContent": "center",
       "alignItems": "center",
       "children": [
         {
-          "type": "text",
-          "id": "w6gKL",
-          "name": "产品名",
-          "fill": "#0B6BCB",
-          "content": "Finance Tracker",
-          "fontFamily": "Noto Sans SC",
-          "fontSize": 16,
-          "fontWeight": "normal"
-        },
-        {
           "type": "frame",
-          "id": "Ul52d",
-          "name": "访问卡片",
-          "width": 560,
-          "fill": "#F7F2FA",
-          "cornerRadius": 24,
-          "stroke": "$rule",
-          "strokeWidth": 1,
+          "id": "s8vpQ",
+          "name": "访问内容",
+          "width": 288,
+          "fill": "#ffffff",
+          "cornerRadius": 8,
           "layout": "vertical",
-          "gap": 24,
-          "padding": 32,
+          "gap": 16,
+          "padding": 24,
           "children": [
             {
               "type": "text",
-              "id": "t4I5lq",
-              "name": "标题",
-              "fill": "#25232A",
-              "content": "登录到你的账本",
-              "fontFamily": "Noto Sans SC",
-              "fontSize": 26,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "frame",
-              "id": "dPw8N",
-              "name": "邮箱输入",
+              "id": "gwBUC",
+              "name": "入口标记",
+              "fill": "#0485f7",
+              "textGrowth": "fixed-width",
               "width": "fill_container",
-              "height": 56,
-              "fill": "#F7F2FA",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "NtidU",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "邮箱",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "OvBsh",
-                  "name": "字段值",
-                  "fill": "#4B4650",
-                  "content": "邮箱",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "a5HPyr",
-              "name": "密码输入",
-              "width": "fill_container",
-              "height": 56,
-              "fill": "#F7F2FA",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "z4jgaP",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "PIzCA",
-                  "name": "字段值",
-                  "fill": "#4B4650",
-                  "content": "密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "kKdlR",
-              "name": "主操作",
-              "width": "fill_container",
-              "height": 40,
-              "fill": "#0B6BCB",
-              "cornerRadius": 20,
-              "gap": 8,
-              "padding": [
-                0,
-                16
-              ],
-              "justifyContent": "center",
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "text",
-                  "id": "m1Xvb",
-                  "name": "按钮文字",
-                  "fill": "#FFFFFF",
-                  "content": "登录",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 14,
-                  "fontWeight": "normal"
-                }
-              ]
+              "content": "工作区访问",
+              "fontFamily": "Roboto",
+              "fontSize": 13,
+              "fontWeight": "600"
             },
             {
               "type": "text",
-              "id": "WoOIA",
-              "name": "模式切换",
-              "fill": "#0B6BCB",
+              "id": "d2ycle",
+              "name": "登录标题",
+              "fill": "#202124",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "登录到你的账本",
+              "fontFamily": "Roboto",
+              "fontSize": 27,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "LdV8p",
+              "name": "邮箱",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Y4uDnw",
+                  "name": "邮箱标签",
+                  "fill": "#6f7279",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "邮箱",
+                  "fontFamily": "Roboto",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "AvL8e",
+                  "type": "ref",
+                  "ref": "D:Q2EsN",
+                  "name": "邮箱输入",
+                  "width": "fill_container",
+                  "height": 40,
+                  "descendants": {
+                    "D:lkemR": {
+                      "enabled": false
+                    },
+                    "D:YDsht": {
+                      "content": "name@example.com"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "S0ecpl",
+              "name": "密码",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "oMTKP",
+                  "name": "密码标签",
+                  "fill": "#6f7279",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "密码",
+                  "fontFamily": "Roboto",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "E48pcQ",
+                  "type": "ref",
+                  "ref": "D:Q2EsN",
+                  "name": "密码输入",
+                  "width": "fill_container",
+                  "height": 40,
+                  "descendants": {
+                    "D:lkemR": {
+                      "enabled": false
+                    },
+                    "D:YDsht": {
+                      "content": "输入密码"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "n0Vu6",
+              "type": "ref",
+              "ref": "D:CjC40",
+              "name": "登录",
+              "height": 36,
+              "width": "fill_container",
+              "descendants": {
+                "D:IWqn3": {
+                  "content": "登录"
+                }
+              }
+            },
+            {
+              "type": "text",
+              "id": "EYKEQ",
+              "name": "注册入口",
+              "fill": "#0485f7",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
               "content": "还没有账户？注册",
               "textAlign": "center",
-              "fontFamily": "Noto Sans SC",
-              "fontSize": 14,
+              "fontFamily": "Roboto",
+              "fontSize": 13,
               "fontWeight": "normal"
             }
           ]
@@ -174,169 +162,157 @@
     },
     {
       "type": "frame",
-      "id": "aFnEx",
-      "x": 1520,
+      "id": "k2M5f2",
+      "x": 390,
       "y": 0,
-      "name": "访问页 / 登录",
-      "theme": {
-        "mode": "light"
-      },
+      "name": "登录到你的账本 / 375",
       "clip": true,
-      "width": 1440,
+      "width": 375,
       "height": 900,
-      "fill": "#F7F9FC",
+      "fill": "#f5f5f5",
       "layout": "vertical",
-      "gap": 24,
-      "padding": 24,
+      "padding": [
+        20,
+        16
+      ],
       "justifyContent": "center",
       "alignItems": "center",
       "children": [
         {
-          "type": "text",
-          "id": "F6Q4w",
-          "name": "产品名",
-          "fill": "#0B6BCB",
-          "content": "Finance Tracker",
-          "fontFamily": "Noto Sans SC",
-          "fontSize": 16,
-          "fontWeight": "normal"
-        },
-        {
           "type": "frame",
-          "id": "nwX99",
-          "name": "访问卡片",
-          "width": 560,
-          "fill": "#F7F2FA",
-          "cornerRadius": 24,
-          "stroke": "$rule",
-          "strokeWidth": 1,
+          "id": "lAmGl",
+          "name": "访问内容",
+          "width": 343,
+          "fill": "#ffffff",
+          "cornerRadius": 8,
           "layout": "vertical",
-          "gap": 24,
-          "padding": 32,
+          "gap": 16,
+          "padding": 24,
           "children": [
             {
               "type": "text",
-              "id": "kqx1a",
-              "name": "标题",
-              "fill": "#25232A",
-              "content": "登录到你的账本",
-              "fontFamily": "Noto Sans SC",
-              "fontSize": 26,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "frame",
-              "id": "t9DfNH",
-              "name": "邮箱输入",
+              "id": "F1aIk",
+              "name": "入口标记",
+              "fill": "#0485f7",
+              "textGrowth": "fixed-width",
               "width": "fill_container",
-              "height": 56,
-              "fill": "#F7F2FA",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "fSuwL",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "邮箱",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "MnhhK",
-                  "name": "字段值",
-                  "fill": "#4B4650",
-                  "content": "邮箱",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "AANuY",
-              "name": "密码输入",
-              "width": "fill_container",
-              "height": 56,
-              "fill": "#F7F2FA",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "b9Ro3",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "k5qc7",
-                  "name": "字段值",
-                  "fill": "#4B4650",
-                  "content": "密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "d8z0q0",
-              "name": "主操作",
-              "width": "fill_container",
-              "height": 40,
-              "fill": "#0B6BCB",
-              "cornerRadius": 20,
-              "gap": 8,
-              "padding": [
-                0,
-                16
-              ],
-              "justifyContent": "center",
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "text",
-                  "id": "q5L8bs",
-                  "name": "按钮文字",
-                  "fill": "#FFFFFF",
-                  "content": "登录",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 14,
-                  "fontWeight": "normal"
-                }
-              ]
+              "content": "工作区访问",
+              "fontFamily": "Roboto",
+              "fontSize": 13,
+              "fontWeight": "600"
             },
             {
               "type": "text",
-              "id": "Qh5HS",
-              "name": "模式切换",
-              "fill": "#0B6BCB",
+              "id": "nZS1W",
+              "name": "登录标题",
+              "fill": "#202124",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "登录到你的账本",
+              "fontFamily": "Roboto",
+              "fontSize": 27,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "mUmMQ",
+              "name": "邮箱",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "XarzR",
+                  "name": "邮箱标签",
+                  "fill": "#6f7279",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "邮箱",
+                  "fontFamily": "Roboto",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "yZddK",
+                  "type": "ref",
+                  "ref": "D:Q2EsN",
+                  "name": "邮箱输入",
+                  "width": "fill_container",
+                  "height": 40,
+                  "descendants": {
+                    "D:lkemR": {
+                      "enabled": false
+                    },
+                    "D:YDsht": {
+                      "content": "name@example.com"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "f9M8Id",
+              "name": "密码",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "U3QeR",
+                  "name": "密码标签",
+                  "fill": "#6f7279",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "密码",
+                  "fontFamily": "Roboto",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "ly8dC",
+                  "type": "ref",
+                  "ref": "D:Q2EsN",
+                  "name": "密码输入",
+                  "width": "fill_container",
+                  "height": 40,
+                  "descendants": {
+                    "D:lkemR": {
+                      "enabled": false
+                    },
+                    "D:YDsht": {
+                      "content": "输入密码"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "U74iNP",
+              "type": "ref",
+              "ref": "D:CjC40",
+              "name": "登录",
+              "height": 36,
+              "width": "fill_container",
+              "descendants": {
+                "D:IWqn3": {
+                  "content": "登录"
+                }
+              }
+            },
+            {
+              "type": "text",
+              "id": "OIuUg",
+              "name": "注册入口",
+              "fill": "#0485f7",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
               "content": "还没有账户？注册",
               "textAlign": "center",
-              "fontFamily": "Noto Sans SC",
-              "fontSize": 14,
+              "fontFamily": "Roboto",
+              "fontSize": 13,
               "fontWeight": "normal"
             }
           ]
@@ -345,378 +321,157 @@
     },
     {
       "type": "frame",
-      "id": "dJLTB",
-      "x": 3040,
+      "id": "SV9TY",
+      "x": 835,
       "y": 0,
-      "name": "访问页 / 注册",
-      "theme": {
-        "mode": "light"
-      },
-      "clip": true,
-      "width": 1440,
-      "height": 900,
-      "fill": "#F7F9FC",
-      "layout": "vertical",
-      "gap": 24,
-      "padding": 24,
-      "justifyContent": "center",
-      "alignItems": "center",
-      "children": [
-        {
-          "type": "text",
-          "id": "p1ch5",
-          "name": "产品名",
-          "fill": "#0B6BCB",
-          "content": "Finance Tracker",
-          "fontFamily": "Noto Sans SC",
-          "fontSize": 16,
-          "fontWeight": "normal"
-        },
-        {
-          "type": "frame",
-          "id": "iuOy9",
-          "name": "访问卡片",
-          "width": 560,
-          "fill": "#F7F2FA",
-          "cornerRadius": 24,
-          "stroke": "$rule",
-          "strokeWidth": 1,
-          "layout": "vertical",
-          "gap": 24,
-          "padding": 32,
-          "children": [
-            {
-              "type": "text",
-              "id": "qN00A",
-              "name": "标题",
-              "fill": "#25232A",
-              "content": "创建你的账户",
-              "fontFamily": "Noto Sans SC",
-              "fontSize": 26,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "frame",
-              "id": "GqPQP",
-              "name": "邮箱输入",
-              "width": "fill_container",
-              "height": 56,
-              "fill": "#F7F2FA",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "eddKN",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "邮箱",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "LJFwD",
-                  "name": "字段值",
-                  "fill": "#4B4650",
-                  "content": "邮箱",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "ZtyQL",
-              "name": "密码输入",
-              "width": "fill_container",
-              "height": 56,
-              "fill": "#F7F2FA",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "W3wfE",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "H5vtC",
-                  "name": "字段值",
-                  "fill": "#4B4650",
-                  "content": "密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "Nct3x",
-              "name": "重复密码输入",
-              "width": "fill_container",
-              "height": 56,
-              "fill": "#F7F2FA",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "IdYmm",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "重复密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "tDk4Q",
-                  "name": "字段值",
-                  "fill": "#4B4650",
-                  "content": "重复密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "o7TA2",
-              "name": "主操作",
-              "width": "fill_container",
-              "height": 40,
-              "fill": "#0B6BCB",
-              "cornerRadius": 20,
-              "gap": 8,
-              "padding": [
-                0,
-                16
-              ],
-              "justifyContent": "center",
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "text",
-                  "id": "rJvzC",
-                  "name": "按钮文字",
-                  "fill": "#FFFFFF",
-                  "content": "创建账户",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 14,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "text",
-              "id": "odiCY",
-              "name": "模式切换",
-              "fill": "#0B6BCB",
-              "content": "已有账户？登录",
-              "textAlign": "center",
-              "fontFamily": "Noto Sans SC",
-              "fontSize": 14,
-              "fontWeight": "normal"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "Z1Olj",
-      "x": 4560,
-      "y": 0,
-      "name": "访问页 / Compact / 深色",
-      "theme": {
-        "mode": "dark"
-      },
+      "name": "登录到你的账本 / 390",
       "clip": true,
       "width": 390,
-      "height": 844,
-      "fill": "#111318",
+      "height": 900,
+      "fill": "#f5f5f5",
       "layout": "vertical",
-      "gap": 24,
-      "padding": 24,
+      "padding": [
+        20,
+        16
+      ],
       "justifyContent": "center",
       "alignItems": "center",
       "children": [
         {
-          "type": "text",
-          "id": "JGDYy",
-          "name": "产品名",
-          "fill": "#A7C7FF",
-          "content": "Finance Tracker",
-          "fontFamily": "Noto Sans SC",
-          "fontSize": 16,
-          "fontWeight": "normal"
-        },
-        {
           "type": "frame",
-          "id": "siyJt",
-          "name": "访问卡片",
-          "width": 342,
-          "fill": "#1D1B20",
-          "cornerRadius": 24,
-          "stroke": "$rule",
-          "strokeWidth": 1,
+          "id": "f6mgv",
+          "name": "访问内容",
+          "width": 358,
+          "fill": "#ffffff",
+          "cornerRadius": 8,
           "layout": "vertical",
-          "gap": 24,
-          "padding": 32,
+          "gap": 16,
+          "padding": 24,
           "children": [
             {
               "type": "text",
-              "id": "qWnBh",
-              "name": "标题",
-              "fill": "#F2F4F8",
-              "content": "登录到你的账本",
-              "fontFamily": "Noto Sans SC",
-              "fontSize": 26,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "frame",
-              "id": "e5iutY",
-              "name": "邮箱输入",
+              "id": "eHQGr",
+              "name": "入口标记",
+              "fill": "#0485f7",
+              "textGrowth": "fixed-width",
               "width": "fill_container",
-              "height": 56,
-              "fill": "#1D1B20",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "Bamne",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "邮箱",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "eviSl",
-                  "name": "字段值",
-                  "fill": "#E6E1E9",
-                  "content": "邮箱",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "wMgeC",
-              "name": "密码输入",
-              "width": "fill_container",
-              "height": 56,
-              "fill": "#1D1B20",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "VRGb7",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "Ri2CN",
-                  "name": "字段值",
-                  "fill": "#E6E1E9",
-                  "content": "密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "mAcbt",
-              "name": "主操作",
-              "width": "fill_container",
-              "height": 40,
-              "fill": "#A7C7FF",
-              "cornerRadius": 20,
-              "gap": 8,
-              "padding": [
-                0,
-                16
-              ],
-              "justifyContent": "center",
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "text",
-                  "id": "wTdGB",
-                  "name": "按钮文字",
-                  "fill": "#10213A",
-                  "content": "登录",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 14,
-                  "fontWeight": "normal"
-                }
-              ]
+              "content": "工作区访问",
+              "fontFamily": "Roboto",
+              "fontSize": 13,
+              "fontWeight": "600"
             },
             {
               "type": "text",
-              "id": "D6XzBH",
-              "name": "模式切换",
-              "fill": "#A7C7FF",
+              "id": "wik6k",
+              "name": "登录标题",
+              "fill": "#202124",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "登录到你的账本",
+              "fontFamily": "Roboto",
+              "fontSize": 27,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "bLoyg",
+              "name": "邮箱",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "lSWql",
+                  "name": "邮箱标签",
+                  "fill": "#6f7279",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "邮箱",
+                  "fontFamily": "Roboto",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "yCres",
+                  "type": "ref",
+                  "ref": "D:Q2EsN",
+                  "name": "邮箱输入",
+                  "width": "fill_container",
+                  "height": 40,
+                  "descendants": {
+                    "D:lkemR": {
+                      "enabled": false
+                    },
+                    "D:YDsht": {
+                      "content": "name@example.com"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "qcxs1",
+              "name": "密码",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Ml9h5",
+                  "name": "密码标签",
+                  "fill": "#6f7279",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "密码",
+                  "fontFamily": "Roboto",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "C4miw",
+                  "type": "ref",
+                  "ref": "D:Q2EsN",
+                  "name": "密码输入",
+                  "width": "fill_container",
+                  "height": 40,
+                  "descendants": {
+                    "D:lkemR": {
+                      "enabled": false
+                    },
+                    "D:YDsht": {
+                      "content": "输入密码"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "x9HJnv",
+              "type": "ref",
+              "ref": "D:CjC40",
+              "name": "登录",
+              "height": 36,
+              "width": "fill_container",
+              "descendants": {
+                "D:IWqn3": {
+                  "content": "登录"
+                }
+              }
+            },
+            {
+              "type": "text",
+              "id": "TZ01R",
+              "name": "注册入口",
+              "fill": "#0485f7",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
               "content": "还没有账户？注册",
               "textAlign": "center",
-              "fontFamily": "Noto Sans SC",
-              "fontSize": 14,
+              "fontFamily": "Roboto",
+              "fontSize": 13,
               "fontWeight": "normal"
             }
           ]
@@ -725,169 +480,316 @@
     },
     {
       "type": "frame",
-      "id": "cZN2m",
-      "x": 5000,
+      "id": "DFWxS",
+      "x": 1295,
       "y": 0,
-      "name": "访问页 / Regular / 深色",
-      "theme": {
-        "mode": "dark"
-      },
+      "name": "登录到你的账本 / 414",
+      "clip": true,
+      "width": 414,
+      "height": 900,
+      "fill": "#f5f5f5",
+      "layout": "vertical",
+      "padding": [
+        20,
+        16
+      ],
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "neyPh",
+          "name": "访问内容",
+          "width": 382,
+          "fill": "#ffffff",
+          "cornerRadius": 8,
+          "layout": "vertical",
+          "gap": 16,
+          "padding": 24,
+          "children": [
+            {
+              "type": "text",
+              "id": "w3A8oh",
+              "name": "入口标记",
+              "fill": "#0485f7",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "工作区访问",
+              "fontFamily": "Roboto",
+              "fontSize": 13,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "u6gCnM",
+              "name": "登录标题",
+              "fill": "#202124",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "登录到你的账本",
+              "fontFamily": "Roboto",
+              "fontSize": 27,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "uxFMc",
+              "name": "邮箱",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "P0eMfQ",
+                  "name": "邮箱标签",
+                  "fill": "#6f7279",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "邮箱",
+                  "fontFamily": "Roboto",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "b7j0kE",
+                  "type": "ref",
+                  "ref": "D:Q2EsN",
+                  "name": "邮箱输入",
+                  "width": "fill_container",
+                  "height": 40,
+                  "descendants": {
+                    "D:lkemR": {
+                      "enabled": false
+                    },
+                    "D:YDsht": {
+                      "content": "name@example.com"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "D95YyO",
+              "name": "密码",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "P6L5v",
+                  "name": "密码标签",
+                  "fill": "#6f7279",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "密码",
+                  "fontFamily": "Roboto",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "k8wWU",
+                  "type": "ref",
+                  "ref": "D:Q2EsN",
+                  "name": "密码输入",
+                  "width": "fill_container",
+                  "height": 40,
+                  "descendants": {
+                    "D:lkemR": {
+                      "enabled": false
+                    },
+                    "D:YDsht": {
+                      "content": "输入密码"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "S7kdxj",
+              "type": "ref",
+              "ref": "D:CjC40",
+              "name": "登录",
+              "height": 36,
+              "width": "fill_container",
+              "descendants": {
+                "D:IWqn3": {
+                  "content": "登录"
+                }
+              }
+            },
+            {
+              "type": "text",
+              "id": "qLHRg",
+              "name": "注册入口",
+              "fill": "#0485f7",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "还没有账户？注册",
+              "textAlign": "center",
+              "fontFamily": "Roboto",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "X30S0",
+      "x": 1779,
+      "y": 0,
+      "name": "登录到你的账本 / 768",
       "clip": true,
       "width": 768,
       "height": 900,
-      "fill": "#111318",
+      "fill": "#f5f5f5",
       "layout": "vertical",
-      "gap": 24,
-      "padding": 24,
+      "padding": [
+        20,
+        16
+      ],
       "justifyContent": "center",
       "alignItems": "center",
       "children": [
         {
-          "type": "text",
-          "id": "HUVTg",
-          "name": "产品名",
-          "fill": "#A7C7FF",
-          "content": "Finance Tracker",
-          "fontFamily": "Noto Sans SC",
-          "fontSize": 16,
-          "fontWeight": "normal"
-        },
-        {
           "type": "frame",
-          "id": "RPmwG",
-          "name": "访问卡片",
-          "width": 560,
-          "fill": "#1D1B20",
-          "cornerRadius": 24,
-          "stroke": "$rule",
-          "strokeWidth": 1,
+          "id": "c2Zr0",
+          "name": "访问内容",
+          "width": 430,
+          "fill": "#ffffff",
+          "cornerRadius": 8,
           "layout": "vertical",
-          "gap": 24,
-          "padding": 32,
+          "gap": 16,
+          "padding": 24,
           "children": [
             {
               "type": "text",
-              "id": "U4yao0",
-              "name": "标题",
-              "fill": "#F2F4F8",
-              "content": "登录到你的账本",
-              "fontFamily": "Noto Sans SC",
-              "fontSize": 26,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "frame",
-              "id": "OPCkX",
-              "name": "邮箱输入",
+              "id": "RcWNL",
+              "name": "入口标记",
+              "fill": "#0485f7",
+              "textGrowth": "fixed-width",
               "width": "fill_container",
-              "height": 56,
-              "fill": "#1D1B20",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "T7m7F",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "邮箱",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "sqadQ",
-                  "name": "字段值",
-                  "fill": "#E6E1E9",
-                  "content": "邮箱",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "ZQhdp",
-              "name": "密码输入",
-              "width": "fill_container",
-              "height": 56,
-              "fill": "#1D1B20",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "s8XCb",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "dAE9o",
-                  "name": "字段值",
-                  "fill": "#E6E1E9",
-                  "content": "密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "hc4FS",
-              "name": "主操作",
-              "width": "fill_container",
-              "height": 40,
-              "fill": "#A7C7FF",
-              "cornerRadius": 20,
-              "gap": 8,
-              "padding": [
-                0,
-                16
-              ],
-              "justifyContent": "center",
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "text",
-                  "id": "GvgH4",
-                  "name": "按钮文字",
-                  "fill": "#10213A",
-                  "content": "登录",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 14,
-                  "fontWeight": "normal"
-                }
-              ]
+              "content": "工作区访问",
+              "fontFamily": "Roboto",
+              "fontSize": 13,
+              "fontWeight": "600"
             },
             {
               "type": "text",
-              "id": "a8N74",
-              "name": "模式切换",
-              "fill": "#A7C7FF",
+              "id": "joxUH",
+              "name": "登录标题",
+              "fill": "#202124",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "登录到你的账本",
+              "fontFamily": "Roboto",
+              "fontSize": 30,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "I2ZwS",
+              "name": "邮箱",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "QQC9l",
+                  "name": "邮箱标签",
+                  "fill": "#6f7279",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "邮箱",
+                  "fontFamily": "Roboto",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "CTc5E",
+                  "type": "ref",
+                  "ref": "D:Q2EsN",
+                  "name": "邮箱输入",
+                  "width": "fill_container",
+                  "height": 40,
+                  "descendants": {
+                    "D:lkemR": {
+                      "enabled": false
+                    },
+                    "D:YDsht": {
+                      "content": "name@example.com"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "ZPFJo",
+              "name": "密码",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "J7uVQ",
+                  "name": "密码标签",
+                  "fill": "#6f7279",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "密码",
+                  "fontFamily": "Roboto",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "m232YY",
+                  "type": "ref",
+                  "ref": "D:Q2EsN",
+                  "name": "密码输入",
+                  "width": "fill_container",
+                  "height": 40,
+                  "descendants": {
+                    "D:lkemR": {
+                      "enabled": false
+                    },
+                    "D:YDsht": {
+                      "content": "输入密码"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "G5Z8jK",
+              "type": "ref",
+              "ref": "D:CjC40",
+              "name": "登录",
+              "height": 36,
+              "width": "fill_container",
+              "descendants": {
+                "D:IWqn3": {
+                  "content": "登录"
+                }
+              }
+            },
+            {
+              "type": "text",
+              "id": "QceRN",
+              "name": "注册入口",
+              "fill": "#0485f7",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
               "content": "还没有账户？注册",
               "textAlign": "center",
-              "fontFamily": "Noto Sans SC",
-              "fontSize": 14,
+              "fontFamily": "Roboto",
+              "fontSize": 13,
               "fontWeight": "normal"
             }
           ]
@@ -896,169 +798,157 @@
     },
     {
       "type": "frame",
-      "id": "LKDJu",
-      "x": 5840,
+      "id": "spUwA",
+      "x": 2617,
       "y": 0,
-      "name": "访问页 / Wide / 深色",
-      "theme": {
-        "mode": "dark"
-      },
+      "name": "登录到你的账本 / 1440",
       "clip": true,
       "width": 1440,
       "height": 900,
-      "fill": "#111318",
+      "fill": "#f5f5f5",
       "layout": "vertical",
-      "gap": 24,
-      "padding": 24,
+      "padding": [
+        20,
+        16
+      ],
       "justifyContent": "center",
       "alignItems": "center",
       "children": [
         {
-          "type": "text",
-          "id": "iRHQ0",
-          "name": "产品名",
-          "fill": "#A7C7FF",
-          "content": "Finance Tracker",
-          "fontFamily": "Noto Sans SC",
-          "fontSize": 16,
-          "fontWeight": "normal"
-        },
-        {
           "type": "frame",
-          "id": "H7s8cp",
-          "name": "访问卡片",
-          "width": 560,
-          "fill": "#1D1B20",
-          "cornerRadius": 24,
-          "stroke": "$rule",
-          "strokeWidth": 1,
+          "id": "DB9Pt",
+          "name": "访问内容",
+          "width": 430,
+          "fill": "#ffffff",
+          "cornerRadius": 8,
           "layout": "vertical",
-          "gap": 24,
-          "padding": 32,
+          "gap": 16,
+          "padding": 24,
           "children": [
             {
               "type": "text",
-              "id": "CBODl",
-              "name": "标题",
-              "fill": "#F2F4F8",
-              "content": "登录到你的账本",
-              "fontFamily": "Noto Sans SC",
-              "fontSize": 26,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "frame",
-              "id": "J4Ztn",
-              "name": "邮箱输入",
+              "id": "tNFD1",
+              "name": "入口标记",
+              "fill": "#0485f7",
+              "textGrowth": "fixed-width",
               "width": "fill_container",
-              "height": 56,
-              "fill": "#1D1B20",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "W6vy7",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "邮箱",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "NS6tl",
-                  "name": "字段值",
-                  "fill": "#E6E1E9",
-                  "content": "邮箱",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "oDuch",
-              "name": "密码输入",
-              "width": "fill_container",
-              "height": 56,
-              "fill": "#1D1B20",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "u7yLR",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "WMgg0",
-                  "name": "字段值",
-                  "fill": "#E6E1E9",
-                  "content": "密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "f8mkxJ",
-              "name": "主操作",
-              "width": "fill_container",
-              "height": 40,
-              "fill": "#A7C7FF",
-              "cornerRadius": 20,
-              "gap": 8,
-              "padding": [
-                0,
-                16
-              ],
-              "justifyContent": "center",
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "text",
-                  "id": "c2I0tF",
-                  "name": "按钮文字",
-                  "fill": "#10213A",
-                  "content": "登录",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 14,
-                  "fontWeight": "normal"
-                }
-              ]
+              "content": "工作区访问",
+              "fontFamily": "Roboto",
+              "fontSize": 13,
+              "fontWeight": "600"
             },
             {
               "type": "text",
-              "id": "aEsm6",
-              "name": "模式切换",
-              "fill": "#A7C7FF",
+              "id": "dAys0",
+              "name": "登录标题",
+              "fill": "#202124",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "登录到你的账本",
+              "fontFamily": "Roboto",
+              "fontSize": 30,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "Tx3du",
+              "name": "邮箱",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Pbubp",
+                  "name": "邮箱标签",
+                  "fill": "#6f7279",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "邮箱",
+                  "fontFamily": "Roboto",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "W61mt",
+                  "type": "ref",
+                  "ref": "D:Q2EsN",
+                  "name": "邮箱输入",
+                  "width": "fill_container",
+                  "height": 40,
+                  "descendants": {
+                    "D:lkemR": {
+                      "enabled": false
+                    },
+                    "D:YDsht": {
+                      "content": "name@example.com"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "tiszp",
+              "name": "密码",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "p0Uwc",
+                  "name": "密码标签",
+                  "fill": "#6f7279",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "密码",
+                  "fontFamily": "Roboto",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "JCXDG",
+                  "type": "ref",
+                  "ref": "D:Q2EsN",
+                  "name": "密码输入",
+                  "width": "fill_container",
+                  "height": 40,
+                  "descendants": {
+                    "D:lkemR": {
+                      "enabled": false
+                    },
+                    "D:YDsht": {
+                      "content": "输入密码"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "LBiVw",
+              "type": "ref",
+              "ref": "D:CjC40",
+              "name": "登录",
+              "height": 36,
+              "width": "fill_container",
+              "descendants": {
+                "D:IWqn3": {
+                  "content": "登录"
+                }
+              }
+            },
+            {
+              "type": "text",
+              "id": "xFw1f",
+              "name": "注册入口",
+              "fill": "#0485f7",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
               "content": "还没有账户？注册",
               "textAlign": "center",
-              "fontFamily": "Noto Sans SC",
-              "fontSize": 14,
+              "fontFamily": "Roboto",
+              "fontSize": 13,
               "fontWeight": "normal"
             }
           ]
@@ -1067,476 +957,394 @@
     },
     {
       "type": "frame",
-      "id": "lY9ts",
-      "x": 7360,
-      "y": 0,
-      "name": "访问页 / Compact / 浅色",
-      "theme": {
-        "mode": "light"
-      },
+      "id": "rw0BG",
+      "x": 0,
+      "y": 1800,
+      "name": "登录到你的账本 / 状态与确认",
       "clip": true,
-      "width": 390,
-      "height": 844,
-      "fill": "#F7F9FC",
+      "width": 620,
+      "height": 930,
+      "fill": "#f5f5f5",
       "layout": "vertical",
-      "gap": 24,
+      "gap": 12,
       "padding": 24,
-      "justifyContent": "center",
-      "alignItems": "center",
       "children": [
         {
           "type": "text",
-          "id": "xJB5E",
-          "name": "产品名",
-          "fill": "#0B6BCB",
-          "content": "Finance Tracker",
-          "fontFamily": "Noto Sans SC",
-          "fontSize": 16,
-          "fontWeight": "normal"
+          "id": "jOp10",
+          "name": "标题",
+          "fill": "#202124",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "登录到你的账本状态",
+          "fontFamily": "Roboto",
+          "fontSize": 20,
+          "fontWeight": "600"
         },
         {
           "type": "frame",
-          "id": "yWfnj",
-          "name": "访问卡片",
-          "width": 342,
-          "fill": "#F7F2FA",
-          "cornerRadius": 24,
-          "stroke": "$rule",
-          "strokeWidth": 1,
+          "id": "OIRLy",
+          "name": "加载中",
+          "width": "fill_container",
+          "height": 80,
+          "fill": "#ffffff",
+          "cornerRadius": 8,
           "layout": "vertical",
-          "gap": 24,
-          "padding": 32,
+          "gap": 6,
+          "padding": 14,
           "children": [
             {
               "type": "text",
-              "id": "M6iVr",
-              "name": "标题",
-              "fill": "#25232A",
-              "content": "登录到你的账本",
-              "fontFamily": "Noto Sans SC",
-              "fontSize": 26,
+              "id": "SvOJc",
+              "name": "加载中标题",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "加载中",
+              "fontFamily": "Roboto",
+              "fontSize": 13,
               "fontWeight": "normal"
             },
             {
-              "type": "frame",
-              "id": "B2bR3a",
-              "name": "邮箱输入",
-              "width": "fill_container",
-              "height": 56,
-              "fill": "#F7F2FA",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "aPThi",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "邮箱",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "AWvTD",
-                  "name": "字段值",
-                  "fill": "#4B4650",
-                  "content": "邮箱",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "gvZZq",
-              "name": "密码输入",
-              "width": "fill_container",
-              "height": 56,
-              "fill": "#F7F2FA",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "uqxgb",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "GlDTb",
-                  "name": "字段值",
-                  "fill": "#4B4650",
-                  "content": "密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "gKRcf",
-              "name": "主操作",
-              "width": "fill_container",
-              "height": 40,
-              "fill": "#0B6BCB",
-              "cornerRadius": 20,
-              "gap": 8,
-              "padding": [
-                0,
-                16
-              ],
-              "justifyContent": "center",
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "text",
-                  "id": "d8QqT",
-                  "name": "按钮文字",
-                  "fill": "#FFFFFF",
-                  "content": "登录",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 14,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
               "type": "text",
-              "id": "HaSku",
-              "name": "模式切换",
-              "fill": "#0B6BCB",
-              "content": "还没有账户？注册",
-              "textAlign": "center",
-              "fontFamily": "Noto Sans SC",
-              "fontSize": 14,
+              "id": "NQRcD",
+              "name": "加载中内容",
+              "fill": "#202124",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "正在登录…",
+              "fontFamily": "Roboto",
+              "fontSize": 15,
               "fontWeight": "normal"
             }
           ]
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "KiXVA",
-      "x": 7820,
-      "y": 0,
-      "name": "访问页 / Regular / 浅色",
-      "theme": {
-        "mode": "light"
-      },
-      "clip": true,
-      "width": 768,
-      "height": 900,
-      "fill": "#F7F9FC",
-      "layout": "vertical",
-      "gap": 24,
-      "padding": 24,
-      "justifyContent": "center",
-      "alignItems": "center",
-      "children": [
-        {
-          "type": "text",
-          "id": "prRTr",
-          "name": "产品名",
-          "fill": "#0B6BCB",
-          "content": "Finance Tracker",
-          "fontFamily": "Noto Sans SC",
-          "fontSize": 16,
-          "fontWeight": "normal"
         },
         {
           "type": "frame",
-          "id": "aibFj",
-          "name": "访问卡片",
-          "width": 560,
-          "fill": "#F7F2FA",
-          "cornerRadius": 24,
-          "stroke": "$rule",
-          "strokeWidth": 1,
+          "id": "sQt1x",
+          "name": "空状态",
+          "width": "fill_container",
+          "height": 80,
+          "fill": "#ffffff",
+          "cornerRadius": 8,
           "layout": "vertical",
-          "gap": 24,
-          "padding": 32,
+          "gap": 6,
+          "padding": 14,
           "children": [
             {
               "type": "text",
-              "id": "q4LkZN",
-              "name": "标题",
-              "fill": "#25232A",
-              "content": "登录到你的账本",
-              "fontFamily": "Noto Sans SC",
-              "fontSize": 26,
+              "id": "ktv4l",
+              "name": "空状态标题",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "空状态",
+              "fontFamily": "Roboto",
+              "fontSize": 13,
               "fontWeight": "normal"
-            },
-            {
-              "type": "frame",
-              "id": "Jua3y",
-              "name": "邮箱输入",
-              "width": "fill_container",
-              "height": 56,
-              "fill": "#F7F2FA",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "q40lu",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "邮箱",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "UY9h3",
-                  "name": "字段值",
-                  "fill": "#4B4650",
-                  "content": "邮箱",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "QCl3Q",
-              "name": "密码输入",
-              "width": "fill_container",
-              "height": 56,
-              "fill": "#F7F2FA",
-              "cornerRadius": 4,
-              "stroke": "#79747E",
-              "strokeWidth": 1,
-              "layout": "vertical",
-              "padding": 16,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "rqEqf",
-                  "x": 16,
-                  "y": 16,
-                  "name": "字段标签",
-                  "enabled": false,
-                  "fill": "$subtle",
-                  "content": "密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "text",
-                  "id": "M11z75",
-                  "name": "字段值",
-                  "fill": "#4B4650",
-                  "content": "密码",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 16,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "Cutxc",
-              "name": "主操作",
-              "width": "fill_container",
-              "height": 40,
-              "fill": "#0B6BCB",
-              "cornerRadius": 20,
-              "gap": 8,
-              "padding": [
-                0,
-                16
-              ],
-              "justifyContent": "center",
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "text",
-                  "id": "IwgEV",
-                  "name": "按钮文字",
-                  "fill": "#FFFFFF",
-                  "content": "登录",
-                  "fontFamily": "Noto Sans SC",
-                  "fontSize": 14,
-                  "fontWeight": "normal"
-                }
-              ]
             },
             {
               "type": "text",
-              "id": "MDSNN",
-              "name": "模式切换",
-              "fill": "#0B6BCB",
-              "content": "还没有账户？注册",
-              "textAlign": "center",
-              "fontFamily": "Noto Sans SC",
-              "fontSize": 14,
+              "id": "AgKol",
+              "name": "空状态内容",
+              "fill": "#202124",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "请输入邮箱和密码",
+              "fontFamily": "Roboto",
+              "fontSize": 15,
               "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "lhPz8",
+          "name": "错误状态",
+          "width": "fill_container",
+          "height": 112,
+          "fill": "#ffffff",
+          "cornerRadius": 8,
+          "layout": "vertical",
+          "gap": 6,
+          "padding": 14,
+          "children": [
+            {
+              "type": "text",
+              "id": "g4ntmQ",
+              "name": "错误状态标题",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "错误状态",
+              "fontFamily": "Roboto",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "a6hoq",
+              "name": "错误状态内容",
+              "fill": "#c8372b",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "邮箱或密码不正确，请重试",
+              "fontFamily": "Roboto",
+              "fontSize": 15,
+              "fontWeight": "normal"
+            },
+            {
+              "id": "sPUFp",
+              "type": "ref",
+              "ref": "D:uEyLt",
+              "name": "重试",
+              "height": 36,
+              "width": 76,
+              "descendants": {
+                "D:Wee4B": {
+                  "content": "重试"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "XqTOL",
+          "name": "成功反馈",
+          "width": "fill_container",
+          "height": 80,
+          "fill": "#ffffff",
+          "cornerRadius": 8,
+          "layout": "vertical",
+          "gap": 6,
+          "padding": 14,
+          "children": [
+            {
+              "type": "text",
+              "id": "E0Jxq",
+              "name": "成功反馈标题",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "成功反馈",
+              "fontFamily": "Roboto",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "gySfa",
+              "name": "成功反馈内容",
+              "fill": "#202124",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "已登录",
+              "fontFamily": "Roboto",
+              "fontSize": 15,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Zuxku",
+          "name": "禁用与焦点",
+          "width": "fill_container",
+          "height": 140,
+          "fill": "#ffffff",
+          "cornerRadius": 8,
+          "layout": "vertical",
+          "gap": 6,
+          "padding": 14,
+          "children": [
+            {
+              "type": "text",
+              "id": "xM3hv",
+              "name": "禁用与焦点标题",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "禁用与焦点",
+              "fontFamily": "Roboto",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "KkjDz",
+              "name": "禁用与焦点内容",
+              "fill": "#202124",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "信息未填完时，登录不可用",
+              "fontFamily": "Roboto",
+              "fontSize": 15,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "Vt2Th",
+              "name": "焦点与禁用示例",
+              "width": "fill_container",
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "id": "q3bHc",
+                  "type": "ref",
+                  "ref": "D:Q2EsN",
+                  "name": "焦点字段",
+                  "width": 220,
+                  "height": 40,
+                  "stroke": "#0485f7",
+                  "strokeWidth": 2,
+                  "descendants": {
+                    "D:lkemR": {
+                      "enabled": false
+                    },
+                    "D:YDsht": {
+                      "content": "输入中"
+                    }
+                  }
+                },
+                {
+                  "id": "clVgZ",
+                  "type": "ref",
+                  "ref": "D:CjC40",
+                  "name": "保存",
+                  "height": 36,
+                  "width": 76,
+                  "opacity": 0.45,
+                  "descendants": {
+                    "D:IWqn3": {
+                      "content": "保存"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "XXSMt",
+          "name": "注册模式",
+          "width": "fill_container",
+          "fill": "#ffffff",
+          "cornerRadius": 8,
+          "layout": "vertical",
+          "gap": 8,
+          "padding": 14,
+          "children": [
+            {
+              "type": "text",
+              "id": "K4TWp",
+              "name": "模式标题",
+              "fill": "#202124",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "注册账户",
+              "fontFamily": "Roboto",
+              "fontSize": 16,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "z3iEO",
+              "name": "邮箱",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "mf3YL",
+                  "name": "邮箱标签",
+                  "fill": "#6f7279",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "邮箱",
+                  "fontFamily": "Roboto",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "ubm9Q",
+                  "type": "ref",
+                  "ref": "D:Q2EsN",
+                  "name": "邮箱输入",
+                  "width": "fill_container",
+                  "height": 40,
+                  "descendants": {
+                    "D:lkemR": {
+                      "enabled": false
+                    },
+                    "D:YDsht": {
+                      "content": "name@example.com"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Qsupx",
+              "name": "密码",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "q82RZj",
+                  "name": "密码标签",
+                  "fill": "#6f7279",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "密码",
+                  "fontFamily": "Roboto",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "fZqi6",
+                  "type": "ref",
+                  "ref": "D:Q2EsN",
+                  "name": "密码输入",
+                  "width": "fill_container",
+                  "height": 40,
+                  "descendants": {
+                    "D:lkemR": {
+                      "enabled": false
+                    },
+                    "D:YDsht": {
+                      "content": "至少 12 位"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "HBmTm",
+              "type": "ref",
+              "ref": "D:CjC40",
+              "name": "注册",
+              "height": 36,
+              "width": 100,
+              "descendants": {
+                "D:IWqn3": {
+                  "content": "注册"
+                }
+              }
             }
           ]
         }
       ]
     }
   ],
-  "themes": {
-    "mode": [
-      "light",
-      "dark"
-    ]
-  },
-  "variables": {
-    "paper": {
-      "type": "color",
-      "value": [
-        {
-          "value": "#F6F8FB",
-          "theme": {
-            "mode": "light"
-          }
-        },
-        {
-          "value": "#101216",
-          "theme": {
-            "mode": "dark"
-          }
-        }
-      ]
-    },
-    "raised": {
-      "type": "color",
-      "value": [
-        {
-          "value": "#FFFFFF",
-          "theme": {
-            "mode": "light"
-          }
-        },
-        {
-          "value": "#1B1D23",
-          "theme": {
-            "mode": "dark"
-          }
-        }
-      ]
-    },
-    "muted": {
-      "type": "color",
-      "value": [
-        {
-          "value": "#E7E1EA",
-          "theme": {
-            "mode": "light"
-          }
-        },
-        {
-          "value": "#35333B",
-          "theme": {
-            "mode": "dark"
-          }
-        }
-      ]
-    },
-    "ink": {
-      "type": "color",
-      "value": [
-        {
-          "value": "#1B2028",
-          "theme": {
-            "mode": "light"
-          }
-        },
-        {
-          "value": "#F2F4F8",
-          "theme": {
-            "mode": "dark"
-          }
-        }
-      ]
-    },
-    "subtle": {
-      "type": "color",
-      "value": [
-        {
-          "value": "#5F6672",
-          "theme": {
-            "mode": "light"
-          }
-        },
-        {
-          "value": "#B8BFCC",
-          "theme": {
-            "mode": "dark"
-          }
-        }
-      ]
-    },
-    "accent": {
-      "type": "color",
-      "value": [
-        {
-          "value": "#0A63B8",
-          "theme": {
-            "mode": "light"
-          }
-        },
-        {
-          "value": "#9FC3FF",
-          "theme": {
-            "mode": "dark"
-          }
-        }
-      ]
-    },
-    "rule": {
-      "type": "color",
-      "value": [
-        {
-          "value": "#B8C0CC",
-          "theme": {
-            "mode": "light"
-          }
-        },
-        {
-          "value": "#687180",
-          "theme": {
-            "mode": "dark"
-          }
-        }
-      ]
-    }
-  },
   "imports": {
-    "n": "finance-design-system.lib.pen"
+    "D": "finance-ui.lib.pen"
   },
-  "fileToken": "0ea4d542-5276-48de-adce-32584ce1a072"
+  "fileToken": "9a564b8f-cfcf-4c76-b205-fc8fc128c2d0"
 }

@@ -5,13 +5,11 @@ import com.finance.tracker.domain.*
 import com.finance.tracker.presentation.*
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,14 +25,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.PermanentDrawerSheet
 import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
@@ -50,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -80,10 +79,10 @@ internal fun CompactAppShell(
             ModalDrawerSheet {
                 NavigationHeader()
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    NavigationDestinations(route.page) { page ->
+                    NavigationDestinations(route.page, onNavigate = { page ->
                         onNavigate(page)
                         scope.launch { drawerState.close() }
-                    }
+                    })
                 }
             }
         },
@@ -113,41 +112,29 @@ private fun MenuGlyph() {
                 Modifier
                     .fillMaxWidth()
                     .height(2.dp)
-                    .background(MaterialTheme.colorScheme.onSurface),
+                    .background(Color(0xFFFAFAFA)),
             )
         }
     }
 }
 
 @Composable
-internal fun RegularAppShell(route: AppRoute, onNavigate: (AppPage) -> Unit, content: @Composable () -> Unit) {
-    Row(Modifier.fillMaxSize()) {
-        NavigationRail(
-            modifier = Modifier.width(80.dp),
-            containerColor = MaterialTheme.colorScheme.surface,
-        ) {
-            NavigationHeader(compact = true)
-            Column(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                NavigationRailDestinations(route.page, onNavigate)
-            }
-        }
-        Box(Modifier.weight(1f).fillMaxHeight()) { content() }
-    }
+internal fun RegularAppShell(
+    route: AppRoute,
+    onNavigate: (AppPage) -> Unit,
+    content: @Composable (navigationIcon: @Composable () -> Unit) -> Unit,
+) {
+    CompactAppShell(route, onNavigate, content)
 }
 
 @Composable
 internal fun WideAppShell(route: AppRoute, onNavigate: (AppPage) -> Unit, content: @Composable () -> Unit) {
     PermanentNavigationDrawer(
         drawerContent = {
-            PermanentDrawerSheet(Modifier.width(256.dp)) {
-                NavigationHeader()
+            PermanentDrawerSheet(Modifier.width(220.dp), drawerContainerColor = Color(0xFF18181B)) {
+                NavigationHeader(dark = true)
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    NavigationDestinations(route.page, onNavigate)
+                    NavigationDestinations(route.page, onNavigate, dark = true)
                 }
             }
         },
@@ -157,30 +144,20 @@ internal fun WideAppShell(route: AppRoute, onNavigate: (AppPage) -> Unit, conten
 }
 
 @Composable
-private fun NavigationHeader(compact: Boolean = false) {
-    if (compact) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            BrandMark()
-        }
-    } else {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            BrandMark()
-            Text(
-                localizedText("copy_2e5de483d7"),
-                modifier = Modifier.padding(start = 12.dp),
-                style = MaterialTheme.typography.titleMedium,
-            )
-        }
+private fun NavigationHeader(dark: Boolean = false) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BrandMark()
+        Text(
+            localizedText("copy_2e5de483d7"),
+            modifier = Modifier.padding(start = 12.dp),
+            style = MaterialTheme.typography.titleMedium,
+            color = if (dark) Color(0xFFFAFAFA) else MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 
@@ -201,7 +178,7 @@ private fun BrandMark() {
 }
 
 @Composable
-private fun NavigationDestinations(selectedPage: AppPage, onNavigate: (AppPage) -> Unit) {
+private fun NavigationDestinations(selectedPage: AppPage, onNavigate: (AppPage) -> Unit, dark: Boolean = false) {
     appDestinations.forEach { destination ->
         NavigationDrawerItem(
             label = { Text(localizedText(destination.titleKey)) },
@@ -211,33 +188,12 @@ private fun NavigationDestinations(selectedPage: AppPage, onNavigate: (AppPage) 
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp)
                 .testTag(destination.semanticId),
-        )
-    }
-}
-
-@Composable
-private fun NavigationRailDestinations(selectedPage: AppPage, onNavigate: (AppPage) -> Unit) {
-    appDestinations.forEach { destination ->
-        val selected = selectedPage == destination.page
-        NavigationRailItem(
-            selected = selected,
-            onClick = { onNavigate(destination.page) },
-            icon = {
-                Box(
-                    modifier = Modifier
-                        .size(20.dp)
-                        .then(
-                            if (selected) {
-                                Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)
-                            } else {
-                                Modifier.border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                            },
-                        ),
-                )
-            },
-            label = { Text(localizedText(destination.titleKey)) },
-            alwaysShowLabel = true,
-            modifier = Modifier.testTag(destination.semanticId),
+            colors = if (dark) NavigationDrawerItemDefaults.colors(
+                selectedContainerColor = Color(0xFF303035),
+                unselectedContainerColor = Color.Transparent,
+                selectedTextColor = Color(0xFFFAFAFA),
+                unselectedTextColor = Color(0xFFA1A1AA),
+            ) else NavigationDrawerItemDefaults.colors(),
         )
     }
 }
@@ -254,8 +210,14 @@ internal fun DestinationScaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(localizedText(titleKeyFor(state.route.page))) },
+                title = { if (state.sizeClass != WindowSizeClass.WIDE) Text(localizedText(titleKeyFor(state.route.page))) },
                 navigationIcon = state.navigationIcon,
+                colors = if (state.sizeClass == WindowSizeClass.WIDE) TopAppBarDefaults.topAppBarColors()
+                    else TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color(0xFF18181B),
+                        titleContentColor = Color(0xFFFAFAFA),
+                        navigationIconContentColor = Color(0xFFFAFAFA),
+                    ),
                 actions = {
                     if (state.canNavigateBack) {
                         TextButton(onClick = state.onNavigateBack) { Text(localizedText("copy_11d0241540")) }

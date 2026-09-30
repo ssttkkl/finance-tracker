@@ -3,9 +3,11 @@
   "tokens": {
     "color.brand.primary": { "type": "color", "value": "#0A63B8" },
     "color.brand.onPrimary": { "type": "color", "value": "#FFFFFF" },
+    "color.semantic.accent": { "type": "color", "value": "#0485F7" },
+    "color.semantic.accentForeground": { "type": "color", "value": "#FFFFFF" },
+    "color.semantic.danger": { "type": "color", "value": "#B42318" },
     "color.semantic.income": { "type": "color", "value": "#087443" },
     "color.semantic.expense": { "type": "color", "value": "#B3442C" },
-    "color.semantic.danger": { "type": "color", "value": "#B42318" },
     "font.family.body": { "type": "fontFamily", "value": "Noto Sans SC" },
     "font.family.mono": { "type": "fontFamily", "value": "IBM Plex Mono" },
     "space.1": { "type": "dimension", "value": "4px" },

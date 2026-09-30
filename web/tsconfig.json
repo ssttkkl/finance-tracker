@@ -10,6 +10,14 @@
     "strict": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@finance-tracker/api-client": ["../packages/api-client/src/index.ts"],
+      "@finance-tracker/contracts": ["../packages/contracts/src/index.ts"],
+      "@finance-tracker/core": ["../packages/core/src/index.ts"],
+      "@finance-tracker/design-tokens": ["../packages/design-tokens/src/index.ts"],
+      "@finance-tracker/presentation": ["../packages/presentation/src/index.ts"]
+    },
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,

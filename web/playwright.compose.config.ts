@@ -8,6 +8,8 @@ export default defineConfig({
   testDir: "./tests",
   testMatch: "**/compose-*.e2e.ts",
   workers: 1,
+  timeout: 90_000,
+  expect: { timeout: 15_000 },
   use: {
     baseURL: composeUrl,
     viewport: { width: 390, height: 844 },

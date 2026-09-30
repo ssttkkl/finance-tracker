@@ -355,7 +355,9 @@ private fun FinanceTrackerAppContent(
                         WindowSizeClass.COMPACT -> CompactAppShell(route = currentRoute, onNavigate = selectPage) { navigationIcon ->
                             destination(state.copy(navigationIcon = navigationIcon))
                         }
-                        WindowSizeClass.REGULAR -> RegularAppShell(route = currentRoute, onNavigate = selectPage) { destination(state) }
+                        WindowSizeClass.REGULAR -> RegularAppShell(route = currentRoute, onNavigate = selectPage) { navigationIcon ->
+                            destination(state.copy(navigationIcon = navigationIcon))
+                        }
                         WindowSizeClass.WIDE -> WideAppShell(route = currentRoute, onNavigate = selectPage) { destination(state) }
                     }
                 }

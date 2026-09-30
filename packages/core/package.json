@@ -8,7 +8,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@finance-tracker/contracts": "0.1.0"
+    "@finance-tracker/contracts": "file:../contracts"
   },
   "scripts": {
     "test": "vitest run src/index.test.ts",

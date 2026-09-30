@@ -14,6 +14,18 @@
       "source": "core.tokens.json"
     },
     {
+      "name": "core.color.semantic.accent",
+      "type": "color",
+      "value": "#0485F7",
+      "source": "core.tokens.json"
+    },
+    {
+      "name": "core.color.semantic.accentForeground",
+      "type": "color",
+      "value": "#FFFFFF",
+      "source": "core.tokens.json"
+    },
+    {
       "name": "core.color.semantic.danger",
       "type": "color",
       "value": "#B42318",
@@ -124,19 +136,73 @@
     {
       "name": "dark.color.border.default",
       "type": "color",
-      "value": "#434850",
+      "value": "#3F3F46",
       "source": "dark.tokens.json"
     },
     {
       "name": "dark.color.content.muted",
       "type": "color",
-      "value": "#C3C7D0",
+      "value": "#A1A1AA",
       "source": "dark.tokens.json"
     },
     {
       "name": "dark.color.content.primary",
       "type": "color",
-      "value": "#E2E2E9",
+      "value": "#FCFCFC",
+      "source": "dark.tokens.json"
+    },
+    {
+      "name": "dark.color.semantic.background",
+      "type": "color",
+      "value": "#060607",
+      "source": "dark.tokens.json"
+    },
+    {
+      "name": "dark.color.semantic.danger",
+      "type": "color",
+      "value": "#F04438",
+      "source": "dark.tokens.json"
+    },
+    {
+      "name": "dark.color.semantic.disabled",
+      "type": "color",
+      "value": "#27272A",
+      "source": "dark.tokens.json"
+    },
+    {
+      "name": "dark.color.semantic.field",
+      "type": "color",
+      "value": "#18181B",
+      "source": "dark.tokens.json"
+    },
+    {
+      "name": "dark.color.semantic.fieldBorder",
+      "type": "color",
+      "value": "#3F3F46",
+      "source": "dark.tokens.json"
+    },
+    {
+      "name": "dark.color.semantic.focus",
+      "type": "color",
+      "value": "#0485F7",
+      "source": "dark.tokens.json"
+    },
+    {
+      "name": "dark.color.semantic.foreground",
+      "type": "color",
+      "value": "#FCFCFC",
+      "source": "dark.tokens.json"
+    },
+    {
+      "name": "dark.color.semantic.overlay",
+      "type": "color",
+      "value": "#18181B",
+      "source": "dark.tokens.json"
+    },
+    {
+      "name": "dark.color.semantic.surface",
+      "type": "color",
+      "value": "#18181B",
       "source": "dark.tokens.json"
     },
     {
@@ -154,37 +220,85 @@
     {
       "name": "dark.color.surface.background",
       "type": "color",
-      "value": "#111318",
+      "value": "#060607",
       "source": "dark.tokens.json"
     },
     {
       "name": "dark.color.surface.muted",
       "type": "color",
-      "value": "#2B2F38",
+      "value": "#27272A",
       "source": "dark.tokens.json"
     },
     {
       "name": "dark.color.surface.raised",
       "type": "color",
-      "value": "#1B1D24",
+      "value": "#18181B",
       "source": "dark.tokens.json"
     },
     {
       "name": "light.color.border.default",
       "type": "color",
-      "value": "#C4CEDA",
+      "value": "#E4E4E7",
       "source": "light.tokens.json"
     },
     {
       "name": "light.color.content.muted",
       "type": "color",
-      "value": "#66717D",
+      "value": "#71717A",
       "source": "light.tokens.json"
     },
     {
       "name": "light.color.content.primary",
       "type": "color",
-      "value": "#1F2933",
+      "value": "#18181B",
+      "source": "light.tokens.json"
+    },
+    {
+      "name": "light.color.semantic.background",
+      "type": "color",
+      "value": "#F5F5F5",
+      "source": "light.tokens.json"
+    },
+    {
+      "name": "light.color.semantic.disabled",
+      "type": "color",
+      "value": "#E4E4E7",
+      "source": "light.tokens.json"
+    },
+    {
+      "name": "light.color.semantic.field",
+      "type": "color",
+      "value": "#FFFFFF",
+      "source": "light.tokens.json"
+    },
+    {
+      "name": "light.color.semantic.fieldBorder",
+      "type": "color",
+      "value": "#E4E4E7",
+      "source": "light.tokens.json"
+    },
+    {
+      "name": "light.color.semantic.focus",
+      "type": "color",
+      "value": "#0485F7",
+      "source": "light.tokens.json"
+    },
+    {
+      "name": "light.color.semantic.foreground",
+      "type": "color",
+      "value": "#18181B",
+      "source": "light.tokens.json"
+    },
+    {
+      "name": "light.color.semantic.overlay",
+      "type": "color",
+      "value": "#FFFFFF",
+      "source": "light.tokens.json"
+    },
+    {
+      "name": "light.color.semantic.surface",
+      "type": "color",
+      "value": "#FFFFFF",
       "source": "light.tokens.json"
     },
     {
@@ -202,19 +316,19 @@
     {
       "name": "light.color.surface.background",
       "type": "color",
-      "value": "#F1F5FA",
+      "value": "#F5F5F5",
       "source": "light.tokens.json"
     },
     {
       "name": "light.color.surface.muted",
       "type": "color",
-      "value": "#E8EEF6",
+      "value": "#E4E4E7",
       "source": "light.tokens.json"
     },
     {
       "name": "light.color.surface.raised",
       "type": "color",
-      "value": "#FCFDFE",
+      "value": "#FFFFFF",
       "source": "light.tokens.json"
     }
   ]

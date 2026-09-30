@@ -51,6 +51,7 @@ const activeInputMode = async (page: import("@playwright/test").Page) => page.ev
 test("Compose 登录表单按 Tab 键顺序聚焦", async ({ page }) => {
   await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
   await page.goto("/");
+  await expect(page.locator('[id="auth.email"]').last()).toBeVisible();
   await page.locator('[id="auth.email"]').last().click({ force: true });
   await expect.poll(() => activeInputMode(page)).toBe("email");
   await page.keyboard.press("Tab");
@@ -172,7 +173,7 @@ test("viewer 登录遇到不可访问的 URL 工作区后仍可选择有权限�
 
   await expect(page.locator('[id="ledger.screen"]').last()).toBeVisible();
   await expect(page).toHaveURL(/\/w\/workspace-1\/$/);
-  await page.locator('[id="ledger.add"]').last().click({ force: true });
+  await page.locator('[id="ledger.add"]').last().dispatchEvent("click");
   await expect(page.locator('[id="record.screen"]')).toHaveCount(0);
   expect(fixture.calls.some((call) => call.method === "POST" && call.path === "/api/v1/cash-records")).toBe(false);
   await page.goto("/w/workspace-1/cash-import");

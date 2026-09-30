@@ -1,0 +1,322 @@
+{
+  "version": "2.19",
+  "children": [
+    {
+      "type": "frame",
+      "id": "S3MQa3",
+      "x": 0,
+      "y": 0,
+      "name": "HeroUI v3 Reference",
+      "reusable": true,
+      "width": 1200,
+      "height": 900,
+      "fill": "#F1F5FA",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 32,
+      "children": [
+        {
+          "type": "text",
+          "id": "X18Ae",
+          "fill": "#1F2933",
+          "content": "HeroUI v3 Reference / Figma Kit 1546526812159103429",
+          "fontFamily": "Inter",
+          "fontSize": 24,
+          "fontWeight": "bold"
+        },
+        {
+          "type": "frame",
+          "id": "Y9hqH5",
+          "name": "HeroUI/Button",
+          "reusable": true,
+          "fill": "#0A63B8",
+          "gap": 12,
+          "padding": 12,
+          "children": [
+            {
+              "type": "text",
+              "id": "cEYTu",
+              "fill": "#FFFFFF",
+              "content": "Primary Button",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "B3wlD",
+          "name": "HeroUI/Input",
+          "reusable": true,
+          "width": 360,
+          "fill": "#FCFDFE",
+          "stroke": "#C4CEDA",
+          "layout": "vertical",
+          "gap": 8,
+          "padding": 12,
+          "children": [
+            {
+              "type": "text",
+              "id": "WXvzI",
+              "fill": "#66717D",
+              "content": "Label",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "kKbLY",
+              "fill": "#1F2933",
+              "content": "Input value",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "hmX9F",
+          "name": "HeroUI/Select",
+          "reusable": true,
+          "width": 360,
+          "fill": "#FCFDFE",
+          "stroke": "#C4CEDA",
+          "gap": 12,
+          "padding": 12,
+          "children": [
+            {
+              "type": "text",
+              "id": "s9GQS",
+              "fill": "#1F2933",
+              "content": "Select option",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "kMrm7",
+          "name": "HeroUI/Card",
+          "reusable": true,
+          "width": 520,
+          "fill": "#FCFDFE",
+          "stroke": "#C4CEDA",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "BDYmj",
+              "fill": "#1F2933",
+              "content": "Surface / Card",
+              "fontFamily": "Inter",
+              "fontSize": 16,
+              "fontWeight": "bold"
+            },
+            {
+              "type": "text",
+              "id": "c37AS",
+              "fill": "#66717D",
+              "content": "Surface, overlay, field, focus and semantic color roles.",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "q6ed5v",
+          "fill": "#66717D",
+          "content": "Checkbox · Switch · Dialog · Drawer · Tabs · Table · Chip · Tooltip",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "U1KBgh",
+          "name": "HeroUI/Checkbox",
+          "reusable": true,
+          "width": 360,
+          "fill": "#FCFDFE",
+          "stroke": "#C4CEDA",
+          "gap": 8,
+          "padding": 10,
+          "children": [
+            {
+              "type": "text",
+              "id": "eS0c7",
+              "fill": "#1F2933",
+              "content": "Checkbox reference",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "gdcU9",
+          "name": "HeroUI/Switch",
+          "reusable": true,
+          "width": 360,
+          "fill": "#FCFDFE",
+          "stroke": "#C4CEDA",
+          "gap": 8,
+          "padding": 10,
+          "children": [
+            {
+              "type": "text",
+              "id": "xGAhx",
+              "fill": "#1F2933",
+              "content": "Switch reference",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "q9sCi",
+          "name": "HeroUI/Dialog",
+          "reusable": true,
+          "width": 360,
+          "fill": "#FCFDFE",
+          "stroke": "#C4CEDA",
+          "gap": 8,
+          "padding": 10,
+          "children": [
+            {
+              "type": "text",
+              "id": "xtCQ8",
+              "fill": "#1F2933",
+              "content": "Dialog reference",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "u8QYzo",
+          "name": "HeroUI/Drawer",
+          "reusable": true,
+          "width": 360,
+          "fill": "#FCFDFE",
+          "stroke": "#C4CEDA",
+          "gap": 8,
+          "padding": 10,
+          "children": [
+            {
+              "type": "text",
+              "id": "V5pwHT",
+              "fill": "#1F2933",
+              "content": "Drawer reference",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "JTNeK",
+          "name": "HeroUI/Tabs",
+          "reusable": true,
+          "width": 360,
+          "fill": "#FCFDFE",
+          "stroke": "#C4CEDA",
+          "gap": 8,
+          "padding": 10,
+          "children": [
+            {
+              "type": "text",
+              "id": "h2YGn",
+              "fill": "#1F2933",
+              "content": "Tabs reference",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "RH6jo",
+          "name": "HeroUI/Table",
+          "reusable": true,
+          "width": 360,
+          "fill": "#FCFDFE",
+          "stroke": "#C4CEDA",
+          "gap": 8,
+          "padding": 10,
+          "children": [
+            {
+              "type": "text",
+              "id": "vGY8x",
+              "fill": "#1F2933",
+              "content": "Table reference",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "V91W4f",
+          "name": "HeroUI/Chip",
+          "reusable": true,
+          "width": 360,
+          "fill": "#FCFDFE",
+          "stroke": "#C4CEDA",
+          "gap": 8,
+          "padding": 10,
+          "children": [
+            {
+              "type": "text",
+              "id": "A51ml",
+              "fill": "#1F2933",
+              "content": "Chip reference",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "vLoFJ",
+          "name": "HeroUI/Tooltip",
+          "reusable": true,
+          "width": 360,
+          "fill": "#FCFDFE",
+          "stroke": "#C4CEDA",
+          "gap": 8,
+          "padding": 10,
+          "children": [
+            {
+              "type": "text",
+              "id": "iq22k",
+              "fill": "#1F2933",
+              "content": "Tooltip reference",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "fileToken": "f52e4778-265a-4ac2-90ac-ae2d7e31cd1b"
+}

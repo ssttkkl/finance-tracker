@@ -17,14 +17,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -171,7 +168,7 @@ internal fun AuthScreen(
                                 .testTag(SemanticIds.authError),
                         )
                     }
-                    Button(
+                    FinanceButton(
                         onClick = {
                             if (validation == CredentialValidation.Valid) onAuthenticate(email.trim(), password, registering)
                             else {
@@ -189,7 +186,7 @@ internal fun AuthScreen(
                         if (busy) CircularProgressIndicator()
                         else Text(if (registering) localizedText("copy_da0e5f8dc9") else localizedText("copy_21f1e88275"))
                     }
-                    TextButton(
+                    FinanceTertiaryButton(
                         onClick = { registering = !registering; validationError = null },
                         enabled = !busy,
                         modifier = Modifier
@@ -229,7 +226,7 @@ internal fun WorkspaceAccessScreen(
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.Top,
     ) {
         Column(
             modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth(),
@@ -244,7 +241,7 @@ internal fun WorkspaceAccessScreen(
                     Text(localizedText("app_name"), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                     Text(session.user.email, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                TextButton(onClick = onLogout, enabled = !busy, modifier = Modifier.testTag(SemanticIds.workspaceLogout)) {
+                FinanceTertiaryButton(onClick = onLogout, enabled = !busy, modifier = Modifier.testTag(SemanticIds.workspaceLogout)) {
                     Text(localizedText("copy_094774b4a7"))
                 }
             }
@@ -258,7 +255,7 @@ internal fun WorkspaceAccessScreen(
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 )
-                TextButton(onClick = onRetry, enabled = !busy, modifier = Modifier.testTag(SemanticIds.workspaceRetry)) {
+                FinanceTertiaryButton(onClick = onRetry, enabled = !busy, modifier = Modifier.testTag(SemanticIds.workspaceRetry)) {
                     Text(localizedText("copy_e2d53a6d3a"))
                 }
             }
@@ -268,7 +265,7 @@ internal fun WorkspaceAccessScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     session.workspaces.forEach { workspace ->
-                        OutlinedButton(
+                        FinanceSecondaryButton(
                             onClick = { onSelect(workspace.id) },
                             enabled = !busy,
                             modifier = Modifier.fillMaxWidth(),
@@ -285,29 +282,21 @@ internal fun WorkspaceAccessScreen(
                     }
                 }
             }
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-            ) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            FinanceSurface(modifier = Modifier.fillMaxWidth()) {
                     Text(localizedText("copy_55e800686b"), style = MaterialTheme.typography.titleMedium)
-                    OutlinedTextField(
+                    LabeledInput(
                         value = workspaceName,
                         onValueChange = { workspaceName = it; nameError = false },
-                        modifier = Modifier.fillMaxWidth()
-                            .testTag(SemanticIds.workspaceCreateName)
-                            .semantics(mergeDescendants = true) { contentDescription = workspaceNameLabel },
+                        label = workspaceNameLabel,
+                        semanticId = SemanticIds.workspaceCreateName,
                         enabled = !busy,
-                        label = { Text(workspaceNameLabel) },
-                        placeholder = { Text(localizedText("copy_fa61cf04ca")) },
                         singleLine = true,
                         isError = nameError,
                     )
                     if (nameError) {
                         Text(localizedText("copy_b0b3a62d15"), color = MaterialTheme.colorScheme.error)
                     }
-                    Button(
+                    FinanceButton(
                         onClick = {
                             if (normalizedName == null) {
                                 nameError = true
@@ -319,7 +308,6 @@ internal fun WorkspaceAccessScreen(
                     ) {
                         Text(if (busy) localizedText("copy_f5fd2680d8") else localizedText("copy_d92d1b8da8"))
                     }
-                }
             }
         }
     }

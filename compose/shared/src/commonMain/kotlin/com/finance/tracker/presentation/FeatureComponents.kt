@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
@@ -19,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,6 +57,8 @@ internal fun FeaturePage(
     title: String,
     semanticId: String,
     modifier: Modifier = Modifier,
+    headerActions: (@Composable () -> Unit)? = null,
+    headerActionsInline: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
@@ -66,7 +70,15 @@ internal fun FeaturePage(
             .testTag(semanticId),
         verticalArrangement = Arrangement.spacedBy(GeneratedTokens.Core.Space.Token4),
     ) {
-        Text(title, modifier = Modifier.testTag("app-page-title"), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
+        if (headerActions != null && headerActionsInline) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(title, modifier = Modifier.testTag("app-page-title"), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
+                headerActions()
+            }
+        } else {
+            Text(title, modifier = Modifier.testTag("app-page-title"), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
+            headerActions?.invoke()
+        }
         content()
     }
 }
@@ -76,12 +88,7 @@ internal fun SectionCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Card(modifier = modifier, shape = MaterialTheme.shapes.medium) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(GeneratedTokens.Core.Space.Token4),
-            verticalArrangement = Arrangement.spacedBy(GeneratedTokens.Core.Space.Token3),
-        ) { content() }
-    }
+    FinanceSurface(modifier = modifier, content = content)
 }
 
 @Composable
@@ -97,7 +104,7 @@ internal fun LabeledInput(
     onBlur: (() -> Unit)? = null,
 ) {
     var wasFocused by remember(semanticId) { mutableStateOf(false) }
-    val tagged = (if (semanticId == null) modifier else modifier.testTag(semanticId)).onFocusChanged {
+    val tagged = modifier.onFocusChanged {
         if (it.isFocused) {
             wasFocused = true
         } else if (wasFocused) {
@@ -105,15 +112,15 @@ internal fun LabeledInput(
             onBlur?.invoke()
         }
     }
-    OutlinedTextField(
+    FinanceTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label) },
-        modifier = tagged.semantics(mergeDescendants = true) { contentDescription = label }.fillMaxWidth(),
+        label = label,
+        modifier = tagged,
+        semanticId = semanticId,
         singleLine = singleLine,
         enabled = enabled,
         isError = isError,
-        shape = MaterialTheme.shapes.small,
     )
 }
 
@@ -283,9 +290,10 @@ internal fun ChoicePicker(
     var expanded by remember(label) { mutableStateOf(false) }
     val selectedLabel = options.firstOrNull { it.first == value }?.second ?: value.ifEmpty { localizedText("copy_778fc8f994") }
     val trigger: @Composable () -> Unit = {
-        TextButton(
+        FinanceButton(
             onClick = { expanded = !expanded },
             enabled = enabled,
+            variant = FinanceButtonVariant.Secondary,
             modifier = (if (semanticId == null) Modifier else Modifier.testTag(semanticId)).fillMaxWidth(),
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -298,7 +306,12 @@ internal fun ChoicePicker(
         Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             trigger()
             if (expanded) {
-                Card(shape = RoundedCornerShape(16.dp)) {
+                val menuShape = RoundedCornerShape(6.dp)
+                Card(
+                    modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, menuShape),
+                    shape = menuShape,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                ) {
                     Column(
                         modifier = Modifier
                             .heightIn(max = 420.dp)
@@ -378,7 +391,7 @@ internal fun InlineError(text: String?) {
 
 @Composable
 internal fun BusyButton(label: String, busy: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    Button(onClick = onClick, enabled = enabled && !busy, modifier = modifier) {
+    FinanceButton(onClick = onClick, enabled = enabled, loading = busy, modifier = modifier) {
         Text(if (busy) localizedText("copy_1cac8ac7f5") else label)
     }
 }

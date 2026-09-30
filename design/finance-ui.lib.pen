@@ -1,0 +1,1441 @@
+{
+  "version": "2.19",
+  "children": [
+    {
+      "type": "frame",
+      "id": "DPjBN",
+      "x": 150,
+      "y": 0,
+      "name": "Finance/Button/Primary",
+      "context": "Button - button",
+      "reusable": true,
+      "height": 36,
+      "fill": "#0485f7",
+      "cornerRadius": 24,
+      "layout": "vertical",
+      "padding": [
+        0,
+        16
+      ],
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "AB4rU",
+          "fill": "#fcfcfc",
+          "content": "Primary",
+          "lineHeight": 1.43,
+          "textAlign": "center",
+          "fontFamily": "Roboto",
+          "fontSize": 14,
+          "fontWeight": "500"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "CjC40",
+      "x": 0,
+      "y": 0,
+      "name": "Finance/Button/Primary",
+      "context": "Button - button",
+      "reusable": true,
+      "height": 36,
+      "fill": "#0485f7",
+      "cornerRadius": 24,
+      "layout": "vertical",
+      "padding": [
+        0,
+        16
+      ],
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "IWqn3",
+          "fill": "#fcfcfc",
+          "content": "Primary",
+          "lineHeight": 1.43,
+          "textAlign": "center",
+          "fontFamily": "Roboto",
+          "fontSize": 14,
+          "fontWeight": "500"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "uEyLt",
+      "x": 0,
+      "y": 80,
+      "name": "Finance/Button/Secondary",
+      "context": "Button - button",
+      "reusable": true,
+      "height": 36,
+      "fill": "#ebebec",
+      "cornerRadius": 24,
+      "layout": "vertical",
+      "padding": [
+        0,
+        16
+      ],
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "Wee4B",
+          "fill": "#1e63ae",
+          "content": "Secondary",
+          "lineHeight": 1.43,
+          "textAlign": "center",
+          "fontFamily": "Roboto",
+          "fontSize": 14,
+          "fontWeight": "500"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Yw0Z4",
+      "x": 0,
+      "y": 160,
+      "name": "Finance/Button/Danger",
+      "context": "Button - button",
+      "reusable": true,
+      "height": 36,
+      "fill": "#c8372b",
+      "cornerRadius": 24,
+      "layout": "vertical",
+      "padding": [
+        0,
+        16
+      ],
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "BN8Aq",
+          "fill": "#ffffff",
+          "content": "删除工作区",
+          "lineHeight": 1.43,
+          "textAlign": "center",
+          "fontFamily": "Roboto",
+          "fontSize": 14,
+          "fontWeight": "500"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Q2EsN",
+      "x": 180,
+      "y": 0,
+      "name": "Finance/TextField",
+      "context": "label",
+      "reusable": true,
+      "width": 436,
+      "height": 68,
+      "layout": "vertical",
+      "gap": 8,
+      "children": [
+        {
+          "type": "text",
+          "id": "lkemR",
+          "name": "Account name",
+          "fill": "#18181b",
+          "content": "Account name",
+          "lineHeight": 1.5,
+          "fontFamily": "Roboto",
+          "fontSize": 16,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "f2Ugm",
+          "name": "Enter account",
+          "context": "Input - input",
+          "clip": true,
+          "width": "fill_container",
+          "height": 36,
+          "fill": "#ffffff",
+          "cornerRadius": 12,
+          "effect": [
+            {
+              "type": "shadow",
+              "shadowType": "outer",
+              "color": "#0000000a",
+              "offset": {
+                "x": 0,
+                "y": 2
+              },
+              "blur": 4
+            },
+            {
+              "type": "shadow",
+              "shadowType": "outer",
+              "color": "#0000000f",
+              "offset": {
+                "x": 0,
+                "y": 1
+              },
+              "blur": 2
+            },
+            {
+              "type": "shadow",
+              "shadowType": "outer",
+              "color": "#0000000f",
+              "blur": 1
+            }
+          ],
+          "layout": "vertical",
+          "padding": [
+            8,
+            12
+          ],
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "YDsht",
+              "fill": "#71717a",
+              "content": "Enter account",
+              "lineHeight": 1.43,
+              "fontFamily": "Roboto",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "ydzXW",
+      "x": 180,
+      "y": 100,
+      "name": "Finance/Select",
+      "context": "Button - button",
+      "reusable": true,
+      "width": 436,
+      "height": 36,
+      "fill": "#ffffff",
+      "cornerRadius": 12,
+      "effect": [
+        {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#0000000a",
+          "offset": {
+            "x": 0,
+            "y": 2
+          },
+          "blur": 4
+        },
+        {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#0000000f",
+          "offset": {
+            "x": 0,
+            "y": 1
+          },
+          "blur": 2
+        },
+        {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#0000000f",
+          "blur": 1
+        }
+      ],
+      "padding": [
+        8,
+        12
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "qt1Ap",
+          "name": "选择一个项目",
+          "context": "SelectValue - span",
+          "fill": "#71717a",
+          "content": "选择一个项目",
+          "lineHeight": 1.43,
+          "fontFamily": "Roboto",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "HlECT",
+      "x": 520,
+      "y": 0,
+      "name": "Finance/DataTable",
+      "context": "HeroUI.Table - div",
+      "reusable": true,
+      "width": 720,
+      "height": 130,
+      "fill": "#efeff0",
+      "cornerRadius": 20,
+      "padding": [
+        0,
+        4,
+        4,
+        4
+      ],
+      "children": [
+        {
+          "type": "frame",
+          "id": "Nz2dK",
+          "name": "table",
+          "context": "TableElementType - table",
+          "clip": true,
+          "width": "fill_container",
+          "height": 126,
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "ehqVm",
+              "name": "tr",
+              "context": "TableHeaderRowElementType - tr",
+              "fill": "#efeff0",
+              "stroke": "#e4e4e780",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "strokeAlignment": "inner",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "d0rvn",
+                  "name": "日期",
+                  "context": "ColumnElementType - th",
+                  "width": 237.05,
+                  "height": 36,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "i2kup",
+                      "x": 0,
+                      "y": 0,
+                      "width": 237.05,
+                      "height": 36,
+                      "layout": "vertical",
+                      "padding": [
+                        10,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Puoo1",
+                          "fill": "#71717a",
+                          "content": "日期",
+                          "lineHeight": 1.33,
+                          "fontFamily": "Roboto",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "rectangle",
+                      "cornerRadius": 4,
+                      "id": "CVUeL",
+                      "x": 236.06,
+                      "y": 18,
+                      "name": "Icon",
+                      "fill": "#e4e4e7",
+                      "width": 1,
+                      "height": 16
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "wGVzs",
+                  "name": "账户",
+                  "context": "ColumnElementType - th",
+                  "width": 186.2,
+                  "height": 36,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "b8pNRk",
+                      "x": 0,
+                      "y": 0,
+                      "width": 186.2,
+                      "height": 36,
+                      "layout": "vertical",
+                      "padding": [
+                        10,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "IK5QY",
+                          "fill": "#71717a",
+                          "content": "账户",
+                          "lineHeight": 1.33,
+                          "fontFamily": "Roboto",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "rectangle",
+                      "cornerRadius": 4,
+                      "id": "Xsm3U",
+                      "x": 185.21,
+                      "y": 18,
+                      "name": "Icon",
+                      "fill": "#e4e4e7",
+                      "width": 1,
+                      "height": 16
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "X6se9h",
+                  "name": "金额",
+                  "context": "ColumnElementType - th",
+                  "width": 288.74,
+                  "height": 36,
+                  "layout": "vertical",
+                  "padding": [
+                    10,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Vd4e2",
+                      "fill": "#71717a",
+                      "content": "金额",
+                      "lineHeight": 1.33,
+                      "fontFamily": "Roboto",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "KbVRF",
+              "name": "tbody",
+              "context": "TableBodyElementType - tbody",
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "B2riop",
+                  "name": "tr",
+                  "context": "TableRowElementType - tr",
+                  "stroke": "#e4e4e780",
+                  "strokeWidth": {
+                    "bottom": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "padding": [
+                    0,
+                    0,
+                    1,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "HNSFy",
+                      "name": "2026-09-29",
+                      "context": "TableCellElementType - td",
+                      "width": 237.05,
+                      "height": 45,
+                      "fill": "#ffffff",
+                      "cornerRadius": [
+                        16,
+                        0,
+                        0,
+                        0
+                      ],
+                      "stroke": "#cdcdce80",
+                      "strokeWidth": {
+                        "bottom": 1
+                      },
+                      "strokeAlignment": "inner",
+                      "layout": "vertical",
+                      "padding": [
+                        12,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "GTsyB",
+                          "fill": "#18181b",
+                          "content": "2026-09-29",
+                          "lineHeight": 1.43,
+                          "fontFamily": "Roboto",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "HInZT",
+                      "name": "日常账户",
+                      "context": "TableCellElementType - td",
+                      "width": 186.2,
+                      "height": 45,
+                      "fill": "#ffffff",
+                      "stroke": "#cdcdce80",
+                      "strokeWidth": {
+                        "bottom": 1
+                      },
+                      "strokeAlignment": "inner",
+                      "layout": "vertical",
+                      "padding": [
+                        12,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "lxt9j",
+                          "fill": "#18181b",
+                          "content": "日常账户",
+                          "lineHeight": 1.43,
+                          "fontFamily": "Roboto",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "J00Nyz",
+                      "name": "-12.50 CNY",
+                      "context": "TableCellElementType - td",
+                      "width": 288.74,
+                      "height": 45,
+                      "fill": "#ffffff",
+                      "cornerRadius": [
+                        0,
+                        16,
+                        0,
+                        0
+                      ],
+                      "stroke": "#cdcdce80",
+                      "strokeWidth": {
+                        "bottom": 1
+                      },
+                      "strokeAlignment": "inner",
+                      "layout": "vertical",
+                      "padding": [
+                        12,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "nnCxA",
+                          "fill": "#18181b",
+                          "content": "-12.50 CNY",
+                          "lineHeight": 1.43,
+                          "fontFamily": "Roboto",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "MnH92",
+                  "name": "tr",
+                  "context": "TableRowElementType - tr",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "qwlkz",
+                      "name": "2026-09-28",
+                      "context": "TableCellElementType - td",
+                      "width": 237.05,
+                      "height": 45,
+                      "fill": "#ffffff",
+                      "cornerRadius": [
+                        0,
+                        0,
+                        0,
+                        16
+                      ],
+                      "stroke": "#cdcdce80",
+                      "strokeWidth": {
+                        "bottom": 1
+                      },
+                      "strokeAlignment": "inner",
+                      "layout": "vertical",
+                      "padding": [
+                        12,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ccHj4",
+                          "fill": "#18181b",
+                          "content": "2026-09-28",
+                          "lineHeight": 1.43,
+                          "fontFamily": "Roboto",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "SFaSw",
+                      "name": "工资账户",
+                      "context": "TableCellElementType - td",
+                      "width": 186.2,
+                      "height": 45,
+                      "fill": "#ffffff",
+                      "stroke": "#cdcdce80",
+                      "strokeWidth": {
+                        "bottom": 1
+                      },
+                      "strokeAlignment": "inner",
+                      "layout": "vertical",
+                      "padding": [
+                        12,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "PkmBC",
+                          "fill": "#18181b",
+                          "content": "工资账户",
+                          "lineHeight": 1.43,
+                          "fontFamily": "Roboto",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "X0nmI",
+                      "name": "+12,480.00 CNY",
+                      "context": "TableCellElementType - td",
+                      "width": 288.74,
+                      "height": 45,
+                      "fill": "#ffffff",
+                      "cornerRadius": [
+                        0,
+                        0,
+                        16,
+                        0
+                      ],
+                      "stroke": "#cdcdce80",
+                      "strokeWidth": {
+                        "bottom": 1
+                      },
+                      "strokeAlignment": "inner",
+                      "layout": "vertical",
+                      "padding": [
+                        12,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "D2UD3h",
+                          "fill": "#18181b",
+                          "content": "+12,480.00 CNY",
+                          "lineHeight": 1.43,
+                          "fontFamily": "Roboto",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "eEZhY",
+      "x": 520,
+      "y": 160,
+      "name": "Finance/Amount",
+      "reusable": true,
+      "width": 180,
+      "height": 44,
+      "layout": "vertical",
+      "justifyContent": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "fIWU1",
+          "name": "Amount value",
+          "fill": "#18181B",
+          "content": "+12,480.00 CNY",
+          "fontFamily": "Roboto",
+          "fontSize": 18,
+          "fontWeight": "600"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "TX067",
+      "x": 0,
+      "y": 260,
+      "name": "Finance/FilterBar",
+      "reusable": true,
+      "width": 720,
+      "height": 150,
+      "fill": "$finance.surface",
+      "layout": "vertical",
+      "gap": 12,
+      "padding": 16,
+      "children": [
+        {
+          "type": "text",
+          "id": "NPbR8",
+          "name": "Filter heading",
+          "fill": "$finance.foreground",
+          "content": "筛选收支",
+          "fontFamily": "Roboto",
+          "fontSize": 16,
+          "fontWeight": "600"
+        },
+        {
+          "type": "frame",
+          "id": "CRlwP",
+          "name": "Filter account",
+          "context": "Button - button",
+          "reusable": true,
+          "width": 436,
+          "height": 36,
+          "fill": "#ffffff",
+          "cornerRadius": 12,
+          "effect": [
+            {
+              "type": "shadow",
+              "shadowType": "outer",
+              "color": "#0000000a",
+              "offset": {
+                "x": 0,
+                "y": 2
+              },
+              "blur": 4
+            },
+            {
+              "type": "shadow",
+              "shadowType": "outer",
+              "color": "#0000000f",
+              "offset": {
+                "x": 0,
+                "y": 1
+              },
+              "blur": 2
+            },
+            {
+              "type": "shadow",
+              "shadowType": "outer",
+              "color": "#0000000f",
+              "blur": 1
+            }
+          ],
+          "padding": [
+            8,
+            12
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "lFoT0",
+              "name": "选择一个项目",
+              "context": "SelectValue - span",
+              "fill": "#71717a",
+              "content": "选择一个项目",
+              "lineHeight": 1.43,
+              "fontFamily": "Roboto",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "S9YQOj",
+      "x": 1400,
+      "y": 380,
+      "name": "Finance/DataTable/InvestmentHoldings",
+      "reusable": true,
+      "clip": true,
+      "width": 1136,
+      "height": 108,
+      "fill": "#ffffff",
+      "cornerRadius": 8,
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "IK0hw",
+          "name": "表头",
+          "width": "fill_container",
+          "height": 38,
+          "fill": "#efeff0",
+          "gap": 8,
+          "padding": [
+            0,
+            14
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "RbZB0",
+              "name": "标的 / 账户列",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": 220,
+              "content": "标的 / 账户",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "rMNlq",
+              "name": "当前单价 / 平均成本列",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": 218,
+              "content": "当前单价 / 平均成本",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "q58tyV",
+              "name": "数量列",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": 80,
+              "content": "数量",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "WJ8uA",
+              "name": "当前市值列",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": 134,
+              "content": "当前市值",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "RwbuQ",
+              "name": "仓位列",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": 98,
+              "content": "仓位",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "Uwmsa",
+              "name": "浮盈亏列",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": 142,
+              "content": "浮盈亏",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "xavFs",
+              "name": "近 24 小时列",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": 168,
+              "content": "近 24 小时",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "oSIoV",
+          "name": "第 1 行",
+          "width": "fill_container",
+          "height": 70,
+          "fill": "#ffffff",
+          "gap": 8,
+          "padding": [
+            0,
+            14
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "X4Azaq",
+              "name": "标的 / 账户值",
+              "fill": "#202124",
+              "textGrowth": "fixed-width",
+              "width": 220,
+              "content": "Apple · AAPL\n证券账户",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "cVZVg",
+              "name": "当前单价 / 平均成本值",
+              "fill": "#52565d",
+              "textGrowth": "fixed-width",
+              "width": 218,
+              "content": "110 USD / 100 USD",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "gqnm7",
+              "name": "数量值",
+              "fill": "#52565d",
+              "textGrowth": "fixed-width",
+              "width": 80,
+              "content": "2",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "zHRRk",
+              "name": "当前市值值",
+              "fill": "#52565d",
+              "textGrowth": "fixed-width",
+              "width": 134,
+              "content": "220 USD",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "K3blc",
+              "name": "仓位值",
+              "fill": "#52565d",
+              "textGrowth": "fixed-width",
+              "width": 98,
+              "content": "+100%",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "E6M2TA",
+              "name": "浮盈亏值",
+              "fill": "#52565d",
+              "textGrowth": "fixed-width",
+              "width": 142,
+              "content": "+20 USD\n+10%",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "P9BMXj",
+              "name": "近 24 小时值",
+              "fill": "#14865a",
+              "textGrowth": "fixed-width",
+              "width": 168,
+              "content": "+8 USD\n+4%",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "tfdGo",
+      "x": 1400,
+      "y": 600,
+      "name": "Finance/DataTable/InvestmentEvents",
+      "reusable": true,
+      "clip": true,
+      "width": 1136,
+      "height": 179,
+      "fill": "#ffffff",
+      "cornerRadius": 8,
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "lZEPR",
+          "name": "表头",
+          "width": "fill_container",
+          "height": 38,
+          "fill": "#efeff0",
+          "gap": 8,
+          "padding": [
+            0,
+            14
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "ipBdX",
+              "name": "发生时间列",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": 160,
+              "content": "发生时间",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "dehGD",
+              "name": "账户列",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": 120,
+              "content": "账户",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "XTH7o",
+              "name": "事件列",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": 84,
+              "content": "事件",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "Dth74",
+              "name": "资产变化列",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": 320,
+              "content": "资产变化",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "YkTem",
+              "name": "手续费列",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": 94,
+              "content": "手续费",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "YFygO",
+              "name": "备注列",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": 212,
+              "content": "备注",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "X876C",
+              "name": "查看列",
+              "fill": "#6f7279",
+              "textGrowth": "fixed-width",
+              "width": 70,
+              "content": "查看",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "g7J3d",
+          "name": "第 1 行",
+          "width": "fill_container",
+          "height": 70,
+          "fill": "#ffffff",
+          "gap": 8,
+          "padding": [
+            0,
+            14
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "g4Zta7",
+              "name": "发生时间值",
+              "fill": "#202124",
+              "textGrowth": "fixed-width",
+              "width": 160,
+              "content": "9 月 24 日 10:30",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "x0SVG",
+              "name": "账户值",
+              "fill": "#52565d",
+              "textGrowth": "fixed-width",
+              "width": 120,
+              "content": "证券账户",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "q9Guz",
+              "name": "事件值",
+              "fill": "#52565d",
+              "textGrowth": "fixed-width",
+              "width": 84,
+              "content": "买入",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "hQQkP",
+              "name": "资产变化值",
+              "fill": "#52565d",
+              "textGrowth": "fixed-width",
+              "width": 320,
+              "content": "流出 -220 USD\n流入 +2 AAPL",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "a0sep",
+              "name": "手续费值",
+              "fill": "#52565d",
+              "textGrowth": "fixed-width",
+              "width": 94,
+              "content": "1 USD",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "jL51M",
+              "name": "备注值",
+              "fill": "#52565d",
+              "textGrowth": "fixed-width",
+              "width": 212,
+              "content": "买入苹果",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "c71VxX",
+              "name": "查看值",
+              "fill": "#14865a",
+              "textGrowth": "fixed-width",
+              "width": 70,
+              "content": "查看",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "WS51c",
+          "name": "行分隔线",
+          "fill": "#e4e4e7",
+          "width": "fill_container",
+          "height": 1
+        },
+        {
+          "type": "frame",
+          "id": "POdWj",
+          "name": "第 2 行",
+          "width": "fill_container",
+          "height": 70,
+          "fill": "#ffffff",
+          "gap": 8,
+          "padding": [
+            0,
+            14
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "MQSQk",
+              "name": "发生时间值",
+              "fill": "#202124",
+              "textGrowth": "fixed-width",
+              "width": 160,
+              "content": "9 月 24 日 10:30",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "NhHJ8",
+              "name": "账户值",
+              "fill": "#52565d",
+              "textGrowth": "fixed-width",
+              "width": 120,
+              "content": "证券账户",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "t3axu4",
+              "name": "事件值",
+              "fill": "#52565d",
+              "textGrowth": "fixed-width",
+              "width": 84,
+              "content": "买入",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "oiGrt",
+              "name": "资产变化值",
+              "fill": "#52565d",
+              "textGrowth": "fixed-width",
+              "width": 320,
+              "content": "流出 -220 USD\n流入 +2 AAPL",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "x3pAq",
+              "name": "手续费值",
+              "fill": "#52565d",
+              "textGrowth": "fixed-width",
+              "width": 94,
+              "content": "1 USD",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "aXKlg",
+              "name": "备注值",
+              "fill": "#52565d",
+              "textGrowth": "fixed-width",
+              "width": 212,
+              "content": "第二条投资事件",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "R5uCZO",
+              "name": "查看值",
+              "fill": "#14865a",
+              "textGrowth": "fixed-width",
+              "width": 70,
+              "content": "查看",
+              "fontFamily": "Roboto",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "themes": {
+    "mode": [
+      "light",
+      "dark"
+    ]
+  },
+  "variables": {
+    "finance.background": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#F5F5F5",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#060607",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "finance.surface": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#FFFFFF",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#18181B",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "finance.foreground": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#18181B",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#FCFCFC",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "finance.accent": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#0485F7",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#0485F7",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "finance.danger": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#D92D20",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#F04438",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "finance.radius": {
+      "type": "number",
+      "value": 12
+    }
+  },
+  "fileToken": "86a6396e-bb69-48a1-ba85-b24dd0d1a109"
+}

@@ -4,8 +4,11 @@ import com.finance.tracker.core.*
 import com.finance.tracker.domain.*
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -13,13 +16,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -54,14 +54,14 @@ internal fun CashRecordDetailDialog(
         SectionCard(modifier = Modifier.fillMaxWidth().widthIn(max = 720.dp).heightIn(max = 760.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(localizedText("copy_8cb72a44a5"), style = MaterialTheme.typography.headlineSmall)
-                TextButton(onClick = onClose) { Text(localizedText("copy_6c14bd7f6f")) }
+                FinanceTertiaryButton(onClick = onClose) { Text(localizedText("copy_6c14bd7f6f")) }
             }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 when {
                     state.recordLoading -> Text(localizedText("copy_875adbe057"))
                     state.recordErrorCode != null -> {
                         InlineError(ledgerErrorText(state.recordErrorCode))
-                        TextButton(onClick = viewModel::retrySelectedRow) { Text(localizedText("copy_e2d53a6d3a")) }
+                        FinanceTertiaryButton(onClick = viewModel::retrySelectedRow) { Text(localizedText("copy_e2d53a6d3a")) }
                     }
                     record != null -> {
                         Text(record.counterparty.ifBlank { record.accountName }, style = MaterialTheme.typography.titleLarge)
@@ -104,7 +104,7 @@ internal fun CashRecordDetailDialog(
                             Text(localizedText("copy_457760bf31", related?.let { cashRecordTypeLabel(it.recordType, options) } ?: "-", cashCategoryDisplayPath(related?.category)))
                             Text(localizedText("copy_abe9e9d5a4", related?.note?.ifBlank { "-" } ?: "-", related?.sourceType ?: "-"))
                             relatedEvidence?.let { Text(localizedText("copy_7c1393b787", cashEvidenceMemberImpactLabel(it))) }
-                            TextButton(onClick = { related?.let(onEditRelated) }, enabled = canWrite && !relationBusy && related != null) { Text(localizedText("copy_6a5c4515c6")) }
+                            FinanceTertiaryButton(onClick = { related?.let(onEditRelated) }, enabled = canWrite && !relationBusy && related != null) { Text(localizedText("copy_6a5c4515c6")) }
                             if (state.editingRelationId == relation.id) {
                                 ChoicePicker(
                                     localizedText("copy_2ce741e7ab"),
@@ -114,19 +114,19 @@ internal fun CashRecordDetailDialog(
                                     enabled = canWrite && !relationBusy,
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    TextButton(
+                                    FinanceTertiaryButton(
                                         onClick = { viewModel.saveRelationEdit(canWrite) },
                                         enabled = canWrite && !relationBusy && state.editingRelationKind != relation.kind,
                                     ) { Text(localizedText("copy_fadf24dbc5")) }
-                                    TextButton(onClick = viewModel::cancelEditingRelation, enabled = !relationBusy) { Text(localizedText("copy_4d0b4688c7")) }
+                                    FinanceTertiaryButton(onClick = viewModel::cancelEditingRelation, enabled = !relationBusy) { Text(localizedText("copy_4d0b4688c7")) }
                                 }
                             } else {
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    TextButton(
+                                    FinanceTertiaryButton(
                                         onClick = { viewModel.beginEditingRelation(relation.id, relation.kind) },
                                         enabled = canWrite && !relationBusy,
                                     ) { Text(localizedText("copy_9a0d4d4a96")) }
-                                    TextButton(
+                                    FinanceTertiaryButton(
                                         onClick = { viewModel.cancelRelation(relation.id, canWrite) },
                                         enabled = canWrite && !relationBusy,
                                     ) { Text(localizedText("copy_e490abc2fa")) }
@@ -146,7 +146,7 @@ internal fun CashRecordDetailDialog(
                             if (state.relationLoadError) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Text(localizedText("copy_9af3904f9f"), color = MaterialTheme.colorScheme.error)
-                                    TextButton(onClick = viewModel::retryRelationPage, enabled = !relationBusy) { Text(localizedText("copy_e2d53a6d3a")) }
+                                    FinanceTertiaryButton(onClick = viewModel::retryRelationPage, enabled = !relationBusy) { Text(localizedText("copy_e2d53a6d3a")) }
                                 }
                             }
                             if (!relationBusy && !state.relationLoadError && state.relationCandidates.isEmpty() && isValidCashRelationDateFilter(state.relationDateFrom, state.relationDateTo)) {
@@ -170,14 +170,14 @@ internal fun CashRecordDetailDialog(
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                     Text(localizedText("copy_d2fee7cb23", state.relationPageNumber), style = MaterialTheme.typography.bodySmall)
                                     Row {
-                                        TextButton(onClick = viewModel::previousRelationPage, enabled = state.relationPageNumber > 1 && !relationBusy) { Text(localizedText("copy_b41561d807")) }
-                                        TextButton(onClick = viewModel::nextRelationPage, enabled = state.relationNextCursor != null && !relationBusy) { Text(localizedText("copy_67a246a344")) }
+                                        FinanceTertiaryButton(onClick = viewModel::previousRelationPage, enabled = state.relationPageNumber > 1 && !relationBusy) { Text(localizedText("copy_b41561d807")) }
+                                        FinanceTertiaryButton(onClick = viewModel::nextRelationPage, enabled = state.relationNextCursor != null && !relationBusy) { Text(localizedText("copy_67a246a344")) }
                                     }
                                 }
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                TextButton(onClick = viewModel::closeRelationComposer) { Text(localizedText("copy_4d0b4688c7")) }
-                                Button(
+                                FinanceTertiaryButton(onClick = viewModel::closeRelationComposer) { Text(localizedText("copy_4d0b4688c7")) }
+                                FinanceButton(
                                     onClick = { viewModel.createRelation(canWrite) },
                                     enabled = canWrite && state.relationTarget != null && !relationBusy,
                                 ) { Text(if (relationBusy) localizedText("copy_12c5c83f56") else localizedText("copy_8120c99c99")) }
@@ -192,13 +192,13 @@ internal fun CashRecordDetailDialog(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (record != null && canWrite) {
-                    Button(onClick = onEdit) { Text(localizedText("copy_a7f814c0a4")) }
-                    TextButton(onClick = viewModel::openRelationComposer, enabled = !relationBusy) { Text(localizedText("copy_695c4cd2e6")) }
-                    TextButton(
+                    FinanceButton(onClick = onEdit) { Text(localizedText("copy_a7f814c0a4")) }
+                    FinanceTertiaryButton(onClick = viewModel::openRelationComposer, enabled = !relationBusy) { Text(localizedText("copy_695c4cd2e6")) }
+                    FinanceTertiaryButton(
                         onClick = { viewModel.dissolveRelations(canWrite) },
                         enabled = !relationBusy && detail.relations.any { it.status == "accepted" },
                     ) { Text(localizedText("copy_833237e41b")) }
-                    TextButton(onClick = { viewModel.requestDeleteRecord(canWrite) }, enabled = !state.deleteRecordBusy) { Text(localizedText("copy_3755f56f2f")) }
+                    FinanceTertiaryButton(onClick = { viewModel.requestDeleteRecord(canWrite) }, enabled = !state.deleteRecordBusy) { Text(localizedText("copy_3755f56f2f")) }
                 }
             }
         }
@@ -216,17 +216,17 @@ internal fun CashRecordDetailDialog(
             },
             confirmButton = {
                 Row {
-                    TextButton(
+                    FinanceTertiaryButton(
                         onClick = { viewModel.deleteRecord("delete_current_dissolve", canWrite) },
                         enabled = !state.deleteRecordBusy,
                     ) { Text(if (detail.relations.any { it.status == "accepted" }) localizedText("copy_6f762bedaa") else localizedText("copy_3c06abe116")) }
-                    if (detail.relations.any { it.status == "accepted" }) TextButton(
+                    if (detail.relations.any { it.status == "accepted" }) FinanceTertiaryButton(
                         onClick = { viewModel.deleteRecord("delete_all", canWrite) },
                         enabled = !state.deleteRecordBusy,
                     ) { Text(localizedText("copy_22edecb09e")) }
                 }
             },
-            dismissButton = { TextButton(onClick = viewModel::dismissDeleteRecord, enabled = !state.deleteRecordBusy) { Text(localizedText("copy_4d0b4688c7")) } },
+            dismissButton = { FinanceTertiaryButton(onClick = viewModel::dismissDeleteRecord, enabled = !state.deleteRecordBusy) { Text(localizedText("copy_4d0b4688c7")) } },
         )
     }
 }
@@ -249,25 +249,34 @@ internal fun CashRecordEditorDialog(
     val selectedAccount = accounts.firstOrNull { it.name == draft.accountName }
     val selectedType = options.recordTypes.firstOrNull { it.value == draft.recordType }
     Dialog(onDismissRequest = { if (!busy) onCancel() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        SectionCard(modifier = Modifier.fillMaxWidth().widthIn(max = 720.dp).heightIn(max = 800.dp)) {
+        Box(
+            modifier = Modifier.fillMaxSize().padding(if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 16.dp),
+            contentAlignment = if (sizeClass == WindowSizeClass.COMPACT) Alignment.Center else Alignment.CenterEnd,
+        ) {
+        SectionCard(modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth().fillMaxHeight()) {
             Text(if (draft.id == null) localizedText("copy_1f62e3f53f") else localizedText("copy_6a5c4515c6"), style = MaterialTheme.typography.headlineSmall)
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DateTimePickerInput(
-                    draft.occurredAt,
-                    { onChange(draft.copy(occurredAt = it)) },
-                    localizedText("copy_51f85a78ca"),
-                    sizeClass,
-                    onInvalidValue = onInvalidDateTime,
-                )
                 if (sizeClass == WindowSizeClass.COMPACT) {
-                    LabeledInput(draft.amount, { onChange(draft.copy(amount = it)) }, localizedText("copy_34943c40c9"), semanticId = SemanticIds.recordAmount, isError = draft.amount.isNotBlank() && !isExactDecimalString(draft.amount), onBlur = { if (draft.amount.isNotBlank() && !isExactDecimalString(draft.amount)) onInvalidAmount() })
-                    ChoicePicker(localizedText("copy_a81ab5e100"), draft.currency, (selectedAccount?.currencies.orEmpty().ifEmpty { listOf(draft.currency) }).distinct().map { it to it }, { onChange(draft.copy(currency = it)) }, semanticId = SemanticIds.recordCurrency)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LabeledInput(draft.amount, { onChange(draft.copy(amount = it)) }, localizedText("copy_34943c40c9"), modifier = Modifier.weight(2f), semanticId = SemanticIds.recordAmount, isError = draft.amount.isNotBlank() && !isExactDecimalString(draft.amount), onBlur = { if (draft.amount.isNotBlank() && !isExactDecimalString(draft.amount)) onInvalidAmount() })
+                        ChoicePicker(localizedText("copy_a81ab5e100"), draft.currency, (selectedAccount?.currencies.orEmpty().ifEmpty { listOf(draft.currency) }).distinct().map { it to it }, { onChange(draft.copy(currency = it)) }, Modifier.weight(1f), semanticId = SemanticIds.recordCurrency)
+                    }
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         LabeledInput(draft.amount, { onChange(draft.copy(amount = it)) }, localizedText("copy_34943c40c9"), modifier = Modifier.weight(1f), semanticId = SemanticIds.recordAmount, isError = draft.amount.isNotBlank() && !isExactDecimalString(draft.amount), onBlur = { if (draft.amount.isNotBlank() && !isExactDecimalString(draft.amount)) onInvalidAmount() })
                         ChoicePicker(localizedText("copy_a81ab5e100"), draft.currency, (selectedAccount?.currencies.orEmpty().ifEmpty { listOf(draft.currency) }).distinct().map { it to it }, { onChange(draft.copy(currency = it)) }, Modifier.weight(1f), semanticId = SemanticIds.recordCurrency)
                     }
                 }
+                LabeledInput(draft.counterparty, { onChange(draft.copy(counterparty = it)) }, localizedText("copy_4b5a03c119"), semanticId = SemanticIds.recordCounterparty)
+                LabeledInput(draft.counterpartyAccount, { onChange(draft.copy(counterpartyAccount = it)) }, localizedText("copy_27a7edc87c"), semanticId = SemanticIds.recordCounterpartyAccount)
+                DateTimePickerInput(
+                    draft.occurredAt,
+                    { onChange(draft.copy(occurredAt = it)) },
+                    localizedText("copy_51f85a78ca"),
+                    sizeClass,
+                    modifier = Modifier.testTag(SemanticIds.recordOccurredAt),
+                    onInvalidValue = onInvalidDateTime,
+                )
                 ChoicePicker(localizedText("copy_c3d92b20c8"), draft.accountName, accounts.map { it.name to it.name }, { accountName ->
                     val next = accounts.firstOrNull { it.name == accountName }
                     onChange(draft.copy(accountName = accountName, currency = next?.currencies?.firstOrNull() ?: draft.currency))
@@ -278,15 +287,14 @@ internal fun CashRecordEditorDialog(
                 }, semanticId = SemanticIds.recordType)
                 if (selectedType?.subtypes?.isNotEmpty() == true) ChoicePicker(localizedText("copy_1fcff8b8d5"), draft.recordSubtype, selectedType.subtypes.map { it.value to it.label }, { onChange(draft.copy(recordSubtype = it)) })
                 ChoicePicker(localizedText("copy_a42e73f0a7"), draft.categoryId.orEmpty(), listOf("" to localizedText("copy_f11956caf6")) + categories.map { it.id to it.name }, { onChange(draft.copy(categoryId = it.ifEmpty { null })) }, semanticId = SemanticIds.recordCategory)
-                LabeledInput(draft.counterparty, { onChange(draft.copy(counterparty = it)) }, localizedText("copy_4b5a03c119"), semanticId = SemanticIds.recordCounterparty)
-                LabeledInput(draft.counterpartyAccount, { onChange(draft.copy(counterpartyAccount = it)) }, localizedText("copy_27a7edc87c"))
                 LabeledInput(draft.note, { onChange(draft.copy(note = it)) }, localizedText("copy_e0361480e3"), semanticId = SemanticIds.recordNote, singleLine = false)
                 InlineError(error)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onCancel, enabled = !busy, modifier = Modifier.testTag(SemanticIds.recordCancel)) { Text(localizedText("copy_4d0b4688c7")) }
-                Button(onClick = onSave, enabled = !busy && draft.amount.isNotBlank() && isExactDecimalString(draft.amount) && draft.accountName.isNotBlank() && draft.recordType.isNotBlank() && isValidLocalDateTime(draft.occurredAt), modifier = Modifier.testTag(SemanticIds.recordSave)) { Text(if (busy) localizedText("copy_6644f06197") else localizedText("copy_fadf24dbc5")) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                FinanceTertiaryButton(onClick = onCancel, enabled = !busy, modifier = Modifier.testTag(SemanticIds.recordCancel)) { Text(localizedText("copy_4d0b4688c7")) }
+                FinanceButton(onClick = onSave, enabled = !busy && draft.amount.isNotBlank() && isExactDecimalString(draft.amount) && draft.accountName.isNotBlank() && draft.recordType.isNotBlank() && isValidLocalDateTime(draft.occurredAt), modifier = Modifier.testTag(SemanticIds.recordSave)) { Text(if (busy) localizedText("copy_6644f06197") else localizedText("copy_fadf24dbc5")) }
             }
+        }
         }
     }
 }
