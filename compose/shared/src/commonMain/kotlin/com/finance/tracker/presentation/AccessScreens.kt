@@ -101,7 +101,7 @@ internal fun AuthScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Text(localizedText("app_name"), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Text(localizedText("auth_brand"), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.extraLarge,
@@ -112,7 +112,6 @@ internal fun AuthScreen(
                     modifier = Modifier.padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    Text(localizedText("copy_aa455d1d85"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                     Text(
                         if (registering) localizedText("copy_da87e4eb0c") else localizedText("copy_953ff44970"),
                         style = MaterialTheme.typography.headlineSmall,
@@ -146,7 +145,6 @@ internal fun AuthScreen(
                             .then(tabFocusModifier),
                         enabled = !busy,
                         label = { Text(passwordLabel) },
-                        placeholder = { Text(localizedText("copy_1345609bc1")) },
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
@@ -158,6 +156,7 @@ internal fun AuthScreen(
                             }
                         }),
                     )
+                    if (registering) Text(localizedText("copy_1345609bc1"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     val visibleError = validationError?.let { credentialErrorText(it) } ?: requestError
                     if (visibleError != null) {
                         Text(

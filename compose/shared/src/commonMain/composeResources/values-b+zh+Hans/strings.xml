@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">财务账本</string>
+    <string name="auth_brand">Finance Tracker</string>
     <string name="auth_email_placeholder">name@example.com</string>
     <string name="copy_00a0a58be6">近 30 天</string>
     <string name="copy_01152a1690">没有匹配的分类。</string>
@@ -286,7 +287,6 @@
     <string name="copy_a995e3b53e">删除流水</string>
     <string name="copy_a99736a830">正在生成预览…</string>
     <string name="copy_a9af9c2d42">还款</string>
-    <string name="copy_aa455d1d85">工作区访问</string>
     <string name="copy_aaaf7ca11e">收入</string>
     <string name="copy_ab38f691a5">估值状态</string>
     <string name="copy_abb22bd95c">复制链接</string>

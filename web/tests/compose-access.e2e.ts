@@ -65,6 +65,29 @@ test("Compose 登录输入框向辅助技术公开邮箱和密码标签", async 
   await expect(page.getByRole("textbox", { name: "密码" })).toBeVisible();
 });
 
+test("Compose 登录与注册显示对应的品牌和密码提示", async ({ page }, testInfo) => {
+  await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
+  await page.goto("/");
+
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(page.getByText("Finance Tracker", { exact: true })).toBeVisible();
+    await expect(page.getByText("工作区访问", { exact: true })).toHaveCount(0);
+    await page.locator('[id="auth.password"]').last().click({ force: true });
+    await expect(page.getByText("至少 12 个字符", { exact: true })).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath(`login-${width}.png`) });
+  }
+
+  await page.setViewportSize({ width: 390, height: 900 });
+  const modeToggle = page.locator('[id="auth.toggle-mode"]').last();
+  await modeToggle.scrollIntoViewIfNeeded();
+  await modeToggle.click({ force: true });
+  await expect(page.getByText("创建你的账户", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "注册" })).toBeVisible();
+  await expect(page.getByText("至少 12 个字符", { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("register-390.png") });
+});
+
 test("Compose Web 中文字体从同源资源加载", async ({ page }) => {
   const fontResponses: Array<{ url: string; status: number }> = [];
   const mirroredFallbackResponses: Array<{ url: string; status: number }> = [];

@@ -12,6 +12,7 @@
       "height": 900,
       "fill": "#f5f5f5",
       "layout": "vertical",
+      "gap": 20,
       "padding": [
         20,
         16
@@ -19,6 +20,19 @@
       "justifyContent": "center",
       "alignItems": "center",
       "children": [
+        {
+          "type": "text",
+          "id": "LbAKe",
+          "name": "品牌名称",
+          "fill": "#0485f7",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Finance Tracker",
+          "textAlign": "center",
+          "fontFamily": "Roboto",
+          "fontSize": 16,
+          "fontWeight": "600"
+        },
         {
           "type": "frame",
           "id": "s8vpQ",
@@ -30,18 +44,6 @@
           "gap": 16,
           "padding": 24,
           "children": [
-            {
-              "type": "text",
-              "id": "gwBUC",
-              "name": "入口标记",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "工作区访问",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "600"
-            },
             {
               "type": "text",
               "id": "d2ycle",
@@ -124,7 +126,7 @@
                       "enabled": false
                     },
                     "D:YDsht": {
-                      "content": "输入密码"
+                      "content": ""
                     }
                   }
                 }
@@ -171,6 +173,7 @@
       "height": 900,
       "fill": "#f5f5f5",
       "layout": "vertical",
+      "gap": 20,
       "padding": [
         20,
         16
@@ -178,6 +181,19 @@
       "justifyContent": "center",
       "alignItems": "center",
       "children": [
+        {
+          "type": "text",
+          "id": "Ymz2M",
+          "name": "品牌名称",
+          "fill": "#0485f7",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Finance Tracker",
+          "textAlign": "center",
+          "fontFamily": "Roboto",
+          "fontSize": 16,
+          "fontWeight": "600"
+        },
         {
           "type": "frame",
           "id": "lAmGl",
@@ -189,18 +205,6 @@
           "gap": 16,
           "padding": 24,
           "children": [
-            {
-              "type": "text",
-              "id": "F1aIk",
-              "name": "入口标记",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "工作区访问",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "600"
-            },
             {
               "type": "text",
               "id": "nZS1W",
@@ -283,7 +287,7 @@
                       "enabled": false
                     },
                     "D:YDsht": {
-                      "content": "输入密码"
+                      "content": ""
                     }
                   }
                 }
@@ -330,6 +334,7 @@
       "height": 900,
       "fill": "#f5f5f5",
       "layout": "vertical",
+      "gap": 20,
       "padding": [
         20,
         16
@@ -337,6 +342,19 @@
       "justifyContent": "center",
       "alignItems": "center",
       "children": [
+        {
+          "type": "text",
+          "id": "xQmbX",
+          "name": "品牌名称",
+          "fill": "#0485f7",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Finance Tracker",
+          "textAlign": "center",
+          "fontFamily": "Roboto",
+          "fontSize": 16,
+          "fontWeight": "600"
+        },
         {
           "type": "frame",
           "id": "f6mgv",
@@ -348,18 +366,6 @@
           "gap": 16,
           "padding": 24,
           "children": [
-            {
-              "type": "text",
-              "id": "eHQGr",
-              "name": "入口标记",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "工作区访问",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "600"
-            },
             {
               "type": "text",
               "id": "wik6k",
@@ -442,7 +448,7 @@
                       "enabled": false
                     },
                     "D:YDsht": {
-                      "content": "输入密码"
+                      "content": ""
                     }
                   }
                 }
@@ -489,6 +495,7 @@
       "height": 900,
       "fill": "#f5f5f5",
       "layout": "vertical",
+      "gap": 20,
       "padding": [
         20,
         16
@@ -496,6 +503,19 @@
       "justifyContent": "center",
       "alignItems": "center",
       "children": [
+        {
+          "type": "text",
+          "id": "u7Mey",
+          "name": "品牌名称",
+          "fill": "#0485f7",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Finance Tracker",
+          "textAlign": "center",
+          "fontFamily": "Roboto",
+          "fontSize": 16,
+          "fontWeight": "600"
+        },
         {
           "type": "frame",
           "id": "neyPh",
@@ -507,18 +527,6 @@
           "gap": 16,
           "padding": 24,
           "children": [
-            {
-              "type": "text",
-              "id": "w3A8oh",
-              "name": "入口标记",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "工作区访问",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "600"
-            },
             {
               "type": "text",
               "id": "u6gCnM",
@@ -601,7 +609,7 @@
                       "enabled": false
                     },
                     "D:YDsht": {
-                      "content": "输入密码"
+                      "content": ""
                     }
                   }
                 }
@@ -648,6 +656,7 @@
       "height": 900,
       "fill": "#f5f5f5",
       "layout": "vertical",
+      "gap": 20,
       "padding": [
         20,
         16
@@ -655,6 +664,19 @@
       "justifyContent": "center",
       "alignItems": "center",
       "children": [
+        {
+          "type": "text",
+          "id": "KbSwM",
+          "name": "品牌名称",
+          "fill": "#0485f7",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Finance Tracker",
+          "textAlign": "center",
+          "fontFamily": "Roboto",
+          "fontSize": 16,
+          "fontWeight": "600"
+        },
         {
           "type": "frame",
           "id": "c2Zr0",
@@ -666,18 +688,6 @@
           "gap": 16,
           "padding": 24,
           "children": [
-            {
-              "type": "text",
-              "id": "RcWNL",
-              "name": "入口标记",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "工作区访问",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "600"
-            },
             {
               "type": "text",
               "id": "joxUH",
@@ -760,7 +770,7 @@
                       "enabled": false
                     },
                     "D:YDsht": {
-                      "content": "输入密码"
+                      "content": ""
                     }
                   }
                 }
@@ -807,6 +817,7 @@
       "height": 900,
       "fill": "#f5f5f5",
       "layout": "vertical",
+      "gap": 20,
       "padding": [
         20,
         16
@@ -814,6 +825,19 @@
       "justifyContent": "center",
       "alignItems": "center",
       "children": [
+        {
+          "type": "text",
+          "id": "f1LHs4",
+          "name": "品牌名称",
+          "fill": "#0485f7",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Finance Tracker",
+          "textAlign": "center",
+          "fontFamily": "Roboto",
+          "fontSize": 16,
+          "fontWeight": "600"
+        },
         {
           "type": "frame",
           "id": "DB9Pt",
@@ -825,18 +849,6 @@
           "gap": 16,
           "padding": 24,
           "children": [
-            {
-              "type": "text",
-              "id": "tNFD1",
-              "name": "入口标记",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "工作区访问",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "600"
-            },
             {
               "type": "text",
               "id": "dAys0",
@@ -919,7 +931,7 @@
                       "enabled": false
                     },
                     "D:YDsht": {
-                      "content": "输入密码"
+                      "content": ""
                     }
                   }
                 }
@@ -976,7 +988,7 @@
           "fill": "#202124",
           "textGrowth": "fixed-width",
           "width": "fill_container",
-          "content": "登录到你的账本状态",
+          "content": "Finance Tracker 登录状态",
           "fontFamily": "Roboto",
           "fontSize": 20,
           "fontWeight": "600"
@@ -1319,9 +1331,21 @@
                       "enabled": false
                     },
                     "D:YDsht": {
-                      "content": "至少 12 位"
+                      "content": ""
                     }
                   }
+                },
+                {
+                  "type": "text",
+                  "id": "O6lgx",
+                  "name": "密码长度提示",
+                  "fill": "#6f7279",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "至少 12 个字符",
+                  "fontFamily": "Roboto",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
                 }
               ]
             },

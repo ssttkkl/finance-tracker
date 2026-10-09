@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Finance Tracker</string>
+    <string name="auth_brand">Finance Tracker</string>
     <string name="auth_email_placeholder">name@example.com</string>
     <string name="copy_00a0a58be6">Past 30 days</string>
     <string name="copy_01152a1690">No matching categories.</string>
@@ -286,7 +287,6 @@
     <string name="copy_a995e3b53e">Delete transaction</string>
     <string name="copy_a99736a830">Preparing preview…</string>
     <string name="copy_a9af9c2d42">Repayment</string>
-    <string name="copy_aa455d1d85">Workspace access</string>
     <string name="copy_aaaf7ca11e">Income</string>
     <string name="copy_ab38f691a5">Valuation status</string>
     <string name="copy_abb22bd95c">Copy link</string>
