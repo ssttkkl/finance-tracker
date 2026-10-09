@@ -1,0 +1,28 @@
+<!doctype html>
+<!-- Hallmark prototype: Finance UI / Cash Ledger, HeroUI reference language. -->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Finance UI Cash Ledger Prototype</title>
+  <style>
+    :root { color-scheme: light; --bg:#f1f5fa; --surface:#fcfdfe; --text:#1f2933; --muted:#66717d; --border:#c4ceda; --accent:#0a63b8; --danger:#b42318; --radius:5px; --space:16px; }
+    * { box-sizing: border-box; } body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 system-ui,sans-serif; }
+    main { max-width:1440px; margin:auto; padding:24px; } header { display:flex; justify-content:space-between; gap:16px; align-items:center; margin-bottom:24px; }
+    h1,h2,p { margin:0; } h1 { font-size:24px; } h2 { font-size:16px; } .actions,.filters { display:flex; flex-wrap:wrap; gap:8px; }
+    button,input,select { min-height:44px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); color:inherit; padding:0 12px; }
+    button { cursor:pointer; } .primary { color:white; background:var(--accent); border-color:var(--accent); } .danger { color:var(--danger); }
+    .panel { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:var(--space); margin-bottom:16px; } .table { overflow:auto; }
+    table { width:100%; border-collapse:collapse; min-width:620px; } th,td { text-align:left; padding:12px 8px; border-bottom:1px solid var(--border); } th { color:var(--muted); font-weight:600; }
+    .amount { font-variant-numeric:tabular-nums; text-align:right; } .status { color:var(--muted); padding:24px 0; } [hidden] { display:none; }
+    @media (max-width:599px) { main { padding:16px; } header { align-items:flex-start; flex-direction:column; } .filters > * { width:100%; } table { min-width:0; } th:nth-child(3),td:nth-child(3) { display:none; } }
+  </style>
+</head>
+<body>
+  <main data-screen="cash-ledger">
+    <header><div><h1>收支账本</h1><p>查看和筛选近期记录</p></div><div class="actions"><button class="primary" data-testid="cash-ledger-add">记一笔</button><button data-testid="cash-ledger-refresh">刷新</button></div></header>
+    <section class="panel" aria-label="筛选"><div class="filters"><input data-testid="cash-ledger-search" placeholder="搜索记录" aria-label="搜索记录"><select data-testid="cash-ledger-account" aria-label="账户"><option>全部账户</option></select><button data-testid="cash-ledger-clear">清除筛选</button></div></section>
+    <section class="panel" data-state="ready"><div class="table"><table><thead><tr><th>日期</th><th>摘要</th><th>账户</th><th class="amount">金额</th></tr></thead><tbody><tr><td>2026-09-29</td><td>示例记录</td><td>现金账户</td><td class="amount">¥ 1,280.00</td></tr></tbody></table></div><div class="status" data-state="loading" hidden>加载中...</div><div class="status" data-state="empty" hidden>暂无记录</div><div class="status danger" data-state="error" hidden>加载失败，请重试</div></section>
+  </main>
+</body>
+</html>

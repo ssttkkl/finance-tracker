@@ -1,0 +1,8 @@
+{
+  "name": "HeroUI Merge Pages",
+  "id": "finance-tracker-heroui-merge-pages",
+  "api": "1.0.0",
+  "main": "code.js",
+  "documentAccess": "dynamic-page",
+  "editorType": ["figma"]
+}
